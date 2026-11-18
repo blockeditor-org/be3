@@ -5,17 +5,21 @@ use std::rc::{Rc, Weak};
 use crate::arena::{self, Key};
 
 use crate::computation::{Computation, State, no_computation};
+use crate::loading::Pending;
 use crate::runtime::{RUNTIME, check_tracked_read, untrack};
 
-pub(crate) struct Source {
+pub(crate) struct Node {
     pub(crate) version: Cell<u64>,
     pub(crate) tracked_by: Cell<u64>,
     pub(crate) subscribers: RefCell<Subscribers>,
     pub(crate) producer: RefCell<Weak<Computation>>,
     pub(crate) freed: Cell<bool>,
+    /// Whether the value is there: `None` when it is, or why not. A `Source` or async memo
+    /// sets it; a memo takes it from what it read on its last run.
+    pub(crate) readiness: RefCell<Option<Pending>>,
 }
 
-impl Default for Source {
+impl Default for Node {
     fn default() -> Self {
         Self {
             version: Cell::default(),
@@ -23,6 +27,7 @@ impl Default for Source {
             subscribers: RefCell::default(),
             producer: RefCell::new(no_computation()),
             freed: Cell::new(false),
+            readiness: RefCell::new(None),
         }
     }
 }
@@ -74,17 +79,17 @@ impl Subscribers {
 }
 
 pub(crate) trait Tracked {
-    fn source(&self) -> &Source;
+    fn source(&self) -> &Node;
 }
 
-impl Tracked for Source {
-    fn source(&self) -> &Source {
+impl Tracked for Node {
+    fn source(&self) -> &Node {
         self
     }
 }
 
 impl<T> Tracked for Value<T> {
-    fn source(&self) -> &Source {
+    fn source(&self) -> &Node {
         &self.source
     }
 }
@@ -131,7 +136,24 @@ pub(crate) fn track(tracked: Rc<dyn Tracked>) {
     }
 }
 
-impl Source {
+impl Node {
+    pub(crate) fn readiness(&self) -> Option<Pending> {
+        self.readiness.borrow().clone()
+    }
+
+    pub(crate) fn is_settled(&self) -> bool {
+        self.readiness.borrow().is_none()
+    }
+
+    /// Whether it changed.
+    pub(crate) fn set_readiness(&self, readiness: Option<Pending>) -> bool {
+        if *self.readiness.borrow() == readiness {
+            return false;
+        }
+        self.readiness.replace(readiness);
+        true
+    }
+
     pub(crate) fn changed(&self) {
         self.version.set(self.version.get().wrapping_add(1));
         let subscribers = self.subscribers.borrow().live();
@@ -142,12 +164,13 @@ impl Source {
 }
 
 pub(crate) struct Value<T> {
-    pub(crate) source: Source,
+    pub(crate) source: Node,
     pub(crate) value: RefCell<T>,
 }
 
-/// Reading a reactive value. Implemented by signals, memos, stores, `Prop` and `Binding`,
-/// so a helper that only reads can take `impl Get<T>`.
+/// Reading a reactive value. Implemented by signals, memos, `Reader`, stores, `Prop` and
+/// `Binding`, so a helper that only reads can take `impl Get<T>`; a field or prop that keeps
+/// something to read later holds a `Reader<T>`.
 ///
 /// The tracked reads (`get`, `with`) panic in debug builds inside a component body, which
 /// runs once and would never rerun on the change (`component_body`).
@@ -169,6 +192,14 @@ pub trait Get<T> {
         self.with(T::clone)
     }
 
+    /// Subscribes the running computation without reading the value: for the dependencies
+    /// of `create_effect_on`, or a memo that recomputes from something else when this
+    /// changes.
+    #[track_caller]
+    fn track(&self) {
+        self.with(|_| ());
+    }
+
     fn get_untracked(&self) -> T
     where
         T: Clone,
@@ -180,20 +211,25 @@ pub trait Get<T> {
 /// Writing a reactive value. A write is visible to reads at once; the effects it wakes
 /// are queued, not run.
 pub trait Set<T> {
-    /// Mutates in place and always notifies, with no `PartialEq` needed. Holds a mutable
-    /// borrow, so reading the same signal inside the closure is a borrow conflict. A panic
-    /// inside it still notifies, since the value may already have changed.
+    /// Mutates in place. A `Signal` always notifies, with no `PartialEq` needed, holds a
+    /// mutable borrow (so reading the same signal inside the closure is a borrow conflict),
+    /// and still notifies when the closure panics, since the value may already have changed.
+    /// A `#[derive(Store)]` store edits a copy and writes each field back with `set`, so it
+    /// notifies only the fields that differ, and nothing if the closure panics.
     fn update<R>(&self, f: impl FnOnce(&mut T) -> R) -> R;
 
-    /// Notifies only when the value differs. Does nothing on a freed signal, since nothing
-    /// can read the value.
+    /// Notifies only when the value differs, so a caller never compares first: an equal
+    /// value wakes nothing. Does nothing on a freed signal, since nothing can read the
+    /// value.
     fn set(&self, value: T)
     where
         T: PartialEq;
 }
 
 /// A readable and writable source, owned by the scope it was created in. `Copy` whatever
-/// `T` is. Reading it after that scope is disposed panics; writing it does nothing.
+/// `T` is, and equal to another handle when both name the same signal. Reading it after
+/// that scope is disposed panics; writing it does nothing. `set` skips a value equal to the
+/// one it holds; `set_unconditionally` and `update` always notify.
 pub struct Signal<T> {
     key: Key,
     ty: PhantomData<*const T>,
@@ -248,7 +284,7 @@ impl<T> Value<T> {
     pub(crate) fn new(value: T) -> Self {
         Self {
             value: RefCell::new(value),
-            source: Source::default(),
+            source: Node::default(),
         }
     }
 }
@@ -286,6 +322,35 @@ impl<T> Clone for ReadSignal<T> {
 }
 
 impl<T> Copy for ReadSignal<T> {}
+
+/// Two handles are equal when they name the same signal.
+impl<T> PartialEq for Signal<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.key == other.key
+    }
+}
+
+impl<T> Eq for Signal<T> {}
+
+impl<T> PartialEq for ReadSignal<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.key == other.key
+    }
+}
+
+impl<T> Eq for ReadSignal<T> {}
+
+impl<T> std::fmt::Debug for Signal<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("Signal").field(&self.key).finish()
+    }
+}
+
+impl<T> std::fmt::Debug for ReadSignal<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("ReadSignal").field(&self.key).finish()
+    }
+}
 
 impl<T: 'static> Get<T> for Signal<T> {
     fn with<R>(&self, f: impl FnOnce(&T) -> R) -> R {
@@ -365,10 +430,6 @@ impl<T: 'static> Signal<T> {
         is_alive::<T>(self.key)
     }
 
-    pub fn ptr_eq(&self, other: &Self) -> bool {
-        self.key == other.key
-    }
-
     #[cfg(test)]
     pub(crate) fn subscribers(&self) -> usize {
         stored::<T>(self.key).source.subscribers.borrow().len()
@@ -379,15 +440,24 @@ impl<T: 'static> ReadSignal<T> {
     pub fn is_alive(&self) -> bool {
         is_alive::<T>(self.key)
     }
-
-    pub fn ptr_eq(&self, other: &Self) -> bool {
-        self.key == other.key
-    }
 }
 
-fn assert_writable() {
+pub(crate) fn assert_writable() {
     assert!(
         RUNTIME.with(|runtime| runtime.memo_depth.get() == 0),
         "memo computations must not write signals"
     );
+}
+
+/// What a value that read `nodes` is: failed if any failed, else loading if any is.
+pub(crate) fn readiness_of<'a>(nodes: impl Iterator<Item = &'a Node>) -> Option<Pending> {
+    let mut readiness = None;
+    for node in nodes {
+        match &*node.readiness.borrow() {
+            None => {}
+            Some(Pending::Failed(error)) => return Some(Pending::Failed(error.clone())),
+            Some(Pending::Loading) => readiness = Some(Pending::Loading),
+        }
+    }
+    readiness
 }

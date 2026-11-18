@@ -109,29 +109,45 @@ cxx_tools_info_toolchain(
     ]
 ]
 
-_wasi_flags = [
-    "--target=wasm32-wasip1-threads",
-    "--sysroot=$(location root//third-party/wasi:sysroot)",
-    "-isystem",
-    "$(location root//third-party/wasi:sysroot)/include/wasm32-wasip1-threads/noeh/c++/v1",
-    "-pthread",
-    "-mllvm",
-    "-wasm-enable-sjlj",
-    "-mllvm",
-    "-wasm-use-legacy-eh=false",
-    "-fno-exceptions",
-    "-fno-rtti",
-    "-DHB_NO_MT",
-    "-msimd128",
-    "-O2",
-    "-w",
-] + select({
-    # An app's C and C++ is linked into position-independent modules
-    # (guides/app_libraries.md), and cc-rs leaves -fPIC out on wasm, so the
-    # build scripts' FreeType and HarfBuzz ask for it here.
-    "DEFAULT": [],
-    "root//buck/constraints:guest": ["-fPIC"],
-})
+# A guest is single-threaded wasm32-wasip1 (decisions/guests_are_single_threaded.md); be-host's
+# web bundle and the other programs in the browser stay wasm32-wasip1-threads, and only they are
+# compiled with -pthread.
+_wasi_flags = (
+    select({
+        "DEFAULT": [
+            "--target=wasm32-wasip1-threads",
+            "--sysroot=$(location root//third-party/wasi:sysroot)",
+            "-isystem",
+            "$(location root//third-party/wasi:sysroot)/include/wasm32-wasip1-threads/noeh/c++/v1",
+            "-pthread",
+        ],
+        "root//buck/platforms:wasi_guest_setting": [
+            "--target=wasm32-wasip1",
+            "--sysroot=$(location root//third-party/wasi:sysroot)",
+            "-isystem",
+            "$(location root//third-party/wasi:sysroot)/include/wasm32-wasip1/noeh/c++/v1",
+        ],
+    })
+    + [
+        "-mllvm",
+        "-wasm-enable-sjlj",
+        "-mllvm",
+        "-wasm-use-legacy-eh=false",
+        "-fno-exceptions",
+        "-fno-rtti",
+        "-DHB_NO_MT",
+        "-msimd128",
+        "-O2",
+        "-w",
+    ]
+    + select({
+        # An app's C and C++ is linked into position-independent modules
+        # (guides/app_libraries.md), and cc-rs leaves -fPIC out on wasm, so the
+        # build scripts' FreeType and HarfBuzz ask for it here.
+        "DEFAULT": [],
+        "root//buck/constraints:guest": ["-fPIC"],
+    })
+)
 
 # Two of them, because only one of the wasm platforms has C in it. An app's
 # freetype and harfbuzz are compiled against the WASI sysroot; a game module is
@@ -146,6 +162,8 @@ cxx_tools_info_toolchain(
 
 cxx_tools_info_toolchain(
     name = "wasm32_cxx",
+    c_flags = ["--target=wasm32-unknown-unknown"],
+    cxx_flags = ["--target=wasm32-unknown-unknown"],
     cxx_tools_info = ":wasm_cxx_tools",
     visibility = ["PUBLIC"],
 )
@@ -213,15 +231,11 @@ pinned_rust_toolchain(
         }),
         "root//buck/constraints:release": _release,
     })
-    + select({
-        # rustc embeds LLVM bitcode in every object of an rlib for a later LTO
-        # link, and only be-host's LTO link (buck/constraints:lto) reads it.
-        # It was 86% of an object's bytes, which every worker that links or
-        # compiles against the rlib downloads, so it is off elsewhere, as cargo
-        # turns it off for a profile without LTO.
-        "DEFAULT": ["-Cembed-bitcode=no"],
-        "root//buck/constraints:lto": [],
-    })
+    # rustc embeds LLVM bitcode in every object of an rlib for a later LTO
+    # link, which nothing does (decisions/no_lto.md). It was 86% of an object's
+    # bytes, which every worker that links or compiles against the rlib
+    # downloads, so it is off, as cargo turns it off for a profile without LTO.
+    + ["-Cembed-bitcode=no"]
     + select({
         "DEFAULT": [],
         # Line tables were about half of a test binary's sections, and every
@@ -259,6 +273,7 @@ pinned_rust_toolchain(
         extra = {
             "prelude//os:none": "wasm32-unknown-unknown",
             "prelude//os:wasi": "wasm32-wasip1-threads",
+            "root//buck/platforms:wasi_guest_setting": "wasm32-wasip1",
         },
     ),
     rustdoc = cross_tool(tools, "rustdoc"),

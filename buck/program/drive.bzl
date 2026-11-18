@@ -4,8 +4,9 @@ load("@root//buck/dev:test.bzl", "THOROUGH", "be_test")
 # (guides/running/drive.md): `./scripts/buck run //crates/<crate>:dev`. Arguments
 # after `--` go to `be-drive launch`, which passes on the ones it does not know.
 # With archive, program is a path in that program archive (crates/be-host-archive), which
-# be-drive unpacks, so only the archive is downloaded.
-def headless(name, program, program_name, args = [], data = False, archive = None):
+# be-drive unpacks, so only the archive is downloaded, and copies each of beside into
+# (the program's source files, which its archive leaves out: buck/program/defs.bzl).
+def headless(name, program, program_name, args = [], data = False, archive = None, beside = []):
     native.command_alias(
         name = name,
         args = [
@@ -16,6 +17,7 @@ def headless(name, program, program_name, args = [], data = False, archive = Non
             "--program=" + program,
         ]
         + (["--archive=" + archive] if archive else [])
+        + ["--beside=" + file for file in beside]
         + (["--data"] if data else [])
         + args,
     )

@@ -24,6 +24,5 @@ fn an_expired_key_offers_reconnect() {
     boat.test.snapshot("an_expired_key_offers_reconnect");
 
     boat.test.click("boat.reconnect");
-    boat.test.run();
     assert!(boat.test.shown("boat.sign-in"));
 }

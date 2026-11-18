@@ -1,4 +1,4 @@
-use be_block::InputSettings;
+use be_block_input::InputSettings;
 
 use crate::local_settings::LocalSettings;
 use be_host_base::host_state::{HostStateError, HostStateStore};

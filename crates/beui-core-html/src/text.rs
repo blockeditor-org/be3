@@ -4,7 +4,7 @@ use std::ops::Range;
 use std::rc::Rc;
 
 use beui_html::Node;
-use beui_reactive::{Get, Set, Signal, create_signal, on_cleanup};
+use beui_reactive::{Get, Trigger, create_trigger, on_cleanup};
 use beui_tree::reactive::Prop;
 use beui_tree::reactive::{ChildList, IntoSlotHost, SlotHost, SlotId};
 use beui_types::Color;
@@ -230,7 +230,12 @@ fn glyph_node(text: &str, segment: Segment) -> Held {
 pub enum Piece {
     Run(Rc<Run>),
     Item(Prop<TextSlot>),
-    Skip { newline: bool },
+    /// A `Gap`: room holding no bytes.
+    Gap,
+    /// Something else holding no bytes: an icon, or a break when `newline`.
+    Skip {
+        newline: bool,
+    },
 }
 
 #[derive(Default)]
@@ -266,7 +271,7 @@ pub struct TextModel {
     slots: RefCell<Vec<(SlotId, SlotId)>>,
     pieces: RefCell<HashMap<NodeId, Piece>>,
     single: RefCell<Option<Rc<Run>>>,
-    structure: Signal<u64>,
+    structure: Trigger,
     revision: Cell<u64>,
     pub(crate) decor: RefCell<Decor>,
     pub(crate) overlay: RefCell<Option<(Rc<dyn SlotHost<Node>>, SlotId)>>,
@@ -302,7 +307,7 @@ impl TextModel {
             slots: RefCell::default(),
             pieces: RefCell::default(),
             single: RefCell::default(),
-            structure: create_signal(0),
+            structure: create_trigger(),
             revision: Cell::new(0),
             decor: RefCell::default(),
             overlay: RefCell::default(),
@@ -351,8 +356,7 @@ impl TextModel {
     }
 
     fn changed(&self) {
-        self.structure
-            .set(self.structure.get_untracked().wrapping_add(1));
+        self.structure.notify();
     }
 
     pub fn append(&self, node: NodeId) {
@@ -400,7 +404,7 @@ impl TextModel {
     }
 
     pub fn render(&self, glyphs: &[TextGlyph]) {
-        self.structure.get();
+        self.structure.track();
         let mut at = 0;
         for (_, piece) in self.ordered() {
             match piece {
@@ -411,7 +415,7 @@ impl TextModel {
                     at += len;
                 }
                 Piece::Item(slot) => at += slot.get().bytes(),
-                Piece::Skip { .. } => {}
+                Piece::Gap | Piece::Skip { .. } => {}
             }
         }
         self.bump();
@@ -427,6 +431,7 @@ impl TextModel {
         }
         crate::document::set_style(self.node, "position", Some("relative".to_owned()));
         crate::document::set_style(self.node, "z-index", Some("0".to_owned()));
+        crate::document::set_attribute(self.node, "data-beui-decorated", Some(String::new()));
         let overlay = Node::element("div");
         overlay.set_attribute("class", Some("beui-text-decor".to_owned()));
         overlay.set_attribute("aria-hidden", Some("true".to_owned()));
@@ -481,6 +486,24 @@ impl TextModel {
     }
 }
 
+/// How far a space advances in `font`, as the browser lays it out; `None` outside one.
+pub fn space_advance(font: FontId) -> Option<f32> {
+    #[cfg(target_arch = "wasm32")]
+    return web::canvas(|context| {
+        context.set_font(&crate::css::font(font));
+        context
+            .measure_text(" ")
+            .ok()
+            .map(|metrics| metrics.width() as f32)
+    })
+    .flatten();
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let _ = font;
+        None
+    }
+}
+
 #[derive(Clone, PartialEq, Debug)]
 pub enum Stop<D> {
     Char {
@@ -495,12 +518,14 @@ pub enum Stop<D> {
         node: D,
         newline: bool,
     },
+    /// A `Gap`: room holding no bytes, which a caret at the end of a line stands past.
+    Room { byte: usize, node: D },
 }
 
 impl<D> Stop<D> {
     pub fn byte(&self) -> usize {
         match self {
-            Stop::Char { byte, .. } | Stop::Atom { byte, .. } => *byte,
+            Stop::Char { byte, .. } | Stop::Atom { byte, .. } | Stop::Room { byte, .. } => *byte,
         }
     }
 
@@ -508,6 +533,7 @@ impl<D> Stop<D> {
         match self {
             Stop::Char { ch, .. } => ch.len_utf8(),
             Stop::Atom { len, .. } => *len,
+            Stop::Room { .. } => 0,
         }
     }
 
@@ -519,6 +545,7 @@ impl<D> Stop<D> {
         match self {
             Stop::Char { ch, .. } => *ch == '\n',
             Stop::Atom { newline, .. } => *newline,
+            Stop::Room { .. } => false,
         }
     }
 }
@@ -536,17 +563,46 @@ pub fn text_stops<D: Clone>(byte: usize, text: &str, node: &D, stops: &mut Vec<S
     }
 }
 
+/// The character (or atom) that starts at `index`. `stops` are in byte order, as a text makes
+/// them, so this and `ending_at` search rather than scan.
 pub fn after<D>(stops: &[Stop<D>], index: usize) -> Option<&Stop<D>> {
-    stops
+    let from = stops.partition_point(|stop| stop.byte() < index);
+    stops[from..]
         .iter()
-        .find(|stop| !stop.is_empty() && stop.byte() == index)
+        .take_while(|stop| stop.byte() == index)
+        .find(|stop| !stop.is_empty())
 }
 
-pub fn before<D>(stops: &[Stop<D>], index: usize) -> Option<&Stop<D>> {
-    stops
+/// The stop a piece holding no bytes makes at `byte`: room for a gap, which a caret at the end
+/// of a line stands past, else an atom of no bytes (an icon, or a break).
+pub fn empty_stop<D>(piece: &Piece, byte: usize, node: D) -> Option<Stop<D>> {
+    match piece {
+        Piece::Gap => Some(Stop::Room { byte, node }),
+        Piece::Skip { newline } => Some(Stop::Atom {
+            byte,
+            len: 0,
+            node,
+            newline: *newline,
+        }),
+        Piece::Run(_) | Piece::Item(_) => None,
+    }
+}
+
+/// The stops a caret at `index` stands after when no character follows it on its line: the
+/// character (or atom) ending at `index`, then the gaps right after it, so a caret at the end
+/// of a line keeps the room a gap leaves there, as natively, but stands before an icon.
+pub fn ending_at<D>(stops: &[Stop<D>], index: usize) -> Option<(&Stop<D>, &[Stop<D>])> {
+    let before = stops.partition_point(|stop| stop.byte() < index);
+    let at = stops[..before].iter().rposition(|stop| !stop.is_empty())?;
+    let stop = &stops[at];
+    if stop.byte() + stop.len() != index {
+        return None;
+    }
+    let rooms = stops[at + 1..]
         .iter()
-        .rev()
-        .find(|stop| !stop.is_empty() && stop.byte() + stop.len() == index)
+        .take_while(|stop| matches!(stop, Stop::Room { .. }))
+        .count();
+    Some((stop, &stops[at + 1..at + 1 + rooms]))
 }
 
 pub fn byte_at<D>(stops: &[Stop<D>], same: impl Fn(&D) -> bool, utf16: u32) -> Option<usize> {

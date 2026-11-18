@@ -5,7 +5,7 @@ version.workspace = true
 license.workspace = true
 
 [dependencies]
-be-wasm-threads = { path = "../be-wasm-threads" }
+serde = { version = "1", features = ["derive"] }
 be-block-content = { path = "../be-block-content" }
 be-block-client = { path = "../be-block-client" }
 be-block-commit = { path = "../be-block-commit" }
@@ -22,7 +22,7 @@ futures-util = "0.3"
 tokio = { version = "1", features = ["sync"] }
 uuid = { version = "1", features = ["v4"] }
 
-# Natively a type module runs on a thread of its own under wasmtime.
+# Natively a type module runs on a thread of its own under V8 (be-wasm-host).
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 be-wasm-host = { path = "../be-wasm-host" }
 

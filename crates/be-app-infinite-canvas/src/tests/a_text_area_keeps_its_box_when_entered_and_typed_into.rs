@@ -20,9 +20,7 @@ fn a_text_area_keeps_its_box_when_entered_and_typed_into() {
     let mut editor = editor(std::slice::from_ref(&area));
 
     editor.click(format!("infinite-canvas.entity.{}", area.id));
-    editor.run();
     editor.key(Key::Enter, Modifiers::NONE);
-    editor.run();
     assert_eq!(
         entities(&editor)[0].transform,
         area.transform,
@@ -30,9 +28,7 @@ fn a_text_area_keeps_its_box_when_entered_and_typed_into() {
     );
 
     editor.type_text("Hi");
-    editor.run();
     editor.key(Key::Escape, Modifiers::NONE);
-    editor.run();
 
     let held = &entities(&editor)[0];
     assert_eq!(held.text.to_str_lossy(), "Hi");

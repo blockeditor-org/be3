@@ -1,14 +1,6 @@
 package be3:server@0.1.0;
 
-/// What the client asks of the server, and what it hears back, over one
-/// websocket. A connection starts with the raw `be3 hello` frame
-/// (`be_block_protocol::hello`) each way; after that every frame is a be-wasm-ops frame,
-/// and each function below is an op whose id is the only correlation. The
-/// server serves these interfaces; the client imports them.
-///
-/// Calls on one connection are taken in the order they were sent, so a call
-/// that opens a stream (`watch`, `changes`, `paired`, ...) is in place before
-/// any call sent after it is answered.
+/// The types `server` and its records share.
 interface types {
     use be3:shared/ids@0.1.0.{uuid, hash, block-id, account-id, organization-id, commit-id, content-type-id};
     use be3:shared/access@0.1.0.{access-level};
@@ -33,7 +25,6 @@ interface types {
         storage,
         organization-not-found,
         login-disabled,
-        block-has-content,
         key-missing,
         not-a-contact,
         link-not-found,
@@ -46,6 +37,9 @@ interface types {
         /// No member the caller may remove has that account: it was removed,
         /// an agent collected with its block, or never a member.
         member-not-found,
+        /// A commit's time is more than `MAX_COMMIT_AHEAD` past the server's
+        /// clock: its device stamped it by a clock running fast.
+        commit-ahead,
     }
 
     /// A connection, as the server numbers them; a session's participants and
@@ -61,9 +55,28 @@ interface types {
     /// public and signing halves, the server's own account key.
     type public-key = tuple<u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8>;
 
+    /// The hash of an access log entry (`be_block_keys::EntryHash`): the head of a log as of
+    /// some entry.
+    type entry-hash = tuple<u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8>;
+
     enum organization-role {
         administrator,
         editor,
+        /// Holds only grants made through share links (guides/blocks/keys.md,
+        /// "Share links"): no escrow key, no roots or files of its own, and it
+        /// may not create blocks, grant access or make links. It goes when its
+        /// last such grant falls.
+        guest,
+    }
+
+    /// Who may open a share link (be_block_keys::Admits).
+    enum link-admits {
+        /// Members of the block's organization: in the personal
+        /// organization, every account.
+        members,
+        /// Any account on the server; one from outside the organization
+        /// joins it as a guest.
+        anyone,
     }
 
     enum organization-kind {
@@ -79,20 +92,21 @@ interface types {
         block(block-id),
     }
 
-    /// A query whose blocks the server keeps a connection told of on its
-    /// `changes` stream once it listed them, until it unlists it.
+    /// A query for blocks (`query.list`), answered as of the sequence it was
+    /// read at.
     variant listing {
         children(block-parent),
         deleted,
         shared,
         backrefs(block-id),
-        block(block-id),
         references(block-id),
         open-settings(block-id),
     }
 
     /// What a connection may know of a block. One it may only know exists
-    /// carries only its id, type and access, with `held` set.
+    /// carries only its id, type and access, with `held` set. What a block
+    /// references is in its content, which a reader decrypts; the server keeps
+    /// references only for liveness (`held`), `know-exists` and backrefs.
     record block-summary {
         id: block-id,
         content-type: content-type-id,
@@ -100,12 +114,20 @@ interface types {
         author: option<account-id>,
         parent: option<block-parent>,
         head: option<commit-id>,
-        references: list<block-id>,
         metadata: list<u8>,
         version: option<u64>,
         key: option<key-id>,
         scope: option<block-id>,
-        revision: u64,
+        /// The organization's change sequence at the block's last change to what it holds,
+        /// where it lies or who may view it (`organizations.change_sequence`): of two summaries
+        /// of one block, the one with the larger `changed` is the newer. A block the reader
+        /// only knows exists carries its own too, so it orders after one read while viewed.
+        changed: u64,
+        /// The entry point whose tree a reader follows to hear of this block's changes
+        /// (`query.tree`): the top of its tree (a top-level block, or the block at the top
+        /// of what lies in the trash), or the block where the reader's view starts, below a
+        /// parent it may not view. None for a block the reader may not view.
+        entry: option<block-id>,
         held: bool,
         opens-inside: bool,
         sets-access: bool,
@@ -156,11 +178,17 @@ interface types {
     /// those of `be_block_protocol::EscrowKey`, whose postcard bytes clients seal and
     /// the server stores (a pinned escrow key, an invitation's or link's
     /// escrow): the two encode alike, which a test of this crate holds.
+    /// An organization's escrow key at `epoch`, made by the administrator
+    /// `maker` under the organization log's `head`, whose identity key signs
+    /// both chained to the epoch before (`EscrowKey::chained`): a device takes
+    /// it only from an administrator its checked organization log names, once
+    /// that log reaches `head`.
     record escrow-key {
         id: key-id,
         epoch: u64,
         public: public-key,
-        signing: public-key,
+        head: entry-hash,
+        maker: account-id,
         signature: list<u8>,
     }
 
@@ -169,20 +197,6 @@ interface types {
         organization: organization-id,
         key: key-id,
         sender: account-id,
-        sealed: list<u8>,
-    }
-
-    enum own-kind {
-        contact,
-        link,
-        escrow,
-    }
-
-    /// What an account sealed for itself: a contact's card, a link's code, a
-    /// pinned escrow key.
-    record own-sealed {
-        kind: own-kind,
-        id: uuid,
         sealed: list<u8>,
     }
 
@@ -202,21 +216,98 @@ interface types {
         sealed: list<u8>,
     }
 
-    /// A block's live session: its lease generation, the connection that owns
-    /// the lease, every connection in it, and the head its owner last
-    /// reported clean.
-    record session-state {
-        generation: u64,
-        owner: option<client-id>,
-        participants: list<client-id>,
-        clean-at: option<commit-id>,
+    /// One connection in a block's live session: the build of the block's
+    /// type it runs, whether it may edit the block, and the index of the
+    /// membership entry of its last claim since it joined.
+    record participant {
+        client: client-id,
+        tag: hash,
+        may-edit: bool,
+        claimed: option<u64>,
     }
 
-    /// One operation a session's owner sequenced, sealed with the block's key
-    /// as a relay is.
+    /// Who is in a block's live session, in the order they joined, as of its
+    /// `index`-th membership entry, written when the order's last number was
+    /// `after`. The lease holder and the build the session speaks follow from
+    /// it (`be_block_session::Membership`): the build is the first
+    /// participant's, and the holder, of the participants with edit access
+    /// that run it, the last claimant, else the earliest joined.
+    record session-state {
+        index: u64,
+        after: u64,
+        participants: list<participant>,
+    }
+
+    /// How a connection is in a block's live session.
+    enum member-kind {
+        /// A participant (View or above): in the membership, hearing the
+        /// order and its relays.
+        participant,
+        /// A Join member (plans/hosted_blocks.md): in no membership, hearing
+        /// only the host channel and who hosts, and shown to the lease holder
+        /// alone.
+        join,
+    }
+
+    /// The lease holder of a block's session, and the account it is signed
+    /// in as: a Join member checks that account's right to host before it
+    /// speaks to it.
+    record session-host {
+        client: client-id,
+        account: account-id,
+    }
+
+    /// A Join member came or went: told to the lease holder alone, and to a
+    /// new holder for every Join member already in the session.
+    variant joiner-change {
+        joined(joined-member),
+        left(client-id),
+    }
+
+    record joined-member {
+        client: client-id,
+        account: account-id,
+    }
+
+    /// A change of who is in a session, which only the server writes.
+    variant membership-change {
+        /// Joined, running the build `tag`.
+        joined(joined-participant),
+        left,
+        /// Its edit access changed while joined: a grant, or a move.
+        access(bool),
+        /// It claimed the lease.
+        claimed,
+    }
+
+    record joined-participant {
+        tag: hash,
+        may-edit: bool,
+    }
+
+    /// A membership entry: the session's `index`-th, about `client`, stamped
+    /// with the order's last number when written (`after`), so it falls
+    /// between that submission and the next. Kept in memory only, never in
+    /// the journal.
+    record membership-entry {
+        index: u64,
+        after: u64,
+        client: client-id,
+        change: membership-change,
+    }
+
+    /// One submission the session's order numbered: its place (`sequence`),
+    /// the replica that made it (`origin`, `counter`), the last number that
+    /// replica had applied (`base`), the last barrier (`floor`): one based below it is passed over,
+    /// when the server took it by its clock (none for an order a device kept
+    /// offline), and its payload, sealed with the block's key.
     record journal-entry {
-        generation: u64,
         sequence: u64,
+        origin: u64,
+        counter: u64,
+        base: u64,
+        floor: u64,
+        received: option<s64>,
         payload: list<u8>,
     }
 
@@ -229,8 +320,19 @@ interface types {
         state: list<u8>,
     }
 
-    /// What a block's session owners sequenced since its base and have not
-    /// committed, written by the build of the block's type that `tag` names.
+    /// A seal of a block's live session, which a publish carries: the base the
+    /// journal starts from, the build of the block's type that sealed it, and
+    /// the run of the order it seals (how many times the session had started
+    /// over, which reuses sequence numbers). The server trims only with a seal
+    /// of the journal's build and run or a later run, at or past its base.
+    record journal-seal {
+        tag: hash,
+        run: u64,
+        base: journal-base,
+    }
+
+    /// A block's session's order since its base, which no commit holds yet,
+    /// written by the build of the block's type that `tag` names.
     record journal {
         tag: hash,
         base: journal-base,

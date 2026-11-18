@@ -1,0 +1,13 @@
+[package]
+name = "be-lib-quoted-name"
+description = "A name made fit to quote inside a dialog's own words"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+be-lib-graphemes = { path = "../be-lib-graphemes" }
+icu_properties = "2.4"
+
+[lints]
+workspace = true

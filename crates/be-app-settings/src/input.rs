@@ -1,5 +1,5 @@
+use be_block_input::InputSettings;
 use be_sdk_beui::Loaded;
-use be_sdk_beui::be_block::InputSettings;
 use be_sdk_beui::beui::Vec2;
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
@@ -28,7 +28,7 @@ impl be_sdk_beui::BeuiRoot for InputSettingsRoot {
                         <List spacing=Space::None>
                             <Keyed
                                 value={device}
-                                key={|device: bool| device}
+                                key={|device: &bool| *device}
                             >|_device: ReadSignal<bool>|
                                 <ListItem grow=1.0>
                                     <InputSettingsView editor={editor} settings={settings} />

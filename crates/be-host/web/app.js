@@ -2,12 +2,13 @@
 // worker (src/guest.js) loads for an app, which answers the imports that
 // worker does not.
 //
-// An app is the same bindgen-free wasm that wasmtime runs on every other
+// An app is the same bindgen-free wasm that V8 runs natively on every other
 // platform: its only imports are be3_host, its world's and the be3 gpu abi,
-// WASI and be-wasm-threads if it uses them, and, when it was linked against
-// libraries, the libraries, which are fetched from beside it and linked to it
-// here (dylink.js). A standalone app is instantiated as it is, with the memory it
-// imports, shared or not, or the one it exports (guides/app_libraries.md, "The
+// WASI if it uses it, and, when it was linked against libraries, the libraries,
+// which are fetched from beside it and linked to it here (dylink.js). A guest
+// is single-threaded (decisions/guests_are_single_threaded.md), so it starts
+// no thread. A standalone app is instantiated as it is, with the memory it
+// imports or the one it exports (guides/app_libraries.md, "The
 // raw app interface"). In a browser the
 // abi is answered by be-wasm-gpu-shim, a second module that does have bindgen
 // and a real wgpu device in the worker, which draws what the app shows into
@@ -22,10 +23,17 @@
 //
 // The worker answers be3_host's frames, wake and panic itself, as it does for a
 // type module, and hands the rest to `answer`.
+//
+// An app's worker (be_sdk::worker, guides/adding_an_app.md, Workers) boots
+// through worker.js, which links it here the same way but starts no gpu: it has
+// no display, so the shim is loaded only for the linking it does and opens no
+// device, and the worker's gpu imports, which it never calls, are bound to a
+// shim that answers nothing. A worker is staged under workers/<app id>/, so
+// libraries are fetched from beside this file, the bundle root, rather than
+// beside the module.
 
 import * as dylink from "./dylink.js";
 import * as wasi from "./wasi.js";
-import * as threads from "./threads.js";
 
 function stub(module, name) {
     return () => {
@@ -102,25 +110,32 @@ function importedMemory(bytes) {
 function answer(wanted, memory, shim) {
     if (wanted.kind === "memory") return memory();
     if (wanted.module === "wasi_snapshot_preview1") return wasi[wanted.name] ?? stub(wanted.module, wanted.name);
-    if (wanted.module === "wasi") return threads[wanted.name];
     const exported = wanted.module === "be3_host" ? wanted.name : `${wanted.module}#${wanted.name}`;
     const call = shim[exported];
     return typeof call === "function" ? call : stub(wanted.module, wanted.name);
 }
 
-export async function boot({ url, bytes, module: app, guest, imports, initialize, wake }) {
+// Instantiates `app`, linked against its libraries, with WASI and the gpu
+// shim, which opens a device only for a module with a display. Answers the
+// shim's module.
+export async function link({ bytes, module: app, guest, imports, initialize, wake }, display) {
     const shimModule = await import(new URL("./block_gpu_shim.js", import.meta.url).href);
     const shim = await shimModule.default();
-    await shimModule.start();
+    if (display) await shimModule.start();
     const identities = dylink.libraries(shimModule, app);
     const libraries = await Promise.all(
-        identities.map((identity) => dylink.fetchLibrary(shimModule, identity, url)),
+        identities.map((identity) => dylink.fetchLibrary(shimModule, identity, import.meta.url)),
     );
     const modules = [...libraries.map(({ module }) => module), app];
     const first = modules[0];
     const imported = importedMemory(libraries[0]?.bytes ?? bytes);
-    if (libraries.length > 0 && !imported?.shared) {
-        throw new Error("the root library does not import a shared memory");
+    if (libraries.length > 0 && imported === null) {
+        throw new Error("the root library does not import its memory");
+    }
+    if (imported?.shared) {
+        throw new Error(
+            "the app imports a shared memory, and a guest is single-threaded (decisions/guests_are_single_threaded.md)",
+        );
     }
     let memory = imported === null ? null : new WebAssembly.Memory(imported);
     const current = () => memory;
@@ -128,10 +143,8 @@ export async function boot({ url, bytes, module: app, guest, imports, initialize
         guest.memory = memory;
         wasi.bindMemory(memory);
         shimModule.bind(memory);
-        threads.bindThreads(first, memory);
     };
     if (memory !== null) bindMemory();
-    threads.bindWake(wake);
     shimModule.bind_wake(wake);
     const resolve = (module) => imports(module, (wanted) => answer(wanted, current, shim));
     const runtime = new WebAssembly.Instance(first, resolve(first));
@@ -139,13 +152,7 @@ export async function boot({ url, bytes, module: app, guest, imports, initialize
     if (first !== app) {
         initialize(runtime.exports);
         const plan = dylink.plan(shimModule, modules, identities, runtime, memory);
-        threads.bindLinked(modules, plan);
-        const thread = {
-            blocks: dylink.takeBlocks(memory, plan),
-            rootBlock: runtime.exports.__tls_base.value >>> 0,
-            main: true,
-        };
-        exports = dylink.link(modules, plan, runtime, thread, resolve).exports;
+        exports = dylink.link(modules, plan, runtime, resolve).exports;
     } else {
         if (memory === null && exports.memory instanceof WebAssembly.Memory) {
             memory = exports.memory;
@@ -154,6 +161,11 @@ export async function boot({ url, bytes, module: app, guest, imports, initialize
         initialize(exports);
     }
     guest.exports = exports;
+    return shimModule;
+}
+
+export async function boot(options) {
+    const shimModule = await link(options, true);
     return {
         receive(data) {
             if (data.kind === "show") {

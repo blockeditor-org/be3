@@ -467,6 +467,28 @@ interface types {
         closed(window-id),
         focused(window-report-focused),
     }
+
+    /// What a font face is for.
+    enum font-role {
+        text,
+        monospace,
+        fallback,
+        icons,
+    }
+
+    /// A font file, or one face of a collection (`index`).
+    record font-face {
+        role: font-role,
+        index: u32,
+        data: list<u8>,
+    }
+
+    /// Faces to add, or with `replace` the whole set: the fonts a host bundles, which it tells
+    /// an app and a root.
+    record fonts {
+        replace: bool,
+        faces: list<font-face>,
+    }
 }
 
 world ui {

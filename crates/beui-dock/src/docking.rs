@@ -74,7 +74,7 @@ struct ForeignDialog {
 struct LayoutInner<K: 'static> {
     _scope: Scope,
     keys: RefCell<KeyMap<K>>,
-    keyed: Signal<u64>,
+    keyed: Trigger,
     registry: Rc<Registry>,
     host: RefCell<Option<Rc<dyn DockHostLink>>>,
     hosted: Signal<Option<DockHosted>>,
@@ -89,7 +89,7 @@ struct LayoutInner<K: 'static> {
 pub struct DockingLayout<K: 'static> {
     state: Signal<DockState>,
     mode: Signal<DockMode>,
-    restores: Signal<u64>,
+    restores: Trigger,
     inner: Stored<LayoutInner<K>>,
 }
 
@@ -151,10 +151,10 @@ impl<K: DockKey> DockingLayout<K> {
         let owner = RootScope::new();
         let state = create_signal(DockState::default());
         let mode = create_signal(DockMode::Tiled);
-        let restores = create_signal(0);
+        let restores = create_trigger();
         let hosted = create_signal(None);
         let registry = Rc::new(Registry {
-            version: create_signal(0),
+            changed: create_trigger(),
             joins: RefCell::default(),
             foreign: RefCell::default(),
             state,
@@ -164,7 +164,7 @@ impl<K: DockKey> DockingLayout<K> {
         let inner = LayoutInner {
             _scope: owner.into_scope(),
             keys: RefCell::default(),
-            keyed: create_signal(0),
+            keyed: create_trigger(),
             registry,
             host: RefCell::default(),
             hosted,
@@ -228,7 +228,7 @@ impl<K: DockKey> DockingLayout<K> {
             Some(host) => host.request(DockRequest::Restore(state)),
             None => self.state.set(state),
         }
-        self.restores.update(|restores| *restores += 1);
+        self.restores.notify();
     }
 
     pub fn reset(&self) {
@@ -237,7 +237,7 @@ impl<K: DockKey> DockingLayout<K> {
             Some(host) => host.request(DockRequest::Restore(DockState::default())),
             None => self.state.set(DockState::default()),
         }
-        self.restores.update(|restores| *restores += 1);
+        self.restores.notify();
     }
 
     /// Has no serialized form: save be-sdk-beui's `SavedDockLayout::of(snapshot)`. Fullscreen, snaps,
@@ -300,13 +300,13 @@ impl<K: DockKey> DockingLayout<K> {
 
     pub fn tab_of(&self, key: &K) -> Option<TabId> {
         let inner = self.inner();
-        inner.keyed.get();
+        inner.keyed.track();
         inner.keys.borrow().tabs.get(key).copied()
     }
 
     pub fn key_of(&self, tab: TabId) -> Option<K> {
         let inner = self.inner();
-        inner.keyed.get();
+        inner.keyed.track();
         inner.keys.borrow().keys.get(&tab).cloned()
     }
 
@@ -314,7 +314,7 @@ impl<K: DockKey> DockingLayout<K> {
         let inner = self.inner();
         let changed = std::mem::take(&mut inner.keys.borrow_mut().changed);
         if changed {
-            inner.keyed.update(|keyed| *keyed += 1);
+            inner.keyed.notify();
         }
     }
 
@@ -675,7 +675,7 @@ impl<K: DockKey> DockingLayout<K> {
                 modal: read(|described| described.modal),
                 dismiss_on_outside_press: read(|described| described.dismiss_on_outside_press),
                 on_close: closable.then(|| Callback::new(move |()| closing.close(inner))),
-                content: RenderFn::new(move |()| {
+                content: BuildFn::new(move || {
                     let place = stored
                         .value()
                         .place
@@ -700,12 +700,8 @@ impl<K: DockKey> DockingLayout<K> {
     fn mirror(&self, hosted: Option<DockHosted>) {
         let inner = self.inner();
         if let Some(hosted) = &hosted {
-            if self.state.with_untracked(|state| *state != hosted.state) {
-                self.state.set(hosted.state.clone());
-            }
-            if self.mode.get_untracked() != hosted.mode {
-                self.mode.set(hosted.mode);
-            }
+            self.state.set(hosted.state.clone());
+            self.mode.set(hosted.mode);
         }
         inner.hosted.set(hosted);
         let grafted = self
@@ -755,11 +751,13 @@ impl<K: DockKey> DockingLayout<K> {
                 NodeKind::Window {
                     key,
                     rect,
+                    hidden,
                     children,
                 } => spec.windows.push(DockSpecWindow {
                     key: key.clone(),
                     rect: *rect,
                     placed: None,
+                    hidden: *hidden,
                     root: self.root(children, found),
                 }),
                 NodeKind::Dialog { .. } | NodeKind::Bar { .. } => {}
@@ -964,6 +962,7 @@ impl<K: DockKey> DockingLayout<K> {
                 key: format!("{}{}", joined_prefix(host), window.key),
                 rect: window.rect,
                 placed: window.placed.clone(),
+                hidden: window.hidden,
                 root,
             });
         }
@@ -1034,7 +1033,7 @@ struct Found<K: 'static> {
     groups: HashMap<String, Rc<DockEntry<K>>>,
     dialogs: Vec<(TabId, TabId)>,
     parts: HashMap<TabId, DialogParts>,
-    bars: HashMap<TabId, (String, RenderFn<()>)>,
+    bars: HashMap<TabId, (String, BuildFn<NodeId>)>,
     spec_bars: Vec<DockSpecBar>,
     see_through: Vec<TabId>,
 }
@@ -1150,7 +1149,7 @@ impl<K: DockKey> Found<K> {
             .collect()
     }
 
-    fn content(&self, tab: TabId) -> Option<RenderFn<()>> {
+    fn content(&self, tab: TabId) -> Option<BuildFn<NodeId>> {
         match &self.tabs.get(&tab)?.kind {
             EntryKind::Tab { content, .. } => Some(*content),
             EntryKind::Group { .. } => None,
@@ -1164,7 +1163,7 @@ impl<K: DockKey> Found<K> {
         }
     }
 
-    fn empty(&self, key: &str) -> Option<RenderFn<()>> {
+    fn empty(&self, key: &str) -> Option<BuildFn<NodeId>> {
         match &self.panes.get(key)?.kind {
             NodeKind::Pane { empty, .. } => *empty,
             _ => None,
@@ -1231,14 +1230,14 @@ where
     });
     let body = RenderFn::new(move |tab: TabId| {
         if let Some(bar) = found.with_untracked(|found| found.bars.get(&tab).map(|(_, bar)| *bar)) {
-            return bar.call(());
+            return bar.call();
         }
         if let Some(content) = found.with_untracked(|found| found.content(tab)) {
-            return content.call(());
+            return content.call();
         }
         let dialog = found.with_untracked(|found| found.live_parts(tab).map(|parts| parts.content));
         match dialog {
-            Some(dialog) => dialog.call(()),
+            Some(dialog) => dialog.call(),
             None => view! {
                 <Frame />
             },
@@ -1272,11 +1271,11 @@ where
         untrack(|| layout.mirror(hosted));
     });
     let spec = create_signal(None::<DockSpec>);
-    let version = registry.version;
+    let changed = registry.changed;
     create_effect(move || {
-        layout.restores.get();
+        layout.restores.track();
         if nests {
-            version.get();
+            changed.track();
         }
         let items = nodes.items();
         let mut held = Found::default();
@@ -1310,24 +1309,28 @@ where
             return bodies.empty.call(rest.to_owned());
         }
         if let Some(empty) = found.with_untracked(|found| found.empty(&key)) {
-            return Some(empty.call(()));
+            return Some(empty.call());
         }
         let declared = {
             let key = key.clone();
             create_memo(move || found.with(|found| found.empty(&key).is_some()))
         };
-        Some(view! {
-            <Layers>
-                <Dynamic value={declared}>|_: bool| {
-                    match found.with_untracked(|found| found.empty(&key)) {
-                        Some(empty) => empty.call(()),
-                        None => view! {
-                            <Frame />
-                        },
-                    }
-                }</Dynamic>
-            </Layers>
-        })
+        Some(
+            view! {
+                <Show
+                    value={declared}
+                    fallback={|| view! {
+                        <Frame />
+                    }}
+                >|| {
+                    found
+                    .with_untracked(|found| found.empty(&key))
+                    .expect("the empty view is only shown while it is declared")
+                    .call()
+                }</Show>
+            }
+            .into_child(),
+        )
     });
     let placing = Rc::clone(&registry);
     let body = match nests {

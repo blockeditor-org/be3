@@ -146,10 +146,10 @@ where
             padding=TILE_PADDING
         >
             <List spacing=Space::None>
-                <Show condition={labelled}>
+                <Show value={labelled}>
                     <Text size=TextSize::Xs overflow=Overflow::Ellipsis>{label}</Text>
                 </Show>
-                <Show condition={detailed}>
+                <Show value={detailed}>
                     <Text size=TextSize::Xs color=TextColor::Muted overflow=Overflow::Ellipsis>
                         {detail}
                     </Text>

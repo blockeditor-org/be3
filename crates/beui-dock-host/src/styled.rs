@@ -9,24 +9,25 @@ use beui_macros::{component, view};
 
 use crate::unstyled as dock;
 pub use crate::unstyled::{
-    DockApi, DockArea, DockHostLayout, DockSnap, DockWindowActions, HiddenBand,
+    DockApi, DockArea, DockHostLayout, DockSnap, DockTabKeys, DockWindowActions, HiddenBand,
 };
 use crate::unstyled::{
-    DockAwayHandle, DockBarBandHandle, DockBarHandle, DockChromeHandle, DockDialogHandle,
-    DockDragged, DockGripHandle, DockHighlightHandle, DockPreviewHandle, DockSplitterHandle,
+    DockAwayHandle, DockBarBandHandle, DockBarHandle, DockChromeHandle, DockCurves,
+    DockDialogHandle, DockDragged, DockGripHandle, DockPreviewHandle, DockSplitterHandle,
     DockStackHandle, DockStripHandle, DockSwitchHandle, DockSwitcherHandle, DockTabHandle,
 };
 use beui_components_styled::action_bar::{ActionBar, ActionLabels};
+use beui_components_styled::back_slide::SLIDE_CURVES;
 use beui_components_styled::button::{Button, ButtonSize, ButtonVariant};
 use beui_components_styled::context_menu::menu_style;
 use beui_components_styled::text::{Icon, Text, TextColor, TextSize};
 use beui_components_styled::theme::{
     NARROW_WIDTH, PHONE_LANDSCAPE_WIDTH, POINTER_REACH, SHORT_HEIGHT, use_theme,
 };
-use beui_components_styled::tokens::{Padding, Size, Space, Stroke};
+use beui_components_styled::tokens::{Movement, Padding, Size, Space, Stroke};
 use beui_components_styled::tool_pill::BAND_FILL;
 use beui_components_styled::tooltip::Tooltip;
-use beui_components_styled::{Length, List, Scroll, Separator};
+use beui_components_styled::{Length, List, MenuButton, MenuNodes, Scroll, Separator};
 use beui_components_unstyled::Container;
 use beui_components_unstyled::Picture;
 use beui_dock::{DockEdge, DockHostLink, DockMode, Entry};
@@ -34,6 +35,7 @@ use beui_view::component_ref::ComponentRef;
 use beui_view::primitives::Interactive;
 use beui_view::types::Align2;
 use beui_view::types::PointerPress;
+use beui_view::types::ScrollPosition;
 use beui_view::types::Vec2;
 use beui_view::types::{Align, Direction, Justify};
 use std::rc::Rc;
@@ -45,7 +47,8 @@ use beui_view::types::Image;
 use beui_view::types::Modifiers;
 use beui_view::types::TextAlign;
 use beui_view::types::icons::{
-    ICON_APP_WINDOW, ICON_GRIP_VERTICAL, ICON_LOCK, ICON_MAXIMIZE, ICON_MINIMIZE, ICON_X,
+    ICON_APP_WINDOW, ICON_CHEVRON_DOWN, ICON_GRIP_VERTICAL, ICON_LOCK, ICON_MAXIMIZE,
+    ICON_MINIMIZE, ICON_X,
 };
 use stack::{DockStackBar, DockSwitcher};
 use switch::DockSwitchPanel;
@@ -82,13 +85,22 @@ const AWAY_PADDING: Space = Space::Xl3;
 const PREVIEW_OPACITY: f32 = 0.92;
 const WAITING_DOT: Size = Size::Custom(6.0);
 
+const CURVES: DockCurves = DockCurves {
+    ease: Movement::Settle.easing(),
+    settle: Movement::Settle.spring(),
+    pull: Movement::Pull.spring(),
+    rubber: Movement::Rubber.spring(),
+    slide: SLIDE_CURVES,
+};
+
 #[component]
 pub fn DockHost(
     #[prop(default = DockHostLayout::new())] layout: DockHostLayout,
     #[prop(default = ComponentRef::new())] api: ComponentRef<DockApi>,
     bars: Option<Rc<dyn DockHostLink>>,
     #[prop(default = None)] drag_modifier: Prop<Option<Modifiers>>,
-    #[prop(children)] content: Render,
+    #[prop(default = DockTabKeys::CTRL)] tab_keys: Prop<DockTabKeys>,
+    #[prop(children)] content: Build<NodeId>,
 ) -> NodeId {
     let mode = layout.mode();
     let theme = use_theme();
@@ -107,13 +119,14 @@ pub fn DockHost(
             short_below=SHORT_HEIGHT
             short_narrower_than=PHONE_LANDSCAPE_WIDTH
             drag_modifier
+            tab_keys
             splitter_thickness=SPLITTER_LINE
             splitter_reach=SPLITTER_REACH
             icon_sidebar_width=ICON_SIDEBAR
             tab_spacing={TAB_STRIP_SPACING.px()}
             back_shade={back_shade}
             menu={menu_style()}
-            content={move || content.call(())}
+            content={move || content.call()}
             frame={move |body: NodeId| view! {
                 <Frame fill={fill}>{body}</Frame>
             }}
@@ -136,6 +149,7 @@ pub fn DockHost(
                 <DockDialogFace handle />
             }}
             dialog_beak=POINTER_REACH
+            curves=CURVES
             dialog_radius={CARD_RADIUS.px()}
             dialog_scrim={create_memo(move || ColorRole::Scrim.resolve(&theme))}
             window_border=CHROME_BORDER
@@ -157,21 +171,20 @@ pub fn DockHost(
             grip={move |handle: DockGripHandle| view! {
                 <DockGrip handle />
             }}
-            highlight={move |handle: DockHighlightHandle| view! {
-                <DockDropHighlight handle />
-            }}
             bar_margin={BAR_MARGIN.px()}
             bar_band={move |handle: DockBarBandHandle| view! {
                 <DockBarBandFace handle />
             }}
-            refused={move || view! {
-                <DockDropRefused />
-            }}
             preview={move |handle: DockPreviewHandle| {
-                let DockPreviewHandle { dragged, title, icon } = handle;
+                let DockPreviewHandle { dragged, title, icon, opening, group_with } = handle;
                 let grouped = !matches!(dragged, DockDragged::Entry(Entry::Tab(_)));
-                view! {
-                    <DockDragPreview title icon grouped />
+                match opening {
+                    true => view! {
+                        <DockOpening title icon grouped group_with />
+                    },
+                    false => view! {
+                        <DockDragPreview title icon grouped />
+                    },
                 }
             }}
         />
@@ -232,45 +245,43 @@ fn DockTabFace(handle: DockTabHandle) -> NodeId {
     let title = create_memo(move || notice.get().unwrap_or_else(|| title.get()));
     view! {
         <List spacing=Space::None>
-            <Dynamic value={icons_only}>|icons_only: bool| {
-                match icons_only {
-                    true => view! {
-                        <DockIconTab
-                            title
-                            icon
-                            picture
-                            grouped
-                            selected
-                            hovered
-                            active
-                            focused
-                            dragged
-                            waiting
-                            noticed
-                        />
-                    },
-                    false => view! {
-                        <DockTabChrome
-                            title
-                            icon
-                            picture
-                            grouped
-                            vertical
-                            selected
-                            hovered
-                            active
-                            focused
-                            dragged
-                            closable
-                            waiting
-                            noticed
-                            waiting_test_id={waiting_test_id(entry, test_key.as_deref())}
-                            close_test_id={close_test_id(test_key.as_deref())}
-                            close={close}
-                        />
-                    },
-                }
-            }</Dynamic>
+            <Show
+                value={icons_only}
+                fallback={move || view! {
+                    <DockTabChrome
+                        title
+                        icon
+                        picture
+                        grouped
+                        vertical
+                        selected
+                        hovered
+                        active
+                        focused
+                        dragged
+                        closable
+                        waiting
+                        noticed
+                        waiting_test_id={waiting_test_id(entry, test_key.as_deref())}
+                        close_test_id={close_test_id(test_key.as_deref())}
+                        close={close}
+                    />
+                }}
+            >
+                <DockIconTab
+                    title
+                    icon
+                    picture
+                    grouped
+                    selected
+                    hovered
+                    active
+                    focused
+                    dragged
+                    waiting
+                    noticed
+                />
+            </Show>
         </List>
     }
 }
@@ -315,13 +326,10 @@ fn DockIconTab(
             (false, false) => TextColor::Muted,
         },
     );
-    let shows_picture = create_memo(move || !grouped && picture.with(Option::is_some));
     let glyph = create_memo(move || match grouped {
         true => Some(ICON_APP_WINDOW),
         false => icon.get(),
     });
-    let pictured = create_memo(move || !shows_picture.get() && glyph.get().is_some());
-    let lettered = create_memo(move || !shows_picture.get() && glyph.get().is_none());
     let initial = create_memo(move || {
         title
             .with(|title| {
@@ -344,16 +352,22 @@ fn DockIconTab(
                 focus={focused}
             >
                 <List align=Align::Center spacing=Space::None>
-                    <Show condition={pictured}>
-                        <Text color={label} align=TextAlign::Center>
-                            <Icon glyph={glyph} />
-                        </Text>
-                    </Show>
-                    <Show condition={shows_picture}>
+                    <Show
+                        value={move || !grouped && picture.with(Option::is_some)}
+                        fallback={move || view! {
+                            <Show
+                                value={move || glyph.with(Option::is_some)}
+                                fallback={move || view! {
+                                    <Text color={label} align=TextAlign::Center>{initial}</Text>
+                                }}
+                            >
+                                <Text color={label} align=TextAlign::Center>
+                                    <Icon glyph={glyph} />
+                                </Text>
+                            </Show>
+                        }}
+                    >
                         <TabPicture picture={picture} />
-                    </Show>
-                    <Show condition={lettered}>
-                        <Text color={label} align=TextAlign::Center>{initial}</Text>
                     </Show>
                 </List>
             </Frame>
@@ -387,7 +401,6 @@ fn DockTabChrome(
         (false, false) => TextColor::Muted,
     });
     let shows_picture = create_memo(move || !grouped && picture.with(Option::is_some));
-    let pictured = create_memo(move || !grouped && !shows_picture.get() && icon.get().is_some());
     let (title_grow, title_shrink) = match vertical {
         true => (1.0, 0.0),
         false => (0.0, 1.0),
@@ -401,23 +414,25 @@ fn DockTabChrome(
             focus={focused}
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=TAB_SPACING>
-                <Show condition={grouped}>
+                {grouped.then(|| view! {
                     <Text color={label} align=TextAlign::Center>
                         <Icon glyph=ICON_APP_WINDOW />
                     </Text>
-                </Show>
-                <Show condition={pictured}>
+                })}
+                <Show
+                    value={move || !grouped && !shows_picture.get() && icon.with(Option::is_some)}
+                >
                     <Text color={label} align=TextAlign::Center>
                         <Icon glyph={icon} />
                     </Text>
                 </Show>
-                <Show condition={shows_picture}>
+                <Show value={shows_picture}>
                     <TabPicture picture={picture} />
                 </Show>
                 <ListItem grow=title_grow shrink=title_shrink>
                     <Text color={label} overflow=Overflow::Ellipsis>{title}</Text>
                 </ListItem>
-                <Show condition={waiting}>
+                <Show value={waiting}>
                     <Frame
                         @test_id={waiting_test_id.clone()}
                         width=WAITING_DOT
@@ -426,7 +441,7 @@ fn DockTabChrome(
                         fill=ColorRole::Accent
                     />
                 </Show>
-                <Show condition={closable}>
+                <Show value={closable}>
                     <Button
                         icon_only=true
                         @test_id={close_test_id.clone()}
@@ -521,7 +536,6 @@ fn DockDialogFace(handle: DockDialogHandle) -> NodeId {
         body,
         ..
     } = handle;
-    let pictured = create_memo(move || icon.get().is_some());
     let width = create_memo(move || Size::Custom(size.get().x + 2.0 * CHROME_BORDER));
     let header_fill = create_memo(move || match notice.with(Option::is_some) {
         true => ColorRole::AccentSoft,
@@ -560,7 +574,7 @@ fn DockDialogFace(handle: DockDialogHandle) -> NodeId {
                             align=Align::Center
                             spacing=TAB_SPACING
                         >
-                            <Show condition={pictured}>
+                            <Show value={move || icon.with(Option::is_some)}>
                                 <Text
                                     size=TextSize::Sm
                                     color=TextColor::Muted
@@ -572,7 +586,7 @@ fn DockDialogFace(handle: DockDialogHandle) -> NodeId {
                             <ListItem grow=1.0>
                                 <Text color={label} overflow=Overflow::Ellipsis>{title}</Text>
                             </ListItem>
-                            <Show condition={closable}>
+                            {closable.then(|| view! {
                                 <Button
                                     icon_only=true
                                     @test_id={format!("dock.dialog.{}.close", tab.value())}
@@ -583,7 +597,7 @@ fn DockDialogFace(handle: DockDialogHandle) -> NodeId {
                                     capture_presses=true
                                     on_click={close}
                                 />
-                            </Show>
+                            })}
                         </List>
                     </Frame>
                 </Interactive>
@@ -657,11 +671,11 @@ fn DockTitleBar(
                 align={Align2::new(Align::Stretch, Align::Center)}
             >
                 <Container>|size: ReadSignal<Vec2>| {
-                    let room = create_memo(move || match size.get().x < ROOMY_BAR {
+                    let menu_prefix = test_prefix.clone();
+                    let room = move || match size.get().x < ROOMY_BAR {
                         true => BarRoom::Narrow,
                         false => BarRoom::Wide,
-                    });
-                    let menu_prefix = test_prefix.clone();
+                    };
                     view! {
                         <List
                             direction=Direction::Horizontal
@@ -672,13 +686,11 @@ fn DockTitleBar(
                             {tabs.map(|tabs| view! {
                                 <ListItem grow=1.0 gap=0.0>{tabs}</ListItem>
                             })}
-                            <Show condition={titled}>|| {
-                                let title = title.clone(); view! {
-                                    <ListItem grow=1.0>
-                                        <Text overflow=Overflow::Ellipsis>{title}</Text>
-                                    </ListItem>
-                                }
-                            }</Show>
+                            {titled.then(|| view! {
+                                <ListItem grow=1.0>
+                                    <Text overflow=Overflow::Ellipsis>{title.clone()}</Text>
+                                </ListItem>
+                            })}
                             <ListItem gap=0.0>
                                 <Frame padding={trailing}>
                                     <List
@@ -720,7 +732,6 @@ fn DockSideBar(
 ) -> NodeId {
     let titled = tabs.is_none();
     let fill = bar_fill(vacant);
-    let titles = create_memo(move || !icons_only.get());
     let header = create_memo(move || match icons_only.get() {
         true => Justify::Center,
         false => Justify::SpaceBetween,
@@ -748,7 +759,7 @@ fn DockSideBar(
                                 spacing=BAR_SPACING
                             >
                                 {grip}
-                                <Show condition={titles}>|| {
+                                <Show value={move || !icons_only.get()}>|| {
                                     let test_prefix = narrow.clone(); view! {
                                         <List
                                             direction=Direction::Horizontal
@@ -772,12 +783,10 @@ fn DockSideBar(
                         <ListItem gap=after_tabs_gap>
                             <Frame padding={trailing}>
                                 <List spacing=BAR_SPACING>
-                                    <Show condition={titled}>|| {
-                                        let title = title.clone(); view! {
-                                            <Text overflow=Overflow::Ellipsis>{title}</Text>
-                                        }
-                                    }</Show>
-                                    <Show condition={icons_only}>|| {
+                                    {titled.then(|| view! {
+                                        <Text overflow=Overflow::Ellipsis>{title}</Text>
+                                    })}
+                                    <Show value={icons_only}>|| {
                                         let test_prefix = column.clone(); view! {
                                             <List align=Align::Center spacing=BAR_SPACING>
                                                 <DockMenu
@@ -801,7 +810,12 @@ fn DockSideBar(
 
 #[component]
 fn DockStrip(handle: DockStripHandle) -> NodeId {
-    let DockStripHandle { direction, tabs } = handle;
+    let DockStripHandle {
+        direction,
+        tabs,
+        menu,
+        test_prefix,
+    } = handle;
     let strip = match direction {
         Direction::Horizontal => view! {
             <Frame
@@ -818,10 +832,57 @@ fn DockStrip(handle: DockStripHandle) -> NodeId {
             </Frame>
         },
     };
+    // The scroll fades the edge its hidden tabs lie past, and while any are hidden the
+    // strip ends in a menu of every tab.
+    let clipped = create_signal(false);
+    let all_tabs = format!("{test_prefix}.all-tabs");
+    // A gap between the strip's cut edge and the menu, so a tab cut there never reads as part
+    // of the button.
+    let apart = match direction {
+        Direction::Horizontal => Padding::new(Space::Xs, Space::None, Space::None, Space::None),
+        Direction::Vertical => Padding::new(Space::None, Space::Xs, Space::None, Space::None),
+    };
     view! {
-        <Scroll direction>
-            <ListItem shrink=1.0>{strip}</ListItem>
-        </Scroll>
+        <List direction align=Align::Center spacing=Space::None>
+            <ListItem grow=1.0 shrink=1.0>
+                <Scroll
+                    direction
+                    on_change={move |position: ScrollPosition| {
+                        let hides = position.max_offset() > 0.0;
+                        if clipped.get_untracked() != hides {
+                            clipped.set(hides);
+                        }
+                    }}
+                >
+                    <ListItem shrink=1.0>{strip}</ListItem>
+                </Scroll>
+            </ListItem>
+            <Show value={clipped}>
+                <AllTabs menu apart id={all_tabs.clone()} />
+            </Show>
+        </List>
+    }
+}
+
+/// The menu a clipped strip ends in, `apart` from the strip's cut edge.
+#[component]
+fn AllTabs(menu: Memo<Vec<MenuNode>>, apart: Padding, id: String) -> NodeId {
+    let items = id.clone();
+    view! {
+        <Frame padding={apart}>
+            <MenuButton
+                icon_only=true
+                variant=ButtonVariant::Ghost
+                @test_id={id}
+                label="All tabs"
+                glyph=ICON_CHEVRON_DOWN
+                size=ButtonSize::Toolbar
+                capture_presses=true
+                items={view! {
+                    <MenuNodes nodes={menu} test_prefix={items} />
+                }}
+            />
+        </Frame>
     }
 }
 
@@ -837,8 +898,8 @@ pub(crate) enum BarRoom {
 pub(crate) fn DockMenu(menu: Memo<Vec<MenuNode>>, room: BarRoom, test_prefix: String) -> NodeId {
     let labels = match room {
         BarRoom::Wide => ActionLabels::Shown,
-        BarRoom::Narrow | BarRoom::Column => ActionLabels::Icons,
-        BarRoom::Phone => ActionLabels::Overflow,
+        BarRoom::Column => ActionLabels::Icons,
+        BarRoom::Narrow | BarRoom::Phone => ActionLabels::Overflow,
     };
     let direction = match room {
         BarRoom::Column => Direction::Vertical,
@@ -860,7 +921,7 @@ fn DockClose(
     test_prefix: String,
 ) -> DynamicSegment<ListItem> {
     view! {
-        <Show condition={closable}>
+        <Show value={closable}>
             <Button
                 icon_only=true
                 @test_id={format!("{test_prefix}.close")}
@@ -962,61 +1023,50 @@ fn DockBarBandFace(handle: DockBarBandHandle) -> NodeId {
     }
 }
 
+/// A carried tab or pane over a place, drawn the size of the pane it would open there, its
+/// tab at the top and, for a group, what it would be grouped with.
 #[component]
-fn DockDropHighlight(handle: DockHighlightHandle) -> NodeId {
-    let DockHighlightHandle { group_with } = handle;
-    let grouping = create_memo(move || group_with.get().is_some());
-    let label = create_memo(move || {
-        group_with
-            .get()
-            .map(|title| format!("Group with {title}"))
-            .unwrap_or_default()
-    });
+fn DockOpening(
+    title: Memo<String>,
+    icon: Memo<Option<Glyph>>,
+    grouped: bool,
+    group_with: Memo<Option<String>>,
+) -> NodeId {
     view! {
         <Layers>
             <Frame fill=ColorRole::Accent radius=Radius::Md opacity=DROP_OPACITY />
-            <Frame @test_id={"dock.drop"} border={Border::FOCUS} radius=Radius::Md />
-            <Show condition={grouping}>
-                <Frame align=Align2::CENTER padding=DROP_LABEL_MARGIN>
-                    <Frame
-                        fill=ColorRole::Accent
-                        radius=Radius::Md
-                        padding=DROP_LABEL_PADDING
-                        @test_id="dock.drop.label"
-                    >
-                        <Text color=TextColor::OnAccent overflow=Overflow::Ellipsis>{label}</Text>
-                    </Frame>
+            <Frame @test_id={"dock.drop"} border={Border::FOCUS} radius=Radius::Md>
+                <Frame align=Align2::START padding=DROP_LABEL_MARGIN>
+                    <DockDragPreview title icon grouped />
                 </Frame>
-            </Show>
-        </Layers>
-    }
-}
-
-#[component]
-fn DockDropRefused() -> NodeId {
-    view! {
-        <Layers>
-            <Frame fill=ColorRole::Surface radius=Radius::Md opacity=DROP_OPACITY />
-            <Frame
-                @test_id={"dock.refused"}
-                border={Border::DEFAULT}
-                radius=Radius::Md
-                align=Align::Center
-            >
-                <Text size=TextSize::Lg color=TextColor::Muted>
-                    <Icon glyph=ICON_LOCK />
-                </Text>
             </Frame>
+            <Show value={group_with}>|title: ReadSignal<String>| {
+                let label = create_memo(move || format!("Group with {}", title.get()));
+                view! {
+                    <Frame align=Align2::CENTER padding=DROP_LABEL_MARGIN>
+                        <Frame
+                            fill=ColorRole::Accent
+                            radius=Radius::Md
+                            padding=DROP_LABEL_PADDING
+                            @test_id="dock.drop.label"
+                        >
+                            <Text color=TextColor::OnAccent overflow=Overflow::Ellipsis>
+                                {label}
+                            </Text>
+                        </Frame>
+                    </Frame>
+                }
+            }</Show>
         </Layers>
     }
 }
 
 #[component]
 fn DockDragPreview(title: Prop<String>, icon: Memo<Option<Glyph>>, grouped: bool) -> NodeId {
-    let pictured = create_memo(move || !grouped && icon.get().is_some());
     let pictured_color = TextColor::Default;
     view! {
         <Frame
+            @test_id={"dock.preview"}
             opacity=PREVIEW_OPACITY
             fill=ColorRole::Control
             border={Border::FOCUS}
@@ -1025,12 +1075,12 @@ fn DockDragPreview(title: Prop<String>, icon: Memo<Option<Glyph>>, grouped: bool
             padding={Padding::horizontal(PREVIEW_PADDING)}
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=TAB_SPACING>
-                <Show condition={grouped}>
+                {grouped.then(|| view! {
                     <Text size=TextSize::Sm align=TextAlign::Center>
                         <Icon glyph=ICON_APP_WINDOW />
                     </Text>
-                </Show>
-                <Show condition={pictured}>
+                })}
+                <Show value={move || !grouped && icon.with(Option::is_some)}>
                     <Text size=TextSize::Sm color={pictured_color} align=TextAlign::Center>
                         <Icon glyph={icon} />
                     </Text>

@@ -4,7 +4,10 @@ use super::*;
 fn a_reopened_block_gets_back_the_view_it_was_closed_with() {
     let (mut fixture, opened) = profiled(None);
     show(&mut fixture, opened, None);
-    let view = profile(&fixture).state("layout").expect("saved").refs[0];
+    let view = profile(&fixture)
+        .stored(SavedLayout::ID)
+        .expect("saved")
+        .refs[0];
 
     fixture.close_active_tab();
 
@@ -18,10 +21,13 @@ fn a_reopened_block_gets_back_the_view_it_was_closed_with() {
         "a closed tab's view stays in the session, holding what its editor kept there, such as \
          where a text was scrolled to"
     );
-    let layout = profile(&fixture).state("layout").cloned().expect("saved");
+    let layout = profile(&fixture)
+        .stored(SavedLayout::ID)
+        .cloned()
+        .expect("saved");
     assert!(layout.refs.is_empty(), "no tab's view is referenced");
     let closed = profile(&fixture)
-        .state("closed-views")
+        .stored(ClosedViews::ID)
         .cloned()
         .expect("the closed views are saved");
     assert_eq!(
@@ -31,14 +37,17 @@ fn a_reopened_block_gets_back_the_view_it_was_closed_with() {
     );
 
     show(&mut fixture, opened, None);
-    let layout = profile(&fixture).state("layout").cloned().expect("saved");
+    let layout = profile(&fixture)
+        .stored(SavedLayout::ID)
+        .cloned()
+        .expect("saved");
     assert_eq!(
         layout.refs,
         vec![view],
         "opening the block again, as from the files list after going back, uses that view"
     );
     let closed = profile(&fixture)
-        .state("closed-views")
+        .stored(ClosedViews::ID)
         .cloned()
         .expect("saved");
     assert!(closed.refs.is_empty(), "an open view is not a closed one");

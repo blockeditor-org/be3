@@ -7,7 +7,10 @@ fn a_version_command_waiting_on_a_silent_server_holds_up_no_edit() {
     let harness = Harness::relayed().on_manual_clock();
     harness.connect();
     let versioned = start_versioning("hello\n");
-    show_version(versioned.checkout, be_block::CheckoutContent::CONTENT_TYPE);
+    show_version(
+        versioned.checkout,
+        be_block_repository::CheckoutContent::CONTENT_TYPE,
+    );
     let counter = Uuid::new_v4();
     open(counter, CounterContent::CONTENT_TYPE);
     add(counter, 1);

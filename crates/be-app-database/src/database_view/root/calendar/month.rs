@@ -5,7 +5,7 @@ use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 
 use super::{Event, FIRST_DAY, events_on, forward, today};
-use beui::Direction;
+use beui::{Direction, Overflow};
 
 const CELL_SPACING: Space = Space::Xs2;
 const MAX_VISIBLE: usize = 3;
@@ -35,13 +35,13 @@ pub(super) fn MonthGrid(
     view! {
         <List spacing=CELL_SPACING>
             <List direction=Direction::Horizontal spacing=CELL_SPACING>
-                <ForEach keys={names}>|name: &'static str|
+                <ForEach value={names}>|name: &'static str|
                     <ListItem grow=1.0>
                         <Text align=TextAlign::Center>{name}</Text>
                     </ListItem>
                 </ForEach>
             </List>
-            <ForEach keys={weeks}>|start: i64|
+            <ForEach value={weeks}>|start: i64|
                 <ListItem grow=1.0>
                     <MonthWeek
                         start={start}
@@ -67,7 +67,7 @@ fn MonthWeek(
     let days = create_memo(move || (0..7).map(|offset| start + offset).collect::<Vec<i64>>());
     view! {
         <List direction=Direction::Horizontal spacing=CELL_SPACING>
-            <ForEach keys={days}>|day: i64|
+            <ForEach value={days}>|day: i64|
                 <ListItem grow=1.0>
                     <MonthCell
                         day={day}
@@ -110,15 +110,15 @@ fn MonthCell(
             false => String::new(),
         }
     });
-    let fill = create_memo(move || match (today, in_month.get()) {
+    let fill = move || match (today, in_month.get()) {
         (true, _) => ColorRole::AccentSoft,
         (false, true) => ColorRole::Surface,
         (false, false) => ColorRole::Background,
-    });
-    let number_color = create_memo(move || match in_month.get() {
+    };
+    let number_color = move || match in_month.get() {
         true => TextColor::Default,
         false => TextColor::Muted,
-    });
+    };
     let pick = move || on_pick_day.call(day);
     view! {
         <Frame
@@ -137,7 +137,7 @@ fn MonthCell(
                         {date.day.to_string()}
                     </Text>
                 </ListRow>
-                <ForEach keys={shown}>|row: usize| {
+                <ForEach value={shown}>|row: usize| {
                     let title = create_memo(move || {
                         day_events.with(|events| {
                             events
@@ -149,20 +149,26 @@ fn MonthCell(
                     });
                     let open = move || on_pick_event.call(row);
                     view! {
-                        <Frame fill=ColorRole::Accent radius=Radius::Xs>
-                            <ListRow
-                                @test_id={format!("database-view.calendar.event.{row}")}
-                                on_click={open}
-                                on_activate={open}
-                            >
-                                <Text style=TextStyle::CAPTION color=TextColor::OnAccent>
-                                    {title}
-                                </Text>
-                            </ListRow>
-                        </Frame>
+                        <Tooltip label={title}>
+                            <Frame fill=ColorRole::Accent radius=Radius::Xs>
+                                <ListRow
+                                    @test_id={format!("database-view.calendar.event.{row}")}
+                                    on_click={open}
+                                    on_activate={open}
+                                >
+                                    <Text
+                                        style=TextStyle::CAPTION
+                                        color=TextColor::OnAccent
+                                        overflow=Overflow::Ellipsis
+                                    >
+                                        {title}
+                                    </Text>
+                                </ListRow>
+                            </Frame>
+                        </Tooltip>
                     }
                 }</ForEach>
-                <Text style=TextStyle::CAPTION>{overflow}</Text>
+                <Text style=TextStyle::CAPTION overflow=Overflow::Ellipsis>{overflow}</Text>
                 <Spacer />
             </List>
         </Frame>

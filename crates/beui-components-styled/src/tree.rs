@@ -11,13 +11,14 @@ use crate::scroll::{Bleed, Scroll};
 use crate::text::{Icon, Text, TextColor, TextSize};
 use crate::text_input::text_input_style;
 use crate::theme::{Density, use_density};
-use crate::tokens::{Padding, Size, Space, Stroke};
+use crate::tokens::{Movement, Padding, Size, Space, Stroke};
 use crate::tooltip::Tooltip;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
     ButtonHandle, Edge, PopupTriggerHandle, TextInputHandle, TreeItem, TreeMenu, TreeRevealHandle,
     TreeRowEdit, TreeRowHandle, TreeToggleHandle,
 };
+use beui_view::primitives::{KeepAlive, Kept};
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 use beui_view::types::Pos2;
@@ -87,17 +88,17 @@ pub fn Tree<K>(
     keys: Prop<Vec<K>>,
     item: Func<K, TreeItem>,
     selected: Prop<Option<K>>,
-    #[prop(default = None)] ancestors: Option<Func<K, Vec<K>>>,
+    ancestors: Option<Func<K, Vec<K>>>,
     #[prop(default = Space::None)] spacing: Prop<Space>,
     #[prop(default = Space::None)] padding: Prop<Space>,
     #[prop(default = Bleed::NONE)] bleed: Bleed,
-    #[prop(default = None)] row_test_id: Option<Func<K, String>>,
+    row_test_id: Option<Func<K, String>>,
     #[prop(default = String::new())] reveal_test_id: String,
-    #[prop(default = None)] outline: Option<Func<K, Option<ColorRole>>>,
-    #[prop(default = None)] menu: Option<Func<K, Option<TreeMenu>>>,
+    outline: Option<Func<K, Option<ColorRole>>>,
+    menu: Option<Func<K, Option<TreeMenu>>>,
     #[prop(default = None)] editing: Prop<Option<K>>,
     #[prop(default = false)] reorder: bool,
-    #[prop(default = None)] pastes: Option<Func<K, Vec<String>>>,
+    pastes: Option<Func<K, Vec<String>>>,
     on_paste: Callback<(K, ClipItem)>,
     on_select: Callback<K>,
     on_open: Callback<K>,
@@ -110,8 +111,8 @@ pub fn Tree<K>(
     on_edit: Callback<K>,
     on_rename: Callback<(K, String)>,
     on_cancel_edit: Callback<K>,
-    #[prop(default = None)] leading: Option<RenderFn<TreeRowFace<K>, Children<ListItem>>>,
-    #[prop(children)] content: Option<RenderFn<TreeRowFace<K>>>,
+    leading: Option<RenderFn<TreeRowFace<K>, Children<ListItem>>>,
+    #[prop(children)] content: Option<RenderFn<TreeRowFace<K>, NodeId>>,
 ) -> NodeId
 where
     K: Clone + Eq + Hash + 'static,
@@ -136,7 +137,7 @@ where
                             ancestors
                             spacing
                             editing
-                            reorder
+                            reorder={reorder.then(|| Movement::Settle.spring())}
                             pastes
                             on_paste={on_paste}
                             menu={menu.map(|menu| unstyled::TreeMenus::new(menu_style(), menu))}
@@ -212,7 +213,7 @@ fn TreeRowChrome<K>(
     named: String,
     outline: Func<K, Option<ColorRole>>,
     leading: RowLeading<K>,
-    content: RenderFn<TreeRowFace<K>>,
+    content: RenderFn<TreeRowFace<K>, NodeId>,
 ) -> NodeId
 where
     K: Clone + 'static,
@@ -252,7 +253,6 @@ where
         focused,
         hovered,
     };
-    let shown = create_memo(move || !editing.get());
     let renaming = edit_id(&named);
     let RowLeading(leading) = leading;
     let area = match leading {
@@ -288,14 +288,20 @@ where
             }
         }
     };
+    // A pair of Shows, not one with a kept fallback: the name area is kept, but the editor
+    // reads the name once and finishes once, so each rename builds a fresh one.
     let named_field = view! {
         <List align=Align::Stretch spacing=Space::None>
-            <Show keep_alive=true condition={shown}>
-                <ListItem grow=1.0>
-                    <unstyled::TreeRowArea target>{area}</unstyled::TreeRowArea>
-                </ListItem>
-            </Show>
-            <Show condition={editing}>{field()}</Show>
+            <KeepAlive>
+                <Show value={move || !editing.get()}>
+                    <ListItem grow=1.0>
+                        <Kept>
+                            <unstyled::TreeRowArea target>{area}</unstyled::TreeRowArea>
+                        </Kept>
+                    </ListItem>
+                </Show>
+            </KeepAlive>
+            <Show value={editing}>{field()}</Show>
         </List>
     };
     let body = match menu {
@@ -473,7 +479,7 @@ fn ChevronFace(
                     width={width}
                     height={height}
                     fill={fill}
-                    border={create_memo(move || marked.get().then_some(Border::new(ColorRole::Accent).width(OUTLINE_WIDTH)))}
+                    border={move || marked.get().then_some(Border::new(ColorRole::Accent).width(OUTLINE_WIDTH))}
                     focus={focused}
                     radius=CHEVRON_RADIUS
                 >

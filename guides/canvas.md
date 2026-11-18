@@ -115,11 +115,40 @@ edited (`text::text_turn`).
 
 ## Gestures
 
-Every gesture writes the document as it goes (adding a shape, a stroke through
-`Extend`, moving, resizing, the eraser's dimming, a typed inspector value), so
-peers see it. `CanvasState::open_writes` and `commit_writes` bracket it as one
-undo step; Escape, a second finger or another tool calls it off with
-`cancel_writes`, leaving nothing to undo.
+A gesture that makes something writes it as it goes, so peers see it: a shape
+drawn out, a stroke through `Extend`, a raster stroke, a duplicating move's
+copies, new text. `CanvasState::open_writes` brackets it as one undo step. A
+gesture that chooses one result (`Gesture::chooses`: moving, resizing, rotating,
+dragging a line's end or bend, the eraser's dimming) holds its writes in a
+tentative gesture (`open_hold`), as do the sidebar's value controls while one is
+dragged or typed into (`drag_value` follows their `ValueDrag`, `type_value`): every view of the block on
+this device previews them, and peers see nothing of them but a carried move
+(below) until the release writes them as one undo step. `commit_writes` commits both; Escape, a second finger or
+another tool calls it off with `cancel_writes`, leaving nothing written or to
+undo. The eraser drops its held dimming on release and writes the removal alone.
+When the replica ends the hold (an undo mid-drag), `gesture_ended` lets go of
+the drag.
+
+Moving the selection is a drag board carry (`root/carry.rs`;
+guides/beui/components.md, Drag and drop): a press on the selection begins
+`Gesture::Move`, and the surface's `drag` lifts it once the press passes the
+threshold, or Move in the palette lifts it from the keyboard (Space stays the
+host's, a held Space panning: `lifts_on_space=false`) and the arrows step it. The
+arrows also nudge a selection not carried, by the same world unit (ten with
+Shift), each nudge an edit of its own; a carry is the move a screen reader hears
+place by place, that Escape puts back, written once when dropped. While the
+board carries the selection, the canvas's own keys and commands wait, so nothing
+deletes or reselects what is carried. The
+canvas is a `free(..).unbounded()` site whose place is the world point under the
+pointer, applied to the move through the hold; the board's drop commits it, and
+a put-down (Escape, a cancelled press) drops it. While the board carries a move
+the release leaves it to the board, and `gesture_ended` puts the carry down. The
+surface is an edge scroller: a carry held in its band pans the camera, and the
+site chooses again as the camera moves. A move held in the hold reaches peers as
+presence instead: `CanvasCursor::carried` gives the offset of the selection
+it carries (and whether it snaps), and a peer's `Entities` draws what of that
+selection is unlocked there (`carry_for_peers`, the `drawn` memo the stage
+reads; edits read `stored`), with lines bound to it following.
 
 ## Input
 

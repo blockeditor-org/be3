@@ -65,6 +65,9 @@ const HOST_EXCLUDES: &[Pick] = &[
     Named("be-server-bin"),
     Named("beui-demo-html"),
     Named("be-tool-paint-review-web"),
+    Named("be-wasm-root-web-testing"),
+    // PDFium, which it links, is built only for the apps' platform.
+    Named("be-worker-pdf-render"),
 ];
 
 /// The crates that build on beui's HTML core, for the browser and for the host.
@@ -79,7 +82,7 @@ const HTML: &[Pick] = &[
     Named("beui-core-html"),
     Named("beui-components-unstyled"),
     Named("beui-components-styled"),
-    Named("be-host-accounts-ui"),
+    Named("be-root-accounts-ui"),
     Named("be-server-portal-ui"),
 ];
 
@@ -99,8 +102,8 @@ pub(crate) const PLANS: &[Plan] = &[
         html: false,
         lib: false,
     },
-    // be-host, beui's DOM demo, the paint review page and beui-html's live DOM
-    // for the web.
+    // be-host, beui's DOM demo, the paint review page, beui-html's live DOM
+    // and the page that tests the root entry for the web.
     Plan {
         name: "wasi",
         mode: Mode::Build,
@@ -110,32 +113,40 @@ pub(crate) const PLANS: &[Plan] = &[
             Named("beui-web-demo"),
             Named("be-tool-paint-review-web"),
             Named("beui-html"),
+            Named("be-wasm-root-web-testing"),
         ]),
         html: false,
         lib: true,
     },
-    // The apps, the libraries apps are linked against and the crates that
-    // test linking them (wasm_library and linked_app in buck/wasm/defs.bzl),
-    // beui's demo and the paint review, whose tests paint as an app's do: a
-    // plan of their own, since they want a different wgpu.
+    // The apps, the libraries apps are linked against (wasm_library in
+    // buck/wasm/defs.bzl), the echo guest staged as an app and its worker, the apps' workers, beui's demo, the paint
+    // review, whose tests paint as an app's do, and the root guests linked as apps are, be-root
+    // and the testing root (decisions/a_root_links_beui_as_an_app_does.md): a plan of their
+    // own, since they want a different wgpu.
     Plan {
         name: "wasi-guest",
         mode: Mode::Test,
-        triple: "wasm32-wasip1-threads",
+        triple: "wasm32-wasip1",
         packages: Packages::Only(&[
             Prefix("be-app-", &[]),
             Prefix("be-sdk-library-", &[]),
-            Prefix("be-tool-tls-diamond-", &[]),
+            Named("be-wasm-guest-echo"),
+            Named("be-sdk-worker-echo"),
+            Prefix("be-worker-", &[]),
             Named("be-sdk"),
             Named("be-sdk-beui"),
             Named("beui-demo"),
             Named("be-tool-paint-review"),
+            Named("be-root"),
+            Named("be-sdk-root-testing"),
         ]),
         html: false,
         lib: false,
     },
     // The games, every app's type module (be-type-bundle runs them in process
-    // on the host), the gpu shim, the remap module and the pure guests.
+    // on the host), the remap module, the pure guests and the pure root guest
+    // be-wasm-root-host's tests run: pure guests all, which import no
+    // JavaScript.
     Plan {
         name: "wasm32",
         mode: Mode::Build,
@@ -143,10 +154,21 @@ pub(crate) const PLANS: &[Plan] = &[
         packages: Packages::Only(&[
             Prefix("tabletop-rules-", &[]),
             Prefix("be-type-", &["be-type-bundle"]),
-            Named("be-wasm-gpu-shim"),
             Named("be-lib-remap-module"),
             Named("be-wasm-guest-echo"),
+            Named("be-wasm-root-testing"),
         ]),
+        html: false,
+        lib: false,
+    },
+    // The browser's gpu shim, which wasm-bindgen binds to the page: a plan of
+    // its own, since its wgpu and web-sys must not reach the pure guests (a
+    // root guest drawing with the gpu would link them).
+    Plan {
+        name: "wasm32-bindgen",
+        mode: Mode::Build,
+        triple: "wasm32-unknown-unknown",
+        packages: Packages::Only(&[Named("be-wasm-gpu-shim")]),
         html: false,
         lib: false,
     },

@@ -149,24 +149,22 @@ pub fn ChoiceMark(
             None => Some(ICON_CIRCLE),
         })
     });
-    let dotted = create_memo(move || glyph.get().is_none());
-    let iconic = create_memo(move || !dotted.get());
     let mark = Size::Custom(size.icon_px());
     let dot = Size::Custom(size.icon_px() * 0.5);
     view! {
         <Frame width=mark height=mark>
-            <Layers>
-                <Show condition={iconic}>
-                    <Text size color={color} align=TextAlign::Center>
-                        <Icon glyph={glyph} />
-                    </Text>
-                </Show>
-                <Show condition={dotted}>
+            <Show
+                value={move || glyph.get().is_some()}
+                fallback={move || view! {
                     <Frame align=Align::Center>
                         <Frame width=dot height=dot radius=Radius::Full fill={dot_color} />
                     </Frame>
-                </Show>
-            </Layers>
+                }}
+            >
+                <Text size color={color} align=TextAlign::Center>
+                    <Icon glyph={glyph} />
+                </Text>
+            </Show>
         </Frame>
     }
 }

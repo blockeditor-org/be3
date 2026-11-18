@@ -17,7 +17,6 @@ pub(crate) struct Export {
 
 #[derive(Clone, Copy)]
 pub(crate) struct Exporter {
-    error: Signal<Option<String>>,
     saving: Stored<std::cell::RefCell<Option<be_sdk_beui::Task>>>,
     editor: Editor,
 }
@@ -25,19 +24,17 @@ pub(crate) struct Exporter {
 impl Exporter {
     pub(crate) fn new(editor: Editor) -> Self {
         Self {
-            error: create_signal(None::<String>),
             saving: store(std::cell::RefCell::new(None)),
             editor,
         }
     }
 
     pub(crate) fn export(&self, export: Export) {
-        self.error.set(None);
         let host = self.editor.host();
-        let error = self.error;
+        let reporter = host.clone();
         let saved = move |save: FileSave| {
             if let FileSave::Failed(failure) = save {
-                error.set(Some(failure));
+                reporter.report_failure(format!("The block could not be exported. {failure}"));
             }
         };
         let task = match export.format {
@@ -73,10 +70,5 @@ impl Exporter {
             .into_iter()
             .chain([(ExportFormat::BlockFile, "Block file".to_owned())])
             .collect()
-    }
-
-    pub(crate) fn error(&self) -> Memo<Option<String>> {
-        let error = self.error;
-        create_memo(move || error.get())
     }
 }

@@ -27,7 +27,6 @@ fn dropping_an_eight_asks_which_suit_to_call() {
     let from = on_the_card(&editor, &format!("game.card.{pile}.{card}"));
     let to = editor.rect_of("game.pile.1").center();
     editor.drag(from, to);
-    editor.run();
     assert_eq!(moves(&editor).len(), actions.len());
     let called = eights
         .iter()
@@ -40,7 +39,6 @@ fn dropping_an_eight_asks_which_suit_to_call() {
     editor.snapshot("dropping_an_eight_asks_which_suit_to_call");
 
     editor.click(format!("game.choice.{choice}"));
-    editor.run();
 
     let played = moves(&editor);
     assert_eq!(played.len(), actions.len() + 1);

@@ -7,7 +7,8 @@ use be_sdk_api::{
 };
 use beui::animation::{Animation, create_animation, motion};
 use beui::reactive::*;
-use beui::unstyled::rubber_band::{Band, WINDOW_SPRING};
+use beui::styled::Movement;
+use beui::unstyled::rubber_band::Band;
 use beui::{
     Forwarded, ForwardedInput, NodeId, PointerId, PointerPhase, Pos2, Rect, Vec2, pos2, vec2,
 };
@@ -173,7 +174,7 @@ pub(crate) fn install() {
     let spring = beui::native::try_with_document(|_| ()).map(|()| Spring::new());
     SPRING.set(spring);
     create_effect(move || {
-        areas.with(|_| ());
+        areas.track();
         let moving = gesture.with(|gesture| gesture.as_ref().map(|gesture| gesture.key.clone()));
         let moving = moving.or_else(|| spring.and_then(|spring| spring.settling.get()));
         let displays = desktop_displays();
@@ -203,7 +204,7 @@ struct Spring {
 
 impl Spring {
     fn new() -> Self {
-        let band = store(RefCell::new(Band::new(WINDOW_SPRING)));
+        let band = store(RefCell::new(Band::new(Movement::Pull.spring())));
         let settling = create_signal(None::<FloatedKey>);
         let origin = StoredCell::new(Pos2::ZERO);
         let animation = create_animation(
@@ -532,6 +533,23 @@ pub(crate) fn catchers_of(app: &str, instance: EditorInstanceId) -> Vec<NodeId> 
     })
 }
 
+/// The catcher of the instance's view `region`, while it is built.
+pub(crate) fn catcher_of_view(
+    app: &str,
+    instance: EditorInstanceId,
+    region: ViewId,
+) -> Option<NodeId> {
+    CATCHERS.with(|catchers| {
+        catchers
+            .borrow()
+            .iter()
+            .find(|(_, catcher)| {
+                catcher.instance == instance && catcher.region == region && catcher.app == app
+            })
+            .map(|(node, _)| *node)
+    })
+}
+
 pub(crate) fn shown_within(node: NodeId, within: impl Fn(NodeId, &Catcher) -> bool) -> bool {
     let mut at = Some(node);
     let mut seen = Vec::new();
@@ -619,9 +637,7 @@ pub(crate) fn apply() {
         });
     let displays = untrack(desktop_displays);
     keep_in_work_areas(&mut windows, &displays, moving.as_ref());
-    if floated.with_untracked(|held| *held != windows) {
-        floated.set(windows);
-    }
+    floated.set(windows);
     if let Some(gesture) = gesture {
         began(gesture);
     }
@@ -674,9 +690,7 @@ pub(crate) fn begin(key: &FloatedKey, kind: Kind) -> bool {
         return false;
     };
     let gesture = begin_on(window, kind);
-    if floated.with_untracked(|held| *held != windows) {
-        floated.set(windows);
-    }
+    floated.set(windows);
     if let Some(gesture) = gesture {
         began(gesture);
     }
@@ -833,7 +847,7 @@ pub(crate) fn carried(key: FloatedKey, viewport: Memo<Vec2>) -> Memo<Rect> {
             })
         })
     };
-    let band = store(RefCell::new(Band::new(WINDOW_SPRING)));
+    let band = store(RefCell::new(Band::new(Movement::Pull.spring())));
     let overshoot = create_signal(Vec2::ZERO);
     let key = store(key);
     let place = move |origin: Pos2| {
@@ -871,13 +885,12 @@ pub(crate) fn carried(key: FloatedKey, viewport: Memo<Vec2>) -> Memo<Rect> {
             overshoot.set(Vec2::ZERO);
         },
     );
-    let was_moving = Cell::new(false);
-    create_effect(move || {
-        let now_moving = moving.get();
-        if now_moving == was_moving.replace(now_moving) {
-            return;
-        }
-        untrack(|| {
+    create_effect_on(
+        move || moving.get(),
+        move |&now_moving, was_moving| {
+            if now_moving == was_moving.copied().unwrap_or(false) {
+                return;
+            }
             let viewport = viewport.get_untracked();
             match now_moving {
                 true => {
@@ -898,8 +911,8 @@ pub(crate) fn carried(key: FloatedKey, viewport: Memo<Vec2>) -> Memo<Rect> {
                     bounce.start();
                 }
             }
-        });
-    });
+        },
+    );
     create_effect(move || {
         if !moving.get() {
             return;
@@ -1195,9 +1208,7 @@ fn raise(key: &FloatedKey) {
     if let Some(index) = windows.iter().position(|window| window.key == *key) {
         be_sdk_window_stack::raise(&mut windows, index);
     }
-    if floated.with_untracked(|held| *held != windows) {
-        floated.set(windows);
-    }
+    floated.set(windows);
 }
 
 pub(crate) fn merged_statuses(

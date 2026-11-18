@@ -29,10 +29,7 @@ pub fn ImageEditor(editor: Editor) -> NodeId {
 
     let read_only = editor.read_only();
     let busy = chooser.busy();
-    let blocked = create_memo(move || read_only.get() || busy.get());
     let failure = chooser.error();
-    let refused = create_memo(move || failure.get().is_some());
-    let refusal = create_memo(move || failure.get().unwrap_or_default());
     let choose = move || chooser.open();
 
     let fallback = move |pending: Pending| {
@@ -58,29 +55,27 @@ pub fn ImageEditor(editor: Editor) -> NodeId {
                 <DockPane id="stage" locked=true bare=true>
                     <DockTab id=STAGE title="Picture">
                         <Frame @node_ref={&content}>
-                            <Layers>
-                                <Loading fallback>|| {
-                                    let block = editor.block_content::<ImageContent>();
-                                    let shown = watch(editor, block);
-                                    let image = create_memo(move || shown.get().image);
-                                    let error = create_memo(move || shown.get().error);
-                                    create_effect(move || {
-                                        editor.set_intrinsic_size(image.get().map(|image| image.size()));
-                                    });
-                                    view! {
-                                        <ImageArea
-                                            editor={editor}
-                                            image={image}
-                                            thumbhash={placeholder}
-                                            error={error}
-                                        />
-                                    }
-                                }</Loading>
-                            </Layers>
+                            <Loading fallback>|| {
+                                let block = editor.block_content::<ImageContent>();
+                                let shown = watch(editor, block);
+                                let image = create_memo(move || shown.get().image);
+                                let error = create_memo(move || shown.get().error);
+                                create_effect(move || {
+                                    editor.set_intrinsic_size(image.get().map(|image| image.size()));
+                                });
+                                view! {
+                                    <ImageArea
+                                        editor={editor}
+                                        image={image}
+                                        thumbhash={placeholder}
+                                        error={error}
+                                    />
+                                }
+                            }</Loading>
                         </Frame>
                     </DockTab>
                 </DockPane>
-                <Show condition={chrome}>
+                <Show value={chrome}>
                     <DockPane id="panel" locked=true>
                         <DockTab id=PANEL title="Image">
                             <Frame fill=ColorRole::Surface>
@@ -90,11 +85,11 @@ pub fn ImageEditor(editor: Editor) -> NodeId {
                                             <Button
                                                 label="Replace image…"
                                                 variant=ButtonVariant::Secondary
-                                                disabled={blocked}
+                                                disabled={move || read_only.get() || busy.get()}
                                                 @test_id={"image.replace"}
                                                 on_click={choose}
                                             />
-                                            <Show condition={refused}>
+                                            <Show value={failure}>|refusal: ReadSignal<String>|
                                                 <Text
                                                     style=TextStyle::CAPTION
                                                     color=TextColor::Danger
@@ -121,14 +116,12 @@ fn ImageArea(
     thumbhash: Memo<Option<Thumbhash>>,
     error: Memo<Option<String>>,
 ) -> NodeId {
-    let failed = create_memo(move || error.with(Option::is_some));
-    let reason = create_memo(move || error.get().unwrap_or_default());
     view! {
         <List align=Align::Stretch spacing=Space::None>
             <ListItem grow=1.0>
                 <Artwork editor={editor} image={image} thumbhash={thumbhash} />
             </ListItem>
-            <Show condition={failed}>
+            <Show value={error}>|reason: ReadSignal<String>|
                 <Text style=TextStyle::CAPTION color=TextColor::Danger>{reason}</Text>
             </Show>
         </List>
@@ -141,8 +134,7 @@ fn Artwork(
     image: Memo<Option<Image>>,
     thumbhash: Memo<Option<Thumbhash>>,
 ) -> NodeId {
-    let placed_held = create_signal(Rect::ZERO);
-    let placed = placed_held.read_only();
+    let placed = create_signal(Rect::ZERO);
     let world = editor.world();
     let placeholder = create_memo(move || thumbhash.get().map(|thumbhash| thumbhash.size()));
     let shape = create_memo(move || {
@@ -159,13 +151,15 @@ fn Artwork(
             size,
         )
     });
-    let x = create_memo(move || shape.get().left());
-    let y = create_memo(move || shape.get().top());
-    let width = create_memo(move || shape.get().width());
-    let height = create_memo(move || shape.get().height());
     let built = view! {
         <Canvas view={editor.canvas()}>
-            <CanvasItem x={x} y={y} width={width} height={height} @test_id={"image.picture"}>
+            <CanvasItem
+                x={move || shape.get().left()}
+                y={move || shape.get().top()}
+                width={move || shape.get().width()}
+                height={move || shape.get().height()}
+                @test_id={"image.picture"}
+            >
                 <Picture image={image} thumbhash={thumbhash} fit=ImageFit::Fill />
             </CanvasItem>
         </Canvas>
@@ -173,7 +167,7 @@ fn Artwork(
     let placed_measured = measure(built);
     create_effect(move || {
         if let Some(measured) = placed_measured.get() {
-            placed_held.set(measured.rect);
+            placed.set(measured.rect);
         }
     });
     built
@@ -189,15 +183,13 @@ pub fn ImagePreview(editor: Editor) -> NodeId {
         }
     };
     view! {
-        <Layers>
-            <Loading fallback>|| {
-                let block = editor.block_content::<ImageContent>();
-                let shown = watch(editor, block);
-                let image = create_memo(move || shown.get().image);
-                view! {
-                    <Picture image={image} thumbhash={placeholder} fit=ImageFit::Contain />
-                }
-            }</Loading>
-        </Layers>
+        <Loading fallback>|| {
+            let block = editor.block_content::<ImageContent>();
+            let shown = watch(editor, block);
+            let image = create_memo(move || shown.get().image);
+            view! {
+                <Picture image={image} thumbhash={placeholder} fit=ImageFit::Contain />
+            }
+        }</Loading>
     }
 }

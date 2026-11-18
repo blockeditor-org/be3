@@ -1,0 +1,53 @@
+load("@root//buck/cargo:defs.bzl", "cargo_package")
+load("@root//buck/program:defs.bzl", "program")
+load("@root//buck/program:drive.bzl", "page_test")
+load("@root//buck/wasm:defs.bzl", "wasi_program_module", "web_library")
+
+cargo_package()
+
+# The page be-wasm-root-host's web half runs 4a's root on in Chromium
+# (src/lib.rs), and serves a guest the sandbox for modules from bytes.
+web_library(
+    role = "program",
+    target_compatible_with = ["prelude//cpu/constraints:cpu[wasm32]"],
+)
+
+wasi_program_module(
+    name = "web-module",
+    library = ":be-wasm-root-web-testing",
+    module = "root_web_testing",
+)
+
+# The page's module through wasm-bindgen, with the shims, and what the root's
+# child needs in its worker: the echo guest as a staged app with the base
+# library it links, and be-host's worker.js, which links it through app.js
+# against the gpu shim, which opens no device for it.
+program(
+    name = "web",
+    bindgen = [":web-module", "//crates/be-wasm-gpu-shim:module"],
+    files = [
+        "//crates/be-host:app.js",
+        "//crates/be-host:dylink.js",
+        "//crates/be-host:env.js",
+        "//crates/be-host:thread.js",
+        "//crates/be-host:threads.js",
+        "//crates/be-host:wasi.js",
+        "//crates/be-host:worker.js",
+    ],
+    linked = ["//crates/be-wasm-guest-echo:app"],
+    manifests = [],
+    modules = [],
+    wasm_bindgen = "//buck/cargo:wasm-bindgen",
+)
+
+# The root (be-wasm-root-testing) and the pure echo guest are both named
+# module.wasm, so they lie beside the bundle under names of their own.
+page_test(
+    name = "web-test",
+    files = {
+        "bundle": ":web",
+        "echo-pure.wasm": "//crates/be-wasm-guest-echo:module",
+        "index.html": "web/index.html",
+        "root.wasm": "//crates/be-wasm-root-testing:module",
+    },
+)

@@ -10,6 +10,7 @@ use beui::icons::{
     ICON_TRIANGLE_ALERT, ICON_UNDO_2, ICON_WIFI, ICON_ZOOM_IN, ICON_ZOOM_OUT,
 };
 use beui::keyboard::styled::SoftwareKeyboard;
+use beui::styled::theme::POINTER_REACH;
 use beui::text::Phrase;
 use beui::{Align, CanvasView, Extent};
 
@@ -320,7 +321,7 @@ fn ContentDrag() -> NodeId {
     let on = create_memo(move || {
         modifier
             .as_ref()
-            .is_some_and(|modifier| modifier.held.get().is_some())
+            .is_some_and(|modifier| modifier.held.with(Option::is_some))
     });
     view! {
         <List spacing=SECTION_SPACING>
@@ -362,15 +363,25 @@ fn EditCounter() -> NodeId {
     .glyph(ICON_PENCIL)
     .pin(Pin::Icon)
     .detached();
+    let reset = Action::new("demo.reset", "Reset", move || count.set(0))
+        .pin(Pin::Label)
+        .enabled(moved)
+        .detached();
     let pinned = edit.clone();
-    dock_menu(create_memo(move || vec![MenuNode::action(&pinned)]));
+    dock_menu(create_memo(move || {
+        vec![MenuNode::action(&pinned), MenuNode::action(&reset)]
+    }));
     view! {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
                 <Button action={edit} variant=ButtonVariant::Secondary />
                 <Text style=TextStyle::CAPTION>{counted}</Text>
             </List>
-            <Show condition={moved}>
+            <Text style=TextStyle::CAPTION>
+                "Edit is pinned to the pane's bar as an icon, and Reset with its label. \
+                 A pane too narrow for the label moves Reset into the bar's menu."
+            </Text>
+            <Show value={moved}>
                 <Text style=TextStyle::CAPTION>
                     "Drag this tab somewhere else: the count comes with it."
                 </Text>
@@ -452,7 +463,7 @@ fn TabSettings() -> NodeId {
             <Dialog
                 open={open}
                 title="Tab settings"
-                anchor={create_memo(move || DialogAnchor::Rect(tab.get()))}
+                anchor={move || DialogAnchor::Rect(tab.get())}
                 width={Size::Custom(240.0)}
                 on_dismiss={move || open.set(false)}
             >
@@ -523,6 +534,9 @@ pub(crate) fn TextPage() -> NodeId {
             <Sample title="Icons and chips" code={vec![IconsAndChips::SOURCE]}>
                 <IconsAndChips />
             </Sample>
+            <Sample title="Count badges" code={vec![CountBadges::SOURCE]}>
+                <CountBadges />
+            </Sample>
             <Sample title="Shortcuts" code={vec![Shortcuts::SOURCE]}>
                 <Shortcuts />
             </Sample>
@@ -563,7 +577,7 @@ fn TypeScale() -> NodeId {
 fn TextSizes() -> NodeId {
     view! {
         <List spacing=SECTION_SPACING>
-            <ForEach keys={TextSize::ALL.to_vec()}>|size: TextSize|
+            <ForEach value={TextSize::ALL.to_vec()}>|size: TextSize|
                 <Text size>
                     <Icon glyph=ICON_TYPE />
                     {format!("{} {}", size.name(), size.px())}
@@ -578,7 +592,7 @@ fn TextSizes() -> NodeId {
 fn TextColors() -> NodeId {
     view! {
         <List spacing=SECTION_SPACING>
-            <ForEach keys={TextColor::ROLES.to_vec()}>|color: TextColor|
+            <ForEach value={TextColor::ROLES.to_vec()}>|color: TextColor|
                 <Text color>{format!("The {} role", color.name())}</Text>
             </ForEach>
             <Text>
@@ -681,6 +695,23 @@ fn IconsAndChips() -> NodeId {
 
 #[sample]
 #[component]
+fn CountBadges() -> NodeId {
+    view! {
+        <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
+            <Text>"Lunch"</Text>
+            <CountBadge count=3 />
+            <Text>"Standup"</Text>
+            <CountBadge count=42 />
+            <Text>"Everyone"</Text>
+            <CountBadge count=250 />
+            <Text>"Read"</Text>
+            <CountBadge count=0 />
+        </List>
+    }
+}
+
+#[sample]
+#[component]
 fn Shortcuts() -> NodeId {
     view! {
         <List spacing=SECTION_SPACING>
@@ -767,7 +798,7 @@ pub(crate) fn ButtonsPage() -> NodeId {
             <Sample title="Tool pill" code={vec![ZoomControls::SOURCE]}>
                 <ZoomControls />
             </Sample>
-            <Sample title="Tooltips" code={vec![HoverTooltip::SOURCE]}>
+            <Sample title="Tooltips on hover and focus" code={vec![HoverTooltip::SOURCE]}>
                 <HoverTooltip />
             </Sample>
             <Sample title="Focus ring" code={vec![FocusedTile::SOURCE]}>
@@ -985,6 +1016,9 @@ fn HoverTooltip() -> NodeId {
             <Tooltip label="Short">
                 <Chip label="Or me" @test_id="demo.tooltip.short" />
             </Tooltip>
+            <Tooltip label="Tabbing here shows this at once">
+                <Button label="Focus me" @test_id="demo.tooltip.focus" />
+            </Tooltip>
         </List>
     }
 }
@@ -1049,7 +1083,35 @@ fn NameInput() -> NodeId {
                 label="Invite link"
                 copyable=true
             />
+            <ShareLink />
             <ImagePaste />
+        </List>
+    }
+}
+
+/// A Share button where the platform has a share sheet (`use_share_sheet`), which hands
+/// the link to it (`share`).
+#[sample]
+#[component]
+fn ShareLink() -> NodeId {
+    let sheet = use_share_sheet();
+    view! {
+        <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
+            <Show
+                value={sheet}
+                fallback={|| view! {
+                    <Text style=TextStyle::CAPTION>
+                        "This platform has no share sheet: copy the link instead."
+                    </Text>
+                }}
+            >||
+                <Button
+                    @test_id={"demo.share"}
+                    label="Share link"
+                    variant=ButtonVariant::Secondary
+                    on_click={|| share(Clip::text("https://blocks.example/invite/3f9c"))}
+                />
+            </Show>
         </List>
     }
 }
@@ -1190,7 +1252,7 @@ fn LoadSliders() -> NodeId {
                 </ListItem>
             </List>
             <Slider value={load} label="Load" />
-            <Progress value={create_memo(move || Some(load.get()))} label="Load" />
+            <Progress value={load} label="Load" />
             <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
                 <Text style=TextStyle::CAPTION>"Zoom, with 1x in the middle"</Text>
                 <ListItem grow=1.0>
@@ -1213,16 +1275,33 @@ fn LoadSliders() -> NodeId {
 #[sample]
 #[component]
 fn SlowGreeting() -> NodeId {
-    let answer = create_signal::<Ready<String>>(Err(Pending::Loading));
-    let arrive = move || answer.set(Ok("Hello, the data is here".to_owned()));
-    let fail = move || answer.set(Err(Pending::Failed("The server said no".to_owned())));
-    let fallback = |pending: Pending| match pending {
-        Pending::Loading => view! {
+    let server = Server::default();
+    let greeting = create_async_memo({
+        let server = server.clone();
+        move || server.ask()
+    });
+    let arrive = {
+        let server = server.clone();
+        move || server.answer(Ok("Hello, the data is here".to_owned()))
+    };
+    let fail = move || server.answer(Err("The server said no".to_owned()));
+    let waiting = |_: Pending| {
+        view! {
             <Progress width=PROGRESS_WIDTH label="Waiting" />
-        },
-        Pending::Failed(error) => view! {
-            <Text style=TextStyle::CAPTION>{error}</Text>
-        },
+        }
+    };
+    let failed = |(error, errored): (String, ErrorBoundary)| {
+        view! {
+            <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
+                <Text style=TextStyle::CAPTION>{error}</Text>
+                <Button
+                    label="Retry"
+                    variant=ButtonVariant::Secondary
+                    on_click={move || errored.reset()}
+                    @test_id="demo.loading.retry"
+                />
+            </List>
+        }
     };
     view! {
         <List spacing=SECTION_SPACING>
@@ -1233,15 +1312,57 @@ fn SlowGreeting() -> NodeId {
                     on_click={arrive}
                     @test_id="demo.loading.arrive"
                 />
-                <Button label="Fail" variant=ButtonVariant::Secondary on_click={fail} />
+                <Button
+                    label="Fail"
+                    variant=ButtonVariant::Secondary
+                    on_click={fail}
+                    @test_id="demo.loading.fail"
+                />
             </List>
-            <Loading fallback>|| {
-                let greeting = create_memo(move || answer.get());
-                view! {
-                    <Text @test_id="demo.loading.content">{greeting}</Text>
-                }
-            }</Loading>
+            <Errored fallback={failed}>||
+                <Loading fallback={waiting}>|| {
+                    let shown = create_memo(move || greeting.get());
+                    view! {
+                        <Text @test_id="demo.loading.content">{shown}</Text>
+                    }
+                }</Loading>
+            </Errored>
         </List>
+    }
+}
+
+/// Stands in for a server for `SlowGreeting`: each question waits until a button answers it.
+#[derive(Clone, Default)]
+struct Server(Rc<std::cell::RefCell<Asked>>);
+
+#[derive(Default)]
+struct Asked {
+    answer: Option<Result<String, String>>,
+    waker: Option<std::task::Waker>,
+}
+
+impl Server {
+    fn ask(&self) -> impl std::future::Future<Output = Ready<String>> + use<> {
+        *self.0.borrow_mut() = Asked::default();
+        let asked = Rc::clone(&self.0);
+        std::future::poll_fn(move |context| {
+            let mut asked = asked.borrow_mut();
+            match asked.answer.take() {
+                Some(answer) => std::task::Poll::Ready(answer.map_err(Pending::Failed)),
+                None => {
+                    asked.waker = Some(context.waker().clone());
+                    std::task::Poll::Pending
+                }
+            }
+        })
+    }
+
+    fn answer(&self, answer: Result<String, String>) {
+        let mut asked = self.0.borrow_mut();
+        asked.answer = Some(answer);
+        if let Some(waker) = asked.waker.take() {
+            waker.wake();
+        }
     }
 }
 
@@ -1255,10 +1376,10 @@ fn LockedControls() -> NodeId {
             <TextInput value="Read only while locked" disabled={locked} />
             <Select
                 options={view! {
-                    <ChoiceOption label="String" />
-                    <ChoiceOption label="Number" />
+                    <ChoiceOption value="string" label="String" />
+                    <ChoiceOption value="number" label="Number" />
                 }}
-                selected=Some(0)
+                selected=Some("string")
                 label="Field type"
                 disabled={locked}
             />
@@ -1267,10 +1388,10 @@ fn LockedControls() -> NodeId {
                 label="Save"
                 variant=ButtonVariant::Primary
                 disabled={locked}
-                description={create_memo(move || match locked.get() {
+                description={move || match locked.get() {
                     true => "Unlock to save".to_owned(),
                     false => String::new(),
-                })}
+                }}
                 @test_id="demo.locked.save"
             />
         </List>
@@ -1283,7 +1404,6 @@ fn LightSwitches() -> NodeId {
     let kitchen = create_signal(true);
     let hall = create_signal(false);
     let every = create_memo(move || kitchen.get() && hall.get());
-    let mixed = create_memo(move || kitchen.get() != hall.get());
     view! {
         <List spacing=Space::Md>
             <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
@@ -1293,7 +1413,7 @@ fn LightSwitches() -> NodeId {
                         kitchen.set(on);
                         hall.set(on);
                     })}
-                    indeterminate={mixed}
+                    indeterminate={move || kitchen.get() != hall.get()}
                 />
                 <Text>"Every light"</Text>
             </List>
@@ -1365,19 +1485,18 @@ pub(crate) fn ChoicesPage() -> NodeId {
 #[sample]
 #[component]
 fn UpdateModes() -> NodeId {
-    let modes = ["Automatic", "Manual", "Scheduled"];
-    let mode = create_signal(Some(0));
+    let mode = create_signal(Some("Automatic"));
     let mode_text = create_memo(move || {
         mode.get()
-            .map_or_else(String::new, |index| format!("{} updates", modes[index]))
+            .map_or_else(String::new, |mode| format!("{mode} updates"))
     });
     view! {
         <List spacing=SECTION_SPACING>
             <RadioGroup
                 options={view! {
-                    <ChoiceOption label="Automatic" />
-                    <ChoiceOption label="Manual" />
-                    <ChoiceOption label="Scheduled" />
+                    <ChoiceOption value="Automatic" label="Automatic" />
+                    <ChoiceOption value="Manual" label="Manual" />
+                    <ChoiceOption value="Scheduled" label="Scheduled" />
                 }}
                 selected={mode}
             />
@@ -1389,9 +1508,9 @@ fn UpdateModes() -> NodeId {
 #[sample]
 #[component]
 fn FruitSelect() -> NodeId {
-    let fruit = create_signal(Some(0));
+    let fruit = create_signal(Some(FRUITS[0]));
     let fruit_text = create_memo(move || {
-        fruit.get().and_then(|index| FRUITS.get(index)).map_or_else(
+        fruit.get().map_or_else(
             || "Nothing selected".to_owned(),
             |label| format!("{label} selected"),
         )
@@ -1400,8 +1519,8 @@ fn FruitSelect() -> NodeId {
         <List spacing=SECTION_SPACING>
             <Select
                 options={view! {
-                    <ForEach keys={FRUITS.to_vec()}>|label: &'static str|
-                        <ChoiceOption label />
+                    <ForEach value={FRUITS.to_vec()}>|label: &'static str|
+                        <ChoiceOption value=label label />
                     </ForEach>
                 }}
                 selected={fruit}
@@ -1411,8 +1530,8 @@ fn FruitSelect() -> NodeId {
             <Text style=TextStyle::CAPTION>{fruit_text}</Text>
             <Select
                 options={view! {
-                    <ForEach keys={FRUITS.to_vec()}>|label: &'static str|
-                        <ChoiceOption label />
+                    <ForEach value={FRUITS.to_vec()}>|label: &'static str|
+                        <ChoiceOption value=label label />
                     </ForEach>
                 }}
                 selected=None
@@ -1426,15 +1545,15 @@ fn FruitSelect() -> NodeId {
 #[sample]
 #[component]
 fn ScaleTabs() -> NodeId {
-    let scale = create_signal(1usize);
-    let scale_text = create_memo(move || format!("Drawn at {}x", scale.get() + 1));
+    let scale = create_signal(2u32);
+    let scale_text = create_memo(move || format!("Drawn at {}x", scale.get()));
     view! {
         <List spacing=SECTION_SPACING>
             <Tabs
                 options={view! {
-                    <ChoiceOption label="1x" />
-                    <ChoiceOption label="2x" />
-                    <ChoiceOption label="3x" />
+                    <ChoiceOption value=1 label="1x" />
+                    <ChoiceOption value=2 label="2x" />
+                    <ChoiceOption value=3 label="3x" />
                 }}
                 selected={scale}
             />
@@ -1446,22 +1565,17 @@ fn ScaleTabs() -> NodeId {
 #[sample]
 #[component]
 fn PeriodSegments() -> NodeId {
-    let period = create_signal(1usize);
-    let period_text = create_memo(move || {
-        format!(
-            "Showing the {} view",
-            ["day", "week", "month", "year"][period.get()]
-        )
-    });
+    let period = create_signal("week");
+    let period_text = create_memo(move || format!("Showing the {} view", period.get()));
     view! {
         <List spacing=SECTION_SPACING>
             <SegmentedControl
                 label="Period"
                 options={view! {
-                    <ChoiceOption label="Day" />
-                    <ChoiceOption label="Week" />
-                    <ChoiceOption label="Month" />
-                    <ChoiceOption label="Year" />
+                    <ChoiceOption value="day" label="Day" />
+                    <ChoiceOption value="week" label="Week" />
+                    <ChoiceOption value="month" label="Month" />
+                    <ChoiceOption value="year" label="Year" />
                 }}
                 selected={period}
             />
@@ -1484,7 +1598,7 @@ fn ShapeTiles() -> NodeId {
     view! {
         <List spacing=SECTION_SPACING @test_id="demo.choices.tiles">
             <List direction=Direction::Horizontal spacing=Space::Xs>
-                <ForEach keys={(0..SHAPES.len()).collect::<Vec<usize>>()}>|index: usize|
+                <ForEach value={(0..SHAPES.len()).collect::<Vec<usize>>()}>|index: usize|
                     <TileButton
                         label={SHAPES[index].0.to_owned()}
                         radio=true
@@ -1515,21 +1629,22 @@ fn NarrowChoices() -> NodeId {
                 <Tabs
                     label="Section"
                     options={view! {
-                        <ChoiceOption label="Overview" />
-                        <ChoiceOption label="Details" />
-                        <ChoiceOption label="History" />
+                        <ChoiceOption value="overview" label="Overview" />
+                        <ChoiceOption value="details" label="Details" />
+                        <ChoiceOption value="history" label="History" />
                     }}
+                    selected="overview"
                 />
             </Frame>
             <Frame width=NARROW_CHOICE_WIDTH>
                 <SegmentedControl
                     label="Sort"
                     options={view! {
-                        <ChoiceOption label="Newest" />
-                        <ChoiceOption label="Oldest" />
-                        <ChoiceOption label="Largest" />
+                        <ChoiceOption value="newest" label="Newest" />
+                        <ChoiceOption value="oldest" label="Oldest" />
+                        <ChoiceOption value="largest" label="Largest" />
                     }}
-                    selected=2
+                    selected="largest"
                 />
             </Frame>
         </List>
@@ -1689,14 +1804,12 @@ fn AccentInput() -> NodeId {
 #[component]
 fn PaintPicker() -> NodeId {
     let paint = create_signal(Color32::from_rgb(0x3E, 0x63, 0xDD));
-    let preview = create_signal(None::<Color32>);
-    let shown_paint = create_memo(move || preview.get().unwrap_or(paint.get()));
     let paint_text =
-        create_memo(move || format!("Painting in {}", beui::format_hex(shown_paint.get(), false)));
+        create_memo(move || format!("Painting in {}", beui::format_hex(paint.get(), false)));
     view! {
         <List spacing=SECTION_SPACING>
-            <ColorPicker value={paint} alpha=false on_preview={preview} />
-            <Frame height=SWATCH_HEIGHT fill={ColorRole::custom(shown_paint)} radius=Radius::Md />
+            <ColorPicker value={paint} alpha=false />
+            <Frame height=SWATCH_HEIGHT fill={ColorRole::custom(paint)} radius=Radius::Md />
             <Text style=TextStyle::CAPTION>{paint_text}</Text>
         </List>
     }
@@ -1717,7 +1830,7 @@ fn InkSwatches() -> NodeId {
     view! {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
-                <ForEach keys={(0..INKS.len()).collect::<Vec<usize>>()}>|index: usize|
+                <ForEach value={(0..INKS.len()).collect::<Vec<usize>>()}>|index: usize|
                     <SwatchButton
                         color={INKS[index].1}
                         label={INKS[index].0.to_owned()}
@@ -1736,14 +1849,12 @@ fn InkSwatches() -> NodeId {
 #[component]
 fn HueWheel() -> NodeId {
     let paint = create_signal(Color32::from_rgb(0x30, 0xA4, 0x6C));
-    let preview = create_signal(None::<Color32>);
-    let shown_paint = create_memo(move || preview.get().unwrap_or(paint.get()));
     let paint_text =
-        create_memo(move || format!("Painting in {}", beui::format_hex(shown_paint.get(), false)));
+        create_memo(move || format!("Painting in {}", beui::format_hex(paint.get(), false)));
     view! {
         <List spacing=SECTION_SPACING>
-            <ColorWheel value={paint} on_preview={preview} />
-            <Frame height=SWATCH_HEIGHT fill={ColorRole::custom(shown_paint)} radius=Radius::Md />
+            <ColorWheel value={paint} />
+            <Frame height=SWATCH_HEIGHT fill={ColorRole::custom(paint)} radius=Radius::Md />
             <Text style=TextStyle::CAPTION>{paint_text}</Text>
         </List>
     }
@@ -1753,10 +1864,8 @@ fn HueWheel() -> NodeId {
 #[component]
 fn PerceptualWheel() -> NodeId {
     let paint = create_signal(Color32::from_rgb(0xD6, 0x40, 0x9F));
-    let preview = create_signal(None::<Color32>);
-    let shown_paint = create_memo(move || preview.get().unwrap_or(paint.get()));
     let paint_text = create_memo(move || {
-        let color = beui::Oklch::from_color(shown_paint.get());
+        let color = beui::Oklch::from_color(paint.get());
         format!(
             "oklch({:.0}% {:.3} {:.0})",
             color.lightness * 100.0,
@@ -1767,8 +1876,8 @@ fn PerceptualWheel() -> NodeId {
     view! {
         <List spacing=SECTION_SPACING>
             <Text style=TextStyle::CAPTION>"Turning the hue keeps lightness and chroma"</Text>
-            <ColorWheel model=WheelModel::Oklch value={paint} on_preview={preview} />
-            <Frame height=SWATCH_HEIGHT fill={ColorRole::custom(shown_paint)} radius=Radius::Md />
+            <ColorWheel model=WheelModel::Oklch value={paint} />
+            <Frame height=SWATCH_HEIGHT fill={ColorRole::custom(paint)} radius=Radius::Md />
             <Text style=TextStyle::CAPTION>{paint_text}</Text>
         </List>
     }
@@ -1831,11 +1940,17 @@ fn EditorActions() -> NodeId {
     let share = action("toolbar.share", "Share", ICON_SHARE_2)
         .pin(Pin::Label)
         .detached();
+    let publish = Action::new("toolbar.publish", "Publish", move || {
+        said.set("Ran Publish".to_owned())
+    })
+    .pin(Pin::Label)
+    .detached();
     let rename = action("toolbar.rename", "Rename", ICON_PENCIL).detached();
     let delete = action("toolbar.delete", "Delete", ICON_TRASH).detached();
     let menu = vec![
         MenuNode::action(&undo),
         MenuNode::action(&share),
+        MenuNode::action(&publish),
         MenuNode::Separator,
         MenuNode::action(&rename),
         MenuNode::action(&delete),
@@ -1844,10 +1959,16 @@ fn EditorActions() -> NodeId {
         <List spacing=SECTION_SPACING>
             <Text style=TextStyle::PARAGRAPH>
                 "An action bar shows the actions pinned to it and offers the rest under More. \
-                 Where there is no room for labels, the actions pinned with one move into the \
-                 menu too."
+                 A bar of icons shows a labelled action by its icon, and one with no icon \
+                 (Publish) in the menu. Where there is no room for labels, the actions pinned \
+                 with one move into the menu too."
             </Text>
             <ActionBar menu={menu.clone()} test_prefix={"bar".to_owned()} />
+            <ActionBar
+                menu={menu.clone()}
+                labels=ActionLabels::Icons
+                test_prefix={"bar.icons".to_owned()}
+            />
             <ActionBar
                 menu
                 labels=ActionLabels::Overflow
@@ -1992,12 +2113,12 @@ fn ActionMenu() -> NodeId {
 fn CardMenu() -> NodeId {
     let menu_text = create_signal("Nothing chosen yet".to_owned());
     let copied = create_signal(false);
-    let nothing_copied = create_memo(move || !copied.get());
     view! {
         <List spacing=SECTION_SPACING>
             <ContextMenu
                 items={view! {
                     <MenuItem
+                        @test_id="demo.menu.copy"
                         label="Copy"
                         glyph=ICON_COPY
                         detail="Ctrl+C"
@@ -2007,25 +2128,47 @@ fn CardMenu() -> NodeId {
                         }}
                     />
                     <MenuItem
+                        @test_id="demo.menu.paste"
                         label="Paste"
                         glyph=ICON_CLIPBOARD
                         detail="Ctrl+V"
-                        disabled={nothing_copied}
+                        disabled={move || !copied.get()}
                         on_click={move || menu_text.set("Chose: Paste".to_owned())}
                     />
-                    <MenuItem label="Share" glyph=ICON_SHARE_2>
+                    <MenuItem @test_id="demo.menu.share" label="Share" glyph=ICON_SHARE_2>
                         <MenuItem
+                            @test_id="demo.menu.share.email"
                             label="Email"
                             glyph=ICON_MAIL
                             on_click={move || menu_text.set("Chose: Share > Email".to_owned())}
                         />
                         <MenuItem
+                            @test_id="demo.menu.share.link"
                             label="Link"
                             glyph=ICON_LINK
                             on_click={move || menu_text.set("Chose: Share > Link".to_owned())}
                         />
+                        <MenuItem
+                            @test_id="demo.menu.share.message"
+                            label="Message"
+                            glyph=ICON_SEND
+                            on_click={move || menu_text.set("Chose: Share > Message".to_owned())}
+                        />
+                    </MenuItem>
+                    <MenuItem @test_id="demo.menu.export" label="Export" glyph=ICON_DOWNLOAD>
+                        <MenuItem
+                            @test_id="demo.menu.export.pdf"
+                            label="PDF"
+                            on_click={move || menu_text.set("Chose: Export > PDF".to_owned())}
+                        />
+                        <MenuItem
+                            @test_id="demo.menu.export.png"
+                            label="PNG"
+                            on_click={move || menu_text.set("Chose: Export > PNG".to_owned())}
+                        />
                     </MenuItem>
                     <MenuItem
+                        @test_id="demo.menu.delete"
                         label="Delete"
                         glyph=ICON_TRASH
                         danger=true
@@ -2034,13 +2177,16 @@ fn CardMenu() -> NodeId {
                     />
                 }}
             >
-                <Card>
+                <Card @test_id="demo.menu.card">
                     <List spacing=Space::Xs>
                         <Text style=TextStyle::CAPTION>"Right-click or long-press this card"</Text>
                         <Text style=TextStyle::PARAGRAPH>
                             "A mouse opens the menu at the pointer and a finger opens \
-                             it as a sheet. Paste stays disabled until Copy is chosen; Share \
-                             opens a submenu on hover or Right Arrow, and Left Arrow closes it."
+                             it as a sheet. Paste stays disabled until Copy is chosen. Share \
+                             and Export open a submenu once the pointer stays on them or on \
+                             Right Arrow, and Left Arrow closes it; heading for an open submenu \
+                             across Export keeps it open. Typing a label's first letters moves \
+                             to it."
                         </Text>
                     </List>
                 </Card>
@@ -2141,7 +2287,7 @@ fn SortMenus() -> NodeId {
     });
     let priority = create_signal(None::<&'static str>);
     let priority_label = create_memo(move || priority.get().unwrap_or("Set priority").to_owned());
-    let unset = create_memo(move || priority.get().is_none());
+    let unset = create_memo(move || priority.with(Option::is_none));
     view! {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md wrap=true>
@@ -2295,7 +2441,7 @@ fn FolderRow(folder: usize, location: Signal<usize>, expanded: Signal<Vec<usize>
             expanded={open}
             checked
             then=MenuThen::Back
-            row_test_id={format!("demo.new.folder.{folder}")}
+            @test_id={format!("demo.new.folder.{folder}")}
             on_click={move || location.set(folder)}
         />
     }
@@ -2330,9 +2476,9 @@ fn NewBlockMenu() -> NodeId {
                             label={place}
                             glyph=ICON_FOLDER
                             page=true
-                            row_test_id="demo.new.location"
+                            @test_id="demo.new.location"
                         >
-                            <ForEach keys={shown}>|folder: usize|
+                            <ForEach value={shown}>|folder: usize|
                                 <FolderRow folder location expanded />
                             </ForEach>
                         </MenuItem>
@@ -2363,9 +2509,11 @@ fn NewBlockMenu() -> NodeId {
                             glyph=ICON_BLOCKS
                             separated=true
                             page=true
-                            row_test_id="demo.new.more"
+                            @test_id="demo.new.more"
                         >
-                            <ForEach keys={(0..MORE_BLOCKS.len()).collect::<Vec<_>>()}>|kind: usize|
+                            <ForEach
+                                value={(0..MORE_BLOCKS.len()).collect::<Vec<_>>()}
+                            >|kind: usize|
                                 <MenuItem
                                     label={MORE_BLOCKS[kind]}
                                     on_click={move || add(MORE_BLOCKS[kind])}
@@ -2417,7 +2565,6 @@ fn HeldMenu() -> NodeId {
                 anchor=button
                 open
                 min_width={Size::Custom(240.0)}
-                on_dismiss={move || open.set(false)}
                 items={view! {
                     <MenuItem
                         label="Red"
@@ -2495,14 +2642,14 @@ fn NewSlideMenu() -> NodeId {
                         <MenuCaption label="New slide" />
                         <MenuGrid columns=2>
                             <ForEach
-                                keys={(0..SLIDE_LAYOUTS.len()).collect::<Vec<_>>()}
+                                value={(0..SLIDE_LAYOUTS.len()).collect::<Vec<_>>()}
                             >|layout: usize|
                                 <MenuItem
                                     label={SLIDE_LAYOUTS[layout].0}
                                     glyph={SLIDE_LAYOUTS[layout].1}
                                     checked={create_memo(move || Some(chosen.get() == Some(layout)))}
                                     radio=true
-                                    row_test_id={format!("demo.slide.{layout}")}
+                                    @test_id={format!("demo.slide.{layout}")}
                                     on_click={move || {
                                         chosen.set(Some(layout));
                                         added.set(format!("Added {}", SLIDE_LAYOUTS[layout].0));
@@ -2583,6 +2730,9 @@ pub(crate) fn OverlaysPage() -> NodeId {
             <Sample title="Popover" code={vec![FiltersButton::SOURCE, FilterPopover::SOURCE]}>
                 <FiltersButton />
             </Sample>
+            <Sample title="Popover with an arrow" code={vec![ShareButton::SOURCE]}>
+                <ShareButton />
+            </Sample>
             <Sample title="Dialog" code={vec![DiscardDialog::SOURCE]}>
                 <DiscardDialog />
             </Sample>
@@ -2626,11 +2776,10 @@ fn FailedImport() -> NodeId {
     let failure = create_signal(Some(
         "Couldn't import holiday.heic: the format isn't supported".to_owned(),
     ));
-    let dismissed = create_memo(move || failure.with(Option::is_none));
     view! {
         <List spacing=Space::Md>
             <Banner message={failure} id="demo.banner" on_dismiss={move || failure.set(None)} />
-            <Show condition={dismissed}>
+            <Show value={move || failure.with(Option::is_none)}>
                 <Button
                     label="Import again"
                     @test_id="demo.banner.again"
@@ -2650,6 +2799,29 @@ fn FiltersButton() -> NodeId {
         <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
             <Popover label="Filters" @test_id="demo.filters">|handle: PopoverHandle|
                 <FilterPopover handle />
+            </Popover>
+        </List>
+    }
+}
+
+/// Centred under its button, a gap off it for the arrow that points back at it.
+#[sample]
+#[component]
+fn ShareButton() -> NodeId {
+    view! {
+        <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
+            <Popover
+                label="Share"
+                arrow=true
+                placement={beui::Placement::BELOW_CENTER
+                .gap(POINTER_REACH as u16)
+                .margin(Space::Md.px() as u16)}
+                @test_id="demo.share"
+            >|_: PopoverHandle|
+                <List spacing=Space::Sm>
+                    <Text style=TextStyle::HEADING>"Share"</Text>
+                    <Text>"Anyone with the link can view."</Text>
+                </List>
             </Popover>
         </List>
     }
@@ -2978,7 +3150,7 @@ fn LongSheet() -> NodeId {
             <Text style=TextStyle::CAPTION>{picked}</Text>
             <ModalSheet open={sheet} rest=0.5 on_close={move || sheet.set(false)}>
                 <List spacing=Space::None>
-                    <ForEach keys={(1..=60).collect::<Vec<usize>>()}>|row: usize|
+                    <ForEach value={(1..=60).collect::<Vec<usize>>()}>|row: usize|
                         <ActionRow
                             label={format!("Row {row}")}
                             glyph=ICON_PENCIL
@@ -3232,7 +3404,7 @@ fn SelectableServerLog() -> NodeId {
                     >
                         <SelectableText child_grow=1.0 @test_id="rows.server.selection">
                             <VirtualList
-                                keys={(0..SERVER_LINES).collect::<Vec<usize>>()}
+                                value={(0..SERVER_LINES).collect::<Vec<usize>>()}
                                 item_size=SERVER_LINE_HEIGHT
                                 text={server_line}
                             >|index: ReadSignal<usize>|
@@ -3268,7 +3440,7 @@ fn CardStrip() -> NodeId {
                 <Scroll direction=Direction::Horizontal>
                     <VirtualList
                         direction=Direction::Horizontal
-                        keys={(0..STRIP_COUNT).collect::<Vec<usize>>()}
+                        value={(0..STRIP_COUNT).collect::<Vec<usize>>()}
                         item_size=STRIP_ITEM_WIDTH
                     >|index: ReadSignal<usize>|
                         <StripCard index />
@@ -3307,7 +3479,7 @@ fn FittedScroll() -> NodeId {
                 radius=Radius::Md
             >
                 <Scroll max_length=FITTED_SCROLL_HEIGHT>
-                    <ForEach keys={rows}>|index: usize|
+                    <ForEach value={rows}>|index: usize|
                         <Frame
                             padding={Padding::symmetric(ROW_PADDING_HORIZONTAL, ROW_PADDING_VERTICAL)}
                         >
@@ -3364,7 +3536,7 @@ fn FollowingLog() -> NodeId {
                         padding={Padding::symmetric(ROW_PADDING_HORIZONTAL, ROW_PADDING_VERTICAL)}
                     >
                         <VirtualList
-                            keys={lines}
+                            value={lines}
                             item_size=LOG_LINE_ESTIMATE
                         >|line: ReadSignal<usize>| {
                             let text = create_memo(move || log_line(line.get()));
@@ -3432,7 +3604,7 @@ fn ThousandsOfRows() -> NodeId {
             <ListItem length=ROWS_HEIGHT>
                 <Scroll>
                     <VirtualList
-                        keys={(0..ROW_COUNT).collect::<Vec<usize>>()}
+                        value={(0..ROW_COUNT).collect::<Vec<usize>>()}
                         item_size={row_height}
                     >|index: ReadSignal<usize>|
                         <ScrollRow
@@ -3502,13 +3674,13 @@ fn ScrollRowFace(
             fill={fill_color}
             focus={focused}
             radius=Radius::Md
-            padding={create_memo(move || Padding::symmetric(ROW_PADDING_HORIZONTAL, vertical.get()))}
+            padding={move || Padding::symmetric(ROW_PADDING_HORIZONTAL, vertical.get())}
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=Space::Lg>
                 <ListItem grow=1.0>
                     <Text>{label}</Text>
                 </ListItem>
-                <Show condition={timings}>
+                <Show value={timings}>
                     <Text style=TextStyle::CAPTION align=TextAlign::End color={value_color}>
                         {timing}
                     </Text>
@@ -3673,7 +3845,7 @@ fn ProjectTree() -> NodeId {
                             <MenuItem
                                 label="Rename"
                                 glyph=ICON_PENCIL
-                                row_test_id={"demo.tree.rename".to_owned()}
+                                @test_id={"demo.tree.rename".to_owned()}
                                 on_click={move || editing.set(Some(row))}
                             />
                             <MenuItem
@@ -3893,6 +4065,9 @@ pub(crate) fn LayoutPage() -> NodeId {
             <Sample title="Spacers" code={vec![SpacedMarks::SOURCE]}>
                 <SpacedMarks />
             </Sample>
+            <Sample title="Movements" code={vec![Movements::SOURCE]}>
+                <Movements />
+            </Sample>
             <Sample title="Pictures" code={vec![Pictures::SOURCE, sunset::SOURCE]}>
                 <Pictures />
             </Sample>
@@ -3926,7 +4101,7 @@ fn Pictures() -> NodeId {
     let image = sunset();
     view! {
         <List direction=Direction::Horizontal wrap=true spacing=ROW_SPACING>
-            <ForEach keys={(0..RADII.len()).collect::<Vec<_>>()}>|index: usize| {
+            <ForEach value={(0..RADII.len()).collect::<Vec<_>>()}>|index: usize| {
                 let image = image.clone();
                 view! {
                     <List spacing=Space::Xs>
@@ -3946,7 +4121,7 @@ fn Pictures() -> NodeId {
 fn SpacedMarks() -> NodeId {
     view! {
         <List @test_id="demo.layout.spacers" spacing=Space::Xs>
-            <ForEach keys={(0..Space::ALL.len()).collect::<Vec<_>>()}>|index: usize|
+            <ForEach value={(0..Space::ALL.len()).collect::<Vec<_>>()}>|index: usize|
                 <List direction=Direction::Horizontal align=Align::Center spacing=Space::None>
                     <Frame
                         width=Size::Xs
@@ -3966,6 +4141,86 @@ fn SpacedMarks() -> NodeId {
                 </List>
             </ForEach>
         </List>
+    }
+}
+
+const PLOT_STEPS: usize = 24;
+const PLOT_HEIGHT: f32 = 40.0;
+const PLOT_DOT: f32 = 3.0;
+
+/// Where `movement`'s easing has a motion at each of `PLOT_STEPS` even steps.
+fn eased(movement: Movement) -> Vec<f32> {
+    let last = (PLOT_STEPS - 1) as f32;
+    (0..PLOT_STEPS)
+        .map(|step| movement.easing().sample(step as f32 / last))
+        .collect()
+}
+
+/// How far a plotted spring travels, in pixels: a spring comes to rest by
+/// pixel distances, so it runs over a real one and is drawn as a share of it.
+const SPRUNG_DISTANCE: f32 = 200.0;
+
+/// Where `movement`'s spring has a motion let go still, over 0.3 seconds.
+fn sprung(movement: Movement) -> Vec<f32> {
+    let spring = movement.spring();
+    let step = 0.3 / (PLOT_STEPS - 1) as f32;
+    let (mut displacement, mut velocity) = (SPRUNG_DISTANCE, 0.0);
+    (0..PLOT_STEPS)
+        .map(|index| {
+            if index > 0 {
+                spring.advance(&mut displacement, &mut velocity, step);
+            }
+            1.0 - displacement / SPRUNG_DISTANCE
+        })
+        .collect()
+}
+
+#[sample]
+#[component]
+fn Movements() -> NodeId {
+    view! {
+        <List @test_id="demo.layout.movements" spacing=Space::Md>
+            <ForEach value={Movement::ALL.to_vec()}>|movement: Movement|
+                <List direction=Direction::Horizontal align=Align::Center spacing=Space::Lg>
+                    <Frame width={Size::Custom(56.0)}>
+                        <Text style=TextStyle::CAPTION>{movement.name()}</Text>
+                    </Frame>
+                    <MovementPlot points={eased(movement)} />
+                    <MovementPlot points={sprung(movement)} />
+                </List>
+            </ForEach>
+        </List>
+    }
+}
+
+/// `points` from 0 to 1 (a spring may pass 1), a dot each, left to right.
+#[component]
+fn MovementPlot(points: Vec<f32>) -> NodeId {
+    let points = std::rc::Rc::new(points);
+    let room = PLOT_HEIGHT - PLOT_DOT;
+    view! {
+        <Frame fill=ColorRole::Shade radius=Radius::Sm padding=Space::Xs>
+            <List direction=Direction::Horizontal spacing=Space::Xs2>
+                <ForEach value={(0..points.len()).collect::<Vec<_>>()}>|index: usize| {
+                    let y = (1.2 - points[index]) / 1.4 * room;
+                    view! {
+                        <Frame
+                            width={Size::Custom(PLOT_DOT)}
+                            height={Size::Custom(PLOT_HEIGHT)}
+                            align={beui::Align2::START}
+                        >
+                            <Frame
+                                width={Size::Custom(PLOT_DOT)}
+                                height={Size::Custom(PLOT_DOT)}
+                                fill=ColorRole::Accent
+                                radius=Radius::Full
+                                translate={beui::Vec2::new(0.0, y)}
+                            />
+                        </Frame>
+                    }
+                }</ForEach>
+            </List>
+        </Frame>
     }
 }
 
@@ -3993,7 +4248,7 @@ fn FrameTokens() -> NodeId {
     view! {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal wrap=true spacing=ROW_SPACING>
-                <ForEach keys={ColorRole::ROLES.to_vec()}>|role: ColorRole|
+                <ForEach value={ColorRole::ROLES.to_vec()}>|role: ColorRole|
                     <List spacing=Space::Xs>
                         <Frame
                             width={Size::Custom(88.0)}
@@ -4007,7 +4262,7 @@ fn FrameTokens() -> NodeId {
                 </ForEach>
             </List>
             <List direction=Direction::Horizontal wrap=true spacing=ROW_SPACING>
-                <ForEach keys={(0..Radius::ALL.len()).collect::<Vec<_>>()}>|index: usize|
+                <ForEach value={(0..Radius::ALL.len()).collect::<Vec<_>>()}>|index: usize|
                     <List spacing=Space::Xs>
                         <Frame
                             width={Size::Xl2}
@@ -4020,7 +4275,7 @@ fn FrameTokens() -> NodeId {
                 </ForEach>
             </List>
             <List direction=Direction::Horizontal wrap=true spacing=ROW_SPACING>
-                <ForEach keys={(0..Space::ALL.len()).collect::<Vec<_>>()}>|index: usize|
+                <ForEach value={(0..Space::ALL.len()).collect::<Vec<_>>()}>|index: usize|
                     <List spacing=Space::Xs>
                         <Frame fill=ColorRole::Surface border=Border::DEFAULT radius=Radius::Sm>
                             <Frame padding={Space::ALL[index]}>
@@ -4032,7 +4287,7 @@ fn FrameTokens() -> NodeId {
                 </ForEach>
             </List>
             <List direction=Direction::Horizontal wrap=true align=Align::End spacing=ROW_SPACING>
-                <ForEach keys={(0..7).collect::<Vec<_>>()}>|index: usize|
+                <ForEach value={(0..7).collect::<Vec<_>>()}>|index: usize|
                     <List spacing=Space::Xs>
                         <Frame
                             width={Size::ALL[index]}
@@ -4045,7 +4300,7 @@ fn FrameTokens() -> NodeId {
                 </ForEach>
             </List>
             <List direction=Direction::Horizontal wrap=true spacing=ROW_SPACING>
-                <ForEach keys={(0..BORDERS.len()).collect::<Vec<_>>()}>|index: usize|
+                <ForEach value={(0..BORDERS.len()).collect::<Vec<_>>()}>|index: usize|
                     <List spacing=Space::Xs>
                         <Frame
                             width={Size::Custom(88.0)}
@@ -4148,7 +4403,7 @@ fn PlanetTable() -> NodeId {
                 columns={vec![TableColumn::new("Year"), TableColumn::new("Moons").caption("Known")]}
             >
                 <ForEach
-                    keys={PLANETS.to_vec()}
+                    value={PLANETS.to_vec()}
                 >|(name, year, moons, caption): (&'static str, &'static str, &'static str, &'static str)|
                     <TableRow
                         label={name.to_owned()}
@@ -4176,10 +4431,10 @@ fn PlanetTable() -> NodeId {
 fn SettingsSections() -> NodeId {
     let sounds = create_signal(true);
     let volume = create_signal(DEFAULT_VOLUME);
-    let size = create_signal(Some(1));
+    let size = create_signal(Some("medium"));
     let effects = create_signal(true);
     let volume_changed = create_memo(move || volume.get() != DEFAULT_VOLUME);
-    let size_changed = create_memo(move || size.get() != Some(1));
+    let size_changed = create_memo(move || size.get() != Some("medium"));
     let haptics = create_signal(false);
     let haptics_pinned = create_signal(true);
     let haptics_changed = create_memo(move || haptics.get());
@@ -4225,7 +4480,7 @@ fn SettingsSections() -> NodeId {
                         <MenuItem
                             label="Reset to default"
                             glyph={beui::icons::ICON_ROTATE_CCW.to_owned()}
-                            on_click={move || size.set(Some(1))}
+                            on_click={move || size.set(Some("medium"))}
                         />
                     }}
                 >
@@ -4233,9 +4488,9 @@ fn SettingsSections() -> NodeId {
                         <Select
                             width={Extent::fraction(1.0)}
                             options={view! {
-                                <ChoiceOption label="Small" />
-                                <ChoiceOption label="Medium" />
-                                <ChoiceOption label="Large" />
+                                <ChoiceOption value="small" label="Small" />
+                                <ChoiceOption value="medium" label="Medium" />
+                                <ChoiceOption value="large" label="Large" />
                             }}
                             selected={size}
                             label="Text size"
@@ -4306,7 +4561,7 @@ fn NestedScroll() -> NodeId {
                     <Scroll>
                         <List spacing=Space::Xs>
                             <ForEach
-                                keys={(1..=NESTED_SCROLL_ROWS).collect::<Vec<usize>>()}
+                                value={(1..=NESTED_SCROLL_ROWS).collect::<Vec<usize>>()}
                             >|line: usize|
                                 <Text>{format!("Line {line}")}</Text>
                             </ForEach>
@@ -4328,7 +4583,7 @@ fn BleedingScroll() -> NodeId {
                     <Scroll bleed=Bleed::CARD>
                         <List spacing=Space::Md>
                             <ForEach
-                                keys={(1..=NESTED_SCROLL_ROWS).collect::<Vec<usize>>()}
+                                value={(1..=NESTED_SCROLL_ROWS).collect::<Vec<usize>>()}
                             >|topic: usize|
                                 <Checkbox label={format!("Topic {topic}")} checked=false />
                             </ForEach>
@@ -4378,7 +4633,7 @@ fn MarkdownEditor() -> NodeId {
                 />
             </List>
             <ListItem length=EDITOR_HEIGHT>
-                <TextArea state={state} />
+                <TextArea @test_id="demo.markdown-editor" state={state} />
             </ListItem>
         </List>
     }
@@ -4537,11 +4792,11 @@ pub(crate) fn ThemesPage() -> NodeId {
             >
                 <ThemedSamples />
             </Sample>
-            <Show condition={windowed}>
+            {windowed.then(|| view! {
                 <Sample title="Window" code={vec![WindowSample::SOURCE]}>
                     <WindowSample />
                 </Sample>
-            </Show>
+            })}
         </ScrollPage>
     }
 }
@@ -4596,8 +4851,8 @@ fn WindowSample() -> NodeId {
             <TextInput @test_id="demo.window.title" value={window.title} label="Window title" />
             <RadioGroup
                 options={view! {
-                    <ChoiceOption label="Background" />
-                    <ChoiceOption label="Surface" />
+                    <ChoiceOption value=ColorRole::Background label="Background" />
+                    <ChoiceOption value=ColorRole::Surface label="Surface" />
                 }}
                 selected={window.background}
             />
@@ -4694,7 +4949,7 @@ fn ReorderTabs() -> NodeId {
                 "Drag a tab along the strip, or focus one and press Alt with an arrow key."
             </Text>
             <Reorder
-                keys={tabs}
+                value={tabs}
                 direction=Direction::Horizontal
                 payload={Func::new(|tab: ReorderTab| Some(tab))}
                 text={|tab: ReorderTab| REORDER_TABS[tab.0].to_owned()}
@@ -4706,7 +4961,7 @@ fn ReorderTabs() -> NodeId {
                 }}
             >|reorder: ReorderHandle<ReorderTab, ReorderTab>|
                 <List direction=Direction::Horizontal spacing=Space::Xs>
-                    <ForEach keys={reorder.order}>|tab: ReorderTab|
+                    <ForEach value={reorder.order} handle={reorder.rows}>|tab: ReorderTab|
                         <ReorderItem reorder item=tab>|_: ReorderItemHandle|
                             <Interactive
                                 @test_id={format!("demo.reorder.tab.{}", tab.0)}
@@ -4733,7 +4988,7 @@ fn ReorderTasks() -> NodeId {
     view! {
         <Frame width=REORDER_LIST_WIDTH>
             <Reorder
-                keys={tasks}
+                value={tasks}
                 payload={Func::new(|task: ReorderTask| Some(task))}
                 text={|task: ReorderTask| REORDER_TASKS[task.0].to_owned()}
                 preview={|task: ReorderTask| view! {
@@ -4744,7 +4999,7 @@ fn ReorderTasks() -> NodeId {
                 }}
             >|reorder: ReorderHandle<ReorderTask, ReorderTask>|
                 <List spacing=Space::Xs>
-                    <ForEach keys={reorder.order}>|task: ReorderTask|
+                    <ForEach value={reorder.order} handle={reorder.rows}>|task: ReorderTask|
                         <ReorderItem reorder item=task>|_: ReorderItemHandle|
                             <Interactive
                                 @test_id={format!("demo.reorder.task.{}", task.0)}
@@ -4788,7 +5043,7 @@ fn ReorderColumn(column: usize, columns: Signal<Vec<Vec<ReorderCard>>>) -> NodeI
             padding=Space::Sm
         >
             <Reorder
-                keys={keys}
+                value={keys}
                 payload={Func::new(|card: ReorderCard| Some(card))}
                 accepts={Func::new(|_: ReorderCard| true)}
                 text={|card: ReorderCard| REORDER_TASKS[card.0].to_owned()}
@@ -4803,7 +5058,7 @@ fn ReorderColumn(column: usize, columns: Signal<Vec<Vec<ReorderCard>>>) -> NodeI
                 })}
             >|reorder: ReorderHandle<ReorderCard, ReorderCard>|
                 <List spacing=Space::Xs>
-                    <ForEach keys={reorder.order}>|card: ReorderCard|
+                    <ForEach value={reorder.order} handle={reorder.rows}>|card: ReorderCard|
                         <ReorderItem reorder item=card>|_: ReorderItemHandle|
                             <Frame @test_id={format!("demo.reorder.card.{}", card.0)}>
                                 <ReorderChip label={REORDER_TASKS[card.0].to_owned()} />
@@ -4875,6 +5130,48 @@ fn NestedNote(text: &'static str) -> NodeId {
 
 const BARS_SIDE_WIDTH: f32 = 280.0;
 
+const BLEND_MODES: [&str; 6] = [
+    "Normal", "Multiply", "Screen", "Overlay", "Darken", "Lighten",
+];
+
+/// The side pane's tab: a select as wide as the narrow pane, whose list keeps within the pane
+/// (its `bounds`), so it never covers the status bars' band below it.
+#[sample]
+#[component]
+fn LayersSide() -> NodeId {
+    let area = NodeRef::new();
+    let bounds = create_memo(move || {
+        let area = area.try_get()?;
+        measure(area).get().map(|measured| measured.rect)
+    });
+    let blend = create_signal(Some(BLEND_MODES[0]));
+    view! {
+        <Frame @node_ref=&area @test_id="bars.note" width=Length::FILL height=Length::FILL>
+            <Scroll>
+                <Frame padding=PAGE_PADDING>
+                    <List spacing=SECTION_SPACING>
+                        <Select
+                            options={view! {
+                                <ForEach value={BLEND_MODES.to_vec()}>|label: &'static str|
+                                    <ChoiceOption value=label label />
+                                </ForEach>
+                            }}
+                            selected={blend}
+                            label="Blend mode"
+                            width=Length::FILL
+                            bounds
+                            @test_id="bars.blend"
+                        />
+                        <Text style=TextStyle::PARAGRAPH>
+                            "The three status bars belong to this page's dock rather than to a tab, so they show whichever tab is shown. They share one band, at its start, its centre and its end. A dock standing alone gives that band the whole length of the dock, out of every pane; joined into the demo's dock, as here, the page's tab holds them, and they sit beside the first pane. The blend mode's list is as wide as its select and keeps within this pane."
+                        </Text>
+                    </List>
+                </Frame>
+            </Scroll>
+        </Frame>
+    }
+}
+
 #[component]
 pub(crate) fn DockBarsPage() -> NodeId {
     let layout = DockingLayout::<u64>::new();
@@ -4888,10 +5185,7 @@ pub(crate) fn DockBarsPage() -> NodeId {
                 </DockPane>
                 <DockPane id="side">
                     <DockTab id=4u64 title="Layers" icon=beui::icons::ICON_LAYERS>
-                        <NestedNote
-                            @test_id="bars.note"
-                            text="The three status bars belong to this page's dock rather than to a tab, so they show whichever tab is shown. They share one band, at its start, its centre and its end. A dock standing alone gives that band the whole length of the dock, out of every pane; joined into the demo's dock, as here, the page's tab holds them, and they sit beside the first pane."
-                        />
+                        <LayersSide />
                     </DockTab>
                 </DockPane>
             </DockSplit>
@@ -4945,7 +5239,7 @@ fn BarsStage(layout: DockingLayout<u64>) -> NodeId {
                             "This page is a Docking of its own with a bare stage with two tool bars, a side \
                      pane, three status bars of the whole dock and a history bar floating over the \
                      whole dock's right edge. A bar follows its grip as it is dragged: near an edge \
-                     it grows into the band along it, which opens to make room, and let go there it \
+                     the band along it opens, and the bars there move aside for it; let go there it \
                      springs into place; thrown, it floats over the edge it was thrown towards. Drag a bar to float \
                      it over an edge of the stage, to dock it along an edge beside the stage, or \
                      away from the stage to pop it out into a window. Bars \
@@ -4955,7 +5249,7 @@ fn BarsStage(layout: DockingLayout<u64>) -> NodeId {
                      room until the button below shows it again. Bars floating over the whole \
                      dock and popped-out bars stay above its floating windows."
                         </Text>
-                        <Show condition={hidden}>
+                        <Show value={hidden}>
                             <Button
                                 @test_id="bars.show"
                                 label="Show hidden bars"
@@ -5017,7 +5311,7 @@ fn DemoToolBar(name: &'static str, tools: Vec<(&'static str, Glyph)>) -> NodeId 
             <Frame @test_id={grip}>
                 <DockBarGrip />
             </Frame>
-            <ForEach keys={tools}>|(label, glyph): (&'static str, Glyph)|
+            <ForEach value={tools}>|(label, glyph): (&'static str, Glyph)|
                 <Button
                     @test_id={format!("bars.tool.{}", label.to_lowercase())}
                     label
@@ -5115,7 +5409,7 @@ pub(crate) fn WindowManagerPage() -> NodeId {
                                 <Frame @test_id="wm.desk" />
                             }}
                         ></DockPane>
-                        <ForEach keys={open}>|id: u64| {
+                        <ForEach value={open}>|id: u64| {
                             let (_, title, group, at) = DESK_WINDOWS[id as usize - 1];
                             view! {
                                 <DockWindow

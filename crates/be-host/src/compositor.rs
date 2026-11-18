@@ -23,17 +23,17 @@ pub(crate) use editors::{
 };
 pub(crate) use palette::HostPalette;
 
-type Listeners = HashMap<String, Vec<(u64, Signal<u64>)>>;
+type Listeners = HashMap<String, Vec<(u64, Trigger)>>;
 
 thread_local! {
     static LISTENERS: RefCell<Listeners> = RefCell::new(HashMap::new());
     static NEXT_LISTENER: Cell<u64> = const { Cell::new(0) };
     static ACTIONS: RefCell<Vec<(Option<uuid::Uuid>, EditorAction)>> = const { RefCell::new(Vec::new()) };
-    static ANY: RefCell<Option<Signal<u64>>> = const { RefCell::new(None) };
+    static ANY: RefCell<Option<Trigger>> = const { RefCell::new(None) };
     static HEARD: RefCell<Option<be_host_base::host::Mailbox>> = const { RefCell::new(None) };
     static OWNERS: RefCell<HashMap<(String, be_sdk_api::EditorInstanceId), Vec<(u64, Owner)>>> =
         RefCell::new(HashMap::new());
-    static SEARCHED: RefCell<Option<Signal<u64>>> = const { RefCell::new(None) };
+    static SEARCHED: RefCell<Option<Trigger>> = const { RefCell::new(None) };
     /// What the host stack changed: searches answered again, and stale blocks.
     static STACK_CHANGES: be_host_stack::ChangeWatch = be_host_stack::ChangeWatch::new();
     static OWED: RefCell<Option<Vec<String>>> = const { RefCell::new(None) };
@@ -47,13 +47,13 @@ pub(crate) fn install() {
     be_host_runtime::draw_palette(true);
     desktop::install();
     anchored::install();
-    let signal = create_signal(0u64);
-    ANY.with(|any| *any.borrow_mut() = Some(signal));
+    let any = create_trigger();
+    ANY.with(|held| *held.borrow_mut() = Some(any));
     let shell = create_signal(None);
     SHELL.with(|held| *held.borrow_mut() = Some(shell));
     let asks = create_signal((0, Vec::new()));
     PALETTE_ASKS.with(|held| *held.borrow_mut() = Some(asks));
-    let searched = create_signal(0);
+    let searched = create_trigger();
     SEARCHED.with(|held| *held.borrow_mut() = Some(searched));
     let (mailbox, post) = be_host_base::host::mailbox(heard);
     be_host_runtime::listen(None, post);
@@ -103,12 +103,10 @@ fn heard(heard: be_host_runtime::Heard) {
     }
 }
 
-/// Moves whenever the block store answers a search again (`be_host_stack::Changes::search`).
-pub(crate) fn searched() -> ReadSignal<u64> {
+/// Notified whenever the block store answers a search again (`be_host_stack::Changes::search`).
+pub(crate) fn searched() -> Trigger {
     SEARCHED.with(|held| {
         held.borrow()
-            .as_ref()
-            .map(|searched| searched.read_only())
             .expect("the compositor is installed while the document is built")
     })
 }
@@ -156,24 +154,20 @@ fn apply_shell() {
         return;
     };
     let held = SHELL.with(|shell| *shell.borrow());
-    if let Some(shell) = held
-        && shell.get_untracked() != block
-    {
+    if let Some(shell) = held {
         shell.set(block);
     }
 }
 
-pub(crate) fn any() -> ReadSignal<u64> {
+pub(crate) fn any() -> Trigger {
     ANY.with(|any| {
         any.borrow()
-            .as_ref()
-            .map(|any| any.read_only())
             .expect("the compositor is installed while the document is built")
     })
 }
 
-pub(crate) fn listen(app_id: &str) -> ReadSignal<u64> {
-    let revision = create_signal(0u64);
+pub(crate) fn listen(app_id: &str) -> Trigger {
+    let revision = create_trigger();
     let id = NEXT_LISTENER.with(|next| {
         next.set(next.get() + 1);
         next.get()
@@ -193,7 +187,7 @@ pub(crate) fn listen(app_id: &str) -> ReadSignal<u64> {
             }
         });
     });
-    revision.read_only()
+    revision
 }
 
 /// Hands `receive` what the instance `instance` of `app_id` does from now on, until the
@@ -269,9 +263,9 @@ pub(crate) fn owes_frame() -> Option<String> {
 fn notify_apps() -> Option<Vec<String>> {
     let changes = STACK_CHANGES.with(be_host_stack::ChangeWatch::take);
     if changes.search
-        && let Some(signal) = SEARCHED.with(|held| *held.borrow())
+        && let Some(searched) = SEARCHED.with(|held| *held.borrow())
     {
-        signal.update(|searched| *searched += 1);
+        searched.notify();
     }
     if changes.stale {
         be_host_base::host::changed();
@@ -280,18 +274,18 @@ fn notify_apps() -> Option<Vec<String>> {
     changed.sort();
     let notified = !changed.is_empty() || be_host_base::host::take_changed();
     if notified && let Some(any) = ANY.with(|any| *any.borrow()) {
-        any.update(|revision| *revision += 1);
+        any.notify();
     }
     for app_id in &changed {
-        let writers: Vec<Signal<u64>> = LISTENERS.with(|listeners| {
+        let listening: Vec<Trigger> = LISTENERS.with(|listeners| {
             listeners
                 .borrow()
                 .get(app_id)
                 .map(|held| held.iter().map(|(_, listener)| *listener).collect())
                 .unwrap_or_default()
         });
-        for write in writers {
-            write.update(|revision| *revision += 1);
+        for listener in listening {
+            listener.notify();
         }
     }
     notified.then_some(changed)

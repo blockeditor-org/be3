@@ -8,6 +8,6 @@ fn the_manifest_that_failed_says_why() {
         .set(Fetch::Failed("HTTP 404 for ../../0123abcd.json".to_owned()));
     review.test.frame(Vec::new());
 
-    assert!(review.test.shows("paint_review.failed"));
+    assert!(review.test.shown("paint_review.failed"));
     review.test.snapshot("the_manifest_that_failed_says_why");
 }

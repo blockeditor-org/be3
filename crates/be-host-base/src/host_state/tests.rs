@@ -1,5 +1,7 @@
 use super::*;
 
+mod a_change_names_what_it_keeps;
+mod a_debug_print_shows_no_token_or_identity_secret;
 mod active_account_round_trips;
 mod apps_in_use_persist_across_reopen;
 mod client_id_persists_across_reopen;
@@ -7,6 +9,7 @@ mod display_settings_persist_across_reopen;
 mod fresh_store_has_no_accounts;
 mod identity_secrets_belong_to_their_account_and_leave_with_it;
 mod input_settings_persist_across_reopen;
+mod push_keys_are_made_once_and_a_push_is_shown_once;
 mod removing_an_account_clears_active_selection;
 mod saved_accounts_and_last_organization_survive_reopen;
 mod the_last_organization_belongs_to_its_account_and_leaves_with_it;

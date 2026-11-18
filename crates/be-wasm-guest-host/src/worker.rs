@@ -51,6 +51,9 @@ impl Presented for std::convert::Infallible {
 pub struct Produced<P> {
     pub outbound: Vec<Vec<u8>>,
     pub presented: Vec<P>,
+    /// The surfaces the guest let go of in the step, before it presented `presented`: a host
+    /// that holds what a surface presented drops it.
+    pub released: Vec<u32>,
     pub painted: bool,
     pub took: StepTime,
 }
@@ -60,6 +63,7 @@ impl<P> Produced<P> {
         Self {
             outbound,
             presented: Vec::new(),
+            released: Vec::new(),
             painted: false,
             took,
         }
@@ -133,8 +137,12 @@ pub struct Worker<C: Channel> {
     received: Vec<Vec<u8>>,
     ready: bool,
     stepping: bool,
+    /// Whether the step in flight, or the last one, works on frames the host sent: from a step
+    /// that took them through the steps the guest woke itself for straight after.
     carrying: bool,
     presented: Vec<C::Presented>,
+    /// The surfaces the guest let go of since `take_released`, and has not presented again.
+    released: Vec<u32>,
     presents: u64,
     took: Option<StepTime>,
     stepped: (u64, Duration),
@@ -153,6 +161,7 @@ impl<C: Channel> Worker<C> {
             stepping: false,
             carrying: false,
             presented: Vec::new(),
+            released: Vec::new(),
             presents: 0,
             took: None,
             stepped: (0, Duration::ZERO),
@@ -190,9 +199,13 @@ impl<C: Channel> Worker<C> {
             return None;
         }
         if !self.channel.take_woken() && self.pending.is_empty() {
+            self.carrying = false;
             return None;
         }
-        let carrying = !self.pending.is_empty();
+        // A step the guest woke itself for straight after one that took the host's frames
+        // finishes what those frames started (an answer it takes in one step and acts on in the
+        // next), so it is in flight as theirs was. One it wakes for later, on its own, is not.
+        let carrying = !self.pending.is_empty() || self.carrying;
         self.waiting.store(carrying, Ordering::SeqCst);
         if !self.channel.step(std::mem::take(&mut self.pending)) {
             return Some(STOPPED.to_owned());
@@ -236,7 +249,21 @@ impl<C: Channel> Worker<C> {
     }
 
     pub fn settled(&self) -> bool {
-        !self.ready || (self.pending.is_empty() && !(self.stepping && self.carrying))
+        self.unsettled().is_none()
+    }
+
+    /// Why the worker is not settled (`settled`), if it is not.
+    pub fn unsettled(&self) -> Option<&'static str> {
+        if !self.ready {
+            return None;
+        }
+        if !self.pending.is_empty() {
+            return Some(match self.stepping {
+                true => "frames wait for the step in flight to end",
+                false => "frames wait for a step",
+            });
+        }
+        (self.stepping && self.carrying).then_some("a step on the host's frames is in flight")
     }
 
     pub fn take_received(&mut self) -> Vec<Vec<u8>> {
@@ -248,6 +275,11 @@ impl<C: Channel> Worker<C> {
             return None;
         }
         Some((std::mem::take(&mut self.presented), self.presents))
+    }
+
+    /// The surfaces the guest let go of since the last call, and has not presented again.
+    pub fn take_released(&mut self) -> Vec<u32> {
+        std::mem::take(&mut self.released)
     }
 
     pub fn take_took(&mut self) -> Option<StepTime> {
@@ -277,7 +309,15 @@ impl<C: Channel> Worker<C> {
 
     fn absorb(&mut self, produced: Produced<C::Presented>) {
         self.received.extend(produced.outbound);
+        for surface in produced.released {
+            self.presented.retain(|held| held.surface() != surface);
+            if !self.released.contains(&surface) {
+                self.released.push(surface);
+            }
+        }
         for presented in produced.presented {
+            self.released
+                .retain(|surface| *surface != presented.surface());
             self.presented
                 .retain(|held| held.surface() != presented.surface());
             self.presented.push(presented);

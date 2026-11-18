@@ -15,11 +15,10 @@ pub(super) fn DockCompactView(dock: State, tree: Tree) -> NodeId {
     let stage = create_memo(move || state.with(|state| state.stage_of(tree)));
     let gathered = create_memo(move || state.with(|state| !state.gathered_tabs(tree).is_empty()));
     let folded = create_memo(move || gathered.get() && state.with(|state| state.is_folded(tree)));
-    let arranged = create_memo(move || (portrait.get(), folded.get(), stage.get(), gathered.get()));
     let built = view! {
         <List spacing=0.0>
             <Dynamic
-                value={arranged}
+                value={move || (portrait.get(), folded.get(), stage.get(), gathered.get())}
             >|(portrait, folded, stage, gathered): (bool, bool, Option<LeafId>, bool)| {
                 let dock = dock;
                 let stage = match stage {
@@ -217,7 +216,7 @@ fn DockGathered(dock: State, tree: Tree, vertical: bool, folded: bool) -> NodeId
     };
     let list = view! {
         <List direction spacing={dock.tab_spacing}>
-            <ForEach keys={tabs}>|tab: TabId| {
+            <ForEach value={tabs}>|tab: TabId| {
                 let dock = dock;
                 view! {
                     <DockGatheredTab dock tab shown vertical />
@@ -225,9 +224,25 @@ fn DockGathered(dock: State, tree: Tree, vertical: bool, folded: bool) -> NodeId
             }</ForEach>
         </List>
     };
+    let menu = create_memo(move || {
+        let shown = shown.get();
+        let rows = tabs.get().into_iter().map(|tab| {
+            let id = format!("tab.{}", dock.test_key(tab));
+            (id, Entry::Tab(tab), shown == Some(tab))
+        });
+        strip_menu(dock, rows, move |entry| {
+            if let Entry::Tab(tab) = entry {
+                pick_gathered(dock, tab);
+            }
+        })
+    });
     let strip = dock.strip.call(DockStripHandle {
         direction,
         tabs: list,
+        menu,
+        // It gathers the tabs of several panes, so it has no one pane to be named by: it takes
+        // its bar's name, so its ids never meet a pane strip's.
+        test_prefix: String::from("dock.compact"),
     });
     let focused = create_memo(move || {
         let shown = shown.get();
@@ -326,10 +341,7 @@ fn DockGatheredTab(dock: State, tab: TabId, shown: Memo<Option<TabId>>, vertical
         node.set_selected(selected.get());
         node
     }));
-    let pick = Callback::new(move |()| {
-        dock.edit(|state| state.pick_gathered(tab));
-        dock.release_dialog_focus();
-    });
+    let pick = Callback::new(move |()| pick_gathered(dock, tab));
     view! {
         <Interactive
             @node_ref=&handle
@@ -343,4 +355,9 @@ fn DockGatheredTab(dock: State, tab: TabId, shown: Memo<Option<TabId>>, vertical
             children={face}
         />
     }
+}
+
+fn pick_gathered(dock: State, tab: TabId) {
+    dock.edit(|state| state.pick_gathered(tab));
+    dock.release_dialog_focus();
 }

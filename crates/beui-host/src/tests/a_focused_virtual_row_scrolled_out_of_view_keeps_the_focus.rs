@@ -13,7 +13,7 @@ fn a_focused_virtual_row_scrolled_out_of_view_keeps_the_focus() {
                     <Offset @node_ref=&scroll>
                         <VirtualList
                             @node_ref=&list
-                            keys={indices(VIRTUAL_ITEM_COUNT)}
+                            value={indices(VIRTUAL_ITEM_COUNT)}
                             item_size=VIRTUAL_ITEM_HEIGHT
                         >|key: ReadSignal<usize>| {
                             let label = create_memo(move || format!("Row {}", key.get()));

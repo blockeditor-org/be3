@@ -80,3 +80,5 @@ fn an_editors_messages_to_the_shell_keep_the_order_it_made_them_in() {
          once, at the last ask, and only the latest focus is told"
     );
 }
+
+test_editor!(OrderRoot);

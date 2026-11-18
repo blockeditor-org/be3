@@ -85,7 +85,7 @@ fn MapEditor(editor: Editor) -> NodeId {
                         <MapCanvas state={state} />
                     </DockTab>
                 </DockPane>
-                <Show condition={chrome}>
+                <Show value={chrome}>
                     <DockPane id="inspector" locked=true>
                         <DockTab id=INSPECTOR title="Inspector">
                             <MapInspector state={state} />
@@ -93,7 +93,7 @@ fn MapEditor(editor: Editor) -> NodeId {
                     </DockPane>
                 </Show>
             </DockSplit>
-            <Show condition={chrome}>
+            <Show value={chrome}>
                 <DockBar
                     id=TOOLBAR
                     parent=STAGE

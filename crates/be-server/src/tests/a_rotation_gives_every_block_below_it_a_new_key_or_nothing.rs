@@ -4,11 +4,11 @@ use be_block_graph::Access;
 #[tokio::test]
 async fn a_rotation_gives_every_block_below_it_a_new_key_or_nothing() {
     let harness = Harness::start().await;
-    let mut owner = harness.client().await;
-    let owner_id = owner.register("owner@example.com").await;
+    let mut owner = harness.member("owner@example.com").await;
+    let owner_id = owner.id();
     owner.personal().await;
-    let mut reader = harness.client().await;
-    let reader_id = reader.register("reader@example.com").await;
+    let mut reader = harness.member("reader@example.com").await;
+    let reader_id = reader.id();
     reader.personal().await;
     let shared = owner.scope_root(owner_id, BlockParent::Root).await;
     let (inside, _) = owner.inside(&shared).await;
@@ -21,9 +21,7 @@ async fn a_rotation_gives_every_block_below_it_a_new_key_or_nothing() {
     let revoked = owner.grant(shared.block, reader_id, Access::None).await;
     assert!(matches!(revoked, Ok(())), "{revoked:?}");
     assert_eq!(work(&mut owner).await.rotations, [shared.block]);
-    let spoken = reader
-        .relay(inside, None, RelayKind::Peer, b"still here".to_vec())
-        .await;
+    let spoken = reader.relay(inside, None, b"still here".to_vec()).await;
     assert!(
         matches!(spoken, Err(_)),
         "a reader taken off a block kept speaking in its session: {spoken:?}"
@@ -81,6 +79,13 @@ async fn work(client: &mut TestClient) -> be_block_protocol::KeyWork {
 
 async fn rotate(client: &mut TestClient, root: Uuid, keys: KeySet) -> Result<(), Error> {
     client
-        .call(|peer| client::keys::rotate(peer, vec![root], keys))
+        .call(|peer| {
+            peer.write::<()>(be_block_protocol::Op::PutKeys(
+                be_block_protocol::PutKeys::Rotate {
+                    roots: vec![root],
+                    keys: keys,
+                },
+            ))
+        })
         .await
 }

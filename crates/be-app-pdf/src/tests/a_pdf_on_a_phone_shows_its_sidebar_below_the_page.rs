@@ -25,7 +25,6 @@ fn a_pdf_on_a_phone_shows_its_sidebar_below_the_page() {
         splitter - Vec2::new(0.0, 100.0),
         splitter - Vec2::new(0.0, 250.0),
     ]);
-    editor.run();
     editor.settle_until("the page to be rendered again", rendered);
     let page = editor.rect_of("pdf.tile.0");
     let gathered = editor.rect_of("dock.compact");

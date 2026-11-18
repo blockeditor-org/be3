@@ -21,9 +21,9 @@ use be_sdk_api::{
     AccessLevel, AccessListing, ArtifactAction, AudioCommand, AudioSource, AudioStatus, BlockAgent,
     BlockCommand, BlockPick, ChildContent, ChildId, ChildLayer, ChildMode, ChildPlacement,
     ChildStatus, DialogAnswer, DialogFrame, EditorInstanceId, Failure, FilePick, FileSave, FitArea,
-    HostPanel, HostView, HostWindowId, MenuEntry, NotifyMode, Occluder, ParentView,
-    PerformanceMeasurement, Revision, ShellDialog, Signer, TerminalHostBe, ViewChange, ViewId,
-    ViewPlacement, Watched, WebViewCommand, WebViewEvent, WebViewId,
+    HostPanel, HostView, HostWindowId, LinkAdmits, MenuEntry, NotifyMode, Occluder, ParentView,
+    PerformanceMeasurement, Revision, ShareLink, ShellDialog, Signer, TerminalHostBe, ViewChange,
+    ViewId, ViewPlacement, Watched, WebViewCommand, WebViewEvent, WebViewId,
 };
 pub use be_sdk_api::{BlockFilter, FileFilter, SavedFile};
 use be_sdk_type_guest::editor::{EditorOperation, FromEditor, Snapshot, ToEditor};
@@ -75,6 +75,7 @@ impl HostContent {
             session: self.session,
             unsettled: self.unsettled,
             applied: self.applied,
+            reloads: 0,
         }
     }
 }
@@ -208,6 +209,26 @@ pub struct RevisionPreview {
 }
 
 pub type HeadRead = Result<Option<StoredHead>, Failure>;
+
+/// An account that may view the editor's own block, named (`EditorHost::watch_members`).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BlockMember {
+    pub account: Uuid,
+    pub name: String,
+    /// The name is on the account's contact card, which this device verified, or is the
+    /// signed-in account's own; otherwise the server gave it, and could have changed it.
+    pub verified: bool,
+}
+
+impl BlockMember {
+    pub fn decode(member: be_sdk_api::BlockMember) -> Self {
+        Self {
+            account: Uuid::from_bytes(member.account),
+            name: member.name,
+            verified: member.verified,
+        }
+    }
+}
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct ArtifactState {
@@ -473,6 +494,7 @@ pub enum Pushed {
     WebView,
     Shows,
     Version,
+    Members,
     Watches,
     PeerMessages,
     Heads,
@@ -480,10 +502,18 @@ pub enum Pushed {
     Searches,
     /// The editor was opened at a place in its block (`take_reveal`).
     Reveal,
+    /// A host component's block's host channel members came, spoke or went
+    /// (`take_member_events`).
+    MemberEvents,
+    /// A Join member's host channel opened, closed or carried what the host said
+    /// (`take_channel_events`).
+    Channel,
+    /// Whether this device hosts the editor's block changed (`hosting`).
+    Hosting,
 }
 
 impl Pushed {
-    pub const ALL: [Self; 15] = [
+    pub const ALL: [Self; 19] = [
         Self::Peers,
         Self::Histories,
         Self::Artifacts,
@@ -493,12 +523,16 @@ impl Pushed {
         Self::WebView,
         Self::Shows,
         Self::Version,
+        Self::Members,
         Self::Watches,
         Self::PeerMessages,
         Self::Heads,
         Self::Docks,
         Self::Searches,
         Self::Reveal,
+        Self::MemberEvents,
+        Self::Channel,
+        Self::Hosting,
     ];
 }
 
@@ -535,8 +569,16 @@ pub struct EditorHost {
     on_pushed: Rc<crate::state::Callbacks<Pushed, dyn Fn()>>,
     extensions: Rc<RefCell<HashMap<TypeId, Rc<dyn Any>>>>,
     reads: Rc<Cell<u64>>,
+    /// The last id given a gesture of this editor's (`LiveContent::begin_gesture`), unique
+    /// across the blocks it edits.
+    gestures: Rc<Cell<u64>>,
     opens: Rc<RefCell<Vec<OpenRequest>>>,
     reveal: Rc<RefCell<Option<be_sdk_api::SearchLocation>>>,
+    member_events: Rc<RefCell<Vec<be_sdk_api::blocks::MemberEvent>>>,
+    /// Opened as a Join member (`opening-kind.join`): no content, only the host channel.
+    joined: Rc<Cell<bool>>,
+    channel_events: Rc<RefCell<Vec<be_sdk_api::blocks::ChannelEvent>>>,
+    hosting: Rc<Cell<Option<be_sdk_api::blocks::HostingHere>>>,
     shows: Rc<RefCell<Vec<ShowRequest>>>,
     focused: Rc<RefCell<FocusedBlock>>,
     reported_focus: Rc<RefCell<Option<FocusedBlock>>>,
@@ -555,6 +597,8 @@ pub struct EditorHost {
     simulated_access: Rc<RefCell<Vec<(Uuid, AccessLevel)>>>,
     version_status: Rc<RefCell<Option<be_sdk_api::VersionStatus>>>,
     version_watched: Rc<Cell<bool>>,
+    members: Rc<RefCell<Option<Result<Vec<BlockMember>, Failure>>>>,
+    members_watched: Rc<Cell<bool>>,
     shows_watched: Rc<Cell<bool>>,
     block_types: Rc<RefCell<Rc<BlockCatalog>>>,
     block_types_known: Rc<Cell<bool>>,
@@ -580,6 +624,9 @@ pub struct EditorHost {
     presenting: Rc<Cell<bool>>,
     child_details: Rc<RefCell<HashSet<ChildId>>>,
     child_focuses: Rc<RefCell<HashSet<ChildId>>>,
+    /// The child the editor last gave the keyboard (`focus_child`), and whether the host said
+    /// that gift missed it (`EditorEvent::GiftMissed`).
+    gift: Rc<Cell<(Option<ChildId>, bool)>>,
     menus: Rc<RefCell<std::collections::BTreeMap<ViewId, Vec<MenuEntry>>>>,
     menu_picks: Rc<RefCell<Vec<(ViewId, String)>>>,
     child_anchors: Rc<RefCell<HashMap<ChildId, Rect>>>,
@@ -689,6 +736,12 @@ impl EditorHost {
         self.reads.set(self.reads.get() + 1);
     }
 
+    /// An id for a new gesture of this editor's.
+    pub(crate) fn next_gesture(&self) -> u64 {
+        self.gestures.set(self.gestures.get() + 1);
+        self.gestures.get()
+    }
+
     pub fn performance(&self, group: impl Into<String>) -> PerformanceReporter {
         PerformanceReporter {
             group: Arc::from(group.into()),
@@ -739,6 +792,73 @@ impl EditorHost {
     pub(crate) fn reveal(&self, at: be_sdk_api::SearchLocation) {
         *self.reveal.borrow_mut() = Some(at);
         self.push(Pushed::Reveal);
+    }
+
+    /// What a host component's block's host channel members did since this was last taken
+    /// (`Pushed::MemberEvents`; plans/hosted_blocks.md, "Hosting"), in order.
+    pub fn take_member_events(&self) -> Vec<be_sdk_api::blocks::MemberEvent> {
+        std::mem::take(&mut self.member_events.borrow_mut())
+    }
+
+    pub(crate) fn member(&self, event: be_sdk_api::blocks::MemberEvent) {
+        self.member_events.borrow_mut().push(event);
+        self.push(Pushed::MemberEvents);
+    }
+
+    /// Whether the editor opened as a Join member of its block (`opening-kind.join`;
+    /// plans/hosted_blocks.md, "Hosting"): it is given no content, and speaks to whoever hosts
+    /// the block on its host channel (`take_channel_events`, `tell_host`).
+    pub fn joined(&self) -> bool {
+        self.joined.get()
+    }
+
+    pub(crate) fn set_joined(&self, joined: bool) {
+        self.joined.set(joined);
+    }
+
+    /// What a Join member's host channel did since this was last taken (`Pushed::Channel`), in
+    /// order: opened to the account that hosts, closed, or carried what the host said.
+    pub fn take_channel_events(&self) -> Vec<be_sdk_api::blocks::ChannelEvent> {
+        std::mem::take(&mut self.channel_events.borrow_mut())
+    }
+
+    pub(crate) fn channel(&self, event: be_sdk_api::blocks::ChannelEvent) {
+        self.channel_events.borrow_mut().push(event);
+        self.push(Pushed::Channel);
+    }
+
+    /// Whether this device hosts the editor's block (plans/hosted_blocks.md, "Hosting"): runs
+    /// its host component, and keeps hosting it after its editors here close
+    /// (`keep_hosting`). `No` until the host says otherwise.
+    pub fn hosting(&self) -> be_sdk_api::blocks::HostingHere {
+        self.hosting
+            .get()
+            .unwrap_or(be_sdk_api::blocks::HostingHere::No)
+    }
+
+    pub(crate) fn set_hosting(&self, hosting: be_sdk_api::blocks::HostingHere) {
+        self.hosting.set(Some(hosting));
+        self.push(Pushed::Hosting);
+    }
+
+    /// Keeps this device hosting `block_id` after its last editor here closes, or no longer.
+    pub fn keep_hosting(&self, block_id: Uuid, keep: bool) {
+        self.command(block_id, BlockCommand::KeepHosting(keep));
+    }
+
+    /// A Join member tells the host of `block_id` `payload`, sealed on its channel: lost while
+    /// the channel is not open.
+    pub fn tell_host(&self, block_id: Uuid, payload: Vec<u8>) {
+        self.command(block_id, BlockCommand::TellHost(payload));
+    }
+
+    /// A host component tells `member` of its block's host channel `payload`, sealed on the
+    /// member's channel by the host.
+    pub fn tell_member(&self, block_id: Uuid, member: u64, payload: Vec<u8>) {
+        self.command(
+            block_id,
+            BlockCommand::TellMember(be_sdk_api::blocks::MemberSaid { member, payload }),
+        );
     }
 
     pub fn take_show_requests(&self) -> Vec<ShowRequest> {
@@ -1267,6 +1387,23 @@ impl EditorHost {
         }
     }
 
+    pub fn set_members(&self, members: Result<Vec<BlockMember>, Failure>) {
+        *self.members.borrow_mut() = Some(members);
+        self.push(Pushed::Members);
+    }
+
+    /// Asks for the accounts that may view the editor's own block, named (`members`).
+    pub fn watch_members(&self) {
+        if !self.members_watched.replace(true) {
+            self.subjects_changed.set(true);
+        }
+    }
+
+    /// The members of the editor's own block, none until the host answers.
+    pub fn members(&self) -> Option<Result<Vec<BlockMember>, Failure>> {
+        self.members.borrow().clone()
+    }
+
     /// Everything the editor watches through `block-watch`, once it changed since the last
     /// call.
     pub(crate) fn take_block_subjects(
@@ -1306,6 +1443,9 @@ impl EditorHost {
         );
         if self.version_watched.get() {
             subjects.insert(Subject::Version);
+        }
+        if self.members_watched.get() {
+            subjects.insert(Subject::Members);
         }
         Some(subjects)
     }
@@ -1380,10 +1520,16 @@ impl EditorHost {
                     .collect(),
             ),
             content @ (ToEditor::Snapshot(_)
+            | ToEditor::GestureEnded { .. }
             | ToEditor::Operations(_)
             | ToEditor::Range { .. }
             | ToEditor::PartPut { .. }
-            | ToEditor::Lacking { .. }) => {
+            | ToEditor::Appended { .. }
+            | ToEditor::Logged(_)
+            | ToEditor::Refused(_)
+            | ToEditor::LogRead { .. }
+            | ToEditor::Lacking { .. }
+            | ToEditor::Failed(_)) => {
                 if self.followed.borrow().contains_key(&block) {
                     self.update_content(block, content);
                 }
@@ -1445,12 +1591,19 @@ impl EditorHost {
                 channel,
                 payload,
             } => self.send_to_peers(block, to, channel, payload),
-            message
-            @ (FromEditor::Operate(_) | FromEditor::Gesture(_) | FromEditor::Replace(_)) => {
+            // In order with the operations: it says which were made before a reload.
+            message @ (FromEditor::Operate { .. }
+            | FromEditor::Shown { .. }
+            | FromEditor::Gesture { .. }
+            | FromEditor::Break
+            | FromEditor::Replace(_)) => {
                 self.content_operations.borrow_mut().push((block, message));
             }
             message @ (FromEditor::Read { .. }
             | FromEditor::PutPart { .. }
+            | FromEditor::Append { .. }
+            | FromEditor::ReadLog { .. }
+            | FromEditor::LetGoRefused { .. }
             | FromEditor::FollowLacking
             | FromEditor::DismissLacking(_)) => {
                 self.content_operations.borrow_mut().push((block, message));
@@ -1460,7 +1613,13 @@ impl EditorHost {
     }
 
     pub fn operate_content(&self, operation: Vec<u8>) {
-        self.send_to_replica(None, FromEditor::Operate(operation));
+        self.send_to_replica(
+            None,
+            FromEditor::Operate {
+                gesture: None,
+                operation,
+            },
+        );
     }
 
     pub fn take_content_operations(&self) -> Vec<Vec<u8>> {
@@ -1480,7 +1639,7 @@ impl EditorHost {
         taken
             .into_iter()
             .filter_map(|(_, outgoing)| match outgoing {
-                FromEditor::Operate(operation) => Some(operation),
+                FromEditor::Operate { operation, .. } => Some(operation),
                 _ => None,
             })
             .collect()
@@ -1773,13 +1932,20 @@ impl EditorHost {
         self.tell(ShellMessage::ChangeView(ViewChange::PanDrag));
     }
 
+    /// The block dragged over the editor, positioned in the view it is over. The host offers
+    /// a block only to the view holding the editor's content (its main view, or the dock view
+    /// given its frame), so this is that view's, whichever view asks: a docked editor steps
+    /// its bars' views too. At most one view holds a drag: the session sets it for the view
+    /// the drag is over and clears it when it moves on or ends.
     pub fn drag(&self) -> Option<BlockDrag> {
         self.read();
-        let view = self.shown_view()?;
-        match self.drops.borrow().get(&view)?.dragged {
-            Some(Dragged::Block(drag)) => Some(drag),
-            _ => None,
-        }
+        self.drops
+            .borrow()
+            .values()
+            .find_map(|drops| match drops.dragged {
+                Some(Dragged::Block(drag)) => Some(drag),
+                _ => None,
+            })
     }
 
     pub fn files(&self) -> Option<FileDrop> {
@@ -1832,7 +1998,11 @@ impl EditorHost {
     }
 
     fn ask<R>(&self, ask: impl FnOnce() -> R) -> R {
-        asking(self.instance.get(), ask)
+        let instance = self.instance.get();
+        if instance.is_some() {
+            crate::link::send_graph(instance, self);
+        }
+        asking(instance, ask)
     }
 
     pub fn list_revisions(&self, block: Uuid) -> Asked<Result<Vec<Revision>, Failure>> {
@@ -1910,24 +2080,31 @@ impl EditorHost {
         self.ask(|| host_services::cut_blocks(blocks, holder.into_bytes()).detach());
     }
 
-    /// Pastes `be3/blocks` into `parent`: the blocks the editor may view,
-    /// none when the host refused. The first paste after a cut moves a block
-    /// cut from its parent here (`moved`), or names where a reference to it
-    /// was cut from (`cut_from`); otherwise the editor adds a reference.
+    /// Pastes `be3/blocks` into `parent`: the blocks the editor may view, or
+    /// none when the paste failed, which is reported to the host
+    /// (`report_failure`). The first paste after a cut moves a block cut from
+    /// its parent here (`moved`), or names where a reference to it was cut
+    /// from (`cut_from`); otherwise the editor adds a reference.
     pub fn paste_blocks(&self, blocks: &[Uuid], parent: BlockParent) -> Asked<Vec<Pasted>> {
         let blocks = blocks.iter().map(|block| block.into_bytes()).collect();
-        Asked::of(self.ask(|| host_services::paste_blocks(blocks, parent.encode()))).map(|pasted| {
-            pasted
-                .unwrap_or_default()
-                .into_iter()
-                .map(|pasted| Pasted {
-                    block: Uuid::from_bytes(pasted.block_id),
-                    block_type: Uuid::from_bytes(pasted.block_type),
-                    moved: pasted.moved,
-                    cut_from: pasted.cut_from.map(Uuid::from_bytes),
-                })
-                .collect()
-        })
+        let host = self.clone();
+        Asked::of(self.ask(|| host_services::paste_blocks(blocks, parent.encode()))).map(
+            move |pasted| {
+                pasted
+                    .unwrap_or_else(|failure| {
+                        host.report_failure(format!("The blocks could not be pasted. {failure}"));
+                        Vec::new()
+                    })
+                    .into_iter()
+                    .map(|pasted| Pasted {
+                        block: Uuid::from_bytes(pasted.block_id),
+                        block_type: Uuid::from_bytes(pasted.block_type),
+                        moved: pasted.moved,
+                        cut_from: pasted.cut_from.map(Uuid::from_bytes),
+                    })
+                    .collect()
+            },
+        )
     }
 
     pub fn copy_blocks(
@@ -1950,6 +2127,32 @@ impl EditorHost {
 
     pub fn list_access(&self, block_id: Uuid) -> Asked<Result<AccessListing, Failure>> {
         Asked::of(self.ask(|| host_services::list_access(block_id.into_bytes())))
+    }
+
+    /// The share links open on `block_id` ("anyone with the link"), for its managers.
+    pub fn share_links(&self, block_id: Uuid) -> Asked<Result<Vec<ShareLink>, Failure>> {
+        Asked::of(self.ask(|| host_services::list_share_links(block_id.into_bytes())))
+    }
+
+    /// Makes a share link on `block_id` granting `access` to whoever `admits` lets open it, and
+    /// answers the link to send.
+    pub fn make_share_link(
+        &self,
+        block_id: Uuid,
+        access: AccessLevel,
+        admits: LinkAdmits,
+    ) -> Asked<Result<String, Failure>> {
+        Asked::of(
+            self.ask(|| host_services::make_share_link(block_id.into_bytes(), access, admits)),
+        )
+    }
+
+    /// Revokes the share link `link` (a `ShareLink::id`) on `block_id`.
+    pub fn revoke_share_link(&self, block_id: Uuid, link: &str) -> Asked<Result<(), Failure>> {
+        let link = link.to_owned();
+        Asked::of(
+            self.ask(move || host_services::revoke_share_link(block_id.into_bytes(), link.clone())),
+        )
     }
 
     pub fn contact_link(
@@ -2012,14 +2215,19 @@ impl EditorHost {
     }
 
     /// Whether `account` signed `bytes` in the block the editor shows, and how far its key is
-    /// trusted.
+    /// trusted. `arrived` is when the server took the record, for one that keeps that stamp: a
+    /// record signed with a replaced key that arrived after this device learned of the new one
+    /// is `Replaced`.
     pub fn verify(
         &self,
         account: Uuid,
         bytes: Vec<u8>,
         signature: Vec<u8>,
+        arrived: Option<i64>,
     ) -> Asked<Result<Signer, Failure>> {
-        Asked::of(self.ask(|| host_services::verify(account.into_bytes(), bytes, signature)))
+        Asked::of(
+            self.ask(|| host_services::verify(account.into_bytes(), bytes, signature, arrived)),
+        )
     }
 
     /// Fails with the message to show where the person shared when the server could not take
@@ -2037,16 +2245,32 @@ impl EditorHost {
         )
     }
 
-    /// Sets how the signed-in account is notified about `block_id`; `NotifyModesWatch` follows
+    /// Gives ownership of `block_id` to `account` (`host-services.transfer-ownership`). Fails
+    /// as `set_access` does.
+    pub fn transfer_ownership(&self, block_id: Uuid, account: Uuid) -> Asked<Result<(), Failure>> {
+        Asked::of(
+            self.ask(|| {
+                host_services::transfer_ownership(block_id.into_bytes(), account.into_bytes())
+            }),
+        )
+    }
+
+    /// Sets how the signed-in account is notified about `block_id`; `MutesWatch` follows
     /// every block's.
-    pub fn set_notify_mode(&self, block_id: Uuid, mode: NotifyMode) -> Asked<Result<(), Failure>> {
-        Asked::of(self.ask(|| host_services::set_notify_mode(block_id.into_bytes(), mode)))
+    pub fn set_mute(&self, block_id: Uuid, mode: NotifyMode) -> Asked<Result<(), Failure>> {
+        Asked::of(self.ask(|| host_services::set_mute(block_id.into_bytes(), mode)))
     }
 
     /// Turns pushes to this device on or off; `PushDeviceWatch` follows it. Call it from a
     /// press, since turning them on asks for the person's permission.
     pub fn set_push_device(&self, on: bool) -> Asked<Result<(), Failure>> {
         Asked::of(self.ask(|| host_services::set_push_device(on)))
+    }
+
+    /// Tells the host the shell lays out as on a phone, or no longer does: every frame's
+    /// `FrameSpec::phone` follows it. Only the shell's is heard.
+    pub fn set_phone_layout(&self, on: bool) -> Asked<Result<(), Failure>> {
+        Asked::of(self.ask(|| host_services::set_phone_layout(on)))
     }
 
     pub fn load_audio(&self, media_type: impl Into<String>, bytes: Vec<u8>) {
@@ -2279,6 +2503,14 @@ impl EditorHost {
         self.tell(ShellMessage::LeaveFrame);
     }
 
+    /// Tells the person that something they asked for failed: `message` says what and why,
+    /// for them to read. The host shows it as it shows its own failures, so the editor draws
+    /// nothing and keeps no error of its own.
+    pub fn report_failure(&self, message: impl Into<String>) {
+        self.tell(ShellMessage::ReportFailure(message.into()));
+        self.changed();
+    }
+
     /// Asks the host to show the details of what the editor shows.
     pub fn show_details(&self) {
         self.tell(ShellMessage::Details);
@@ -2492,8 +2724,26 @@ impl EditorHost {
     /// this editor's views or their children and no keyboard-taking popover is open, so it
     /// never takes the keyboard from elsewhere.
     pub fn focus_child(&self, child: ChildId) {
+        self.gift.set((Some(child), false));
         self.tell(ShellMessage::FocusChild(child));
         self.changed();
+    }
+
+    /// The child the latest `focus_child` asked for, when the host said the gift missed it:
+    /// the child was no longer placed (`EditorEvent::GiftMissed`).
+    pub(crate) fn missed_gift(&self) -> Option<ChildId> {
+        self.read();
+        match self.gift.get() {
+            (child, true) => child,
+            (_, false) => None,
+        }
+    }
+
+    pub(crate) fn push_gift_missed(&self, child: ChildId) {
+        if self.gift.get() == (Some(child), false) {
+            self.gift.set((Some(child), true));
+            self.changed();
+        }
     }
 
     /// As [`EditorHost::focus_child`], for the child that will show `block` once this editor
@@ -2677,6 +2927,10 @@ impl EditorHost {
     }
 
     pub(crate) fn push_child_focus(&self, child: ChildId) {
+        // The person put the keyboard in a child: a missed gift is not asked again over it.
+        if self.gift.get().1 {
+            self.gift.set((None, false));
+        }
         self.child_focuses.borrow_mut().insert(child);
         self.changed();
     }

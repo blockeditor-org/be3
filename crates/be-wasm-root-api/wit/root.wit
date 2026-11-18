@@ -1,0 +1,1112 @@
+package be3:root@0.1.0;
+
+/// What the host serves the root guest beside the sandbox
+/// (plans/host_as_platform_adapter.md, The root guest).
+interface host {
+    use be3:shared/ids@0.1.0.{account-id, block-id, block-type-id, organization-id, uuid};
+
+    /// Answers once the frame being drawn reaches its deadline: the display's
+    /// next present less the time the host's own work after the frame takes.
+    /// Until then the root waits for its children's answers; after it, it
+    /// draws what it has. The root's own calls have no deadline. Called
+    /// outside a frame, it answers at once.
+    deadline: async func();
+
+    /// The fonts the host bundles, which the root draws its text in and tells
+    /// the apps it embeds: the app protocol's `fonts` record (be-sdk-api's
+    /// `Fonts`, with `replace` set) as a host tells an app, in be-wasm-ops'
+    /// encoding (`be_wasm_ops::encode`), as the layer list is bytes. The same
+    /// faces every call: a root asks once.
+    fonts: async func() -> list<u8>;
+
+    /// Something the host tells the person of its own: that something failed,
+    /// or why something they asked for was refused, with what they may do
+    /// about it beside dismissing it. The root shows it however it shows such
+    /// things (a toast) until the person answers it (`answer-notice`).
+    record notice {
+        /// Its id, which `answer-notice` names: the same while it is shown.
+        id: u64,
+        /// What it says, as one line or a few.
+        message: string,
+        /// Whether it says something failed, which reads as an alert and
+        /// stays until it is answered, rather than why something was
+        /// refused, which may go by itself after a while.
+        failure: bool,
+        /// What the person may do about it, which the host does once the root
+        /// answers with its key: copying a report, opening a link.
+        actions: list<notice-action>,
+    }
+
+    /// Something a notice offers the person to do.
+    record notice-action {
+        /// What `answer-notice` answers with.
+        key: string,
+        /// What it reads as.
+        label: string,
+    }
+
+    /// The host's notices at one time.
+    record shown-notices {
+        /// Which change of the notices they are, which the next `notices`
+        /// call names as `seen`: never 0.
+        generation: u64,
+        /// Every notice shown, oldest first.
+        shown: list<notice>,
+    }
+
+    /// The host's notices, once they differ from those of the generation
+    /// `seen`: at once for any other generation, such as 0, which no
+    /// notices are, so a root asks with 0 first and then with the generation
+    /// each answer gave, and hears each change as it happens rather than
+    /// asking again for it.
+    notices: async func(seen: u64) -> shown-notices;
+
+    /// The person answered the notice `id`: with one of its actions' keys,
+    /// which the host does, or with none, dismissing it, which ends it. A
+    /// notice already gone, or a key it does not offer, changes nothing. It
+    /// answers at once; the change reaches `notices`.
+    answer-notice: async func(id: u64, action: option<string>);
+
+    /// The clipboard calls below are the root's alone: the host trusts its
+    /// own root with the person's clipboard, as it never trusts an app (an
+    /// app reads a paste only as the input the host delivers it). A root never
+    /// relays them for an app it embeds.
+    ///
+    /// Puts `items` on the platform's clipboard in place of what it held:
+    /// representations of the same content, richest first, each the app
+    /// protocol's `clip-item` (be-lib-ui-types' `ClipItem`: a format, its data
+    /// and the blocks it names) in be-wasm-ops' encoding, as `fonts` is. The
+    /// root copies only what it has rendered: the host never asks it back for
+    /// a representation. It answers at once.
+    copy: async func(items: list<list<u8>>);
+
+    /// The first of `formats` the platform's clipboard holds, as a
+    /// `clip-item` in be-wasm-ops' encoding, or none when it holds none of
+    /// them: what a paste brings, which the root hands the field that asked.
+    /// It answers once the platform has read it, which may take frames.
+    paste: async func(formats: list<string>) -> option<list<u8>>;
+
+    /// Whether the host delivers the paste shortcut (Ctrl+V, Cmd+V) as a
+    /// paste itself, as input (be-lib-ui-types' `Input::Paste`), as a web
+    /// page does from the browser's paste event: then the root does not also
+    /// ask `paste` for it, or it would paste twice. The same every call: a
+    /// root asks once.
+    paste-shortcut: async func() -> bool;
+
+    /// One row of the host's statistics, as its debug panels show them: a
+    /// heading naming the rows under it, or a measurement's latest value,
+    /// its average and its peak, each as the host words it ("4.2 ms",
+    /// "180 MB"), or empty or "-" where it has none.
+    record statistic-row {
+        heading: bool,
+        name: string,
+        current: string,
+        average: string,
+        peak: string,
+    }
+
+    /// The host's read-only statistics at one time (plans/host_as_platform_adapter.md,
+    /// What the host keeps).
+    record host-statistics {
+        /// Which change of the statistics they are, which the next
+        /// `statistics` call names as `seen`: never 0.
+        generation: u64,
+        /// Its frames and steps: the full frame, and each group the host
+        /// times (frame pacing, each app's steps), with how long each took.
+        performance: list<statistic-row>,
+        /// Its process's memory: resident, anonymous, file-backed and shared,
+        /// the heap, and wasm memory in all and by guest. Empty where the
+        /// host cannot measure it, or until it has.
+        memory: list<statistic-row>,
+        /// The file the host writes its memory statistics to, if it does: its
+        /// whole path, which the host trusts its own root with (an app is never
+        /// told it).
+        memory-file: option<string>,
+    }
+
+    /// The host's memory at one minute, at its peak, in bytes.
+    record memory-point {
+        /// When, in seconds since the Unix epoch.
+        at: u64,
+        resident: u64,
+        anonymous: u64,
+        shared: u64,
+        /// The memory of every wasm guest.
+        wasm: u64,
+    }
+
+    /// The host's memory over time, a point a minute: its own watch apart
+    /// from `statistics`, whose rows change every frame while these change
+    /// once a minute.
+    record memory-minutes {
+        /// Which change of it this is, which the next `memory-history` call
+        /// names as `seen`: never 0.
+        generation: u64,
+        /// The minutes measured, oldest first; a gap of more than two
+        /// minutes is a time the computer slept.
+        points: list<memory-point>,
+        /// When the latest sample was taken, in seconds since the Unix epoch.
+        now: u64,
+    }
+
+    /// The host's memory over time, once it differs from the generation
+    /// `seen`, as `statistics` answers; the host measures it only while the
+    /// root watches the statistics, and turning the watch off answers a call
+    /// still waiting with it as it is. Each sample (every 10 seconds) moves
+    /// `now`, so it sends the whole history again, up to 2880
+    /// points (two days), about 115 KB: small for a debug panel watched only
+    /// while open, so no deltas.
+    memory-history: async func(seen: u64) -> memory-minutes;
+
+    /// Whether the root shows the host's statistics now. The host measures
+    /// what only they need (its memory, sampled every few seconds) only while
+    /// the root watches, and wakes the root for each sample. It answers at
+    /// once; turning the watch off answers a `statistics` call still waiting
+    /// with the statistics as they are.
+    watch-statistics: async func(watching: bool);
+
+    /// The host's statistics, once they differ from those of the generation
+    /// `seen`, as `notices` answers: at once for any other generation, such
+    /// as 0. They change only while the root watches them
+    /// (`watch-statistics`).
+    statistics: async func(seen: u64) -> host-statistics;
+
+    /// What the person may do from the lock screen besides unlocking it.
+    enum power-action {
+        suspend,
+        restart,
+        power-off,
+        log-out,
+    }
+
+    /// A password as the person typed it: its bytes, which the host zeroes
+    /// once checked (be-wasm-password's `Password`, never printed).
+    type password = list<u8>;
+
+    /// The session's screen lock, which is the host's: the platform's (a
+    /// login session's) to engage and to check a password against. The root
+    /// only shows it.
+    record lock-state {
+        /// Which change of the lock this is, which the next `lock` call names
+        /// as `seen`: never 0.
+        generation: u64,
+        /// Whether this host can lock its session at all; when it cannot, it
+        /// is never locked.
+        available: bool,
+        /// Whether the session is locked: the root shows its lock screen over
+        /// everything, takes no other input, and shows nothing it would not
+        /// show a stranger.
+        locked: bool,
+        /// Whether a password handed over (`unlock`) is being checked.
+        checking: bool,
+        /// Why the last unlock was refused, in words for the person, until
+        /// they try again.
+        refused: option<string>,
+        /// The name of the person whose session it is.
+        user: string,
+        /// What the lock screen offers besides unlocking.
+        power: list<power-action>,
+        /// While the host makes the person wait after failed passwords, the
+        /// frame clock's time, in nanoseconds, the wait ends at, which the root
+        /// counts down to itself. Until the host shows the lock again with none,
+        /// once the wait is over, a password handed over is dropped unchecked,
+        /// whatever the time.
+        retry-at: option<u64>,
+    }
+
+    /// The screen lock, once it differs from the generation `seen`, as
+    /// `notices` answers: at once for any other generation, such as 0.
+    lock: async func(seen: u64) -> lock-state;
+
+    /// Locks the session now, as the person asked (a shortcut, a menu); a host
+    /// that cannot lock changes nothing. It answers at once; the change
+    /// reaches `lock`.
+    lock-session: async func();
+
+    /// Hands the host what the person typed into the lock screen to check
+    /// against the platform (PAM in a login session). How the check went
+    /// reaches the root only through `lock`: unlocked, or refused with why.
+    /// The host takes one at a time: while one is being checked (`checking`),
+    /// one is handed over and not yet taken, the session is not locked, or
+    /// the lock has a `retry-at` (until the host shows it again with none,
+    /// once its wait is over), it drops one handed over unchecked. The host rate-limits failed
+    /// checks with a growing wait, as the login session's lock does, which is
+    /// the guard against guessing, since a root can always lock the session
+    /// itself. The host zeroes its decoded copy once checked and nothing of
+    /// it crosses back; the buffers it crossed in (the root's text field, the
+    /// encoded call and its frame) are not scrubbed, so a root clears its
+    /// field as it hands it over and keeps no copy of its own. It answers at
+    /// once.
+    unlock: async func(password: password);
+
+    /// The person chose `action` on the lock screen, which the host does if
+    /// the session is locked and offers it.
+    lock-power: async func(action: power-action);
+
+    /// How the block stack's sync stands.
+    variant sync-state {
+        /// Everything is saved and sent.
+        saved,
+        /// It is connecting to its server.
+        connecting,
+        /// It is sending and receiving changes.
+        syncing,
+        /// It is offline, with this many changes waiting to be sent.
+        offline(u32),
+        /// It stopped syncing, for this reason, in words for the person.
+        failed(string),
+    }
+
+    /// Whether the person's changes are saved: what the root shows while they
+    /// are not, and when saving takes long (the slow save's toast). It changes
+    /// at the rate the person types, so it is a watch of its own rather than a
+    /// field of anything slower.
+    record saving-state {
+        /// Which change of it this is, which the next `saving` call names as
+        /// `seen`: never 0.
+        generation: u64,
+        /// Whether some change is not saved to this device yet.
+        unsaved: bool,
+        /// Counts the saves finished so far: a save that finishes while others
+        /// are still unsaved still moves it, so a wait for saving starts afresh.
+        saves: u64,
+        /// How many saved changes are not sent to the server yet; a host with
+        /// more says as many as fit.
+        unsent: u32,
+        /// How the block stack's sync with its server stands.
+        sync: sync-state,
+    }
+
+    /// Whether the person's changes are saved, once it differs from the
+    /// generation `seen`, as `notices` answers: at once for any other
+    /// generation, such as 0.
+    saving: async func(seen: u64) -> saving-state;
+
+    /// Display settings that just changed, which the person keeps or reverts:
+    /// the platform's, so a capability of its own.
+    record display-question {
+        /// Which change it is, which `answer-display` names, so an answer to an
+        /// earlier one changes nothing.
+        round: u64,
+        /// When the host reverts the settings unless the person kept them, on
+        /// the frame clock `frame-request`'s `time` reads, in nanoseconds: the
+        /// host reverts then whether or not the root answered, and the root
+        /// counts down to it.
+        revert-at: u64,
+    }
+
+    /// Whether the host asks the person to keep display settings.
+    record display-state {
+        /// Which change of it this is, which the next `displays` call names
+        /// as `seen`: never 0.
+        generation: u64,
+        /// The question, while the host asks it.
+        asking: option<display-question>,
+    }
+
+    /// Whether the host asks the person to keep display settings, once it
+    /// differs from the generation `seen`, as `notices` answers: at once for
+    /// any other generation, such as 0.
+    displays: async func(seen: u64) -> display-state;
+
+    /// The person kept (`keep`) or reverted the display settings of `round`,
+    /// or the time to answer ran out (not kept), which the host does; an
+    /// answer to a round it does not ask now is dropped. It answers at once;
+    /// the change reaches `displays`.
+    answer-display: async func(round: u64, keep: bool);
+
+    /// Why the server refused a change, which the root words for the person.
+    enum refusal {
+        /// It would go over a limit.
+        over-quota,
+        /// The server could not take it as it is.
+        invalid,
+        /// The person's organization does not allow it.
+        policy,
+        /// The person may not make it there.
+        not-permitted,
+        /// The server would not say why.
+        unexplained,
+    }
+
+    /// Why a block's changes were set aside rather than sent, when it was not
+    /// that the person lost access to it.
+    variant set-aside {
+        /// The server refused them.
+        refused(refusal),
+        /// They were locked offline with a key someone who lost access to the
+        /// block may hold: only discarding them lets the person edit it again.
+        key-outdated,
+        /// They were locked offline under a folder the block is not really
+        /// in: only discarding them lets the person edit it again.
+        misplaced,
+    }
+
+    /// A block whose changes made on this device could not be sent, which
+    /// stay until the person restores or discards them.
+    record unsent-edit {
+        block: block-id,
+        /// The block's name, if it has one.
+        name: option<string>,
+        /// Whether the person may edit it again, so restoring sends them.
+        offerable: bool,
+        /// Why they were set aside, or none when access to it was lost.
+        aside: option<set-aside>,
+        /// How many of its changes on this device never became a commit; a
+        /// host with more says as many as fit.
+        kept-edits: u32,
+    }
+
+    /// An account this device keeps, which the person can open.
+    record account-row {
+        /// The host's name for it, which `core-command`s name it by.
+        key: string,
+        name: string,
+        email: string,
+        /// Its server's address, or none for an account kept on this device
+        /// alone, whose blocks go when it is removed.
+        server: option<string>,
+        /// Whether it remembers the organization it was in last, which opening
+        /// it goes back to.
+        has-last-organization: bool,
+        /// Whether it is the account open now.
+        current: bool,
+        /// The organizations it belongs to, by name.
+        organizations: list<string>,
+    }
+
+    /// A sign-in the person finishes in their browser.
+    record browser-sign-in {
+        /// The page the person signs in on.
+        url: string,
+        /// The code that page asks for, which the root shows.
+        code: string,
+    }
+
+    /// Adding an account, while the host is at it.
+    record signing-in {
+        /// The browser sign-in, once the server gave one.
+        browser: option<browser-sign-in>,
+    }
+
+    /// What the block stack waits for the person to do before it opens an
+    /// organization's blocks.
+    enum core-wait {
+        /// Open or add an account.
+        account,
+        /// Choose, join or create an organization.
+        organization,
+        /// Choose a session in the organization.
+        session,
+        /// Write down the account's recovery phrase and confirm some of its
+        /// words, which it needs before its keys are kept.
+        recovery,
+        /// Unlock the account's keys on this device: with the recovery phrase,
+        /// or by pairing with a device that holds them.
+        unlock,
+        /// Decide what to do after the block stack failed (`failure`).
+        failure,
+    }
+
+    /// An organization the account belongs to.
+    record organization-row {
+        id: organization-id,
+        name: string,
+    }
+
+    /// Whether the account's organizations are listed yet.
+    variant organizations-listed {
+        /// Asked of the server, not answered yet.
+        loading,
+        /// The organizations, as the server answered.
+        loaded(list<organization-row>),
+        /// The server could not list them, which `reload-organizations` asks
+        /// again.
+        failed,
+    }
+
+    /// An invitation into an organization, opened from its link.
+    record invitation {
+        /// The organization's name.
+        organization: string,
+        /// Who invited the person, as their card says.
+        inviter: string,
+        /// Why this account cannot take it (already a member, say), or why
+        /// nobody can (it expired), in words; none while it can be joined.
+        problem: option<string>,
+        /// Whether the account open may join it now.
+        can-join: bool,
+    }
+
+    /// The account's organizations, and joining or creating one.
+    record organizations-area {
+        listed: organizations-listed,
+        /// The invitation opened, until it is joined or put aside.
+        joining: option<invitation>,
+        /// Whether joining, creating or listing is under way.
+        busy: bool,
+        /// Why joining, creating or listing failed last, in words.
+        error: option<string>,
+    }
+
+    /// A session of the organization: the blocks the person had open, as
+    /// they left them.
+    record session-row {
+        id: uuid,
+        name: string,
+        /// The type of session it is, which the editor it opens in names.
+        session-type: block-type-id,
+        /// Whether it is the session the person used last.
+        current: bool,
+    }
+
+    /// A type a new session can be, with its name.
+    record session-kind {
+        id: block-type-id,
+        name: string,
+    }
+
+    /// A profile: which settings this device uses.
+    record profile-row {
+        id: uuid,
+        name: string,
+        /// Whether this device uses it now.
+        current: bool,
+    }
+
+    /// The organization's sessions and this device's profiles.
+    record sessions-area {
+        /// Whether the sessions and profiles are read yet.
+        loaded: bool,
+        /// The organization's sessions, of every type.
+        sessions: list<session-row>,
+        /// The types a new session can be.
+        session-kinds: list<session-kind>,
+        /// The type of session this device opens, which a new session is
+        /// unless the person picks another.
+        session-type: block-type-id,
+        profiles: list<profile-row>,
+    }
+
+    /// An account whose sign-in ended, which the person signs in to again.
+    record reauthenticating {
+        /// The account's key, which `forget-account` names it by.
+        key: string,
+        name: string,
+        /// Whether its sign-in is under way.
+        busy: bool,
+        /// Why signing in again failed, in words.
+        error: option<string>,
+    }
+
+    /// What discarding the changes not saved to this device yet would be for,
+    /// which the host asks the person to confirm before it does it.
+    enum discard-reason {
+        /// Switching organizations.
+        switch-organization,
+        /// Closing the host.
+        close,
+    }
+
+    /// How an invitation into the organization stands.
+    enum invitation-state {
+        /// Made, not opened yet.
+        waiting,
+        /// Opened by someone, not accepted yet.
+        opened,
+        accepted,
+        expired,
+        revoked,
+    }
+
+    /// An invitation into the organization, without its link, a secret that
+    /// `invitation-link` hands over.
+    record invitation-row {
+        id: uuid,
+        state: invitation-state,
+        /// Who made it.
+        inviter: string,
+        /// Who accepted it, once someone did.
+        accepter: option<string>,
+        /// When it was made, opened, expires and ended (accepted or revoked),
+        /// in milliseconds since the Unix epoch.
+        created: s64,
+        opened: option<s64>,
+        expires: s64,
+        ended: option<s64>,
+        /// Whether its link can be had again (one of the person's own, still
+        /// open).
+        has-link: bool,
+    }
+
+    /// The organization's invitations, once the root asked for them.
+    record invitations-area {
+        /// Whether they are listed yet since `list-invitations` last asked.
+        listed: bool,
+        rows: list<invitation-row>,
+        /// Whether inviting, listing or revoking is under way.
+        busy: bool,
+        /// Why it failed last, in words.
+        error: option<string>,
+    }
+
+    /// What a member of the organization may do there.
+    enum member-role {
+        administrator,
+        editor,
+        /// Holds only grants made through share links.
+        guest,
+    }
+
+    /// A member of the organization.
+    record member-row {
+        account: account-id,
+        /// Their name, or their email when they gave none.
+        name: string,
+        email: string,
+        role: member-role,
+        /// Whether it is the person themselves.
+        me: bool,
+        /// Whether it is an agent some member made.
+        agent: bool,
+        /// Whether the server added them on its own, no record in the
+        /// organization's log signing them in.
+        unsigned: bool,
+    }
+
+    /// The organization's members, once the root asked for them.
+    record members-area {
+        /// Whether they are listed yet since `list-members` last asked.
+        listed: bool,
+        members: list<member-row>,
+        /// Whether listing, a role's change or a removal is under way.
+        busy: bool,
+        error: option<string>,
+    }
+
+    /// An agent of the organization's: an account a program signs in as.
+    record agent-row {
+        account: account-id,
+        name: string,
+    }
+
+    /// The organization's agents, once the root asked for them.
+    record agents-area {
+        /// Whether they are listed yet since `list-agents` last asked.
+        listed: bool,
+        agents: list<agent-row>,
+        /// Whether listing, making or removing one is under way.
+        busy: bool,
+        error: option<string>,
+    }
+
+    /// What a program signs in to a new agent with: handed over once, as it
+    /// is made.
+    record agent-credentials {
+        name: string,
+        /// The server's address.
+        server: string,
+        organization: organization-id,
+        /// The token it signs in with.
+        token: password,
+        /// The recovery phrase of its keys.
+        phrase: password,
+    }
+
+    /// A member's new role.
+    record role-change {
+        account: account-id,
+        role: member-role,
+    }
+
+    /// Who someone is, as their card says.
+    record contact-card {
+        name: string,
+        email: string,
+    }
+
+    /// How the server's record of a contact differed from the one this
+    /// device kept.
+    enum contact-mismatch {
+        /// An older record, as a server bringing back a replaced key would
+        /// serve.
+        older,
+        /// One that does not open: changed, or sealed under a recovery phrase
+        /// this account took on another device, which this one needs too.
+        unreadable,
+    }
+
+    /// A contact: someone the person shares with directly.
+    record contact-row {
+        account: account-id,
+        name: string,
+        email: string,
+        /// Whether this device holds their key.
+        verified: bool,
+        mismatch: option<contact-mismatch>,
+    }
+
+    /// The person's contacts, and connecting with someone by a contact link.
+    record contacts-area {
+        contacts: list<contact-row>,
+        /// Who the contact link opened is from, while the person is asked to
+        /// connect with them.
+        offered: option<contact-card>,
+        /// Who the person just connected with.
+        connected: option<contact-card>,
+        /// Whether making, opening or accepting a link is under way.
+        busy: bool,
+        error: option<string>,
+    }
+
+    /// What a share link lets the person do with what it shares.
+    enum share-access {
+        view,
+        edit,
+        /// Join it while someone hosts it.
+        join,
+    }
+
+    /// What a share link opens: the block's name (its maker's words, sealed
+    /// with the link's code), its organization, what it lets the person do,
+    /// and whether they join the organization as a guest. The name is
+    /// untrusted text from whoever made the link: the root shows it as plain
+    /// text only, on one line and cut short, never as markup or a link.
+    record share-preview {
+        name: string,
+        organization: string,
+        access: share-access,
+        guest: bool,
+    }
+
+    /// Opening a share link someone sent.
+    record share-links-area {
+        /// What the link opened would share, while the person is asked.
+        offered: option<share-preview>,
+        /// What it shared, once accepted.
+        opened: option<share-preview>,
+        busy: bool,
+        error: option<string>,
+    }
+
+    /// A block an editor asked to leave, which the host asks the person to
+    /// confirm: named from the host's graph, never from what the editor says.
+    record leaving {
+        block: block-id,
+        name: string,
+        /// The name of the block it sits in, when it sits in one.
+        within: option<string>,
+        /// Whether leaving is under way.
+        busy: bool,
+        /// Why leaving was refused (it needs the server), in words.
+        refused: option<string>,
+    }
+
+    /// The account's recovery phrase, while the person writes it down: its
+    /// words themselves are a secret `make-secret`'s `recovery-phrase` hands
+    /// over.
+    record recovery-area {
+        /// How many words the phrase has.
+        words: u32,
+        /// The positions, from 1, of the words the person types back to show
+        /// they wrote it down.
+        checked: list<u32>,
+        /// Whether a new phrase replaces one the account had.
+        replacing: bool,
+        busy: bool,
+        error: option<string>,
+    }
+
+    /// Unlocking the account's keys on this device.
+    record unlock-area {
+        /// The account's name, which a device it pairs with shows.
+        account: string,
+        /// Whether a pairing code is out, waiting for a device to approve it
+        /// (the code itself is `make-secret`'s `pairing-code`).
+        pairing: bool,
+        error: option<string>,
+    }
+
+    /// Another device asking to pair, which shows a code its person types
+    /// here to approve it.
+    record pairing-request {
+        /// The host's number for the request.
+        id: u64,
+        /// The device, as it names itself: its own untrusted words. Approving
+        /// rests on the code alone, so a root never presents the name as
+        /// verified.
+        device: string,
+        /// Why approving it was refused (it needs the server), in words.
+        refused: option<string>,
+    }
+
+    /// Approving a pairing request with the code its device shows: a secret.
+    record pairing-approval {
+        id: u64,
+        code: password,
+    }
+
+    /// The block stack failed and cannot go on as it is.
+    record core-failure {
+        /// What failed, in words.
+        message: string,
+        /// How many changes are not saved, which deleting this device's copy
+        /// of the blocks loses.
+        unsaved: u32,
+    }
+
+    /// A secret the host hands the person once, as the answer to the command
+    /// that made it, never in `core-view`: the root holds it only while it
+    /// shows it.
+    variant core-secret {
+        /// A link whoever holds it may use: an invitation's, or a contact
+        /// link.
+        link(password),
+        /// A new agent's credentials.
+        agent(agent-credentials),
+        /// The account's recovery phrase, its words separated by spaces.
+        phrase(password),
+        /// A pairing code, which a device holding the account's keys
+        /// approves.
+        code(password),
+    }
+
+    /// What the block stack shows the person, a field per area, each the
+    /// plain data its area shows; the root words it, and holds what is open
+    /// and what is being asked itself. It changes at the rate its slowest
+    /// areas do; saving, which is fast, is `saving`.
+    record core-view {
+        /// Which change of it this is, which the next `core` call names as
+        /// `seen`: never 0.
+        generation: u64,
+        /// The blocks whose changes could not be sent, oldest first.
+        unsent: list<unsent-edit>,
+        /// What the block stack waits for the person to do, which the root
+        /// shows its area for; none once an organization's blocks are open.
+        waits-for: option<core-wait>,
+        /// The accounts this device keeps.
+        accounts: list<account-row>,
+        /// Adding an account, while the host is at it.
+        signing-in: option<signing-in>,
+        /// Why adding, opening or removing an account failed last, in words,
+        /// until the next attempt.
+        account-error: option<string>,
+        /// The account's organizations.
+        organizations: organizations-area,
+        /// The organization's sessions.
+        sessions: sessions-area,
+        /// An account whose sign-in ended, while the host asks the person to
+        /// sign in to it again.
+        reauthenticating: option<reauthenticating>,
+        /// What discarding unsaved changes would be for, while the host asks
+        /// the person to confirm it.
+        discarding: option<discard-reason>,
+        /// The organization's invitations.
+        invitations: invitations-area,
+        /// The organization's members.
+        members: members-area,
+        /// The organization's agents.
+        agents: agents-area,
+        /// The person's contacts.
+        contacts: contacts-area,
+        /// Opening a share link.
+        share-links: share-links-area,
+        /// A block an editor asked to leave, while the host asks to confirm.
+        leaving: option<leaving>,
+        /// The recovery phrase, while it is written down.
+        recovery: recovery-area,
+        /// Unlocking the account's keys on this device.
+        unlock: unlock-area,
+        /// Other devices asking to pair with this one, oldest first.
+        pairing: list<pairing-request>,
+        /// The block stack's failure, while it has failed.
+        failure: option<core-failure>,
+    }
+
+    /// What the block stack shows the person, once it differs from the
+    /// generation `seen`, as `notices` answers: at once for any other
+    /// generation, such as 0.
+    core: async func(seen: u64) -> core-view;
+
+    /// A new account on the server at `url`, which the person signs in to in
+    /// their browser.
+    record server-account {
+        url: string,
+        /// The gateway token the server's address needs, if it needs one: a
+        /// secret, zeroed once the host decoded it, as `unlock`'s password is.
+        gateway: option<password>,
+    }
+
+    /// Where a new account is kept.
+    variant new-account {
+        /// On this device alone, under this name.
+        local(string),
+        /// On a server.
+        server(server-account),
+    }
+
+    /// What the person asked of the block stack, a case per area's request.
+    variant core-command {
+        /// Send a block's unsent changes again.
+        restore-unsent(block-id),
+        /// Drop a block's unsent changes for good, which the root asks the
+        /// person to confirm first.
+        discard-unsent(block-id),
+        /// Open the account of this key, in the organization it was in last.
+        open-account(string),
+        /// Open the account of this key, choosing its organization afresh.
+        choose-organization(string),
+        /// Sign out of the account of this key and forget it on this device;
+        /// one kept on this device alone takes its blocks with it, which the
+        /// root asks the person to confirm first.
+        forget-account(string),
+        /// Add an account, which `signing-in` shows until it is added or
+        /// fails, unless one is being added already.
+        add-account(new-account),
+        /// Open the browser sign-in's page in the person's browser.
+        open-sign-in-page,
+        /// Ask the server now whether the browser sign-in finished, rather
+        /// than at its next turn.
+        check-sign-in,
+        /// Stop adding an account, and forget why the last attempt failed.
+        cancel-sign-in,
+        /// Leave the account open for the accounts, keeping it on this device.
+        switch-account,
+        /// List the account's organizations again.
+        reload-organizations,
+        /// Open the organization, in the session the person used last.
+        open-organization(organization-id),
+        /// Open the organization, choosing its session.
+        choose-session-in(organization-id),
+        /// Create an organization of this name.
+        create-organization(string),
+        /// Open the invitation of the link the person pasted: a bearer
+        /// secret, so a `password`, zeroed once decoded.
+        open-invitation(password),
+        /// Join the organization of the invitation opened.
+        join-invited,
+        /// Put the invitation opened aside.
+        cancel-join,
+        /// Choose another session of the organization open.
+        choose-session,
+        /// Stop choosing a session, back in the one open.
+        close-sessions,
+        /// Open the session of this id.
+        open-session(uuid),
+        /// Open a new session of this type.
+        new-session(block-type-id),
+        /// Use the profile of this id on this device.
+        use-profile(uuid),
+        /// Make a new profile, and use it on this device.
+        new-profile,
+        /// Sign in again to the account `reauthenticating` names, which
+        /// `signing-in` shows until it is done.
+        reauthenticate,
+        /// Choose another organization, which the host may first ask to
+        /// discard unsaved changes for (`discarding`).
+        switch-organization,
+        /// Discard the unsaved changes, and do what `discarding` named.
+        confirm-discard,
+        /// Keep the unsaved changes, and do nothing.
+        cancel-discard,
+        /// List the organization's invitations.
+        list-invitations,
+        /// Revoke the invitation of this id.
+        revoke-invitation(uuid),
+        /// List the organization's members.
+        list-members,
+        /// Give a member another role. The host refuses a change of the
+        /// person's own role, or one leaving the organization no
+        /// administrator, saying why in `members`' error.
+        set-member-role(role-change),
+        /// Remove a member from the organization, which the root asks the
+        /// person to confirm first.
+        remove-member(account-id),
+        /// List the organization's agents.
+        list-agents,
+        /// Remove an agent from the organization.
+        remove-agent(account-id),
+        /// Open the contact link the person pasted: a bearer secret, so a
+        /// `password`, zeroed once decoded.
+        open-contact-link(password),
+        /// Connect with whoever the contact link opened is from.
+        accept-contact,
+        /// Put the contact link opened aside, with who the person last
+        /// connected with and why it last failed: the root starts afresh.
+        forget-contact-link,
+        /// Remove a contact, which the root asks the person to confirm first.
+        remove-contact(account-id),
+        /// Open the share link the person pasted: a bearer secret, so a
+        /// `password`.
+        open-share-link(password),
+        /// Open what the share link offered.
+        accept-share-link,
+        /// Put the share link offered aside, with what was opened and why it
+        /// last failed: the root starts afresh.
+        forget-share-link,
+        /// Leave the block `leaving` names, unless another is asked by then.
+        confirm-leave(block-id),
+        /// Stay in it.
+        cancel-leave,
+        /// Confirm the recovery phrase with the words at `checked`, typed in
+        /// that order and separated by spaces: a secret.
+        confirm-recovery(password),
+        /// Make a new recovery phrase in place of the one shown.
+        new-recovery-phrase,
+        /// Keep the recovery phrase the account had, making no new one.
+        cancel-recovery,
+        /// Unlock the account's keys with its recovery phrase: a secret.
+        unlock-with-phrase(password),
+        /// Withdraw the pairing code out.
+        cancel-pairing,
+        /// Approve a device's pairing request with the code it shows.
+        approve-pairing(pairing-approval),
+        /// Start the block stack again after it failed.
+        restart,
+        /// Delete this device's copy of the blocks, losing the changes not
+        /// saved, after it failed: the root asks the person first.
+        delete-client-database,
+        /// Quit, after it failed.
+        exit,
+    }
+
+    /// The person asked `command` of the block stack, which the host does. It
+    /// answers at once; what changes reaches `core`. A command naming what
+    /// the view no longer lists (it went while the person was asked) changes
+    /// nothing: a block, an account, a contact by its account, a pairing
+    /// request by its id, or a block to leave that `leaving` no longer
+    /// names. A secret in it (`add-account`'s gateway token)
+    /// is zeroed once decoded, as `unlock`'s password is. It answers at once.
+    ask-core: async func(command: core-command);
+
+    /// What the person asked of the block stack that makes a secret the host
+    /// hands them, which `make-secret` answers with.
+    variant secret-command {
+        /// Make an invitation into the organization: its link.
+        invite-member,
+        /// The link of the invitation of this id again, while it is one of
+        /// the person's own and still open.
+        invitation-link(uuid),
+        /// Make an agent of this name: its credentials.
+        create-agent(string),
+        /// Make a contact link, which whoever holds it may connect with the
+        /// person by.
+        contact-link,
+        /// The recovery phrase being written down, which the host keeps until
+        /// it is confirmed, so it may be had again.
+        recovery-phrase,
+        /// A pairing code for this device, putting one out: a new one
+        /// replaces any already out. One nobody waits for any more when the
+        /// host answers (`answer_secret` says so) the host withdraws.
+        pairing-code,
+    }
+
+    /// The person asked `command` of the block stack, which makes a secret:
+    /// answered once it is made, with the secret, handed over this once and
+    /// never in `core`, or with nothing if making it failed, why reaching
+    /// `core`. Cancelled before the host took it, it is never made; after,
+    /// the host may have made it by then, and a secret the root no longer
+    /// waits for is lost for good. One that cannot be had again (an agent's
+    /// credentials) the host undoes, removing the agent it just made, and
+    /// says so in `agents`' error.
+    make-secret: async func(command: secret-command) -> option<core-secret>;
+}
+
+/// The window's input, which the host hands the root inline on its frame thread
+/// (plans/host_as_platform_adapter.md, Input).
+interface input {
+    /// The window's input since the last call, in order, in the window's
+    /// points: be-lib-ui-types' `Timed` inputs, each with the frame clock's
+    /// time it was sampled at when the platform said, in its encoding
+    /// (`input::encode`), as the layer list is be-lib-layers'. A pointer's
+    /// moves within a frame are merged to the last unless the root asked for
+    /// every sample (`frame-done`'s `every-sample`). A sample's time is real
+    /// time measured from the frame clock's origin, so while the host's clock
+    /// is stopped (drive's) it can be later than the frame's `time`.
+    /// `window` names the window as the
+    /// layer list does: none for the host's one window. The root routes each
+    /// event to the surface it is for, by the layers it drew last, and answers
+    /// as soon as it has routed, not once its children heard: the host keeps
+    /// each call until it is answered. The host calls it ahead of the frame it
+    /// is input for, and steps the root through it with that frame, or with
+    /// the frame being drawn if one is.
+    deliver: async func(window: option<u64>, events: list<u8>);
+}
+
+/// The root's frame entry, which the host calls inline on its frame thread.
+interface frames {
+    /// What the host asks a frame for.
+    record frame-request {
+        /// The frame clock's time, in nanoseconds: what the frame is drawn
+        /// for. It moves only when the host's clock does, so a stopped clock
+        /// (drive's) draws every frame for the same time.
+        time: u64,
+        /// The wall clock at `time`, in nanoseconds since the Unix epoch: the
+        /// host's, which a driver may pin (drive's pinned wall clock), so a
+        /// root reads neither clock of its own.
+        wall-clock: u64,
+    }
+
+    /// A drawn frame.
+    record frame-done {
+        /// Its layer list, each window's surfaces in z-order
+        /// (plans/host_as_platform_adapter.md, The layer list), in
+        /// be-lib-layers' encoding (`LayerList::encode`).
+        layers: list<u8>,
+        /// The frame clock's time, in nanoseconds, the root wants its next frame drawn for:
+        /// at once if it is not after this frame's, and none while it wants no frame until its
+        /// input or something it spawned wakes it, which wakes its host too. A host that draws
+        /// only on demand draws that frame; one that draws every frame may ignore it. Wanting a
+        /// frame is not owing one (`owed`).
+        next: option<u64>,
+        /// Whether the root owes work now: something it spawned is starting, or has a frame
+        /// due or in flight. A frame it wants only later, or for an animation, is not owed, so
+        /// a host waiting for its root to settle waits only while this is set.
+        owed: bool,
+        /// The input method's area in the host's one window, in its points: the field
+        /// the focused surface edits, as be-lib-ui-types' `ImeArea` in its encoding
+        /// (`ImeArea::encode`). None while no surface edits text; the host shows the
+        /// platform's input method there.
+        ime: option<list<u8>>,
+        /// Whether the host's one window hands the root every sample of a
+        /// pointer's moves, each with its time, rather than merging a frame's
+        /// moves into the last: while a surface it shows asks for them, as a
+        /// canvas drawing a pen stroke does.
+        every-sample: bool,
+        /// The cursor shape the host's one window shows, by its CSS name
+        /// (be-lib-ui-types' `CursorIcon::name`): the surface's under the
+        /// pointer. One the host does not know shows the default arrow.
+        cursor: string,
+        /// Whether the pointer is locked to the host's one window, hidden and
+        /// held in place with its moves reported as motion: while the focused
+        /// surface holds the lock.
+        pointer-locked: bool,
+    }
+
+    /// Draws a frame. The host steps the root until it answers: between
+    /// steps it waits for the calls the root waits on (its children's
+    /// frames, `deadline`), so the frame may await its children as ordinary
+    /// async code, and answers within one host frame.
+    frame: async func(request: frame-request) -> frame-done;
+}
+
+/// What the host's tests ask of the root, beside the frames (an extension, as
+/// `be3:debug`'s `paintings` is beside the app protocol): a host without
+/// those tests never calls it.
+interface paintings {
+    /// What the root's own surfaces painted, in beui-paint-format's encoding
+    /// of screen paintings (`ScreenPaintings`), each under its surface's id
+    /// (`Surface::Root`), in its pixels; a surface it paints no painting of is
+    /// left out, and none at all may be answered as no bytes. The host places each where the layer list drawn last shows
+    /// its surface.
+    paintings: async func() -> list<u8>;
+}
+
+/// The root guest: be-host's own module, which the host calls synchronously
+/// and serves the sandbox (`be3:sandbox/spawner`) and `host`.
+world root {
+    import host;
+    export input;
+    export frames;
+    export paintings;
+}

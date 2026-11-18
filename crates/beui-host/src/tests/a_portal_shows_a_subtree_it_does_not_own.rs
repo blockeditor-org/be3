@@ -20,7 +20,7 @@ fn a_portal_shows_a_subtree_it_does_not_own() {
                     <Frame @test_id="first" height=40.0>
                         <Portal node={first} />
                     </Frame>
-                    <Show condition={kept}>
+                    <Show value={kept}>
                         <Frame @test_id="second" height=40.0>
                             <Portal node={second} />
                         </Frame>

@@ -18,11 +18,6 @@ pub(crate) fn CrashNotice(
     on_reload: Callback<()>,
 ) -> NodeId {
     let reload_id = format!("{id}.reload");
-    let reloadable = create_memo(move || reloadable.get());
-    let has_detail = create_memo({
-        let detail = detail.clone();
-        move || !detail.get().is_empty()
-    });
     let detail = create_memo(move || detail.get());
     view! {
         <Frame @test_id={id} padding=PADDING>
@@ -31,12 +26,12 @@ pub(crate) fn CrashNotice(
                     <Icon glyph=ICON_CIRCLE_ALERT />
                 </Text>
                 <Text style=TextStyle::HEADING align=TextAlign::Center>{title}</Text>
-                <Show condition={has_detail}>
+                <Show value={move || !detail.with(String::is_empty)}>
                     <Text size=TextSize::Sm color=TextColor::Muted align=TextAlign::Center>
                         {detail}
                     </Text>
                 </Show>
-                <Show condition={reloadable}>|| {
+                <Show value={reloadable}>|| {
                     let reload_id = reload_id.clone(); view! {
                         <Button
                             @test_id={reload_id}
@@ -75,7 +70,7 @@ pub(crate) fn StaleNotice(
                 </Text>
                 <Text style=TextStyle::HEADING align=TextAlign::Center>{title}</Text>
                 <Text size=TextSize::Sm color=TextColor::Muted align=TextAlign::Center>
-                    {create_memo(move || detail.get())}
+                    {detail}
                 </Text>
                 <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                     <Button
@@ -92,7 +87,7 @@ pub(crate) fn StaleNotice(
                         variant=ButtonVariant::Secondary
                         on_click={on_delete}
                     />
-                    <Show condition={create_memo(move || can_try.get())}>|| {
+                    <Show value={can_try}>|| {
                         let try_id = try_id.clone(); view! {
                             <Button
                                 @test_id={try_id}

@@ -1,16 +1,27 @@
 load("@root//buck/dev:verify.bzl", "package_fix")
 
-# What a wasm build is for. be-host's web bundle and an app are both
-# wasm32-wasip1-threads, but the app links a real wgpu backend and an app only
-# the custom one, whose handles are neither Send nor Sync. cargo plans the two
-# as separate builds, and a `guest` constraint makes wasi_guest a platform of
-# its own for the rules made from those plans to select by.
+# What a wasm build is for. be-host's web bundle is wasm32-wasip1-threads and
+# links a real wgpu backend; an app is single-threaded wasm32-wasip1
+# (decisions/guests_are_single_threaded.md) and links only the custom one, whose
+# handles are neither Send nor Sync. cargo plans the two as separate builds, and
+# a `guest` constraint makes wasi_guest a platform of its own for the toolchains
+# (its triple and C flags) and the rules made from those plans to select by.
 constraint_setting(
     name = "wasm_role",
 )
 
 constraint_value(
     name = "guest",
+    constraint_setting = ":wasm_role",
+)
+
+# wasm32-unknown-unknown is two builds too: the pure guests (type modules,
+# games, the remap module, root guests), which must link nothing that imports
+# JavaScript, and the browser's gpu shim, whose wgpu and web-sys do. A
+# `bindgen` constraint makes wasm32_bindgen the shim's platform, so its features
+# never reach the pure guests' plan.
+constraint_value(
+    name = "bindgen",
     constraint_setting = ":wasm_role",
 )
 
@@ -27,22 +38,6 @@ constraint_setting(
 constraint_value(
     name = "release",
     constraint_setting = ":profile",
-)
-
-# Whether be-host's binary is linked with fat LTO over one codegen unit
-# (crates/be-host/BUCK): a constraint rather than a buckconfig value, so an LTO
-# build has outputs of its own. `-m lto` (the root PACKAGE's modifier) adds it
-# to a command's platform; ./scripts/deploy's native builds have it by their
-# transition (crates/be-tool-local/defs.bzl). Transitions drop it otherwise
-# (keep_profile in buck/platforms/profile.bzl), since nothing else selects on
-# it and the apps would only be built again for nothing.
-constraint_setting(
-    name = "link_time_optimization",
-)
-
-constraint_value(
-    name = "lto",
-    constraint_setting = ":link_time_optimization",
 )
 
 # Which core beui's view layer builds on (guides/beui.md, Two cores): the native one,

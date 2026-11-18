@@ -29,7 +29,7 @@ fn a_virtual_list_in_a_stacked_stack_only_builds_the_items_in_view() {
                                         <ListItem grow=1.0>
                                             <VirtualList
                                                 @node_ref=&scroll
-                                                keys={indices(VIRTUAL_ITEM_COUNT)}
+                                                value={indices(VIRTUAL_ITEM_COUNT)}
                                                 item_size=VIRTUAL_ITEM_HEIGHT
                                             >|index: ReadSignal<usize>| {
                                                 create_binding(move || {

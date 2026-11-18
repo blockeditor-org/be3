@@ -568,6 +568,26 @@ impl Screens {
                     Uuid::from_bytes(open.block_type),
                 );
             }
+            // A host component: the same session on its block, which the host never gives a
+            // screen, so it lays out and paints nothing.
+            OpeningKind::Host(open) => {
+                session.set_editable(open.editable);
+                session.connect_host(
+                    Uuid::from_bytes(open.block_id),
+                    Uuid::from_bytes(open.block_type),
+                );
+            }
+            // A Join member: an editor on its block that is given no content, only the block's
+            // host channel.
+            OpeningKind::Join(open) => {
+                session.set_editable(false);
+                session.set_page_origin(open.page_origin);
+                session.set_host_palette(open.host_palette);
+                session.connect_join(
+                    Uuid::from_bytes(open.block_id),
+                    Uuid::from_bytes(open.block_type),
+                );
+            }
             OpeningKind::Creation(open) => session.connect_creation(open.template),
             OpeningKind::Picker(open) => session.connect_picker(crate::host::PickerRequest {
                 filter: open.filter,
@@ -632,10 +652,19 @@ impl Screens {
             .clone();
         let everything = std::mem::take(&mut self.reporting_everything);
         let reporting = std::mem::take(&mut self.reporting);
+        let mut passed = Vec::new();
         for (instance, session) in &mut self.sessions {
             if everything || reporting.contains(instance) || woken.contains(instance) {
                 session.outbound();
+                if session.hosting() {
+                    passed.push(*instance);
+                }
             }
+        }
+        // A host component is never drawn, so no frame takes its mark: its pass just did.
+        let mut dirty = self.dirty.lock().unwrap_or_else(|held| held.into_inner());
+        for instance in passed {
+            dirty.remove(&instance);
         }
     }
 

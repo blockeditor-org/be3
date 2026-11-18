@@ -11,10 +11,11 @@ crate's tests are in `crates/beui-reactive/src/tests/`.
 
 ## Handles and ownership
 
-Every handle - `Signal`, `ReadSignal`, `Memo`, `Selector`, `Stored`,
-`StoredCell`, `KeyedStore`, a `#[derive(Store)]` store, and beui's `Callback`,
-`Binding` and `NodeRef` - is a `Copy` key into a thread-local arena, not a
-reference count (decisions/reactive_handles_are_copy_arena_keys.md). So a `move`
+Every handle - `Signal`, `ReadSignal`, `Memo`, `Reader`, `Source`, `AsyncMemo`, `Trigger`, `Effect`, `Selector`,
+`Stored`, `StoredCell`, `KeyedStore`, a `#[derive(Store)]` store, and beui's
+`Callback`, `Binding` and `NodeRef` - is a `Copy` key into a thread-local arena,
+not a reference count (decisions/reactive_handles_are_copy_arena_keys.md), and
+two handles are equal when they name the same value. So a `move`
 closure takes its own copy for free, and a struct made only of handles derives
 `Clone, Copy` and is passed by value. A closure that needs an owned value (a
 `String`, a `Prop<String>`) clones it in a block around the closure:
@@ -24,8 +25,8 @@ rather than a clone per closure.
 
 A handle belongs to the scope that was current when it was made and is freed
 when that scope is disposed. Creating one with no current scope panics. Outside
-a scope, state is owned one of three ways: `OwnedSignal`, `OwnedStored` and
-`OwnedKeyedStore` free their value when they drop; `RootScope::new()` makes a
+a scope, state is owned one of three ways: `OwnedSignal`, `OwnedTrigger`,
+`OwnedStored` and `OwnedKeyedStore` free their value when they drop; `RootScope::new()` makes a
 detached scope current for the rest of the block (tests start with
 `let _root = RootScope::new();`); or `Scope::run` enters an existing one.
 
@@ -54,19 +55,61 @@ disposed later in the same flush; one still alive that reads it panics.
 | Need | Use |
 | --- | --- |
 | State that changes | `create_signal`; `.read_only()` to hand out a `ReadSignal` |
+| A value a future computes | `create_async_memo`: re-runs and cancels as a memo would, reads as a `Ready<T>` |
+| Data settled from outside (a host callback) that may not have arrived | `create_source`: a root whose readiness the boundaries see |
+| An event with no value, or a change the graph cannot see (a buffer filled in place) | `create_trigger`: `notify` wakes what `track`ed it; never a `Signal<u64>` counter. Where the change is to state, make that state a signal |
+| A prop that only asks when something changed, an event or a value | `Trackable`: a `Trigger`, `Signal`, `ReadSignal`, `Memo` or `Reader` converts into one (and into `Option<Trackable>`), or `Trackable::new`; read it with `track()` |
 | A value derived from others | `create_memo`: lazy, cached, and an equal output wakes nothing |
+| State the user edits that resets when what it came from changes (a draft of a saved name) | `create_linked_signal`: a `Signal` that resets when its source returns something new, when effects next run (not at the write); never a signal seeded with `get_untracked` and an effect copying into it |
 | Keep an existing node's property in step | `create_binding`: runs now, costs nothing if it reads nothing |
 | A side effect, or work that needs the tree built around it (moving focus) | `create_effect`: queued, runs at the end of the entry |
+| A side effect woken only by named inputs, or one that needs their last value | `create_effect_on(deps, run)`: `run` is untracked and gets `(&value, Option<&previous>)`; `create_effect_on_change` reads its deps at creation, skips the first run (a change before the first flush still runs it) and gets `&previous`. Either may run with `value == previous` when the deps changed and changed back before it ran (while paused). Never a `StoredCell` of the last value beside an effect |
 | "Is this row the selected one?" across N rows | `create_selector`: wakes only the two rows whose answer flips |
 | A struct whose fields change separately | `#[derive(Store)]`: a signal per field |
 | A list whose rows bind to their own item | `KeyedStore`: a signal per item, one for the order, `reconcile` writes what differs |
+| A sum, extreme, sort or filter of a `KeyedStore`'s items | its views (below), never a memo reading every item |
 | Shared non-reactive state | `store`, or `StoredCell` for a `Copy` value |
+| Keep a signal, memo or closure to read later | `Reader`, converted from any of them |
 
 Reading and writing are the `Get` and `Set` traits, implemented by signals,
-memos, stores, `Prop` and `Binding`; import them with the types, and take
-`impl Get<T>` in a helper that only reads. `get`/`with` subscribe the running
-computation; the `_untracked` forms and `untrack(|| ...)` do not. Dependencies
-are rediscovered on every run, so a branch not taken unsubscribes.
+memos, stores, `Reader`, `Prop` and `Binding`; import them with the types. A
+helper that only reads takes `impl Get<T>`; a field or prop that keeps
+something to read is a `Reader<T>`, which a `Signal`, `ReadSignal` or `Memo`
+converts into (`.into()`) and `Reader::new(closure)` computes. Hand out a
+signal's read side as `.read_only()` only where the receiver must not write it;
+inside one function, keep the one `Signal`. `set` skips a value equal to the
+one held, so never compare before writing; `update` and `set_unconditionally`
+always notify, except that a store's `update` writes each field back with
+`set`. `get`/`with` subscribe the running
+computation; the `_untracked` forms and `untrack(|| ...)` do not; `track()`
+subscribes without reading, for a computation woken by a value it does not use.
+Dependencies are rediscovered on every run, so a branch not taken unsubscribes.
+A memo that builds on what it computed before takes it as an annotated argument,
+`create_memo(move |previous: Option<&T>| ...)`, `None` on the first run.
+
+### Keyed stores
+
+`KeyedStore` writes one item at a time with `set(key, value)` (a new key goes
+last), `remove(&key)` and `update(&key, |item| ..)`, which edits in place and
+wakes the item's readers only if it changed; `reconcile` writes a whole list.
+A memo that reads `get(&key)` for every key reruns over all of them when one
+changes, so the store keeps derived views itself, told of every insert, update,
+removal and reorder. Each is a `ReadSignal` that wakes only when its result
+changes:
+
+- `sum_by(|item| ..)` applies each change's difference. Over floats the
+  rounding error builds up until the view rebuilds.
+- `max_by` and `min_by` are `None` for an empty store and cost O(log n) a
+  write.
+- `sorted_by_key` keeps the keys ordered by the closure's value, ties in the
+  store's order; `filter` keeps the keys that pass, in the store's order. Both
+  find where the changed key goes in O(log n), but moving it within the key
+  list is an O(n) memmove, and a write that leaves its result alone wakes
+  nothing. A reorder re-sorts from the results they hold.
+
+Each closure is called with the changed item only. A signal it reads is
+tracked, and a change to one rebuilds the view from every item once, at the
+next flush. A view belongs to the scope that made it, like a memo.
 
 ## When things run
 
@@ -83,8 +126,9 @@ effect. The effects it wakes are queued and run in exactly these places:
   node builds its own subtree during layout;
 - when a zone with parked effects is entered (below).
 
-Creating an effect, reading a memo, disposing a scope and resuming one all
-leave effects queued. Effects queued outside any entry (a
+`create_effect` and `create_binding` return an `Effect`, whose `dispose` stops
+it before its scope goes; most callers drop it. Creating an effect, reading a
+memo, disposing a scope and resuming one all leave effects queued. Effects queued outside any entry (a
 write from a future or a host callback) call the waker set with `wake_with`
 once, so a burst asks for one frame; beui's `Context::set_waker` sets it.
 
@@ -109,7 +153,9 @@ has effects parked at its end.
 A pausable scope (`Scope::detached().pausable()`) holds back the effects under
 it while paused and runs each woken one once on `resume()`. An effect already
 woken when it pauses still runs, so the write that hides a subtree reaches it
-(an overlay inside closes). A `Show` with `keep_alive` pauses its hidden child this way;
+(an overlay inside closes). A `Kept` shown nowhere pauses its subtree this way, and
+`kept_shown()` inside it is a memo of whether it shows (and every kept subtree around it), for what
+the subtree holds outside itself and must let go while hidden (a dock it joined);
 `Scope::pausable_effects()` pauses effects but not bindings, for `Loading`.
 
 ## Loading
@@ -120,25 +166,80 @@ with `?`: `create_memo(move || Ok(rows.get()?.len()))`. No `Option` or
 `loaded: bool` sits beside the value
 (decisions/loading_state_is_ready_and_waits_at_a_boundary.md).
 
-`<Loading fallback={...}>` builds its content at once but hidden, shows the
-fallback while anything that content made is pending, then reveals it and
-never shows the fallback again, so a later reload updates in place. A source
-registers with the nearest boundary around the scope that makes it, through
-`wait_for(probe)` or `hold(source)`; a `Memo<Ready<T>>` handed to a `Prop<T>`
-is held that way, so `<Text>{name}</Text>` takes one directly. Traps:
+Data that arrives later comes from one of two roots, never a
+`Signal<Ready<T>>`:
 
-- Nothing registers inside a memo, which reruns on every read. Make the source
-  in a body or a binding.
-- A wait lasts as long as the scope that registered it. A source a binding
-  caches across its runs is made in a scope kept beside it, not the binding's
-  own, which the next run drops.
+- `create_async_memo(move || async move { ... })`: its closure runs tracked,
+  like a memo, and returns the future that computes a `Ready<T>`; when what it
+  read changes it runs again and drops (cancels) the future before. It reads
+  `Err(Loading)` until the first answer, then keeps the last good answer while
+  a newer one is on its way (`pending()` says so); a failure replaces it. Read
+  like a memo, it asks again first if what it read changed, and a future whose
+  answer is already there (a value held locally) lands at once, without a
+  turn of the executor. The
+  futures run on the spawner the host installs (`spawn_with`): a program's
+  `Runner` polls them at the start of the frame after they are woken; an app
+  runs them on be-sdk's executor instead, which its host calls answer on.
+  A future spawned before any spawner takes it waits for the next one
+  installed, so a document built before its runner starts still asks.
+- `create_source::<T>()` (`OwnedSource` outside a scope): a value settled from
+  outside the graph, by a host callback or a stream that keeps updating;
+  whoever holds it calls `set`.
+
+Whether a value is there is part of the graph: a root is pending (or failed)
+while its value is, and a memo is pending while anything it read on its last
+run is. That holds even for a memo that handles the pending value
+(`rows.with(|rows| rows.as_ref().map_or(0, Vec::len))`): it counts as pending
+until its source settles, and its readers wake when it starts or stops
+waiting, as when its value changes. So a value and its node can disagree: a
+memo returning `Err(Loading)` of its own accord over settled inputs is not
+pending, and one returning `Ok` over a pending input is. Only the node's
+readiness holds a boundary.
+
+A read of a pending value outside a memo (in a binding, an effect, a `Prop`,
+or a snapshot in a component body) registers it with the boundary that
+handles it, for as long as the reading scope lives. Nothing registers inside
+a memo; the memo is pending in turn, and whoever reads it registers.
+
+`<Loading fallback={...}>` builds its content at once but hidden, shows the
+fallback while anything read under it is pending, then reveals it and never
+shows the fallback again, so a later reload updates in place.
+`hold(source)` turns a `Ready<T>` into the last value it had
+(`T::default()` before the first); a `Memo<Ready<T>>` handed to a `Prop<T>` is
+held that way, so `<Text>{name}</Text>` takes one directly.
+
+`<Errored fallback={...}>` shows its content, and its fallback instead while
+something read under it has failed. A failure goes to the nearest `Errored`
+above the read whether or not a `Loading` between them has revealed; only
+with no `Errored` above it does it show in the nearest unrevealed `Loading`'s
+fallback. The fallback gets `(message, boundary)`; `boundary.reset()` runs
+again the async memos made under it and the failed ones the failures read
+under it came from (through any memos between), and the content, kept
+meanwhile, shows once nothing read under it has failed. A `Loading` that
+revealed before the failure does not hide the content again while the retry
+is on its way.
+
+Traps:
+
 - While hidden, the content's bindings, memos and control flow run, so the
-  boundary finds every source; its effects wait until the reveal. An effect
-  that makes a source the view waits for (one that watches a new query when
-  an id changes) has to be a `create_binding`, or the boundary never sees it
-  and never reveals.
-- A source made outside the boundary (in `view` around `<Loaded>` instead of
-  inside its content) does not hold it back.
+  boundary sees every read; its effects wait until the reveal. A read that
+  should hold the boundary belongs in a binding, a memo a binding reads, or
+  the body, not only in an effect.
+- A read outside the boundary (in `view` around `<Loaded>` instead of inside
+  its content) does not hold it back.
+- A value that will never arrive (a block the viewer cannot see) must settle
+  its root, or it holds the boundary for ever.
+- A boundary waits only for what is read under it, never for what was made or
+  called there: a body that must hold its `<Loaded>` until a value arrives
+  reads it, through the node that uses it. The one exception is an editor's
+  own content: `editor.block_content()` reads whether it arrived where it is
+  called, so asked for in a body under a `<Loaded>`, it holds that boundary
+  however the editor reads it afterwards (in effects, callbacks, paintings).
+  Called outside the boundary (in the root around `<Loaded>`, or while
+  building state there), it holds nothing. `content_of` another block does
+  not hold one either.
+- A callback (`on_touched`, a button's `on_click`) is no read: it runs later,
+  outside the scope, so what it reads holds nothing back.
 
 ## Blocks
 
@@ -170,7 +271,8 @@ An editor shows nothing it would correct a moment later: no empty or editable
 view before the content arrives, no placeholder the next answer replaces. Each
 `BeuiRoot::View` and `Preview` wraps its component in `<Loaded label="...">`,
 the editor's `Loading` boundary, which waits on every projection, graph query
-and `version_status()` made inside it. Something that loads later inside a
+and `version_status()` read inside it: each is pending until the host has
+answered. Something that loads later inside a
 shown view (a folder being expanded) says so in its own place.
 
 ## beui integration
@@ -192,17 +294,22 @@ there would never update. In debug builds it panics, naming the type, even on a
 the read into a memo, binding or effect; pass the signal or memo on as the prop
 itself; or use `get_untracked`/`untrack` for a deliberate snapshot. A helper
 called from a body trips the same way. `Prop::map` runs at once on a plain
-value, so a mapping that reads other signals is
-`Prop::dynamic(move || tab_stop.get() && !disabled.get())`.
+value, so a mapping that reads other signals is a closure in the tag
+(`tab_stop={move || tab_stop.get() && !disabled.get()}`), or
+`Prop::dynamic(..)` outside one.
 
 ### Props, bindings and controlled state
 
-A `Prop<T>` takes a plain `T` or a signal or memo of one; the base components
-bind it with `create_binding`, so a plain value costs nothing after it is set.
-Pass a memo to a prop as it is. Every prop is required unless it has
-`#[prop(default = ...)]`, or is `Option<Prop<T>>` (absence fixed at build) or
-`Prop<Option<T>>` (can return to "unset" while alive, such as a `Frame` width).
-`Callback`, `Children` and `Binding` props default to empty.
+A `Prop<T>` takes a plain `T`, a signal or memo of one, or (as a tag's prop) a
+closure computing one; the base components bind it with `create_binding`, so a
+plain value costs nothing after it is set. Pass a memo to a prop as it is. A prop
+left out of a tag takes its `#[prop(default = ...)]`, or else its type's
+`AbsentProp` value: `None` for an `Option` (`Option<Prop<T>>` fixes absence at
+build; `Prop<Option<T>>` can return to "unset" while alive, such as a `Frame`
+width), empty for a `Callback` or `Children`, an owned signal of the default for
+a `Binding`. Any other prop is required. `#[prop(required)]` requires a prop
+whose type has an absent value anyway: a `Binding` with no sensible default
+(the tab `Tabs` shows).
 
 State a control both shows and changes is one `Binding<T>`, not a prop plus an
 `on_change`. Left out, the component owns a signal seeded from its default;
@@ -224,20 +331,45 @@ nothing. A `Selector` is the natural source of `focused` in a list.
 `view!` builds a tag's children *before* the tag's own body runs, so a subtree
 passed as `Children` is already built when the parent starts. Anything that
 must happen first - providing context, measuring a container - takes the
-subtree as a render prop (`Render`/`RenderFn`, marked `#[prop(children)]` so
-callers still write it between the tags) and calls it afterwards. A render
-prop runs with the component that *wrote* it installed, so its state and
-accessibility belong to the outer component. A slot that hands a value names
-it like a closure argument, `<Container>|size| <Card size /></Container>`; a
-`RenderFn` slot may run more than once, so its body clones what it moves.
+subtree as a render prop, marked `#[prop(children)]` so callers still write it
+between the tags, and calls it afterwards: `Render<H, C>` (called once) or
+`RenderFn<H, C>` (called again) when it hands its children an `H`, `Build<C>` or
+`BuildFn<C>` when it hands them nothing. A render prop runs with the component
+that *wrote* it installed, so its state and accessibility belong to the outer
+component. A slot that hands a value names it like a closure argument,
+`<Container>|size| <Card size /></Container>`, and naming one where none is
+handed is an error; a `RenderFn` or `BuildFn` slot may run more than once, so
+its body clones what it moves.
 
-`Show`, `Dynamic` (rebuild on every value change), `Keyed` (rebuild when its
-`key` changes, update the rest through a `ReadSignal`) and `ForEach` build no
-node: each fills a run in its parent's slot and builds each child in a scope of
-its own, disposed with the child. Key a `ForEach` by identity, never by
-content: a key that changes with an edit destroys the row's nodes and scope and
-loses its focus, caret and measured text. Give the row the key and let it read
-its own item from a `KeyedStore`.
+`Show` (with a `fallback` for when its value is `false` or `None`), `Match`
+(the first `Case` that holds, built again only when another case comes to hold),
+`Dynamic` (rebuild when its value changes to one
+that differs), `Keyed` (rebuild when its `key` changes, update the rest through a
+`ReadSignal`) and `ForEach` build no node of their own (except a host where one
+node must go, or where `@test_id` or `@node_ref` names them): each fills its
+place in its parent's slot (a run, or one child where it builds exactly one;
+[beui/core.md](beui/core.md#writing-views)) and builds each child in a scope of
+its own, disposed with the child. Given a `fallback`, `Dynamic` and `Keyed` take
+an `Option` and show the fallback while it is `None`; `fallback=()` shows
+nothing. Key a `ForEach` by identity, never by content: a key that changes with
+an edit destroys the row's nodes and scope and loses its focus, caret and
+measured text. With `key={|item: &T| item.id}` a row is kept while its item
+changes and reads it through a signal; for items held in a `KeyedStore`, list
+the keys and let each row read its own item from the store. A row may take its
+`index: ReadSignal<usize>` after its item, in a `ForEach` or a `VirtualList` alike.
+Code around a list that needs where a key sits or which nodes its row built makes a
+`ForEachRef<K, NodeId>` (as it makes a `NodeRef`) and hands it to one list as `handle`
+(`keys`, `index`/`index_of`, `nodes_of`, `key_of`, and `for_each_row` to walk the built
+rows in order); a `VirtualList` places every key but holds nodes only for the rows it has
+built, and a `Choice` takes one for its options too, reporting each option's `item`. A
+lookup by key costs the same however long the list; a repeated key is known by its first
+place and `nodes_of` gives every repeat's nodes. The list fills the handle through
+`claim` (two lists sharing one is a debug assertion), and it is empty again once the list
+is gone, unless a list built in its place has claimed it since (a `Dynamic` builds the new
+branch before it drops the old). A `ForEach` fills it as it builds; a `VirtualList` gives the
+keys as they change and its built rows once per flush natively, and at each layout pass on
+the HTML core. Children are known to the handle by
+`SlotChild::Node`: the node, for node children whatever parent places them.
 
 ### Context
 

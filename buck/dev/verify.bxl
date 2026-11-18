@@ -14,7 +14,9 @@ load("@root//buck/dev:test.bzl", "THOROUGH", "TestRunInfo")
 # - tests: every test that does not paint (_be_test, buck/dev/test.bzl), run
 #   as its [run] action, the check pass (_checks), and be-host's :web-dist,
 #   which only the thorough tests would build otherwise;
-# - app-tests: every test that paints, the same way;
+# - app-tests: every test that paints, the same way, and the report of each
+#   one's second run when a painting it made changed (_again in
+#   buck/dev/test.bzl);
 # - thorough: every thorough test (THOROUGH in buck/dev/test.bzl), which tests and
 #   app-tests leave out;
 # - previews: the paint preview renderer and the paint review site;
@@ -32,7 +34,8 @@ load("@root//buck/dev:test.bzl", "THOROUGH", "TestRunInfo")
 #
 # It prints what crates/be-tool-verify reads, a "kind<TAB>path" line each, or
 # for a test's paintings "paintings<TAB>package<TAB>path", the package holding
-# the snapshots/ they belong in. Those are worked out before anything builds,
+# the snapshots/ they belong in, and "flaky<TAB>package<TAB>path" for the
+# report of its second run. Those are worked out before anything builds,
 # so with --keep-going the list is whole even when some fail, and buck2 still
 # exits non-zero; crates/be-tool-verify reads what did build. An action that
 # failed can still leave an earlier run's output at its path, so it writes a
@@ -86,17 +89,20 @@ def _checks(ctx: bxl.Context, tests) -> list[Artifact]:
             checks.append(sub_targets["check"][DefaultInfo].default_outputs[0])
     return checks
 
-# Each test's [run] output, by whether it paints: a run_apart test's runs are
-# its parts', which are tests of their own too, so each is taken once.
+# Each test's [run] output, by whether it paints, and each painting test's
+# report of its second run (TestRunInfo's flakes): a run_apart test's are its
+# parts', which are tests of their own too, so each is taken once.
 def _runs(ctx: bxl.Context, tests) -> (list, list):
     plain, paintings, seen = [], [], {}
     for target in tests:
         info = ctx.analysis(target).providers()[TestRunInfo]
-        for run in info.runs:
+        for run in info.runs + info.flakes:
             if run in seen:
                 continue
             seen[run] = True
-            if info.paints:
+            if run in info.flakes:
+                paintings.append(("flaky\t" + target.label.package, run))
+            elif info.paints:
                 paintings.append(("paintings\t" + target.label.package, run))
             else:
                 plain.append(run)

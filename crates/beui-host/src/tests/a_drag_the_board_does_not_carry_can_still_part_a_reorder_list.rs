@@ -2,9 +2,8 @@ use super::*;
 use crate::geometry::Rect;
 use crate::primitives::*;
 use crate::reactive::*;
-use crate::unstyled::{
-    DragPoint, Reorder, ReorderHandle, ReorderItem, ReorderItemHandle, ReorderMove,
-};
+use crate::styled::Reorder;
+use crate::unstyled::{DragPoint, ReorderHandle, ReorderItem, ReorderItemHandle, ReorderMove};
 
 #[test]
 fn a_drag_the_board_does_not_carry_can_still_part_a_reorder_list() {
@@ -16,7 +15,7 @@ fn a_drag_the_board_does_not_carry_can_still_part_a_reorder_list() {
     let document = build_node(move || {
         view! {
             <Reorder
-                keys={keys}
+                value={keys}
                 payload={Func::new(|key: u32| Some(key))}
                 preview={|_: u32| view! {
                     <Frame height=REORDER_ROW />
@@ -26,7 +25,7 @@ fn a_drag_the_board_does_not_carry_can_still_part_a_reorder_list() {
                 holding.set(Some(reorder));
                 view! {
                     <List spacing=0.0>
-                        <ForEach keys={reorder.order}>|key: u32|
+                        <ForEach value={reorder.order} handle={reorder.rows}>|key: u32|
                             <ReorderItem reorder item=key>|_: ReorderItemHandle|
                                 <Frame @test_id={format!("row.{key}")} height=REORDER_ROW />
                             </ReorderItem>
@@ -53,17 +52,12 @@ fn a_drag_the_board_does_not_carry_can_still_part_a_reorder_list() {
         3.0 * REORDER_ROW,
         "a drag the editor follows itself, such as the host's block drag, opens the same gap"
     );
-    with_reactive_scope(&mut harness.document_mut(), || reorder.drop_at(9, over));
-    let moved = moves.get_untracked();
-    assert_eq!(moved.len(), 1);
-    assert_eq!(
-        (moved[0].key, moved[0].after, moved[0].index),
-        (None, Some(2), 2)
-    );
+    with_reactive_scope(&mut harness.document_mut(), || reorder.hover(None));
     harness.settle();
     assert_eq!(
         top_of(&harness, "row.3"),
         2.0 * REORDER_ROW,
-        "and the gap closes on the drop"
+        "and the gap closes when it leaves"
     );
+    assert!(moves.get_untracked().is_empty(), "parting writes nothing");
 }

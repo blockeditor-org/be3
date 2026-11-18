@@ -57,7 +57,7 @@ pub fn RotationPicker(
     test_id: String,
     display: Memo<Option<HostDisplay>>,
     chosen: Memo<Rotation>,
-    read_only: Memo<bool>,
+    read_only: Prop<bool>,
     on_pick: Callback<Rotation>,
 ) -> NodeId {
     let current = create_memo(move || {
@@ -79,7 +79,7 @@ pub fn RotationPicker(
     });
     view! {
         <List direction=Direction::Horizontal wrap=true spacing=ITEM_SPACING align=Align::Start>
-            <ForEach keys={Rotation::ALL.to_vec()}>|rotation: Rotation|
+            <ForEach value={Rotation::ALL.to_vec()}>|rotation: Rotation|
                 <RotationTile
                     rotation={rotation}
                     name={tile_test_id(&test_id, rotation)}
@@ -103,18 +103,16 @@ fn RotationTile(
     chosen: Memo<Rotation>,
     landscape: Memo<bool>,
     size: Memo<(f32, f32)>,
-    read_only: Memo<bool>,
+    read_only: Prop<bool>,
     on_pick: Callback<Rotation>,
 ) -> NodeId {
-    let angle = create_memo(move || f32::from(drawn_turns(rotation, current.get())) * FRAC_PI_2);
     let screen = format!("{name}.screen");
     let now = create_memo(move || current.get() == rotation);
-    let picked = create_memo(move || chosen.get() == rotation);
     let label = create_memo(move || rotation_name(rotation, landscape.get()).to_owned());
-    let description = create_memo(move || match now.get() {
+    let description = move || match now.get() {
         true => "Now".to_owned(),
         false => String::new(),
-    });
+    };
     view! {
         <Frame width=ITEM_WIDTH>
             <List spacing=ITEM_SPACING align=Align::Center>
@@ -122,7 +120,7 @@ fn RotationTile(
                     @test_id={name}
                     label
                     radio=true
-                    selected={picked}
+                    selected={move || chosen.get() == rotation}
                     outlined=true
                     description
                     disabled={read_only}
@@ -134,13 +132,13 @@ fn RotationTile(
                         width=TILE
                         height=TILE
                         align=Align2::CENTER
-                        rotate={angle}
+                        rotate={move || f32::from(drawn_turns(rotation, current.get())) * FRAC_PI_2}
                     >
                         <LittleScreen size={size} />
                     </Frame>
                 </TileButton>
                 <Text style=TextStyle::CAPTION align=TextAlign::Center>{label}</Text>
-                <Show condition={now}>
+                <Show value={now}>
                     <Text size=TextSize::Xs color=TextColor::Accent>"Now"</Text>
                 </Show>
             </List>
@@ -150,12 +148,10 @@ fn RotationTile(
 
 #[component]
 fn LittleScreen(size: Memo<(f32, f32)>) -> NodeId {
-    let width = create_memo(move || Length::Size(Size::Custom(size.get().0)));
-    let height = create_memo(move || Length::Size(Size::Custom(size.get().1)));
     view! {
         <Frame
-            width={width}
-            height={height}
+            width={move || Length::Size(Size::Custom(size.get().0))}
+            height={move || Length::Size(Size::Custom(size.get().1))}
             fill=ColorRole::Background
             border={Border::DEFAULT}
             radius=Radius::Xs

@@ -60,7 +60,9 @@ fn blocks_moved_renamed_and_deleted_offline_reach_the_server_on_reconnect() {
         Some(be_block_graph::BlockParent::Detached),
         Some("Renamed".to_owned()),
     );
-    crate::wait_until(|shared| (seen(shared) == expected).then_some(()));
+    crate::wait_until("moved, renamed and deleted the blocks offline", |shared| {
+        (seen(shared) == expected).then_some(())
+    });
 
     harness.start_server(&address);
     retry_now();
@@ -76,7 +78,7 @@ fn blocks_moved_renamed_and_deleted_offline_reach_the_server_on_reconnect() {
             .expect("the deleted block exists");
         let note = peer.summary(note).await.expect("the renamed block exists");
         let name = peer
-            .metadata_of(note.head.expect("the note has content"))
+            .metadata_of(note.id, note.head.expect("the note has content"))
             .await
             .expect("the note's metadata opens")
             .name();

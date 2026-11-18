@@ -5,7 +5,7 @@ fn a_blocks_references_are_listed_in_one_request() {
     let view = Uuid::from_u128(1);
     let rows: Vec<Uuid> = (2..200).map(Uuid::from_u128).collect();
     let linking = |references: Vec<Uuid>| Node {
-        references,
+        references: Some(references),
         ..node(view)
     };
     let mut graph = Graph::default();
@@ -34,13 +34,13 @@ fn a_blocks_references_are_listed_in_one_request() {
     let added = Uuid::from_u128(500);
     let mut more = rows.clone();
     more.push(added);
-    graph.put(linking(more), 2);
+    graph.put(changed_at(linking(more), 2), 2);
     assert_eq!(
         graph.take_wanted(),
         [Listing::References(view)],
         "a new reference lists the references again"
     );
-    graph.put(node(added), 3);
+    graph.put(changed_at(node(added), 3), 3);
     assert!(
         graph.get(added).is_some(),
         "news of a block the referrer links to is kept"

@@ -27,12 +27,13 @@ fn a_placed_child_its_parent_drops_again_is_noted() {
         [Dropped {
             child,
             parent: files,
-            by: "its open replica's report",
+            by: "its open replica's report".into(),
         }]
     );
     assert_eq!(graph.deleted_root(child), Some(child));
 
-    // A listing from before it was placed, once the replica no longer reports: noted as such.
+    // A listing from before it was placed, once the replica no longer reports: the block's
+    // content, with no head, is its metadata's, which holds nothing.
     place(&mut graph, files, child);
     graph.forget_references(files);
     graph.listed(Listing::Block(files), vec![node(files)], 2);
@@ -41,7 +42,7 @@ fn a_placed_child_its_parent_drops_again_is_noted() {
         [Dropped {
             child,
             parent: files,
-            by: "a listing",
+            by: "its content".into(),
         }]
     );
 

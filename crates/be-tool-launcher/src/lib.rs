@@ -40,7 +40,7 @@ use view::Launcher;
 
 #[cfg(not(target_os = "android"))]
 pub fn run() -> Result<(), Box<dyn Error>> {
-    beui_host::native::run(LauncherProgram::new(runs::cache_directory())?)
+    beui_host_window::run(LauncherProgram::new(runs::cache_directory())?)
 }
 
 struct LauncherProgram {

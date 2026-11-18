@@ -22,7 +22,9 @@ pub struct InputState {
     pub modifiers: Modifiers,
     pub long_press_delay: Duration,
     pub window: beui_types::WindowId,
-    touches: Vec<(TouchId, Pos2)>,
+    /// The fingers down, each in the window it touched: a gesture is only ever the fingers of
+    /// one window.
+    touches: Vec<(beui_types::WindowId, TouchId, Pos2)>,
     touched: Vec<Pos2>,
     source: usize,
     time: Option<Instant>,
@@ -81,7 +83,7 @@ impl InputState {
                 _ => {}
             }
         }
-        for (_, pos) in &mut input.touches {
+        for (_, _, pos) in &mut input.touches {
             *pos = scale(*pos);
         }
         for pos in &mut input.touched {
@@ -149,13 +151,20 @@ impl InputState {
         if leaving {
             let source = 0;
             if let Some(pos) = self.pointer.mouse() {
-                input.emit_at(source, PointerId::Mouse, PointerPhase::Gone, pos);
+                input.emit_at(
+                    source,
+                    self.window,
+                    PointerId::Mouse,
+                    PointerPhase::Gone,
+                    pos,
+                );
             }
-            for (id, pos) in &self.touches {
-                input.emit_at(source, PointerId::Touch(*id), PointerPhase::Cancel, *pos);
+            for (window, id, pos) in &self.touches {
+                let touch = PointerId::Touch(*id);
+                input.emit_at(source, *window, touch, PointerPhase::Cancel, *pos);
             }
             if let Some(pos) = self.pen_at {
-                input.emit_at(source, PointerId::Pen, PointerPhase::Gone, pos);
+                input.emit_at(source, self.window, PointerId::Pen, PointerPhase::Gone, pos);
             }
         }
         input.pen_at = None;
@@ -165,11 +174,18 @@ impl InputState {
         input
     }
 
-    fn emit_at(&mut self, source: usize, pointer: PointerId, phase: PointerPhase, pos: Pos2) {
+    fn emit_at(
+        &mut self,
+        source: usize,
+        window: beui_types::WindowId,
+        pointer: PointerId,
+        phase: PointerPhase,
+        pos: Pos2,
+    ) {
         self.source = source;
         self.force = None;
         self.pen = None;
-        self.emit(pointer, phase, pos);
+        self.in_window(window, pointer, phase, pos);
     }
 
     pub fn touching(&self) -> bool {
@@ -182,7 +198,7 @@ impl InputState {
             self.pointer.lift_finger();
         }
         self.pointer_events.clear();
-        self.touched = self.touches.iter().map(|(_, pos)| *pos).collect();
+        self.touched = self.touches.iter().map(|(_, _, pos)| *pos).collect();
         self.touched
             .extend(events.iter().filter_map(|event| match event {
                 Event::Touch { pos, .. } => Some(*pos),
@@ -216,8 +232,8 @@ impl InputState {
                 }
                 Event::PointerGone if self.touched.is_empty() => self.mouse_gone(),
                 Event::PointersCancelled => {
-                    for (id, pos) in std::mem::take(&mut self.touches) {
-                        self.emit(PointerId::Touch(id), PointerPhase::Cancel, pos);
+                    for (window, id, pos) in std::mem::take(&mut self.touches) {
+                        self.in_window(window, PointerId::Touch(id), PointerPhase::Cancel, pos);
                     }
                     self.pointer.lift_finger();
                     self.pen_event(PenPhase::Gone, self.pen_at.unwrap_or_default(), now);
@@ -371,18 +387,25 @@ impl InputState {
     }
 
     fn touch(&mut self, id: TouchId, phase: TouchPhase, pos: Pos2, now: Instant) {
-        let held = self.touches.iter().position(|(finger, _)| *finger == id);
-        let first = self.touches.first().map(|(finger, _)| *finger);
+        let held = self.touches.iter().position(|(_, finger, _)| *finger == id);
+        let first = self.touches.first().map(|(_, finger, _)| *finger);
         match (phase, held) {
             (TouchPhase::Start, None) => {
+                let window = self.window;
+                if !self
+                    .touches
+                    .iter()
+                    .any(|(touched, _, _)| *touched == window)
+                {
+                    self.pointer.count_click(pos, window, now);
+                }
                 if self.touches.is_empty() {
                     let pointer = &mut self.pointer;
                     pointer.pos = Some(pos);
-                    pointer.window = self.window;
+                    pointer.window = window;
                     pointer.from_touch = true;
-                    pointer.count_click(pos, self.window, now);
                 }
-                self.touches.push((id, pos));
+                self.touches.push((window, id, pos));
                 self.emit(
                     PointerId::Touch(id),
                     PointerPhase::Down(PointerButton::Primary),
@@ -390,15 +413,16 @@ impl InputState {
                 );
             }
             (TouchPhase::Move, Some(index)) => {
-                self.touches[index].1 = pos;
+                let window = self.touches[index].0;
+                self.touches[index].2 = pos;
                 if first == Some(id) {
                     self.pointer.pos = Some(pos);
-                    self.pointer.window = self.window;
+                    self.pointer.window = window;
                 }
-                self.emit(PointerId::Touch(id), PointerPhase::Move, pos);
+                self.in_window(window, PointerId::Touch(id), PointerPhase::Move, pos);
             }
             (TouchPhase::End | TouchPhase::Cancel, Some(index)) => {
-                self.touches.remove(index);
+                let (window, _, _) = self.touches.remove(index);
                 if first == Some(id) {
                     self.pointer.pos = (phase != TouchPhase::Cancel).then_some(pos);
                 }
@@ -406,10 +430,24 @@ impl InputState {
                     TouchPhase::End => PointerPhase::Up(PointerButton::Primary),
                     _ => PointerPhase::Cancel,
                 };
-                self.emit(PointerId::Touch(id), phase, pos);
+                self.in_window(window, PointerId::Touch(id), phase, pos);
             }
             _ => {}
         }
+    }
+
+    /// Emits a finger's event in the window it touched, which a platform's later
+    /// `PointerWindow` may have moved away from.
+    fn in_window(
+        &mut self,
+        window: beui_types::WindowId,
+        pointer: PointerId,
+        phase: PointerPhase,
+        pos: Pos2,
+    ) {
+        let current = std::mem::replace(&mut self.window, window);
+        self.emit(pointer, phase, pos);
+        self.window = current;
     }
 
     fn fling(&mut self, now: Instant) -> Vec2 {
@@ -433,6 +471,9 @@ impl InputState {
     }
 }
 
+/// Where the pointer is. With fingers down, `pos` and `window` follow the first finger
+/// of all, whichever window it touched; a finger in another window counts its own presses
+/// there but does not move them.
 #[derive(Clone, Copy, Default, Debug)]
 pub struct Pointer {
     pub pos: Option<Pos2>,

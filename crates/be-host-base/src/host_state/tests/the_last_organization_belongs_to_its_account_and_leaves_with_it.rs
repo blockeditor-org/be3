@@ -10,6 +10,7 @@ fn the_last_organization_belongs_to_its_account_and_leaves_with_it() {
         name: "Acme".into(),
         kind: be_block_protocol::OrganizationKind::Company,
         role: be_block_protocol::OrganizationRole::Administrator,
+        escrows: Vec::new(),
     };
     {
         let store = HostStateStore::open(&path).unwrap();

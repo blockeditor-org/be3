@@ -12,11 +12,6 @@ fn a_list_items_reactive_props_move_a_child_between_fixed_and_growing() {
 
     let document = build_node(move || {
         let shared = create_signal(false);
-        let grow = create_memo(move || match shared.get() {
-            true => 1.0,
-            false => 0.0,
-        });
-        let length = create_memo(move || (!shared.get()).then_some(FIXED_WIDTH));
         view! {
             <List spacing=0.0>
                 <Button
@@ -27,7 +22,13 @@ fn a_list_items_reactive_props_move_a_child_between_fixed_and_growing() {
                 </Button>
                 <ListItem grow=1.0>
                     <List direction=Direction::Horizontal spacing=0.0>
-                        <ListItem grow length>
+                        <ListItem
+                            grow={move || match shared.get() {
+                                true => 1.0,
+                                false => 0.0,
+                            }}
+                            length={move || (!shared.get()).then_some(FIXED_WIDTH)}
+                        >
                             <List @node_ref=&left spacing=0.0></List>
                         </ListItem>
                         <ListItem grow=1.0>

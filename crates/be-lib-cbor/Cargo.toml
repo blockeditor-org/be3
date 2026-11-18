@@ -1,0 +1,13 @@
+[package]
+name = "be-lib-cbor"
+description = "Decoding exactly one CBOR value: data with bytes after it is not that value"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+ciborium = "0.2"
+serde = "1"
+
+[lints]
+workspace = true

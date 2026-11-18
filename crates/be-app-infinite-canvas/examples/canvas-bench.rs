@@ -5,6 +5,7 @@ use be_sdk_beui::beui::{
     self, Input, Pen, PenPhase, PointerButton, Pos2, Rect, Vec2, native::FramePerformance,
 };
 use be_sdk_test::BeuiTest;
+use be_sdk_test::prelude::*;
 use be_type_infinite_canvas::CanvasContent;
 use be_type_infinite_canvas::{
     Canvas, CanvasColor, CanvasEntity, CanvasFill, CanvasPathPoint, CanvasPoint, CanvasShape,

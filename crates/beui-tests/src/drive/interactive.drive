@@ -1,4 +1,5 @@
-# Clicks, keys and typed text reach the Interactive that should have them.
+# Clicks, keys and typed text reach the Interactive that should have them, and a press arms its
+# Interactive before `on_press`.
 clock stop
 wait 'value="Clicked 0"'
 click '#interactive.count'
@@ -11,3 +12,5 @@ wait 'value="Pressed Enter"'
 click '#interactive.typing'
 type 'abc'
 wait 'value="Typed abc"'
+click '#interactive.order'
+wait 'value="Heard armed press-active released"'

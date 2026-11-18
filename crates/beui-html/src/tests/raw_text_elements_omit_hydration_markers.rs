@@ -6,10 +6,10 @@ fn raw_text_elements_omit_hydration_markers() {
         view! {
             <elements::Title>
                 "Page"
-                <Show condition={true}>" one"</Show>
+                <Show value={move || true}>" one"</Show>
             </elements::Title>
             <elements::Textarea>
-                <Show condition={true}>"draft"</Show>
+                <Show value={move || true}>"draft"</Show>
             </elements::Textarea>
         }
     });

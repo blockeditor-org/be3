@@ -4,7 +4,7 @@ use super::*;
 fn Siblings(label: Prop<String>, visible: Prop<bool>) -> Children<DomNode> {
     view! {
         <Element tag="p" text={label} />
-        <Show condition={visible}>
+        <Show value={visible}>
             <Element tag="span" text="tail" />
         </Show>
     }

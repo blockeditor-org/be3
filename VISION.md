@@ -42,8 +42,8 @@ through a layer gets that layer's guarantees, and nothing else does.
    the join, and the game talks over a channel of its own.
 3. **Storage and history.** Encrypted, content-addressed bytes, commits, and
    three-way merge of offline edits. The server stores objects it can't read.
-4. **Live sync.** Today every block goes through a session owner that puts each
-   operation in one order, so nothing has to be a CRDT. Once apps can
+4. **Live sync.** Today every block goes through a live session whose server
+   numbers each sealed operation into one order, so nothing has to be a CRDT. Once apps can
    provide block types, an app should be able to bring its own instead: a
    CRDT that needs no true order, OT, or a game's own netcode that has no
    operations at all, while still using the layers below.
@@ -173,10 +173,12 @@ readers see real content. beui keeps text editing its own in the first
 version, the same code on both cores (the browser's EditContext and password
 inputs may follow), and owns drawing, the escape hatch (`Drawing`) on both.
 Apps stay on canvas on the web for now, and later become iframes that could
-run the HTML core themselves. be-host itself is still drawn on the web until
-it moves to that core.
+run the HTML core themselves. be-host's own UI is still drawn on the web, and
+stays drawn when it moves into the root guest
+(`plans/host_as_platform_adapter.md`); moving it to the HTML core is left to a
+later plan.
 
-**Why a session owner instead of a CRDT.** A single order makes merging, undo
+**Why one server order instead of a CRDT.** A single order makes merging, undo
 and the wire protocol simple, and lets an editor use plain data. Offline edits
 merge three ways over the stored bytes, so a wholesale rewrite conflicts
 visibly instead of interleaving. A block that is better as a CRDT can still be
@@ -265,7 +267,7 @@ message id; older messages close into segments, so a long chat loads only what
 is on screen; messages written offline merge with each side's run kept whole.
 The editor sends, replies, edits, reacts and deletes, shows sending state and
 unread counts, and signs messages; sending notifies members who are away.
-Still to come (plans/chat.md): member names, attachments and arrival times.
+Still to come (plans/chat.md): what waits for its move to a signed log.
 
 ### Presentation
 

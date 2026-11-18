@@ -62,12 +62,13 @@ impl Cell {
     }
 
     pub(crate) fn style(&mut self, style: &sys::Style, background: Rgb) {
-        self.bold = style.bold;
-        self.italic = style.italic;
-        self.underline = style.underline != 0;
-        self.strikethrough = style.strikethrough;
-        self.faint = style.faint;
-        if style.inverse {
+        let flag = |flag| style.flags & flag != 0;
+        self.bold = flag(sys::STYLE_FLAG_BOLD);
+        self.italic = flag(sys::STYLE_FLAG_ITALIC);
+        self.underline = flag(sys::STYLE_UNDERLINE_MASK);
+        self.strikethrough = flag(sys::STYLE_FLAG_STRIKETHROUGH);
+        self.faint = flag(sys::STYLE_FLAG_FAINT);
+        if flag(sys::STYLE_FLAG_INVERSE) {
             let foreground = self.background.unwrap_or(background);
             self.background = Some(self.foreground);
             self.foreground = foreground;

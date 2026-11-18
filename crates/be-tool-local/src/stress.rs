@@ -139,6 +139,12 @@ struct Failure {
 fn run(arguments: Vec<String>) -> Result<usize, String> {
     let options = options(arguments, default_parallel())?;
     let built = build(options.apps.as_deref())?;
+    if matching(&built, &options.name)? == 0 {
+        return Err(format!(
+            "No host test's name contains {}: stress runs only the host tests (crates/be-host-tests).",
+            options.name
+        ));
+    }
     let output = PathBuf::from(OUTPUT).join(file_name(&options.name));
     let _ = fs::remove_dir_all(&output);
     fs::create_dir_all(&output)
@@ -178,7 +184,7 @@ fn run(arguments: Vec<String>) -> Result<usize, String> {
     print!("{}", report(&failures));
     if !failures.is_empty() {
         println!(
-            "The failing runs' output is in {}/, as N.log, and the paintings of run N that differ from the accepted ones in N/changed/.",
+            "The failing runs' output is in {}/, as N.log, the whole logs of the programs each drove in N.logs/, and the paintings of run N that differ from the accepted ones in N/changed/.",
             output.display()
         );
     }
@@ -348,6 +354,29 @@ fn build(apps: Option<&[String]>) -> Result<Built, String> {
     })
 }
 
+/// How many of the harness's tests have names containing `name`, as libtest lists them.
+fn matching(built: &Built, name: &str) -> Result<usize, String> {
+    let output = Command::new(&built.harness)
+        .args([name, "--list"])
+        .envs(built.environment.iter().map(|(key, value)| (key, value)))
+        .stdin(Stdio::null())
+        .stderr(Stdio::inherit())
+        .output()
+        .map_err(|error| format!("could not run the harness: {error}"))?;
+    if !output.status.success() {
+        return Err("The harness could not list its tests.".to_owned());
+    }
+    Ok(listed_tests(&String::from_utf8_lossy(&output.stdout)))
+}
+
+/// The number of tests in libtest's `--list` output: one `NAME: test` line each.
+fn listed_tests(listing: &str) -> usize {
+    listing
+        .lines()
+        .filter(|line| line.ends_with(": test"))
+        .count()
+}
+
 /// One run of the tests named, which fails with what went wrong: the panic's message, how the
 /// harness ended when it did not panic, that it ran past `limit` and was killed, or that a
 /// painting differs from the accepted one. The run writes its paintings into `paintings`/made
@@ -356,6 +385,12 @@ fn build(apps: Option<&[String]>) -> Result<Built, String> {
 fn once(built: &Built, options: &Options, log: &Path, paintings: &Path) -> Result<(), String> {
     let limit = options.limit;
     let made = paintings.join("made");
+    // Each program the run drives writes its whole log here, beside the run's own output, so a
+    // run killed for passing its limit keeps them too; a run that passed has them removed.
+    let logs = std::env::current_dir()
+        .unwrap_or_default()
+        .join(log.with_extension("logs"));
+    let _ = fs::remove_dir_all(&logs);
     let mut command = Command::new(&built.harness);
     if let Some(latency) = options.latency {
         command.env("HOST_TEST_LATENCY_MS", latency.as_millis().to_string());
@@ -364,6 +399,8 @@ fn once(built: &Built, options: &Options, log: &Path, paintings: &Path) -> Resul
         .arg(&options.name)
         .envs(built.environment.iter().map(|(key, value)| (key, value)))
         .env("MADE_PAINTINGS", &made)
+        // be-tool-drive's `Driven` keeps them there (its `KEEP_LOGS`).
+        .env("BE_DRIVE_KEEP_LOGS", &logs)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -394,6 +431,7 @@ fn once(built: &Built, options: &Options, log: &Path, paintings: &Path) -> Resul
         && status.success()
     {
         let Some((painting, why)) = changed.into_iter().next() else {
+            let _ = fs::remove_dir_all(&logs);
             return Ok(());
         };
         let _ = fs::write(log, &text);

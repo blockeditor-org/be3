@@ -5,6 +5,7 @@ use be_sdk_beui::beui::{NodeId, ThemeKind};
 use be_sdk_beui::{Editor, LayeredSettingsRow, PreferenceSourcesWatch};
 
 use super::ui::Settings;
+use crate::custom::unlisted;
 use beui::Extent;
 
 #[component]
@@ -30,48 +31,32 @@ pub(super) fn AppearanceSection(
     let scale = DisplaySettings::scale_setting();
     let chosen_scale = settings.value(&scale);
     let below_scale = settings.fallback(&scale);
-    let inherited_scale_label = create_memo(move || {
+    let inherited_scale_label = move || {
         format!(
             "Default ({}%)",
             below_scale.get().unwrap_or(DisplaySettings::DEFAULT_SCALE)
         )
-    });
-    let selected_scale = create_memo(move || {
-        Some(
-            chosen_scale
-                .get()
-                .and_then(|percent| {
-                    DisplaySettings::SCALES
-                        .iter()
-                        .position(|known| *known == percent)
-                })
-                .map_or(0, |index| index + 1),
-        )
+    };
+    let selected_scale = create_memo(move || Some(chosen_scale.get()));
+    let custom_scale = unlisted(chosen_scale, |percent| {
+        DisplaySettings::SCALES.contains(percent)
     });
     let scale_row = settings.row(&scale);
     let set_scale = settings.setter(&scale);
     let keyboard = DisplaySettings::keyboard_setting();
     let chosen_keyboard = settings.value(&keyboard);
     let below_keyboard = settings.fallback(&keyboard);
-    let inherited_keyboard_label = create_memo(move || {
+    let inherited_keyboard_label = move || {
         format!(
             "Default ({}%)",
             below_keyboard
                 .get()
                 .unwrap_or(DisplaySettings::DEFAULT_KEYBOARD_HEIGHT)
         )
-    });
-    let selected_keyboard = create_memo(move || {
-        Some(
-            chosen_keyboard
-                .get()
-                .and_then(|percent| {
-                    DisplaySettings::KEYBOARD_HEIGHTS
-                        .iter()
-                        .position(|known| *known == percent)
-                })
-                .map_or(0, |index| index + 1),
-        )
+    };
+    let selected_keyboard = create_memo(move || Some(chosen_keyboard.get()));
+    let custom_keyboard = unlisted(chosen_keyboard, |percent| {
+        DisplaySettings::KEYBOARD_HEIGHTS.contains(percent)
     });
     let keyboard_row = settings.row(&keyboard);
     let set_keyboard = settings.setter(&keyboard);
@@ -82,13 +67,13 @@ pub(super) fn AppearanceSection(
                 label="Theme"
                 description="The colors of the app and every editor in it."
                 locked={read_only}
-                overridden={create_memo(move || developer.get().theme.is_some())}
+                overridden={move || developer.get().theme.is_some()}
                 id={"display.theme".to_owned()}
             >
                 <ListItem grow=1.0>
                     <ThemeSelect
                         chosen={chosen_theme}
-                        inherited={create_memo(move || below_theme.get().unwrap_or(system.get().theme))}
+                        inherited={move || below_theme.get().unwrap_or(system.get().theme)}
                         on_change={set_theme}
                         disabled={read_only}
                         @test_id={"display.theme"}
@@ -101,13 +86,13 @@ pub(super) fn AppearanceSection(
                 description="Reduced motion finishes animations at once, and stops inertia and blinking carets."
                 separated=true
                 locked={read_only}
-                overridden={create_memo(move || developer.get().motion.is_some())}
+                overridden={move || developer.get().motion.is_some()}
                 id={"display.motion".to_owned()}
             >
                 <ListItem grow=1.0>
                     <MotionSelect
                         chosen={chosen_motion}
-                        inherited={create_memo(move || below_motion.get().unwrap_or(system.get().motion))}
+                        inherited={move || below_motion.get().unwrap_or(system.get().motion)}
                         on_change={set_motion}
                         disabled={read_only}
                         @test_id={"display.motion"}
@@ -126,16 +111,21 @@ pub(super) fn AppearanceSection(
                     <Select
                         width={Extent::fraction(1.0)}
                         options={view! {
-                            <ChoiceOption label={inherited_scale_label} />
-                            <ForEach keys={DisplaySettings::SCALES.to_vec()}>|percent: u32|
-                                <ChoiceOption label={format!("{percent}%")} />
+                            <ChoiceOption value=None label={inherited_scale_label} />
+                            <ForEach value={DisplaySettings::SCALES.to_vec()}>|percent: u32|
+                                <ChoiceOption value={Some(percent)} label={format!("{percent}%")} />
+                            </ForEach>
+                            <ForEach value={custom_scale}>|percent: u32|
+                                <ChoiceOption
+                                    value={Some(percent)}
+                                    label={format!("Custom ({percent}%)")}
+                                />
                             </ForEach>
                         }}
-                        selected={Binding::new(selected_scale, move |index: Option<usize>| {
-                            let percent = index
-                                .and_then(|index| index.checked_sub(1))
-                                .and_then(|index| DisplaySettings::SCALES.get(index).copied());
-                            set_scale.call(percent);
+                        selected={Binding::new(selected_scale, move |chosen: Option<Option<u32>>| {
+                            if let Some(percent) = chosen {
+                                set_scale.call(percent);
+                            }
                         })}
                         label="Scale"
                         disabled={read_only}
@@ -155,18 +145,23 @@ pub(super) fn AppearanceSection(
                     <Select
                         width={Extent::fraction(1.0)}
                         options={view! {
-                            <ChoiceOption label={inherited_keyboard_label} />
+                            <ChoiceOption value=None label={inherited_keyboard_label} />
                             <ForEach
-                                keys={DisplaySettings::KEYBOARD_HEIGHTS.to_vec()}
+                                value={DisplaySettings::KEYBOARD_HEIGHTS.to_vec()}
                             >|percent: u32|
-                                <ChoiceOption label={format!("{percent}%")} />
+                                <ChoiceOption value={Some(percent)} label={format!("{percent}%")} />
+                            </ForEach>
+                            <ForEach value={custom_keyboard}>|percent: u32|
+                                <ChoiceOption
+                                    value={Some(percent)}
+                                    label={format!("Custom ({percent}%)")}
+                                />
                             </ForEach>
                         }}
-                        selected={Binding::new(selected_keyboard, move |index: Option<usize>| {
-                            let percent = index
-                                .and_then(|index| index.checked_sub(1))
-                                .and_then(|index| DisplaySettings::KEYBOARD_HEIGHTS.get(index).copied());
-                            set_keyboard.call(percent);
+                        selected={Binding::new(selected_keyboard, move |chosen: Option<Option<u32>>| {
+                            if let Some(percent) = chosen {
+                                set_keyboard.call(percent);
+                            }
                         })}
                         label="On-screen keyboard height"
                         disabled={read_only}
@@ -187,9 +182,11 @@ fn ThemeSelect(
 ) -> NodeId {
     view! {
         <PreferenceSelect
-            labels={create_memo(move || labels(&ThemeKind::ALL, ThemeKind::name, inherited.get()))}
-            selected={create_memo(move || Some(index_of(&ThemeKind::ALL, chosen.get())))}
-            on_select={move |index: Option<usize>| on_change.call(choice_at(&ThemeKind::ALL, index))}
+            choices={ThemeKind::ALL.to_vec()}
+            name={ThemeKind::name as fn(_) -> _}
+            inherited
+            chosen
+            on_change
             label="Theme"
             disabled
         />
@@ -205,9 +202,11 @@ fn MotionSelect(
 ) -> NodeId {
     view! {
         <PreferenceSelect
-            labels={create_memo(move || labels(&Motion::ALL, Motion::name, inherited.get()))}
-            selected={create_memo(move || Some(index_of(&Motion::ALL, chosen.get())))}
-            on_select={move |index: Option<usize>| on_change.call(choice_at(&Motion::ALL, index))}
+            choices={Motion::ALL.to_vec()}
+            name={Motion::name as fn(_) -> _}
+            inherited
+            chosen
+            on_change
             label="Motion"
             disabled
         />
@@ -215,42 +214,36 @@ fn MotionSelect(
 }
 
 #[component]
-fn PreferenceSelect(
-    labels: Memo<Vec<String>>,
-    selected: Memo<Option<usize>>,
-    on_select: Callback<Option<usize>>,
+fn PreferenceSelect<V>(
+    choices: Vec<V>,
+    name: fn(V) -> &'static str,
+    inherited: Prop<V>,
+    chosen: Prop<Option<V>>,
+    on_change: Callback<Option<V>>,
     label: &'static str,
     disabled: Prop<bool>,
-) -> NodeId {
+) -> NodeId
+where
+    V: Copy + PartialEq + Eq + std::hash::Hash + 'static,
+{
+    let inherited_label = create_memo(move || format!("Default ({})", name(inherited.get())));
+    let selected = create_memo(move || Some(chosen.get()));
     view! {
         <Select
             width={Extent::fraction(1.0)}
             options={view! {
-                <ForEach keys={labels}>|label: String|
-                    <ChoiceOption label />
+                <ChoiceOption value=None label={inherited_label} />
+                <ForEach value={choices}>|choice: V|
+                    <ChoiceOption value={Some(choice)} label={name(choice).to_owned()} />
                 </ForEach>
             }}
-            selected={Binding::new(selected, move |index: Option<usize>| on_select.call(index))}
+            selected={Binding::new(selected, move |picked: Option<Option<V>>| {
+                if let Some(picked) = picked {
+                    on_change.call(picked);
+                }
+            })}
             label
             disabled
         />
     }
-}
-
-fn labels<V: Copy>(choices: &[V], name: fn(V) -> &'static str, inherited: V) -> Vec<String> {
-    std::iter::once(format!("Default ({})", name(inherited)))
-        .chain(choices.iter().map(|choice| name(*choice).to_owned()))
-        .collect()
-}
-
-fn index_of<V: PartialEq>(choices: &[V], chosen: Option<V>) -> usize {
-    chosen
-        .and_then(|chosen| choices.iter().position(|choice| *choice == chosen))
-        .map_or(0, |index| index + 1)
-}
-
-fn choice_at<V: Copy>(choices: &[V], index: Option<usize>) -> Option<V> {
-    index
-        .and_then(|index| index.checked_sub(1))
-        .and_then(|index| choices.get(index).copied())
 }

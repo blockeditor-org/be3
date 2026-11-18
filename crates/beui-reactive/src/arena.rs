@@ -2,6 +2,9 @@ use std::any::Any;
 use std::cell::RefCell;
 use std::rc::Rc;
 
+use std::rc::Weak;
+
+use crate::computation::Computation;
 use crate::scope::{Cleanup, current_owner};
 use crate::signal::Tracked;
 
@@ -15,6 +18,7 @@ struct Slot {
     generation: u32,
     value: Option<Rc<dyn Any>>,
     tracked: Option<Rc<dyn Tracked>>,
+    computation: Option<Weak<Computation>>,
 }
 
 struct Arena {
@@ -40,13 +44,42 @@ pub(crate) fn insert_tracked<V: Tracked + 'static>(value: Rc<V>) -> Key {
 }
 
 fn insert_slot(value: Rc<dyn Any>, tracked: Option<Rc<dyn Tracked>>) -> Key {
+    insert_entry(Some(value), tracked, None)
+}
+
+/// A slot naming a computation, freed with the current scope: an `Effect` handle, which needs
+/// no allocation of its own.
+pub(crate) fn insert_owned_computation(computation: Weak<Computation>) -> Key {
+    let owner = current_owner();
+    let key = insert_entry(None, None, Some(computation));
+    owner.add(Cleanup::Free(key));
+    key
+}
+
+pub(crate) fn get_computation(key: Key) -> Option<Rc<Computation>> {
+    ARENA.with(|arena| {
+        let arena = arena.borrow();
+        let slot = arena.slots.get(key.index as usize)?;
+        if slot.generation != key.generation {
+            return None;
+        }
+        slot.computation.as_ref()?.upgrade()
+    })
+}
+
+fn insert_entry(
+    value: Option<Rc<dyn Any>>,
+    tracked: Option<Rc<dyn Tracked>>,
+    computation: Option<Weak<Computation>>,
+) -> Key {
     ARENA.with(|arena| {
         let mut arena = arena.borrow_mut();
         match arena.free.pop() {
             Some(index) => {
                 let slot = &mut arena.slots[index as usize];
-                slot.value = Some(value);
+                slot.value = value;
                 slot.tracked = tracked;
+                slot.computation = computation;
                 Key {
                     index,
                     generation: slot.generation,
@@ -56,8 +89,9 @@ fn insert_slot(value: Rc<dyn Any>, tracked: Option<Rc<dyn Tracked>>) -> Key {
                 let index = u32::try_from(arena.slots.len()).expect("too many reactive values");
                 arena.slots.push(Slot {
                     generation: 0,
-                    value: Some(value),
+                    value,
                     tracked,
+                    computation,
                 });
                 Key {
                     index,
@@ -110,6 +144,7 @@ pub(crate) fn remove(key: Key) {
         }
         let value = slot.value.take();
         let tracked = slot.tracked.take();
+        slot.computation = None;
         slot.generation = slot.generation.wrapping_add(1);
         arena.free.push(key.index);
         Some((value, tracked))

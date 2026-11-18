@@ -3,8 +3,8 @@
 An app is either **standalone**, one plain wasm module with everything in it
 (written against the raw app interface below, in any language), or
 **linked**: a position-independent module naming the libraries it needs,
-which the host links it to at load time, on wasmtime and in the browser, from
-the same files. A library holds what apps share (std, beui, wgpu, FreeType,
+which the host links it to at load time, natively on V8 and in the browser,
+from the same files. A library holds what apps share (std, beui, wgpu, FreeType,
 HarfBuzz, ...), so a linked app's module holds only its own code and the
 generics instantiated for its types, and every app shares one file and one
 compiled module per library.
@@ -23,7 +23,8 @@ A Rust app links two libraries, or one (`buck/wasm/defs.bzl`):
   HarfBuzz.
 
 Every editor links both (`DEFAULT_LIBRARIES`) unless its `app()` says
-otherwise; triangle names base alone (`BASE_LIBRARY`), and
+otherwise, and its tests link a third (Tests, below); triangle names base
+alone (`BASE_LIBRARY`), and
 `app(libraries = [])` links an editor standalone. A library is linked whole
 and exports everything, since it cannot know what a future app will use, so a
 crate only one or two apps use stays in those apps. To move a crate into a
@@ -40,19 +41,53 @@ does (`_wasi_flags` in `buck/toolchains/BUCK` adds `-fPIC`, which cc-rs
 leaves out on wasm), so C libraries are built from source on it (as
 `third-party/pdfium` builds PDFium); an archive built elsewhere will not link.
 
+## Tests
+
+An app's tests (`app_tests` in `buck/wasm/defs.bzl`: every `app()`'s, and
+be-sdk's, be-sdk-beui's, beui-demo's and paint-review's) are one module linked
+against the same libraries as the app, so they run against the libraries apps
+ship with. Where those hold base and beui they also link **test**,
+`crates/be-sdk-library-test`, above beui: be-sdk-test and what only it uses
+(be-sdk-type-host, beui-host, the block store) and libtest, none of which an
+app ships. A test module then holds only its crate, its tests and the
+generics they instantiate: checklist's is 3.3 MB, against 47 MB with
+everything in it. `app_tests(libraries = [])` links a standalone test module.
+
+- **libtest.** The toolchain's prebuilt libtest, like std, is not
+  position-independent, so it cannot be linked into a `-shared` module.
+  `third-party/libtest` compiles libtest and getopts from the toolchain's
+  rust-src; every test module names it as its `test` crate, which `rustc
+  --test` then links in place of the toolchain's, and the test library links
+  both archives whole, so test modules leave them out. Upgrading Rust means
+  updating its pins.
+- **Link.** rustc `--test` makes a WASI command; the linker drops
+  `crt1-command.o` from a linked one, and rustc already exports
+  `__main_void`, the test harness's `main`.
+- **Run.** The harness (`wasm_test_harness`) passes app-test-runner each
+  library in the closure, in order, as `--library`, and the module last.
+  `Host::run_tests` links them as it links an app (`src/dylink.rs`), then
+  calls `__main_void`, whose result is the exit code; a panic still ends the
+  instance, and the rerun one at a time is unchanged.
+- **Compile.** V8 compiles each library once in the runner's process and the
+  test module as it loads; nothing is compiled ahead of the run.
+
+A standalone module that links C libraries with the same symbols, such as
+PDFium's FreeType and beui's, gets one definition of each name from whichever
+archive comes first, so before tests were linked PDFium's tests ran on a mix
+of two FreeType builds and painted text a little differently from the app.
+
 ## Identity
 
 Rust has no stable ABI, so a module works only with the exact libraries it was
 linked against. A library's identity is the SHA-256 of its module. A linked
 module names its whole closure, in dependency order, as exported globals
-`__be3_lib_<position>_<identity>`, which survive precompiling. Libraries are
-staged as `lib-<identity>.wasm` (and `.cwasm`); both hosts hash a `.wasm`
-before use and refuse one whose hash is not its name. A `.cwasm` cannot be
-checked and is trusted as found.
+`__be3_lib_<position>_<identity>`. Libraries are staged as
+`lib-<identity>.wasm`; both hosts hash it before use and refuse one whose
+hash is not its name.
 
 Every linked module carries a `be3.lib` custom section listing its name, the
-libraries it needs, the Rust archives and C libraries it holds, and its
-thread-locals; the linker reads it.
+libraries it needs, and the Rust archives and C libraries it holds; the
+linker reads it.
 
 ## How the links are made
 
@@ -63,6 +98,12 @@ position-independent (`-shared`) with everything exported; a linked app
 position-independent with only its own code. `libraries` on a rule names the
 whole closure, not only direct uses.
 
+A module above the root is linked `-Bsymbolic`, so what it defines binds to
+its own definition: otherwise it reaches each of its symbols another module
+could define through a `GOT.func` or `GOT.mem` import, which the loader answers
+from the lowest module exporting the name (PDFium's FreeType was handed beui's
+`TT_RunIns`).
+
 A link that needs libraries reads their `be3.lib` sections and refuses a
 closure that is incomplete or in which two libraries hold the same crate or C
 library (two copies of beui-reactive would be two reactive runtimes, which
@@ -71,54 +112,33 @@ imports, checks every import resolves to exactly one library, and shortens
 mangled symbol names to a hash (`be_wasm_dylink::short_symbol`; the `name`
 section keeps readable names for backtraces).
 
-A crate other crates depend on is linked from a `library.rs` beside its
-`Cargo.toml` that only names the crate, so the module holds the very rlib its
-dependents compiled against; a separate cdylib compile would hash
-differently and its symbols would not match.
-
 ### The root
 
-The root is the module holding std and wasi-libc. Rust's prebuilt std for
-`wasm32-wasip1-threads` and wasi-libc are compiled with absolute addresses,
-which rust-lld refuses in a `-shared` link, so the root is linked at fixed
-addresses and owns its data, stack, heap, table and main-thread TLS block;
-the loader places everything else above it
-(decisions/app_library_base_is_a_fixed_address_root.md).
-
-## Thread-locals
-
-LLVM compiles a thread-local access as an offset from the module's own
-`__tls_base`, which cannot reach another module's thread-locals, yet an app
-reaches a library's through the generics it instantiates. So the linker
-(`tls.rs`) rewrites each such access in the app's objects into a `global.get`
-of an imported `GOT.tls.<symbol>`, and the loader fills it per thread with the
-symbol's address less the importing module's `__tls_base`
-(`thread_local_slot` in `crates/be-wasm-dylink`). Every module above the
-root gets its own TLS block on every thread, carved from memory the loader
-grows: natively a free list in `be-wasm-host/src/dylink.rs`, in a browser a
-list in the shared memory under a lock (`be-host/web/dylink.js`), since any
-worker may start or end a thread.
-
-`crates/be-tool-tls-diamond-{base,left,right,app}` test it: an app reaching a
-thread-local in each of three libraries, on the main thread and a spawned one,
-run on wasmtime (`the_thread_local_diamond_runs_on_every_thread`) and in
-Chromium (`//crates/be-tool-tls-diamond-app:web-test`).
+The root is the module holding std and wasi-libc. Rust's prebuilt std and
+wasi-libc are compiled with absolute addresses, which rust-lld refuses in a
+`-shared` link, so the root is linked at fixed addresses and owns its data,
+stack, heap and table; it imports the memory the loader makes, and the loader
+places everything else above it
+(decisions/app_library_base_is_a_fixed_address_root.md). Every guest is
+single-threaded `wasm32-wasip1` (decisions/guests_are_single_threaded.md), so
+that memory is not shared, and LLVM lowers a thread-local to plain data: no
+module has a thread-local block or imports another's thread-locals.
 
 ## Loading
 
 `crates/be-wasm-dylink` plans the link as plain data (`plan`): where each
-module's data goes, its table slots, what answers each import, and its TLS
-block. `crates/be-wasm-host/src/dylink.rs` (wasmtime) and
-`crates/be-host/web/dylink.js` (the browser, through be-wasm-gpu-shim) only
-carry it out: instantiate the root against the shared memory and run
+module's data goes, its table slots and what answers each import. `crates/be-wasm-host/src/dylink.rs` (natively, on V8 through the JavaScript
+WebAssembly API called from Rust) and `crates/be-host/web/dylink.js` (the
+browser, through be-wasm-gpu-shim) only carry it out the same way: instantiate the root against the memory and run
 `_initialize`, grow the memory for the other modules' data, then instantiate
 and relocate each module in order and run its constructors before anything
-above it is instantiated. Each spawned thread links the whole list again from
-the same plan. Everything is linked at start, since a table cannot be shared
-between threads: nothing loads later.
+above it is instantiated, once, on the guest's one thread. Everything is
+linked at start and nothing loads later; with no threads to share a table
+with, a library could, but nothing asks for it yet.
 
-Natively the host keeps one compiled module per library per engine (`Host` in
-be-wasm-host), so later apps compile only themselves. In a browser each worker
+Natively each library is compiled once per process and shared between the
+isolates of every app as a `v8::CompiledWasmModule` (`Host` in be-wasm-host),
+so later apps compile only themselves; nothing is cached on disk. In a browser each worker
 compiles with `WebAssembly.compileStreaming`, which lets the browser cache it;
 the server must serve `.wasm` as `application/wasm` for that.
 
@@ -131,15 +151,15 @@ that paints through the gpu.
 
 Every guest speaks the ABI in `crates/be-wasm-guest-abi`. It exports
 `app_start`, `app_step` and `app_shutdown` (no parameters or results),
-optionally `memory`, `_initialize` and `wasi_thread_start`. It may import,
+optionally `memory` and `_initialize`. It may import,
 each only if used:
 
 - `be3_host`: `host_send` and `host_receive` (the frames of its world,
   postcard, guides/type_modules.md), `host_wake` and `host_panic`;
 - the `be3:gpu/device@0.1.0` imports (`gpu_local_imports!` in
   be-wasm-gpu-abi lists them);
-- one memory, `wasi_snapshot_preview1`, and `wasi.thread-spawn`, which needs a
-  shared memory; a spawned thread may only call `host_wake` and `host_panic`.
+- one memory, not shared (a guest is single-threaded,
+  decisions/guests_are_single_threaded.md), and `wasi_snapshot_preview1`.
 
 Any other import is answered by a function that fails when called. A Rust
 guest implements `be_wasm_guest_abi::Guest` and exports it with
@@ -149,14 +169,53 @@ guest implements `be_wasm_guest_abi::Guest` and exports it with
 
 A pure guest imports only `be3_host`: no gpu, library, WASI, threads or clock.
 It is a `wasm32_module` (wasm32-unknown-unknown), not an `app()`. A type module
-is one; `crates/be-wasm-guest-echo` is the smallest. The host refuses any
-other import and caps its memory.
+is one, and so is the input remapper, which runs in the sandbox for modules
+from bytes (guides/apps/runtime.md, Backends); `crates/be-wasm-guest-echo` is
+the smallest. The host refuses any other import and caps its memory. The echo
+guest is also built as a staged app linked against the base library (`:app`),
+which the sandbox's tests spawn by its id, with crates/be-sdk-worker-echo as
+its worker. A worker module (`be_sdk_worker::worker!`) is an ordinary guest
+linked as an app is, exporting `app_start` and `app_step` like any other, and so is a root
+guest, which links base and beui to draw with beui
+(decisions/a_root_links_beui_as_an_app_does.md).
+
+#### What a type module builds
+
+A type module (`:module`, wasm32-unknown-unknown) builds only what its replica runs, about 72
+Rust libraries with the type crates. Features keep host-only parts out: be-block-store without
+`vault`, be-block-commit without `store` (sealed commits, `CommitStore` and history retention),
+be-block-session without `store`. The linker drops unused code anyway, so those features save
+compile time, not size: moving be-block-commit's retention behind `store` left the dev modules
+the same size within noise (November 2026: chat 4,166,413 to 4,166,001 bytes, checklist
+3,433,545 to 3,434,000, text 3,547,056 to 3,547,518). What is left, and why:
+
+| crate | type modules use it for |
+|---|---|
+| be-block-content | the traits, metadata, `Root`, blobs |
+| be-block-model, be-lib-sequence | `Document<R>`, text and lists |
+| be-block-commit, `similar` | `MergeResult`; `similar` is the line diff under be-block-model's sequence merge (`merge_lines`; decisions/type_modules_keep_similar.md) |
+| be-block-store, sha2, ciborium | `Part`/`PartRef`/`Hash`/`Manifest`, CBOR of the model |
+| be-block-session | the order (`Sequencer`) and `SessionMessage` the replica runs |
+| be-block-protocol, be-block-graph | `SessionState`, `ClientId`, `RelayKind`; graph only for `Access`/`BlockParent` in the protocol, and `WORKSPACE_TYPE` |
+| be-sdk-type-api, be-wasm-ops, be-wasm-guest-abi | the protocol and the guest ABI |
+
+be-block, be-lib-search, be-lib-graphemes, the icu crates and unicode-normalization are in no
+type module's build. The apps (`wasi_guest`) build be-block through be-sdk, whose frame reads
+its built-ins for every editor (decisions/no_crate_splits_inside_dependency_chains.md).
+Shrinking what a module ships is decisions/shipped_bundle_size_settings.md.
 
 ### The host half
 
 `crates/be-wasm-guest-host` runs guests for every host: `Worker` queues
 frames, steps the guest only when frames wait or it woke, and finds a step
-past `STEP_TIMEOUT`; `thread::spawn` runs one on its own thread natively;
+past `STEP_TIMEOUT`. It is settled (which be-host's busy, and so `drive settle`,
+reads) while no frames wait and no step works on frames the host sent; a step
+the guest woke itself for straight after one that took frames counts as working
+on them, since an app takes an answer in one step and acts on it in the next.
+A guest that wakes itself later, on its own, does not keep it busy, but one that
+wakes itself every step never settles, and `drive settle` times out on it with
+"has input or a step in flight".
+`thread::spawn` runs one on its own thread natively;
 `InProcess` runs a guest's Rust in-process for tests; `web::WebGuest` runs one
 in a blob worker (`src/guest.js`), which be-host's `app.js` extends for an
 editor with libraries, WASI, threads and the gpu.

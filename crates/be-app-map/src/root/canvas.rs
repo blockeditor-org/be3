@@ -20,26 +20,26 @@ use beui::clipboard::formats;
 use beui::unstyled::gestures;
 
 pub(crate) const REGION_COLOR: Color32 = Color32::from_rgb(245, 180, 60);
-const ATTRIBUTION: &str = "© OpenStreetMap contributors";
+const ATTRIBUTION: &str = "OpenFreeMap © OpenMapTiles Data from OpenStreetMap";
 const HALO: Color32 = Color32::from_rgba_unmultiplied(255, 255, 255, 200);
 const ATTRIBUTION_HEIGHT: Size = Size::Xs;
 
 #[component]
 pub(crate) fn MapCanvas(state: MapState) -> NodeId {
-    let revision = state.revision;
+    let tiles_changed = state.tiles_changed;
     let sized = state.editor().world();
     let laid_out = state.editor().placed();
     let world = create_memo(move || {
-        state.displayed_region.with(|_| ());
-        sized.with(|_| ());
-        laid_out.with(|_| ());
-        state.anchor.with(|_| ());
+        state.displayed_region.track();
+        sized.track();
+        laid_out.track();
+        state.anchor.track();
         state.view()
     });
     let camera = create_memo(move || state.camera());
     let scale = create_memo(move || camera.get().map_or(1.0, |camera| camera.scale));
     let visible = create_memo(move || {
-        sized.with(|_| ());
+        sized.track();
         state.visible()
     });
     let covering = create_memo(move || {
@@ -56,7 +56,7 @@ pub(crate) fn MapCanvas(state: MapState) -> NodeId {
 
     let measures = Rc::new(labels::Measures::default());
     let candidates = create_memo(move || {
-        let _ = revision.get();
+        tiles_changed.track();
         let covering = covering.get();
         let world = world.get();
         state.with_tiles(|held| {
@@ -80,7 +80,7 @@ pub(crate) fn MapCanvas(state: MapState) -> NodeId {
             .get()
             .map(|preview| view.region_rect(preview))
     });
-    let has_region = create_memo(move || outline.get().is_some());
+    let has_region = create_memo(move || outline.with(Option::is_some));
     let region_rect = create_memo(move || outline.get().unwrap_or(Rect::ZERO));
 
     let points = state.points;
@@ -101,24 +101,24 @@ pub(crate) fn MapCanvas(state: MapState) -> NodeId {
             <ListItem grow=1.0>
                 <MapSurface state={state} @node_ref={&content}>
                     <Canvas view={camera} @test_id={"map.canvas"}>
-                        <ForEach keys={covering}>|tile: TileId| {
+                        <ForEach value={covering}>|tile: TileId| {
                             let world = world;
                             let scale = scale;
                             view! {
                                 <Tile state tile world scale underlay=true />
                             }
                         }</ForEach>
-                        <ForEach keys={covering}>|tile: TileId| {
+                        <ForEach value={covering}>|tile: TileId| {
                             let scale = scale;
                             view! {
                                 <Tile state tile world scale />
                             }
                         }</ForEach>
-                        <ForEach keys={label_keys}>|key: labels::LabelKey|
+                        <ForEach value={label_keys}>|key: labels::LabelKey|
                             <MapLabel key shown={by_key} scale />
                         </ForEach>
                         <RegionOutline shown={has_region} rect={region_rect} />
-                        <ForEach keys={ids}>|id: Uuid| {
+                        <ForEach value={ids}>|id: Uuid| {
                             let selected = selection.memo(Some(id));
                             let world = world;
                             let scale = scale;
@@ -141,7 +141,7 @@ fn RegionOutline(shown: Memo<bool>, rect: Memo<Rect>) -> DynamicSegment<CanvasIt
     let width = create_memo(move || rect.get().width());
     let height = create_memo(move || rect.get().height());
     view! {
-        <Show condition={shown}>
+        <Show value={shown}>
             <CanvasItem x={x} y={y} width={width} height={height}>
                 <Frame
                     border={Border::new(ColorRole::Custom(REGION_COLOR.into())).width(Stroke::Focus)}

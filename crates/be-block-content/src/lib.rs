@@ -15,6 +15,7 @@ pub mod block_url;
 pub mod editor_view;
 pub mod history;
 pub mod layered;
+pub mod log;
 pub mod metadata;
 pub mod model;
 pub mod plain;
@@ -26,8 +27,11 @@ pub mod streamed;
 pub use be_block_model;
 pub use be_block_model::{Edit, Item, ObjectId, Touched};
 pub use blob::{Blob, BlobKind, BlobOp};
-pub use editor_view::{EditorView, EditorViewContent, VIEW_TYPE, ViewState};
+pub use editor_view::{
+    EditorView, EditorViewContent, VIEW_TYPE, ViewRef, ViewState, ViewStateKind,
+};
 pub use layered::{Follows, KindRule, KindVisibility, Layered, layered};
+pub use log::{Along, LogAppended, LogFold, LogItem, LogNotAppended, LogPage, LogSigner};
 pub use metadata::{
     ARTIFACT, Artifact, BlockMetadata, CREATED_BY, DELETED_FROM, Definition, DeletedFrom,
     EXECUTABLE, Entries, ICON, ICON_COLOR, INTRINSIC_NAME, LOCAL_ID, MATERIAL_ICON, MY_FILES,
@@ -129,15 +133,15 @@ pub trait BlockContent: Sized + Send + Sync + 'static {
         let _ = metadata;
     }
 
-    /// The searchable text of the content, one `SearchDocument` per key, which the search
-    /// index holds (plans/search.md); none for a type that is not content-searchable. Content
-    /// that loads only its first part reads the others with `parts`. `keys` (none for every
-    /// document) and `indexed` (the parts the index already holds text from) only spare work:
-    /// a type need not answer documents outside `keys`, nor read a part in `indexed`, so a
-    /// snippet reads one part of a large block and reindexing it reads only its changed
-    /// parts. The host drops documents outside `keys` and the bodies of documents whose source
-    /// is in `indexed` whatever the type answers. Boxed, as a future returned from a trait
-    /// method in another crate must be (guides/type_modules.md, "The generator").
+    /// The searchable text of the content, one `SearchDocument` per key, which the search index
+    /// holds (guides/blocks/host.md, "Search"); none for a type that is not content-searchable.
+    /// Content that loads only its first part reads the others with `parts`. `keys` (none for every
+    /// document) and `indexed` (the parts the index already holds text from) only spare work: a
+    /// type need not answer documents outside `keys`, nor read a part in `indexed`, so a snippet
+    /// reads one part of a large block and reindexing it reads only its changed parts. The host
+    /// drops documents outside `keys` and the bodies of documents whose source is in `indexed`
+    /// whatever the type answers. Boxed, as a future returned from a trait method in another crate
+    /// must be (guides/type_modules.md, "The generator").
     fn search_text(
         &self,
         keys: Option<&HashSet<String>>,
@@ -148,6 +152,36 @@ pub trait BlockContent: Sized + Send + Sync + 'static {
         Box::pin(std::future::ready(Ok(Vec::new())))
     }
 }
+
+/// Content that counts what the account has not read in it yet (a chat's messages from
+/// others), so a row showing the block can carry the count without opening it. Where the
+/// account read up to is never in the content, where others would see it, but in an owner-only
+/// settings kind of the type's own (`Reads`, `KindVisibility::Owner`). The host has the type
+/// pick each block's own place out of the account's layers of it, combined (`places`), and
+/// counts a block with its content as the type loads it (only its first part for a type that
+/// loads only that) and its place alone, again only when its head or its place moved; it keeps
+/// the answer on the block's row (guides/blocks/host.md, "Unread counts"). Registered with the
+/// type's `unread` part (`be_block_types!`).
+pub trait Unread: BlockContent {
+    type Reads: Layered;
+    /// Where the account read one block up to: all `count_unread` reads of `Reads`. A block
+    /// `places` leaves out has the default place.
+    type Place: Serialize + DeserializeOwned + Default;
+
+    /// Each block's place in `reads`. Each block at most once, and its place the same for the
+    /// same reads, since the host recounts a block when the place's bytes change.
+    fn places(reads: &Self::Reads) -> Vec<(Uuid, Self::Place)>;
+
+    /// How many of the things in this content and `log` `me` has not read, by `place`. Counted
+    /// from what is loaded alone: a type that loads only its first part reads no other part for
+    /// it, and a type with a signed log is handed its latest entries, at most `UNREAD_ENTRIES`
+    /// (none for a type without), so a count past them is at least theirs.
+    fn count_unread(&self, place: &Self::Place, log: &[LogItem], me: Uuid) -> u32;
+}
+
+/// How many of a block's latest log entries a count of what is unread is handed
+/// (`Unread::count_unread`): past them, an editor shows the count as at least as many.
+pub const UNREAD_ENTRIES: u32 = 100;
 
 /// A searchable document of a block's content (`BlockContent::search_text`).
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
@@ -276,8 +310,10 @@ pub trait LiveEdit: BlockContent {
         touched.push(Touched::Everything);
     }
 
-    fn child_operations(&self, change: ChildChange) -> Option<Vec<Self::Op>> {
-        let _ = change;
+    /// The operations that make this content follow `change` to one of its children, made as
+    /// `client`, or none when the type does not take it.
+    fn child_operations(&self, change: ChildChange, client: u64) -> Option<Vec<Self::Op>> {
+        let _ = (change, client);
         None
     }
 

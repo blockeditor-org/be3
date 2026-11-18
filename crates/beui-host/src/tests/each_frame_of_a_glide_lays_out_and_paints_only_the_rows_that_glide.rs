@@ -7,14 +7,14 @@ const ROWS: u64 = 20;
 fn each_frame_of_a_glide_lays_out_and_paints_only_the_rows_that_glide() {
     let _root = RootScope::new();
     let order = create_signal((1..=ROWS).collect::<Vec<_>>());
-    let arm = create_signal(0_u64);
+    let arm = create_trigger();
     let mut harness = Harness::new(gliding_rows(order, arm));
     harness.settle();
 
     let mut swapped = (1..=ROWS).collect::<Vec<_>>();
     swapped.swap(0, 1);
     order.set(swapped);
-    arm.update(|arm| *arm += 1);
+    arm.notify();
     harness.frame(Vec::new());
     harness.frame(Vec::new());
     let moving = top_of(&harness, "row.1");

@@ -1,7 +1,29 @@
 use std::fmt;
+use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+
+/// Silence after which a client's connection calls `connection.ping` ahead of anything queued
+/// (be-block-client's connection.rs): once it has heard nothing, or sent nothing, for this long.
+/// It is a protocol call because a browser cannot send websocket pings; any frame from the server
+/// proves it alive.
+pub const PING_INTERVAL: Duration = Duration::from_secs(15);
+/// How long after a ping is actually written, with nothing heard, before a client's connection
+/// closes itself; a write still stuck this long after the ping fell due closes it too. Only an
+/// unanswered ping closes it, so a process suspended for longer keeps a live connection when it
+/// wakes.
+pub const PONG_WAIT: Duration = Duration::from_secs(20);
+/// How long a connection may go with nothing read from it or written to it before the server
+/// gives up on it (be-server's `IDLE_TIMEOUT`), which writes that it left every session, so a
+/// holder that went silent gives up its lease within it. A live client sends something at least
+/// every `PING_INTERVAL`, and twice that with the `PONG_WAIT` covers a ping queued behind a write.
+/// What the server writes does not count, since a write completes once it fits in a buffer: a
+/// client busy reading still pings (it pings once it has sent nothing for `PING_INTERVAL`), and a
+/// browser tab the browser throttles in the background, whose own pings may wait, still answers
+/// the server's websocket pings with its automatic Pong, which is what keeps it.
+pub const CLIENT_SILENCE: Duration =
+    Duration::from_secs(2 * PING_INTERVAL.as_secs() + PONG_WAIT.as_secs());
 
 be_wasm_ops_bindgen::generate!({
     path: "wit",
@@ -13,11 +35,12 @@ be_wasm_ops_bindgen::generate!({
         "hash": be_block_store::Hash,
         "commit-id": be_block_commit::CommitId,
         "public-key": [u8; 32],
+        "entry-hash": [u8; 32],
         "access-level": be_block_graph::Access,
         "block-parent": be_block_graph::BlockParent,
         "escrow-key": crate::EscrowKey,
     },
-    copy: ["uuid", "hash", "commit-id", "public-key", "access-level", "block-parent"],
+    copy: ["uuid", "hash", "commit-id", "public-key", "entry-hash", "access-level", "block-parent"],
     default: [
         "key-set",
         "key-work",
@@ -27,30 +50,81 @@ be_wasm_ops_bindgen::generate!({
         "object-change",
         "reference-change",
     ],
-    inline: ["block-changed", "block-removed", "joined", "relayed"],
+    inline: [
+        "relayed",
+        "sealed",
+        "device-poll",
+        "blocks-query",
+        "list-query",
+        "tree-query",
+        "keys-query",
+        "revocations-query",
+        "session-query",
+        "block-log-query",
+        "access-log-query",
+        "create-block",
+        "publish",
+        "move",
+        "append",
+        "redact",
+        "grant-record",
+        "ban-record",
+        "role-record",
+        "member-record",
+        "delete-agent",
+        "delete-link",
+        "create-share-link",
+        "open-share-link",
+        "revoke-share-link",
+        "rotation",
+        "new-escrow",
+        "hold-objects",
+        "create-organization",
+        "create-agent",
+        "create-link",
+        "accept-link",
+        "accepted-link",
+        "pinned-letter",
+        "remove-contact",
+        "set-recovery-key",
+        "set-mute",
+        "session-target",
+        "push-target",
+        "tree-advanced",
+        "session-happened",
+        "followed",
+    ],
 });
 
 pub use account::*;
 pub use blocks::*;
 pub use contacts::*;
 pub use keys::*;
+pub use logs::*;
 pub use members::*;
 pub use notifications::*;
 pub use objects::*;
 pub use organizations::*;
+pub use server::*;
 pub use sessions::*;
 pub use types::*;
 
+/// The email an agent account has: none it receives mail at, derived from its id, so its maker
+/// names it on the card it keeps for it before the server makes it.
+pub fn agent_email(account: Uuid) -> String {
+    format!("agent-{}@agents.invalid", account.simple())
+}
+
 pub const MAX_FRAME_BYTES: usize = 8 * 1024 * 1024;
-/// The most blocks one `read-summaries` names.
+/// The most blocks one `query.blocks` names.
 pub const MAX_SUMMARIES_ASKED: usize = 4096;
 /// What a frame spends on more than its answer's items: the op's envelope and the lengths and
 /// fixed fields around them. An answer sized to fit leaves this much of a frame spare.
 pub const FRAME_ENVELOPE_BYTES: usize = 64 * 1024;
 /// The blocks one block references, which its server refuses past (`create-block`,
-/// `set-metadata`, `publish`) and a client before it sends them. Every summary lists them, so
-/// with a block's largest metadata (64 KiB on the server) a summary still fits a frame on its
-/// own, which every answer of many summaries sends alone if it must.
+/// `publish`) and a client before it sends them. A publish adding as many still fits a frame:
+/// each is a length byte and 16 bytes. No summary lists them (a reader takes them from the
+/// block's content).
 pub const MAX_REFERENCES: usize = 250_000;
 /// The bytes `value` takes in a frame, whose values are postcard: what a server measures an
 /// answer by so that it fits.
@@ -60,7 +134,7 @@ pub fn encoded_len<T: Serialize + ?Sized>(value: &T) -> usize {
 }
 /// The largest object the server stores.
 pub const MAX_OBJECT_BYTES: usize = 8 * 1024 * 1024;
-/// The most objects one `upload-urls` or `download-urls` call names, which keeps its answer
+/// The most objects one `reserve-uploads` or `download-urls` call names, which keeps its answer
 /// well inside a frame.
 pub const MAX_OBJECT_URLS: usize = 1024;
 /// The largest sealed notification `notify` takes: what an app writes is about 1 KiB, and
@@ -85,7 +159,7 @@ pub fn told_key(block: Uuid, key: &str) -> be_block_store::Hash {
 /// sender and the block itself, from its own contacts and graph: the sealed part holds only
 /// the text, bound to the organization, block, sender and time it was sent
 /// (`be_block_client::Notification`).
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 pub struct PushMessage {
     pub organization: Uuid,
     pub block: Uuid,
@@ -258,6 +332,7 @@ impl OrganizationRole {
         match self {
             Self::Administrator => "Administrator",
             Self::Editor => "Editor",
+            Self::Guest => "Guest",
         }
     }
 }
@@ -283,12 +358,12 @@ impl BlockSummary {
             author: None,
             parent: None,
             head: None,
-            references: Vec::new(),
             metadata: Vec::new(),
             version: None,
             key: None,
             scope: None,
-            revision: 0,
+            changed: 0,
+            entry: None,
             held: true,
             opens_inside: false,
             sets_access: false,
@@ -304,7 +379,12 @@ pub struct EscrowKey {
     pub id: Uuid,
     pub epoch: u64,
     pub public: [u8; 32],
-    pub signing: [u8; 32],
+    /// The head of the organization's access log it was made under (guides/blocks/keys.md,
+    /// "Epochs name their heads"): a device takes it, and seals it, only once it holds the log that
+    /// far.
+    pub head: [u8; 32],
+    /// The administrator who made it, whose identity key signs `chained`.
+    pub maker: Uuid,
     #[serde(with = "serde_bytes")]
     pub signature: Vec<u8>,
 }
@@ -318,15 +398,18 @@ impl EscrowKey {
         postcard::from_bytes(bytes).ok()
     }
 
+    /// What its maker signs (`RecoverySecret::sign_escrow`, which adds the domain): the key and
+    /// the log head it was made under, chained to the epoch before (`previous`, nil for the
+    /// first).
     pub fn chained(&self, organization: Uuid, previous: Uuid) -> Vec<u8> {
         [
-            b"be3.escrow.chain.v1".as_slice(),
-            organization.as_bytes(),
+            organization.as_bytes().as_slice(),
+            self.maker.as_bytes(),
             previous.as_bytes(),
             self.id.as_bytes(),
             &self.epoch.to_be_bytes(),
             &self.public,
-            &self.signing,
+            &self.head,
         ]
         .concat()
     }
@@ -340,12 +423,6 @@ impl KeySet {
     pub fn extend(&mut self, other: KeySet) {
         self.keys.extend(other.keys);
         self.wrapped.extend(other.wrapped);
-    }
-}
-
-impl SessionState {
-    pub fn is_owner(&self, client: ClientId) -> bool {
-        self.owner == Some(client)
     }
 }
 
@@ -386,14 +463,271 @@ pub fn decode<T: for<'a> Deserialize<'a>>(bytes: &[u8]) -> Result<T, postcard::E
 
 const HELLO: &[u8] = b"be3 hello\n";
 
-pub fn hello(build: &str) -> Vec<u8> {
-    [HELLO, build.as_bytes()].concat()
+/// What a client's greeting says after its build: the token it signs in with. None signs in
+/// with the request's Authorization header instead (`be` behind a proxy that injects it), and
+/// is what a one-shot call, which signs nothing in, says.
+#[derive(Clone, Default, Serialize, Deserialize)]
+pub struct Greeting {
+    pub token: Option<String>,
 }
 
-pub fn read_hello(frame: &[u8]) -> Option<String> {
-    let build = frame.strip_prefix(HELLO)?;
-    String::from_utf8(build.to_vec()).ok()
+/// Leaves out the token, so no log ever holds it.
+impl std::fmt::Debug for Greeting {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("Greeting")
+            .field("token", &self.token.as_ref().map(|_| ".."))
+            .finish()
+    }
 }
+
+/// What the server's greeting says after its build to a connection of the same build: who
+/// the greeting signed it in as, or why it did not, the connection then closed before any call.
+/// A one-shot call's answer says nothing (`()`).
+pub type Welcome = Result<Authenticated, Error>;
+
+/// A greeting: `HELLO`, the build, then, past a zero byte, what it says. Only the build is
+/// read before both ends know they are of one build, so what follows it may change freely.
+pub fn hello(build: &str, said: &impl Serialize) -> Vec<u8> {
+    let mut frame = [HELLO, build.as_bytes(), &[0]].concat();
+    frame.extend(encode(said).unwrap_or_default());
+    frame
+}
+
+/// A greeting's build, and what it says, to decode with `Hello::said` once the build is
+/// known to be ours.
+pub struct Hello<'a> {
+    pub build: String,
+    said: &'a [u8],
+}
+
+impl Hello<'_> {
+    pub fn said<T: for<'b> Deserialize<'b>>(&self) -> Option<T> {
+        decode(self.said).ok()
+    }
+}
+
+pub fn read_hello(frame: &[u8]) -> Option<Hello<'_>> {
+    let rest = frame.strip_prefix(HELLO)?;
+    let (build, said) = match rest.iter().position(|byte| *byte == 0) {
+        Some(at) => (&rest[..at], &rest[at + 1..]),
+        None => (rest, &[][..]),
+    };
+    Some(Hello {
+        build: String::from_utf8(build.to_vec()).ok()?,
+        said,
+    })
+}
+
+/// The sealed payload one entry of a block's signed log carries at most, which the server
+/// refuses past and a device before it keeps the entry.
+pub const MAX_LOG_ENTRY_BYTES: usize = 64 * 1024;
+
+/// What an entry's author signs (`sign_authored`, which binds it to its block): the entry's id
+/// and `said`, the hash of a random salt sealed with the payload, then the payload as the app
+/// wrote it framed by the app's id (`be_block_client::Said::hash`), not the sealed bytes: so it
+/// verifies wherever its plaintext and salt go (an export), only in the app that wrote it, and
+/// the server can neither move it to another id nor replay it under a new one (an id the log
+/// holds is answered, not appended again). The salt keeps a signature from confirming a guessed
+/// payload to anyone without the block's key, the server included, before or after the entry
+/// is redacted. The leaf commits to the sealed bytes, so who wrote a redacted entry is still the
+/// log's word.
+pub fn log_signed(id: Uuid, said: be_block_store::Hash) -> Vec<u8> {
+    let mut signed = Vec::with_capacity(LOG_SIGNED_DOMAIN.len() + 16 + 32);
+    signed.extend_from_slice(LOG_SIGNED_DOMAIN);
+    signed.extend_from_slice(id.as_bytes());
+    signed.extend_from_slice(said.as_bytes());
+    signed
+}
+
+const LOG_SIGNED_DOMAIN: &[u8] = b"be3.log.entry\0";
+
+impl LogEntry {
+    /// The entry's leaf in its log's Merkle tree (`be_block_keys::merkle::leaf_hash` of): its
+    /// place, arrival, author, id, payload hash and signature, everything the server fixes or
+    /// the author signed, and not the payload itself, so a redacted entry still verifies.
+    pub fn leaf(&self) -> [u8; 32] {
+        let mut data = Vec::with_capacity(8 + 8 + 16 + 16 + 32 + self.signature.len());
+        data.extend_from_slice(&self.seq.to_be_bytes());
+        data.extend_from_slice(&self.arrival.to_be_bytes());
+        data.extend_from_slice(self.author.as_bytes());
+        data.extend_from_slice(self.id.as_bytes());
+        data.extend_from_slice(self.payload_hash.as_bytes());
+        data.extend_from_slice(&self.signature);
+        // RFC 6962's leaf hash, `be_block_keys::merkle::leaf_hash`, which this crate does not
+        // depend on so that apps' wasm need not build the key crate.
+        *be_block_store::Hash::of_parts(&[&[0], &data]).as_bytes()
+    }
+}
+
+/// The case of `Page` a query is answered with, so a read names what it expects.
+pub trait FromPage: Sized {
+    fn from_page(page: Page) -> Option<Self>;
+}
+
+/// The case of `Done` an op is answered with.
+pub trait FromDone: Sized {
+    fn from_done(done: Done) -> Option<Self>;
+}
+
+macro_rules! answers {
+    ($trait:ident, $method:ident, $from:ident { $($case:ident => $ty:ty,)* }) => {
+        $(impl $trait for $ty {
+            fn $method(answer: $from) -> Option<Self> {
+                match answer {
+                    $from::$case(value) => Some(value),
+                    _ => None,
+                }
+            }
+        })*
+    };
+}
+
+answers!(FromPage, from_page, Page {
+    Summaries => Vec<Option<BlockSummary>>,
+    Contents => Contents,
+    Listed => Listed,
+    Tree => ChangedPage,
+    History => Vec<HistoryEntry>,
+    Log => AccessLogPage,
+    BlockLog => LogPage,
+    Access => AccessList,
+    Names => Vec<AccountName>,
+    Keys => KeyPage,
+    KeyWork => KeyWork,
+    Revocations => Vec<Revocation>,
+    RecoveryKey => RecoveryKey,
+    SigningKeys => Vec<SigningKey>,
+    Members => Vec<Member>,
+    Organizations => Vec<Organization>,
+    Invitations => Vec<InvitationRow>,
+    Storage => AccountStorage,
+    Mailbox => Vec<Message>,
+    Link => Link,
+    Invitation => InvitationPreview,
+    ShareLink => ShareLink,
+    ShareLinks => Vec<ShareLinkRow>,
+    DownloadUrls => Vec<Option<String>>,
+    ServerInfo => ServerInfo,
+    Mutes => Vec<BlockMute>,
+    Session => JoinedSession,
+});
+
+answers!(FromDone, from_done, Done {
+    Block => BlockSummary,
+    Published => PublishOutcome,
+    Uploads => Vec<Option<UploadUrl>>,
+    Organization => Organization,
+    Agent => CreatedAgent,
+    Token => String,
+    Logged => Vec<Logged>,
+});
+
+/// What a `publish` with no commit answers: the block as it is now, or, when its head was not
+/// the one expected, that head, as a stale publish with a commit is rejected.
+#[derive(Clone, Debug, PartialEq)]
+pub enum Described {
+    Block(BlockSummary),
+    Rejected(Option<be_block_commit::CommitId>),
+}
+
+impl FromDone for Described {
+    fn from_done(done: Done) -> Option<Self> {
+        match done {
+            Done::Block(summary) => Some(Self::Block(summary)),
+            Done::Published(PublishOutcome::Rejected(head)) => Some(Self::Rejected(head)),
+            _ => None,
+        }
+    }
+}
+
+impl FromDone for () {
+    fn from_done(done: Done) -> Option<Self> {
+        matches!(done, Done::Nothing).then_some(())
+    }
+}
+
+fn unexpected() -> Error {
+    Error::new(
+        ErrorCode::InvalidRequest,
+        "the server answered with another case than the call asked for",
+    )
+}
+
+/// Reads `query` in `organization` (`server.read`), as the page case `T` it is answered with.
+/// The call starts now, so calls made one after another reach the server in that order.
+pub fn read<T: FromPage + Send, C: be_wasm_ops::net::Caller + Clone>(
+    caller: &C,
+    organization: Option<Uuid>,
+    query: Query,
+) -> impl Future<Output = Result<Result<T, Error>, be_wasm_ops::OpError>> + Send + 'static + use<T, C>
+{
+    answered(client::server::read(caller, organization, query, false))
+}
+
+/// Reads `query` as `read` does, and with `follow` follows its topic first (`server.read`): what
+/// changes after it arrives as `server.events`.
+pub fn ask<T: FromPage + Send, C: be_wasm_ops::net::Caller + Clone>(
+    caller: &C,
+    organization: Option<Uuid>,
+    query: Query,
+    follow: bool,
+) -> impl Future<Output = Result<Result<T, Error>, be_wasm_ops::OpError>> + Send + 'static + use<T, C>
+{
+    answered(client::server::read(caller, organization, query, follow))
+}
+
+fn answered<T: FromPage + Send>(
+    pending: impl Future<Output = Result<Result<Page, Error>, be_wasm_ops::OpError>> + Send + 'static,
+) -> impl Future<Output = Result<Result<T, Error>, be_wasm_ops::OpError>> + Send + 'static {
+    async move {
+        Ok(pending
+            .await?
+            .and_then(|page| T::from_page(page).ok_or_else(unexpected)))
+    }
+}
+
+/// Writes one op in `organization` (`server.write`), answered as the case `T` it makes.
+pub fn write<T: FromDone + Send, C: be_wasm_ops::net::Caller + Clone>(
+    caller: &C,
+    organization: Option<Uuid>,
+    op: Op,
+) -> impl Future<Output = Result<Result<T, Error>, be_wasm_ops::OpError>> + Send + 'static + use<T, C>
+{
+    write_all(caller, organization, vec![op])
+}
+
+/// Writes `ops` in `organization` in one write (`server.write`), applied whole or not at all,
+/// answered as the case `T` the first makes; what the others make is dropped. A refusal is the
+/// refused op's error, whichever op it was.
+pub fn write_all<T: FromDone + Send, C: be_wasm_ops::net::Caller + Clone>(
+    caller: &C,
+    organization: Option<Uuid>,
+    ops: Vec<Op>,
+) -> impl Future<Output = Result<Result<T, Error>, be_wasm_ops::OpError>> + Send + 'static + use<T, C>
+{
+    let count = ops.len();
+    let pending = client::server::write(caller, organization, ops);
+    async move {
+        Ok(pending
+            .await?
+            .map_err(|refused| refused.error)
+            .and_then(
+                |done| match (done.len() == count, done.into_iter().next()) {
+                    (true, Some(done)) => T::from_done(done).ok_or_else(unexpected),
+                    _ => Err(unexpected()),
+                },
+            ))
+    }
+}
+
+impl fmt::Display for WriteError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(formatter, "op {} of the write: {}", self.index, self.error)
+    }
+}
+
+impl std::error::Error for WriteError {}
 
 #[cfg(test)]
 mod tests;

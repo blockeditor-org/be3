@@ -8,6 +8,18 @@ pub use crate::types::{
 };
 
 impl ImeArea {
+    /// The area as bytes, as a root guest hands its host the input method's area (be3:root's
+    /// `frame-done`, crates/be-wasm-root-api), which `decode` reads back.
+    pub fn encode(&self) -> Vec<u8> {
+        postcard::to_allocvec(self).expect("an input method's area always serializes")
+    }
+
+    /// The area `encode` wrote.
+    pub fn decode(bytes: &[u8]) -> Result<Self, String> {
+        postcard::from_bytes(bytes)
+            .map_err(|error| format!("the input method's area could not be read: {error}"))
+    }
+
     pub fn translated(self, by: be_lib_geometry::Vec2) -> Self {
         Self {
             rect: self.rect.translate(by),
@@ -69,3 +81,6 @@ impl WindowReport {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;

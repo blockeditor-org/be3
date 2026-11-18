@@ -197,7 +197,7 @@ fn context_menu(actions: &CanvasActions) -> Vec<MenuNode> {
 }
 
 #[component]
-pub(crate) fn CanvasMenu(disabled: bool, children: Child) -> NodeId {
+pub(crate) fn CanvasMenu(disabled: bool, children: NodeId) -> NodeId {
     let actions = use_context::<CanvasActions>().expect("the canvas provides its actions");
     let nodes = context_menu(&actions);
     view! {

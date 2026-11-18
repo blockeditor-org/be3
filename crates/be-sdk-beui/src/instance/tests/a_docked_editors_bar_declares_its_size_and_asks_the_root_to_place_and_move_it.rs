@@ -73,6 +73,7 @@ fn press(at: beui::Pos2) -> beui::PointerPress {
         pen: None,
         predicted: None,
         time: beui::reactive::now(),
+        pointer: beui::PointerId::Mouse,
     }
 }
 

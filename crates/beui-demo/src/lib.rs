@@ -17,11 +17,11 @@ use beui::icons::Glyph;
 use beui::icons::{
     ICON_APP_WINDOW, ICON_ARROW_UP_DOWN, ICON_BLOCKS, ICON_BOLD, ICON_BRING_TO_FRONT, ICON_BUG,
     ICON_CALENDAR_DAYS, ICON_CIRCLE_DOT, ICON_CLIPBOARD, ICON_CODE, ICON_COLUMNS_3, ICON_CONTRAST,
-    ICON_COPY, ICON_EXTERNAL_LINK, ICON_GRIP_VERTICAL, ICON_HEADING, ICON_LAYERS,
+    ICON_COPY, ICON_DOWNLOAD, ICON_EXTERNAL_LINK, ICON_GRIP_VERTICAL, ICON_HEADING, ICON_LAYERS,
     ICON_LAYOUT_DASHBOARD, ICON_LAYOUT_GRID, ICON_LAYOUT_PANEL_LEFT, ICON_LINK, ICON_LIST,
     ICON_LOCK, ICON_LOG_IN, ICON_MAIL, ICON_MENU, ICON_MOUSE, ICON_MOUSE_POINTER_CLICK,
     ICON_MOVE_VERTICAL, ICON_NETWORK, ICON_PALETTE, ICON_PANEL_BOTTOM, ICON_PANELS_TOP_LEFT,
-    ICON_PEN_TOOL, ICON_PENCIL, ICON_PLAY, ICON_POINTER, ICON_ROTATE_CCW, ICON_SHARE_2,
+    ICON_PEN_TOOL, ICON_PENCIL, ICON_PLAY, ICON_POINTER, ICON_ROTATE_CCW, ICON_SEND, ICON_SHARE_2,
     ICON_SLIDERS_HORIZONTAL, ICON_SPLINE, ICON_SPLIT, ICON_SQUARE, ICON_STAR,
     ICON_TEXT_ALIGN_START, ICON_TOGGLE_RIGHT, ICON_TRASH, ICON_TYPE,
 };
@@ -302,7 +302,7 @@ impl Page {
             Page::Values => "Sliders, text and number inputs, colors",
             Page::Selecting => "Choices, disclosures, trees, text menus",
             Page::Popups => "Popovers, tooltips, menus, sheets, dates",
-            Page::Dragging => "Draggables and drop targets",
+            Page::Dragging => "Carries and drop sites",
             Page::Scrolling => "Scroll areas and scrollbars",
             Page::Frames => "Fills, outlines, padding, sizes",
             Page::Paths => "Curves, joins, caps, dashes",
@@ -318,19 +318,17 @@ impl Page {
 #[derive(Clone, Copy)]
 struct Today(Date);
 
-const WINDOW_BACKGROUNDS: [ColorRole; 2] = [ColorRole::Background, ColorRole::Surface];
-
 #[derive(Clone, Copy)]
 struct DemoWindow {
     title: Signal<String>,
-    background: Signal<Option<usize>>,
+    background: Signal<Option<ColorRole>>,
 }
 
 impl DemoWindow {
     fn provide() -> Self {
         let window = Self {
             title: create_signal("beui demo".to_owned()),
-            background: create_signal(Some(0)),
+            background: create_signal(Some(ColorRole::Background)),
         };
         provide_context(window);
         window
@@ -338,7 +336,7 @@ impl DemoWindow {
 
     fn clear_color(self) -> Memo<ColorRole> {
         let background = self.background;
-        create_memo(move || WINDOW_BACKGROUNDS[background.get().unwrap_or_default()])
+        create_memo(move || background.get().unwrap_or(ColorRole::Background))
     }
 }
 
@@ -618,8 +616,8 @@ fn DemoShell() -> NodeId {
                                     view! {
                                         <DockTab
                                             id={document.key()}
-                                            title={create_memo(move || page.get().title().to_owned())}
-                                            icon={create_memo(move || page.get().icon().to_owned())}
+                                            title={move || page.get().title().to_owned()}
+                                            icon={move || page.get().icon().to_owned()}
                                             on_close={move || pages.close(document)}
                                         >
                                             <DockDocumentBody document>|page: ReadSignal<Page>|
@@ -632,7 +630,7 @@ fn DemoShell() -> NodeId {
                                 }</DockDocumentTabs>
                             </DockPane>
                         </DockSplit>
-                        <ForEach keys={attached}>|dialog: DemoDialog|
+                        <ForEach value={attached}>|dialog: DemoDialog|
                             <DockDialog
                                 id={dialog.id}
                                 parent={dialog.parent}
@@ -763,35 +761,25 @@ fn PageView(page: Page) -> NodeId {
 #[component]
 fn DemoToolbar(pages: Pages) -> NodeId {
     let program_layer = use_preference_layer(PreferenceSource::Program);
-    let selected_theme = create_memo(move || {
-        let theme = program_layer.get().theme;
-        Some(
-            theme
-                .and_then(|theme| ThemeKind::ALL.iter().position(|kind| *kind == theme))
-                .map_or(0, |index| index + 1),
-        )
-    });
+    let selected_theme = create_memo(move || Some(program_layer.get().theme));
     let narrow = narrower_than(NARROW_WIDTH);
-    let wide = create_memo(move || !narrow.get());
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=TOOLBAR_SPACING>
             <Text style=TextStyle::TITLE>"beui"</Text>
-            <Show condition={wide}>
+            <Show value={move || !narrow.get()}>
                 <Text style=TextStyle::CAPTION>"retained mode ui"</Text>
             </Show>
             <Spacer />
             <Select
                 label="Theme"
                 options={view! {
-                    <ChoiceOption label="System" />
-                    <ForEach keys={ThemeKind::ALL.to_vec()}>|kind: ThemeKind|
-                        <ChoiceOption label={kind.name()} />
+                    <ChoiceOption value=None label="System" />
+                    <ForEach value={ThemeKind::ALL.to_vec()}>|kind: ThemeKind|
+                        <ChoiceOption value={Some(kind)} label={kind.name()} />
                     </ForEach>
                 }}
-                selected={Binding::new(selected_theme, move |index: Option<usize>| {
-                    let theme = index
-                        .and_then(|index| index.checked_sub(1))
-                        .and_then(|index| ThemeKind::ALL.get(index).copied());
+                selected={Binding::new(selected_theme, move |theme: Option<Option<ThemeKind>>| {
+                    let theme = theme.flatten();
                     program_layer.set(PreferenceLayer { theme, ..program_layer.get_untracked() });
                 })}
             />
@@ -864,7 +852,7 @@ fn CatalogGroup(
                     <Text style=TextStyle::CAPTION overflow=Overflow::Ellipsis>{summary}</Text>
                 </List>
             </Frame>
-            <ForEach keys={listed}>|page: Page| {
+            <ForEach value={listed}>|page: Page| {
                 let selected = active.memo(Some(page));
                 view! {
                     <CatalogRow page pages selected />

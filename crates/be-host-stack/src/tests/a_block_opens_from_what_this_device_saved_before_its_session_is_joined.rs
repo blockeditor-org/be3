@@ -16,6 +16,9 @@ fn a_block_opens_from_what_this_device_saved_before_its_session_is_joined() {
     });
 
     harness.relay().stall();
+    // Down stays down until `retry_now`: the reconnect a lost connection makes at once would
+    // otherwise rejoin and send the edit before the test sees it sealed.
+    harness.relay().hold_new(true);
     harness.open_until_it_joins(block, CounterContent::CONTENT_TYPE);
     harness.clock.advance(be_block_type_host::EARLY_OPEN);
     wait_for_count(block, 4);
@@ -30,13 +33,15 @@ fn a_block_opens_from_what_this_device_saved_before_its_session_is_joined() {
         !shared.connected
     });
     wait_for_count(block, 6);
-    wait_until("owes a seal for the edit", |shared| shared.owing > 0);
+    // Missing the ping moved the clock on by 25 s or more, so the edit may already be past its
+    // quiet interval and sealed the moment it was numbered: nothing waits to see it owed.
     harness
         .clock
         .advance(Duration::from_millis(be_sdk_type_guest::QUIET_INTERVAL));
     wait_until("sealed the edit made before joining", |shared| {
-        shared.waiting > 0
+        shared.waiting > 0 && shared.owing == 0
     });
+    harness.relay().hold_new(false);
     retry_now();
     wait_until("reconnected and sent the edit", |shared| {
         shared.connected && shared.waiting == 0 && !shared.draining

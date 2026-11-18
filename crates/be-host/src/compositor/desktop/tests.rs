@@ -3,7 +3,7 @@ use std::time::Duration;
 use be_sdk_api::{Vec2, WindowOver, WindowRequest};
 use beui::native::{Context, WindowSize, enter};
 use beui::{PointerButton, PointerEvent, PointerId};
-use beui_host::native::testing::{Showing, Stepped};
+use beui_host::native::testing::{Gui, Showing, Stepped};
 use beui_host::native::{FreetypeFonts, build};
 
 use super::*;

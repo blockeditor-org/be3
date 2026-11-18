@@ -62,7 +62,6 @@ fn a_workspaces_home_and_prefixes_list_what_they_hold() {
     shown.run();
     shown.snapshot("a_workspaces_home_lists_its_landing_page_pins_and_templates");
     shown.click(format!("home.{guide}.remove"));
-    shown.run();
     assert_eq!(
         shown.content::<HomeContent>(None).root().landing,
         None,

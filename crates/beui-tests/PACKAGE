@@ -22,12 +22,16 @@ write_package_value("be3.cargo", {
         "android-arm64": {
             "binaries": {
                 "beui-shared-tests": [
+                    "//crates/beui-host-window:beui-host-window",
                     "//crates/beui-host:beui-host",
+                    "//crates/beui-text-editor-core:beui-text-editor-core",
                     "//crates/beui:beui",
                 ],
             },
             "deps": [
+                "//crates/beui-host-window:beui-host-window",
                 "//crates/beui-host:beui-host",
+                "//crates/beui-text-editor-core:beui-text-editor-core",
                 "//crates/beui:beui",
             ],
             "examples": {},
@@ -41,12 +45,16 @@ write_package_value("be3.cargo", {
         "linux-arm64": {
             "binaries": {
                 "beui-shared-tests": [
+                    "//crates/beui-host-window:beui-host-window",
                     "//crates/beui-host:beui-host",
+                    "//crates/beui-text-editor-core:beui-text-editor-core",
                     "//crates/beui:beui",
                 ],
             },
             "deps": [
+                "//crates/beui-host-window:beui-host-window",
                 "//crates/beui-host:beui-host",
+                "//crates/beui-text-editor-core:beui-text-editor-core",
                 "//crates/beui:beui",
             ],
             "examples": {},
@@ -60,12 +68,16 @@ write_package_value("be3.cargo", {
         "linux-x86_64": {
             "binaries": {
                 "beui-shared-tests": [
+                    "//crates/beui-host-window:beui-host-window",
                     "//crates/beui-host:beui-host",
+                    "//crates/beui-text-editor-core:beui-text-editor-core",
                     "//crates/beui:beui",
                 ],
             },
             "deps": [
+                "//crates/beui-host-window:beui-host-window",
                 "//crates/beui-host:beui-host",
+                "//crates/beui-text-editor-core:beui-text-editor-core",
                 "//crates/beui:beui",
             ],
             "examples": {},
@@ -79,12 +91,16 @@ write_package_value("be3.cargo", {
         "macos-arm64": {
             "binaries": {
                 "beui-shared-tests": [
+                    "//crates/beui-host-window:beui-host-window",
                     "//crates/beui-host:beui-host",
+                    "//crates/beui-text-editor-core:beui-text-editor-core",
                     "//crates/beui:beui",
                 ],
             },
             "deps": [
+                "//crates/beui-host-window:beui-host-window",
                 "//crates/beui-host:beui-host",
+                "//crates/beui-text-editor-core:beui-text-editor-core",
                 "//crates/beui:beui",
             ],
             "examples": {},
@@ -98,12 +114,16 @@ write_package_value("be3.cargo", {
         "macos-x86_64": {
             "binaries": {
                 "beui-shared-tests": [
+                    "//crates/beui-host-window:beui-host-window",
                     "//crates/beui-host:beui-host",
+                    "//crates/beui-text-editor-core:beui-text-editor-core",
                     "//crates/beui:beui",
                 ],
             },
             "deps": [
+                "//crates/beui-host-window:beui-host-window",
                 "//crates/beui-host:beui-host",
+                "//crates/beui-text-editor-core:beui-text-editor-core",
                 "//crates/beui:beui",
             ],
             "examples": {},
@@ -119,6 +139,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-wasm-threads:be-wasm-threads",
                 "//crates/beui-html:beui-html",
+                "//crates/beui-text-editor-core:beui-text-editor-core",
                 "//crates/beui:beui",
                 "//third-party/rust:wasm-bindgen-0.2.122",
                 "//third-party/rust:wasm-bindgen-futures-0.4.72",
@@ -132,12 +153,16 @@ write_package_value("be3.cargo", {
         "windows-arm64": {
             "binaries": {
                 "beui-shared-tests": [
+                    "//crates/beui-host-window:beui-host-window",
                     "//crates/beui-host:beui-host",
+                    "//crates/beui-text-editor-core:beui-text-editor-core",
                     "//crates/beui:beui",
                 ],
             },
             "deps": [
+                "//crates/beui-host-window:beui-host-window",
                 "//crates/beui-host:beui-host",
+                "//crates/beui-text-editor-core:beui-text-editor-core",
                 "//crates/beui:beui",
             ],
             "examples": {},
@@ -151,12 +176,16 @@ write_package_value("be3.cargo", {
         "windows-x86_64": {
             "binaries": {
                 "beui-shared-tests": [
+                    "//crates/beui-host-window:beui-host-window",
                     "//crates/beui-host:beui-host",
+                    "//crates/beui-text-editor-core:beui-text-editor-core",
                     "//crates/beui:beui",
                 ],
             },
             "deps": [
+                "//crates/beui-host-window:beui-host-window",
                 "//crates/beui-host:beui-host",
+                "//crates/beui-text-editor-core:beui-text-editor-core",
                 "//crates/beui:beui",
             ],
             "examples": {},

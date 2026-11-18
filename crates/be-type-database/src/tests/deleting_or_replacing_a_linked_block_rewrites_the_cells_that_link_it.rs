@@ -18,7 +18,7 @@ fn deleting_or_replacing_a_linked_block_rewrites_the_cells_that_link_it() {
 
     for change in [ChildChange::Delete(gone), ChildChange::Replace { old, new }] {
         let operations = database
-            .child_operations(change)
+            .child_operations(change, 0)
             .expect("a database takes child changes");
         for operation in operations {
             database.apply(&operation);

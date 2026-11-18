@@ -17,6 +17,7 @@ fn the_inspect_dialog_stays_on_a_narrow_screen() {
     fixture.choose(block, "Inspect");
     for _ in 0..30 {
         fixture.test.advance(std::time::Duration::from_millis(16));
+        fixture.test.run();
     }
 
     for field in ["file-tree.inspect.id", "file-tree.inspect.close"] {

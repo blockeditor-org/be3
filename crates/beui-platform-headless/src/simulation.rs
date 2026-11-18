@@ -4,7 +4,8 @@ use beui_runner::PlatformServices;
 use beui_types::Vec2;
 
 /// The headless platform's window: keeps the clip last copied, which pastes
-/// back every representation it holds, grows to `screen` for fullscreen, and reports its size,
+/// back every representation it holds, has a share sheet only when a test gives it
+/// one (`share_sheet`), keeping what is handed to it in `shared`, grows to `screen` for fullscreen, and reports its size,
 /// scale and fullscreen through `WindowReports` like a real window. It is the
 /// only window `PlatformServices::resize` works on.
 pub struct Simulation {
@@ -12,6 +13,8 @@ pub struct Simulation {
     pub screen: Vec2,
     pub fullscreen: bool,
     pub clipboard: Option<Clip>,
+    pub share_sheet: bool,
+    pub shared: Vec<Clip>,
     reports: WindowReports,
 }
 
@@ -22,6 +25,8 @@ impl Simulation {
             screen: screen.unwrap_or(window.size),
             fullscreen: false,
             clipboard: None,
+            share_sheet: false,
+            shared: Vec::new(),
             reports,
         };
         simulation.report_size();
@@ -53,6 +58,14 @@ impl Simulation {
 impl PlatformServices for Simulation {
     fn copy(&mut self, clip: Clip) {
         self.clipboard = Some(clip);
+    }
+
+    fn share(&mut self, clip: Clip) {
+        self.shared.push(clip);
+    }
+
+    fn has_share_sheet(&self) -> bool {
+        self.share_sheet
     }
 
     fn paste(&mut self, formats: &[String], answer: PasteAnswer) {

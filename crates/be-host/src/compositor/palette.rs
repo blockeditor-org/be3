@@ -58,12 +58,12 @@ pub(crate) struct OpenableBlock {
     pub(crate) at: Option<be_sdk_api::SearchLocation>,
 }
 
-/// Where quick open's rows come from. Handed what is typed into quick open and which opening of
-/// it this is (0 while the palette lists actions, when a source lists nothing and lets go of
-/// what it read), it answers the blocks to offer, filtered and in order: the palette keeps
-/// that order (`PaletteItem::ranked`), so a source can be a search answering as its results
-/// arrive (plans/search.md). The host's own, `found_blocks`, lists the blocks its graph holds
-/// whose names match, then what the search index finds in content.
+/// Where quick open's rows come from. Handed what is typed into quick open and which opening of it
+/// this is (0 while the palette lists actions, when a source lists nothing and lets go of what it
+/// read), it answers the blocks to offer, filtered and in order: the palette keeps that order
+/// (`PaletteItem::ranked`), so a source can be a search answering as its results arrive
+/// (guides/blocks/host.md, "Search"). The host's own, `found_blocks`, lists the blocks its graph
+/// holds whose names match, then what the search index finds in content.
 pub(crate) type BlockSource = Rc<dyn Fn(Memo<String>, Memo<u64>) -> Memo<Vec<OpenableBlock>>>;
 
 #[derive(Clone, Copy, PartialEq)]
@@ -234,8 +234,8 @@ fn block_rows(blocks: Vec<OpenableBlock>, from: Option<Uuid>) -> Vec<Row> {
 }
 
 /// The host's own quick open: the blocks whose names match (`loaded_blocks`), then the search
-/// index's hits for what is typed (plans/search.md) that are not among them, in the index's
-/// order, each with the text around its match as its detail.
+/// index's hits for what is typed (guides/blocks/host.md, "Search") that are not among them, in the
+/// index's order, each with the text around its match as its detail.
 fn found_blocks(typed: Memo<String>, opened: Memo<u64>) -> Memo<Vec<OpenableBlock>> {
     let named = loaded_blocks(typed, opened);
     let searched = super::searched();
@@ -252,7 +252,7 @@ fn found_blocks(typed: Memo<String>, opened: Memo<u64>) -> Memo<Vec<OpenableBloc
     });
     on_cleanup(|| be_host_stack::want_searches(be_host_stack::Owner::Host, Vec::new()));
     create_memo(move || {
-        searched.get();
+        searched.track();
         let mut blocks = named.get();
         let Some(found) = asked.with(|asked| asked.as_ref().and_then(be_host_stack::searched))
         else {

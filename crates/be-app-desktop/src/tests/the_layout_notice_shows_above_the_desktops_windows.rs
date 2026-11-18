@@ -8,14 +8,14 @@ fn the_layout_notice_shows_above_the_desktops_windows() {
     let mut layout = first
         .saved()
         .root()
-        .state("layout")
+        .stored(SavedLayout::ID)
         .cloned()
         .expect("the layout is saved");
     layout.bytes.truncate(layout.bytes.len() / 2);
     let mut saved = EditorView::document(None);
     let edit = saved
         .root()
-        .set_state("layout", Some(&layout), 1, Uuid::nil());
+        .put_stored(SavedLayout::ID, Some(&layout), 1, Uuid::nil());
     saved.apply(&edit);
 
     let mut fixture = Fixture::holding(saved);

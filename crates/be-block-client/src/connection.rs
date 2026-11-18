@@ -8,8 +8,9 @@ use std::{
 
 use be_block_commit::CommitId;
 use be_block_protocol::{
-    ClientId, Journal, JournalBase, JournalEntry, PairingMessage, RelayKind, SessionEvent,
-    SessionState, client, hello, read_hello,
+    Authenticated, ClientId, Greeting, JoinedSession, Journal, JournalEntry, MembershipEntry,
+    PairingMessage, Query, SessionEvent, SessionSend, SessionState, Target, Topic, Welcome, client,
+    hello, read_hello,
 };
 use be_block_store::Hash;
 use be_wasm_ops::{
@@ -36,15 +37,9 @@ const PING_FRAME_BYTES: usize = 32;
 /// The socket plus the greeting. Once connected no request has a deadline of its own: each is
 /// answered or fails with `Disconnected` when the connection closes.
 pub const CONNECT_TIMEOUT: Duration = Duration::from_secs(15);
-/// Silence after which the connection calls `connection.ping` ahead of anything queued. It is a
-/// protocol call because a browser cannot send websocket pings; any frame from the server
-/// proves it alive.
-pub const PING_INTERVAL: Duration = Duration::from_secs(15);
-/// How long after a ping is actually written, with nothing heard, before the connection closes
-/// itself; a write still stuck this long after the ping fell due closes it too. Only an
-/// unanswered ping closes it, so a process suspended for longer keeps a live connection when it
-/// wakes.
-pub const PONG_WAIT: Duration = Duration::from_secs(20);
+/// The client's ping timing, in be-block-protocol because the server's idle limit is derived
+/// from it.
+pub use be_block_protocol::{PING_INTERVAL, PONG_WAIT};
 /// Silence after something was sent that the connection takes as a sign the server may be gone:
 /// it pings then rather than at `PING_INTERVAL`, so a link that went silent under a request is
 /// noticed in `ANSWER_WAIT` plus `PONG_WAIT`. The ping waits as long as any, so a server that
@@ -54,8 +49,8 @@ pub const ANSWER_WAIT: Duration = Duration::from_secs(5);
 
 pub type Answer<T> = Pin<Box<dyn Future<Output = Result<T, ClientError>> + Send>>;
 
-pub async fn ask<T, E: be_wasm_ops::wire::Decode<Result<T, be_block_protocol::Error>>>(
-    pending: be_wasm_ops::net::Pending<Result<T, be_block_protocol::Error>, E>,
+pub async fn ask<T>(
+    pending: impl Future<Output = Result<Result<T, be_block_protocol::Error>, be_wasm_ops::OpError>>,
 ) -> Result<T, ClientError> {
     Ok(pending.await??)
 }
@@ -64,48 +59,111 @@ type Pump = Pin<Box<dyn Future<Output = ()> + Send>>;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Event {
-    /// A block a listing of the connection holds changed: its head, metadata, place or access.
-    /// `own` when this connection's own call changed it, as its own publishes do.
-    BlockChanged {
-        block: be_block_protocol::BlockSummary,
-        own: bool,
+    /// The tree of an entry point the connection follows changed, up to `sequence`: read it with
+    /// `query.tree` (`Peer::changed_page`). The server tells nothing more of the entry until
+    /// it is read to its end.
+    TreeAdvanced {
+        entry: Uuid,
+        sequence: u64,
     },
-    BlockRemoved {
+    /// What lies at the top of the organization, in the trash or is shared with this account may
+    /// have changed: list them again.
+    Roots,
+    /// The server wrote a membership entry into a block's session (`session-event.membership`).
+    Membership {
         block: Uuid,
-        revision: u64,
+        entry: MembershipEntry,
     },
-    SessionChanged {
+    /// A seal moved a block's head to `commit`, holding its session's order through `through`
+    /// in its `run` (`session-event.sealed`).
+    Sealed {
         block: Uuid,
-        state: SessionState,
+        commit: CommitId,
+        through: u64,
+        run: u64,
     },
     Relayed {
         block: Uuid,
         from: ClientId,
-        /// What the server checked the sender may send (`relayed.kind`).
-        kind: RelayKind,
         payload: Vec<u8>,
         /// When the server took it, by its clock (`relayed.received`).
         received: i64,
     },
+    /// The order of a block's session numbered a submission, this connection's own too
+    /// (`session-event.sequenced`); its payload sealed.
+    Sequenced {
+        block: Uuid,
+        entry: JournalEntry,
+    },
+    /// A message on a block's host channel (`session-event.hosted`; plans/hosted_blocks.md):
+    /// from the lease holder to this member, or to this holder from a member. Sealed end to end
+    /// (`hosted::Channel`).
+    Hosted {
+        block: Uuid,
+        from: ClientId,
+        payload: Vec<u8>,
+        received: i64,
+    },
+    /// Who holds the lease of a block's session now (`session-event.host`).
+    Host {
+        block: Uuid,
+        host: Option<be_block_protocol::SessionHost>,
+    },
+    /// A Join member came to or left a block's session this connection holds the lease of
+    /// (`session-event.joiner`).
+    Joiner {
+        block: Uuid,
+        change: be_block_protocol::JoinerChange,
+    },
     Paired(PairingMessage),
-    ContactsChanged,
-    /// Keys this account may open were stored through another connection (`keys-changed`):
+    /// Entries were appended to a block's signed log the connection follows
+    /// (`Peer::read_log`): `Peer::logged` takes them as they verify.
+    Appended(be_block_protocol::Appended),
+    /// Keys this account may open were stored through another connection (`topic.keys`), or
+    /// opened here by any path (`KeyBook::on_opened`: a fetch, a contact verified since, escrow):
     /// `Peer::keys_changed`, then reading again what was locked, opens what they unlock.
     KeysChanged,
-    /// The account's notification modes changed on another of its devices.
-    NotifyModesChanged,
-    /// The organization's key work for this account, as it opens and as it changes
-    /// (`key-work-changed`).
-    KeyWork(be_block_protocol::KeyWork),
+    /// The account's notification modes changed on another of its devices
+    /// (`topic.mutes`).
+    MutesChanged,
+    /// A message arrived in the account's mailbox, or another connection deleted one
+    /// (`topic.mailbox`): a notice, an accepted link's card, a contact's key change, or a record
+    /// of a contact made or removed. A device that takes a record into the account's block
+    /// deletes its letter, so this tells the account's other devices that the block changed too.
+    MailboxChanged,
+    /// The organization's key work for this account may have changed (`topic.key-work`): read it
+    /// again.
+    KeyWorkChanged,
+    /// What the account's storage holds changed (`topic.storage`).
+    StorageChanged,
 }
 
 #[derive(Default)]
 struct Registry {
     subscribed: bool,
-    /// This connection as the server names it, once it opened an organization
-    /// (`organization-opened.client`).
-    client: Option<ClientId>,
-    sessions: HashMap<Uuid, Arc<client::sessions::Session>>,
+    /// The sessions this connection is in, by block, with the organization each block is in.
+    sessions: HashMap<Uuid, Uuid>,
+    /// The session events of each block being joined, held until the join is answered, so a
+    /// subscriber hears none before it.
+    joining: HashMap<Uuid, Vec<Event>>,
+}
+
+/// What a connection signs in with, in its greeting.
+#[derive(Clone)]
+pub enum Credentials {
+    Token(String),
+    /// The request's Authorization header, which a proxy injects (`authorize`): `be` behind
+    /// one, which never holds the token.
+    Header,
+}
+
+impl Credentials {
+    fn token(&self) -> Option<String> {
+        match self {
+            Self::Token(token) => Some(token.clone()),
+            Self::Header => None,
+        }
+    }
 }
 
 pub struct Connection {
@@ -121,6 +179,12 @@ pub struct Connection {
     registry: Mutex<Registry>,
     /// The clock the connection keeps time by (`Clock::real` for an offline one).
     clock: Clock,
+    /// What reaching the account's block learned, kept for the next pass
+    /// (`AccountRecords::open`).
+    pub(crate) account_block: Mutex<Option<crate::peer::account_block::Reached>>,
+    /// The name and email the server greeted it with, until the peer published them as the
+    /// account's name card (`Peer::publish_name`).
+    pub(crate) greeted: Mutex<Option<(String, String)>>,
 }
 
 impl Caller for Connection {
@@ -150,13 +214,24 @@ impl Caller for Connection {
 }
 
 impl Connection {
-    pub async fn connect(url: &str, clock: &Clock) -> Result<Arc<Self>, ClientError> {
+    /// Opens a connection signed in with `credentials`, in its greeting: the connection, and
+    /// who it signed in as. One the server does not sign in fails with its refusal, and is
+    /// closed before any call.
+    pub async fn connect(
+        url: &str,
+        clock: &Clock,
+        credentials: &Credentials,
+    ) -> Result<(Arc<Self>, Authenticated), ClientError> {
+        let greeting = Greeting {
+            token: credentials.token(),
+        };
         let opening = std::pin::pin!(async {
             let (mut writer, mut reader) = connect(url).await.map_err(ClientError::Disconnected)?;
-            greet(&mut writer, &mut reader).await?;
-            Ok::<_, ClientError>((writer, reader))
+            let signed_in = greet(&mut writer, &mut reader, &greeting).await?;
+            Ok::<_, ClientError>((writer, reader, signed_in))
         });
-        let (writer, reader) = match select(opening, clock.sleep(CONNECT_TIMEOUT)).await {
+        let (writer, reader, signed_in) = match select(opening, clock.sleep(CONNECT_TIMEOUT)).await
+        {
             Either::Left((opened, _)) => opened?,
             Either::Right(_) => return Err(ClientError::TimedOut("connecting to the server")),
         };
@@ -180,6 +255,11 @@ impl Connection {
             due: watched,
             registry: Mutex::new(Registry::default()),
             clock: clock.clone(),
+            account_block: Mutex::new(None),
+            greeted: Mutex::new(Some((
+                signed_in.display_name.clone(),
+                signed_in.email.clone(),
+            ))),
         });
         spawn(worker(
             Carried {
@@ -195,7 +275,7 @@ impl Connection {
             },
             closing,
         ));
-        Ok(connection)
+        Ok((connection, signed_in))
     }
 
     pub fn offline() -> Arc<Self> {
@@ -216,6 +296,8 @@ impl Connection {
             due,
             registry: Mutex::new(Registry::default()),
             clock: Clock::real(),
+            account_block: Mutex::new(None),
+            greeted: Mutex::new(None),
         })
     }
 
@@ -232,145 +314,168 @@ impl Connection {
         let _ = self.pumps.send(Box::pin(pump));
     }
 
+    /// Tells this connection's subscribers that keys this account may open arrived: a key opened
+    /// here (`KeyBook::on_opened`), from a fetch, a contact verified since it was sealed, or
+    /// escrow.
+    pub(crate) fn keys_opened(&self) {
+        let _ = self.events.send(Event::KeysChanged);
+    }
+
+    /// Hears what the server tells this connection (`server.events`) from now on: the trees,
+    /// sessions and topics it follows (`Peer::follow_topics`), and its account's other
+    /// connections' messages.
     pub fn subscribe(self: &Arc<Self>) -> broadcast::Receiver<Event> {
         let receiver = self.events.subscribe();
         if std::mem::replace(&mut self.registry().subscribed, true) {
             return receiver;
         }
-        let events = self.events.clone();
-        let connection = Arc::downgrade(self);
-        let mut changes = client::blocks::changes(&self.peer);
+        let mut told = client::server::events(&self.peer);
+        let connection = Arc::clone(self);
         self.pump(async move {
-            while let Some(change) = changes.recv().await {
-                let _ = events.send(match change {
-                    be_block_protocol::BlockChange::Changed { block, from } => {
-                        let own = connection
-                            .upgrade()
-                            .is_some_and(|connection| connection.registry().client == Some(from));
-                        Event::BlockChanged { block, own }
-                    }
-                    be_block_protocol::BlockChange::Removed { block, revision } => {
-                        Event::BlockRemoved { block, revision }
-                    }
-                });
-            }
-        });
-        let events = self.events.clone();
-        let mut paired = client::account::paired(&self.peer);
-        self.pump(async move {
-            while let Some(message) = paired.recv().await {
-                let _ = events.send(Event::Paired(message));
-            }
-        });
-        let events = self.events.clone();
-        let mut contacts = client::contacts::contacts_changed(&self.peer);
-        self.pump(async move {
-            while contacts.recv().await.is_some() {
-                let _ = events.send(Event::ContactsChanged);
-            }
-        });
-        let events = self.events.clone();
-        let mut keys = client::keys::keys_changed(&self.peer);
-        self.pump(async move {
-            while keys.recv().await.is_some() {
-                let _ = events.send(Event::KeysChanged);
-            }
-        });
-        let events = self.events.clone();
-        let mut modes = client::notifications::notify_modes_changed(&self.peer);
-        self.pump(async move {
-            while modes.recv().await.is_some() {
-                let _ = events.send(Event::NotifyModesChanged);
-            }
-        });
-        let events = self.events.clone();
-        let mut key_work = client::keys::key_work_changed(&self.peer);
-        self.pump(async move {
-            while let Some(work) = key_work.recv().await {
-                let _ = events.send(Event::KeyWork(work));
+            while let Some(event) = told.recv().await {
+                if let Some(event) = connection.heard(event) {
+                    let _ = connection.events.send(event);
+                }
             }
         });
         receiver
     }
 
-    /// Takes this connection's id as the organization it opened names it, which tells its own
-    /// changes on `changes` (`Event::BlockChanged::own`).
-    pub fn opened(&self, client: ClientId) {
-        self.registry().client = Some(client);
-    }
-
-    /// Joins a block's session: this connection's id, the session's state and the block's
-    /// journal as of joining, sealed.
-    pub fn join_session(
-        self: &Arc<Self>,
-        block: Uuid,
-    ) -> Answer<(ClientId, SessionState, Option<Journal>)> {
-        let session = Arc::new(client::sessions::Session::new(&self.peer, block));
-        let mut joining = session.join();
-        let left = self.registry().sessions.insert(block, Arc::clone(&session));
-        drop(left);
-        let connection = Arc::clone(self);
-        Box::pin(async move {
-            let joined = match joining.recv().await {
-                Some(SessionEvent::Joined {
-                    client,
-                    state,
-                    journal,
-                }) => Ok((client, state, journal)),
-                Some(SessionEvent::Refused(error)) => Err(ClientError::from(error)),
-                Some(SessionEvent::Changed(_) | SessionEvent::Relayed { .. }) => {
-                    Err(ClientError::Unexpected)
+    /// What `event` tells this connection's subscribers; none for a session's while it is being
+    /// joined, which waits for the join's answer (`join_session`).
+    fn heard(&self, event: be_block_protocol::Event) -> Option<Event> {
+        use be_block_protocol::Event as Told;
+        Some(match event {
+            Told::TreeAdvanced {
+                entry, sequence, ..
+            } => Event::TreeAdvanced { entry, sequence },
+            Told::TopicChanged { topic, .. } => match topic {
+                Topic::Roots => Event::Roots,
+                Topic::Keys => Event::KeysChanged,
+                Topic::KeyWork => Event::KeyWorkChanged,
+                Topic::Mutes => Event::MutesChanged,
+                Topic::Mailbox => Event::MailboxChanged,
+                Topic::Storage => Event::StorageChanged,
+                Topic::Tree(_) | Topic::Session(_) | Topic::BlockLog(_) => return None,
+            },
+            Told::Paired(message) => Event::Paired(message),
+            Told::Appended(appended) => Event::Appended(appended),
+            Told::Session { block, event, .. } => {
+                let event = match event {
+                    SessionEvent::Membership(entry) => Event::Membership { block, entry },
+                    SessionEvent::Sealed {
+                        commit,
+                        through,
+                        run,
+                    } => Event::Sealed {
+                        block,
+                        commit,
+                        through,
+                        run,
+                    },
+                    SessionEvent::Relayed {
+                        from,
+                        payload,
+                        received,
+                    } => Event::Relayed {
+                        block,
+                        from,
+                        payload,
+                        received,
+                    },
+                    SessionEvent::Sequenced(entry) => Event::Sequenced { block, entry },
+                    SessionEvent::Hosted {
+                        from,
+                        payload,
+                        received,
+                    } => Event::Hosted {
+                        block,
+                        from,
+                        payload,
+                        received,
+                    },
+                    SessionEvent::Host(host) => Event::Host { block, host },
+                    SessionEvent::Joiner(change) => Event::Joiner { block, change },
+                };
+                let mut registry = self.registry();
+                if let Some(held) = registry.joining.get_mut(&block) {
+                    held.push(event);
+                    return None;
                 }
-                None => Err(joining
-                    .ended()
-                    .and_then(Result::err)
-                    .map_or(ClientError::Unexpected, ClientError::from)),
-            };
-            if joined.is_err() {
-                connection.forget_session(block, &session);
-                return joined;
+                event
             }
-            let events = connection.events.clone();
-            connection.pump(async move {
-                while let Some(event) = joining.recv().await {
-                    let _ = events.send(match event {
-                        SessionEvent::Changed(state) => Event::SessionChanged { block, state },
-                        SessionEvent::Relayed {
-                            from,
-                            kind,
-                            payload,
-                            received,
-                        } => Event::Relayed {
-                            block,
-                            from,
-                            kind,
-                            payload,
-                            received,
-                        },
-                        SessionEvent::Joined { .. } | SessionEvent::Refused(_) => continue,
-                    });
-                }
-            });
-            joined
         })
     }
 
-    fn forget_session(&self, block: Uuid, session: &Arc<client::sessions::Session>) {
-        let mut registry = self.registry();
-        if registry
-            .sessions
-            .get(&block)
-            .is_some_and(|held| Arc::ptr_eq(held, session))
-        {
-            registry.sessions.remove(&block);
-        }
+    /// Joins a block's session in `organization`, running the build `tag` of its type: this
+    /// connection's id, the session's state, the block's journal as of joining, sealed, and
+    /// whether this account may edit it as the server answered. What the order numbers after it
+    /// arrives as `Event::Sequenced`, after the join is answered.
+    pub fn join_session(
+        self: &Arc<Self>,
+        organization: Uuid,
+        block: Uuid,
+        tag: Hash,
+    ) -> Answer<(ClientId, SessionState, Option<Journal>, bool)> {
+        let joining = self.join(organization, block, tag);
+        Box::pin(async move {
+            let JoinedSession {
+                client,
+                state,
+                journal,
+                may_edit,
+                ..
+            } = joining.await?;
+            Ok((client, state, journal, may_edit))
+        })
     }
 
-    fn session(&self, block: Uuid) -> Result<Arc<client::sessions::Session>, ClientError> {
+    /// Joins a block's session as `join_session` does, answering all the server said: as a
+    /// participant, or, below View, as a Join member, which hears only the host channel and who
+    /// holds the lease (plans/hosted_blocks.md).
+    pub fn join(
+        self: &Arc<Self>,
+        organization: Uuid,
+        block: Uuid,
+        tag: Hash,
+    ) -> Answer<JoinedSession> {
+        self.registry().joining.insert(block, Vec::new());
+        let joining = be_block_protocol::ask::<JoinedSession, _>(
+            &self.peer,
+            Some(organization),
+            Query::Session { block, tag },
+            true,
+        );
+        let connection = Arc::clone(self);
+        Box::pin(async move {
+            let joined = joining.await;
+            let held = {
+                let mut registry = connection.registry();
+                let held = registry.joining.remove(&block).unwrap_or_default();
+                match &joined {
+                    Ok(Ok(_)) => {
+                        registry.sessions.insert(block, organization);
+                    }
+                    _ => {
+                        registry.sessions.remove(&block);
+                    }
+                }
+                held
+            };
+            let joined = joined??;
+            for event in held {
+                let _ = connection.events.send(event);
+            }
+            Ok(joined)
+        })
+    }
+
+    /// The organization of a block's session this connection is in.
+    fn session(&self, block: Uuid) -> Result<Uuid, ClientError> {
         self.registry()
             .sessions
             .get(&block)
-            .cloned()
+            .copied()
             .ok_or_else(|| {
                 ClientError::Refused(
                     be_block_protocol::ErrorCode::InvalidRequest,
@@ -380,72 +485,56 @@ impl Connection {
     }
 
     pub fn leave_session(&self, block: Uuid) -> Answer<()> {
-        let session = self.registry().sessions.remove(&block);
+        let organization = self.registry().sessions.remove(&block);
+        let left = organization.map(|organization| {
+            client::server::unfollow(&self.peer, Some(organization), Topic::Session(block))
+        });
         Box::pin(async move {
-            if let Some(session) = session.and_then(Arc::into_inner) {
-                let _ = session.close().await;
+            if let Some(left) = left {
+                let _ = left.await;
             }
             Ok(())
         })
     }
 
-    pub fn claim_ownership(&self, block: Uuid, generation: u64) -> Answer<SessionState> {
-        let claimed = self
-            .session(block)
-            .map(|session| session.claim_ownership(generation));
-        Box::pin(async move { Ok(claimed?.await??) })
+    fn send_session(&self, block: Uuid, kind: SessionSend, payload: Vec<u8>) -> Answer<()> {
+        let sent = self.session(block).map(|organization| {
+            client::server::send(
+                &self.peer,
+                Some(organization),
+                Target::Session { block, kind },
+                payload,
+            )
+        });
+        Box::pin(async move { Ok(sent?.await??) })
     }
 
-    pub fn heartbeat(
-        &self,
-        block: Uuid,
-        generation: u64,
-        clean_at: Option<CommitId>,
-    ) -> Answer<SessionState> {
-        let beat = self
-            .session(block)
-            .map(|session| session.heartbeat(generation, clean_at));
-        Box::pin(async move { Ok(beat?.await??) })
+    /// Sends `payload` on `block`'s host channel: from the lease holder to the member `to`, or
+    /// from any other member, naming none, to the holder (`session-send.host`).
+    pub fn send_host(&self, block: Uuid, to: Option<ClientId>, payload: Vec<u8>) -> Answer<()> {
+        self.send_session(block, SessionSend::Host(to), payload)
     }
 
-    pub fn relay(
-        &self,
-        block: Uuid,
-        to: Option<ClientId>,
-        kind: RelayKind,
-        payload: Vec<u8>,
-    ) -> Answer<()> {
-        let relayed = self
-            .session(block)
-            .map(|session| session.relay(to, kind, payload));
-        Box::pin(async move { Ok(relayed?.await??) })
+    /// Claims the lease of `block`'s session: the server writes the claim into its order.
+    pub fn claim(&self, block: Uuid) -> Answer<()> {
+        self.send_session(block, SessionSend::Claim, Vec::new())
     }
 
-    pub fn append(
-        &self,
-        block: Uuid,
-        generation: u64,
-        tag: Hash,
-        entries: Vec<JournalEntry>,
-        relay: bool,
-    ) -> Answer<()> {
-        let appended = self
-            .session(block)
-            .map(|session| session.append(generation, tag, entries, relay));
-        Box::pin(async move { Ok(appended?.await??) })
+    pub fn relay(&self, block: Uuid, to: Option<ClientId>, payload: Vec<u8>) -> Answer<()> {
+        self.send_session(block, SessionSend::Ephemeral(to), payload)
     }
 
-    pub fn rebase_journal(
-        &self,
-        block: Uuid,
-        generation: u64,
-        tag: Hash,
-        base: JournalBase,
-    ) -> Answer<()> {
-        let rebased = self
-            .session(block)
-            .map(|session| session.rebase_journal(generation, tag, base));
-        Box::pin(async move { Ok(rebased?.await??) })
+    /// Hands the session's order a submission, its payload sealed: answered once the server
+    /// numbered it and kept it in the journal, which every participant hears as
+    /// `Event::Sequenced`.
+    pub fn submit(&self, block: Uuid, submission: be_block_session::Submission) -> Answer<()> {
+        let kind = SessionSend::Ordered(be_block_protocol::Submission {
+            origin: submission.id.origin,
+            counter: submission.id.counter,
+            base: submission.base,
+            barrier: submission.barrier,
+        });
+        self.send_session(block, kind, submission.payload)
     }
 
     pub fn closed(&self) -> watch::Receiver<bool> {
@@ -471,10 +560,16 @@ impl Connection {
     }
 }
 
-async fn greet(writer: &mut Writer, reader: &mut Reader) -> Result<(), ClientError> {
+/// Greets the server with our build and `greeting`, and answers who its greeting says the
+/// connection signed in as.
+async fn greet(
+    writer: &mut Writer,
+    reader: &mut Reader,
+    greeting: &Greeting,
+) -> Result<Authenticated, ClientError> {
     let ours = be_lib_build_id::current().map_err(ClientError::NoBuild)?;
     writer
-        .send(hello(ours))
+        .send(hello(ours, greeting))
         .await
         .map_err(ClientError::Disconnected)?;
     let Some(bytes) = next_binary(writer, reader).await? else {
@@ -486,14 +581,16 @@ async fn greet(writer: &mut Writer, reader: &mut Reader) -> Result<(), ClientErr
         ours: ours.to_owned(),
         theirs: "a build that does not greet".to_owned(),
     })?;
-    if be_lib_build_id::compatible(ours, &theirs) {
-        Ok(())
-    } else {
-        Err(ClientError::Incompatible {
+    if !be_lib_build_id::compatible(ours, &theirs.build) {
+        return Err(ClientError::Incompatible {
             ours: ours.to_owned(),
-            theirs,
-        })
+            theirs: theirs.build,
+        });
     }
+    let welcome: Welcome = theirs.said().ok_or_else(|| {
+        ClientError::Disconnected("the server's greeting said nothing readable".into())
+    })?;
+    Ok(welcome?)
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -529,7 +626,7 @@ fn is_ping(frame: &[u8]) -> bool {
     frame.len() <= PING_FRAME_BYTES
         && matches!(
             be_wasm_ops::decode_frame::<be_wasm_ops::Frame>(frame),
-            Ok(be_wasm_ops::Frame::Start { method, .. }) if method == be_block_protocol::__args::CONNECTION_PING
+            Ok(be_wasm_ops::Frame::Start { method, .. }) if method == be_block_protocol::__args::SERVER_PING
         )
 }
 
@@ -608,6 +705,10 @@ async fn carry(
     let mut sending: Option<(Sending, Duration)> = None;
     let mut queued: VecDeque<(Out, bool)> = VecDeque::new();
     let mut heard = opened;
+    // When anything was last written: a client that keeps hearing frames still pings once it has
+    // sent nothing for PING_INTERVAL, so the server, which gives up on a connection it has not
+    // heard from (be-block-protocol's `CLIENT_SILENCE`), hears it.
+    let mut wrote = opened;
     let mut owed = false;
     let mut pinged: Option<Duration> = None;
     // When something other than a ping was written with nothing heard since.
@@ -618,8 +719,9 @@ async fn carry(
     loop {
         let now = clock.now();
         let early = asked.is_some_and(|at| now >= at + ANSWER_WAIT);
-        if !owed && pinged.is_none() && (now >= heard + PING_INTERVAL || early) {
-            ping = Some(client::connection::ping(&peer));
+        let quiet = heard.min(wrote);
+        if !owed && pinged.is_none() && (now >= quiet + PING_INTERVAL || early) {
+            ping = Some(client::server::ping(&peer));
             owed = true;
         }
         while let Ok(frame) = frames.try_recv() {
@@ -641,8 +743,8 @@ async fn carry(
             }
             (None, Some(stuck)) if owed => stuck,
             (None, _) => match (owed, asked) {
-                (false, Some(at)) => (heard + PING_INTERVAL).min(at + ANSWER_WAIT),
-                _ => heard + PING_INTERVAL,
+                (false, Some(at)) => (quiet + PING_INTERVAL).min(at + ANSWER_WAIT),
+                _ => quiet + PING_INTERVAL,
             },
         };
         due.send_if_modified(|due| std::mem::replace(due, next) != next);
@@ -686,6 +788,7 @@ async fn carry(
             Woke::Wrote(idle, is_ping, Ok(())) => {
                 writer = Some(idle);
                 sending = None;
+                wrote = clock.now();
                 if is_ping {
                     owed = false;
                     pinged = Some(clock.now());

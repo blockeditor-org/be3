@@ -50,7 +50,7 @@ fn connecting_a_terminal_installs_its_host_in_the_sandbox() {
     )));
     assert!(download.contains(&format!("mv be.part.{block} be")));
     assert!(
-        download.contains(&format!("if echo '{BE_SHA256}  be' | sha256sum -c")),
+        download.contains(&format!("if printf '{BE_SHA256}  be\\n' | sha256sum -c")),
         "a be already there is not fetched again"
     );
     let build_info = boat.write_answered("/home/user/.local/lib/be3/builds/tree/build-info.json");
@@ -67,14 +67,12 @@ fn connecting_a_terminal_installs_its_host_in_the_sandbox() {
 
     boat.test
         .click(&format!("boat.sandbox.{RUNNING}.terminal.open"));
-    boat.test.run();
     let opened = boat.test.take_opens();
     assert_eq!(opened.len(), 1);
     assert_eq!(opened[0].block_id, block);
 
     boat.test
         .click(&format!("boat.sandbox.{RUNNING}.terminal.disconnect"));
-    boat.test.run();
     let (reply, removed) = boat.host_call("the agent removed", |call| match call {
         HostCall::RemoveAgent { reply, agent } => Ok((reply, agent)),
         call => Err(call),

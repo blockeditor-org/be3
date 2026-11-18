@@ -1,11 +1,12 @@
-use be_sdk_beui::be_block::InputSettingsContent;
-use be_sdk_beui::be_block::input_settings::{InputDevice, PointerSettings, PointerSpeed};
+use be_block_input::InputSettingsContent;
+use be_block_input::input_settings::{InputDevice, PointerSettings, PointerSpeed};
 use be_sdk_beui::beui::{Key, Modifiers};
 use be_sdk_beui::{
     DisplayMode, DisplaysWatch, EditorHost, HostDisplay, HostInputDevice, InputDevicesWatch,
     InputReach, InputReachWatch, OwnedEditor, Pointing, Rotation,
 };
 use be_sdk_test::BeuiTest;
+use be_sdk_test::prelude::*;
 use uuid::Uuid;
 
 use crate::input::InputSettingsRoot;
@@ -13,6 +14,7 @@ use crate::input::InputSettingsRoot;
 mod a_device_follows_its_default_until_it_is_overridden;
 mod a_narrow_page_stacks_each_control_under_its_label;
 mod a_pointer_kept_here_stays_on_this_device;
+mod a_slider_readout_follows_the_drag_before_it_is_set;
 mod a_touchscreen_is_put_on_the_display_chosen_for_it;
 mod every_pointer_reads_as_mixed_until_it_is_set;
 mod in_a_windowed_desktop_the_keyboard_and_pasting_are_set_but_not_the_pointers;
@@ -46,22 +48,16 @@ fn content(editor: &BeuiTest<InputSettingsRoot>) -> InputSettingsContent {
 
 fn reset(editor: &mut BeuiTest<InputSettingsRoot>, row: &str) {
     editor.click(format!("{row}.menu"));
-    editor.run();
     editor.click(format!("{row}.reset"));
-    editor.run();
 }
 
 fn choose_pointer(editor: &mut BeuiTest<InputSettingsRoot>, index: usize) {
     editor.click("input.pointer");
-    editor.run();
     editor.key(Key::Home, Modifiers::NONE);
-    editor.run();
     for _ in 0..index {
         editor.key(Key::ArrowDown, Modifiers::NONE);
-        editor.run();
     }
     editor.key(Key::Enter, Modifiers::NONE);
-    editor.run();
 }
 
 fn mouse() -> HostInputDevice {

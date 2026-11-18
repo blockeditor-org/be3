@@ -20,26 +20,32 @@ fn a_held_clock_is_offered_a_modules_timer_only_while_nothing_is_in_flight() {
 
     add(owed, 2);
     wait_until("owes a seal for the edit", |shared| shared.owing > 0);
-    let due = crate::wait_until(|shared| shared.modules_due);
+    let due = crate::wait_until("offered the modules' timer", |shared| shared.modules_due);
     assert!(due > anchor, "the seal is due after the held moment");
     assert_eq!(harness.clock.now(), held, "the modules' clock stood still");
 
-    harness.relay().hold_requests(true);
     add(sent, 3);
+    // Owed once the server ordered it, so the server goes silent only then.
     wait_until("owes a seal for both edits", |shared| shared.owing == 2);
+    harness.relay().hold_requests(true);
     // Sealed, `sent`'s edit is published and waits on the stalled server; `owed` edits again,
     // so a module timer waits too.
     seal_owed();
     wait_until("the seal waits on the server", |shared| shared.waiting > 0);
     add(owed, 4);
-    // `parked` is set while the worker sleeps between rounds, so the round that saw the new edit
-    // has ended and published what it offers.
-    let due = crate::wait_until(|shared| {
-        (shared.owing > 0 && shared.parked.is_some()).then_some(shared.modules_due)
+    // `parked` is set while the worker sleeps between rounds and cleared as it wakes, so the
+    // round that counted the new edit has ended and published what it offers. The edit is kept
+    // on the device ahead of its submission, so only the server is waited on.
+    let due = crate::wait_until("parked the worker with the new edit kept", |shared| {
+        (counted(shared, owed) == Some(7) && shared.parked.is_some()).then(|| {
+            assert_eq!(shared.undurable, 0, "the device keeps the edit");
+            shared.modules_due
+        })
     });
     assert_eq!(
         due, None,
-        "with a publish in flight, the server's answer can make progress, so no timer is offered"
+        "with a publish and a submission in flight, the server's answer can make progress, so no \
+         timer is offered"
     );
 
     // Sealing what was owed then settles nothing later: once the server answers, the edit made
@@ -48,8 +54,35 @@ fn a_held_clock_is_offered_a_modules_timer_only_while_nothing_is_in_flight() {
     wait_until("the publish is answered and the worker rests", |shared| {
         shared.waiting == 0 && !shared.draining && shared.parked.is_some()
     });
-    assert!(
-        crate::wait_until(|shared| Some(shared.owing)) > 0,
-        "the edit made after the seal is still owed"
+    // Owed once the server orders its submission, which a rest does not wait for (news of a
+    // tree may wake the worker first): sealed, it would never be owed.
+    wait_until("the edit made after the seal is still owed", |shared| {
+        shared.owing > 0
+    });
+
+    // A listing read again waits on the server too, whose answer can make progress: while it is
+    // under way, no timer is offered.
+    wait_until("the top of the files is listed", |shared| {
+        shared.graph.ready(Query::Roots)
+    });
+    // Before it, with nothing in flight, the owed seal's timer is offered.
+    wait_until("the worker rests offering the timer", |shared| {
+        shared.parked.is_some() && shared.modules_due.is_some()
+    });
+    harness.relay().hold_requests(true);
+    refetch(Query::Roots);
+    // Taken by a round, which then rests: that round has published what it offers.
+    let due = crate::wait_until("the listing is read again and the worker rests", |shared| {
+        (shared.graph.refreshing()
+            && !shared.graph.has_listings_to_take()
+            && shared.parked.is_some())
+        .then_some(shared.modules_due)
+    });
+    assert_eq!(due, None, "with a listing read again, no timer is offered");
+    harness.relay().hold_requests(false);
+    // Answered, nothing is in flight again: the timer is offered again.
+    wait_until(
+        "the listing is answered and the timer offered again",
+        |shared| !shared.graph.refreshing() && shared.modules_due.is_some(),
     );
 }

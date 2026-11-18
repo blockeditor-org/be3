@@ -1,6 +1,5 @@
 use super::*;
 use crate::connection::{PING_INTERVAL, PONG_WAIT};
-use be_block_protocol::client;
 
 #[tokio::test]
 async fn a_request_fails_once_a_ping_goes_unanswered() {
@@ -12,11 +11,16 @@ async fn a_request_fails_once_a_ping_goes_unanswered() {
         .expect("the server listens on an address");
     let relay = be_block_fault_relay::Relay::start(server);
     let clock = Clock::manual();
-    let connection = Connection::connect(&relay.url(), &clock).await.unwrap();
+    let connection = harness.connection(&relay.url(), &clock).await;
 
     relay.stall();
-    let answer = crate::ask(client::organizations::list_organizations(&connection));
-    let mut pings = relay.count(|method, _| method == be_block_protocol::__args::CONNECTION_PING);
+    let answer = crate::ask(be_block_protocol::read::<
+        Vec<be_block_protocol::Organization>,
+        _,
+    >(
+        &connection, None, be_block_protocol::Query::Organizations
+    ));
+    let mut pings = relay.count(|method, _| method == be_block_protocol::__args::SERVER_PING);
     clock.advance(PING_INTERVAL);
     pings.wait_for(|pings| *pings > 0).await.unwrap();
     clock.advance(PONG_WAIT);

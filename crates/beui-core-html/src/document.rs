@@ -17,6 +17,11 @@ pub(crate) struct Shared {
     placed: Vec<(&'static str, String)>,
     test_ids: Vec<String>,
     described: Option<(u64, accesskit::Node)>,
+    /// A description another component gives the node (a tooltip's label), shown where the
+    /// node's own accessibility has none.
+    description: Option<String>,
+    /// The node `set_description` last described for this one (itself or one within it).
+    describing: Option<(Node, Weak<RefCell<Shared>>)>,
     aria: Vec<(&'static str, String)>,
 }
 
@@ -36,6 +41,11 @@ struct Arena {
     slots: Vec<(u32, Option<Entry>)>,
     free: Vec<u32>,
     extensions: HashMap<std::any::TypeId, Rc<dyn Any>>,
+    /// Every element whose node has accessibility of its own, by `Node::key`, so
+    /// `set_description` finds the first within a subtree by walking only that subtree. It
+    /// holds the element, so a key is never reused while its entry stands; `remove_released`
+    /// drops an entry once no node holds its `Shared`.
+    accessible: HashMap<usize, (Node, Weak<RefCell<Shared>>)>,
 }
 
 #[derive(Default)]
@@ -56,6 +66,43 @@ thread_local! {
     };
     static ARENA: RefCell<Arena> = RefCell::default();
     static REMOVALS: Rc<Removals> = Rc::default();
+    /// Host nodes (`create_host`) and the child each holds now.
+    static HOSTS: RefCell<HashMap<NodeId, Option<NodeId>>> = RefCell::default();
+}
+
+/// Makes `host` a host node: a `display: contents` element whose placed styles (what its
+/// parent sets to place it: flex, min and max, alignment, grid area) go to the child it holds.
+pub(crate) fn make_host(host: NodeId) {
+    set_style(host, "display", Some("contents".to_owned()));
+    HOSTS.with(|hosts| hosts.borrow_mut().insert(host, None));
+}
+
+/// Records the child a host holds now, moving its placed styles from the child it held.
+pub(crate) fn set_host_child(host: NodeId, child: Option<NodeId>) {
+    let Some(old) = HOSTS.with(|hosts| hosts.borrow_mut().insert(host, child)) else {
+        return;
+    };
+    if old == child {
+        return;
+    }
+    let placed = with_entry(host, |entry| entry.shared.borrow().placed.clone()).unwrap_or_default();
+    for (property, value) in placed {
+        if let Some(old) = old {
+            set_placed_style(old, property, None);
+        }
+        if let Some(child) = child {
+            set_placed_style(child, property, Some(value));
+        }
+    }
+}
+
+/// The node whose box stands for `node`: itself, or for a host node the child it holds
+/// (through nested hosts). `None` for a host holding nothing, which has no box.
+pub fn boxed(node: NodeId) -> Option<NodeId> {
+    match HOSTS.with(|hosts| hosts.borrow().get(&node).copied()) {
+        Some(child) => boxed(child?),
+        None => Some(node),
+    }
 }
 
 fn take_removals() -> Vec<NodeId> {
@@ -77,15 +124,23 @@ fn remove_released() {
             if slot.0 != node.generation() {
                 continue;
             }
-            if let Some(entry) = slot.1.take() {
-                dropped.push((node, entry));
-            }
+            let entry = slot.1.take();
             slot.0 = slot.0.wrapping_add(1);
             arena.free.push(node.index());
+            if let Some(entry) = entry {
+                dropped.push((node, entry));
+            }
         }
         dropped
     });
+    // A wrapper and its child share one element and one `Shared`, and may go in one batch:
+    // only once the whole batch is dropped can the index tell which elements no node holds.
+    let keys: Vec<usize> = dropped
+        .iter()
+        .map(|(_, entry)| entry.element.key())
+        .collect();
     for (node, entry) in dropped {
+        HOSTS.with(|hosts| hosts.borrow_mut().remove(&node));
         for cell in &entry.refs {
             if let Some(cell) = cell.upgrade()
                 && cell.get() == Some(node)
@@ -94,6 +149,18 @@ fn remove_released() {
             }
         }
     }
+    ARENA.with(|arena| {
+        let mut arena = arena.borrow_mut();
+        for key in keys {
+            if arena
+                .accessible
+                .get(&key)
+                .is_some_and(|(_, shared)| shared.strong_count() == 0)
+            {
+                arena.accessible.remove(&key);
+            }
+        }
+    });
 }
 
 pub(crate) fn fill_ref(node: NodeId, cell: Weak<NodeCell>) {
@@ -146,7 +213,21 @@ pub fn adopt(kind: &'static str, element: Node) -> NodeId {
     create_on(kind, element, Rc::default(), 0)
 }
 
+/// A node that is its child's own element, so `Interactive` adds no element of its own. A
+/// host node (`create_host`) is `display: contents` and has no box, so a node wrapping one
+/// gets an element of its own holding the host.
 pub fn wrap(kind: &'static str, child: NodeId) -> NodeId {
+    if HOSTS.with(|hosts| hosts.borrow().contains_key(&child)) {
+        let node = create(kind, "div");
+        set_style(node, "display", Some("grid".to_owned()));
+        set_style(
+            node,
+            "grid-template",
+            Some("minmax(0, 1fr) / minmax(0, 1fr)".to_owned()),
+        );
+        append(node, child);
+        return node;
+    }
     let (element, shared, wraps) = with_entry(child, |entry| {
         (entry.element.clone(), entry.shared.clone(), entry.wraps + 1)
     })
@@ -235,8 +316,16 @@ pub fn set_style(node: NodeId, property: &'static str, value: Option<String>) {
     restyle(node, |entry| write(&mut entry.style, property, value));
 }
 
+/// Every style a parent sets to place a child goes through here, so a host node passes it on
+/// to the child it holds.
 pub fn set_placed_style(node: NodeId, property: &'static str, value: Option<String>) {
-    restyle(node, |entry| write(&mut entry.placed, property, value));
+    let held = HOSTS.with(|hosts| hosts.borrow().get(&node).copied());
+    restyle(node, |entry| {
+        write(&mut entry.placed, property, value.clone())
+    });
+    if let Some(Some(child)) = held {
+        set_placed_style(child, property, value);
+    }
 }
 
 fn serialize(style: &[(&'static str, String)], placed: &[(&'static str, String)]) -> String {
@@ -359,15 +448,44 @@ pub fn set_accessibility(node: NodeId, accessibility: accesskit::Node, rank: u64
     else {
         return;
     };
-    let mut shared = shared.borrow_mut();
     if shared
+        .borrow()
         .described
         .as_ref()
         .is_some_and(|(held, _)| *held > rank)
     {
         return;
     }
-    let mut attributes = crate::aria::attributes(&accessibility, element.tag());
+    ARENA.with(|arena| {
+        let mut arena = arena.borrow_mut();
+        let held = arena.accessible.get(&element.key());
+        if !held.is_some_and(|(_, held)| held.ptr_eq(&Rc::downgrade(&shared))) {
+            arena
+                .accessible
+                .insert(element.key(), (element.clone(), Rc::downgrade(&shared)));
+        }
+    });
+    shared.borrow_mut().described = Some((rank, accessibility));
+    apply_aria(&element, &shared);
+}
+
+/// Writes the ARIA attributes of a node's accessibility, with the description another gave it.
+fn apply_aria(element: &Node, shared: &RefCell<Shared>) {
+    let mut shared = shared.borrow_mut();
+    let Some((_, accessibility)) = shared.described.as_ref() else {
+        return;
+    };
+    let mut attributes = match &shared.description {
+        Some(description)
+            if accessibility.description().is_none()
+                && accessibility.label() != Some(description.as_str()) =>
+        {
+            let mut described = accessibility.clone();
+            described.set_description(description.clone());
+            crate::aria::attributes(&described, element.tag())
+        }
+        _ => crate::aria::attributes(accessibility, element.tag()),
+    };
     if let Some(referenced) = accessibility.active_descendant() {
         let name = format!("beui-{}", referenced.0);
         let target = with_entry(NodeId::from_key(referenced.0), |entry| {
@@ -378,7 +496,6 @@ pub fn set_accessibility(node: NodeId, accessibility: accesskit::Node, rank: u64
             attributes.push(("aria-activedescendant", name));
         }
     }
-    shared.described = Some((rank, accessibility));
     for (name, _) in &shared.aria {
         if !attributes.iter().any(|(set, _)| set == name) {
             element.set_attribute(name, None);
@@ -388,6 +505,53 @@ pub fn set_accessibility(node: NodeId, accessibility: accesskit::Node, rank: u64
         element.set_attribute(name, Some(value.clone()));
     }
     shared.aria = attributes;
+}
+
+/// Describes the first node at or within `node` that has accessibility of its own, in child
+/// order, with `description` (`node` itself where none has), where that gives no description
+/// and another label, as a tooltip describes the control it wraps; `None` takes it away. The
+/// node is found when this is called: one that appears within later is not described.
+pub fn set_description(node: NodeId, description: Option<String>) {
+    let Some((element, own)) =
+        with_entry(node, |entry| (entry.element.clone(), entry.shared.clone()))
+    else {
+        return;
+    };
+    let (target_element, target) = ARENA
+        .with(|arena| {
+            let arena = arena.borrow();
+            let found = element.find(&|candidate: &Node| {
+                arena
+                    .accessible
+                    .get(&candidate.key())
+                    .is_some_and(|(_, shared)| shared.strong_count() > 0)
+            })?;
+            let (found, shared) = arena.accessible.get(&found.key())?;
+            Some((found.clone(), shared.upgrade()?))
+        })
+        .unwrap_or((element, own.clone()));
+    let previous = own
+        .borrow_mut()
+        .describing
+        .replace((target_element.clone(), Rc::downgrade(&target)))
+        .and_then(|(element, previous)| Some((element, previous.upgrade()?)));
+    if let Some((element, previous)) =
+        previous.filter(|(_, previous)| !Rc::ptr_eq(previous, &target))
+    {
+        previous.borrow_mut().description = None;
+        apply_aria(&element, &previous);
+    }
+    if target.borrow().description == description {
+        return;
+    }
+    target.borrow_mut().description = description;
+    apply_aria(&target_element, &target);
+}
+
+/// How many elements the accessible index holds, for tests that it lets released ones go.
+#[cfg(test)]
+pub(crate) fn accessible_count() -> usize {
+    ARENA.with(|arena| arena.borrow().accessible.len())
 }
 
 pub fn in_document_scope<T>(run: impl FnOnce() -> T) -> T {
@@ -484,3 +648,6 @@ pub fn style_value(node: NodeId, property: &str) -> Option<String> {
     })
     .flatten()
 }
+
+#[cfg(test)]
+mod tests;

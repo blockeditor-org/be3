@@ -3,55 +3,51 @@ use super::*;
 #[tokio::test]
 async fn an_invited_account_joins_the_organization_and_a_logout_ends_the_session() {
     let harness = Harness::start().await;
-    let mut owner = harness.client().await;
-    owner.register("owner@example.com").await;
+    let mut owner = harness.member("owner@example.com").await;
     let organization = owner.organization("shared").await;
     let mut guest = harness.member("Guest@Example.com").await;
 
     let refused = guest
-        .call(|peer| client::organizations::open_organization(peer, organization))
+        .call(|peer| {
+            peer.read_in::<be_block_protocol::Listed>(
+                Some(organization),
+                Query::List {
+                    listing: Listing::Children(BlockParent::Root),
+                    after: None,
+                },
+            )
+        })
         .await;
     assert!(matches!(refused, Err(_)), "{refused:?}");
 
     let invitation = Uuid::from_u128(7);
+    let code = be_block_keys::InviteCode::generate();
+    let signed = owner
+        .invitation_record(code.invitation_key(organization.into_bytes()), true)
+        .await;
+    CODES
+        .lock()
+        .unwrap()
+        .insert((invitation, organization), code);
     let response = owner
         .call(|peer| {
-            client::contacts::create_link(
-                peer,
-                invitation,
-                b"sealed to the invite code".to_vec(),
-                Vec::new(),
-                be_block_protocol::LinkKind::Invitation(be_block_protocol::Invitation {
+            peer.write::<()>(be_block_protocol::Op::CreateLink {
+                link: invitation,
+                card: b"sealed to the invite code".to_vec(),
+                kind: be_block_protocol::LinkKind::Invitation(be_block_protocol::Invitation {
                     organization,
-                    email: "guest@example.com".into(),
-                    role: OrganizationRole::Editor,
                     escrow: Vec::new(),
                 }),
-            )
+                signed: signed.clone(),
+            })
         })
         .await;
     assert!(matches!(response, Ok(())), "{response:?}");
 
-    let mut outsider = harness.member("outsider@example.com").await;
-    for refused in [
-        outsider
-            .call(|peer| client::contacts::get_link(peer, invitation))
-            .await
-            .map(|_| ()),
-        outsider
-            .call(|peer| {
-                client::contacts::accept_link(peer, invitation, Vec::new(), Vec::new(), Vec::new())
-            })
-            .await,
-    ] {
-        assert!(
-            matches!(refused, Err(_)),
-            "an account with another email used the invitation: {refused:?}"
-        );
-    }
-
     let fetched = guest
-        .call(|peer| client::contacts::get_link(peer, invitation))
+        .call(|peer| {
+            peer.read::<be_block_protocol::Link>(be_block_protocol::Query::Link(invitation))
+        })
         .await;
     let Ok(found) = fetched else {
         panic!("reading the invitation failed: {fetched:?}");
@@ -59,15 +55,13 @@ async fn an_invited_account_joins_the_organization_and_a_logout_ends_the_session
     assert_eq!(found.organization_name, "shared");
     assert_eq!(found.card, b"sealed to the invite code");
 
-    let response = guest
-        .call(|peer| {
-            client::contacts::accept_link(peer, invitation, Vec::new(), Vec::new(), Vec::new())
-        })
-        .await;
+    let response = guest.accept(invitation, &[]).await;
     assert!(matches!(response, Ok(())), "{response:?}");
     guest.open(organization).await;
     let again = guest
-        .call(|peer| client::contacts::get_link(peer, invitation))
+        .call(|peer| {
+            peer.read::<be_block_protocol::Link>(be_block_protocol::Query::Link(invitation))
+        })
         .await;
     assert!(
         matches!(again, Err(_)),
@@ -75,13 +69,12 @@ async fn an_invited_account_joins_the_organization_and_a_logout_ends_the_session
     );
 
     let token = guest.token.clone();
-    let response = guest.call(|peer| client::account::logout(peer, None)).await;
-    assert!(matches!(response, Ok(())), "{response:?}");
-    let mut returning = harness.client().await;
-    let response = returning
-        .call(|peer| client::account::authenticate(peer, Some(token)))
+    let response = guest
+        .call(|peer| peer.write::<()>(be_block_protocol::Op::RevokeToken(None)))
         .await;
-    assert!(matches!(response, Err(_)), "{response:?}");
+    assert!(matches!(response, Ok(())), "{response:?}");
+    let response = harness.sign_in(&token).await;
+    assert!(response.is_err(), "a token logged out still signs in");
 
     harness.stop().await;
 }

@@ -11,7 +11,7 @@ fn untracked_memo_reads_still_refresh_without_subscribing() {
         let memo = create_memo(move || value.get() * 2);
         let seen = seen.clone();
         create_effect(move || {
-            trigger.get();
+            trigger.track();
             seen.borrow_mut().push(memo.get_untracked());
         });
     });

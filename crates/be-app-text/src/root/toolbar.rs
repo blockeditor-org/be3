@@ -1,12 +1,13 @@
 use be_sdk_beui::BlockParent;
+use be_sdk_beui::beui::dock::styled::{DockBarGrip, DockBarSurface};
 use be_sdk_beui::beui::icons::Glyph;
 use be_sdk_beui::{BlockFilter, be_sdk_ui::BlockLabel};
 use beui::Key;
 use beui::NodeId;
 use beui::icons::{
-    ICON_BOLD, ICON_BRACKETS, ICON_CODE, ICON_HEADING, ICON_IMAGE, ICON_ITALIC, ICON_KEYBOARD_OFF,
-    ICON_LINK, ICON_LIST, ICON_LIST_CHECKS, ICON_LIST_ORDERED, ICON_SETTINGS, ICON_SQUARE_PLUS,
-    ICON_STRIKETHROUGH,
+    ICON_BOLD, ICON_BRACKETS, ICON_CODE, ICON_HASH, ICON_HEADING, ICON_IMAGE, ICON_ITALIC,
+    ICON_KEYBOARD_OFF, ICON_LINK, ICON_LIST, ICON_LIST_CHECKS, ICON_LIST_ORDERED, ICON_SETTINGS,
+    ICON_SQUARE_PLUS, ICON_STRIKETHROUGH,
 };
 use beui::reactive::*;
 use beui::styled::*;
@@ -19,53 +20,57 @@ const TOOLBAR_SPACING: Space = Space::Sm;
 const SETTINGS_SPACING: Space = Space::Md;
 const SELECT_WIDTH: Size = Size::Custom(120.0);
 const NUMBER_WIDTH: Size = Size::Custom(70.0);
-const FORMAT_PADDING: Space = Space::Sm;
 
 #[component]
 pub(crate) fn EditorMenu(state: State) -> NodeId {
     let tab = use_frame_anchor();
     let settings = create_signal(false);
     menu_actions(state, settings);
-    let hex = state.hex_view;
-    let text_view = create_memo(move || !hex.get());
-    let hex_view = create_memo(move || hex.get());
     view! {
         <Dialog
             open={settings}
             title="Text settings"
-            anchor={create_memo(move || DialogAnchor::Rect(tab.get()))}
+            anchor={move || DialogAnchor::Rect(tab.get())}
             on_dismiss={move || settings.set(false)}
         >
-            <List spacing=SETTINGS_SPACING>
-                <Show condition={text_view}>
+            <Show
+                value={state.hex_view}
+                fallback={move || view! {
                     <TextSettings state={state} />
-                </Show>
-                <Show condition={hex_view}>
-                    <HexSettings state={state} />
-                </Show>
-            </List>
+                }}
+            >
+                <HexSettings state={state} />
+            </Show>
         </Dialog>
     }
 }
 
 fn menu_actions(state: State, settings: Signal<bool>) {
     let hex = state.hex_view;
-    let in_text = create_memo(move || !hex.get());
     let hex_view = Action::new("text.hex", "Hex view", move || state.toggle_hex_view())
         .glyph(ICON_BRACKETS)
-        .checked(create_memo(move || hex.get()))
+        .checked(hex)
         .register();
+    let line_numbers = state.line_numbers;
+    let numbers = Action::new("text.line-numbers", "Line numbers", move || {
+        state.toggle_line_numbers()
+    })
+    .glyph(ICON_HASH)
+    .checked(line_numbers)
+    .enabled(move || !hex.get())
+    .register();
     let insert = Action::new("text.insert-block", "Insert a block", move || {
         pick_block(state)
     })
     .glyph(ICON_SQUARE_PLUS)
-    .enabled(in_text)
+    .enabled(move || !hex.get())
     .register();
     let settings = Action::new("text.settings", "Text settings", move || settings.set(true))
         .glyph(ICON_SETTINGS)
         .register();
     add_to_menu(vec![
         MenuNode::action(&hex_view),
+        MenuNode::action(&numbers),
         MenuNode::action(&insert),
         MenuNode::action(&settings),
     ]);
@@ -148,7 +153,7 @@ pub(crate) fn format_actions(state: State) -> Vec<Action> {
     let content = state.text.content();
     let hex = state.hex_view;
     let markdown = create_memo(move || {
-        content.get();
+        content.track();
         !hex.get() && state.text.language() == TextLanguage::Markdown
     });
     FORMATS
@@ -168,86 +173,63 @@ pub(crate) fn format_actions(state: State) -> Vec<Action> {
         .collect()
 }
 
+/// The format bar: a tool bar of the editor's dock, beside the text's bottom edge until it is moved
+/// (`DockBar`, guides/beui/docking.md). It stays while the text shows, rather than hiding when
+/// the text loses the keyboard. A press on it leaves the keyboard in the text.
 #[component]
 pub(crate) fn FormatBar(state: State, formats: Vec<Action>) -> NodeId {
-    let typing = state.typing;
-    let hex = state.hex_view;
-    let row = NodeRef::new();
-    let held = holds_focus(row);
-    arrow_focus(row, Direction::Horizontal);
-    let shown = create_memo(move || (typing.get() || held.get()) && !hex.get());
-    let touch = state.text.touch_mode();
-    let keyboard = create_memo(move || touch.get());
-    let content = state.text.content();
-    let markdown = create_memo(move || {
-        content.get();
-        state.text.language() == TextLanguage::Markdown
-    });
+    let keyboard = state.text.touch_mode();
+    let markdown = markdown_shown(state);
     let controls = move || {
         let formats = formats.clone();
+        let count = formats.len();
         view! {
-            <MarkdownControls formats />
-        }
-    };
-    let bar = move || {
-        let controls = controls.clone();
-        view! {
-            <Interactive press_focus=false @node_ref=&row @test_id={"text.format"}>
-                <Frame fill=ColorRole::Surface>
-                    <List spacing=Space::None>
-                        <Separator />
-                        <List
-                            direction=Direction::Horizontal
-                            align=Align::Center
-                            spacing=Space::None
-                        >
-                            <ListItem grow=1.0>
-                                <Scroll direction=Direction::Horizontal>
-                                    <Frame padding=FORMAT_PADDING>
-                                        <List spacing=Space::None>
-                                            <Show condition={markdown} then={controls} />
-                                        </List>
-                                    </Frame>
-                                </Scroll>
-                            </ListItem>
-                            <Show condition={keyboard}>
-                                <Frame padding=FORMAT_PADDING>
-                                    <Button
-                                        icon_only=true
-                                        glyph=ICON_KEYBOARD_OFF
-                                        label="Done"
-                                        @test_id={"text.format.done"}
-                                        on_click={|| set_focus(None)}
-                                    />
-                                </Frame>
-                            </Show>
-                        </List>
-                    </List>
-                </Frame>
-            </Interactive>
-        }
-    };
-    view! {
-        <List spacing=Space::None>
-            <Show condition={shown} then={bar} />
-        </List>
-    }
-}
-
-#[component]
-fn MarkdownControls(formats: Vec<Action>) -> NodeId {
-    let count = formats.len();
-    view! {
-        <List direction=Direction::Horizontal align=Align::Center spacing=TOOLBAR_SPACING>
-            <ForEach keys={(0..count).collect::<Vec<usize>>()}>|index: usize| {
+            <ForEach value={(0..count).collect::<Vec<usize>>()}>|index: usize| {
                 let action = formats[index].clone();
                 let id = action.id().to_owned();
                 view! {
                     <Button icon_only=true @test_id={id} action />
                 }
             }</ForEach>
-        </List>
+        }
+    };
+    view! {
+        <Interactive press_focus=false @test_id={"text.format"}>
+            <DockBarSurface spacing=TOOLBAR_SPACING>
+                <Frame @test_id={"text.format.grip"}>
+                    <DockBarGrip />
+                </Frame>
+                <Show value={keyboard}>
+                    <Button
+                        icon_only=true
+                        glyph=ICON_KEYBOARD_OFF
+                        label="Done"
+                        @test_id={"text.format.done"}
+                        on_click={|| set_focus(None)}
+                    />
+                </Show>
+                <Show value={markdown} then={move |_| controls()} />
+            </DockBarSurface>
+        </Interactive>
     }
+}
+
+/// Whether the format bar has anything to offer: the Markdown formats, or Done to put away an
+/// on-screen keyboard.
+pub(crate) fn format_bar_shown(state: State) -> Memo<bool> {
+    let chrome = state.editor.chrome_shown();
+    let hex = state.hex_view;
+    let touch = state.text.touch_mode();
+    let markdown = markdown_shown(state);
+    create_memo(move || chrome.get() && !hex.get() && (markdown.get() || touch.get()))
+}
+
+fn markdown_shown(state: State) -> Memo<bool> {
+    let content = state.text.content();
+    create_memo(move || {
+        content.track();
+        state.text.language() == TextLanguage::Markdown
+    })
 }
 
 #[component]
@@ -274,29 +256,27 @@ fn HexSettings(state: State) -> NodeId {
 fn TextSettings(state: State) -> NodeId {
     let content = state.text.content();
     let language = create_memo(move || {
-        content.get();
+        content.track();
         state.text.language()
     });
     let indentation = create_memo(move || {
-        content.get();
+        content.track();
         state.text.indentation()
-    });
-    let language_index = create_memo(move || {
-        TextLanguage::ALL
-            .iter()
-            .position(|choice| *choice == language.get())
-    });
-    let indentation_index = create_memo(move || {
-        Some(usize::from(matches!(
-            indentation.get(),
-            TextIndentation::Spaces { .. }
-        )))
     });
     let spaces = create_memo(move || matches!(indentation.get(), TextIndentation::Spaces { .. }));
     let width = create_memo(move || match indentation.get() {
         TextIndentation::Spaces { width } => f64::from(width),
         TextIndentation::Tabs => 2.0,
     });
+    // A scrubbed width shows here and is set once, when it is kept.
+    let width_held = HeldValue::new(Binding::new(width, move |value: f64| {
+        let width = value.round().clamp(1.0, 8.0) as u8;
+        state
+            .text
+            .execute(EditorCommand::SetIndentation(TextIndentation::Spaces {
+                width,
+            }));
+    }));
     view! {
         <List spacing=SETTINGS_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=SETTINGS_SPACING>
@@ -306,18 +286,18 @@ fn TextSettings(state: State) -> NodeId {
                 <Select
                     width=SELECT_WIDTH
                     label="Language"
-                    selected={Binding::new(language_index, move |index: Option<usize>| {
-                        let Some(choice) = index.and_then(|index| TextLanguage::ALL.get(index)) else {
-                            return;
-                        };
-                        state.text.execute(EditorCommand::SetLanguage(*choice));
-                    })}
+                    selected={Binding::new(
+                        Prop::dynamic(move || Some(language.get())),
+                        move |choice: Option<TextLanguage>| {
+                            if let Some(choice) = choice {
+                                state.text.execute(EditorCommand::SetLanguage(choice));
+                            }
+                        },
+                    )}
                     @test_id={"text.language"}
                     options={view! {
-                        <ForEach
-                            keys={(0..TextLanguage::ALL.len()).collect::<Vec<usize>>()}
-                        >|index: usize|
-                            <ChoiceOption label={TextLanguage::ALL[index].label().to_owned()} />
+                        <ForEach value={TextLanguage::ALL.to_vec()}>|choice: TextLanguage|
+                            <ChoiceOption value=choice label={choice.label().to_owned()} />
                         </ForEach>
                     }}
                 />
@@ -329,21 +309,24 @@ fn TextSettings(state: State) -> NodeId {
                 <Select
                     width=SELECT_WIDTH
                     label="Indentation"
-                    selected={Binding::new(indentation_index, move |index: Option<usize>| {
-                        let indentation = match index {
-                            Some(1) => TextIndentation::Spaces { width: 2 },
-                            _ => TextIndentation::Tabs,
-                        };
-                        state.text.execute(EditorCommand::SetIndentation(indentation));
-                    })}
+                    selected={Binding::new(
+                        Prop::dynamic(move || Some(spaces.get())),
+                        move |spaces: Option<bool>| {
+                            let indentation = match spaces {
+                                Some(true) => TextIndentation::Spaces { width: 2 },
+                                _ => TextIndentation::Tabs,
+                            };
+                            state.text.execute(EditorCommand::SetIndentation(indentation));
+                        },
+                    )}
                     @test_id={"text.indentation"}
                     options={view! {
-                        <ChoiceOption label="Tabs" />
-                        <ChoiceOption label="Spaces" />
+                        <ChoiceOption value=false label="Tabs" />
+                        <ChoiceOption value=true label="Spaces" />
                     }}
                 />
             </List>
-            <Show condition={spaces}>
+            <Show value={spaces}>
                 <List direction=Direction::Horizontal align=Align::Center spacing=SETTINGS_SPACING>
                     <ListItem grow=1.0>
                         <Text>"Indentation width"</Text>
@@ -351,12 +334,8 @@ fn TextSettings(state: State) -> NodeId {
                     <Frame width=NUMBER_WIDTH>
                         <NumberInput
                             label="Indentation width"
-                            value={Binding::new(width, move |value: f64| {
-                                let width = value.round().clamp(1.0, 8.0) as u8;
-                                state.text.execute(EditorCommand::SetIndentation(
-                                    TextIndentation::Spaces { width },
-                                ));
-                            })}
+                            value={width_held.value}
+                            on_scrub={width_held.on_drag}
                             min=1.0
                             max=8.0
                             @test_id={"text.indentation-width"}
@@ -380,10 +359,7 @@ fn pick_block(state: State) {
             place: None,
         },
         anchor,
-        move |result| {
-            let Ok(block) = result else {
-                return;
-            };
+        move |block| {
             if !state.is_alive() {
                 return;
             }

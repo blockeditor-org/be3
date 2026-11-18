@@ -1,7 +1,6 @@
 use be_sdk_api::app::{DialogRequest, EditorEvent, MenuChoice, ViewFrame};
 use be_sdk_api::embed::debug::debug::Call as DebugCall;
-use be_sdk_api::embed::{self, exports::app::Editor, shell::Call as ShellCall};
-use be_sdk_api::ops::{Connection, Incoming, Side};
+use be_sdk_api::embed::shell::Call as ShellCall;
 use be_sdk_api::shell_types::{ChildCreation, ChildMenuChoice, ClipOffer, MenuSet, ShellMessage};
 use be_sdk_api::{
     BlockTypeDescriptor, Catalog, ChildId, FitArea, FrameChrome, FrameReport, HelloAccepted,
@@ -14,19 +13,21 @@ use be_sdk_api::{
     embed::host_services::Call,
     ops::{OpError, OpId, Outcome, Reply},
 };
+use be_sdk_app_host::{
+    calls::{AppCall, EditorCall, Heard},
+    wire::{Service, Wire},
+};
 use be_sdk_beui::FromEditor;
 use be_sdk_beui::be_block_content::{LiveEdit, Merge};
 use be_sdk_beui::headless::{Adopted, HeadlessApp};
 use be_sdk_beui::{
-    Artifacts, BeuiRoot, ChildMode, ChildPlacement, ChildStatus, Creation, EditorHost,
+    AppEditor, Artifacts, BeuiRoot, ChildMode, ChildPlacement, ChildStatus, Creation, EditorHost,
     EditorInstanceId, Occluder, OwnedEditor, PeerPresence, SeededContent, ShownPresence,
     ViewChange, WebViewCommand, WebViewId,
 };
 use beui::native::Document;
-use beui::{
-    Input, Key, KeyChord, Modifiers, Pen, PenPhase, PointerButton, Pos2, Rect, TouchPhase, Vec2,
-};
-use beui_host::native::testing::{Target, button_name};
+use beui::{Input, Key, KeyChord, Modifiers, Pen, PenPhase, PointerButton, Pos2, Rect, Vec2};
+use beui_host::native::testing::{FRAME_INTERVAL, Gui, Recording, Snapshots, Target, Wakes};
 use std::collections::BTreeMap;
 use std::marker::PhantomData;
 
@@ -45,23 +46,21 @@ impl Inbound {
 
 pub type HostCall = Call;
 
-use std::sync::{Arc, Condvar, Mutex, PoisonError};
+use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::ContentStore;
 use crate::link::Sent;
 use beui_host::native::drive;
 use beui_host::native::drive::gestures::{Frames, Gestures};
-use beui_host::native::testing::{FRAME_INTERVAL, assert_fits};
 use beui_paint_snapshot::Snapshot;
 
 mod desk;
 
 const SIZE: Vec2 = Vec2::new(800.0, 600.0);
-const EAGER_FRAMES: usize = 8;
-const SETTLE_DEADLINE: std::time::Duration = std::time::Duration::from_secs(30);
 const HOST_ROUNDS: usize = 8;
 const MINIMUM_ZOOM: f32 = 1.0 / 64.0;
+/// The deepest the host zooms an editor whose manifest names no `max_zoom`, as be-host does.
 const MAXIMUM_ZOOM: f32 = 32.0;
 const INSTANCE: EditorInstanceId = EditorInstanceId(1);
 
@@ -75,16 +74,6 @@ thread_local! {
 const ADOPTED_EDITOR: [u8; 16] = [0; 16];
 const SCREEN: ScreenId = ScreenId(1);
 
-/// Runs an editor headless through the app's own session (`be_sdk::headless`), acting as
-/// its host: there is no server or block store, and every call goes over a be-wasm-ops
-/// connection encoded as on the wire, so a call the app refuses fails the test.
-///
-/// Gestures (`click`, `drag`, `text`, `tap`, ...) are drive's and only queue input: nothing
-/// they cause shows until the next `run()`, so call it after each one. A click reveals an
-/// out-of-view target first and panics when no node has the test id. Whatever the app sends
-/// the host is kept for the `take_*` methods; `clear_calls` drops it. Calls such as
-/// `set_view` queue what be-host would send; setting the same state on the `EditorHost`
-/// directly skips the protocol and is overwritten by the session on the next frame.
 /// A revision preview an editor asked for (`BeuiTest::take_revision_previews`).
 pub struct AskedPreview {
     pub block: [u8; 16],
@@ -92,7 +81,21 @@ pub struct AskedPreview {
     pub reply: Reply<Result<[u8; 16], be_sdk_api::Failure>>,
 }
 
-pub struct BeuiTest<A: BeuiRoot> {
+/// Runs an editor headless through the app's own session (`be_sdk::headless`), acting as
+/// its host: there is no server or block store, and every call goes over a be-wasm-ops
+/// wire encoded as be-host's runtime speaks it (be-sdk-app-host's `Wire`), so a call the app
+/// refuses fails the test.
+///
+/// It is a `Gui` (beui's `testing::Gui`): gestures (`click`, `drag`, `type_text`, `tap`, ...)
+/// are drive's and paint the frames that take them before they return. A click reveals an
+/// out-of-view target first and panics when no node has the test id. Input that is no drive
+/// gesture (`pen`, `eraser`, `predict`, `host_key`, `host_tap`, `hold_modifiers`) paints its
+/// own frame too, unless given inside `in_one_frame`; `step` paints a frame with exactly the
+/// events it is given. Whatever the app sends the host is kept for the `take_*` methods;
+/// `clear_calls` drops it. Calls such as `set_view` queue what be-host would send; setting the
+/// same state on the `EditorHost` directly skips the protocol and is overwritten by the
+/// session on the next frame.
+pub struct BeuiTest<A: BeuiRoot + AppEditor> {
     app: HeadlessApp,
     kind: Kind,
     host: EditorHost,
@@ -104,32 +107,19 @@ pub struct BeuiTest<A: BeuiRoot> {
     gestures: Gestures,
     steps: Vec<String>,
     frames: Vec<Vec<Input>>,
+    /// Whether input is being gathered for `in_one_frame`, so it waits to be painted.
+    one_frame: bool,
     inbox: Vec<Inbound>,
-    answered: Vec<Vec<u8>>,
-    acknowledged: std::collections::HashSet<OpId>,
-    connection: Connection,
+    /// The editor's wire, as be-host's runtime holds an app's (be-sdk-app-host).
+    wire: Wire,
     link: crate::link::Link,
-    editor: Option<Editor>,
     calls: Vec<ShellMessage>,
     extension_calls: Vec<be_sdk_api::ops::Started>,
-    web_views: std::collections::HashMap<
-        be_sdk_api::ops::OpId,
-        (WebViewId, be_sdk_api::Watch<Vec<be_sdk_beui::WebViewEvent>>),
-    >,
+    /// The web views the editor shows, by their resource's op.
+    web_views: std::collections::HashMap<be_sdk_api::ops::OpId, WebViewId>,
     web_view_commands: Vec<(WebViewId, WebViewCommand)>,
     published: std::collections::HashMap<be_sdk_api::ops::MethodId, Vec<u8>>,
-    published_watches: std::collections::HashMap<
-        be_sdk_api::ops::OpId,
-        (
-            be_sdk_api::ops::MethodId,
-            be_sdk_api::Watch<be_sdk_api::Encoded>,
-        ),
-    >,
-    child_statuses: be_sdk_api::Watch<Vec<ChildStatus>>,
-    block_types: be_sdk_api::Watch<Catalog>,
     shown_catalog: Option<Catalog>,
-    debug_templates: be_sdk_api::Watch<Vec<be_sdk_api::DebugTemplate>>,
-    completed: std::collections::HashMap<be_sdk_api::ops::OpId, be_sdk_api::ops::Outcome>,
     menu: Vec<MenuEntry>,
     docked: bool,
     anchor_space: Option<be_sdk_api::AnchorSpace>,
@@ -137,9 +127,10 @@ pub struct BeuiTest<A: BeuiRoot> {
     output: Option<beui::native::FrameOutput>,
     shown_window: Option<beui::WindowId>,
     drew: bool,
-    recording: Option<Snapshot>,
-    overflows: Vec<String>,
+    recording: Recording,
     viewport: Option<Viewport>,
+    /// The deepest the viewport zooms: the `max_zoom` the app's manifest gives the editor.
+    max_zoom: f32,
     children: Vec<ChildPlacement>,
     views_children: Vec<(ViewId, Vec<ChildPlacement>)>,
     occluders: Vec<Occluder>,
@@ -158,38 +149,13 @@ pub struct BeuiTest<A: BeuiRoot> {
     closed_previews: Vec<[u8; 32]>,
     signatures: crate::signatures::Signatures,
     fetches: crate::fetches::Fetches,
+    workers: crate::workers::Shared,
     wakes: Arc<Wakes>,
     clock: std::time::Duration,
     desk: Option<desk::Desk>,
     desk_batches: Vec<InputBatch>,
     drawn_screens: Vec<(ScreenId, beui::WindowId)>,
     root: PhantomData<A>,
-}
-
-#[derive(Default)]
-struct Wakes {
-    count: Mutex<u64>,
-    woken: Condvar,
-}
-
-impl Wakes {
-    fn count(&self) -> u64 {
-        *self.count.lock().unwrap_or_else(PoisonError::into_inner)
-    }
-
-    fn wake(&self) {
-        *self.count.lock().unwrap_or_else(PoisonError::into_inner) += 1;
-        self.woken.notify_all();
-    }
-
-    fn wait_past(&self, seen: u64, deadline: std::time::Duration) {
-        let count = self.count.lock().unwrap_or_else(PoisonError::into_inner);
-        drop(
-            self.woken
-                .wait_timeout_while(count, deadline, |count| *count == seen)
-                .unwrap_or_else(PoisonError::into_inner),
-        );
-    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -202,7 +168,7 @@ enum Kind {
     Rename(Uuid),
 }
 
-impl<A: BeuiRoot> BeuiTest<A> {
+impl<A: BeuiRoot + AppEditor> BeuiTest<A> {
     pub fn new(editor: OwnedEditor) -> Self {
         let block = editor.block_id();
         Self::open(
@@ -246,7 +212,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
         Self::open(Kind::Picker, Adopted::Editor(editor, None), Vec::new())
     }
 
-    pub fn picker_beside<B: BeuiRoot>(
+    pub fn picker_beside<B: BeuiRoot + AppEditor>(
         beside: &BeuiTest<B>,
         host: EditorHost,
         request: be_sdk_beui::PickerRequest,
@@ -262,13 +228,17 @@ impl<A: BeuiRoot> BeuiTest<A> {
 
     /// Another editor run beside `beside`, on the blocks it holds: the same block reopened, or
     /// one it made.
-    pub fn new_beside<B: BeuiRoot>(beside: &BeuiTest<B>, editor: OwnedEditor) -> Self {
+    pub fn new_beside<B: BeuiRoot + AppEditor>(beside: &BeuiTest<B>, editor: OwnedEditor) -> Self {
         beside.store.forget_answers();
         SHARED_STORE.with(|shared| *shared.borrow_mut() = Some(beside.store.clone()));
         Self::new(editor)
     }
 
-    pub fn rename_beside<B: BeuiRoot>(beside: &BeuiTest<B>, host: EditorHost, block: Uuid) -> Self {
+    pub fn rename_beside<B: BeuiRoot + AppEditor>(
+        beside: &BeuiTest<B>,
+        host: EditorHost,
+        block: Uuid,
+    ) -> Self {
         beside.store.forget_answers();
         SHARED_STORE.with(|shared| *shared.borrow_mut() = Some(beside.store.clone()));
         let editor = OwnedEditor::new(host, Uuid::nil());
@@ -323,6 +293,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
         if let Some(source) = signing {
             signatures.set_signing_block(source);
         }
+        let workers = crate::workers::Shared::default();
         let wakes = Arc::new(Wakes::default());
         let woken = Arc::clone(&wakes);
         host.waker().install(move || woken.wake());
@@ -390,6 +361,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
                 top_bar: TopBar::Hidden,
                 dialog: None,
                 anchor: None,
+                phone: false,
             }),
             Kind::Picker | Kind::Rename(_) => Some(be_sdk_api::FrameSpec {
                 chrome: FrameChrome::None,
@@ -397,6 +369,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
                 top_bar: TopBar::Hidden,
                 dialog: None,
                 anchor: None,
+                phone: false,
             }),
             Kind::Creation => Some(be_sdk_api::FrameSpec {
                 chrome: FrameChrome::None,
@@ -407,6 +380,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
                     ..be_sdk_api::DialogFrame::default()
                 }),
                 anchor: None,
+                phone: false,
             }),
             _ => None,
         };
@@ -422,23 +396,23 @@ impl<A: BeuiRoot> BeuiTest<A> {
             steps: Vec::new(),
             gestures: Gestures::default(),
             frames: Vec::new(),
+            one_frame: false,
             inbox: Vec::new(),
-            answered: Vec::new(),
-            acknowledged: std::collections::HashSet::new(),
-            connection: Connection::new(Side::Host),
+            wire: Wire::granting(
+                be_sdk_manifest::EXTENSIONS
+                    .iter()
+                    .map(|extension| (*extension).to_owned())
+                    .collect(),
+            )
+            .offering(|_| true)
+            .with_sandbox(workers.clone()),
             link: crate::link::Link::new(INSTANCE),
-            editor: None,
             calls: Vec::new(),
             extension_calls: Vec::new(),
             web_views: std::collections::HashMap::new(),
             web_view_commands: Vec::new(),
             published: std::collections::HashMap::new(),
-            published_watches: std::collections::HashMap::new(),
-            child_statuses: be_sdk_api::Watch::default(),
-            block_types: be_sdk_api::Watch::default(),
             shown_catalog: None,
-            debug_templates: be_sdk_api::Watch::default(),
-            completed: std::collections::HashMap::new(),
             menu: Vec::new(),
             docked: false,
             anchor_space: None,
@@ -446,9 +420,9 @@ impl<A: BeuiRoot> BeuiTest<A> {
             output: None,
             shown_window: None,
             drew: false,
-            recording: None,
-            overflows: Vec::new(),
+            recording: Recording::default(),
             viewport: None,
+            max_zoom: max_zoom::<A>(),
             children: Vec::new(),
             views_children: Vec::new(),
             occluders: Vec::new(),
@@ -464,6 +438,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
             closed_previews: Vec::new(),
             signatures,
             fetches: crate::fetches::Fetches::default(),
+            workers,
             wakes,
             clock: std::time::Duration::ZERO,
             desk: None,
@@ -484,8 +459,8 @@ impl<A: BeuiRoot> BeuiTest<A> {
             "the host's acceptance",
         );
         test.deliver(Inbound::pushed(move |app| app.accept(accepted)));
-        test.editor = Some(Editor::new(&mut test.connection, open));
-        let frames = test.connection.take_outbound();
+        test.wire.open(open);
+        let frames = test.wire.take_outbound();
         test.deliver(Inbound::Frames(frames));
         test.place();
         test.run();
@@ -536,9 +511,8 @@ impl<A: BeuiRoot> BeuiTest<A> {
                 fit: false,
             }]
         });
-        be_sdk_api::embed::exports::app::screens(&mut self.connection, screens);
-        let frames = self.connection.take_outbound();
-        self.inbox.push(Inbound::Frames(frames));
+        self.wire.app_call(AppCall::Screens(screens));
+        self.send();
     }
 
     pub fn block_id(&self) -> Option<Uuid> {
@@ -604,21 +578,19 @@ impl<A: BeuiRoot> BeuiTest<A> {
 
     pub fn set_draft(&mut self, data: Vec<u8>) {
         self.draft.clone_from(&data);
-        self.call(|editor, connection| {
-            editor.hear(connection, vec![EditorEvent::ArtifactSettings(data)]);
-        });
+        self.tell(vec![EditorEvent::ArtifactSettings(data)]);
     }
 
     pub fn with_top_bar(self, closable: bool) -> Self {
-        self.with_bar(closable, TopBar::Shown)
+        self.with_bar(closable, TopBar::Shown, false)
     }
 
     pub fn without_top_bar(self) -> Self {
-        self.with_bar(false, TopBar::Hidden)
+        self.with_bar(false, TopBar::Hidden, false)
     }
 
     pub fn on_phone(self) -> Self {
-        self.with_bar(false, TopBar::Phone)
+        self.with_bar(false, TopBar::Hidden, true)
     }
 
     pub fn in_tab(mut self, tab: Option<Rect>) -> Self {
@@ -629,13 +601,14 @@ impl<A: BeuiRoot> BeuiTest<A> {
         self
     }
 
-    fn with_bar(mut self, closable: bool, top_bar: TopBar) -> Self {
+    fn with_bar(mut self, closable: bool, top_bar: TopBar, phone: bool) -> Self {
         self.frame = Some(be_sdk_api::FrameSpec {
             chrome: FrameChrome::Drawn,
             content: closable.then_some(Rect::from_min_size(Pos2::ZERO, self.size)),
             top_bar,
             dialog: None,
             anchor: None,
+            phone,
         });
         self.place();
         self.run();
@@ -671,16 +644,11 @@ impl<A: BeuiRoot> BeuiTest<A> {
     pub fn pick_menu(&mut self, id: &str) {
         self.menu_entry(id);
         let id = id.to_owned();
-        self.call(|editor, connection| {
-            editor.hear(
-                connection,
-                vec![EditorEvent::MenuPick(MenuChoice {
-                    view: ViewId::MAIN,
-                    id,
-                    anchor: None,
-                })],
-            );
-        });
+        self.tell(vec![EditorEvent::MenuPick(MenuChoice {
+            view: ViewId::MAIN,
+            id,
+            anchor: None,
+        })]);
         self.run();
     }
 
@@ -698,9 +666,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
     }
 
     pub fn dismiss(&mut self) {
-        self.call(|editor, connection| {
-            editor.hear(connection, vec![EditorEvent::Dismiss]);
-        });
+        self.tell(vec![EditorEvent::Dismiss]);
         self.run();
     }
 
@@ -756,9 +722,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
 
     /// The host asks for the details of `child`, from the child's bar.
     pub fn child_details(&mut self, child: ChildId) {
-        self.call(|editor, connection| {
-            editor.hear(connection, vec![EditorEvent::ChildDetails(child)]);
-        });
+        self.tell(vec![EditorEvent::ChildDetails(child)]);
     }
 
     pub fn set_view(&mut self, view: Rect, scale: f32) {
@@ -767,12 +731,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
         if let Some(viewport) = &mut self.viewport {
             viewport.show(view, scale, band, rect.min);
         }
-        self.call(|editor, connection| {
-            editor.hear(
-                connection,
-                vec![EditorEvent::ViewChanged(ViewFrame { view, scale })],
-            );
-        });
+        self.tell(vec![EditorEvent::ViewChanged(ViewFrame { view, scale })]);
     }
 
     pub fn move_view(&mut self, change: ViewChange) {
@@ -818,9 +777,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
             action,
             dropped,
         };
-        self.call(|editor, connection| {
-            editor.hear(connection, vec![EditorEvent::Drag(Some(drag))]);
-        });
+        self.tell(vec![EditorEvent::Drag(Some(drag))]);
     }
 
     /// Lays the view out as if its points sat at `origin` in the host, unscaled, so what it
@@ -859,6 +816,8 @@ impl<A: BeuiRoot> BeuiTest<A> {
         self
     }
 
+    /// Gives the editor's window this size in points, as the host does when its frame or
+    /// window changes size.
     pub fn set_size(&mut self, size: Vec2) {
         self.size = size;
         self.place();
@@ -888,8 +847,8 @@ impl<A: BeuiRoot> BeuiTest<A> {
 
     pub fn catalog(&mut self, catalog: Catalog) {
         self.shown_catalog = Some(catalog.clone());
-        self.block_types.change(&mut self.connection, |_| catalog);
-        let frames = self.connection.take_outbound();
+        self.wire.app_call(AppCall::BlockTypes(catalog));
+        let frames = self.wire.take_outbound();
         self.inbox.push(Inbound::Frames(frames));
         self.run();
     }
@@ -899,7 +858,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
     }
 
     pub fn in_viewport(mut self) -> Self {
-        self.viewport = Some(Viewport::new());
+        self.viewport = Some(Viewport::new(self.max_zoom));
         self.run();
         self
     }
@@ -909,7 +868,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
             zoom,
             pan,
             moved: true,
-            ..Viewport::new()
+            ..Viewport::new(self.max_zoom)
         });
         self.run();
         self
@@ -925,25 +884,12 @@ impl<A: BeuiRoot> BeuiTest<A> {
         self.shown_output().filter(|_| self.drew)
     }
 
-    pub fn test_ids(&self) -> std::rc::Rc<beui::native::accessibility_dump::TestIds> {
-        self.output
-            .as_ref()
-            .expect("the editor has not drawn a frame yet")
-            .test_ids()
-    }
-
     fn shown_output(&self) -> Option<&beui::native::WindowOutput> {
         self.output.as_ref()?.window(self.shown_window?)
     }
 
     fn shown_changed(&self) -> bool {
         self.shown_output().is_some_and(|shown| shown.changed)
-    }
-
-    pub fn document(&self) -> std::cell::Ref<'_, Document> {
-        self.app
-            .document()
-            .expect("the editor has not built its view yet")
     }
 
     pub fn children(&self) -> &[ChildPlacement] {
@@ -965,37 +911,27 @@ impl<A: BeuiRoot> BeuiTest<A> {
         Some(report.content?.inside(self.rect()))
     }
 
-    pub fn replace_child(&mut self, old: Uuid, new: Uuid) -> bool {
-        let mut ticket = None;
-        self.call(|editor, connection| {
-            ticket = Some(editor.replace_child(connection, old.into_bytes(), new.into_bytes()));
-        });
-        let ticket = ticket.expect("the call was made");
-        self.step(Vec::new());
-        let outcome = self
-            .completed
-            .remove(&ticket.op())
-            .expect("the app never answered the replacement");
-        ticket
-            .decode(outcome)
-            .expect("the app answered the replacement")
-    }
-
     pub fn presence_visible(&mut self, visible: bool) {
-        self.call(|editor, connection| {
-            editor.hear(connection, vec![EditorEvent::Presence(visible)]);
-        });
+        self.tell(vec![EditorEvent::Presence(visible)]);
         self.run();
     }
 
-    pub fn resize(&mut self, size: Vec2) {
+    /// Tells the editor whether this device hosts its block, as be-host does
+    /// (`editor-event.hosting`).
+    pub fn set_hosting(&mut self, hosting: be_sdk_api::blocks::HostingHere) {
+        self.tell(vec![EditorEvent::Hosting(hosting)]);
+        self.run();
+    }
+
+    /// Tells the editor its embed was resized to `size`, as the host does when a person
+    /// resizes the embed in the block that holds it (`Editor::resized`). The window keeps
+    /// its size, which `set_size` changes.
+    pub fn resize_embed(&mut self, size: Vec2) {
         let size = be_sdk_api::Vec2 {
             x: size.x,
             y: size.y,
         };
-        self.call(|editor, connection| {
-            editor.hear(connection, vec![EditorEvent::Resized(size)]);
-        });
+        self.tell(vec![EditorEvent::Resized(size)]);
         self.run();
     }
 
@@ -1016,7 +952,9 @@ impl<A: BeuiRoot> BeuiTest<A> {
 
     /// Each block watch the editor holds open, by its op, with what it follows.
     #[cfg(test)]
-    pub(crate) fn block_watches(&self) -> Vec<(be_sdk_api::ops::OpId, crate::link::Subject)> {
+    pub(crate) fn block_watches(
+        &self,
+    ) -> Vec<(be_sdk_api::ops::OpId, be_sdk_app_host::blocks::Subject)> {
         self.link.watching()
     }
 
@@ -1024,6 +962,21 @@ impl<A: BeuiRoot> BeuiTest<A> {
         self.block_id()
             .expect("a version status is about the editor's own block");
         self.link.offer_version(&status);
+    }
+
+    /// Answers the editor's watch of who may view its block (`Editor::members`), as be-host
+    /// answers it from the contacts' cards and the server.
+    pub fn set_members(&mut self, members: Vec<be_sdk_beui::BlockMember>) {
+        self.block_id()
+            .expect("the members are of the editor's own block");
+        self.link.offer_members(Ok(members
+            .into_iter()
+            .map(|member| be_sdk_api::BlockMember {
+                account: member.account.into_bytes(),
+                name: member.name,
+                verified: member.verified,
+            })
+            .collect()));
     }
 
     pub fn set_peers(&mut self, block: Option<Uuid>, peers: Vec<PeerPresence>) {
@@ -1048,14 +1001,10 @@ impl<A: BeuiRoot> BeuiTest<A> {
     }
 
     pub fn web_view_event(&mut self, web_view: WebViewId, event: be_sdk_beui::WebViewEvent) {
-        if let Some((_, watch)) = self.web_views.values_mut().find(|(id, _)| *id == web_view) {
-            watch.change(&mut self.connection, |held| {
-                let mut events = held.unwrap_or_default();
-                be_sdk_beui::WebViewEvent::queue(&mut events, event);
-                events
-            });
-            let frames = self.connection.take_outbound();
-            self.inbox.push(Inbound::Frames(frames));
+        if self.web_views.values().any(|id| *id == web_view) {
+            self.wire
+                .call(INSTANCE, EditorCall::WebViewEvent { web_view, event });
+            self.send();
         }
     }
 
@@ -1067,20 +1016,19 @@ impl<A: BeuiRoot> BeuiTest<A> {
 
     pub fn set_watched<W: be_sdk_api::Watched>(&mut self, value: &W::Value) {
         let value = be_sdk_api::ops::encode(value);
-        for (open, watch) in self.published_watches.values_mut() {
-            if *open == W::OPEN {
-                watch.set(&mut self.connection, value.clone());
-            }
-        }
+        self.wire.call(
+            INSTANCE,
+            EditorCall::Watched {
+                open: W::OPEN,
+                value: Arc::new(value.clone()),
+            },
+        );
         self.published.insert(W::OPEN, value);
-        let frames = self.connection.take_outbound();
-        self.inbox.push(Inbound::Frames(frames));
+        self.send();
     }
 
     pub fn watches<W: be_sdk_api::Watched>(&self) -> bool {
-        self.published_watches
-            .values()
-            .any(|(open, _)| *open == W::OPEN)
+        self.wire.watching_published(W::OPEN)
     }
 
     /// How `verify` answers a signature `account` made (`be_sdk_test::signature`); a contact's,
@@ -1090,9 +1038,9 @@ impl<A: BeuiRoot> BeuiTest<A> {
     }
 
     pub fn answer<T, E: crate::wire::Encode<T>>(&mut self, reply: Reply<T, E>, answer: T) {
-        reply.send(&mut self.connection, &answer);
-        let frames = self.connection.take_outbound();
-        self.inbox.push(Inbound::Frames(frames));
+        let (op, outcome) = reply.answer(&answer);
+        self.wire.answer(op, outcome);
+        self.send();
     }
 
     pub fn report_children(&mut self, report: impl Fn(&ChildPlacement) -> ChildStatus) {
@@ -1105,13 +1053,9 @@ impl<A: BeuiRoot> BeuiTest<A> {
                 ..status
             })
             .collect();
-        self.child_statuses.change(&mut self.connection, |held| {
-            let mut held = held.unwrap_or_default();
-            held.extend(statuses);
-            held
-        });
-        let frames = self.connection.take_outbound();
-        self.inbox.push(Inbound::Frames(frames));
+        self.wire
+            .call(INSTANCE, EditorCall::ChildStatuses(statuses));
+        self.send();
     }
 
     pub fn available_children(&mut self) {
@@ -1139,116 +1083,17 @@ impl<A: BeuiRoot> BeuiTest<A> {
             .expect("the editor placed the child to report on");
         let mut status = available_status(view, placement);
         change(&mut status);
-        self.child_statuses.change(&mut self.connection, |held| {
-            let mut held = held.unwrap_or_default();
-            held.retain(|held| held.child != child);
-            held.push(status);
-            held
-        });
-        let frames = self.connection.take_outbound();
-        self.inbox.push(Inbound::Frames(frames));
-    }
-
-    pub fn rect(&self) -> Rect {
-        Rect::from_min_size(Pos2::ZERO, self.size)
-    }
-
-    pub fn size(&self) -> Vec2 {
-        self.size
-    }
-
-    /// Paints the queued frames, then applies the editor's operations to what the host holds
-    /// and sends them back marked as its own, painting again until nothing changes.
-    pub fn run(&mut self) {
-        let frames = std::mem::take(&mut self.frames);
-        if frames.is_empty() {
-            self.step(Vec::new());
-        }
-        for events in frames {
-            self.step(events);
-        }
-        for _ in 0..HOST_ROUNDS {
-            if self.inbox.is_empty() && !self.store.pending() {
-                break;
-            }
-            self.step(Vec::new());
-        }
-    }
-
-    /// Moves the test's clock on and paints. The editor's frame clock is this clock, one frame
-    /// interval per painted frame, so timers cost no real time and land on the same frame on
-    /// every machine.
-    pub fn advance(&mut self, by: std::time::Duration) {
-        self.clock += by;
-        self.run();
-    }
-
-    /// Moves the clock on without painting and hands the app what the host queued, as a call
-    /// reaches an idle editor between frames; the next `run()` paints the frame that takes it.
-    pub fn wait(&mut self, by: std::time::Duration) {
-        self.clock += by;
-        for message in std::mem::take(&mut self.inbox) {
-            self.deliver(message);
-        }
-        self.hear();
-    }
-
-    /// Paints until a frame stops asking to be painted again at once. Call it before a
-    /// snapshot of something that animates in.
-    pub fn settle(&mut self) {
-        self.settle_until("its animations to finish", |test| {
-            test.output.as_ref().is_none_or(|output| {
-                !test.shown_changed() && output.repaint_after > std::time::Duration::ZERO
-            })
-        });
-    }
-
-    /// Paints until `ready` holds, failing with `what` at a deadline. Between frames it waits
-    /// as be-host does, for the editor's `Waker` or the delay it asked for, never a fixed
-    /// time; use it for work on another thread, where a few more `run()`s only widen a race.
-    /// Work that lands without waking the editor stalls it until the deadline, as it would
-    /// in be-host.
-    pub fn settle_until(&mut self, what: &str, ready: impl Fn(&Self) -> bool) {
-        let started = std::time::Instant::now();
-        let mut eager = 0;
-        while started.elapsed() < SETTLE_DEADLINE {
-            let seen = self.wakes.count();
-            self.run();
-            if ready(self) {
-                return;
-            }
-            let (changed, requested) = self
-                .output
-                .as_ref()
-                .map_or((false, std::time::Duration::MAX), |output| {
-                    (self.shown_changed(), output.repaint_after)
-                });
-            if changed && eager < EAGER_FRAMES {
-                eager += 1;
-                continue;
-            }
-            eager = 0;
-            if requested < std::time::Duration::MAX {
-                self.clock += requested.saturating_sub(FRAME_INTERVAL);
-                continue;
-            }
-            let left = SETTLE_DEADLINE.saturating_sub(started.elapsed());
-            self.wakes.wait_past(seen, left);
-        }
-        panic!(
-            "the editor was still waiting for {what} after {SETTLE_DEADLINE:?}\n{}",
-            self.replay()
-        );
+        self.wire
+            .call(INSTANCE, EditorCall::ChildStatuses(vec![status]));
+        self.send();
     }
 
     /// Paints one frame with exactly these events, ignoring what gestures queued.
     pub fn step(&mut self, events: Vec<Input>) {
         self.store.tick(self.clock.as_millis() as u64);
         let mut inbox = std::mem::take(&mut self.inbox);
-        self.link.answer(&self.store, &mut self.connection);
-        self.fetches.answer(&mut self.connection);
-        let mut frames = std::mem::take(&mut self.answered);
-        frames.extend(self.connection.take_outbound());
+        self.answer_wire();
+        let frames = self.wire.take_outbound();
         if !frames.is_empty() {
             inbox.push(Inbound::Frames(frames));
         }
@@ -1260,12 +1105,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
             .as_mut()
             .and_then(|viewport| viewport.place(band, rect.min, intrinsic))
         {
-            inbox.push(self.framed(|editor, connection| {
-                editor.hear(
-                    connection,
-                    vec![EditorEvent::ViewChanged(ViewFrame { view, scale })],
-                );
-            }));
+            inbox.push(self.told(vec![EditorEvent::ViewChanged(ViewFrame { view, scale })]));
         }
         self.clock += FRAME_INTERVAL;
         if !events.is_empty() {
@@ -1344,12 +1184,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
             viewport.place(band, rect.min, intrinsic)
         });
         if let Some((view, scale)) = placed {
-            let framed = self.framed(|editor, connection| {
-                editor.hear(
-                    connection,
-                    vec![EditorEvent::ViewChanged(ViewFrame { view, scale })],
-                );
-            });
+            let framed = self.told(vec![EditorEvent::ViewChanged(ViewFrame { view, scale })]);
             self.inbox.push(framed);
         }
     }
@@ -1412,251 +1247,213 @@ impl<A: BeuiRoot> BeuiTest<A> {
         self.desk_asked(asked, &reports);
     }
 
-    fn call(&mut self, call: impl FnOnce(Editor, &mut Connection)) {
-        let framed = self.framed(call);
-        self.inbox.push(framed);
+    /// Tells the editor `events` (`editor.hear`), with the next frame.
+    fn tell(&mut self, events: Vec<EditorEvent>) {
+        let told = self.told(events);
+        self.inbox.push(told);
     }
 
-    fn framed(&mut self, call: impl FnOnce(Editor, &mut Connection)) -> Inbound {
-        let editor = self.editor.expect("the test opened its editor");
-        call(editor, &mut self.connection);
-        Inbound::Frames(self.connection.take_outbound())
+    /// What tells the editor `events` (`editor.hear`).
+    fn told(&mut self, events: Vec<EditorEvent>) -> Inbound {
+        for event in events {
+            self.wire.event(INSTANCE, event);
+        }
+        self.wire.flush_hearing();
+        Inbound::Frames(self.wire.take_outbound())
     }
 
+    /// Sends what the wire holds for the editor with the next frame.
+    fn send(&mut self) {
+        let frames = self.wire.take_outbound();
+        self.inbox.push(Inbound::Frames(frames));
+    }
+
+    /// Takes what the editor sent: the wire answers what is its own, and hands the rest here.
     fn hear(&mut self) {
+        let mut heard = Vec::new();
         for frame in self.app.take_frames() {
-            self.connection.receive(&frame).unwrap_or_else(|error| {
-                panic!("the app sent a frame that did not decode: {error}")
-            });
+            self.wire
+                .receive(&frame, &mut heard)
+                .unwrap_or_else(|error| panic!("{error}"));
         }
-        while let Some(event) = self.connection.next_event() {
-            let call = match event {
-                Incoming::Started(started) if published(started.method).is_some() => {
-                    let connection = &mut self.connection;
-                    let watching = published(started.method).unwrap_or_else(|| unreachable!());
-                    if watching.open == started.method {
-                        let mut watch = be_sdk_api::Watch::default();
-                        watch.opened(started.op);
-                        if let Some(value) = self.published.get(&watching.open)
-                            && !be_sdk_api::starts_anew(watching.open)
-                        {
-                            watch.set(connection, value.clone());
-                        }
-                        self.published_watches
-                            .insert(started.op, (watching.open, watch));
-                        continue;
-                    }
-                    match started
-                        .parent
-                        .and_then(|parent| self.published_watches.get_mut(&parent))
-                    {
-                        Some((_, watch)) => watch.next_encoded(connection, started.op),
-                        None => connection.complete(started.op, Outcome::Err(OpError::Canceled)),
-                    }
-                    continue;
-                }
-                Incoming::Canceled { op } if self.link.holds(op) => {
-                    self.link.ended(op, &self.store, &mut self.connection);
-                    continue;
-                }
-                Incoming::Canceled { op } if self.revision_previews.contains_key(&op) => {
-                    if let Some((_, commit)) = self.revision_previews.remove(&op) {
-                        self.closed_previews.push(commit);
-                    }
-                    self.preview_asks.retain(|(preview, _)| *preview != op);
-                    self.connection
-                        .complete(op, Outcome::Err(OpError::Canceled));
-                    continue;
-                }
-                Incoming::Canceled { op } if self.fetches.holds(op) => {
-                    self.fetches.ended(op, &mut self.connection);
-                    continue;
-                }
-                Incoming::Canceled { op } if self.fetches.withdrawn(op, &mut self.connection) => {
-                    continue;
-                }
-                Incoming::Started(started) if extension_call(started.method) => {
-                    self.connection.complete(started.op, Outcome::returned(&()));
-                    self.acknowledged.insert(started.op);
-                    self.extension_calls.push(started);
-                    continue;
-                }
-                Incoming::Completed { op, outcome } => {
-                    self.completed.insert(op, outcome);
-                    continue;
-                }
-                Incoming::Started(started) => {
-                    let op = started.op;
-                    let shown = self.block_id();
-                    let connection = &mut self.connection;
-                    match embed::Call::accept(connection, started) {
-                        Some(embed::Call::Shell(call)) => match call {
-                            ShellCall::ChildStatusesWatchNew { resource, .. } => {
-                                self.child_statuses.opened(resource.op());
-                                continue;
-                            }
-                            ShellCall::ChildStatusesWatchNext { reply, .. } => {
-                                self.child_statuses.next(connection, reply);
-                                continue;
-                            }
-                            ShellCall::BlockTypesWatchNew { resource } => {
-                                self.block_types.opened(resource.op());
-                                continue;
-                            }
-                            ShellCall::BlockTypesWatchNext { reply, .. } => {
-                                self.block_types.next(connection, reply);
-                                continue;
-                            }
-                            ShellCall::WebViewNew {
-                                resource, id, url, ..
-                            } => {
-                                let mut watch = be_sdk_api::Watch::default();
-                                watch.opened(resource.op());
-                                self.web_views.insert(resource.op(), (id, watch));
-                                self.web_view_commands.push((id, WebViewCommand::Open(url)));
-                                continue;
-                            }
-                            ShellCall::WebViewNextEvents { this, reply } => {
-                                match self.web_views.get_mut(&this.op()) {
-                                    Some((_, watch)) => watch.next(connection, reply),
-                                    None => reply.fail(connection, OpError::Canceled),
-                                }
-                                continue;
-                            }
-                            call => {
-                                connection.complete(op, Outcome::returned(&()));
-                                self.acknowledged.insert(op);
-                                call
-                            }
-                        },
-                        Some(embed::Call::Debug(call)) => {
-                            match call {
-                                DebugCall::DebugTemplatesWatchNew { resource } => {
-                                    self.debug_templates.opened(resource.op())
-                                }
-                                DebugCall::DebugTemplatesWatchNext { reply, .. } => {
-                                    self.debug_templates.next(connection, reply)
-                                }
-                                DebugCall::Performance { reply, .. }
-                                | DebugCall::SimulateAccess { reply, .. } => {
-                                    reply.send(connection, &());
-                                    self.acknowledged.insert(op);
-                                }
-                            }
-                            continue;
-                        }
-                        Some(embed::Call::Blocks(call)) => {
-                            if call.changes() {
-                                self.acknowledged.insert(op);
-                            }
-                            let author = self.host.account_id();
-                            self.link.call(call, &self.store, connection, author);
-                            continue;
-                        }
-                        Some(embed::Call::HostServices(Call::RevisionPreviewNew {
-                            resource,
-                            block,
-                            commit,
-                        })) => {
-                            self.revision_previews
-                                .insert(resource.op(), (block, commit));
-                            continue;
-                        }
-                        Some(embed::Call::HostServices(Call::RevisionPreviewOpened {
-                            this,
-                            reply,
-                        })) => {
-                            self.preview_asks.push((this.op(), reply));
-                            continue;
-                        }
-                        Some(embed::Call::HostServices(call)) => {
-                            if let Some(call) = self.signatures.answer(call, connection, shown) {
-                                self.requests.push((Some(op), call));
-                            }
-                            continue;
-                        }
-                        Some(embed::Call::Network(call)) => {
-                            self.fetches.call(call, connection);
-                            continue;
-                        }
-                        Some(call) => {
-                            let (op, outcome) = call.refuse(OpError::Unsupported);
-                            connection.complete(op, outcome);
-                            continue;
-                        }
-                        None => continue,
-                    }
-                }
-                Incoming::Canceled { op } => {
-                    let connection = &mut self.connection;
-                    if self
-                        .published_watches
-                        .values_mut()
-                        .any(|(_, watch)| watch.withdraw(connection, op))
-                    {
-                        continue;
-                    }
-                    self.published_watches.remove(&op);
-                    if let Some((id, _)) = self.web_views.remove(&op) {
-                        self.web_view_commands.push((id, WebViewCommand::Close));
-                    }
-                    self.requests.retain(|(asked, _)| *asked != Some(op));
-                    self.connection
-                        .complete(op, Outcome::Err(OpError::Canceled));
-                    continue;
-                }
-                Incoming::Yielded { .. } | Incoming::Credited { .. } => continue,
-            };
-            let shown = |this: &be_sdk_api::embed::shell::WebView| {
-                self.web_views.get(&this.op()).map(|(id, _)| *id)
-            };
-            let commanded = match &call {
-                ShellCall::WebViewLoad { this, url, .. } => {
-                    shown(this).map(|id| (id, WebViewCommand::Load(url.clone())))
-                }
-                ShellCall::WebViewReload { this, .. } => {
-                    shown(this).map(|id| (id, WebViewCommand::Reload))
-                }
-                ShellCall::WebViewFocusHost { this, .. } => {
-                    shown(this).map(|id| (id, WebViewCommand::FocusHost))
-                }
-                _ => None,
-            };
-            if let Some(commanded) = commanded {
-                self.web_view_commands.push(commanded);
-                continue;
-            }
-            let ShellCall::Tell { messages, .. } = call else {
-                continue;
-            };
-            for message in messages {
-                match &message {
-                    ShellMessage::Menu(MenuSet { view, items }) if view.is_main() => {
-                        self.menu = MenuEntry::nest(items.clone()).unwrap_or_else(|error| {
-                            panic!("the app sent a menu it may not: {error}")
-                        });
-                    }
-                    ShellMessage::LeaveFrame => self.exited = true,
-                    ShellMessage::ArtifactEdited(data) => self.draft.clone_from(data),
-                    ShellMessage::IntrinsicSize(size) => {
-                        self.intrinsic = *size;
-                    }
-                    _ => {}
-                }
-                self.calls.push(message);
-            }
+        for heard in heard {
+            self.heard(heard);
         }
-        self.link.answer(&self.store, &mut self.connection);
-        self.fetches.answer(&mut self.connection);
-        let frames = self.connection.take_outbound();
-        let acknowledged = &mut self.acknowledged;
-        match frames.iter().all(|frame| acknowledges(frame, acknowledged)) {
-            true => self.answered.extend(frames),
-            false => {
-                let mut answered = std::mem::take(&mut self.answered);
-                answered.extend(frames);
-                self.inbox.push(Inbound::Frames(answered));
+        self.answer_wire();
+        let frames = self.wire.take_outbound();
+        if !frames.is_empty() {
+            self.inbox.push(Inbound::Frames(frames));
+        }
+    }
+
+    /// Answers what the store, the fetches and the workers have for the editor since.
+    fn answer_wire(&mut self) {
+        self.store.sign_in(self.host.account_id());
+        self.link.answer(&self.store, &mut self.wire);
+        self.fetches.answer(&mut self.wire);
+        self.wire.poll_sandbox();
+    }
+
+    /// Sends what the fetches have for the editor.
+    fn answer_fetches(&mut self) {
+        self.answer_wire();
+        self.send();
+    }
+
+    fn heard(&mut self, heard: Heard) {
+        let shell = match heard {
+            Heard::Watch(_, open, watch) => {
+                if let Some(value) = self.published.get(&open)
+                    && !be_sdk_api::starts_anew(open)
+                {
+                    self.wire.set_published(watch, value.clone());
+                }
+                return;
             }
+            Heard::Published(_, started) => {
+                // Taken whatever it asks: the test hosts no previews or shell, which are all
+                // be-host denies a published call to.
+                self.wire.answer(started.op, Outcome::returned(&()));
+                self.extension_calls.push(started);
+                return;
+            }
+            Heard::Ended(op) => {
+                self.link.ended(op, &self.store);
+                if let Some((_, commit)) = self.revision_previews.remove(&op) {
+                    self.closed_previews.push(commit);
+                }
+                self.preview_asks.retain(|(preview, _)| *preview != op);
+                self.fetches.ended(op, &mut self.wire);
+                return;
+            }
+            Heard::Withdrawn(op) => {
+                self.fetches.withdrawn(op, &mut self.wire);
+                self.requests.retain(|(asked, _)| *asked != Some(op));
+                return;
+            }
+            Heard::Blocks(_, call) => {
+                let author = self.host.account_id();
+                self.link.call(call, &self.store, &mut self.wire, author);
+                return;
+            }
+            Heard::Service(Service { call, .. }) => {
+                match call {
+                    HostCall::RevisionPreviewNew {
+                        resource,
+                        block,
+                        commit,
+                    } => {
+                        self.revision_previews
+                            .insert(resource.op(), (block, commit));
+                    }
+                    HostCall::RevisionPreviewOpened { this, reply } => {
+                        self.preview_asks.push((this.op(), reply));
+                    }
+                    call => {
+                        let op = call.op();
+                        match self.signatures.answer(call, self.block_id()) {
+                            Ok((op, outcome)) => self.wire.answer(op, outcome),
+                            Err(call) => self.requests.push((Some(op), call)),
+                        }
+                    }
+                }
+                return;
+            }
+            Heard::Network(_, call) => {
+                self.fetches.call(call, &mut self.wire);
+                return;
+            }
+            Heard::Debug(_, call) => {
+                // The host keeps no performance report and simulates no access in a test.
+                match call {
+                    DebugCall::Performance { reply, .. }
+                    | DebugCall::SimulateAccess { reply, .. } => {
+                        let (op, outcome) = reply.answer(&());
+                        self.wire.answer(op, outcome);
+                    }
+                    call => {
+                        let (op, outcome) = call.refuse(OpError::Unsupported);
+                        self.wire.answer(op, outcome);
+                    }
+                }
+                return;
+            }
+            Heard::Shell(call) => call,
+            // The app's session runs in process (`HeadlessApp`), which takes its hello, frames and
+            // the rest without the wire; nothing else reaches the test.
+            Heard::Hello(_)
+            | Heard::Layout(_)
+            | Heard::FrameNeeded
+            | Heard::MissingCharacters(_)
+            | Heard::LaidOut(_)
+            | Heard::Presented(_)
+            | Heard::ShutDown
+            | Heard::Unanswered(_)
+            | Heard::Answer(..)
+            | Heard::Paintings(_)
+            | Heard::Unwatch(..) => return,
+        };
+        let call = match shell {
+            ShellCall::WebViewNew {
+                resource, id, url, ..
+            } => {
+                self.web_views.insert(resource.op(), id);
+                self.web_view_commands.push((id, WebViewCommand::Open(url)));
+                return;
+            }
+            call => call,
+        };
+        let shown =
+            |this: &be_sdk_api::embed::shell::WebView| self.web_views.get(&this.op()).copied();
+        let (commanded, reply) = match call {
+            ShellCall::WebViewLoad { this, url, reply } => (
+                shown(&this).map(|id| (id, WebViewCommand::Load(url))),
+                reply,
+            ),
+            ShellCall::WebViewReload { this, reply } => {
+                (shown(&this).map(|id| (id, WebViewCommand::Reload)), reply)
+            }
+            ShellCall::WebViewFocusHost { this, reply } => (
+                shown(&this).map(|id| (id, WebViewCommand::FocusHost)),
+                reply,
+            ),
+            ShellCall::Tell {
+                reply, messages, ..
+            } => {
+                let (op, outcome) = reply.answer(&());
+                self.wire.answer(op, outcome);
+                self.told_host(messages);
+                return;
+            }
+            call => {
+                let (op, outcome) = call.refuse(OpError::Unsupported);
+                self.wire.answer(op, outcome);
+                return;
+            }
+        };
+        let (op, outcome) = reply.answer(&());
+        self.wire.answer(op, outcome);
+        if let Some(commanded) = commanded {
+            self.web_view_commands.push(commanded);
+        }
+    }
+
+    /// What the editor told its host (`shell.tell`).
+    fn told_host(&mut self, messages: Vec<ShellMessage>) {
+        for message in messages {
+            match &message {
+                ShellMessage::Menu(MenuSet { view, items }) if view.is_main() => {
+                    self.menu = MenuEntry::nest(items.clone())
+                        .unwrap_or_else(|error| panic!("the app sent a menu it may not: {error}"));
+                }
+                ShellMessage::LeaveFrame => self.exited = true,
+                ShellMessage::ArtifactEdited(data) => self.draft.clone_from(data),
+                ShellMessage::IntrinsicSize(size) => {
+                    self.intrinsic = *size;
+                }
+                _ => {}
+            }
+            self.calls.push(message);
         }
     }
 
@@ -1685,6 +1482,15 @@ impl<A: BeuiRoot> BeuiTest<A> {
                 .iter()
                 .find(|item| item.format == format)
                 .and_then(|item| Some(be_sdk_api::ClipItem::of_body(format, item.body.clone()?))),
+            _ => None,
+        })
+    }
+
+    /// The failures the editor reported for the host to show (`EditorHost::report_failure`),
+    /// in the order it reported them.
+    pub fn take_reported_failures(&mut self) -> Vec<String> {
+        self.take_shell_messages(|call| match call {
+            ShellMessage::ReportFailure(message) => Some(message.clone()),
             _ => None,
         })
     }
@@ -1805,9 +1611,11 @@ impl<A: BeuiRoot> BeuiTest<A> {
 
     /// Runs an action by id as the host's palette does (`app.run-action`).
     pub fn run_action(&mut self, id: &str) {
-        be_sdk_api::embed::exports::app::run_action(&mut self.connection, SCREEN, id.to_owned());
-        let frames = self.connection.take_outbound();
-        self.inbox.push(Inbound::Frames(frames));
+        self.wire.app_call(AppCall::RunAction {
+            screen: SCREEN,
+            id: id.to_owned(),
+        });
+        self.send();
         self.run();
     }
 
@@ -1834,22 +1642,15 @@ impl<A: BeuiRoot> BeuiTest<A> {
     }
 
     pub fn show_dialog(&mut self, block: Uuid, dialog: be_sdk_api::ShellDialog) {
-        self.call(|editor, connection| {
-            editor.hear(
-                connection,
-                vec![EditorEvent::ShowDialog(DialogRequest {
-                    block: block.into_bytes(),
-                    dialog,
-                })],
-            );
-        });
+        self.tell(vec![EditorEvent::ShowDialog(DialogRequest {
+            block: block.into_bytes(),
+            dialog,
+        })]);
     }
 
     /// The host tells the editor it was opened at `at` in its block (`editor-event.reveal`).
     pub fn open_at(&mut self, at: be_sdk_api::SearchLocation) {
-        self.call(|editor, connection| {
-            editor.hear(connection, vec![EditorEvent::Reveal(at)]);
-        });
+        self.tell(vec![EditorEvent::Reveal(at)]);
     }
 
     pub fn take_renames(&mut self) -> Vec<(Uuid, Option<String>)> {
@@ -1897,6 +1698,17 @@ impl<A: BeuiRoot> BeuiTest<A> {
         })
     }
 
+    /// The ownership the editor gave away (`host-services.transfer-ownership`): each block and
+    /// its new owner, in order.
+    pub fn take_ownership_transfers(&mut self) -> Vec<(Uuid, Uuid)> {
+        self.take_requests_where(|call| match call {
+            Call::TransferOwnership { block, account, .. } => {
+                Ok((Uuid::from_bytes(block), Uuid::from_bytes(account)))
+            }
+            call => Err(call),
+        })
+    }
+
     /// What the editor's replica announced to the block's other members once the server held an
     /// edit (`LiveEdit::announcements`): the block, the text and the accounts it mentions.
     pub fn take_announced(&mut self) -> Vec<(Uuid, String, Vec<Uuid>)> {
@@ -1908,6 +1720,14 @@ impl<A: BeuiRoot> BeuiTest<A> {
     pub fn take_push_device_requests(&mut self) -> Vec<bool> {
         self.take_requests_where(|call| match call {
             Call::SetPushDevice { on, .. } => Ok(on),
+            call => Err(call),
+        })
+    }
+
+    /// What the editor said of its phone layout (`host-services.set-phone-layout`), in order.
+    pub fn take_phone_layout_requests(&mut self) -> Vec<bool> {
+        self.take_requests_where(|call| match call {
+            Call::SetPhoneLayout { on, .. } => Ok(on),
             call => Err(call),
         })
     }
@@ -1959,6 +1779,14 @@ impl<A: BeuiRoot> BeuiTest<A> {
         !self.requests.is_empty()
     }
 
+    /// Serves the worker module `module` (such as `"tiles.wasm"`) as `W` whenever the editor
+    /// spawns it (be_sdk::worker::Worker::spawn), in the test's own instance rather than one of
+    /// its own, so each job it is sent is done before the editor next steps. A worker the test
+    /// does not serve fails at once.
+    pub fn serve_worker<W: be_sdk_beui::worker::Work>(&mut self, module: &str) {
+        self.workers.0.borrow_mut().serve::<W>(module);
+    }
+
     /// Whether the editor sent a fetch `take_fetches` has not taken yet.
     pub fn has_fetches(&self) -> bool {
         self.fetches.has_sent()
@@ -1979,17 +1807,13 @@ impl<A: BeuiRoot> BeuiTest<A> {
         chunks: impl IntoIterator<Item = Vec<u8>>,
     ) {
         self.fetches.respond(fetch, head, chunks);
-        self.fetches.answer(&mut self.connection);
-        let frames = self.connection.take_outbound();
-        self.inbox.push(Inbound::Frames(frames));
+        self.answer_fetches();
     }
 
     /// Answers `fetch` with `failure`: no response came, or the body ends with it.
     pub fn fail_fetch(&mut self, fetch: &crate::Fetch, failure: be_sdk_beui::Failure) {
         self.fetches.fail(fetch, failure);
-        self.fetches.answer(&mut self.connection);
-        let frames = self.connection.take_outbound();
-        self.inbox.push(Inbound::Frames(frames));
+        self.answer_fetches();
     }
 
     /// The links the editor opened with `EditorHost::open_url` since the last call.
@@ -2119,10 +1943,6 @@ impl<A: BeuiRoot> BeuiTest<A> {
         self.window.pointer_locked
     }
 
-    pub fn pointer_motion(&mut self, delta: Vec2) {
-        self.push(Input::PointerMotion(delta));
-    }
-
     pub fn intrinsic_size(&self) -> Option<Vec2> {
         self.intrinsic
     }
@@ -2135,32 +1955,28 @@ impl<A: BeuiRoot> BeuiTest<A> {
         }
     }
 
-    fn push(&mut self, event: Input) {
-        match self.frames.last_mut() {
-            Some(frame) => frame.push(event),
-            None => self.frames.push(vec![event]),
-        }
-    }
-
+    /// Paints `frames` before returning, as a gesture does, or keeps them for the frame
+    /// `in_one_frame` paints.
     fn perform(&mut self, frames: Frames) {
-        for (index, frame) in frames.into_iter().enumerate() {
-            if index > 0 {
-                self.next_frame();
-            }
-            for event in frame {
-                self.push(event);
-            }
+        self.frames.extend(frames);
+        if !self.one_frame {
+            self.run();
         }
     }
 
-    pub fn next_frame(&mut self) {
-        if self.frames.last().is_some_and(|frame| !frame.is_empty()) {
-            self.frames.push(Vec::new());
-        }
-    }
-
-    pub fn back(&mut self) {
-        self.drive("back", &[], &[]);
+    /// Paints everything `input` gives with `pen`, `eraser`, `predict`, `hold_modifiers` and
+    /// the host's keys in one frame, as a device that coalesces its samples delivers them. The
+    /// other gestures paint their own frames, so they are not given inside it.
+    pub fn in_one_frame(&mut self, input: impl FnOnce(&mut Self)) {
+        assert!(!self.one_frame, "in_one_frame does not nest");
+        self.one_frame = true;
+        input(self);
+        self.one_frame = false;
+        let events: Vec<Input> = std::mem::take(&mut self.frames)
+            .into_iter()
+            .flatten()
+            .collect();
+        self.perform(vec![events]);
     }
 
     pub fn handles_back(&self) -> bool {
@@ -2190,28 +2006,32 @@ impl<A: BeuiRoot> BeuiTest<A> {
         {
             return false;
         }
-        self.hold_modifiers(modifiers);
+        let mut frames = self.gestures.hold(modifiers);
         let presses = std::iter::once((true, false))
             .chain(std::iter::repeat_n((true, true), repeats))
-            .chain(std::iter::once((false, false)));
-        for (pressed, repeat) in presses {
-            self.push(Input::InterceptedKey {
+            .chain(std::iter::once((false, false)))
+            .map(|(pressed, repeat)| Input::InterceptedKey {
                 key,
                 pressed,
                 repeat,
             });
+        match frames.last_mut() {
+            Some(last) => last.extend(presses),
+            None => frames.push(presses.collect()),
         }
+        self.perform(frames);
         true
     }
 
     pub fn host_tap(&mut self, key: Key) -> bool {
-        if let Some(tapped) = self.desk_tap(key) {
-            return tapped;
+        if self.desk_tap(key) {
+            self.perform(Vec::new());
+            return true;
         }
         if !self.intercepted_keys().contains(&KeyChord::tap(key)) {
             return false;
         }
-        self.push(Input::InterceptedTap(key));
+        self.perform(vec![vec![Input::InterceptedTap(key)]]);
         true
     }
 
@@ -2220,92 +2040,8 @@ impl<A: BeuiRoot> BeuiTest<A> {
         self.perform(frames);
     }
 
-    pub fn shown(&self, test_id: &str) -> bool {
-        self.output
-            .as_ref()
-            .expect("the editor has not drawn a frame yet")
-            .test_id_rect(test_id)
-            .is_some()
-    }
-
-    pub fn label(&self, test_id: &str) -> String {
-        let node = self
-            .document()
-            .find_test_id(test_id)
-            .unwrap_or_else(|| panic!("no element with test id {test_id:?}"));
-        let mut collected = Vec::new();
-        collect_text(&self.document(), node, &mut collected);
-        collected.join(" ")
-    }
-
-    pub fn accessible_label(&self, test_id: &str) -> Option<String> {
-        let document = self.document();
-        let node = document
-            .find_test_id(test_id)
-            .unwrap_or_else(|| panic!("no element with test id {test_id:?}"));
-        document
-            .accessibility
-            .get(&node)?
-            .label()
-            .map(str::to_owned)
-    }
-
-    pub fn accessible_description(&self, test_id: &str) -> Option<String> {
-        let document = self.document();
-        let node = document
-            .find_test_id(test_id)
-            .unwrap_or_else(|| panic!("no element with test id {test_id:?}"));
-        document
-            .accessibility
-            .get(&node)?
-            .description()
-            .map(str::to_owned)
-    }
-
-    pub fn rect_of(&self, test_id: &str) -> Rect {
-        self.output
-            .as_ref()
-            .expect("the editor has not drawn a frame yet")
-            .test_id_rect(test_id)
-            .unwrap_or_else(|| panic!("no element with test id {test_id:?}\n{}", self.replay()))
-    }
-
-    pub fn point_of(&self, test_id: &str) -> Pos2 {
-        let rect = self.rect_of(test_id);
-        let shown = rect.intersect(self.rect());
-        match shown.is_positive() {
-            true => shown.center(),
-            false => rect.center(),
-        }
-    }
-
-    pub fn reveal(&mut self, test_id: &str) {
-        let cut = crate::document::scroll_cuts(&self.document(), test_id);
-        let painted = self
-            .output
-            .as_ref()
-            .and_then(|output| output.test_id_rect(test_id));
-        if !cut
-            && painted.is_some_and(|rect| self.desk.is_some() || self.rect().contains_rect(rect))
-        {
-            return;
-        }
-        {
-            let mut document = self
-                .app
-                .document_mut()
-                .expect("the editor has not built its view yet");
-            let node = document
-                .find_test_id(test_id)
-                .unwrap_or_else(|| panic!("no element with test id {test_id:?}"));
-            document.reveal_node(node);
-        }
-        self.run();
-    }
-
     pub fn secondary_drag(&mut self, from: Pos2, to: Pos2) {
         self.down(from, PointerButton::Secondary);
-        self.next_frame();
         self.up(to, PointerButton::Secondary);
     }
 
@@ -2331,7 +2067,9 @@ impl<A: BeuiRoot> BeuiTest<A> {
         self.perform(frames);
     }
 
-    pub fn pinch(&mut self, pos: Pos2, factor: f32) {
+    /// Zooms the editor's view as the host does for a pinch on it, without the pinch
+    /// reaching the editor (a `pinch` gesture is the pinch itself).
+    pub fn zoom_view(&mut self, pos: Pos2, factor: f32) {
         self.steps.push(format!(
             "drive pinch {} {factor}",
             Target::point(pos).word(1.0)
@@ -2344,40 +2082,10 @@ impl<A: BeuiRoot> BeuiTest<A> {
         self.run();
     }
 
+    /// Gives where the device predicts the pointer goes next, painting the frame that takes
+    /// it; `in_one_frame` gives it with the samples it follows.
     pub fn predict(&mut self, pos: Pos2) {
-        self.push(Input::Predicted(pos));
-    }
-
-    pub fn hover(&mut self, target: impl Into<Target>) {
-        self.drive_at("move", &[target.into()], &[]);
-    }
-
-    pub fn click(&mut self, target: impl Into<Target>) {
-        self.drive_at("click", &[target.into()], &[]);
-    }
-
-    pub fn click_with(&mut self, target: impl Into<Target>, button: PointerButton) {
-        self.drive_at("click", &[target.into()], &[button_name(button)]);
-    }
-
-    pub fn double_click(&mut self, target: impl Into<Target>) {
-        self.drive_at("click", &[target.into()], &["double".to_owned()]);
-    }
-
-    pub fn tap(&mut self, target: impl Into<Target>) {
-        self.drive_at("tap", &[target.into()], &[]);
-    }
-
-    pub fn down(&mut self, target: impl Into<Target>, button: PointerButton) {
-        self.drive_at("down", &[target.into()], &[button_name(button)]);
-    }
-
-    pub fn up(&mut self, target: impl Into<Target>, button: PointerButton) {
-        self.drive_at("up", &[target.into()], &[button_name(button)]);
-    }
-
-    pub fn drag(&mut self, from: impl Into<Target>, to: impl Into<Target>) {
-        self.drive_at("drag", &[from.into(), to.into()], &[]);
+        self.perform(vec![vec![Input::Predicted(pos)]]);
     }
 
     /// Spends a frame on each point and releases in a frame of its own, for a gesture whose
@@ -2388,93 +2096,76 @@ impl<A: BeuiRoot> BeuiTest<A> {
         };
         self.down(from, PointerButton::Primary);
         for &at in &points[1..] {
-            self.next_frame();
             self.hover(at);
         }
-        self.next_frame();
         self.up(to, PointerButton::Primary);
     }
 
     /// Takes the keyboard from the editor's view, as when its window loses the focus (`drive
     /// blur`); `focus` gives it back.
     pub fn blur(&mut self) {
-        self.drive("blur", &[], &[]);
+        self.gesture("blur", &[], &[]);
     }
 
     pub fn focus(&mut self) {
-        self.drive("focus", &[], &[]);
+        self.gesture("focus", &[], &[]);
     }
 
-    pub fn scroll(&mut self, target: impl Into<Target>, by: Vec2) {
-        self.drive_at(
-            "scroll",
-            &[target.into()],
-            &[by.y.to_string(), by.x.to_string()],
+    fn painted(&self) -> Snapshot {
+        let behind = beui::styled::Theme::of(self.document().preferences().theme).background;
+        let shown = self
+            .shown_output()
+            .expect("the editor has not drawn its window yet");
+        let painting = beui::native::painting::painting(
+            shown,
+            self.size,
+            shown.pixels_per_point,
+            behind,
+            beui::native::painting::Punches::Shown,
+        )
+        .and_then(Snapshot::of_painting);
+        painting.expect("the painting could not be rendered")
+    }
+}
+
+impl<A: BeuiRoot + AppEditor> Gui for BeuiTest<A> {
+    type DocumentRef<'a> = std::cell::Ref<'a, Document>;
+    type DocumentMut<'a> = std::cell::RefMut<'a, Document>;
+
+    fn document(&self) -> std::cell::Ref<'_, Document> {
+        self.app
+            .document()
+            .expect("the editor has not built its view yet")
+    }
+
+    fn document_mut(&mut self) -> std::cell::RefMut<'_, Document> {
+        self.app
+            .document_mut()
+            .expect("the editor has not built its view yet")
+    }
+
+    fn tree(&self) -> std::rc::Rc<beui::native::accessibility_dump::Rendered> {
+        self.output
+            .as_ref()
+            .map(beui::native::FrameOutput::tree)
+            .unwrap_or_default()
+    }
+
+    fn size(&self) -> Vec2 {
+        self.size
+    }
+
+    fn pixels_per_point(&self) -> f32 {
+        1.0
+    }
+
+    /// Plans the gesture's frames as drive does, queues them (on the desk, through its
+    /// windows) and paints them with `run`.
+    fn gesture(&mut self, command: &str, arguments: &[String], targets: &[Target]) {
+        assert!(
+            !self.one_frame,
+            "{command} paints its own frames, so in_one_frame does not take it"
         );
-    }
-
-    pub fn fingers<T: Into<Target> + Clone>(&mut self, phase: TouchPhase, fingers: &[(u64, T)]) {
-        let targets: Vec<Target> = fingers
-            .iter()
-            .map(|(_, target)| target.clone().into())
-            .collect();
-        let phase = match phase {
-            TouchPhase::Start => "down",
-            TouchPhase::Move => "move",
-            TouchPhase::End => "up",
-            TouchPhase::Cancel => "cancel",
-        };
-        let words: Vec<String> = std::iter::once(phase.to_owned())
-            .chain(
-                fingers
-                    .iter()
-                    .zip(&targets)
-                    .map(|((finger, _), target)| format!("{finger}={}", target.word(1.0))),
-            )
-            .collect();
-        self.drive("touch", &words, &targets);
-    }
-
-    pub fn type_text(&mut self, text: &str) {
-        self.drive("type", &[text.to_owned()], &[]);
-    }
-
-    pub fn key(&mut self, key: Key, modifiers: Modifiers) {
-        let chord = beui::input::typing::chord_name(key, modifiers)
-            .unwrap_or_else(|| panic!("drive has no name for {modifiers:?}+{key:?}"));
-        self.drive("key", &[chord], &[]);
-    }
-
-    pub fn key_down(&mut self, key: Key) {
-        self.held_key(key, true);
-    }
-
-    pub fn key_up(&mut self, key: Key) {
-        self.held_key(key, false);
-    }
-
-    fn held_key(&mut self, key: Key, pressed: bool) {
-        let command = if pressed { "keydown" } else { "keyup" };
-        let name = key
-            .name()
-            .unwrap_or_else(|| panic!("drive has no name for {key:?}"));
-        self.drive(command, &[name], &[]);
-    }
-
-    pub fn steps(&self) -> &[String] {
-        &self.steps
-    }
-
-    fn drive_at(&mut self, command: &str, targets: &[Target], rest: &[String]) {
-        let words: Vec<String> = targets
-            .iter()
-            .map(|target| target.word(1.0))
-            .chain(rest.iter().cloned())
-            .collect();
-        self.drive(command, &words, targets);
-    }
-
-    fn drive(&mut self, command: &str, arguments: &[String], targets: &[Target]) {
         let mut step = format!("drive {command}");
         for word in arguments {
             let plain = !word.is_empty()
@@ -2503,8 +2194,66 @@ impl<A: BeuiRoot> BeuiTest<A> {
             .unwrap_or_else(|error| panic!("{error}\n{}", self.replay()));
         match self.desk.is_some() && matches!(command, "click" | "move" | "down" | "up" | "drag") {
             true => self.desk_perform(frames),
-            false => self.perform(frames),
+            false => self.frames.extend(frames),
         }
+        self.run();
+    }
+
+    /// Paints the queued frames, then applies the editor's operations to what the host holds
+    /// and sends them back marked as its own, painting again until nothing changes.
+    fn run(&mut self) {
+        let frames = std::mem::take(&mut self.frames);
+        if frames.is_empty() {
+            self.step(Vec::new());
+        }
+        for events in frames {
+            self.step(events);
+        }
+        for _ in 0..HOST_ROUNDS {
+            self.store.sign_in(self.host.account_id());
+            if self.inbox.is_empty() && !self.store.pending() {
+                break;
+            }
+            self.step(Vec::new());
+        }
+    }
+
+    fn settled(&self) -> bool {
+        self.output.as_ref().is_none_or(|output| {
+            !self.shown_changed() && output.repaint_after > std::time::Duration::ZERO
+        })
+    }
+
+    fn last_frame(&self) -> (bool, std::time::Duration) {
+        self.output
+            .as_ref()
+            .map_or((false, std::time::Duration::MAX), |output| {
+                (self.shown_changed(), output.repaint_after)
+            })
+    }
+
+    /// Moves the test's clock on without painting and hands the app what the host queued, as
+    /// a call reaches an idle editor between frames. The editor's frame clock is this clock,
+    /// one frame interval per painted frame, so timers cost no real time and land on the same
+    /// frame on every machine.
+    fn advance(&mut self, by: std::time::Duration) {
+        self.clock += by;
+        for message in std::mem::take(&mut self.inbox) {
+            self.deliver(message);
+        }
+        self.hear();
+    }
+
+    fn wakes(&self) -> &Wakes {
+        &self.wakes
+    }
+
+    fn steps(&self) -> &[String] {
+        &self.steps
+    }
+
+    fn shows_whole(&self, rect: Rect) -> bool {
+        self.desk.is_some() || self.rect().contains_rect(rect)
     }
 
     fn point(&mut self, target: Target) -> Pos2 {
@@ -2532,62 +2281,23 @@ impl<A: BeuiRoot> BeuiTest<A> {
             ),
         }
     }
+}
 
-    fn replay(&self) -> String {
-        let mut replay = String::from("the steps so far, as drive commands:\n");
-        for step in &self.steps {
-            replay.push_str("  ");
-            replay.push_str(step);
-            replay.push('\n');
-        }
-        replay
+impl<A: BeuiRoot + AppEditor> Snapshots for BeuiTest<A> {
+    fn capture(&mut self) -> Snapshot {
+        self.painted()
     }
 
-    pub fn record(&mut self) {
-        let frame = self.painted();
-        self.note_overflows();
-        match &mut self.recording {
-            Some(recording) => recording.append(frame),
-            None => self.recording = Some(frame),
-        }
-    }
-
-    pub fn snapshot(&mut self, name: &str) {
-        let painting = match self.recording.take() {
-            Some(recording) => recording,
-            None => {
-                self.note_overflows();
-                self.painted()
-            }
-        };
-        beui_paint_snapshot::assert_accepted(name, &painting, beui_paint_snapshot::HOW_TO_ACCEPT);
-        assert_fits(name, std::mem::take(&mut self.overflows));
-    }
-
-    fn note_overflows(&mut self) {
-        let found: Vec<String> = self
-            .document()
+    fn out_of_bounds(&self) -> Vec<String> {
+        self.document()
             .overflows()
             .iter()
             .map(ToString::to_string)
-            .collect();
-        self.overflows.extend(found);
+            .collect()
     }
 
-    fn painted(&mut self) -> Snapshot {
-        let behind = beui::styled::Theme::of(self.document().preferences().theme).background;
-        let shown = self
-            .shown_output()
-            .expect("the editor has not drawn its window yet");
-        let painting = beui::native::painting::painting(
-            shown,
-            self.size,
-            shown.pixels_per_point,
-            behind,
-            beui::native::painting::Punches::Shown,
-        )
-        .and_then(Snapshot::of_painting);
-        painting.expect("the painting could not be rendered")
+    fn recording(&mut self) -> &mut Recording {
+        &mut self.recording
     }
 }
 
@@ -2596,27 +2306,38 @@ fn roundtrip<T: serde::Serialize + serde::de::DeserializeOwned>(value: T, what: 
         .unwrap_or_else(|| panic!("{what} could not be read back"))
 }
 
-fn collect_text(document: &Document, node: beui::NodeId, collected: &mut Vec<String>) {
-    if document.node_kind(node) == "text" {
-        let detail = document.node_detail(node).unwrap_or_default();
-        let text = detail.trim_matches('"');
-        collected.extend(
+/// The deepest the host zooms the editor `A`: its manifest's `max_zoom`, or be-host's default.
+/// A root several editors share must be given the same by each.
+fn max_zoom<A: AppEditor>() -> f32 {
+    let manifest =
+        be_sdk_manifest::ManifestDocument::parse(A::MANIFEST).expect("the app's manifest parses");
+    let zooms: Vec<f32> = A::EDITORS
+        .iter()
+        .map(|editor| {
+            let (_, document) = manifest
+                .editors
+                .0
+                .iter()
+                .find(|(name, _)| name == editor)
+                .unwrap_or_else(|| panic!("the app's manifest names no editor {editor:?}"));
             document
-                .text_icons(node)
-                .into_iter()
-                .map(|glyph| glyph.as_str().to_owned()),
-        );
-        if !text.is_empty() {
-            collected.push(text.to_owned());
-        }
-    }
-    for child in document.children(node) {
-        collect_text(document, child, collected);
-    }
+                .capabilities
+                .max_zoom
+                .map_or(MAXIMUM_ZOOM, |zoom| zoom as f32)
+        })
+        .collect();
+    let first = zooms[0];
+    assert!(
+        zooms.iter().all(|zoom| *zoom == first),
+        "the editors {:?} share a root but not a max_zoom",
+        A::EDITORS
+    );
+    first
 }
 
 struct Viewport {
     zoom: f32,
+    max_zoom: f32,
     pan: Vec2,
     moved: bool,
     world: Option<Vec2>,
@@ -2625,9 +2346,10 @@ struct Viewport {
 }
 
 impl Viewport {
-    fn new() -> Self {
+    fn new(max_zoom: f32) -> Self {
         Self {
             zoom: 1.0,
+            max_zoom,
             pan: Vec2::ZERO,
             moved: false,
             world: None,
@@ -2704,7 +2426,7 @@ impl Viewport {
         if let Some(area) = self.fitted.filter(|_| drawn && !self.moved) {
             let content = self.content(region, intrinsic);
             let (scale, centre) = area.fit(content, region.size());
-            self.zoom = scale.clamp(MINIMUM_ZOOM, MAXIMUM_ZOOM);
+            self.zoom = scale.clamp(MINIMUM_ZOOM, self.max_zoom);
             self.pan = (content * 0.5 - centre.to_vec2()) * self.zoom;
         }
     }
@@ -2722,36 +2444,11 @@ impl Viewport {
     }
 
     fn zoom_at(&mut self, factor: f32, anchor: Pos2, region: Rect) {
-        let zoom = (self.zoom * factor).clamp(MINIMUM_ZOOM, MAXIMUM_ZOOM);
+        let zoom = (self.zoom * factor).clamp(MINIMUM_ZOOM, self.max_zoom);
         let anchor = anchor - region.center();
         self.pan = anchor - (anchor - self.pan) * (zoom / self.zoom);
         self.zoom = zoom;
     }
-}
-
-fn acknowledges(frame: &[u8], acknowledged: &mut std::collections::HashSet<OpId>) -> bool {
-    match be_sdk_api::ops::decode_frame(frame) {
-        Ok(be_sdk_api::ops::Frame::Complete { op, outcome }) => {
-            acknowledged.remove(&op) || outcome == Outcome::Err(OpError::Unanswered)
-        }
-        _ => false,
-    }
-}
-
-fn extension_call(method: be_sdk_api::ops::MethodId) -> bool {
-    be_sdk_api::embed::method_name(method)
-        .and_then(|name| name.split_once('#'))
-        .is_some_and(|(interface, _)| be_sdk_api::is_published(interface))
-}
-
-fn published(method: be_sdk_api::ops::MethodId) -> Option<be_sdk_api::ops::Watching> {
-    be_sdk_api::embed::WATCHES
-        .iter()
-        .find(|watching| {
-            (watching.open == method || watching.next == method)
-                && be_sdk_api::is_published(watching.interface)
-        })
-        .copied()
 }
 
 fn available_status(view: ViewId, placement: &ChildPlacement) -> ChildStatus {

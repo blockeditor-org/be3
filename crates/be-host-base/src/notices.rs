@@ -1,6 +1,6 @@
 use std::sync::{MutexGuard, PoisonError};
 
-use be_wasm_threads::Mutex;
+use std::sync::Mutex;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Notice {
@@ -12,16 +12,48 @@ pub struct Notice {
     /// Something the person asked for that was refused for a reason they can act on, not a
     /// failure (`refuse`): it reads as plain text.
     pub refusal: bool,
+    /// The account notice on the server it shows (`account_notices`), which dismissing it
+    /// dismisses on every device.
+    pub account: Option<u64>,
+}
+
+/// The key of the action a notice with a report offers: copying the report.
+pub const COPY_REPORT: &str = "copy-report";
+
+/// The key of the action a notice with a link offers: opening the link, which dismisses it.
+pub const OPEN_LINK: &str = "open-link";
+
+impl Notice {
+    /// Whether it says something failed, which reads as an alert and stays until dismissed,
+    /// rather than offering a link or saying why something was refused.
+    pub fn failure(&self) -> bool {
+        self.link.is_none() && !self.refusal
+    }
+
+    /// What it offers the person to do beside dismissing it: each action's key
+    /// (`COPY_REPORT`, `OPEN_LINK`) and label.
+    pub fn actions(&self) -> Vec<(&'static str, &'static str)> {
+        let report = self.report.iter().map(|_| (COPY_REPORT, "Copy report"));
+        let link = self.link.iter().map(|_| (OPEN_LINK, "Open"));
+        report.chain(link).collect()
+    }
 }
 
 struct Notices {
     next: u64,
+    /// Counts the changes to `shown`, so a reader skips reading them again while it saw them.
+    generation: u64,
     shown: Vec<Notice>,
+    /// Account notices dismissed on this device, which stay hidden here though the server
+    /// keeps them for the account's other devices.
+    dismissed: Vec<u64>,
 }
 
 static NOTICES: Mutex<Notices> = Mutex::new(Notices {
     next: 0,
+    generation: 0,
     shown: Vec::new(),
+    dismissed: Vec::new(),
 });
 
 fn notices() -> MutexGuard<'static, Notices> {
@@ -60,12 +92,14 @@ fn show(message: String, report: Option<String>, link: Option<String>, refusal: 
             .iter_mut()
             .find(|notice| notice.message == message)
         {
-            if report.is_some() {
+            if report.is_some() && notice.report != report {
                 notice.report = report;
+                notices.generation += 1;
             }
             return;
         }
         notices.next += 1;
+        notices.generation += 1;
         let id = notices.next;
         notices.shown.push(Notice {
             id,
@@ -73,13 +107,73 @@ fn show(message: String, report: Option<String>, link: Option<String>, refusal: 
             report,
             link,
             refusal,
+            account: None,
         });
     }
     crate::host::wake();
 }
 
-pub fn dismiss(id: u64) {
-    notices().shown.retain(|notice| notice.id != id);
+/// Dismisses a notice; answers the account notice it showed, which stays hidden on this device
+/// and which the caller dismisses on the server too (where it changes nothing in its first week).
+pub fn dismiss(id: u64) -> Option<u64> {
+    let mut notices = notices();
+    let account = notices
+        .shown
+        .iter()
+        .find(|notice| notice.id == id)
+        .and_then(|notice| notice.account);
+    let before = notices.shown.len();
+    notices.shown.retain(|notice| notice.id != id);
+    if notices.shown.len() != before {
+        notices.generation += 1;
+    }
+    if let Some(account) = account {
+        notices.dismissed.push(account);
+    }
+    account
+}
+
+/// Shows the account's notices from the server (`query.notices`), as plain notices, and lets
+/// go of those dismissed elsewhere.
+pub fn account_notices(listed: Vec<(u64, String)>) {
+    {
+        let mut notices = notices();
+        let before = notices.shown.len();
+        let next_before = notices.next;
+        notices.shown.retain(|notice| {
+            notice
+                .account
+                .is_none_or(|account| listed.iter().any(|(id, _)| *id == account))
+        });
+        notices
+            .dismissed
+            .retain(|dismissed| listed.iter().any(|(id, _)| id == dismissed));
+        for (account, message) in listed {
+            if notices.dismissed.contains(&account)
+                || notices
+                    .shown
+                    .iter()
+                    .any(|notice| notice.account == Some(account))
+            {
+                continue;
+            }
+            notices.next += 1;
+            let id = notices.next;
+            notices.shown.push(Notice {
+                id,
+                message,
+                report: None,
+                link: None,
+                refusal: true,
+                account: Some(account),
+            });
+        }
+        // Notices only go or come here; none changes in place.
+        if notices.shown.len() != before || notices.next != next_before {
+            notices.generation += 1;
+        }
+    }
+    crate::host::wake();
 }
 
 pub fn report_of(id: u64) -> Option<String> {
@@ -96,6 +190,11 @@ pub fn link_of(id: u64) -> Option<String> {
         .iter()
         .find(|notice| notice.id == id)
         .and_then(|notice| notice.link.clone())
+}
+
+/// Counts the changes to the notices shown: while it reads the same, `shown` does too.
+pub fn generation() -> u64 {
+    notices().generation
 }
 
 pub fn shown() -> Vec<Notice> {

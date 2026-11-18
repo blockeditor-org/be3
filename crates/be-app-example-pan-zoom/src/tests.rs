@@ -1,6 +1,7 @@
 use be_sdk_beui::beui::{Rect, Vec2, pos2};
 use be_sdk_beui::{Editor, EditorHost, OwnedEditor, ViewChange};
 use be_sdk_test::BeuiTest;
+use be_sdk_test::prelude::*;
 use uuid::Uuid;
 
 use crate::root::PanZoomRoot;

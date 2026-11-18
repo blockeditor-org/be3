@@ -14,7 +14,7 @@ fn a_derived_binding_reads_its_prop_and_writes_through_its_callback() {
     create_effect({
         let writes = writes.clone();
         move || {
-            celsius.get();
+            celsius.track();
             writes.set(writes.get() + 1);
         }
     });

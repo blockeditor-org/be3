@@ -1,176 +1,533 @@
-use std::collections::{BTreeMap, HashMap, HashSet};
+//! Live sessions: who is in each block's session, kept in memory only. The registry writes
+//! membership entries (joining, leaving, a change of edit access, a claim) into each session's
+//! order between its submissions, stamped with the order's last number, and sends them and the
+//! order's entries to the participants under one lock, so each hears them in one order. The
+//! holder of the lease follows from them (`be_block_session::Membership`), here as on every
+//! replica. After a restart every session is empty and rebuilds from joins.
+//!
+//! Join members (plans/hosted_blocks.md) are in a session too, but in no membership: each hears
+//! only who holds the lease (`Push::Host`) and what the holder sends it on the host channel, and
+//! only the holder hears that it came or went (`Push::Joiner`).
 
-use be_block_commit::{CommitId, now_milliseconds};
-use be_block_protocol::{ClientId, SessionState};
-use be_block_session::{Claim, Lease};
+use std::collections::{BTreeMap, HashMap, HashSet};
+use std::sync::Arc;
+
+use be_block_commit::CommitId;
+use be_block_protocol::{
+    ClientId, JoinedMember, JoinedParticipant, JoinerChange, JournalEntry, MemberKind,
+    MembershipChange, MembershipEntry, SessionHost, SessionState,
+};
+use be_block_session::Membership;
 use tokio::sync::Mutex;
 
-use crate::watch::Place;
-
-/// How long the registry remembers a session nobody is in, for its `clean_at`. A peer taking
-/// over a session forgotten after this merges rather than fast-forwards
-/// (`be_block_session::takeover_needs_merge`), which is safe, only slower.
-pub const EMPTY_SESSION_MEMORY_MILLISECONDS: i64 = 24 * 60 * 60 * 1000;
-/// Empty sessions the registry remembers at most; past this it forgets the longest empty first.
-pub const MAX_EMPTY_SESSIONS: usize = 65_536;
+use crate::watch::{Place, Push, WatchHub};
 
 pub struct SessionRegistry {
-    sessions: Mutex<Sessions>,
-    lease: i64,
+    sessions: Arc<Mutex<Sessions>>,
+    hub: Arc<WatchHub>,
+    /// Each block's order, held from numbering a submission until every participant was sent it
+    /// (`ordering`), so they hear entries in the order they were numbered. One per block, not
+    /// the registry's lock, which every session shares.
+    orders: std::sync::Mutex<Orders>,
+}
+
+/// The blocks' order locks, each held weakly while someone submits to its block, and how many
+/// were made since the last that nobody holds were let go of.
+#[derive(Default)]
+struct Orders {
+    locks: HashMap<Place, std::sync::Weak<Mutex<()>>>,
+    made: usize,
+}
+
+/// A test's stand-in for a slow store: the push of each order's first entry waits this many
+/// turns of the runtime (`hold_first_push`), so one numbered after it would go first were the
+/// order not held.
+#[cfg(test)]
+static HELD_FIRST_PUSH: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+/// Holds back each order's first push until what it returns is dropped, which the test that sets
+/// it does as it ends, so the tests run after it in the same process are not slowed.
+#[cfg(test)]
+#[must_use]
+pub(crate) fn hold_first_push(turns: usize) -> impl Drop {
+    struct Held;
+    impl Drop for Held {
+        fn drop(&mut self) {
+            HELD_FIRST_PUSH.store(0, std::sync::atomic::Ordering::SeqCst);
+        }
+    }
+    HELD_FIRST_PUSH.store(turns, std::sync::atomic::Ordering::SeqCst);
+    Held
+}
+
+/// A block's order held (`SessionRegistry::ordering`).
+pub struct Ordering(#[allow(dead_code)] tokio::sync::OwnedMutexGuard<()>);
+
+/// The registry held while a trim with no new commit is written by the lease holder, so no
+/// membership entry moves the lease meanwhile (`SessionRegistry::holding`). It is held only
+/// inside a store job, which already has the store: never await the store with it held, since
+/// every join, leave and push waits on the registry.
+pub struct Holding(#[allow(dead_code)] tokio::sync::OwnedMutexGuard<Sessions>);
+
+#[derive(Default)]
+struct Session {
+    state: SessionState,
+    /// The order's last number the participants were sent: what a membership entry is stamped
+    /// with.
+    tip: u64,
+    /// The account each participant is signed in as, so Join members are told the lease
+    /// holder's.
+    accounts: HashMap<ClientId, uuid::Uuid>,
+    /// The Join members, with their accounts.
+    joiners: BTreeMap<ClientId, uuid::Uuid>,
+    /// What each account may still send the lease holder (`limits::HOST_MESSAGES_PER_SECOND`),
+    /// across all its connections, for as long as the session lasts. Not pruned when an account
+    /// leaves: leaving and joining again would refill its burst. One bucket per account that
+    /// ever sent here, a few dozen bytes, gone with the session.
+    sends: HashMap<uuid::Uuid, crate::limits::Bucket>,
+}
+
+impl Session {
+    /// Who holds the lease, with its account.
+    fn host(&self) -> Option<SessionHost> {
+        let client = self.state.holder()?;
+        Some(SessionHost {
+            client,
+            account: *self.accounts.get(&client)?,
+        })
+    }
+
+    /// Every member: the participants, then the Join members.
+    fn members(&self) -> Vec<ClientId> {
+        let mut members = self.state.clients();
+        members.extend(self.joiners.keys().copied());
+        members
+    }
+
+    fn is_empty(&self) -> bool {
+        self.state.participants.is_empty() && self.joiners.is_empty()
+    }
+}
+
+/// Where a message on a session's host channel goes (`SessionRegistry::host_route`), or why it
+/// goes nowhere.
+#[derive(Debug, Eq, PartialEq)]
+pub enum HostRoute {
+    To(ClientId),
+    /// No one holds the lease.
+    NoHost,
+    /// The sender's account sent the holder more than `limits::HOST_MESSAGES_PER_SECOND`.
+    SlowDown,
+    /// The sender may not send it there: one from anyone but the holder names someone, or one
+    /// from the holder names no member of the session, or itself.
+    Refused,
 }
 
 #[derive(Default)]
-struct Sessions {
-    leases: HashMap<Place, Lease>,
+pub struct Sessions {
+    sessions: HashMap<Place, Session>,
     /// The blocks each client is a participant of, so leaving them all costs what the client
     /// joined rather than every session on the server.
     joined: HashMap<ClientId, HashSet<Place>>,
-    /// Empty sessions kept for their `clean_at`, in the order they went empty, with when.
-    empty: BTreeMap<u64, (Place, i64)>,
-    emptied: HashMap<Place, u64>,
-    next: u64,
+    /// The highest membership index written in any session: a session that starts counts
+    /// from here, so an entry of an earlier session of the same block that reaches a
+    /// participant late never follows on from the new one's.
+    issued: u64,
 }
 
 impl Sessions {
-    fn lease(&mut self, block: Place, length: i64) -> &mut Lease {
-        if let Some(order) = self.emptied.remove(&block) {
-            self.empty.remove(&order);
+    /// `block`'s session, started if it has none: its membership counts on from every index
+    /// issued.
+    fn session(&mut self, block: Place) -> &mut Session {
+        let issued = self.issued;
+        self.sessions.entry(block).or_insert_with(|| Session {
+            state: SessionState {
+                index: issued,
+                ..SessionState::default()
+            },
+            ..Session::default()
+        })
+    }
+
+    /// Writes a membership entry into `block`'s session and sends it to its participants: to
+    /// `client` too if it just left, but not if it just joined.
+    async fn write(
+        &mut self,
+        hub: &WatchHub,
+        block: Place,
+        client: ClientId,
+        change: MembershipChange,
+    ) -> Option<SessionState> {
+        let session = self.sessions.get_mut(&block)?;
+        let left = matches!(change, MembershipChange::Left);
+        let joined = matches!(change, MembershipChange::Joined(_));
+        let host_before = session.host();
+        let entry = session.state.write(session.tip, client, change)?;
+        if left {
+            session.accounts.remove(&client);
         }
-        self.leases
-            .entry(block)
-            .or_insert_with(|| Lease::lasting(length))
+        let host_after = session.host();
+        let joiners: Vec<(ClientId, uuid::Uuid)> = session
+            .joiners
+            .iter()
+            .map(|(client, account)| (*client, *account))
+            .collect();
+        let mut members = session.members();
+        members.retain(|member| *member != client);
+        self.issued = self.issued.max(entry.index);
+        let state = session.state.clone();
+        let mut told = state.clients();
+        // A joiner has the membership its join answers, its own entry in it.
+        if joined {
+            told.retain(|told| *told != client);
+        }
+        if left {
+            told.push(client);
+            if let Some(blocks) = self.joined.get_mut(&client) {
+                blocks.remove(&block);
+                if blocks.is_empty() {
+                    self.joined.remove(&client);
+                }
+            }
+            if self.sessions.get(&block).is_some_and(Session::is_empty) {
+                self.sessions.remove(&block);
+            }
+        }
+        send(hub, block, &told, entry).await;
+        if host_after != host_before {
+            hub.send_every(
+                &members,
+                &Push::Host {
+                    block,
+                    host: host_after,
+                },
+            )
+            .await;
+            // A new holder hears of every Join member already there, as if each joined now.
+            if let Some(host) = host_after {
+                for (client, account) in joiners {
+                    hub.send_to(
+                        host.client,
+                        Push::Joiner {
+                            block,
+                            change: JoinerChange::Joined(JoinedMember { client, account }),
+                        },
+                    )
+                    .await;
+                }
+            }
+        }
+        Some(state)
     }
 
-    fn joined(&mut self, block: Place, client: ClientId) {
-        self.joined.entry(client).or_default().insert(block);
-    }
-
-    fn left(&mut self, block: Place, client: ClientId) {
+    /// Takes the Join member `client` out of `block`'s session, telling the lease holder; false
+    /// when it was not one there.
+    async fn leave_joiner(&mut self, hub: &WatchHub, block: Place, client: ClientId) -> bool {
+        let Some(session) = self.sessions.get_mut(&block) else {
+            return false;
+        };
+        if session.joiners.remove(&client).is_none() {
+            return false;
+        }
+        let host = session.host();
+        if session.is_empty() {
+            self.sessions.remove(&block);
+        }
         if let Some(blocks) = self.joined.get_mut(&client) {
             blocks.remove(&block);
             if blocks.is_empty() {
                 self.joined.remove(&client);
             }
         }
-    }
-
-    /// Forgets `block`'s session once it is empty and has no `clean_at`, or remembers when it
-    /// went empty; then forgets whatever has been empty too long or too many.
-    fn settle(&mut self, block: Place, now: i64) {
-        if let Some(lease) = self.leases.get(&block)
-            && lease.is_empty()
-            && !self.emptied.contains_key(&block)
-        {
-            match lease.clean_at() {
-                None => {
-                    self.leases.remove(&block);
-                }
-                Some(_) => {
-                    self.next += 1;
-                    self.empty.insert(self.next, (block, now));
-                    self.emptied.insert(block, self.next);
-                }
-            }
+        if let Some(host) = host {
+            hub.send_to(
+                host.client,
+                Push::Joiner {
+                    block,
+                    change: JoinerChange::Left(client),
+                },
+            )
+            .await;
         }
-        while let Some((_, &(oldest, at))) = self.empty.first_key_value() {
-            if at > now - EMPTY_SESSION_MEMORY_MILLISECONDS
-                && self.empty.len() <= MAX_EMPTY_SESSIONS
-            {
-                break;
-            }
-            self.empty.pop_first();
-            self.emptied.remove(&oldest);
-            self.leases.remove(&oldest);
-        }
+        true
     }
 }
 
+async fn send(hub: &WatchHub, block: Place, told: &[ClientId], entry: MembershipEntry) {
+    hub.send_every(
+        told,
+        &Push::Membership {
+            block,
+            entry: Arc::new(entry),
+        },
+    )
+    .await;
+}
+
 impl SessionRegistry {
-    pub fn new(lease: std::time::Duration) -> Self {
+    pub fn new(hub: Arc<WatchHub>) -> Self {
         Self {
-            sessions: Mutex::new(Sessions::default()),
-            lease: i64::try_from(lease.as_millis()).unwrap_or(i64::MAX),
+            sessions: Arc::new(Mutex::new(Sessions::default())),
+            hub,
+            orders: std::sync::Mutex::default(),
         }
     }
 
-    /// `client` joins `block`'s session, taking the lease if no one holds it and it `may_edit`.
-    pub async fn join(&self, block: Place, client: ClientId, may_edit: bool) -> SessionState {
-        let mut sessions = self.sessions.lock().await;
-        let now = now_milliseconds();
-        let lease = sessions.lease(block, self.lease);
-        lease.join(client, may_edit, now);
-        let state = lease.state().clone();
-        sessions.joined(block, client);
-        sessions.settle(block, now);
-        state
+    /// Holds `block`'s order: a submission is numbered (`journal::submit`) and sent to the
+    /// participants (`sequenced`) with it held, so two numbered at once go out in their order.
+    /// It also has one block's submissions wait on each other's store job, which the store
+    /// would have run one at a time anyway; other blocks' go on beside them.
+    pub async fn ordering(&self, block: Place) -> Ordering {
+        let order = {
+            let mut orders = self
+                .orders
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            match orders.locks.get(&block).and_then(std::sync::Weak::upgrade) {
+                Some(order) => order,
+                None => {
+                    // The orders of blocks nobody submits to any more are let go of once as many
+                    // were made since as the map held then, so it holds about as many as are in use
+                    // and the sweeps cost nothing on the whole.
+                    orders.made += 1;
+                    if orders.made > orders.locks.len() {
+                        orders.locks.retain(|_, order| order.strong_count() > 0);
+                        orders.made = 0;
+                    }
+                    let order = Arc::new(Mutex::new(()));
+                    orders.locks.insert(block, Arc::downgrade(&order));
+                    order
+                }
+            }
+        };
+        Ordering(order.lock_owned().await)
     }
 
-    pub async fn leave(&self, block: Place, client: ClientId) -> Option<SessionState> {
+    /// `client`, signed in as `account` and running the build `tag`, joins `block`'s session:
+    /// answers the membership as of the number it joins at, itself in it, which every other
+    /// participant hears, and who holds the lease then.
+    pub async fn join(
+        &self,
+        block: Place,
+        client: ClientId,
+        account: uuid::Uuid,
+        may_edit: bool,
+        tag: be_block_store::Hash,
+    ) -> (SessionState, Option<SessionHost>) {
         let mut sessions = self.sessions.lock().await;
-        let now = now_milliseconds();
-        let lease = sessions.leases.get_mut(&block)?;
-        lease.leave(client, now);
-        let state = lease.state().clone();
-        sessions.left(block, client);
-        sessions.settle(block, now);
-        Some(state)
+        sessions.session(block).accounts.insert(client, account);
+        sessions.joined.entry(client).or_default().insert(block);
+        let change = MembershipChange::Joined(JoinedParticipant { tag, may_edit });
+        let state = sessions
+            .write(&self.hub, block, client, change)
+            .await
+            .unwrap_or_default();
+        let host = sessions.sessions.get(&block).and_then(Session::host);
+        (state, host)
     }
 
-    pub async fn leave_all(&self, client: ClientId) -> Vec<(Place, SessionState)> {
+    /// `client`, signed in as `account`, joins `block`'s session as a Join member: in no
+    /// membership, and heard of by the lease holder alone. Answers who holds the lease.
+    pub async fn join_member(
+        &self,
+        block: Place,
+        client: ClientId,
+        account: uuid::Uuid,
+    ) -> Option<SessionHost> {
         let mut sessions = self.sessions.lock().await;
-        let now = now_milliseconds();
-        let mut changed = Vec::new();
-        for block in sessions.joined.remove(&client).unwrap_or_default() {
-            let Some(lease) = sessions.leases.get_mut(&block) else {
+        let session = sessions.session(block);
+        session.joiners.insert(client, account);
+        let host = session.host();
+        sessions.joined.entry(client).or_default().insert(block);
+        if let Some(host) = host {
+            self.hub
+                .send_to(
+                    host.client,
+                    Push::Joiner {
+                        block,
+                        change: JoinerChange::Joined(JoinedMember { client, account }),
+                    },
+                )
+                .await;
+        }
+        host
+    }
+
+    /// Writes that `client` left `block`'s session; false when it was not in it.
+    pub async fn leave(&self, block: Place, client: ClientId) -> bool {
+        let mut sessions = self.sessions.lock().await;
+        if sessions.leave_joiner(&self.hub, block, client).await {
+            return true;
+        }
+        sessions
+            .write(&self.hub, block, client, MembershipChange::Left)
+            .await
+            .is_some()
+    }
+
+    /// Writes that `client` left every session it was in: its connection closed, or went
+    /// silent past `IDLE_TIMEOUT`.
+    pub async fn leave_all(&self, client: ClientId) {
+        let mut sessions = self.sessions.lock().await;
+        for block in sessions.joined.get(&client).cloned().unwrap_or_default() {
+            if sessions.leave_joiner(&self.hub, block, client).await {
                 continue;
+            }
+            sessions
+                .write(&self.hub, block, client, MembershipChange::Left)
+                .await;
+        }
+    }
+
+    /// Where `from`'s message on `block`'s host channel goes: from the lease holder, to the
+    /// member `to` names; from any other member, naming none, to the holder, while `account`,
+    /// which `from` is signed in as, keeps within its rate.
+    pub async fn host_route(
+        &self,
+        block: Place,
+        from: ClientId,
+        account: uuid::Uuid,
+        to: Option<ClientId>,
+    ) -> HostRoute {
+        let mut sessions = self.sessions.lock().await;
+        let Some(session) = sessions.sessions.get_mut(&block) else {
+            return HostRoute::Refused;
+        };
+        let member =
+            |client: ClientId| session.joiners.contains_key(&client) || session.state.has(client);
+        if !member(from) {
+            return HostRoute::Refused;
+        }
+        let Some(holder) = session.state.holder() else {
+            return match to {
+                None => HostRoute::NoHost,
+                Some(_) => HostRoute::Refused,
             };
-            lease.leave(client, now);
-            changed.push((block, lease.state().clone()));
-            sessions.settle(block, now);
+        };
+        match (from == holder, to) {
+            (true, Some(to)) if to != holder && member(to) => HostRoute::To(to),
+            (false, None) => {
+                let sends = session.sends.entry(account).or_insert_with(|| {
+                    crate::limits::Bucket::full(crate::limits::HOST_MESSAGE_BURST)
+                });
+                match sends.take(
+                    std::time::Instant::now(),
+                    crate::limits::HOST_MESSAGES_PER_SECOND,
+                    crate::limits::HOST_MESSAGE_BURST,
+                ) {
+                    true => HostRoute::To(holder),
+                    false => HostRoute::SlowDown,
+                }
+            }
+            _ => HostRoute::Refused,
         }
-        changed
     }
 
-    pub async fn claim(
+    /// `client`'s edit access to `block` is now `may_edit`: written when it changed.
+    pub async fn access(&self, block: Place, client: ClientId, may_edit: bool) {
+        let mut sessions = self.sessions.lock().await;
+        sessions
+            .write(&self.hub, block, client, MembershipChange::Access(may_edit))
+            .await;
+    }
+
+    /// Writes `client`'s claim of the lease; false when it is not a participant that may edit.
+    pub async fn claim(&self, block: Place, client: ClientId) -> bool {
+        let mut sessions = self.sessions.lock().await;
+        let editor = sessions.sessions.get(&block).is_some_and(|session| {
+            session
+                .state
+                .participants
+                .iter()
+                .any(|participant| participant.client == client && participant.may_edit)
+        });
+        editor
+            && sessions
+                .write(&self.hub, block, client, MembershipChange::Claimed)
+                .await
+                .is_some()
+    }
+
+    /// The order numbered `entry`: every participant hears it, its author too.
+    pub async fn sequenced(&self, block: Place, entry: JournalEntry) {
+        #[cfg(test)]
+        if entry.sequence == 1 {
+            for _ in 0..HELD_FIRST_PUSH.load(std::sync::atomic::Ordering::SeqCst) {
+                tokio::task::yield_now().await;
+            }
+        }
+        let mut sessions = self.sessions.lock().await;
+        let Some(session) = sessions.sessions.get_mut(&block) else {
+            return;
+        };
+        session.tip = session.tip.max(entry.sequence);
+        let participants = session.state.clients();
+        self.hub
+            .send_every(
+                &participants,
+                &Push::Sequenced {
+                    block,
+                    entry: Arc::new(entry),
+                },
+            )
+            .await;
+    }
+
+    /// Holds the registry while `client` holds the lease of `block`'s session, from a job on the
+    /// store's blocking pool; none when it does not hold it.
+    pub fn holding(&self, block: Place, client: ClientId) -> Option<Holding> {
+        let sessions = Arc::clone(&self.sessions).blocking_lock_owned();
+        sessions
+            .sessions
+            .get(&block)
+            .is_some_and(|session| session.state.is_holder(client))
+            .then_some(Holding(sessions))
+    }
+
+    /// A seal trimmed `block`'s journal, and the order goes on from `trimmed.sequence`; with
+    /// `told`, it moved the head to `commit`, holding the order through that number in that
+    /// run, which every participant hears.
+    pub async fn sealed(
         &self,
         block: Place,
-        client: ClientId,
-        generation: u64,
-    ) -> (Claim, SessionState) {
+        commit: CommitId,
+        told: Option<(u64, u64)>,
+        trimmed: &crate::journal::Trimmed,
+    ) {
         let mut sessions = self.sessions.lock().await;
-        let now = now_milliseconds();
-        let lease = sessions.lease(block, self.lease);
-        let claim = lease.claim(client, generation, now);
-        let state = lease.state().clone();
-        if state.participants.contains(&client) {
-            sessions.joined(block, client);
-        }
-        sessions.settle(block, now);
-        (claim, state)
+        let Some(session) = sessions.sessions.get_mut(&block) else {
+            return;
+        };
+        // The tip goes back only when the order started afresh below it.
+        session.tip = match trimmed.restarted {
+            true => trimmed.sequence,
+            false => session.tip.max(trimmed.sequence),
+        };
+        let Some((through, run)) = told else {
+            return;
+        };
+        let participants = session.state.clients();
+        self.hub
+            .send_every(
+                &participants,
+                &Push::Sealed {
+                    block,
+                    commit,
+                    through,
+                    run,
+                },
+            )
+            .await;
     }
 
-    pub async fn heartbeat(
-        &self,
-        block: Place,
-        client: ClientId,
-        generation: u64,
-        clean_at: Option<CommitId>,
-    ) -> Option<SessionState> {
-        let mut sessions = self.sessions.lock().await;
-        let lease = sessions.leases.get_mut(&block)?;
-        lease
-            .heartbeat(client, generation, clean_at, now_milliseconds())
-            .then(|| lease.state().clone())
-    }
-
-    /// `client` may no longer edit `block`: answers the session's state if that took the lease
-    /// from it.
-    pub async fn demote(&self, block: Place, client: ClientId) -> Option<SessionState> {
-        let mut sessions = self.sessions.lock().await;
-        let lease = sessions.leases.get_mut(&block)?;
-        lease
-            .demote(client, now_milliseconds())
-            .then(|| lease.state().clone())
+    /// Who holds the lease of `block`'s session, with its account.
+    pub async fn host(&self, block: Place) -> Option<SessionHost> {
+        self.sessions
+            .lock()
+            .await
+            .sessions
+            .get(&block)
+            .and_then(Session::host)
     }
 
     pub async fn blocks_of(&self, client: ClientId) -> Vec<Place> {
@@ -187,24 +544,44 @@ impl SessionRegistry {
         self.sessions
             .lock()
             .await
-            .leases
+            .sessions
             .get(&block)
-            .map(|lease| lease.state().clone())
+            .map(|session| session.state.clone())
             .unwrap_or_default()
+    }
+
+    /// Whether `client` is in `block`'s session and runs the build it speaks.
+    pub async fn speaks(&self, block: Place, client: ClientId) -> bool {
+        self.state(block).await.speaks(client)
     }
 
     pub async fn participants(&self, block: Place) -> Vec<ClientId> {
+        self.state(block).await.clients()
+    }
+
+    /// The sessions of blocks in `organization`, each with its members and how each is in it.
+    pub async fn sessions_in(
+        &self,
+        organization: uuid::Uuid,
+    ) -> Vec<(Place, Vec<(ClientId, MemberKind)>)> {
         self.sessions
             .lock()
             .await
-            .leases
-            .get(&block)
-            .map(|lease| lease.state().participants.clone())
-            .unwrap_or_default()
-    }
-
-    /// Sessions the registry holds, in use or remembered empty.
-    pub async fn held(&self) -> usize {
-        self.sessions.lock().await.leases.len()
+            .sessions
+            .iter()
+            .filter(|(place, _)| place.organization == organization)
+            .map(|(place, session)| {
+                let participants = session
+                    .state
+                    .clients()
+                    .into_iter()
+                    .map(|client| (client, MemberKind::Participant));
+                let joiners = session
+                    .joiners
+                    .keys()
+                    .map(|client| (*client, MemberKind::Join));
+                (*place, participants.chain(joiners).collect())
+            })
+            .collect()
     }
 }

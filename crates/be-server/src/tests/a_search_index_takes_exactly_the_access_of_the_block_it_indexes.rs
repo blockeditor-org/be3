@@ -7,22 +7,27 @@ async fn create_index(
 ) -> (Uuid, Result<BlockSummary, Error>) {
     let block = Uuid::new_v4();
     let key = Uuid::new_v4();
+    let root = client.root(block);
+    let placement = client.placement(block, BlockParent::Block(parent)).await;
     let response = client
         .call(|peer| {
-            client::blocks::create_block(
-                peer,
-                block,
-                SEARCH_INDEX_TYPE,
-                BlockParent::Block(parent),
-                Vec::new(),
-                Vec::new(),
-                key,
-                KeySet {
+            peer.write_all::<be_block_protocol::BlockSummary>(vec![
+                be_block_protocol::Op::CreateBlock {
+                    block: block,
+                    content_type: SEARCH_INDEX_TYPE,
+                    parent: BlockParent::Block(parent),
+                    metadata: Vec::new(),
+                    references: Vec::new(),
+                    key: key,
+                    owner_only: false,
+                    root: root,
+                    placement: placement,
+                },
+                be_block_protocol::Op::PutKeys(be_block_protocol::PutKeys::Rows(KeySet {
                     keys: vec![row(key, block, KeyKind::Data)],
                     wrapped: Vec::new(),
-                },
-                false,
-            )
+                })),
+            ])
         })
         .await;
     (block, response)
@@ -38,15 +43,23 @@ async fn refer(
     references: Vec<Uuid>,
 ) -> Result<BlockSummary, Error> {
     client
-        .call(|peer| client::blocks::set_metadata(peer, block, Vec::new(), references))
+        .call(|peer| {
+            peer.write::<be_block_protocol::BlockSummary>(be_block_protocol::Op::Publish {
+                block: block,
+                expected: None,
+                commit: None,
+                references: be_block_protocol::ReferenceChange::between(&[], &references),
+                metadata: Vec::new(),
+                journal: None,
+            })
+        })
         .await
 }
 
 #[tokio::test]
 async fn a_search_index_takes_exactly_the_access_of_the_block_it_indexes() {
     let harness = Harness::start().await;
-    let mut owner = harness.client().await;
-    owner.register("owner@example.com").await;
+    let mut owner = harness.member("owner@example.com").await;
     owner.personal().await;
     let mut accounts = Vec::new();
     for email in [
@@ -54,8 +67,8 @@ async fn a_search_index_takes_exactly_the_access_of_the_block_it_indexes() {
         "viewer@example.com",
         "inside@example.com",
     ] {
-        let mut client = harness.client().await;
-        let account = client.register(email).await;
+        let mut client = harness.member(email).await;
+        let account = client.id();
         client.personal().await;
         let link = owner.link(None).await;
         let _ = client.accept(link, &[]).await;
@@ -131,14 +144,7 @@ async fn a_search_index_takes_exactly_the_access_of_the_block_it_indexes() {
     assert!(matches!(created, Ok(_)), "{created:?}");
     for target in [workspace, third, note] {
         let moved = editor
-            .call(|peer| {
-                client::blocks::set_parent(
-                    peer,
-                    loose,
-                    BlockParent::Block(target),
-                    KeySet::default(),
-                )
-            })
+            .move_keyed(loose, BlockParent::Block(target), KeySet::default())
             .await;
         assert!(
             moved.is_err(),
@@ -149,14 +155,7 @@ async fn a_search_index_takes_exactly_the_access_of_the_block_it_indexes() {
     let child = owner.create_block(BlockParent::Block(second)).await;
     for target in [child, third, workspace] {
         let moved = owner
-            .call(|peer| {
-                client::blocks::set_parent(
-                    peer,
-                    loose,
-                    BlockParent::Block(target),
-                    KeySet::default(),
-                )
-            })
+            .move_keyed(loose, BlockParent::Block(target), KeySet::default())
             .await;
         assert!(
             refused_with(&moved, "stays under the block it indexes"),

@@ -4,6 +4,7 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use be_sdk_beui::BlockQuery;
+use be_sdk_beui::be_block_content::ViewStateKind;
 use be_sdk_beui::be_block_content::presence::pick_free_color;
 use be_sdk_beui::{BlockList, Blocks};
 use be_sdk_beui::{ChildState, ContentProjection, Editor, EditorHost, LinkBaseWatch};
@@ -13,14 +14,23 @@ use beui::reactive::*;
 use beui::styled::TextAreaState;
 use beui::{Rect, Vec2};
 use beui_text_editor_core::{EditorCommand, TextLanguage};
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::document::{BlockDocument, TextBody, inside_block_url, reference_ranges};
+use crate::document::{BlockDocument, TextBody, inside_block_url};
 use crate::presence::TextCursor;
 
 use super::embeds::{ResolvedEmbed, image_embed_directive, resolve_embeds};
 use be_type_image::ImageContent;
 use be_type_text::TextContent;
+
+/// Whether the gutter of line numbers is shown, kept in the view's state.
+#[derive(Deserialize, PartialEq, Serialize)]
+pub(crate) struct LineNumbers(pub bool);
+
+impl ViewStateKind for LineNumbers {
+    const ID: Uuid = Uuid::from_u128(0x7465_7874_2d6c_696e_652d_6e75_6d00_0001);
+}
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub(crate) struct FocusedEmbed {
@@ -40,9 +50,10 @@ pub(crate) struct State {
 
     pub embeds: Signal<Vec<ResolvedEmbed>>,
     pub hex_view: Signal<bool>,
-    pub typing: Signal<bool>,
+    /// Whether the gutter of line numbers is shown: a choice of this view, kept in its state
+    /// (`LineNumbers`), not in the text. Off until it is chosen.
+    pub line_numbers: Memo<bool>,
     pub hex_insert_mode: Signal<bool>,
-    pub import_error: Signal<Option<String>>,
     /// Set once the text has first been read from its block, with the caret at its start.
     pub loaded: Signal<bool>,
     /// Set once the position saved for the text was put back (or there was none), after which a
@@ -79,9 +90,15 @@ impl State {
         let dependencies = client.watch(BlockQuery::References(block_id));
         let embeds = create_signal(Vec::new());
         let hex_view = create_signal(false);
-        let typing = create_signal(false);
+        let kept_line_numbers = editor.view_state::<LineNumbers>();
+        let line_numbers = create_memo(move || {
+            kept_line_numbers
+                .get()
+                .ok()
+                .flatten()
+                .is_some_and(|kept| kept.0)
+        });
         let hex_insert_mode = create_signal(false);
-        let import_error = create_signal(None);
         let peers = editor.peers::<TextCursor>();
         let visible = editor.presence_visible();
         let remote_cursors = create_memo(move || {
@@ -106,9 +123,8 @@ impl State {
             focused_embed,
             embeds,
             hex_view,
-            typing,
+            line_numbers,
             hex_insert_mode,
-            import_error,
             loaded: create_signal(false),
             position_restored: create_signal(false),
             inner: store(Inner {
@@ -126,11 +142,11 @@ impl State {
         };
         let edited = state.text.content();
         create_effect(move || {
-            edited.get();
+            edited.track();
             let Some(inner) = state.inner.try_value() else {
                 return;
             };
-            let _ = inner.content.revision();
+            inner.content.track();
             untrack(|| state.pump());
         });
         state
@@ -171,9 +187,7 @@ impl State {
 
     pub fn refresh_embeds(&self) {
         let resolved = resolve_embeds(self);
-        if self.embeds.get_untracked() != resolved {
-            self.embeds.set(resolved);
-        }
+        self.embeds.set(resolved);
     }
 
     pub fn toggle_hex_view(&self) {
@@ -187,6 +201,12 @@ impl State {
         if next {
             self.text.close_find();
         }
+    }
+
+    /// Shows the gutter of line numbers if it is hidden, else hides it, for this view.
+    pub fn toggle_line_numbers(&self) {
+        let shown = !self.line_numbers.get_untracked();
+        self.editor.view_state().set(Some(LineNumbers(shown)));
     }
 
     pub fn create_image_block(&self, image: &ImageContent) -> Uuid {
@@ -243,18 +263,5 @@ impl State {
             .text
             .with_core(|core| core.position_index(cursor.caret.focus))?;
         self.text.layout().get_untracked().caret_rect(focus)
-    }
-
-    pub fn replace_child(&self, old: Uuid, new: Uuid) -> bool {
-        let inner = self.inner();
-        let ranges = inner
-            .document
-            .with_bytes(|bytes| reference_ranges(bytes, old));
-        self.text.execute(EditorCommand::ReplaceRanges {
-            ranges: &ranges,
-            replacement: new.to_string().as_bytes(),
-        });
-        self.pump();
-        true
     }
 }

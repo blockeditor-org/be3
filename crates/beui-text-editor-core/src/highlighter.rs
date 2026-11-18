@@ -34,6 +34,17 @@ impl Language {
         }
     }
 
+    /// The highlighter a code block's language name (a Markdown fence's info string, a rich
+    /// text code block's language) asks for, by its name or a common alias, in any case.
+    pub fn for_code_block(name: &str) -> Option<Self> {
+        match name.to_ascii_lowercase().as_str() {
+            "rust" | "rs" => Some(Self::Rust),
+            "toml" => Some(Self::Toml),
+            "zig" => Some(Self::Zig),
+            _ => None,
+        }
+    }
+
     fn chain_start_offset(self, kind: &str, source: &[u8]) -> usize {
         match self {
             Self::Markdown | Self::Toml | Self::RichText => 0,

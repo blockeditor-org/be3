@@ -140,6 +140,7 @@ mod a_menu_nested_too_deeply_is_refused_while_nesting;
 mod a_paste_over_the_text_limit_arrives_in_pieces;
 mod a_screen_readers_action_round_trips;
 mod a_show_request_already_waiting_moves_to_the_end;
+mod a_spliced_childs_group_is_titled_as_the_tab_it_took;
 mod a_watch_answers_its_next_with_the_latest_change;
 mod an_artifact_settings_child_round_trips;
 mod an_intercepted_key_round_trips;

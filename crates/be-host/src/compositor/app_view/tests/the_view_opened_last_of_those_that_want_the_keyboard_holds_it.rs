@@ -4,7 +4,7 @@ use beui::native::WindowSize;
 use beui::vec2;
 use beui_host::native::FreetypeFonts;
 use beui_host::native::build;
-use beui_host::native::testing::{Showing, Stepped};
+use beui_host::native::testing::{Gui, Showing, Stepped};
 
 #[test]
 fn the_view_opened_last_of_those_that_want_the_keyboard_holds_it() {

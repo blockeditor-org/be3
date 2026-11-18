@@ -69,7 +69,7 @@ pub(crate) fn TrayItems(
     });
     view! {
         <List direction align=Align::Center spacing=TRAY_SPACING @test_id={"desktop.tray"}>
-            <ForEach keys>|id: String|
+            <ForEach value={keys}>|id: String|
                 <TrayButton editor={editor} listed={listed} id />
             </ForEach>
         </List>
@@ -103,7 +103,6 @@ fn TrayButton(editor: Editor, listed: Memo<Vec<HostTrayItem>>, id: String) -> No
     let entries = create_memo(move || item.with(|item| item.entries().unwrap_or_default()));
     let has_menu = create_memo(move || entries.with(|entries| !entries.is_empty()));
     let item_is_menu = create_memo(move || item.with(|item| item.item_is_menu));
-    let click_opens = create_memo(move || item_is_menu.get() && has_menu.get());
     let request = {
         let (editor, id) = (editor, id.clone());
         move |request: fn(TrayClick) -> TrayRequest| {
@@ -160,10 +159,10 @@ fn TrayButton(editor: Editor, listed: Memo<Vec<HostTrayItem>>, id: String) -> No
             label
             image
             glyph=ICON_BLOCKS
-            click_opens
+            click_opens={move || item_is_menu.get() && has_menu.get()}
             secondary_opens={has_menu}
             bounds={bar_bounds()}
-            placement=Placement::BelowStart
+            placement=Placement::BELOW_START
             @test_id={prefix.clone()}
             items={view! {
                 <TrayEntries entries chosen prefix={prefix.clone()} />
@@ -213,7 +212,7 @@ fn TrayEntries(
         })
     });
     view! {
-        <ForEach keys>|(id, radio): (i32, bool)|
+        <ForEach value={keys}>|(id, radio): (i32, bool)|
             <TrayEntry entries={entries} id radio chosen={chosen} prefix={prefix.clone()} />
         </ForEach>
     }
@@ -253,7 +252,7 @@ fn TrayEntry(
     let checked = create_memo(move || entry.with(|entry| checked(entry.item.toggle)));
     let disabled = create_memo(move || entry.with(|entry| !entry.item.enabled));
     let children = create_memo(move || entry.with(|entry| entry.children.clone()));
-    let row_test_id = format!("{prefix}.{id}");
+    let row_id = format!("{prefix}.{id}");
     view! {
         <MenuItem
             label
@@ -261,7 +260,7 @@ fn TrayEntry(
             radio
             disabled
             separated
-            row_test_id
+            @test_id={row_id}
             on_click={move || chosen.call(id)}
         >
             <TrayEntries entries={children} chosen prefix />

@@ -51,16 +51,13 @@ fn labels<T>(options: &[(&'static str, T)]) -> Vec<&'static str> {
 
 const NO_OVERRIDE: &str = "No override";
 
-fn override_index<T: PartialEq>(choices: &[T], chosen: Option<T>) -> usize {
-    chosen
-        .and_then(|chosen| choices.iter().position(|choice| *choice == chosen))
-        .map_or(0, |index| index + 1)
-}
-
-fn overridden<T: Copy>(choices: &[T], index: Option<usize>) -> Option<T> {
-    index
-        .and_then(|index| index.checked_sub(1))
-        .and_then(|index| choices.get(index).copied())
+/// The value `options` pairs with `label`.
+fn labelled<T: Copy>(options: &[(&'static str, T)], label: &str) -> T {
+    options
+        .iter()
+        .find(|(candidate, _)| *candidate == label)
+        .map(|(_, value)| *value)
+        .expect("a label from the same options")
 }
 const COMMANDS: [(&str, &str, Command); 12] = [
     ("First", "first", Command::First),
@@ -202,6 +199,7 @@ pub struct Panel {
     pub summary: Signal<Summary>,
     pub performance: Signal<PerformanceSummary>,
     pub renderer: Signal<RendererRows>,
+    pub drags: Signal<Vec<String>>,
     pub program: EmbedSlot,
 }
 
@@ -212,6 +210,7 @@ pub fn build(state: Stored<State>, embeds_program: bool) -> Panel {
     let summary = create_signal(Summary::default());
     let performance = create_signal(PerformanceSummary::default());
     let renderer = create_signal(RendererRows::new());
+    let drags = create_signal(Vec::<String>::new());
     let program = EmbedSlot::new();
 
     let mut document = Document::new();
@@ -238,6 +237,9 @@ pub fn build(state: Stored<State>, embeds_program: bool) -> Panel {
                 </DockTab>
                 <DockTab id=InspectorTab::Simulation title={InspectorTab::Simulation.title()}>
                     <SimulationTool state summary />
+                </DockTab>
+                <DockTab id=InspectorTab::Drags title={InspectorTab::Drags.title()}>
+                    <DragTool rows={drags.read_only()} />
                 </DockTab>
             </DockPane>
         };
@@ -280,7 +282,25 @@ pub fn build(state: Stored<State>, embeds_program: bool) -> Panel {
         summary,
         performance,
         renderer,
+        drags,
         program,
+    }
+}
+
+/// The Drag tool: what the program carries and every place it can land in; the places are
+/// drawn over the program while this tab shows.
+#[component]
+fn DragTool(rows: ReadSignal<Vec<String>>) -> NodeId {
+    view! {
+        <Scroll>
+            <Frame padding=BODY_PADDING>
+                <List spacing=FOOTER_SPACING>
+                    <ForEach value={rows}>|row: String|
+                        <Text style=TextStyle::CODE>{row}</Text>
+                    </ForEach>
+                </List>
+            </Frame>
+        </Scroll>
     }
 }
 
@@ -323,7 +343,6 @@ fn TreePanel(
     let count_text = create_memo(move || total_label(total.get(), noun));
     let bounds_text = create_memo(move || summary.with(|summary| summary.bounds.clone()));
     let properties = create_memo(move || summary.with(|summary| summary.properties.clone()));
-    let has_properties = create_memo(move || properties.with(|properties| !properties.is_empty()));
     let selected = create_memo(move || selection.with(|path| path.last().copied()));
     let picking = create_memo(move || summary.with(|summary| summary.picking));
     let pick = Action::new(PICK, "Pick", move || state.value().toggle_picking())
@@ -363,7 +382,7 @@ fn TreePanel(
                             <TreeCells row_key={row.key} entries={entries} />
                         </Tree>
                     </ListItem>
-                    <Show condition={has_properties}>
+                    <Show value={move || properties.with(|properties| !properties.is_empty())}>
                         <ListItem grow=PROPERTIES_SHARE>
                             <Frame @test_id={"inspector.properties"}>
                                 <PropertiesSection properties />
@@ -451,14 +470,11 @@ fn SimulationPanel(
     handles_back: Memo<bool>,
 ) -> NodeId {
     let simulated = state.value().simulated_pixels_per_point.get();
-    let selected = PIXEL_RATIOS
-        .iter()
-        .position(|(_, ratio)| *ratio == simulated)
-        .unwrap_or(0);
-    let ratio = create_signal(Some(selected));
+    let listed = PIXEL_RATIOS.iter().any(|(_, ratio)| *ratio == simulated);
+    let ratio = create_signal(Some(simulated.filter(|_| listed)));
     let developer = state.value().developer.get();
-    let theme = create_signal(Some(override_index(&ThemeKind::ALL, developer.theme)));
-    let motion = create_signal(Some(override_index(&Motion::ALL, developer.motion)));
+    let theme = create_signal(Some(developer.theme));
+    let motion = create_signal(Some(developer.motion));
     view! {
         <Scroll>
             <Frame padding=BODY_PADDING>
@@ -486,14 +502,13 @@ fn SimulationPanel(
                             @test_id={"inspector.simulation.pixel_ratio"}
                             label="Device pixel ratio"
                             options={view! {
-                                <ForEach keys={labels(&PIXEL_RATIOS)}>|label: &'static str|
-                                    <ChoiceOption label />
+                                <ForEach value={labels(&PIXEL_RATIOS)}>|label: &'static str|
+                                    <ChoiceOption value={labelled(&PIXEL_RATIOS, label)} label />
                                 </ForEach>
                             }}
-                            selected={Binding::new(ratio, move |index: Option<usize>| {
-                                ratio.set(index);
-                                let ratio = index.and_then(|index| PIXEL_RATIOS.get(index));
-                                state.value().simulate_pixels_per_point(ratio.and_then(|(_, ratio)| *ratio));
+                            selected={Binding::new(ratio, move |chosen: Option<Option<f32>>| {
+                                ratio.set(chosen);
+                                state.value().simulate_pixels_per_point(chosen.flatten());
                             })}
                         />
                     </List>
@@ -510,14 +525,14 @@ fn SimulationPanel(
                             @test_id={"inspector.simulation.theme"}
                             label="Theme"
                             options={view! {
-                                <ChoiceOption label=NO_OVERRIDE />
-                                <ForEach keys={ThemeKind::ALL.to_vec()}>|kind: ThemeKind|
-                                    <ChoiceOption label={kind.name()} />
+                                <ChoiceOption value=None label=NO_OVERRIDE />
+                                <ForEach value={ThemeKind::ALL.to_vec()}>|kind: ThemeKind|
+                                    <ChoiceOption value={Some(kind)} label={kind.name()} />
                                 </ForEach>
                             }}
-                            selected={Binding::new(theme, move |index: Option<usize>| {
-                                theme.set(index);
-                                let chosen = overridden(&ThemeKind::ALL, index);
+                            selected={Binding::new(theme, move |chosen: Option<Option<ThemeKind>>| {
+                                theme.set(chosen);
+                                let chosen = chosen.flatten();
                                 let developer = state.value().developer.get();
                                 state.value().override_preferences(PreferenceLayer { theme: chosen, ..developer });
                             })}
@@ -529,14 +544,14 @@ fn SimulationPanel(
                             @test_id={"inspector.simulation.motion"}
                             label="Motion"
                             options={view! {
-                                <ChoiceOption label=NO_OVERRIDE />
-                                <ForEach keys={Motion::ALL.to_vec()}>|motion: Motion|
-                                    <ChoiceOption label={motion.name()} />
+                                <ChoiceOption value=None label=NO_OVERRIDE />
+                                <ForEach value={Motion::ALL.to_vec()}>|choice: Motion|
+                                    <ChoiceOption value={Some(choice)} label={choice.name()} />
                                 </ForEach>
                             }}
-                            selected={Binding::new(motion, move |index: Option<usize>| {
-                                motion.set(index);
-                                let chosen = overridden(&Motion::ALL, index);
+                            selected={Binding::new(motion, move |chosen: Option<Option<Motion>>| {
+                                motion.set(chosen);
+                                let chosen = chosen.flatten();
                                 let developer = state.value().developer.get();
                                 state.value().override_preferences(PreferenceLayer { motion: chosen, ..developer });
                             })}
@@ -600,7 +615,8 @@ fn BackSection(state: Stored<State>, handles_back: Memo<bool>) -> NodeId {
             swipe.set(Swipe::Idle);
         }
     };
-    let released = move |held: bool| {
+    let released = move |change: ValueDrag| {
+        let held = change == ValueDrag::Started;
         dragging.set(held);
         if held {
             return;
@@ -635,12 +651,7 @@ fn FilterSection(state: Stored<State>) -> NodeId {
     let contrast = create_signal(state.value().contrast_reduction.get());
     let blur_text = create_memo(move || blur_label(blur.get()));
     let contrast_text = create_memo(move || contrast_label(contrast.get()));
-    let vision = state.value().color_vision.get();
-    let selected_vision = ColorVision::ALL
-        .iter()
-        .position(|(_, candidate)| *candidate == vision)
-        .unwrap_or(0);
-    let vision = create_signal(Some(selected_vision));
+    let vision = create_signal(Some(state.value().color_vision.get()));
     let vision_labels = labels(&ColorVision::ALL);
     view! {
         <List spacing=TIMING_SPACING>
@@ -671,14 +682,14 @@ fn FilterSection(state: Stored<State>) -> NodeId {
                 @test_id={"inspector.simulation.color_vision"}
                 label="Colour vision"
                 options={view! {
-                    <ForEach keys={vision_labels}>|label: &'static str|
-                        <ChoiceOption label />
+                    <ForEach value={vision_labels}>|label: &'static str|
+                        <ChoiceOption value={labelled(&ColorVision::ALL, label)} label />
                     </ForEach>
                 }}
-                selected={Binding::new(vision, move |index: Option<usize>| {
-                    vision.set(index);
-                    if let Some((_, vision)) = index.and_then(|index| ColorVision::ALL.get(index)) {
-                        state.value().choose_color_vision(*vision);
+                selected={Binding::new(vision, move |chosen: Option<ColorVision>| {
+                    vision.set(chosen);
+                    if let Some(chosen) = chosen {
+                        state.value().choose_color_vision(chosen);
                     }
                 })}
             />
@@ -730,7 +741,7 @@ fn GuideSection(title: &'static str, lines: &'static [&'static str]) -> NodeId {
     view! {
         <List spacing=FOOTER_SPACING>
             <Text style=TextStyle::CAPTION color=TextColor::Default>{title.to_owned()}</Text>
-            <ForEach keys={lines.to_vec()}>|line: &'static str|
+            <ForEach value={lines.to_vec()}>|line: &'static str|
                 <Text style=TextStyle::CAPTION>{line.to_owned()}</Text>
             </ForEach>
         </List>
@@ -840,14 +851,15 @@ fn PerformancePanel(
 
 #[component]
 fn RendererSection(rows: ReadSignal<RendererRows>) -> NodeId {
-    let missing = create_memo(move || rows.with(Vec::is_empty));
     view! {
         <List spacing=TIMING_SPACING>
             <Text style=TextStyle::HEADING>"Renderer"</Text>
-            <Show condition={missing}>
-                <Text style=TextStyle::CAPTION>"Not reported by this host"</Text>
-            </Show>
-            <ForEach keys={rows}>|(label, value): (&'static str, String)|
+            <ForEach
+                value={rows}
+                fallback={|| view! {
+                    <Text style=TextStyle::CAPTION>"Not reported by this host"</Text>
+                }}
+            >|(label, value): (&'static str, String)|
                 <LabeledRow label={label.to_owned()} value />
             </ForEach>
         </List>
@@ -864,7 +876,7 @@ fn PropertiesSection(properties: Memo<Vec<(String, String)>>) -> NodeId {
                     <Frame padding=BODY_PADDING>
                         <List spacing=TIMING_SPACING>
                             <Text style=TextStyle::HEADING>"Properties"</Text>
-                            <ForEach keys={properties}>|(label, value): (String, String)|
+                            <ForEach value={properties}>|(label, value): (String, String)|
                                 <LabeledRow label value />
                             </ForEach>
                         </List>

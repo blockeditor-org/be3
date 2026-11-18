@@ -18,8 +18,9 @@ fn revision_history_editors_cannot_mutate_any_block() {
         CounterContent::encode_operation(&be_type_example_counter::Counter::add(1)),
     );
     be_host_stack::flush_and_send();
-    let head =
-        be_host_stack::wait_until(|shared| shared.graph.get(block).and_then(|node| node.head));
+    let head = be_host_stack::wait_until("saved the block", |shared| {
+        shared.graph.get(block).and_then(|node| node.head)
+    });
     let (send, receive) = std::sync::mpsc::channel();
     be_host_stack::revisions::request(
         block,
@@ -38,9 +39,12 @@ fn revision_history_editors_cannot_mutate_any_block() {
         assert!(!to_replica(
             &mut instances,
             target,
-            &FromEditor::Operate(CounterContent::encode_operation(
-                &be_type_example_counter::Counter::add(99)
-            ))
+            &FromEditor::Operate {
+                gesture: None,
+                operation: CounterContent::encode_operation(
+                    &be_type_example_counter::Counter::add(99)
+                )
+            }
         ));
         assert!(!call(
             &mut instances,
@@ -92,10 +96,12 @@ fn revision_history_editors_cannot_mutate_any_block() {
     );
     be_host_stack::flush_and_send();
     be_host_stack::close(child);
-    be_host_stack::wait_until(|shared| (!shared.blocks.contains_key(&child)).then_some(()));
+    be_host_stack::wait_until("closed the child", |shared| {
+        (!shared.blocks.contains_key(&child)).then_some(())
+    });
     let descendant = be_host_stack::revisions::alias(preview, child);
     be_host_stack::open(descendant, CounterContent::CONTENT_TYPE);
-    be_host_stack::wait_until(|shared| {
+    be_host_stack::wait_until("opened the child's preview", |shared| {
         shared
             .revision_previews
             .get(&descendant)
@@ -120,9 +126,10 @@ fn revision_history_editors_cannot_mutate_any_block() {
     assert!(!to_replica(
         &mut nested,
         child,
-        &FromEditor::Operate(CounterContent::encode_operation(
-            &be_type_example_counter::Counter::add(99)
-        ))
+        &FromEditor::Operate {
+            gesture: None,
+            operation: CounterContent::encode_operation(&be_type_example_counter::Counter::add(99))
+        }
     ));
     be_host_stack::flush_and_send();
     assert_eq!(

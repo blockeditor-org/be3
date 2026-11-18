@@ -1,9 +1,4 @@
-pub mod archive;
-pub mod inputs;
-pub mod map;
 pub mod module;
-pub mod object;
-pub mod tls;
 
 use std::{
     collections::{HashMap, HashSet},
@@ -12,8 +7,7 @@ use std::{
 };
 
 use be_wasm_dylink::{
-    Declared, ENV, GOT_FUNCTION, GOT_MEMORY, GOT_THREAD_LOCAL, MEMORY_BASE, STACK_POINTER, TABLE,
-    TABLE_BASE, TLS_ALIGN, TLS_SIZE,
+    Declared, ENV, GOT_FUNCTION, GOT_MEMORY, MEMORY_BASE, STACK_POINTER, TABLE, TABLE_BASE,
 };
 
 pub const NEEDS_FLAG: &str = "--be3-needs=";
@@ -21,7 +15,7 @@ pub const LIBRARY_FLAG: &str = "--be3-library=";
 pub const LIBRARY_SECTION: &str = "be3.lib";
 
 const LINKED_BY_LOADER: [&str; 5] = ["memory", TABLE, STACK_POINTER, MEMORY_BASE, TABLE_BASE];
-const SYNTHESIZED: [&str; 12] = [
+const SYNTHESIZED: [&str; 9] = [
     "__dso_handle",
     "__data_end",
     "__global_base",
@@ -29,9 +23,6 @@ const SYNTHESIZED: [&str; 12] = [
     "__heap_end",
     "__stack_low",
     "__stack_high",
-    "__tls_base",
-    "__tls_size",
-    "__tls_align",
     "__wasm_call_ctors",
     "__wasm_apply_data_relocs",
 ];
@@ -42,19 +33,23 @@ const DROPPED_FROM_APPS: [&str; 5] = [
     "--no-entry",
     "--export=__heap_base",
 ];
-const APP_FLAGS: [&str; 7] = [
+// -Bsymbolic binds what a module defines to its own definition. Without it a
+// module reaches its own symbols that others could define through GOT.func and
+// GOT.mem imports, which the loader answers from the lowest module that
+// exports the name: PDFium's FreeType took the address of its TT_RunIns and
+// was handed beui's. A guest is single-threaded, so lld lowers its
+// thread-locals to plain data and makes no thread-local block.
+const APP_FLAGS: [&str; 4] = [
     "-shared",
     "--experimental-pic",
+    "-Bsymbolic",
     "--unresolved-symbols=import-dynamic",
-    "--export=__wasm_init_tls",
-    "--export=__tls_size",
-    "--export=__tls_align",
-    "--export=__tls_base",
 ];
+const COMMAND_START: &str = "crt1-command.o";
 const ROOT_FLAGS: [&str; 3] = ["--export-all", "--export-table", "--growable-table"];
 const UNUSED_SECTIONS: [&str; 3] = [".rmeta", ".rmeta-link", "__wasm_bindgen_unstable"];
 const WHOLE_LIBRARIES: [&str; 2] = ["-lc++", "-lc++abi"];
-const LIBC: [&str; 63] = [
+const LIBC: [&str; 52] = [
     "__assert_fail",
     "atof",
     "atoi",
@@ -86,17 +81,6 @@ const LIBC: [&str; 63] = [
     "iswspace",
     "iswupper",
     "isxdigit",
-    "pthread_cond_broadcast",
-    "pthread_cond_destroy",
-    "pthread_cond_init",
-    "pthread_cond_signal",
-    "pthread_cond_wait",
-    "pthread_mutex_destroy",
-    "pthread_mutex_init",
-    "pthread_mutex_lock",
-    "pthread_mutex_trylock",
-    "pthread_mutex_unlock",
-    "pthread_once",
     "setlocale",
     "snprintf",
     "strcat",
@@ -353,33 +337,7 @@ pub fn root_arguments(arguments: Vec<String>) -> (Vec<String>, Vec<String>) {
     (rewritten, linked)
 }
 
-fn scratch(out: &Path, suffix: &str) -> PathBuf {
-    let mut name = out.as_os_str().to_owned();
-    name.push(suffix);
-    PathBuf::from(name)
-}
-
-fn link_mapped(
-    linker: &str,
-    mut arguments: Vec<String>,
-    map: &Path,
-) -> Result<map::ThreadLocals, String> {
-    arguments.push(format!("-Map={}", map.display()));
-    let linked = link(linker, &arguments);
-    let contents = std::fs::read_to_string(map);
-    let _ = std::fs::remove_file(map);
-    linked?;
-    map::thread_locals(
-        &contents.map_err(|error| format!("the link map could not be read: {error}"))?,
-    )
-}
-
-pub fn listing(
-    name: &str,
-    needs: &[&str],
-    linked: &[String],
-    thread_locals: &map::ThreadLocals,
-) -> String {
+pub fn listing(name: &str, needs: &[&str], linked: &[String]) -> String {
     let mut listing = format!("name {name}\n");
     for identity in needs {
         listing.push_str(&format!("need {identity}\n"));
@@ -387,21 +345,15 @@ pub fn listing(
     for archive in linked {
         listing.push_str(&format!("link {archive}\n"));
     }
-    let mut seen = HashSet::new();
-    for symbol in &thread_locals.symbols {
-        if seen.insert(&symbol.name) {
-            listing.push_str(&format!("tls {}\n", symbol.name));
-        }
-    }
     listing
 }
 
 fn link_root(linker: &str, arguments: Vec<String>, name: &str) -> Result<(), String> {
     let out = output(&arguments)?;
     let (arguments, linked) = root_arguments(arguments);
-    let thread_locals = link_mapped(linker, arguments, &scratch(&out, ".map"))?;
+    link(linker, &arguments)?;
     let bytes = module::with_short_symbols(&without_unused_sections(&read(&out)?)?)?;
-    let listing = listing(name, &[], &linked, &thread_locals);
+    let listing = listing(name, &[], &linked);
     write(
         &out,
         &module::with_custom(&bytes, LIBRARY_SECTION, listing.as_bytes()),
@@ -414,7 +366,6 @@ pub struct Library {
     pub identity: String,
     pub needs: Vec<String>,
     pub linked: Vec<String>,
-    pub thread_locals: HashSet<String>,
     pub functions: HashSet<String>,
     pub globals: HashSet<String>,
 }
@@ -440,11 +391,6 @@ impl Library {
                 "name" => library.name = value.to_owned(),
                 "need" => library.needs.push(value.to_owned()),
                 "link" => library.linked.push(value.to_owned()),
-                "tls" => {
-                    library
-                        .thread_locals
-                        .insert(be_wasm_dylink::short_symbol(value).into_owned());
-                }
                 _ => {}
             }
         }
@@ -541,6 +487,7 @@ pub fn app_arguments(arguments: Vec<String>, linked: &HashSet<String>) -> Vec<St
             continue;
         }
         let dropped = DROPPED_FROM_APPS.contains(&argument.as_str())
+            || basename(&argument) == COMMAND_START
             || (argument.starts_with("-l") && linked.contains(&argument))
             || (is_archive(&argument) && linked.contains(basename(&argument)));
         if !dropped {
@@ -585,7 +532,6 @@ pub fn unresolved(bytes: &[u8], name: &str, closure: &[Library]) -> Result<(), S
             .filter(|library| match import.module.as_str() {
                 ENV | GOT_FUNCTION => library.functions.contains(short.as_ref()),
                 GOT_MEMORY => library.globals.contains(short.as_ref()),
-                GOT_THREAD_LOCAL => library.thread_locals.contains(short.as_ref()),
                 _ => false,
             })
             .map(|library| library.name.as_str())
@@ -593,7 +539,6 @@ pub fn unresolved(bytes: &[u8], name: &str, closure: &[Library]) -> Result<(), S
         let checked = match import.module.as_str() {
             ENV => !LINKED_BY_LOADER.contains(&wanted),
             GOT_MEMORY | GOT_FUNCTION => !own.contains(wanted),
-            GOT_THREAD_LOCAL => true,
             _ => false,
         };
         if !checked {
@@ -627,16 +572,11 @@ pub fn unresolved(bytes: &[u8], name: &str, closure: &[Library]) -> Result<(), S
 
 pub fn declared(bytes: &[u8]) -> Result<Declared, String> {
     let info = module::memory_info(bytes)?.ok_or("the module has no dylink.0 section")?;
-    let constant = |name: &str, default: u32| -> Result<u32, String> {
-        Ok(module::exported_constant(bytes, name)?.map_or(default, |value| value as u32))
-    };
     Ok(Declared {
         memory_size: info.memory_size,
         memory_align: info.memory_align,
         table_size: info.table_size,
         table_align: info.table_align,
-        tls_size: constant(TLS_SIZE, 0)?,
-        tls_align: constant(TLS_ALIGN, 1)?,
     })
 }
 
@@ -696,12 +636,7 @@ fn link_linked(
         Some(_) => library_arguments(arguments),
         None => arguments,
     };
-    let (arguments, rewritten) = inputs::through_got(arguments, &out)?;
-    let thread_locals = link_mapped(linker, arguments, &scratch(&out, ".map"));
-    for path in rewritten {
-        let _ = std::fs::remove_file(path);
-    }
-    let thread_locals = thread_locals?;
+    link(linker, &arguments)?;
     let bytes = without_unused_sections(&read(&out)?)?;
     unresolved(&bytes, &name, &closure)?;
     let bytes = module::with_short_symbols(&bytes)?;
@@ -709,7 +644,7 @@ fn link_linked(
         .iter()
         .map(|library| library.identity.as_str())
         .collect();
-    let listing = listing(&name, &needs, &kept, &thread_locals);
+    let listing = listing(&name, &needs, &kept);
     write(
         &out,
         &module::with_custom(

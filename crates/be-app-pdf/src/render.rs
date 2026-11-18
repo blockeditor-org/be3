@@ -1,16 +1,14 @@
-use std::{
-    sync::mpsc::{Receiver, TryRecvError},
-    time::Instant,
+use std::{collections::VecDeque, time::Instant};
+
+use be_sdk_beui::frame_time;
+
+use be_sdk_beui::worker::{Generation, Shared};
+use be_sdk_beui::{
+    PerformanceReporter, Waker,
+    beui::{Image, Pos2, Vec2},
 };
-
-use be_sdk_beui::beui::{Image, Pos2, Vec2};
-
-mod pdfium;
-
-pub(crate) use pdfium::spawn_render_job;
-
-pub(crate) const DETAIL_MAX_DIM: f32 = 4096.0;
-pub(crate) const MIN_SCALE: f32 = 0.01;
+use be_worker_pdf::{Answer, Job, Measure, Rendered};
+pub(crate) use be_worker_pdf::{DETAIL_MAX_DIM, MIN_SCALE, Target as RenderTarget};
 
 pub(crate) struct RenderedTile {
     pub(crate) page_count: usize,
@@ -23,19 +21,6 @@ pub(crate) struct RenderedTile {
 }
 
 #[derive(Clone, Copy)]
-pub(crate) enum RenderTarget {
-    FullPage {
-        max_width: f32,
-        max_height: f32,
-    },
-    ShownView {
-        scale: f32,
-        origin_pts: Pos2,
-        size_pts: Vec2,
-    },
-}
-
-#[derive(Clone, Copy)]
 pub(crate) struct RenderRequest {
     pub(crate) revision: u64,
     pub(crate) page: usize,
@@ -44,17 +29,81 @@ pub(crate) struct RenderRequest {
 
 pub(crate) type RenderJobResult = Result<RenderedTile, String>;
 
-pub(crate) struct RenderJobMessage {
-    pub(crate) completed_at: Instant,
-    pub(crate) result: RenderJobResult,
+/// One pane's way to the renderer (be-worker-pdf-render), which every PDF the app shows shares:
+/// it sends the pane's jobs and hears only their answers, in order.
+pub(crate) struct RenderClient {
+    renderer: Shared,
+    /// The generation of the renderer each job still unanswered went to, and the frame it was
+    /// sent in by the frame clock, oldest first.
+    sent: VecDeque<(Generation, Option<Instant>)>,
 }
 
-pub(crate) struct RenderJob {
-    pub(crate) receiver: Receiver<RenderJobMessage>,
-}
+impl RenderClient {
+    pub(crate) fn new(waker: &Waker) -> Self {
+        let waker = waker.clone();
+        Self {
+            renderer: Shared::new(be_worker_pdf::MODULE, move || waker.wake()),
+            sent: VecDeque::new(),
+        }
+    }
 
-impl RenderJob {
-    pub(crate) fn try_recv(&self) -> Result<RenderJobMessage, TryRecvError> {
-        self.receiver.try_recv()
+    pub(crate) fn send(&mut self, data: Vec<u8>, page: usize, target: RenderTarget) {
+        let job = Job { page, target, data };
+        let generation = self.renderer.send(&job.encode());
+        self.sent.push_back((generation, frame_time()));
+    }
+
+    /// The answer to the oldest job still unanswered, once it came, with what the renderer
+    /// measured recorded to `performance`.
+    pub(crate) fn receive(&mut self, performance: &PerformanceReporter) -> Option<RenderJobResult> {
+        let answer = loop {
+            let answer = self.renderer.try_receive()?;
+            let generation = answer.generation;
+            match answer.result.and_then(|message| Answer::decode(&message)) {
+                Ok(answer) => break answer,
+                // That generation stopped: it answers nothing more it was sent, and what went to
+                // a later one (a send that started the renderer anew) is still to come. A stop
+                // fails nothing of this pane's if it sent that generation nothing.
+                Err(why) => {
+                    let before = self.sent.len();
+                    self.sent.retain(|(sent, _)| *sent != generation);
+                    if self.sent.len() != before {
+                        return Some(Err(why));
+                    }
+                }
+            }
+        };
+        let sent = self.sent.pop_front().and_then(|(_, sent)| sent);
+        if let (Some(sent), Some(now)) = (sent, frame_time()) {
+            performance.record_duration("Round trip", now.saturating_duration_since(sent));
+        }
+        for measure in answer.measures {
+            match measure {
+                Measure::Duration(name, took) => performance.record_duration(name, took),
+                Measure::Count(name, count) => performance.record_count(name, count),
+            }
+        }
+        Some(answer.result.map(|rendered| {
+            let Rendered {
+                page_count,
+                page_index,
+                page_size_pts,
+                scale,
+                origin_pts,
+                size_pts,
+                width,
+                height,
+                rgba,
+            } = rendered;
+            RenderedTile {
+                page_count,
+                page_index,
+                page_size_pts,
+                scale,
+                origin_pts,
+                size_pts,
+                image: Image::from_rgba(width, height, rgba),
+            }
+        }))
     }
 }

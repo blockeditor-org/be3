@@ -5,11 +5,12 @@ version.workspace = true
 license.workspace = true
 
 [dependencies]
+be-block-input = { path = "../be-block-input" }
 be-block = { path = "../be-block" }
 be-block-content = { path = "../be-block-content" }
 be-block-type-host = { path = "../be-block-type-host" }
 beui = { path = "../beui" }
-beui-host = { path = "../beui-host", default-features = false }
+beui-host = { path = "../beui-host" }
 be-host-base = { path = "../be-host-base" }
 be-host-stack = { path = "../be-host-stack" }
 be-sdk-api = { path = "../be-sdk-api" }
@@ -21,6 +22,7 @@ wgpu = { version = "29", default-features = false }
 # displays and input devices themselves rather than in a window.
 [target.'cfg(target_os = "linux")'.dependencies]
 be-host-remap-host = { path = "../be-host-remap-host" }
+be-host-programs = { path = "../be-host-programs" }
 be-host-wayland = { path = "../be-host-wayland" }
 beui-platform-drm = { path = "../beui-platform-drm" }
 # Files a block is written to for a program to open are watched, so what the

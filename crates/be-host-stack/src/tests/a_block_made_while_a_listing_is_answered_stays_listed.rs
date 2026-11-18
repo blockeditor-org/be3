@@ -12,9 +12,11 @@ fn a_block_made_while_a_listing_is_answered_stays_listed() {
         shared.graph.ready(Query::Roots)
     });
 
-    let mut listed = harness
-        .relay()
-        .count(|method, _| method == be_block_protocol::__args::BLOCKS_LIST_BLOCKS);
+    let mut listed = harness.relay().count(|method, args| {
+        method == be_block_protocol::__args::SERVER_READ
+            && be_wasm_ops::decode::<be_block_protocol::__args::ServerReadArgs>(args)
+                .is_some_and(|asked| matches!(asked.query, be_block_protocol::Query::List { .. }))
+    });
     let before = *listed.borrow_and_update();
     harness.relay().hold_answers(true);
     refetch(Query::Roots);

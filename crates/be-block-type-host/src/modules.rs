@@ -31,8 +31,12 @@ pub struct Kind {
     pub merges_parts: bool,
     /// The stored form read whole decodes to the content (`BlockContent::WHOLE_BYTES`).
     pub whole_bytes: bool,
+    /// Keeps a signed log beside its content (`type-info.log`): an export carries it.
+    pub log: bool,
     pub blank: Vec<u8>,
     pub described: Description,
+    /// The owner-only settings kind the type counts what is unread from (`type-info.reads`).
+    pub reads: Option<Uuid>,
 }
 
 impl Kind {
@@ -50,8 +54,7 @@ impl Kind {
     }
 }
 
-static REGISTRY: be_wasm_threads::Mutex<BTreeMap<Uuid, Kind>> =
-    be_wasm_threads::Mutex::new(BTreeMap::new());
+static REGISTRY: std::sync::Mutex<BTreeMap<Uuid, Kind>> = std::sync::Mutex::new(BTreeMap::new());
 
 pub fn kind_of(content_type: Uuid) -> Option<Kind> {
     REGISTRY
@@ -61,8 +64,41 @@ pub fn kind_of(content_type: Uuid) -> Option<Kind> {
         .cloned()
 }
 
-static DECLARED: be_wasm_threads::Mutex<BTreeSet<Uuid>> =
-    be_wasm_threads::Mutex::new(BTreeSet::new());
+static DECLARED: std::sync::Mutex<BTreeSet<Uuid>> = std::sync::Mutex::new(BTreeSet::new());
+
+/// Moves on each time `REGISTRY` or `DECLARED` changes (`known`).
+static KNOWN_REVISION: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// How many times what is known changed: `known` answers something new only once this moved.
+pub fn known_revision() -> u64 {
+    KNOWN_REVISION.load(std::sync::atomic::Ordering::Acquire)
+}
+
+/// Every content type known here: each declared one, with its kind once a module described it.
+pub fn known() -> Vec<(Uuid, Option<Kind>)> {
+    let registry = REGISTRY
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .clone();
+    let declared = DECLARED
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .clone();
+    let mut known: BTreeMap<Uuid, Option<Kind>> = declared
+        .into_iter()
+        .map(|content_type| (content_type, None))
+        .collect();
+    known.extend(
+        registry
+            .into_iter()
+            .map(|(content_type, kind)| (content_type, Some(kind))),
+    );
+    known.into_iter().collect()
+}
+
+fn known_changed() {
+    KNOWN_REVISION.fetch_add(1, std::sync::atomic::Ordering::AcqRel);
+}
 
 pub fn is_known(content_type: Uuid) -> bool {
     DECLARED
@@ -80,6 +116,7 @@ pub fn register(kind: Kind) {
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner)
         .insert(kind.content_type, kind);
+    known_changed();
 }
 
 pub type Boxed = Box<dyn Channel<Presented = Infallible>>;
@@ -123,7 +160,6 @@ pub fn in_process<G: Guest + 'static>(name: impl Into<String>) -> Source {
 pub fn wasm(
     name: impl Into<String>,
     tag: Result<SessionTag, String>,
-    cache: Option<std::path::PathBuf>,
     load: impl Fn(&be_wasm_host::Host) -> Result<be_wasm_host::App, String> + Clone + Send + 'static,
 ) -> Source {
     let name = name.into();
@@ -133,7 +169,7 @@ pub fn wasm(
         start: Box::new(move |wake, waiting| {
             let tag = tag.clone()?;
             let load = load.clone();
-            let host = be_wasm_host::Host::pure(cache.as_deref())?;
+            let host = be_wasm_host::Host::pure()?;
             let channel = host.spawn(
                 name.clone(),
                 move |host| load(host),
@@ -176,6 +212,23 @@ struct Module {
     failure: Option<String>,
     generation: u64,
     restarts: usize,
+}
+
+impl Module {
+    /// Brings the module to `now`: yields the clock if it moved, and ends a sleep until a
+    /// moment it has reached, whether or not the clock moved since, as under a held clock it may
+    /// never move again. A module runs its timers as the clock reaches it (`tick`), not as its
+    /// sleep ends, so a due sleep ends with the clock yielded again, moved or not.
+    fn advance(&mut self, now: u64) {
+        let due = self.sleeping.as_ref().is_some_and(|(at, _)| *at <= now);
+        if due || self.ticked.is_none_or(|ticked| ticked < now) {
+            self.ticked = Some(self.ticked.map_or(now, |ticked| ticked.max(now)));
+            let _ = self.clock.send(&mut self.connection, &now, |_| true);
+        }
+        if due && let Some((_, reply)) = self.sleeping.take() {
+            reply.send(&mut self.connection, &());
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -416,6 +469,7 @@ impl Modules {
                             .lock()
                             .unwrap_or_else(std::sync::PoisonError::into_inner)
                             .insert(content_type);
+                        known_changed();
                     }
                 }
                 None => modules.launch(module),
@@ -506,15 +560,41 @@ impl Modules {
     }
 
     pub fn settled(&self) -> bool {
-        self.backlog.is_empty()
-            && self
-                .modules
-                .iter()
-                .all(|module| module.worker.as_ref().is_none_or(Worker::settled))
+        self.unsettled().is_empty()
+    }
+
+    /// Why the modules are not settled, one reason each: empty once they are.
+    pub fn unsettled(&self) -> Vec<String> {
+        let mut reasons: Vec<String> = self
+            .modules
+            .iter()
+            .filter_map(|module| {
+                let why = module.worker.as_ref()?.unsettled()?;
+                Some(format!("{}: {why}", module.source.name))
+            })
+            .collect();
+        if !self.backlog.is_empty() {
+            reasons.push("what the modules said meanwhile waits to be taken".to_owned());
+        }
+        reasons
+    }
+
+    /// Whether a wait on one module (`until`, `ask_all`, `ask_reading`) kept what the modules
+    /// said meanwhile for later (`backlog`), or restarted one: the wake that told of it went to
+    /// that wait, so whoever pumps the modules must take it without waiting for another
+    /// (`Replicas::woken`), or it sits there, unsettled, until a module next speaks.
+    pub fn kept(&self) -> bool {
+        !self.backlog.is_empty() || !self.restarted.is_empty()
     }
 
     pub fn tag(&self, module: usize) -> SessionTag {
         self.modules[module].tag
+    }
+
+    /// The module's source's name: its app's id, which what the module writes in a block's
+    /// signed log is signed as (`be_block_client::by_app`).
+    pub fn name(&self, module: usize) -> &str {
+        &self.modules[module].source.name
     }
 
     pub fn generation(&self, module: usize) -> u64 {
@@ -583,8 +663,10 @@ impl Modules {
                 first_part: info.first_part,
                 merges_parts: info.merges_parts,
                 whole_bytes: info.whole_bytes,
+                log: info.log,
                 blank: info.blank,
                 described: info.blank_description,
+                reads: info.reads,
             });
         }
         if registered {
@@ -609,25 +691,11 @@ impl Modules {
         }
     }
 
-    fn advance(&mut self, module: usize, now: u64) {
-        let held = &mut self.modules[module];
-        if held.ticked.is_some_and(|ticked| ticked >= now) {
-            return;
-        }
-        held.ticked = Some(now);
-        let _ = held.clock.send(&mut held.connection, &now, |_| true);
-        if held.sleeping.as_ref().is_some_and(|(at, _)| *at <= now)
-            && let Some((_, reply)) = held.sleeping.take()
-        {
-            reply.send(&mut held.connection, &());
-        }
-    }
-
     pub fn call<R>(&mut self, module: usize, call: impl FnOnce(&mut Connection) -> R) -> Option<R> {
         self.wake(module);
         self.modules[module].worker.as_ref()?;
         let now = self.now();
-        self.advance(module, now);
+        self.modules[module].advance(now);
         let result = call(&mut self.modules[module].connection);
         self.flush(module);
         Some(result)
@@ -642,7 +710,7 @@ impl Modules {
             return;
         }
         let now = self.millis_at(at);
-        self.advance(module, now);
+        self.modules[module].advance(now);
         self.flush(module);
     }
 
@@ -993,6 +1061,11 @@ impl Modules {
                     .into_iter()
                     .map(|entry| be_sdk_type_api::JournalEntry {
                         sequence: entry.sequence,
+                        origin: entry.origin,
+                        counter: entry.counter,
+                        base: entry.base,
+                        floor: entry.floor,
+                        received: entry.received,
                         payload: entry.payload,
                     })
                     .collect(),

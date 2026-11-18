@@ -1,7 +1,6 @@
-use be_sdk_beui::be_block::profile::RECENTS;
 use be_sdk_beui::be_block::{Home, PREFERRED_EDITOR, Recents, WORKSPACE_TYPE};
 use be_sdk_beui::be_block_content::{BlockContent, BlockMetadata, VIEW_EDITOR};
-use be_sdk_beui::be_block_content::{EditorView, EditorViewContent, ViewState};
+use be_sdk_beui::be_block_content::{EditorView, EditorViewContent, ViewRef};
 use be_type_settings::EditorSettings;
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet};
@@ -17,9 +16,10 @@ use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{NodeId, Rect};
 use be_sdk_beui::{
-    AccessLevel, BlockFilter, ChildState, ContactsWatch, DisplaysWatch, Editor, EditorHost,
-    Failure, FocusedBlock, HostPanel, HostProgram, HostWindow, HostWindowId, NotifyMode,
-    NotifyModesWatch, PickAnchor, PickedBlock, ProgramsWatch, Pushed, ShellDialog, WindowsWatch,
+    AccessLevel, AccessListing, BlockFilter, ChildState, ContactsWatch, DisplaysWatch, Editor,
+    EditorHost, Failure, FocusedBlock, HostPanel, HostProgram, HostWindow, HostWindowId,
+    MutesWatch, NotifyMode, PickAnchor, PickedBlock, ProgramsWatch, Pushed, ShareLink, ShellDialog,
+    WindowsWatch,
 };
 use be_sdk_beui::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks, ChildTarget};
 use uuid::Uuid;
@@ -28,7 +28,7 @@ use super::dialogs::OpenDialog;
 use super::host_panel::{HostPanelView, panel_icon, panel_tab, panel_window, tab_panel};
 use super::panel::BlockPanel;
 use super::program::{Heard, Program, Programs, listed_windows};
-use super::saved::{self, CLOSED_VIEWS, ClosedView, LAYOUT, MAX_CLOSED_VIEWS, TITLES};
+use super::saved::{self, ClosedView, ClosedViews, MAX_CLOSED_VIEWS, SavedLayout, SavedTitles};
 use super::share::{Share, ShareAction};
 use super::tab::TabItem;
 
@@ -49,7 +49,8 @@ pub struct Focus {
 struct State {
     layout: DockingLayout<TabId>,
     host: DockHostLayout,
-    restored: Cell<bool>,
+    /// The saved layout was put back, or there was none: what `save` waits for.
+    restored: Signal<bool>,
     handles: RefCell<HashMap<Uuid, BlockList>>,
     block_types: RefCell<HashMap<Uuid, Uuid>>,
     opened_via: RefCell<HashMap<Uuid, Uuid>>,
@@ -71,18 +72,28 @@ pub struct Workspace {
     views: Signal<HashMap<TabId, Uuid>>,
     pub(crate) titles: Signal<HashMap<TabId, String>>,
     simulated: Signal<HashMap<Uuid, AccessLevel>>,
-    /// The account's notification modes as the host publishes them (`NotifyModesWatch`), none
+    /// The account's mutes as the host publishes them (`MutesWatch`), none
     /// until the server has said.
-    notify_modes: Memo<Option<HashMap<Uuid, NotifyMode>>>,
+    mutes: Memo<Option<HashMap<Uuid, NotifyMode>>>,
     /// Modes this workspace set, shown until the host publishes them: each with whether the
-    /// host has answered, after which the next published modes take its place.
-    setting_modes: Signal<HashMap<Uuid, (NotifyMode, bool)>>,
-    error: Signal<Option<String>>,
-    routes: Signal<u64>,
+    /// host has answered, after which the next published mutes take its place.
+    setting_mutes: Signal<HashMap<Uuid, (NotifyMode, bool)>>,
+    routes: Trigger,
     pub(crate) phone: Signal<bool>,
     focus: Signal<Focus>,
     pub(crate) dialog: Signal<Option<OpenDialog>>,
     pub(crate) share: Signal<Option<Share>>,
+    /// Who has access to the block the share dialog shows, as the host lists it, with the
+    /// block it lists: `None` while no dialog shows. It keeps the last listing while it lists
+    /// again, so read it through `share_members`, which waits for the one of the shown block.
+    share_listing: AsyncMemo<Option<(Uuid, AccessListing)>>,
+    pub(crate) share_members: Memo<Ready<AccessListing>>,
+    /// The share links on the block the share dialog shows, as the host lists them for a
+    /// manager, with the block it lists; read through `share_links`.
+    share_links_listed: AsyncMemo<Option<(Uuid, Vec<ShareLink>)>>,
+    /// The share links of the block shown, once listed; none while they are listed, or when
+    /// the account may not list them.
+    pub(crate) share_links: Memo<Option<Vec<ShareLink>>>,
     pub(crate) windows: Memo<Vec<HostWindow>>,
     pub(crate) programs: Signal<Programs>,
     pub(crate) heard: Signal<HashMap<TabId, Heard>>,
@@ -105,11 +116,51 @@ impl Workspace {
         let views = create_signal(HashMap::new());
         let titles = create_signal(HashMap::new());
         let simulated = create_signal(HashMap::new());
-        let error = create_signal(None);
-        let routes = create_signal(0);
+        let routes = create_trigger();
         let phone = create_signal(false);
         let dialog = create_signal(None);
-        let share = create_signal(None);
+        let share = create_signal(None::<Share>);
+        let shared =
+            create_memo(move || share.with(|share| share.as_ref().map(|share| share.block)));
+        let share_listing = {
+            let host = editor.host();
+            create_async_memo(move || {
+                let asked = shared.get().map(|block| (block, host.list_access(block)));
+                async move {
+                    let Some((block, asked)) = asked else {
+                        return Ok(None);
+                    };
+                    Ok(Some((block, be_sdk_beui::answer(asked).await?)))
+                }
+            })
+        };
+        let share_links_listed = {
+            let host = editor.host();
+            create_async_memo(move || {
+                let asked = shared.get().map(|block| (block, host.share_links(block)));
+                async move {
+                    let Some((block, asked)) = asked else {
+                        return Ok(None);
+                    };
+                    Ok(Some((block, be_sdk_beui::answer(asked).await?)))
+                }
+            })
+        };
+        let share_links = create_memo(move || {
+            let shown = shared.get();
+            share_links_listed.with(|listed| match listed {
+                Ok(Some((block, links))) if Some(*block) == shown => Some(links.clone()),
+                _ => None,
+            })
+        });
+        let share_members = create_memo(move || {
+            let shown = shared.get();
+            share_listing.with(|listing| match listing {
+                Ok(Some((block, listing))) if Some(*block) == shown => Ok(listing.clone()),
+                Err(Pending::Failed(error)) => Err(Pending::Failed(error.clone())),
+                _ => Err(Pending::Loading),
+            })
+        });
         let panels = create_signal(Vec::new());
         let entries = editor.watch::<WindowsWatch>();
         let windows = create_memo(move || entries.with(|entries| listed_windows(entries)));
@@ -124,7 +175,7 @@ impl Workspace {
             state: store(State {
                 layout: DockingLayout::new(),
                 host: DockHostLayout::new(),
-                restored: Cell::new(false),
+                restored: create_signal(false),
                 handles: RefCell::new(HashMap::new()),
                 block_types: RefCell::new(HashMap::new()),
                 opened_via: RefCell::new(HashMap::new()),
@@ -141,12 +192,12 @@ impl Workspace {
             views,
             titles,
             simulated,
-            notify_modes: {
-                let watched = editor.watch::<NotifyModesWatch>();
+            mutes: {
+                let watched = editor.watch::<MutesWatch>();
                 create_memo(move || {
-                    watched.with(|modes| {
-                        modes.as_ref().map(|modes| {
-                            modes
+                    watched.with(|mutes| {
+                        mutes.as_ref().map(|mutes| {
+                            mutes
                                 .iter()
                                 .map(|row| (Uuid::from_bytes(row.block), row.mode))
                                 .collect()
@@ -154,14 +205,17 @@ impl Workspace {
                     })
                 })
             },
-            setting_modes: create_signal(HashMap::new()),
-            error,
+            setting_mutes: create_signal(HashMap::new()),
             routes,
             phone,
             focus: create_signal(Focus::default()),
             default_editors,
             dialog,
             share,
+            share_listing,
+            share_members,
+            share_links_listed,
+            share_links,
             windows,
             programs: create_signal(Programs::new()),
             heard: create_signal(HashMap::new()),
@@ -178,24 +232,43 @@ impl Workspace {
         create_effect(move || {
             workspace.place_windows();
         });
-        // Modes the host answered for give way to the next modes it publishes, which hold them.
-        create_effect(move || {
-            workspace.notify_modes.with(|_| ());
-            untrack(|| {
+        // Mutes the host answered for give way to the next mutes it publishes, which hold them.
+        create_effect_on(
+            move || workspace.mutes.track(),
+            move |_, _| {
                 workspace
-                    .setting_modes
-                    .update(|modes| modes.retain(|_, (_, answered)| !*answered));
-            });
-        });
+                    .setting_mutes
+                    .update(|mutes| mutes.retain(|_, (_, answered)| !*answered));
+            },
+        );
         workspace.list_programs_for_placeholders();
         create_effect(move || {
             workspace.open_landing();
         });
         let shows = workspace.editor.pushed(Pushed::Shows);
-        create_effect(move || {
-            shows.get();
-            untrack(|| workspace.show_requested());
-        });
+        create_effect_on(
+            move || shows.track(),
+            move |_, _| workspace.show_requested(),
+        );
+        // An Enter pressed while the members were listed is carried out once they are.
+        let me = workspace.host().account_id();
+        create_effect_on(
+            move || share_members.get(),
+            move |listing, _| {
+                let Ok(listing) = listing else {
+                    return;
+                };
+                if workspace.share.with_untracked(|share| {
+                    share.as_ref().is_some_and(|share| share.submit_waiting)
+                }) {
+                    workspace.share.update(|share| {
+                        if let Some(share) = share {
+                            share.listed(listing, me);
+                        }
+                    });
+                }
+            },
+        );
         create_binding(move || {
             workspace.restore();
         });
@@ -209,10 +282,10 @@ impl Workspace {
             workspace.report_focus();
         });
         let contacts = workspace.editor.watch::<ContactsWatch>();
-        create_effect(move || {
-            contacts.with(|_| ());
-            untrack(|| workspace.relist_share());
-        });
+        create_effect_on(
+            move || contacts.track(),
+            move |_, _| workspace.relist_share(),
+        );
         create_effect(move || {
             workspace.watch_artifacts();
         });
@@ -285,10 +358,6 @@ impl Workspace {
 
     pub fn phone(&self) -> ReadSignal<bool> {
         self.phone.read_only()
-    }
-
-    pub fn error(&self) -> ReadSignal<Option<String>> {
-        self.error.read_only()
     }
 
     pub fn ready(&self) -> ReadSignal<bool> {
@@ -457,8 +526,8 @@ impl Workspace {
     pub(crate) fn open_dialog(&self, dialog: OpenDialog) {
         self.forget_share();
         if let OpenDialog::Share(block) = dialog {
-            let request = self.list_share(block);
-            self.share.set(Some(Share::new(block, request)));
+            self.share.set(Some(Share::new(block)));
+            self.relist_links();
         }
         self.dialog.set(Some(dialog));
     }
@@ -476,18 +545,6 @@ impl Workspace {
         let state = self.state.value();
         state.next_ask.set(state.next_ask.get() + 1);
         state.next_ask.get()
-    }
-
-    fn list_share(&self, block: Uuid) -> u64 {
-        let ask = self.ask_number();
-        let workspace = *self;
-        let task = self
-            .editor
-            .then(self.host().list_access(block), move |listing| {
-                workspace.share_listed(ask, listing);
-            });
-        self.state.value().share_asks.borrow_mut().push(task);
-        ask
     }
 
     fn forget_share(&self) {
@@ -515,7 +572,9 @@ impl Workspace {
                 share.error = None;
                 let ask = self.ask_number();
                 let workspace = *self;
-                let asked = self.host().contact_link(share.block, share.pending_access);
+                let listing = self.share_members.get_untracked().ok();
+                let access = share.pending_access(listing.as_ref());
+                let asked = self.host().contact_link(share.block, access);
                 let task = self.editor.then(asked, move |made| {
                     workspace.contact_made(ask, made);
                 });
@@ -525,7 +584,59 @@ impl Workspace {
             self.share.set(Some(share));
             return;
         }
-        let (grants, mut reload) = share.act(action, self.host().account_id());
+        if let ShareAction::MakeLink = action {
+            if share.making_link.is_none() {
+                share.error = None;
+                let ask = self.ask_number();
+                let workspace = *self;
+                let listing = self.share_members.get_untracked().ok();
+                let access = share.link_access(listing.as_ref());
+                let asked = self
+                    .host()
+                    .make_share_link(share.block, access, share.link_admits);
+                let task = self.editor.then(asked, move |made| {
+                    workspace.link_made(ask, made.map(|_| ()));
+                });
+                self.state.value().share_asks.borrow_mut().push(task);
+                share.making_link = Some(ask);
+            }
+            self.share.set(Some(share));
+            return;
+        }
+        if let ShareAction::ConfirmRevoke = action {
+            if let Some(link) = share.revoking.take()
+                && !share.revoking_now.contains(&link)
+            {
+                share.error = None;
+                let workspace = *self;
+                let asked = self.host().revoke_share_link(share.block, &link);
+                share.revoking_now.push(link.clone());
+                // Listed again once it is answered: whom it granted lose their access then.
+                let task = self
+                    .editor
+                    .then(asked, move |revoked| workspace.link_revoked(&link, revoked));
+                self.state.value().share_asks.borrow_mut().push(task);
+            }
+            self.share.set(Some(share));
+            return;
+        }
+        if let ShareAction::ConfirmOwnership = action {
+            if let Some(account) = share.transferring.take() {
+                share.error = None;
+                let workspace = *self;
+                let asked = self.host().transfer_ownership(share.block, account);
+                // Listed again once it is done: who owns the block shows only then.
+                let task = self.editor.then(asked, move |set| match set {
+                    Ok(()) => workspace.share_listing.refresh(),
+                    Err(failure) => workspace.access_set(Err(failure)),
+                });
+                self.state.value().share_asks.borrow_mut().push(task);
+            }
+            self.share.set(Some(share));
+            return;
+        }
+        let listing = self.share_members.get_untracked().ok();
+        let (grants, mut reload) = share.act(action, listing.as_ref(), self.host().account_id());
         for (account, access) in grants {
             let workspace = *self;
             let asked = self.host().set_access(share.block, account, access);
@@ -537,8 +648,7 @@ impl Workspace {
         }
         if reload {
             share.error = None;
-            share.relisting();
-            share.request = Some(self.list_share(share.block));
+            self.share_listing.refresh();
         }
         self.share.set(Some(share));
     }
@@ -564,9 +674,41 @@ impl Workspace {
             return;
         };
         share.error = Some(failure.to_string());
-        share.relisting();
-        share.request = Some(self.list_share(share.block));
         self.share.set(Some(share));
+        self.share_listing.refresh();
+    }
+
+    /// The share dialog's people and links, listed again.
+    fn relist_links(&self) {
+        self.share_listing.refresh();
+        self.share_links_listed.refresh();
+    }
+
+    fn link_revoked(&self, link: &str, revoked: Result<(), Failure>) {
+        let Some(mut share) = self.share.get_untracked() else {
+            return;
+        };
+        share.revoking_now.retain(|pending| pending != link);
+        if let Err(error) = revoked {
+            share.error = Some(error.to_string());
+        }
+        self.share.set(Some(share));
+        self.relist_links();
+    }
+
+    fn link_made(&self, ask: u64, made: Result<(), Failure>) {
+        let Some(mut share) = self.share.get_untracked() else {
+            return;
+        };
+        if share.making_link != Some(ask) {
+            return;
+        }
+        share.making_link = None;
+        if let Err(error) = made {
+            share.error = Some(error.to_string());
+        }
+        self.share.set(Some(share));
+        self.relist_links();
     }
 
     fn contact_made(&self, ask: u64, made: Result<String, Failure>) {
@@ -581,17 +723,6 @@ impl Workspace {
             Ok(link) => share.invite_link = Some(link),
             Err(error) => share.error = Some(error.to_string()),
         }
-        self.share.set(Some(share));
-    }
-
-    fn share_listed(&self, ask: u64, listing: Result<be_sdk_beui::AccessListing, Failure>) {
-        let Some(mut share) = self.share.get_untracked() else {
-            return;
-        };
-        if share.request != Some(ask) {
-            return;
-        }
-        share.listed(listing, self.host().account_id());
         self.share.set(Some(share));
     }
 
@@ -650,38 +781,52 @@ impl Workspace {
             .info(view)
             .and_then(|info| info.metadata.get(&VIEW_EDITOR))
             .unwrap_or_default();
-        let mut closed = saved::closed_views(self.editor.view_state(CLOSED_VIEWS).as_ref());
+        let mut closed = self.closed_views();
         let mut dropped = Vec::new();
-        closed.retain(|(held, held_view)| {
+        closed.retain(|held| {
             let same = held.block == block && held.editor == editor;
-            if same && *held_view != view {
-                dropped.push(*held_view);
+            let held_view = held.view.block();
+            if same && held_view != Some(view) {
+                dropped.extend(held_view);
             }
-            !same && *held_view != view
+            !same && held_view != Some(view)
         });
-        closed.insert(0, (ClosedView { block, editor }, view));
+        closed.insert(
+            0,
+            ClosedView {
+                block,
+                editor,
+                view: ViewRef::new(view),
+            },
+        );
         while closed.len() > MAX_CLOSED_VIEWS {
-            if let Some((_, view)) = closed.pop() {
-                dropped.push(view);
+            if let Some(oldest) = closed.pop() {
+                dropped.extend(oldest.view.block());
             }
         }
-        self.editor
-            .set_view_state(CLOSED_VIEWS, Some(&saved::save_closed_views(closed)));
+        self.editor.view_state().set(Some(ClosedViews(closed)));
         for view in dropped {
             self.blocks().set_parent(view, BlockParent::Detached);
         }
     }
 
+    /// The closed views whose view blocks are still there.
+    fn closed_views(&self) -> Vec<ClosedView> {
+        let kept = self.editor.view_state::<ClosedViews>().get_untracked();
+        let mut closed = kept.ok().flatten().unwrap_or_default().0;
+        closed.retain(|held| held.view.block().is_some());
+        closed
+    }
+
     /// The view `block` had when last closed in `editor`, taken back out of the closed views.
     fn reopen_view(&self, block: Uuid, editor: Uuid) -> Option<Uuid> {
-        let mut closed = saved::closed_views(self.editor.view_state(CLOSED_VIEWS).as_ref());
+        let mut closed = self.closed_views();
         let at = closed
             .iter()
-            .position(|(held, _)| held.block == block && held.editor == editor)?;
-        let (_, view) = closed.remove(at);
-        self.editor
-            .set_view_state(CLOSED_VIEWS, Some(&saved::save_closed_views(closed)));
-        Some(view)
+            .position(|held| held.block == block && held.editor == editor)?;
+        let view = closed.remove(at).view.block();
+        self.editor.view_state().set(Some(ClosedViews(closed)));
+        view
     }
 
     /// A view for `item`: the one it was last closed with, else a new one.
@@ -693,32 +838,30 @@ impl Workspace {
 
     fn restore(&self) {
         let inner = self.state.value();
-        if inner.restored.get() {
+        if inner.restored.get_untracked() {
             return;
         }
-        let Some(view) = self.editor.view_content() else {
-            if self.editor.view_block().is_none() {
-                self.ready.set(true);
-            }
+        if self.editor.view_block().is_none() {
+            self.ready.set(true);
             return;
-        };
-        let Ok((layout, titles)) = view.read(|held| {
-            let root = held.root();
-            (root.state(LAYOUT).cloned(), root.state(TITLES).cloned())
-        }) else {
+        }
+        let layout = self.editor.view_state::<SavedLayout>().get();
+        let titles = self.editor.view_state::<SavedTitles>().get();
+        if matches!(layout, Err(Pending::Loading)) || matches!(titles, Err(Pending::Loading)) {
             return;
-        };
+        }
         inner.restored.set(true);
         *inner.saved_titles.borrow_mut() = titles
-            .as_ref()
-            .map(saved::restore_titles)
+            .ok()
+            .flatten()
+            .map(SavedTitles::titles)
             .unwrap_or_default();
-        match layout.as_ref().map(saved::restore).transpose() {
-            Ok(restored) => untrack(|| self.adopt(restored)),
-            Err(error) => {
-                let bytes = layout.map_or(0, |layout| layout.bytes.len());
+        match layout {
+            Ok(layout) => untrack(|| self.adopt(layout.map(saved::restore))),
+            Err(Pending::Loading) => {}
+            Err(Pending::Failed(error)) => {
                 self.unreadable.set(Some(format!(
-                    "The saved layout of session {} could not be read: {error}\n\nIt holds {bytes} bytes, kept unchanged until the layout is reset.",
+                    "The saved layout of session {} could not be read: {error}\n\nIt is kept unchanged until the layout is reset.",
                     self.editor.block_id()
                 )));
             }
@@ -726,9 +869,16 @@ impl Workspace {
         self.ready.set(true);
     }
 
-    pub fn unreadable_layout(&self) -> Memo<Option<String>> {
-        let unreadable = self.unreadable;
-        create_memo(move || unreadable.get())
+    /// Reads the saved layout where the shell's `Loaded` sees it, holding that boundary until
+    /// the session's view block is read, so the layout is back before the shell first shows.
+    /// The `Workspace` is made outside the boundary, so its own reads hold nothing. Untracked,
+    /// so a later save rebuilds nothing.
+    pub fn hold_for_saved_layout(&self) {
+        let _ = self.editor.view_state::<SavedLayout>().get_untracked();
+    }
+
+    pub fn unreadable_layout(&self) -> ReadSignal<Option<String>> {
+        self.unreadable.read_only()
     }
 
     pub fn reset_layout(&self) {
@@ -810,11 +960,11 @@ impl Workspace {
         if !inner.restored.get() || unreadable {
             return;
         }
-        let state = saved::save(&layout, inner.next_tab.get(), &tabs, &views, programs);
-        let titles = saved::save_titles(&titles);
+        let layout = saved::save(&layout, inner.next_tab.get(), &tabs, &views, programs);
+        let titles = SavedTitles::of(&titles);
         untrack(|| {
-            self.editor.set_view_state(LAYOUT, Some(&state));
-            self.editor.set_view_state(TITLES, Some(&titles));
+            self.editor.view_state().set(Some(layout));
+            self.editor.view_state().set(Some(titles));
         });
     }
 
@@ -843,9 +993,7 @@ impl Workspace {
                 titles.insert(tab, title);
             }
         }
-        if self.titles.with_untracked(|held| *held != titles) {
-            self.titles.set(titles);
-        }
+        self.titles.set(titles);
     }
 
     fn report_focus(&self) {
@@ -857,7 +1005,7 @@ impl Workspace {
         let current = shown
             .and_then(|tab| self.tabs.with(|tabs| tabs.get(&tab).copied()))
             .map(|item| item.id);
-        self.routes.get();
+        self.routes.track();
         let active = current.or_else(|| inner.active.get());
         inner.active.set(active);
         let focus = Focus {
@@ -885,14 +1033,15 @@ impl Workspace {
     }
 
     fn remember(&self, id: Uuid, block_type: Uuid) {
-        let recents: Recents = self
-            .editor
-            .view_state(RECENTS)
-            .and_then(|state| state.value())
-            .unwrap_or_default();
+        let kept = self.editor.view_state::<Recents>();
+        // Not over recents not read yet; recents that cannot be read start afresh.
+        let recents = match kept.get_untracked() {
+            Err(Pending::Loading) => return,
+            Ok(recents) => recents.unwrap_or_default(),
+            Err(Pending::Failed(_)) => Recents::default(),
+        };
         if let Some(visited) = recents.visit(id, block_type) {
-            self.editor
-                .set_view_state(RECENTS, Some(&ViewState::new(&visited, Vec::new())));
+            kept.set(Some(visited));
         }
     }
 
@@ -945,7 +1094,7 @@ impl Workspace {
     }
 
     fn rerouted(&self) {
-        self.routes.update(|routes| *routes += 1);
+        self.routes.notify();
     }
 
     pub(crate) fn container_of(&self, id: Uuid) -> Option<Uuid> {
@@ -1105,8 +1254,12 @@ impl Workspace {
         self.host().close_editor(id);
     }
 
+    /// The workspace lays out as on a phone (its dock stacks), and tells the host, which sets
+    /// `FrameSpec::phone` on every frame from it.
     pub fn set_phone(&self, phone: bool) {
         self.phone.set(phone);
+        let asked = self.host().set_phone_layout(phone);
+        self.editor.then(asked, |_| {});
     }
 
     pub fn can_edit(&self, id: Uuid) -> bool {
@@ -1132,6 +1285,7 @@ impl Workspace {
         match self.simulated(id) {
             Some(AccessLevel::None) => AccessLevel::None.min(ceiling),
             Some(AccessLevel::KnowExists) => AccessLevel::KnowExists.min(ceiling),
+            Some(AccessLevel::Join) => AccessLevel::Join.min(ceiling),
             Some(AccessLevel::View) => AccessLevel::View.min(ceiling),
             Some(AccessLevel::Edit) => AccessLevel::Edit.min(ceiling),
             Some(AccessLevel::Manage) | None => ceiling,
@@ -1140,40 +1294,40 @@ impl Workspace {
 
     /// How the account is notified about `block`: a change not yet answered, else what the host
     /// publishes, none until the server has said.
-    pub(crate) fn notify_mode(&self, block: Uuid) -> Option<NotifyMode> {
-        if let Some((setting, _)) = self.setting_modes.with(|modes| modes.get(&block).copied()) {
+    pub(crate) fn mute(&self, block: Uuid) -> Option<NotifyMode> {
+        if let Some((setting, _)) = self.setting_mutes.with(|mutes| mutes.get(&block).copied()) {
             return Some(setting);
         }
-        self.notify_modes.with(|modes| {
-            modes
+        self.mutes.with(|mutes| {
+            mutes
                 .as_ref()
-                .map(|modes| modes.get(&block).copied().unwrap_or(NotifyMode::All))
+                .map(|mutes| mutes.get(&block).copied().unwrap_or(NotifyMode::All))
         })
     }
 
     /// Sets how the account is notified about `block`, showing it until the host answers; a
     /// change the host refuses goes back to what it publishes, and says why.
-    pub(crate) fn set_notify_mode(&self, block: Uuid, mode: NotifyMode) {
-        self.setting_modes.update(|modes| {
-            modes.insert(block, (mode, false));
+    pub(crate) fn set_mute(&self, block: Uuid, mode: NotifyMode) {
+        self.setting_mutes.update(|mutes| {
+            mutes.insert(block, (mode, false));
         });
         let workspace = *self;
-        let asked = self.host().set_notify_mode(block, mode);
+        let asked = self.host().set_mute(block, mode);
         let task = self.editor.then(asked, move |set| match set {
-            Ok(()) => workspace.setting_modes.update(|modes| {
-                if let Some((shown, answered)) = modes.get_mut(&block)
+            Ok(()) => workspace.setting_mutes.update(|mutes| {
+                if let Some((shown, answered)) = mutes.get_mut(&block)
                     && *shown == mode
                 {
                     *answered = true;
                 }
             }),
             Err(failure) => {
-                workspace.setting_modes.update(|modes| {
-                    modes.remove(&block);
+                workspace.setting_mutes.update(|mutes| {
+                    mutes.remove(&block);
                 });
-                workspace.error.set(Some(format!(
-                    "The notifications setting was not changed: {failure}"
-                )));
+                workspace.host().report_failure(format!(
+                    "The notifications setting could not be changed. {failure}"
+                ));
             }
         });
         self.state
@@ -1219,14 +1373,13 @@ impl Workspace {
     }
 
     pub(crate) fn create_in(&self, parent: BlockParent) {
-        self.error.set(None);
         let container = parent.block();
         // An editor cannot see Unfiled, which the host makes with My files once the
         // organization's blocks have loaded; the host fails a creation committed there
         // before it exists, so this only spares asking first.
         if container.is_none() && self.my_files().is_none() {
-            self.error
-                .set(Some("Your files are still loading".to_owned()));
+            self.host()
+                .report_failure("The file could not be made. Your files are still loading.");
             return;
         }
         let parent = container.map_or(BlockParent::Unfiled, BlockParent::Block);
@@ -1241,17 +1394,10 @@ impl Workspace {
                 place: Some(parent.encode()),
             },
             PickAnchor::Centre,
-            move |picked: Result<PickedBlock, Failure>| {
+            move |picked: PickedBlock| {
                 if !workspace.state.is_alive() {
                     return;
                 }
-                let picked = match picked {
-                    Ok(picked) => picked,
-                    Err(error) => {
-                        workspace.error.set(Some(error.to_string()));
-                        return;
-                    }
-                };
                 let block_type = Uuid::from_bytes(picked.block_type);
                 if !picked.placed
                     && let Some(container) = container
@@ -1269,7 +1415,6 @@ impl Workspace {
     }
 
     pub(crate) fn open_picker(&self, parent: Uuid, anchor: Option<Rect>) {
-        self.error.set(None);
         let workspace = *self;
         self.editor.pick_block(
             BlockFilter {
@@ -1280,18 +1425,14 @@ impl Workspace {
                 place: None,
             },
             anchor,
-            move |picked: Result<PickedBlock, Failure>| {
-                if !workspace.state.is_alive() {
-                    return;
-                }
-                match picked {
-                    Ok(picked) => workspace.host().place_block(
+            move |picked: PickedBlock| {
+                if workspace.state.is_alive() {
+                    workspace.host().place_block(
                         picked.id(),
                         Uuid::from_bytes(picked.block_type),
                         parent,
                         picked.linked,
-                    ),
-                    Err(error) => workspace.error.set(Some(error.to_string())),
+                    );
                 }
             },
         );
@@ -1302,14 +1443,14 @@ impl Workspace {
 pub fn BlockTab(
     workspace: Workspace,
     tab: TabId,
-    #[prop(default = None)] bar: Option<RenderFn<(), NodeId>>,
+    bar: Option<BuildFn<NodeId>>,
     #[prop(default = None)] preview: Prop<Option<ChildTarget>>,
     on_details: Callback<()>,
 ) -> DockEntry<TabId> {
     let title = workspace.tab_title(tab);
     let icon = workspace.tab_glyph(tab);
     let bar = RenderFn::new(move |()| match bar {
-        Some(bar) => bar.call(()),
+        Some(bar) => bar.call(),
         None => view! {
             <List spacing=Space::None />
         },
@@ -1347,17 +1488,7 @@ pub fn PanelWindow(workspace: Workspace, panel: HostPanel) -> DockNode<TabId> {
 }
 
 #[component]
-pub fn Failure(failed: Memo<bool>, reason: Memo<String>) -> DynamicSegment<ListItem> {
-    view! {
-        <Show condition={failed}>
-            <Text style=TextStyle::CAPTION color=TextColor::Danger>{reason}</Text>
-        </Show>
-    }
-}
-
-#[component]
 pub fn PanelStatus(state: ReadSignal<ChildState>, loading: String) -> NodeId {
-    let shown = create_memo(move || state.with(|state| !state.available || state.error.is_some()));
     let message = create_memo(move || {
         state.with(|state| match &state.error {
             Some(error) => error.clone(),
@@ -1366,7 +1497,7 @@ pub fn PanelStatus(state: ReadSignal<ChildState>, loading: String) -> NodeId {
     });
     view! {
         <Layers>
-            <Show condition={shown}>
+            <Show value={move || state.with(|state| !state.available || state.error.is_some())}>
                 <Frame padding=PANEL_PADDING>
                     <List spacing=PANEL_SPACING>
                         <Text style=TextStyle::CAPTION>{message}</Text>

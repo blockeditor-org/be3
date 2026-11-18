@@ -18,10 +18,7 @@ fn an_invite_link_joins_the_organization_and_makes_the_two_contacts() {
     );
     harness.connect();
     let link = runtime()
-        .block_on(crate::invite(
-            "guest@example.com".to_owned(),
-            be_block_protocol::OrganizationRole::Editor,
-        ))
+        .block_on(crate::invite())
         .expect("the owner invites the guest");
     let parsed = crate::invite_link::InviteLink::parse(&link).expect("the link parses");
     assert!(parsed.is_for(&crate::accounts::link_base(&url)), "{link}");
@@ -34,6 +31,14 @@ fn an_invite_link_joins_the_organization_and_makes_the_two_contacts() {
         ))
         .expect("the guest reads the invitation");
     assert_eq!(invitation.invitation.organization, harness.organization);
+    let preview = runtime()
+        .block_on(crate::accounts::preview_invitation(
+            url.clone(),
+            parsed.code.clone(),
+        ))
+        .expect("the invitation reads before signing in");
+    assert_eq!(preview.organization_name, invitation.organization_name);
+    assert_eq!(preview.inviter, invitation.inviter);
 
     let join = |someone: &Someone| {
         runtime().block_on(crate::accounts::accept_invitation(
@@ -43,15 +48,16 @@ fn an_invite_link_joins_the_organization_and_makes_the_two_contacts() {
             parsed.code.clone(),
         ))
     };
-    assert!(
-        join(&outsider).is_err(),
-        "an account with another email joined with the link"
-    );
+    // The link is bound to no email: whoever opens it first joins, once.
     assert_eq!(
         join(&guest).expect("the guest joins with the link"),
         harness.organization
     );
     assert!(join(&guest).is_err(), "the link worked twice");
+    assert!(
+        join(&outsider).is_err(),
+        "the link worked again for another account"
+    );
 
     harness.connect();
     wait_until("confirmed the invited account as a contact", |shared| {
@@ -67,6 +73,7 @@ fn an_invite_link_joins_the_organization_and_makes_the_two_contacts() {
             &peer.connection(),
             peer.account(),
             &guest.phrase.secret(),
+            &Default::default(),
         ))
         .expect("the guest lists its contacts");
     assert_eq!(

@@ -1,5 +1,17 @@
 use super::*;
 
+/// How many local edits the host keeps of `block` on the device, to give its replica again.
+fn kept_edits(shared: &Shared, block: Uuid) -> usize {
+    shared
+        .peer
+        .as_ref()
+        .and_then(|peer| peer.open_edits(block))
+        .map_or(0, |(_, edits)| edits.map_or(0, |(edits, _)| edits.len()))
+}
+
+/// Edits made while the server takes submissions and says nothing are kept on the device as
+/// they are made. After a crash the device opens offline and shows them; once it reconnects,
+/// what the server's order held already is found there and the rest is sent, so each lands once.
 #[test]
 fn what_is_typed_while_a_seal_waits_on_a_silent_server_survives_a_crash_and_is_sent_once() {
     let harness = Harness::relayed().on_manual_clock();
@@ -10,48 +22,40 @@ fn what_is_typed_while_a_seal_waits_on_a_silent_server_survives_a_crash_and_is_s
     wait_for_count(block, 1);
     flush_and_send();
 
-    let mut sending = harness.relay().count(|method, _| {
-        [
-            be_block_protocol::__args::OBJECTS_UPLOAD_URLS,
-            be_block_protocol::__args::BLOCKS_PUBLISH,
-        ]
-        .contains(&method)
-    });
     harness.relay().stall();
     add(block, 2);
-    wait_for_count(block, 3);
-    harness
-        .clock
-        .advance(Duration::from_millis(be_sdk_type_guest::QUIET_INTERVAL));
-    runtime()
-        .block_on(sending.wait_for(|sent| *sent > 0))
-        .expect("the counter's owner sent its seal");
     add(block, 4);
     wait_for_count(block, 7);
-    // Alone in its session, the owner appends what it sequenced once `APPEND_INTERVAL` passes.
-    wait_until("counted the edit as not yet journaled", |shared| {
-        shared.undurable > 0
-    });
-    harness
-        .clock
-        .advance(Duration::from_millis(be_sdk_type_guest::APPEND_INTERVAL));
-    wait_until("journaled the edit made while the seal was out", |shared| {
-        shared.undurable == 0
+    wait_until("kept the edits the server has not ordered", |shared| {
+        kept_edits(shared, block) >= 2
     });
 
-    // Nothing is kept on the way out: the seal waits in the outbox and the later edit only in
-    // the journal, which notes the seal it follows.
     crash();
     platform::wait_for_stopped();
 
+    harness.relay().offline(true);
     harness.connect();
     open(block, CounterContent::CONTENT_TYPE);
     wait_for_count(block, 7);
-    wait_until("sent what this device kept", |shared| {
+    assert!(
+        !status().connected,
+        "the edits show while the device is still offline"
+    );
+
+    harness.relay().offline(false);
+    retry_now();
+    wait_until("rejoined and sent what this device kept", |shared| {
         shared.connected && shared.waiting == 0 && !shared.draining
     });
+    // Rejoined, the replica submits what the server's order lacks, and owes a seal of it.
+    wait_until("had the kept edits ordered", |shared| shared.owing > 0);
     flush_and_send();
     assert_eq!(count_of(block), Some(7));
+    assert_eq!(
+        crate::with_shared(|shared| kept_edits(shared, block)),
+        Some(0),
+        "nothing is left to give again"
+    );
     let saved = runtime().block_on(async {
         harness
             .outside_peer()
@@ -61,5 +65,5 @@ fn what_is_typed_while_a_seal_waits_on_a_silent_server_survives_a_crash_and_is_s
             .expect("the counter opens from the server")
             .map(|counter| counter.root().value())
     });
-    assert_eq!(saved, Some(7));
+    assert_eq!(saved, Some(7), "each edit landed once");
 }

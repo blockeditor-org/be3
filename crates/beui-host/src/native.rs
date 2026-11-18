@@ -1,6 +1,5 @@
-#[cfg(all(feature = "window", not(target_arch = "wasm32")))]
-use std::error::Error;
-
+/// The size of the on-screen keyboard's window, which `build` installs.
+pub use crate::keyboard_host::WINDOW_SIZE as KEYBOARD_WINDOW_SIZE;
 pub use beui::native::*;
 #[cfg(not(target_arch = "wasm32"))]
 pub use beui_font_freetype::system::SystemFonts;
@@ -9,19 +8,12 @@ pub use beui_font_freetype::{
 };
 pub use beui_inspector::install as install_inspector;
 pub use beui_layer_drive as drive;
-#[cfg(all(feature = "window", target_os = "android"))]
-pub use beui_platform_android::AndroidApp;
-#[cfg(all(
-    feature = "window",
-    not(any(target_os = "android", target_arch = "wasm32"))
-))]
+#[cfg(not(any(target_os = "android", target_arch = "wasm32")))]
 pub use beui_platform_headless::Headless;
 pub use beui_platform_headless::Simulation;
 pub use beui_platform_headless::testing;
 #[cfg(all(feature = "web", target_arch = "wasm32"))]
 pub use beui_platform_web::accessibility_tree;
-#[cfg(all(feature = "window", not(target_os = "android")))]
-pub use beui_platform_winit::winit;
 #[cfg(not(target_arch = "wasm32"))]
 pub use beui_renderer_wgpu::present::read_texture;
 pub use beui_renderer_wgpu::present::{
@@ -34,8 +26,6 @@ pub use beui_runner::{
     Running, Shown, Units, panic_message,
 };
 
-#[cfg(all(feature = "window", not(target_arch = "wasm32")))]
-pub use crate::runner::{native_platform, run_with};
 #[cfg(all(feature = "web", target_arch = "wasm32"))]
 pub use crate::web::{run_web, web_platform};
 
@@ -59,9 +49,4 @@ pub fn system_fonts() -> FontLibrary {
 
 pub fn system_context() -> Context {
     Context::new(FreetypeFonts::new(system_fonts()))
-}
-
-#[cfg(all(feature = "window", not(target_arch = "wasm32")))]
-pub fn run(program: impl Program + 'static) -> Result<(), Box<dyn Error>> {
-    run_with(RunOptions::default(), program)
 }

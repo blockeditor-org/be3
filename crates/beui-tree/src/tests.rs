@@ -3,26 +3,45 @@ use std::rc::{Rc, Weak};
 
 use crate::reactive::{
     ChildList, ChildValue, Children, ForEach, Get, IntoSlotHost, Prop, Scope, Set, Show, Signal,
-    SlotChild, SlotHost, SlotId, component, create_effect, create_memo, create_signal, flush,
-    on_cleanup, store, view,
+    SlotChild, SlotHost, SlotId, component, create_binding, create_effect, create_memo,
+    create_signal, flush, on_cleanup, store, view,
 };
 
 mod a_binding_prop_reads_and_writes_the_signal_it_was_given_or_its_own;
 mod a_callback_given_a_signal_sets_it;
 mod a_child_list_refilled_keeps_the_items_it_held_wherever_they_move;
+mod a_closure_is_a_prop_read_as_a_getter;
+mod a_default_that_reads_a_signal_reads_it_once;
 mod a_derived_binding_reads_its_prop_and_writes_through_its_callback;
+mod a_fallback_given_after_the_children_or_outside_view_is_inferred;
+mod a_for_each_builds_a_row_for_each_repeat_of_an_item;
+mod a_for_each_handle_follows_each_key_across_a_reorder_an_insert_and_a_removal;
+mod a_for_each_handle_is_empty_once_its_list_is_gone;
+mod a_for_each_handle_knows_a_repeated_key_by_its_first_place_and_holds_every_repeat;
+mod a_for_each_keeps_its_fallback_when_a_row_changes_as_the_list_empties;
+mod a_for_each_shows_its_fallback_while_it_has_no_keys;
+mod a_list_rebuilt_under_its_for_each_handle_takes_it_over;
+mod a_match_shows_the_first_case_that_holds;
+mod a_mock_dom_errored_shows_its_fallback_while_what_its_content_read_has_failed;
 mod a_mock_dom_follows_its_signals_through_show_and_for_each;
 mod a_mock_dom_loading_shows_its_fallback_until_what_its_content_holds_arrives;
 mod a_mock_dom_row_that_leaves_disposes_the_effects_it_built;
-mod a_mock_dom_show_keep_alive_hides_the_element_it_built_and_brings_it_back;
-mod a_mock_dom_show_keep_alive_holds_its_childs_updates_while_hidden;
+mod a_prop_whose_type_comes_from_what_is_passed_takes_what_its_type_takes;
+mod a_show_among_a_run_adds_no_host_node;
+mod a_show_over_an_option_hands_its_children_a_signal_of_what_is_in_it;
+mod a_show_with_a_fallback_fills_a_single_child_slot_and_swaps_it;
+mod a_show_with_a_fallback_swaps_runs_of_different_lengths;
+mod a_show_without_a_fallback_fills_an_optional_single_slot;
 mod a_tracked_read_in_a_component_body_panics_naming_its_type;
+mod an_optional_prop_passes_on_to_another_component_as_it_is;
 mod components_can_return_and_collect_child_runs;
+mod dynamic_and_keyed_show_their_fallback_while_the_value_is_none;
+mod for_each_rows_are_runs_that_move_whole_and_keyed_rows_follow_their_item;
 mod handlers_effects_and_untracked_reads_in_a_component_body_do_not_panic;
 mod modifiers_are_functions_on_built_values;
 mod modifiers_run_after_props_and_inside_render_slots;
 mod show_can_wrap_a_component_returning_multiple_children;
-mod show_keep_alive_retains_multiple_children_and_pauses_nested_updates;
+mod two_lists_given_one_for_each_handle_is_a_mistake;
 
 thread_local! {
     static NEXT_ID: Cell<usize> = const { Cell::new(0) };
@@ -63,10 +82,21 @@ impl DomNode {
 
 impl ChildValue for DomNode {}
 
+impl PartialEq for DomNode {
+    fn eq(&self, other: &Self) -> bool {
+        Rc::ptr_eq(&self.0, &other.0)
+    }
+}
+
 crate::child_type!(DomNode);
 
 impl SlotChild for DomNode {
     type Stored = DomNode;
+    type Node = DomNode;
+
+    fn node(stored: &DomNode) -> DomNode {
+        stored.clone()
+    }
 
     fn store(self) -> DomNode {
         self
@@ -116,7 +146,8 @@ fn Element(
 ) -> DomNode {
     let element = DomNode::new(tag);
     let shown = Rc::downgrade(&element.0);
-    create_effect(move || {
+    // A binding, as a real node's props are: it runs in a hidden `Loading` too.
+    create_binding(move || {
         let text = text.get();
         if let Some(texts) = texts {
             texts.update(|texts| *texts += 1);
@@ -127,6 +158,56 @@ fn Element(
     });
     children.mount(&element);
     element
+}
+
+type Child = DomNode;
+
+/// An element that keeps one child, as a frame does.
+#[component]
+fn Holder(tag: &'static str, children: Child) -> DomNode {
+    let element = DomNode::new(tag);
+    element.0.children.borrow_mut().push(children);
+    element
+}
+
+#[component]
+fn MaybeHolder(tag: &'static str, children: Option<Child>) -> DomNode {
+    let element = DomNode::new(tag);
+    if let Some(child) = children {
+        element.0.children.borrow_mut().push(child);
+    }
+    element
+}
+
+/// What a core does with control flow in a slot that takes one node: a host node holding
+/// the child it swaps.
+fn host(child: crate::reactive::LazyChild<DomNode>) -> DomNode {
+    let host = DomNode::new("host");
+    let held = Rc::downgrade(&host.0);
+    child.mount(move |child| {
+        if let Some(held) = held.upgrade() {
+            let mut children = held.children.borrow_mut();
+            *children = ChildList::default();
+            if let Some(child) = child {
+                children.push(child);
+            }
+        }
+    });
+    host
+}
+
+impl crate::reactive::IntoChild<DomNode> for crate::reactive::OneOf<DomNode> {
+    fn into_child(self) -> DomNode {
+        host(self.into_lazy())
+    }
+}
+
+impl crate::reactive::AtMostOneChild<DomNode>
+    for crate::reactive::SingleChild<crate::reactive::ZeroOrOne<DomNode>>
+{
+    fn at_most_one_child(self) -> Option<DomNode> {
+        Some(host(self.0.into_lazy()))
+    }
 }
 
 mod modifiers {

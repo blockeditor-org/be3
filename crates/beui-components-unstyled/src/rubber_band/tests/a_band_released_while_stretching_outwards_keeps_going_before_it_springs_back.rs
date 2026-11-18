@@ -6,7 +6,7 @@ fn released(moving: bool) -> Band {
     let start = Instant::now();
     let frame = Duration::from_millis(16);
     let dimensions = vec2(1000.0, 600.0);
-    let mut band = Band::new(WINDOW_SPRING);
+    let mut band = Band::new(PULL);
     band.grab(dimensions);
     band.stretch(Pos2::ZERO, vec2(-100.0, 0.0), dimensions, true, start);
     let pulled = if moving { -160.0 } else { -100.0 };

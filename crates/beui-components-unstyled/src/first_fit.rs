@@ -65,20 +65,16 @@ pub fn FirstFit(children: Children<NodeId>) -> NodeId {
     let count = create_memo(move || nodes.get().len());
     let stage = create_signal(Stage::Probe(0));
     let naturals = create_signal(Vec::<Option<f32>>::new());
+    // Every new set of children is probed from the first again, even one as long as the last:
+    // a linked signal would keep the probe, since its seed would be the same.
+    create_effect_on(
+        move || nodes.with(Vec::len),
+        move |&count, _| {
+            naturals.set(vec![None; count]);
+            stage.set(Stage::Probe(0).settle(count));
+        },
+    );
     let width = create_signal(None::<f32>);
-    create_effect(move || {
-        let count = nodes.get().len();
-        naturals.set(vec![None; count]);
-        stage.set(Stage::Probe(0).settle(count));
-    });
-    let staged = create_memo(move || {
-        let stage = stage.get().settle(count.get());
-        let at = match stage {
-            Stage::Probe(at) | Stage::Show(at) => at,
-        };
-        nodes.get().get(at).map(|node| (stage, *node))
-    });
-    let keys = create_memo(move || staged.get().into_iter().collect::<Vec<_>>());
     let claim = create_memo(move || {
         let first = naturals.with(|naturals| naturals.first().copied().flatten());
         Extent::at_most(first.unwrap_or(0.0))
@@ -105,14 +101,21 @@ pub fn FirstFit(children: Children<NodeId>) -> NodeId {
         }
         let next = naturals
             .with_untracked(|naturals| current.next(count, (room, stretched), width, naturals));
-        if next != current {
-            stage.set(next);
-        }
+        stage.set(next);
     });
     view! {
         <Layers>
             {sizer}
-            <ForEach keys={keys}>|(stage, node): (Stage, NodeId)| {
+            <Dynamic
+                value={move || {
+                    let stage = stage.get().settle(count.get());
+                    let at = match stage {
+                        Stage::Probe(at) | Stage::Show(at) => at,
+                    };
+                    nodes.get().get(at).map(|node| (stage, *node))
+                }}
+                fallback=()
+            >|(stage, node): (Stage, NodeId)| {
                 let shown = view! {
                     <Portal node={Some(node)} />
                 };
@@ -146,7 +149,7 @@ pub fn FirstFit(children: Children<NodeId>) -> NodeId {
                         </List>
                     </Frame>
                 }
-            }</ForEach>
+            }</Dynamic>
         </Layers>
     }
 }

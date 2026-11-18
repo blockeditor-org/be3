@@ -17,11 +17,12 @@ fn scrolling_a_pan_zoom_leaves_the_scroll_around_it_alone() {
                         on_change={move |position: beui::ScrollPosition| {
                             reported.set(Some(position.offset));
                         }}
+                        style={plain_scroll()}
                     >
                         <Frame height=200.0>
                             <PanZoomStage />
                         </Frame>
-                        <ForEach keys={indices(20)}>|index: usize|
+                        <ForEach value={indices(20)}>|index: usize|
                             <Text color=Color32::WHITE font={FontId::proportional(20.0)}>
                                 {format!("Row {index}")}
                             </Text>

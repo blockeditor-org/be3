@@ -34,7 +34,7 @@ struct State {
 #[component]
 pub fn Button(
     #[prop(default = ComponentRef::new())] api: ComponentRef<ButtonApi>,
-    #[prop(children)] content: Option<Render<ButtonHandle>>,
+    #[prop(children)] content: Option<Render<ButtonHandle, NodeId>>,
     #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = String::new())] description: Prop<String>,
     #[prop(default = None)] glyph: Prop<Option<Glyph>>,
@@ -53,6 +53,7 @@ pub fn Button(
     on_click: Callback<()>,
     on_click_at: Callback<PointerPress>,
     on_press: Callback<PointerPress>,
+    on_hover_move: Callback<PointerPress>,
     on_key: Callback<KeyPress, bool>,
     on_text: Callback<String>,
     on_focus_change: Callback<bool>,
@@ -91,7 +92,7 @@ pub fn Button(
     let accessibility = accessibility.unwrap_or_else(|| Prop::Static(Node::new(role)));
     component_accessibility(create_memo(move || {
         let mut node = accessibility.get();
-        if node.label().is_none() && !label.get().is_empty() {
+        if node.label().is_none() && !label.with(String::is_empty) {
             node.set_label(label.get());
         }
         if node.description().is_none() {
@@ -154,7 +155,7 @@ pub fn Button(
         focused: focused.read_only(),
     }));
 
-    let linked = untrack(|| href.get().is_some());
+    let linked = untrack(|| href.with(Option::is_some));
     let platform = match (CORE, linked, submit) {
         (Core::Html, true, _) => Some(true),
         (Core::Html, false, true) => Some(false),
@@ -170,9 +171,7 @@ pub fn Button(
                 .collect();
             match link {
                 true => view! {
-                    <html::A href={Prop::dynamic(move || href.get().filter(|_| !disabled.get()))}>
-                        {inner}
-                    </html::A>
+                    <html::A href={move || href.get().filter(|_| !disabled.get())}>{inner}</html::A>
                 },
                 false => view! {
                     <html::Button r#type="submit" disabled={disabled}>{inner}</html::Button>
@@ -207,6 +206,7 @@ pub fn Button(
             on_click_at={click_at}
             on_press={on_press}
             on_hover_change={hovered}
+            on_hover_move={on_hover_move}
             on_pointed_change={pointed}
             on_active_change={active}
             children={content_node}

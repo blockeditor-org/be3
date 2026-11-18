@@ -33,7 +33,7 @@ fn holding_alt_moves_a_floating_demo_page_by_its_content() {
 
     let inside = pos2(650.0, 450.0);
     for _ in 0..REVEAL_TICKS {
-        if test.shows("demo.drag_modifier") {
+        if test.shown("demo.drag_modifier") {
             let center = test.rect_of("demo.drag_modifier").center();
             if (340.0..540.0).contains(&center.y) {
                 break;

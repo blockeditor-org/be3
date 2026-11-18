@@ -1,5 +1,16 @@
 use super::*;
 
+/// The curves of `styled::Movement::Rubber` and `Movement::Pull` (copied: this
+/// crate is below styled).
+const RUBBER: Spring = Spring {
+    stiffness: 180.0,
+    damping: 26.832_815,
+};
+const PULL: Spring = Spring {
+    stiffness: 400.0,
+    damping: 38.0,
+};
+
 mod a_band_let_go_heading_back_carries_its_speed_past_the_edge;
 mod a_band_released_while_moving_along_the_edge_carries_on_along_it;
 mod a_band_released_while_stretching_outwards_keeps_going_before_it_springs_back;

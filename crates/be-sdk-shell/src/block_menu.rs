@@ -111,7 +111,7 @@ fn notifications(workspace: Workspace, info: &TabInfo) -> Option<MenuNode> {
         return None;
     }
     let id = info.item.id;
-    let mode = workspace.notify_mode(id)?;
+    let mode = workspace.mute(id)?;
     let modes = [
         (NotifyMode::All, "all", "All"),
         (NotifyMode::Mentions, "mentions", "Mentions only"),
@@ -121,7 +121,7 @@ fn notifications(workspace: Workspace, info: &TabInfo) -> Option<MenuNode> {
         .into_iter()
         .map(|(choice, key, label)| {
             let chosen = Action::new(format!("workspace.notify.{key}"), label, move || {
-                workspace.set_notify_mode(id, choice);
+                workspace.set_mute(id, choice);
             })
             .radio(mode == choice)
             .detached();
@@ -153,6 +153,6 @@ fn wording(access: AccessLevel) -> &'static str {
         AccessLevel::Manage => "Managing",
         AccessLevel::Edit => "Editing",
         AccessLevel::View => "Viewing",
-        AccessLevel::KnowExists | AccessLevel::None => "No access",
+        AccessLevel::Join | AccessLevel::KnowExists | AccessLevel::None => "No access",
     }
 }

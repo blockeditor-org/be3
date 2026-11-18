@@ -5,8 +5,7 @@ use be_type_database::DatabaseSchemaContent;
 use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, HashMap, HashSet};
 
-use crate::presence::{CanvasCaret, CanvasCursor};
-use be_sdk_beui::ContentProjection;
+use crate::presence::{CanvasCaret, CanvasCarry, CanvasCursor};
 use be_sdk_beui::be_block_content::presence::{PresenceColor, pick_free_color};
 use be_sdk_beui::be_block_content::{Edit, ObjectId};
 use be_sdk_beui::be_sdk_ui::BlockLabel;
@@ -16,9 +15,11 @@ use be_sdk_beui::beui::icons::{
 };
 use be_sdk_beui::beui::native::with_document;
 use be_sdk_beui::beui::reactive::*;
+use be_sdk_beui::beui::unstyled::ValueDrag;
 use be_sdk_beui::beui::{Pos2, Rect, Thumbhash, Vec2, pos2};
 use be_sdk_beui::{BlockFilter, ChildState, Drag, Editor, FileDrop, InteractionMode, ResizeMode};
 use be_sdk_beui::{BlockParent, BlockQuery, DropAction, PickAnchor};
+use be_sdk_beui::{ContentGesture, ContentProjection};
 use be_sdk_database::DatabaseBlockPickRequest;
 use be_sdk_text::SharedCaret;
 use be_type_database::database::DatabaseValue;
@@ -234,6 +235,9 @@ pub(crate) enum Gesture {
         points: Vec<CanvasPoint>,
         additive: bool,
     },
+    /// Moving the selection, carried on the drag board (`lift_move`): its site chooses
+    /// `current` from the point, and the drop or put-down ends it. `carried` once the board
+    /// holds it.
     Move {
         start: CanvasPoint,
         current: CanvasPoint,
@@ -241,6 +245,7 @@ pub(crate) enum Gesture {
         duplicate: bool,
         rasters: Rasters,
         snapped: bool,
+        carried: bool,
     },
     Resize {
         handle: ResizeHandle,
@@ -287,6 +292,30 @@ pub(crate) enum Gesture {
         at: (i32, i32),
         constrained: bool,
     },
+}
+
+impl Gesture {
+    /// Whether the gesture chooses one result that only its release settles
+    /// (decisions/tentative_edits_wait_for_release.md), so its writes are held in a tentative
+    /// gesture: a half-finished move, resize, rotation, bend or erase is not one anyone made.
+    /// The rest make something as they go and write it as they go: a stroke, a shape drawn
+    /// out, and a copy carried off by a duplicating move, since a tentative edit creates
+    /// nothing.
+    pub(crate) fn chooses(&self) -> bool {
+        match self {
+            Gesture::Move { duplicate, .. } => !duplicate,
+            Gesture::Resize { .. }
+            | Gesture::Rotate { .. }
+            | Gesture::Endpoint { .. }
+            | Gesture::Bend { .. }
+            | Gesture::Erase { .. } => true,
+            Gesture::Create { .. }
+            | Gesture::Pen { .. }
+            | Gesture::Raster { .. }
+            | Gesture::SelectBox { .. }
+            | Gesture::Lasso { .. } => false,
+        }
+    }
 }
 
 pub(crate) const ERASER_TRAIL: usize = 24;
@@ -500,14 +529,23 @@ struct CanvasCells {
     placeholders: RefCell<HashMap<Uuid, Placeholder>>,
     confirmed_editor: Cell<Option<Uuid>>,
     shown: RefCell<Option<CanvasCursor>>,
-    writing: Cell<bool>,
-    scrubbing: Cell<bool>,
+    /// The undo group the canvas's writes go in while one is open (`open_writes`): what a
+    /// person makes as they go, a stroke, a shape drawn out, new text.
+    writing: Cell<Option<ContentGesture>>,
+    /// The tentative gesture the canvas's writes go in while one is open (`open_hold`), ahead
+    /// of `writing`: a drag choosing one result, which only its release writes.
+    holding: Cell<Option<ContentGesture>>,
+    /// A control in the sidebar is being dragged (`drag_value`): its hold outlives the
+    /// canvas's own gestures.
+    dragging_value: Cell<bool>,
     written_points: Cell<usize>,
     drafting: Cell<Option<Uuid>>,
     color: Cell<Option<PresenceColor>>,
     stage: Cell<Rect>,
     stroke: RefCell<Option<Stroke>>,
     drawing_tool: Cell<PixelTool>,
+    /// The drag board the canvas's moves are carried on.
+    board: std::rc::Rc<beui::unstyled::Board>,
 }
 
 #[derive(Clone, Copy)]
@@ -531,7 +569,6 @@ pub(crate) struct CanvasState {
     pub(crate) gesture: Signal<Option<Gesture>>,
     pub(crate) focused_editor: Signal<Option<Uuid>>,
     pub(crate) editing_text: Signal<Option<Uuid>>,
-    pub(crate) import_error: Signal<Option<String>>,
     labels: Memo<Ready<HashMap<Uuid, BlockLabel>>>,
     types: Memo<HashMap<Uuid, Uuid>>,
     thumbhashes: Memo<HashMap<Uuid, Thumbhash>>,
@@ -540,6 +577,8 @@ pub(crate) struct CanvasState {
     peer_carets: Memo<Vec<(CanvasCaret, PresenceColor)>>,
     peers: ReadSignal<Vec<(u64, CanvasCursor)>>,
     own_stroke: Memo<Option<Uuid>>,
+    /// What this viewer carries mid-move, as its presence shows it to peers.
+    carried: Memo<Option<CanvasCarry>>,
     strokes: Memo<Vec<Uuid>>,
 }
 
@@ -575,7 +614,6 @@ impl CanvasState {
         let gesture = create_signal(None);
         let focused_editor = create_signal(None);
         let editing_text = create_signal(None);
-        let import_error = create_signal(None);
         let dependencies = editor
             .blocks()
             .watch(BlockQuery::References(editor.block_id()));
@@ -641,20 +679,38 @@ impl CanvasState {
             placeholders: RefCell::new(HashMap::new()),
             confirmed_editor: Cell::new(None),
             shown: RefCell::new(None),
-            writing: Cell::new(false),
-            scrubbing: Cell::new(false),
+            writing: Cell::new(None),
+            holding: Cell::new(None),
+            dragging_value: Cell::new(false),
             written_points: Cell::new(0),
             drafting: Cell::new(None),
             color: Cell::new(None),
             stage: Cell::new(Rect::ZERO),
             stroke: RefCell::new(None),
             drawing_tool: Cell::new(PixelTool::Pencil),
+            board: beui::unstyled::drag_board(),
         });
 
         let peers = editor.peers::<CanvasCursor>();
         let own_stroke = create_memo(move || {
             gesture.with(|gesture| match gesture {
                 Some(Gesture::Pen { id, .. }) => Some(*id),
+                _ => None,
+            })
+        });
+        let carried = create_memo(move || {
+            gesture.with(|gesture| match gesture {
+                Some(Gesture::Move {
+                    start,
+                    current,
+                    snapped,
+                    carried: true,
+                    duplicate: false,
+                    ..
+                }) => Some(CanvasCarry {
+                    by: CanvasPoint::new(current.x - start.x, current.y - start.y),
+                    snapped: *snapped,
+                }),
                 _ => None,
             })
         });
@@ -665,7 +721,7 @@ impl CanvasState {
             });
             strokes
         });
-        Self {
+        let state = Self {
             cells,
             editor,
             preview,
@@ -685,7 +741,6 @@ impl CanvasState {
             gesture,
             focused_editor,
             editing_text,
-            import_error,
             labels,
             types,
             thumbhashes,
@@ -694,8 +749,11 @@ impl CanvasState {
             peer_carets,
             peers,
             own_stroke,
+            carried,
             strokes,
-        }
+        };
+        content.on_gesture_ended(move |ended| state.gesture_ended(ended));
+        state
     }
 
     fn drawn_shape(&self, gesture: &Gesture) -> Option<CanvasEntity> {
@@ -745,7 +803,7 @@ impl CanvasState {
         self.preview
     }
 
-    pub(crate) fn grid(&self) -> ReadSignal<be_type_infinite_canvas::CanvasGrid> {
+    pub(crate) fn grid(&self) -> Memo<be_type_infinite_canvas::CanvasGrid> {
         self.cells.value().content.field(
             be_sdk_beui::be_block_content::be_block_model::ObjectId::ROOT,
             be_type_infinite_canvas::Canvas::GRID,
@@ -753,10 +811,7 @@ impl CanvasState {
     }
 
     pub(crate) fn set_grid(&self, grid: be_type_infinite_canvas::CanvasGrid) {
-        self.cells
-            .value()
-            .content
-            .operate(be_type_infinite_canvas::Canvas::set_grid(grid));
+        self.write(be_type_infinite_canvas::Canvas::set_grid(grid));
     }
 
     pub(crate) fn block_id(&self) -> Uuid {
@@ -795,7 +850,7 @@ impl CanvasState {
     }
 
     pub(crate) fn type_value(&self, before: CanvasEntity, after: CanvasEntity) {
-        self.open_writes();
+        self.open_hold();
         self.record_update(vec![before], vec![after]);
     }
 
@@ -962,10 +1017,15 @@ impl CanvasState {
                 .collect::<Edit>()
         }) && !edit.0.is_empty()
         {
-            if self.gesture.with_untracked(Option::is_some) {
-                self.open_writes();
+            match self
+                .gesture
+                .with_untracked(|gesture| gesture.as_ref().map(Gesture::chooses))
+            {
+                Some(true) => self.open_hold(),
+                Some(false) => self.open_writes(),
+                None => {}
             }
-            self.cells.value().content.operate(edit);
+            self.write(edit);
         }
     }
 
@@ -981,39 +1041,110 @@ impl CanvasState {
         self.cells.value().drawing_tool.get()
     }
 
-    pub(crate) fn open_writes(&self) {
-        if !self.cells.value().writing.replace(true) {
-            self.content().begin_gesture();
+    /// Makes `edit` in the open tentative gesture (`open_hold`), else in the open undo group
+    /// (`open_writes`), or outside any.
+    fn write(&self, edit: Edit) {
+        let content = self.content();
+        let cells = self.cells.value();
+        match cells.holding.get().or(cells.writing.get()) {
+            Some(gesture) => content.operate_in(gesture, edit),
+            None => content.operate(edit),
         }
     }
 
-    pub(crate) fn scrub(&self, scrubbing: bool) {
-        self.cells.value().scrubbing.set(scrubbing);
-        match scrubbing {
-            true => self.open_writes(),
-            false => self.commit_writes(),
+    pub(crate) fn open_writes(&self) {
+        let writing = &self.cells.value().writing;
+        if writing.get().is_none() {
+            writing.set(Some(self.content().begin_gesture()));
+        }
+    }
+
+    /// Opens the tentative gesture the canvas's writes go in until `commit_hold`: they show in
+    /// every view of the block on this device, and are sent and saved only on release.
+    pub(crate) fn open_hold(&self) {
+        let holding = &self.cells.value().holding;
+        if holding.get().is_none() {
+            holding.set(Some(self.content().begin_tentative()));
+        }
+    }
+
+    /// A sidebar control (a number scrubbed, a colour or slider dragged) starts or ends a
+    /// drag: what it writes between is held, written once when the drag is kept, and dropped
+    /// when it is called off or the control goes mid-drag.
+    pub(crate) fn drag_value(&self, change: ValueDrag) {
+        self.cells
+            .value()
+            .dragging_value
+            .set(change == ValueDrag::Started);
+        match change {
+            ValueDrag::Started => self.open_hold(),
+            ValueDrag::Kept => self.commit_hold(),
+            ValueDrag::Cancelled => self.drop_hold(),
+        }
+    }
+
+    pub(crate) fn commit_hold(&self) {
+        let cells = self.cells.value();
+        if cells.dragging_value.get() {
+            return;
+        }
+        if let Some(gesture) = cells.holding.take() {
+            self.content().commit_gesture(gesture);
+        }
+    }
+
+    fn drop_hold(&self) {
+        if let Some(gesture) = self.cells.value().holding.take() {
+            self.content().cancel_gesture(gesture);
         }
     }
 
     pub(crate) fn commit_writes(&self) {
+        self.commit_hold();
         let cells = self.cells.value();
-        if cells.scrubbing.get() || cells.drafting.get().is_some() {
+        if cells.drafting.get().is_some() {
             return;
         }
-        if cells.writing.replace(false) {
-            self.content().commit_gesture();
+        if let Some(gesture) = cells.writing.take() {
+            self.content().commit_gesture(gesture);
         }
     }
 
     pub(crate) fn cancel_writes(&self) {
+        if !self.cells.value().dragging_value.get() {
+            self.drop_hold();
+        }
         if self.cells.value().drafting.get().is_none() {
             self.drop_writes();
         }
     }
 
+    /// The replica ended a gesture the canvas holds open: an undo cancelled the tentative
+    /// layer, or what it moved was replaced. A drag on the canvas lets go of what it carried,
+    /// and the board puts down a move it carries;
+    /// a sidebar drag keeps its handle, whose later writes are dropped, until it ends.
+    fn gesture_ended(&self, ended: ContentGesture) {
+        let cells = self.cells.value();
+        let carried = self.carries();
+        if cells.holding.get() == Some(ended) && !cells.dragging_value.get() {
+            cells.holding.set(None);
+            self.take_gesture();
+        }
+        if cells.writing.get() == Some(ended) {
+            cells.writing.set(None);
+            if carried {
+                self.take_gesture();
+            }
+        }
+        // A move the board carries ends on the board too: it is put down, dropping nothing.
+        if carried && !self.carries() {
+            self.board().cancel();
+        }
+    }
+
     fn drop_writes(&self) {
-        if self.cells.value().writing.replace(false) {
-            self.content().cancel_gesture();
+        if let Some(gesture) = self.cells.value().writing.take() {
+            self.content().cancel_gesture(gesture);
         }
     }
 
@@ -1178,7 +1309,7 @@ impl CanvasState {
             .read(|canvas| canvas.root().set_profile(profile))
             && !edit.0.is_empty()
         {
-            self.cells.value().content.operate(edit);
+            self.write(edit);
         }
     }
 
@@ -1254,9 +1385,7 @@ impl CanvasState {
     }
 
     pub(crate) fn focus_editor(&self, entity: Option<Uuid>) {
-        if self.focused_editor.get_untracked() != entity {
-            self.focused_editor.set(entity);
-        }
+        self.focused_editor.set(entity);
         if entity.is_none() {
             self.cells.value().confirmed_editor.set(None);
         }
@@ -1317,7 +1446,7 @@ impl CanvasState {
         let content = self.content();
         let client = self.cells.value().client;
         if let Ok(Some(edit)) = content.read(|canvas| Canvas::retext(canvas, client, id, text)) {
-            content.operate(edit);
+            self.write(edit);
         }
     }
 
@@ -1344,6 +1473,10 @@ impl CanvasState {
 
     pub(crate) fn finish_text(&self) {
         self.edit_text(None);
+    }
+
+    pub(crate) fn board(&self) -> std::rc::Rc<beui::unstyled::Board> {
+        std::rc::Rc::clone(&self.cells.value().board)
     }
 
     pub(crate) fn surface(&self) -> NodeRef {
@@ -1385,9 +1518,7 @@ impl CanvasState {
     }
 
     pub(crate) fn note_pointer(&self, at: Option<CanvasPoint>) {
-        if self.pointer.get_untracked() != at {
-            self.pointer.set(at);
-        }
+        self.pointer.set(at);
     }
 
     pub(crate) fn hold_pointer(&self, down: bool) {
@@ -1420,10 +1551,6 @@ impl CanvasState {
 
     pub(crate) fn take_retap(&self) -> Option<(Uuid, Pos2)> {
         self.cells.value().retapped.take()
-    }
-
-    pub(crate) fn dismiss_import_error(&self) {
-        self.import_error.set(None);
     }
 
     pub(crate) fn request_fit_selection(&self) {
@@ -1568,9 +1695,7 @@ impl CanvasState {
             .entities
             .get_untracked(member)
             .and_then(|entity| entity.group_id);
-        if self.entered_group.get_untracked() != group {
-            self.entered_group.set(group);
-        }
+        self.entered_group.set(group);
         self.selection.set(HashSet::from([member]));
     }
 
@@ -1816,6 +1941,7 @@ impl CanvasState {
             duplicate,
             rasters,
             snapped: self.snaps.get_untracked(),
+            carried: false,
         }));
     }
 
@@ -2041,6 +2167,10 @@ impl CanvasState {
     }
 
     pub(crate) fn run(&self, command: CanvasCommand) {
+        // While the board carries the selection, nothing changes what it carries.
+        if self.carries() {
+            return;
+        }
         match command {
             CanvasCommand::SelectAll => {
                 let all = self
@@ -2149,8 +2279,9 @@ impl CanvasState {
         let encoded = match serde_json::to_vec(&blank) {
             Ok(encoded) => encoded,
             Err(error) => {
-                self.import_error
-                    .set(Some(format!("Could not copy canvas objects: {error}")));
+                self.editor
+                    .host()
+                    .report_failure(format!("The canvas objects could not be copied. {error}"));
                 return false;
             }
         };
@@ -2214,10 +2345,9 @@ impl CanvasState {
                     .flat_map(CanvasEntity::blocks_mut)
                     .collect::<Vec<_>>();
                 if named.len() != items.blocks.len() {
-                    return self.import_error.set(Some(
-                        "Could not paste canvas objects: the clip names the wrong number of blocks"
-                            .to_owned(),
-                    ));
+                    return self.editor.host().report_failure(
+                        "The canvas objects could not be pasted. The clip names the wrong number of blocks.",
+                    );
                 }
                 for (block, from) in named.iter_mut().zip(items.blocks) {
                     **block = from;
@@ -2255,8 +2385,9 @@ impl CanvasState {
             }
             Ok(_) => {}
             Err(error) => self
-                .import_error
-                .set(Some(format!("Could not paste canvas objects: {error}"))),
+                .editor
+                .host()
+                .report_failure(format!("The canvas objects could not be pasted. {error}")),
         }
     }
 
@@ -2341,9 +2472,7 @@ impl CanvasState {
         let state = self;
         self.editor
             .pick_block(BlockFilter::default(), anchor, move |picked| {
-                if let Ok(picked) = picked
-                    && state.is_alive()
-                {
+                if state.is_alive() {
                     state.place_picked_block(picked.id(), center);
                 }
             });
@@ -2385,9 +2514,7 @@ impl CanvasState {
             },
             anchor,
             move |picked| {
-                if let Ok(picked) = picked
-                    && state.is_alive()
-                {
+                if state.is_alive() {
                     state.attach_picked_component(&selected, picked.id());
                 }
             },
@@ -2417,9 +2544,7 @@ impl CanvasState {
         let state = self;
         self.editor
             .pick_block(filter, request.anchor, move |picked| {
-                if let Ok(picked) = picked
-                    && state.is_alive()
-                {
+                if state.is_alive() {
                     state.set_picked_value(&selected, schema_id, field_id, picked.id());
                 }
             });
@@ -2491,24 +2616,6 @@ impl CanvasState {
             self.remember_style(|style| style.text_size = text_size);
         }
         self.record_update(before, after);
-    }
-
-    pub(crate) fn replace_referenced_block(&self, old: Uuid, new: Uuid) -> bool {
-        let replaced = self
-            .entities
-            .all_untracked()
-            .into_iter()
-            .filter(|entity| entity.shape.embeds_block() && entity.block == Some(old))
-            .map(|entity| CanvasEntity {
-                block: Some(new),
-                ..entity
-            })
-            .collect::<Vec<_>>();
-        if replaced.is_empty() {
-            return false;
-        }
-        self.record(InfiniteCanvasOperation::Update { entities: replaced });
-        true
     }
 }
 
@@ -2840,6 +2947,8 @@ impl CanvasState {
                 self.selection.set(selection);
             }
             Gesture::Erase { erased, .. } => {
+                // The dimming was held: the removal alone is written.
+                self.drop_hold();
                 let ids: Vec<Uuid> = erased.iter().map(|entity| entity.id).collect();
                 if !ids.is_empty() {
                     let mut selection = self.selection.get_untracked();
@@ -3004,27 +3113,34 @@ impl CanvasState {
             }
         });
         let state = self;
-        create_effect(move || {
-            state.entities.track_edits();
-            state.child_states.with(|_| ());
-            untrack(|| state.autosize_direct_editors());
-        });
+        create_effect_on(
+            move || {
+                state.entities.track_edits();
+                state.child_states.track();
+            },
+            move |_, _| state.autosize_direct_editors(),
+        );
         let state = self;
         let visible = self.editor.presence_visible();
-        create_effect(move || {
-            visible.with(|_| ());
-            state.pointer.with(|_| ());
-            state.caret.with(|_| ());
-            state.selection.with(|_| ());
-            state.own_stroke.with(|_| ());
-            untrack(|| state.publish_presence());
-        });
+        create_effect_on(
+            move || {
+                visible.track();
+                state.pointer.track();
+                state.caret.track();
+                state.selection.track();
+                state.own_stroke.track();
+                state.carried.track();
+            },
+            move |_, _| state.publish_presence(),
+        );
         let state = self;
-        create_effect(move || {
-            state.entities.track_edits();
-            state.peers.with(|_| ());
-            untrack(|| state.read_presence());
-        });
+        create_effect_on(
+            move || {
+                state.entities.track_edits();
+                state.peers.track();
+            },
+            move |_, _| state.read_presence(),
+        );
         let state = self;
         let resized = self.editor.resized();
         create_effect(move || {
@@ -3046,7 +3162,6 @@ impl CanvasState {
     fn take_image_pick(&self, pick: FilePick) {
         match pick.map(|file| file.map(imported_image)) {
             Ok(Some(image)) => {
-                self.import_error.set(None);
                 let center = self
                     .cells
                     .value()
@@ -3058,7 +3173,9 @@ impl CanvasState {
             }
             Err(error) => {
                 self.cells.value().pending_image_center.set(None);
-                self.import_error.set(Some(error));
+                self.editor
+                    .host()
+                    .report_failure(format!("The image could not be added. {error}"));
             }
             Ok(None) => self.cells.value().pending_image_center.set(None),
         }
@@ -3086,12 +3203,15 @@ impl CanvasState {
             DropAction::Copy => {
                 let state = *self;
                 let asked = self.editor.host().copy_blocks(drag.block_id, here);
-                self.editor.then(asked, move |copied| {
-                    if let Ok(Some((copy, _))) = copied
-                        && state.is_alive()
-                    {
+                self.editor.then(asked, move |copied| match copied {
+                    Ok(Some((copy, _))) if state.is_alive() => {
                         state.add_direct_editor(copy, center);
                     }
+                    Err(failure) => state
+                        .editor
+                        .host()
+                        .report_failure(format!("The block could not be copied here. {failure}")),
+                    Ok(_) => {}
                 });
             }
         }
@@ -3110,7 +3230,6 @@ impl CanvasState {
             self.cells.value().pending_file_drop.set(Some(at));
             return;
         }
-        self.import_error.set(None);
         let base = self.cells.value().pending_file_drop.take().unwrap_or(at);
         for (index, file) in drop.files.into_iter().enumerate() {
             let offset = IMPORT_CASCADE_OFFSET * index as f32;
@@ -3129,7 +3248,6 @@ impl CanvasState {
             return self.paste_blocks(blocks);
         }
         if pasted.format == formats::PNG {
-            self.import_error.set(None);
             let center = self.paste_center();
             self.add_imported_image(
                 ImageFile::from_file("Pasted Image.png".to_owned(), pasted.data),
@@ -3155,6 +3273,7 @@ impl CanvasState {
                 selection: self.selection.get_untracked().iter().copied().collect(),
                 caret: self.caret.get_untracked(),
                 drawing: self.own_stroke.get_untracked(),
+                carried: self.carried.get_untracked(),
                 color,
             }
         });
@@ -3167,14 +3286,43 @@ impl CanvasState {
 
     fn read_presence(&self) {
         let mut presence = Presence::default();
-        for (_, cursor) in self.peers.get_untracked() {
+        let peers = self.peers.get_untracked();
+        // Where each peer's carried move puts what of its selection can move; of two peers
+        // carrying the same entity, the one listed last.
+        let mut carried: HashMap<Uuid, CanvasPoint> = HashMap::new();
+        for (_, cursor) in &peers {
+            let Some(carry) = cursor.carried else {
+                continue;
+            };
+            for id in &cursor.selection {
+                let Some(mut entity) = self.entities.get_untracked(*id) else {
+                    continue;
+                };
+                if entity.locked {
+                    continue;
+                }
+                entity.transform.center.x += carry.by.x;
+                entity.transform.center.y += carry.by.y;
+                if carry.snapped {
+                    entity = moved_to_whole_units(entity);
+                }
+                carried.insert(*id, entity.transform.center);
+            }
+        }
+        self.entities.carry_for_peers(&carried);
+        for (_, cursor) in peers {
             let color = cursor.color;
             if !cursor.selection.is_empty()
                 && let Some(bounds) = cursor
                     .selection
                     .iter()
                     .filter_map(|id| self.entities.get_untracked(*id))
-                    .map(|entity| entity_bounds(&entity))
+                    .map(|mut entity| {
+                        if let Some(center) = carried.get(&entity.id) {
+                            entity.transform.center = *center;
+                        }
+                        entity_bounds(&entity)
+                    })
                     .reduce(WorldRect::union)
             {
                 presence.selections.push(RemoteSelection {
@@ -3192,9 +3340,7 @@ impl CanvasState {
                 });
             }
         }
-        if self.presence.get_untracked() != presence {
-            self.presence.set(presence);
-        }
+        self.presence.set(presence);
     }
 
     fn resize_first_frame(&self, size: Vec2) {

@@ -107,7 +107,13 @@ tab when it hears this (`DockTabControl::content_focused`, so a dock that stops
 showing the tab hands the keyboard to the one shown in its place), and one in an
 empty pane's view focuses that pane, so a press in a child (a joined dock's tab
 body or empty pane included) focuses what holds it and brings its window in
-front; `on_focus` is for anything more. A child that takes a press without the
+front; `on_focus` is for anything more. An editor can ask to give the keyboard
+to a child the host already took away, since it hears of the child placed in
+its stead only after the commit that placed it (a joined editor's tab body shown
+again). The host answers `gift-missed` for a child its latest changes took away
+(`Instance::departed`), and the slot that placed it gives the keyboard to the
+child it places now (`EditorHost::missed_gift`, `Slot::before`), so a gift is
+asked again only when one missed. A child that takes a press without the
 keyboard (one being presented) brings nothing forward. The other way,
 `EditorHost::focus_child` gives a child the keyboard, but only while the
 keyboard is already inside the editor's views and no popover or keyboard-taking
@@ -130,13 +136,16 @@ view they were typed into. It moves pending → given → ready → done, and
   and takes it with `be_host_runtime::take_gift`).
 - Given: the child's view took the keyboard. It has to be seen with it by the
   next host pass, or it lost it before it saw it and the gift ends, so keys
-  are never replayed into a view focused much later. Keys typed into it queue
-  behind the held ones.
+  are never replayed into a view focused much later. Until then an input it
+  hears without the keyboard (a resting pointer's move sent as it was laid out)
+  ends nothing. Keys typed into it queue behind the held ones.
 - Ready: a text field in it has the keyboard (its view asks for an input
   method in a frame its app answered after the focus, so an input method left
   from before does not count), or, for a child with none, its app drew two
   frames after it had its block's content and the focus (the count starts
-  again if the content is replaced). The child's app hears the held keys, in
+  again if the content is replaced, or relayed again for an editor that asked
+  for it with `Resend`, as an app that starts does even when the host relayed
+  it already). The child's app hears the held keys, in
   order and ahead of its own.
 - Ended before that: when the person presses in the editor or takes the
   keyboard elsewhere, when the child stops being placed in a mode that runs
@@ -171,9 +180,22 @@ new pane), the new one takes over both, unless the keyboard went elsewhere
 meanwhile. A view that is no longer placed leaves nothing behind. A child
 never reads what its placer's view stores (`Placer` names the app with a
 plain string), as a child's effects can outlive the placer's view.
+
+A joined editor's content moves from its main view, which stays placed but is
+shown nowhere, into its dock tab view, built after the main view goes. That
+view takes over the keyboard and the keys the main view had
+(`keyboard_follows_content` in be-host's `app_view.rs`; the runtime's
+`forget_keys` finds where the content moved, `content_moved`). So a dock tab
+view is owed keys by two editors: the one that hosts its tab (it is that
+editor's child, given the keyboard with the tab) and the one that placed the
+instance (`key_placers`).
+
 Held keys skip the child's input method, so a composition (CJK) started before
 the child shows arrives as its committed text. An empty text block given the
-keyboard puts its caret in its text.
+keyboard puts its caret in its text. It reads its own views' keyboard
+(`Editor::has_keyboard`), not the document's (`use_document_keyboard`): an app's
+instances share one document, and an instance reading the document's would act
+on a keyboard given to another.
 
 ## Docks across apps
 
@@ -189,11 +211,18 @@ nothing but its `Docking`.
   `use_window()`, so its size, key scopes and the menus it opens are the
   tab's.
 - The root hosts each child's declaration as a pinned group in place of the
-  tab. `be-host-runtime/src/docks.rs` routes docks between instances,
+  tab. `Docks` (`be-sdk-app-host/src/docks.rs`, which be-host-runtime holds one
+  of) routes docks between instances,
   applying a commit's child placements before its dock messages.
 - The tab body holding the editor's content is where the host keeps its
   camera, chrome and frame takeovers, so a joined canvas pans and hands its
   frame to a card as it does alone.
+- A joined editor's tool bar (`DockBar`) shows in the root's band at the size
+  it measured, squeezed along its run where the band is shorter (a phone's),
+  so its surface scrolls instead of being cut off.
+- A joined frame shows no main view of its own, so its dock tab views carry
+  `FrameSpec::phone` too: on a phone it lays out, and opens Rename as a sheet,
+  as an editor on its own does.
 - A child keeps its child id while its body moves between views, and stays
   docked while its placer hosts it, after (`DockHold`), and while the placer
   is off screen, so it is never rebuilt undocked in between.

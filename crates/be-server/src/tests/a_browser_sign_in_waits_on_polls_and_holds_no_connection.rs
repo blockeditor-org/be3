@@ -9,7 +9,7 @@ async fn a_browser_sign_in_waits_on_polls_and_holds_no_connection() {
     let harness = Harness::start().await;
     harness.member("offline@example.com").await;
     let begun = harness
-        .once(|peer| client::account::begin_browser_login(peer))
+        .once(|peer| begin_login(peer))
         .await
         .expect("a sign-in begins");
     assert_eq!(
@@ -26,7 +26,7 @@ async fn a_browser_sign_in_waits_on_polls_and_holds_no_connection() {
     ));
     let mut browser = Browser::default();
     browser
-        .login(&harness, "offline@example.com", "correct horse battery")
+        .sign_in_by_code(&harness, "offline@example.com")
         .await;
     assert_eq!(
         browser
@@ -46,11 +46,12 @@ async fn a_browser_sign_in_waits_on_polls_and_holds_no_connection() {
         "a poll sooner than the interval was answered: {soon:?}"
     );
 
-    let mut app = harness.client().await;
-    let response = client::account::begin_browser_login(&app.peer).await;
+    let token = harness.register("app@example.com", "App").await;
+    let mut app = harness.signed_in(&token).await;
+    let response = begin_login(&app.peer).await;
     assert!(
-        !matches!(response, Ok(Ok(_))),
-        "a connection began a sign-in rather than authenticating: {response:?}"
+        matches!(&response, Ok(Err(Error { code, .. })) if *code == ErrorCode::PermissionDenied),
+        "a signed-in connection began a sign-in, which only a one-shot call does: {response:?}"
     );
-    app.ended().await;
+    app.round_trip().await;
 }

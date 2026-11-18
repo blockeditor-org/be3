@@ -17,7 +17,11 @@ fn crossing_the_phone_width_keeps_the_block_on_show() {
     let (mut fixture, opened) = editor_sized(Some(Vec2::new(390.0, 800.0)));
     show(&mut fixture, opened, None);
     let phone = placement(&fixture, opened);
-    assert_eq!(phone.top_bar, TopBar::Phone);
+    assert_eq!(phone.top_bar, TopBar::Hidden);
+    assert_eq!(
+        fixture.test.take_phone_layout_requests().last(),
+        Some(&true)
+    );
 
     fixture.test.set_size(Vec2::new(1200.0, 800.0));
     fixture.settle();
@@ -27,6 +31,11 @@ fn crossing_the_phone_width_keeps_the_block_on_show() {
         "widening the window keeps the child the phone was showing"
     );
     assert_eq!(desktop.top_bar, TopBar::Shown);
+    assert_eq!(
+        fixture.test.take_phone_layout_requests(),
+        [false],
+        "widening tells the host it no longer lays out as on a phone"
+    );
     assert!(
         desktop.rect.min.x > 0.0,
         "on a desktop the block sits beside the files"
@@ -36,5 +45,6 @@ fn crossing_the_phone_width_keeps_the_block_on_show() {
     fixture.settle();
     let narrowed = placement(&fixture, opened);
     assert_eq!(narrowed.child, phone.child);
-    assert_eq!(narrowed.top_bar, TopBar::Phone);
+    assert_eq!(narrowed.top_bar, TopBar::Hidden);
+    assert_eq!(fixture.test.take_phone_layout_requests(), [true]);
 }

@@ -32,7 +32,7 @@ async fn a_creation_the_server_refuses_is_set_aside_and_nothing_waits_behind_it(
     assert!(
         drained.contains(&Drained::SetAside {
             block,
-            code: ErrorCode::InvalidRequest
+            why: crate::Aside::Refused(ErrorCode::InvalidRequest)
         }),
         "{drained:?}"
     );

@@ -2,6 +2,7 @@ load("@root//buck/dev:verify.bzl", "package_fix")
 load("@root//buck/platforms:cross.bzl", "CROSS_PLATFORMS", "cross_triple")
 load("@toolchains//:defs.bzl", "script")
 load(":defs.bzl", "apple_sdk_tool", "configured_once", "llvm_tree", "rust_sysroot")
+load(":rust.bzl", "RUST_VERSION")
 
 # The compilers and tools the build runs. A worker is a container with nothing
 # of this project's in it (defs.bzl), so everything is downloaded here, pinned
@@ -11,7 +12,7 @@ load(":defs.bzl", "apple_sdk_tool", "configured_once", "llvm_tree", "rust_sysroo
 # Every download has its size as well as its hash: with both, buck2 never asks
 # the host anything, where with the hash alone it sends a HEAD request per file
 # on every new daemon.
-rust_version = "1.98.0"
+rust_version = RUST_VERSION
 
 rust_host = "x86_64-unknown-linux-gnu"
 
@@ -37,6 +38,7 @@ http_archive(
 
 rust_std = {
     "wasm32-unknown-unknown": ("3bb537c09555b96020a38a3a8810c38908b194eff3c2cb6184a45dda5c6828de", 22441312),
+    "wasm32-wasip1": ("07af7da4d9e943226c438cd5b60ba2b1f23a88c077eb09ccb227a385529c8b08", 23706632),
     "wasm32-wasip1-threads": ("56002ff8232f0e82d446267b6d84dc394007e4b090b8f84b17124615802407f3", 23857356),
     "x86_64-unknown-linux-gnu": ("f5022e6c95a5ad23cca2513dc8281200f585fa188de6370aa37b128a43f876a3", 30715556),
 }
@@ -385,11 +387,12 @@ script(
     src = "msvc-cxx",
 )
 
+# The wasm C and C++ compilers. The triple is the toolchain's to give, since
+# it differs by platform (buck/toolchains/BUCK, wasi_cxx and wasm32_cxx).
 command_alias(
     name = "wasm-cc",
     args = [
         "$(location :llvm)/bin/clang",
-        "--target=wasm32-wasip1-threads",
     ],
 )
 
@@ -397,7 +400,6 @@ command_alias(
     name = "wasm-cxx",
     args = [
         "$(location :llvm)/bin/clang++",
-        "--target=wasm32-wasip1-threads",
     ],
 )
 

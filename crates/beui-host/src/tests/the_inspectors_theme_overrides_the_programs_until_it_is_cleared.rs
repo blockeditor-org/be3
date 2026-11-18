@@ -34,7 +34,7 @@ fn the_inspectors_theme_overrides_the_programs_until_it_is_cleared() {
     harness.toggle_inspector();
     harness.show_inspector_tab(crate::inspector::InspectorTab::Simulation);
     harness.frame(vec![]);
-    harness.choose_in_simulation("theme", 4);
+    harness.choose_in_simulation("theme", Some(ThemeKind::EPaper));
     let restyled = harness.frame(vec![]);
     assert_eq!(
         Theme::of(harness.document().preferences().theme),
@@ -49,7 +49,7 @@ fn the_inspectors_theme_overrides_the_programs_until_it_is_cleared() {
         "the override is not the program's own preference"
     );
 
-    harness.choose_in_simulation("theme", 0);
+    harness.choose_in_simulation("theme", None::<ThemeKind>);
     harness.frame(vec![]);
     assert_eq!(
         Theme::of(harness.document().preferences().theme),

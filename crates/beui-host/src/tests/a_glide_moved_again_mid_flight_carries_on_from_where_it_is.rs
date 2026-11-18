@@ -5,12 +5,12 @@ use crate::reactive::*;
 fn a_glide_moved_again_mid_flight_carries_on_from_where_it_is() {
     let _root = RootScope::new();
     let order = create_signal(vec![1_u64, 2, 3]);
-    let arm = create_signal(0_u64);
+    let arm = create_trigger();
     let mut harness = Harness::new(gliding_rows(order, arm));
     harness.settle();
 
     order.set(vec![2, 3, 1]);
-    arm.update(|arm| *arm += 1);
+    arm.notify();
     for _ in 0..4 {
         harness.frame(Vec::new());
     }
@@ -18,7 +18,7 @@ fn a_glide_moved_again_mid_flight_carries_on_from_where_it_is() {
     assert!(before > 0.0 && before < 2.0 * GLIDE_ROW);
 
     order.set(vec![1, 2, 3]);
-    arm.update(|arm| *arm += 1);
+    arm.notify();
     harness.frame(Vec::new());
     let after = top_of(&harness, "row.1");
     assert!(

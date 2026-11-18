@@ -45,24 +45,23 @@ fn Scoped(id: &'static str) -> NodeId {
 fn an_actions_label_and_where_the_focus_is_reach_the_host() {
     let mut test = BeuiTest::<ScopesRoot>::editing(Uuid::new_v4());
     test.click("a.field");
-    test.run();
     assert!(
         test.described_action("tidy.a").live && !test.described_action("tidy.b").live,
         "only the actions around the focus are live"
     );
 
     test.click("b.field");
-    test.run();
     assert!(
         !test.described_action("tidy.a").live && test.described_action("tidy.b").live,
         "moving the focus sends the actions again"
     );
 
     test.click("a.rename");
-    test.run();
     assert_eq!(
         test.described_action("tidy.a").label,
         "Tidy a again",
         "a label that changes is sent again"
     );
 }
+
+test_editor!(ScopesRoot);

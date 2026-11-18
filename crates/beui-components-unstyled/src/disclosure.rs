@@ -23,22 +23,20 @@ struct State {
 pub fn Disclosure(
     #[prop(default = ComponentRef::new())] api: ComponentRef<DisclosureApi>,
     spacing: Prop<f32>,
-    header: Render<DisclosureHandle>,
-    children: Child,
+    header: Render<DisclosureHandle, NodeId>,
+    children: NodeId,
     open: Binding<bool>,
 ) -> NodeId {
     api.fill(DisclosureApi(State { open }));
 
-    let accessibility = create_memo(move || {
-        let mut node = Node::new(Role::DisclosureTriangle);
-        node.set_expanded(open.get());
-        node
-    });
-
     view! {
         <List spacing=0.0>
             <unstyled::Button
-                accessibility
+                accessibility={move || {
+                    let mut node = Node::new(Role::DisclosureTriangle);
+                    node.set_expanded(open.get());
+                    node
+                }}
                 on_click={move || {
                     open.update(|open| *open = !*open);
                 }}
@@ -50,12 +48,16 @@ pub fn Disclosure(
                     open,
                 })
             }</unstyled::Button>
-            <Show keep_alive=true condition={open}>
-                <List spacing>
-                    <Frame />
-                    {children}
-                </List>
-            </Show>
+            <KeepAlive>
+                <Show value={open}>
+                    <Kept>
+                        <List spacing>
+                            <Frame />
+                            {children}
+                        </List>
+                    </Kept>
+                </Show>
+            </KeepAlive>
         </List>
     }
 }

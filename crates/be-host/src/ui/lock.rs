@@ -11,7 +11,7 @@ use beui::styled::*;
 use beui::{Key, NodeId};
 
 use super::{HostUiStore, UiCommand, send};
-use be_host_base::password::Password;
+use be_wasm_password::Password;
 use beui::{Align, Align2, Direction, Extent};
 
 const SECONDS_PER_MINUTE: u64 = 60;
@@ -105,7 +105,7 @@ pub(crate) fn SessionLock(view: HostUiStore, #[prop(default = true)] shortcut: b
             busy
             actions
             id="session.lock"
-            on_submit={|typed: String| send(UiCommand::Unlock(Password::new(typed)))}
+            on_submit={|typed: String| send(UiCommand::Unlock(Password::from(typed)))}
             on_action={move |index: usize| {
                 if let Some(power) = powers.with_untracked(|powers| powers.get(index).copied()) {
                     send(UiCommand::LockPower(power));
@@ -197,9 +197,6 @@ fn LockCard(
         node.set_label("Locked");
         node
     }));
-    let failed = create_memo(move || error.get().is_some());
-    let checking = create_memo(move || busy.get() && error.get().is_none());
-    let reason = create_memo(move || error.get().unwrap_or_default());
     let slots = create_memo(move || (0..actions.with(Vec::len)).collect::<Vec<usize>>());
     let error_id = format!("{id}.error");
     let action_id = id.clone();
@@ -224,10 +221,10 @@ fn LockCard(
                         on_submit={on_submit}
                     />
                 </Frame>
-                <Show condition={checking}>
+                <Show value={move || busy.get() && error.with(Option::is_none)}>
                     <Text style=TextStyle::CAPTION>"Checking…"</Text>
                 </Show>
-                <Show condition={failed}>
+                <Show value={error}>|reason: ReadSignal<String>|
                     <Text
                         style=TextStyle::CAPTION
                         color=TextColor::Danger
@@ -238,7 +235,7 @@ fn LockCard(
                 </Show>
             </List>
             <List direction=Direction::Horizontal spacing=ACTION_SPACING>
-                <ForEach keys={slots}>|index: usize| {
+                <ForEach value={slots}>|index: usize| {
                     let glyph = create_memo(move || {
                         actions.with(|actions| actions.get(index).map(|action| action.glyph))
                     });

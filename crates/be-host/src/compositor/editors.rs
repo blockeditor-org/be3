@@ -733,36 +733,33 @@ struct FocusedWithin(Callback<()>);
 
 #[derive(Clone, Copy)]
 pub(crate) struct ChildReports {
-    statuses: Stored<RefCell<BTreeMap<u64, HostChildStatus>>>,
-    tick: Signal<u64>,
+    statuses: Signal<BTreeMap<u64, HostChildStatus>>,
 }
 
 #[component]
 pub(crate) fn ShellSurface(shell: Memo<Option<Uuid>>) -> NodeId {
-    let keys = create_memo(move || shell.get().into_iter().collect::<Vec<_>>());
     view! {
         <Layers>
-            <ForEach keys={keys}>|block: Uuid| {
+            <Dynamic value={shell} fallback=()>|block: Uuid| {
                 provide_context(Nesting::root());
                 view! {
                     <TabFrame block top_bar=TopBar::Hidden />
                 }
-            }</ForEach>
+            }</Dynamic>
         </Layers>
     }
 }
 
 #[component]
 pub(crate) fn ShellDisplay(shell: Memo<Option<Uuid>>, display: u32) -> NodeId {
-    let keys = create_memo(move || shell.get().into_iter().collect::<Vec<_>>());
     view! {
         <Layers>
-            <ForEach keys={keys}>|block: Uuid| {
+            <Dynamic value={shell} fallback=()>|block: Uuid| {
                 provide_context(Nesting::root());
                 view! {
                     <BlockView block region={View::display(display)} />
                 }
-            }</ForEach>
+            }</Dynamic>
         </Layers>
     }
 }
@@ -772,14 +769,13 @@ pub(crate) fn PresentingSurface() -> NodeId {
     let editors = editors();
     let any = super::any();
     let presenting = create_memo(move || {
-        any.get();
+        any.track();
         editors.with(|open| {
             open.iter()
                 .find(|(_, editor)| editor.presenting_now())
                 .map(|(key, _)| *key)
         })
     });
-    let keys = create_memo(move || presenting.get().into_iter().collect::<Vec<_>>());
     let open = create_memo(move || presenting.with(Option::is_some));
     let overlay = NodeRef::new();
     stop_on_escape(overlay);
@@ -801,7 +797,7 @@ pub(crate) fn PresentingSurface() -> NodeId {
             }}
         >
             <Layers>
-                <ForEach keys={keys}>|block: Uuid| {
+                <Dynamic value={presenting} fallback=()>|block: Uuid| {
                     provide_context(Nesting::root());
                     be_host_base::host::set_fullscreen(true);
                     on_cleanup(move || {
@@ -823,7 +819,7 @@ pub(crate) fn PresentingSurface() -> NodeId {
                             presented=true
                         />
                     }
-                }</ForEach>
+                }</Dynamic>
             </Layers>
         </Overlay>
     }
@@ -833,7 +829,7 @@ pub(crate) fn PresentingSurface() -> NodeId {
 pub(crate) fn ConflictSurface() -> NodeId {
     let any = super::any();
     let comparison = create_memo(move || {
-        any.get();
+        any.track();
         be_host_stack::conflicts::comparing()
     });
     view! {
@@ -844,13 +840,6 @@ pub(crate) fn ConflictSurface() -> NodeId {
 #[component]
 fn ConflictDialog(comparison: Memo<Option<be_host_stack::conflicts::Comparison>>) -> NodeId {
     let open = create_memo(move || comparison.with(Option::is_some));
-    let error = create_memo(move || {
-        comparison
-            .get()
-            .and_then(|comparison| comparison.error)
-            .unwrap_or_default()
-    });
-    let failed = create_memo(move || !error.get().is_empty());
     view! {
         <Dialog
             open={open}
@@ -880,7 +869,9 @@ fn ConflictDialog(comparison: Memo<Option<be_host_stack::conflicts::Comparison>>
                         <ConflictSide comparison side=be_host_stack::conflicts::Side::Theirs />
                     </ListItem>
                 </List>
-                <Show condition={failed}>
+                <Show
+                    value={move || comparison.get().and_then(|comparison| comparison.error)}
+                >|error: ReadSignal<String>|
                     <Text color=TextColor::Danger>{error}</Text>
                 </Show>
             </List>
@@ -911,11 +902,6 @@ fn ConflictSide(
         Some((comparison.block, preview))
     });
     let block = create_memo(move || shown.get().map(|(block, _)| block));
-    let ready = create_memo(move || {
-        shown
-            .get()
-            .is_some_and(|(_, preview)| matches!(preview, Some(Ok(_))))
-    });
     view! {
         <List @test_id={side_id} spacing=Space::Md>
             <Text style=TextStyle::HEADING>{title}</Text>
@@ -925,32 +911,34 @@ fn ConflictSide(
                 border={Border::DEFAULT}
                 radius=Radius::Md
             >
-                <Layers>
-                    <Dynamic value={shown}>|shown: Option<(Uuid, Option<Result<Uuid, String>>)>| {
-                        match shown.and_then(|(_, preview)| preview) {
-                            None => view! {
-                                <Frame align=beui::Align::Center>
-                                    <Progress width=INLINE_PROGRESS_WIDTH />
-                                </Frame>
-                            },
-                            Some(Err(error)) => view! {
-                                <Frame align=beui::Align::Center padding={Padding::all(Space::Lg)}>
-                                    <Text color=TextColor::Muted>{error}</Text>
-                                </Frame>
-                            },
-                            Some(Ok(preview)) => view! {
-                                <ConflictPreview preview />
-                            },
-                        }
-                    }</Dynamic>
-                </Layers>
+                <Dynamic value={shown}>|shown: Option<(Uuid, Option<Result<Uuid, String>>)>| {
+                    match shown.and_then(|(_, preview)| preview) {
+                        None => view! {
+                            <Frame align=beui::Align::Center>
+                                <Progress width=INLINE_PROGRESS_WIDTH />
+                            </Frame>
+                        },
+                        Some(Err(error)) => view! {
+                            <Frame align=beui::Align::Center padding={Padding::all(Space::Lg)}>
+                                <Text color=TextColor::Muted>{error}</Text>
+                            </Frame>
+                        },
+                        Some(Ok(preview)) => view! {
+                            <ConflictPreview preview />
+                        },
+                    }
+                }</Dynamic>
             </Frame>
             <List direction=Direction::Horizontal spacing=Space::Md>
                 <Button
                     @test_id={format!("{side_id}.keep")}
                     label="Use this version"
                     variant=ButtonVariant::Secondary
-                    disabled={create_memo(move || !ready.get())}
+                    disabled={move || {
+                        !shown
+                            .get()
+                            .is_some_and(|(_, preview)| matches!(preview, Some(Ok(_))))
+                    }}
                     on_click={move || {
                         if let Some(block) = block.get_untracked() {
                             be_host_stack::conflicts::keep(block, side);
@@ -1019,16 +1007,16 @@ fn BlockView(block: Uuid, region: View) -> NodeId {
     let nesting = use_context::<Nesting>().unwrap_or_else(Nesting::root);
     provide_context(nesting.within(block, nesting.access));
     let any = super::any();
-    let keys = create_memo(move || {
-        any.get();
-        view_key(&editors, block, false)
-            .into_iter()
-            .collect::<Vec<_>>()
-    });
     let child_view = child_view(block, region);
     view! {
         <Layers>
-            <ForEach keys={keys}>|_key: ViewKey| {
+            <Dynamic
+                value={move || {
+                    any.track();
+                    view_key(&editors, block, false)
+                }}
+                fallback=()
+            >|_key: ViewKey| {
                 let Some(view_editor) = editors.handle(block).and_then(|handle| editors.region(&handle)) else {
                     return view! {
                         <Frame />
@@ -1042,7 +1030,7 @@ fn BlockView(block: Uuid, region: View) -> NodeId {
                         child_view
                     />
                 }
-            }</ForEach>
+            }</Dynamic>
         </Layers>
     }
 }
@@ -1055,7 +1043,7 @@ fn TabFrame(
 ) -> NodeId {
     view! {
         <FrameStack block top_bar holds=Prop::Static(true)>|stack: Memo<Vec<Uuid>>| {
-            let chrome = create_memo(move || match stack.get().is_empty() {
+            let chrome = create_memo(move || match stack.with(Vec::is_empty) {
                 true => Chrome::Drawn,
                 false => Chrome::None,
             });
@@ -1084,7 +1072,7 @@ fn FrameStack(
     let editors = editors();
     let any = super::any();
     let stack = create_memo(move || {
-        any.get();
+        any.track();
         let mut stack = Vec::new();
         if !holds.get() {
             return stack;
@@ -1128,7 +1116,7 @@ fn FrameStack(
     view! {
         <Layers>
             {body}
-            <ForEach keys={shown}>|id: Uuid| {
+            <ForEach value={shown}>|id: Uuid| {
                 let node = create_memo(move || {
                     portals.with(|held| {
                         held.iter().find(|(block, _)| *block == id).map(|(_, node)| *node)
@@ -1218,7 +1206,7 @@ fn BlockFrame(
     };
     count();
     create_effect(move || {
-        any.get();
+        any.track();
         count();
     });
     on_cleanup(move || {
@@ -1231,16 +1219,15 @@ fn BlockFrame(
         }
     });
     let shown = create_memo(move || {
-        any.get();
+        any.track();
         presented
             || editors()
                 .with(|open| open.get(&block).map(|editor| !editor.presenting_now()))
                 .unwrap_or(true)
     });
-    let keys = create_memo(move || shown.get().then_some(block).into_iter().collect::<Vec<_>>());
     view! {
         <Layers>
-            <ForEach keys={keys}>|block: Uuid|
+            <Show value={shown}>
                 <BlockFrameBody
                     block
                     chrome={chrome}
@@ -1250,7 +1237,7 @@ fn BlockFrame(
                     passive={passive}
                     reporter={reporter}
                 />
-            </ForEach>
+            </Show>
         </Layers>
     }
 }
@@ -1284,46 +1271,45 @@ enum Resolution {
 }
 
 #[component]
-fn ProgramSurface(block: Uuid, focus: Memo<u64>) -> NodeId {
+fn ProgramSurface(block: Uuid, focus: Trigger) -> NodeId {
     let any = super::any();
-    let shown = create_memo(move || {
-        any.get();
-        be_host_desktop::programs::shown(block)
-    });
     view! {
-        <Layers>
-            <Dynamic value={shown}>|shown: Option<be_host_desktop::programs::Shown>| {
-                match shown {
-                    Some(be_host_desktop::programs::Shown::Window(window)) => view! {
-                        <PlacedWindow window={window} focus />
-                    },
-                    Some(be_host_desktop::programs::Shown::Closed(name)) => view! {
-                        <ProgramClosed name block />
-                    },
-                    Some(be_host_desktop::programs::Shown::Failed(problem)) => view! {
-                        <Notice
-                            item={HostItem::Notice {
-                                text: problem,
-                                busy: false,
-                                icon: Some(beui::icons::ICON_APP_WINDOW),
-                            }}
-                        />
-                    },
-                    Some(be_host_desktop::programs::Shown::Opening(name)) => view! {
-                        <Notice
-                            item={HostItem::Notice {
-                                text: format!("Opening in {name}…"),
-                                busy: true,
-                                icon: Some(beui::icons::ICON_APP_WINDOW),
-                            }}
-                        />
-                    },
-                    None => view! {
-                        <Frame />
-                    },
-                }
-            }</Dynamic>
-        </Layers>
+        <Dynamic
+            value={move || {
+                any.track();
+                be_host_desktop::programs::shown(block)
+            }}
+            fallback={|| view! {
+                <Frame />
+            }}
+        >|shown: be_host_desktop::programs::Shown| {
+            match shown {
+                be_host_desktop::programs::Shown::Window(window) => view! {
+                    <PlacedWindow window={window} focus />
+                },
+                be_host_desktop::programs::Shown::Closed(name) => view! {
+                    <ProgramClosed name block />
+                },
+                be_host_desktop::programs::Shown::Failed(problem) => view! {
+                    <Notice
+                        item={HostItem::Notice {
+                            text: problem,
+                            busy: false,
+                            icon: Some(beui::icons::ICON_APP_WINDOW),
+                        }}
+                    />
+                },
+                be_host_desktop::programs::Shown::Opening(name) => view! {
+                    <Notice
+                        item={HostItem::Notice {
+                            text: format!("Opening in {name}…"),
+                            busy: true,
+                            icon: Some(beui::icons::ICON_APP_WINDOW),
+                        }}
+                    />
+                },
+            }
+        }</Dynamic>
     }
 }
 
@@ -1375,7 +1361,7 @@ fn BlockFrameBody(
     let key = block;
     let block = editors.block(key);
     let resolution = create_memo(move || {
-        any.get();
+        any.track();
         let access = editors.access(block, nesting.access);
         if !access.can_view() {
             return Resolution::NoAccess;
@@ -1395,16 +1381,6 @@ fn BlockFrameBody(
         match view_key(&editors, key, false) {
             Some(region) => Resolution::Ready { region, access },
             None => Resolution::Unsupported(handle.block_type),
-        }
-    });
-    let conflicted = create_memo(move || {
-        any.get();
-        match resolution.get() {
-            Resolution::Ready { .. } => be_host_stack::conflicts::conflicted(block)
-                .map(|conflicted| conflicted.count)
-                .into_iter()
-                .collect::<Vec<_>>(),
-            _ => Vec::new(),
         }
     });
     view! {
@@ -1484,9 +1460,20 @@ fn BlockFrameBody(
                     }
                 }
             }</Dynamic>
-            <ForEach keys={conflicted}>|count: usize|
+            <Dynamic
+                value={move || {
+                    any.track();
+                    match resolution.get() {
+                        Resolution::Ready { .. } => {
+                            be_host_stack::conflicts::conflicted(block).map(|conflicted| conflicted.count)
+                        }
+                        _ => None,
+                    }
+                }}
+                fallback=()
+            >|count: usize|
                 <ConflictNotice block count />
-            </ForEach>
+            </Dynamic>
         </Layers>
     }
 }
@@ -1513,9 +1500,9 @@ fn BlockFrameView(
     provide_context(nesting.within(editors().block(block), access));
     let app_id = store(view_editor.app_id().to_owned());
     let instance = view_editor.instance;
-    let framed = create_memo(move || content.get().is_some());
+    let framed = create_memo(move || content.with(Option::is_some));
     create_effect(move || {
-        let _ = framed.get();
+        framed.track();
         be_host_runtime::hold(&app_id.value(), instance, ViewId::MAIN);
     });
     let revision = super::listen(&app_id.value());
@@ -1551,10 +1538,10 @@ fn BlockFrameView(
         <Camera spec content fits={fits}>|camera: CameraView| {
             let CameraView { view: editor_view, pan_drag, rect } = camera;
             let placed_zoom = create_memo(move || {
-                if zoomable || !embedded || content.get().is_some() {
+                if zoomable || !embedded || content.with(Option::is_some) {
                     return 1.0;
                 }
-                revision.get();
+                revision.track();
                 let shown = rect.get();
                 be_host_runtime::assigned_size(&app_id.value(), instance)
                     .filter(|assigned| assigned.x > 0.0 && assigned.y > 0.0)
@@ -1576,6 +1563,8 @@ fn BlockFrameView(
                     top_bar: top_bar.get(),
                     dialog: None,
                     anchor: anchor.get().map(|anchor| anchor.scaled(zoom.recip())),
+                    // be-host-runtime sets it on every frame, from the shell's word.
+                    phone: false,
                 })
             });
             view! {
@@ -1697,7 +1686,7 @@ fn HostedChild(
     let place: PlaceKey = (parent, region.id, key);
     on_cleanup(move || editors.unplace(place));
     let placed = create_memo(move || {
-        any.get();
+        any.track();
         let mut frame = None;
         let kind = (|| {
             let (id, block_type, view_block, editor) = match content.get() {
@@ -1798,7 +1787,7 @@ fn HostedChild(
     let frame = create_memo(move || placed.get().1);
     let placed_window = create_memo(move || match kind.get() {
         Kind::Program(block) => {
-            any.get();
+            any.track();
             match be_host_desktop::programs::shown(block) {
                 Some(be_host_desktop::programs::Shown::Window(window)) => Some(window),
                 _ => None,
@@ -1823,7 +1812,7 @@ fn HostedChild(
     });
     if let Some(reports) = use_context::<ChildReports>() {
         let status = create_memo(move || {
-            any.get();
+            any.track();
             let child = child.get()?;
             let available = !matches!(
                 kind.get(),
@@ -1870,20 +1859,17 @@ fn HostedChild(
         });
         create_effect(move || {
             let status = status.get();
-            reports.statuses.with(|statuses| {
-                let mut statuses = statuses.borrow_mut();
+            reports.statuses.update(|statuses| {
                 match status {
                     Some(status) => statuses.insert(key.0, status),
                     None => statuses.remove(&key.0),
                 };
             });
-            reports.tick.update(|tick| *tick += 1);
         });
         on_cleanup(move || {
-            reports
-                .statuses
-                .with(|statuses| statuses.borrow_mut().remove(&key.0));
-            reports.tick.update(|tick| *tick += 1);
+            reports.statuses.update(|statuses| {
+                statuses.remove(&key.0);
+            });
         });
     }
     let local = create_memo(move || {
@@ -1895,26 +1881,24 @@ fn HostedChild(
     let y = create_memo(move || local.get().min.y);
     let width = create_memo(move || local.get().width());
     let height = create_memo(move || local.get().height());
-    let keys = create_memo(move || {
-        content
-            .get()
-            .map(|content| {
-                (
-                    frame.get().or(content.block_id()).unwrap_or_default(),
-                    kind.get(),
-                    content.editor(),
-                )
-            })
-            .into_iter()
-            .collect::<Vec<_>>()
-    });
     let _ = rect;
     let within = use_context::<FocusedWithin>().map_or_else(Callback::default, |within| within.0);
     view! {
         <Canvas>
             <CanvasItem x={x} y={y} width={width} height={height}>
                 <Layers>
-                    <ForEach keys={keys}>|(id, kind, _): (Uuid, Kind, Option<Uuid>)| {
+                    <Dynamic
+                        value={move || {
+                            content.get().map(|content| {
+                                (
+                                    frame.get().or(content.block_id()).unwrap_or_default(),
+                                    kind.get(),
+                                    content.editor(),
+                                )
+                            })
+                        }}
+                        fallback=()
+                    >|(id, kind, _): (Uuid, Kind, Option<Uuid>)| {
                         provide_context(PlacedAnchor(create_memo(move || {
                             child.get().and_then(|child| {
                                 let anchor = child.anchor?;
@@ -2034,7 +2018,7 @@ fn HostedChild(
                                 }
                             }
                         }
-                    }</ForEach>
+                    }</Dynamic>
                 </Layers>
             </CanvasItem>
         </Canvas>
@@ -2061,18 +2045,19 @@ fn follow_window(
     key: ChildId,
     child: Memo<Option<HostChild>>,
     window: Memo<Option<HostWindowId>>,
-) -> Memo<u64> {
+) -> Trigger {
     let editors = editors();
-    let asks = create_signal(0u64);
+    let asks = create_trigger();
     let given =
         create_memo(move || child.with(|child| child.as_ref().is_some_and(|child| child.keyboard)));
-    let held = StoredCell::new(false);
-    create_effect(move || {
-        let given = given.get() && window.get().is_some();
-        if !held.replace(given) && given {
-            untrack(|| asks.update(|asks| *asks += 1));
-        }
-    });
+    create_effect_on(
+        move || given.get() && window.with(Option::is_some),
+        move |&given, held| {
+            if given && held != Some(&true) {
+                asks.notify();
+            }
+        },
+    );
     let placer = move || {
         editors
             .handle(parent)
@@ -2083,7 +2068,7 @@ fn follow_window(
             .is_some_and(|(app_id, instance)| super::app_view::gifts::gives(&app_id, instance, key))
     });
     create_effect(move || {
-        if !asked.get() || window.get().is_none() {
+        if !asked.get() || window.with(Option::is_none) {
             return;
         }
         untrack(|| {
@@ -2094,23 +2079,30 @@ fn follow_window(
             // dropped, as the editor no longer has it.
             super::app_view::gifts::taken(&app_id, instance);
             be_host_runtime::end_gift(&app_id, instance);
-            asks.update(|asks| *asks += 1);
+            asks.notify();
         });
     });
     let fullscreen = create_memo(move || {
         child.with(|child| child.as_ref().is_some_and(|child| child.fullscreen))
     });
-    let shown = StoredCell::new(false);
-    create_effect(move || {
-        let fullscreen = fullscreen.get();
-        let Some(window) = window.get() else {
-            return;
-        };
-        if shown.replace(fullscreen) != fullscreen {
-            untrack(|| Host::fullscreen(window, fullscreen));
-        }
-    });
-    create_memo(move || asks.get())
+    // What the window was last told, kept while there is no window to tell.
+    let applied = create_memo(
+        move |previous: Option<&bool>| match window.with(Option::is_some) {
+            true => fullscreen.get(),
+            false => previous.copied().unwrap_or(false),
+        },
+    );
+    create_effect_on(
+        move || applied.get(),
+        move |&fullscreen, previous| {
+            if fullscreen != previous.copied().unwrap_or(false)
+                && let Some(window) = window.get_untracked()
+            {
+                Host::fullscreen(window, fullscreen);
+            }
+        },
+    );
+    asks
 }
 
 #[derive(Clone, Copy)]
@@ -2143,7 +2135,7 @@ fn DockTabSurface(block: Uuid, tab: u64, reporter: ChildReporter) -> NodeId {
     let instance = view_editor.instance;
     let revision = super::listen(&app_id.value());
     let holds = create_memo(move || {
-        revision.get();
+        revision.track();
         be_host_runtime::content_view(&app_id.value(), instance) == region.id
     });
     let spec = CameraSpec {
@@ -2166,7 +2158,7 @@ fn DockTabSurface(block: Uuid, tab: u64, reporter: ChildReporter) -> NodeId {
             let view_editor = view_editor.clone();
             let frame = create_memo(move || {
                 holds.get().then(|| FrameSpec {
-                    chrome: match stack.get().is_empty() {
+                    chrome: match stack.with(Vec::is_empty) {
                         true => FrameChrome::Drawn,
                         false => FrameChrome::None,
                     },
@@ -2202,12 +2194,12 @@ fn CreationSurface(hosted: HostedView, dialog: Memo<Option<DialogFrame>>) -> Nod
         <AppView
             editor={hosted.editor}
             region={hosted.region}
-            frame={Prop::dynamic(move || {
+            frame={move || {
                 frame.map(|frame| FrameSpec {
                     dialog: dialog.get(),
                     ..frame
                 })
-            })}
+            }}
             child_view
         />
     }
@@ -2341,16 +2333,16 @@ fn reporter_for(parent: Uuid, key: ChildId, within: Callback<()>) -> ChildReport
 fn BlockPreview(block: Uuid) -> NodeId {
     let editors = editors();
     let any = super::any();
-    let keys = create_memo(move || {
-        any.get();
-        view_key(&editors, block, true)
-            .into_iter()
-            .collect::<Vec<_>>()
-    });
     let child_view = child_view(block, View::PREVIEW);
     view! {
         <Layers>
-            <ForEach keys={keys}>|_key: ViewKey| {
+            <Dynamic
+                value={move || {
+                    any.track();
+                    view_key(&editors, block, true)
+                }}
+                fallback=()
+            >|_key: ViewKey| {
                 let Some(view_editor) = editors.handle(block).and_then(|handle| editors.region(&handle)) else {
                     return view! {
                         <Frame />
@@ -2359,7 +2351,7 @@ fn BlockPreview(block: Uuid) -> NodeId {
                 view! {
                     <AppView editor={view_editor} region=View::PREVIEW offscreen=true child_view />
                 }
-            }</ForEach>
+            }</Dynamic>
         </Layers>
     }
 }
@@ -2375,15 +2367,10 @@ fn preview_of(editors: &Editors, block: Uuid) -> ChildPreview {
         .map_or(ChildPreview::Waiting, ChildPreview::Image)
 }
 
-pub(super) fn reports() -> (ChildReports, ReadSignal<u64>) {
-    let tick = create_signal(0u64);
-    (
-        ChildReports {
-            statuses: store(RefCell::new(BTreeMap::new())),
-            tick,
-        },
-        tick.read_only(),
-    )
+pub(super) fn reports() -> ChildReports {
+    ChildReports {
+        statuses: create_signal(BTreeMap::new()),
+    }
 }
 
 pub(super) fn provide_reports(reports: ChildReports) {
@@ -2393,7 +2380,7 @@ pub(super) fn provide_reports(reports: ChildReports) {
 pub(super) fn statuses(reports: &ChildReports) -> Vec<HostChildStatus> {
     reports
         .statuses
-        .with(|statuses| statuses.borrow().values().cloned().collect())
+        .with(|statuses| statuses.values().cloned().collect())
 }
 
 #[cfg(test)]

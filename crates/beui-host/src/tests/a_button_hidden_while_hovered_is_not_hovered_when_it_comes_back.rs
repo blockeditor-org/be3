@@ -23,21 +23,25 @@ fn a_button_hidden_while_hovered_is_not_hovered_when_it_comes_back() {
         });
         view! {
             <List spacing=0.0>
-                <Show keep_alive=true condition={shown}>
-                    <unstyled::Button
-                        @test_id={"hidden.button"}
-                        on_click={|| {}}
-                    >|handle: ButtonHandle| {
-                        held.update(|held| {
-                            if let Some(held) = held {
-                                held.hovered = Some(handle.hovered);
-                            }
-                        });
-                        view! {
-                            <Text>"Themes"</Text>
-                        }
-                    }</unstyled::Button>
-                </Show>
+                <KeepAlive>
+                    <Show value={shown}>
+                        <Kept>
+                            <unstyled::Button
+                                @test_id={"hidden.button"}
+                                on_click={|| {}}
+                            >|handle: ButtonHandle| {
+                                held.update(|held| {
+                                    if let Some(held) = held {
+                                        held.hovered = Some(handle.hovered);
+                                    }
+                                });
+                                view! {
+                                    <Text>"Themes"</Text>
+                                }
+                            }</unstyled::Button>
+                        </Kept>
+                    </Show>
+                </KeepAlive>
             </List>
         }
     });

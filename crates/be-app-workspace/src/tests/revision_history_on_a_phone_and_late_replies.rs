@@ -52,6 +52,7 @@ fn revision_history_on_a_phone_and_late_replies() {
     fixture.settle();
     fixture.test.settle();
     fixture.click_text("History");
+    fixture.test.settle();
     fixture
         .test
         .snapshot("revision_history_is_available_in_the_phone_switcher");

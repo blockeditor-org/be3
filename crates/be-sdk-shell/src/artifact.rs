@@ -19,12 +19,12 @@ pub(crate) fn ArtifactBar(
     workspace: Workspace,
     info: ReadSignal<Option<TabInfo>>,
 ) -> DynamicSegment<ListItem> {
-    let shown = create_memo(move || {
+    let shown = move || {
         info.with(|info| {
             info.as_ref()
                 .is_some_and(|info| info.dynamic_artifact && info.access.can_view())
         })
-    });
+    };
     let source = create_memo(move || {
         info.with(|info| {
             let info = info.as_ref()?;
@@ -69,7 +69,6 @@ pub(crate) fn ArtifactBar(
                 .unwrap_or_default()
         })
     });
-    let failed = create_memo(move || !failure.get().is_empty());
     let summary = create_memo(move || {
         info.with(|info| {
             info.as_ref()
@@ -83,21 +82,18 @@ pub(crate) fn ArtifactBar(
     });
     let editable =
         create_memo(move || info.with(|info| info.as_ref().is_some_and(|info| info.can_edit)));
-    let settings_off = create_memo(move || !editable.get());
-    let regenerate_off = create_memo(move || !editable.get() || running.get() || !described.get());
-    let unlink_off = create_memo(move || !editable.get() || running.get());
-    let source_name = create_memo(move || {
+    let source_name = move || {
         source.get().map_or_else(String::new, |source| {
             workspace.label(source.id, source.block_type).name
         })
-    });
+    };
     let block = create_memo(move || info.with(|info| info.as_ref().map(|info| info.item.id)));
     let settings = block_command(&workspace, block, Command::Settings);
     let regenerate = block_command(&workspace, block, Command::Regenerate);
     let unlink = block_command(&workspace, block, Command::Unlink);
     let heading_color = TextColor::Default;
     view! {
-        <Show condition={shown}>
+        <Show value={shown}>
             <Frame
                 fill=ColorRole::Surface
                 padding={Padding::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
@@ -114,10 +110,10 @@ pub(crate) fn ArtifactBar(
                                 <Icon glyph=ICON_SPARKLES />
                             </Text>
                             <Text>"Dynamic artifact"</Text>
-                            <Show condition={waiting}>
+                            <Show value={waiting}>
                                 <Text style=TextStyle::CAPTION>"Loading…"</Text>
                             </Show>
-                            <Show condition={described}>
+                            <Show value={described}>
                                 <ListItem shrink=1.0>
                                     <List
                                         direction=Direction::Horizontal
@@ -149,7 +145,7 @@ pub(crate) fn ArtifactBar(
                         </List>
                         <Spacer />
                         <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                            <Show condition={running}>
+                            <Show value={running}>
                                 <Text style=TextStyle::CAPTION>"Regenerating…"</Text>
                             </Show>
                             <Button
@@ -157,7 +153,7 @@ pub(crate) fn ArtifactBar(
                                 @test_id={"workspace.artifact.settings"}
                                 glyph=ICON_SETTINGS
                                 label="Settings"
-                                disabled={settings_off}
+                                disabled={move || !editable.get()}
                                 on_click={settings}
                             />
                             <Button
@@ -165,7 +161,7 @@ pub(crate) fn ArtifactBar(
                                 @test_id={"workspace.artifact.regenerate"}
                                 glyph=ICON_REFRESH_CW
                                 label="Regenerate"
-                                disabled={regenerate_off}
+                                disabled={move || !editable.get() || running.get() || !described.get()}
                                 on_click={regenerate}
                             />
                             <Button
@@ -173,12 +169,12 @@ pub(crate) fn ArtifactBar(
                                 @test_id={"workspace.artifact.unlink"}
                                 glyph=ICON_UNLINK
                                 label="Unlink from the source block"
-                                disabled={unlink_off}
+                                disabled={move || !editable.get() || running.get()}
                                 on_click={unlink}
                             />
                         </List>
                     </List>
-                    <Show condition={failed}>
+                    <Show value={move || failure.with(|failure| !failure.is_empty())}>
                         <Text style=TextStyle::CAPTION color=TextColor::Danger>{failure}</Text>
                     </Show>
                 </List>

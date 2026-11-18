@@ -14,7 +14,7 @@ fn a_virtual_list_shows_new_keys_in_the_rows_that_left() {
                     <Offset @node_ref=&scroll>
                         <VirtualList
                             @node_ref=&list
-                            keys={indices(VIRTUAL_ITEM_COUNT)}
+                            value={indices(VIRTUAL_ITEM_COUNT)}
                             item_size=VIRTUAL_ITEM_HEIGHT
                         >|key: ReadSignal<usize>| {
                             built.update(|built| *built += 1);

@@ -74,9 +74,6 @@ pub(super) fn Sandboxes(state: State) -> NodeId {
                 .is_some_and(|listed| listed.sandboxes.is_empty())
         })
     });
-    let notice = state.notice;
-    let noticed = create_memo(move || notice.with(Option::is_some));
-    let notice_text = create_memo(move || notice.get().unwrap_or_default());
     let rows = move |id: String| {
         view! {
             <SandboxRow state id />
@@ -96,7 +93,7 @@ pub(super) fn Sandboxes(state: State) -> NodeId {
                         <Text style=TextStyle::CAPTION @test_id="boat.account">{whose}</Text>
                     </List>
                 </ListItem>
-                <Show condition={offline}>
+                <Show value={offline}>
                     <Text color=TextColor::Muted>
                         <Icon glyph=ICON_CLOUD_OFF />
                     </Text>
@@ -111,25 +108,8 @@ pub(super) fn Sandboxes(state: State) -> NodeId {
                 />
             </List>
             <KeyNotice state />
-            <Show condition={noticed}>
-                <Card>
-                    <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                        <ListItem grow=1.0>
-                            <Text color=TextColor::Danger @test_id="boat.notice">
-                                {notice_text}
-                            </Text>
-                        </ListItem>
-                        <Button
-                            label="Dismiss"
-                            variant=ButtonVariant::Ghost
-                            @test_id="boat.notice.dismiss"
-                            on_click={move || notice.set(None)}
-                        />
-                    </List>
-                </Card>
-            </Show>
             <Filters state />
-            <Show condition={empty}>
+            <Show value={empty}>
                 <List spacing=SPACING @test_id="boat.empty">
                     <Text>"No sandboxes"</Text>
                     <Text style=TextStyle::CAPTION>
@@ -138,7 +118,7 @@ pub(super) fn Sandboxes(state: State) -> NodeId {
                 </List>
             </Show>
             <List spacing=SPACING>
-                <ForEach keys={ids} view={rows} />
+                <ForEach value={ids} view={rows} />
             </List>
             <GoneTerminals state />
         </List>
@@ -188,9 +168,9 @@ fn GoneTerminals(state: State) -> NodeId {
     };
     view! {
         <List spacing=Space::None>
-            <Show condition={shown}>
+            <Show value={shown}>
                 <List spacing=SPACING @test_id="boat.gone">
-                    <ForEach keys={blocks} view={rows} />
+                    <ForEach value={blocks} view={rows} />
                 </List>
             </Show>
         </List>
@@ -213,9 +193,8 @@ fn TerminalLine(state: State, id: String, phase: Memo<Phase>, name: Memo<String>
             .with(|status| status.get(&block).cloned())
     });
     let has_terminal = create_memo(move || block.get().is_some());
-    let connectable = create_memo(move || {
-        block.get().is_none() && phase.get() == Phase::Running && state.account().is_some()
-    });
+    let connectable =
+        create_memo(move || phase.get() == Phase::Running && state.account().is_some());
     let text = create_memo(move || match status.get() {
         Some(TerminalStatus::Connecting) => "Connecting the terminal…".to_owned(),
         Some(TerminalStatus::Reconnecting) => "Terminal offline, reconnecting…".to_owned(),
@@ -226,11 +205,11 @@ fn TerminalLine(state: State, id: String, phase: Memo<Phase>, name: Memo<String>
         _ if !own.get() => "Terminal, shared with you".to_owned(),
         _ => "Terminal".to_owned(),
     });
-    let color = create_memo(move || match status.get() {
+    let color = move || match status.get() {
         Some(TerminalStatus::Failed(_) | TerminalStatus::NotRemoved(_)) => TextColor::Danger,
         Some(TerminalStatus::Connecting | TerminalStatus::Reconnecting) => TextColor::Muted,
         _ => TextColor::Default,
-    });
+    };
     let failed = create_memo(move || matches!(status.get(), Some(TerminalStatus::Failed(_))));
     let busy = create_memo(move || {
         matches!(
@@ -265,7 +244,21 @@ fn TerminalLine(state: State, id: String, phase: Memo<Phase>, name: Memo<String>
     };
     view! {
         <List spacing=Space::None>
-            <Show condition={has_terminal}>
+            <Show
+                value={has_terminal}
+                fallback={move || view! {
+                    <Show value={connectable}>
+                        <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
+                            <Button
+                                label="Connect a terminal"
+                                glyph=ICON_SQUARE_TERMINAL
+                                @test_id={part("connect")}
+                                on_click={connect}
+                            />
+                        </List>
+                    </Show>
+                }}
+            >
                 <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                     <Text color=TextColor::Muted>
                         <Icon glyph=ICON_SQUARE_TERMINAL />
@@ -275,7 +268,7 @@ fn TerminalLine(state: State, id: String, phase: Memo<Phase>, name: Memo<String>
                             {text}
                         </Text>
                     </ListItem>
-                    <Show condition={retryable}>
+                    <Show value={retryable}>
                         <Button
                             label="Retry"
                             variant=ButtonVariant::Ghost
@@ -283,7 +276,7 @@ fn TerminalLine(state: State, id: String, phase: Memo<Phase>, name: Memo<String>
                             on_click={retry}
                         />
                     </Show>
-                    <Show condition={disconnectable}>
+                    <Show value={disconnectable}>
                         <Button
                             label="Disconnect"
                             glyph=ICON_UNPLUG
@@ -293,16 +286,6 @@ fn TerminalLine(state: State, id: String, phase: Memo<Phase>, name: Memo<String>
                         />
                     </Show>
                     <Button label="Open" @test_id={part("open")} on_click={open} />
-                </List>
-            </Show>
-            <Show condition={connectable}>
-                <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                    <Button
-                        label="Connect a terminal"
-                        glyph=ICON_SQUARE_TERMINAL
-                        @test_id={part("connect")}
-                        on_click={connect}
-                    />
                 </List>
             </Show>
         </List>
@@ -332,16 +315,15 @@ fn KeyNotice(state: State) -> NodeId {
             .to_owned(),
         _ => String::new(),
     });
-    let urgent = create_memo(move || {
-        standing.with(|standing| !matches!(standing, Some(KeyStanding::Expiring(_))))
-    });
-    let color = create_memo(move || match urgent.get() {
-        true => TextColor::Danger,
-        false => TextColor::Warning,
-    });
+    let color = move || match standing
+        .with(|standing| matches!(standing, Some(KeyStanding::Expiring(_))))
+    {
+        true => TextColor::Warning,
+        false => TextColor::Danger,
+    };
     view! {
         <List spacing=Space::None>
-            <Show condition={shown}>
+            <Show value={shown}>
                 <Card>
                     <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                         <Text color={color}>
@@ -369,10 +351,8 @@ fn Filters(state: State) -> NodeId {
     let read_only = state.editor.read_only();
     let prefix = create_memo(move || state.filters.with(|filters| filters.name_prefix.clone()));
     let label = create_memo(move || state.filters.with(|filters| filters.label.clone()));
-    let prefix_draft = create_signal(prefix.get_untracked());
-    let label_draft = create_signal(label.get_untracked());
-    create_effect(move || prefix_draft.set(prefix.get()));
-    create_effect(move || label_draft.set(label.get()));
+    let prefix_draft = create_linked_signal(move || prefix.get());
+    let label_draft = create_linked_signal(move || label.get());
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
             <ListItem grow=1.0>
@@ -468,7 +448,7 @@ fn SandboxRow(state: State, id: String) -> NodeId {
                             </Text>
                         </List>
                     </ListItem>
-                    <Show condition={startable}>
+                    <Show value={startable}>
                         <Button
                             label="Start"
                             glyph=ICON_CIRCLE_PLAY
@@ -477,7 +457,7 @@ fn SandboxRow(state: State, id: String) -> NodeId {
                             on_click={move || confirming.set(true)}
                         />
                     </Show>
-                    <Show condition={stoppable}>
+                    <Show value={stoppable}>
                         <Button
                             label="Stop"
                             glyph=ICON_CIRCLE_STOP
@@ -488,7 +468,7 @@ fn SandboxRow(state: State, id: String) -> NodeId {
                     </Show>
                 </List>
                 <TerminalLine state id={sandbox_id} phase name />
-                <Show condition={asking}>
+                <Show value={asking}>
                     <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                         <ListItem grow=1.0>
                             <Text style=TextStyle::CAPTION>{question}</Text>

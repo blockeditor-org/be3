@@ -10,7 +10,7 @@ const COUNTER_TYPES: &[u8] = include_bytes!(env!("COUNTER_TYPES_WASM"));
 #[test]
 fn a_type_module_answers_on_a_thread_of_its_own() {
     let waiting = std::sync::Arc::default();
-    let channel = Host::pure(None)
+    let channel = Host::pure()
         .unwrap()
         .spawn(
             "be3.counter".to_owned(),

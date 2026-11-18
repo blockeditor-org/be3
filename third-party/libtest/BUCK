@@ -1,0 +1,56 @@
+load("@root//buck/dev:verify.bzl", "package_fix")
+load("@root//buck/platforms:profile.bzl", "RUST_LOCAL", "SYMBOL_FLAGS")
+load("@root//buck/tools:rust.bzl", "RUST_VERSION")
+
+package_fix()
+
+# Rust's test harness, libtest, and getopts under it, compiled from the
+# toolchain's own sources for the apps' platform. The prebuilt libtest in the
+# toolchain's rust-std is not position-independent, so it cannot go in a module
+# linked against the app libraries; this one can, and app tests name it as
+# their `test` crate, which rustc --test then links in place of the
+# toolchain's (app_tests in buck/wasm/defs.bzl). Both live in the test library,
+# crates/be-sdk-library-test (guides/app_libraries.md, Tests).
+#
+# rust-src is the release rust-toolchain.toml pins (RUST_VERSION), and getopts
+# the version its library/Cargo.lock names, with the same checksum. Upgrading
+# Rust fails here on rust-src's hash and size, which change with getopts' pin
+# if that moved too.
+http_archive(
+    name = "rust-src",
+    sha256 = "0e977492aed5ff137815bf9b4b796e8a85b80fb2367ed64e82d5c5839870f2bf",
+    size_bytes = 5741336,
+    strip_prefix = "rust-src-{}/rust-src/lib/rustlib/src/rust/library/test".format(RUST_VERSION),
+    urls = ["https://static.rust-lang.org/dist/rust-src-{}.tar.xz".format(RUST_VERSION)],
+)
+
+http_archive(
+    name = "getopts.crate",
+    sha256 = "cfe4fbac503b8d1f88e6676011885f34b7174f46e59956bba534ba83abded4df",
+    size_bytes = 21467,
+    strip_prefix = "getopts-0.2.24",
+    urls = ["https://static.crates.io/crates/getopts/getopts-0.2.24.crate"],
+)
+
+rust_library(
+    name = "getopts",
+    crate = "getopts",
+    crate_root = "getopts.crate/src/lib.rs",
+    edition = "2021",
+    rustc_flags = SYMBOL_FLAGS + ["--cap-lints=allow"],
+    srcs = [":getopts.crate"],
+    target_compatible_with = ["prelude//cpu/constraints:cpu[wasm32]"],
+    **RUST_LOCAL,
+)
+
+rust_library(
+    name = "test",
+    crate = "test",
+    crate_root = "rust-src/src/lib.rs",
+    deps = [":getopts"],
+    edition = "2024",
+    rustc_flags = SYMBOL_FLAGS + ["--cap-lints=allow"],
+    srcs = [":rust-src"],
+    target_compatible_with = ["prelude//cpu/constraints:cpu[wasm32]"],
+    **RUST_LOCAL,
+)

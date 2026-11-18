@@ -6,12 +6,6 @@ use beui_view::primitives::Frame;
 use beui_view::reactive::*;
 use beui_view::types::{Direction, Measured, Pos2, Spring, Vec2};
 
-/// The spring a glide settles by.
-pub const GLIDE_SPRING: Spring = Spring {
-    stiffness: 500.0,
-    damping: 42.0,
-};
-
 /// Where a held glide is drawn: its resting top-left corner at `at`, in window
 /// coordinates, moved along one axis only if `along` is given.
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -31,9 +25,9 @@ impl GlideMotion {
         self.displacement != Vec2::ZERO || self.velocity != Vec2::ZERO
     }
 
-    fn step(&mut self, seconds: f32) -> bool {
-        GLIDE_SPRING.advance(&mut self.displacement.x, &mut self.velocity.x, seconds);
-        GLIDE_SPRING.advance(&mut self.displacement.y, &mut self.velocity.y, seconds);
+    fn step(&mut self, spring: Spring, seconds: f32) -> bool {
+        spring.advance(&mut self.displacement.x, &mut self.velocity.x, seconds);
+        spring.advance(&mut self.displacement.y, &mut self.velocity.y, seconds);
         self.moving()
     }
 
@@ -73,9 +67,7 @@ impl GlideApi {
         else {
             return;
         };
-        if self.shown.get_untracked() != displacement {
-            self.shown.set(displacement);
-        }
+        self.shown.set(displacement);
     }
 
     fn start(self) {
@@ -120,8 +112,9 @@ impl GlideApi {
     }
 }
 
-/// Animates its child from where it was to where layout puts it. Bumping `arm`
-/// before a change (a reorder) makes the next move glide rather than jump; `from`
+/// Animates its child from where it was to where layout puts it, on `spring`. A
+/// change to `on` (a row's index, a `Trigger` notified with a reorder) makes the next
+/// move glide rather than jump; `from`
 /// starts a glide from a window point (an item dropped from elsewhere), at once if it is
 /// already placed. The glide is
 /// two frames: the outer one is laid out in place and measured, the inner one is drawn
@@ -132,11 +125,12 @@ impl GlideApi {
 #[component]
 pub fn Glide(
     #[prop(default = ComponentRef::new())] api: ComponentRef<GlideApi>,
-    #[prop(default = 0)] arm: Prop<u64>,
+    spring: Spring,
+    on: Option<Trackable>,
     #[prop(default = None)] from: Prop<Option<Pos2>>,
     #[prop(default = false)] raised: Prop<bool>,
-    #[prop(default = None)] within: Option<ComponentRef<GlideApi>>,
-    children: Child,
+    within: Option<ComponentRef<GlideApi>>,
+    children: NodeId,
 ) -> NodeId {
     let stored = store(Motion::default());
     let shown = create_signal(Vec2::ZERO);
@@ -147,7 +141,7 @@ pub fn Glide(
                 return false;
             }
             let mut motion = state.motion.get();
-            let moving = motion.step(frame.delta.as_secs_f32());
+            let moving = motion.step(spring, frame.delta.as_secs_f32());
             state.motion.set(motion);
             shown.set(motion.displacement);
             moving
@@ -230,14 +224,9 @@ pub fn Glide(
         disarm.stop();
         disarm.start();
     };
-    let first = Cell::new(true);
-    create_effect(move || {
-        arm.get();
-        if first.replace(false) {
-            return;
-        }
-        arm_now();
-    });
+    if let Some(on) = on {
+        create_effect_on_change(move || on.track(), move |_, _| arm_now());
+    }
     create_effect(move || {
         let Some(from) = from.get() else {
             return;
@@ -262,4 +251,13 @@ pub fn Glide(
         }
     });
     node
+}
+
+/// The node holding a `Glide`'s child where it is drawn: measure it to hit-test what a
+/// person sees, since a gliding child is drawn off the place layout gave the glide. `glide`
+/// must be the node a `Glide` returned (a `ReorderItem`'s root is one); for any other node
+/// the answer means nothing.
+pub fn drawn_child(glide: NodeId) -> Option<NodeId> {
+    let inner = *glide.children().first()?;
+    inner.children().first().copied()
 }

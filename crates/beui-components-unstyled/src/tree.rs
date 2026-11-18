@@ -181,18 +181,20 @@ type Nodes<K> = Stored<RefCell<HashMap<K, NodeRef>>>;
 /// the row is built (not reactive: a row whose formats change needs a new
 /// key), and a paste while it has the focus reports `on_paste` with its key.
 /// `TreeApi::focus` moves the focus to a row, so a menu can aim a paste at it.
+/// Given `reorder`, a dragged row parts the rows it passes, which settle on that
+/// spring.
 #[component]
 pub fn Tree<K>(
     #[prop(default = ComponentRef::new())] api: ComponentRef<TreeApi<K>>,
     keys: Prop<Vec<K>>,
     item: Func<K, TreeItem>,
     selected: Prop<Option<K>>,
-    #[prop(default = None)] ancestors: Option<Func<K, Vec<K>>>,
+    ancestors: Option<Func<K, Vec<K>>>,
     #[prop(default = 0.0)] spacing: f32,
     #[prop(default = None)] editing: Prop<Option<K>>,
-    #[prop(default = None)] menu: Option<TreeMenus<K>>,
-    #[prop(default = false)] reorder: bool,
-    #[prop(default = None)] pastes: Option<Func<K, Vec<String>>>,
+    menu: Option<TreeMenus<K>>,
+    reorder: Option<Spring>,
+    pastes: Option<Func<K, Vec<String>>>,
     on_paste: Callback<(K, ClipItem)>,
     on_select: Callback<K>,
     on_open: Callback<K>,
@@ -204,7 +206,7 @@ pub fn Tree<K>(
     on_edit: Callback<K>,
     on_rename: Callback<(K, String)>,
     on_cancel_edit: Callback<K>,
-    #[prop(children)] row: Option<RenderFn<TreeRowHandle<K>>>,
+    #[prop(children)] row: Option<RenderFn<TreeRowHandle<K>, NodeId>>,
 ) -> NodeId
 where
     K: Clone + Eq + Hash + 'static,
@@ -273,12 +275,12 @@ where
     api.fill(TreeApi(state));
 
     create_effect(move || {
-        if state.focus.get().is_none() {
+        if state.focus.with(Option::is_none) {
             state.typeahead.value().borrow_mut().clear();
         }
     });
     create_effect(move || {
-        keys.with(|_| ());
+        keys.track();
         if state.settling.replace(false)
             && let Some(parted) = state.parting.get()
         {
@@ -289,7 +291,7 @@ where
     let rows = move |parted: Option<ReorderHandle<K, ()>>| {
         view! {
             <List spacing @node_ref=&list>
-                <ForEach keys>|key: K| {
+                <ForEach value={keys} handle={parted.map(|parted| parted.rows)}>|key: K| {
                     let item = create_memo({ let key = key.clone(); move || item.call(key.clone()) });
                     let selected = selection.memo(Some(key.clone()));
                     let marked = burial.memo(Some(key.clone()));
@@ -324,13 +326,14 @@ where
             </List>
         }
     };
-    if !reorder {
+    let Some(spring) = reorder else {
         return rows(None);
-    }
+    };
     let group = state.group;
     view! {
         <Reorder
-            keys={group}
+            value={group}
+            spring
             payload={Func::new(|_: K| None::<()>)}
             preview={|_: ()| view! {
                 <Frame />
@@ -353,7 +356,7 @@ fn TreeRow<K>(
     focused: Selector<Option<K>>,
     state: State<K>,
     nodes: Nodes<K>,
-    row: RenderFn<TreeRowHandle<K>>,
+    row: RenderFn<TreeRowHandle<K>, NodeId>,
     on_hover_change: Callback<(K, bool)>,
     on_drag_start: Callback<K>,
     on_drag_move: Callback<(K, Pos2)>,
@@ -481,7 +484,7 @@ where
 pub fn TreeRowMenuButton(
     menu: TreeRowMenu,
     #[prop(default = String::from("More actions"))] label: Prop<String>,
-    #[prop(children)] trigger: Render<PopupTriggerHandle>,
+    #[prop(children)] trigger: Render<PopupTriggerHandle, NodeId>,
 ) -> NodeId {
     let TreeRowMenu { items, style } = menu;
     view! {
@@ -507,36 +510,32 @@ pub fn TreeToggle(
     item: Memo<TreeItem>,
     toggle: Callback<()>,
     #[prop(default = String::new())] button_test_id: String,
-    #[prop(children)] content: RenderFn<TreeToggleHandle>,
+    #[prop(children)] content: RenderFn<TreeToggleHandle, NodeId>,
 ) -> DynamicSegment<ListItem> {
-    let expandable = create_memo(move || item.get().expandable);
     let expanded = create_memo(move || item.get().expanded);
     view! {
-        <Show condition={expandable}>|| {
-            let button_test_id = button_test_id.clone(); {
-                let label = create_memo(move || match expanded.get() {
-                    true => "Collapse".to_owned(),
-                    false => "Expand".to_owned(),
-                });
-                let accessibility = create_memo(move || {
-                    let mut node = Node::new(Role::Button);
-                    node.set_expanded(expanded.get());
-                    node
-                });
-                view! {
-                    <Button
-                        @test_id={button_test_id}
-                        label
-                        tab_stop=false
-                        press_focus=false
-                        accessibility
-                        on_click={toggle}
-                        content={move |button: ButtonHandle| content.call(TreeToggleHandle {
-                            button,
-                            expanded,
-                        })}
-                    />
-                }
+        <Show value={move || item.get().expandable}>|| {
+            let button_test_id = button_test_id.clone();
+            view! {
+                <Button
+                    @test_id={button_test_id}
+                    label={move || match expanded.get() {
+                        true => "Collapse".to_owned(),
+                        false => "Expand".to_owned(),
+                    }}
+                    tab_stop=false
+                    press_focus=false
+                    accessibility={move || {
+                        let mut node = Node::new(Role::Button);
+                        node.set_expanded(expanded.get());
+                        node
+                    }}
+                    on_click={toggle}
+                    content={move |button: ButtonHandle| content.call(TreeToggleHandle {
+                        button,
+                        expanded,
+                    })}
+                />
             }
         }</Show>
     }
@@ -629,7 +628,7 @@ pub fn TreeRowEditor(
     edit: TreeRowEdit,
     #[prop(default = String::from("Name"))] label: Prop<String>,
     style: TextInputStyle,
-    #[prop(children)] content: Render<TextInputHandle>,
+    #[prop(children)] content: Render<TextInputHandle, NodeId>,
 ) -> NodeId {
     let TreeRowEdit { item, finish } = edit;
     let initial = item.get_untracked().label;
@@ -656,7 +655,7 @@ pub fn TreeRowEditor(
             escaped
         },
     );
-    let keyboard = use_keyboard();
+    let keyboard = use_document_keyboard();
     let held = Cell::new(keyboard.get_untracked());
     let (away, left) = (once.clone(), typed.clone());
     create_effect(move || {
@@ -685,7 +684,7 @@ pub fn TreeRowEditor(
         />
     };
     let measured = measure(field.get());
-    let placed = create_memo(move || measured.get().is_some());
+    let placed = create_memo(move || measured.with(Option::is_some));
     create_effect(move || {
         if placed.get() {
             field.get().reveal();
@@ -699,7 +698,7 @@ pub fn TreeReveal<K>(
     tree: ComponentRef<TreeApi<K>>,
     viewport: NodeRef,
     on_reveal: Callback<K>,
-    button: RenderFn<TreeRevealHandle>,
+    button: RenderFn<TreeRevealHandle, NodeId>,
 ) -> NodeId
 where
     K: Clone + Eq + Hash + 'static,
@@ -709,8 +708,8 @@ where
     let (keys, shown, buried, selected) = (state.keys, state.shown, state.buried, state.selected);
     let astray = create_memo(move || {
         let key = shown.get()?;
-        keys.with(|_| ());
-        measure(list).get();
+        keys.track();
+        measure(list).track();
         let row = state
             .nodes
             .value()
@@ -720,7 +719,7 @@ where
         stray_edge(
             measure(row).get()?.rect,
             measure(scroll).get()?.rect,
-            buried.get().is_some(),
+            buried.with(Option::is_some),
         )
     });
     let pending = create_signal(None::<K>);
@@ -728,8 +727,8 @@ where
         let Some(key) = pending.get() else {
             return;
         };
-        keys.with(|_| ());
-        measure(list).get();
+        keys.track();
+        measure(list).track();
         let Some(row) = state
             .nodes
             .value()
@@ -739,13 +738,13 @@ where
         else {
             return;
         };
-        if measure(row).get().is_none() {
+        if measure(row).with(Option::is_none) {
             return;
         }
         row.reveal();
         pending.set(None);
     });
-    let open = create_memo(move || astray.get().is_some());
+    let open = create_memo(move || astray.with(Option::is_some));
     let edge = create_memo(move || astray.get().unwrap_or(Edge::Bottom));
     let item = state.item;
     let label = create_memo(move || {
@@ -1116,8 +1115,6 @@ fn part<K>(
         parted.hover(None);
         return;
     };
-    if state.group.with_untracked(|shown| *shown != group) {
-        state.group.set(group);
-    }
+    state.group.set(group);
     parted.part(Some(ReorderGap { before, size }));
 }

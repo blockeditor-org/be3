@@ -495,3 +495,75 @@ impl CanvasView {
         Rect::from_min_max(self.to_canvas(rect.min), self.to_canvas(rect.max))
     }
 }
+
+/// A side of a rect.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum Side {
+    Left,
+    Right,
+    Above,
+    Below,
+}
+
+impl Side {
+    pub fn direction(self) -> Direction {
+        match self {
+            Side::Left | Side::Right => Direction::Horizontal,
+            Side::Above | Side::Below => Direction::Vertical,
+        }
+    }
+
+    /// Whether this side comes first along its direction (left, above).
+    pub fn leads(self) -> bool {
+        matches!(self, Side::Left | Side::Above)
+    }
+
+    /// The side of `rect` nearest `pos`, each measured as a fraction of `rect`'s width or
+    /// height, so a corner splits along its diagonal: ties go to the first of left, right,
+    /// above, below.
+    pub fn nearest(rect: Rect, pos: Pos2) -> Option<Side> {
+        if rect.width() <= 0.0 || rect.height() <= 0.0 {
+            return None;
+        }
+        let sides = [
+            ((pos.x - rect.min.x) / rect.width(), Side::Left),
+            ((rect.max.x - pos.x) / rect.width(), Side::Right),
+            ((pos.y - rect.min.y) / rect.height(), Side::Above),
+            ((rect.max.y - pos.y) / rect.height(), Side::Below),
+        ];
+        sides
+            .into_iter()
+            .reduce(|nearest, side| match side.0 < nearest.0 {
+                true => side,
+                false => nearest,
+            })
+            .map(|(_, side)| side)
+    }
+}
+
+/// Which way a row of things runs: across, or down.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Direction {
+    Horizontal,
+    Vertical,
+}
+
+impl Direction {
+    pub fn axes(self, main: f32, cross: f32) -> Vec2 {
+        match self {
+            Direction::Horizontal => vec2(main, cross),
+            Direction::Vertical => vec2(cross, main),
+        }
+    }
+
+    pub fn main(self, size: Vec2) -> f32 {
+        self.main_and_cross(size).0
+    }
+
+    pub fn main_and_cross(self, size: Vec2) -> (f32, f32) {
+        match self {
+            Direction::Horizontal => (size.x, size.y),
+            Direction::Vertical => (size.y, size.x),
+        }
+    }
+}

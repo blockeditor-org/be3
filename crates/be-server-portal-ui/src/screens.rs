@@ -1,32 +1,40 @@
-use be_server_portal::{Field as Named, Page, Screen, Session, SessionKind, with_code};
+use be_server_portal::{
+    Field as Named, IdentityChange, IdentityRow, Page, PasskeyOffer, PasskeyStep, ProviderLink,
+    Screen, Session, SessionKind, with_code,
+};
 use beui::icons::{
     Glyph, ICON_BLOCKS, ICON_CIRCLE_ALERT, ICON_CIRCLE_CHECK, ICON_CIRCLE_X, ICON_GLOBE,
-    ICON_KEY_ROUND, ICON_LAPTOP, ICON_MAIL, ICON_MAIL_CHECK, ICON_SEARCH_X, ICON_SHIELD_CHECK,
+    ICON_KEY_ROUND, ICON_LAPTOP, ICON_LOG_IN, ICON_MAIL, ICON_MAIL_CHECK, ICON_SEARCH_X,
+    ICON_SHIELD_CHECK,
 };
 use beui::reactive::*;
 use beui::styled::*;
 use beui::{Align, Align2, Direction, Extent, Justify, NodeId, TextAlign};
 
 use crate::form::{Field, PageLink, PortalForm, Submit, fixed};
+use crate::passkey::PasskeyButton;
 
 const PRODUCT: &str = "be3";
 
 pub fn title(page: &Page) -> String {
     let name = match &page.screen {
         Screen::SignIn | Screen::SignInClosed => "Sign in",
-        Screen::Register | Screen::RegistrationClosed => "Create an account",
-        Screen::Forgot => "Reset your password",
-        Screen::Reset => "Choose a new password",
+        Screen::Register | Screen::RegistrationClosed | Screen::ProviderRegister => {
+            "Create an account"
+        }
         Screen::Verify => "Verify your email address",
+        Screen::LoginLink => "Sign in with a link",
         Screen::Approve => "Approve sign-in",
         Screen::Account => "Your account",
         Screen::Settings => "Account settings",
         Screen::Sessions => "Signed-in sessions",
         Screen::Approved => "Sign-in approved",
         Screen::Denied => "Sign-in denied",
-        Screen::CheckEmail | Screen::ResetRequested => "Check your email",
-        Screen::PasswordReset => "Password reset",
+        Screen::CheckEmail => "Check your email",
         Screen::EmailUpdated => "Email verified",
+        Screen::EnterCode => "Enter your code",
+        Screen::CodeElsewhere { .. } => "Your code",
+        Screen::Recover => "Get back into your account",
         Screen::NotFound => "Page not found",
         Screen::Message { title, .. } => title.as_str(),
     };
@@ -51,6 +59,11 @@ impl Shown {
 
     fn code_problem(self) -> String {
         self.read(|page| page.code_problem.clone())
+    }
+
+    /// The passkey ceremony the page offers for `step`, if it offers that one.
+    fn passkey(self, step: PasskeyStep) -> Option<PasskeyOffer> {
+        self.read(|page| page.passkey.clone().filter(|offer| offer.step == step))
     }
 
     fn general(self) -> String {
@@ -112,9 +125,9 @@ fn Brand(page: Shown) -> NodeId {
                     <Span color=TextColor::Muted>" account"</Span>
                 </Text>
             </ListItem>
-            <Show condition={elsewhere}>
+            {elsewhere.then(|| view! {
                 <PageLink label="Your account" href="/auth" />
-            </Show>
+            })}
         </List>
     }
 }
@@ -125,20 +138,23 @@ fn Footer(page: Shown) -> NodeId {
     let signed_in = account.is_some();
     let who = fixed(
         account
-            .map(|account| format!("Signed in as {} ({})", account.display_name, account.email))
+            .map(|account| match account.email.as_str() {
+                "" => format!("Signed in as {}", account.display_name),
+                email => format!("Signed in as {} ({email})", account.display_name),
+            })
             .unwrap_or_default(),
     );
     let shows_sign_out = signed_in && page.read(|page| page.screen != Screen::Approve);
     view! {
         <List spacing=Space::Md align=Align::Center>
-            <Show condition={signed_in}>
+            {signed_in.then(|| view! {
                 <Text style=TextStyle::CAPTION align=TextAlign::Center>{who}</Text>
-            </Show>
-            <Show condition={shows_sign_out}>
+            })}
+            {shows_sign_out.then(|| view! {
                 <PortalForm action="/auth/logout" csrf={page.csrf()} code={page.code()}>
                     <Submit label="Sign out" variant=ButtonVariant::Ghost wide=false />
                 </PortalForm>
-            </Show>
+            })}
         </List>
     }
 }
@@ -147,50 +163,49 @@ fn Footer(page: Shown) -> NodeId {
 fn Heading(
     title: String,
     #[prop(default = String::new())] lead: String,
-    #[prop(default = None)] glyph: Option<Glyph>,
+    glyph: Option<Glyph>,
     #[prop(default = TextColor::Accent)] tone: TextColor,
 ) -> NodeId {
     let has_lead = !lead.is_empty();
-    let has_glyph = glyph.is_some();
     let title = fixed(title);
     let lead = fixed(lead);
     view! {
         <List spacing=Space::Sm>
-            <Show condition={has_glyph}>
+            {glyph.map(|glyph| view! {
                 <Text size=TextSize::Xl3 color={tone}>
-                    <Icon glyph={glyph} />
+                    <Icon glyph />
                 </Text>
-            </Show>
+            })}
             <Text style=TextStyle::TITLE weight=Weight::Bold>{title}</Text>
-            <Show condition={has_lead}>
+            {has_lead.then(|| view! {
                 <Text style=TextStyle::PARAGRAPH>{lead}</Text>
-            </Show>
+            })}
         </List>
     }
 }
 
 #[component]
-fn Notice(text: String, #[prop(default = false)] good: bool) -> DynamicSegment<ListItem> {
-    let shown = !text.is_empty();
+fn Notice(text: String, #[prop(default = false)] good: bool) -> Option<NodeId> {
+    if text.is_empty() {
+        return None;
+    }
     let text = fixed(text);
     let (fill, color, glyph) = match good {
         true => (ColorRole::AccentSoft, TextColor::Success, ICON_CIRCLE_CHECK),
         false => (ColorRole::DangerSoft, TextColor::Danger, ICON_CIRCLE_ALERT),
     };
-    view! {
-        <Show condition={shown}>
-            <Frame fill radius=Radius::Md padding={Padding::symmetric(Space::Md, Space::Sm)}>
-                <List direction=Direction::Horizontal align=Align::Start spacing=Space::Sm>
-                    <Text color>
-                        <Icon glyph />
-                    </Text>
-                    <ListItem grow=1.0>
-                        <Text>{text}</Text>
-                    </ListItem>
-                </List>
-            </Frame>
-        </Show>
-    }
+    Some(view! {
+        <Frame fill radius=Radius::Md padding={Padding::symmetric(Space::Md, Space::Sm)}>
+            <List direction=Direction::Horizontal align=Align::Start spacing=Space::Sm>
+                <Text color>
+                    <Icon glyph />
+                </Text>
+                <ListItem grow=1.0>
+                    <Text>{text}</Text>
+                </ListItem>
+            </List>
+        </Frame>
+    })
 }
 
 #[component]
@@ -221,19 +236,13 @@ fn Body(page: Shown) -> NodeId {
                 </List>
             </Card>
         },
-        Screen::Forgot => view! {
-            <Forgot page />
-        },
-        Screen::Reset => view! {
-            <Reset page />
-        },
         Screen::Verify => view! {
             <Card>
                 <List spacing=Space::Xl>
                     <Heading
                         glyph={Some(ICON_MAIL_CHECK)}
                         title="Verify your email address"
-                        lead="Confirm that this address is yours to continue."
+                        lead="Confirm that this address is yours, signed in as the account that asked for it."
                     />
                     <Notice text={page.general()} />
                     <PortalForm
@@ -243,6 +252,24 @@ fn Body(page: Shown) -> NodeId {
                         hidden={page.token()}
                     >
                         <Submit label="Verify email" />
+                    </PortalForm>
+                </List>
+            </Card>
+        },
+        Screen::ProviderRegister => view! {
+            <ProviderRegister page />
+        },
+        Screen::LoginLink => view! {
+            <Card>
+                <List spacing=Space::Xl>
+                    <Heading
+                        glyph={Some(ICON_KEY_ROUND)}
+                        title="Sign in with a link"
+                        lead="Your server's operator made this link for you. It works once, and signs out every other session of the account."
+                    />
+                    <Notice text={page.general()} />
+                    <PortalForm action="/auth/link" csrf={page.csrf()} hidden={page.token()}>
+                        <Submit label="Sign in" />
                     </PortalForm>
                 </List>
             </Card>
@@ -276,10 +303,6 @@ fn Body(page: Shown) -> NodeId {
             />
         },
         Screen::CheckEmail => {
-            let again = match page.read(|page| page.account.is_some()) {
-                true => "/auth/settings".to_owned(),
-                false => page.here("/auth/register"),
-            };
             view! {
                 <Card>
                     <List spacing=Space::Xl>
@@ -291,34 +314,11 @@ fn Body(page: Shown) -> NodeId {
                         <Text style=TextStyle::PARAGRAPH>
                             "Email delivery is currently recorded in the server log; ask your server operator for the message. If the link expires, submit the form again to request another."
                         </Text>
-                        <PageLink label="Request another verification link" href={again} />
+                        <PageLink label="Request another verification link" href="/auth/settings" />
                     </List>
                 </Card>
             }
         }
-        Screen::ResetRequested => view! {
-            <Message
-                glyph=ICON_MAIL
-                title="Check your email"
-                text="If an account matches that address, a reset link has been requested. Email delivery is currently recorded in the server log; ask your server operator for the message."
-            />
-        },
-        Screen::PasswordReset => view! {
-            <Card>
-                <List spacing=Space::Xl>
-                    <Heading
-                        glyph={Some(ICON_CIRCLE_CHECK)}
-                        tone=TextColor::Success
-                        title="Password reset"
-                        lead="Every session was signed out. Your encryption keys are unchanged."
-                    />
-                    <PageLink
-                        label="Sign in with your new password"
-                        href={page.here("/auth/login")}
-                    />
-                </List>
-            </Card>
-        },
         Screen::EmailUpdated => view! {
             <Card>
                 <List spacing=Space::Xl>
@@ -331,6 +331,24 @@ fn Body(page: Shown) -> NodeId {
                     <PageLink label="Back to your account" href="/auth" />
                 </List>
             </Card>
+        },
+        Screen::EnterCode => view! {
+            <EnterCode page />
+        },
+        Screen::CodeElsewhere { code } => view! {
+            <Card>
+                <List spacing=Space::Xl>
+                    <Heading
+                        glyph={Some(ICON_MAIL)}
+                        title={format!("Your code is {code}")}
+                        lead="Enter it in the browser where you asked for it. Opening the link here signs nothing in."
+                    />
+                    <PageLink label="Sign in on this browser instead" href="/auth/login" />
+                </List>
+            </Card>
+        },
+        Screen::Recover => view! {
+            <Recover page />
         },
         Screen::NotFound => view! {
             <Card>
@@ -384,24 +402,8 @@ fn values(page: Shown) -> (Signal<String>, Signal<String>) {
     })
 }
 
-fn confirm(
-    password: Signal<String>,
-    confirmation: Signal<String>,
-    problem: String,
-) -> Memo<String> {
-    create_memo(move || {
-        let typed = confirmation.get();
-        match !typed.is_empty() && typed != password.get() {
-            true => "The passwords do not match.".to_owned(),
-            false => problem.clone(),
-        }
-    })
-}
-
 #[component]
 fn SignIn(page: Shown) -> NodeId {
-    let (email, _) = values(page);
-    let password = create_signal(String::new());
     let code = create_signal(page.code());
     let (approving, entering, registration) = page.read(|page| {
         let approving = !page.code.is_empty() && page.code_problem.is_empty();
@@ -412,8 +414,9 @@ fn SignIn(page: Shown) -> NodeId {
             "Sign in to approve the request from be-host with the code {}.",
             page.code()
         ),
-        false => "Use the email address and password of your be3 account.".to_owned(),
+        false => "We’ll email you a code to sign in with.".to_owned(),
     };
+    let (email, _) = values(page);
     view! {
         <List spacing=Space::Xl>
             <Card>
@@ -421,7 +424,7 @@ fn SignIn(page: Shown) -> NodeId {
                     <Heading title="Sign in" lead />
                     <Notice text={page.code_problem()} />
                     <Notice text={page.general()} />
-                    <PortalForm action="/auth/login" csrf={page.csrf()} code={page.code()}>
+                    <PortalForm action="/auth/code/send" csrf={page.csrf()} code={page.code()}>
                         <Field
                             kind=InputKind::Email
                             name="email"
@@ -430,39 +433,104 @@ fn SignIn(page: Shown) -> NodeId {
                             value={email}
                             problem={page.problem(Named::Email)}
                         />
-                        <Field
-                            kind=InputKind::Password
-                            name="password"
-                            label="Password"
-                            autocomplete="current-password"
-                            value={password}
-                            problem={page.problem(Named::Password)}
-                        />
-                        <Submit label="Sign in" />
+                        <Submit label="Email me a code" />
                     </PortalForm>
+                    {page.passkey(PasskeyStep::SignIn).map(|offer| view! {
+                        <PasskeyButton
+                            offer
+                            csrf={page.csrf()}
+                            code={page.code()}
+                            label="Sign in with a passkey"
+                        />
+                    })}
+                    <Providers page />
                     <List
                         direction=Direction::Horizontal
                         justify=Justify::SpaceBetween
+                        wrap=true
                         spacing=Space::Md
                     >
-                        <PageLink label="Forgot your password?" href={page.here("/auth/forgot")} />
-                        <Show condition={registration}>
+                        <PageLink label="I can’t sign in" href={page.here("/auth/recover")} />
+                        {registration.then(|| view! {
                             <PageLink
                                 label="Create an account"
                                 href={page.here("/auth/register")}
                             />
-                        </Show>
+                        })}
                     </List>
                 </List>
             </Card>
-            <Show condition={entering}>
+            {entering.then(|| view! {
                 <CodeEntry
                     csrf={page.csrf()}
                     code
                     lead="Signing in on another device? Enter the code be-host shows you."
                 />
-            </Show>
+            })}
         </List>
+    }
+}
+
+/// Links that sign in with each provider the server has, when it has any.
+#[component]
+fn Providers(page: Shown) -> Option<NodeId> {
+    let providers = page.read(|page| page.providers.clone());
+    (!providers.is_empty()).then(|| {
+        view! {
+            <List spacing=Space::Md>
+                <Text style=TextStyle::CAPTION>"Or continue with"</Text>
+                <ForEach value={providers}>|provider: ProviderLink|
+                    <PageLink
+                        label={format!("Continue with {}", provider.name)}
+                        href={provider.href.clone()}
+                    />
+                </ForEach>
+            </List>
+        }
+    })
+}
+
+/// A provider sign-in with no account here: the invite code makes one.
+#[component]
+fn ProviderRegister(page: Shown) -> NodeId {
+    let (_, name) = values(page);
+    let invite = page.read(|page| create_signal(page.invite.clone()));
+    let provider = page.read(|page| page.provider.clone());
+    let lead = match provider.is_empty() {
+        true => "This sign-in expired. Sign in with your provider again.".to_owned(),
+        false => format!(
+            "No account here signs in with this {provider} account yet. Enter an invite code to create one."
+        ),
+    };
+    view! {
+        <Card>
+            <List spacing=Space::Xl>
+                <Heading title="Create your account" lead />
+                <Notice text={page.general()} />
+                <PortalForm action="/auth/oidc/register" csrf={page.csrf()}>
+                    <Field
+                        kind=InputKind::Text
+                        name="invite"
+                        label="Invite code"
+                        autocomplete="off"
+                        hint="From the people who run this server."
+                        value={invite}
+                        problem={page.problem(Named::Invite)}
+                    />
+                    <Field
+                        kind=InputKind::Text
+                        name="display_name"
+                        label="Display name"
+                        autocomplete="nickname"
+                        hint="How other people see you in be3."
+                        value={name}
+                        problem={page.problem(Named::DisplayName)}
+                    />
+                    <Submit label="Create account" />
+                </PortalForm>
+                <PageLink label="Sign in another way" href="/auth/login" />
+            </List>
+        </Card>
     }
 }
 
@@ -497,15 +565,12 @@ fn CodeEntry(csrf: String, code: Signal<String>, lead: String) -> NodeId {
 fn Register(page: Shown) -> NodeId {
     let (email, name) = values(page);
     let invite = page.read(|page| create_signal(page.invite.clone()));
-    let password = create_signal(String::new());
-    let confirmation = create_signal(String::new());
-    let mismatch = confirm(password, confirmation, page.problem(Named::Confirmation));
     view! {
         <Card>
             <List spacing=Space::Xl>
                 <Heading
                     title="Create your account"
-                    lead="We’ll email you a link to verify your address and finish creating your account."
+                    lead="We’ll email you a code to verify your address and finish creating your account."
                 />
                 <Notice text={page.general()} />
                 <PortalForm action="/auth/register" csrf={page.csrf()} code={page.code()}>
@@ -535,18 +600,9 @@ fn Register(page: Shown) -> NodeId {
                         value={email}
                         problem={page.problem(Named::Email)}
                     />
-                    <Field
-                        kind=InputKind::Password
-                        name="password"
-                        label="Password"
-                        autocomplete="new-password"
-                        hint="At least 8 characters."
-                        value={password}
-                        problem={page.problem(Named::Password)}
-                    />
-                    <ConfirmField value={confirmation} problem={mismatch} />
-                    <Submit label="Create account" />
+                    <Submit label="Email me a code" />
                 </PortalForm>
+                <Providers page />
                 <PageLink
                     label="Already have an account? Sign in"
                     href={page.here("/auth/login")}
@@ -557,94 +613,31 @@ fn Register(page: Shown) -> NodeId {
 }
 
 #[component]
-fn ConfirmField(value: Signal<String>, problem: Memo<String>) -> NodeId {
-    let shown = create_memo(move || !problem.get().is_empty());
-    view! {
-        <List spacing=Space::Xs>
-            <Field
-                kind=InputKind::Password
-                name="confirmation"
-                label="Confirm password"
-                autocomplete="new-password"
-                value
-            />
-            <Show condition={shown}>
-                <Text size=TextSize::Sm color=TextColor::Danger>{problem}</Text>
-            </Show>
-        </List>
-    }
-}
-
-#[component]
-fn Forgot(page: Shown) -> NodeId {
-    let (email, _) = values(page);
-    view! {
-        <Card>
-            <List spacing=Space::Xl>
-                <Heading
-                    title="Reset your password"
-                    lead="Enter your account’s email address and we’ll send you a link to choose a new password."
-                />
-                <Notice text={page.general()} />
-                <PortalForm action="/auth/forgot" csrf={page.csrf()} code={page.code()}>
-                    <Field
-                        kind=InputKind::Email
-                        name="email"
-                        label="Email"
-                        autocomplete="username"
-                        value={email}
-                        problem={page.problem(Named::Email)}
-                    />
-                    <Submit label="Send reset link" />
-                </PortalForm>
-                <Text style=TextStyle::CAPTION>
-                    "This resets your sign-in password only. Encrypted data still needs your recovery phrase or another unlocked device with be-host."
-                </Text>
-                <PageLink label="Back to sign in" href={page.here("/auth/login")} />
-            </List>
-        </Card>
-    }
-}
-
-#[component]
-fn Reset(page: Shown) -> NodeId {
-    let password = create_signal(String::new());
-    let confirmation = create_signal(String::new());
-    let mismatch = confirm(password, confirmation, page.problem(Named::Confirmation));
-    view! {
-        <Card>
-            <List spacing=Space::Xl>
-                <Heading
-                    glyph={Some(ICON_KEY_ROUND)}
-                    title="Choose a new password"
-                    lead="Every session will be signed out. Your encryption keys stay unchanged."
-                />
-                <Notice text={page.general()} />
-                <PortalForm
-                    action="/auth/reset"
-                    csrf={page.csrf()}
-                    code={page.code()}
-                    hidden={page.token()}
-                >
-                    <Field
-                        kind=InputKind::Password
-                        name="password"
-                        label="New password"
-                        autocomplete="new-password"
-                        hint="At least 8 characters."
-                        value={password}
-                        problem={page.problem(Named::Password)}
-                    />
-                    <ConfirmField value={confirmation} problem={mismatch} />
-                    <Submit label="Reset password" />
-                </PortalForm>
-            </List>
-        </Card>
-    }
-}
-
-#[component]
 fn Approve(page: Shown) -> NodeId {
+    // A browser signed in a while ago signs in again first: a cookie alone approves nothing
+    // (guides/blocks/server.md, "Accounts"). Signing out keeps the code, so sign-in returns here.
+    if !page.read(|page| page.fresh) {
+        return view! {
+            <Card>
+                <List spacing=Space::Xl>
+                    <Heading
+                        glyph={Some(ICON_SHIELD_CHECK)}
+                        title="Sign in again to approve"
+                        lead="You signed in to this browser a while ago. To approve a sign-in to be-host, confirm it is you by signing in again."
+                    />
+                    <Notice text={page.general()} />
+                    <PortalForm action="/auth/logout" csrf={page.csrf()} code={page.code()}>
+                        <Submit label="Sign in again" />
+                    </PortalForm>
+                    <PortalForm action="/auth/deny" csrf={page.csrf()} code={page.code()}>
+                        <Submit label="Deny" variant=ButtonVariant::Secondary />
+                    </PortalForm>
+                </List>
+            </Card>
+        };
+    }
+    let (requester, elsewhere) =
+        page.read(|page| (page.requester.clone(), page.requester_elsewhere));
     view! {
         <Card>
             <List spacing=Space::Xl>
@@ -663,6 +656,14 @@ fn Approve(page: Shown) -> NodeId {
                         {page.code()}
                     </Text>
                 </Frame>
+                {(!requester.is_empty()).then(|| view! {
+                    <Text
+                        style=TextStyle::CAPTION
+                        color={if elsewhere { TextColor::Warning } else { TextColor::Muted }}
+                    >
+                        {requester.clone()}
+                    </Text>
+                })}
                 <Notice text={page.general()} />
                 <PortalForm action="/auth/approve" csrf={page.csrf()} code={page.code()}>
                     <Submit label="Approve sign-in" />
@@ -706,7 +707,7 @@ fn AccountHome(page: Shown) -> NodeId {
                         <Destination
                             glyph=ICON_KEY_ROUND
                             label="Account settings"
-                            detail="Name, email address and password"
+                            detail="Name, email address and ways to sign in"
                             href="/auth/settings"
                         />
                         <Destination
@@ -762,11 +763,30 @@ fn Section(title: String, lead: String, children: Children<ListItem>) -> NodeId 
 #[component]
 fn Settings(page: Shown) -> NodeId {
     let (email, name) = values(page);
-    let current_for_email = create_signal(String::new());
-    let current = create_signal(String::new());
-    let password = create_signal(String::new());
-    let confirmation = create_signal(String::new());
-    let mismatch = confirm(password, confirmation, page.problem(Named::Confirmation));
+    let email_lead = match page.read(|page| {
+        page.account
+            .as_ref()
+            .is_some_and(|account| !account.email.is_empty())
+    }) {
+        true => "Your address changes once you open the link we send to the new one.",
+        false => "Your address is added once you open the link we send to it.",
+    }
+    .to_owned();
+    let (identities, fresh, adding) =
+        page.read(|page| (page.identities.clone(), page.fresh, page.providers.clone()));
+    let csrf = page.csrf();
+    // One way in that isn't an email is one lost device or provider from no way in.
+    let alone = match identities.as_slice() {
+        [only] if only.kind != "email" => {
+            "Add a second way to sign in, so losing this one doesn't lock you out.".to_owned()
+        }
+        _ => String::new(),
+    };
+    let add_passkey = page.passkey(PasskeyStep::Add).filter(|_| fresh).map(|offer| {
+        view! {
+            <PasskeyButton offer csrf={page.csrf()} code={String::new()} label="Add a passkey" />
+        }
+    });
     let saved = match page.read(|page| page.saved) {
         true => "Your changes were saved.".to_owned(),
         false => String::new(),
@@ -776,6 +796,28 @@ fn Settings(page: Shown) -> NodeId {
             <Heading title="Account settings" />
             <Notice text={saved} good=true />
             <Notice text={page.general()} />
+            <Proof page fresh doing="change your email address or your ways to sign in" />
+            <Section
+                title="Ways to sign in"
+                lead="Any one of these signs you in. Your last one can’t be removed."
+            >
+                <Notice text={alone} />
+                <ForEach value={identities}>|identity: IdentityRow|
+                    <IdentityLine identity csrf={csrf.clone()} fresh />
+                </ForEach>
+                {add_passkey}
+                {(fresh && !adding.is_empty()).then(|| view! {
+                    <List spacing=Space::Md>
+                        <ForEach value={adding.clone()}>|provider: ProviderLink|
+                            <PageLink
+                                label={format!("Add {}", provider.name)}
+                                href={provider.href.clone()}
+                            />
+                        </ForEach>
+                    </List>
+                })}
+            </Section>
+            <RecentChanges page />
             <Section title="Display name" lead="How other people see you in be3.">
                 <PortalForm action="/auth/settings/name" csrf={page.csrf()}>
                     <Field
@@ -789,10 +831,7 @@ fn Settings(page: Shown) -> NodeId {
                     <Submit label="Save name" variant=ButtonVariant::Secondary />
                 </PortalForm>
             </Section>
-            <Section
-                title="Email address"
-                lead="Your address changes once you open the link we send to the new one."
-            >
+            <Section title="Email address" lead={email_lead}>
                 <PortalForm action="/auth/settings/email" csrf={page.csrf()}>
                     <Field
                         kind=InputKind::Email
@@ -802,48 +841,39 @@ fn Settings(page: Shown) -> NodeId {
                         value={email}
                         problem={page.problem(Named::Email)}
                     />
-                    <Field
-                        kind=InputKind::Password
-                        name="current_password"
-                        label="Current password"
-                        autocomplete="current-password"
-                        value={current_for_email}
-                        problem={page.problem(Named::CurrentPassword)}
-                    />
                     <Submit label="Send verification link" variant=ButtonVariant::Secondary />
-                </PortalForm>
-            </Section>
-            <Section title="Password" lead="Changing your password signs out every other session.">
-                <PortalForm action="/auth/settings/password" csrf={page.csrf()}>
-                    <Field
-                        kind=InputKind::Password
-                        name="current_password"
-                        label="Current password"
-                        autocomplete="current-password"
-                        value={current}
-                        problem={page.problem(Named::CurrentPassword)}
-                    />
-                    <Field
-                        kind=InputKind::Password
-                        name="password"
-                        label="New password"
-                        autocomplete="new-password"
-                        hint="At least 8 characters."
-                        value={password}
-                        problem={page.problem(Named::Password)}
-                    />
-                    <ConfirmField value={confirmation} problem={mismatch} />
-                    <Submit label="Change password" variant=ButtonVariant::Secondary />
                 </PortalForm>
             </Section>
         </List>
     }
 }
 
+/// Ways to sign in added or removed in the last thirty days, which nobody signed in can hide.
+#[component]
+fn RecentChanges(page: Shown) -> Option<NodeId> {
+    let changes = page.read(|page| page.identity_changes.clone());
+    (!changes.is_empty()).then(|| {
+        view! {
+            <Section
+                title="Recent changes"
+                lead="Ways to sign in added or removed in the last thirty days. If one wasn’t you, remove it and contact your server operator."
+            >
+                <ForEach value={changes}>|change: IdentityChange|
+                    <List spacing=Space::Xs2>
+                        <Text>{change.text.clone()}</Text>
+                        <Text style=TextStyle::CAPTION>{change.when.clone()}</Text>
+                    </List>
+                </ForEach>
+            </Section>
+        }
+    })
+}
+
 #[component]
 fn Sessions(page: Shown) -> NodeId {
     let sessions = page.read(|page| page.sessions.clone());
     let others = sessions.iter().any(|session| !session.current);
+    let fresh = page.read(|page| page.fresh);
     let csrf = page.csrf();
     view! {
         <List spacing=Space::Xl>
@@ -854,16 +884,19 @@ fn Sessions(page: Shown) -> NodeId {
             <Notice text={page.general()} />
             <Card>
                 <List spacing=Space::Lg>
-                    <ForEach keys={sessions}>|session: Session|
+                    <ForEach value={sessions}>|session: Session|
                         <SessionRow session csrf={csrf.clone()} />
                     </ForEach>
                 </List>
             </Card>
-            <Show condition={others}>
+            {(others && fresh).then(|| view! {
                 <PortalForm action="/auth/sessions/others" csrf={page.csrf()}>
                     <Submit label="Sign out all other sessions" variant=ButtonVariant::Danger />
                 </PortalForm>
-            </Show>
+            })}
+            {(others && !fresh).then(|| view! {
+                <Proof page fresh doing="sign out every other session" />
+            })}
         </List>
     }
 }
@@ -897,5 +930,195 @@ fn SessionRow(session: Session, csrf: String) -> NodeId {
                 <Submit label="Sign out" variant=ButtonVariant::Secondary wide=false />
             </PortalForm>
         </List>
+    }
+}
+
+/// Asks for a code to the account's email, which proves for a few minutes that this browser is
+/// the owner's, before an account change.
+#[component]
+fn Proof(page: Shown, fresh: bool, doing: String) -> NodeId {
+    let (emailed, providers) = page.read(|page| {
+        (
+            page.account
+                .as_ref()
+                .is_some_and(|account| !account.email.is_empty()),
+            page.proof_providers.clone(),
+        )
+    });
+    let passkey = page.passkey(PasskeyStep::Proof);
+    let ways: Vec<&str> = [
+        (emailed, "a code we email you"),
+        (passkey.is_some(), "a passkey"),
+        (!providers.is_empty(), "a provider you sign in with"),
+    ]
+    .into_iter()
+    .filter_map(|(has, way)| has.then_some(way))
+    .collect();
+    let ways = match ways.split_last() {
+        Some((last, [])) => (*last).to_owned(),
+        Some((last, rest)) => format!("{} or {last}", rest.join(", ")),
+        None => "one of your ways to sign in".to_owned(),
+    };
+    let lead = match fresh {
+        true => format!("You confirmed it is you, so you can {doing} for the next few minutes."),
+        false => format!("To {doing}, first confirm it is you with {ways}."),
+    };
+    view! {
+        <Frame border={Some(Border::DEFAULT)} radius=Radius::Lg padding={Padding::all(Space::Xl)}>
+            <List spacing=Space::Lg>
+                <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
+                    <Text color=TextColor::Muted>
+                        <Icon glyph=ICON_SHIELD_CHECK />
+                    </Text>
+                    <Text style=TextStyle::HEADING>"Confirm it is you"</Text>
+                </List>
+                <Text style=TextStyle::PARAGRAPH>{lead.clone()}</Text>
+                {(!fresh && emailed).then(|| view! {
+                    <PortalForm action="/auth/proof" csrf={page.csrf()}>
+                        <Submit label="Email me a code" variant=ButtonVariant::Secondary />
+                    </PortalForm>
+                })}
+                {passkey.filter(|_| !fresh).map(|offer| view! {
+                    <PasskeyButton
+                        offer
+                        csrf={page.csrf()}
+                        code={String::new()}
+                        label="Confirm with a passkey"
+                    />
+                })}
+                {(!fresh && !providers.is_empty()).then(|| view! {
+                    <List spacing=Space::Md>
+                        <ForEach value={providers.clone()}>|provider: ProviderLink|
+                            <PageLink
+                                label={format!("Confirm with {}", provider.name)}
+                                href={provider.href.clone()}
+                            />
+                        </ForEach>
+                    </List>
+                })}
+            </List>
+        </Frame>
+    }
+}
+
+#[component]
+fn IdentityLine(identity: IdentityRow, csrf: String, fresh: bool) -> NodeId {
+    let detail = match (identity.kind.as_str(), identity.removable) {
+        ("email", true) => "Email: a code we send signs you in",
+        ("email", false) => "Email: your only way to sign in",
+        ("passkey", true) => "Passkey: this device or password manager signs you in",
+        ("passkey", false) => "Passkey: your only way to sign in",
+        (_, true) => "Provider: signing in with it signs you in",
+        (_, false) => "Provider: your only way to sign in",
+    }
+    .to_owned();
+    let glyph = match identity.kind.as_str() {
+        "email" => ICON_MAIL,
+        "passkey" => ICON_KEY_ROUND,
+        _ => ICON_LOG_IN,
+    };
+    view! {
+        <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
+            <Text size=TextSize::Lg color=TextColor::Muted>
+                <Icon glyph />
+            </Text>
+            <ListItem grow=1.0>
+                <List spacing=Space::Xs2>
+                    <Text weight=Weight::Bold>{identity.label.clone()}</Text>
+                    <Text style=TextStyle::CAPTION>{detail.clone()}</Text>
+                </List>
+            </ListItem>
+            {(identity.removable && fresh).then(|| view! {
+                <PortalForm
+                    action="/auth/settings/identity/remove"
+                    csrf={csrf.clone()}
+                    hidden={vec![("identity", identity.id.clone())]}
+                >
+                    <Submit label="Remove" variant=ButtonVariant::Secondary wide=false />
+                </PortalForm>
+            })}
+        </List>
+    }
+}
+
+#[component]
+fn EnterCode(page: Shown) -> NodeId {
+    let typed = page.read(|page| create_signal(page.email_code.clone()));
+    let lead = page.read(|page| match (page.provider.is_empty(), page.code_email.is_empty()) {
+        (false, _) => format!(
+            "{} already has an account here. Enter the code we sent it to sign in and add {} to that account, or sign in another way.",
+            match page.code_email.is_empty() {
+                true => "Your email",
+                false => page.code_email.as_str(),
+            },
+            page.provider
+        ),
+        (true, true) => {
+            "Enter the code from the email we sent you. Ask for a new one if it has expired."
+                .to_owned()
+        }
+        (true, false) => format!(
+            "If {} has an account here, we sent it a code. It works for ten minutes.",
+            page.code_email
+        ),
+    });
+    view! {
+        <Card>
+            <List spacing=Space::Xl>
+                <Heading glyph={Some(ICON_MAIL)} title="Enter your code" lead />
+                <Notice text={page.general()} />
+                <PortalForm action="/auth/enter" csrf={page.csrf()} code={page.code()}>
+                    <Field
+                        kind=InputKind::Text
+                        name="email_code"
+                        label="Code"
+                        autocomplete="one-time-code"
+                        value={typed}
+                        problem={page.problem(Named::EmailCode)}
+                    />
+                    <Submit label="Continue" />
+                </PortalForm>
+                <Text style=TextStyle::CAPTION>
+                    "Email delivery is currently recorded in the server log; ask your server operator for the message."
+                </Text>
+                <PageLink label="Ask for a new code" href={page.here("/auth/login")} />
+            </List>
+        </Card>
+    }
+}
+
+#[component]
+fn Recover(page: Shown) -> NodeId {
+    let (email, _) = values(page);
+    view! {
+        <Card>
+            <List spacing=Space::Xl>
+                <Heading
+                    title="Can’t sign in?"
+                    lead="We’ll email a code to your account’s address. Signing in with it signs out every other session."
+                />
+                <Notice text={page.general()} />
+                <PortalForm
+                    action="/auth/code/send"
+                    csrf={page.csrf()}
+                    code={page.code()}
+                    hidden={vec![("purpose", "recover".to_owned())]}
+                >
+                    <Field
+                        kind=InputKind::Email
+                        name="email"
+                        label="Email"
+                        autocomplete="username"
+                        value={email}
+                        problem={page.problem(Named::Email)}
+                    />
+                    <Submit label="Email me a code" />
+                </PortalForm>
+                <Text style=TextStyle::CAPTION>
+                    "This gets you back into your account only. Encrypted data still needs your recovery phrase or another unlocked device with be-host."
+                </Text>
+                <PageLink label="Back to sign in" href={page.here("/auth/login")} />
+            </List>
+        </Card>
     }
 }

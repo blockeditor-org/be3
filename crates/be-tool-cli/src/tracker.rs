@@ -433,7 +433,6 @@ impl<S: ObjectStore> Tracker<S> {
                     parent,
                     name: metadata.name(),
                     prefix: metadata.get(&be_block_content::ROW_PREFIX),
-                    references: summary.references,
                     access: summary.access,
                     head: summary.head,
                     deleted: false,
@@ -555,7 +554,10 @@ impl<S: ObjectStore> Tracker<S> {
         let head = self.index.lock().await.get(block).map(|entry| entry.head);
         match head {
             Some(Some(head)) => Ok(Some(
-                self.peer.open_commit::<C>(head).await.map_err(explain)?,
+                self.peer
+                    .open_commit::<C>(block, head)
+                    .await
+                    .map_err(explain)?,
             )),
             Some(None) => Ok(None),
             None => self.peer.open::<C>(block).await.map_err(explain),
@@ -1780,6 +1782,7 @@ impl<S: ObjectStore> Tracker<S> {
                         metadata: BlockMetadata::named(title).with_derived(description.derived),
                         references: self.peer.resolve(page, description.references),
                         content: Some(content),
+                        log: Vec::new(),
                     },
                     BlockParent::Block(database),
                 ));

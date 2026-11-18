@@ -14,7 +14,7 @@ fn ctrl_tab_walks_the_tabs_of_the_pane_the_focus_is_in() {
             <dock_host::styled::DockHost @node_ref=&dock>
                 <dock::Docking layout>
                     <DockPane id="tabs">
-                        <ForEach keys={vec![1u64, 2, 3]}>|id: u64|
+                        <ForEach value={vec![1u64, 2, 3]}>|id: u64|
                             <DockTab
                                 id
                                 title={format!("Tab {id}")}

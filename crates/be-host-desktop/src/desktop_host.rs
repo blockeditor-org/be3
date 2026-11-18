@@ -3,6 +3,8 @@ mod linux;
 #[cfg(windows)]
 mod win32;
 #[cfg(any(windows, test))]
+mod win32_content;
+#[cfg(any(windows, test))]
 mod win32_map;
 #[cfg(any(windows, test))]
 mod win32_overlay;
@@ -144,8 +146,11 @@ pub trait DesktopHost {
         }
     }
 
+    /// Draws `window`. `focus` fires when the shell gives the window the keyboard: it gives the
+    /// surface's node beui's keyboard focus and nothing more, so on Windows it never starts focus
+    /// mode, which only a click on the content does (`win32_content`).
     #[component]
-    fn WindowSurface(window: HostWindowId, focus: Memo<u64>) -> NodeId {
+    fn WindowSurface(window: HostWindowId, focus: Trigger) -> NodeId {
         let _ = (window, focus);
         view! {
             <Frame />
@@ -154,7 +159,7 @@ pub trait DesktopHost {
 }
 
 #[component]
-pub fn PlacedWindow(window: HostWindowId, focus: Memo<u64>) -> NodeId {
+pub fn PlacedWindow(window: HostWindowId, focus: Trigger) -> NodeId {
     let status = create_memo(move || Host::window_status(window));
     let on_force_close = Callback::new(move |()| Host::close(window));
     view! {

@@ -45,7 +45,7 @@ pub fn ChildBlock(
     on_details: Callback<()>,
     on_focus: Callback<()>,
     docked_tab: Option<RenderFn<ChildDockTab, NodeId>>,
-    #[prop(children)] content: Option<Render<ChildBlockHandle>>,
+    #[prop(children)] content: Option<Render<ChildBlockHandle, NodeId>>,
 ) -> NodeId {
     let placed = create_memo(move || block.get().map(SubregionContent::Block));
     let placing = Placing {
@@ -92,7 +92,7 @@ pub fn Subregion(
     on_state: Callback<ChildState>,
     on_details: Callback<()>,
     on_focus: Callback<()>,
-    #[prop(children)] content: Option<Render<ChildBlockHandle>>,
+    #[prop(children)] content: Option<Render<ChildBlockHandle, NodeId>>,
 ) -> NodeId {
     let layout = use_context::<DialogLayout>();
     let modal = use_modal();
@@ -149,7 +149,7 @@ struct Placing {
     on_state: Callback<ChildState>,
     on_details: Callback<()>,
     on_focus: Callback<()>,
-    content: Option<Render<ChildBlockHandle>>,
+    content: Option<Render<ChildBlockHandle, NodeId>>,
 }
 
 #[component]
@@ -337,15 +337,14 @@ fn PreviewPicture(
         ChildPreview::Image(image) => Some(crate::preview::picture(image, turn.get(), fade.get())),
         ChildPreview::Hosted | ChildPreview::Waiting | ChildPreview::Label => None,
     });
-    let labelled = create_memo(move || preview.get() == ChildPreview::Label);
     let target = create_memo(move || match placed.get() {
         Some(SubregionContent::Block(target)) => Some(target),
         _ => None,
     });
     view! {
         <Layers>
-            <Drawing draw={Prop::dynamic(move || draw_gpu(drawing.get()))} />
-            <Show condition={labelled}>
+            <Drawing draw={move || draw_gpu(drawing.get())} />
+            <Show value={move || preview.get() == ChildPreview::Label}>
                 <PreviewLabel editor={editor} target={target} />
             </Show>
         </Layers>
@@ -358,7 +357,6 @@ fn PreviewLabel(editor: Editor, target: Memo<Option<ChildTarget>>) -> NodeId {
     let name = create_memo(move || shown.with(|shown| shown.name.clone()));
     let italic = create_memo(move || shown.with(|shown| shown.automatic));
     let glyph = create_memo(move || shown.with(|shown| shown.glyph));
-    let has_glyph = create_memo(move || glyph.get().is_some());
     view! {
         <Frame
             fill=ColorRole::Surface
@@ -368,7 +366,7 @@ fn PreviewLabel(editor: Editor, target: Memo<Option<ChildTarget>>) -> NodeId {
             align=Align2::CENTER
         >
             <List spacing=Space::Md align=Align::Center>
-                <Show condition={has_glyph}>
+                <Show value={move || glyph.with(Option::is_some)}>
                     <Text size=TextSize::Xl color=TextColor::Muted align=beui::TextAlign::Center>
                         <Icon glyph={glyph} />
                     </Text>
@@ -477,15 +475,9 @@ impl MenuMirror {
                         mirrored.enabled.handle(),
                         mirrored.checked.handle(),
                     );
-                    if label.get_untracked() != command.label {
-                        label.set(command.label.clone());
-                    }
-                    if enabled.get_untracked() != command.enabled {
-                        enabled.set(command.enabled);
-                    }
-                    if ticked.get_untracked() != checked {
-                        ticked.set(checked);
-                    }
+                    label.set(command.label.clone());
+                    enabled.set(command.enabled);
+                    ticked.set(checked);
                     Shape::Command {
                         id: command.id.clone(),
                         label: None,

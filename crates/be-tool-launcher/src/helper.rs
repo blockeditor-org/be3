@@ -10,7 +10,7 @@ const GATEWAY_HEADER: &str = "Be3-Gateway-Authorization";
 const KEY_VARIABLE: &str = "BE3_AUTHORIZATION";
 const KEY_FILE: &str = "gateway-authorization";
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) enum Product {
     Host,
     #[cfg(not(target_os = "android"))]

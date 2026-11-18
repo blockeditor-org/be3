@@ -4,6 +4,8 @@ use beui_macros::{component, view};
 use beui_view::primitives::*;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
+
+use crate::value_drag::{DragReport, ValueDrag};
 use beui_view::reactive::{KeyAt, KeyEvent};
 use beui_view::types::KeyPhase;
 use beui_view::types::Pos2;
@@ -58,7 +60,8 @@ struct Parts {
 /// A number shown as a face that a horizontal drag scrubs and a click or
 /// Space/Enter turns into a text field. In the field, Enter or losing the focus
 /// keeps the typed number, clamped to `min` and `max`; Escape reverts it and
-/// returns the focus to the face.
+/// returns the focus to the face. A scrub writes `value` on every move and reports
+/// itself around those writes through `on_scrub` (`ValueDrag`).
 #[component]
 pub fn NumberInput(
     #[prop(default = ComponentRef::new())] api: ComponentRef<NumberInputApi>,
@@ -69,33 +72,24 @@ pub fn NumberInput(
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = NumberDrag::Linear { speed: 1.0 })] drag: NumberDrag,
     #[prop(default = None)] decimals: Prop<Option<u32>>,
-    face: Render<NumberFaceHandle>,
-    field: Render<NumberFieldHandle>,
+    face: Render<NumberFaceHandle, NodeId>,
+    field: Render<NumberFieldHandle, NodeId>,
     on_preview: Callback<Option<f64>>,
-    on_scrub: Callback<bool>,
+    on_scrub: Callback<ValueDrag>,
 ) -> NodeId {
-    let text = create_signal(format_number(
-        value.get_untracked(),
-        decimals.get_untracked(),
-    ));
+    let text = create_linked_signal(move |typed: Option<&String>| {
+        let next = value.get();
+        match typed {
+            Some(typed) if parse(typed) == Some(next) => typed.clone(),
+            _ => format_number(next, decimals.get_untracked()),
+        }
+    });
     let editing = create_signal(false);
     let refocus = create_signal(false);
     let hovered = create_signal(false);
     let active = create_signal(false);
     let focused = create_signal(false);
-    create_effect(move || {
-        let next = value.get();
-        let held = text.get_untracked();
-        if parse(&held) != Some(next) {
-            text.set(format_number(next, decimals.get_untracked()));
-        }
-    });
     let off = create_memo(move || disabled.get());
-    let idle = create_memo(move || !editing.get());
-    let cursor = create_memo(move || match drag != NumberDrag::Off && !off.get() {
-        true => CursorIcon::ResizeHorizontal,
-        false => CursorIcon::Default,
-    });
     let accessibility = create_memo(move || {
         let mut node = Node::new(Role::SpinButton);
         let label = label.get();
@@ -111,6 +105,7 @@ pub fn NumberInput(
     component_accessibility(accessibility);
 
     let held = StoredCell::new(None::<(Pos2, f64, bool)>);
+    let scrub = DragReport::new(on_scrub);
     let pressed = move |press: PointerPress| {
         if off.get_untracked() {
             return;
@@ -130,7 +125,7 @@ pub fn NumberInput(
         };
         held.set(Some((origin, start, true)));
         if !moved {
-            on_scrub.call(true);
+            scrub.start();
         }
         let next = next.clamp(min, max);
         text.set(format_number(next, decimals.get_untracked()));
@@ -143,12 +138,22 @@ pub fn NumberInput(
     };
     let clicked = move || match held.take() {
         Some((_, _, false)) => open(),
-        Some((_, _, true)) => on_scrub.call(false),
+        Some((_, _, true)) => scrub.end(true),
         None => {}
     };
+    // A scrub ends when the press does, whether or not the release counts as a click.
+    let press_change = move |pressed: bool| {
+        active.set(pressed);
+        if !pressed && let Some((_, _, true)) = held.get() {
+            held.set(None);
+            scrub.end(true);
+        }
+    };
     let cancelled = move || {
-        if let Some((_, _, true)) = held.take() {
-            on_scrub.call(false);
+        if let Some((_, start, true)) = held.take() {
+            text.set(format_number(start, decimals.get_untracked()));
+            value.set(start);
+            scrub.end(false);
         }
     };
 
@@ -231,27 +236,38 @@ pub fn NumberInput(
         editing: editing.read_only(),
     }));
     view! {
-        <List spacing=0.0>
-            <Show keep_alive=true condition={idle}>
-                <Interactive
-                    focusable=true
-                    tab_stop
-                    focused={refocus}
-                    on_focus_change={button_focus}
-                    on_activate={open}
-                    cursor={cursor}
-                    capture_presses=true
-                    on_press={pressed}
-                    on_drag={dragged}
-                    on_click={clicked}
-                    on_cancel={cancelled}
-                    on_hover_change={hovered}
-                    on_active_change={active}
-                    children={Some(face)}
-                />
-            </Show>
-            <Show keep_alive=true condition={editing}>{field}</Show>
-        </List>
+        <KeepAlive>
+            <List spacing=0.0>
+                <Show
+                    value={editing}
+                    fallback={move || view! {
+                        <Kept key=false>
+                            <Interactive
+                                focusable=true
+                                tab_stop
+                                focused={refocus}
+                                on_focus_change={button_focus}
+                                on_activate={open}
+                                cursor={move || match drag != NumberDrag::Off && !off.get() {
+                                    true => CursorIcon::ResizeHorizontal,
+                                    false => CursorIcon::Default,
+                                }}
+                                capture_presses=true
+                                on_press={pressed}
+                                on_drag={dragged}
+                                on_click={clicked}
+                                on_cancel={cancelled}
+                                on_hover_change={hovered}
+                                on_active_change={press_change}
+                                children={Some(face)}
+                            />
+                        </Kept>
+                    }}
+                >
+                    <Kept key=true>{field}</Kept>
+                </Show>
+            </List>
+        </KeepAlive>
     }
 }
 

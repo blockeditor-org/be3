@@ -1,6 +1,12 @@
+pub mod codes;
+pub(crate) mod identity_changes;
 pub mod invite_codes;
-pub(crate) mod passwords;
+pub mod login_links;
+pub(crate) mod mailbox;
+pub(crate) mod passkeys;
 pub(crate) mod portal;
+pub mod providers;
+pub(crate) mod remembered;
 
 /// A test's way to keep a store job running for as long as it likes.
 #[cfg(test)]
@@ -30,44 +36,6 @@ pub(crate) mod held {
         (started, release)
     }
 
-    type HeldListing = (
-        tokio::sync::oneshot::Sender<()>,
-        tokio::sync::oneshot::Receiver<()>,
-    );
-
-    static LISTINGS: Mutex<Option<HashMap<Uuid, HeldListing>>> = Mutex::new(None);
-
-    /// Makes the next read of `block`'s own listing tell `reached` once the store answered it,
-    /// then wait, before the connection records what it was told, until the returned sender
-    /// sends or is dropped.
-    pub(crate) fn hold_listing(
-        block: Uuid,
-    ) -> (
-        tokio::sync::oneshot::Receiver<()>,
-        tokio::sync::oneshot::Sender<()>,
-    ) {
-        let (reached, started) = tokio::sync::oneshot::channel();
-        let (release, held) = tokio::sync::oneshot::channel();
-        LISTINGS
-            .lock()
-            .unwrap()
-            .get_or_insert_with(HashMap::new)
-            .insert(block, (reached, held));
-        (started, release)
-    }
-
-    pub(crate) async fn listing(block: Uuid) {
-        let held = LISTINGS
-            .lock()
-            .unwrap()
-            .as_mut()
-            .and_then(|held| held.remove(&block));
-        if let Some((reached, held)) = held {
-            let _ = reached.send(());
-            let _ = held.await;
-        }
-    }
-
     pub(super) fn wait(organization: Uuid) {
         let held = HELD
             .lock()
@@ -81,6 +49,7 @@ pub(crate) mod held {
     }
 }
 pub(crate) mod usage;
+pub use mailbox::MAX_LETTERS_FROM_ONE;
 pub use portal::{AccountSession, MailLink};
 use std::{
     collections::{BTreeMap, HashMap, hash_map::Entry},
@@ -90,10 +59,6 @@ use std::{
 };
 pub use usage::{DEFAULT_ACCOUNT_QUOTA, DEFAULT_UPLOAD_GRACE, StorageLimits};
 
-use argon2::{
-    Argon2,
-    password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString, rand_core::OsRng},
-};
 use be_block_commit::CommitId;
 use be_block_graph::{Access, BlockGraph, BlockNode, BlockParent, GraphError, ObjectRefs};
 use be_block_protocol::{Agent, ErrorCode, Organization, OrganizationKind, OrganizationRole};
@@ -146,35 +111,6 @@ impl std::ops::Deref for ServerStore {
     }
 }
 
-/// Revisions handed out between two raises of `revision_floor`: the floor is written once per
-/// this many changes, not once per change.
-const REVISIONS_RESERVED: u64 = 1 << 16;
-
-/// Raises the stored floor past every revision this run may hand out before it raises it again,
-/// and answers where this run counts from: `from`, or at the start the floor a previous run left.
-/// A summary's revision then only grows across restarts, which devices rely on to tell newer
-/// from older (be-block-client's refs keep the newest summary of each block).
-fn reserve_revisions(connection: &Connection, from: Option<u64>) -> Result<u64, ServerError> {
-    let start = match from {
-        Some(from) => from,
-        None => connection
-            .query_row(
-                "SELECT revision FROM revision_floor WHERE id = 1",
-                [],
-                |row| row.get::<_, i64>(0),
-            )
-            .optional()?
-            .map_or(0, |floor| u64::try_from(floor).unwrap_or_default()),
-    };
-    let floor = i64::try_from(start + REVISIONS_RESERVED).unwrap_or(i64::MAX);
-    connection.execute(
-        "INSERT INTO revision_floor (id, revision) VALUES (1, ?1)
-         ON CONFLICT (id) DO UPDATE SET revision = MAX(revision, excluded.revision)",
-        params![floor],
-    )?;
-    Ok(start)
-}
-
 pub struct Shared {
     database: Arc<Mutex<Connection>>,
     pub(crate) session_changes: tokio::sync::watch::Sender<u64>,
@@ -183,17 +119,20 @@ pub struct Shared {
     /// A read-only connection beside the writer (the database is in WAL mode), for reads that
     /// must not wait behind writes: whether a reader may download an object.
     reader: std::sync::Mutex<Connection>,
-    revision: std::sync::atomic::AtomicU64,
-    /// How far `revision` may run before `revision_floor` is raised again (`REVISIONS_RESERVED`).
-    reserved: std::sync::atomic::AtomicU64,
     graph_loads: std::sync::atomic::AtomicU64,
+    /// Batches running (`batch`), while which `read_graph` reads nothing.
+    batching: std::sync::atomic::AtomicUsize,
     object_refs: std::sync::Mutex<ObjectRefs>,
-    pub(crate) passwords: passwords::Passwords,
+    pub(crate) remembered: remembered::Remembered,
     server: crate::organization::ServerKey,
     policies: std::sync::Mutex<HashMap<Uuid, crate::organization::HeldPolicies>>,
     limits: StorageLimits,
     /// Each payer whose `account_usage` row changes, for the connections following it.
     pub(crate) usage_changes: tokio::sync::broadcast::Sender<Uuid>,
+    /// Objects a job freed inside a transaction it does not end (`forget_blocks`, from inside
+    /// a grant), deleted from the object store once a job ends outside any transaction and the
+    /// database agrees nothing holds them (`remove_freed_later`).
+    freed_later: std::sync::Mutex<Vec<be_block_store::Hash>>,
 }
 
 /// Agents one account may have created and not yet removed, not counting blocks' agents.
@@ -234,75 +173,33 @@ impl ServerStore {
             rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY | rusqlite::OpenFlags::SQLITE_OPEN_NO_MUTEX,
         )?;
         reader.busy_timeout(be_block_sqlite_schema::BUSY_TIMEOUT)?;
-        let floor = reserve_revisions(&connection, None)?;
         Ok(Self(Arc::new(Shared {
             database: Arc::new(Mutex::new(connection)),
             session_changes: tokio::sync::watch::channel(0).0,
             objects,
             graphs: std::sync::Mutex::new(HashMap::new()),
             reader: std::sync::Mutex::new(reader),
-            revision: std::sync::atomic::AtomicU64::new(floor),
-            reserved: std::sync::atomic::AtomicU64::new(floor + REVISIONS_RESERVED),
             graph_loads: std::sync::atomic::AtomicU64::new(0),
+            batching: std::sync::atomic::AtomicUsize::new(0),
             object_refs: std::sync::Mutex::new(object_refs),
-            passwords: passwords::Passwords::default(),
+            remembered: remembered::Remembered::default(),
             server,
             policies: std::sync::Mutex::new(HashMap::new()),
             limits,
             usage_changes: tokio::sync::broadcast::channel(USAGE_CHANGES_QUEUED).0,
+            freed_later: std::sync::Mutex::new(Vec::new()),
         })))
     }
 
-    pub async fn create_local_profile(
-        &self,
-        display_name: &str,
-    ) -> Result<(Profile, String), ServerError> {
-        let display_name = crate::limits::name("a display name", display_name)?.to_owned();
-        let account = Uuid::new_v4();
-        self.with_database(move |_, database| {
-            let transaction = be_block_sqlite_schema::write_transaction(database)?;
-            transaction.execute(
-                "INSERT INTO accounts (id, email, display_name, password_hash, local_profile) VALUES (?1, ?2, ?3, '', 1)",
-                params![
-                    account.to_string(),
-                    format!("{account}@local.invalid"),
-                    display_name
-                ],
-            )?;
-            let personal = personal_organization(&transaction)?;
-            transaction.execute(
-                "INSERT INTO memberships (organization_id, account_id, role) VALUES (?1, ?2, 'editor')",
-                params![personal.to_string(), account.to_string()],
-            )?;
-            let token = issue_token(&transaction, account)?;
-            transaction.commit()?;
-            Ok((
-                Profile {
-                    account,
-                    email: String::new(),
-                    display_name: display_name.to_owned(),
-                },
-                token,
-            ))
-        })
-        .await
-    }
-
+    /// Makes an account for `email` directly, with its email identity and an app session,
+    /// as the operator's tools and tests do; people register through the portal.
     pub async fn register(
         &self,
         email: &str,
         display_name: &str,
-        password: &str,
     ) -> Result<(Profile, String), ServerError> {
         let email = normalize_email(email)?;
         let display_name = crate::limits::name("a display name", display_name)?.to_owned();
-        if password.len() < 8 {
-            return Err(ServerError::Refused(
-                ErrorCode::InvalidRequest,
-                "a password must be at least eight characters".into(),
-            ));
-        }
-        let hash = self.hash(password.to_owned(), "").await?;
         let account = Uuid::new_v4();
         self.with_database(move |_, database| {
             let existing: Option<String> = database
@@ -320,9 +217,10 @@ impl ServerStore {
             }
             let transaction = be_block_sqlite_schema::write_transaction(database)?;
             transaction.execute(
-                "INSERT INTO accounts (id, email, display_name, password_hash) VALUES (?1, ?2, ?3, ?4)",
-                params![account.to_string(), email, display_name, hash],
+                "INSERT INTO accounts (id, email, display_name) VALUES (?1, ?2, ?3)",
+                params![account.to_string(), email, display_name],
             )?;
+            codes::add_email_identity(&transaction, &account.to_string(), &email)?;
             let personal = personal_organization(&transaction)?;
             transaction.execute(
                 "INSERT OR IGNORE INTO memberships (organization_id, account_id, role)
@@ -343,99 +241,6 @@ impl ServerStore {
         .await
     }
 
-    pub async fn login_browser(
-        &self,
-        email: &str,
-        password: &str,
-        address: &str,
-    ) -> Result<(Profile, String), ServerError> {
-        let email = normalize_email(email)?;
-        if let Some(wait) = self
-            .passwords
-            .locked_out(&email, address, false, Instant::now())
-        {
-            return Err(ServerError::Refused(
-                ErrorCode::InvalidCredentials,
-                format!(
-                    "too many failed sign-ins; try again in {} seconds",
-                    wait.as_secs().max(1)
-                ),
-            ));
-        }
-        let row: Option<(String, String, String)> = {
-            let email = email.clone();
-            self.with_database(move |_, database| {
-                Ok(database
-                    .query_row(
-                        "SELECT id, display_name, password_hash FROM accounts WHERE email = ?1",
-                        [&email],
-                        |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
-                    )
-                    .optional()?)
-            })
-            .await?
-        };
-        let hash = row
-            .as_ref()
-            .map_or_else(|| dummy_hash().to_owned(), |(_, _, hash)| hash.clone());
-        let matches = self.verify(password.to_owned(), hash, address).await?;
-        let Some((id, display_name, previous_hash)) = row.filter(|_| matches) else {
-            self.passwords.failed(&email, address, Instant::now());
-            return Err(ServerError::Refused(
-                ErrorCode::InvalidCredentials,
-                "no account matches those credentials".into(),
-            ));
-        };
-        self.passwords.succeeded(&email, address, Instant::now());
-        let account = parse_uuid(&id)?;
-        self.with_database(move |_, database| {
-            let transaction = be_block_sqlite_schema::write_transaction(database)?;
-            let unchanged: bool = transaction.query_row(
-                "SELECT EXISTS(SELECT 1 FROM accounts WHERE id = ?1 AND password_hash = ?2)",
-                params![id, previous_hash],
-                |row| row.get(0),
-            )?;
-            if !unchanged {
-                return Err(ServerError::Refused(
-                    ErrorCode::InvalidCredentials,
-                    "Your credentials changed. Sign in again.".into(),
-                ));
-            }
-            let token = issue_token(&transaction, account)?;
-            transaction.execute(
-                "UPDATE sessions SET kind = 'browser', expires = ?2 WHERE token_hash = ?1",
-                params![hash_token(&token), portal::now() + 30 * 86400],
-            )?;
-            transaction.commit()?;
-            Ok((
-                Profile {
-                    account,
-                    email,
-                    display_name,
-                },
-                token,
-            ))
-        })
-        .await
-    }
-
-    async fn hash(&self, password: String, address: &str) -> Result<String, ServerError> {
-        self.passwords
-            .run(address, move || hash_password(&password))
-            .await?
-    }
-
-    async fn verify(
-        &self,
-        password: String,
-        hash: String,
-        address: &str,
-    ) -> Result<bool, ServerError> {
-        self.passwords
-            .run(address, move || verify_password(&password, &hash))
-            .await
-    }
-
     pub async fn checkpoint(&self) -> Result<(), ServerError> {
         self.with_database(|_, database| {
             database.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);")?;
@@ -444,24 +249,34 @@ impl ServerStore {
         .await
     }
 
+    /// The account an app token is for. A token expires `APP_SESSION_IDLE` after it was last
+    /// used, and each use renews it, writing at most once a day (guides/blocks/server.md, "Accounts").
     pub async fn resolve_token(&self, token: &str) -> Result<Profile, ServerError> {
         let token = token.to_owned();
         self.with_database(move |_, database| {
-            let row: Option<(String, String, String)> = database
+            let token_hash = hash_token(TokenKind::Session, &token);
+            let now = portal::now();
+            let row: Option<(String, String, String, i64)> = database
                 .query_row(
-                    "SELECT accounts.id, CASE WHEN accounts.local_profile THEN '' ELSE accounts.email END, accounts.display_name FROM sessions
+                    "SELECT accounts.id, COALESCE(accounts.email, ''), accounts.display_name, sessions.expires FROM sessions
                      JOIN accounts ON accounts.id = sessions.account_id
-                     WHERE sessions.token_hash = ?1 AND sessions.kind = 'app'",
-                    [hash_token(&token)],
-                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+                     WHERE sessions.token_hash = ?1 AND sessions.kind = 'app' AND sessions.expires > ?2",
+                    params![token_hash, now],
+                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
                 )
                 .optional()?;
-            let Some((id, email, display_name)) = row else {
+            let Some((id, email, display_name, expires)) = row else {
                 return Err(ServerError::Refused(
                     ErrorCode::InvalidCredentials,
                     "that session token is not valid".into(),
                 ));
             };
+            if expires < now + APP_SESSION_IDLE - 86400 {
+                database.execute(
+                    "UPDATE sessions SET expires = ?2 WHERE token_hash = ?1",
+                    params![token_hash, now + APP_SESSION_IDLE],
+                )?;
+            }
             Ok(Profile {
                 account: parse_uuid(&id)?,
                 email,
@@ -474,7 +289,7 @@ impl ServerStore {
     pub async fn profile(&self, account: Uuid) -> Result<Profile, ServerError> {
         self.with_database(move |_, database| {
             let (email, display_name): (String, String) = database.query_row(
-                "SELECT CASE WHEN local_profile THEN '' ELSE email END, display_name FROM accounts WHERE id = ?1",
+                "SELECT COALESCE(email, ''), display_name FROM accounts WHERE id = ?1",
                 [account.to_string()],
                 |row| Ok((row.get(0)?, row.get(1)?)),
             )?;
@@ -492,7 +307,7 @@ impl ServerStore {
         self.with_database(move |store, database| {
             database.execute(
                 "DELETE FROM sessions WHERE token_hash = ?1",
-                [hash_token(&token)],
+                [hash_token(TokenKind::Session, &token)],
             )?;
             store.sessions_changed();
             Ok(())
@@ -523,11 +338,13 @@ impl ServerStore {
             let mut organizations = Vec::new();
             for row in rows {
                 let (id, name, kind, role) = row?;
+                let id = parse_uuid(&id)?;
                 organizations.push(Organization {
-                    id: parse_uuid(&id)?,
+                    id,
                     name,
                     kind: decode_kind(&kind)?,
                     role: decode_role(&role)?,
+                    escrows: crate::keys::escrow_chain(database, id)?,
                 });
             }
             Ok(organizations)
@@ -538,10 +355,12 @@ impl ServerStore {
     pub async fn create_organization(
         &self,
         account: Uuid,
+        id: Uuid,
         name: &str,
+        root: Vec<u8>,
+        pinned: Vec<u8>,
     ) -> Result<Organization, ServerError> {
         let name = crate::limits::name("an organization name", name)?.to_owned();
-        let id = Uuid::new_v4();
         self.with_database(move |_, database| {
             let created: i64 = database
                 .prepare_cached("SELECT COUNT(*) FROM organizations WHERE owner_id = ?1")?
@@ -552,20 +371,65 @@ impl ServerStore {
                     crate::limits::MAX_ORGANIZATIONS_PER_ACCOUNT,
                 ));
             }
-            database.execute(
+            let transaction = be_block_sqlite_schema::write_transaction(database)?;
+            let exists: bool = transaction
+                .prepare_cached("SELECT EXISTS (SELECT 1 FROM organizations WHERE id = ?1)")?
+                .query_row([id.to_string()], |row| row.get(0))?;
+            if exists {
+                return Err(ServerError::Refused(
+                    ErrorCode::InvalidRequest,
+                    "that organization id is taken".into(),
+                ));
+            }
+            transaction.execute(
                 "INSERT INTO organizations (id, name, owner_id) VALUES (?1, ?2, ?3)",
                 params![id.to_string(), name, account.to_string()],
             )?;
-            database.execute(
+            transaction.execute(
                 "INSERT INTO memberships (organization_id, account_id, role) VALUES (?1, ?2, 'administrator')",
                 params![id.to_string(), account.to_string()],
             )?;
+            crate::access::store_organization_root(&transaction, account, id, &root)?;
+            crate::keys::pin_escrow(&transaction, account, account, id, &pinned)?;
+            transaction.commit()?;
             Ok(Organization {
                 id,
                 name,
                 kind: OrganizationKind::Company,
                 role: OrganizationRole::Administrator,
+                escrows: Vec::new(),
             })
+        })
+        .await
+    }
+
+    /// The organization's access log, root first (`query.log`): whole to an
+    /// administrator or a member with Edit or above on any of its blocks, else a proof path of
+    /// the caller's own records and its sealers' (`access::served_log`), only after `held` when
+    /// served whole and it holds that entry.
+    pub async fn organization_log(
+        &self,
+        identity: Identity,
+        held: Option<be_block_protocol::HeldEntry>,
+    ) -> Result<be_block_protocol::AccessLogPage, ServerError> {
+        self.with_graph(identity.organization, move |_, graph, database| {
+            if crate::access::organization_log(database, identity.organization)?.is_empty() {
+                return Ok(be_block_protocol::AccessLogPage {
+                    from: 0,
+                    entries: Vec::new(),
+                });
+            }
+            let seen = crate::blocks::visibility(identity);
+            let reader = (!seen.served_whole_organization(graph)).then_some(identity.account);
+            crate::access::served_log(
+                database,
+                be_block_keys::LogKind::Organization,
+                identity.organization,
+                identity.organization,
+                reader,
+                Vec::new(),
+                held,
+            )
         })
         .await
     }
@@ -596,28 +460,38 @@ impl ServerStore {
         &self,
         caller: Uuid,
         organization: Uuid,
+        account: Uuid,
         name: &str,
         recovery: [u8; 32],
         signing: [u8; 32],
         contact: Vec<u8>,
+        record: Vec<u8>,
         escrow: Vec<u8>,
-        bound_to: Option<Uuid>,
+        bound: Option<be_block_protocol::BoundAgent>,
+        member: Option<Vec<u8>>,
     ) -> Result<(Agent, String, std::collections::BTreeSet<Uuid>), ServerError> {
+        let bound_to = bound.as_ref().map(|bound| bound.block);
         let role = self.membership(caller, organization).await?;
         let name = crate::limits::name("an agent's name", name)?.to_owned();
-        crate::limits::at_most(
-            "a contact card",
-            contact.len(),
-            crate::limits::MAX_SEALED_BYTES,
-        )?;
         crate::limits::at_most(
             "a pinned escrow",
             escrow.len(),
             crate::limits::MAX_SEALED_BYTES,
         )?;
-        let account = Uuid::new_v4();
-        let email = format!("agent-{}@agents.invalid", account.simple());
-        self.with_graph(organization, move |_, graph, database| {
+        // An agent's id is its maker's and its keys' (`be_block_keys::agent_account`), so no
+        // record signing it in can claim a person's.
+        let identity = be_block_keys::PublicIdentity {
+            public: be_block_keys::RecoveryPublic(recovery),
+            signing: be_block_keys::SigningPublic(signing),
+        };
+        if account.into_bytes() != be_block_keys::agent_account(caller.into_bytes(), &identity) {
+            return Err(ServerError::Refused(
+                ErrorCode::InvalidRequest,
+                "an agent's account id is derived from its maker and its keys".into(),
+            ));
+        }
+        let email = be_block_protocol::agent_email(account);
+        self.with_graph(organization, move |store, graph, database| {
             let mut before = std::collections::BTreeSet::new();
             if let Some(block) = bound_to {
                 let seen = crate::blocks::visibility(Identity {
@@ -680,8 +554,22 @@ impl ServerStore {
                     ),
                 ));
             }
+            let taken = transaction
+                .query_row(
+                    "SELECT 1 FROM accounts WHERE id = ?1",
+                    [account.to_string()],
+                    |_| Ok(()),
+                )
+                .optional()?
+                .is_some();
+            if taken {
+                return Err(ServerError::Refused(
+                    ErrorCode::InvalidRequest,
+                    "an agent is made with an account id no account has".into(),
+                ));
+            }
             transaction.execute(
-                "INSERT INTO accounts (id, email, display_name, password_hash) VALUES (?1, ?2, ?3, '!')",
+                "INSERT INTO accounts (id, email, display_name) VALUES (?1, ?2, ?3)",
                 params![account.to_string(), email, name],
             )?;
             transaction.execute(
@@ -706,17 +594,53 @@ impl ServerStore {
                 "INSERT INTO recovery_keys (account_id, public, signing) VALUES (?1, ?2, ?3)",
                 params![account.to_string(), recovery.to_vec(), signing.to_vec()],
             )?;
-            crate::contacts::befriend(&transaction, caller, &[], account, &contact)?;
-            crate::keys::pin_escrow(&transaction, account, organization, &escrow)?;
-            if let Some(block) = bound_to {
-                crate::blocks::revoke_or_grant(
+            crate::contacts::befriend(&transaction, caller, &record, account, &contact)?;
+            crate::keys::pin_escrow(&transaction, account, caller, organization, &escrow)?;
+            // Its access comes only from the grant its creator signed.
+            if let Some(bound) = &bound {
+                crate::access::append_grant(
+                    &transaction,
+                    organization,
+                    bound.block,
+                    caller,
+                    account,
+                    Access::Edit,
+                    &bound.signed,
+                )?;
+                crate::blocks::revoke_or_grant(store,
                     graph,
                     &transaction,
                     organization,
-                    block,
+                    bound.block,
                     account,
                     Access::Edit,
                 )?;
+            }
+            // In an organization with a log, its maker signs it in there.
+            let logged = !crate::access::organization_log(&transaction, organization)?.is_empty();
+            match (logged, &member) {
+                (true, Some(member)) => crate::access::append_member(
+                    &transaction,
+                    organization,
+                    caller,
+                    account,
+                    true,
+                    true,
+                    member,
+                )?,
+                (true, None) => {
+                    return Err(ServerError::Refused(
+                        ErrorCode::InvalidRequest,
+                        "an agent is signed in by the member record its maker signs".into(),
+                    ));
+                }
+                (false, Some(_)) => {
+                    return Err(ServerError::Refused(
+                        ErrorCode::InvalidRequest,
+                        "an organization with no log takes no member record".into(),
+                    ));
+                }
+                (false, None) => {}
             }
             let token = issue_token(&transaction, account)?;
             transaction.commit()?;
@@ -808,7 +732,7 @@ impl ServerStore {
         self.with_database(move |_, database| {
             let contacts = crate::contacts::contacts_of(&database, identity.account)?;
             let mut statement = database.prepare(
-                "SELECT accounts.id, CASE WHEN accounts.local_profile THEN '' ELSE accounts.email END, accounts.display_name, memberships.role,
+                "SELECT accounts.id, COALESCE(accounts.email, ''), accounts.display_name, memberships.role,
                         agents.created_by, agents.bound_to
                  FROM memberships
                  JOIN accounts ON accounts.id = memberships.account_id
@@ -858,6 +782,7 @@ impl ServerStore {
         identity: Identity,
         account: Uuid,
         role: OrganizationRole,
+        signed: Option<Vec<u8>>,
     ) -> Result<(), ServerError> {
         require_administrator(identity)?;
         let organization = identity.organization;
@@ -876,7 +801,35 @@ impl ServerStore {
             if current == OrganizationRole::Administrator {
                 refuse_last_administrator(database, organization)?;
             }
+            let administrator = role == OrganizationRole::Administrator;
+            let changes_administrators =
+                administrator != (current == OrganizationRole::Administrator);
+            let logged = !crate::access::organization_log(database, organization)?.is_empty();
             let transaction = be_block_sqlite_schema::write_transaction(database)?;
+            match (changes_administrators && logged, signed) {
+                (true, Some(signed)) => crate::access::append_administrator(
+                    &transaction,
+                    organization,
+                    identity.account,
+                    account,
+                    administrator,
+                    &signed,
+                )?,
+                (true, None) => {
+                    return Err(ServerError::Refused(
+                        ErrorCode::InvalidRequest,
+                        "an administrator is made or unmade by the record an administrator signed"
+                            .into(),
+                    ));
+                }
+                (false, Some(_)) => {
+                    return Err(ServerError::Refused(
+                        ErrorCode::InvalidRequest,
+                        "only making or unmaking an administrator takes a record".into(),
+                    ));
+                }
+                (false, None) => {}
+            }
             transaction.execute(
                 "UPDATE memberships SET role = ?3 WHERE organization_id = ?1 AND account_id = ?2",
                 params![
@@ -887,8 +840,9 @@ impl ServerStore {
             )?;
             if current == OrganizationRole::Administrator {
                 crate::keys::rotate_escrow_later(&transaction, organization, account)?;
+                crate::contacts::revoke_invitations_of(&transaction, account, organization)?;
             }
-            let forgotten = forget_orphaned_block_agents(graph, &transaction, organization)?;
+            let forgotten = forget_orphaned_block_agents(store, graph, &transaction, organization)?;
             transaction.commit()?;
             if !forgotten.is_empty() {
                 store.sessions_changed();
@@ -898,58 +852,196 @@ impl ServerStore {
         .await
     }
 
-    /// Removes a member of the organization open: any, by an administrator; an agent, by the
-    /// account that made it (a block's agent, while it manages the block). An agent removed is
-    /// deleted, and its connections close.
-    pub async fn remove_member(
+    /// Appends `signed`, a member record of the organization (checked as devices check it): an
+    /// agent signed in by the account that made it, or one the server removed on its own
+    /// (collected with its block, or deleted on taking an account back) signed out by its maker;
+    /// or a person removed by an administrator, with `revocations`, the signed revocations of
+    /// each grant of theirs a block's log names. Answers what a removal revoked, none for an
+    /// agent's record. A person is signed in only by accepting an invitation, and an agent still
+    /// a member is removed by `delete_agent`.
+    pub async fn append_member(
         &self,
         identity: Identity,
-        account: Uuid,
-    ) -> Result<Vec<crate::contacts::Granted>, ServerError> {
+        signed: Vec<u8>,
+        revocations: Vec<Vec<u8>>,
+    ) -> Result<Option<Vec<crate::contacts::Granted>>, ServerError> {
         let organization = identity.organization;
         self.with_graph(organization, move |store, graph, database| {
-            if !identity.is_administrator() {
-                require_agent_of(graph, database, identity.account, organization, account)?;
-            }
-            let role =
-                crate::contacts::role_in(database, account, organization)?.ok_or_else(|| {
-                    ServerError::Refused(
-                        ErrorCode::MemberNotFound,
-                        "that account is not a member of this organization".into(),
-                    )
-                })?;
-            if role == OrganizationRole::Administrator {
-                refuse_last_administrator(database, organization)?;
-            }
-            let agent = is_agent(database, account)?;
-            let transaction = be_block_sqlite_schema::write_transaction(database)?;
-            let revoked = match agent {
-                true => delete_agent(graph, &transaction, organization, account)?,
-                false => remove_from(graph, &transaction, organization, account)?,
+            let entry = be_block_keys::Entry::decode(&signed).map_err(|_| {
+                ServerError::Refused(ErrorCode::InvalidRequest, "the record does not read".into())
+            })?;
+            let be_block_keys::Record::Member(named) = entry.record else {
+                return Err(ServerError::Refused(
+                    ErrorCode::InvalidRequest,
+                    "a member is signed in or out by a member record".into(),
+                ));
             };
-            let forgotten = forget_orphaned_block_agents(graph, &transaction, organization)?;
-            transaction.commit()?;
-            if agent || !forgotten.is_empty() {
-                store.sessions_changed();
+            let account = Uuid::from_bytes(named.account);
+            if !named.agent {
+                if named.member {
+                    return Err(ServerError::Refused(
+                        ErrorCode::InvalidRequest,
+                        "a person is signed in by accepting an invitation".into(),
+                    ));
+                }
+                return remove_account(
+                    store,
+                    graph,
+                    database,
+                    identity,
+                    account,
+                    Some(signed),
+                    revocations,
+                    false,
+                )
+                .map(Some);
             }
-            Ok(revoked)
+            if !revocations.is_empty() {
+                return Err(ServerError::Refused(
+                    ErrorCode::InvalidRequest,
+                    "only a person's removal carries revocations".into(),
+                ));
+            }
+            let member = crate::contacts::role_in(database, account, organization)?.is_some();
+            // An agent is signed in; one the server removed on its own is signed out, by its
+            // maker, and one still a member is deleted (`delete-agent`).
+            if named.member != member {
+                return Err(ServerError::Refused(
+                    ErrorCode::InvalidRequest,
+                    "an agent is signed in, and one no longer a member signed out: delete-agent removes one".into(),
+                ));
+            }
+            if !named.member {
+                let transaction = be_block_sqlite_schema::write_transaction(database)?;
+                crate::access::append_member(
+                    &transaction,
+                    organization,
+                    identity.account,
+                    account,
+                    false,
+                    true,
+                    &signed,
+                )?;
+                transaction.commit()?;
+                return Ok(None);
+            }
+            let made_by_caller = database
+                .query_row(
+                    "SELECT created_by FROM agents WHERE account_id = ?1",
+                    [account.to_string()],
+                    |row| row.get::<_, String>(0),
+                )
+                .optional()?
+                .map(|maker| maker == identity.account.to_string());
+            if made_by_caller != Some(true) {
+                return Err(ServerError::Refused(
+                    ErrorCode::PermissionDenied,
+                    "an agent is signed in by its maker".into(),
+                ));
+            }
+            let transaction = be_block_sqlite_schema::write_transaction(database)?;
+            crate::access::append_member(
+                &transaction,
+                organization,
+                identity.account,
+                account,
+                true,
+                true,
+                &signed,
+            )?;
+            transaction.commit()?;
+            Ok(None)
         })
         .await
     }
 
-    pub async fn opened(
+    /// The grants of `account` in `organization`, named in their blocks' logs, that removing it
+    /// revokes (`query.revocations`).
+    pub async fn member_revocations(
         &self,
-        account: Uuid,
         organization: Uuid,
-    ) -> Result<(OrganizationKind, Vec<be_block_protocol::EscrowKey>, Vec<u8>), ServerError> {
-        self.with_database(move |_, database| {
-            Ok((
-                crate::keys::organization_kind(&database, organization)?,
-                crate::keys::escrow_chain(&database, organization)?,
-                crate::keys::pinned_escrow(&database, account, organization)?,
-            ))
+        account: Uuid,
+    ) -> Result<Vec<(Uuid, Uuid)>, ServerError> {
+        self.with_graph(organization, move |_, graph, database| {
+            let pairs = member_grants(graph, account);
+            crate::access::named_pairs(database, organization, &pairs)
         })
         .await
+    }
+
+    /// Deletes an agent of the organization: by an administrator, or by the account that made it
+    /// (a block's agent, while it manages the block). Its connections close.
+    pub async fn delete_agent(
+        &self,
+        identity: Identity,
+        account: Uuid,
+        signed: Option<Vec<u8>>,
+        revocations: Vec<Vec<u8>>,
+    ) -> Result<Vec<crate::contacts::Granted>, ServerError> {
+        self.with_graph(identity.organization, move |store, graph, database| {
+            remove_account(
+                store,
+                graph,
+                database,
+                identity,
+                account,
+                signed,
+                revocations,
+                true,
+            )
+        })
+        .await
+    }
+
+    /// Deletes every agent `creator` made, in every organization, as taking an account back
+    /// does (guides/blocks/server.md, "Accounts"): any of them may be an intruder's. Answers their names,
+    /// for the notice. Grants signed to them (guides/blocks/keys.md, "Access logs") are left for a
+    /// device of someone who manages the block to revoke, as for any grantee whose account is gone.
+    pub(crate) async fn delete_agents_created_by(
+        &self,
+        creator: Uuid,
+    ) -> Result<Vec<String>, ServerError> {
+        let made: Vec<(Uuid, Uuid, String)> = self
+            .with_database(move |_, database| {
+                let mut statement = database.prepare(
+                    "SELECT agents.account_id, agents.organization_id, accounts.display_name
+                     FROM agents JOIN accounts ON accounts.id = agents.account_id
+                     WHERE agents.created_by = ?1 ORDER BY accounts.display_name, agents.account_id",
+                )?;
+                let rows = statement.query_map([creator.to_string()], |row| {
+                    Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?))
+                })?;
+                let mut made = Vec::new();
+                for row in rows {
+                    let (agent, organization, name) = row?;
+                    made.push((parse_uuid(&agent)?, parse_uuid(&organization)?, name));
+                }
+                Ok(made)
+            })
+            .await?;
+        let organizations: std::collections::BTreeSet<Uuid> = made
+            .iter()
+            .map(|(_, organization, _)| *organization)
+            .collect();
+        for organization in organizations {
+            let agents: Vec<Uuid> = made
+                .iter()
+                .filter(|(_, of, _)| *of == organization)
+                .map(|(agent, _, _)| *agent)
+                .collect();
+            self.with_graph(organization, move |store, graph, database| {
+                let transaction = be_block_sqlite_schema::write_transaction(database)?;
+                for agent in agents {
+                    delete_agent(store, graph, &transaction, organization, agent)?;
+                }
+                forget_orphaned_block_agents(store, graph, &transaction, organization)?;
+                transaction.commit()?;
+                store.sessions_changed();
+                Ok(())
+            })
+            .await?;
+        }
+        Ok(made.into_iter().map(|(_, _, name)| name).collect())
     }
 
     pub async fn issue_session(&self, account: Uuid) -> Result<String, ServerError> {
@@ -1033,6 +1125,151 @@ impl ServerStore {
     }
 }
 
+/// The database a `ServerStore::batch` holds, lent to each of its jobs in turn.
+/// The database a `ServerStore::batch` holds, lent to each of its jobs in turn: a job waits
+/// for it, and gives it back however it ends, even when the call that started it was dropped
+/// or it panicked, so the batch can always end its transaction.
+struct Lent {
+    database: std::sync::Mutex<Option<tokio::sync::OwnedMutexGuard<Connection>>>,
+    back: std::sync::Condvar,
+}
+
+type Batch = Arc<Lent>;
+
+impl Lent {
+    fn take(&self) -> tokio::sync::OwnedMutexGuard<Connection> {
+        let mut held = self
+            .database
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        loop {
+            if let Some(database) = held.take() {
+                return database;
+            }
+            held = self
+                .back
+                .wait(held)
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+        }
+    }
+
+    fn give(&self, database: tokio::sync::OwnedMutexGuard<Connection>) {
+        *self
+            .database
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(database);
+        self.back.notify_one();
+    }
+}
+
+tokio::task_local! {
+    static BATCH: Batch;
+}
+
+/// Runs `job` with the database `held` by the batch this task is in, on the blocking pool. One
+/// job runs at a time (a second waits for the first to give the database back); a job that
+/// panics fails, with the database given back.
+async fn in_batch<R: Send + 'static>(
+    held: &Batch,
+    job: impl FnOnce(&Connection) -> Result<R, ServerError> + Send + 'static,
+) -> Result<R, ServerError> {
+    let held = Arc::clone(held);
+    blocking(move || {
+        let database = held.take();
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| job(&database)));
+        held.give(database);
+        result.unwrap_or_else(|_| {
+            Err(ServerError::Io(std::io::Error::other(
+                "a job of a batch panicked",
+            )))
+        })
+    })
+    .await
+}
+
+/// A batch's end, run when it is dropped: a batch the caller let go of before it ended rolls
+/// back, on the blocking pool once its running job gives the database back.
+struct Ending {
+    store: ServerStore,
+    held: Option<Batch>,
+    /// Whether its transaction began: one that never did has nothing to roll back.
+    begun: bool,
+}
+
+/// Lowers the count of batches running however their end goes.
+struct Unbatching<'a>(&'a ServerStore);
+
+impl Drop for Unbatching<'_> {
+    fn drop(&mut self) {
+        self.0
+            .batching
+            .fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
+    }
+}
+
+impl Ending {
+    /// Commits or rolls back `held`'s transaction, and forgets what a rollback undid.
+    fn end(store: &ServerStore, held: &Lent, kept: bool) -> Result<(), ServerError> {
+        let _unbatching = Unbatching(store);
+        let database = held.take();
+        let ended = match (kept, database.is_autocommit()) {
+            // Nothing began (a BEGIN that failed): nothing to undo.
+            (false, true) => Ok(()),
+            (true, _) => database.execute_batch("COMMIT"),
+            (false, false) => database.execute_batch("ROLLBACK"),
+        };
+        if !kept || ended.is_err() {
+            if ended.is_err() && !database.is_autocommit() {
+                let _ = database.execute_batch("ROLLBACK");
+            }
+            store.forget_cached();
+            match load_object_refs(&database) {
+                Ok(refs) => *store.object_refs() = refs,
+                Err(error) => tracing::error!(%error, "reading object counts again failed"),
+            }
+        }
+        drop(database);
+        Ok(ended?)
+    }
+}
+
+impl Drop for Ending {
+    fn drop(&mut self) {
+        let Some(held) = self.held.take() else {
+            return;
+        };
+        if !self.begun {
+            tracing::debug!("a batch whose transaction did not begin ends");
+            drop(Unbatching(&self.store));
+            return;
+        }
+        tracing::warn!("a batch was let go of before it ended: rolling it back");
+        // With no runtime (the server shutting down), SQLite rolls back as the connection
+        // closes.
+        let Ok(runtime) = tokio::runtime::Handle::try_current() else {
+            drop(Unbatching(&self.store));
+            return;
+        };
+        let store = self.store.clone();
+        runtime.spawn_blocking(move || {
+            if let Err(error) = Ending::end(&store, &held, false) {
+                tracing::error!(%error, "rolling back a batch let go of failed");
+            }
+        });
+    }
+}
+
+/// A transaction left open on the writer outside a batch is a bug that would make every later
+/// write a savepoint of it, kept by nothing: it is rolled back, and said.
+fn outside_any_transaction(store: &ServerStore, database: &Connection) {
+    if database.is_autocommit() {
+        return;
+    }
+    tracing::error!("a transaction was left open on the database: rolling it back");
+    let _ = database.execute_batch("ROLLBACK");
+    store.forget_cached();
+}
+
 /// Runs file work on tokio's blocking pool.
 pub(crate) async fn blocking<R: Send + 'static>(
     work: impl FnOnce() -> Result<R, ServerError> + Send + 'static,
@@ -1107,44 +1344,67 @@ pub fn normalize_email(email: &str) -> Result<String, ServerError> {
     Ok(email)
 }
 
-fn hash_password(password: &str) -> Result<String, ServerError> {
-    let salt = SaltString::generate(&mut OsRng);
-    Argon2::default()
-        .hash_password(password.as_bytes(), &salt)
-        .map(|hash| hash.to_string())
-        .map_err(|_| ServerError::Corrupt)
-}
-
-fn dummy_hash() -> &'static str {
-    static DUMMY: std::sync::OnceLock<String> = std::sync::OnceLock::new();
-    DUMMY.get_or_init(|| {
-        hash_password(&Uuid::new_v4().to_string()).expect("hashing a random password succeeds")
-    })
-}
-
-fn verify_password(password: &str, hash: &str) -> bool {
-    PasswordHash::new(hash).is_ok_and(|parsed| {
-        Argon2::default()
-            .verify_password(password.as_bytes(), &parsed)
-            .is_ok()
-    })
-}
+/// How long an app token lasts unused: a device or agent left alone this long signs in again.
+pub const APP_SESSION_IDLE: i64 = 90 * 86400;
 
 fn issue_token(database: &Connection, account: Uuid) -> Result<String, ServerError> {
-    let mut bytes = [0u8; 32];
-    rand::rngs::OsRng
-        .try_fill_bytes(&mut bytes)
-        .expect("the operating system has entropy");
-    let token = Hash::from_bytes(bytes).to_hex();
+    let token = crate::new_secret();
     database.execute(
-        "INSERT INTO sessions (token_hash, account_id, kind, public_id, created) VALUES (?1, ?2, 'app', ?3, ?4)",
-        params![hash_token(&token), account.to_string(), Uuid::new_v4().to_string(), portal::now()],
+        "INSERT INTO sessions (token_hash, account_id, kind, public_id, created, expires) VALUES (?1, ?2, 'app', ?3, ?4, ?5)",
+        params![hash_token(TokenKind::Session, &token), account.to_string(), Uuid::new_v4().to_string(), portal::now(), portal::now() + APP_SESSION_IDLE],
     )?;
     Ok(token)
 }
 
-fn hash_token(token: &str) -> String {
+/// What a secret the server keeps only the hash of is for. Each kind hashes under its own
+/// domain, so a token of one kind never matches a row of another.
+#[derive(Clone, Copy)]
+pub(crate) enum TokenKind {
+    /// A browser's or an app's session (`sessions`).
+    Session,
+    /// A browser's `be3-attempt` secret.
+    Attempt,
+    /// An attempt's name in a mailed code's link ([`codes::public_attempt`]).
+    PublicAttempt,
+    /// A mailed code, with the attempt it belongs to.
+    Code,
+    /// A provider sign-in's `state` (`oidc_states`).
+    ProviderState,
+    /// The settings page's check that a provider link or proof began there
+    /// ([`providers::start_check`]).
+    ProviderStart,
+    /// An email change's link (`account_mail`).
+    MailLink,
+    /// An operator's login link (`login_links`).
+    LoginLink,
+    /// An invite code (`invite_codes`).
+    Invite,
+    /// A device sign-in's poll secret, held in memory (`browser_auth::Sessions::poll`).
+    Poll,
+}
+
+impl TokenKind {
+    fn domain(self) -> &'static str {
+        match self {
+            Self::Session => "be3 session",
+            Self::Attempt => "be3 attempt",
+            Self::PublicAttempt => "be3 public attempt",
+            Self::Code => "be3 code",
+            Self::ProviderState => "be3 provider state",
+            Self::ProviderStart => "be3 provider start",
+            Self::MailLink => "be3 mail link",
+            Self::LoginLink => "be3 login link",
+            Self::Invite => "be3 invite",
+            Self::Poll => "be3 poll",
+        }
+    }
+}
+
+/// The hash of a `kind` of secret, which is all the server keeps of it.
+pub(crate) fn hash_token(kind: TokenKind, token: &str) -> String {
     let mut hasher = Sha256::new();
+    hasher.update(kind.domain().as_bytes());
+    hasher.update([0]);
     hasher.update(token.as_bytes());
     Hash::from_bytes(hasher.finalize().into()).to_hex()
 }
@@ -1184,6 +1444,7 @@ pub fn decode_role(value: &str) -> Result<OrganizationRole, ServerError> {
     match value {
         "administrator" => Ok(OrganizationRole::Administrator),
         "editor" => Ok(OrganizationRole::Editor),
+        "guest" => Ok(OrganizationRole::Guest),
         _ => Err(ServerError::Corrupt),
     }
 }
@@ -1192,6 +1453,7 @@ pub fn encode_role(role: OrganizationRole) -> &'static str {
     match role {
         OrganizationRole::Administrator => "administrator",
         OrganizationRole::Editor => "editor",
+        OrganizationRole::Guest => "guest",
     }
 }
 
@@ -1199,6 +1461,7 @@ pub fn encode_access(access: Access) -> Option<&'static str> {
     match access {
         Access::None => None,
         Access::KnowExists => Some("know_exists"),
+        Access::Join => Some("join"),
         Access::View => Some("view"),
         Access::Edit => Some("edit"),
         Access::Manage => Some("manage"),
@@ -1208,6 +1471,7 @@ pub fn encode_access(access: Access) -> Option<&'static str> {
 pub fn decode_access(value: &str) -> Result<Access, ServerError> {
     match value {
         "know_exists" => Ok(Access::KnowExists),
+        "join" => Ok(Access::Join),
         "view" => Ok(Access::View),
         "edit" => Ok(Access::Edit),
         "manage" => Ok(Access::Manage),
@@ -1259,17 +1523,9 @@ struct Cached {
     valid: bool,
 }
 
-pub struct Collected {
-    pub blocks: Vec<Uuid>,
-    pub objects: usize,
-    pub revision: u64,
-}
-
 impl ServerStore {
-    /// Advances the revision counter on every call, under the lock every graph read and change
-    /// takes, so a larger revision is always a later view. Clients order out-of-order replies
-    /// and announcements by it, and a listing kept offline by the revision it was read at. It
-    /// only grows, across restarts too: `revision_floor` holds where the next start begins.
+    /// Runs `action` on the organization's cached graph, under the lock every graph read and
+    /// change takes.
     pub(crate) async fn with_graph<R: Send + 'static>(
         &self,
         organization: Uuid,
@@ -1286,14 +1542,92 @@ impl ServerStore {
     }
 
     /// Runs `job` with the database, alone, on tokio's blocking pool. A job runs to its end even
-    /// when the call that started it is dropped, so a transaction is never cut short.
+    /// when the call that started it is dropped, so a transaction is never cut short. Inside
+    /// `batch`, it runs in the batch's transaction.
     pub(crate) async fn with_database<R: Send + 'static>(
         &self,
         job: impl FnOnce(&ServerStore, &Connection) -> Result<R, ServerError> + Send + 'static,
     ) -> Result<R, ServerError> {
-        let database = Arc::clone(&self.database).lock_owned().await;
         let store = self.clone();
-        blocking(move || job(&store, &database)).await
+        if let Ok(held) = BATCH.try_with(Arc::clone) {
+            return in_batch(&held, move |database| job(&store, database)).await;
+        }
+        let database = Arc::clone(&self.database).lock_owned().await;
+        blocking(move || {
+            outside_any_transaction(&store, &database);
+            let done = job(&store, &database);
+            store.remove_freed_later(&database);
+            done
+        })
+        .await
+    }
+
+    /// Runs `work`, every store job it makes, in one transaction: kept if it succeeds, and
+    /// rolled back whole if it fails or is let go of before it ends (`Ending`), with every graph
+    /// and policy cached since read again from the database. The database is held from start to
+    /// end, so `work` makes nothing that waits on a job another task runs, and meanwhile nothing
+    /// reads the cached graphs without it (`read_graph`), which may hold what is not kept.
+    pub(crate) async fn batch<R, E: From<ServerError>>(
+        &self,
+        work: impl Future<Output = Result<R, E>>,
+    ) -> Result<R, E> {
+        let database = Arc::clone(&self.database).lock_owned().await;
+        self.batching
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        let held: Batch = Arc::new(Lent {
+            database: std::sync::Mutex::new(Some(database)),
+            back: std::sync::Condvar::new(),
+        });
+        let mut ending = Ending {
+            store: self.clone(),
+            held: Some(Arc::clone(&held)),
+            begun: false,
+        };
+        // Begun from here as far as its end knows: a caller let go of while BEGIN runs still
+        // rolls back what began (`Ending::end` takes a rollback with nothing open as nothing to
+        // undo).
+        ending.begun = true;
+        let store = self.clone();
+        let lent = Arc::clone(&held);
+        blocking(move || {
+            let database = lent.take();
+            outside_any_transaction(&store, &database);
+            let begun = database.execute_batch("BEGIN IMMEDIATE");
+            lent.give(database);
+            Ok(begun?)
+        })
+        .await
+        .inspect_err(|_| ending.begun = false)
+        .map_err(E::from)?;
+        let result = BATCH.scope(Arc::clone(&held), work).await;
+        let held = ending.held.take().expect("a batch ends once");
+        let kept = result.is_ok();
+        let store = self.clone();
+        blocking(move || Ending::end(&store, &held, kept))
+            .await
+            .map_err(E::from)?;
+        result
+    }
+
+    /// Lets go of every cached graph and policy, as after a rollback that undid what jobs
+    /// changed in them.
+    fn forget_cached(&self) {
+        let graphs = std::mem::take(
+            &mut *self
+                .graphs
+                .lock()
+                .expect("the graph cache is never poisoned"),
+        );
+        for cached in graphs.into_values() {
+            cached
+                .write()
+                .expect("a cached graph is never poisoned")
+                .valid = false;
+        }
+        self.policies
+            .lock()
+            .expect("the policy cache is never poisoned")
+            .clear();
     }
 
     fn in_graph<R>(
@@ -1324,16 +1658,6 @@ impl ServerStore {
         };
         let mut held = cached.write().expect("a cached graph is never poisoned");
         let graph = &mut held.graph;
-        let revision = self
-            .revision
-            .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
-            + 1;
-        if revision >= self.reserved.load(std::sync::atomic::Ordering::Relaxed) {
-            let reserved = reserve_revisions(database, Some(revision))? + REVISIONS_RESERVED;
-            self.reserved
-                .fetch_max(reserved, std::sync::atomic::Ordering::Relaxed);
-        }
-        graph.advance_to(revision);
         let changes = (graph.changes(), total_changes(database)?);
         let outcome = action(graph);
         // A refusal that changed nothing leaves the cache as it was, so a stream of refused
@@ -1366,6 +1690,11 @@ impl ServerStore {
         organization: Uuid,
         read: impl FnOnce(&BlockGraph) -> R,
     ) -> Option<R> {
+        // A batch's graph changes are not kept until it commits: read through it instead, so
+        // while any batch runs a download's check waits on the database lock.
+        if self.batching.load(std::sync::atomic::Ordering::SeqCst) > 0 {
+            return None;
+        }
         let cached = self
             .graphs
             .lock()
@@ -1376,12 +1705,16 @@ impl ServerStore {
         held.valid.then(|| read(&held.graph))
     }
 
-    /// Runs `read` with the read-only connection on tokio's blocking pool.
+    /// Runs `read` with the read-only connection on tokio's blocking pool; inside `batch`, in
+    /// the batch's transaction, so it reads what the batch wrote.
     pub(crate) async fn with_reader<R: Send + 'static>(
         &self,
         read: impl FnOnce(&ServerStore, &Connection) -> Result<R, ServerError> + Send + 'static,
     ) -> Result<R, ServerError> {
         let store = self.clone();
+        if let Ok(held) = BATCH.try_with(Arc::clone) {
+            return in_batch(&held, move |database| read(&store, database)).await;
+        }
         blocking(move || {
             let reader = store.reader.lock().expect("the reader is never poisoned");
             read(&store, &reader)
@@ -1411,6 +1744,47 @@ impl ServerStore {
             }
         }
         result
+    }
+
+    /// Frees `hashes` from the object store once what freed them is kept (`freed_later`).
+    pub(crate) fn free_later(&self, hashes: Vec<be_block_store::Hash>) {
+        self.freed_later
+            .lock()
+            .expect("the freed objects are never poisoned")
+            .extend(hashes);
+    }
+
+    /// Deletes the objects `free_later` queued, outside any transaction, each only while the
+    /// database still says nothing holds it: a job rolled back after queueing one keeps it.
+    fn remove_freed_later(&self, database: &Connection) {
+        if !database.is_autocommit() {
+            return;
+        }
+        let queued = std::mem::take(
+            &mut *self
+                .freed_later
+                .lock()
+                .expect("the freed objects are never poisoned"),
+        );
+        if queued.is_empty() {
+            return;
+        }
+        let unheld: Vec<be_block_store::Hash> = queued
+            .into_iter()
+            .filter(|hash| {
+                database
+                    .query_row(
+                        // An upload of the same bytes since, not yet confirmed, keeps them.
+                        "SELECT NOT EXISTS(SELECT 1 FROM object_refs WHERE hash = ?1)
+                            AND NOT EXISTS(SELECT 1 FROM object_sizes WHERE hash = ?1)
+                            AND NOT EXISTS(SELECT 1 FROM object_uploads WHERE hash = ?1)",
+                        [hash.to_hex()],
+                        |row| row.get::<_, bool>(0),
+                    )
+                    .unwrap_or(false)
+            })
+            .collect();
+        self.objects().remove_freed(&unheld);
     }
 
     pub(crate) fn object_refs(&self) -> std::sync::MutexGuard<'_, ObjectRefs> {
@@ -1463,6 +1837,108 @@ fn require_administrator(identity: Identity) -> Result<(), ServerError> {
     }
 }
 
+/// Removes `account` from `identity`'s organization: an agent (`agent`), by an administrator
+/// or its maker, deleted with it; or a person, by an administrator. `signed` is the member record
+/// signing them out, appended to the organization's log: needed for a person, and for an agent
+/// the log names. `revocations` are the signed revocations of each of their grants a block's log
+/// names, each needed. Answers what was revoked.
+#[allow(clippy::too_many_arguments)]
+fn remove_account(
+    store: &ServerStore,
+    graph: &mut BlockGraph,
+    database: &Connection,
+    identity: Identity,
+    account: Uuid,
+    signed: Option<Vec<u8>>,
+    revocations: Vec<Vec<u8>>,
+    agent: bool,
+) -> Result<Vec<crate::contacts::Granted>, ServerError> {
+    let organization = identity.organization;
+    // Each grant a log names is revoked there by the remover's signed record.
+    let pairs = member_grants(graph, account);
+    let named = crate::access::named_pairs(database, organization, &pairs)?;
+    let revoking = crate::access::revocations_for(&named, &revocations)?;
+    if !identity.is_administrator() {
+        if !agent {
+            return Err(ServerError::Refused(
+                ErrorCode::PermissionDenied,
+                "only an administrator removes a person".into(),
+            ));
+        }
+        require_agent_of(graph, database, identity.account, organization, account)?;
+    }
+    let role = crate::contacts::role_in(database, account, organization)?.ok_or_else(|| {
+        ServerError::Refused(
+            ErrorCode::MemberNotFound,
+            "that account is not a member of this organization".into(),
+        )
+    })?;
+    if is_agent(database, account)? != agent {
+        return Err(ServerError::Refused(
+            ErrorCode::InvalidRequest,
+            match agent {
+                true => "that member is a person: append-log signs them out",
+                false => "that member is an agent: delete-agent removes it",
+            }
+            .into(),
+        ));
+    }
+    if role == OrganizationRole::Administrator {
+        refuse_last_administrator(database, organization)?;
+    }
+    let checked = crate::access::checked_organization_log(database, organization)?;
+    // A person is always signed out, whether or not a record signed them in (one the server
+    // added on its own); an agent, where the log names it.
+    let named =
+        checked.is_some_and(|checked| !agent || checked.member(account.into_bytes()).is_some());
+    let transaction = be_block_sqlite_schema::write_transaction(database)?;
+    match (named, signed) {
+        (true, Some(signed)) => crate::access::append_member(
+            &transaction,
+            organization,
+            identity.account,
+            account,
+            false,
+            agent,
+            &signed,
+        )?,
+        (true, None) => {
+            return Err(ServerError::Refused(
+                ErrorCode::InvalidRequest,
+                "a member the organization's log names is signed out by a member record".into(),
+            ));
+        }
+        (false, Some(_)) => {
+            return Err(ServerError::Refused(
+                ErrorCode::InvalidRequest,
+                "only a member the organization's log names is signed out".into(),
+            ));
+        }
+        (false, None) => {}
+    }
+    let revoked = match agent {
+        true => delete_agent(store, graph, &transaction, organization, account)?,
+        false => remove_from(store, graph, &transaction, organization, account)?,
+    };
+    for ((block, grantee), record) in &revoking {
+        crate::access::append_grant(
+            &transaction,
+            organization,
+            *block,
+            identity.account,
+            *grantee,
+            Access::None,
+            record,
+        )?;
+    }
+    let forgotten = forget_orphaned_block_agents(store, graph, &transaction, organization)?;
+    transaction.commit()?;
+    if agent || !forgotten.is_empty() {
+        store.sessions_changed();
+    }
+    Ok(revoked)
+}
+
 fn refuse_last_administrator(
     connection: &Connection,
     organization: Uuid,
@@ -1482,6 +1958,7 @@ fn refuse_last_administrator(
 }
 
 fn remove_from(
+    store: &ServerStore,
     graph: &mut BlockGraph,
     connection: &Connection,
     organization: Uuid,
@@ -1508,6 +1985,7 @@ fn remove_from(
         let before = graph.audience(block);
         if held {
             crate::blocks::write_grant(
+                store,
                 graph,
                 connection,
                 organization,
@@ -1529,6 +2007,7 @@ fn remove_from(
         "DELETE FROM memberships WHERE organization_id = ?1 AND account_id = ?2",
         params![organization.to_string(), account.to_string()],
     )?;
+    crate::contacts::revoke_invitations_of(connection, account, organization)?;
     crate::notifications::forget_member(connection, organization, account)?;
     connection.execute(
         "DELETE FROM wrapped_keys WHERE organization_id = ?1 AND wrapped_by = ?2",
@@ -1615,12 +2094,13 @@ fn is_agent(connection: &Connection, account: Uuid) -> Result<bool, ServerError>
 
 /// Deletes an agent's account, with what it was granted and what was sealed to it.
 fn delete_agent(
+    store: &ServerStore,
     graph: &mut BlockGraph,
     connection: &Connection,
     organization: Uuid,
     agent: Uuid,
 ) -> Result<Vec<crate::contacts::Granted>, ServerError> {
-    let revoked = remove_from(graph, connection, organization, agent)?;
+    let revoked = remove_from(store, graph, connection, organization, agent)?;
     connection.execute("DELETE FROM accounts WHERE id = ?1", [agent.to_string()])?;
     connection.execute(
         "DELETE FROM wrapped_keys WHERE wrapped_by = ?1",
@@ -1633,8 +2113,8 @@ fn delete_agent(
 
 /// Deletes the blocks' agents of `organization` whose block was collected, who lost their grant
 /// on it, or whose creator no longer manages it, after a change that may have done any of
-/// these (a grant, a move, a role, a member or contact removed, a collection); answers them. The caller tells
-/// `ServerStore::sessions_changed` once its transaction commits, which closes their
+/// these (a grant, a move, a role, a member or contact removed, a collection); answers them. The
+/// caller tells `ServerStore::sessions_changed` once its transaction commits, which closes their
 /// connections.
 /// Whether moving `moved` put some block's agent's block in the trash, whose connections
 /// then close (`Connection::signed_in`).
@@ -1659,6 +2139,7 @@ pub(crate) fn trashes_block_agents(
 }
 
 pub(crate) fn forget_orphaned_block_agents(
+    store: &ServerStore,
     graph: &mut BlockGraph,
     connection: &Connection,
     organization: Uuid,
@@ -1697,7 +2178,7 @@ pub(crate) fn forget_orphaned_block_agents(
         let orphaned =
             graph.is_live(block) && !manages(graph, connection, creator, organization, block)?;
         if !granted || orphaned {
-            delete_agent(graph, connection, organization, agent)?;
+            delete_agent(store, graph, connection, organization, agent)?;
             forgotten.push(agent);
         }
     }
@@ -1734,7 +2215,19 @@ pub(crate) fn recovery_key_of(
     recovery_key(connection, account)
 }
 
+/// Whether `account` is a member of `organization`: a guest, which holds only grants made
+/// through share links, is not one (`holds_membership`).
 pub(crate) fn is_member_of(
+    connection: &Connection,
+    account: Uuid,
+    organization: Uuid,
+) -> Result<bool, ServerError> {
+    Ok(crate::contacts::role_in(connection, account, organization)?
+        .is_some_and(|role| role != OrganizationRole::Guest))
+}
+
+/// Whether `account` has a row in `organization`, a guest's included.
+pub(crate) fn holds_membership(
     connection: &Connection,
     account: Uuid,
     organization: Uuid,
@@ -1758,7 +2251,7 @@ pub(crate) fn load_graph(
     {
         let mut statement = connection.prepare(
             "SELECT id, content_type, author, parent_kind, parent_id, head, metadata, version, key_id,
-                owner_only
+                owner_only, changed
              FROM blocks WHERE organization_id = ?1",
         )?;
         let rows = statement.query_map([organization.to_string()], |row| {
@@ -1773,6 +2266,7 @@ pub(crate) fn load_graph(
                 row.get::<_, i64>(7)?,
                 row.get::<_, String>(8)?,
                 row.get::<_, bool>(9)?,
+                row.get::<_, i64>(10)?,
             ))
         })?;
         for row in rows {
@@ -1790,6 +2284,7 @@ pub(crate) fn load_graph(
         version,
         key,
         owner_only,
+        changed,
     ) in &nodes
     {
         let mut node = BlockNode::new(
@@ -1807,6 +2302,7 @@ pub(crate) fn load_graph(
             .transpose()?;
         node.metadata.clone_from(metadata);
         node.version = u64::try_from(*version).map_err(|_| ServerError::Corrupt)?;
+        node.changed = u64::try_from(*changed).map_err(|_| ServerError::Corrupt)?;
         node.key = match key.is_empty() {
             true => None,
             false => Some(parse_uuid(key)?),
@@ -1815,7 +2311,7 @@ pub(crate) fn load_graph(
         let _ = (parent_kind, parent_id);
         graph.insert(parse_uuid(id)?, node)?;
     }
-    for (id, _, _, parent_kind, parent_id, _, _, _, _, _) in &nodes {
+    for (id, _, _, parent_kind, parent_id, _, _, _, _, _, _) in &nodes {
         let parent = decode_parent(*parent_kind, parent_id.clone())?;
         graph.set_parent(parse_uuid(id)?, parent)?;
     }
@@ -1861,4 +2357,18 @@ pub(crate) fn load_graph(
     }
     usage::load_sizes(connection, &mut graph, organization)?;
     Ok(graph)
+}
+
+/// The blocks `account` holds a grant on: what removing it revokes.
+fn member_grants(graph: &BlockGraph, account: Uuid) -> Vec<(Uuid, Uuid)> {
+    graph
+        .entry_points(account)
+        .into_iter()
+        .filter(|block| {
+            graph
+                .get(*block)
+                .is_some_and(|node| node.grants.contains_key(&account))
+        })
+        .map(|block| (block, account))
+        .collect()
 }

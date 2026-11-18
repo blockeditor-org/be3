@@ -29,13 +29,16 @@ those macros' doc comments.
   one `view!`. `view!` builds nodes the moment it runs, so a subtree built into
   a local and used conditionally is in the document either way.
 - Control flow goes in the view: `Show` (builds when true, disposes when
-  false; with `keep_alive`, builds once and pauses while hidden), `Dynamic`,
+  false), `Dynamic`, `Match`,
   `Keyed` and `ForEach` (one keyed child per item). They build no node of their
-  own; they fill a run in their parent's slot.
+  own; they fill a run in their parent's slot. To keep a subtree while it is
+  hidden, build it in a `Kept` under a `KeepAlive`
+  ([beui/core.md](beui/core.md#keeping-a-subtree)).
 - Use a component as a tag: `<Button label="Save" on_click={save} />`. The
   generated builder is not an API; only the macro checks props, routes `@`
   modifiers and keeps render props unbuilt. To pass a component around, pass a
-  `Render`/`RenderFn` closure that writes a `view!`.
+  `Render`/`RenderFn` (or, handed nothing, `Build`/`BuildFn`) closure that
+  writes a `view!`.
 - Bind signals and memos to props rather than reading them while building. Key
   a `ForEach` by item identity, never by content, so rows keep their nodes,
   focus and caret. State a control both shows and changes is one `Binding<T>`
@@ -64,8 +67,17 @@ editing the engine rebuilds no editor
 ([decision](../decisions/beui_facade_excludes_the_engine.md)). `beui-host` is
 beui plus the engine, for whatever runs documents: `beui_host::native` adds
 `build` (a document with the inspector and on-screen keyboard), fonts,
-`testing`, `drive`, `Headless`, renderers and the runners. Its features pick
-the runner: `window` (default) or `web`.
+`testing`, `drive`, `Headless`, renderers and, with its `web` feature, the
+browser's runner. The native windowed runner (winit, Android, and the space and
+XR layers) is `beui-host-window`'s (`run`, `run_with`, `native_platform`).
+
+`beui-documents` is the facade without the components (types, `beui::reactive`,
+views, windows, `beui::native`); the facade re-exports it at the same paths and
+adds the components, the dock and the keyboard. It is not the engine, which is
+what `beui-host` adds. A crate outside beui that runs documents but builds no
+components, the app runtime, depends on `beui-documents` under the name `beui`,
+so it spells every item as other crates do and an edit to a component does not
+rebuild it; `buck/cargo/layers.bzl` holds that spelling.
 
 Inside the family crates name each other directly, and the component crates
 declare `extern crate beui_view as beui;` so the `::beui::reactive` paths the
@@ -80,6 +92,7 @@ macros expand to resolve. From the bottom up:
 | `beui-core` | the native core: `Document`, `Context`, retained nodes, layout, input dispatch, accessibility, paint and damage, fonts and images interfaces, the `Program` contract |
 | `beui-core-html` | the HTML core, built on `beui-html` |
 | `beui-view` | the API both cores share: `beui::reactive`, `beui::primitives`, with a body per core |
+| `beui-documents` | the facade without the components, which `beui` re-exports; the app runtime's `beui` |
 | `beui-html` | HTML elements as components, serialized to strings or mounted as live DOM |
 | `beui-components-unstyled`, `beui-components-styled` | `beui::unstyled` (and `beui::datetime`), `beui::styled` |
 | `beui-dock`, `beui-dock-host`, `beui-dock-state` | docking: what an editor declares, what lays it out and draws it, the layout model |
@@ -88,6 +101,7 @@ macros expand to resolve. From the bottom up:
 | `beui-draw`, `beui-renderer-wgpu` | gpu drawings, and the wgpu renderer |
 | `beui-runner` | the `Runner`, `Platform`, `PlatformServices`, `Layer` and `Renderer` contracts, `RunOptions`, the `BEUI_*` environment |
 | `beui-platform-*`, `beui-layer-*` | platforms (winit, android, web, drm, headless) and layers (space, xr, drive) |
+| `beui-host-window` | the native windowed runner (`run`, `run_with`): picks a platform and stacks the layers `BEUI_PLATFORM` and `BEUI_LAYERS` ask for |
 | `beui-font-freetype` | shaping and rasterizing, and the bundled fonts |
 | `be-sdk-beui-platform` | the platform an app module's views run on |
 | `beui-paint-format`, `beui-paint-snapshot` | paintings and the snapshot assertions |
@@ -122,7 +136,7 @@ how to test on both.
 - [beui/programs.md](beui/programs.md): standalone programs, `Root`,
   `RunOptions`, layers, drivers, the inspector and simulation tools, beui in
   an app.
-- [beui/platforms.md](beui/platforms.md): the runner, input, the clipboard,
+- [beui/platforms.md](beui/platforms.md): the runner, input, the clipboard, the share sheet,
   renderers, each platform, displays under drm.
 - [beui/space.md](beui/space.md): the Space VR simulator, XR headsets, the
   on-screen keyboard.

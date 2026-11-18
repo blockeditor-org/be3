@@ -8,7 +8,8 @@ parts that span many editors.
 
 An editor gets the whole frame and the framework draws nothing across it. When
 the host asks for a top bar (`FrameSpec::top_bar`: `Shown` on a desktop,
-`Phone`, `Hidden`), the framework sends the host the frame's menu: undo, redo,
+`Hidden` on a phone, where the stacked dock's bar stands in, and for a frame
+placed bare), the framework sends the host the frame's menu: undo, redo,
 rename, share, the command palette, the editor's own commands, file details,
 and Close for a child that took the frame over. An editor draws no undo, redo
 or exit buttons of its own.
@@ -19,12 +20,15 @@ runs the command whose id comes back. The protocol knows nothing of beui.
 
 An editor adds its part while its view is built:
 `add_to_menu(vec![MenuNode::action(&action), MenuNode::submenu(..), ..])`
-over actions it registered; the part goes when the adding scope does. Every
+over actions it registered; the part goes when the adding scope does. It joins
+only its own frame's menu (`menu_scope`), though the app's other editors share its
+document. Every
 action is also in the command palette, and buttons and menu rows that take it
 as their `action` prop share its label, enabled state, tick and shortcut
 (guides/beui_keyboard.md, Actions and the command palette). An action with
 `.pin(Pin::Icon | Pin::Label)` sits in the tab bar beside More; `Pin::Title`
-runs when a phone's stacked bar's title is tapped (Rename). The canvas builds
+runs when a phone's stacked bar's title is tapped (Rename), which shows its
+glyph after the title as the cue. The canvas builds
 its frame menu and context menu from the same submenus (`root/menu.rs`); the
 text editor offers what does not fit its bar there.
 
@@ -79,10 +83,14 @@ writes nothing for phones. `DockingLayout::show` brings a folded pane
 forward, as the canvas's selection bar does with the Inspector.
 
 Prefer one layout for both. The canvas keeps tools and zoom in `DockBar`s the
-user can move to any edge or window. `be_sdk_beui::Toolbar` is for a band
+user can move to any edge or window, and the text editor its format bar, in a
+band beside its bottom edge (`DockBarPlacement::Beside`), so on a phone it sits
+above the on-screen keyboard and never covers the text. `be_sdk_beui::Toolbar` is for a band
 outside a dock (the file tree's); its buttons scroll sideways on a narrow
 frame. `narrow_chrome()` tests the frame's width, which a desktop pane can be
-too; `phone_layout()` says the host itself is on a phone.
+too; `phone_layout()` says the shell lays out as on a phone (its frame's
+`FrameSpec::phone`, which the host sets on every frame from what the shell
+says, `EditorHost::set_phone_layout`).
 
 ## Pan and zoom
 
@@ -148,6 +156,21 @@ host stores the settings only on Apply. Regeneration reads its source as a
 projection, so `on_poll` answers `None` until the source arrives. Compiled
 logic is the example.
 
+## View state
+
+What the viewer would want back on reopening (where the text was scrolled and
+the caret, which folders were open) is a `ViewStateKind` value in the editor's
+view block, read and written with `editor.view_state::<K>()`
+(guides/blocks/workspaces.md, View state). Write it on every change, from an
+effect over what it describes: never debounce it, delay it on a timer, skip
+writes to save edits, or save only as the editor hides; a burst of writes is
+folded where it is stored. (Data from an outside service, kept in view state
+as a cache, is the exception: an unchanged poll is not written again until the
+copy ages, decisions/live_data_from_an_outside_service_is_not_block_content.md.)
+Put it back once, the first time `get()` is no longer `Loading`, starting
+afresh on `Failed` (`keep` does both; the text editor's `keep_position` waits
+for its text too).
+
 ## Presence
 
 `presence_visible()` says whether anyone is looking at the block, which is
@@ -157,10 +180,6 @@ to scroll a peer's cursor into view. `editor.show(Some(&value))` publishes a
 removed when the instance closes); `editor.peers::<P>()` is everyone else's.
 A peer never sees its own, so an editor never draws a cursor for the person
 at the keyboard. Pick colours with `pick_free_color`.
-
-`on_replace_child` answers a block the host copied because it was edited in
-two places at once: an editor whose references live in its content (the text
-editor's block URLs) rewrites them and answers true.
 
 beui has no IME output yet, so a beui editor cannot report an IME area.
 
@@ -220,7 +239,9 @@ tree, so a beui editor needs only the labels and `@test_id`s it already has;
 another framework fills `Frame::description` itself. The host renumbers the
 nodes into its own tree, repairs whatever the app sent, shows each view as a
 pane named after the app with its actions, and calls back `node-action` and
-`run-action`.
+`run-action`. The grafting is be-sdk-app-host's (`accessibility::Graft`, one per
+view, on be-lib-geometry and AccessKit), so any host of the protocol shows an
+app's tree as be-host does; the host puts the pane under its own tree.
 
 ## Holding the pointer and sound
 

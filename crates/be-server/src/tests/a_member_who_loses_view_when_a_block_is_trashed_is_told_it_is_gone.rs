@@ -4,11 +4,11 @@ use be_block_graph::Access;
 #[tokio::test]
 async fn a_member_who_loses_view_when_a_block_is_trashed_is_told_it_is_gone() {
     let harness = Harness::start().await;
-    let mut owner = harness.client().await;
-    let owner_id = owner.register("owner@example.com").await;
+    let mut owner = harness.member("owner@example.com").await;
+    let owner_id = owner.id();
     owner.personal().await;
-    let mut guest = harness.client().await;
-    let guest_id = guest.register("guest@example.com").await;
+    let mut guest = harness.member("guest@example.com").await;
+    let guest_id = guest.id();
     guest.personal().await;
     let link = owner.link(None).await;
     let _ = guest.accept(link, &[]).await;
@@ -20,25 +20,17 @@ async fn a_member_who_loses_view_when_a_block_is_trashed_is_told_it_is_gone() {
     guest.follow(note).await;
 
     let response = owner
-        .call(|peer| {
-            client::blocks::set_parent(peer, note, BlockParent::Detached, KeySet::default())
-        })
+        .move_keyed(note, BlockParent::Detached, KeySet::default())
         .await;
     assert!(matches!(response, Ok(())), "{response:?}");
-    loop {
-        let notification = guest.graph_change().await;
-        match notification {
-            Notice::BlockRemoved { block, .. } if block == note => break,
-            Notice::BlockChanged { block, .. } if block.id == note => assert!(
-                !block.access.can_view(),
-                "the guest may not view the trashed note: {block:?}"
-            ),
-            _ => {}
-        }
-    }
+    assert_eq!(
+        guest.heard_left(note).await,
+        shared,
+        "the shared folder's reader is told the note left it"
+    );
 
-    // Back where the guest may view it, its next head reaches the guest again: the note's own
-    // listing outlived the view.
+    // Back where the guest may view it, its next head reaches the guest again: the guest still
+    // follows the shared folder.
     let restored = owner.move_to(note, BlockParent::Block(shared)).await;
     assert!(matches!(restored, Ok(())), "{restored:?}");
     let author = Author::new(owner_id);

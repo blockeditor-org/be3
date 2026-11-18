@@ -1,4 +1,5 @@
 use be_sdk_test::BeuiTest;
+use be_sdk_test::prelude::*;
 use be_type_logic_grid::hotbar::{Hotbar, HotbarContent, HotbarSlot};
 use uuid::Uuid;
 

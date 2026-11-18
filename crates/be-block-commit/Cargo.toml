@@ -6,7 +6,8 @@ license.workspace = true
 
 [features]
 default = ["store"]
-# Reading and writing sealed commits, which a pure guest does without.
+# The host's parts, which a pure guest does without: reading and writing sealed commits
+# (`CommitStore`) and the server's history retention (`retention`).
 store = ["be-block-store/vault"]
 
 [dependencies]

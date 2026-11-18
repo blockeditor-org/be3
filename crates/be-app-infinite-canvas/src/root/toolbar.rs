@@ -69,10 +69,6 @@ pub(crate) fn tools_open(state: CanvasState, shown: ReadSignal<bool>) -> Memo<bo
 pub(crate) fn ToolBar(state: CanvasState, open: Memo<bool>, size: Signal<Vec2>) -> NodeId {
     let bar = use_dock_bar();
     let direction = create_memo(move || bar.map_or(Direction::Horizontal, |bar| bar.direction()));
-    let across = create_memo(move || match direction.get() {
-        Direction::Horizontal => Direction::Vertical,
-        Direction::Vertical => Direction::Horizontal,
-    });
     let actions = use_context::<CanvasActions>().expect("the canvas provides its actions");
     let tool_keys = create_memo(move || {
         let profile = state.profile.get();
@@ -84,7 +80,7 @@ pub(crate) fn ToolBar(state: CanvasState, open: Memo<bool>, size: Signal<Vec2>) 
     let block_button = NodeRef::new();
     let add_block = move || state.open_block_picker_at(block_button);
     create_effect(move || {
-        if !open.get() && size.get_untracked() != Vec2::ZERO {
+        if !open.get() {
             size.set(Vec2::ZERO);
         }
     });
@@ -95,7 +91,7 @@ pub(crate) fn ToolBar(state: CanvasState, open: Memo<bool>, size: Signal<Vec2>) 
                 <Frame @test_id={"infinite-canvas.dock.grip"}>
                     <DockBarGrip />
                 </Frame>
-                <Show condition={narrow}>
+                <Show value={narrow}>
                     <ModeMenu state />
                 </Show>
                 <ToggleButton
@@ -103,7 +99,7 @@ pub(crate) fn ToolBar(state: CanvasState, open: Memo<bool>, size: Signal<Vec2>) 
                     action={actions.tool_lock.clone()}
                     @test_id={"infinite-canvas.dock.tool-lock"}
                 />
-                <ForEach keys={tool_keys}>|index: usize| {
+                <ForEach value={tool_keys}>|index: usize| {
                     let actions = tools.clone();
                     view! {
                         <ToolChoice state actions index />
@@ -118,7 +114,13 @@ pub(crate) fn ToolBar(state: CanvasState, open: Memo<bool>, size: Signal<Vec2>) 
                     @test_id={"infinite-canvas.dock.block"}
                     on_click={add_block}
                 />
-                <Separator direction={across} length=Size::Md />
+                <Separator
+                    direction={move || match direction.get() {
+                        Direction::Horizontal => Direction::Vertical,
+                        Direction::Vertical => Direction::Horizontal,
+                    }}
+                    length=Size::Md
+                />
                 <ToggleButton
                     icon_only=true
                     action={actions.ignore_touch.clone()}
@@ -132,16 +134,18 @@ pub(crate) fn ToolBar(state: CanvasState, open: Memo<bool>, size: Signal<Vec2>) 
                 true => measured.get().map_or(Vec2::ZERO, |measured| measured.size),
                 false => Vec2::ZERO,
             };
-            if size.get_untracked() != shown {
-                size.set(shown);
-            }
+            size.set(shown);
         });
         pill
     })
     .once();
     view! {
         <List spacing=Space::None>
-            <Show keep_alive=true condition={open}>{content.call(())}</Show>
+            <KeepAlive>
+                <Show value={open}>
+                    <Kept>{content.call(())}</Kept>
+                </Show>
+            </KeepAlive>
         </List>
     }
 }
@@ -207,11 +211,9 @@ pub(crate) fn SelectionDock(
     });
     view! {
         <Frame align={align} padding={padding}>
-            <List spacing=Space::None>
-                <Show condition={chosen}>
-                    <SelectionTools state layout direction />
-                </Show>
-            </List>
+            <Show value={chosen}>
+                <SelectionTools state layout direction />
+            </Show>
         </Frame>
     }
 }
@@ -258,7 +260,11 @@ pub(crate) fn ZoomBar(state: CanvasState, open: Memo<bool>) -> NodeId {
     .once();
     view! {
         <List spacing=Space::None>
-            <Show keep_alive=true condition={open}>{content.call(())}</Show>
+            <KeepAlive>
+                <Show value={open}>
+                    <Kept>{content.call(())}</Kept>
+                </Show>
+            </KeepAlive>
         </List>
     }
 }
@@ -291,17 +297,6 @@ fn ToolChoice(state: CanvasState, actions: CanvasActions, index: usize) -> NodeI
             icon_only=true
             action={action}
             @test_id={format!("infinite-canvas.dock.tool.{id}")}
-        />
-    }
-}
-
-#[component]
-pub(crate) fn ImportError(state: CanvasState) -> NodeId {
-    view! {
-        <Banner
-            message={state.import_error}
-            id="infinite-canvas.import-error"
-            on_dismiss={move || state.dismiss_import_error()}
         />
     }
 }

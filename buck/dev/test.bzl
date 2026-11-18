@@ -7,6 +7,17 @@ load("@root//buck/tools:defs.bzl", "worker_properties")
 # and every later run of the same action would wait on that one.
 TEST_TIME_LIMIT = "20m"
 
+# The accepted paintings, by path from the root, whose tests run a second time
+# (_again) even when they paint what the checkout holds: ./scripts/ci on a pull
+# request names those the pull request changed (`-c be3.again=PATH,...`, the
+# bootstrap's verify.rs), so that a run after the painting was accepted, whether
+# by the author's verify or by CI's own autofix, still says whether it is flaky.
+# It is read here, when this file loads, on purpose: it decides only whether
+# _again declares its actions, and is in none of their digests, so a new list
+# analyses the tests again and runs nothing that has run before. Passed into an
+# action's command or environment it would make every second run a new action.
+_AGAIN = [path for path in read_root_config("be3", "again", "").split(",") if path]
+
 # The label of a thorough test: one that stays costly however it is written, which
 # ./scripts/verify leaves out and ./scripts/verify --thorough runs alone
 # (buck/dev/verify.bxl; guides/buck2.md, What verify builds, names each and why).
@@ -22,13 +33,15 @@ THOROUGH = "thorough"
 # test that `paints` writes what it paints into MADE_PAINTINGS, and `compare`
 # compares that with `paintings`, the accepted ones. `parts` is a run_apart test's tests, one be_test a test
 # file, by its part's name; such a test has no [run] of its own, and `runs` is
-# each part's [run], where any other test's is its own. `libtest` is a part's
+# each part's [run], where any other test's is its own. `flakes` is, the same
+# way, each painting test's report of a second run (_again). `libtest` is a part's
 # test, the full name it runs with --exact, and empty for any other test.
 TestRunInfo = provider(
     fields = {
         "command": provider_field(typing.Any),
         "compare": provider_field(typing.Any),
         "env": provider_field(dict),
+        "flakes": provider_field(list),
         "hidden": provider_field(list),
         "launcher": provider_field(typing.Any),
         "libtest": provider_field(str),
@@ -89,6 +102,13 @@ def _executor(local: bool):
 def run_test(
     actions, info: TestRunInfo, name: str, mode: str, filters: list = [], update: bool = False, env: dict = {}, identifier: str | None = None
 ) -> Artifact:
+    return _run_test(actions, info, name, mode, filters, update, env, identifier).out
+
+# run_test, with what the paintings' second run (_again) needs: `ran`, the
+# paintings the test made, and `changed`, a file naming those that are new or
+# differ from the accepted ones, which are None unless the test paints and
+# mode is "paintings".
+def _run_test(actions, info: TestRunInfo, name: str, mode: str, filters: list, update: bool, env: dict, identifier: str | None):
     flag = {"paintings": "--paintings", "passed": "--passed", "record": "--record"}[mode]
     compared = info.paints and mode != "passed"
     if mode == "passed":
@@ -106,7 +126,8 @@ def run_test(
         local_only = info.local,
     )
     if not compared:
-        return out
+        return struct(names = None, out = out, ran = None)
+    names = actions.declare_output(name + "-names") if mode == "paintings" else None
     accepted = actions.symlinked_dir(name + "-accepted", {painting.basename: painting for painting in info.paintings})
     actions.run(
         cmd_args(
@@ -119,14 +140,68 @@ def run_test(
             "--out",
             out.as_output(),
             ["--update"] if mode == "paintings" or update else [],
+            ["--names", names.as_output()] if names else [],
         ),
         category = "painting_compare",
         identifier = identifier,
     )
-    return out
+    return struct(names = names, out = out, ran = ran if names else None)
 
-def _run(ctx: AnalysisContext, info: TestRunInfo) -> Artifact:
-    return run_test(ctx.actions, info, "paintings" if info.paints else "passed", "paintings" if info.paints else "passed")
+# A painting test's second run, which says whether its paintings are flaky: when
+# the first run (`ran`, the run_test `name`) made a painting that is new or
+# differs from the accepted one, or one of `again` (`names` says which it made
+# and which changed), the test runs once more as run_test's "record" does,
+# and crates/be-tool-paint-compare's --again compares what it made with what the
+# first run made, writing `flaky` (a line for each difference, empty when the
+# runs agree), changed/ and the second run's log. It only reports: the test's
+# own actions and the paintings they made stay as they are, and
+# crates/be-tool-verify prints what it found. When nothing changed it is an
+# empty directory and nothing runs. The second run's action is keyed, as the
+# first's is, on the test's code, so it runs once per build of the test whose
+# paintings changed and comes from the cache after that.
+def _again(actions, info: TestRunInfo, name: str, ran: Artifact, names: Artifact, again: list[str]) -> Artifact:
+    report = actions.declare_output(name + "-again", dir = True)
+
+    def run_again(ctx, artifacts, outputs):
+        out = outputs[report]
+        made = [line.split(" ", 1) for line in artifacts[names].read_string().splitlines()]
+        if not [True for state, painting in made if state == "changed" or painting in again]:
+            ctx.actions.symlinked_dir(out, {})
+            return
+        record = ctx.actions.declare_output(name + "-again-record", dir = True)
+        ctx.actions.run(
+            cmd_args(info.launcher, "--record", record.as_output(), "--", info.command),
+            category = "painting_test_again",
+            env = info.env,
+            local_only = info.local,
+        )
+        ctx.actions.run(
+            cmd_args(
+                info.compare,
+                "--again",
+                "--made",
+                record.project("made"),
+                "--record",
+                record,
+                "--accepted",
+                ran,
+                "--out",
+                out.as_output(),
+            ),
+            category = "painting_flaky",
+        )
+
+    actions.dynamic_output(dynamic = [names], f = run_again, inputs = [], outputs = [report.as_output()])
+    return report
+
+# A test's [run], and for a painting test the report of its second run.
+def _run(ctx: AnalysisContext, info: TestRunInfo) -> (Artifact, list):
+    if not info.paints:
+        return run_test(ctx.actions, info, "passed", "passed"), []
+    ran = _run_test(ctx.actions, info, "paintings", "paintings", [], False, {}, None)
+    snapshots = ctx.label.package + "/snapshots/"
+    again = [path.removeprefix(snapshots) for path in _AGAIN if path.startswith(snapshots)]
+    return ran.out, [_again(ctx.actions, info, "paintings", ran.ran, ran.names, again)]
 
 # Every test: harness, a RunInfo, run with args and env through
 # crates/be-tool-run-test, for buck2 test and as the action [run] alike. An
@@ -161,11 +236,14 @@ def _be_test_impl(ctx: AnalysisContext) -> list[Provider]:
     sub_targets = {}
     if ctx.attrs.parts:
         runs = [part[DefaultInfo].sub_targets["run"][DefaultInfo].default_outputs[0] for part in ctx.attrs.parts.values()]
+        flakes = [flake for part in ctx.attrs.parts.values() for flake in part[TestRunInfo].flakes]
     else:
-        run = _run(ctx, TestRunInfo(runs = [], **fields))
+        run, flakes = _run(ctx, TestRunInfo(flakes = [], runs = [], **fields))
         sub_targets["run"] = [DefaultInfo(default_output = run)]
+        if flakes:
+            sub_targets["again"] = [DefaultInfo(default_output = flakes[0])]
         runs = [run]
-    info = TestRunInfo(runs = runs, **fields)
+    info = TestRunInfo(flakes = flakes, runs = runs, **fields)
     command = cmd_args(launcher, "--", info.command, hidden = info.hidden)
     remote = not (ctx.attrs.local or LOCAL_BUILD)
     return [

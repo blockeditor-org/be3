@@ -9,18 +9,18 @@ fn an_idle_peer_never_wakes_its_worker() {
     open(block, CounterContent::CONTENT_TYPE);
     wait_for_count(block, 0);
     flush();
-    let (settled, armed) =
-        crate::wait_until(|shared| shared.parked.map(|armed| (shared.wakes, armed)));
+    let (settled, armed) = crate::wait_until("parked the worker", |shared| {
+        shared.parked.map(|armed| (shared.wakes, armed))
+    });
     assert_eq!(armed, None, "the idle worker set a timer to wake itself");
 
-    let mut due = crate::wait_until(|shared| {
+    let mut due = crate::wait_until("connected, with a ping due", |shared| {
         shared
             .connected
             .then(|| shared.connection_due.clone())
             .flatten()
     });
     let lapse = 2 * crate::worker::OUTBOX_RETRY
-        .max(Duration::from_millis(be_sdk_type_guest::HEARTBEAT_INTERVAL))
         .max(Duration::from_millis(be_sdk_type_guest::QUIET_INTERVAL));
     let until = harness.clock.now() + lapse;
     while harness.clock.now() < until {
@@ -33,7 +33,9 @@ fn an_idle_peer_never_wakes_its_worker() {
             .expect("the connection answers its pings");
     }
 
-    let woke = crate::wait_until(|shared| shared.parked.map(|_| shared.wakes));
+    let woke = crate::wait_until("parked the worker again", |shared| {
+        shared.parked.map(|_| shared.wakes)
+    });
     assert_eq!(
         woke, settled,
         "the worker woke without being asked while the connection pinged"

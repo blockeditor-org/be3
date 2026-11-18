@@ -66,8 +66,6 @@ const SETTINGS_SPACING: Space = Space::Lg;
 pub(super) fn Settings(artifacts: Artifacts) -> NodeId {
     let data = artifacts.settings();
     let decoded = create_memo(move || ComponentSettings::decode(&data.get()).ok());
-    let readable = create_memo(move || decoded.get().is_some());
-    let unreadable = create_memo(move || decoded.get().is_none());
     let renamed = create_memo(move || {
         decoded
             .get()
@@ -83,15 +81,17 @@ pub(super) fn Settings(artifacts: Artifacts) -> NodeId {
     };
     view! {
         <List spacing=SETTINGS_SPACING>
-            <Show condition={readable}>
+            <Show
+                value={move || decoded.with(Option::is_some)}
+                fallback={|| view! {
+                    <Text style=TextStyle::CAPTION>"These settings cannot be read."</Text>
+                }}
+            >
                 <Checkbox
                     label="Rename with the grid"
                     checked={Binding::new(renamed, rename.clone())}
                     @test_id={"logic-grid.rename-with-source"}
                 />
-            </Show>
-            <Show condition={unreadable}>
-                <Text style=TextStyle::CAPTION>"These settings cannot be read."</Text>
             </Show>
         </List>
     }

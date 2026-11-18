@@ -30,10 +30,13 @@ async fn a_folder_of_blocks_with_large_metadata_reads_in_answers_that_fit_a_fram
     }
 
     // Listing the folder answers the first of them and the rest as ids, which the peer reads.
-    let listed = crate::ask(be_block_protocol::client::blocks::list_blocks(
+    let listed = crate::ask(be_block_protocol::read::<be_block_protocol::Listed, _>(
         &author.connection(),
-        Listing::Children(BlockParent::Block(workspace)),
-        None,
+        Some(author.organization()),
+        be_block_protocol::Query::List {
+            listing: Listing::Children(BlockParent::Block(workspace)),
+            after: None,
+        },
     ))
     .await
     .unwrap();
@@ -56,10 +59,14 @@ async fn a_folder_of_blocks_with_large_metadata_reads_in_answers_that_fit_a_fram
     );
 
     // One call asking for every block is answered with the first of them, as many as fit.
-    let answer = crate::ask(be_block_protocol::client::blocks::read_contents(
+    let answer = crate::ask(be_block_protocol::read::<be_block_protocol::Contents, _>(
         &author.connection(),
-        wanted.clone(),
-        Vec::new(),
+        Some(author.organization()),
+        be_block_protocol::Query::Blocks {
+            blocks: wanted.clone(),
+            contents: true,
+            held: Vec::new(),
+        },
     ))
     .await
     .unwrap();
@@ -87,7 +94,7 @@ async fn a_folder_of_blocks_with_large_metadata_reads_in_answers_that_fit_a_fram
     );
 
     // What changed in the workspace's tree comes in pages that fit too.
-    let (changed, _, _) = reader.changed_since(workspace, 0).await.unwrap();
+    let (changed, _, _) = reader.changed_since(workspace, 0, false).await.unwrap();
     for id in &wanted {
         assert!(changed.iter().any(|summary| summary.id == *id));
     }

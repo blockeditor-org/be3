@@ -1,18 +1,20 @@
 load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_package")
-load("@root//buck/wasm:defs.bzl", "wasm32_module")
+load("@root//buck/wasm:defs.bzl", "wasm32_bindgen_module")
 
 cargo_package()
 
 # The browser's half of the app protocol's gpu abi: a real wgpu device in the
 # app's worker, which draws what the app shows into canvases the page
 # transferred to the worker and positions behind the app. It only exists in the
-# browser, so it is only ever built for wasm32-unknown-unknown, and the web
-# bundle in crates/be-host has wasm-bindgen write its JavaScript.
+# browser, so it is only ever built for wasm32-unknown-unknown, on a platform
+# of its own (wasm32_bindgen) so its wgpu and web-sys stay out of the pure
+# guests', and the web bundle in crates/be-host has wasm-bindgen write its
+# JavaScript.
 cargo_library(
     target_compatible_with = ["prelude//cpu/constraints:cpu[wasm32]"],
 )
 
-wasm32_module(
+wasm32_bindgen_module(
     name = "module",
     library = ":be-wasm-gpu-shim",
     module = "block_gpu_shim",

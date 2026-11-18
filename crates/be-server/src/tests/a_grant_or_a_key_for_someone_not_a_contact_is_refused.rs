@@ -4,11 +4,11 @@ use be_block_graph::Access;
 #[tokio::test]
 async fn a_grant_or_a_key_for_someone_not_a_contact_is_refused() {
     let harness = Harness::start().await;
-    let mut owner = harness.client().await;
-    let owner_id = owner.register("owner@example.com").await;
+    let mut owner = harness.member("owner@example.com").await;
+    let owner_id = owner.id();
     owner.personal().await;
-    let mut stranger = harness.client().await;
-    let stranger_id = stranger.register("stranger@example.com").await;
+    let mut stranger = harness.member("stranger@example.com").await;
+    let stranger_id = stranger.id();
     stranger.personal().await;
     let shared = owner.scope_root(owner_id, BlockParent::Root).await;
 
@@ -16,7 +16,11 @@ async fn a_grant_or_a_key_for_someone_not_a_contact_is_refused() {
     assert!(refused_as(&granted, ErrorCode::NotAContact), "{granted:?}");
     assert!(refused_as(&keyed, ErrorCode::NotAContact), "{keyed:?}");
     let listed = owner
-        .call(|peer| client::blocks::list_access(peer, shared.block))
+        .call(|peer| {
+            peer.read::<be_block_protocol::AccessList>(be_block_protocol::Query::Access(
+                shared.block,
+            ))
+        })
         .await;
     let Ok(list) = listed else {
         panic!("listing access failed: {listed:?}");
@@ -55,6 +59,12 @@ async fn attempts(
     };
     (
         owner.grant(shared.block, stranger, Access::View).await,
-        owner.call(|peer| client::keys::put_keys(peer, keys)).await,
+        owner
+            .call(|peer| {
+                peer.write::<()>(be_block_protocol::Op::PutKeys(
+                    be_block_protocol::PutKeys::Rows(keys),
+                ))
+            })
+            .await,
     )
 }

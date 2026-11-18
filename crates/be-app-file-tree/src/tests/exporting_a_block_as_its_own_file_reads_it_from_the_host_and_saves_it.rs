@@ -69,9 +69,10 @@ fn exporting_a_block_as_its_own_file_reads_it_from_the_host_and_saves_it() {
         .test
         .answer(request, FileSave::Failed("The disk is full".to_owned()));
     fixture.settle();
-    assert!(
-        fixture.says("The disk is full"),
-        "a save that failed says why"
+    assert_eq!(
+        fixture.test.take_reported_failures(),
+        ["The block could not be exported. The disk is full"],
+        "a save that failed has the host say why"
     );
 
     fixture.choose(notes, "Export as");
@@ -92,8 +93,9 @@ fn exporting_a_block_as_its_own_file_reads_it_from_the_host_and_saves_it() {
         )),
     );
     fixture.settle();
-    assert!(
-        fixture.says("The block could not be read"),
-        "a read that failed says why"
+    assert_eq!(
+        fixture.test.take_reported_failures(),
+        ["The block could not be exported. The block could not be read"],
+        "a read that failed has the host say why"
     );
 }

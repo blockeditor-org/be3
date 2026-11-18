@@ -3,13 +3,12 @@ use std::{path::PathBuf, sync::Arc};
 use be_block_client::{
     ClientError, Connection, Credentials, Peer, PeerConfig, authorize, http_url,
 };
-use be_block_protocol::client;
 use be_block_store::FileStore;
 use uuid::Uuid;
 
 pub const DEFAULT_SERVER: &str = "https://api.be3.pfg.pw";
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct Settings {
     pub server: String,
     pub organization: Option<Uuid>,
@@ -20,6 +19,22 @@ pub struct Settings {
     /// The boat.dev sandbox a terminal host was installed for, as the credentials an app
     /// handed it say (`boat_id`): a fork of that sandbox, whose `BOAT_ID` differs, runs none.
     pub boat_id: Option<String>,
+}
+
+/// Leaves out the token, the recovery phrase and the authorization, so no log ever holds them.
+impl std::fmt::Debug for Settings {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("Settings")
+            .field("server", &self.server)
+            .field("organization", &self.organization)
+            .field("token", &"..")
+            .field("phrase", &"..")
+            .field("authorization", &self.authorization.as_ref().map(|_| ".."))
+            .field("cache", &self.cache)
+            .field("boat_id", &self.boat_id)
+            .finish()
+    }
 }
 
 impl Settings {
@@ -179,17 +194,20 @@ async fn connect_to(settings: &Settings, url: String) -> Result<Peer<FileStore>,
             settings.server
         ));
     }
-    let connection = Connection::connect(&url, &be_block_client::Clock::real())
-        .await
-        .map_err(explain)?;
-    let token = (!settings.token.is_empty()).then(|| settings.token.clone());
-    let signed_in = be_block_client::ask(client::account::authenticate(&connection, token)).await;
-    let be_block_protocol::Authenticated { account, token, .. } = signed_in.map_err(|error| {
-        format!(
-            "the server refused account authentication: {}",
-            explain(error)
+    let (connection, be_block_protocol::Authenticated { account, token, .. }) =
+        Connection::connect(
+            &url,
+            &be_block_client::Clock::real(),
+            &settings.credentials(),
         )
-    })?;
+        .await
+        .map_err(|error| match error {
+            ClientError::Refused(..) => format!(
+                "the server refused account authentication: {}",
+                explain(error)
+            ),
+            error => explain(error),
+        })?;
     let organization = match settings.organization {
         Some(organization) => organization,
         None => only_organization(&connection).await?,
@@ -214,7 +232,13 @@ async fn connect_to(settings: &Settings, url: String) -> Result<Peer<FileStore>,
 }
 
 async fn only_organization(connection: &Arc<Connection>) -> Result<Uuid, String> {
-    let organizations = be_block_client::ask(client::organizations::list_organizations(connection))
+    let organizations =
+        be_block_client::ask(be_block_protocol::read::<
+            Vec<be_block_protocol::Organization>,
+            _,
+        >(
+            connection, None, be_block_protocol::Query::Organizations
+        ))
         .await
         .map_err(explain)?;
     match organizations.as_slice() {
@@ -239,10 +263,16 @@ async fn identity(
     let secret = be_block_keys::RecoveryPhrase::parse(phrase)
         .map_err(|error| format!("BE3_RECOVERY_PHRASE: {error}"))?
         .secret();
-    let public = be_block_client::ask(client::keys::get_recovery_key(connection))
-        .await
-        .map_err(explain)?
-        .public;
+    let public = be_block_client::ask(
+        be_block_protocol::read::<be_block_protocol::RecoveryKey, _>(
+            connection,
+            None,
+            be_block_protocol::Query::RecoveryKey,
+        ),
+    )
+    .await
+    .map_err(explain)?
+    .public;
     match public {
         Some(public) if public == secret.public().0 => Ok(secret),
         Some(_) => Err("BE3_RECOVERY_PHRASE is not this account's recovery phrase".to_owned()),
@@ -254,7 +284,7 @@ pub fn explain(error: ClientError) -> String {
     match error {
         ClientError::Refused(_, message) => message,
         ClientError::Incompatible { ours, theirs } => format!(
-            "this be is build {ours} and the server is build {theirs}; ./scripts/be runs the release pinned in scripts/internal/pins, which must be the server's build"
+            "this be is build {ours} and the server is build {theirs}; ./scripts/be runs the build https://be3.pfg.pw/live/be-release names, which each deploy points at the server's build (guides/tracker.md)"
         ),
         other => other.to_string(),
     }

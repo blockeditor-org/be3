@@ -12,11 +12,11 @@ fn a_mock_dom_follows_its_signals_through_show_and_for_each() {
         view! {
             <Element tag="div">
                 <Element tag="h1" text={title} />
-                <Show condition={empty}>
+                <Show value={empty}>
                     <Element tag="p" text="nothing to buy" />
                 </Show>
                 <Element tag="ul">
-                    <ForEach keys={items}>|item: String|
+                    <ForEach value={items}>|item: String|
                         <Element tag="li" text={item} />
                     </ForEach>
                 </Element>

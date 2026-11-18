@@ -23,6 +23,7 @@ fn drag_up_from_below(make: fn() -> TextAreaState) {
                         font_size=AREA_FONT_SIZE
                         padding=AREA_PADDING
                         state
+                        scroll={plain_scroll()}
                     />
                 </ListItem>
             </List>

@@ -1,8 +1,7 @@
 use be_sdk_beui::be_block_content::EditorViewContent;
-use std::cell::Cell;
 
 use be_sdk_beui::be_block::{FILES_EDITOR, SettingsContent};
-use be_sdk_beui::be_block_content::{BlockContent, ViewState};
+use be_sdk_beui::be_block_content::{BlockContent, ViewRef, ViewStateKind};
 use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::dock::{
     DockEntry, DockMode, DockPane, DockSplit, DockTab, Docking, SplitSize, TabId,
@@ -19,10 +18,11 @@ use be_sdk_beui::{
     TopBar,
 };
 use be_sdk_shell::{
-    BlockTab, Failure, PanelStatus, PanelWindow, ProgramTab, ProgramWindow, UnshownWindows,
-    WindowDialog, Workspace, WorkspaceDialogs,
+    BlockTab, PanelStatus, PanelWindow, ProgramTab, ProgramWindow, UnshownWindows, WindowDialog,
+    Workspace, WorkspaceDialogs,
 };
 use beui::{Align, Key};
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::phone::{DetailsSheet, PhoneSheet};
@@ -31,7 +31,13 @@ use crate::revisions::{RevisionHistory, RevisionHistoryPanel, RevisionPreviewBar
 pub(crate) const FILES: TabId = TabId::new(1);
 pub(crate) const SETTINGS: TabId = TabId::new(1 << 39);
 pub(crate) const REVISIONS: TabId = TabId::new((1 << 39) + 1);
-const FILES_VIEW: &str = "files";
+/// The view block of the files pane, kept so the pane reopens as it was left.
+#[derive(Deserialize, PartialEq, Serialize)]
+pub(crate) struct FilesView(ViewRef);
+
+impl ViewStateKind for FilesView {
+    const ID: Uuid = Uuid::from_u128(0x776f_726b_7370_6163_652d_6669_6c65_0001);
+}
 pub(crate) const FILES_WIDTH: f32 = 260.0;
 const PANEL_PADDING: Space = Space::Lg;
 const PANEL_SPACING: Space = Space::Sm;
@@ -70,7 +76,7 @@ fn WorkspaceShell(editor: Editor) -> NodeId {
     });
     view! {
         <Loaded label="Loading the workspace">|| {
-            let _layout = editor.view_content();
+            workspace.hold_for_saved_layout();
             view! {
                 <Container>|_|
                     <WorkspaceBody shell />
@@ -115,18 +121,20 @@ impl Shell {
         if !self.workspace.ready().get() {
             return;
         }
+        let editor = self.workspace.editor();
+        let kept = editor.view_state::<FilesView>();
+        let saved = match kept.get() {
+            Ok(saved) => saved.and_then(|saved| saved.0.block()),
+            Err(Pending::Loading) => return,
+            Err(Pending::Failed(_)) => None,
+        };
         untrack(|| {
             if self.files.get().is_some() {
                 return;
             }
-            let editor = self.workspace.editor();
-            let saved = editor
-                .view_state(FILES_VIEW)
-                .and_then(|state| state.refs.first().copied())
-                .filter(|id| !id.is_nil());
             let files = saved.or_else(|| {
                 let made = self.workspace.create_view(FILES_EDITOR, None)?;
-                editor.set_view_state(FILES_VIEW, Some(&ViewState::new(&(), vec![made])));
+                kept.set(Some(FilesView(ViewRef::new(made))));
                 Some(made)
             });
             self.files.set(files);
@@ -145,19 +153,17 @@ fn WorkspaceBody(shell: Shell) -> NodeId {
     let history = shell.history;
     let layout = workspace.layout();
     let mode = layout.mode();
-    let was_stacked = Cell::new(false);
-    create_effect(move || {
-        let now = mode.get() == DockMode::Stacked;
-        if was_stacked.replace(now) != now {
-            untrack(|| shell.set_phone(now));
-        }
-    });
+    create_effect_on(
+        move || mode.get() == DockMode::Stacked,
+        move |&stacked, was| {
+            if was.copied().unwrap_or(false) != stacked {
+                shell.set_phone(stacked);
+            }
+        },
+    );
     let surface = NodeRef::new();
     workspace.editor().content(&surface);
     workspace_actions(workspace);
-    let failure = workspace.error();
-    let failed = create_memo(move || failure.get().is_some());
-    let reason = create_memo(move || failure.get().unwrap_or_default());
     let block_tabs = workspace.block_tabs();
     let top_windows = workspace.program_tabs();
     let opens = opens_windows();
@@ -174,7 +180,6 @@ fn WorkspaceBody(shell: Shell) -> NodeId {
     view! {
         <Frame @node_ref={&surface}>
             <List spacing=Space::None>
-                <Failure failed={failed} reason={reason} />
                 <ListItem grow=1.0>
                     <DockHost layout={workspace.dock_host()}>
                         <Docking layout>
@@ -201,22 +206,22 @@ fn WorkspaceBody(shell: Shell) -> NodeId {
                                         <EmptyPanel />
                                     }}
                                 >
-                                    <ForEach keys={block_tabs}>|tab: TabId|
+                                    <ForEach value={block_tabs}>|tab: TabId|
                                         <WorkspaceBlockTab shell tab />
                                     </ForEach>
-                                    <ForEach keys={tabbed}>|tab: TabId|
+                                    <ForEach value={tabbed}>|tab: TabId|
                                         <ProgramTab workspace tab />
                                     </ForEach>
                                 </DockPane>
                             </DockSplit>
-                            <ForEach keys={panels}>|panel: HostPanel|
+                            <ForEach value={panels}>|panel: HostPanel|
                                 <PanelWindow workspace panel />
                             </ForEach>
-                            <ForEach keys={floating}>|tab: TabId|
+                            <ForEach value={floating}>|tab: TabId|
                                 <ProgramWindow workspace tab />
                             </ForEach>
                             <ForEach
-                                keys={dialog_windows}
+                                value={dialog_windows}
                             >|(window, parent): (HostWindowId, HostWindowId)|
                                 <WindowDialog workspace window parent />
                             </ForEach>
@@ -313,11 +318,6 @@ fn SidePanel(
     loading: &'static str,
     id: &'static str,
 ) -> NodeId {
-    let phone = workspace.phone();
-    let top_bar = create_memo(move || match phone.get() {
-        true => TopBar::Phone,
-        false => TopBar::Hidden,
-    });
     let editor = workspace.editor();
     view! {
         <List spacing=Space::None>
@@ -327,7 +327,7 @@ fn SidePanel(
                     block={target}
                     mode=ChildMode::Live
                     own_frame=true
-                    top_bar={top_bar}
+                    top_bar=TopBar::Hidden
                     @test_id={id}
                 >|handle: ChildBlockHandle|
                     <PanelStatus state={handle.state} loading={loading.to_owned()} />

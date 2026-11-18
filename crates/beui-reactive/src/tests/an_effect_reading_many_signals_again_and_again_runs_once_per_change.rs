@@ -14,16 +14,16 @@ fn an_effect_reading_many_signals_again_and_again_runs_once_per_change() {
             runs.set(runs.get() + 1);
             for _ in 0..3 {
                 for signal in signals.iter() {
-                    signal.get();
-                    shared.get();
+                    signal.track();
+                    shared.track();
                 }
             }
             let inner_runs = inner_runs.clone();
             create_effect(move || {
                 inner_runs.set(inner_runs.get() + 1);
-                shared.get();
+                shared.track();
             });
-            shared.get();
+            shared.track();
         });
     });
     assert_eq!(runs.get(), 1);

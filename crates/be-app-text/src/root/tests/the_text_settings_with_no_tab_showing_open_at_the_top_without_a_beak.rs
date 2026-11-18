@@ -1,4 +1,5 @@
 use super::editor;
+use be_sdk_test::prelude::*;
 
 #[test]
 fn the_text_settings_with_no_tab_showing_open_at_the_top_without_a_beak() {

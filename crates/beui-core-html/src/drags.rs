@@ -2,10 +2,38 @@ use std::rc::Rc;
 
 use beui_types::drag::Driver;
 
+/// Which pointer an event comes from, as the native core names it: a finger by its id.
+#[cfg(target_arch = "wasm32")]
+pub fn pointer_of(event: Option<&web_sys::PointerEvent>) -> beui_types::input::PointerId {
+    use beui_types::input::PointerId;
+    match event {
+        Some(event) if event.pointer_type() == "touch" => PointerId::Touch(beui_types::TouchId {
+            device: 0,
+            finger: event.pointer_id() as u64,
+        }),
+        Some(event) if event.pointer_type() == "pen" => PointerId::Pen,
+        _ => PointerId::Mouse,
+    }
+}
+
+#[derive(Clone, Default)]
+struct Driving(Rc<std::cell::RefCell<Option<Rc<dyn Driver>>>>);
+
+/// The driver `drive` was given, if any.
+pub fn driver() -> Option<Rc<dyn Driver>> {
+    crate::document::extension_or_insert_with(Driving::default)
+        .0
+        .borrow()
+        .clone()
+}
+
 /// Drives the drag board from the browser. While a drag is carried, pointer moves,
 /// releases and cancels are caught on the window, so the drag goes on after the element
 /// that began it is gone or the pointer leaves it; Escape cancels the drag.
 pub fn drive(driver: Rc<dyn Driver>) {
+    crate::document::extension_or_insert_with(Driving::default)
+        .0
+        .replace(Some(Rc::clone(&driver)));
     let escape = Rc::clone(&driver);
     crate::keys::listen(
         crate::keys::KeyAt::Window,
@@ -62,6 +90,7 @@ mod web {
             ),
             modifiers,
         )
+        .by(crate::drags::pointer_of(Some(event)))
     }
 
     pub(super) fn follow(driver: Rc<dyn Driver>) {
@@ -89,7 +118,7 @@ mod web {
                 move |event: web_sys::PointerEvent| {
                     if released.carrying() {
                         released.track(point(&event), FLAT);
-                        released.release(false, FLAT);
+                        released.release(crate::drags::pointer_of(Some(&event)), false, FLAT);
                         beui_reactive::flush();
                     }
                 },
@@ -98,9 +127,9 @@ mod web {
                 target,
                 "pointercancel",
                 true,
-                move |_: web_sys::PointerEvent| {
+                move |event: web_sys::PointerEvent| {
                     if cancelled.carrying() {
-                        cancelled.release(true, FLAT);
+                        cancelled.release(crate::drags::pointer_of(Some(&event)), true, FLAT);
                         beui_reactive::flush();
                     }
                 },

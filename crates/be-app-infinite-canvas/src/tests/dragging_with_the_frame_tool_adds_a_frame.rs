@@ -13,7 +13,6 @@ fn dragging_with_the_frame_tool_adds_a_frame() {
     let canvas = editor.rect_of("infinite-canvas.canvas");
     let from = canvas.center() - Vec2::new(200.0, 150.0);
     editor.drag(from, from + Vec2::new(300.0, 200.0));
-    editor.run();
 
     let frames: Vec<_> = entities(&editor)
         .into_iter()

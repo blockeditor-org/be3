@@ -1,7 +1,8 @@
 use accesskit::{Node, Role};
 use beui_macros::{component, view};
 
-use super::modal::{Modal, ModalHandle};
+use super::back_slide::SlideCurves;
+use super::modal::{Modal, ModalHandle, ModalMotion};
 use beui_view::components::overlay::{Modality, Overlay, use_modal};
 use beui_view::components::portal::Portal;
 use beui_view::primitives::*;
@@ -46,12 +47,12 @@ pub struct DialogAction {
 }
 
 impl DialogAction {
-    pub fn new(
+    pub fn new<M1, M2>(
         role: ActionRole,
-        label: impl IntoProp<String>,
-        on_click: impl IntoUnitCallback,
+        label: impl IntoPropValue<Prop<String>, M1>,
+        on_click: impl IntoPropValue<Callback<()>, M2>,
     ) -> Self {
-        let label = label.into_prop();
+        let label = label.into_prop_value();
         Self {
             label: create_memo(move || label.get()),
             role,
@@ -63,40 +64,49 @@ impl DialogAction {
                 ActionRole::Cancel => "cancel",
                 ActionRole::Secondary => "secondary",
             },
-            on_click: on_click.into_unit_callback(),
+            on_click: on_click.into_prop_value(),
         }
     }
 
-    pub fn primary(label: impl IntoProp<String>, on_click: impl IntoUnitCallback) -> Self {
+    pub fn primary<M1, M2>(
+        label: impl IntoPropValue<Prop<String>, M1>,
+        on_click: impl IntoPropValue<Callback<()>, M2>,
+    ) -> Self {
         Self::new(ActionRole::Primary, label, on_click)
     }
 
-    pub fn destructive(label: impl IntoProp<String>, on_click: impl IntoUnitCallback) -> Self {
+    pub fn destructive<M1, M2>(
+        label: impl IntoPropValue<Prop<String>, M1>,
+        on_click: impl IntoPropValue<Callback<()>, M2>,
+    ) -> Self {
         Self::new(ActionRole::Destructive, label, on_click)
     }
 
-    pub fn secondary(label: impl IntoProp<String>, on_click: impl IntoUnitCallback) -> Self {
+    pub fn secondary<M1, M2>(
+        label: impl IntoPropValue<Prop<String>, M1>,
+        on_click: impl IntoPropValue<Callback<()>, M2>,
+    ) -> Self {
         Self::new(ActionRole::Secondary, label, on_click)
     }
 
-    pub fn cancel(label: impl IntoProp<String>) -> Self {
+    pub fn cancel<M1>(label: impl IntoPropValue<Prop<String>, M1>) -> Self {
         Self::new(ActionRole::Cancel, label, Callback::empty())
     }
 
-    pub fn disabled(mut self, disabled: impl IntoProp<bool>) -> Self {
-        let disabled = disabled.into_prop();
+    pub fn disabled<M>(mut self, disabled: impl IntoPropValue<Prop<bool>, M>) -> Self {
+        let disabled = disabled.into_prop_value();
         self.disabled = create_memo(move || disabled.get());
         self
     }
 
-    pub fn busy(mut self, busy: impl IntoProp<bool>) -> Self {
-        let busy = busy.into_prop();
+    pub fn busy<M>(mut self, busy: impl IntoPropValue<Prop<bool>, M>) -> Self {
+        let busy = busy.into_prop_value();
         self.busy = create_memo(move || busy.get());
         self
     }
 
-    pub fn shown(mut self, shown: impl IntoProp<bool>) -> Self {
-        let shown = shown.into_prop();
+    pub fn shown<M>(mut self, shown: impl IntoPropValue<Prop<bool>, M>) -> Self {
+        let shown = shown.into_prop_value();
         self.shown = create_memo(move || shown.get());
         self
     }
@@ -170,6 +180,11 @@ pub fn footer_order(actions: &[DialogAction], narrow: bool) -> FooterOrder {
     }
 }
 
+/// Whether the dialog around a `DialogBody` is open: it keeps its body while
+/// closed, so the body asks for its focus again each time it reopens.
+#[derive(Clone, Copy)]
+struct DialogOpen(Memo<bool>);
+
 #[derive(Clone, Copy)]
 pub struct DialogBodyHandle {
     pub kind: DialogKind,
@@ -199,14 +214,20 @@ pub fn DialogBody(
     #[prop(default = false)] narrow: Prop<bool>,
     #[prop(default = true)] focuses: Prop<bool>,
     on_dismiss: Callback<()>,
-    face: Render<DialogBodyHandle>,
+    face: Render<DialogBodyHandle, NodeId>,
 ) -> NodeId {
     let actions = store(actions);
     let title = create_memo(move || title.get());
     let narrow = create_memo(move || narrow.get());
     let footer = create_memo(move || actions.with(|actions| footer_order(actions, narrow.get())));
+    let shown_now = use_context::<DialogOpen>().map(|open| open.0);
     let focus = create_memo(move || {
         if kind != DialogKind::Alert || !focuses.get() {
+            return None;
+        }
+        // A dialog keeps its body while closed, so the request falls when it
+        // closes and rises again, refocusing, each time it reopens.
+        if shown_now.is_some_and(|open| !open.get()) {
             return None;
         }
         let shown = actions.with(|actions| shown(actions));
@@ -354,12 +375,12 @@ pub struct DialogSheetHandle {
     pub open: Memo<bool>,
     pub close: Callback<()>,
     pub tall: bool,
-    pub body: Child,
+    pub body: NodeId,
 }
 
 pub struct DialogCardHandle {
     pub pointer: NodeRef,
-    pub body: Child,
+    pub body: NodeId,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -449,15 +470,16 @@ pub fn Dialog(
     open: Prop<bool>,
     kind: DialogKind,
     scrim: Prop<Color>,
+    slide: SlideCurves,
     sheet_below: f32,
     #[prop(default = false)] narrow: Prop<bool>,
     #[prop(default = DialogSize::Small)] size: DialogSize,
     #[prop(default = DialogAnchor::None)] anchor: Prop<DialogAnchor>,
     #[prop(default = 0.0)] beak: f32,
     on_dismiss: Callback<()>,
-    card: Render<DialogCardHandle>,
-    sheet: Render<DialogSheetHandle>,
-    body: Render<DialogLayout>,
+    card: Render<DialogCardHandle, NodeId>,
+    sheet: Render<DialogSheetHandle, NodeId>,
+    body: Render<DialogLayout, NodeId>,
 ) -> NodeId {
     let open = create_memo(move || open.get());
     let viewport = use_viewport_size();
@@ -503,6 +525,7 @@ pub fn Dialog(
     };
     provide_context(layout);
     provide_context(Modality(create_memo(|| true)));
+    provide_context(DialogOpen(open));
     let mut ever = false;
     let opened = create_memo(move || {
         ever |= open.get();
@@ -560,10 +583,9 @@ pub fn Dialog(
         let width = viewport.get().x;
         Rect::from_min_max(Pos2::ZERO, Pos2::new(width, 0.0))
     });
-    let popover = Placement::Popover {
-        gap: DIALOG_GAP,
-        margin: DIALOG_MARGIN,
-    };
+    let popover = Placement::BELOW_CENTER
+        .gap(DIALOG_GAP)
+        .margin(DIALOG_MARGIN);
     let placed = create_memo(move || match presentation.get() {
         DialogPresentation::Anchored(Some(DialogTarget::Node(node))) => {
             if held.try_get() != Some(node) {
@@ -599,7 +621,12 @@ pub fn Dialog(
     });
     view! {
         <List spacing=0.0>
-            <Modal open={as_card} scrim on_dismiss={on_dismiss}>|_: ModalHandle|
+            <Modal
+                open={as_card}
+                scrim
+                motion={ModalMotion::Slides(slide)}
+                on_dismiss={on_dismiss}
+            >|_: ModalHandle|
                 <Portal node={centred_card} />
             </Modal>
             <Overlay
@@ -609,7 +636,6 @@ pub fn Dialog(
                 pointer={pointer}
                 beak={reach}
                 open={as_layer}
-                keep_alive=true
                 on_dismiss={move |_: Dismiss| on_dismiss.call(())}
             >
                 <Portal node={layer_card} />

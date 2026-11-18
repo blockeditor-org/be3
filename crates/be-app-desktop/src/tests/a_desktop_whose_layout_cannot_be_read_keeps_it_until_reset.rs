@@ -6,7 +6,7 @@ use super::*;
 fn truncated(saved: &EditorViewContent) -> ViewState {
     let mut layout = saved
         .root()
-        .state("layout")
+        .stored(SavedLayout::ID)
         .cloned()
         .expect("the layout is saved");
     layout.bytes.truncate(layout.bytes.len() / 2);
@@ -17,7 +17,7 @@ fn holding(layout: &ViewState) -> EditorViewContent {
     let mut saved = EditorView::document(None);
     let edit = saved
         .root()
-        .set_state("layout", Some(layout), 1, Uuid::nil());
+        .put_stored(SavedLayout::ID, Some(layout), 1, Uuid::nil());
     saved.apply(&edit);
     saved
 }
@@ -39,7 +39,7 @@ fn a_desktop_whose_layout_cannot_be_read_keeps_it_until_reset() {
         "the desktop asks before replacing the layout"
     );
     assert_eq!(
-        second.saved().root().state("layout"),
+        second.saved().root().stored(SavedLayout::ID),
         Some(&unreadable),
         "the saved layout is left as it was while the notice is open"
     );
@@ -57,7 +57,7 @@ fn a_desktop_whose_layout_cannot_be_read_keeps_it_until_reset() {
         "exiting asks the host to end the desktop session"
     );
     assert_eq!(
-        second.saved().root().state("layout"),
+        second.saved().root().stored(SavedLayout::ID),
         Some(&unreadable),
         "exiting leaves the saved layout as it was"
     );
@@ -71,7 +71,7 @@ fn a_desktop_whose_layout_cannot_be_read_keeps_it_until_reset() {
     let reset = second
         .saved()
         .root()
-        .state("layout")
+        .stored(SavedLayout::ID)
         .cloned()
         .expect("a layout is saved");
     assert_ne!(reset, unreadable, "the fresh layout is saved over it");

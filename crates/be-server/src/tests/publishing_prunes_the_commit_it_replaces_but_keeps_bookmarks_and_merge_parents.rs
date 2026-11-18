@@ -1,12 +1,12 @@
 use super::*;
 
-use be_block_commit::retention::MINUTE;
+use be_block_commit::MINUTE;
 
 #[tokio::test]
 async fn publishing_prunes_the_commit_it_replaces_but_keeps_bookmarks_and_merge_parents() {
     let harness = Harness::start().await;
-    let mut client = harness.client().await;
-    let account = client.register("keeper@example.com").await;
+    let mut client = harness.member("keeper@example.com").await;
+    let account = client.id();
     client.organization("notes").await;
     let author = Author::new(account);
     let block = client.create_block(BlockParent::Root).await;
@@ -23,19 +23,22 @@ async fn publishing_prunes_the_commit_it_replaces_but_keeps_bookmarks_and_merge_
         .await;
     let _ = client
         .call(|peer| {
-            client::blocks::publish(
-                peer,
-                block,
-                bookmark,
-                None,
-                Vec::new(),
-                objects_change(&[], bookmark_chunks.clone()),
-                minute,
-                true,
-                listing(&[], Vec::new()),
-                Vec::new(),
-                Vec::new(),
-            )
+            peer.write::<be_block_protocol::PublishOutcome>(be_block_protocol::Op::Publish {
+                block: block,
+                expected: None,
+                commit: Some(be_block_protocol::NewCommit {
+                    id: bookmark,
+                    parents: Vec::new(),
+                    held: objects_change(&[], bookmark_chunks.clone()),
+                    time: minute,
+                    pinned: true,
+                    objects: Vec::new(),
+                    log_through: None,
+                }),
+                references: listing(&[], Vec::new()),
+                metadata: Vec::new(),
+                journal: None,
+            })
         })
         .await;
     let mut head = bookmark;
@@ -61,19 +64,22 @@ async fn publishing_prunes_the_commit_it_replaces_but_keeps_bookmarks_and_merge_
         .await;
     let response = client
         .call(|peer| {
-            client::blocks::publish(
-                peer,
-                block,
-                merge,
-                Some(theirs),
-                vec![theirs, ours],
-                objects_change(&author.held_by(Some(theirs)), merge_chunks.clone()),
-                minute + 3_000,
-                false,
-                listing(&[], Vec::new()),
-                Vec::new(),
-                Vec::new(),
-            )
+            peer.write::<be_block_protocol::PublishOutcome>(be_block_protocol::Op::Publish {
+                block: block,
+                expected: Some(theirs),
+                commit: Some(be_block_protocol::NewCommit {
+                    id: merge,
+                    parents: vec![theirs, ours],
+                    held: objects_change(&author.held_by(Some(theirs)), merge_chunks.clone()),
+                    time: minute + 3_000,
+                    pinned: false,
+                    objects: Vec::new(),
+                    log_through: None,
+                }),
+                references: listing(&[], Vec::new()),
+                metadata: Vec::new(),
+                journal: None,
+            })
         })
         .await;
     assert!(

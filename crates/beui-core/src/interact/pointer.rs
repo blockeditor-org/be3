@@ -12,12 +12,14 @@ use beui_types::WindowId;
 use beui_types::{Modifiers, Pen, PointerButton, TouchId};
 use beui_types::{
     PointerEvent, PointerId, PointerInput, PointerPhase, PointerPress, PointerSample, PointerStage,
-    ScrollGesture, TOUCH_DRAG_THRESHOLD, WheelInput, ZoomGesture,
+    ScrollGesture, TOUCH_DRAG_THRESHOLD, TouchpadGesture, WheelInput, ZoomGesture,
 };
 use beui_types::{Pos2, Rect, Vec2, vec2};
 
+use super::forward;
 use super::hit::{self, Hit, interactive};
 use super::{WHEEL_LATCH_SLOP, grab};
+use be_lib_input_router::Phase;
 use beui_types::WHEEL_LATCH_TIMEOUT;
 
 #[derive(Default)]
@@ -27,7 +29,10 @@ pub struct Pointers {
     hovered_at: Option<(WindowId, Pos2)>,
     wheel_latch: Option<(NodeId, Instant, WindowId, Pos2)>,
     wheel_held: bool,
-    fingers: Fingers,
+    /// Each window's fingers, as a gesture is only ever the fingers of one window.
+    fingers: Vec<(WindowId, Fingers)>,
+    /// How many fingers tapped this frame, if a window's did.
+    finger_tap: Option<usize>,
     kept_off: Vec<TouchId>,
     pub(crate) grabber: Option<NodeId>,
     pub(crate) grabbed: Option<NodeId>,
@@ -46,13 +51,6 @@ pub(crate) struct Routed {
 }
 
 impl Pointers {
-    pub(crate) fn sink_of(&self, pointer: PointerId) -> Option<NodeId> {
-        self.sessions
-            .iter()
-            .filter(|session| session.pointer == pointer)
-            .find_map(|session| session.sink)
-    }
-
     pub(crate) fn forget_hits(&mut self) {
         self.hits.clear();
     }
@@ -63,17 +61,39 @@ impl Pointers {
         }
     }
 
-    fn touches(&self) -> impl Iterator<Item = (TouchId, Pos2, Pos2)> + '_ {
+    fn touches(&self, window: WindowId) -> impl Iterator<Item = (TouchId, Pos2, Pos2)> + '_ {
         self.sessions
             .iter()
+            .filter(move |session| session.origin_window == window)
             .filter_map(|session| match session.pointer {
                 PointerId::Touch(id) => Some((
                     id,
                     session.pos - session.shift,
                     session.origin - session.shift,
                 )),
-                PointerId::Mouse | PointerId::Pen => None,
+                PointerId::Mouse | PointerId::Pen | PointerId::Keyboard | PointerId::Relayed => {
+                    None
+                }
             })
+    }
+
+    fn fingers(&mut self, window: WindowId) -> &mut Fingers {
+        let index = match self.fingers.iter().position(|(held, _)| *held == window) {
+            Some(index) => index,
+            None => {
+                self.fingers.push((window, Fingers::default()));
+                self.fingers.len() - 1
+            }
+        };
+        &mut self.fingers[index].1
+    }
+
+    /// The window a pointer's session began in, if it is held.
+    fn window_of(&self, pointer: PointerId) -> Option<WindowId> {
+        self.sessions
+            .iter()
+            .find(|session| session.pointer == pointer)
+            .map(|session| session.origin_window)
     }
 }
 
@@ -108,7 +128,6 @@ struct Kind {
     finger: bool,
     reaches: bool,
     settles: bool,
-    holds_sink: bool,
     buttons: bool,
     shows_cursor: bool,
 }
@@ -118,7 +137,6 @@ impl Kind {
         finger: false,
         reaches: false,
         settles: false,
-        holds_sink: true,
         buttons: true,
         shows_cursor: true,
     };
@@ -127,22 +145,16 @@ impl Kind {
         finger: true,
         reaches: true,
         settles: true,
-        holds_sink: false,
         buttons: false,
         shows_cursor: false,
     };
 
     fn of(pointer: PointerId) -> Kind {
         match pointer {
-            PointerId::Mouse | PointerId::Pen => Kind::MOUSE,
+            PointerId::Mouse | PointerId::Pen | PointerId::Keyboard | PointerId::Relayed => {
+                Kind::MOUSE
+            }
             PointerId::Touch(_) => Kind::FINGER,
-        }
-    }
-
-    fn held_sink(self, doc: &Document, pointer: PointerId) -> Option<NodeId> {
-        match self.holds_sink {
-            true => doc.pointers.sink_of(pointer),
-            false => None,
         }
     }
 }
@@ -172,7 +184,6 @@ struct Session {
     claimed: bool,
     focus: Option<NodeId>,
     pressed_focus: Option<NodeId>,
-    sink: Option<NodeId>,
     modifiers: Modifiers,
     clicks: u32,
     pen: Option<Pen>,
@@ -194,6 +205,7 @@ impl Session {
             window: self.window,
             pen: self.pen,
             predicted: self.predicted,
+            pointer: self.pointer,
             ..press_at(
                 rect,
                 scale,
@@ -285,7 +297,6 @@ struct Fingers {
     moved: bool,
     since: Option<Instant>,
     hold: Option<Hold>,
-    tap: Option<usize>,
 }
 
 struct Hold {
@@ -331,7 +342,7 @@ pub(crate) fn begin(doc: &mut Document, frame: &Frame) -> Vec<LongPressed> {
     let count = frame.ctx.input(|input| input.pointer_events.len());
     doc.pointers.routed = vec![Routed::default(); count];
     doc.pointers.hits.clear();
-    doc.pointers.fingers.tap = None;
+    doc.pointers.finger_tap = None;
     for session in &mut doc.pointers.sessions {
         session.dragged_this_frame = false;
     }
@@ -394,7 +405,7 @@ pub(crate) fn end_frame(doc: &mut Document, frame: &Frame) {
         .ctx
         .input(|input| input.pointer.mouse().map(|pos| (input.pointer.window, pos)));
     hover(doc, frame, mouse);
-    if let Some(fingers) = doc.pointers.fingers.tap
+    if let Some(fingers) = doc.pointers.finger_tap
         && doc.layers().blocking() == 0
     {
         doc.finger_tap(fingers);
@@ -419,10 +430,8 @@ fn pointer_event(doc: &mut Document, frame: &Frame, event: PointerEvent) -> Opti
         PointerPhase::Move => moved(doc, frame, event),
         PointerPhase::Up(button) => up(doc, frame, event, button),
         PointerPhase::Cancel | PointerPhase::Gone => {
-            let sink = doc
-                .pointers
-                .sink_of(event.pointer)
-                .or(doc.forward.hovered());
+            let held = doc.forward.router.cancel(forward::pointer(event.pointer));
+            let sink = held.or(doc.forward.hovered());
             doc.pointers.route(sink);
             cancel(doc, frame, event.pointer);
         }
@@ -439,16 +448,27 @@ fn pointer_event(doc: &mut Document, frame: &Frame, event: PointerEvent) -> Opti
                 lift_latched(doc, frame, event);
             }
         }
-        PointerPhase::Touchpad(_) => {
-            let sink = wheel_sink(doc, frame, event.window, event.pos);
+        PointerPhase::Touchpad(gesture) => {
+            let phase = match gesture {
+                TouchpadGesture::SwipeBegan(_)
+                | TouchpadGesture::PinchBegan(_)
+                | TouchpadGesture::HoldBegan(_) => Phase::Began,
+                TouchpadGesture::SwipeEnded(_)
+                | TouchpadGesture::PinchEnded(_)
+                | TouchpadGesture::HoldEnded(_) => Phase::Ended,
+                _ => Phase::Moved,
+            };
+            let found = wheel_sink(doc, frame, event.window, event.pos);
+            let sink = forward::gesture(doc, found, event.pos, phase);
             doc.pointers.route(sink);
         }
         PointerPhase::Zoom(factor) => {
             let path = hit(doc, frame.rects, event.window, event.pos, false).path;
-            let sink = match gesture_claimant(doc, frame.rects, &path, event.pos) {
+            let found = match gesture_claimant(doc, frame.rects, &path, event.pos) {
                 Some(_) => None,
                 None => wheel_sink(doc, frame, event.window, event.pos),
             };
+            let sink = forward::gesture(doc, found, event.pos, Phase::Moved);
             doc.pointers.route(sink);
             let candidates = match gesture_claimant(doc, frame.rects, &path, event.pos) {
                 Some(claimant) => vec![claimant],
@@ -569,7 +589,7 @@ fn down(
     doc.finger_pressed = event.pointer.is_touch();
     let kind = Kind::of(event.pointer);
     let role = match button {
-        _ if kind.finger && primary_touch(doc).is_some() => Role::Finger,
+        _ if kind.finger && primary_touch(doc, event.window).is_some() => Role::Finger,
         PointerButton::Primary => Role::Press,
         PointerButton::Secondary if kind.buttons => Role::Secondary,
         PointerButton::Middle if kind.buttons => Role::Middle,
@@ -636,16 +656,19 @@ fn press_down(doc: &mut Document, frame: &Frame, down: Down) {
         Role::Middle => gesture_claimant(doc, frame.rects, &hit.path, pos),
         _ => None,
     };
-    let sink = kind
-        .held_sink(doc, event.pointer)
-        .filter(|_| panned.is_none())
-        .or_else(|| match claimant {
+    let found = forward::Catchers {
+        sink: match claimant {
             Some(claimant) => interactive(doc, claimant)
                 .is_some_and(InteractiveNode::forwards)
                 .then_some(claimant),
             None => hit::sink(doc, frame.rects, &hit.path, pos),
-        });
-    let sink = sink.filter(|_| panned.is_none());
+        },
+        pans: panned.is_some(),
+    };
+    let sink = doc
+        .forward
+        .router
+        .press(&found, forward::pointer(event.pointer), button, pos);
     doc.pointers.route(sink);
     let mut session = Session {
         pointer: event.pointer,
@@ -668,7 +691,6 @@ fn press_down(doc: &mut Document, frame: &Frame, down: Down) {
         claimed: claimant.is_some(),
         focus: None,
         pressed_focus: None,
-        sink,
         modifiers: event.modifiers,
         clicks: event.clicks,
         pen: event.pen,
@@ -707,7 +729,7 @@ fn press_down(doc: &mut Document, frame: &Frame, down: Down) {
     }
     doc.pointers.sessions.push(session);
     if let PointerId::Touch(id) = event.pointer {
-        finger_down(doc, frame, id, event.pos);
+        finger_down(doc, frame, id, event.window, event.pos);
     }
 }
 
@@ -765,13 +787,15 @@ fn press(doc: &mut Document, frame: &Frame, session: &mut Session, claimant: Opt
     let focused = doc.focused_node();
     doc.set_focus_visible(false);
     for owner in session.owners.clone().into_iter().rev() {
-        let change = node_mut(doc, owner).and_then(|node| node.arm(true));
+        // Armed before `on_press`, as on the HTML core, so `on_press` reads it active.
+        if let Some((on_active_change, active)) =
+            node_mut(doc, owner).and_then(|node| node.arm(true))
+        {
+            on_active_change.call(active);
+        }
         let pressed = rect_of(doc, frame.rects, owner).zip(interactive(doc, owner));
         if let Some((rect, node)) = pressed {
             node.on_press.clone().call(session.press(rect, pos));
-        }
-        if let Some((on_active_change, active)) = change {
-            on_active_change.call(active);
         }
     }
     session.pressed_focus = focused;
@@ -873,13 +897,18 @@ fn middle(
 
 fn moved(doc: &mut Document, frame: &Frame, event: PointerEvent) {
     doc.acted = Acted::Pointer(event.pos + doc.pointers.shift);
-    let sink = match find(doc, event.pointer, None) {
-        Some(_) => doc.pointers.sink_of(event.pointer),
-        None => {
+    let pointer = forward::pointer(event.pointer);
+    let found = match doc.forward.router.pressing(pointer) {
+        true => None,
+        false => {
             let hit = hit(doc, frame.rects, event.window, event.pos, false);
             hit::sink(doc, frame.rects, &hit.path, event.pos)
         }
     };
+    let sink = doc
+        .forward
+        .router
+        .moved(&forward::Catchers::at(found), pointer, event.pos);
     doc.pointers.route(sink);
     if let PointerId::Touch(id) = event.pointer {
         finger_moved(doc, frame, id, event.pos);
@@ -1021,23 +1050,24 @@ fn cancel_owner(doc: &mut Document, owner: NodeId) {
 
 fn up(doc: &mut Document, frame: &Frame, event: PointerEvent, button: PointerButton) {
     let primary = is_primary(doc, event.pointer);
-    let kind = Kind::of(event.pointer);
+    let window = doc.pointers.window_of(event.pointer);
+    let sink = doc
+        .forward
+        .router
+        .release(forward::pointer(event.pointer), button);
+    doc.pointers.route(sink);
     let Some(index) = find(doc, event.pointer, Some(button)) else {
-        let sink = kind.held_sink(doc, event.pointer);
-        doc.pointers.route(sink);
         return;
     };
     let mut session = doc.pointers.sessions.remove(index);
-    let sink = kind.held_sink(doc, event.pointer).or(session.sink);
-    doc.pointers.route(sink);
     let pos = event.pos + session.shift;
     session.window = event.window;
     session.predicted = None;
     session.time = event.time;
     follow(doc, frame, &mut session, pos, PointerStage::Up);
     end(doc, frame, session, false);
-    if let PointerId::Touch(id) = event.pointer {
-        finger_lifted(doc, frame, id, Some(event.pos), false, primary);
+    if let (PointerId::Touch(id), Some(window)) = (event.pointer, window) {
+        finger_lifted(doc, frame, id, window, Some(event.pos), false, primary);
     }
 }
 
@@ -1053,8 +1083,9 @@ fn end(doc: &mut Document, frame: &Frame, mut session: Session, lost: bool) {
                 && let Some(drags) = doc.drags.clone()
             {
                 let modifiers = frame.ctx.input(|input| input.modifiers);
-                let point =
-                    beui_types::drag::DragPoint::at(pos, modifiers).in_window(session.window);
+                let point = beui_types::drag::DragPoint::at(pos, modifiers)
+                    .in_window(session.window)
+                    .by(session.pointer);
                 drags.track(point, &|node| drag_order(doc, node));
             }
             if !cancelled {
@@ -1109,7 +1140,7 @@ fn end(doc: &mut Document, frame: &Frame, mut session: Session, lost: bool) {
             if doc.dragging()
                 && let Some(drags) = doc.drags.clone()
             {
-                drags.release(cancelled, &|node| drag_order(doc, node));
+                drags.release(session.pointer, cancelled, &|node| drag_order(doc, node));
             }
         }
         Role::Secondary => {}
@@ -1134,21 +1165,25 @@ fn end(doc: &mut Document, frame: &Frame, mut session: Session, lost: bool) {
 
 fn cancel(doc: &mut Document, frame: &Frame, pointer: PointerId) {
     let primary = is_primary(doc, pointer);
+    let window = doc.pointers.window_of(pointer);
     let mut held = false;
     while let Some(index) = find(doc, pointer, None) {
         let session = doc.pointers.sessions.remove(index);
         end(doc, frame, session, true);
         held = true;
     }
-    if let PointerId::Touch(id) = pointer
+    if let (PointerId::Touch(id), Some(window)) = (pointer, window)
         && held
     {
-        finger_lifted(doc, frame, id, None, true, primary);
+        finger_lifted(doc, frame, id, window, None, true, primary);
     }
 }
 
 fn is_primary(doc: &Document, pointer: PointerId) -> bool {
-    primary_touch(doc).is_some_and(|index| doc.pointers.sessions[index].pointer == pointer)
+    doc.pointers.window_of(pointer).is_some_and(|window| {
+        primary_touch(doc, window)
+            .is_some_and(|index| doc.pointers.sessions[index].pointer == pointer)
+    })
 }
 
 fn long_presses(doc: &mut Document, frame: &Frame) -> Vec<LongPressed> {
@@ -1249,23 +1284,23 @@ pub(crate) fn long_pressed(doc: &mut Document, frame: &Frame, pressed: Vec<LongP
     }
 }
 
-fn primary_touch(doc: &Document) -> Option<usize> {
-    doc.pointers
-        .sessions
-        .iter()
-        .position(|session| session.kind.finger && session.role == Role::Press)
+/// The finger pressing in `window`, which a second finger there turns into a gesture.
+fn primary_touch(doc: &Document, window: WindowId) -> Option<usize> {
+    doc.pointers.sessions.iter().position(|session| {
+        session.kind.finger && session.role == Role::Press && session.origin_window == window
+    })
 }
 
-fn finger_down(doc: &mut Document, frame: &Frame, id: TouchId, pos: Pos2) {
-    let count = doc.pointers.touches().count();
-    let fingers = &mut doc.pointers.fingers;
+fn finger_down(doc: &mut Document, frame: &Frame, id: TouchId, window: WindowId, pos: Pos2) {
+    let count = doc.pointers.touches(window).count();
+    let fingers = doc.pointers.fingers(window);
     if count == 1 {
         fingers.most = 0;
         fingers.moved = false;
         fingers.since = Some(frame.now);
     }
     fingers.most = fingers.most.max(count);
-    let Some(primary) = primary_touch(doc)
+    let Some(primary) = primary_touch(doc, window)
         .filter(|index| doc.pointers.sessions[*index].pointer != PointerId::Touch(id))
     else {
         return;
@@ -1283,7 +1318,8 @@ fn cancel_primary(
     pos: Pos2,
     second: bool,
 ) {
-    let holds = !session.dragged && doc.pointers.fingers.hold.is_none() && second;
+    let window = session.origin_window;
+    let holds = !session.dragged && doc.pointers.fingers(window).hold.is_none() && second;
     if holds {
         let hit = hit(doc, frame.rects, session.window, pos, false);
         let hold = Hold {
@@ -1293,7 +1329,7 @@ fn cancel_primary(
             pos,
         };
         tell_hold(doc, frame.rects, &hold, PointerStage::Down, pos, frame.now);
-        doc.pointers.fingers.hold = Some(hold);
+        doc.pointers.fingers(window).hold = Some(hold);
     }
     let owners = std::mem::take(&mut session.owners);
     for owner in owners.into_iter().rev() {
@@ -1340,10 +1376,17 @@ fn tell_hold(
 
 fn finger_moved(doc: &mut Document, frame: &Frame, id: TouchId, pos: Pos2) {
     let primary = is_primary(doc, PointerId::Touch(id));
-    let Some((_, _, origin)) = doc.pointers.touches().find(|(finger, _, _)| *finger == id) else {
+    let Some(window) = doc.pointers.window_of(PointerId::Touch(id)) else {
         return;
     };
-    let fingers = &mut doc.pointers.fingers;
+    let Some((_, _, origin)) = doc
+        .pointers
+        .touches(window)
+        .find(|(finger, _, _)| *finger == id)
+    else {
+        return;
+    };
+    let fingers = doc.pointers.fingers(window);
     if origin.distance(pos) >= TOUCH_DRAG_THRESHOLD {
         fingers.moved = true;
     }
@@ -1359,7 +1402,12 @@ fn finger_moved(doc: &mut Document, frame: &Frame, id: TouchId, pos: Pos2) {
             dropped = fingers.hold.take();
         }
     }
-    if moved && let Some(hold) = &doc.pointers.fingers.hold {
+    let held = doc
+        .pointers
+        .fingers
+        .iter()
+        .find(|(held, _)| *held == window);
+    if moved && let Some(hold) = held.and_then(|(_, fingers)| fingers.hold.as_ref()) {
         tell_hold(doc, frame.rects, hold, PointerStage::Move, pos, frame.now);
     }
     if let Some(hold) = dropped {
@@ -1378,27 +1426,34 @@ fn finger_lifted(
     doc: &mut Document,
     frame: &Frame,
     id: TouchId,
+    window: WindowId,
     pos: Option<Pos2>,
     cancelled: bool,
     primary: bool,
 ) {
     let now = doc.now();
-    let held = doc.pointers.touches().count();
-    let fingers = &mut doc.pointers.fingers;
+    let held = doc.pointers.touches(window).count();
+    let fingers = doc.pointers.fingers(window);
+    let mut tapped = None;
     if held == 0 {
         let quick = fingers
             .since
             .take()
             .is_some_and(|since| now.saturating_duration_since(since) <= FINGER_TAP_TIME);
         if !cancelled && quick && !fingers.moved && fingers.most >= 2 {
-            fingers.tap = Some(fingers.most);
+            tapped = Some(fingers.most);
         }
     }
-    let lifted = fingers.hold.as_ref().is_some_and(|hold| hold.finger == id);
-    if !lifted && !primary {
-        return;
+    if tapped.is_some() {
+        doc.pointers.finger_tap = tapped;
     }
-    let Some(hold) = fingers.hold.take() else {
+    let fingers = doc.pointers.fingers(window);
+    let lifted = fingers.hold.as_ref().is_some_and(|hold| hold.finger == id);
+    let hold = (lifted || primary).then(|| fingers.hold.take()).flatten();
+    if held == 0 {
+        doc.pointers.fingers.retain(|(held, _)| *held != window);
+    }
+    let Some(hold) = hold else {
         return;
     };
     match lifted && !cancelled {
@@ -1428,10 +1483,16 @@ fn wheel(doc: &mut Document, frame: &Frame, event: PointerEvent, delta: Vec2, fl
     let pos = event.pos;
     let path = hit(doc, frame.rects, event.window, pos, false).path;
     let claimed = gesture_claimant(doc, frame.rects, &path, pos);
-    let sink = match claimed {
+    let found = match claimed {
         Some(_) => None,
         None => wheel_sink(doc, frame, event.window, pos),
     };
+    let phase = match event.phase {
+        PointerPhase::ScrollStarted => Phase::Began,
+        PointerPhase::ScrollEnded { .. } => Phase::Ended,
+        _ => Phase::Moved,
+    };
+    let sink = forward::gesture(doc, found, pos, phase);
     doc.pointers.route(sink);
     let (delta, fling) = match event.modifiers.shift && delta.x == 0.0 && fling.x == 0.0 {
         true => (vec2(delta.y, 0.0), vec2(fling.y, 0.0)),
@@ -1708,9 +1769,48 @@ fn track(doc: &mut Document, frame: &Frame) {
         }
         return;
     };
-    doc.last_pointer = Some(PointerSample { pos, window, touch });
-    if let Some(drags) = doc.drags.clone() {
-        let point = beui_types::drag::DragPoint::at(pos, modifiers).in_window(window);
+    // While a pointer presses, the sample is that press: its place and window with its id,
+    // never the place of another pointer's later event.
+    let pressing = doc
+        .pointers
+        .sessions
+        .iter()
+        .find(|session| session.role == Role::Press)
+        .map(|session| (session.pos, session.window, session.pointer));
+    doc.last_pointer = Some(match pressing {
+        Some((pos, window, pointer)) => PointerSample {
+            pos,
+            window,
+            touch: matches!(pointer, PointerId::Touch(_)),
+            pointer: Some(pointer),
+        },
+        None => PointerSample {
+            pos,
+            window,
+            touch,
+            pointer: None,
+        },
+    });
+    let Some(drags) = doc.drags.clone() else {
+        return;
+    };
+    // Each pressing pointer re-sends its own drag this frame, at its own place: the board
+    // follows only the one that carries. With none pressing, the pointer is the mouse.
+    let mut points: Vec<beui_types::drag::DragPoint> = doc
+        .pointers
+        .sessions
+        .iter()
+        .filter(|session| session.role == Role::Press)
+        .map(|session| {
+            beui_types::drag::DragPoint::at(session.pos, modifiers)
+                .in_window(session.window)
+                .by(session.pointer)
+        })
+        .collect();
+    if points.is_empty() {
+        points.push(beui_types::drag::DragPoint::at(pos, modifiers).in_window(window));
+    }
+    for point in points {
         drags.track(point, &|node| drag_order(doc, node));
     }
 }

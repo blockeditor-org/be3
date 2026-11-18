@@ -12,7 +12,7 @@ fn finds(text: &str, blocks: &[Uuid]) {
         within: None,
     };
     want_searches(Owner::Host, vec![ask.clone()]);
-    crate::wait_until(|shared| {
+    crate::wait_until(&format!("found {text:?} in what it should"), |shared| {
         let answer = shared.search.answer(&ask)?;
         let found: Vec<Uuid> = answer.hits.iter().map(|hit| hit.block).collect();
         (answer.complete && found == blocks).then_some(())
@@ -48,14 +48,11 @@ fn a_block_is_indexed_by_the_name_its_commit_carries() {
         Some(TextBlock::of("").encode()),
         false,
     );
-    assert_eq!(
-        change_child(
-            workspace,
-            WorkspaceContent::CONTENT_TYPE,
-            ChildChange::Add(note)
-        ),
-        Some(true)
-    );
+    assert!(made(change_child(
+        workspace,
+        WorkspaceContent::CONTENT_TYPE,
+        ChildChange::Add(note)
+    )));
     open(note, TextContent::CONTENT_TYPE);
     type_text(note, 0, "socks");
     flush();

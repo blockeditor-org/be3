@@ -1,6 +1,6 @@
 use super::*;
 use beui::text::{FontId, TextLayout};
-use beui::text::{Piece, RichOptions};
+use beui::text::{GapWidth, Piece, RichOptions};
 use beui_core::font::Galley;
 
 fn ranges(layout: &RichLayout) -> Vec<std::ops::Range<usize>> {
@@ -19,13 +19,12 @@ fn a_break_in_rich_text_ends_the_line_but_holds_no_bytes() {
         style,
         hang: 0,
         anywhere: false,
-        least: false,
     };
     let pieces = [
         Piece::text("abc", style),
-        Piece::Gap(7.0),
+        Piece::Gap(GapWidth::px(7.0)),
         Piece::Break,
-        Piece::Gap(11.0),
+        Piece::Gap(GapWidth::px(11.0)),
         Piece::text("def", style),
     ];
     let abc = shaper("abc", style.font).cursor_pos(pos2(0.0, 0.0), 3).x;

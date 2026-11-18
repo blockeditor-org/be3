@@ -22,6 +22,7 @@ mod a_csv_export_is_imported_as_rows_with_pages;
 mod a_database_moved_to_another_workspace_takes_its_prefix_along;
 mod a_downloaded_block_uploads_as_a_copy_with_new_ids;
 mod a_folder_syncs_with_a_directory;
+mod a_manifest_says_which_of_its_types_count_what_is_unread;
 mod a_manifest_says_which_of_its_types_have_a_plain_file;
 mod a_merged_pull_request_closes_rows_without_a_done_status;
 mod a_new_row_takes_each_choice_fields_default;
@@ -42,35 +43,40 @@ mod an_agent_reads_and_writes_the_rows_shared_with_it;
 mod an_edited_page_keeps_what_someone_else_changed_meanwhile;
 mod an_import_links_rows_to_each_other_by_their_old_ids;
 mod arguments_parse_into_commands;
+mod be_reads_a_block_type_from_the_type_module_staged_beside_it;
+mod be_runs_an_apps_host_component_with_no_display;
+mod be_signs_in_with_only_an_injected_authorization_header;
 mod blocks_are_listed_and_found_by_short_id_or_name;
 mod malformed_agent_credentials_do_not_disclose_secrets;
 mod proxy_credentials_do_not_need_an_account_token;
 mod rows_are_added_filtered_changed_and_given_pages;
 mod terminal;
-mod the_app_bundle_holds_each_manifest_and_its_type_module;
 mod two_terminal_hosts_take_turns_and_the_second_stands_by;
 
+/// Every editor's manifest in place of the apps discovery found, for the whole process, as a
+/// `be` with every app beside it would find them: the tests run the types in process
+/// (`be_type_bundle`), and a module discovery opens is still read from BE_BUNDLE.
 fn manifests() {
-    if !crate::apps::installed().is_empty() {
-        return;
-    }
-    let editors = std::env::var_os("EDITOR_MANIFESTS")
-        .map(PathBuf::from)
-        .expect("EDITOR_MANIFESTS names the editors' manifests");
-    let mut apps = Vec::new();
-    for entry in std::fs::read_dir(&editors).expect("EDITOR_MANIFESTS is a directory") {
-        let path = entry
-            .expect("the entry is readable")
-            .path()
-            .join("manifest.json");
-        let document = std::fs::read_to_string(&path).expect("the manifest is readable");
-        apps.push(crate::apps::App {
-            manifest: be_sdk_manifest::manifest_from_json(&document)
-                .unwrap_or_else(|error| panic!("{}: {error}", path.display())),
-            module: &[],
-        });
-    }
-    crate::apps::install(apps);
+    static INSTALLED: std::sync::Once = std::sync::Once::new();
+    INSTALLED.call_once(|| {
+        let editors = std::env::var_os("EDITOR_MANIFESTS")
+            .map(PathBuf::from)
+            .expect("EDITOR_MANIFESTS names the editors' manifests");
+        let mut documents = Vec::new();
+        for entry in std::fs::read_dir(&editors).expect("EDITOR_MANIFESTS is a directory") {
+            let path = entry
+                .expect("the entry is readable")
+                .path()
+                .join("manifest.json");
+            let document = std::fs::read_to_string(&path).expect("the manifest is readable");
+            documents.push((path.display().to_string(), document));
+        }
+        let documents: Vec<(&str, &str)> = documents
+            .iter()
+            .map(|(source, document)| (source.as_str(), document.as_str()))
+            .collect();
+        std::mem::forget(be_host_stack::discovery::install_for_testing(&documents));
+    });
 }
 
 fn sources() -> crate::tracker::Sources {
@@ -126,27 +132,60 @@ async fn agent(
     let public = phrase.secret().public();
     let peer = owner.peer();
     let organization = peer.organization();
-    let be_block_protocol::CreatedAgent { agent, token } =
-        be_block_client::ask(be_block_protocol::client::members::create_agent(
+    let account = Uuid::from_bytes(be_block_keys::agent_account(
+        peer.account().into_bytes(),
+        &phrase.secret().identity(),
+    ));
+    let bound = match bound_to {
+        Some(block) => Some(be_block_protocol::BoundAgent {
+            block,
+            signed: peer
+                .grant_record(
+                    block,
+                    account,
+                    be_block_graph::Access::Edit,
+                    phrase.secret().identity(),
+                )
+                .await
+                .expect("signing the agent's grant failed"),
+        }),
+        None => None,
+    };
+    let be_block_protocol::CreatedAgent { agent, token } = be_block_client::ask(
+        be_block_protocol::write::<be_block_protocol::CreatedAgent, _>(
             &peer.connection(),
-            organization,
-            "Claude".into(),
-            public.0,
-            phrase.secret().signing().0,
-            be_block_client::contacts::card(
-                peer.account(),
-                peer.keys().identity(),
-                "Owner",
-                "owner@example.com",
-            )
-            .seal_own(&phrase.secret()),
-            peer.keys().escrow().map_or_else(Vec::new, |escrow| {
-                be_block_client::contacts::seal_pin(&phrase.secret(), organization, &escrow)
-            }),
-            bound_to,
-        ))
-        .await
-        .expect("creating the agent failed");
+            Some(organization),
+            be_block_protocol::Op::CreateAgent {
+                account: account,
+                name: "Claude".into(),
+                recovery: public.0,
+                signing: phrase.secret().signing().0,
+                contact: be_block_client::contacts::OwnContact::new(
+                    be_block_client::contacts::card(
+                        peer.account(),
+                        peer.keys().identity(),
+                        "Owner",
+                        "owner@example.com",
+                    ),
+                    0,
+                )
+                .seal(&phrase.secret()),
+                record: Vec::new(),
+                escrow: be_block_client::contacts::seal_pin(
+                    &phrase.secret(),
+                    organization,
+                    &peer.keys().pins(),
+                ),
+                bound_to: bound,
+                member: peer
+                    .agent_record(account, phrase.secret().identity())
+                    .await
+                    .expect("signing the agent in failed"),
+            },
+        ),
+    )
+    .await
+    .expect("creating the agent failed");
     let credentials = serde_json::json!({
         "server": harness.url,
         "organization": organization,

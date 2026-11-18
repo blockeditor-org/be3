@@ -57,12 +57,25 @@ const NUMBER_SCALES: [(DatabaseNumberScale, &str); 2] = [
     (DatabaseNumberScale::Logarithmic, "Logarithmic"),
 ];
 
+fn field_type_label(kind: DatabaseFieldType) -> &'static str {
+    FIELD_TYPES
+        .iter()
+        .find(|(held, _, _)| *held == kind)
+        .map_or("", |(_, label, _)| *label)
+}
+
+fn number_scale_label(scale: DatabaseNumberScale) -> &'static str {
+    NUMBER_SCALES
+        .iter()
+        .find(|(held, _)| *held == scale)
+        .map_or("", |(_, label)| *label)
+}
+
 #[component]
 pub fn SchemaView(editor: Editor) -> NodeId {
     let schema = editor.block_content::<DatabaseSchemaContent>();
-    let fields = schema.project(|schema| schema.root().fields());
+    let rows = schema.project(|schema| schema.root().fields());
     let schema = Schema(schema);
-    let rows = create_memo(move || fields.get());
     let keys = create_memo(move || {
         rows.with(|rows| rows.iter().map(|field| field.id).collect::<Vec<Uuid>>())
     });
@@ -114,16 +127,19 @@ pub fn SchemaView(editor: Editor) -> NodeId {
                     <Scroll>
                         <List spacing=SECTION_SPACING>
                             <Reorder
-                                keys={keys}
+                                value={keys}
                                 payload={Func::new(|id: Uuid| Some(id))}
                                 disabled={read_only}
-                                long_press=true
+                                lifts_on_long_press=true
                                 text={name}
                                 preview={preview}
                                 on_move={moved}
                             >|reorder: ReorderHandle<Uuid, Uuid>|
                                 <List spacing=SECTION_SPACING>
-                                    <ForEach keys={reorder.order}>|id: Uuid| {
+                                    <ForEach
+                                        value={reorder.order}
+                                        handle={reorder.rows}
+                                    >|id: Uuid| {
                                         let field = create_memo(move || {
                                             rows.with(|rows| {
                                                 rows.iter().find(|field| field.id == id).cloned()
@@ -184,19 +200,14 @@ fn FieldRow(
     });
     let kind =
         create_memo(move || field.with(|field| field.as_ref().map(|field| field.field_type)));
-    let selected = create_memo(move || {
-        kind.get()
-            .and_then(|kind| FIELD_TYPES.iter().position(|(value, _, _)| *value == kind))
-    });
-    let is = |wanted: DatabaseFieldType| create_memo(move || kind.get() == Some(wanted));
     let renamed = move |name: String| {
         schema.operate(DatabaseSchema::rename_field(id, name));
     };
-    let retyped = move |selected: Option<usize>| {
-        let Some(index) = selected else {
+    let retyped = move |selected: Option<DatabaseFieldType>| {
+        let Some(kind) = selected else {
             return;
         };
-        schema.operate(DatabaseSchema::set_field_type(id, FIELD_TYPES[index].0));
+        schema.operate(DatabaseSchema::set_field_type(id, kind));
     };
     let remove = move || {
         schema.operate(DatabaseSchema::remove_field(id));
@@ -209,13 +220,6 @@ fn FieldRow(
     let mover = move |by: isize| {
         reorder.step(id, by);
     };
-    let type_keys = create_memo(|| (0..FIELD_TYPES.len()).collect::<Vec<usize>>());
-    let (number_kind, enum_kind, block_kind, relation_kind) = (
-        is(DatabaseFieldType::Number),
-        is(DatabaseFieldType::Enum),
-        is(DatabaseFieldType::Block),
-        is(DatabaseFieldType::Relation),
-    );
     view! {
         <List spacing=ROW_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
@@ -234,11 +238,13 @@ fn FieldRow(
                         </Frame>
                         <Select
                             options={view! {
-                                <ForEach keys={type_keys}>|index: usize|
-                                    <ChoiceOption label={FIELD_TYPES[index].1} />
+                                <ForEach
+                                    value={FIELD_TYPES.map(|(kind, _, _)| kind).to_vec()}
+                                >|kind: DatabaseFieldType|
+                                    <ChoiceOption value=kind label={field_type_label(kind)} />
                                 </ForEach>
                             }}
-                            selected={Binding::new(selected, retyped)}
+                            selected={Binding::new(kind, retyped)}
                             label="Field type"
                             disabled={read_only}
                             @test_id={format!("database-schema.type.{id}")}
@@ -276,37 +282,51 @@ fn FieldRow(
                     on_click={remove}
                 />
             </List>
-            <Show condition={number_kind}>
-                <Interactive capture_presses=true>
-                    <NumberOptions schema={schema} id={id} field={field} read_only={read_only} />
-                </Interactive>
-            </Show>
-            <Show condition={enum_kind}>
-                <Interactive capture_presses=true>
-                    <EnumOptions schema={schema} id={id} field={field} read_only={read_only} />
-                </Interactive>
-            </Show>
-            <Show condition={block_kind}>
-                <Interactive capture_presses=true>
-                    <BlockOptions
-                        editor={editor}
-                        schema={schema}
-                        id={id}
-                        field={field}
-                        read_only={read_only}
-                    />
-                </Interactive>
-            </Show>
-            <Show condition={relation_kind}>
-                <Interactive capture_presses=true>
-                    <RelationOptions
-                        editor={editor}
-                        schema={schema}
-                        id={id}
-                        field={field}
-                        read_only={read_only}
-                    />
-                </Interactive>
+            <Show value={kind}>|kind: ReadSignal<DatabaseFieldType>|
+                <Match value={kind}>
+                    <Case is={DatabaseFieldType::Number}>
+                        <Interactive capture_presses=true>
+                            <NumberOptions
+                                schema={schema}
+                                id={id}
+                                field={field}
+                                read_only={read_only}
+                            />
+                        </Interactive>
+                    </Case>
+                    <Case is={DatabaseFieldType::Enum}>
+                        <Interactive capture_presses=true>
+                            <EnumOptions
+                                schema={schema}
+                                id={id}
+                                field={field}
+                                read_only={read_only}
+                            />
+                        </Interactive>
+                    </Case>
+                    <Case is={DatabaseFieldType::Block}>
+                        <Interactive capture_presses=true>
+                            <BlockOptions
+                                editor={editor}
+                                schema={schema}
+                                id={id}
+                                field={field}
+                                read_only={read_only}
+                            />
+                        </Interactive>
+                    </Case>
+                    <Case is={DatabaseFieldType::Relation}>
+                        <Interactive capture_presses=true>
+                            <RelationOptions
+                                editor={editor}
+                                schema={schema}
+                                id={id}
+                                field={field}
+                                read_only={read_only}
+                            />
+                        </Interactive>
+                    </Case>
+                </Match>
             </Show>
             <Separator />
         </List>
@@ -328,20 +348,15 @@ fn NumberOptions(
                 .unwrap_or_default()
         })
     });
-    let scale = create_memo(move || {
-        NUMBER_SCALES
-            .iter()
-            .position(|(value, _)| *value == options.get().scale)
-    });
-    let rescaled = move |selected: Option<usize>| {
-        let Some(index) = selected else {
+    let scale = create_memo(move || Some(options.get().scale));
+    let rescaled = move |selected: Option<DatabaseNumberScale>| {
+        let Some(scale) = selected else {
             return;
         };
         let mut next = options.get_untracked();
-        next.scale = NUMBER_SCALES[index].0;
+        next.scale = scale;
         schema.operate(DatabaseSchema::set_number_options(id, next));
     };
-    let scale_keys = create_memo(|| (0..NUMBER_SCALES.len()).collect::<Vec<usize>>());
     view! {
         <List spacing=ROW_SPACING>
             <Frame padding={Padding::ZERO.left(Space::Xl3)}>
@@ -371,8 +386,10 @@ fn NumberOptions(
                         <Text>"Scale"</Text>
                         <Select
                             options={view! {
-                                <ForEach keys={scale_keys}>|index: usize|
-                                    <ChoiceOption label={NUMBER_SCALES[index].1} />
+                                <ForEach
+                                    value={NUMBER_SCALES.map(|(scale, _)| scale).to_vec()}
+                                >|scale: DatabaseNumberScale|
+                                    <ChoiceOption value=scale label={number_scale_label(scale)} />
                                 </ForEach>
                             }}
                             selected={Binding::new(scale, rescaled)}
@@ -451,7 +468,6 @@ fn OptionalNumber(
             .read(options)
             .unwrap_or_else(|| bound.fallback(options))
     });
-    let unset = create_memo(move || !set.get() || read_only.get());
     let write = move |value: Option<f64>| {
         let mut next = options.get_untracked();
         bound.write(&mut next, value);
@@ -461,7 +477,8 @@ fn OptionalNumber(
         let fallback = bound.fallback(options.get_untracked());
         write(enabled.then_some(fallback));
     };
-    let typed = move |value: f64| write(Some(value));
+    // A scrub shows here and is written once, when it is kept.
+    let typed = HeldValue::new(Binding::new(value, move |value: f64| write(Some(value))));
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
             <Checkbox
@@ -472,9 +489,10 @@ fn OptionalNumber(
             />
             <Frame width=NUMBER_WIDTH>
                 <NumberInput
-                    value={Binding::new(value, typed)}
+                    value={typed.value}
+                    on_scrub={typed.on_drag}
                     label={bound.label()}
-                    disabled={unset}
+                    disabled={move || !set.get() || read_only.get()}
                     @test_id={format!("database-schema.number.{id}.{}", bound.test_id())}
                 />
             </Frame>
@@ -490,17 +508,11 @@ fn EnumOptions(
     field: Memo<Option<DatabaseField>>,
     read_only: Memo<bool>,
 ) -> NodeId {
-    let keys = create_memo(move || {
+    let options = create_memo(move || {
         field.with(|field| {
             field
                 .as_ref()
-                .map(|field| {
-                    field
-                        .enum_options
-                        .iter()
-                        .map(|option| option.id)
-                        .collect::<Vec<Uuid>>()
-                })
+                .map(|field| field.enum_options.clone())
                 .unwrap_or_default()
         })
     });
@@ -512,11 +524,14 @@ fn EnumOptions(
     view! {
         <Frame padding={Padding::ZERO.left(Space::Xl3)}>
             <List spacing=ROW_SPACING>
-                <ForEach keys={keys}>|option_id: Uuid|
+                <ForEach
+                    value={options}
+                    key={|option: &DatabaseEnumOption| option.id}
+                >|option: ReadSignal<DatabaseEnumOption>|
                     <EnumOptionRow
                         schema={schema}
                         id={id}
-                        option_id={option_id}
+                        option={option}
                         field={field}
                         read_only={read_only}
                     />
@@ -545,23 +560,13 @@ fn EnumOptions(
 fn EnumOptionRow(
     schema: Schema,
     id: Uuid,
-    option_id: Uuid,
+    option: ReadSignal<DatabaseEnumOption>,
     field: Memo<Option<DatabaseField>>,
     read_only: Memo<bool>,
 ) -> NodeId {
-    let option =
-        create_memo(move || field.with(|field| field.as_ref()?.option(option_id).cloned()));
-    let name = create_memo(move || {
-        option.with(|option| {
-            option
-                .as_ref()
-                .map(|option| option.name.clone())
-                .unwrap_or_default()
-        })
-    });
-    let closed = create_memo(move || {
-        option.with(|option| option.as_ref().is_some_and(|option| option.closed))
-    });
+    let option_id = option.with_untracked(|option| option.id);
+    let name = create_memo(move || option.with(|option| option.name.clone()));
+    let closed = create_memo(move || option.with(|option| option.closed));
     let default = create_memo(move || {
         field
             .with(|field| field.as_ref().and_then(|field| field.default_value()) == Some(option_id))
@@ -605,24 +610,17 @@ fn EnumOptionRow(
         let after = to.checked_sub(1).map(|before| moved[before]);
         schema.operate(DatabaseSchema::move_enum_option(id, option_id, after));
     };
-    let color_label = create_memo(move || {
-        option.with(|option| {
-            option
-                .as_ref()
-                .map_or("Colour", |option| choice_color_label(option.color))
-                .to_owned()
-        })
-    });
+    let color_label =
+        create_memo(move || option.with(|option| choice_color_label(option.color).to_owned()));
+    let marked = create_memo(move || Some(option.get()));
     let dotted = create_memo(move || {
         option.with(|option| {
-            option.as_ref().map(|option| DatabaseEnumOption {
+            Some(DatabaseEnumOption {
                 icon: ChoiceIcon::None,
                 ..option.clone()
             })
         })
     });
-    let icon_keys = create_memo(|| (0..ChoiceIcon::ALL.len()).collect::<Vec<usize>>());
-    let color_keys = create_memo(|| (0..ChoiceColor::ALL.len()).collect::<Vec<usize>>());
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING wrap=true>
             <MenuButton
@@ -633,21 +631,18 @@ fn EnumOptionRow(
                 icon_only=true
                 arrow=false
                 leading={view! {
-                    <ChoiceMark option={option} size=TextSize::Base />
+                    <ChoiceMark option={marked} size=TextSize::Base />
                 }}
                 @test_id={format!("database-schema.enum.{id}.{option_id}.icon")}
                 items={view! {
-                    <ForEach keys={icon_keys}>|index: usize| {
-                        let icon = ChoiceIcon::ALL[index];
-                        view! {
-                            <MenuItem
-                                label={choice_icon_label(icon)}
-                                glyph={choice_glyph(icon)}
-                                row_test_id={format!("database-schema.enum.{id}.{option_id}.icon.{}", icon.name())}
-                                on_click={move || schema.operate(DatabaseSchema::set_option_icon(option_id, icon))}
-                            />
-                        }
-                    }</ForEach>
+                    <ForEach value={ChoiceIcon::ALL.to_vec()}>|icon: ChoiceIcon|
+                        <MenuItem
+                            label={choice_icon_label(icon)}
+                            glyph={choice_glyph(icon)}
+                            @test_id={format!("database-schema.enum.{id}.{option_id}.icon.{}", icon.name())}
+                            on_click={move || schema.operate(DatabaseSchema::set_option_icon(option_id, icon))}
+                        />
+                    </ForEach>
                 }}
             />
             <Frame width=NAME_WIDTH>
@@ -670,16 +665,13 @@ fn EnumOptionRow(
                 }}
                 @test_id={format!("database-schema.enum.{id}.{option_id}.color")}
                 items={view! {
-                    <ForEach keys={color_keys}>|index: usize| {
-                        let color = ChoiceColor::ALL[index];
-                        view! {
-                            <MenuItem
-                                label={choice_color_label(color)}
-                                row_test_id={format!("database-schema.enum.{id}.{option_id}.color.{}", color.name())}
-                                on_click={move || schema.operate(DatabaseSchema::set_option_color(option_id, color))}
-                            />
-                        }
-                    }</ForEach>
+                    <ForEach value={ChoiceColor::ALL.to_vec()}>|color: ChoiceColor|
+                        <MenuItem
+                            label={choice_color_label(color)}
+                            @test_id={format!("database-schema.enum.{id}.{option_id}.color.{}", color.name())}
+                            on_click={move || schema.operate(DatabaseSchema::set_option_color(option_id, color))}
+                        />
+                    </ForEach>
                 }}
             />
             <ToggleButton
@@ -763,25 +755,9 @@ fn BlockOptions(
         }
         entries
     });
-    let keys = create_memo(move || {
-        entries.with(|entries| {
-            entries
-                .iter()
-                .map(|(id, _)| *id)
-                .collect::<Vec<Option<Uuid>>>()
-        })
-    });
-    let selected = create_memo(move || {
-        let wanted = wanted.get();
-        entries.with(|entries| entries.iter().position(|(value, _)| *value == wanted))
-    });
-    let picked = move |selected: Option<usize>| {
-        let Some(index) = selected else {
-            return;
-        };
-        let Some(block_type) =
-            entries.with_untracked(|entries| entries.get(index).map(|(block_type, _)| *block_type))
-        else {
+    let selected = create_memo(move || Some(wanted.get()));
+    let picked = move |selected: Option<Option<Uuid>>| {
+        let Some(block_type) = selected else {
             return;
         };
         schema.operate(DatabaseSchema::set_block_options(
@@ -795,17 +771,14 @@ fn BlockOptions(
                 <Text>"Block type"</Text>
                 <Select
                     options={view! {
-                        <ForEach keys={keys}>|id: Option<Uuid>| {
-                            let label = create_memo(move || {
-                                entries.with(|entries| {
-                                    entries
-                                        .iter()
-                                        .find(|(value, _)| *value == id)
-                                        .map_or_else(String::new, |(_, name)| name.clone())
-                                })
-                            });
+                        <ForEach
+                            value={entries}
+                            key={|(block_type, _): &(Option<Uuid>, String)| *block_type}
+                        >|entry: ReadSignal<(Option<Uuid>, String)>| {
+                            let label = create_memo(move || entry.with(|(_, name)| name.clone()));
+                            let block_type = entry.with_untracked(|(block_type, _)| *block_type);
                             view! {
-                                <ChoiceOption label={label} />
+                                <ChoiceOption value=block_type label={label} />
                             }
                         }</ForEach>
                     }}
@@ -866,15 +839,13 @@ fn RelationOptions(
             },
             &button,
             move |picked| {
-                if let Ok(picked) = picked {
-                    schema.operate(DatabaseSchema::set_relation_options(
-                        id,
-                        DatabaseRelationOptions {
-                            database: Some(picked.id()),
-                            ..current.clone()
-                        },
-                    ));
-                }
+                schema.operate(DatabaseSchema::set_relation_options(
+                    id,
+                    DatabaseRelationOptions {
+                        database: Some(picked.id()),
+                        ..current.clone()
+                    },
+                ));
             },
         );
     };

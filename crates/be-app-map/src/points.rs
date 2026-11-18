@@ -40,7 +40,7 @@ pub(crate) fn Marker(
     let height = create_memo(move || MARKER_HEIGHT * unit.get());
     let named = create_memo({
         let label = label.clone();
-        move || !label.get().is_empty()
+        move || !label.with(String::is_empty)
     });
     view! {
         <CanvasItem x={x} y={y} width={width} height={height}>
@@ -49,7 +49,7 @@ pub(crate) fn Marker(
                     width={Size::Custom(RING_SIZE)}
                     height={Size::Custom(RING_SIZE)}
                     radius=Radius::Full
-                    border={create_memo(move || selected.get().then_some(Border::new(ColorRole::Custom(SELECTION_COLOR.into())).width(Stroke::Focus)))}
+                    border={move || selected.get().then_some(Border::new(ColorRole::Custom(SELECTION_COLOR.into())).width(Stroke::Focus))}
                 >
                     <Text
                         size=MARKER_SIZE
@@ -59,7 +59,7 @@ pub(crate) fn Marker(
                         <Icon glyph=ICON_MAP_PIN />
                     </Text>
                 </Frame>
-                <Show condition={named}>|| {
+                <Show value={named}>|| {
                     let label = label.clone();
                     view! {
                         <Frame

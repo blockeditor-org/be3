@@ -15,7 +15,7 @@ fn revision_history_previews_and_restores_saved_content() {
     // History keeps a state per minute, so each saved state below is a minute after the last.
     let start = be_block_commit::now_milliseconds();
     let minutes = |minutes: i64| {
-        be_block_commit::pin_now(Some(start + minutes * be_block_commit::retention::MINUTE));
+        be_block_commit::pin_now(Some(start + minutes * be_block_commit::MINUTE));
     };
     minutes(0);
     harness.connect();
@@ -70,6 +70,8 @@ fn revision_history_previews_and_restores_saved_content() {
         Answered::Restored(Ok(()))
     ));
     wait_for_count(block, 5);
+    // The restore lands as the order reaches it, and a seal follows it.
+    flush_and_send();
     let restored = node(block).unwrap().head.unwrap();
     assert_ne!(restored, first);
     let Answered::Listed(Ok(entries)) = request(block, Asked::List) else {

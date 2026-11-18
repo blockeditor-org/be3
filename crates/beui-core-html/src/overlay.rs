@@ -11,7 +11,7 @@ use crate::node::{NodeId, NodeRef};
 
 pub use beui_types::layer::OverlayAnchor;
 
-const PLACED: [&str; 14] = [
+const PLACED: [&str; 12] = [
     "position-anchor",
     "position-area",
     "position-try-fallbacks",
@@ -20,8 +20,6 @@ const PLACED: [&str; 14] = [
     "right",
     "bottom",
     "translate",
-    "margin-top",
-    "margin-bottom",
     "width",
     "height",
     "max-width",
@@ -67,7 +65,7 @@ pub struct Layer {
     policy: Cell<LayerPolicy>,
     level: Cell<LayerLevel>,
     traps: Cell<bool>,
-    trigger: Option<NodeRef>,
+    trigger: Cell<Option<NodeRef>>,
     pointer: Option<NodeRef>,
     reach: Cell<f32>,
     wanted: Cell<bool>,
@@ -80,12 +78,7 @@ pub struct Layer {
     web: RefCell<web::Held>,
 }
 
-pub fn layer(
-    parts: Parts,
-    trigger: Option<NodeRef>,
-    pointer: Option<NodeRef>,
-    on_dismiss: Callback<Dismiss>,
-) -> Rc<Layer> {
+pub fn layer(parts: Parts, pointer: Option<NodeRef>, on_dismiss: Callback<Dismiss>) -> Rc<Layer> {
     let index = NEXT.with(|next| next.replace(next.get() + 1));
     set_attribute(parts.dialog, "class", Some("beui-overlay".to_owned()));
     set_attribute(parts.dialog, "role", Some("generic".to_owned()));
@@ -103,11 +96,11 @@ pub fn layer(
         name: format!("--beui-overlay-{index}"),
         parts,
         anchor: RefCell::default(),
-        placement: Cell::new(Placement::BelowStart),
+        placement: Cell::new(Placement::BELOW_START),
         policy: Cell::new(LayerPolicy::BlocksAll),
         level: Cell::new(LayerLevel::Normal),
         traps: Cell::new(true),
-        trigger,
+        trigger: Cell::new(None),
         pointer,
         reach: Cell::new(0.0),
         wanted: Cell::new(false),
@@ -245,6 +238,11 @@ impl Layer {
         self.traps.set(traps);
     }
 
+    /// The control that opens it: a press on it is left to it, so it toggles the layer.
+    pub fn set_trigger(&self, trigger: Option<NodeRef>) {
+        self.trigger.set(trigger);
+    }
+
     pub fn set_dismissable(&self, dismissable: bool) {
         self.dismissable.set(dismissable);
         crate::back::layers_changed();
@@ -349,7 +347,7 @@ impl Layer {
         let anchor = self.anchor.borrow().clone();
         let rect = match anchor {
             OverlayAnchor::Node(node) => {
-                let node = node.try_get()?;
+                let node = crate::document::boxed(node.try_get()?)?;
                 let name = anchor_name(node);
                 set_style(node, "anchor-name", Some(name.clone()));
                 return Some(name);
@@ -387,7 +385,7 @@ impl Layer {
         for property in PLACED {
             // `measured` places a menu: leave where it put it, or each placing would move it
             // and ask for another frame.
-            if placement == Placement::Menu && matches!(property, "left" | "top") {
+            if measured_placement(placement) && matches!(property, "left" | "top") {
                 continue;
             }
             let value = styles
@@ -402,7 +400,8 @@ impl Layer {
     fn place_beak(&self) {
         let beak = self.parts.beak;
         let reach = self.reach.get();
-        let shown = reach > 0.0 && matches!(self.placement.get(), Placement::Popover { .. });
+        let shown = reach > 0.0
+            && matches!(self.placement.get(), Placement::Beside { side, .. } if side.vertical());
         set_attribute(beak, "hidden", (!shown).then(String::new));
         if !shown {
             return;
@@ -417,7 +416,7 @@ impl Layer {
 
     #[cfg(not(target_arch = "wasm32"))]
     fn lay_out(&self) -> bool {
-        let _ = (self.level.get(), self.traps.get(), &self.trigger);
+        let _ = (self.level.get(), self.traps.get(), self.trigger.get());
         false
     }
 
@@ -497,31 +496,16 @@ fn anchored_styles(placement: Placement, name: Option<&str>) -> Vec<(&'static st
             put("left", "anchor(center)".to_owned());
             put("translate", "-50% -50%".to_owned());
         }
-        Placement::Above => {
-            put("position-area", "top".to_owned());
-            put("position-try-fallbacks", "flip-block".to_owned());
-        }
-        Placement::BelowStart => {
-            put("position-area", "bottom span-right".to_owned());
-            put(
-                "position-try-fallbacks",
-                "flip-block, flip-inline, flip-block flip-inline".to_owned(),
-            );
-        }
-        // CSS anchor positioning flips but cannot cover the anchor, so a menu is placed from
-        // its measured size (`measured`, `layer::resolve_rect`) as the native core places it.
-        // `max-content` keeps that size its rows' own wherever the menu last stood: a fixed box
-        // of automatic width shrinks to the room right of its `left`.
-        Placement::Menu => {
+        // CSS anchor positioning flips but cannot cover the anchor, and its fallbacks re-align
+        // a box rather than shift it, so menus and `Beside` overlays are placed from their
+        // measured size (`measured`, `layer::resolve_rect`) as the native core places them:
+        // the same flips, shifts and margins, though an open one follows a DOM scroller under
+        // its anchor only when beui lays out again. `max-content` keeps that size its own
+        // wherever it last stood: a fixed box of automatic width shrinks to the room right of
+        // its `left`.
+        Placement::Menu | Placement::Beside { .. } => {
             put("width", "max-content".to_owned());
             put("max-width", "100vw".to_owned());
-        }
-        Placement::RightStart => {
-            put("position-area", "right span-bottom".to_owned());
-            put(
-                "position-try-fallbacks",
-                "flip-inline, flip-block, flip-block flip-inline".to_owned(),
-            );
         }
         Placement::InsideTop => {
             put("top", "anchor(top)".to_owned());
@@ -549,18 +533,15 @@ fn anchored_styles(placement: Placement, name: Option<&str>) -> Vec<(&'static st
             put("bottom", "anchor(bottom)".to_owned());
             put("right", "anchor(right)".to_owned());
         }
-        Placement::Popover { gap, margin } => {
-            put("position-area", "bottom".to_owned());
-            put("position-try-fallbacks", "flip-block".to_owned());
-            put("margin-top", format!("{gap}px"));
-            put(
-                "max-width",
-                format!("calc(100vw - {}px)", 2 * u32::from(margin)),
-            );
-        }
         Placement::Center | Placement::Fill | Placement::Edge(_) => {}
     }
     styles
+}
+
+/// Whether an overlay at `placement` is placed from its measured size through
+/// `layer::resolve_rect` rather than by CSS anchor positioning.
+fn measured_placement(placement: Placement) -> bool {
+    matches!(placement, Placement::Menu | Placement::Beside { .. })
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -588,7 +569,6 @@ mod web {
     thread_local! {
         static GLOBAL: RefCell<Vec<Listener>> = RefCell::default();
         static ANCHORS: Cell<Option<bool>> = const { Cell::new(None) };
-        static QUERIES: Cell<Option<bool>> = const { Cell::new(None) };
     }
 
     fn supported(
@@ -608,10 +588,6 @@ mod web {
 
     fn anchors_supported() -> bool {
         supported(&ANCHORS, "anchor-name", "--beui")
-    }
-
-    fn queries_supported() -> bool {
-        supported(&QUERIES, "container-type", "anchored")
     }
 
     fn within(element: &web_sys::Element, target: Option<&web_sys::Node>) -> bool {
@@ -640,6 +616,7 @@ mod web {
             }
             let on_trigger = layer
                 .trigger
+                .get()
                 .as_ref()
                 .and_then(NodeRef::try_get)
                 .and_then(crate::dom::element)
@@ -842,12 +819,15 @@ mod web {
 
     fn fit(layer: &Layer) {
         let placement = layer.placement.get();
-        let room = anchor_rect(layer).and_then(|anchor| {
-            beui_types::layer::room_beside(crate::dom::viewport(), anchor, placement)
-        });
-        if let Some(room) = room {
-            set_style(layer.parts.dialog, "max-height", Some(px(room)));
+        if !super::measured_placement(placement) {
+            return;
         }
+        let Some(anchor) = anchor_rect(layer) else {
+            return;
+        };
+        let room = beui_types::layer::room(crate::dom::viewport(), anchor, placement);
+        set_style(layer.parts.dialog, "max-width", Some(px(room.x)));
+        set_style(layer.parts.dialog, "max-height", Some(px(room.y)));
     }
 
     fn measured(layer: &Layer, dialog: &web_sys::Element) {
@@ -861,7 +841,7 @@ mod web {
         let Some(anchor) = anchor_rect(layer) else {
             return;
         };
-        if placement != Placement::Menu {
+        if !super::measured_placement(placement) {
             for property in PLACED {
                 if !matches!(property, "width" | "height" | "max-width" | "max-height") {
                     set_style(layer.parts.dialog, property, None);
@@ -874,7 +854,7 @@ mod web {
         set_style(layer.parts.dialog, "top", Some(px(rect.top())));
     }
 
-    fn point_beak(layer: &Layer, dialog: &web_sys::Element, anchors: bool) {
+    fn point_beak(layer: &Layer, dialog: &web_sys::Element) {
         let Some(beak) = crate::dom::element(layer.parts.beak) else {
             return;
         };
@@ -891,17 +871,6 @@ mod web {
             "left",
             Some(px(anchor.center().x - rect.left() - size / 2.0)),
         );
-        let queries = anchors && queries_supported();
-        set_style(
-            layer.parts.dialog,
-            "container-type",
-            queries.then(|| "anchored".to_owned()),
-        );
-        if queries {
-            set_style(layer.parts.beak, "top", None);
-            set_style(layer.parts.beak, "bottom", None);
-            return;
-        }
         let (top, bottom) = match (rect.top() >= anchor.bottom(), rect.bottom() <= anchor.top()) {
             (true, _) => (Some(px(-size / 2.0)), None),
             (false, true) => (None, Some(px(-size / 2.0))),
@@ -973,7 +942,9 @@ mod web {
             match wanted {
                 Some(modal) => {
                     if held.shown.is_none() && !inside {
-                        held.returns_to = active.and_then(|active| active.dyn_into().ok());
+                        held.returns_to = active
+                            .map(crate::ime::holder)
+                            .and_then(|active| active.dyn_into().ok());
                     }
                     listen_globally();
                     show(&dialog, modal);
@@ -1003,10 +974,13 @@ mod web {
         }
         fit(layer);
         let anchors = anchors_supported();
-        if !anchors || layer.placement.get() == Placement::Menu {
+        if !anchors || super::measured_placement(layer.placement.get()) {
             measured(layer, &dialog);
         }
-        point_beak(layer, &dialog, anchors);
+        point_beak(layer, &dialog);
         changed
     }
 }
+
+#[cfg(test)]
+mod tests;

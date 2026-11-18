@@ -11,8 +11,8 @@ fn turning_off_animations_in_the_inspector_stops_a_scroll_at_its_end() {
         view! {
             <List spacing=0.0>
                 <ListItem grow=1.0>
-                    <Scroll @node_ref=&scroll>
-                        <ForEach keys={indices(40)}>|_: usize|
+                    <Scroll @node_ref=&scroll style={plain_scroll()}>
+                        <ForEach value={indices(40)}>|_: usize|
                             <Frame padding={Sides::symmetric(0.0, 20.0)}>
                                 <Frame />
                             </Frame>
@@ -30,7 +30,7 @@ fn turning_off_animations_in_the_inspector_stops_a_scroll_at_its_end() {
     harness.toggle_inspector();
     harness.show_inspector_tab(crate::inspector::InspectorTab::Simulation);
     harness.frame(Vec::new());
-    harness.choose_in_simulation("motion", 2);
+    harness.choose_in_simulation("motion", Some(crate::reactive::Motion::Instant));
     harness.frame(Vec::new());
     harness.toggle_inspector();
     harness.frame(Vec::new());

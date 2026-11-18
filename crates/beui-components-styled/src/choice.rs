@@ -8,7 +8,6 @@ use crate::list::List;
 use crate::select::Select;
 use crate::tokens::{Padding, Size, Space, Stroke};
 use beui_components_unstyled::{ChoiceOption, ChoiceOptionHandle, FirstFit};
-use beui_view::primitives::Layers;
 use beui_view::reactive::*;
 
 use crate::text::{Text, TextColor};
@@ -23,7 +22,10 @@ const OPTION_PADDING: Padding = Padding::symmetric(Space::Lg, Space::Sm);
 const SEGMENT_PADDING: Padding = Padding::symmetric(Space::Lg, Space::Xs);
 
 #[component]
-pub(super) fn OptionFace(kind: Kind, handle: ChoiceOptionHandle) -> NodeId {
+pub(super) fn OptionFace<T>(kind: Kind, handle: ChoiceOptionHandle<T>) -> NodeId
+where
+    T: 'static,
+{
     let ChoiceOptionHandle {
         label,
         selected,
@@ -63,9 +65,9 @@ fn ChoiceLabel(
     };
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=MARK_SPACING>
-            <Show condition={kind == Kind::Radio}>
+            {(kind == Kind::Radio).then(|| view! {
                 <RadioMark checked={checked} />
-            </Show>
+            })}
             <ListItem grow=1.0>
                 <Text overflow=Overflow::Ellipsis color align>{label}</Text>
             </ListItem>
@@ -85,16 +87,9 @@ fn RadioMark(checked: Memo<bool>) -> NodeId {
             radius=Radius::Full
             align=Align::Center
         >
-            <Layers>
-                <Show condition={checked}>
-                    <Frame
-                        width=MARK_DOT
-                        height=MARK_DOT
-                        fill=ColorRole::Accent
-                        radius=Radius::Full
-                    />
-                </Show>
-            </Layers>
+            <Show value={checked}>
+                <Frame width=MARK_DOT height=MARK_DOT fill=ColorRole::Accent radius=Radius::Full />
+            </Show>
         </Frame>
     }
 }
@@ -115,22 +110,26 @@ fn background(active: bool, hovered: bool) -> ColorRole {
     }
 }
 
-pub(super) struct Wide {
-    pub options: Run<ChoiceOption>,
-    pub selected: Binding<Option<usize>>,
+pub(super) struct Wide<T: 'static> {
+    pub options: Run<ChoiceOption<T>>,
+    pub selected: Binding<Option<T>>,
 }
 
+/// Tabs or segments that become a `Select` without room for every option. Both
+/// bind one value, which is always chosen.
 #[component]
-pub(super) fn Collapsing(
-    options: Children<ChoiceOption>,
-    selected: Binding<usize>,
+pub(super) fn Collapsing<T>(
+    options: Children<ChoiceOption<T>>,
+    #[prop(required)] selected: Binding<T>,
     label: Memo<String>,
-    #[prop(children)] wide: Render<Wide>,
-) -> NodeId {
+    #[prop(children)] wide: Render<Wide<T>, NodeId>,
+) -> NodeId
+where
+    T: Clone + PartialEq + 'static,
+{
     let options = options.into_run();
-    let count = options.clone();
-    let shown = Prop::dynamic(move || Some(selected.get().min(count.len().saturating_sub(1))));
-    let chosen = Binding::new(shown, move |chosen: Option<usize>| {
+    let shown = Prop::dynamic(move || Some(selected.get()));
+    let chosen = Binding::new(shown, move |chosen: Option<T>| {
         if let Some(chosen) = chosen {
             selected.set(chosen);
         }
@@ -149,7 +148,10 @@ pub(super) fn Collapsing(
 }
 
 #[component]
-pub(super) fn SegmentFace(handle: ChoiceOptionHandle) -> NodeId {
+pub(super) fn SegmentFace<T>(handle: ChoiceOptionHandle<T>) -> NodeId
+where
+    T: 'static,
+{
     let ChoiceOptionHandle {
         label,
         selected,

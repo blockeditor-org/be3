@@ -5,7 +5,7 @@ use crate::list::{List, Spacer};
 use crate::theme::{knob_border, use_theme};
 use crate::tokens::{Size, Space, Stroke};
 use beui_components_unstyled as unstyled;
-use beui_components_unstyled::{SliderHandle, SliderScale};
+use beui_components_unstyled::{SliderHandle, SliderScale, ValueDrag};
 use beui_view::primitives::Layers;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
@@ -24,10 +24,10 @@ pub fn Slider(
     #[prop(default = 0.0)] min: f32,
     #[prop(default = 1.0)] max: f32,
     #[prop(default = SliderScale::Linear)] scale: SliderScale,
-    #[prop(default = None)] mark: Option<f32>,
+    mark: Option<f32>,
     #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = false)] disabled: Prop<bool>,
-    on_drag_change: Callback<bool>,
+    on_drag_change: Callback<ValueDrag>,
 ) -> NodeId {
     view! {
         <unstyled::Slider
@@ -67,9 +67,9 @@ fn SliderTrack(handle: SliderHandle, mark: Prop<Option<f32>>) -> NodeId {
     view! {
         <Frame height=HEIGHT focus={focused} focus_offset=Stroke::Focus radius=Radius::Md>
             <Layers>
-                <Show condition={mark.is_some()}>
+                {mark.map(|mark| view! {
                     <List direction=Direction::Horizontal align=Align::Center spacing=Space::None>
-                        <Spacer grow={mark.unwrap_or_default()} />
+                        <Spacer grow={mark} />
                         <Frame width=KNOB_SIZE height=KNOB_SIZE align=Align2::CENTER>
                             <Frame
                                 width=MARK_WIDTH
@@ -78,9 +78,9 @@ fn SliderTrack(handle: SliderHandle, mark: Prop<Option<f32>>) -> NodeId {
                                 radius=Radius::Full
                             />
                         </Frame>
-                        <Spacer grow={1.0 - mark.unwrap_or_default()} />
+                        <Spacer grow={1.0 - mark} />
                     </List>
-                </Show>
+                })}
                 <List direction=Direction::Horizontal align=Align::Center spacing=Space::None>
                     <ListItem grow={fraction}>
                         <Frame height=TRACK_HEIGHT fill={filled_color} radius=Radius::Full />

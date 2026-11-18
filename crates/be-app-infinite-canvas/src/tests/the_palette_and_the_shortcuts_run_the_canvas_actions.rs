@@ -11,7 +11,6 @@ fn the_palette_and_the_shortcuts_run_the_canvas_actions() {
     };
 
     editor.click(format!("infinite-canvas.entity.{}", rectangle.id));
-    editor.run();
     editor.key(
         Key::P,
         Modifiers {
@@ -19,11 +18,8 @@ fn the_palette_and_the_shortcuts_run_the_canvas_actions() {
             ..ctrl
         },
     );
-    editor.run();
     editor.type_text("duplicate");
-    editor.run();
     editor.key(Key::Enter, Modifiers::NONE);
-    editor.run();
     assert_eq!(
         entities(&editor).len(),
         2,
@@ -32,7 +28,6 @@ fn the_palette_and_the_shortcuts_run_the_canvas_actions() {
 
     editor.key(Key::A, ctrl);
     editor.key(Key::G, ctrl);
-    editor.run();
     let groups: HashSet<_> = entities(&editor)
         .iter()
         .map(|entity| entity.group_id)

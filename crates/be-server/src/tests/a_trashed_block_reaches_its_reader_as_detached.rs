@@ -3,8 +3,8 @@ use super::*;
 #[tokio::test]
 async fn a_trashed_block_reaches_its_reader_as_detached() {
     let harness = Harness::start().await;
-    let mut reader = harness.client().await;
-    let account = reader.register("author@example.com").await;
+    let mut reader = harness.member("author@example.com").await;
+    let account = reader.id();
     let organization = reader.organization("notes").await;
     let block = reader.create_block(BlockParent::Root).await;
     reader.follow(block).await;
@@ -13,23 +13,17 @@ async fn a_trashed_block_reaches_its_reader_as_detached() {
         .second_connection(&reader.token.clone(), organization)
         .await;
     let trashed = trasher
-        .call(|peer| {
-            client::blocks::set_parent(peer, block, BlockParent::Detached, KeySet::default())
-        })
+        .move_keyed(block, BlockParent::Detached, KeySet::default())
         .await;
     assert!(matches!(trashed, Ok(())), "{trashed:?}");
-    loop {
-        let notification = reader.graph_change().await;
-        if let Notice::BlockChanged { block: changed, .. } = &notification
-            && changed.id == block
-            && changed.parent == Some(BlockParent::Detached)
-        {
-            break;
-        }
-    }
+    reader
+        .heard_change(block, |changed| {
+            changed.parent == Some(BlockParent::Detached)
+        })
+        .await;
 
     let restored = trasher
-        .call(|peer| client::blocks::set_parent(peer, block, BlockParent::Root, KeySet::default()))
+        .move_keyed(block, BlockParent::Root, KeySet::default())
         .await;
     assert!(matches!(restored, Ok(())), "{restored:?}");
     let author = Author::new(account);
@@ -39,47 +33,36 @@ async fn a_trashed_block_reaches_its_reader_as_detached() {
         .await;
     let published = trasher
         .call(|peer| {
-            client::blocks::publish(
-                peer,
-                block,
-                head,
-                None,
-                Vec::new(),
-                objects_change(&[], chunks),
-                1_000,
-                false,
-                listing(&[], Vec::new()),
-                Vec::new(),
-                Vec::new(),
-            )
+            peer.write::<be_block_protocol::PublishOutcome>(be_block_protocol::Op::Publish {
+                block: block,
+                expected: None,
+                commit: Some(be_block_protocol::NewCommit {
+                    id: head,
+                    parents: Vec::new(),
+                    held: objects_change(&[], chunks),
+                    time: 1_000,
+                    pinned: false,
+                    objects: Vec::new(),
+                    log_through: None,
+                }),
+                references: listing(&[], Vec::new()),
+                metadata: Vec::new(),
+                journal: None,
+            })
         })
         .await;
     assert!(published.is_ok(), "{published:?}");
     reader.heard_head(block, head).await;
 
     let trashed = trasher
-        .call(|peer| {
-            client::blocks::set_parent(peer, block, BlockParent::Detached, KeySet::default())
-        })
+        .move_keyed(block, BlockParent::Detached, KeySet::default())
         .await;
     assert!(matches!(trashed, Ok(())), "{trashed:?}");
-    let response = trasher
-        .call(|peer| client::blocks::collect_detached(peer))
+    reader
+        .heard_change(block, |changed| {
+            changed.parent == Some(BlockParent::Detached)
+        })
         .await;
-    let Ok(collected) = response else {
-        panic!("collection failed: {response:?}");
-    };
-    assert!(collected.blocks.contains(&block));
-    loop {
-        let notification = reader.graph_change().await;
-        if matches!(notification, Notice::BlockRemoved { block: gone, .. } if gone == block) {
-            break;
-        }
-        assert!(
-            !matches!(&notification, Notice::BlockChanged { block: changed, .. } if changed.id == block && changed.parent != Some(BlockParent::Detached)),
-            "{notification:?}"
-        );
-    }
 
     harness.stop().await;
 }

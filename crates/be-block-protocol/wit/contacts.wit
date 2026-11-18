@@ -8,27 +8,96 @@ package be3:server@0.1.0;
 /// does is its `link-kind`.
 interface contacts {
     use types.{
-        account-id, error, link-id, organization-id, organization-role, pending-grant,
+        access-level, account-id, block-id, entry-hash, error, link-admits, link-id,
+        organization-id, pending-grant, public-key,
     };
 
-    /// An invitation into an organization, for the account with `email`.
+    /// An invitation into an organization. Its link is a bearer secret: any
+    /// account on the server that opens it may accept it, once, before it
+    /// expires, and joins as an editor, never as an administrator, signing
+    /// itself into the organization's log with the key the code derives.
     record invitation {
         organization: organization-id,
-        email: string,
-        /// The role the accepter joins with.
-        role: organization-role,
         /// The organization's escrow key sealed with the code, which the
         /// accepter pins; empty while it has none.
         escrow: list<u8>,
+    }
+
+    /// Where an invitation stands.
+    enum invitation-state {
+        /// Made, and nobody read it yet.
+        waiting,
+        /// The server answered a read of it: its link arrived.
+        opened,
+        accepted,
+        expired,
+        revoked,
+    }
+
+    /// An invitation as anyone holding its link reads it, before signing in.
+    record invitation-preview {
+        organization-name: string,
+        /// The inviter's card, sealed with the code.
+        card: list<u8>,
+        state: invitation-state,
+    }
+
+    /// An invitation in its organization's invite list.
+    record invitation-row {
+        id: link-id,
+        inviter: account-id,
+        inviter-name: string,
+        state: invitation-state,
+        accepter: option<account-id>,
+        accepter-name: string,
+        /// The key its record in the organization's log names, which an
+        /// administrator's record revoking it names too.
+        key: public-key,
+        /// When it was made, expires, was first read, and was accepted or
+        /// revoked (0 for not yet), in milliseconds since the epoch.
+        created: s64,
+        expires: s64,
+        opened: s64,
+        ended: s64,
     }
 
     /// What accepting a link does beyond making two contacts.
     variant link-kind {
         /// With a grant, the accepter is also given access to its block.
         contact(option<pending-grant>),
-        /// The accepter joins the organization. Only its administrator makes
-        /// one, and only the account with its email reads or accepts it.
+        /// The accepter joins the organization as an editor. Only its
+        /// administrator makes one.
         invitation(invitation),
+    }
+
+    /// A share link as the holder of its code reads it to open it.
+    record share-link {
+        id: link-id,
+        organization: organization-id,
+        organization-name: string,
+        block: block-id,
+        access: access-level,
+        admits: link-admits,
+        /// What the link hands its opener, sealed with the code: the
+        /// block's scope key and the roots of its organization's log.
+        sealed: list<u8>,
+        /// The head of the block's log, which the record opening it follows.
+        head: entry-hash,
+        /// Whether opening it makes the caller a guest of the organization.
+        guest: bool,
+    }
+
+    /// A share link open on a block, as its managers see it.
+    record share-link-row {
+        id: link-id,
+        access: access-level,
+        admits: link-admits,
+        maker: account-id,
+        maker-name: string,
+        /// When it was made, in milliseconds since the epoch.
+        created: s64,
+        /// The key its record in the block's log names.
+        key: public-key,
     }
 
     /// A link as the holder of its code reads it.
@@ -40,69 +109,9 @@ interface contacts {
         /// The name of the organization an invitation is into; empty for a
         /// contact link.
         organization-name: string,
+        /// For an invitation, the head of its organization's log, which the
+        /// member record accepting it follows; none for a contact link.
+        head: option<entry-hash>,
     }
 
-    /// A link of the caller's own, and who accepted it.
-    record own-link {
-        id: link-id,
-        code: list<u8>,
-        kind: link-kind,
-        accepter: option<account-id>,
-        /// The accepter's card, sealed with the code.
-        card: list<u8>,
-    }
-
-    record contact-row {
-        account: account-id,
-        email: string,
-        display-name: string,
-        sealed: list<u8>,
-        changes: list<list<u8>>,
-    }
-
-    /// Makes a link: `card` is sealed with the code, and `code` is the code
-    /// sealed to the caller, which `own-link.code` gives back. A contact link
-    /// any account makes; an invitation needs an administrator of its
-    /// organization, and replaces any outstanding one for the same email.
-    create-link: async func(
-        link: link-id,
-        card: list<u8>,
-        code: list<u8>,
-        kind: link-kind,
-    ) -> result<_, error>;
-
-    /// A link not yet accepted; an invitation only for the account with its
-    /// email, and not one already a member.
-    get-link: async func(link: link-id) -> result<link, error>;
-
-    /// Accepts a link, leaving the caller's `card` for its owner and its
-    /// contact card for the owner sealed to itself (`contact`). `key` is,
-    /// for a contact link with a grant, the granted key sealed to the
-    /// caller; for an invitation, the escrow key it pins sealed to itself;
-    /// otherwise empty.
-    accept-link: async func(
-        link: link-id,
-        card: list<u8>,
-        contact: list<u8>,
-        key: list<u8>,
-    ) -> result<_, error>;
-
-    /// The caller's links, outstanding or accepted and not yet finished.
-    list-links: async func() -> result<list<own-link>, error>;
-
-    /// Deletes a link of the caller's: revokes one outstanding, or finishes
-    /// one accepted.
-    delete-link: async func(link: link-id) -> result<_, error>;
-
-    put-contact: async func(contact: account-id, sealed: list<u8>) -> result<_, error>;
-
-    list-contacts: async func() -> result<list<contact-row>, error>;
-
-    remove-contact: async func(account: account-id) -> result<_, error>;
-
-    /// An item whenever the account's contacts, links or key changes
-    /// changed through another connection, so the client reads them again; a
-    /// latest-value stream, so changes the client has not taken yet are one
-    /// item.
-    contacts-changed: func() -> stream;
 }

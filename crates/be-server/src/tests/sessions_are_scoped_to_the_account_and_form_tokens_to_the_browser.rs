@@ -7,11 +7,9 @@ async fn sessions_are_scoped_to_the_account_and_form_tokens_to_the_browser() {
     harness.member("stranger@example.com").await;
     let mut browser = Browser::default();
     let mut stranger = Browser::default();
-    browser
-        .login(&harness, "owner@example.com", "correct horse battery")
-        .await;
+    browser.sign_in_by_code(&harness, "owner@example.com").await;
     stranger
-        .login(&harness, "stranger@example.com", "correct horse battery")
+        .sign_in_by_code(&harness, "stranger@example.com")
         .await;
     let store = ServerStore::open(&harness.directory).unwrap();
     let profile = store.browser_profile(&browser.cookie).await.unwrap();
@@ -23,6 +21,8 @@ async fn sessions_are_scoped_to_the_account_and_form_tokens_to_the_browser() {
         .iter()
         .find(|session| session.kind == "app")
         .unwrap();
+    // Even proved, the stranger's revoking reaches only its own sessions.
+    stranger.prove(&harness, "stranger@example.com").await;
     assert_eq!(
         stranger
             .submit(
@@ -49,6 +49,7 @@ async fn sessions_are_scoped_to_the_account_and_form_tokens_to_the_browser() {
             .0,
         400
     );
+    browser.prove(&harness, "owner@example.com").await;
     assert_eq!(
         browser
             .submit(

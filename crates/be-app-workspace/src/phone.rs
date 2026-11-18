@@ -31,10 +31,9 @@ pub(crate) fn DetailsSheet(workspace: Workspace, sheet: Signal<PhoneSheet>) -> N
         PhoneSheet::Details(shown) => Some(shown),
         PhoneSheet::Closed => None,
     });
-    let open = create_memo(move || shown.get().is_some());
     view! {
         <ModalSheet
-            open={open}
+            open={move || shown.get().is_some()}
             rest={SHEET_STOPS[1]}
             on_close={move || {
                 if shown.get_untracked().is_some() {
@@ -43,20 +42,14 @@ pub(crate) fn DetailsSheet(workspace: Workspace, sheet: Signal<PhoneSheet>) -> N
             }}
         >
             <List spacing=Space::None>
-                <Dynamic value={shown}>|tab: Option<TabId>| {
-                    match tab {
-                        Some(tab) => view! {
-                            <ListItem grow=1.0>
-                                <DetailsBody workspace sheet tab />
-                            </ListItem>
-                        },
-                        None => view! {
-                            <ListItem grow=1.0>
-                                <Frame />
-                            </ListItem>
-                        },
-                    }
-                }</Dynamic>
+                <Dynamic
+                    value={shown}
+                    fallback=()
+                >|tab: TabId|
+                    <ListItem grow=1.0>
+                        <DetailsBody workspace sheet tab />
+                    </ListItem>
+                </Dynamic>
             </List>
         </ModalSheet>
     }
@@ -106,15 +99,8 @@ fn DetailsBody(workspace: Workspace, sheet: Signal<PhoneSheet>, tab: TabId) -> N
             })
         })
     });
-    let rename_off = create_memo(move || !rights.get().is_some_and(|r| r.0));
-    let delete_off = create_memo(move || !rights.get().is_some_and(|r| r.1));
-    let share_off = create_memo(move || !rights.get().is_some_and(|r| r.4));
     let offers_delete = create_memo(move || rights.get().is_none_or(|r| r.5));
     let unlinkable = create_memo(move || rights.get().is_some_and(|r| r.2));
-    let delete_label = create_memo(move || match rights.get().is_some_and(|r| r.3) {
-        true => "Remove link".to_owned(),
-        false => "Delete".to_owned(),
-    });
     let references = create_memo(move || {
         info.with(|info| {
             info.as_ref()
@@ -173,17 +159,17 @@ fn DetailsBody(workspace: Workspace, sheet: Signal<PhoneSheet>, tab: TabId) -> N
                     @test_id={"workspace.details.rename"}
                     label="Rename"
                     glyph=ICON_PENCIL_LINE
-                    disabled={rename_off}
+                    disabled={move || !rights.get().is_some_and(|r| r.0)}
                     on_click={move || act(BlockAction::Rename)}
                 />
                 <ActionRow
                     @test_id={"workspace.details.share"}
                     label="Share"
                     glyph=ICON_SHARE_2
-                    disabled={share_off}
+                    disabled={move || !rights.get().is_some_and(|r| r.4)}
                     on_click={move || act(BlockAction::Share)}
                 />
-                <Show condition={unlinkable}>
+                <Show value={unlinkable}>
                     <ActionRow
                         @test_id={"workspace.details.unlink"}
                         label="Unlink"
@@ -191,12 +177,15 @@ fn DetailsBody(workspace: Workspace, sheet: Signal<PhoneSheet>, tab: TabId) -> N
                         on_click={move || act(BlockAction::Unlink)}
                     />
                 </Show>
-                <Show condition={offers_delete}>
+                <Show value={offers_delete}>
                     <ActionRow
                         @test_id={"workspace.details.delete"}
-                        label={delete_label}
+                        label={move || match rights.get().is_some_and(|r| r.3) {
+                            true => "Remove link".to_owned(),
+                            false => "Delete".to_owned(),
+                        }}
                         glyph=ICON_TRASH
-                        disabled={delete_off}
+                        disabled={move || !rights.get().is_some_and(|r| r.1)}
                         danger=true
                         on_click={move || act(BlockAction::Delete)}
                     />
@@ -231,17 +220,16 @@ fn RelatedBlocks(
     let ids = create_memo(move || {
         refs.with(|refs| refs.list.iter().map(|info| info.id).collect::<Vec<Uuid>>())
     });
-    let some = create_memo(move || !ids.get().is_empty());
     view! {
         <List spacing=Space::None>
-            <Show condition={some}>|| {
+            <Show value={move || !ids.with(Vec::is_empty)}>|| {
                 let title = title.clone(); view! {
                     <Frame padding={Padding::symmetric(SHEET_PADDING, SECTION_PADDING)}>
                         <Text style=TextStyle::CAPTION>{title}</Text>
                     </Frame>
                 }
             }</Show>
-            <ForEach keys={ids}>|id: Uuid| {
+            <ForEach value={ids}>|id: Uuid| {
                 let reference = create_memo(move || {
                     refs.with(|refs| refs.list.iter().find(|info| info.id == id).cloned())
                 });
@@ -269,22 +257,6 @@ fn RelatedRow(
                 .map(|reference| reference.label(types.as_ref()))
         })
     });
-    let name = create_memo(move || label.get().map(|label| label.name).unwrap_or_default());
-    let glyph = create_memo(move || {
-        label
-            .get()
-            .and_then(|label| be_sdk_beui::label_glyph(&label))
-    });
-    let detail = create_memo(move || {
-        match reference.with(|reference| {
-            reference
-                .as_ref()
-                .is_some_and(|reference| reference.deleted)
-        }) {
-            true => "In Recently Deleted".to_owned(),
-            false => String::new(),
-        }
-    });
     let opening = move || {
         let Some(reference) = reference.get_untracked() else {
             return;
@@ -294,6 +266,22 @@ fn RelatedRow(
         workspace.open(TabItem::new(reference.id, reference.block_type), via);
     };
     view! {
-        <ActionRow @test_id={named} label={name} glyph detail on_click={opening} />
+        <ActionRow
+            @test_id={named}
+            label={move || label.get().map(|label| label.name).unwrap_or_default()}
+            glyph={move || label.with(|label| label.as_ref().and_then(be_sdk_beui::label_glyph))}
+            detail={move || {
+                let deleted = reference.with(|reference| {
+                    reference
+                        .as_ref()
+                        .is_some_and(|reference| reference.deleted)
+                });
+                match deleted {
+                    true => "In Recently Deleted".to_owned(),
+                    false => String::new(),
+                }
+            }}
+            on_click={opening}
+        />
     }
 }

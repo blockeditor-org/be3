@@ -107,15 +107,12 @@ pub fn PanZoom(editor: Editor) -> NodeId {
         editor.keep_fitted(|| Some(Fit::Area(Rect::from_min_size(pos2(0.0, 0.0), WORLD))));
 
     let chrome = editor.chrome_shown();
-    let panel_shown = create_memo(move || chrome.get() && open.get());
-    let reopen_shown = create_memo(move || chrome.get() && !open.get());
-    let zoom_shown = create_memo(move || chrome.get());
     let layout = DockingLayout::<&'static str>::new();
 
     view! {
         <Docking layout focus={Some(STAGE)}>
             <DockSplit id="pan_zoom" size={SplitSize::First(SIDEBAR_WIDTH)}>
-                <Show condition={panel_shown}>
+                <Show value={move || chrome.get() && open.get()}>
                     <DockPane id="sidebar" locked=true>
                         <DockTab id=CARDS_TAB title="Cards" on_close={move || open.set(false)}>
                             <Sidebar editor selected />
@@ -128,7 +125,7 @@ pub fn PanZoom(editor: Editor) -> NodeId {
                     </DockTab>
                 </DockPane>
             </DockSplit>
-            <Show condition={zoom_shown}>
+            <Show value={chrome}>
                 <DockBar
                     id=ZOOM
                     parent=STAGE
@@ -137,7 +134,7 @@ pub fn PanZoom(editor: Editor) -> NodeId {
                     <ZoomBar editor fitting />
                 </DockBar>
             </Show>
-            <Show condition={reopen_shown}>
+            <Show value={move || chrome.get() && !open.get()}>
                 <DockBar
                     id=REOPEN
                     parent=STAGE
@@ -225,7 +222,7 @@ fn Sidebar(editor: Editor, selected: Signal<Option<usize>>) -> NodeId {
                             {chosen}
                         </Text>
                         <List spacing=Space::Xs>
-                            <ForEach keys={card_indices()}>|index: usize|
+                            <ForEach value={card_indices()}>|index: usize|
                                 <FocusRow index editor={editor} selected={selected} />
                             </ForEach>
                         </List>
@@ -258,7 +255,7 @@ fn Stage(editor: Editor, selected: Signal<Option<usize>>) -> NodeId {
     let scale = editor.scale();
     view! {
         <Canvas view={editor.canvas()} @test_id={"pan_zoom.stage"}>
-            <ForEach keys={card_indices()}>|index: usize|
+            <ForEach value={card_indices()}>|index: usize|
                 <CardView index scale={scale} selected={selected} />
             </ForEach>
         </Canvas>
@@ -275,15 +272,10 @@ fn CardView(index: usize, scale: ReadSignal<f32>, selected: Signal<Option<usize>
     });
     let title_size = scaled(scale, CARD_TITLE_SIZE);
     let label_size = scaled(scale, CARD_LABEL_SIZE);
-    let title_size = create_memo(move || TextSize::Custom(title_size.get()));
-    let label_size = create_memo(move || TextSize::Custom(label_size.get()));
     let padding = scaled(scale, CARD_PADDING);
-    let padding = create_memo(move || Padding::all(Space::Custom(padding.get())));
     let spacing = scaled(scale, CARD_SPACING);
-    let spacing = create_memo(move || Space::Custom(spacing.get()));
     let outline_width = scaled(scale, CARD_OUTLINE);
     let radius = scaled(scale, CARD_RADIUS);
-    let radius = create_memo(move || Radius::Custom(radius.get()));
     let position = format!("{:.0}, {:.0}", card.x, card.y);
     let select = move || selected.set(Some(index));
 
@@ -298,13 +290,18 @@ fn CardView(index: usize, scale: ReadSignal<f32>, selected: Signal<Option<usize>
             <Interactive cursor=CursorIcon::PointingHand on_click={select}>
                 <Frame
                     fill=ColorRole::Control
-                    border={create_memo(move || Some(Border::new(outline.get()).width(Stroke::Custom(outline_width.get()))))}
-                    radius={radius}
-                    padding=padding
+                    border={move || Some(Border::new(outline.get()).width(Stroke::Custom(outline_width.get())))}
+                    radius={move || Radius::Custom(radius.get())}
+                    padding={move || Padding::all(Space::Custom(padding.get()))}
                 >
-                    <List spacing={spacing}>
-                        <Text size={title_size}>{card.name}</Text>
-                        <Text size={label_size} color=TextColor::Muted>{position}</Text>
+                    <List spacing={move || Space::Custom(spacing.get())}>
+                        <Text size={move || TextSize::Custom(title_size.get())}>{card.name}</Text>
+                        <Text
+                            size={move || TextSize::Custom(label_size.get())}
+                            color=TextColor::Muted
+                        >
+                            {position}
+                        </Text>
                     </List>
                 </Frame>
             </Interactive>

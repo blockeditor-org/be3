@@ -44,7 +44,7 @@ const NOTE: TextStyle = TextStyle::CAPTION.color(TextColor::Accent);
 const MENU_INSET: Space = Space::Md;
 
 #[component]
-pub fn SettingsPage(#[prop(children)] sections: Render<(), Children<ListItem>>) -> NodeId {
+pub fn SettingsPage(#[prop(children)] sections: Build<Children<ListItem>>) -> NodeId {
     view! {
         <Scroll>
             <Frame
@@ -53,7 +53,7 @@ pub fn SettingsPage(#[prop(children)] sections: Render<(), Children<ListItem>>) 
             >
                 <Frame width={Extent::at_most(PAGE_MAX_WIDTH + 2.0 * SECTION_INSET.px())}>
                     <unstyled::Container>|_size|
-                        <List spacing=PAGE_SPACING children={sections.call(())} />
+                        <List spacing=PAGE_SPACING children={sections.call()} />
                     </unstyled::Container>
                 </Frame>
             </Frame>
@@ -69,8 +69,8 @@ pub fn SettingsSection(
 ) -> NodeId {
     let title = create_memo(move || title.get());
     let description = create_memo(move || description.get());
-    let titled = create_memo(move || !title.get().is_empty());
-    let described = create_memo(move || !description.get().is_empty());
+    let titled = create_memo(move || !title.with(String::is_empty));
+    let described = create_memo(move || !description.with(String::is_empty));
     let headed = create_memo(move || titled.get() || described.get());
     let edge = unstyled::narrower_than(EDGE_TO_EDGE_BELOW);
     let inset = create_memo(move || match edge.get() {
@@ -92,26 +92,26 @@ pub fn SettingsSection(
     view! {
         <Frame padding={inset}>
             <List spacing=SECTION_SPACING>
-                <Show condition={headed}>
+                <Show value={headed}>
                     <Frame padding={header_inset}>
                         <List spacing=HEADER_SPACING>
-                            <Show condition={titled}>
+                            <Show value={titled}>
                                 <Text style=SECTION_TITLE>{title}</Text>
                             </Show>
-                            <Show condition={described}>
+                            <Show value={described}>
                                 <Text style=TextStyle::CAPTION>{description}</Text>
                             </Show>
                         </List>
                     </Frame>
                 </Show>
                 <List spacing=Space::None>
-                    <Show condition={edge}>
+                    <Show value={edge}>
                         <Separator />
                     </Show>
                     <Frame fill=ColorRole::Surface border={border} radius={radius}>
                         <List spacing=Space::None>{children}</List>
                     </Frame>
-                    <Show condition={edge}>
+                    <Show value={edge}>
                         <Separator />
                     </Show>
                 </List>
@@ -135,14 +135,8 @@ pub fn SettingsRow(
 ) -> NodeId {
     let label = create_memo(move || label.get());
     let description = create_memo(move || description.get());
-    let described = create_memo(move || !description.get().is_empty());
     let note = create_memo(move || note.get());
-    let noted = create_memo(move || !note.get().is_empty());
-    let separated = create_memo(move || separated.get());
-    let menu_test_id = create_memo(move || menu_test_id.get());
-    let modified = create_memo(move || modified.get());
     let has_menu = !menu.is_empty();
-    let locked = create_memo(move || locked.get());
     let marker = create_memo(move || match modified.get() {
         true => ColorRole::Accent,
         false => ColorRole::None,
@@ -178,7 +172,7 @@ pub fn SettingsRow(
     });
     view! {
         <List spacing=Space::None>
-            <Show condition={separated}>
+            <Show value={separated}>
                 <Frame padding={Padding::horizontal(ROW_PADDING_HORIZONTAL)}>
                     <Separator />
                 </Frame>
@@ -193,10 +187,10 @@ pub fn SettingsRow(
                             <ListItem grow=label_grow>
                                 <List justify=Justify::Center spacing=LABEL_SPACING>
                                     <Text>{label}</Text>
-                                    <Show condition={described}>
+                                    <Show value={move || !description.with(String::is_empty)}>
                                         <Text style=TextStyle::CAPTION>{description}</Text>
                                     </Show>
-                                    <Show condition={noted}>
+                                    <Show value={move || !note.with(String::is_empty)}>
                                         <Text style=NOTE>{note}</Text>
                                     </Show>
                                 </List>
@@ -229,16 +223,13 @@ pub fn SettingsLink(
     #[prop(default = false)] modified: Prop<bool>,
     on_click: Callback<()>,
 ) -> NodeId {
-    let separated = create_memo(move || separated.get());
-    let description = create_memo(move || description.get());
-    let modified = create_memo(move || modified.get());
     let marker = create_memo(move || match modified.get() {
         true => ColorRole::Accent,
         false => ColorRole::None,
     });
     view! {
         <List spacing=Space::None>
-            <Show condition={separated}>
+            <Show value={separated}>
                 <Frame padding={Padding::horizontal(ROW_PADDING_HORIZONTAL)}>
                     <Separator />
                 </Frame>

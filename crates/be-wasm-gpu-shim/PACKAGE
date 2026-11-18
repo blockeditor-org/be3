@@ -14,7 +14,7 @@ write_package_value("be3.cargo", {
     "name": "be-wasm-gpu-shim",
     "package": "crates/be-wasm-gpu-shim",
     "platforms": {
-        "wasm32": {
+        "wasm32-bindgen": {
             "binaries": {},
             "deps": [
                 "//crates/be-wasm-dylink:be-wasm-dylink",

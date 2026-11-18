@@ -1,7 +1,8 @@
-import { bindMemory, bindFiles, CONTROL } from "./wasi.js";
+import { bindMemory, refuseFiles, CONTROL } from "./wasi.js";
             import { bindMemory as bindEnvironmentMemory } from "./env.js";
-            import { bindThreads } from "./threads.js";
+            import { bindHostFiles, bindThreads, receiveLetters, refuseThreads } from "./threads.js";
             import init, {
+                be_letter_arrived,
                 run_web,
                 push_open,
                 push_open_block,
@@ -100,11 +101,15 @@ import { bindMemory, bindFiles, CONTROL } from "./wasi.js";
                 // The module is compiled here rather than inside the glue,
                 // because starting a thread means instantiating this very
                 // module again on a Worker, and only the page holds it.
-                // Kept for opening offline (sw.js), registered beside the
-                // page's own address rather than the bundle's base, since a
-                // service worker only answers for addresses below its own.
+                // Kept for opening offline (sw.js): the bundle's own worker,
+                // answering for the page's own address and below. Deployed,
+                // the page is the entry point at / and the bundle is under
+                // /data/BUILD/web/, whose worker may answer for / because the
+                // CDN sends Service-Worker-Allowed: / (guides/hosting.md).
                 navigator.serviceWorker
-                    ?.register(new URL("sw.js", location.href))
+                    ?.register(new URL("sw.js", document.baseURI), {
+                        scope: new URL("./", location.href).href,
+                    })
                     .catch((error) => console.warn("the app cannot be kept for offline use", error));
                 await ownTheFiles();
                 navigator.storage?.persist?.().catch(() => {});
@@ -116,8 +121,13 @@ import { bindMemory, bindFiles, CONTROL } from "./wasi.js";
                 bindMemory(wasm.memory);
                 bindEnvironmentMemory(wasm.memory);
                 bindThreads(module, wasm.memory);
-                files.worker.postMessage({ memory: wasm.memory });
-                bindFiles(files.channel);
+                receiveLetters(be_letter_arrived);
+                // The page makes no file call and starts no thread: files.js answers the host's
+                // worker, in its own memory, a thread would share the page's, and either fails
+                // loudly here (decisions/the_web_page_never_waits.md).
+                refuseFiles();
+                refuseThreads();
+                bindHostFiles(files);
                 bindPush({
                     open: push_open,
                     openBlock: ({ organization, block }) => push_open_block(organization, block),
@@ -181,14 +191,19 @@ import { bindMemory, bindFiles, CONTROL } from "./wasi.js";
                 }
                 started.resolve();
 
-                status.hidden = true;
+                // The start-up look stays until the host's worker has read the host's files:
+                // run_web hides it as it shows the host's first screen.
                 await run_web("host");
             } catch (error) {
                 console.error(error);
                 started.reject(error);
-                fail(
-                    "be-host could not start.",
-                    `${error}\n\nbe-host draws with WebGPU or WebGL through a canvas. ` +
-                        "Check the browser console for details.",
-                );
+                if (error?.name === "BeSavedData") {
+                    fail("be-host could not open its saved data:", error.message);
+                } else {
+                    fail(
+                        "be-host could not start.",
+                        `${error}\n\nbe-host draws with WebGPU or WebGL through a canvas. ` +
+                            "Check the browser console for details.",
+                    );
+                }
             }

@@ -14,7 +14,7 @@ fn a_canvas_item_resized_while_its_content_changes_is_laid_out_once_where_it_lan
             <Frame width=600.0 height=400.0>
                 <Canvas>
                     <CanvasItem x=10.0 y=10.0 width height>
-                        <Frame padding={create_memo(move || Sides::horizontal(inset.get()))}>
+                        <Frame padding={move || Sides::horizontal(inset.get())}>
                             <Frame @node_ref=&item />
                         </Frame>
                     </CanvasItem>

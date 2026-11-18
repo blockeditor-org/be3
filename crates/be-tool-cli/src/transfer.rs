@@ -64,8 +64,9 @@ impl<S: ObjectStore> Tracker<S> {
                 block_type: entry.block_type,
                 parent,
                 metadata: peer.metadata_of_summary(&summary).await.map_err(explain)?,
-                references: summary.references,
+                references: peer.content_references(&summary).await.map_err(explain)?,
                 content,
+                log: Vec::new(),
             });
         }
         Ok((top, blocks))

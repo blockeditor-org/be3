@@ -1,4 +1,4 @@
-use be_sdk_beui::be_block::{
+use be_block_repository::{
     Checkout, CheckoutConflict, CheckoutContent, ConflictKind, Repository, RepositoryContent,
 };
 use be_sdk_beui::be_block_content::LiveEdit;
@@ -8,6 +8,7 @@ use be_sdk_beui::{
     VersionCommand, VersionCommit, VersionOperation, VersionStatus, short_id,
 };
 use be_sdk_test::BeuiTest;
+use be_sdk_test::prelude::*;
 use uuid::Uuid;
 
 use crate::checkout::CheckoutRoot;
@@ -24,7 +25,10 @@ mod checking_a_branch_out_asks_the_host;
 
 const TEXT: Uuid = Uuid::from_u128(0x7465_7874);
 
-fn editor<A: BeuiRoot, C: LiveEdit + be_sdk_beui::be_block_content::Merge + Clone + Default>(
+fn editor<
+    A: BeuiRoot + be_sdk_beui::AppEditor,
+    C: LiveEdit + be_sdk_beui::be_block_content::Merge + Clone + Default,
+>(
     content: C,
     status: VersionStatus,
 ) -> BeuiTest<A> {
@@ -50,7 +54,7 @@ fn branches() -> Vec<VersionBranch> {
     }]
 }
 
-fn own(editor: &BeuiTest<impl BeuiRoot>) -> Uuid {
+fn own(editor: &BeuiTest<impl BeuiRoot + be_sdk_beui::AppEditor>) -> Uuid {
     editor.block_id().expect("the editor has a block")
 }
 

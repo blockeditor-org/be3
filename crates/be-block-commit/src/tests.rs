@@ -10,6 +10,7 @@ mod a_commit_is_stored_by_field_name_and_reads_past_fields_it_does_not_know;
 mod a_common_ancestor_is_found_across_a_fork;
 mod a_cut_and_paste_conflicts_instead_of_interleaving;
 mod a_fast_clock_stamps_commits_the_server_takes;
+mod a_merge_base_walk_stops_at_its_depth;
 mod a_slow_clock_believes_what_others_stamped_honestly;
 mod commits_stamped_in_the_same_millisecond_keep_the_one_that_arrived_last;
 mod identical_edits_on_both_sides_merge_cleanly;
@@ -28,7 +29,7 @@ fn store() -> CommitStore<MemoryStore> {
     CommitStore::new(
         Vault::new(MemoryStore::new(), {
             let keys = Keyring::new();
-            keys.insert(KEY, ContentKey::from_bytes([9; 32]));
+            keys.insert(KEY, ContentKey::from_bytes([9; 32]), uuid::Uuid::nil());
             keys
         })
         .with_chunker(ChunkerConfig::SMALL),

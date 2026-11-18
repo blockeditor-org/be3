@@ -21,7 +21,6 @@ fn the_mode_dock_switches_the_profile() {
     assert!(!editor.shown("infinite-canvas.dock.tool.pencil"));
 
     editor.click("infinite-canvas.mode.raster");
-    editor.run();
     assert_eq!(profile(&editor), CanvasProfile::Raster);
     assert!(pressed(&editor, "infinite-canvas.mode.raster"));
     assert!(!pressed(&editor, "infinite-canvas.mode.prototyping"));
@@ -38,7 +37,6 @@ fn the_mode_dock_switches_the_profile() {
     editor.snapshot("the_mode_dock_switches_the_profile");
 
     editor.click("infinite-canvas.mode.vector");
-    editor.run();
     assert_eq!(profile(&editor), CanvasProfile::Vector);
     assert!(editor.shown("infinite-canvas.selection"));
     assert!(!editor.shown("infinite-canvas.raster"));
@@ -56,9 +54,7 @@ fn the_mode_dock_switches_the_profile() {
         "a phone has no room for it beside the zoom pill"
     );
     phone.click("infinite-canvas.mode.menu");
-    phone.run();
     phone.click("infinite-canvas.mode.canvas.profile.raster");
-    phone.run();
     assert_eq!(profile(&phone), CanvasProfile::Raster);
     assert!(phone.shown("infinite-canvas.dock.tool.pencil"));
 }

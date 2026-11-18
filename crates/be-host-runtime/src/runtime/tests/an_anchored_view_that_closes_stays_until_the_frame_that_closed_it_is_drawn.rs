@@ -84,13 +84,18 @@ fn presented(serial: u64, sequence: Option<u64>) -> Heard {
         presented: sequence.map(|sequence| PresentedFrame {
             sequence,
             damage: Vec::new(),
+            painted: Vec::new(),
         }),
     })
 }
 
 fn lifted_shown() -> bool {
     with(APP, |runtime| {
-        runtime.layout.placement(ScreenId::opened(1)).is_some()
+        runtime
+            .run
+            .layout()
+            .placement(ScreenId::opened(1))
+            .is_some()
             && !runtime
                 .instances
                 .shown_anchored(INSTANCE, ViewId::MAIN)
@@ -181,8 +186,13 @@ fn an_anchored_view_that_closes_stays_until_the_frame_that_closed_it_is_drawn() 
         "presented, it stays until that frame's pixels arrive"
     );
     with(APP, |runtime| {
-        runtime.presents.damage_through(1);
-        runtime.close_anchored();
+        runtime.run.presents.damage_through(1);
+        let closed = runtime
+            .run
+            .shown
+            .frame_shown(runtime.run.presents.shown())
+            .closed;
+        runtime.close_anchored(closed);
     });
     assert!(!lifted_shown(), "and goes with them");
 

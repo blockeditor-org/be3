@@ -62,5 +62,6 @@ fn panning_and_zooming_paints_no_entity_again() {
         "a pan and a zoom painted and laid out more nodes for 48 entities than for 6"
     );
     editor.advance(std::time::Duration::from_millis(500));
+    editor.run();
     editor.snapshot("a_zoomed_canvas_scales_its_shapes");
 }

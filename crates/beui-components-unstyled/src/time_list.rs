@@ -4,7 +4,7 @@ use beui_macros::{component, view};
 use crate as unstyled;
 use crate::ButtonHandle;
 use crate::datetime::{HourCycle, MINUTES_PER_DAY, Time};
-use crate::scroll::ScrollbarStyle;
+use crate::scroll::ScrollStyle;
 use beui_view::primitives::*;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
@@ -44,7 +44,7 @@ struct State {
 #[component]
 pub fn TimeList(
     #[prop(default = ComponentRef::new())] api: ComponentRef<TimeListApi>,
-    #[prop(default = None)] value: Binding<Option<Time>>,
+    value: Binding<Option<Time>>,
     #[prop(default = 15)] step_minutes: u32,
     #[prop(default = HourCycle::H24)] hour_cycle: HourCycle,
     #[prop(default = false)] focused: Prop<bool>,
@@ -52,8 +52,8 @@ pub fn TimeList(
     #[prop(default = 1)] max_columns: usize,
     #[prop(default = 0.0)] spacing: f32,
     #[prop(default = String::new())] label: Prop<String>,
-    #[prop(default = ScrollbarStyle::default())] scrollbar: ScrollbarStyle,
-    option: RenderFn<TimeOptionHandle>,
+    scroll: ScrollStyle,
+    option: RenderFn<TimeOptionHandle, NodeId>,
 ) -> NodeId {
     let step_minutes = step_minutes.clamp(1, MINUTES_PER_DAY);
     let columns = grid_columns(step_minutes, max_columns);
@@ -109,9 +109,9 @@ pub fn TimeList(
     view! {
         <TimeListBox label>
             <ListItem grow=1.0>
-                <unstyled::Scroll offset={shown} scrollbar>
+                <unstyled::Scroll offset={shown} style={scroll}>
                     <List spacing>
-                        <ForEach keys={rows}>|row: usize|
+                        <ForEach value={rows}>|row: usize|
                             <TimeRow state={state} row spacing hour_cycle face={option} />
                         </ForEach>
                     </List>
@@ -127,7 +127,7 @@ fn TimeRow(
     row: usize,
     spacing: f32,
     hour_cycle: HourCycle,
-    face: RenderFn<TimeOptionHandle>,
+    face: RenderFn<TimeOptionHandle, NodeId>,
 ) -> NodeId {
     let columns = state.columns;
     let times = state.times;
@@ -143,7 +143,7 @@ fn TimeRow(
     });
     view! {
         <List direction=Direction::Horizontal spacing>
-            <ForEach keys={cells}>|minutes: u32|
+            <ForEach value={cells}>|minutes: u32|
                 <ListItem grow=1.0>
                     <TimeOption state={state} minutes hour_cycle face={face} />
                 </ListItem>
@@ -172,7 +172,7 @@ fn TimeOption(
     state: State,
     minutes: u32,
     hour_cycle: HourCycle,
-    face: RenderFn<TimeOptionHandle>,
+    face: RenderFn<TimeOptionHandle, NodeId>,
 ) -> NodeId {
     let time = Time::from_minutes(minutes);
     let label = time.format(hour_cycle);

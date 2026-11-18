@@ -44,13 +44,12 @@ fn RunButton(
             menu_label="More ways to run it"
             disabled
             items={view! {
-                <ForEach keys={(0..MORE.len()).collect::<Vec<_>>()}>|index: usize|
+                <ForEach
+                    value={MORE.to_vec()}
+                >|(label, product, fresh): (&'static str, Product, bool)|
                     <MenuItem
-                        label={MORE[index].0}
-                        on_click={move || {
-                            let (_, product, fresh) = MORE[index];
-                            runs.run(slot, commit.get_untracked(), product, fresh);
-                        }}
+                        label
+                        on_click={move || runs.run(slot, commit.get_untracked(), product, fresh)}
                     />
                 </ForEach>
             }}
@@ -93,19 +92,18 @@ pub(crate) fn Notes(
     timeline: ReadSignal<Loaded<Vec<Entry>>>,
 ) -> NodeId {
     let slot = Slot::PullRequest(pull_request.get_untracked().number);
-    let fork = create_memo(move || !pull_request.get().same_repository);
     let deleted = create_memo(move || match timeline.get() {
         Loaded::Ready(entries) => branch_deleted(&entries),
         _ => false,
     });
     view! {
         <List spacing=Space::Md>
-            <Show condition={fork}>
+            <Show value={move || !pull_request.with(|pull_request| pull_request.same_repository)}>
                 <Text style=TextStyle::CAPTION>
                     "It comes from a fork, so the build helper does not build it."
                 </Text>
             </Show>
-            <Show condition={deleted}>
+            <Show value={deleted}>
                 <Text style=TextStyle::CAPTION>
                     "Its branch was deleted, so there is nothing to build."
                 </Text>
@@ -161,7 +159,7 @@ fn KeyEntry(runs: Runs) -> DynamicSegment<ListItem> {
         }
     };
     view! {
-        <Show condition={shown}>
+        <Show value={shown}>
             <List spacing=Space::Md>
                 <Text style=TextStyle::CAPTION>
                     "The build helper is behind the API gateway: enter its key to build."
@@ -227,16 +225,15 @@ fn SlotNotes(model: Model, slot: Slot) -> NodeId {
         Some((problem_slot, problem)) if problem_slot == slot => problem,
         _ => String::new(),
     });
-    let failed = create_memo(move || !problem.get().is_empty());
     view! {
         <List spacing=Space::Md>
-            <Show condition={working}>
+            <Show value={working}>
                 <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                     <Progress width=Size::Sm label="Working on the build" />
                     <Text style=TextStyle::CAPTION>{progress}</Text>
                 </List>
             </Show>
-            <Show condition={failed}>
+            <Show value={move || !problem.with(String::is_empty)}>
                 <Text color=TextColor::Danger>{problem}</Text>
             </Show>
             <SlotLog model slot />
@@ -248,9 +245,8 @@ fn SlotNotes(model: Model, slot: Slot) -> NodeId {
 #[component]
 fn SlotLog(model: Model, slot: Slot) -> DynamicSegment<ListItem> {
     let runs = model.runs;
-    let logged = create_memo(move || runs.logged.get() == Some(slot));
     view! {
-        <Show condition={logged}>
+        <Show value={move || runs.logged.get() == Some(slot)}>
             <Button
                 label="Show the log"
                 glyph=ICON_TERMINAL
@@ -267,23 +263,19 @@ fn SlotLog(model: Model, slot: Slot) -> NodeId {
     let runs = model.runs;
     let logged = create_memo(move || runs.logged.get() == Some(slot));
     let open = create_signal(false);
-    let shown = create_memo(move || logged.get() && open.get());
-    let label = create_memo(move || {
-        if open.get() {
-            "Hide the log"
-        } else {
-            "Show the log"
-        }
-        .to_owned()
-    });
     let toggle = move || open.update(|open| *open = !*open);
     let pane = runs.pane;
     view! {
         <List spacing=Space::Md>
-            <Show condition={logged}>
-                <Button label glyph=ICON_TERMINAL variant=ButtonVariant::Ghost on_click={toggle} />
+            <Show value={logged}>
+                <Button
+                    label={move || if open.get() { "Hide the log" } else { "Show the log" }.to_owned()}
+                    glyph=ICON_TERMINAL
+                    variant=ButtonVariant::Ghost
+                    on_click={toggle}
+                />
             </Show>
-            <Show condition={shown}>
+            <Show value={move || logged.get() && open.get()}>
                 <ListItem length=LOG_HEIGHT>
                     <Frame>
                         <TerminalPane pane />

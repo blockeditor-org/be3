@@ -10,7 +10,7 @@ fn a_long_sheet_fades_its_content_and_bounces_as_a_panel() {
             <Root>
                 <ModalSheet open=true rest=0.5 on_close={|| ()}>
                     <List spacing=Space::None>
-                        <ForEach keys={(1..=60).collect::<Vec<usize>>()}>|row: usize|
+                        <ForEach value={(1..=60).collect::<Vec<usize>>()}>|row: usize|
                             <ActionRow label={format!("Row {row}")} />
                         </ForEach>
                     </List>

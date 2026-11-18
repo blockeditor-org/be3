@@ -11,7 +11,7 @@ fn fragments_group_children_without_adding_html_nodes() {
                 <></>
                 <>
                     "Before"
-                    <Show condition={shown}>
+                    <Show value={shown}>
                         <>
                             <elements::Span>"One"</elements::Span>
                             <>

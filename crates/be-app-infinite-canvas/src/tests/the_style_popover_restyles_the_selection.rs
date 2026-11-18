@@ -13,9 +13,7 @@ fn the_style_popover_restyles_the_selection() {
     );
 
     editor.click(format!("infinite-canvas.entity.{}", rectangle.id));
-    editor.run();
     editor.click("infinite-canvas.style");
-    editor.run();
     assert!(editor.shown("infinite-canvas.style.panel"));
     assert!(
         !editor.shown("infinite-canvas.text-size.XL"),
@@ -23,13 +21,11 @@ fn the_style_popover_restyles_the_selection() {
     );
 
     editor.click("infinite-canvas.stroke.Red");
-    editor.run();
     editor.click("infinite-canvas.background.Blue");
     editor.click("infinite-canvas.fill-style.Hatched");
     editor.click("infinite-canvas.width.Extra-bold");
     editor.click("infinite-canvas.stroke-style.Dashed");
     editor.click("infinite-canvas.roughness.High");
-    editor.run();
     editor.snapshot("the_style_popover_restyles_the_selection");
 
     let [restyled] = entities(&editor).try_into().unwrap();
@@ -57,7 +53,6 @@ fn the_style_popover_restyles_the_selection() {
     assert_eq!(restyled.transform, rectangle.transform);
 
     editor.click("infinite-canvas.background.none");
-    editor.run();
     let [cleared] = entities(&editor).try_into().unwrap();
     assert_eq!(cleared.style.fill, CanvasFill::None);
 }

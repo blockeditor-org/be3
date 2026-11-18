@@ -2,10 +2,18 @@ use beui_core::clipboard::{Clip, HeldClip, PasteAnswer};
 use beui_types::ClipItem;
 use beui_types::clipboard::formats;
 
-/// How much base64 the be3 formats may take in a clip's extras: a Parcel holds
+/// How many UTF-16 code units a clip may take on the system clipboard, its
+/// text and the be3 formats' base64 in its extras together: a Parcel holds
 /// strings as UTF-16, and a clip crosses Binder, whose transactions stop near
-/// 1 MB. Formats beyond it stay in the held clip, for pastes in this program.
-const EXTRAS_BUDGET: usize = 256 * 1024;
+/// 1 MB, past which `setPrimaryClip` throws. The plain text has first claim:
+/// beyond it, it goes there cut short with `CUT_SHORT` after it, and the be3
+/// formats take what it leaves, those beyond it staying in the held clip, for
+/// pastes in this program.
+const PARCEL_UNITS: usize = 400 * 1024;
+
+/// What ends text cut short to fit the clipboard.
+const CUT_SHORT: &str = "\n\n[Cut short: this copy was too large for the clipboard. \
+Paste it in the program it was copied from for all of it.]";
 
 /// The extras key of the copy's nonce, which tells this program's clip from
 /// another's.
@@ -16,12 +24,35 @@ const NONCE: &str = "be3/copy";
 /// MIME types, and its `ClipItem::stored` bytes, as base64, in the
 /// description's extras under that id, so another be3 program reads them,
 /// with a nonce of this copy. The clip a copy wrote stays held for its other
-/// representations while the clipboard's nonce is still its own. Written
+/// representations while the clipboard's nonce is still its own, or, when
+/// the copy could not be put there at all, until the clipboard changes. Written
 /// without an emulator to run it on: only its compiling is checked.
 #[derive(Default)]
 pub struct Clipboard {
     held: HeldClip,
-    nonce: Option<i64>,
+    mark: Option<Mark>,
+}
+
+/// How a paste tells the clipboard is still the held clip's.
+enum Mark {
+    /// The copy's nonce is in the clipboard's extras.
+    Nonce(i64),
+    /// The copy could not be put there, so the held clip answers pastes in
+    /// this program until the clipboard changes from what it then held.
+    Unchanged(Option<(Option<String>, Option<i64>)>),
+}
+
+impl Mark {
+    fn of(held: Option<&Held>) -> Option<(Option<String>, Option<i64>)> {
+        held.map(|held| (held.text.clone(), held.nonce))
+    }
+
+    fn ours(&self, now: Option<&Held>) -> bool {
+        match self {
+            Mark::Nonce(nonce) => now.is_some_and(|now| now.nonce == Some(*nonce)),
+            Mark::Unchanged(then) => *then == Mark::of(now),
+        }
+    }
 }
 
 impl Clipboard {
@@ -40,28 +71,27 @@ impl Clipboard {
                     base64::Engine::encode(&base64::engine::general_purpose::STANDARD, stored);
                 (item.format, encoded)
             });
-        let fitting =
-            beui_types::clip::fitting(encoded, EXTRAS_BUDGET, |(_, encoded)| encoded.len());
         let text = clip.plain_text().unwrap_or_default();
+        let text = beui_types::clip::cut_short(&text, PARCEL_UNITS, CUT_SHORT);
+        let left = PARCEL_UNITS - beui_types::clip::utf16_units(&text);
+        let fitting = beui_types::clip::fitting(encoded, left, |(_, encoded)| encoded.len());
         let nonce = fresh_nonce();
-        self.nonce = match android::set(&text, &fitting, Some(nonce)) {
-            Ok(()) => Some(nonce),
-            Err(_) => {
-                let _ = android::set(&text, &[], None);
-                None
-            }
-        };
+        // The nonce goes in either way, so a paste here still knows the
+        // clipboard is this copy's when its text there was cut short.
+        let set = android::set(&text, &fitting, nonce).or_else(|_| android::set(&text, &[], nonce));
+        self.mark = Some(match set {
+            Ok(()) => Mark::Nonce(nonce),
+            Err(_) => Mark::Unchanged(Mark::of(android::get().ok().flatten().as_ref())),
+        });
         self.held.copy(clip);
     }
 
     pub fn paste(&mut self, wanted: &[String], answer: PasteAnswer) {
         let now = android::get().ok().flatten();
-        let ours = match self.nonce {
-            Some(nonce) => now.as_ref().is_some_and(|now| now.nonce == Some(nonce)),
-            None => self
-                .held
-                .wrote(now.as_ref().and_then(|now| now.text.as_deref())),
-        };
+        let ours = self
+            .mark
+            .as_ref()
+            .is_some_and(|mark| mark.ours(now.as_ref()));
         if let Some(clip) = self.held.current(ours) {
             return clip.resolve(wanted, move |item| answer.send(item));
         }
@@ -138,13 +168,10 @@ mod android {
         })
     }
 
-    /// Puts `text` on the clipboard, and with a `nonce`, the be3 formats as
-    /// (format id, base64 of its stored bytes) in the description's extras.
-    pub(super) fn set(
-        text: &str,
-        be3: &[(String, String)],
-        nonce: Option<i64>,
-    ) -> Result<(), Error> {
+    /// Puts `text` on the clipboard, and the copy's `nonce` and the be3
+    /// formats as (format id, base64 of its stored bytes) in the description's
+    /// extras.
+    pub(super) fn set(text: &str, be3: &[(String, String)], nonce: i64) -> Result<(), Error> {
         with_manager(|env, _activity, manager| {
             let label = env.new_string("")?;
             let string_class = env.find_class(jni_str!("java/lang/String"))?;
@@ -168,28 +195,24 @@ mod android {
                     &[JValue::Object(&format), JValue::Object(&encoded)],
                 )?;
             }
-            if let Some(nonce) = nonce {
-                let key = env.new_string(super::NONCE)?;
-                env.call_method(
-                    &extras,
-                    jni_str!("putLong"),
-                    jni_sig!("(Ljava/lang/String;J)V"),
-                    &[JValue::Object(&key), JValue::Long(nonce)],
-                )?;
-            }
+            let key = env.new_string(super::NONCE)?;
+            env.call_method(
+                &extras,
+                jni_str!("putLong"),
+                jni_sig!("(Ljava/lang/String;J)V"),
+                &[JValue::Object(&key), JValue::Long(nonce)],
+            )?;
             let description = env.new_object(
                 jni_str!("android/content/ClipDescription"),
                 jni_sig!("(Ljava/lang/CharSequence;[Ljava/lang/String;)V"),
                 &[JValue::Object(&label), JValue::Object(&kinds)],
             )?;
-            if nonce.is_some() {
-                env.call_method(
-                    &description,
-                    jni_str!("setExtras"),
-                    jni_sig!("(Landroid/os/PersistableBundle;)V"),
-                    &[JValue::Object(&extras)],
-                )?;
-            }
+            env.call_method(
+                &description,
+                jni_str!("setExtras"),
+                jni_sig!("(Landroid/os/PersistableBundle;)V"),
+                &[JValue::Object(&extras)],
+            )?;
             let text = env.new_string(text)?;
             let item = env.new_object(
                 jni_str!("android/content/ClipData$Item"),
@@ -264,7 +287,7 @@ mod android {
             let text = env.cast_local::<JString>(text)?;
             let (be3, nonce) = extras_of(env, &clip)?;
             Ok(Some(super::Held {
-                text: Some(text.to_string()),
+                text: Some(beui_types::clip::text_from_system(text.to_string())),
                 be3,
                 nonce,
             }))

@@ -5,10 +5,7 @@ use crate::store::MAX_AGENTS_PER_CREATOR;
 async fn an_account_creates_a_bounded_number_of_agents() {
     let harness = Harness::start().await;
     let store = ServerStore::open(&harness.directory).unwrap();
-    let (profile, _) = store
-        .register("owner@example.com", "Owner", "a good password")
-        .await
-        .unwrap();
+    let (profile, _) = store.register("owner@example.com", "Owner").await.unwrap();
     let organization = store.personal_organization().await.unwrap();
     let mut agents = Vec::new();
     for index in 0..MAX_AGENTS_PER_CREATOR {
@@ -16,11 +13,14 @@ async fn an_account_creates_a_bounded_number_of_agents() {
             .create_agent(
                 profile.account,
                 organization,
+                agent_id(profile.account, &unused_keys(index as u8)),
                 &format!("Agent {index}"),
-                [7; 32],
-                [7; 32],
+                [index as u8; 32],
+                [index as u8; 32],
                 Vec::new(),
                 Vec::new(),
+                Vec::new(),
+                None,
                 None,
             )
             .await
@@ -32,11 +32,14 @@ async fn an_account_creates_a_bounded_number_of_agents() {
             .create_agent(
                 profile.account,
                 organization,
+                agent_id(profile.account, &unused_keys(200)),
                 "One more",
-                [7; 32],
-                [7; 32],
+                [200; 32],
+                [200; 32],
                 Vec::new(),
                 Vec::new(),
+                Vec::new(),
+                None,
                 None
             )
             .await
@@ -53,18 +56,21 @@ async fn an_account_creates_a_bounded_number_of_agents() {
         bound: None,
     };
     store
-        .remove_member(identity, agents[0].account)
+        .delete_agent(identity, agents[0].account, None, Vec::new())
         .await
         .unwrap();
     store
         .create_agent(
             profile.account,
             organization,
+            agent_id(profile.account, &unused_keys(201)),
             "Replacement",
-            [7; 32],
-            [7; 32],
+            [201; 32],
+            [201; 32],
             Vec::new(),
             Vec::new(),
+            Vec::new(),
+            None,
             None,
         )
         .await

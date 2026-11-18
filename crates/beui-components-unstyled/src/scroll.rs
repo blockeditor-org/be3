@@ -7,7 +7,7 @@ use accesskit::{Action, Node, Role};
 use beui_macros::{component, view};
 
 use super::fling::Fling;
-use super::rubber_band::{MINIMUM_VELOCITY, bounce, rubber_band};
+use super::rubber_band::{MINIMUM_VELOCITY, Spring, bounce, rubber_band};
 use super::watched::Watched;
 use crate::drag_board::drag_board;
 use crate::gestures::{self, AUTOSCROLL_DEAD_ZONE};
@@ -55,28 +55,61 @@ pub struct ScrollHandle {
     pub on_engage: Callback<bool>,
 }
 
-#[derive(Clone, Copy, Default)]
-pub struct ScrollbarStyle {
+/// How a scroll's own parts look: the spring its content springs back on when
+/// pulled past an end, its bar, how far its edges fade, the marker an
+/// autoscroll (a middle-button press) shows where it started, and the browser's
+/// bar on the HTML core. A scroll inside a component (a text area, a list)
+/// takes the same look as a plain one, marker and all.
+#[derive(Clone, Copy)]
+pub struct ScrollStyle {
+    rubber: Spring,
     bar: Option<(f32, RenderFn<ScrollHandle, NodeId>)>,
+    marker: Option<RenderFn<Memo<Direction>, NodeId>>,
     fade: f32,
     browser: Option<(Prop<Color>, Prop<Color>)>,
 }
 
-impl ScrollbarStyle {
-    pub fn new(width: f32, bar: impl Fn(ScrollHandle) -> NodeId + 'static) -> Self {
+impl ScrollStyle {
+    /// A scroll whose overscroll springs back on `rubber`, with no bar, fade or
+    /// marker.
+    pub fn new(rubber: Spring) -> Self {
         Self {
-            bar: Some((width, RenderFn::new(bar))),
+            rubber,
+            bar: None,
+            marker: None,
             fade: 0.0,
             browser: None,
+        }
+    }
+
+    /// The bar drawn along the scroll, `width` across.
+    pub fn bar(self, width: f32, bar: RenderFn<ScrollHandle, NodeId>) -> Self {
+        Self {
+            bar: Some((width, bar)),
+            ..self
+        }
+    }
+
+    /// What an autoscroll shows at the point it started from, given the
+    /// scroll's axis; nothing without one. Natively only: the browser draws
+    /// its own.
+    pub fn marker(self, marker: RenderFn<Memo<Direction>, NodeId>) -> Self {
+        Self {
+            marker: Some(marker),
+            ..self
         }
     }
 
     /// The thumb and track colours of the browser's own bar, which every scroll
     /// on the HTML core shows in place of `bar`; thin, as `scrollbar-color`.
     /// Natively they do nothing.
-    pub fn browser_colors(self, thumb: impl IntoProp<Color>, track: impl IntoProp<Color>) -> Self {
+    pub fn browser_colors<M1, M2>(
+        self,
+        thumb: impl IntoPropValue<Prop<Color>, M1>,
+        track: impl IntoPropValue<Prop<Color>, M2>,
+    ) -> Self {
         Self {
-            browser: Some((thumb.into_prop(), track.into_prop())),
+            browser: Some((thumb.into_prop_value(), track.into_prop_value())),
             ..self
         }
     }
@@ -120,9 +153,7 @@ impl Reveal {
     }
 
     fn fade_to(&self, visibility: f32) {
-        if self.visibility.get_untracked() != visibility {
-            self.visibility.set(visibility);
-        }
+        self.visibility.set(visibility);
     }
 
     fn poke(&self) {
@@ -154,6 +185,7 @@ impl Reveal {
 }
 
 struct Momentum {
+    rubber: Spring,
     stretch: f32,
     drag: Option<f32>,
     dragging: bool,
@@ -163,8 +195,9 @@ struct Momentum {
 }
 
 impl Momentum {
-    fn new() -> Self {
+    fn new(rubber: Spring) -> Self {
         Self {
+            rubber,
             stretch: 0.0,
             drag: None,
             dragging: false,
@@ -249,7 +282,7 @@ impl Momentum {
             return;
         }
         if self.stretch != 0.0 {
-            let back = bounce(&mut self.stretch, &mut self.velocity, elapsed);
+            let back = bounce(&mut self.stretch, &mut self.velocity, elapsed, self.rubber);
             if self.stretch == 0.0 {
                 self.velocity = back;
                 self.coast();
@@ -302,18 +335,22 @@ fn edge_scroll(
     let edge = board.register_scroller(EdgeScroller {
         id: 0,
         node,
-        axis: Rc::new(move || direction.get_untracked()),
         movable: Rc::new(move || {
-            position().map_or([false; 2], |position| {
+            let along = position().map_or([false; 2], |position| {
                 [
                     position.offset > 0.0,
                     position.offset < position.max_offset(),
                 ]
-            })
+            });
+            match direction.get_untracked() {
+                Direction::Horizontal => [along, [false; 2]],
+                Direction::Vertical => [[false; 2], along],
+            }
         }),
-        scroll: Rc::new(move |depth: Option<f32>| {
+        scroll: Rc::new(move |depth: Option<Vec2>| {
             scroll(
                 depth
+                    .map(|depth| direction.get_untracked().main(depth))
                     .map(|depth| (AUTOSCROLL_DEAD_ZONE + depth.abs() * EDGE_GAIN) * depth.signum()),
             );
         }),
@@ -654,10 +691,9 @@ fn Scrolling(
     fit: bool,
     bleed: Prop<Sides>,
     focus_ring: Prop<Option<Outline>>,
-    scrollbar: ScrollbarStyle,
-    marker: Render<Memo<Direction>>,
+    style: ScrollStyle,
     on_change: Callback<ScrollPosition>,
-    #[prop(children)] content: Render<Callback<ScrollPosition>>,
+    #[prop(children)] content: Render<Callback<ScrollPosition>, NodeId>,
 ) -> NodeId {
     let reported = create_signal(None::<ScrollPosition>);
     let settles = Rc::new(Cell::new(None::<Stored<Motion>>));
@@ -678,7 +714,7 @@ fn Scrolling(
         node: node.first_offset_within(),
         reported: reported.read_only(),
         direction,
-        momentum: Watched::new(Momentum::new(), Momentum::coasting),
+        momentum: Watched::new(Momentum::new(style.rubber), Momentum::coasting),
         animation: Cell::default(),
         autoscrolling: Cell::default(),
         autoscrolled: Cell::new(now()),
@@ -770,16 +806,14 @@ fn Scrolling(
             }
         }
     });
-    let bar_width = scrollbar.width();
+    let bar_width = style.width();
     let bar = ScrollHandle {
         position,
         direction,
         scroll_to: Callback::new(move |offset: f32| motion.value().scroll_to(offset)),
         visibility: reveal.with(|reveal| reveal.visibility.read_only()),
         on_engage: Callback::new(move |now: bool| {
-            if engaged.get_untracked() != now {
-                engaged.set(now);
-            }
+            engaged.set(now);
         }),
     };
 
@@ -788,10 +822,15 @@ fn Scrolling(
     let axis = create_memo(move || Some(direction.get()));
     let catcher = NodeRef::new();
     let origin = create_signal(None::<Pos2>);
-    let marked = create_memo(move || origin.get().is_some());
+    let marked = create_memo(move || origin.with(Option::is_some));
     let anchor = create_memo(move || OverlayAnchor::Point(origin.get().unwrap_or(Pos2::ZERO)));
     let marker_axis = create_memo(move || direction.get());
-    let marker = marker.once();
+    let marker = match style.marker {
+        Some(marker) => marker.call(marker_axis),
+        None => view! {
+            <List spacing=0.0 />
+        },
+    };
     on_key(
         KeyAt::Node(catcher),
         KeyPhase::Bubble,
@@ -804,9 +843,7 @@ fn Scrolling(
     );
     let autoscroll = gestures::autoscroll(move |gesture: AutoscrollGesture| {
         let marking = (!gesture.ended).then_some(gesture.origin);
-        if origin.get_untracked() != marking {
-            origin.set(marking);
-        }
+        origin.set(marking);
         motion.value().autoscroll(gesture);
     });
     edge_scroll(
@@ -857,10 +894,9 @@ fn Scrolling(
         true => vec![Claim::always(true)],
         false => Vec::new(),
     });
-    let outset = create_memo(move || -bleed.get());
     let (grow, shrink) = content_grow_and_shrink(fit);
     view! {
-        <Frame padding={outset}>
+        <Frame padding={move || -bleed.get()}>
             <Layers>
                 <Interactive
                     focusable=true
@@ -877,9 +913,7 @@ fn Scrolling(
                         let at_edge = bar_width > 0.0
                             && position.get_untracked().max_offset() > 0.0
                             && near_edge(direction.get_untracked(), press, bar_width);
-                        if near.get_untracked() != at_edge {
-                            near.set(at_edge);
-                        }
+                        near.set(at_edge);
                     }}
                     on_hover_change={move |inside: bool| {
                         if !inside && near.get_untracked() {
@@ -892,22 +926,21 @@ fn Scrolling(
                     <Frame outline={ring_when(focused, focus_ring)}>
                         <List direction={marker_axis} spacing=0.0>
                             <ListItem grow shrink>{node}</ListItem>
-                            <Overlay
-                                anchor
-                                placement=Placement::Around
-                                policy=LayerPolicy::Inert
-                                traps_focus=false
-                                open={marked}
-                                keep_alive=true
-                            >
-                                {marker.call(marker_axis)}
-                            </Overlay>
+                            <KeepAlive>
+                                <Overlay
+                                    anchor
+                                    placement=Placement::Around
+                                    policy=LayerPolicy::Inert
+                                    traps_focus=false
+                                    open={marked}
+                                >
+                                    <Kept>{marker}</Kept>
+                                </Overlay>
+                            </KeepAlive>
                         </List>
                     </Frame>
                 </Interactive>
-                <List direction={across} justify=Justify::End spacing=0.0>
-                    {scrollbar.over(bar)}
-                </List>
+                <List direction={across} justify=Justify::End spacing=0.0>{style.over(bar)}</List>
             </Layers>
         </Frame>
     }
@@ -944,8 +977,7 @@ pub fn Scroll(
     #[prop(default = false)] follow_end: Prop<bool>,
     #[prop(default = Sides::ZERO)] bleed: Prop<Sides>,
     #[prop(default = None)] focus_ring: Prop<Option<Outline>>,
-    #[prop(default = ScrollbarStyle::default())] scrollbar: ScrollbarStyle,
-    marker: Option<Render<Memo<Direction>>>,
+    style: ScrollStyle,
     on_change: Callback<ScrollPosition>,
     children: Children<ListItem>,
 ) -> NodeId {
@@ -960,7 +992,7 @@ pub fn Scroll(
                 follow_end
                 bleed
                 focus_ring
-                scrollbar
+                style
                 on_change={on_change}
                 rows
             >
@@ -970,16 +1002,8 @@ pub fn Scroll(
         reveal_row(reveal, rows);
         return scroll;
     }
-    let fade = scrollbar.fade();
+    let fade = style.fade();
     let faded = create_signal(None::<ScrollPosition>);
-    let edges = create_memo(move || fade_edges(direction.get(), faded.get(), fade));
-    let marker = marker.unwrap_or_else(|| {
-        Render::new(|_| {
-            view! {
-                <List spacing=0.0 />
-            }
-        })
-    });
     let scroll = view! {
         <Scrolling
             api
@@ -987,11 +1011,10 @@ pub fn Scroll(
             fit
             bleed
             focus_ring
-            scrollbar
-            marker
+            style
             on_change={on_change}
         >|report: Callback<ScrollPosition>|
-            <Frame fade_edges={edges}>
+            <Frame fade_edges={move || fade_edges(direction.get(), faded.get(), fade)}>
                 <Offset
                     offset
                     direction={direction}
@@ -1034,13 +1057,13 @@ fn BrowserScroll(
     follow_end: Prop<bool>,
     bleed: Prop<Sides>,
     focus_ring: Prop<Option<Outline>>,
-    scrollbar: ScrollbarStyle,
+    style: ScrollStyle,
     on_change: Callback<ScrollPosition>,
     rows: NodeRef,
     children: Children<ListItem>,
 ) -> NodeId {
     let reported = create_signal(None::<ScrollPosition>);
-    let fade = scrollbar.fade();
+    let fade = style.fade();
     let edges = create_memo(move || fade_edges(direction.get(), reported.get(), fade));
     let content = view! {
         <Frame padding={bleed}>
@@ -1087,14 +1110,14 @@ fn BrowserScroll(
             pinned.set(position.offset >= position.max_offset() - END_SLACK);
         }
     };
-    let bare = scrollbar.bar.is_none();
+    let bare = style.bar.is_none();
     let focused = create_signal(false);
     let node = html_escape(move |escape| {
         escape.style("outline", "none".to_owned());
         escape.style("overflow-anchor", "auto".to_owned());
         if bare {
             escape.style("scrollbar-width", "none".to_owned());
-        } else if let Some((thumb, track)) = scrollbar.browser {
+        } else if let Some((thumb, track)) = style.browser {
             escape.style("scrollbar-width", "thin".to_owned());
             escape.style(
                 "scrollbar-color",
@@ -1151,8 +1174,8 @@ fn BrowserScroll(
     let shown = measure(node);
     let laid = measure(content);
     create_effect(move || {
-        shown.get();
-        laid.get();
+        shown.track();
+        laid.track();
         if shown.get_untracked().is_none() {
             return;
         }
@@ -1211,7 +1234,7 @@ fn BrowserScroll(
         node: None,
         reported: reported.read_only(),
         direction,
-        momentum: Watched::new(Momentum::new(), Momentum::coasting),
+        momentum: Watched::new(Momentum::new(style.rubber), Momentum::coasting),
         animation: Cell::default(),
         autoscrolling: Cell::default(),
         autoscrolled: Cell::new(now()),

@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use be_block_content::plain::extension;
-use be_block_content::{Root, SearchDocument};
+use be_block_content::{ChildChange, Root, SearchDocument};
 use be_sdk_type_guest::DocumentFile;
 
 const MAX_NAME_BYTES: usize = 128;
@@ -205,6 +205,27 @@ impl Root for TextBlock {
 
     fn references_in(&self, organization: Uuid) -> Vec<Uuid> {
         self.linked_blocks(Some(organization))
+    }
+
+    /// A replaced child repoints every block URL naming it, so unlinking a reference works
+    /// whether the text is open in an editor or not. Text keeps the URL of a deleted child.
+    fn child_edit_in(document: &Document<Self>, change: ChildChange, client: u64) -> Option<Edit> {
+        let ChildChange::Replace { old, new } = change else {
+            return None;
+        };
+        let ranges = be_block_content::block_url::block_id_ranges(&document.root().body, old);
+        if ranges.is_empty() {
+            return None;
+        }
+        let new = new.to_string();
+        let mut text = document.clone();
+        let mut edit = Edit::default();
+        for range in ranges.into_iter().rev() {
+            let replaced = Self::replace(&text, client, range, new.as_bytes())?;
+            text.apply(&replaced);
+            edit.0.extend(replaced.0);
+        }
+        Some(edit)
     }
 
     /// One document of the whole text, Markdown as written.

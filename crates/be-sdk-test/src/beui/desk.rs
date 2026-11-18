@@ -2,10 +2,11 @@ use be_sdk_api::{
     AnchorSpace, HostTransform, InputBatch, ScreenId, ScreenRequest, TimedInput, ViewRef,
     ViewportMetrics, WindowLevel, WindowOpen, WindowRequest,
 };
-use be_sdk_beui::{BeuiRoot, View, ViewId};
+use be_sdk_beui::{AppEditor, BeuiRoot, View, ViewId};
 use be_sdk_window_stack::{Gesture, Host, Stacked};
 use beui::{Input, Key, KeyChord, NodeId, PointerButton, Pos2, Rect, Vec2, vec2};
 use beui_host::native::drive::gestures::Frames;
+use beui_host::native::testing::Gui;
 
 use super::{BeuiTest, INSTANCE, SCREEN};
 
@@ -383,7 +384,7 @@ fn owner(displays: &[Display], rect: Rect) -> Display {
     displays[be_sdk_window_stack::home(&rects, rect).unwrap_or(0)]
 }
 
-impl<A: BeuiRoot> BeuiTest<A> {
+impl<A: BeuiRoot + AppEditor> BeuiTest<A> {
     pub fn show_on_displays(&mut self, displays: &[(Rect, f32)]) {
         let desk = Desk::new(displays);
         self.size = desk.displays[0].rect.size();
@@ -460,21 +461,27 @@ impl<A: BeuiRoot> BeuiTest<A> {
         }
     }
 
-    pub(super) fn desk_tap(&mut self, key: Key) -> Option<bool> {
-        let desk = self.desk.as_mut()?;
+    /// Queues a tap of `key` for another display's screen that intercepts it, saying whether
+    /// one did.
+    pub(super) fn desk_tap(&mut self, key: Key) -> bool {
+        let Some(desk) = self.desk.as_mut() else {
+            return false;
+        };
         let tap = KeyChord::tap(key);
-        let screen = desk
+        let Some(&(screen, _)) = desk
             .intercepts
             .iter()
-            .find(|(screen, keys)| *screen != SCREEN && keys.contains(&tap))?
-            .0;
+            .find(|(screen, keys)| *screen != SCREEN && keys.contains(&tap))
+        else {
+            return false;
+        };
         self.desk_batches.push(InputBatch {
             screen,
             every_sample: false,
             events: vec![TimedInput::from(Input::InterceptedTap(key))],
             dismissed: Vec::new(),
         });
-        Some(true)
+        true
     }
 
     pub fn desk_windows(&self) -> Vec<Rect> {
@@ -575,6 +582,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
         for step in 1..=steps.max(1) {
             if !each.is_zero() {
                 self.advance(each);
+                self.run();
             }
             let along = step as f32 / steps.max(1) as f32;
             self.desk_move(from + (to - from) * along);

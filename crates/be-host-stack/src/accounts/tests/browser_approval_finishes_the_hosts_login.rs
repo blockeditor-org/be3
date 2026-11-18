@@ -5,12 +5,18 @@ use super::*;
 async fn browser_approval_finishes_the_hosts_login() {
     be_lib_build_id::install("test");
     let directory = std::env::temp_dir().join(format!("be-host-browser-auth-{}", Uuid::new_v4()));
-    let (_, _) = be_server::ServerStore::open(&directory)
-        .unwrap()
-        .register("browser@example.com", "Browser", "correct horse battery")
+    let store = be_server::ServerStore::open(&directory).unwrap();
+    let (profile, _) = store
+        .register("browser@example.com", "Browser")
         .await
         .unwrap();
-    let server = crate::embedded_server::start_embedded_server(directory.clone()).unwrap();
+    // The person is signed in to the portal already; how is not what this test is about.
+    let cookie = format!(
+        "be3-account={}",
+        store.browser_session(profile.account).await.unwrap()
+    );
+    let cookie = cookie.as_str();
+    let server = be_host_server::start_embedded_server(directory.clone()).unwrap();
     let url = server.url.clone();
     let auth = format!("{url}/auth");
     let (notify, notified) = tokio::sync::oneshot::channel();
@@ -26,12 +32,6 @@ async fn browser_approval_finishes_the_hosts_login() {
     ));
     let browser = notified.await.unwrap();
     let agent = ureq::AgentBuilder::new().redirects(0).build();
-    let page = agent
-        .get(&browser.url)
-        .call()
-        .unwrap()
-        .into_string()
-        .unwrap();
     let csrf = |page: &str| {
         page.split("\"csrf\":\"")
             .nth(1)
@@ -41,23 +41,6 @@ async fn browser_approval_finishes_the_hosts_login() {
             .unwrap()
             .to_string()
     };
-    let signed_in = agent
-        .post(&format!("{auth}/login"))
-        .set("Origin", &url)
-        .send_form(&[
-            ("csrf", &csrf(&page)),
-            ("code", &browser.code),
-            ("email", "browser@example.com"),
-            ("password", "correct horse battery"),
-        ])
-        .unwrap();
-    assert_eq!(signed_in.status(), 303);
-    let cookie = signed_in
-        .header("Set-Cookie")
-        .unwrap()
-        .split(';')
-        .next()
-        .unwrap();
     let page = agent
         .get(&browser.url)
         .set("Cookie", cookie)

@@ -4,8 +4,8 @@ use beui_text_editor_core::{CopyMode, EditorCommand};
 
 use crate::ContextMenu;
 use crate::MenuItem;
-use crate::TextAreaState;
 use crate::menu_popup::MenuStyle;
+use crate::{Cursors, TextAreaState};
 use beui_view::primitives::*;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
@@ -38,7 +38,7 @@ pub fn TextContextMenu(
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = false)] read_only: Prop<bool>,
     #[prop(default = 0.0)] child_grow: Prop<f32>,
-    #[prop(children)] content: Render<Callback<Option<Rect>>>,
+    #[prop(children)] content: Render<Callback<Option<Rect>>, NodeId>,
 ) -> NodeId {
     let Some(menu) = menu else {
         let content = content.call(Callback::new(|_: Option<Rect>| ()));
@@ -48,16 +48,17 @@ pub fn TextContextMenu(
             </List>
         };
     };
-    let requested = create_signal(None::<(Rect, u64)>);
+    // A request is for the cursors it was made at, and lapses once they move.
+    let requested = create_signal(None::<(Rect, Cursors)>);
     let cursors = state.cursors();
     let toolbar_at = create_memo(move || {
         requested
             .get()
-            .filter(|(_, version)| *version == cursors.get())
+            .filter(|(_, made_at)| cursors.with(|now| now == made_at))
             .map(|(rect, _)| rect)
     });
     let actions = create_memo(move || {
-        cursors.get();
+        cursors.track();
         let selected = state
             .selection_ranges()
             .iter()
@@ -89,7 +90,7 @@ pub fn TextContextMenu(
             opens_on_hold=false
             on_toolbar_close={move || requested.set(None)}
             items={view! {
-                <ForEach keys={actions}>|action: MenuAction|
+                <ForEach value={actions}>|action: MenuAction|
                     <MenuItem
                         label={action.label().to_owned()}
                         on_click={move || {

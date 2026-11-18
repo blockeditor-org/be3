@@ -12,7 +12,7 @@ fn middle_clicking_a_scroll_scrolls_it_towards_the_pointer() {
             <List spacing=0.0>
                 <ListItem grow=1.0>
                     <Scroll @node_ref=&scroll>
-                        <ForEach keys={indices(100)}>|index: usize|
+                        <ForEach value={indices(100)}>|index: usize|
                             <LabelledButton label={format!("Row {index}")} />
                         </ForEach>
                     </Scroll>

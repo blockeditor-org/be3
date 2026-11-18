@@ -1,4 +1,4 @@
-use be_block_protocol::{JournalBase, JournalEntry};
+use be_block_protocol::JournalBase;
 use rusqlite::{OptionalExtension, params};
 
 use super::*;
@@ -6,7 +6,13 @@ use super::*;
 async fn hold(client: &mut TestClient, block: Uuid, objects: &[Hash], hold: Hold) {
     let objects = objects.to_vec();
     let held = client
-        .call(|peer| client::objects::hold_objects(peer, block, objects, hold))
+        .call(|peer| {
+            peer.write::<()>(be_block_protocol::Op::HoldObjects {
+                block: block,
+                objects: objects,
+                hold: hold,
+            })
+        })
         .await;
     assert!(matches!(held, Ok(())), "{held:?}");
 }
@@ -14,7 +20,7 @@ async fn hold(client: &mut TestClient, block: Uuid, objects: &[Hash], hold: Hold
 async fn held(directory: &std::path::Path, identity: Identity) -> u64 {
     ServerStore::open(directory)
         .unwrap()
-        .storage_usage(identity)
+        .storage_usage(identity.account)
         .await
         .unwrap()
         .held
@@ -23,8 +29,8 @@ async fn held(directory: &std::path::Path, identity: Identity) -> u64 {
 #[tokio::test]
 async fn a_part_held_until_committed_lasts_until_a_commit_takes_it_or_its_grace_passes() {
     let harness = Harness::start().await;
-    let mut client = harness.client().await;
-    let account = client.register("indexer@example.com").await;
+    let mut client = harness.member("indexer@example.com").await;
+    let account = client.id();
     let organization = client.organization("index").await;
     let identity = Identity {
         account,
@@ -123,24 +129,30 @@ async fn a_part_held_until_committed_lasts_until_a_commit_takes_it_or_its_grace_
         None,
     )
     .unwrap();
-    let generation = 1;
     let tag = Hash::from_bytes([3; 32]);
     impatient
-        .append_journal(
+        .submit_journal(
             organization,
             other,
-            generation,
             tag,
-            vec![JournalEntry {
-                generation,
-                sequence: 1,
+            be_block_session::Submission {
+                id: be_block_session::OpId {
+                    origin: 1,
+                    counter: 1,
+                },
+                base: 0,
+                barrier: false,
                 payload: b"an operation naming a part".to_vec(),
-            }],
+            },
         )
         .await
         .unwrap();
 
-    let before = impatient.storage_usage(identity).await.unwrap().held;
+    let before = impatient
+        .storage_usage(identity.account)
+        .await
+        .unwrap()
+        .held;
     assert_eq!(
         impatient.collect_uploads().await.unwrap(),
         left_objects.len(),
@@ -162,23 +174,36 @@ async fn a_part_held_until_committed_lasts_until_a_commit_takes_it_or_its_grace_
         "the block's hold ended though another block keeps the part"
     );
     assert_eq!(
-        impatient.storage_usage(identity).await.unwrap().held,
+        impatient
+            .storage_usage(identity.account)
+            .await
+            .unwrap()
+            .held,
         before - bytes_of(&left_objects),
         "the block stops being charged for what it no longer holds"
     );
 
     impatient
-        .rebase_journal(
-            organization,
-            other,
-            generation,
-            tag,
-            JournalBase {
-                commit: None,
-                sequence: 1,
-                state: Vec::new(),
-            },
-        )
+        .with_database(move |_, database| {
+            let transaction = be_block_sqlite_schema::write_transaction(database)?;
+            crate::journal::rebase(
+                &transaction,
+                organization,
+                other,
+                &crate::journal::Seal {
+                    tag,
+                    run: 0,
+                    base: JournalBase {
+                        commit: None,
+                        sequence: 1,
+                        state: Vec::new(),
+                    },
+                    new_commit: false,
+                },
+            )?;
+            transaction.commit()?;
+            Ok(())
+        })
         .await
         .unwrap();
     assert_eq!(

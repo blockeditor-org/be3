@@ -4,15 +4,16 @@
 // directory, the refs database and the host state's database. In a browser
 // those live in the origin private file system (OPFS), whose only synchronous
 // way in, a FileSystemSyncAccessHandle, has to be opened asynchronously and
-// only from a worker. A WASI call is synchronous, and the host makes them from
-// the page and from its threads alike, so this worker owns every handle and
-// answers each call: wasi.js forwards a call's name and arguments through a
-// shared buffer and waits, and this worker reads and writes what the call
-// points at in the module's shared memory itself.
+// only from a worker. A WASI call is synchronous, and the host's worker
+// (be-worker.js) and its threads make them, never the page, so this worker owns
+// every handle and answers each call: wasi.js forwards a call's name and
+// arguments through a shared buffer and waits, and this worker reads and writes
+// what the call points at in the host's worker's memory itself.
 //
-// The page starts it before the module (host.js), hands it the module's
-// memory once there is one, and only then tells wasi.js to forward, so the
-// first path the module opens already finds the one preopened directory, "/".
+// The page starts it before the module (host.js) and hands it the host's
+// worker's memory once that worker has made it (threads.js), and that worker
+// binds wasi.js's channel before its first call, so the first path it opens
+// already finds the one preopened directory, "/".
 // Nothing else in the origin opens these files: the page holds a Web Lock for
 // as long as it runs, and a second tab waits for it, so handles stay open
 // between calls rather than being reopened for every one.

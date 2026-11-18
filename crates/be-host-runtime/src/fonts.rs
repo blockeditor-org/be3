@@ -5,8 +5,10 @@ use std::path::PathBuf;
 
 use be_sdk_api::{FontFace, FontRole, Fonts};
 
-pub(super) fn bundled() -> Fonts {
-    let sources = beui_host::native::FontSources::bundled();
+/// The fonts be-host bundles, which it tells every app once it runs, and hands its root
+/// (`be3:root`'s `host.fonts`).
+pub fn bundled() -> Fonts {
+    let sources = beui_font_freetype::FontSources::bundled();
     let faces = [
         (FontRole::Text, &sources.proportional),
         (FontRole::Monospace, &sources.monospace),
@@ -57,7 +59,7 @@ impl Fallbacks {
             let Some((path, index)) = candidates.into_iter().next() else {
                 continue;
             };
-            let Ok(data) = std::fs::read(&path) else {
+            let Some(data) = read(&path) else {
                 continue;
             };
             self.sent.push((path, index));
@@ -77,17 +79,29 @@ impl Fallbacks {
 #[cfg(not(target_arch = "wasm32"))]
 fn candidates(character: char) -> Vec<(PathBuf, u32)> {
     thread_local! {
-        static SYSTEM: RefCell<Option<beui_host::native::SystemFonts>> = const { RefCell::new(None) };
+        static SYSTEM: RefCell<Option<beui_font_freetype::system::SystemFonts>> = const { RefCell::new(None) };
     }
     SYSTEM.with(|system| {
         system
             .borrow_mut()
-            .get_or_insert_with(beui_host::native::SystemFonts::new)
+            .get_or_insert_with(beui_font_freetype::system::SystemFonts::new)
             .candidates(character)
     })
 }
 
+#[cfg(not(target_arch = "wasm32"))]
+fn read(path: &std::path::Path) -> Option<Vec<u8>> {
+    std::fs::read(path).ok()
+}
+
+/// The web has no system fonts to fall back on.
 #[cfg(target_arch = "wasm32")]
 fn candidates(_character: char) -> Vec<(PathBuf, u32)> {
     Vec::new()
+}
+
+/// The web's page reads no files (decisions/the_web_page_never_waits.md), and has no candidates to.
+#[cfg(target_arch = "wasm32")]
+fn read(_path: &std::path::Path) -> Option<Vec<u8>> {
+    None
 }

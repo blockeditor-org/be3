@@ -8,12 +8,16 @@ row is a search document (`Database::search_text_in`).
 
 ## Running it
 
-`./scripts/be ARGS`; `./scripts/be help` lists everything. The script runs the `be` release
-pinned in `scripts/internal/pins` with its `build-info.json`, which names the server's build:
-the server refuses a `be` from another build, so the pin moves with every deploy
-(guides/hosting.md). A `be` built from the checkout
-(`./scripts/buck run //crates/be-tool-cli:native -- ARGS`) talks only to a dev server built from
-the same tree.
+`./scripts/be ARGS`; `./scripts/be help` lists everything. The server refuses a `be` from
+another build, so on every run the script reads the live build's id from
+`https://be3.pfg.pw/live/be-release`, which each deploy rewrites (guides/hosting.md), and runs that
+build's `be` with its `build-info.json`, downloaded once into `target/tools/be-BUILD/`
+unpinned: the CDN is trusted for it (decisions/be_is_downloaded_unpinned.md). Reading the id
+is one network round trip on every run, so `./scripts/be` needs the mirror even when that `be`
+is already downloaded. A `be` built from the checkout
+(`./scripts/buck run //crates/be-tool-cli:dev -- ARGS`, with every app's manifest and type
+module beside it for the block types it reads) talks only to a dev server built
+from the same tree.
 
 `be` uses HTTP posts (`/api/be/http`), since a cloud environment's proxy refuses websockets;
 requests made together share one post. It caches the encrypted objects it reads in
@@ -29,8 +33,9 @@ overrides the separate `BE3_SERVER`, `BE3_ORGANIZATION`, `BE3_TOKEN` and `BE3_RE
 `BE3_AUTHORIZATION` sets the gateway header; without it `./scripts/be` sends the one in
 `.gateway-authorization` at the checkout's root or `~/.config/be3/gateway-authorization`, and a
 cloud proxy may add it itself. A bundle
-with `"authentication": "proxy"` has no token: the proxy injects it (guides/hosting.md, Proxy
-account credentials).
+with `"authentication": "proxy"` has no token: the proxy injects it into the request's
+Authorization header, and `be` greets the server with no token (`Credentials::Header`), which
+signs it in with that header (guides/hosting.md, Proxy account credentials).
 
 ## Commands
 
@@ -102,8 +107,8 @@ rows.
   `Edit`s the editor does, publishing through `Tracker::edit`. Every other block type goes
   through its type module as bytes (`ToFile`, `Apply` of `FromFile`, `Change::Child`).
 - **Agents.** Any member adds one from the host's Agents menu; only its creator (or an
-  administrator, through the members list) lists or removes it, as a member (`list-members`,
-  `remove-member`). The server makes a passwordless editor account and token (`CreateAgent`); the host makes
+  administrator, through the members list) lists or removes it, as a member (`query.members`,
+  `delete-agent`). The server makes a passwordless editor account and token (`CreateAgent`); the host makes
   its recovery phrase and writes its public key into the creator's contacts, so the creator's
   devices can share with it. An agent sees only what is shared with it: share a workspace with
   it for `be` to write in. Removing the agent deletes its account and what was sealed to it.
@@ -117,8 +122,8 @@ rows.
   answer is limited to them, and `client::bound_may` refuses the calls that reach past one block
   (agents, contacts but listing them, organizations, members, pairing, access, trashing, making a
   block outside it, moving the block itself). It never administers, and its role never changes.
-  A block summary still names its parent and references, so their ids reach it. It is listed in
-  the block's access list, not the Agents menu; a block has at most `MAX_AGENTS_PER_BLOCK` and a
+  A block summary still names its parent, and its content its references, so their ids reach it.
+  It is listed in the block's access list, not the Agents menu; a block has at most `MAX_AGENTS_PER_BLOCK` and a
   creator `MAX_BLOCK_AGENTS_PER_CREATOR`, apart from the creator's own agents. It reaches no
   further than its creator: once the creator no longer manages the block, or the agent loses
   its grant, or the block is collected, it is deleted (`forget_orphaned_block_agents`, after

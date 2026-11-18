@@ -32,7 +32,7 @@ pub(crate) fn Workspace(model: Model) -> NodeId {
                     <ListItem grow=1.0>
                         <Text style=TextStyle::CAPTION overflow=Overflow::Ellipsis>{status}</Text>
                     </ListItem>
-                    <Show condition={working}>
+                    <Show value={working}>
                         <Progress width=Size::Sm label="A build is running" />
                     </Show>
                 </List>

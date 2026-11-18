@@ -1,5 +1,9 @@
 [workspace]
 members = [
+    "crates/be-wasm-password",
+    "crates/be-lib-quoted-name",
+    "crates/be-block-repository",
+    "crates/be-block-input",
     "crates/be-host-archive",
     "crates/be-host-bench",
     "crates/be-host-tests",
@@ -20,11 +24,20 @@ members = [
     "crates/be-block-model-derive",
     "crates/be-wasm-ops",
     "crates/be-wasm-ops-bindgen",
+    "crates/be-wasm-sandbox-api",
+    "crates/be-sdk-worker",
+    "crates/be-sdk-worker-echo",
+    "crates/be-wasm-sandbox-host",
+    "crates/be-wasm-root-api",
+    "crates/be-wasm-root-host",
+    "crates/be-wasm-root-testing",
+    "crates/be-wasm-root-web-testing",
     "crates/be-block-protocol",
     "crates/be-server-portal",
     "crates/be-server-portal-ui",
     "crates/be-server",
     "crates/be-server-bin",
+    "crates/be-block-search-index",
     "crates/be-block-session",
     "crates/be-block-sync",
     "crates/be-block-type-host",
@@ -36,7 +49,9 @@ members = [
     "crates/be-host-win32-input",
     "crates/be-tool-bench",
     "crates/beui",
+    "crates/beui-documents",
     "crates/beui-host",
+    "crates/beui-host-window",
     "crates/beui-platform-android",
     "crates/beui-platform-drm",
     "crates/beui-platform-headless",
@@ -71,12 +86,14 @@ members = [
     "crates/beui-view",
     "crates/beui-web-input",
     "crates/beui-web-demo",
-    "crates/be-host-accounts-ui",
+    "crates/be-root-accounts-ui",
     "crates/be-host",
     "crates/be-host-base",
     "crates/be-host-desktop",
     "crates/be-host-runtime",
     "crates/be-host-services",
+    "crates/be-host-programs",
+    "crates/be-host-server",
     "crates/be-host-stack",
     "crates/be-host-testing",
     "crates/be-sdk-beui",
@@ -91,6 +108,11 @@ members = [
     "crates/be-wasm-guest-echo",
     "crates/be-wasm-guest-host",
     "crates/be-sdk-api",
+    "crates/be-sdk-app-host",
+    "crates/be-sdk-root",
+    "crates/be-sdk-beui-root",
+    "crates/be-root",
+    "crates/be-sdk-root-testing",
     "crates/be-sdk-manifest",
     "crates/be-sdk-shell",
     "crates/be-sdk-type-api",
@@ -135,10 +157,14 @@ members = [
     "crates/be-app-logic-grid",
     "crates/be-type-logic-grid",
     "crates/be-app-map",
+    "crates/be-worker-map",
+    "crates/be-worker-map-tiles",
     "crates/be-type-map",
     "crates/be-app-example-pan-zoom",
     "crates/be-type-example-pan-zoom",
     "crates/be-app-pdf",
+    "crates/be-worker-pdf",
+    "crates/be-worker-pdf-render",
     "crates/be-type-pdf",
     "crates/be-app-presentation",
     "crates/be-type-presentation",
@@ -162,6 +188,8 @@ members = [
     "crates/be-type-bundle",
     "crates/be-tool-fix-rust-source",
     "crates/be-lib-geometry",
+    "crates/be-lib-input-router",
+    "crates/be-lib-layers",
     "crates/be-lib-graphemes",
     "crates/be-lib-ghostty-vt",
     "crates/be-sdk-type-host",
@@ -176,8 +204,10 @@ members = [
     "crates/beui-paint-snapshot",
     "crates/be-sdk-library-base",
     "crates/be-sdk-library-beui",
+    "crates/be-sdk-library-test",
     "crates/be-sdk-test-runner",
     "crates/be-lib-build-record",
+    "crates/be-lib-cbor",
     "crates/be-lib-prompt",
     "crates/be-lib-crate-pins",
     "crates/beui-reactive",
@@ -201,10 +231,6 @@ members = [
     "crates/be-tool-terminal-emulator",
     "crates/be-sdk-terminal",
     "crates/beui-text-editor-core",
-    "crates/be-tool-tls-diamond-base",
-    "crates/be-tool-tls-diamond-left",
-    "crates/be-tool-tls-diamond-app",
-    "crates/be-tool-tls-diamond-right",
     "crates/be-lib-ui-keys",
     "crates/be-lib-ui-preferences",
     "crates/be-lib-ui-types",
@@ -338,107 +364,6 @@ debug-assertions = false
 overflow-checks = false
 
 [profile.dev.package.universal-hash]
-opt-level = 2
-debug-assertions = false
-overflow-checks = false
-
-# The server hashes every password it registers or checks with Argon2, which
-# unoptimised took half a second: most of what starting a test's server and
-# account cost, paid by every be-host and app test.
-
-[profile.dev.package.argon2]
-opt-level = 2
-debug-assertions = false
-overflow-checks = false
-
-[profile.dev.package.blake2]
-opt-level = 2
-debug-assertions = false
-overflow-checks = false
-
-# Cranelift is what compiles an app, both in the app when an artifact is
-# missing and in the compiler the build hands every app to, and unoptimised
-# it is an order of magnitude slower at it: the apps a debug build ships take
-# minutes rather than seconds. Optimising the compiler where it is built is what
-# lets it be built in the same profile, and so the same cargo call, as the app.
-#
-# The checks a debug build adds cost it a fifth of its speed on top of that,
-# and they are checks on someone else's code rather than on ours, so they come
-# off with the optimisation going on. Compiling the app test modules is a
-# minute of every verify, and the app pays the same price whenever it opens an
-# app it has no artifact for.
-#
-# opt-level 1 was measured against this and is a worse trade, not a cheaper one:
-# cranelift-codegen compiles 44 seconds faster, and compiling six app modules
-# with the result goes from 22 seconds to 34. A verify compiles closer to seventy
-# of them, so what the build saves the apps pay back three times over.
-
-[profile.dev.package.cranelift-assembler-x64]
-opt-level = 2
-debug-assertions = false
-overflow-checks = false
-
-[profile.dev.package.cranelift-bforest]
-opt-level = 2
-debug-assertions = false
-overflow-checks = false
-
-[profile.dev.package.cranelift-bitset]
-opt-level = 2
-debug-assertions = false
-overflow-checks = false
-
-[profile.dev.package.cranelift-codegen]
-opt-level = 2
-debug-assertions = false
-overflow-checks = false
-
-[profile.dev.package.cranelift-control]
-opt-level = 2
-debug-assertions = false
-overflow-checks = false
-
-[profile.dev.package.cranelift-entity]
-opt-level = 2
-debug-assertions = false
-overflow-checks = false
-
-[profile.dev.package.cranelift-frontend]
-opt-level = 2
-debug-assertions = false
-overflow-checks = false
-
-[profile.dev.package.cranelift-native]
-opt-level = 2
-debug-assertions = false
-overflow-checks = false
-
-[profile.dev.package.regalloc2]
-opt-level = 2
-debug-assertions = false
-overflow-checks = false
-
-[profile.dev.package.wasmparser]
-opt-level = 2
-debug-assertions = false
-overflow-checks = false
-
-[profile.dev.package.wasmtime]
-opt-level = 2
-debug-assertions = false
-overflow-checks = false
-
-[profile.dev.package.wasmtime-environ]
-opt-level = 2
-debug-assertions = false
-overflow-checks = false
-
-[profile.dev.package.wasmtime-internal-core]
-opt-level = 2
-debug-assertions = false
-overflow-checks = false
-
-[profile.dev.package.wasmtime-internal-cranelift]
 opt-level = 2
 debug-assertions = false
 overflow-checks = false

@@ -10,7 +10,7 @@ pub(super) mod presenter;
 mod worker;
 
 use super::backend::ShownFrame;
-pub(super) use canvases::{Placement, placement, set_background};
+pub(super) use canvases::{Placement, placements, set_background};
 pub(super) use overlay::{Overlay, overlays};
 use worker::WorkerChannel;
 pub(super) use worker::{PresentedBitmap, WorkerChannel as Channel};
@@ -44,6 +44,24 @@ pub(super) fn prepare(_app: &AppManifest, _module: String) {}
 pub(super) fn hand_over_device() {}
 
 pub(super) fn discard_prepared() {}
+
+/// The wire to `app`, which serves it the sandbox API for its workers, as natively: it may spawn
+/// only its own app's workers (`be_wasm_sandbox_host::Server::for_app`), each in a web worker of
+/// its own, started from where `worker_file` says it is staged.
+pub(super) fn wire(app: &AppManifest) -> super::wire::Wire {
+    super::wire::Wire::granting(app.extensions.clone())
+        .offering(super::published::offered)
+        .with_sandbox(super::backend::AppSandbox(
+            be_wasm_sandbox_host::Server::for_app(
+                Arc::new(be_host_base::host::wake),
+                app.identity.id.clone(),
+                Box::new(|app_id, module| {
+                    super::backend::worker_file(app_id, module)
+                        .map(be_wasm_sandbox_host::Staged::new)
+                }),
+            ),
+        ))
+}
 
 pub(super) fn spawn(
     _app: &AppManifest,

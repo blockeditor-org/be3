@@ -25,21 +25,6 @@ interface objects {
         headers: list<header>,
     }
 
-    /// A URL to upload each of `objects` to, in order, and none for one the
-    /// caller holds already (it uploaded it, or may read it): room is reserved
-    /// only for the rest, charged to the uploader until a block takes them. An
-    /// object counts as stored only once its bytes arrived. An object with no
-    /// length the caller does not hold refuses the call with
-    /// `object-not-found`, alike whether or not anyone stored it, and nothing
-    /// is reserved. At most `be_block_protocol::MAX_OBJECT_URLS` objects a
-    /// call.
-    upload-urls: async func(objects: list<object-length>) -> result<list<option<upload-url>>, error>;
-
-    /// A presigned S3 GET for each object the caller may read, in order, and
-    /// none for the rest. At most `be_block_protocol::MAX_OBJECT_URLS` hashes a
-    /// call.
-    download-urls: async func(hashes: list<hash>) -> result<list<option<string>>, error>;
-
     /// How long `hold-objects` keeps objects for a block. Either way the
     /// block's payer is charged for them, and whoever may view the block may
     /// read them.
@@ -53,17 +38,14 @@ interface objects {
         /// `be3:block-type`).
         until-committed,
     }
-
-    /// Keeps stored objects alive for `block`. Holding one again extends it,
-    /// and a lasting hold outlasts any other.
-    hold-objects: async func(block: block-id, objects: list<hash>, hold: hold) -> result<_, error>;
 }
 
 /// The blocks of the organization this connection opened.
 interface blocks {
     use types.{
-        access-level, account-id, block-id, block-parent, block-summary, client-id, commit-id,
-        content-type-id, error, hash, journal, key-id, key-set, listing, organization-role,
+        access-level, account-id, block-id, block-parent, block-summary, commit-id,
+        content-type-id, error, hash, journal, journal-seal, key-id, key-set, link-admits,
+        listing, organization-role,
     };
 
     variant publish-outcome {
@@ -137,29 +119,24 @@ interface blocks {
         journals: list<option<journal>>,
     }
 
-    /// A listing's blocks, and the revision the server read them at: a block
-    /// that changes after the answer does so at a later revision.
+    /// A listing's blocks, and the organization's change sequence when the server
+    /// read them: a block that changes after the answer does so at a larger
+    /// sequence (`block-summary.changed`).
     record listed {
-        revision: u64,
+        sequence: u64,
         /// The listing's first blocks in the order of their ids (after
         /// `after`), as many as fit in an eighth of a frame and at least one.
         blocks: list<block-summary>,
         /// The listing's next blocks after those, as many ids as fit in a
-        /// sixteenth of a frame: the ids are as of `revision`, and a client
-        /// reads their summaries with `read-summaries`, which are as of when
-        /// it reads them. The connection is told of their changes as of
-        /// `blocks`'.
+        /// sixteenth of a frame: the ids are as of `sequence`, and a client
+        /// reads their summaries with `query.blocks`, which are as of when
+        /// it reads them.
         rest: list<block-id>,
         /// The last block of the page when the listing goes on past it: a
         /// client lists again after it.
         next: option<block-id>,
     }
 
-    /// What `collect-detached` deleted and freed.
-    record collected {
-        blocks: list<block-id>,
-        objects: u64,
-    }
 
     record access-entry {
         account: account-id,
@@ -173,201 +150,71 @@ interface blocks {
         source: option<block-id>,
         contact: bool,
         waiting: bool,
+        /// Their grant on the block came through a share link they opened.
+        through-link: bool,
     }
 
     record access-list {
         entries: list<access-entry>,
         company: bool,
         set-inside: u32,
+        /// The account whose device holds the lease of the block's live
+        /// session now: who hosts it, for a hosted block. None when no one is
+        /// in a session of it with edit access.
+        host: option<account-id>,
     }
 
-    record block-removed {
-        block: block-id,
-        revision: u64,
+    /// An account that may view a block, with the name it gave the server
+    /// (`query.names`): no more of it than that.
+    record account-name {
+        account: account-id,
+        display-name: string,
     }
-
-    /// A block as a change left it, and the connection whose call changed it
-    /// (its `organization-opened.client`), so a client tells its own
-    /// publishes from those of others. A block moved to the trash, or made
-    /// for one, has parent `detached`; once collected it is `removed`.
-    record block-changed {
-        block: block-summary,
-        %from: client-id,
-    }
-
-    /// What a connection's `changes` stream tells of the blocks it listed.
-    variant block-change {
-        /// A block it listed, or one that now matches a listing, changed: its
-        /// head, its metadata, where it lies or who may view it.
-        changed(block-changed),
-        /// A block it was told of matches none of its listings any more.
-        removed(block-removed),
-    }
-
-    create-block: async func(
-        block: block-id,
-        content-type: content-type-id,
-        parent: block-parent,
-        metadata: list<u8>,
-        references: list<block-id>,
-        key: key-id,
-        keys: key-set,
-        /// Readable by its author alone, for its whole life: a scope root whose
-        /// key is sealed only to the author and never escrowed, which no one
-        /// else may open, move or grant, administrators included.
-        owner-only: bool,
-    ) -> result<block-summary, error>;
-
-    set-metadata: async func(block: block-id, metadata: list<u8>, references: list<block-id>) -> result<block-summary, error>;
-
-    /// Stores `objects` and moves the head to `commit` if it is `expected`.
-    /// `held` and `references` are changes from what `expected` holds and
-    /// references, so a commit that changes little sends little.
-    publish: async func(
-        block: block-id,
-        commit: commit-id,
-        expected: option<commit-id>,
-        parents: list<commit-id>,
-        held: object-change,
-        time: s64,
-        pinned: bool,
-        references: reference-change,
-        metadata: list<u8>,
-        objects: list<list<u8>>,
-    ) -> result<publish-outcome, error>;
-
-    /// What changed in the tree of `root`, a page at a time from the cursor
-    /// `after` (first `{ changed: watermark, block: ff..ff }`),
-    /// at most `limit` blocks of each kind (plans/search.md). Needs View on
-    /// `root`.
-    changed-since: async func(root: block-id, after: change-cursor, limit: u32) -> result<changed-page, error>;
-
-    /// Summaries of the first of `blocks`, as many as fit in the answer and
-    /// at least one, their journals, and the objects of their heads the
-    /// caller does not hold, those of the commits in `held` left out. A
-    /// client asks again for the blocks left out.
-    read-contents: async func(blocks: list<block-id>, held: list<commit-id>) -> result<contents, error>;
-
-    /// Moves a block, with the keys it needs under its new parent.
-    set-parent: async func(block: block-id, parent: block-parent, keys: key-set) -> result<_, error>;
-
-    /// A page of the blocks of a listing, in the order of their ids, which
-    /// the connection's `changes` stream then follows until `unlist`: from
-    /// the first, or from the first id past `after` (a `listed.next`) as
-    /// the listing is now. A block that stays in the listing is on exactly
-    /// one page; one that joins or leaves between pages is told on
-    /// `changes`.
-    list-blocks: async func(listing: listing, after: option<block-id>) -> result<listed, error>;
-
-    /// The summaries of the first of `blocks` (at most 4096 asked), as many
-    /// as fit in a sixteenth of a frame and at least one, in order: none
-    /// for a block the caller may not know of, or that no longer exists. A
-    /// client asks again for the rest. Lists nothing.
-    read-summaries: async func(blocks: list<block-id>) -> result<list<option<block-summary>>, error>;
-
-    /// Stops following a listing.
-    unlist: async func(listing: listing) -> result<_, error>;
-
-    /// Changes to the blocks of everything this connection listed, each
-    /// block told once however many listings hold it, from the next listing
-    /// on; `open-organization` starts the listings over. A block listed on
-    /// its own (`listing.block`, as reading a block's summary does) is
-    /// followed for as long as the connection may view it: every head
-    /// another connection publishes reaches it here.
-    changes: func() -> stream<block-change>;
-
-    list-history: async func(block: block-id) -> result<list<history-entry>, error>;
-
-    /// Deletes the detached blocks nothing reaches any more.
-    collect-detached: async func() -> result<collected, error>;
-
-    set-access: async func(block: block-id, account: account-id, access: access-level) -> result<_, error>;
-
-    list-access: async func(block: block-id) -> result<access-list, error>;
 }
 
-/// Live sessions on blocks, whose connections relay edits to each other and
-/// share one lease.
+/// Live sessions on blocks. The server orders each session's submissions,
+/// keeping them in the block's journal, writes who joins, leaves, gains or
+/// loses edit access and claims the lease between them, and relays what its
+/// connections send each other. The lease holder, derived from that order,
+/// seals with `blocks.publish`.
 interface sessions {
-    use types.{block-id, client-id, commit-id, error, hash, journal, journal-base, journal-entry, session-state};
-
-    record joined {
-        /// This connection, as the session's participants name it.
-        client: client-id,
-        state: session-state,
-        /// The block's journal as of joining; what is appended after reaches
-        /// this connection as relays.
-        journal: option<journal>,
-    }
+    use types.{block-id, client-id, commit-id, error, hash, journal, journal-entry, joiner-change, membership-entry, session-host, session-state};
 
     record relayed {
         %from: client-id,
-        /// What the server checked its sender may send: a receiver drops a
-        /// message that asks for more. An `append`'s entries are `edit`.
-        kind: relay-kind,
         payload: list<u8>,
         /// When the server took it, in milliseconds since the Unix epoch by
-        /// the server's clock: a relay's arrival time, which its sender
-        /// cannot claim.
+        /// the server's clock.
         received: s64,
     }
 
-    /// What a relayed message carries, which the server checks against its
-    /// sender, since it cannot read the sealed payload.
-    enum relay-kind {
-        /// Presence, channel messages and asking to catch up: any participant.
-        peer,
-        /// Operations or session state: only from a participant with edit
-        /// access. Which of them only the owner says is the replicas' to
-        /// check: an owner whose lease lapsed unseen still relays what it
-        /// accepted, which the next owner takes over.
-        edit,
+    /// A publish with a journal seal moved the head to `commit`, which holds
+    /// the order through `through` in its `run` (`journal-seal.run`): the
+    /// journal starts from it. A trim with no new commit is not told.
+    record sealed {
+        commit: commit-id,
+        through: u64,
+        run: u64,
     }
 
-    /// What a session's `join` stream tells.
+    /// What happens in a session (`event.session`).
     variant session-event {
-        /// First, once joined.
-        joined(joined),
-        /// First and last, when the caller may not join.
-        refused(error),
-        /// Another participant changed the session.
-        changed(session-state),
+        /// The server wrote a membership entry.
+        membership(membership-entry),
         /// A participant relayed a message to this one, or to all.
         relayed(relayed),
-    }
-
-    /// This connection in a block's session. Dropping it leaves the session.
-    resource session {
-        /// Names the block; `join` joins it.
-        constructor(block: block-id);
-
-        /// Joins the session and tells what happens in it, starting with
-        /// `joined` or `refused`.
-        join: func() -> stream<session-event>;
-
-        /// Claims the lease of `generation` once its owner left.
-        claim-ownership: async func(generation: u64) -> result<session-state, error>;
-
-        /// The owner's heartbeat, with the head it holds clean; answers the
-        /// session's state either way.
-        heartbeat: async func(generation: u64, clean-at: option<commit-id>) -> result<session-state, error>;
-
-        /// Relays a sealed message to one participant, or to every other one
-        /// with no `to`. Refused unless the caller may send `kind`.
-        relay: async func(to: option<client-id>, kind: relay-kind, payload: list<u8>) -> result<_, error>;
-
-        /// The owner of `generation` appends operations it sequenced to the
-        /// block's journal, written by the build `tag` names, and with `relay`
-        /// relays each entry's payload to every other participant. Entries at
-        /// or below the journal's last sequence number are dropped as already
-        /// held. Entries from anyone but the owner of `generation` are relayed
-        /// and not kept. Refused while the journal is another `tag`'s: the
-        /// owner rebases first.
-        append: async func(generation: u64, tag: hash, entries: list<journal-entry>, relay: bool) -> result<_, error>;
-
-        /// The journal starts over from `base`, dropping every entry: the
-        /// owner of `generation` rebases after each commit, and on taking the
-        /// session before it appends.
-        rebase-journal: async func(generation: u64, tag: hash, base: journal-base) -> result<_, error>;
+        /// The order numbered a submission, this connection's own included:
+        /// every participant hears each one, in order.
+        sequenced(journal-entry),
+        /// A seal moved the head and trimmed the journal.
+        sealed(sealed),
+        /// A message on the host channel (`session-send.host`): from the
+        /// lease holder to this member, or to the holder from a member.
+        hosted(relayed),
+        /// Who holds the lease now, or none: told to every member, Join
+        /// members included, as it changes.
+        host(option<session-host>),
+        /// A Join member came or went: told to the lease holder alone.
+        joiner(joiner-change),
     }
 }

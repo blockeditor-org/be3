@@ -6,7 +6,12 @@ async fn listed(client: &mut TestClient) -> Vec<(Uuid, Access)> {
     let mut parents = vec![BlockParent::Root];
     while let Some(parent) = parents.pop() {
         let response = client
-            .call(|peer| client::blocks::list_blocks(peer, Listing::Children(parent), None))
+            .call(|peer| {
+                peer.read::<be_block_protocol::Listed>(be_block_protocol::Query::List {
+                    listing: Listing::Children(parent),
+                    after: None,
+                })
+            })
             .await;
         let Ok(be_block_protocol::Listed { blocks, .. }) = response else {
             panic!("listing failed: {response:?}");
@@ -22,8 +27,7 @@ async fn listed(client: &mut TestClient) -> Vec<(Uuid, Access)> {
 #[tokio::test]
 async fn an_editor_sees_only_the_blocks_it_made_or_was_given() {
     let harness = Harness::start().await;
-    let mut owner = harness.client().await;
-    owner.register("owner@example.com").await;
+    let mut owner = harness.member("owner@example.com").await;
     let organization = owner.organization("shared").await;
     let folder = owner.create_block(BlockParent::Root).await;
     let inside = owner.create_block(BlockParent::Block(folder)).await;
@@ -31,33 +35,10 @@ async fn an_editor_sees_only_the_blocks_it_made_or_was_given() {
 
     let mut guest = harness.member("guest@example.com").await;
     let response = owner
-        .call(|peer| {
-            client::contacts::create_link(
-                peer,
-                Uuid::from_u128(1),
-                Vec::new(),
-                Vec::new(),
-                be_block_protocol::LinkKind::Invitation(be_block_protocol::Invitation {
-                    organization,
-                    email: "guest@example.com".into(),
-                    role: OrganizationRole::Editor,
-                    escrow: Vec::new(),
-                }),
-            )
-        })
+        .invite_with(Uuid::from_u128(1), organization, Vec::new(), Vec::new())
         .await;
     assert!(matches!(response, Ok(())), "{response:?}");
-    let _ = guest
-        .call(|peer| {
-            client::contacts::accept_link(
-                peer,
-                Uuid::from_u128(1),
-                Vec::new(),
-                Vec::new(),
-                Vec::new(),
-            )
-        })
-        .await;
+    let _ = guest.accept(Uuid::from_u128(1), &Vec::new()).await;
     guest.open(organization).await;
     assert!(listed(&mut guest).await.is_empty());
 
@@ -65,9 +46,7 @@ async fn an_editor_sees_only_the_blocks_it_made_or_was_given() {
     assert_eq!(listed(&mut guest).await, [(own, Access::Manage)]);
 
     let account = guest_account(&mut guest).await;
-    let response = owner
-        .call(|peer| client::blocks::set_access(peer, folder, account, Access::View))
-        .await;
+    let response = owner.grant(folder, account, Access::View).await;
     assert!(matches!(response, Ok(())), "{response:?}");
     let mut seen = listed(&mut guest).await;
     seen.sort();
@@ -88,12 +67,5 @@ async fn an_editor_sees_only_the_blocks_it_made_or_was_given() {
 }
 
 async fn guest_account(guest: &mut TestClient) -> Uuid {
-    let token = guest.token.clone();
-    let response = guest
-        .call(|peer| client::account::authenticate(peer, Some(token)))
-        .await;
-    let Ok(Authenticated { account, .. }) = response else {
-        panic!("the guest could not re-authenticate: {response:?}");
-    };
-    account
+    guest.id()
 }

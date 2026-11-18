@@ -42,8 +42,9 @@ A compositor in another language could implement it from the WIT alone.
   `windows` and `programs` only under `--desktop`); on Windows, under `--desktop` only, `windows`,
   `programs` and `power`. Elsewhere every watch answers `unsupported` and calls are dropped.
 - Each watch is published as soon as the service behind it runs, even empty.
-- Only the shell watches windows, contacts and screen edges, and only it calls `windows` and
-  `set-edges` (`shell_only` in `published.rs`): screen edges wall the pointer.
+- Only the shell watches windows, contacts and screen input, and only it calls `windows` and
+  `set-screen-input` (`shell_only` in `published.rs`): screen input walls the pointer and takes
+  touches.
 - The desktop app shows a control only while the host offers what backs it
   (`editor.offered::<W>()`), so an unsupported interface simply hides its controls. Settings does
   the same at a finer grain: `InputReachWatch` says where keymap, key repeat and middle-click paste
@@ -61,7 +62,13 @@ publishes `ProgramsWatch`.
 
 Work off the UI thread hands its results back through `be_host_base::host::mailbox`: a worker
 `Post::send`s a value, which wakes the event loop, and the handler runs on the UI thread at the
-start of a frame, so nothing polls. Dropping the `Mailbox` drops whatever is still on its way. A
+start of a frame, so nothing polls. Letters from one thread arrive in the order it sent them;
+how they travel is the platform's (on the web, by `postMessage`: guides/running/web.md). A
+thread that may not share the mailbox's memory (the web's workers) sends through
+`Post::across()`, made on the mailbox's thread: an `Across<T>` sends each letter as its bytes
+(postcard), which the mailbox decodes as it delivers it; on the web a worker's letter sent as a
+value is dropped with an error. On the web only the page makes mailboxes, so an `Across` there
+is its mailbox's number and travels to a worker in the bytes it starts from (serde). Dropping the `Mailbox` drops whatever is still on its way. A
 handler that needs `&mut` state its owner holds is made on a `host::Desk<C>` and runs when the owner
 calls `desk.deliver(&mut c)` (`HostCore`'s requests, logind, `Programs`, `ScreenLock`).
 
@@ -83,7 +90,7 @@ child.
 
 **A program window is a tab.** be-sdk-shell's `Workspace` has one tab model whose content is a
 block or a program (`program.rs`: `Program { window, record }`). Program tabs take keys from the
-same counter as block tabs and are saved with the dock layout in the `layout` view state
+same counter as block tabs and are saved with the dock layout in the `SavedLayout` view state
 (`saved::SavedProgram`). The desktop app floats each in a dock window of its own (`ProgramWindow`);
 workspace-ui puts them in its editors pane, or floating where the host opens windows (in space).
 `program::place` binds windows to tabs.
@@ -100,7 +107,9 @@ the program is never told another size first; a window
 filling a placeholder takes the placeholder's place and size (`program::cascaded`).
 `close-child` asks the program to close; the tab stays until the window leaves the list.
 
-**Shown and hidden.** The host keeps no shown state: whether an entry shows is the dock's. A
+**Shown and hidden.** The host keeps no shown state: whether an entry shows is the dock's. A new
+window's tab opens hidden when the listing says `opens-hidden` (every Windows entry, since showing
+one captures it), for the person to show from its chip; Linux's windows show at once. A
 hidden dock window (`DockHostLayout::hide_window`) places no body for its tabs, so `UnshownWindows`
 (placed by both shells beside `WorkspaceDialogs`) keeps every listed window the dock does not place
 (`DockHostLayout::is_shown`) placed with `ChildMode::Hidden`. It takes no room and draws nothing,
@@ -202,7 +211,7 @@ try it: Apps panel > Menu > Running Apps, then Crash or Kill beside `be3.desktop
 
 ## A layout that cannot be read
 
-When the `layout` view state does not decode, the desktop starts nothing from it and saves nothing
+When the `SavedLayout` view state does not decode, the desktop starts nothing from it and saves nothing
 over it: be-sdk-shell's notice (`workspace.layout`; guides/blocks/workspaces.md, View state)
 offers Reset layout, Exit and Copy report. Running programs show behind it as windows but are not
 saved until a reset. Exit is Log out in a login session. The same holds for further displays' bar

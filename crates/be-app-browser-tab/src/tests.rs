@@ -1,6 +1,7 @@
 use be_sdk_beui::beui::{Key, Modifiers};
 use be_sdk_beui::{ChildContent, EditorHost, OwnedEditor, WebViewCommand, WebViewEvent, WebViewId};
 use be_sdk_test::BeuiTest;
+use be_sdk_test::prelude::*;
 use be_type_browser_tab::{BrowserTabContent, HistoryItem};
 use uuid::Uuid;
 

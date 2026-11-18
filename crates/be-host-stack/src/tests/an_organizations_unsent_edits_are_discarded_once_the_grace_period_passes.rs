@@ -20,13 +20,16 @@ fn an_organizations_unsent_edits_are_discarded_once_the_grace_period_passes() {
         since: wall.now(),
         offerable: true,
         refused: None,
+        kept_edits: 0,
         name: None,
     };
     let unsent = [
         lost.clone(),
         UnsentBlock {
             block: Uuid::from_u128(2),
-            refused: Some(be_block_protocol::ErrorCode::OverQuota),
+            refused: Some(be_block_client::Aside::Refused(
+                be_block_protocol::ErrorCode::OverQuota,
+            )),
             ..lost
         },
     ];

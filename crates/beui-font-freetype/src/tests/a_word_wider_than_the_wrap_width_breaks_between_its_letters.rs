@@ -14,4 +14,9 @@ fn a_word_wider_than_the_wrap_width_breaks_between_its_letters() {
         .map(|line| &galley.text()[line.range.clone()])
         .collect();
     assert_eq!(lines, ["W", "i", "d", "e"]);
+    assert!(
+        galley.size().x <= 1.0,
+        "letters wider than the width do not widen the text: {}",
+        galley.size().x
+    );
 }

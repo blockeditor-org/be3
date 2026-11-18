@@ -2,14 +2,14 @@ use be_sdk_api::{ChildLayer, ChildMode};
 use beui::reactive::*;
 use beui::styled::theme::POINTER_REACH;
 use beui::styled::*;
-use beui::{
-    Dismiss, Key, KeyAt, KeyPhase, LayerPolicy, NodeId, OverlayAnchor, Placement, Pos2, Rect, Vec2,
-};
+use beui::unstyled::{self, AnchoredSheetHandle, AnchoredStyle, Dropdown, SheetWhen};
+use beui::{Dismiss, LayerPolicy, NodeId, OverlayAnchor, Placement, Pos2, Rect, Vec2};
 
 use crate::{ChildState, Editor, PickAnchor, Subregion, SubregionContent};
 
 const GAP: u16 = 4;
 const MARGIN: u16 = 8;
+const CARD: Placement = Placement::BELOW_CENTER.gap(GAP).margin(MARGIN);
 
 #[derive(Clone, Copy)]
 pub(crate) struct PopoverWindow(pub(crate) Memo<Option<beui::WindowId>>);
@@ -34,7 +34,7 @@ pub(crate) fn ChildPopover(
     shown: Shown,
     face: Memo<Face>,
     size: Memo<Vec2>,
-    sized: Memo<bool>,
+    sized: Prop<bool>,
     testing: &'static str,
     on_state: Callback<ChildState>,
     on_dismiss: Callback<()>,
@@ -50,17 +50,17 @@ pub(crate) fn ChildPopover(
         <Subregion
             editor
             placed={Some(content)}
-            fit={create_memo(move || room.get())}
+            fit={room}
             mode=ChildMode::Live
             layer=ChildLayer::Below
-            opacity={create_memo(move || match ready.get() {
+            opacity={move || match ready.get() {
                 true => 1.0,
                 false => 0.0,
-            })}
-            radius={create_memo(move || match (shown, face.get()) {
+            }}
+            radius={move || match (shown, face.get()) {
                 (Shown::Anchored, Face::Card) => Radius::Lg.px(),
                 _ => 0.0,
-            })}
+            }}
             @test_id={testing}
             on_state={move |state: ChildState| on_state.call(state)}
         />
@@ -122,47 +122,12 @@ fn AnchoredPopover(
             Rect::from_min_size(Pos2::ZERO, rect.size())
         })
     });
-    let room = create_memo(move || {
-        let area = beui::native::try_with_document(|document| {
-            document
-                .context()?
-                .layer_space(window.unwrap_or(beui::WindowId::MAIN))
-                .map(|space| space.area())
-        })
-        .flatten()
-        .unwrap_or_else(|| viewport.get());
-        let margins = 2.0 * f32::from(MARGIN);
-        let anchored = match anchor {
-            PickAnchor::Node(node) => crate::node_anchor(&node),
-            PickAnchor::Rect(rect) => Some(rect),
-            PickAnchor::Centre => None,
-        };
-        // The roomier side of the anchor, less the gap a card keeps from it: what
-        // `layer::resolve_rect` leaves a `BelowStart` or `Popover` overlay, which never covers
-        // its anchor.
-        let tall = anchored.map_or(area.height(), |anchored| {
-            (area.max.y - anchored.max.y).max(anchored.min.y - area.min.y) - f32::from(GAP)
-        });
-        Vec2::new(area.width() - margins, tall - margins)
-    });
-    create_effect(move || {
-        let room = room.get();
-        if room_out.get_untracked() != Some(room) {
-            room_out.set(Some(room));
-        }
-    });
-    let shown = create_memo(move || size.get().min(room.get()).max(Vec2::ZERO));
-    let width = create_memo(move || Size::Custom(shown.get().x));
-    let height = create_memo(move || Size::Custom(shown.get().y));
     let carded = create_memo(move || face.get() == Face::Card);
     let drawn = create_memo(move || carded.get() && ready.get());
     let placed = create_memo(move || {
         let placement = match carded.get() {
-            true => Placement::Popover {
-                gap: GAP,
-                margin: MARGIN,
-            },
-            false => Placement::BelowStart,
+            true => CARD,
+            false => Placement::BELOW_START,
         };
         match anchor {
             PickAnchor::Node(node) => (OverlayAnchor::Node(node), placement, carded.get()),
@@ -174,55 +139,73 @@ fn AnchoredPopover(
             ),
         }
     });
+    let room = create_memo(move || {
+        let area = beui::native::try_with_document(|document| {
+            document
+                .context()?
+                .layer_space(window.unwrap_or(beui::WindowId::MAIN))
+                .map(|space| space.area())
+        })
+        .flatten()
+        .unwrap_or_else(|| viewport.get());
+        let anchored = match anchor {
+            PickAnchor::Node(node) => crate::node_anchor(&node),
+            PickAnchor::Rect(rect) => Some(rect),
+            PickAnchor::Centre => None,
+        };
+        // The card's room whichever face shows, so a child that turns into a card or back
+        // keeps the size it was asked to fit.
+        match anchored {
+            Some(anchored) => beui::layer::room(area, anchored, CARD),
+            None => area.shrink(f32::from(MARGIN)).size().max(Vec2::ZERO),
+        }
+    });
+    create_effect(move || {
+        let room = room.get();
+        room_out.set(Some(room));
+    });
+    let shown = create_memo(move || size.get().min(room.get()).max(Vec2::ZERO));
+    let width = create_memo(move || Size::Custom(shown.get().x));
+    let height = create_memo(move || Size::Custom(shown.get().y));
     let at = create_memo(move || placed.get().0);
     let placement = create_memo(move || placed.get().1);
     let beak = create_memo(move || match placed.get().2 && ready.get() {
         true => POINTER_REACH,
         false => 0.0,
     });
-    let fill = create_memo(move || match drawn.get() {
+    let fill = move || match drawn.get() {
         true => ColorRole::Surface,
         false => ColorRole::None,
-    });
-    let border = create_memo(move || drawn.get().then_some(Border::DEFAULT));
-    let pointer = NodeRef::new();
-    let trigger = match anchor {
-        PickAnchor::Node(node) => Some(node),
-        PickAnchor::Centre | PickAnchor::Rect(_) => None,
     };
-    on_key(
-        KeyAt::Host,
-        KeyPhase::Capture,
-        KeyReveal::Focus,
-        move |event| {
-            let escaped = event
-                .press()
-                .is_some_and(|press| press.pressed && press.key == Key::Escape);
-            if escaped {
-                on_dismiss.call(());
+    let border = move || drawn.get().then_some(Border::DEFAULT);
+    let surface = AnchoredStyle::new(
+        move |dropdown: Dropdown| {
+            let pointer = dropdown.pointer;
+            view! {
+                <Frame @node_ref=&pointer fill border radius=Radius::Lg>{dropdown.content}</Frame>
             }
-            escaped
         },
+        |handle: AnchoredSheetHandle| handle.content.call(),
     );
+    // Every dismissal closes it. `Dismiss::WithParent` cannot come: the layer it hangs in
+    // (`ChildPopover`'s inert holder) is never dismissed and closes only by going away.
+    let open = Binding::new(true, move |open: bool| {
+        if !open {
+            on_dismiss.call(());
+        }
+    });
     view! {
-        <Overlay
+        <unstyled::Popover
             anchor={at}
             placement
-            policy=LayerPolicy::Pass
-            pointer={pointer}
-            trigger={trigger}
             beak
-            open=true
-            on_dismiss={move |why: Dismiss| {
-                if matches!(why, Dismiss::OutsidePress | Dismiss::Escape | Dismiss::Back) {
-                    on_dismiss.call(());
-                }
-            }}
-        >
-            <Frame @node_ref=&pointer fill border radius=Radius::Lg>
-                <Frame width height>{child}</Frame>
-            </Frame>
-        </Overlay>
+            open
+            keep_alive=false
+            sheet=SheetWhen::Never
+            surface
+        >|_: PopoverHandle|
+            <Frame width height>{child}</Frame>
+        </unstyled::Popover>
     }
 }
 
@@ -246,24 +229,15 @@ pub(crate) struct Popped {
 #[component]
 pub(crate) fn Popovers(editor: Editor) -> NodeId {
     let popped = editor.popped();
-    let keys = create_memo(move || {
-        popped
-            .with(|popped| popped.map(|popped| popped.serial))
-            .into_iter()
-            .collect::<Vec<_>>()
-    });
     view! {
         <Layers>
-            <ForEach keys>|serial: u64| {
-                match popped.get_untracked().filter(|popped| popped.serial == serial) {
-                    Some(popped) => view! {
-                        <PoppedChild editor popped />
-                    },
-                    None => view! {
-                        <Frame />
-                    },
-                }
-            }</ForEach>
+            <Keyed
+                value={popped}
+                key={|popped: &Popped| popped.serial}
+                fallback=()
+            >|popped: ReadSignal<Popped>|
+                <PoppedChild editor popped={popped.get_untracked()} />
+            </Keyed>
         </Layers>
     }
 }
@@ -291,7 +265,6 @@ fn PoppedChild(editor: Editor, popped: Popped) -> NodeId {
         if let Some(wanted) = state
             .intrinsic_size
             .filter(|size| size.x > 0.0 && size.y > 0.0)
-            && size.get_untracked() != wanted
         {
             size.set(wanted);
         }
@@ -310,7 +283,7 @@ fn PoppedChild(editor: Editor, popped: Popped) -> NodeId {
             }}
             face={create_memo(move || face)}
             size={create_memo(move || size.get())}
-            sized={create_memo(|| true)}
+            sized=true
             testing
             on_state
             on_dismiss={move || editor.close_popped(serial)}

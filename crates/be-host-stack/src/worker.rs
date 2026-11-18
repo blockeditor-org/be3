@@ -4,26 +4,26 @@ use std::{
     time::{Duration, Instant},
 };
 
-use be_wasm_threads::Mutex;
+use std::sync::Mutex;
 
 use be_block_client::{ClientError, Credentials, Peer, PeerConfig, Write};
 use be_block_client::{Event, ask};
 use be_block_commit::CommitId;
 use be_block_content::BlockMetadata;
 use be_block_graph::{Access, BlockParent};
-use be_block_protocol::{AccessList, BlockSummary, client};
-use be_block_type_host::Conflict;
-use be_sdk_type_api::{Change, Description, EditorId};
+use be_block_protocol::{AccessList, BlockSummary};
+use be_sdk_type_api::{Change, EditorId};
 use be_sdk_type_guest::editor::FromEditor;
 use futures_util::future::{Either, select};
 use tokio::sync::mpsc::UnboundedReceiver;
 use uuid::Uuid;
 
-use super::graph::{Graph, Listing, Node, Owner, Query};
+use super::graph::{Listing, Node, Owner, Query};
 use super::replicas::Replicas;
 use super::types::{self, Modules};
 use super::version::{Context, LoopCall, LoopCalls, Reach, Versions};
-use super::{Config, Content, platform};
+use super::{Config, platform};
+use crate::replies::Reply;
 
 mod served;
 mod uploads;
@@ -69,22 +69,49 @@ fn jitter() -> f64 {
     (Uuid::new_v4().as_u128() as u64 >> 11) as f64 / (1u64 << 53) as f64
 }
 
-pub(super) struct Inbox {
-    pub(super) commands: UnboundedReceiver<Command>,
-    pub(super) nudged: super::nudge::Nudged,
+/// What a stack's worker starts from as data: on the web it travels as bytes (`web::spawn`).
+#[derive(serde::Deserialize, serde::Serialize)]
+pub(super) struct Start {
+    pub(super) config: Config,
+    /// The modules' clock as the host held it when the stack started (`hold_clock`).
+    #[serde(with = "crate::seen::moment::option")]
+    pub(super) held_clock: Option<Instant>,
+    /// What the settings choose to keep offline as the stack started, then each change as a
+    /// command (`offline_choice::publish`).
+    pub(super) offline_choices: Option<crate::offline_choice::Choices>,
+    /// The account's layers of each reads kind as the stack started, then each change as a
+    /// command (`unread::publish`).
+    pub(super) reads: std::collections::BTreeMap<Uuid, Vec<Vec<u8>>>,
+    /// The app list the page read, so its host's worker does not read it again (`discovery`).
+    #[cfg(target_arch = "wasm32")]
+    pub(super) apps: Option<crate::discovery::Read>,
 }
 
-type AccessReply = Box<dyn FnOnce(Result<AccessList, String>) + Send>;
-type NotifyModeReply = Box<dyn FnOnce(Result<be_block_protocol::NotifyMode, String>) + Send>;
+/// How a stack's worker and the page talk: on the web these stay in the shared heap for now,
+/// left for the worker by number (`web::Transports`).
+pub(super) struct Inbox {
+    pub(super) commands: Commands,
+    pub(super) nudged: super::nudge::Nudged,
+    /// Where the worker hands over each `Seen` it publishes for the page (`seen::Handover`).
+    pub(super) handover: Arc<crate::seen::Handover>,
+    /// Ends when the page stops the stack (`crate::stop`), which drops its sender: the worker
+    /// then closes its connection, so whatever it waits on from the server fails at once.
+    pub(super) stopped: tokio::sync::oneshot::Receiver<()>,
+}
 
-type ExportReply = Box<dyn FnOnce(Result<(String, Vec<u8>), String>) + Send>;
+type AccessReply = Reply<Result<AccessList, String>>;
+type NamesReply = Reply<Result<Vec<be_block_protocol::AccountName>, String>>;
+type MuteReply = Reply<Result<be_block_protocol::NotifyMode, String>>;
 
-type HeadReply = Box<dyn FnOnce(Result<Vec<u8>, String>) + Send>;
+type ExportReply = Reply<Result<(String, Vec<u8>), String>>;
 
-type PlainReply = Box<dyn FnOnce(Result<be_block_type_host::PlainFile, String>) + Send>;
+type HeadReply = Reply<Result<Vec<u8>, String>>;
 
-type ContentReply = Box<dyn FnOnce(Result<(Uuid, Vec<u8>), String>) + Send>;
+type PlainReply = Reply<Result<be_block_type_host::PlainFile, String>>;
 
+type ContentReply = Reply<Result<(Uuid, Vec<u8>), String>>;
+
+#[derive(serde::Deserialize, serde::Serialize)]
 pub(super) enum Command {
     Unsent {
         block: Uuid,
@@ -98,27 +125,41 @@ pub(super) enum Command {
     Revision {
         block: Uuid,
         request: super::revisions::Asked,
-        reply: Box<dyn FnOnce(super::revisions::Answered) + Send>,
+        reply: Reply<super::revisions::Answered>,
     },
     Open {
         block: Uuid,
         content_type: Uuid,
         owned: bool,
     },
-    #[cfg(any(test, feature = "testing"))]
+    /// Lets go of a block `Open` kept open (`crate::close`).
     Close(Uuid),
-    /// Start or stop following the account's storage, as `Shared::storage_watched` says.
-    Storage,
-    Operate(Uuid, Vec<u8>, Instant),
+    /// Start or stop following the account's storage.
+    Storage(bool),
+    /// The full-text searches an owner shows (`want_searches`).
+    WantSearches(Owner, Vec<crate::SearchAsk>),
+    /// The page's changes to what it reads, numbered (`seen::Edit`): applied as the worker
+    /// takes the command, before any later one.
+    Edit(u64, Vec<crate::seen::Edit>),
+    Operate(
+        Uuid,
+        #[serde(with = "serde_bytes")] Vec<u8>,
+        #[serde(with = "crate::seen::moment")] Instant,
+    ),
     ChangeChild {
         block: Uuid,
         content_type: Uuid,
         change: be_sdk_type_api::ChildChange,
+        /// A `Replace` that puts a copy in place (`crate::replace_with_copy`): the source to copy
+        /// into the new id once the type made the change.
+        copying: Option<Uuid>,
+        reply: crate::ChildReply,
     },
     FromFile {
         block: Uuid,
         content_type: Uuid,
         name: String,
+        #[serde(with = "serde_bytes")]
         bytes: Vec<u8>,
     },
     Attach {
@@ -131,13 +172,39 @@ pub(super) enum Command {
         block: Uuid,
         editor: EditorId,
     },
+    /// A host component tells a member of its block's host channel something
+    /// (`crate::hosting::tell`).
+    TellMember {
+        block: Uuid,
+        said: be_sdk_api::blocks::MemberSaid,
+    },
+    /// A host component starts on a block (`crate::hosting::restart`).
+    RestartHost(Uuid),
+    /// The blocks whose host channel an editor here joins as a Join member
+    /// (`crate::joining::want`).
+    WantChannels(std::collections::HashSet<Uuid>),
+    /// A Join editor tells its block's host something (`crate::joining::tell`).
+    TellHost {
+        block: Uuid,
+        #[serde(with = "serde_bytes")]
+        payload: Vec<u8>,
+    },
     FromEditor {
         block: Uuid,
         editor: EditorId,
+        /// The app whose editor sent it.
+        app: String,
+        #[serde(with = "serde_bytes")]
         bytes: Vec<u8>,
+        #[serde(with = "crate::seen::moment")]
         at: Instant,
     },
-    HoldClock(Option<Instant>),
+    HoldClock(#[serde(with = "crate::seen::moment::option")] Option<Instant>),
+    /// What the organization's settings choose to keep offline (`offline_choice::publish`).
+    OfflineChoices(Option<crate::offline_choice::Choices>),
+    /// The account's layers of a settings kind a type counts what is unread from
+    /// (`unread::publish`): the kind, and each layer's content bytes, lowest first.
+    Reads(Uuid, Vec<Vec<u8>>),
     Duplicate {
         from: Uuid,
         to: Uuid,
@@ -147,17 +214,19 @@ pub(super) enum Command {
     Seed {
         block: Uuid,
         content_type: Uuid,
+        #[serde(with = "serde_bytes")]
         bytes: Vec<u8>,
     },
     Replace {
         block: Uuid,
         content_type: Uuid,
+        #[serde(with = "serde_bytes")]
         bytes: Vec<u8>,
     },
     /// Answered with how many open blocks keep edits the device's journal does not hold yet,
     /// commands sent before it that still wait their turn, and imports unfinished, as of the
     /// answer: commands sent since do not count.
-    Flush(std::sync::mpsc::Sender<usize>),
+    Flush(FlushReply),
     /// Seals what the open blocks owe now, waiting for nothing after (`seal_owed`): unlike
     /// `Flush`, nothing stays to seal what is edited later.
     SealOwed,
@@ -188,6 +257,7 @@ pub(super) enum Command {
         content_type: Uuid,
         parent: BlockParent,
         metadata: BlockMetadata,
+        #[serde(with = "serde_bytes")]
         bytes: Option<Vec<u8>>,
         owner_only: bool,
     },
@@ -205,14 +275,35 @@ pub(super) enum Command {
         access: Access,
         reply: DoneReply,
     },
+    /// Bars `account` from joining `block`'s host (`Peer::ban`; plans/hosted_blocks.md).
+    Ban {
+        block: Uuid,
+        account: Uuid,
+        reply: DoneReply,
+    },
+    TransferOwnership {
+        block: Uuid,
+        account: Uuid,
+        reply: DoneReply,
+    },
     ListAccess {
         block: Uuid,
         reply: AccessReply,
     },
-    SetNotifyMode {
+    /// Lists, makes or revokes the share links on `block` (guides/blocks/keys.md, "Share
+    /// links").
+    ShareLink {
+        block: Uuid,
+        change: ShareLinkCommand,
+    },
+    ListNames {
+        block: Uuid,
+        reply: NamesReply,
+    },
+    SetMute {
         block: Uuid,
         mode: be_block_protocol::NotifyMode,
-        reply: NotifyModeReply,
+        reply: MuteReply,
     },
     ReadHead {
         block: Uuid,
@@ -230,6 +321,7 @@ pub(super) enum Command {
     Import(Vec<(be_block_client::transfer::Saved, BlockParent)>),
     ContentOfFile {
         name: String,
+        #[serde(with = "serde_bytes")]
         bytes: Vec<u8>,
         reply: ContentReply,
     },
@@ -252,11 +344,7 @@ pub(super) enum Command {
     },
     Members(MembersCommand),
     Push(PushCommand),
-    Invite {
-        email: String,
-        role: be_block_protocol::OrganizationRole,
-        reply: LinkReply,
-    },
+    Invitations(InvitationsCommand),
     CreateAgent {
         name: String,
         reply: AgentReply,
@@ -278,21 +366,88 @@ pub(super) enum Command {
     Sync,
 }
 
+/// Where a flush answers how much closing now would lose (`crate::flush`): sent once the `Seen`
+/// with what the flush did is handed over, so the page reads it as it hears the answer.
+#[derive(serde::Deserialize, serde::Serialize)]
+pub(super) struct FlushReply(pub(super) Reply<usize>);
+
+impl FlushReply {
+    pub(super) fn send(self, unsaved: usize) -> Result<(), ()> {
+        let Self(reply) = self;
+        reply.send(unsaved);
+        Ok(())
+    }
+}
+
+#[derive(serde::Deserialize, serde::Serialize)]
 pub(super) enum AgentChange {
-    Rotate(Box<dyn FnOnce(Result<String, String>) + Send>),
-    Remove(Box<dyn FnOnce(Result<(), String>) + Send>),
+    Rotate(Reply<Result<String, String>>),
+    Remove(Reply<Result<(), String>>),
 }
 
 impl AgentChange {
     fn fail(self, error: String) {
         match self {
-            Self::Rotate(reply) => reply(Err(error)),
-            Self::Remove(reply) => reply(Err(error)),
+            Self::Rotate(reply) => reply.send(Err(error)),
+            Self::Remove(reply) => reply.send(Err(error)),
         }
     }
 }
 
+/// Where the page sends its commands, each as its bytes (`Command::encode`), as a page whose
+/// memory the worker does not share sends them.
+pub(super) struct CommandPost(pub(super) tokio::sync::mpsc::UnboundedSender<Vec<u8>>);
+
+impl CommandPost {
+    pub(super) fn send(&self, command: Command) -> Result<(), ()> {
+        let bytes = command.encode();
+        drop(command);
+        self.0.send(bytes).map_err(|unsent| {
+            // Decoded only to be dropped: what waits on its replies hears none.
+            drop(Command::decode(&unsent.0));
+        })
+    }
+}
+
+/// The page's commands as the worker takes them, decoded from their bytes.
+pub(super) struct Commands(pub(super) UnboundedReceiver<Vec<u8>>);
+
+impl Commands {
+    async fn recv(&mut self) -> Option<Command> {
+        let bytes = self.0.recv().await?;
+        Some(Command::decode(&bytes))
+    }
+
+    fn try_recv(&mut self) -> Result<Command, tokio::sync::mpsc::error::TryRecvError> {
+        self.0.try_recv().map(|bytes| Command::decode(&bytes))
+    }
+}
+
+impl Drop for Commands {
+    /// Drops the commands the worker never took, so what waits on their replies hears none.
+    fn drop(&mut self) {
+        self.0.close();
+        while let Ok(bytes) = self.0.try_recv() {
+            drop(Command::decode(&bytes));
+        }
+    }
+}
+
+pub(super) fn command_channel() -> (CommandPost, Commands) {
+    let (post, commands) = tokio::sync::mpsc::unbounded_channel();
+    (CommandPost(post), Commands(commands))
+}
+
 impl Command {
+    fn encode(&self) -> Vec<u8> {
+        postcard::to_stdvec(self).expect("a command encodes")
+    }
+
+    /// The page encoded it from a `Command`: bytes that do not decode are a bug.
+    fn decode(bytes: &[u8]) -> Self {
+        postcard::from_bytes(bytes).expect("a command decodes")
+    }
+
     /// What the command is, for a busy reason that names the work the block store is stuck on.
     fn name(&self) -> &'static str {
         match self {
@@ -300,16 +455,23 @@ impl Command {
             Command::PreviewChild { .. } => "preview child",
             Command::Revision { .. } => "revision",
             Command::Open { .. } => "open",
-            #[cfg(any(test, feature = "testing"))]
             Command::Close(..) => "close",
-            Command::Storage => "storage",
+            Command::Storage(_) => "storage",
+            Command::WantSearches(..) => "want searches",
+            Command::Edit(..) => "edit",
             Command::Operate(..) => "operate",
             Command::ChangeChild { .. } => "change child",
             Command::FromFile { .. } => "from file",
             Command::Attach { .. } => "attach",
             Command::Detach { .. } => "detach",
+            Command::TellMember { .. } => "tell member",
+            Command::RestartHost(..) => "restart host",
+            Command::WantChannels(..) => "want channels",
+            Command::TellHost { .. } => "tell host",
             Command::FromEditor { .. } => "from editor",
             Command::HoldClock(..) => "hold clock",
+            Command::OfflineChoices(..) => "offline choices",
+            Command::Reads(..) => "reads",
             Command::Duplicate { .. } => "duplicate",
             Command::Seed { .. } => "seed",
 
@@ -327,8 +489,12 @@ impl Command {
             Command::SetParent { .. } => "set parent",
             Command::Define { .. } => "define",
             Command::SetAccess { .. } => "set access",
+            Command::Ban { .. } => "ban",
+            Command::TransferOwnership { .. } => "transfer ownership",
             Command::ListAccess { .. } => "list access",
-            Command::SetNotifyMode { .. } => "set notify mode",
+            Command::ShareLink { .. } => "share link",
+            Command::ListNames { .. } => "list names",
+            Command::SetMute { .. } => "set mute",
             Command::ReadHead { .. } => "read head",
             Command::Export { .. } => "export",
             Command::PlainFile { .. } => "plain file",
@@ -343,7 +509,7 @@ impl Command {
             Command::Leave { .. } => "leave",
             Command::Members(..) => "members",
             Command::Push(..) => "push",
-            Command::Invite { .. } => "invite",
+            Command::Invitations(..) => "invitations",
             Command::CreateAgent { .. } => "create agent",
             Command::CreateBlockAgent { .. } => "create block agent",
             Command::BlockAgent { .. } => "block agent",
@@ -358,7 +524,10 @@ impl Command {
         matches!(
             self,
             Command::SetAccess { .. }
+                | Command::Ban { .. }
+                | Command::TransferOwnership { .. }
                 | Command::ListAccess { .. }
+                | Command::ListNames { .. }
                 | Command::ReadHead { .. }
                 | Command::Leave { .. }
                 | Command::ApprovePairing { .. }
@@ -371,7 +540,6 @@ impl Command {
     /// lane holds others (`Served`). The rest, which may reach a whole tree (a version command,
     /// an import), wait for the lane to be empty.
     fn order_safe(&self) -> bool {
-        #[cfg(any(test, feature = "testing"))]
         if let Command::Close(_) = self {
             return true;
         }
@@ -380,6 +548,8 @@ impl Command {
             Command::Operate(..)
                 | Command::FromEditor { .. }
                 | Command::HoldClock(_)
+                | Command::OfflineChoices(_)
+                | Command::Reads(..)
                 | Command::Attach { .. }
                 | Command::Detach { .. }
                 | Command::Open { .. }
@@ -387,11 +557,13 @@ impl Command {
                 | Command::Seed { .. }
                 | Command::Flush(_)
                 | Command::SealOwed
-                | Command::Storage
+                | Command::Storage(_)
+                | Command::WantSearches(..)
+                | Command::Edit(..)
                 | Command::WatchVersion(_)
                 | Command::UnwatchVersion(_)
                 | Command::DismissPairing(_)
-                | Command::SetNotifyMode { .. }
+                | Command::SetMute { .. }
                 | Command::Push(_)
                 | Command::Create { .. }
                 | Command::SetParent { .. }
@@ -406,9 +578,13 @@ impl Command {
             Command::Operate(..)
                 | Command::FromEditor { .. }
                 | Command::HoldClock(_)
+                | Command::OfflineChoices(_)
+                | Command::Reads(..)
                 | Command::Attach { .. }
                 | Command::Detach { .. }
                 | Command::Open { .. }
+                | Command::Edit(..)
+                | Command::WantSearches(..)
         )
     }
 
@@ -440,12 +616,17 @@ impl Command {
             | Command::FromFile { block, .. }
             | Command::Detach { block, .. }
             | Command::FromEditor { block, .. }
+            | Command::TellMember { block, .. }
             | Command::Create { block, .. }
             | Command::SetParent { block, .. }
             | Command::Define { block, .. }
             | Command::SetAccess { block, .. }
+            | Command::Ban { block, .. }
+            | Command::TransferOwnership { block, .. }
             | Command::ListAccess { block, .. }
-            | Command::SetNotifyMode { block, .. }
+            | Command::ShareLink { block, .. }
+            | Command::ListNames { block, .. }
+            | Command::SetMute { block, .. }
             | Command::ReadHead { block, .. }
             | Command::CreateBlockAgent { block, .. }
             | Command::PlainFile { block, .. }
@@ -458,7 +639,6 @@ impl Command {
                 ..
             }) => Some(*block),
             Command::Duplicate { to, .. } => Some(*to),
-            #[cfg(any(test, feature = "testing"))]
             Command::Close(block) => Some(*block),
             #[cfg(test)]
             Command::Presence { block, .. }
@@ -474,14 +654,21 @@ impl Command {
             | Command::DismissPairing(_)
             | Command::Contact(_)
             | Command::Members(_)
-            | Command::Invite { .. }
+            | Command::Invitations(_)
             | Command::CreateAgent { .. }
             | Command::BlockAgent { .. }
             | Command::Push(_)
             | Command::Authorship(_)
             | Command::Sync
-            | Command::Storage
-            | Command::HoldClock(_) => None,
+            | Command::Storage(_)
+            | Command::WantSearches(..)
+            | Command::Edit(..)
+            | Command::HoldClock(_)
+            | Command::OfflineChoices(_)
+            | Command::Reads(..)
+            | Command::RestartHost(_)
+            | Command::WantChannels(_)
+            | Command::TellHost { .. } => None,
         }
     }
 
@@ -502,6 +689,11 @@ impl Command {
         match self {
             Command::SetParent { block, .. }
             | Command::SetAccess { block, .. }
+            | Command::TransferOwnership { block, .. }
+            | Command::ShareLink {
+                block,
+                change: ShareLinkCommand::Make { .. },
+            }
             | Command::CreateBlockAgent { block, .. }
             | Command::Leave { block, .. }
             | Command::Contact(ContactCommand::Link {
@@ -513,27 +705,57 @@ impl Command {
     }
 }
 
-type MembersReply = Box<dyn FnOnce(Result<Vec<be_block_protocol::Member>, String>) + Send>;
+type MembersReply = Reply<Result<crate::MemberList, String>>;
+
+/// A share link on a block, with the link to send when this account keeps its code (empty
+/// otherwise).
+pub type ShareLinks = Vec<(be_block_protocol::ShareLinkRow, String)>;
+
+#[derive(serde::Deserialize, serde::Serialize)]
+pub(super) enum ShareLinkCommand {
+    List(Reply<Result<ShareLinks, String>>),
+    Make {
+        access: Access,
+        admits: be_block_keys::Admits,
+        reply: LinkReply,
+    },
+    Revoke {
+        link: Uuid,
+        reply: DoneReply,
+    },
+}
+
+impl ShareLinkCommand {
+    fn refuse(self, why: &str) {
+        match self {
+            ShareLinkCommand::List(reply) => reply.send(Err(why.to_owned())),
+            ShareLinkCommand::Make { reply, .. } => reply.send(Err(why.to_owned())),
+            ShareLinkCommand::Revoke { reply, .. } => reply.send(Err(why.to_owned())),
+        }
+    }
+}
 
 /// What a device does with push notifications; a reply is the peer's error as text.
+#[derive(serde::Deserialize, serde::Serialize)]
 pub(super) enum PushCommand {
-    Key(Box<dyn FnOnce(Result<Vec<u8>, String>) + Send>),
+    Key(Reply<Result<Vec<u8>, String>>),
     Register {
         endpoint: be_block_protocol::PushEndpoint,
-        reply: Box<dyn FnOnce(Result<(), String>) + Send>,
+        reply: Reply<Result<(), String>>,
     },
     Unregister {
         address: String,
-        reply: Box<dyn FnOnce(Result<(), String>) + Send>,
+        reply: Reply<Result<(), String>>,
     },
     /// Opens one a push carried, offline, from the keys the device keeps.
     Open {
         message: be_block_protocol::PushMessage,
         now: i64,
-        reply: Box<dyn FnOnce(Result<be_block_client::OpenedNotification, String>) + Send>,
+        reply: Reply<Result<crate::replies::Opened, String>>,
     },
 }
 
+#[derive(serde::Deserialize, serde::Serialize)]
 pub(super) enum MembersCommand {
     List(MembersReply),
     SetRole {
@@ -547,15 +769,30 @@ pub(super) enum MembersCommand {
     },
 }
 
-type LinkReply = Box<dyn FnOnce(Result<String, String>) + Send>;
+type LinkReply = Reply<Result<String, String>>;
 
-type AgentReply = Box<dyn FnOnce(Result<crate::accounts::AgentCredentials, String>) + Send>;
+type InvitationsReply = Reply<Result<Vec<crate::Invite>, String>>;
 
-type BlockAgentReply =
-    Box<dyn FnOnce(Result<(Uuid, crate::accounts::AgentCredentials), String>) + Send>;
+/// The organization's invitations: making one, listing them, revoking one.
+#[derive(serde::Deserialize, serde::Serialize)]
+pub(super) enum InvitationsCommand {
+    /// Answers the new invitation's link.
+    Create(LinkReply),
+    List(InvitationsReply),
+    /// Answers the list as it is after.
+    Revoke {
+        link: Uuid,
+        reply: InvitationsReply,
+    },
+}
 
-type CardReply = Box<dyn FnOnce(Result<be_block_keys::ContactCard, String>) + Send>;
+type AgentReply = Reply<Result<crate::accounts::AgentCredentials, String>>;
 
+type BlockAgentReply = Reply<Result<(Uuid, crate::accounts::AgentCredentials), String>>;
+
+type CardReply = Reply<Result<be_block_keys::ContactCard, String>>;
+
+#[derive(serde::Deserialize, serde::Serialize)]
 pub(super) enum ContactCommand {
     Link {
         offer: Option<(Uuid, Access)>,
@@ -570,9 +807,47 @@ pub(super) enum ContactCommand {
         reply: CardReply,
     },
     Remove(Uuid),
+    /// Reads a share link before it is opened (guides/blocks/keys.md, "Share links").
+    PreviewShare {
+        code: be_block_keys::InviteCode,
+        reply: Reply<Result<SharePreview, String>>,
+    },
+    /// Opens a share link as this account, refused if it no longer shares the block, or grants
+    /// the level, that the person was shown (`expected`).
+    OpenShare {
+        code: be_block_keys::InviteCode,
+        expected: (Uuid, Access),
+        reply: Reply<Result<SharePreview, String>>,
+    },
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+/// A share link as a person is asked to open it: its block and that block's name as its maker
+/// saw it, the organization and whether opening it joins that organization as a guest, and
+/// what it grants.
+#[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
+pub struct SharePreview {
+    pub organization: Uuid,
+    pub organization_name: String,
+    pub block: Uuid,
+    pub name: String,
+    pub access: Access,
+    pub guest: bool,
+}
+
+impl SharePreview {
+    fn of(link: &be_block_protocol::ShareLink, name: String) -> Self {
+        Self {
+            organization: link.organization,
+            organization_name: link.organization_name.clone(),
+            block: link.block,
+            name,
+            access: link.access,
+            guest: link.guest,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct PairingRequest {
     pub from: u64,
     pub device: String,
@@ -583,21 +858,24 @@ const PAIRING_REQUEST_LIMIT: usize = 4;
 
 pub(super) const PEER_MESSAGE_LIMIT: usize = 4096;
 
+/// The worker's state. What the page reads is `seen`, which the worker hands over as a whole
+/// value (`seen::publish`); the rest only the worker reads. `Shared` reads as its `Seen` too.
 #[derive(Default)]
 pub struct Shared {
-    pub revision_previews: HashMap<Uuid, super::revisions::Preview>,
-    pub preview_aliases: HashMap<(Uuid, Uuid), Uuid>,
-    pub released_previews: Vec<Uuid>,
-    pub graph: Graph,
-    pub blocks: HashMap<Uuid, Content>,
-    pub described: HashMap<Uuid, Description>,
-    pub editor_frames: HashMap<EditorId, Vec<(Uuid, Vec<u8>)>>,
-    pub histories: HashMap<Uuid, History>,
+    pub seen: crate::Seen,
+    /// The last `Seen` the worker handed over, which the next update says what changed since
+    /// (`seen::publish`); `None` until the first, which goes whole.
+    pub(crate) handed: Option<crate::Seen>,
+    /// How many updates the worker handed over, for a debug build to check one now and then.
+    pub(crate) updates: u64,
     pub presence: HashMap<Uuid, (u64, Vec<Presence>)>,
     pub presence_revision: u64,
     pub peer_messages: HashMap<Uuid, std::collections::VecDeque<(u64, PeerMessage)>>,
+    /// The host's side of the hosted blocks whose lease this device holds (`crate::hosting`).
+    pub(crate) hosting: crate::hosting::Hosting,
+    /// The Join member's side of the hosted blocks an editor here joins (`crate::joining`).
+    pub(crate) joining: crate::joining::Joining,
     pub peer_message_count: u64,
-    pub wakes: u64,
     /// Passes of the loop in a row whose wait was over before it began: a loop that keeps
     /// waking itself shows here.
     pub unwaited_passes: u64,
@@ -605,24 +883,9 @@ pub struct Shared {
     /// bumped. A wait (`wait_until`) fails when it stops counting, not when the worker stops
     /// waking. Bump it beside any state a test may wait on.
     pub progressed: u64,
-    pub unsealed: usize,
-    pub saves: u64,
-    pub owing: usize,
-    /// The blocks `owing` counts, with what their seals wait on, for `busy` to name.
-    pub owing_blocks: Vec<be_block_type_host::Owing>,
-    /// The blocks `undurable` counts, for `busy` to name.
-    pub undurable_blocks: Vec<be_block_type_host::Owing>,
-    /// How many `Command::SealOwed` the worker has carried out, for `busy` to say whether the
-    /// host keeps asking.
-    pub seals_owed: u64,
-    /// What the worker waits on the type modules for (`Host::asking`), for `busy` to name.
-    pub asking: Vec<String>,
-    /// Open replicas with edits that are not in the device's journal yet.
-    pub undurable: usize,
-    pub connected: bool,
-    pub connection: Option<Arc<be_block_client::connection::Connection>>,
-    /// The workspace's peer, which knows what content this device holds.
-    pub peer: Option<Arc<Peer<Store>>>,
+    /// How many commands the page has sent: those the worker has not finished
+    /// (`Seen::done`) are pending.
+    pub sent: Arc<std::sync::atomic::AtomicUsize>,
     #[cfg(test)]
     pub connection_due: Option<tokio::sync::watch::Receiver<Duration>>,
     /// The clock and the moment the stack waits on to try the server again. A moment the clock
@@ -644,65 +907,56 @@ pub struct Shared {
     /// hold. Each start makes a fresh `Shared`, so the next stack starts with it unset.
     #[cfg(any(test, feature = "testing"))]
     pub crashed: bool,
-    pub reached: bool,
-    /// Between connecting and having asked for everything the device must catch up on: set as
-    /// `Session::arrive` starts, cleared once `arrive` has opened the wanted blocks and the
-    /// outbox has drained and the open replicas have rejoined their sessions.
-    pub arriving: bool,
-    /// Set when a command ran or a seal moved edits into the outbox, until `report` has read
-    /// the outbox into `waiting` again: `waiting` is stale meanwhile.
-    pub recounting: bool,
-    pub draining: bool,
-    /// Counts finished drains of the outbox.
-    pub drains: u64,
+    /// What `log_unlisted_held` logged, for a test to read.
+    #[cfg(test)]
+    pub unlisted_logged: Vec<crate::graph::UnlistedHeld>,
+    pub connection: Option<Arc<be_block_client::connection::Connection>>,
+    /// The workspace's peer, which knows what content this device holds.
+    pub peer: Option<Arc<Peer<Store>>>,
+    /// Whether `Seen::out_of_reach` was worked out offline, for every node: from then on only
+    /// for the nodes that moved (`Graph::take_nodes_moved`) and those in `reach_dirty`.
+    pub(crate) reach_offline: bool,
+    /// Blocks whose content the worker let go of (`expire_unsent`, a discarded unsent edit),
+    /// whose reach is worked out again though their node did not move.
+    pub(crate) reach_dirty: HashSet<Uuid>,
+    /// How many blocks' reach was worked out, for a test to tell it is only what changed.
+    #[cfg(test)]
+    pub(crate) reach_worked_out: u64,
     pub leaving: bool,
-    pub error: Option<String>,
-    /// What went wrong sending: a refused or failed drain of the outbox, or a refused append to
-    /// a session's journal. Unlike `error`, it is about being in step with the server, so it
-    /// clears once the device is connected and nothing waits to be sent (`report`).
-    pub sync_error: Option<String>,
     pub module_error: Option<(Uuid, String)>,
-    pub conflicts: HashMap<Uuid, Vec<Conflict>>,
-    pub pairing: Vec<PairingRequest>,
-    pub contacts: Vec<be_block_client::Contact>,
-    /// The account's storage, while an editor watches it (`storage_watched`).
-    pub storage: Option<be_block_protocol::AccountStorage>,
-    pub storage_watched: bool,
-    pub escrow_warning: Option<&'static str>,
-    /// The account's notification mode for each block it set to other than `all`, once read
-    /// (`Tasks::notify_modes`).
-    pub notify_modes: Option<HashMap<Uuid, be_block_protocol::NotifyMode>>,
-    /// Blocks an open replica found locked, until keys arrive (`Replicas::unlock`).
-    pub locked: std::collections::HashSet<Uuid>,
     /// Whether locked nodes are being read again as keys arrived (`Tasks::relearn_locked`), and
     /// whether more arrived meanwhile.
     pub(crate) relearning: Option<bool>,
     pub version_watch: std::collections::HashSet<Uuid>,
-    pub versions: HashMap<Uuid, super::version::VersionState>,
-    pub pending: usize,
-    pub typing: bool,
-    /// While the host holds the modules' clock and nothing else is in flight, when their
-    /// soonest timer that keeps a block in step comes due on it (`Modules::held_due`): what a
-    /// stopped clock must reach for that work to happen. `None` while anything else could still
-    /// make progress.
-    pub modules_due: Option<std::time::Instant>,
-    pub uploading: usize,
-    pub listing_revisions: usize,
-    /// Commands in the lane beside the loop that need only the server (`Served`).
-    pub serving: usize,
-    pub importing: usize,
-    /// What the worker's loop awaits while it is not waiting for its next wake-up, for the
-    /// busy reason that names what queued commands wait behind.
-    pub step: Option<&'static str>,
-    pub previewed: std::collections::HashSet<Uuid>,
-    pub staged: HashMap<Uuid, (Uuid, Vec<u8>)>,
+    /// Whether an editor watches the account's storage (`Command::Storage`).
+    pub storage_watched: bool,
     pub owned: std::collections::HashSet<Uuid>,
-    pub unreadable: HashMap<Uuid, String>,
-    pub waiting: usize,
-    pub unsent: Vec<be_block_client::UnsentBlock>,
-    pub comparison: Option<super::conflicts::Comparison>,
+    /// Blocks whose local edits were discarded with their unsent edits as the grace period
+    /// passed (`expire_unsent`): their open replicas close at the next pass
+    /// (`Replicas::stop_keeping`).
+    pub discarded: Vec<Uuid>,
     pub wall: Wall,
     pub search: super::search::Searching,
+    /// The account's reads and the unread counts made with them (`crate::unread`).
+    pub(crate) counting: crate::unread::Counting,
+    /// The `Searching::shown_revision` that `Seen::searched` was made at.
+    pub(crate) searched_at: Option<u64>,
+    /// The `be_block_type_host::known_revision` that `Seen::kinds` was made at.
+    pub(crate) kinds_at: Option<u64>,
+}
+
+impl std::ops::Deref for Shared {
+    type Target = crate::Seen;
+
+    fn deref(&self) -> &crate::Seen {
+        &self.seen
+    }
+}
+
+impl std::ops::DerefMut for Shared {
+    fn deref_mut(&mut self) -> &mut crate::Seen {
+        &mut self.seen
+    }
 }
 
 #[derive(Clone, Default)]
@@ -732,6 +986,9 @@ impl Shared {
     /// as deleted, and the parent as missing it, which would lose it for the person. Nothing is
     /// logged, or computed, while nothing dropped.
     pub(crate) fn log_dropped(&mut self) {
+        if !self.graph.has_dropped() {
+            return;
+        }
         for dropped in self.graph.take_dropped() {
             let parent = self.graph.get(dropped.parent);
             let replica = self
@@ -748,20 +1005,43 @@ impl Shared {
                 parent = dropped.parent,
                 by = dropped.by,
                 head = parent.and_then(|node| node.head),
-                references = parent
-                    .map(|node| node.references.clone())
-                    .unwrap_or_default(),
+                references = parent.and_then(|node| node.references.clone()),
                 open = self.blocks.contains_key(&dropped.parent),
                 connected = self.connected,
             );
         }
     }
 
+    /// Logs each listing whose answer left out blocks this device held as belonging in it
+    /// (`Graph::take_unlisted_held`): a list then shows fewer entries than this device made or
+    /// heard of, and the line says which listing, at which sequence, and whether the answer was
+    /// to a request from before the change that asked for it again.
+    pub(crate) fn log_unlisted_held(&mut self) {
+        for unlisted in self.graph.take_unlisted_held() {
+            eprintln!(
+                "be-host: the answer to {listing:?} {at} left out {blocks:?}, \
+                 which this device holds as listed there (an answer to a request from before a \
+                 change asked again: {stale}), connected: {connected}",
+                listing = unlisted.listing,
+                at = format!("at sequence {}", unlisted.sequence),
+                blocks = unlisted.blocks,
+                stale = unlisted.stale,
+                connected = self.connected,
+            );
+            #[cfg(test)]
+            self.unlisted_logged.push(unlisted);
+        }
+    }
+
     /// What apps are told of a block depends on whether the host is connected
-    /// (`BlockInfo::out_of_reach`), so they ask again when that changes.
+    /// (`BlockInfo::out_of_reach`), so they ask again when that changes. An unread count that
+    /// failed, perhaps offline, is tried again once connected (`Counting::reconnected`).
     fn set_connected(&mut self, connected: bool) {
         if self.connected != connected {
             self.connected = connected;
+            if connected {
+                self.counting.reconnected();
+            }
             self.graph.revision += 1;
             crate::changes::post(crate::Changes {
                 graph: true,
@@ -777,91 +1057,119 @@ impl Shared {
         crate::changes::block(block);
     }
 
-    /// What keeps the device from being in step with the server, apart from `busy`: drive's
-    /// `synced` waits until there is nothing.
-    pub fn unsynced(&self) -> Vec<String> {
-        let mut reasons = Vec::new();
-        if !self.connected {
-            reasons.push(match &self.error {
-                Some(error) => format!("the block store is not connected to the server: {error}"),
-                None => "the block store is not connected to the server".to_owned(),
-            });
-        }
-        if self.arriving {
-            reasons.push("the block store catches up with the server after connecting".to_owned());
-        }
-        if self.draining {
-            reasons.push("the block store sends the edits it kept".to_owned());
-        }
-        if self.serving > 0 {
-            reasons.push(format!(
-                "the block store waits on the server for {} command(s)",
-                self.serving
-            ));
-        }
-        if self.listing_revisions > 0 {
-            reasons.push("the block store asks the server for a block's revisions".to_owned());
-        }
-        if self.recounting {
-            reasons.push("the block store has yet to count what waits to be sent".to_owned());
-        }
-        let waiting = self.unsealed + self.waiting;
-        if waiting > 0 {
-            reasons.push(format!("{waiting} edit(s) wait to be sent"));
-        }
-        reasons
+    /// Commands the page sent that the worker has not finished.
+    pub fn pending(&self) -> usize {
+        self.sent
+            .load(std::sync::atomic::Ordering::Acquire)
+            .saturating_sub(self.seen.done)
     }
 
+    /// Why the block store keeps a driver waiting (`crate::busy`), as of now.
     pub fn busy(&self, hurried: bool) -> Vec<String> {
-        let mut reasons: Vec<String> = [
-            (
-                self.pending > 0,
-                "the block store has commands to carry out",
-            ),
-            (self.typing, "a block type module has yet to settle"),
-            (self.uploading > 0, "the block store uploads files"),
-            (
-                self.graph.fetching(),
-                "the block store loads the organization's graph",
-            ),
-        ]
-        .into_iter()
-        .filter_map(|(busy, reason)| busy.then_some(reason.to_owned()))
-        .collect();
-        if self.undurable > 0 {
-            let blocks: Vec<String> = self
-                .undurable_blocks
-                .iter()
-                .map(ToString::to_string)
+        self.seen.busy_with(
+            hurried,
+            self.pending(),
+            self.search.busy_with(super::search::wants_index(self)),
+        )
+    }
+
+    /// Brings what `Seen` derives from the worker's own state up to date, before it is handed
+    /// over (`seen::publish`).
+    pub(crate) fn refresh_seen(&mut self) {
+        let revision = self.search.shown_revision();
+        if self.searched_at != Some(revision) {
+            self.searched_at = Some(revision);
+            self.seen.searched = crate::seen::Part::new(self.search.shown());
+        }
+        let known = be_block_type_host::known_revision();
+        if self.kinds_at != Some(known) {
+            self.kinds_at = Some(known);
+            self.seen.kinds = be_block_type_host::known()
+                .into_iter()
+                .map(|(content_type, kind)| {
+                    (content_type, kind.as_ref().map(crate::seen::KnownKind::of))
+                })
                 .collect();
-            reasons.push(format!(
-                "the block store keeps edits the device's journal does not hold yet, for {}",
-                blocks.join(", ")
-            ));
         }
-        if hurried && self.owing > 0 {
-            let blocks: Vec<String> = self.owing_blocks.iter().map(ToString::to_string).collect();
-            reasons.push(format!(
-                "the block store owes edits a seal, for {} (sealed what was owed {} time(s))",
-                blocks.join(", "),
-                self.seals_owed
-            ));
-        }
-        if let Some(searching) = self.search.busy_with(super::search::wants_index(self)) {
-            reasons.push(format!("the block store's search is busy: {searching}"));
-        }
-        if self.pending > 0
-            && let Some(step) = self.step
+        self.seen.search_indexed = self.search.indexed();
+        self.seen.search_busy = self
+            .search
+            .busy_with(super::search::wants_index(self))
+            .map(str::to_owned);
+        self.refresh_reach();
+    }
+
+    /// Works out which blocks are out of reach (`Seen::out_of_reach`) when the graph or the
+    /// connection moved since: offline, a node with a head this device holds no version of
+    /// whole (`app_graph::out_of_reach`). The page reads the answer, never the peer.
+    ///
+    /// Offline, what this device holds of a block changes only with a commit made here, which
+    /// its replica reports as the block's head (its node moves), or as the worker opens it, reads
+    /// a version of it (which can record one held, `refs.hold`) or lets go of its content: those
+    /// mark it in `reach_dirty` (`reach_may_change`). Nothing arrives without the server, and
+    /// what the peer once found held whole it keeps finding (`Peer::held_head`). So the work is
+    /// proportional to what moved, after one pass over the graph as the device goes offline.
+    ///
+    /// It runs as the worker publishes, under the lock on `Shared`, held_head calls and all:
+    /// `Seen` is copied and put under that lock so puts land in order (`seen::publish`), and
+    /// only the worker and a test take it, so nothing that must not wait waits on it.
+    fn refresh_reach(&mut self) {
+        let moved = match self.seen.graph.has_nodes_moved() {
+            true => self.seen.graph.take_nodes_moved(),
+            false => imbl::OrdSet::new(),
+        };
+        // A local account holds everything it has: nothing of it is out of reach.
+        let Some(peer) = self
+            .peer
+            .clone()
+            .filter(|_| !self.seen.connected && !self.seen.local)
+        else {
+            if self.reach_offline {
+                self.reach_offline = false;
+                self.seen.out_of_reach = imbl::OrdSet::new();
+            }
+            self.reach_dirty.clear();
+            return;
+        };
+        let blocks: Vec<Uuid> = match std::mem::replace(&mut self.reach_offline, true) {
+            false => {
+                self.seen.out_of_reach = imbl::OrdSet::new();
+                self.seen.graph.nodes().map(|node| node.id).collect()
+            }
+            true => moved
+                .into_iter()
+                .chain(self.reach_dirty.iter().copied())
+                .collect(),
+        };
+        self.reach_dirty.clear();
+        #[cfg(test)]
         {
-            reasons.push(format!("the block store's loop is busy with {step}"));
+            self.reach_worked_out += blocks.len() as u64;
         }
-        if !self.asking.is_empty() {
-            reasons.push(format!(
-                "the block store waits on its type modules for {}",
-                self.asking.join(", ")
-            ));
+        for block in blocks {
+            let lost = self
+                .seen
+                .graph
+                .get(block)
+                .is_some_and(|node| super::app_graph::out_of_reach(&peer, node));
+            if lost != self.seen.out_of_reach.contains(&block) {
+                match lost {
+                    true => self.seen.out_of_reach.insert(block),
+                    false => self.seen.out_of_reach.remove(&block),
+                };
+            }
         }
-        reasons
+    }
+
+    /// Applies the page's edits as the worker takes them (`Command::Edit`).
+    pub(crate) fn apply(&mut self, number: u64, edits: &[crate::seen::Edit]) {
+        for edit in edits {
+            for block in edit.apply(&mut self.seen) {
+                self.touch(block);
+            }
+        }
+        self.seen.edits_applied = self.seen.edits_applied.max(number);
+        self.progressed += 1;
     }
 }
 
@@ -881,7 +1189,7 @@ pub struct Presence {
     pub value: Vec<u8>,
 }
 
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct History {
     pub can_undo: bool,
     pub can_redo: bool,
@@ -892,15 +1200,42 @@ pub struct History {
 }
 
 pub(super) async fn serve<S: Fn() -> Result<Store, String>>(
-    config: Config,
+    Start {
+        config,
+        held_clock,
+        offline_choices,
+        reads,
+        ..
+    }: Start,
     make_store: S,
     Inbox {
         mut commands,
         mut nudged,
+        handover,
+        stopped,
     }: Inbox,
     shared: Arc<Mutex<Shared>>,
     changed: Arc<Condvar>,
 ) {
+    crate::offline_choice::set(offline_choices);
+    shared
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .counting
+        .set_all(reads);
+    let _worker = crate::seen::Worker::enter(&shared, &handover);
+    let closing = Arc::clone(&shared);
+    platform::spawn_local(async move {
+        let _ = stopped.await;
+        let connection = closing
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .connection
+            .take();
+        if let Some(connection) = connection {
+            connection.close();
+        }
+    });
     let mut replicas = Replicas::new(Modules::with_kinds_changed(
         types::sources().await,
         config.clock.clone(),
@@ -908,18 +1243,29 @@ pub(super) async fn serve<S: Fn() -> Result<Store, String>>(
         // host's frame, which takes the notice.
         super::changes::stale,
     ));
-    replicas.modules.hold_clock(super::held_clock());
+    replicas.modules.hold_clock(held_clock);
     replicas.modules.ready().await;
-    be_host_base::host::wake();
-    let started = match cached(&config, &make_store) {
-        Some(peer) => Some((peer, None)),
-        None => first_connect(&config, &make_store, &mut nudged, &shared, &changed).await,
+    crate::changes::wake();
+    let started = match (config.is_local(), cached(&config, &make_store)) {
+        (true, _) => local(&config, &make_store, &shared).map(|peer| (peer, None)),
+        (false, Some(peer)) => Some((peer, None)),
+        (false, None) => first_connect(&config, &make_store, &mut nudged, &shared, &changed).await,
     };
     if let Some((peer, open)) = started {
-        shared.lock().unwrap_or_else(PoisonError::into_inner).peer = Some(Arc::clone(&peer));
+        {
+            let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+            held.peer = Some(Arc::clone(&peer));
+            held.graph.organized(peer.organization());
+        }
+        // The blocks discarded before a restart stay marked from the start, not only once a
+        // replica of each opens: graph commands are capped by the mark too (`crate::access`).
+        for block in peer.all_discarded() {
+            set_marked(&shared, block, true);
+        }
         forget_what_is_not_kept(&peer);
         resolve_through_graph(&peer, &shared);
         let tasks = Tasks::new();
+        let served = Served::default();
         let mut session = Session {
             config: &config,
             peer: &peer,
@@ -930,8 +1276,8 @@ pub(super) async fn serve<S: Fn() -> Result<Store, String>>(
             wanted: Wanted::default(),
             replicas: &mut replicas,
             uploads: Uploads::new(&shared),
-            served: Served::default(),
-            versions: Versions::default(),
+            versions: Versions::sharing(served.objects()),
+            served,
             calls: {
                 let (calls, called) = tokio::sync::mpsc::unbounded_channel();
                 (
@@ -956,7 +1302,12 @@ pub(super) async fn serve<S: Fn() -> Result<Store, String>>(
     let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
     held.peer = None;
     held.set_connected(false);
+    // Whatever else still holds the connection, the stack that made it is done with it.
+    let connection = held.connection.take();
     drop(held);
+    if let Some(connection) = connection {
+        connection.close();
+    }
     changed.notify_all();
 }
 
@@ -982,6 +1333,31 @@ fn peer_config(config: &Config, refs: be_block_client::RefsDb) -> PeerConfig {
     )
     .organization(Some(config.organization))
     .refs(refs)
+}
+
+/// A local account's peer, with no server (`Peer::local`).
+fn local<S: Fn() -> Result<Store, String>>(
+    config: &Config,
+    make_store: &S,
+    shared: &Arc<Mutex<Shared>>,
+) -> Option<Arc<Peer<Store>>> {
+    let made = make_store().and_then(|store| {
+        let refs = super::refs(config)?;
+        Peer::local(
+            peer_config(config, refs),
+            config.account,
+            config.organization,
+            store,
+        )
+        .map_err(|error| error.to_string())
+    });
+    match made {
+        Ok(peer) => Some(Arc::new(peer)),
+        Err(error) => {
+            fail(shared, error);
+            None
+        }
+    }
 }
 
 fn cached<S: Fn() -> Result<Store, String>>(
@@ -1031,7 +1407,7 @@ async fn first_connect<S: Fn() -> Result<Store, String>>(
         #[cfg(any(test, feature = "testing"))]
         reconnecting_at(shared, Some((config.clock.clone(), at)));
         changed.notify_all();
-        be_host_base::host::wake();
+        crate::changes::wake();
         let waited = config.clock.sleep_until(at);
         let nudge = std::pin::pin!(nudged.changed());
         if let Either::Right((Err(_), _)) = select(waited, nudge).await {
@@ -1082,6 +1458,8 @@ enum Line {
         gone: tokio::sync::watch::Receiver<bool>,
         _open: Opened,
     },
+    /// A local account's, which has no server to reach.
+    Local,
     Down {
         failures: u32,
         /// When it tries again, on the config's clock.
@@ -1105,6 +1483,9 @@ impl Line {
     /// when the future first runs: a clock moved on between the two (a test's wait moving it to
     /// the moment `Shared::reconnect` says) would put the sleep's end past the moment it moved to.
     fn down(config: &Config, failures: u32, delay: Duration) -> Self {
+        if config.is_local() {
+            return Self::Local;
+        }
         let clock = config.clock.clone();
         let url = config.server_url.clone();
         let token = config.token.clone();
@@ -1126,7 +1507,7 @@ impl Line {
     fn quiet(&self) -> bool {
         match self {
             Self::Up { events, .. } => events.is_empty(),
-            Self::Down { .. } => true,
+            Self::Down { .. } | Self::Local => true,
         }
     }
 
@@ -1144,6 +1525,7 @@ impl Line {
                 }
             }
             Self::Down { reaching, .. } => Woken::Reached(reaching.as_mut().await),
+            Self::Local => std::future::pending().await,
         }
     }
 }
@@ -1151,7 +1533,7 @@ impl Line {
 struct Session<'a> {
     config: &'a Config,
     peer: &'a Arc<Peer<Store>>,
-    commands: &'a mut UnboundedReceiver<Command>,
+    commands: &'a mut Commands,
     nudged: &'a mut super::nudge::Nudged,
     shared: &'a Arc<Mutex<Shared>>,
     changed: &'a Arc<Condvar>,
@@ -1191,6 +1573,7 @@ impl Session<'_> {
         }
         match open {
             Some(open) => self.arrive(open).await,
+            None if self.config.is_local() => self.arrive_locally().await,
             None => {
                 self.depart(0);
                 want_open(shared, &self.wanted.blocks());
@@ -1199,14 +1582,20 @@ impl Session<'_> {
                 self.refresh_versions().await;
                 report(peer, shared);
                 self.changed.notify_all();
-                be_host_base::host::wake();
+                crate::changes::wake();
             }
         }
         let mut flushes = Vec::new();
+        // Commands that seal the open blocks first (a version snapshot, the bookmark a restore
+        // keeps), held until the server ordered what they were sent after, which a seal then
+        // holds.
+        let mut after_order: Vec<Command> = Vec::new();
         let mut kept_for_flushes = false;
         let mut keyed: HashMap<Uuid, Uuid> = HashMap::new();
         let mut stopping = false;
         loop {
+            // What the host runs ahead of every pass (on the web, keeping its files).
+            platform::first();
             // A crash ends the worker before its next pass, so nothing more is written.
             #[cfg(any(test, feature = "testing"))]
             if shared
@@ -1234,10 +1623,11 @@ impl Session<'_> {
             .into_iter()
             .flatten()
             .min();
-            shared
-                .lock()
-                .unwrap_or_else(PoisonError::into_inner)
-                .log_dropped();
+            {
+                let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+                held.log_dropped();
+                held.log_unlisted_held();
+            }
             step(shared, None);
             let woken = {
                 let waited = std::pin::pin!(wait(
@@ -1358,16 +1748,34 @@ impl Session<'_> {
                         let quick = command.is_quick();
                         step(shared, Some(command.name()));
                         match command {
+                            Command::Edit(number, edits) => {
+                                shared
+                                    .lock()
+                                    .unwrap_or_else(PoisonError::into_inner)
+                                    .apply(number, &edits);
+                                ran.done(false);
+                            }
+                            Command::WantSearches(owner, searches) => {
+                                shared
+                                    .lock()
+                                    .unwrap_or_else(PoisonError::into_inner)
+                                    .search
+                                    .want(owner, searches);
+                                ran.done(false);
+                            }
                             Command::Import(blocks) => {
                                 self.uploads.add(blocks);
                                 ran.done(false);
                             }
+                            command
+                                if seals_first(&command)
+                                    && (!after_order.is_empty() || order_pending(ran.replicas)) =>
+                            {
+                                after_order.push(command);
+                            }
                             command => {
-                                let runs = self
-                                    .uploads
-                                    .defer(command)
-                                    .and_then(|command| ran.served.defer(command));
-                                if let Some(command) = runs {
+                                if let Some(command) = admit(&mut self.uploads, ran.served, command)
+                                {
                                     applied |= ran.carry_out(command).await;
                                 }
                             }
@@ -1391,11 +1799,18 @@ impl Session<'_> {
                         calls: &self.calls.0,
                     };
                     let mut applied = false;
+                    let mut held = Vec::new();
                     for command in self.uploads.runnable() {
-                        step(shared, Some(command.name()));
-                        applied |= ran.run(command).await;
+                        if seals_first(&command) && order_pending(ran.replicas) {
+                            held.push(command);
+                        } else if let Some(command) = ran.served.defer(command) {
+                            step(shared, Some(command.name()));
+                            applied |= ran.carry_out(command).await;
+                        }
                     }
-                    be_host_base::host::wake();
+                    // Sent before anything still waiting there.
+                    after_order.splice(0..0, held);
+                    crate::changes::wake();
                     applied
                 }
                 Woken::Event(event) => {
@@ -1412,18 +1827,28 @@ impl Session<'_> {
                         }
                     }
                     for event in heard_all {
-                        if matches!(event, Some(Event::BlockChanged { .. }) | None) {
+                        if matches!(event, Some(Event::TreeAdvanced { .. }) | None) {
                             self.versions.announced();
                         }
                         let keyed = matches!(event, Some(Event::KeysChanged));
                         if keyed {
                             peer.keys_changed();
                         }
+                        // An unread count made from a block's log is made again.
+                        if let Some(Event::Appended(appended)) = &event {
+                            shared
+                                .lock()
+                                .unwrap_or_else(PoisonError::into_inner)
+                                .counting
+                                .appended(appended.block);
+                        }
                         match &event {
                             Some(message) => self.replicas.heard((peer, shared), message),
                             None => self.replicas.resynchronize((peer, shared)),
                         }
-                        heard(peer, shared, &self.tasks.0, self.replicas, event).await;
+                        crate::hosting::heard(peer, shared, &self.tasks.0, event.as_ref());
+                        crate::joining::heard(peer, shared, &self.tasks.0, event.as_ref());
+                        heard(peer, shared, &self.tasks.0, event).await;
                         if keyed {
                             self.unlock(peer, shared).await;
                         }
@@ -1454,10 +1879,16 @@ impl Session<'_> {
                         served: &mut self.served,
                         calls: &self.calls.0,
                     };
+                    let mut held = Vec::new();
                     for command in runnable {
+                        if seals_first(&command) && order_pending(ran.replicas) {
+                            held.push(command);
+                            continue;
+                        }
                         step(shared, Some(command.name()));
                         ran.carry_out(command).await;
                     }
+                    after_order.splice(0..0, held);
                     true
                 }
             };
@@ -1481,6 +1912,41 @@ impl Session<'_> {
             moved |= version_revisions(shared) != before;
             want_open(shared, &self.wanted.blocks());
             step(shared, Some("the search index"));
+            // A local account has no server to catch its search indexes up from: what it
+            // settled this pass is queued as what this device sealed is, but for the indexes,
+            // which indexing writes.
+            {
+                let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+                for block in peer.take_settled_here() {
+                    let index = peer.known_summary(block).is_some_and(|summary| {
+                        summary.content_type == be_block_graph::SEARCH_INDEX_TYPE
+                    });
+                    if !index {
+                        held.search.sealed(block);
+                    }
+                    // Its size and the tree sizes above it moved (`Refs::grow`), which no
+                    // listing will tell the graph: it reads them from the summaries.
+                    let mut at = Some(block);
+                    let mut seen = std::collections::HashSet::new();
+                    while let Some(current) = at.filter(|current| seen.insert(*current)) {
+                        let Some(summary) = peer.known_summary(current) else {
+                            break;
+                        };
+                        at = summary.parent.and_then(BlockParent::block);
+                        let sizes = (summary.size, summary.tree_size);
+                        if held
+                            .graph
+                            .get(current)
+                            .is_some_and(|node| (node.size, node.tree_size) != sizes)
+                        {
+                            held.graph.update(current, |node| {
+                                (node.size, node.tree_size) = sizes;
+                            });
+                            held.graph.settle(current);
+                        }
+                    }
+                }
+            }
             moved |= super::search::step(
                 peer,
                 shared,
@@ -1489,10 +1955,36 @@ impl Session<'_> {
                 &self.config.clock,
             )
             .await;
+            step(shared, Some("unread counts"));
+            moved |= crate::unread::step(peer, shared, self.replicas, &self.tasks.0).await;
             spawn_listings(peer, shared, &self.tasks.0);
+            let replicas = &*self.replicas;
+            crate::joining::step(peer, shared, &self.tasks.0, |block| {
+                replicas.is_open(block) || replicas.is_leaving(block)
+            });
+            if !after_order.is_empty() && !order_pending(self.replicas) {
+                let mut ran = Ran {
+                    peer,
+                    replicas: &mut *self.replicas,
+                    wanted: &mut self.wanted,
+                    shared,
+                    config: self.config,
+                    flushes: &mut flushes,
+                    tasks: &self.tasks.0,
+                    served: &mut self.served,
+                    calls: &self.calls.0,
+                };
+                for command in std::mem::take(&mut after_order) {
+                    if let Some(command) = admit(&mut self.uploads, ran.served, command) {
+                        step(shared, Some(command.name()));
+                        moved |= ran.carry_out(command).await;
+                    }
+                }
+            }
             if self.line.quiet()
                 && (self.uploads.is_empty() || !self.line.is_up())
                 && !flushes.is_empty()
+                && !self.replicas.ordering()
             {
                 if !std::mem::replace(&mut kept_for_flushes, true) {
                     step(shared, Some("keeping the open blocks for a flush"));
@@ -1525,7 +2017,17 @@ impl Session<'_> {
             // only in the replicas' changes.
             moved |= self.replicas.take_changed();
             moved |= report(peer, shared);
-            let typing = !self.replicas.modules.settled();
+            let discarded = std::mem::take(
+                &mut shared
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .discarded,
+            );
+            for block in discarded {
+                self.replicas.stop_keeping(block);
+                set_marked(shared, block, peer.discarded(block));
+            }
+            let typing = self.replicas.modules.unsettled();
             // A held clock is moved to a module's timer only when nothing but that timer can
             // make progress: the line is up, nothing sent waits for an answer, and no module is
             // still working. Offline, the reconnect is what's next, not a module's timer.
@@ -1533,25 +2035,36 @@ impl Session<'_> {
                 && self.line.quiet()
                 && !self.tasks.0.syncing()
                 && self.uploads.is_empty()
-                && !typing;
-            let (was_typing, was_due, due) = {
+                && typing.is_empty();
+            let (typing_changed, was_due, due) = {
                 let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
-                if moved || held.typing != typing {
+                // Progress is the modules settling or starting work, not why they have not: a
+                // module that keeps busy changes its reasons without moving anything on.
+                let typing_changed = held.typing.is_empty() != typing.is_empty();
+                if moved || typing_changed {
                     held.progressed += 1;
                 }
-                let due = (idle && held.waiting == 0 && held.pending == 0 && !held.arriving)
-                    .then(|| self.replicas.modules.held_due())
-                    .flatten();
+                // A listing read again waits on the server, whose answer can make progress.
+                let due = (idle
+                    && held.waiting == 0
+                    && held.pending() == 0
+                    && !held.arriving
+                    && !held.graph.refreshing())
+                .then(|| self.replicas.modules.held_due())
+                .flatten();
+                held.typing = typing;
                 (
-                    std::mem::replace(&mut held.typing, typing),
+                    typing_changed,
                     std::mem::replace(&mut held.modules_due, due),
                     due,
                 )
             };
             self.changed.notify_all();
-            if moved || was_typing != typing || was_due != due {
-                be_host_base::host::wake();
+            if moved || typing_changed || was_due != due {
+                crate::changes::wake();
             }
+            // The pass is over: the page reads what it did, and hears of it.
+            crate::seen::publish_now();
         }
     }
 
@@ -1593,6 +2106,14 @@ impl Session<'_> {
         if !self.tasks.0.syncing() {
             self.replicas.created((peer, shared));
         }
+        // Heads the server moved on to, by whatever read learned them (`Peer::take_moved_heads`):
+        // an open block's replica takes each unless it has it.
+        for (block, head) in peer.take_moved_heads() {
+            // One this device published past since is no news: the replica holds a descendant.
+            if !peer.superseded(block, head) {
+                self.replicas.heard_head((peer, shared), block, head);
+            }
+        }
         // Only what was published drains: a seal kept since stays sending.
         for (block, head, refused) in self.tasks.0.take_published() {
             let commits = match refused {
@@ -1600,6 +2121,10 @@ impl Session<'_> {
                 false => head.into_iter().collect(),
             };
             self.replicas.drained(block, refused, commits);
+        }
+        // Entries of a log the server refused: the replica hears what the device keeps of them.
+        for block in self.tasks.0.take_not_appended() {
+            self.replicas.not_appended((peer, shared), block);
         }
         let diverged = self.tasks.0.take_diverged();
         let merged = !diverged.is_empty();
@@ -1636,6 +2161,7 @@ impl Session<'_> {
         self.rejoin = false;
         if self.line.is_up() {
             self.replicas.reconnect((peer, shared));
+            crate::joining::reconnect(shared);
         }
         if !self.in_arrive {
             arrived(shared);
@@ -1646,7 +2172,7 @@ impl Session<'_> {
     fn failures(&self) -> u32 {
         match self.line {
             Line::Down { failures, .. } => failures,
-            Line::Up { .. } => 0,
+            Line::Up { .. } | Line::Local => 0,
         }
     }
 
@@ -1670,14 +2196,15 @@ impl Session<'_> {
         }
         shared_offline(self.shared);
         self.changed.notify_all();
-        be_host_base::host::wake();
+        crate::changes::wake();
     }
 
     /// Keys arrived: the replicas found locked open again, and so does a block still wanted that
     /// a lock kept from opening.
     async fn unlock(&mut self, peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
         let wanted = self.wanted.blocks();
-        for block in self.replicas.unlock(shared) {
+        self.replicas.read_set_aside(peer, shared);
+        for block in self.replicas.unlock((peer, shared)).await {
             if let Some(content_type) = wanted.get(&block) {
                 open_wanted(
                     peer,
@@ -1690,6 +2217,37 @@ impl Session<'_> {
                 .await;
             }
         }
+    }
+
+    /// A local account's stack starts as one that arrived, with nothing to catch up on: what
+    /// it holds is all there is (`Peer::local`).
+    async fn arrive_locally(&mut self) {
+        let (peer, shared) = (self.peer, self.shared);
+        {
+            let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+            held.reached = true;
+            held.local = true;
+            held.error = None;
+        }
+        self.tasks.0.sync(peer, shared);
+        want_open(shared, &self.wanted.blocks());
+        relist(shared);
+        spawn_listings(peer, shared, &self.tasks.0);
+        for (block, content_type) in self.wanted.blocks() {
+            open_wanted(
+                peer,
+                shared,
+                &self.wanted,
+                self.replicas,
+                block,
+                content_type,
+            )
+            .await;
+        }
+        self.refresh_versions().await;
+        report(peer, shared);
+        self.changed.notify_all();
+        crate::changes::wake();
     }
 
     async fn arrive(&mut self, open: Opened) {
@@ -1715,14 +2273,15 @@ impl Session<'_> {
             }
         }
         self.changed.notify_all();
-        be_host_base::host::wake();
+        crate::changes::wake();
         self.drained_at = self.config.clock.now();
         self.tasks.0.sync(peer, shared);
         want_open(shared, &self.wanted.blocks());
         relist(shared);
         spawn_listings(peer, shared, &self.tasks.0);
         self.tasks.0.contacts(peer, shared);
-        self.tasks.0.notify_modes(peer, shared);
+        self.tasks.0.mutes(peer, shared);
+        self.tasks.0.account_notices(peer);
         self.tasks.0.storage(peer, shared);
         self.rejoin = true;
         self.in_arrive = true;
@@ -1739,6 +2298,7 @@ impl Session<'_> {
             .await;
         }
         self.replicas.pump((peer, shared)).await;
+        self.replicas.follow_logs((peer, shared));
         self.versions.reconnected();
         shared
             .lock()
@@ -1754,12 +2314,15 @@ impl Session<'_> {
         }
         report(peer, shared);
         self.changed.notify_all();
-        be_host_base::host::wake();
+        crate::changes::wake();
     }
 }
 
 fn step(shared: &Arc<Mutex<Shared>>, step: Option<&'static str>) {
-    shared.lock().unwrap_or_else(PoisonError::into_inner).step = step;
+    let mut shared = shared.lock().unwrap_or_else(PoisonError::into_inner);
+    if shared.step.as_deref() != step {
+        shared.step = step.map(str::to_owned);
+    }
 }
 
 /// The device has asked for everything it missed while away (`Shared::arriving`).
@@ -1777,24 +2340,43 @@ fn shared_offline(shared: &Arc<Mutex<Shared>>) {
     held.connection = None;
 }
 
-/// Publishes the outbox: answers the blocks that diverged, and those with the head the drain
-/// published (false) or that the server refused (true, `Replicas::drained`).
+/// Publishes the outbox: answers the blocks that diverged, those with the head the drain
+/// published (false) or that the server refused (true, `Replicas::drained`), and those with
+/// entries of their log the server refused (`Replicas::not_appended`).
 async fn drain_outbox(
     peer: &Arc<Peer<Store>>,
     shared: &Arc<Mutex<Shared>>,
 ) -> (
     Vec<(Uuid, CommitId, Option<CommitId>)>,
     Vec<(Uuid, Option<CommitId>, bool)>,
+    std::collections::BTreeSet<Uuid>,
 ) {
     let mut diverged = Vec::new();
     let mut published = Vec::new();
+    let mut not_appended = std::collections::BTreeSet::new();
     if peer.pending().operations == 0 {
         // What waited for the server to be reached goes now.
         be_block_type_host::replicas::send_announcements::<Shared>(peer, shared).await;
-        return (diverged, published);
+        return (diverged, published, not_appended);
     }
     match peer.drain(|_| false).await {
         Ok(drained) => {
+            shared
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .last_drain = drained
+                .iter()
+                .filter(|outcome| {
+                    !matches!(
+                        outcome,
+                        be_block_client::Drained::Created { .. }
+                            | be_block_client::Drained::Published { .. }
+                            | be_block_client::Drained::Moved { .. }
+                            | be_block_client::Drained::Defined { .. }
+                    )
+                })
+                .map(|outcome| format!("{outcome:?}"))
+                .collect();
             // A block any of whose commits was refused or set aside keeps them unsent; one
             // that failed or diverged tries again.
             let refused: std::collections::HashSet<Uuid> = drained
@@ -1845,8 +2427,7 @@ async fn drain_outbox(
                         let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
                         held.graph.relist_around(*block, parent);
                         if let Some(from) = from {
-                            held.graph
-                                .relist(be_block_protocol::Listing::Children(*from));
+                            held.graph.relist(Listing::Children(*from));
                         }
                     }
                     be_block_client::Drained::Refused {
@@ -1855,6 +2436,9 @@ async fn drain_outbox(
                         ..
                     } => {
                         shown_as_refused(peer, shared, *block);
+                    }
+                    be_block_client::Drained::NotAppended { block, .. } => {
+                        not_appended.insert(*block);
                     }
                     // Shown among the unsent edits; it leaves the files with what was made in it.
                     be_block_client::Drained::SetAside { block, .. } => {
@@ -1873,6 +2457,11 @@ async fn drain_outbox(
                         if !missed.contains(&block) =>
                     {
                         published.push((block, Some(head), false));
+                        // What it was sealed again in the place of (`Drained::Resealed`) is
+                        // what a replica kept: it reached the server as this did.
+                        for before in peer.resealed_as(head) {
+                            published.push((block, Some(before), false));
+                        }
                     }
                     be_block_client::Drained::Created { block }
                         if !missed.contains(&block) && peer.pending_commits(block).is_empty() =>
@@ -1886,7 +2475,10 @@ async fn drain_outbox(
                     } => {
                         diverged.push((block, local, remote));
                     }
-                    be_block_client::Drained::SetAside { block, code } => {
+                    be_block_client::Drained::SetAside {
+                        block,
+                        why: be_block_client::Aside::Refused(code),
+                    } => {
                         // Named by the block that was refused, not what was made in it.
                         let named = named_block(peer, refused_above(peer, block));
                         let why = crate::refusal(code);
@@ -1895,6 +2487,18 @@ async fn drain_outbox(
                             .unwrap_or_else(PoisonError::into_inner)
                             .sync_error = Some(format!(
                             "The server refused to make {named}: {why}. It waits among the unsent edits."
+                        ));
+                    }
+                    be_block_client::Drained::SetAside {
+                        block,
+                        why: be_block_client::Aside::KeyOutdated,
+                    } => {
+                        let named = named_block(peer, block);
+                        shared
+                            .lock()
+                            .unwrap_or_else(PoisonError::into_inner)
+                            .sync_error = Some(format!(
+                            "An edit to {named} was locked offline with a key someone who lost access may hold, so it was not sent. It waits among the unsent edits: discard it to go on editing {named}."
                         ));
                     }
                     be_block_client::Drained::Refused { block, code, .. } => {
@@ -1924,7 +2528,7 @@ async fn drain_outbox(
     // The drain published commits holding announced edits.
     be_block_type_host::replicas::send_announcements::<Shared>(peer, shared).await;
     report(peer, shared);
-    (diverged, published)
+    (diverged, published, not_appended)
 }
 
 /// After the server refused a move or a definition of `block`, the graph shows it as the server
@@ -1937,11 +2541,10 @@ fn shown_as_refused(peer: &Peer<Store>, shared: &Arc<Mutex<Shared>>, block: Uuid
     let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
     let shown = held.graph.get(block).and_then(|node| node.parent);
     let parent = summary.parent;
-    held.graph.put(node_of(peer, &summary), summary.revision);
+    held.graph.put(node_of(peer, &summary), summary.changed);
     held.graph.relist_around(block, parent);
     if let Some(shown) = shown {
-        held.graph
-            .relist(be_block_protocol::Listing::Children(shown));
+        held.graph.relist(Listing::Children(shown));
     }
 }
 
@@ -1982,7 +2585,7 @@ fn set_draining(shared: &Arc<Mutex<Shared>>, draining: bool) {
             held.drains += 1;
         }
     }
-    be_host_base::host::wake();
+    crate::changes::wake();
 }
 
 pub(super) fn expired_unsent(
@@ -2004,13 +2607,28 @@ pub(super) fn expired_unsent(
         .collect()
 }
 
-pub(super) fn expire_unsent(peer: &Peer<Store>, now: i64) {
+/// Has `Seen::out_of_reach` worked out again for `block`, whose versions this device holds may
+/// have changed though its node did not move: a replica opened it, or a version of it was read
+/// (which can record a held version, `refs.hold`), or the worker let go of its content.
+pub(crate) fn reach_may_change(shared: &Arc<Mutex<Shared>>, block: Uuid) {
+    shared
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .reach_dirty
+        .insert(block);
+}
+
+/// Lets go of the unsent edits too old to keep, and their blocks' cached content: answers the
+/// blocks let go of (`Shared::reach_dirty`).
+pub(super) fn expire_unsent(peer: &Peer<Store>, now: i64) -> Vec<Uuid> {
     let company = peer.kind() == be_block_protocol::OrganizationKind::Company;
     let choice = crate::offline_choice::choice(Uuid::nil());
-    for block in expired_unsent(&peer.unsent(), company, &choice, now) {
-        let _ = peer.discard_unsent(block);
-        let _ = peer.forget_cached(block);
+    let expired = expired_unsent(&peer.unsent(), company, &choice, now);
+    for block in &expired {
+        let _ = peer.discard_unsent(*block);
+        let _ = peer.forget_cached(*block);
     }
+    expired
 }
 
 fn report(peer: &Peer<Store>, shared: &Arc<Mutex<Shared>>) -> bool {
@@ -2019,21 +2637,28 @@ fn report(peer: &Peer<Store>, shared: &Arc<Mutex<Shared>>) -> bool {
         .unwrap_or_else(PoisonError::into_inner)
         .wall
         .now();
-    expire_unsent(peer, now);
+    let expired = expire_unsent(peer, now);
     let counts = peer.pending();
+    let outbox = peer.outbox();
     let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+    held.discarded.extend(expired.iter().copied());
+    held.reach_dirty.extend(expired);
     let mut changed = held.waiting != counts.operations || held.recounting;
     held.waiting = counts.operations;
+    held.outbox = outbox
+        .into_iter()
+        .map(|(kind, block)| (kind.to_owned(), block))
+        .collect();
     held.recounting = false;
     if held.unsent.len() != counts.unsent {
-        held.unsent = peer.unsent();
+        held.unsent = crate::Part::new(peer.unsent());
         changed = true;
     }
     // What went wrong sending stops being news once the device is connected and in step: nothing
     // waits to be sent and nothing was set aside.
     if held.connected
         && !held.draining
-        && held.waiting + held.unsealed == 0
+        && held.waiting + held.unsealed() == 0
         && held.unsent.is_empty()
         && held.sync_error.take().is_some()
     {
@@ -2090,12 +2715,29 @@ async fn open_wanted(
     #[cfg(not(feature = "testing"))]
     let tested = cfg!(test);
     let reader = tested || wanted.readers.contains(&block);
-    replicas
+    let opened = replicas
         .open((peer, shared), block, content_type, reader)
         .await;
-    if let Some((_, editors)) = wanted.editing.get(&block) {
-        for (editor, editable) in editors {
-            replicas.attach(block, *editor, *editable);
+    let Some((_, editors)) = wanted.editing.get(&block) else {
+        return;
+    };
+    match opened {
+        Ok(()) => {
+            for (editor, editable) in editors {
+                replicas.attach(block, *editor, *editable);
+            }
+        }
+        // Told it will not open rather than left loading (be_sdk::Unready::Failed).
+        Err(reason) => {
+            let failed = be_sdk_type_guest::editor::ToEditor::Failed(reason).encode();
+            for editor in editors.keys() {
+                <Shared as be_block_type_host::Host>::to_editor(
+                    shared,
+                    block,
+                    *editor,
+                    failed.clone(),
+                );
+            }
         }
     }
 }
@@ -2191,7 +2833,7 @@ async fn yielded() {
 }
 
 async fn wait(
-    commands: &mut UnboundedReceiver<Command>,
+    commands: &mut Commands,
     line: &mut Line,
     nudged: &mut super::nudge::Nudged,
     uploads: &mut Uploads,
@@ -2264,13 +2906,13 @@ struct Ran<'a> {
     wanted: &'a mut Wanted,
     shared: &'a Arc<Mutex<Shared>>,
     config: &'a Config,
-    flushes: &'a mut Vec<std::sync::mpsc::Sender<usize>>,
+    flushes: &'a mut Vec<FlushReply>,
     tasks: &'a Tasks,
     served: &'a mut Served,
     calls: &'a LoopCalls,
 }
 
-type DoneReply = Box<dyn FnOnce(Result<(), String>) + Send>;
+type DoneReply = Reply<Result<(), String>>;
 
 /// What a change to who can read a block answers offline: it needs the server.
 pub const OFFLINE_SHARING: &str =
@@ -2289,40 +2931,81 @@ fn refuse_offline(command: Command, shared: &Arc<Mutex<Shared>>) -> Option<Comma
     match command {
         // Opening a push needs only the keys the device kept.
         Command::Push(PushCommand::Open { .. }) => return Some(command),
-        Command::Push(PushCommand::Key(reply)) => reply(Err(NEEDS_CONNECTION.to_owned())),
+        Command::Push(PushCommand::Key(reply)) => reply.send(Err(NEEDS_CONNECTION.to_owned())),
         Command::Push(
             PushCommand::Register { reply, .. } | PushCommand::Unregister { reply, .. },
-        ) => reply(Err(NEEDS_CONNECTION.to_owned())),
+        ) => reply.send(Err(NEEDS_CONNECTION.to_owned())),
         // These need the server's say, so they are refused, not kept for later: the caller
         // shows the refusal where the person acted.
-        Command::SetAccess { reply, .. } => reply(Err(OFFLINE_SHARING.to_owned())),
-        Command::Leave { reply, .. } => reply(Err(OFFLINE_LEAVING.to_owned())),
-        Command::ApprovePairing { reply, .. } => reply(Err(OFFLINE_PAIRING.to_owned())),
-        Command::ListAccess { reply, .. } => reply(Err(NEEDS_CONNECTION.to_owned())),
-        Command::SetNotifyMode { reply, .. } => reply(Err(NEEDS_CONNECTION.to_owned())),
+        Command::SetAccess { reply, .. }
+        | Command::Ban { reply, .. }
+        | Command::TransferOwnership { reply, .. } => reply.send(Err(OFFLINE_SHARING.to_owned())),
+        Command::Leave { reply, .. } => reply.send(Err(OFFLINE_LEAVING.to_owned())),
+        Command::ApprovePairing { reply, .. } => reply.send(Err(OFFLINE_PAIRING.to_owned())),
+        Command::ListAccess { reply, .. } => reply.send(Err(NEEDS_CONNECTION.to_owned())),
+        Command::ShareLink { change, .. } => change.refuse(NEEDS_CONNECTION),
+        Command::ListNames { reply, .. } => reply.send(Err(NEEDS_CONNECTION.to_owned())),
+        Command::SetMute { reply, .. } => reply.send(Err(NEEDS_CONNECTION.to_owned())),
         Command::Members(
             MembersCommand::List(reply)
             | MembersCommand::SetRole { reply, .. }
             | MembersCommand::Remove { reply, .. },
-        ) => reply(Err(NEEDS_CONNECTION.to_owned())),
-        Command::Invite { reply, .. } => reply(Err(NEEDS_CONNECTION.to_owned())),
-        Command::CreateAgent { reply, .. } => reply(Err(NEEDS_CONNECTION.to_owned())),
-        Command::CreateBlockAgent { reply, .. } => reply(Err(NEEDS_CONNECTION.to_owned())),
+        ) => reply.send(Err(NEEDS_CONNECTION.to_owned())),
+        Command::Invitations(InvitationsCommand::Create(reply)) => {
+            reply.send(Err(NEEDS_CONNECTION.to_owned()))
+        }
+        Command::Invitations(
+            InvitationsCommand::List(reply) | InvitationsCommand::Revoke { reply, .. },
+        ) => reply.send(Err(NEEDS_CONNECTION.to_owned())),
+        Command::CreateAgent { reply, .. } => reply.send(Err(NEEDS_CONNECTION.to_owned())),
+        Command::CreateBlockAgent { reply, .. } => reply.send(Err(NEEDS_CONNECTION.to_owned())),
         Command::BlockAgent { change, .. } => change.fail(NEEDS_CONNECTION.to_owned()),
         Command::Contact(ContactCommand::Link { reply, .. }) => {
-            reply(Err(NEEDS_CONNECTION.to_owned()))
+            reply.send(Err(NEEDS_CONNECTION.to_owned()))
         }
         Command::Contact(
             ContactCommand::Open { reply, .. } | ContactCommand::Accept { reply, .. },
-        ) => reply(Err(NEEDS_CONNECTION.to_owned())),
+        ) => reply.send(Err(NEEDS_CONNECTION.to_owned())),
+        Command::Contact(
+            ContactCommand::PreviewShare { reply, .. } | ContactCommand::OpenShare { reply, .. },
+        ) => reply.send(Err(NEEDS_CONNECTION.to_owned())),
         Command::Contact(ContactCommand::Remove(_)) => {
             shared.lock().unwrap_or_else(PoisonError::into_inner).error =
                 Some(NEEDS_CONNECTION.to_owned());
         }
         command => return Some(command),
     }
-    be_host_base::host::wake();
+    crate::changes::wake();
     None
+}
+
+/// Whether the command seals the open blocks first (a version snapshot, the bookmark a restore
+/// keeps), so it waits (`after_order`) until `order_pending` is over, however late it is released.
+fn seals_first(command: &Command) -> bool {
+    matches!(
+        command,
+        Command::Version { .. }
+            | Command::Revision {
+                request: super::revisions::Asked::Restore(_),
+                ..
+            }
+    )
+}
+
+/// Whether the server has yet to order an edit the open replicas submitted, or a module has yet
+/// to take an edit sent to it: a seal now would leave those out.
+fn order_pending(replicas: &Replicas) -> bool {
+    replicas.ordering() || !replicas.modules.settled()
+}
+
+/// The command back when the loop may carry it out now: it waits (`Uploads::defer`) for the
+/// imported blocks it needs to be uploaded, then (`Served::defer`) its turn behind the lane and
+/// the commands deferred before it. Every command the loop carries out passes here, those that
+/// first waited for the replicas' order (`after_order`) too.
+fn admit(uploads: &mut Uploads, served: &mut Served, command: Command) -> Option<Command> {
+    uploads
+        .defer(command)
+        .and_then(|command| served.defer(command))
 }
 
 impl Ran<'_> {
@@ -2371,21 +3054,26 @@ impl Ran<'_> {
                 contact(self.peer, self.shared, self.config, self.tasks, command).await;
                 false
             }
+            Command::ShareLink { block, change } => {
+                share_link(self.peer, self.shared, self.config, block, change).await;
+                crate::changes::wake();
+                false
+            }
             Command::Authorship(command) => {
                 crate::authorship::run(self.peer, self.tasks, command);
                 false
             }
-            Command::Storage => {
+            Command::Storage(on) => {
+                self.shared
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .storage_watched = on;
                 self.tasks.storage(self.peer, self.shared);
                 false
             }
-            Command::Invite { email, role, reply } => {
-                reply(
-                    invite(self.peer, self.config, email, role)
-                        .await
-                        .map_err(|error| error.to_string()),
-                );
-                be_host_base::host::wake();
+            Command::Invitations(command) => {
+                invitations(self.peer, self.config, command).await;
+                crate::changes::wake();
                 false
             }
             Command::CreateAgent { name, reply } => {
@@ -2395,8 +3083,8 @@ impl Ran<'_> {
                 if created.is_ok() {
                     self.tasks.sync_contacts(self.peer, self.shared).await;
                 }
-                reply(created.map_err(|error| error.to_string()));
-                be_host_base::host::wake();
+                reply.send(created.map_err(|error| error.to_string()));
+                crate::changes::wake();
                 false
             }
             Command::CreateBlockAgent { block, name, reply } => {
@@ -2405,31 +3093,31 @@ impl Ran<'_> {
                     self.tasks.sync_contacts(self.peer, self.shared).await;
                     self.tasks.refresh(self.peer, self.shared, block);
                 }
-                reply(created.map_err(|error| error.to_string()));
-                be_host_base::host::wake();
+                reply.send(created.map_err(|error| error.to_string()));
+                crate::changes::wake();
                 false
             }
             // Not a task of the worker's: its end changes nothing the worker keeps.
-            Command::SetNotifyMode { block, mode, reply } => {
+            Command::SetMute { block, mode, reply } => {
                 let (peer, shared) = (Arc::clone(self.peer), Arc::clone(self.shared));
                 platform::spawn_local(async move {
-                    let set = peer.set_notify_mode(block, mode).await;
+                    let set = peer.set_mute(block, mode).await;
                     if set.is_ok() {
                         let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
-                        if let Some(modes) = &mut held.notify_modes {
+                        if let Some(mutes) = held.mutes.as_mut() {
                             match mode {
-                                be_block_protocol::NotifyMode::All => modes.remove(&block),
-                                mode => modes.insert(block, mode),
+                                be_block_protocol::NotifyMode::All => mutes.remove(&block),
+                                mode => mutes.insert(block, mode),
                             };
                             crate::changes::post(crate::Changes {
-                                notify_modes: true,
+                                mutes: true,
                                 ..crate::Changes::default()
                             });
                             held.progressed += 1;
                         }
                     }
-                    reply(set.map(|()| mode).map_err(|error| error.to_string()));
-                    be_host_base::host::wake();
+                    reply.send(set.map(|()| mode).map_err(|error| error.to_string()));
+                    crate::changes::wake();
                 });
                 false
             }
@@ -2438,14 +3126,14 @@ impl Ran<'_> {
                 platform::spawn_local(async move {
                     match command {
                         PushCommand::Key(reply) => {
-                            reply(peer.push_key().await.map_err(|error| error.to_string()))
+                            reply.send(peer.push_key().await.map_err(|error| error.to_string()))
                         }
-                        PushCommand::Register { endpoint, reply } => reply(
+                        PushCommand::Register { endpoint, reply } => reply.send(
                             peer.register_endpoint(endpoint)
                                 .await
                                 .map_err(|error| error.to_string()),
                         ),
-                        PushCommand::Unregister { address, reply } => reply(
+                        PushCommand::Unregister { address, reply } => reply.send(
                             peer.unregister_endpoint(address)
                                 .await
                                 .map_err(|error| error.to_string()),
@@ -2454,12 +3142,13 @@ impl Ran<'_> {
                             message,
                             now,
                             reply,
-                        } => reply(
+                        } => reply.send(
                             peer.open_notification(&message, now)
+                                .map(crate::replies::Opened)
                                 .map_err(|error| error.to_string()),
                         ),
                     }
-                    be_host_base::host::wake();
+                    crate::changes::wake();
                 });
                 false
             }
@@ -2486,7 +3175,7 @@ impl Ran<'_> {
     /// the server for it.
     async fn version(&mut self, block: Uuid, command: be_sdk_api::VersionCommand) {
         set_busy(self.shared, block, true, None);
-        be_host_base::host::wake();
+        crate::changes::wake();
         self.replicas.seal_all((self.peer, self.shared)).await;
         self.served.version(
             self.peer,
@@ -2503,18 +3192,18 @@ impl Ran<'_> {
         {
             let mut held = self.shared.lock().unwrap_or_else(PoisonError::into_inner);
             held.log_dropped();
-            held.pending = held.pending.saturating_sub(1);
-            let (owing, undurable);
-            (held.unsealed, owing, undurable) = self.replicas.counts();
+            held.done += 1;
+            let (unsealed, owing, undurable) = self.replicas.counts();
+            held.unsealed_blocks = unsealed;
             held.owing = owing.len();
             held.owing_blocks = owing;
             held.undurable = undurable.len();
             held.undurable_blocks = undurable;
             held.seals_owed += u64::from(sealed_owed);
             held.recounting = true;
-            held.typing = !self.replicas.modules.settled();
+            held.typing = self.replicas.modules.unsettled();
         }
-        be_host_base::host::wake();
+        crate::changes::wake();
     }
 }
 
@@ -2535,7 +3224,7 @@ fn asked_to_pair(shared: &Arc<Mutex<Shared>>, from: u64, payload: &[u8]) {
         held.pairing.remove(0);
     }
     drop(held);
-    be_host_base::host::wake();
+    crate::changes::wake();
 }
 
 async fn approve_pairing(
@@ -2562,9 +3251,10 @@ async fn approve_pairing(
         .map_err(|error| ClientError::Encoding(error.to_string()))?;
     let sealed = key.seal(&peer.keys().identity().to_bytes());
     let payload = be_block_keys::PairingMessage::Reply { message, sealed }.encode();
-    ask(client::account::pair(
+    ask(be_block_protocol::client::server::send(
         &peer.connection(),
-        Some(from),
+        None,
+        be_block_protocol::Target::Devices(Some(from)),
         payload,
     ))
     .await?;
@@ -2572,36 +3262,23 @@ async fn approve_pairing(
 }
 
 async fn sync_contacts(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
-    let identity = peer.keys().identity();
-    match be_block_client::contacts::finish_links(&peer.connection(), identity, peer.organization())
-        .await
-    {
-        Ok(finished) => {
-            for done in finished {
-                let Some(grant) = done
-                    .grant
-                    .filter(|grant| grant.organization == peer.organization())
-                else {
-                    continue;
-                };
-                let account = Uuid::from_bytes(done.card.account);
-                if let Err(error) = peer
-                    .seal_share(grant.block, account, &done.card.public)
-                    .await
-                {
-                    record(shared, error);
-                }
-            }
-        }
-        Err(error) => record(shared, error),
+    if let Err(error) = peer.finish_links().await {
+        record(shared, error);
+    }
+    if let Err(error) = peer.publish_name().await {
+        record(shared, error);
     }
     match peer.refresh_contacts().await {
         Ok(contacts) => {
+            let pins = peer.contact_pins();
             let changed = {
                 let mut shared = shared.lock().unwrap_or_else(PoisonError::into_inner);
-                let changed = shared.contacts != contacts;
+                if *shared.contact_pins != pins {
+                    shared.contact_pins = crate::Part::new(pins);
+                }
+                let changed = *shared.contacts != contacts;
                 if changed {
-                    shared.contacts = contacts;
+                    shared.contacts = crate::Part::new(contacts);
                     crate::changes::post(crate::Changes {
                         contacts: true,
                         ..crate::Changes::default()
@@ -2617,24 +3294,12 @@ async fn sync_contacts(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
         Err(error) => record(shared, error),
     }
     tend(peer, shared).await;
-    be_host_base::host::wake();
+    crate::changes::wake();
 }
 
+/// Reads the key work and tends the keys it asks for.
 async fn tend(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
-    tend_with(peer, shared, None).await;
-}
-
-/// Tends the keys from `work` when the server already sent it, or else reads it first.
-async fn tend_with(
-    peer: &Arc<Peer<Store>>,
-    shared: &Arc<Mutex<Shared>>,
-    work: Option<be_block_protocol::KeyWork>,
-) {
-    let tended = match work {
-        Some(work) => peer.tend_with(work).await,
-        None => peer.tend().await,
-    };
-    if let Err(error) = tended {
+    if let Err(error) = peer.tend().await {
         record(shared, error);
     }
     shared
@@ -2643,8 +3308,9 @@ async fn tend_with(
         .escrow_warning = peer
         .keys()
         .escrow_warning()
-        .map(be_block_client::EscrowWarning::message);
-    be_host_base::host::wake();
+        .map(be_block_client::EscrowWarning::message)
+        .map(str::to_owned);
+    crate::changes::wake();
 }
 
 async fn members(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, command: MembersCommand) {
@@ -2657,23 +3323,140 @@ async fn members(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, command: 
         } => (peer.set_role(account, role).await, reply),
         MembersCommand::Remove { account, reply } => (peer.remove_member(account).await, reply),
     };
-    if changed.is_ok() {
-        tend(peer, shared).await;
-    }
+    // Key work names the members no record signed in (`Peer::unsigned_members`).
+    tend(peer, shared).await;
     let listed = match changed {
-        Ok(()) => peer.members().await,
+        Ok(()) => peer.members().await.map(|members| crate::MemberList {
+            members,
+            unsigned: peer.unsigned_members(),
+        }),
         Err(error) => Err(error),
     };
-    reply(listed.map_err(|error| error.to_string()));
-    be_host_base::host::wake();
+    reply.send(listed.map_err(|error| error.to_string()));
+    crate::changes::wake();
 }
 
-async fn invite(
+/// Lists, makes or revokes the share links on `block`; a link is answered as the address to
+/// send (`invite_link::share_link`).
+async fn share_link(
+    peer: &Arc<Peer<Store>>,
+    shared: &Arc<Mutex<Shared>>,
+    config: &Config,
+    block: Uuid,
+    change: ShareLinkCommand,
+) {
+    let base = crate::accounts::link_base(&config.server_url);
+    let url = |code: &be_block_keys::InviteCode| crate::invite_link::share_link(&base, code);
+    match change {
+        ShareLinkCommand::List(reply) => {
+            let listed = peer.share_links(block).await.map(|links| {
+                links
+                    .into_iter()
+                    .map(|(row, code)| (row, code.map(|code| url(&code)).unwrap_or_default()))
+                    .collect()
+            });
+            reply.send(listed.map_err(|error| error.to_string()));
+        }
+        ShareLinkCommand::Make {
+            access,
+            admits,
+            reply,
+        } => {
+            let made = peer.make_share_link(block, access, admits).await;
+            tend(peer, shared).await;
+            reply.send(
+                made.map(|code| url(&code))
+                    .map_err(|error| error.to_string()),
+            );
+        }
+        ShareLinkCommand::Revoke { link, reply } => {
+            let revoked = async {
+                let links = peer.share_links(block).await?;
+                let Some((row, _)) = links.iter().find(|(row, _)| row.id == link) else {
+                    return Ok(());
+                };
+                peer.revoke_share_link(block, row).await
+            }
+            .await;
+            tend(peer, shared).await;
+            reply.send(revoked.map_err(|error| error.to_string()));
+        }
+    }
+}
+
+async fn invitations(peer: &Peer<Store>, config: &Config, command: InvitationsCommand) {
+    match command {
+        InvitationsCommand::Create(reply) => reply.send(
+            invite(peer, config)
+                .await
+                .map_err(|error| error.to_string()),
+        ),
+        InvitationsCommand::List(reply) => reply.send(
+            list_invitations(peer, config)
+                .await
+                .map_err(|error| error.to_string()),
+        ),
+        InvitationsCommand::Revoke { link, reply } => {
+            let revoked = peer.revoke_invitation(link).await;
+            let listed = match revoked {
+                Ok(()) => list_invitations(peer, config).await,
+                Err(error) => Err(error),
+            };
+            reply.send(listed.map_err(|error| error.to_string()))
+        }
+    }
+}
+
+/// The organization's invitations, newest first, each of the person's own with its link again.
+async fn list_invitations(
     peer: &Peer<Store>,
     config: &Config,
-    email: String,
-    role: be_block_protocol::OrganizationRole,
-) -> Result<String, ClientError> {
+) -> Result<Vec<crate::Invite>, ClientError> {
+    let rows = be_block_client::ask(be_block_protocol::read::<
+        Vec<be_block_protocol::InvitationRow>,
+        _,
+    >(
+        &peer.connection(),
+        Some(peer.organization()),
+        be_block_protocol::Query::Invitations,
+    ))
+    .await?;
+    let base = crate::accounts::link_base(&config.server_url);
+    // The codes of the person's own, which the account's block keeps.
+    let kept = be_block_client::contacts::kept_links(
+        &peer.connection(),
+        peer.account(),
+        peer.keys().identity(),
+    )
+    .await?;
+    let mut own = Vec::new();
+    let listed = rows
+        .into_iter()
+        .map(|row| crate::Invite {
+            link: kept
+                .get(&row.id)
+                .filter(|_| row.inviter == peer.account())
+                .and_then(|kept| kept.code())
+                .map(|code| {
+                    let link = crate::invite_link::link(&base, &code);
+                    own.push(code);
+                    link
+                }),
+            id: row.id,
+            inviter: row.inviter_name,
+            state: row.state,
+            accepter: row.accepter_name,
+            created: row.created,
+            expires: row.expires,
+            opened: row.opened,
+            ended: row.ended,
+        })
+        .collect();
+    crate::own_invitations(&config.server_url, peer.account(), own);
+    Ok(listed)
+}
+
+async fn invite(peer: &Peer<Store>, config: &Config) -> Result<String, ClientError> {
     let identity = peer.keys().identity();
     let me = be_block_client::contacts::card(
         peer.account(),
@@ -2681,16 +3464,26 @@ async fn invite(
         &config.display_name,
         &config.email,
     );
+    let checked = peer.checked_organization().await?.ok_or_else(|| {
+        ClientError::Refused(
+            be_block_protocol::ErrorCode::InvalidRequest,
+            "only a company organization takes invitations".into(),
+        )
+    })?;
     let code = be_block_client::contacts::invite(
         &peer.connection(),
         identity,
         &me,
         peer.organization(),
-        email,
-        role,
-        peer.keys().escrow().as_ref(),
+        &be_block_client::contacts::Pinned {
+            root: peer.keys().organization_root(),
+            escrow: peer.keys().escrow(),
+            made: 0,
+        },
+        &checked,
     )
     .await?;
+    crate::own_invitations(&config.server_url, peer.account(), vec![code.clone()]);
     Ok(crate::invite_link::link(
         &crate::accounts::link_base(&config.server_url),
         &code,
@@ -2716,33 +3509,59 @@ async fn create_agent(
     let phrase = be_block_keys::RecoveryPhrase::generate();
     let secret = phrase.secret();
     let public = secret.public();
-    let be_block_protocol::CreatedAgent { agent, token } = ask(client::members::create_agent(
-        &peer.connection(),
-        organization,
-        name,
-        public.0,
-        secret.signing().0,
-        me.seal_own(&secret),
-        peer.keys().escrow().map_or_else(Vec::new, |escrow| {
-            be_block_client::contacts::seal_pin(&secret, organization, &escrow)
+    let account = Uuid::from_bytes(be_block_keys::agent_account(
+        peer.account().into_bytes(),
+        &secret.identity(),
+    ));
+    let bound = match bound_to {
+        Some(block) => Some(be_block_protocol::BoundAgent {
+            block,
+            signed: peer
+                .grant_record(block, account, Access::Edit, secret.identity())
+                .await?,
         }),
-        bound_to,
-    ))
-    .await?;
+        None => None,
+    };
+    let member = peer.agent_record(account, secret.identity()).await?;
     let card = be_block_keys::ContactCard {
-        account: agent.account.into_bytes(),
+        account: account.into_bytes(),
         public,
         signing: secret.signing(),
-        display_name: agent.name.clone(),
-        email: agent.email.clone(),
+        display_name: name.trim().to_owned(),
+        email: be_block_protocol::agent_email(account),
     };
+    let be_block_protocol::CreatedAgent { agent, token } = ask(be_block_protocol::write::<
+        be_block_protocol::CreatedAgent,
+        _,
+    >(
+        &peer.connection(),
+        Some(organization),
+        be_block_protocol::Op::CreateAgent {
+            account: account,
+            name: name,
+            recovery: public.0,
+            signing: secret.signing().0,
+            contact: be_block_client::contacts::OwnContact::new(me.clone(), 0).seal(&secret),
+            record: be_block_client::contacts::OwnContact::new(card, 0).seal(identity),
+            escrow: be_block_client::contacts::seal_pin(
+                &secret,
+                organization,
+                &be_block_client::contacts::Pinned {
+                    root: peer.keys().organization_root(),
+                    escrow: peer.keys().escrow(),
+                    made: 0,
+                }
+                .stamped(0),
+            ),
+            bound_to: bound,
+            member: member,
+        },
+    ))
+    .await?;
     let finished = async {
-        ask(client::contacts::put_contact(
-            &peer.connection(),
-            agent.account,
-            card.seal_own(identity),
-        ))
-        .await?;
+        // The maker's record of the agent arrives in its mailbox, left by the same write: taken
+        // into the account's block, the agent is a verified contact to seal its block's key to.
+        peer.refresh_contacts().await?;
         if let Some(block) = bound_to {
             peer.seal_share(block, agent.account, &public).await?;
         }
@@ -2751,11 +3570,7 @@ async fn create_agent(
     .await;
     if let Err(error) = finished {
         // An agent the person never got the credentials of is of no use to anyone.
-        let _ = ask(client::members::remove_member(
-            &peer.connection(),
-            agent.account,
-        ))
-        .await;
+        let _ = peer.remove_member(agent.account).await;
         return Err(error);
     }
     Ok((
@@ -2777,7 +3592,15 @@ async fn change_block_agent(peer: &Peer<Store>, agent: Uuid, change: AgentChange
     let organization = peer.organization();
     // Only a block's agent the person made: an administrator may remove any member, and an app
     // must never do that in their name. A listed member that is not one is refused.
-    let listed = match ask(client::members::list_members(&connection)).await {
+    let listed = match ask(
+        be_block_protocol::read::<Vec<be_block_protocol::Member>, _>(
+            &connection,
+            Some(organization),
+            be_block_protocol::Query::Members,
+        ),
+    )
+    .await
+    {
         Ok(members) => members.into_iter().find(|listed| listed.account == agent),
         Err(error) => return change.fail(error.to_string()),
     };
@@ -2788,20 +3611,20 @@ async fn change_block_agent(peer: &Peer<Store>, agent: Uuid, change: AgentChange
         return change.fail("That agent is not a block's agent of yours.".to_owned());
     }
     match change {
-        AgentChange::Rotate(reply) => reply(
-            ask(client::members::rotate_agent_token(
+        AgentChange::Rotate(reply) => reply.send(
+            ask(be_block_protocol::write::<String, _>(
                 &connection,
-                organization,
-                agent,
+                Some(organization),
+                be_block_protocol::Op::RotateAgentToken(agent),
             ))
             .await
             .map_err(|error| error.to_string()),
         ),
         // An agent not listed (removed, or collected with its block) is as removed as asked,
-        // and is never sent to `remove-member`, which would remove whoever the id now names.
-        AgentChange::Remove(reply) => reply(match own {
+        // and is never sent to `delete-agent`, which would delete whatever agent the id now names.
+        AgentChange::Remove(reply) => reply.send(match own {
             None => Ok(()),
-            Some(_) => match ask(client::members::remove_member(&connection, agent)).await {
+            Some(_) => match peer.remove_member(agent).await {
                 Ok(_)
                 | Err(be_block_client::ClientError::Refused(
                     be_block_protocol::ErrorCode::MemberNotFound,
@@ -2843,7 +3666,7 @@ async fn contact(
                 .await
             }
             .await;
-            reply(
+            reply.send(
                 made.map(|code| {
                     crate::invite_link::contact_link(
                         &crate::accounts::link_base(&config.server_url),
@@ -2853,6 +3676,35 @@ async fn contact(
                 .map_err(|error| error.to_string()),
             );
         }
+        ContactCommand::PreviewShare { code, reply } => {
+            let previewed =
+                be_block_client::share_links::preview_share_link(&peer.connection(), &code)
+                    .await
+                    .map(|(link, handed)| SharePreview::of(&link, handed.name));
+            reply.send(previewed.map_err(|error| error.to_string()));
+        }
+        ContactCommand::OpenShare {
+            code,
+            expected,
+            reply,
+        } => {
+            let opened = be_block_client::share_links::open_share_link(
+                &peer.connection(),
+                identity,
+                peer.account(),
+                &code,
+                Some(expected),
+            )
+            .await
+            .map(|(link, handed)| SharePreview::of(&link, handed.name));
+            // What it opened here is listed as shared with this account at once.
+            if let Ok(opened) = &opened
+                && opened.organization == peer.organization()
+            {
+                tasks.sync(peer, shared);
+            }
+            reply.send(opened.map_err(|error| error.to_string()));
+        }
         ContactCommand::Open { code, reply } => {
             let opened = be_block_client::contacts::open_link(
                 &peer.connection(),
@@ -2861,7 +3713,7 @@ async fn contact(
             )
             .await
             .map(|(_, card)| card);
-            reply(opened.map_err(|error| error.to_string()));
+            reply.send(opened.map_err(|error| error.to_string()));
         }
         ContactCommand::Accept { code, reply } => {
             let accepted = be_block_client::contacts::accept_link(
@@ -2870,22 +3722,21 @@ async fn contact(
                 &me,
                 &code,
                 be_block_client::contacts::Expected::Contact,
+                &peer.contact_pins(),
             )
             .await
             .map(|(_, card)| card);
             if accepted.is_ok() {
                 tasks.sync_contacts(peer, shared).await;
             }
-            reply(accepted.map_err(|error| error.to_string()));
+            reply.send(accepted.map_err(|error| error.to_string()));
         }
-        ContactCommand::Remove(account) => {
-            match be_block_client::contacts::remove_contact(&peer.connection(), account).await {
-                Ok(()) => tasks.sync_contacts(peer, shared).await,
-                Err(error) => record(shared, error),
-            }
-        }
+        ContactCommand::Remove(account) => match peer.remove_contact(account).await {
+            Ok(()) => tasks.sync_contacts(peer, shared).await,
+            Err(error) => record(shared, error),
+        },
     }
-    be_host_base::host::wake();
+    crate::changes::wake();
 }
 
 pub(super) fn set_locked(shared: &Arc<Mutex<Shared>>, block: Uuid, locked: bool) {
@@ -2899,7 +3750,22 @@ pub(super) fn set_locked(shared: &Arc<Mutex<Shared>>, block: Uuid, locked: bool)
         held.progressed += 1;
         held.touch(block);
         drop(held);
-        be_host_base::host::wake();
+        crate::changes::wake();
+    }
+}
+
+pub(super) fn set_marked(shared: &Arc<Mutex<Shared>>, block: Uuid, marked: bool) {
+    let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+    let changed = match marked {
+        true => held.marked.insert(block),
+        false => held.marked.remove(&block),
+    };
+    if changed {
+        crate::changes::stale();
+        held.progressed += 1;
+        held.touch(block);
+        drop(held);
+        crate::changes::wake();
     }
 }
 
@@ -2914,7 +3780,7 @@ pub(super) fn set_unreadable(shared: &Arc<Mutex<Shared>>, block: Uuid, error: Op
         held.progressed += 1;
         held.touch(block);
         drop(held);
-        be_host_base::host::wake();
+        crate::changes::wake();
     }
 }
 
@@ -2974,12 +3840,17 @@ async fn serve_command(
                 .contacts
                 .iter()
                 .find(|contact| contact.account == account)
-                .and_then(|contact| contact.public);
+                .and_then(|contact| {
+                    Some(be_block_keys::PublicIdentity {
+                        public: contact.public?,
+                        signing: contact.signing?,
+                    })
+                });
             let granted = match verified {
                 _ if account == be_block_graph::ANYONE_INSIDE => {
                     peer.open_inside(block, access).await
                 }
-                Some(public) => peer.share(block, account, access, &public).await,
+                Some(identity) => peer.share(block, account, access, &identity).await,
                 None => peer.grant(block, account, access).await,
             };
             let failed = granted
@@ -2990,42 +3861,89 @@ async fn serve_command(
                     false => error.to_string(),
                 });
             tend(peer, shared).await;
-            reply(failed.map_or(Ok(()), Err));
-            be_host_base::host::wake();
+            // A member this device revoked goes from what it hosts now, whatever the server
+            // does about it.
+            crate::hosting::recheck(peer, shared, tasks);
+            reply.send(failed.map_or(Ok(()), Err));
+            crate::changes::wake();
+        }
+        Command::Ban {
+            block,
+            account,
+            reply,
+        } => {
+            let failed =
+                peer.ban(block, account)
+                    .await
+                    .err()
+                    .map(|error| match error.is_unreachable() {
+                        true => OFFLINE_SHARING.to_owned(),
+                        false => error.to_string(),
+                    });
+            crate::hosting::recheck(peer, shared, tasks);
+            reply.send(failed.map_or(Ok(()), Err));
+            crate::changes::wake();
+        }
+        Command::TransferOwnership {
+            block,
+            account,
+            reply,
+        } => {
+            let failed = peer.transfer(block, account).await.err().map(|error| {
+                match error.is_unreachable() {
+                    true => OFFLINE_SHARING.to_owned(),
+                    false => error.to_string(),
+                }
+            });
+            tend(peer, shared).await;
+            reply.send(failed.map_or(Ok(()), Err));
+            crate::changes::wake();
         }
         Command::ListAccess { block, reply } => {
             let listed = peer
                 .list_access(block)
                 .await
                 .map_err(|error| error.to_string());
-            reply(listed);
-            be_host_base::host::wake();
+            reply.send(listed);
+            crate::changes::wake();
         }
-        Command::ReadHead { commit, reply, .. } => {
+
+        Command::ListNames { block, reply } => {
+            let named = peer.names(block).await.map_err(|error| error.to_string());
+            reply.send(named);
+            crate::changes::wake();
+        }
+        Command::ReadHead {
+            block,
+            commit,
+            reply,
+        } => {
             let read = async {
-                let commit = peer.load_commit(commit).await?;
+                let commit = peer.load_head(block, commit).await?;
                 peer.read_manifest(&commit.manifest).await
             }
             .await;
-            reply(read.map_err(|error| error.to_string()));
-            be_host_base::host::wake();
+            // A read can leave the device holding a version of the block it did not count.
+            reach_may_change(shared, block);
+            reply.send(read.map_err(|error| error.to_string()));
+            crate::changes::wake();
         }
         Command::Leave { block, reply } => {
             let left = peer.leave(block).await;
             tasks.refresh(peer, shared, block);
-            reply(left.map_err(|error| match error.is_unreachable() {
+            reply.send(left.map_err(|error| match error.is_unreachable() {
                 true => OFFLINE_LEAVING.to_owned(),
                 false => error.to_string(),
             }));
-            be_host_base::host::wake();
+            crate::changes::wake();
         }
         Command::ApprovePairing { from, code, reply } => {
             let approved = approve_pairing(peer, shared, from, &code).await;
-            reply(approved.map_err(|error| match error.is_unreachable() {
+            reply.send(approved.map_err(|error| match error.is_unreachable() {
                 true => OFFLINE_PAIRING.to_owned(),
                 false => error.to_string(),
             }));
-            be_host_base::host::wake();
+            crate::changes::wake();
         }
         Command::Members(command) => {
             members(peer, shared, command).await;
@@ -3033,7 +3951,7 @@ async fn serve_command(
         Command::BlockAgent { agent, change } => {
             change_block_agent(peer, agent, change).await;
             tasks.sync_contacts(peer, shared).await;
-            be_host_base::host::wake();
+            crate::changes::wake();
         }
         _ => {}
     }
@@ -3044,7 +3962,7 @@ async fn apply(
     replicas: &mut Replicas,
     wanted: &mut Wanted,
     shared: &Arc<Mutex<Shared>>,
-    flushes: &mut Vec<std::sync::mpsc::Sender<usize>>,
+    flushes: &mut Vec<FlushReply>,
     tasks: &Tasks,
     command: Command,
 ) -> bool {
@@ -3072,20 +3990,26 @@ async fn apply(
             true
         }
         Command::SetAccess { .. }
+        | Command::Ban { .. }
+        | Command::TransferOwnership { .. }
         | Command::ListAccess { .. }
+        | Command::ShareLink { .. }
+        | Command::ListNames { .. }
         | Command::ReadHead { .. }
         | Command::Leave { .. }
         | Command::ApprovePairing { .. }
         | Command::Contact(_)
         | Command::Members(_)
-        | Command::Invite { .. }
+        | Command::Invitations(_)
         | Command::CreateAgent { .. }
         | Command::CreateBlockAgent { .. }
         | Command::BlockAgent { .. }
-        | Command::SetNotifyMode { .. }
+        | Command::SetMute { .. }
         | Command::Push(_)
         | Command::Authorship(_)
-        | Command::Storage => false,
+        | Command::Storage(_)
+        | Command::WantSearches(..)
+        | Command::Edit(..) => false,
         // Also starts a drain of what waits in the outbox, which otherwise waits for the
         // loop's retry.
         Command::Sync => {
@@ -3106,7 +4030,7 @@ async fn apply(
                 .unwrap_or_else(PoisonError::into_inner)
                 .pairing
                 .retain(|request| request.from != from);
-            be_host_base::host::wake();
+            crate::changes::wake();
             false
         }
         // In the lane (`Ran::version`).
@@ -3125,12 +4049,25 @@ async fn apply(
                     Ok(restored) => (Ok(!restored.is_empty()), restored),
                     Err(error) => (Err(error), Vec::new()),
                 },
-                false => (peer.discard_unsent(block), Vec::new()),
+                false => {
+                    let lost = peer
+                        .unsent()
+                        .iter()
+                        .any(|unsent| unsent.block == block && unsent.refused.is_none());
+                    let discarded = peer.discard_unsent(block);
+                    if lost && discarded.is_ok() {
+                        replicas.stop_keeping(block);
+                        let _ = peer.forget_cached(block);
+                    }
+                    set_marked(shared, block, peer.discarded(block));
+                    (discarded, Vec::new())
+                }
             };
             if restore {
                 tasks.sync(peer, shared);
             }
             let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+            held.reach_dirty.insert(block);
             if let Err(error) = done {
                 held.error = Some(error.to_string());
             }
@@ -3141,15 +4078,15 @@ async fn apply(
                     && let Some(summary) = peer.known_summary(block)
                 {
                     let parent = summary.parent;
-                    held.graph.put(node_of(peer, &summary), summary.revision);
+                    held.graph.put(node_of(peer, &summary), summary.changed);
                     held.graph.relist_around(block, parent);
                 }
             }
-            held.unsent = peer.unsent();
+            held.unsent = crate::Part::new(peer.unsent());
             crate::changes::stale();
             held.progressed += 1;
             drop(held);
-            be_host_base::host::wake();
+            crate::changes::wake();
             true
         }
         Command::Revision {
@@ -3163,14 +4100,14 @@ async fn apply(
                 .listing_revisions += 1;
             let (peer, shared) = (Arc::clone(peer), Arc::clone(shared));
             tasks.spawn(async move {
-                reply(super::revisions::Answered::Listed(
+                reply.send(super::revisions::Answered::Listed(
                     super::revisions::list(&peer, block).await,
                 ));
                 shared
                     .lock()
                     .unwrap_or_else(PoisonError::into_inner)
                     .listing_revisions -= 1;
-                be_host_base::host::wake();
+                crate::changes::wake();
             });
             true
         }
@@ -3180,7 +4117,8 @@ async fn apply(
             reply,
         } => {
             let result = super::revisions::run(peer, replicas, shared, block, request).await;
-            reply(result);
+            reach_may_change(shared, block);
+            reply.send(result);
             true
         }
         Command::Open {
@@ -3201,7 +4139,6 @@ async fn apply(
             open_wanted(peer, shared, wanted, replicas, block, content_type).await;
             false
         }
-        #[cfg(any(test, feature = "testing"))]
         Command::Close(block) => {
             wanted.open.remove(&block);
             wanted.readers.remove(&block);
@@ -3246,14 +4183,43 @@ async fn apply(
             }
             false
         }
+        Command::TellMember { block, said } => {
+            crate::hosting::tell(peer, shared, tasks, block, said);
+            false
+        }
+        Command::RestartHost(block) => {
+            crate::hosting::restart(shared, block);
+            false
+        }
+        Command::WantChannels(blocks) => {
+            crate::joining::want(peer, shared, tasks, blocks);
+            false
+        }
+        Command::TellHost { block, payload } => {
+            crate::joining::tell(peer, shared, tasks, block, payload);
+            false
+        }
         Command::FromEditor {
             block,
             editor,
+            app,
             bytes,
             at,
         } => {
-            replicas.relay_from_editor(block, editor, bytes, at);
+            replicas.relay_from_app(shared, block, editor, &app, bytes, at);
             false
+        }
+        Command::OfflineChoices(choices) => {
+            crate::offline_choice::set(choices);
+            false
+        }
+        Command::Reads(kind, layers) => {
+            shared
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .counting
+                .set_reads(kind, layers);
+            true
         }
         Command::HoldClock(at) => {
             replicas.modules.hold_clock(at);
@@ -3265,14 +4231,32 @@ async fn apply(
             block,
             content_type,
             change,
+            copying,
+            reply,
         } => {
             if !replicas.is_open(block) {
                 wanted.open.entry(block).or_insert(content_type);
                 want_open(shared, &wanted.blocks());
                 open_wanted(peer, shared, wanted, replicas, block, content_type).await;
             }
-            let change = Change::Child(change);
-            replicas.change_later(block, change);
+            // The type's answer is awaited beside the loop, which goes on with other commands.
+            let copy = match (&change, copying) {
+                (be_sdk_type_api::ChildChange::Replace(replace), Some(source)) => {
+                    Some((source, replace.new))
+                }
+                _ => None,
+            };
+            match replicas.change_answered(block, Change::Child(change)) {
+                Some(made) => tasks.spawn(async move {
+                    let made = made.await;
+                    reply.send(
+                        made && copy.is_none_or(|(source, to)| {
+                            crate::copied_in_place(block, content_type, source, to)
+                        }),
+                    );
+                }),
+                None => reply.send(false),
+            }
             false
         }
         Command::FromFile {
@@ -3291,7 +4275,14 @@ async fn apply(
             false
         }
         Command::Operate(block, operation, at) => {
-            replicas.send_as_host(block, &FromEditor::Operate(operation), at);
+            replicas.send_as_host(
+                block,
+                &FromEditor::Operate {
+                    gesture: None,
+                    operation,
+                },
+                at,
+            );
             false
         }
         #[cfg(test)]
@@ -3305,13 +4296,15 @@ async fn apply(
         }
         #[cfg(test)]
         Command::HearHead { block, head } => {
+            // As a tree read would tell it (`read_trees`).
             if let Some(mut summary) = peer.known_summary(block) {
                 summary.head = Some(head);
-                let event = Event::BlockChanged {
-                    block: summary,
-                    own: false,
-                };
-                heard(peer, shared, tasks, replicas, Some(event)).await;
+                shared
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .graph
+                    .put(node_of(peer, &summary), summary.changed);
+                replicas.heard_head((peer, shared), block, head);
             }
             false
         }
@@ -3347,7 +4340,7 @@ async fn apply(
             content_type,
             metadata,
         } => {
-            if !super::is_known(content_type) {
+            if !be_block_type_host::is_known(content_type) {
                 shared
                     .lock()
                     .unwrap_or_else(PoisonError::into_inner)
@@ -3423,10 +4416,7 @@ async fn apply(
                     replicas.change(ctx, block, Change::Replace(bytes)).await;
                     Ok(())
                 }
-                false => match peer
-                    .ensure_type(block, content_type, BlockParent::Detached)
-                    .await
-                {
+                false => match ensure_type(peer, shared, block, content_type).await {
                     Ok(()) => {
                         publish_bytes(peer, replicas, shared, block, content_type, bytes, true)
                             .await
@@ -3527,19 +4517,19 @@ async fn apply(
         }
         Command::Export { block, reply } => {
             let exported = export(peer, replicas, shared, block).await;
-            reply(exported.map_err(|error| error.to_string()));
-            be_host_base::host::wake();
+            reply.send(exported.map_err(|error| error.to_string()));
+            crate::changes::wake();
             false
         }
         Command::PlainFile { block, reply } => {
-            reply(plain_file(peer, replicas, shared, block).await);
-            be_host_base::host::wake();
+            reply.send(plain_file(peer, replicas, shared, block).await);
+            crate::changes::wake();
             false
         }
         Command::Import(_) => false,
         Command::ContentOfFile { name, bytes, reply } => {
-            reply(replicas.from_file(ctx, &name, bytes).await);
-            be_host_base::host::wake();
+            reply.send(replicas.from_file(ctx, &name, bytes).await);
+            crate::changes::wake();
             false
         }
         Command::Flush(done) => {
@@ -3612,7 +4602,7 @@ async fn stored(peer: &Peer<Store>, block: Uuid) -> Result<Option<Vec<u8>>, Clie
     let Some(head) = peer.newest_head(block).await? else {
         return Ok(None);
     };
-    let commit = peer.load_commit(head).await?;
+    let commit = peer.load_head(block, head).await?;
     Ok(Some(peer.read_manifest(&commit.manifest).await?))
 }
 
@@ -3621,9 +4611,26 @@ pub(super) async fn has_later_parts(peer: &Peer<Store>, block: Uuid) -> Result<b
     let Some(head) = peer.newest_head(block).await? else {
         return Ok(false);
     };
-    let commit = peer.load_commit(head).await?;
+    let commit = peer.load_head(block, head).await?;
     let first = peer.load_first_part(&commit.manifest).await?;
     Ok((first.bytes.len() as u64) < commit.manifest.length())
+}
+
+/// Makes `block` on the server unless it is there (`Peer::ensure_type`), and has the graph read
+/// its place again as a replica's own creation does (`Host::created`): the one route every
+/// creation made online, not through the outbox, takes.
+async fn ensure_type(
+    peer: &Arc<Peer<Store>>,
+    shared: &Arc<Mutex<Shared>>,
+    block: Uuid,
+    content_type: Uuid,
+) -> Result<(), ClientError> {
+    peer.ensure_type(block, content_type, BlockParent::Detached)
+        .await?;
+    if peer.is_attached() {
+        <Shared as be_block_type_host::Host>::created(shared, block, BlockParent::Detached);
+    }
+    Ok(())
 }
 
 async fn seed(
@@ -3634,11 +4641,10 @@ async fn seed(
     content_type: Uuid,
     bytes: Vec<u8>,
 ) -> Result<(), ClientError> {
-    if !super::is_known(content_type) {
+    if !be_block_type_host::is_known(content_type) {
         return Ok(());
     }
-    peer.ensure_type(block, content_type, BlockParent::Detached)
-        .await?;
+    ensure_type(peer, shared, block, content_type).await?;
     if peer.newest_head(block).await?.is_some() {
         return Ok(());
     }
@@ -3693,49 +4699,52 @@ async fn heard(
     peer: &Arc<Peer<Store>>,
     shared: &Arc<Mutex<Shared>>,
     tasks: &Tasks,
-    replicas: &Replicas,
     event: Option<Event>,
 ) {
     match event {
-        Some(Event::BlockChanged { block, .. }) => {
-            let block = peer.summary_with_outbox(block);
-            if let Err(error) = peer.learn(std::slice::from_ref(&block)).await {
-                record(shared, error);
-            }
-            let mut node = node_of(peer, &block);
-            let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
-            if replicas.is_open(node.id)
-                && let Some(reported) = held.graph.get(node.id).and_then(|node| node.head)
-            {
-                node.head = Some(reported);
-            }
-            let shared_into_view = node.access.can_view()
-                && matches!(node.parent, Some(BlockParent::Block(_)))
-                && !held.graph.covers(node.id);
-            held.graph.put(node, block.revision);
-            if shared_into_view && !held.graph.covers(block.id) {
-                held.graph.relist(Listing::Shared);
-            }
-            if block.opens_inside {
-                held.graph.relist_open_settings();
-            }
-        }
-        Some(Event::BlockRemoved { block, revision }) => {
+        Some(Event::TreeAdvanced { entry, sequence }) => {
             shared
                 .lock()
                 .unwrap_or_else(PoisonError::into_inner)
                 .graph
-                .remove(block, revision);
+                .advanced(entry, sequence);
+            spawn_listings(peer, shared, tasks);
+        }
+        Some(Event::Roots) => {
+            let known_only = {
+                let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+                held.graph.roots();
+                held.graph.known_only()
+            };
+            spawn_listings(peer, shared, tasks);
+            if !known_only.is_empty() {
+                let (peer, shared) = (Arc::clone(peer), Arc::clone(shared));
+                tasks.spawn(async move { reread_known_only(&peer, &shared, known_only).await });
+            }
         }
         Some(Event::Paired(be_block_protocol::PairingMessage { from, payload })) => {
             asked_to_pair(shared, from, &payload);
         }
-        Some(Event::ContactsChanged) => tasks.contacts(peer, shared),
-        Some(Event::KeysChanged) => tasks.relearn_locked(peer, shared),
-        Some(Event::NotifyModesChanged) => tasks.notify_modes(peer, shared),
-        Some(Event::KeyWork(work)) => {
+        Some(Event::KeysChanged) => {
+            shared
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .graph
+                .keys_changed();
+            tasks.relearn_locked(peer, shared);
+            spawn_listings(peer, shared, tasks);
+        }
+        Some(Event::MutesChanged) => tasks.mutes(peer, shared),
+        // A notice to show, or a contact's key change, a record of a contact made or removed,
+        // or an accepted link's card to take; or another device took one into the account's
+        // block.
+        Some(Event::MailboxChanged) => {
+            tasks.account_notices(peer);
+            tasks.contacts(peer, shared);
+        }
+        Some(Event::KeyWorkChanged) => {
             let (peer, shared) = (Arc::clone(peer), Arc::clone(shared));
-            tasks.spawn(async move { tend_with(&peer, &shared, Some(work)).await });
+            tasks.spawn(async move { tend(&peer, &shared).await });
         }
         Some(_) => {}
         None => relist(shared),
@@ -3787,21 +4796,33 @@ async fn export(
     }
     let summaries: Vec<BlockSummary> = found.iter().map(|(summary, _)| summary.clone()).collect();
     peer.learn(&summaries).await?;
-    let mut blocks: Vec<be_block_client::transfer::Saved> = found
-        .into_iter()
-        .map(|(summary, parent)| be_block_client::transfer::Saved {
+    let mut blocks: Vec<be_block_client::transfer::Saved> = Vec::with_capacity(found.len());
+    for (summary, parent) in found {
+        blocks.push(be_block_client::transfer::Saved {
             id: summary.id,
             block_type: summary.content_type,
             parent,
             metadata: node_of(peer, &summary).metadata,
-            references: summary.references,
+            references: peer.content_references(&summary).await?,
             content: None,
-        })
-        .collect();
+            log: Vec::new(),
+        });
+    }
     let heads: HashMap<Uuid, Option<be_block_commit::CommitId>> = summaries
         .iter()
         .map(|summary| (summary.id, summary.head))
         .collect();
+    // A type with a signed log carries it, opened, each entry with its author's signature in
+    // the block it was written in (`Peer::verify_exported`).
+    for block in &mut blocks {
+        if replicas
+            .kind(block.block_type)
+            .await
+            .is_some_and(|kind| kind.log)
+        {
+            block.log = peer.export_log(block.id).await?;
+        }
+    }
     // A block file carries bytes, which drop the parts after the first of a type that loads
     // only its first part (chat's closed segments): refuse until a file carries parts.
     for block in &blocks {
@@ -3860,26 +4881,220 @@ fn relist(shared: &Arc<Mutex<Shared>>) {
 pub(super) async fn fetch_listings(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) -> bool {
     let mut fetched = false;
     loop {
-        let (unlisted, wanted) = take_listings(shared);
+        let wanted = take_listings(shared);
         if wanted.is_empty() {
-            futures_util::future::join_all(
-                unlisted.into_iter().map(|listing| peer.unlist(listing)),
-            )
-            .await;
             return fetched;
         }
         fetched = true;
-        list(peer, shared, unlisted, wanted).await;
+        list(peer, shared, wanted).await;
     }
 }
 
+/// Reads what the graph wants in a task of its own: the listings, the trees followed that
+/// advanced, and what the blocks shown with what they hold reference; and unfollows the entry
+/// points nothing lies in any more.
 pub(super) fn spawn_listings(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: &Tasks) {
-    let (unlisted, wanted) = take_listings(shared);
-    if unlisted.is_empty() && wanted.is_empty() {
-        return;
+    let wanted = take_listings(shared);
+    if !wanted.is_empty() {
+        let (peer, shared) = (Arc::clone(peer), Arc::clone(shared));
+        tasks.spawn(async move { list(&peer, &shared, wanted).await });
     }
-    let (peer, shared) = (Arc::clone(peer), Arc::clone(shared));
-    tasks.spawn(async move { list(&peer, &shared, unlisted, wanted).await });
+    let reads = take_reads(shared);
+    if !reads.is_empty() {
+        let (peer, shared) = (Arc::clone(peer), Arc::clone(shared));
+        tasks.spawn(async move { read_references(&peer, &shared, reads).await });
+    }
+    let (trees, unfollowed) = take_follows(shared);
+    if !trees.is_empty() || !unfollowed.is_empty() {
+        let (peer, shared) = (Arc::clone(peer), Arc::clone(shared));
+        tasks.spawn(async move { read_trees(&peer, &shared, trees, unfollowed).await });
+    }
+}
+
+/// Reads again the blocks the graph holds that this account may only know exist (`known_only`):
+/// a move or a grant may have opened them, or taken them out of reach.
+async fn reread_known_only(
+    peer: &Arc<Peer<Store>>,
+    shared: &Arc<Mutex<Shared>>,
+    blocks: Vec<Uuid>,
+) {
+    let found = match peer.read_summaries(&blocks).await {
+        Ok(found) => found,
+        Err(error) => return record(shared, error),
+    };
+    if let Err(error) = peer.learn(&found).await {
+        record(shared, error);
+    }
+    let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+    for block in blocks {
+        match found.iter().find(|summary| summary.id == block) {
+            Some(summary) => {
+                let summary = peer.summary_with_outbox(summary.clone());
+                held.graph.put(node_of(peer, &summary), summary.changed);
+            }
+            // Not one made or changed here that the server has yet to hear of.
+            None if held.graph.unsettled(block) => {}
+            None => held.graph.forget(block),
+        }
+    }
+}
+
+fn take_reads(shared: &Arc<Mutex<Shared>>) -> Vec<(Uuid, CommitId)> {
+    let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+    if !held.graph.has_to_read() {
+        return Vec::new();
+    }
+    held.graph.take_to_read()
+}
+
+/// How many heads `read_references` reads at once.
+const READS_AT_ONCE: usize = 16;
+
+/// Reads what each block references from its content at `head` (`Graph::take_to_read`), as no
+/// summary names it: a folder's order, its children's liveness, whether a row has anything to
+/// expand, its links. `READS_AT_ONCE` at a time, each told to the graph as it lands. Offline,
+/// only content this device kept answers; what cannot be read waits for a new connection or new
+/// keys (`Graph::read_failed`).
+async fn read_references(
+    peer: &Arc<Peer<Store>>,
+    shared: &Arc<Mutex<Shared>>,
+    blocks: Vec<(Uuid, CommitId)>,
+) {
+    use futures_util::StreamExt;
+    let mut reads = futures_util::stream::iter(blocks)
+        .map(|(block, head)| async move {
+            // Gone from the mirror, or moved past this head, while it waited its turn.
+            let current = shared
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .graph
+                .get(block)
+                .is_some_and(|node| node.head == Some(head));
+            if !current {
+                return (block, head, None);
+            }
+            let read = async {
+                let commit = peer.load_head(block, head).await?;
+                peer.references_of(block, &commit).await
+            };
+            (block, head, Some(read.await))
+        })
+        .buffer_unordered(READS_AT_ONCE);
+    while let Some((block, head, read)) = reads.next().await {
+        let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+        match read {
+            None => held.graph.read_skipped(block),
+            Some(Ok(references)) => held.graph.read_references(block, head, references),
+            Some(Err(error)) => held.graph.read_failed(block, head, lasting(&error)),
+        }
+    }
+}
+
+/// Whether a read failed for a reason that reading again at the same head will not change: no
+/// key opens it (new keys clear it, `Graph::keys_changed`), it was forged or tampered with, it
+/// does not decode, or the server refuses it.
+fn lasting(error: &ClientError) -> bool {
+    matches!(
+        error,
+        ClientError::Locked(_)
+            | ClientError::Forged(_)
+            | ClientError::Tampered(_)
+            | ClientError::Withheld(_)
+            | ClientError::Content(_)
+            | ClientError::Encoding(_)
+            | ClientError::Refused(..)
+    )
+}
+
+fn take_follows(shared: &Arc<Mutex<Shared>>) -> (Vec<(Uuid, u64)>, Vec<Uuid>) {
+    let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+    if !held.graph.has_follows_to_take() {
+        return (Vec::new(), Vec::new());
+    }
+    held.graph.take_follows()
+}
+
+/// Reads what changed in each tree of `trees` since its cursor, following it (`query.tree`),
+/// and gives the graph what changed of what it holds (`Graph::followed`); the blocks it held that
+/// left a tree are read again, wherever they went. Unfollows `unfollowed`.
+async fn read_trees(
+    peer: &Arc<Peer<Store>>,
+    shared: &Arc<Mutex<Shared>>,
+    trees: Vec<(Uuid, u64)>,
+    unfollowed: Vec<Uuid>,
+) {
+    let asked_on = peer.connection();
+    let unfollows =
+        futures_util::future::join_all(unfollowed.into_iter().map(|entry| peer.unfollow(entry)));
+    let reads = futures_util::future::join_all(
+        trees
+            .iter()
+            .map(|(entry, cursor)| peer.changed_since(*entry, *cursor, true)),
+    );
+    let (_, answers) = futures_util::future::join(unfollows, reads).await;
+    for ((entry, _), answer) in trees.into_iter().zip(answers) {
+        let (summaries, removed, sequence) = match answer {
+            Ok(read) => read,
+            Err(error) => {
+                let unreachable = asked_again(
+                    &error,
+                    Arc::ptr_eq(&asked_on, &peer.connection()),
+                    peer.is_attached(),
+                );
+                let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+                // As a listing's: asked again only when another connection replaced the one it
+                // was asked on; a connection that went is followed again as the next one
+                // relists everything (`Graph::relist_all`).
+                match (unreachable, error.is_unreachable()) {
+                    (true, _) => held.graph.unfetch_follow(entry),
+                    (false, true) => held.graph.follow_stalled(entry),
+                    (false, false) => held.graph.follow_failed(entry),
+                }
+                drop(held);
+                // A refusal is the tree's news, as a listing's is: the block is not there for
+                // this account, or not yet (made here and still in the outbox). Only following
+                // more trees than the server keeps for a connection is an error to show.
+                if !matches!(error, ClientError::Refused(code, _) if code != be_block_protocol::ErrorCode::OverQuota)
+                {
+                    record(shared, error);
+                }
+                continue;
+            }
+        };
+        let opens_inside = summaries.iter().any(|summary| summary.opens_inside);
+        let nodes = summaries
+            .iter()
+            .filter(|summary| peer.refusal(summary.id).is_none())
+            .map(|summary| node_of(peer, &peer.summary_with_outbox(summary.clone())))
+            .collect();
+        let departed = {
+            let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+            if opens_inside {
+                held.graph.relist_open_settings();
+            }
+            held.graph.followed(entry, nodes, &removed, sequence)
+        };
+        if departed.is_empty() {
+            continue;
+        }
+        // Where they went, or that they are gone for this account.
+        let Ok(found) = peer.read_summaries(&departed).await else {
+            continue;
+        };
+        if let Err(error) = peer.learn(&found).await {
+            record(shared, error);
+        }
+        let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+        for block in departed {
+            match found.iter().find(|summary| summary.id == block) {
+                Some(summary) => {
+                    let summary = peer.summary_with_outbox(summary.clone());
+                    held.graph.put(node_of(peer, &summary), sequence);
+                }
+                None => held.graph.remove(block, sequence),
+            }
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -3901,6 +5116,8 @@ struct Outbox {
     draining: bool,
     again: bool,
     diverged: Vec<(Uuid, CommitId, Option<CommitId>)>,
+    /// Blocks with entries of their log the server refused (`Replicas::not_appended`).
+    not_appended: std::collections::BTreeSet<Uuid>,
     /// Blocks whose kept commits all reached the server, or were refused
     /// (`Replicas::drained`).
     /// Each block a drain published, with the head it published (none for one only created),
@@ -3926,7 +5143,8 @@ impl Tasks {
     }
 
     pub(super) fn sync(&self, peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
-        if !peer.is_attached() {
+        // A local account's drain settles the outbox on the device (`Peer::local`).
+        if !peer.is_attached() && !peer.is_local() {
             return;
         }
         #[cfg(test)]
@@ -3957,10 +5175,11 @@ impl Tasks {
         );
         self.spawn(async move {
             loop {
-                let (diverged, published) = drain_outbox(&peer, &shared).await;
+                let (diverged, published, not_appended) = drain_outbox(&peer, &shared).await;
                 let mut held = outbox.borrow_mut();
                 held.diverged.extend(diverged);
                 held.published.extend(published);
+                held.not_appended.extend(not_appended);
                 if !std::mem::take(&mut held.again) || !peer.is_attached() {
                     held.draining = false;
                     break;
@@ -4039,6 +5258,10 @@ impl Tasks {
         std::mem::take(&mut self.outbox.borrow_mut().diverged)
     }
 
+    fn take_not_appended(&self) -> std::collections::BTreeSet<Uuid> {
+        std::mem::take(&mut self.outbox.borrow_mut().not_appended)
+    }
+
     /// Reads the locked nodes again as keys arrived, with one `learn` over all of them: one at
     /// a time, and once more if keys arrive while it runs.
     fn relearn_locked(&self, peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
@@ -4070,7 +5293,7 @@ impl Tasks {
                 for summary in &summaries {
                     if let Some(known) = peer.known_summary(summary.id) {
                         let known = peer.summary_with_outbox(known);
-                        held.graph.reread(node_of(&peer, &known), known.revision);
+                        held.graph.reread(node_of(&peer, &known));
                     }
                 }
                 if held.relearning != Some(true) {
@@ -4095,20 +5318,34 @@ impl Tasks {
         self.spawn(async move { refresh(&peer, &shared, block).await });
     }
 
-    /// Reads every notification mode the account set into `Shared::notify_modes`.
-    fn notify_modes(&self, peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
+    /// Reads every block the account muted into `Shared::mutes`.
+    fn mutes(&self, peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
         let (peer, shared) = (Arc::clone(peer), Arc::clone(shared));
         self.spawn(async move {
-            if let Ok(read) = peer.notify_modes().await {
+            if let Ok(read) = peer.mutes().await {
                 let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
-                held.notify_modes = Some(read.iter().map(|row| (row.block, row.mode)).collect());
+                held.mutes =
+                    crate::Part::new(Some(read.iter().map(|row| (row.block, row.mode)).collect()));
                 crate::changes::post(crate::Changes {
-                    notify_modes: true,
+                    mutes: true,
                     ..crate::Changes::default()
                 });
                 held.progressed += 1;
                 drop(held);
-                be_host_base::host::wake();
+                crate::changes::wake();
+            }
+        });
+    }
+
+    /// Reads the account's notices and shows them (`be_host_base::notices::account_notices`):
+    /// for an account with no email, what it would otherwise be mailed.
+    fn account_notices(&self, peer: &Arc<Peer<Store>>) {
+        let peer = Arc::clone(peer);
+        self.spawn(async move {
+            if let Ok(mailbox) = be_block_client::contacts::mailbox(&peer.connection()).await {
+                crate::seen::notice(crate::seen::Notice::Account(crate::accounts::notices(
+                    mailbox,
+                )));
             }
         });
     }
@@ -4118,9 +5355,9 @@ impl Tasks {
         self.spawn(async move { tasks.sync_contacts(&peer, &shared).await });
     }
 
-    /// Follows the account's storage on the server's `storage-changed` stream while an editor
-    /// watches it, and stops following once none does. A stream that ends while the connection
-    /// holds is a failure the host shows.
+    /// Follows the account's storage (`query.storage`, read again on `Event::StorageChanged`)
+    /// while an editor watches it, and stops following once none does. A read that fails while
+    /// the connection holds is a failure the host shows.
     fn storage(&self, peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
         let watched = shared
             .lock()
@@ -4138,16 +5375,22 @@ impl Tasks {
         *following = Some(stop);
         let (peer, shared) = (Arc::clone(peer), Arc::clone(shared));
         self.spawn(async move {
-            let mut usage = client::account::storage_changed(&peer.connection());
+            let connection = peer.connection();
+            let mut told = connection.subscribe();
             let mut stopped = std::pin::pin!(stopped);
             loop {
-                let next = match select(std::pin::pin!(usage.recv()), stopped.as_mut()).await {
+                let read = be_block_protocol::read::<be_block_protocol::AccountStorage, _>(
+                    &connection,
+                    None,
+                    be_block_protocol::Query::Storage,
+                );
+                let next = match select(std::pin::pin!(read), stopped.as_mut()).await {
                     Either::Left((next, _)) => next,
                     Either::Right(_) => return,
                 };
                 let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
                 match next {
-                    Some(next) => {
+                    Ok(Ok(next)) => {
                         if held.storage.as_ref() != Some(&next) {
                             held.storage = Some(next);
                             crate::changes::post(crate::Changes {
@@ -4157,17 +5400,30 @@ impl Tasks {
                             held.progressed += 1;
                         }
                     }
-                    None => {
+                    Ok(Err(_)) | Err(_) => {
                         if peer.is_attached() {
                             held.error = Some(STORAGE_FAILED.to_owned());
                         }
                         drop(held);
-                        be_host_base::host::wake();
+                        crate::changes::wake();
                         return;
                     }
                 }
                 drop(held);
-                be_host_base::host::wake();
+                crate::changes::wake();
+                // Read again once the server tells it changed (`Peer::follow_topics` follows it).
+                loop {
+                    let heard = match select(std::pin::pin!(told.recv()), stopped.as_mut()).await {
+                        Either::Left((heard, _)) => heard,
+                        Either::Right(_) => return,
+                    };
+                    match heard {
+                        Ok(Event::StorageChanged)
+                        | Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => break,
+                        Ok(_) => {}
+                        Err(tokio::sync::broadcast::error::RecvError::Closed) => return,
+                    }
+                }
             }
         });
     }
@@ -4178,34 +5434,51 @@ impl Tasks {
     }
 }
 
-fn take_listings(shared: &Arc<Mutex<Shared>>) -> (Vec<Listing>, Vec<Listing>) {
+fn take_listings(shared: &Arc<Mutex<Shared>>) -> Vec<Listing> {
     let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
-    (held.graph.take_unlisted(), held.graph.take_wanted())
+    if !held.graph.has_listings_to_take() {
+        return Vec::new();
+    }
+    held.graph.take_wanted()
 }
 
-async fn list(
-    peer: &Arc<Peer<Store>>,
-    shared: &Arc<Mutex<Shared>>,
-    unlisted: Vec<Listing>,
-    wanted: Vec<Listing>,
-) {
+async fn list(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, wanted: Vec<Listing>) {
     // The connection the requests are made on: one that fails after another replaced it says
     // nothing of the listing, and one that fails while it is the current one is a failure.
     let asked_on = peer.connection();
-    let unlists =
-        futures_util::future::join_all(unlisted.into_iter().map(|listing| peer.unlist(listing)));
-    let lists = futures_util::future::join_all(wanted.iter().map(|listing| async move {
-        match *listing {
+    // A refusal is the server's word as of no earlier than this: what was heard by then goes
+    // with it, and what was heard since (a block made after the request) stays. Narrowly, a
+    // summary another read learned between the ask and a refusal (changed at 11 when this was
+    // asked at 10, revoked at 12) survives it, though it is older than the refusal; the exact
+    // rule waits for 3a's `read` answering the sequence it was refused at.
+    let asked_at = peer.newest_sequence();
+    // Marked before the requests go: a creation or move the server takes while they are out is
+    // laid over their answers, which may be from before it took it.
+    let since = peer.sent_since();
+    let answers = futures_util::future::join_all(wanted.iter().map(|listing| async move {
+        match listing.served() {
+            Some(served) => peer.listing(served).await,
             // A block's own summary answers from the outbox and offline as `summary` does.
-            Listing::Block(block) => peer.summary(block).await.map(|summary| vec![summary]),
-            listing => peer.list(listing).await,
+            None => {
+                let Listing::Block(block) = *listing else {
+                    unreachable!("only a block's own summary is read apart")
+                };
+                peer.summary(block)
+                    .await
+                    .map(|summary| be_block_client::Listed {
+                        sequence: summary.changed,
+                        blocks: vec![summary],
+                    })
+            }
         }
-    }));
-    let (_, answers) = futures_util::future::join(unlists, lists).await;
+    }))
+    .await;
     for (listing, answer) in wanted.into_iter().zip(answers) {
-        let summaries = match answer {
-            Ok(summaries) => summaries,
-            Err(ClientError::Refused(..)) => Vec::new(),
+        let (sequence, summaries) = match answer {
+            Ok(listed) => (listed.sequence, listed.blocks),
+            // The listing is not this account's to read now: nothing heard before it was asked
+            // outlasts that.
+            Err(ClientError::Refused(..)) => (asked_at, Vec::new()),
             Err(error) => {
                 // See `asked_again`.
                 let unreachable = asked_again(
@@ -4227,14 +5500,14 @@ async fn list(
         if let Err(error) = peer.learn(&summaries).await {
             record(shared, error);
         }
-        let revision = summaries
-            .iter()
-            .map(|summary| summary.revision)
-            .max()
-            .unwrap_or_default();
-        // As the outbox stands now, not when the request went: a creation or move kept since,
-        // whose block is no longer pending in the graph, is in it (no await from here on).
-        let summaries = peer.with_outbox(listing, summaries);
+        // As the outbox stands now, and as this device has what the server took since the
+        // request went: a creation or move kept since, whose block is no longer pending in the
+        // graph, is in it, and one taken since is where this device has it (no await from here
+        // on).
+        let summaries = match listing.served() {
+            Some(served) => peer.with_outbox(served, summaries, since),
+            None => summaries,
+        };
         // A block the server refused to make left the files (`Graph::forget` when it was set
         // aside), though its summary still answers from this device (`Peer::summary`), as do
         // the blocks made in it. One whose edits were set aside for lost access is still on the
@@ -4250,7 +5523,7 @@ async fn list(
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .graph
-            .listed(listing, nodes, revision);
+            .listed(listing, nodes, sequence);
     }
 }
 
@@ -4329,7 +5602,7 @@ async fn settled(
                 .lock()
                 .unwrap_or_else(PoisonError::into_inner)
                 .graph
-                .put(node, summary.revision);
+                .put(node, summary.changed);
             Ok(())
         }
         Err(error) => {
@@ -4353,7 +5626,7 @@ pub(super) async fn refresh(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>
                 .lock()
                 .unwrap_or_else(PoisonError::into_inner)
                 .graph
-                .put(node, summary.revision);
+                .put(node, summary.changed);
         }
         Err(ClientError::Refused(..)) => shared
             .lock()
@@ -4374,13 +5647,16 @@ pub(super) fn node_of(peer: &Peer<Store>, summary: &BlockSummary) -> Node {
         author: summary.author,
         parent: summary.parent,
         access: summary.access,
-        references: summary.references.clone(),
+        references: None,
         metadata: metadata.unwrap_or_default(),
-        head: summary.head,
+        head: peer.head_of(summary),
         held: summary.held,
         sets_access: summary.sets_access,
         size: summary.size,
         tree_size: summary.tree_size,
+        changed: summary.changed,
+        entry: summary.entry,
+        unread: 0,
     }
 }
 

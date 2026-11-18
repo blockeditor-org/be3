@@ -149,12 +149,12 @@ pub(super) fn RuleItem(edits: Edits, group: usize, rule: usize) -> NodeId {
     let open = create_memo(move || edits.open.get() == Some((group, rule)));
     let on = create_memo(move || trigger_caps(&outline.get()));
     let result = create_memo(move || result_caps(&outline.get()));
-    let taps = create_memo(move || outline.get().does == Does::Tap);
+    let taps = create_memo(move || outline.with(|outline| outline.does == Does::Tap));
     let tags = create_memo(move || match open.get() {
         true => String::new(),
         false => options(&outline.get(), true).join(" \u{b7} "),
     });
-    let label = create_memo(move || summary(&outline.get()));
+    let label = move || summary(&outline.get());
     let toggle = move || {
         edits.open.update(|open| {
             *open = match *open == Some((group, rule)) {
@@ -163,14 +163,13 @@ pub(super) fn RuleItem(edits: Edits, group: usize, rule: usize) -> NodeId {
             }
         })
     };
-    let first = rule == 0;
     view! {
         <List spacing=Space::None>
-            <Show condition={!first}>
+            {(rule != 0).then(|| view! {
                 <Frame padding={Padding::horizontal(Space::Xl)}>
                     <Separator />
                 </Frame>
-            </Show>
+            })}
             <unstyled::Button
                 label={label}
                 expanded={open}
@@ -179,7 +178,7 @@ pub(super) fn RuleItem(edits: Edits, group: usize, rule: usize) -> NodeId {
             >|handle: unstyled::ButtonHandle|
                 <RuleRowFace handle on result taps tags open />
             </unstyled::Button>
-            <Show condition={open}>
+            <Show value={open}>
                 <RuleEditor edits={edits} group={group} rule={rule} outline={outline} />
             </Show>
         </List>
@@ -195,14 +194,14 @@ fn RuleRowFace(
     tags: Memo<String>,
     open: Memo<bool>,
 ) -> NodeId {
-    let fill = create_memo(move || match handle.hovered.get() {
+    let fill = move || match handle.hovered.get() {
         true => ColorRole::Hover,
         false => ColorRole::None,
-    });
-    let chevron = create_memo(move || match open.get() {
+    };
+    let chevron = move || match open.get() {
         true => ICON_CHEVRON_UP,
         false => ICON_CHEVRON_DOWN,
-    });
+    };
     view! {
         <FocusRing focused={handle.focused} radius=Radius::Lg>
             <Frame fill={fill} radius=Radius::Lg padding=ROW_PADDING>
@@ -211,7 +210,7 @@ fn RuleRowFace(
                     <Text color=TextColor::Muted align=TextAlign::Center>
                         <Icon glyph=ICON_ARROW_RIGHT />
                     </Text>
-                    <Show condition={taps}>
+                    <Show value={taps}>
                         <Text style=TextStyle::CAPTION>"taps"</Text>
                     </Show>
                     <Caps caps={result} />
@@ -239,20 +238,20 @@ fn Caps(caps: Memo<Vec<Cap>>) -> NodeId {
     let indices = create_memo(move || (0..caps.with(Vec::len)).collect::<Vec<usize>>());
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=CAP_SPACING wrap=true>
-            <ForEach keys={indices}>|index: usize| {
+            <ForEach value={indices}>|index: usize| {
                 let cap = create_memo(move || caps.with(|caps| caps.get(index).cloned()));
                 let text = create_memo(move || cap.get().map(|cap| cap.label).unwrap_or_default());
                 let muted = create_memo(move || cap.get().is_some_and(|cap| cap.muted));
-                let joined = create_memo(move || {
+                let joined = move || {
                     index > 0
                         && caps.with(|caps| {
                             caps.get(index).is_some_and(|cap| !cap.muted)
                                 && caps.get(index - 1).is_some_and(|cap| !cap.muted)
                         })
-                });
+                };
                 view! {
                     <List direction=Direction::Horizontal align=Align::Center spacing=CAP_SPACING>
-                        <Show condition={joined}>
+                        <Show value={joined}>
                             <Text style=TextStyle::CAPTION>"+"</Text>
                         </Show>
                         <KeyCap label={text} muted={muted} />
@@ -282,40 +281,27 @@ fn RuleEditor(edits: Edits, group: usize, rule: usize, outline: Memo<RuleOutline
             .filter(|name| modifier_of(name).is_none())
             .collect::<Vec<_>>()
     });
-    let does = create_memo(move || match outline.get().does {
-        Does::Send => 0,
-        Does::Tap => 1,
-        Does::Steps => 2,
-    });
-    let set_does = move |index: usize| {
-        let chosen = match index {
-            1 => Does::Tap,
-            2 => Does::Steps,
-            _ => Does::Send,
-        };
+    let does = create_memo(move || outline.with(|outline| outline.does));
+    let set_does = move |chosen: Does| {
         if chosen != outline.get_untracked().does {
             edit(RuleEdit::Does(chosen));
         }
     };
-    let explained = create_memo(move || {
-        match outline.get().does {
+    let explained = move || {
+        match does.get() {
             Does::Send => "Held down for as long as you hold it.",
             Does::Tap => "Pressed and let go once, each time you press it.",
             Does::Steps => "Taps and waits, in order, each time you press it.",
         }
         .to_owned()
-    });
-    let keyed = create_memo(move || outline.get().does != Does::Steps);
-    let tapping = create_memo(move || outline.get().does == Does::Tap);
-    let stepping = create_memo(move || outline.get().does == Does::Steps);
-    let not_send = create_memo(move || outline.get().does != Does::Send);
-    let key_heading = create_memo(move || {
-        match outline.get().does {
+    };
+    let key_heading = move || {
+        match does.get() {
             Does::Tap => "Taps",
             _ => "Acts as",
         }
         .to_owned()
-    });
+    };
     let key = create_memo(move || label(&Combo::parse(&outline.get().key).key));
     let key_modifiers = create_memo(move || Combo::parse(&outline.get().key).modifiers());
     let set_key_modifier = Callback::new(move |(modifier, on): (Modifier, bool)| {
@@ -327,6 +313,10 @@ fn RuleEditor(edits: Edits, group: usize, rule: usize, outline: Memo<RuleOutline
         edit(RuleEdit::Key(chord.text()));
     });
     let hold = create_memo(move || outline.get().hold_ms.unwrap_or(0).max(0) as f64);
+    // A scrub shows in the field and is set once, when it is kept.
+    let held_hold = HeldValue::new(Binding::new(hold, move |ms: f64| {
+        edit(RuleEdit::HoldMs(Some(ms.round() as i64)))
+    }));
     let steps = create_memo(move || {
         (0..outline.with(|outline| outline.steps.len())).collect::<Vec<usize>>()
     });
@@ -349,11 +339,11 @@ fn RuleEditor(edits: Edits, group: usize, rule: usize, outline: Memo<RuleOutline
     let keep = create_memo(move || outline.get().keep);
     let blind = create_memo(move || outline.get().blind);
     let more = create_signal(false);
-    let more_summary = create_memo(move || match more.get() {
+    let more_summary = move || match more.get() {
         true => String::new(),
         false => options(&outline.get(), false).join(", "),
-    });
-    let kept = create_memo(move || format!("The program still gets {} as well.", trigger.get()));
+    };
+    let kept = move || format!("The program still gets {} as well.", trigger.get());
     let add_held = NodeRef::new();
     let add_tap_button = NodeRef::new();
     let add_tap = move || {
@@ -405,78 +395,81 @@ fn RuleEditor(edits: Edits, group: usize, rule: usize, outline: Memo<RuleOutline
                 <Part title="It" description={explained}>
                     <SegmentedControl
                         options={view! {
-                            <ChoiceOption label="Acts as another key" />
-                            <ChoiceOption label="Taps a key" />
-                            <ChoiceOption label="Plays a sequence" />
+                            <ChoiceOption value={Does::Send} label="Acts as another key" />
+                            <ChoiceOption value={Does::Tap} label="Taps a key" />
+                            <ChoiceOption value={Does::Steps} label="Plays a sequence" />
                         }}
                         selected={Binding::new(does, set_does)}
                         label="What it does"
                         @test_id={id("does")}
                     />
                 </Part>
-                <Show condition={keyed}>
-                    <Part title={key_heading}>
-                        <List
-                            direction=Direction::Horizontal
-                            align=Align::Center
-                            spacing=CONTROL_SPACING
-                            wrap=true
-                        >
-                            <ModifierToggles
-                                on={key_modifiers}
-                                disabled={read_only}
-                                id={id("key")}
-                                set={set_key_modifier}
-                            />
-                            <Text style=TextStyle::CAPTION>"+"</Text>
-                            <KeyButton
-                                label={key}
-                                disabled={read_only}
-                                id={id("key")}
-                                pick={move |from: NodeRef| edits.pick(from, group, rule, Target::Key)}
-                            />
-                        </List>
-                    </Part>
-                </Show>
-                <Show condition={tapping}>
-                    <Part
-                        title="Hold the tap for"
-                        description="Some games miss taps shorter than a frame or two."
-                    >
-                        <List
-                            direction=Direction::Horizontal
-                            align=Align::Center
-                            spacing=CONTROL_SPACING
-                            wrap=true
-                        >
-                            <HoldPresets
-                                hold={hold}
-                                disabled={read_only}
-                                id={id("hold")}
-                                set={move |ms: i64| edit(RuleEdit::HoldMs(Some(ms)))}
-                            />
-                            <Text style=TextStyle::CAPTION>"or"</Text>
-                            <ListItem length=MS_WIDTH>
-                                <NumberInput
-                                    value={Binding::new(hold, move |ms: f64| edit(RuleEdit::HoldMs(Some(ms.round() as i64))))}
-                                    min=0.0
-                                    decimals={Some(0)}
-                                    label="Hold for, in milliseconds"
+                <Show
+                    value={move || does.get() == Does::Steps}
+                    fallback={move || view! {
+                        <Part title={key_heading}>
+                            <List
+                                direction=Direction::Horizontal
+                                align=Align::Center
+                                spacing=CONTROL_SPACING
+                                wrap=true
+                            >
+                                <ModifierToggles
+                                    on={key_modifiers}
                                     disabled={read_only}
-                                    @test_id={id("hold")}
+                                    id={id("key")}
+                                    set={set_key_modifier}
                                 />
-                            </ListItem>
-                            <Text style=TextStyle::CAPTION>"ms"</Text>
-                        </List>
-                    </Part>
-                </Show>
-                <Show condition={stepping}>
+                                <Text style=TextStyle::CAPTION>"+"</Text>
+                                <KeyButton
+                                    label={key}
+                                    disabled={read_only}
+                                    id={id("key")}
+                                    pick={move |from: NodeRef| edits.pick(from, group, rule, Target::Key)}
+                                />
+                            </List>
+                        </Part>
+                        <Show value={move || does.get() == Does::Tap}>
+                            <Part
+                                title="Hold the tap for"
+                                description="Some games miss taps shorter than a frame or two."
+                            >
+                                <List
+                                    direction=Direction::Horizontal
+                                    align=Align::Center
+                                    spacing=CONTROL_SPACING
+                                    wrap=true
+                                >
+                                    <HoldPresets
+                                        hold={hold}
+                                        disabled={read_only}
+                                        id={id("hold")}
+                                        set={move |ms: i64| edit(RuleEdit::HoldMs(Some(ms)))}
+                                    />
+                                    <Text style=TextStyle::CAPTION>"or"</Text>
+                                    <ListItem length=MS_WIDTH>
+                                        <NumberInput
+                                            value={held_hold.value}
+                                            on_scrub={held_hold.on_drag}
+                                            min=0.0
+                                            decimals={Some(0)}
+                                            label="Hold for, in milliseconds"
+                                            disabled={read_only}
+                                            @test_id={id("hold")}
+                                        />
+                                    </ListItem>
+                                    <Text style=TextStyle::CAPTION>"ms"</Text>
+                                </List>
+                            </Part>
+                        </Show>
+                    }}
+                >
                     <Part
                         title="Sequence"
                         description="Plays in order each time. Choose a key to change it."
                     >
                         <List spacing=CONTROL_SPACING>
-                            <ForEach keys={steps}>|step: usize|
+                            <ForEach value={steps}>|step: usize|
                                 <StepTile
                                     edits={edits}
                                     group={group}
@@ -549,7 +542,7 @@ fn RuleEditor(edits: Edits, group: usize, rule: usize, outline: Memo<RuleOutline
                                 @test_id={id("keep")}
                             />
                         </MoreOption>
-                        <Show condition={not_send}>
+                        <Show value={move || does.get() != Does::Send}>
                             <MoreOption
                                 title="Keep held modifiers"
                                 description="Otherwise the Shift, Ctrl, Alt and Super you hold are let go during the taps."
@@ -596,12 +589,11 @@ fn Part(
 ) -> NodeId {
     let title = create_memo(move || title.get());
     let description = create_memo(move || description.get());
-    let described = create_memo(move || !description.get().is_empty());
     view! {
         <List spacing=CONTROL_SPACING>
             <List spacing=LABEL_SPACING>
                 <Text weight=Weight::Bold>{title}</Text>
-                <Show condition={described}>
+                <Show value={move || description.with(|description| !description.is_empty())}>
                     <Text style=TextStyle::CAPTION>{description}</Text>
                 </Show>
             </List>
@@ -636,7 +628,7 @@ fn KeyButton(
     id: String,
     pick: Callback<NodeRef>,
 ) -> NodeId {
-    let named = create_memo(move || format!("Change {}", label.get()));
+    let named = move || format!("Change {}", label.get());
     let button = NodeRef::new();
     view! {
         <unstyled::Button
@@ -646,10 +638,10 @@ fn KeyButton(
             @test_id={id}
             on_click={move || pick.call(button)}
         >|handle: unstyled::ButtonHandle| {
-            let fill = create_memo(move || match handle.hovered.get() && !handle.disabled.get() {
+            let fill = move || match handle.hovered.get() && !handle.disabled.get() {
                 true => ColorRole::Hover,
                 false => ColorRole::None,
-            });
+            };
             view! {
                 <FocusRing focused={handle.focused}>
                     <Frame fill={fill} radius=Radius::Md padding={Padding::all(Space::Xs)}>
@@ -659,7 +651,7 @@ fn KeyButton(
                             spacing=CONTROL_SPACING
                         >
                             <KeyCap label={label} />
-                            <Show condition={create_memo(move || !handle.disabled.get())}>
+                            <Show value={move || !handle.disabled.get()}>
                                 <Text style={TextStyle::CAPTION.color(TextColor::Accent)}>
                                     "Change"
                                 </Text>
@@ -682,7 +674,7 @@ fn ModifierToggles(
 ) -> NodeId {
     view! {
         <List direction=Direction::Horizontal spacing=CAP_SPACING>
-            <ForEach keys={create_memo(|| Modifier::ALL.to_vec())}>|modifier: Modifier| {
+            <ForEach value={Modifier::ALL.to_vec()}>|modifier: Modifier| {
                 let pressed = create_memo(move || on.with(|on| on.contains(&modifier)));
                 let control_id = format!("{id}.{}", modifier.name().to_lowercase());
                 view! {
@@ -708,7 +700,7 @@ fn RemovableKeys(
 ) -> NodeId {
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=CAP_SPACING>
-            <ForEach keys={names}>|name: String| {
+            <ForEach value={names}>|name: String| {
                 let shown = label(&name);
                 let removed = name.clone();
                 let control_id = format!("{id}.{}.remove", super::keys::id_part(&name));
@@ -736,9 +728,7 @@ fn RemovableKeys(
 fn HoldPresets(hold: Memo<f64>, disabled: Memo<bool>, id: String, set: Callback<i64>) -> NodeId {
     view! {
         <List direction=Direction::Horizontal spacing=CAP_SPACING>
-            <ForEach
-                keys={create_memo(|| HOLD_PRESETS.to_vec())}
-            >|(ms, name): (i64, &'static str)| {
+            <ForEach value={HOLD_PRESETS.to_vec()}>|(ms, name): (i64, &'static str)| {
                 let pressed = create_memo(move || hold.get().round() as i64 == ms);
                 let control_id = format!("{id}.{ms}");
                 view! {
@@ -774,7 +764,6 @@ fn StepTile(
             .unwrap_or(StepOutline::Wait { ms: 0 })
     });
     let tap = create_memo(move || matches!(shown.get(), StepOutline::Tap { .. }));
-    let wait = create_memo(move || !tap.get());
     let key = create_memo(move || match shown.get() {
         StepOutline::Tap { key, .. } => chord_caps(&key)
             .into_iter()
@@ -787,6 +776,10 @@ fn StepTile(
         StepOutline::Tap { hold_ms, .. } => hold_ms.unwrap_or(0) as f64,
         StepOutline::Wait { ms } => ms as f64,
     });
+    // A scrub shows in the field and is set once, when it is kept.
+    let held_ms = HeldValue::new(Binding::new(ms, move |ms: f64| {
+        edit(RuleEdit::StepMs(step, Some(ms.round() as i64)))
+    }));
     let number = format!("{}", step + 1);
     view! {
         <Frame
@@ -796,7 +789,15 @@ fn StepTile(
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=CONTROL_SPACING>
                 <Text style=TextStyle::CAPTION>{number}</Text>
-                <Show condition={tap}>
+                <Show
+                    value={tap}
+                    fallback={|| view! {
+                        <Text style=TextStyle::CAPTION>
+                            <Icon glyph=ICON_TIMER />
+                            "wait"
+                        </Text>
+                    }}
+                >
                     <List
                         direction=Direction::Horizontal
                         align=Align::Center
@@ -811,15 +812,10 @@ fn StepTile(
                         <Text style=TextStyle::CAPTION>"held"</Text>
                     </List>
                 </Show>
-                <Show condition={wait}>
-                    <Text style=TextStyle::CAPTION>
-                        <Icon glyph=ICON_TIMER />
-                        "wait"
-                    </Text>
-                </Show>
                 <ListItem length=MS_WIDTH>
                     <NumberInput
-                        value={Binding::new(ms, move |ms: f64| edit(RuleEdit::StepMs(step, Some(ms.round() as i64))))}
+                        value={held_ms.value}
+                        on_scrub={held_ms.on_drag}
                         min=0.0
                         decimals={Some(0)}
                         label="Milliseconds"

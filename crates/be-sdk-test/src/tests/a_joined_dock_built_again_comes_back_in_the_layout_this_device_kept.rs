@@ -16,11 +16,10 @@ impl BeuiRoot for RebuiltRoot {
     #[component]
     fn View(editor: Editor) -> Root {
         let presenting = editor.presenting();
-        let docked = create_memo(move || !presenting.get());
         view! {
             <Root>
                 <Layers>
-                    <Show condition={docked}>
+                    <Show value={move || !presenting.get()}>
                         <Deck />
                     </Show>
                 </Layers>
@@ -205,3 +204,5 @@ fn a_joined_dock_built_again_comes_back_in_the_layout_this_device_kept() {
         "the layout the root starts the rebuilt dock in is not kept over the saved one"
     );
 }
+
+test_editor!(RebuiltRoot);

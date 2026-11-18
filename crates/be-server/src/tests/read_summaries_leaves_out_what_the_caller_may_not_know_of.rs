@@ -4,7 +4,15 @@ use super::*;
 
 async fn summaries(client: &mut TestClient, blocks: Vec<Uuid>) -> Vec<Option<Uuid>> {
     client
-        .call(|peer| client::blocks::read_summaries(peer, blocks))
+        .call(|peer| {
+            peer.read::<Vec<Option<be_block_protocol::BlockSummary>>>(
+                be_block_protocol::Query::Blocks {
+                    blocks: blocks,
+                    contents: false,
+                    held: Vec::new(),
+                },
+            )
+        })
         .await
         .expect("read-summaries failed")
         .into_iter()
@@ -15,11 +23,10 @@ async fn summaries(client: &mut TestClient, blocks: Vec<Uuid>) -> Vec<Option<Uui
 #[tokio::test]
 async fn read_summaries_leaves_out_what_the_caller_may_not_know_of() {
     let harness = Harness::start().await;
-    let mut owner = harness.client().await;
-    owner.register("owner@example.com").await;
+    let mut owner = harness.member("owner@example.com").await;
     let organization = owner.personal().await;
-    let mut viewer = harness.client().await;
-    let viewer_id = viewer.register("viewer@example.com").await;
+    let mut viewer = harness.member("viewer@example.com").await;
+    let viewer_id = viewer.id();
     viewer.personal().await;
     let link = owner.link(None).await;
     let _ = viewer.accept(link, &[]).await;
@@ -44,22 +51,27 @@ async fn read_summaries_leaves_out_what_the_caller_may_not_know_of() {
         .await;
     let secret = Uuid::new_v4();
     let key = Uuid::new_v4();
+    let root = owner.root(secret);
+    let placement = owner.placement(secret, BlockParent::Block(settings)).await;
     let made = owner
         .call(|peer| {
-            client::blocks::create_block(
-                peer,
-                secret,
-                CONTENT,
-                BlockParent::Block(settings),
-                Vec::new(),
-                Vec::new(),
-                key,
-                KeySet {
+            peer.write_all::<be_block_protocol::BlockSummary>(vec![
+                be_block_protocol::Op::CreateBlock {
+                    block: secret,
+                    content_type: CONTENT,
+                    parent: BlockParent::Block(settings),
+                    metadata: Vec::new(),
+                    references: Vec::new(),
+                    key: key,
+                    owner_only: true,
+                    root: root.clone(),
+                    placement: placement,
+                },
+                be_block_protocol::Op::PutKeys(be_block_protocol::PutKeys::Rows(KeySet {
                     keys: vec![row(key, secret, KeyKind::Data)],
                     wrapped: Vec::new(),
-                },
-                true,
-            )
+                })),
+            ])
         })
         .await;
     assert!(made.is_ok(), "{made:?}");
@@ -72,7 +84,15 @@ async fn read_summaries_leaves_out_what_the_caller_may_not_know_of() {
     );
     // Another member's owner-only block is known to exist, as its folder lists it, and no more.
     let read = viewer
-        .call(|peer| client::blocks::read_summaries(peer, vec![secret]))
+        .call(|peer| {
+            peer.read::<Vec<Option<be_block_protocol::BlockSummary>>>(
+                be_block_protocol::Query::Blocks {
+                    blocks: vec![secret],
+                    contents: false,
+                    held: Vec::new(),
+                },
+            )
+        })
         .await
         .expect("read-summaries failed");
     let [Some(known)] = read.as_slice() else {
@@ -102,7 +122,15 @@ async fn read_summaries_leaves_out_what_the_caller_may_not_know_of() {
     // A call naming more blocks than one answer may is refused.
     let asked = vec![workspace; be_block_protocol::MAX_SUMMARIES_ASKED + 1];
     let response = viewer
-        .call(|peer| client::blocks::read_summaries(peer, asked))
+        .call(|peer| {
+            peer.read::<Vec<Option<be_block_protocol::BlockSummary>>>(
+                be_block_protocol::Query::Blocks {
+                    blocks: asked,
+                    contents: false,
+                    held: Vec::new(),
+                },
+            )
+        })
         .await;
     assert!(
         refused_as(&response, ErrorCode::InvalidRequest),

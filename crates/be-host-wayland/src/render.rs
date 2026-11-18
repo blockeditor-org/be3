@@ -313,6 +313,8 @@ pub struct WindowDraw {
     layers: Vec<(Rc<SurfaceTexture>, Layer)>,
     buffers: Vec<Buffer>,
     quads: Quads,
+    /// Its surfaces as layers of the window (`Surface::Host`), where its renderer composites.
+    placed: std::cell::RefCell<Vec<beui::native::compose::Placed>>,
     painted: Rc<Cell<bool>>,
     waker: Option<Waker>,
 }
@@ -337,6 +339,7 @@ impl WindowDraw {
             layers,
             buffers,
             quads: Quads::default(),
+            placed: std::cell::RefCell::new(Vec::new()),
             painted,
             waker,
         })
@@ -397,15 +400,52 @@ impl Draw for WindowDraw {
                     opacity: layer.alpha,
                     ..place(layer.rect, layer.source, layer.buffer, &at)
                 };
-                (&texture.bound, quad)
+                (texture, layer, quad)
             });
+        let quads: Vec<_> = quads.collect();
+        // A program window is a surface the host owns, drawn here so it blends over the host's
+        // UI (client shadows, translucent terminals); where the renderer composites, each of
+        // its surfaces is also listed as a layer for damage and input.
+        let mut placed = self.placed.borrow_mut();
+        placed.clear();
+        if at.composited {
+            for (texture, layer, quad) in &quads {
+                let id = std::hash::BuildHasher::hash_one(
+                    &be_lib_stable_hash::State::default(),
+                    layer.surface.id(),
+                );
+                let size = texture.texture.size();
+                placed.extend(
+                    beui::native::compose::layer_of(
+                        quad,
+                        (size.width, size.height),
+                        at.pixels_per_point,
+                        be_lib_layers::LayerId(id),
+                        be_lib_layers::Surface::Host(id),
+                    )
+                    .map(|layer| beui::native::compose::Placed {
+                        layer,
+                        texture: texture.bound.clone(),
+                        opaque: texture.opaque,
+                        srgb_encoded: quad.srgb_encoded,
+                        inline: true,
+                    }),
+                );
+            }
+        }
         self.quads.prepare(
             &self.gpu.quads,
             queue,
             at.format,
             [at.screen.x, at.screen.y],
-            quads,
+            quads
+                .iter()
+                .map(|(texture, _, quad)| (&texture.bound, *quad)),
         );
+    }
+
+    fn layers(&self) -> Vec<beui::native::compose::Placed> {
+        self.placed.borrow().clone()
     }
 
     fn paint(&self, pass: &mut wgpu::RenderPass<'_>, _at: DrawAt) {

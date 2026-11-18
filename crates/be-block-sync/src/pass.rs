@@ -17,7 +17,7 @@ use uuid::Uuid;
 use crate::disk::{self, Disk, Kind, join, name_of, parent_of};
 use crate::index::{Index, Placed, Record, Skip, Stat};
 use crate::remote::{self, Block};
-use crate::{CLIENT, ERRORS_FILE, Report, STATE_DIRECTORY, UNEXPORTED_FILE, explain};
+use crate::{ERRORS_FILE, Report, STATE_DIRECTORY, UNEXPORTED_FILE, client, explain};
 
 const IN_FLIGHT: usize = 16;
 const ATTEMPTS: usize = 8;
@@ -665,12 +665,12 @@ impl<S: ObjectStore> Pass<'_, S> {
             let name = plan.tree.entries.get(&id).map(name_in).unwrap_or_default();
             let base_head = self.index.records.get(&id).and_then(|record| record.head);
             let base = match base_head {
-                Some(head) => remote::at_commit(self.peer, head).await.ok(),
+                Some(head) => remote::at_commit(self.peer, id, head).await.ok(),
                 None => None,
             };
             let heads = [base_head, self.remote.get(&id).and_then(|block| block.head)];
             let bytes = match self
-                .merge(block_type, base, theirs, heads, &name, local)
+                .merge(id, block_type, base, theirs, heads, &name, local)
                 .await
             {
                 Ok((bytes, false)) => bytes,
@@ -719,7 +719,7 @@ impl<S: ObjectStore> Pass<'_, S> {
         });
         let content = self
             .types
-            .apply(block_type, current, CLIENT, edit)
+            .apply(block_type, current, client(), edit)
             .await?
             .ok_or("its type has no plain-file form")?;
         self.described(block_type, content).await
@@ -732,7 +732,7 @@ impl<S: ObjectStore> Pass<'_, S> {
             let change = Edit::Child(ChildChange::Add(*child));
             if let Some(changed) = self
                 .types
-                .apply(block_type, content.clone(), CLIENT, change)
+                .apply(block_type, content.clone(), client(), change)
                 .await?
             {
                 content = Some(changed);
@@ -771,6 +771,7 @@ impl<S: ObjectStore> Pass<'_, S> {
     /// first parts of their commits (`heads`) and reads the rest it needs.
     async fn merge(
         &mut self,
+        block: Uuid,
         block_type: Uuid,
         base: Option<Vec<u8>>,
         theirs: Option<Vec<u8>>,
@@ -784,13 +785,13 @@ impl<S: ObjectStore> Pass<'_, S> {
         });
         let ours = self
             .types
-            .apply(block_type, base.clone(), CLIENT, edit)
+            .apply(block_type, base.clone(), client(), edit)
             .await?
             .ok_or("its type has no plain-file form")?;
         let merges_parts =
             be_block_type_host::kind_of(block_type).is_some_and(|kind| kind.merges_parts);
         let (merged, conflicts) = match merges_parts {
-            true => self.merge_parts(block_type, heads, ours).await?,
+            true => self.merge_parts(block, block_type, heads, ours).await?,
             false => {
                 self.types
                     .merge3(block_type, base, Some(ours), theirs)
@@ -813,6 +814,7 @@ impl<S: ObjectStore> Pass<'_, S> {
     /// becomes a file.
     async fn merge_parts(
         &mut self,
+        block: Uuid,
         block_type: Uuid,
         [base, theirs]: [Option<CommitId>; 2],
         ours: Vec<u8>,
@@ -821,7 +823,7 @@ impl<S: ObjectStore> Pass<'_, S> {
         let kind = be_block_type_host::kind_of(block_type).ok_or("its type is not known")?;
         let first_part = async |head: Option<CommitId>| match head {
             Some(head) => {
-                let commit = peer.load_commit(head).await.map_err(explain)?;
+                let commit = peer.load_head(block, head).await.map_err(explain)?;
                 let loaded = kind.load(peer, &commit.manifest).await.map_err(explain)?;
                 Ok::<_, String>(Some(loaded))
             }
@@ -1100,6 +1102,7 @@ impl<S: ObjectStore> Pass<'_, S> {
                         metadata: defined,
                         references: folder.references,
                         content: Some(folder.content),
+                        log: Vec::new(),
                     }
                 }
                 _ => {
@@ -1131,6 +1134,7 @@ impl<S: ObjectStore> Pass<'_, S> {
                         metadata: defined,
                         references: block.references,
                         content: Some(block.content),
+                        log: Vec::new(),
                     }
                 }
             };
@@ -1813,7 +1817,7 @@ async fn list_children<S: ObjectStore>(
             for child in children {
                 let edit = Edit::Child(change(*child));
                 if let Some(changed) = types
-                    .apply(block_type, content.clone(), CLIENT, edit)
+                    .apply(block_type, content.clone(), client(), edit)
                     .await?
                 {
                     content = Some(changed);

@@ -3,7 +3,7 @@ use std::time::Duration;
 use beui::native::WindowSize;
 use beui::{Input, PointerButton, native::Context, vec2};
 use beui_host::native::FreetypeFonts;
-use beui_host::native::testing::{Showing, Stepped};
+use beui_host::native::testing::{Gui, Showing, Snapshots, Stepped};
 
 use super::*;
 use beui_host::native::build;
@@ -88,6 +88,7 @@ fn painting_of_sized(
 
 mod a_deployed_default_server_asks_for_its_gateway_token;
 mod an_expired_session_signs_in_through_the_browser;
+mod an_invite_link_says_whose_it_is_before_and_after_signing_in;
 mod browser_authorization_always_offers_the_link_and_code;
 mod browser_authorization_on_a_narrow_screen;
 mod browser_launch_failure_keeps_the_fallback_visible;

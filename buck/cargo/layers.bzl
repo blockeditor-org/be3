@@ -12,11 +12,13 @@ FAMILIES = [
     "be-block",
     "be-host",
     "be-lib",
+    "be-root",
     "be-sdk",
     "be-server",
     "be-tool",
     "be-type",
     "be-wasm",
+    "be-worker",
     "beui",
     "cvl2",
     "logicgame",
@@ -29,11 +31,12 @@ FAMILIES = [
 # on them.
 LAYERS = {
     # Not be-app: each app is a module of its own.
-    "be-app": ["be-sdk", "be-type", "be-block", "beui", "be-lib", "be-wasm", "logicgame", "tabletop"],
+    "be-app": ["be-sdk", "be-type", "be-worker", "be-block", "beui", "be-lib", "be-wasm", "logicgame", "tabletop"],
     # be-sdk-type-*: the type-module protocol the block stack runs types through.
     "be-block": ["be-block", "be-lib", "be-wasm", "be-sdk-type"],
     "be-host": [
         "be-host",
+        "be-root",
         "be-sdk",
         "be-type",
         "be-block",
@@ -45,11 +48,16 @@ LAYERS = {
         "tabletop",
     ],
     "be-lib": ["be-lib", "be-wasm"],
+    # The root be-host runs in place of its own UI, a guest on the apps' platform as an app is,
+    # and what it shares with be-host's own UI (be-root-accounts-ui).
+    "be-root": ["be-root", "be-sdk", "beui", "be-lib", "be-wasm"],
     "be-sdk": ["be-sdk", "be-block", "be-type", "beui", "be-lib", "be-wasm"],
     "be-server": ["be-server", "be-block", "be-lib", "be-wasm"],
     "be-type": ["be-type", "be-sdk-type", "be-block", "be-lib", "be-wasm", "logicgame", "tabletop"],
     # The guest ABI and running wasm guests: the base, under be-lib.
     "be-wasm": ["be-wasm"],
+    # An app's workers compute with no gpu and no host services, so they need no more.
+    "be-worker": ["be-worker", "be-sdk-worker", "be-lib", "be-wasm"],
     "beui": ["beui", "be-lib", "be-wasm"],
     "cvl2": [],
     "logicgame": ["be-lib"],
@@ -66,6 +74,8 @@ LAYER_EXTRAS = {
 # independent of any GUI framework.
 LAYER_DENY = {
     "be-sdk-api": ["beui"],
+    "be-sdk-app-host": ["beui", "be-block"],
+    "be-sdk-root": ["beui", "be-block"],
     "be-sdk-type-api": ["beui"],
 }
 
@@ -84,10 +94,33 @@ def _family(name):
 def _workspace_deps(crate):
     deps = {}
     for entry in crate["platforms"].values():
-        for dep in entry["deps"] + [dep for bin in entry["binaries"].values() for dep in bin]:
+        named = entry.get("named_deps", {}).values()
+        for dep in entry["deps"] + list(named) + [dep for bin in entry["binaries"].values() for dep in bin]:
             if dep.startswith("//crates/"):
                 deps[dep.removeprefix("//crates/").split(":")[0]] = True
     return deps.keys()
+
+# One spelling for each of beui's items: a crate outside beui that needs beui without the components
+# depends on beui-documents under the name `beui`, so it writes `beui::Pos` as every other crate
+# does, and never on the facade as well (decisions/beui_facade_excludes_the_engine.md).
+def _check_one_spelling(crate):
+    name = crate["name"]
+    for entry in crate["platforms"].values():
+        plain = [dep.removeprefix("//crates/").split(":")[0] for dep in entry["deps"] + entry["test_deps"] if dep.startswith("//crates/")]
+        # The library's renames and the tests' alike: a test naming beui-documents otherwise would
+        # spell its items a second way.
+        named = entry.get("named_deps", {}) | entry.get("test_named_deps", {})
+        documents_named = [alias for alias, dep in named.items() if dep == "//crates/beui-documents:beui-documents"]
+        if "beui-documents" in plain and not _matches(name, "beui"):
+            fail(
+                '{} depends on beui-documents by its own name; depend on it as `beui = {{ path = "../beui-documents", package = "beui-documents" }}`, so its items are spelled as everywhere else (decisions/beui_facade_excludes_the_engine.md)'.format(
+                    name
+                )
+            )
+        if any([alias != "beui" for alias in documents_named]):
+            fail("{} names beui-documents something other than `beui` (decisions/beui_facade_excludes_the_engine.md)".format(name))
+        if documents_named and "beui" in plain:
+            fail("{} depends on both the beui facade and beui-documents; depend on one (decisions/beui_facade_excludes_the_engine.md)".format(name))
 
 def check_layers(crate):
     name = crate["name"]
@@ -98,6 +131,7 @@ def check_layers(crate):
                 name, ", ".join(FAMILIES)
             )
         )
+    _check_one_spelling(crate)
     if family not in LAYERS or any([name.endswith(suffix) for suffix in LAYER_EXEMPT_SUFFIXES]):
         return
     allowed = LAYERS[family] + LAYER_EXTRAS.get(name, [])

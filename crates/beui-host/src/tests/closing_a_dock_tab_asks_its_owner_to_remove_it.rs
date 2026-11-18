@@ -14,7 +14,7 @@ fn closing_a_dock_tab_asks_its_owner_to_remove_it() {
             <dock_host::styled::DockHost @node_ref=&dock>
                 <dock::Docking layout>
                     <DockPane id="tabs">
-                        <ForEach keys={vec![1u64, 2, 3]}>|id: u64|
+                        <ForEach value={vec![1u64, 2, 3]}>|id: u64|
                             <DockTab
                                 id
                                 title={format!("Tab {id}")}

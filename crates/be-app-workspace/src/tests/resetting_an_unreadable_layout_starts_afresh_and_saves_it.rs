@@ -12,7 +12,7 @@ fn resetting_an_unreadable_layout_starts_afresh_and_saves_it() {
         "the notice closes"
     );
     let layout = profile(&fixture)
-        .state("layout")
+        .stored(SavedLayout::ID)
         .cloned()
         .expect("a layout is saved");
     assert_ne!(
@@ -22,12 +22,12 @@ fn resetting_an_unreadable_layout_starts_afresh_and_saves_it() {
     );
     assert!(layout.refs.is_empty(), "no tab's view is referenced");
     assert!(
-        profile(&fixture).state("files").is_some(),
+        profile(&fixture).stored(FilesView::ID).is_some(),
         "the files view is kept beside the layout"
     );
 
     show(&mut fixture, opened, None);
-    let (reopened, _) = profiled(profile(&fixture).state("layout").cloned());
+    let (reopened, _) = profiled(profile(&fixture).stored(SavedLayout::ID).cloned());
     assert!(
         !reopened.test.shown("workspace.layout.reset"),
         "the saved layout reads back"

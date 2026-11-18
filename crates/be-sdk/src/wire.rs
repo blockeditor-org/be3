@@ -272,6 +272,9 @@ impl OpenEditor {
             EditorEvent::ChildFocused(child) => {
                 wire.call(instance, move |session| session.child_focused(child));
             }
+            EditorEvent::GiftMissed(child) => {
+                wire.call(instance, move |session| session.gift_missed(child));
+            }
             EditorEvent::SetEditable(editable) => {
                 wire.call(instance, move |session| session.set_editable(editable));
             }
@@ -312,6 +315,15 @@ impl OpenEditor {
             }
             EditorEvent::Reveal(at) => {
                 wire.call(instance, move |session| session.reveal(at));
+            }
+            EditorEvent::Member(event) => {
+                wire.call(instance, move |session| session.member(event));
+            }
+            EditorEvent::Channel(event) => {
+                wire.call(instance, move |session| session.channel(event));
+            }
+            EditorEvent::Hosting(hosting) => {
+                wire.call(instance, move |session| session.set_hosting(hosting));
             }
         }
     }
@@ -391,16 +403,6 @@ impl GuestEditor for OpenEditor {
             session.render_clip(serial, &format, sender)
         });
         Box::pin(async move { rendered.await.flatten() })
-    }
-
-    fn replace_child(&self, old: [u8; 16], new: [u8; 16]) -> LocalFuture<bool> {
-        let (sender, replaced) = oneshot();
-        self.wire.call(self.instance, move |session| {
-            sender.send(
-                session.replace_child(uuid::Uuid::from_bytes(old), uuid::Uuid::from_bytes(new)),
-            )
-        });
-        Box::pin(async move { replaced.await.unwrap_or(false) })
     }
 
     fn on_drop(&self) -> LocalFuture<()> {

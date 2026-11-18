@@ -141,16 +141,11 @@ pub fn RowFace(
     let glyph = create_memo(move || glyph.get());
     let image = create_memo(move || image.get());
     let pictured = create_memo(move || image.with(Option::is_some));
-    let plain = create_memo(move || !pictured.get());
-    let has_leading = create_memo(move || leading.get() || pictured.get() || glyph.get().is_some());
     let lead = create_memo(move || lead.get());
-    let has_lead = create_memo(move || !lead.get().is_empty());
     let shortcut = create_memo(move || shortcut.get());
-    let has_shortcut = create_memo(move || !shortcut.get().is_empty());
     let trailing = create_memo(move || trailing.get());
     let trailing_glyph = create_memo(move || trailing.get().glyph());
     let trailing_color = create_memo(move || trailing.get().color());
-    let has_trailing = create_memo(move || trailing.get() != RowTrailing::None);
     let side = size.leading();
     let fill: Prop<ColorRole> = fill.into_prop();
     if let Some(children) = children {
@@ -176,21 +171,25 @@ pub fn RowFace(
         >
             <List direction=Direction::Horizontal align=Align::Center spacing={size.spacing()}>
                 <MenuTreeLead depth expanded toggle indent=TREE_INDENT chevron=TREE_CHEVRON />
-                <Show condition={has_lead}>
+                <Show value={move || !lead.with(String::is_empty)}>
                     <Text size=TextSize::Sm color=TextColor::Muted>{lead}</Text>
                 </Show>
-                <Show condition={has_leading}>
+                <Show
+                    value={move || leading.get() || pictured.get() || glyph.with(Option::is_some)}
+                >
                     <Frame width=side>
                         <List spacing=Space::None align=Align::Center>
-                            <Show condition={pictured}>
+                            <Show
+                                value={pictured}
+                                fallback={move || view! {
+                                    <Text color={icon_color} align=TextAlign::Center>
+                                        <Icon glyph={glyph} />
+                                    </Text>
+                                }}
+                            >
                                 <Frame width=side height=side>
                                     <Picture image />
                                 </Frame>
-                            </Show>
-                            <Show condition={plain}>
-                                <Text color={icon_color} align=TextAlign::Center>
-                                    <Icon glyph={glyph} />
-                                </Text>
                             </Show>
                         </List>
                     </Frame>
@@ -200,12 +199,12 @@ pub fn RowFace(
                         <RowLabel size label detail color={text_color} />
                     </Frame>
                 </ListItem>
-                <Show condition={has_shortcut}>
+                <Show value={move || !shortcut.with(String::is_empty)}>
                     <Text size=TextSize::Sm color=TextColor::Muted align=TextAlign::End>
                         {shortcut}
                     </Text>
                 </Show>
-                <Show condition={has_trailing}>
+                <Show value={move || trailing.get() != RowTrailing::None}>
                     <Text color={trailing_color} align=TextAlign::Center>
                         <Icon glyph={trailing_glyph} />
                     </Text>
@@ -223,7 +222,6 @@ fn RowLabel(
     color: Memo<TextColor>,
 ) -> NodeId {
     let detail = create_memo(move || detail.get());
-    let described = create_memo(move || !detail.get().is_empty());
     let overflow = match size.wraps() {
         true => Overflow::default(),
         false => Overflow::Ellipsis,
@@ -231,7 +229,7 @@ fn RowLabel(
     view! {
         <List justify=Justify::Center spacing=LABEL_SPACING>
             <Text color align=TextAlign::Start overflow>{label}</Text>
-            <Show condition={described}>
+            <Show value={move || !detail.with(String::is_empty)}>
                 <Text style=TextStyle::CAPTION align=TextAlign::Start overflow>{detail}</Text>
             </Show>
         </List>

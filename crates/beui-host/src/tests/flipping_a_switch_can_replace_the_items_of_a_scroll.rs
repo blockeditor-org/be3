@@ -32,7 +32,7 @@ fn check_compact_rows(inset: f32) {
                     <Offset @node_ref=&scroll>
                         <VirtualList
                             @node_ref=&list
-                            keys={indices(VIRTUAL_ITEM_COUNT)}
+                            value={indices(VIRTUAL_ITEM_COUNT)}
                             item_size={item_height}
                         >|index: ReadSignal<usize>| {
                             create_binding(move || {
@@ -40,9 +40,7 @@ fn check_compact_rows(inset: f32) {
                                 built.update(|built| built.push(index));
                             });
                             view! {
-                                <Frame
-                                    padding={create_memo(move || Sides::symmetric(0.0, padding.get()))}
-                                >
+                                <Frame padding={move || Sides::symmetric(0.0, padding.get())}>
                                     <Frame />
                                 </Frame>
                             }

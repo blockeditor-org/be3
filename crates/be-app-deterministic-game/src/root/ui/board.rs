@@ -1,26 +1,26 @@
 use be_sdk_beui::beui::CanvasView;
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::rc::Rc;
 
 use be_sdk_beui::Editor;
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{
-    Color32, FontId, Key, KeyPress, NodeId, PointerPress, Pos2, Rect, SecondaryDrag, TextLayout,
-    Vec2, reactive::Painter,
+    Color32, FontId, Key, KeyPress, NodeId, PointerId, PointerPress, Pos2, Rect, SecondaryDrag,
+    TextLayout, Vec2, accesskit, drag, reactive::Painter,
 };
 use tabletop_api::Spot;
 use tabletop_api::board::{CARD_HEIGHT, CARD_WIDTH, HandCard, ItemId, Sprite};
 
 use super::Steps;
 use super::annotations::{self, Annotation, Brush, toggled};
-use super::hand::{HAND_CARD, HandBar, hand_hit};
+use super::hand::{HAND_CARD, HandBar, hand_hit, hand_rects};
 use super::layout::{Layout, Look, Placed, SpotPlace, movable};
 use super::motion::{Motion, flights, sightings};
-use super::play::{Dragging, Mark, Play};
+use super::play::{Mark, Play};
 use super::skin::paint_sprite;
 
-const DRAG_THRESHOLD: f32 = 6.0;
 const LABEL_SIZE: f32 = 13.0;
 const CARD_RADIUS: f32 = 6.0;
 const CELL_RADIUS: f32 = 8.0;
@@ -35,9 +35,13 @@ struct Press {
     start: Pos2,
     last: Pos2,
     spot: Option<Spot>,
-    dragging: bool,
+    carried: bool,
     panning: bool,
 }
+
+/// A piece or card carried from its spot.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct Carried(Spot);
 
 #[derive(Clone, Debug, PartialEq)]
 struct Lifted {
@@ -70,12 +74,13 @@ pub(crate) fn Stage(
 ) -> NodeId {
     let canvas = editor.canvas();
     let world_size = editor.world();
-    let annotations = create_signal(Vec::<Annotation>::new());
-    let pending = create_signal(None::<Annotation>);
-    create_effect(move || {
-        layout.with(|_| {});
-        annotations.set(Vec::new());
-        pending.set(None);
+    let annotations = create_linked_signal(move || {
+        layout.track();
+        Vec::<Annotation>::new()
+    });
+    let pending = create_linked_signal(move || {
+        layout.track();
+        None::<Annotation>
     });
     let bar = create_signal(Rect::ZERO);
 
@@ -95,58 +100,133 @@ pub(crate) fn Stage(
 
     let motion = Motion::new();
     let dropped = StoredCell::new(None::<(ItemId, Rect, Spot)>);
-    let previous = store(RefCell::new(None::<(Layout, Vec<HandCard>)>));
-    create_effect(move || {
-        let now_drawn = drawn.get();
-        let now_hand = hand.get();
-        let earlier = previous
-            .value()
-            .replace(Some((now_drawn.clone(), now_hand.clone())));
-        let dropped = dropped.take().filter(|(id, _, onto)| {
-            now_drawn.item(*id).and_then(|placed| placed.spot) == Some(*onto)
-        });
-        let Some((was_drawn, was_hand)) = earlier else {
-            return;
-        };
-        let world = world_size.get_untracked();
-        let (view, bar) = (view_now(), bar.get_untracked());
-        let clock = motion.clock.get_untracked();
-        let mut before = sightings(&was_drawn.centered_in(world), view, &was_hand, bar);
-        motion.flights.with_untracked(|flying| {
-            for seen in &mut before {
-                if let Some(flight) = flying.iter().find(|flight| flight.id == seen.id) {
-                    seen.rect = flight.rect(clock);
+    create_effect_on(
+        move || (drawn.get(), hand.get()),
+        move |(now_drawn, now_hand), previous| {
+            let dropped = dropped.take().filter(|(id, _, onto)| {
+                now_drawn.item(*id).and_then(|placed| placed.spot) == Some(*onto)
+            });
+            let Some((was_drawn, was_hand)) = previous else {
+                return;
+            };
+            let world = world_size.get_untracked();
+            let (view, bar) = (view_now(), bar.get_untracked());
+            let clock = motion.clock.get_untracked();
+            let mut before = sightings(&was_drawn.centered_in(world), view, was_hand, bar);
+            motion.flights.with_untracked(|flying| {
+                for seen in &mut before {
+                    if let Some(flight) = flying.iter().find(|flight| flight.id == seen.id) {
+                        seen.rect = flight.rect(clock);
+                    }
                 }
-            }
-        });
-        let after: Vec<_> = sightings(&now_drawn.centered_in(world), view, &now_hand, bar)
-            .into_iter()
-            .filter(|seen| movable(&seen.sprite))
-            .filter(|seen| bar.height() > 0.0 || now_hand.iter().all(|held| held.id != seen.id))
-            .collect();
-        let dropped = dropped.map(|(id, rect, _)| (id, rect));
-        motion.launch(flights(&before, &after, dropped, now()));
-    });
+            });
+            let after: Vec<_> = sightings(&now_drawn.centered_in(world), view, now_hand, bar)
+                .into_iter()
+                .filter(|seen| movable(&seen.sprite))
+                .filter(|seen| bar.height() > 0.0 || now_hand.iter().all(|held| held.id != seen.id))
+                .collect();
+            let dropped = dropped.map(|(id, rect, _)| (id, rect));
+            motion.launch(flights(&before, &after, dropped, now()));
+        },
+    );
 
+    // The size the item at `from` is drawn at, on the table or in the hand.
+    let lifted_size = move |from: Spot| {
+        let held = hand.with_untracked(|hand| hand.iter().any(|held| held.spot == from));
+        match held {
+            true => Some(HAND_CARD),
+            false => layout
+                .with_untracked(|layout| Some(layout.lifted(from)?.rect.size() * view_now().scale)),
+        }
+    };
+    // Where `spot` is on screen: its hand card, or the union of its items on the table.
+    let spot_rect = move |spot: Spot| {
+        let in_hand = hand.with_untracked(|hand| {
+            hand_rects(bar.get_untracked(), hand.len())
+                .into_iter()
+                .zip(hand)
+                .find(|(_, held)| held.spot == spot)
+                .map(|(rect, _)| rect)
+        });
+        in_hand.or_else(|| {
+            let view = view_now();
+            layout.with_untracked(|layout| {
+                layout
+                    .items
+                    .iter()
+                    .filter(|placed| placed.spot == Some(spot))
+                    .map(|placed| view.rect_to_screen(placed.rect))
+                    .reduce(|all, rect| all.union(rect))
+            })
+        })
+    };
+    // Each move the game offers from the carried spot is a place at the spot it leads to,
+    // chosen while the pointer is on it; elsewhere the item floats and a release puts it
+    // back.
+    let stage = NodeRef::new();
+    // Where the item was drawn last, which a drop flies on from: the board's frame is gone
+    // by the time the drop commits.
+    let last_lifted = StoredCell::new(None::<Lifted>);
+    let site = use_drop_site(
+        Func::new(|_: Carried| true),
+        Func::new(move |Carried(from): Carried| {
+            let placed = stage
+                .try_get()
+                .and_then(|node| measure(node).get_untracked());
+            let (Some(placed), Some(size)) = (placed, lifted_size(from)) else {
+                return drag::floating();
+            };
+            let origin = placed.rect;
+            let scale = match placed.size.y > 0.0 {
+                true => origin.height() / placed.size.y,
+                false => 1.0,
+            };
+            let local = |rect: Rect| {
+                Rect::from_min_size(
+                    Pos2::ZERO + (rect.min - origin.min) / scale,
+                    rect.size() / scale,
+                )
+            };
+            let targets = play.targets(from).into_iter().filter_map(|to| {
+                let zone = local(spot_rect(to)?);
+                let rest = Rect::from_center_size(zone.center(), size / scale);
+                Some(drag::Candidate::new(to, rest, stage).zoned(zone))
+            });
+            drag::closest(targets.collect::<Vec<_>>()).when_far(drag::floating())
+        }),
+        Callback::new(move |(Carried(from), to): (Carried, Spot)| {
+            let carried = last_lifted.take();
+            dropped.set(carried.map(|carried| (carried.id, carried.rect, to)));
+            play.dropped(from, to);
+        }),
+    );
+    let play = Play {
+        over: site.over,
+        ..play
+    };
+    let board = beui::unstyled::drag_board();
     let lifted = create_memo(move || {
-        let dragging = play.dragging.get()?;
+        // The board's site serves one carry at a time: the first lifted.
+        let carried = carrying::<Carried>().into_iter().next()?;
+        let rect = board.frame_of(&carried)?.item;
+        let Carried(from) = carried;
         let held = hand.with(|hand| {
             hand.iter()
-                .find(|held| held.spot == dragging.from)
-                .map(|held| (held.id, held.sprite.clone(), HAND_CARD))
+                .find(|held| held.spot == from)
+                .map(|held| (held.id, held.sprite.clone()))
         });
-        let (id, sprite, size) = held.or_else(|| {
+        let (id, sprite) = held.or_else(|| {
             layout.with(|layout| {
-                let placed = layout.lifted(dragging.from)?;
-                let size = placed.rect.size() * view_now().scale;
-                Some((placed.id, placed.sprite.clone(), size))
+                let placed = layout.lifted(from)?;
+                Some((placed.id, placed.sprite.clone()))
             })
         })?;
-        Some(Lifted {
-            id,
-            sprite,
-            rect: Rect::from_center_size(dragging.at, size),
-        })
+        Some(Lifted { id, sprite, rect })
+    });
+    create_effect(move || {
+        if let Some(lifted) = lifted.get() {
+            last_lifted.set(Some(lifted));
+        }
     });
     let hidden = create_memo(move || {
         let mut hidden = motion.flying.get();
@@ -155,28 +235,46 @@ pub(crate) fn Stage(
     });
 
     let press = store(RefCell::new(None::<Press>));
-    let finish = move |pos: Pos2| {
-        let from = play.dragging.get_untracked().map(|dragging| dragging.from);
-        let carried = lifted.get_untracked();
-        play.dragging.set(None);
-        play.over.set(None);
-        if let (Some(from), Some(to)) = (from, hit(pos))
-            && from != to
-        {
-            dropped.set(carried.map(|carried| (carried.id, carried.rect, to)));
-            play.dropped(from, to);
-        }
-    };
-
     let on_press = move |pointer: PointerPress| {
         *press.value().borrow_mut() = Some(Press {
             start: pointer.pos,
             last: pointer.pos,
             spot: hit(pointer.pos),
-            dragging: false,
+            carried: false,
             panning: false,
         });
     };
+    // A press on a piece that can move lifts it; any other press goes on as a pan. The
+    // keyboard lifts the piece selected.
+    // The carry of the piece at `from`, selecting it: a press on it lifts it, as does the
+    // keyboard on the stage (the piece selected) or on the piece itself (a focus stop).
+    let lift_from = Func::new(move |from: Spot| {
+        if !play.can_drag(from) {
+            return None;
+        }
+        let size = lifted_size(from)?;
+        play.choices.set(Vec::new());
+        play.selected.set(Some(from));
+        Some(
+            drag::Carry::new(Carried(from))
+                .item(Rect::from_center_size(Pos2::ZERO, size))
+                .drawn_by_site(),
+        )
+    });
+    let drag = Func::new(move |pointer: PointerPress| {
+        let from = match pointer.pointer {
+            PointerId::Keyboard => play.selected.get_untracked()?,
+            _ => {
+                let pressed = press.value();
+                let mut held = pressed.borrow_mut();
+                let state = held.as_mut()?;
+                let from = state.spot.filter(|spot| play.can_drag(*spot))?;
+                state.carried = true;
+                from
+            }
+        };
+        lift_from.call(from)
+    });
     let on_drag = move |pointer: PointerPress| {
         let pressed = press.value();
         let mut held = pressed.borrow_mut();
@@ -185,47 +283,19 @@ pub(crate) fn Stage(
         };
         let delta = pointer.pos - state.last;
         state.last = pointer.pos;
-        if state.dragging {
-            if let Some(dragging) = play.dragging.get_untracked() {
-                play.dragging.set(Some(Dragging {
-                    at: pointer.pos,
-                    ..dragging
-                }));
-            }
-            play.over.set(hit(pointer.pos));
-            return;
-        }
         if state.panning {
             editor.pan(delta);
-            return;
-        }
-        if (pointer.pos - state.start).length() < DRAG_THRESHOLD {
-            return;
-        }
-        match state.spot.filter(|spot| play.can_drag(*spot)) {
-            Some(from) => {
-                state.dragging = true;
-                play.choices.set(Vec::new());
-                play.selected.set(Some(from));
-                play.dragging.set(Some(Dragging {
-                    from,
-                    at: pointer.pos,
-                }));
-            }
-            None if in_bar(state.start) => {}
-            None => {
-                state.panning = true;
-                editor.pan(pointer.pos - state.start);
-                editor.pan_drag();
-            }
+        } else if !in_bar(state.start) {
+            state.panning = true;
+            editor.pan(pointer.pos - state.start);
+            editor.pan_drag();
         }
     };
     let on_click_at = move |pointer: PointerPress| {
         let state = press.value().borrow_mut().take();
         annotations.set(Vec::new());
         match state {
-            Some(state) if state.dragging => finish(pointer.pos),
-            Some(state) if state.panning => {}
+            Some(state) if state.carried || state.panning => {}
             _ => match hit(pointer.pos) {
                 Some(spot) => play.click(spot),
                 None => play.cancel(),
@@ -233,12 +303,8 @@ pub(crate) fn Stage(
         }
     };
     let on_active_change = move |active: bool| {
-        if active {
-            return;
-        }
-        let state = press.value().borrow_mut().take();
-        if let Some(state) = state.filter(|state| state.dragging) {
-            finish(state.last);
+        if !active {
+            press.value().borrow_mut().take();
         }
     };
     let on_secondary_drag = move |drag: SecondaryDrag| {
@@ -276,6 +342,8 @@ pub(crate) fn Stage(
         true
     };
 
+    // One map for every item to find whether it is on top, rather than each searching.
+    let faces = create_memo(move || layout.with(Layout::faces));
     let item_keys = create_memo(move || {
         layout.with(|layout| {
             layout
@@ -295,53 +363,61 @@ pub(crate) fn Stage(
         })
     });
     let bounds = create_memo(move || layout.with(Layout::bounds));
-    let marks_draw: Prop<Draw> = Prop::dynamic(move || {
+    let marks_draw = move || {
         let (layout, annotations, pending) = (layout.get(), annotations.get(), pending.get());
         Rc::new(move |painter: &Painter, rect: Rect| {
             annotations::paint(painter, rect, &layout, &annotations, pending);
         }) as Draw
-    });
+    };
     let lifted_rect = create_memo(move || {
         lifted
             .with(|lifted| lifted.as_ref().map(|lifted| lifted.rect))
             .unwrap_or(Rect::from_min_size(Pos2::ZERO, Vec2::splat(1.0)))
     });
-    let lifted_draw: Prop<Draw> = Prop::dynamic(move || {
+    let lifted_draw = move || {
         let lifted = lifted.get();
         Rc::new(move |painter: &Painter, rect: Rect| {
             if let Some(lifted) = &lifted {
                 paint_sprite(painter, rect, &lifted.sprite);
             }
         }) as Draw
-    });
-    let flight_keys = create_memo(move || motion.flying.get());
+    };
 
-    view! {
+    // The stage's presses are caught by the `Interactive` around the table.
+    let built = view! {
         <Interactive
             focusable=true
             on_key={on_key}
             capture_presses=true
             on_press={on_press}
+            drag={drag}
             on_drag={on_drag}
             on_click_at={on_click_at}
             on_active_change={on_active_change}
             on_pointer={beui::unstyled::gestures::secondary_drag(on_secondary_drag)}
         >
-            <Layers>
+            <Layers @node_ref=&stage>
                 <List spacing=Space::None>
                     <ListItem grow=1.0>
                         <Canvas view={canvas} @node_ref={&content}>
-                            <ForEach keys={item_keys}>|id: ItemId|
-                                <TableItem id layout={layout} play={play} hidden={hidden} />
+                            <ForEach value={item_keys}>|id: ItemId|
+                                <TableItem
+                                    id
+                                    layout={layout}
+                                    faces
+                                    play={play}
+                                    hidden={hidden}
+                                    lift_from
+                                />
                             </ForEach>
-                            <ForEach keys={spot_keys}>|spot: Spot|
+                            <ForEach value={spot_keys}>|spot: Spot|
                                 <SpotItem spot layout={layout} play={play} />
                             </ForEach>
                             <CanvasItem
                                 x=0.0
                                 y=0.0
-                                width={create_memo(move || bounds.get().width().max(1.0))}
-                                height={create_memo(move || bounds.get().height().max(1.0))}
+                                width={move || bounds.get().width().max(1.0)}
+                                height={move || bounds.get().height().max(1.0)}
                                 @test_id={"game.board"}
                             >
                                 <Drawing draw={marks_draw} />
@@ -351,7 +427,7 @@ pub(crate) fn Stage(
                     <HandBar hand bar play={play} hidden />
                 </List>
                 <Canvas view={screen_view()}>
-                    <ForEach keys={flight_keys}>|id: ItemId|
+                    <ForEach value={motion.flying}>|id: ItemId|
                         <FlightItem id motion={motion} />
                     </ForEach>
                     <CanvasItem
@@ -367,15 +443,22 @@ pub(crate) fn Stage(
                 </Canvas>
             </Layers>
         </Interactive>
+    };
+    // Measured from the start, so a lift reads where the stage is.
+    if let Some(node) = stage.try_get() {
+        measure(node);
     }
+    built
 }
 
 #[component]
 fn TableItem(
     id: ItemId,
     layout: Memo<Layout>,
+    faces: Memo<HashMap<Spot, ItemId>>,
     play: Play,
     hidden: Memo<Vec<ItemId>>,
+    lift_from: Func<Spot, Option<drag::Carry>>,
 ) -> CanvasItem {
     let placed = create_memo(move || {
         layout.with(|layout| layout.item(id).cloned().map(|placed| (placed, layout.unit)))
@@ -386,7 +469,7 @@ fn TableItem(
             .unwrap_or(Rect::ZERO)
     });
     let theme = use_theme();
-    let draw: Prop<Draw> = Prop::dynamic(move || {
+    let draw = move || {
         let placed = placed.get();
         let mark = match &placed {
             Some((
@@ -409,16 +492,127 @@ fn TableItem(
                 paint_item(painter, rect, placed, zoom, mark, &theme);
             }
         }) as Draw
+    };
+    let drawing = view! {
+        <Drawing draw={draw} />
+    };
+    // Untracked: an item never turns from a piece or card into the board's own sprites, or
+    // back, so whether it is a stop is settled once; its spot and face are tracked within.
+    let piece = placed.with_untracked(|placed| {
+        placed
+            .as_ref()
+            .is_some_and(|(placed, _)| piece_name(&placed.sprite).is_some())
     });
+    // Only the one on top of a pile is its spot's stop, and read: the rest lie under it.
+    let on_top = create_memo(move || {
+        placed
+            .with(|placed| placed.as_ref().and_then(|(placed, _)| placed.spot))
+            .is_none_or(|spot| faces.with(|faces| faces.get(&spot) == Some(&id)))
+    });
+    let face = match piece {
+        true => view! {
+            <Frame accessibility_hidden={move || !on_top.get()}>
+                <PieceStop id layout on_top play lift_from>{drawing}</PieceStop>
+            </Frame>
+        },
+        false => drawing,
+    };
     view! {
         <CanvasItem
-            x={create_memo(move || rect.get().left())}
-            y={create_memo(move || rect.get().top())}
-            width={create_memo(move || rect.get().width().max(1.0))}
-            height={create_memo(move || rect.get().height().max(1.0))}
+            x={move || rect.get().left()}
+            y={move || rect.get().top()}
+            width={move || rect.get().width().max(1.0)}
+            height={move || rect.get().height().max(1.0)}
         >
-            <Drawing draw={draw} />
+            {face}
         </CanvasItem>
+    }
+}
+
+/// A piece or card on the table, as a focus stop while it can move: Tab and Shift+Tab
+/// reach the movable ones in board order, one for each spot (`on_top`: the top card of a
+/// pile, which a press would take), and Space or Enter lifts the focused one, which the keyboard then
+/// carries as any other (guides/beui_keyboard.md). Its presses are the stage's, which
+/// catches them around the table; a press focuses it, so Space lifts what it selected.
+#[component]
+fn PieceStop(
+    id: ItemId,
+    layout: Memo<Layout>,
+    on_top: Memo<bool>,
+    play: Play,
+    lift_from: Func<Spot, Option<drag::Carry>>,
+    children: Child,
+) -> NodeId {
+    // Where it stands and what it is, which a move or a turned card changes.
+    let named = create_memo(move || {
+        layout.with(|layout| {
+            let placed = layout.item(id)?;
+            Some((placed.spot, piece_name(&placed.sprite)?))
+        })
+    });
+    let spot = create_memo(move || named.with(|named| named.as_ref().and_then(|(spot, _)| *spot)));
+    let movable =
+        create_memo(move || on_top.get() && spot.get().is_some_and(|spot| play.movable(spot)));
+    let focused = create_signal(false);
+    component_accessibility(create_memo(move || {
+        let mut node = accesskit::Node::new(accesskit::Role::Button);
+        named.with(|named| {
+            if let Some((spot, name)) = named {
+                node.set_label(match spot {
+                    Some(spot) => format!("{name}, {}", square_name(*spot)),
+                    None => name.clone(),
+                });
+            }
+        });
+        if !movable.get() {
+            node.set_disabled();
+        }
+        node
+    }));
+    view! {
+        <Interactive
+            @test_id={move || match (spot.get(), on_top.get()) {
+                (Some(spot), true) => piece_test_id(spot),
+                _ => format!("game.piece.under.{}", id.0),
+            }}
+            focusable=true
+            tab_stop={movable}
+            on_focus_change={focused}
+            drag={Func::new(move |pointer: PointerPress| match (pointer.pointer, spot.get_untracked()) {
+                (PointerId::Keyboard, Some(spot)) => lift_from.call(spot),
+                _ => None,
+            })}
+        >
+            <FocusRing focused>{children}</FocusRing>
+        </Interactive>
+    }
+}
+
+/// What a sprite on the table is called, for a screen reader: a piece by its kind and
+/// seat, a card by its rank and suit. Nothing for the board's own frames and labels.
+fn piece_name(sprite: &Sprite) -> Option<String> {
+    match sprite {
+        Sprite::Piece(piece) => Some(format!("Player {}'s {}", piece.seat + 1, piece.kind)),
+        Sprite::Card(card) => Some(format!("{:?} of {:?}", card.rank, card.suit)),
+        Sprite::CardBack => Some("Card".to_owned()),
+        _ => None,
+    }
+}
+
+fn piece_test_id(spot: Spot) -> String {
+    match spot {
+        Spot::Tile { column, row } => format!("game.piece.{column}.{row}"),
+        Spot::Pile(pile) => format!("game.piece.pile.{pile}"),
+        Spot::Card { pile, card } => format!("game.piece.{pile}.card.{card}"),
+    }
+}
+
+/// Where a spot is, in words.
+fn square_name(spot: Spot) -> String {
+    match spot {
+        Spot::Tile { column, row } => format!("column {}, row {}", column + 1, row + 1),
+        Spot::Pile(pile) => format!("pile {}", pile + 1),
+        Spot::Card { pile, card } => format!("pile {}, card {}", pile + 1, card + 1),
     }
 }
 
@@ -433,7 +627,7 @@ fn SpotItem(spot: Spot, layout: Memo<Layout>, play: Play) -> CanvasItem {
             .unwrap_or(Rect::ZERO)
     });
     let theme = use_theme();
-    let draw: Prop<Draw> = Prop::dynamic(move || {
+    let draw = move || {
         let place = place.get();
         let mark = play.mark(spot);
         let theme = theme.get().resolve();
@@ -443,13 +637,13 @@ fn SpotItem(spot: Spot, layout: Memo<Layout>, play: Play) -> CanvasItem {
                 paint_spot(painter, rect, place, mark, zoom, &theme);
             }
         }) as Draw
-    });
+    };
     view! {
         <CanvasItem
-            x={create_memo(move || rect.get().left())}
-            y={create_memo(move || rect.get().top())}
-            width={create_memo(move || rect.get().width().max(1.0))}
-            height={create_memo(move || rect.get().height().max(1.0))}
+            x={move || rect.get().left()}
+            y={move || rect.get().top()}
+            width={move || rect.get().width().max(1.0)}
+            height={move || rect.get().height().max(1.0)}
             clip=false
             @test_id={spot_test_id(spot)}
         >
@@ -471,20 +665,20 @@ fn FlightItem(id: ItemId, motion: Motion) -> CanvasItem {
             .with(|flight| flight.as_ref().map(|flight| flight.rect(now)))
             .unwrap_or(Rect::ZERO)
     });
-    let draw: Prop<Draw> = Prop::dynamic(move || {
+    let draw = move || {
         let flight = flight.get();
         Rc::new(move |painter: &Painter, rect: Rect| {
             if let Some(flight) = &flight {
                 paint_sprite(painter, rect, &flight.sprite);
             }
         }) as Draw
-    });
+    };
     view! {
         <CanvasItem
-            x={create_memo(move || rect.get().left())}
-            y={create_memo(move || rect.get().top())}
-            width={create_memo(move || rect.get().width().max(1.0))}
-            height={create_memo(move || rect.get().height().max(1.0))}
+            x={move || rect.get().left()}
+            y={move || rect.get().top()}
+            width={move || rect.get().width().max(1.0)}
+            height={move || rect.get().height().max(1.0)}
             clip=false
             @test_id={format!("game.flight.{}", id.0)}
         >

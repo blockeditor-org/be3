@@ -12,7 +12,17 @@ pub struct CanvasCursor {
     pub selection: Vec<Uuid>,
     pub caret: Option<CanvasCaret>,
     pub drawing: Option<Uuid>,
+    /// The move the peer carries, held until it is dropped: how others see it as it goes.
+    pub carried: Option<CanvasCarry>,
     pub color: PresenceColor,
+}
+
+/// A carried move of the peer's selection (what of it is unlocked): moved `by`, and to whole
+/// units when `snapped`, as the drop would move it.
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Serialize)]
+pub struct CanvasCarry {
+    pub by: CanvasPoint,
+    pub snapped: bool,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Serialize)]

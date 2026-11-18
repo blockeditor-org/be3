@@ -1,3 +1,4 @@
+mod access;
 mod address;
 mod browser_auth;
 mod changes;
@@ -19,7 +20,7 @@ use std::{
     time::Duration,
 };
 
-use be_block_protocol::{ErrorCode, MAX_FRAME_BYTES, embed, hello, read_hello};
+use be_block_protocol::{ErrorCode, Greeting, Hello, MAX_FRAME_BYTES, embed, hello, read_hello};
 use be_wasm_ops::Incoming;
 use futures_util::{
     SinkExt, StreamExt,
@@ -27,29 +28,34 @@ use futures_util::{
 };
 use tokio::{
     io::{AsyncRead, AsyncWrite},
-    net::{TcpListener, TcpStream},
+    net::TcpListener,
     sync::{Notify, Semaphore, mpsc},
 };
-use tokio_tungstenite::{
-    WebSocketStream, accept_async_with_config,
-    tungstenite::{Message, protocol::WebSocketConfig},
-};
+use tokio_tungstenite::{WebSocketStream, tungstenite::Message};
 
 pub mod backup;
 pub mod blocks;
 pub mod contacts;
+#[cfg(test)]
+mod fake_authenticator;
+#[cfg(test)]
+mod fake_provider;
 mod http;
 pub mod journal;
 pub mod keys;
 pub mod limits;
+pub mod log;
 mod notifications;
 pub mod objects;
+pub mod oidc;
 mod organization;
+mod passkeys;
 pub mod push;
 pub mod retention;
 pub mod s3;
 pub mod schema;
 pub mod sessions;
+pub mod share_links;
 pub mod store;
 pub mod watch;
 
@@ -73,7 +79,24 @@ pub enum ServerError {
     Socket(String),
 }
 
+/// What a client did wrong: refused, with this text, as an invalid request.
+pub(crate) fn refused(message: &str) -> ServerError {
+    ServerError::Refused(ErrorCode::InvalidRequest, message.to_owned())
+}
+
 impl ServerError {
+    /// What a client is told of this error: why it was refused, and nothing of the server's
+    /// own failures (its storage, its build), whose text is logged instead.
+    pub(crate) fn told(self) -> String {
+        match self {
+            Self::Refused(_, message) => message,
+            error => {
+                tracing::warn!(%error, "a request failed");
+                "the request failed".to_owned()
+            }
+        }
+    }
+
     pub fn code(&self) -> ErrorCode {
         match self {
             Self::Refused(code, _) => *code,
@@ -135,9 +158,7 @@ impl From<tokio_tungstenite::tungstenite::Error> for ServerError {
 pub struct ServerConfig {
     pub allow_registration: bool,
     pub allow_login: bool,
-    pub local_profiles: bool,
     pub auth_origin: Option<String>,
-    pub lease: Duration,
     pub portal: Option<be_server_portal::Portal>,
     /// The bytes each account may store (`--account-quota`): the distinct objects of the blocks
     /// it pays for, and its uploads no block holds yet. None for no limit.
@@ -147,17 +168,15 @@ pub struct ServerConfig {
     /// The bytes one commit of a search index may hold (`limits::MAX_INDEX_BYTES` unless a test
     /// sets a smaller one).
     pub max_index_bytes: u64,
-    /// The bytes of keys one `get-keys` page holds (`limits::KEY_PAGE_BYTES` unless a test pages
+    /// The bytes of keys one `query.keys` page holds (`limits::KEY_PAGE_BYTES` unless a test pages
     /// through a few keys).
     pub key_page_bytes: usize,
-    /// The bytes of summaries one `list-blocks` page holds, its ids taking half that more
+    /// The bytes of summaries one `query.list` page holds, its ids taking half that more
     /// (`limits::LISTING_PAGE_BYTES` unless a test lists in many pages; never more).
     pub listing_page_bytes: usize,
     /// Peers whose `X-Forwarded-For` names the client; anyone else's is ignored. By default
     /// only this host, where the reverse proxy runs.
     pub trusted_proxies: Cow<'static, [IpAddr]>,
-    /// How long a connection may go after its greeting before its first call signs it in.
-    pub sign_in_timeout: Duration,
     /// The fewest seconds between two polls of a browser sign-in, at first; tests that poll
     /// one sign-in again at once set it to zero.
     pub sign_in_poll_interval: Duration,
@@ -172,15 +191,79 @@ pub struct ServerConfig {
     /// Where pushes may go, and FCM's credentials when it sends through FCM
     /// (`--fcm-credentials`).
     pub push: push::PushConfig,
+    /// The OpenID Connect providers people may sign in with (`--oidc-providers`).
+    pub providers: Cow<'static, [oidc::Provider]>,
+    /// For tests only: what a server that lies would change in the pages it answers (`Lies`).
+    /// None for every real server.
+    pub lies: Option<Lies>,
+}
+
+/// What a server that lies changes in the pages it answers one account, set by a test
+/// (`Running::lie`) to show a client refuses what "the server alone" could say: a block's
+/// parent, its current key, a contact's name. It rewrites read answers only, not the
+/// summaries pushed to a client that follows a tree, so a test that lies reads what it checks.
+/// A plain field rather than a test-only one: no flag or configuration sets it, only `Running`
+/// does (`with_mail`), so a deployed server, which leaves it None, never lies, and the harness
+/// other crates' tests share needs no feature.
+#[derive(Clone, Default)]
+pub struct Lies(Arc<std::sync::Mutex<Vec<Lie>>>);
+
+/// One rewrite: the account it lies to, and what it does to each page that account is sent.
+type Lie = (
+    uuid::Uuid,
+    Arc<dyn Fn(&mut be_block_protocol::Page) + Send + Sync>,
+);
+
+impl std::fmt::Debug for Lies {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("Lies")
+    }
+}
+
+impl Lies {
+    /// Rewrites every page sent to `account` with `lie`, from now on.
+    pub fn to(
+        &self,
+        account: uuid::Uuid,
+        lie: impl Fn(&mut be_block_protocol::Page) + Send + Sync + 'static,
+    ) {
+        self.0.lock().unwrap().push((account, Arc::new(lie)));
+    }
+
+    /// `page`, as sent to `account`.
+    pub(crate) fn apply(&self, account: uuid::Uuid, page: &mut be_block_protocol::Page) {
+        let lies: Vec<_> = self
+            .0
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|(to, _)| *to == account)
+            .map(|(_, lie)| Arc::clone(lie))
+            .collect();
+        for lie in lies {
+            lie(page);
+        }
+    }
+}
+
+/// The block summaries `page` carries (`query.blocks`, with or without contents, and
+/// listings), for a lie that rewrites them (`Lies`).
+pub fn summaries_in(
+    page: &mut be_block_protocol::Page,
+) -> Vec<&mut be_block_protocol::BlockSummary> {
+    match page {
+        be_block_protocol::Page::Summaries(summaries) => summaries.iter_mut().flatten().collect(),
+        be_block_protocol::Page::Contents(contents) => contents.blocks.iter_mut().collect(),
+        be_block_protocol::Page::Listed(listed) => listed.blocks.iter_mut().collect(),
+        _ => Vec::new(),
+    }
 }
 
 impl ServerConfig {
     const CLOSED: Self = Self {
         allow_registration: false,
         allow_login: false,
-        local_profiles: false,
         auth_origin: None,
-        lease: Duration::from_millis(be_block_session::LEASE_MILLISECONDS.unsigned_abs()),
         portal: None,
         account_quota: Some(store::DEFAULT_ACCOUNT_QUOTA),
         upload_grace: store::DEFAULT_UPLOAD_GRACE,
@@ -191,11 +274,12 @@ impl ServerConfig {
             IpAddr::V4(Ipv4Addr::LOCALHOST),
             IpAddr::V6(Ipv6Addr::LOCALHOST),
         ]),
-        sign_in_timeout: SIGN_IN_TIMEOUT,
         sign_in_poll_interval: browser_auth::POLL_INTERVAL,
         bucket: None,
         public_url: None,
         push: push::PushConfig::DEFAULT,
+        providers: Cow::Borrowed(&[]),
+        lies: None,
     };
 
     pub const OPEN: Self = Self {
@@ -222,10 +306,11 @@ const MAX_UNSIGNED_CONNECTIONS: usize = MAX_CONNECTIONS / 4;
 /// may hold at once.
 pub(crate) const MAX_UNSIGNED_CONNECTIONS_PER_ADDRESS: usize = 8;
 pub(crate) const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(10);
-/// The default for [`ServerConfig::sign_in_timeout`].
-const SIGN_IN_TIMEOUT: Duration = HANDSHAKE_TIMEOUT;
 const PING_INTERVAL: Duration = Duration::from_secs(30);
-pub(crate) const IDLE_TIMEOUT: Duration = Duration::from_secs(90);
+/// A connection silent this long is given up on, and leaves every session it was in: as long as a
+/// live client ever goes without sending (be-block-protocol's `CLIENT_SILENCE`), and no longer,
+/// so a holder that went silent gives up its lease soon.
+pub(crate) const IDLE_TIMEOUT: Duration = be_block_protocol::CLIENT_SILENCE;
 const DRAIN_TIMEOUT: Duration = Duration::from_secs(30);
 /// How often idle, unauthenticated and overflowing HTTP sessions are swept away.
 const SWEEP_INTERVAL: Duration = Duration::from_secs(10);
@@ -285,15 +370,32 @@ impl Outbound {
     }
 }
 
+/// A new random secret: 256 bits from the operating system's generator. Every token, link,
+/// cookie and key the server makes comes from here; ids, and codes people type, which have
+/// their own alphabets, do not.
+pub(crate) fn new_secret_bytes() -> [u8; 32] {
+    use rand::TryRngCore;
+    let mut bytes = [0u8; 32];
+    rand::rngs::OsRng
+        .try_fill_bytes(&mut bytes)
+        .expect("the operating system has entropy");
+    bytes
+}
+
+/// [`new_secret_bytes`] in lowercase hex, for tokens, links and cookies.
+pub(crate) fn new_secret() -> String {
+    be_block_store::Hash::from_bytes(new_secret_bytes()).to_hex()
+}
+
 fn not_reading() -> ServerError {
-    ServerError::Socket("the client is not reading what it is sent".into())
+    refused("the client is not reading what it is sent")
 }
 
 fn is_ping(frame: &[u8]) -> bool {
     frame.len() <= PING_FRAME_BYTES
         && matches!(
             be_wasm_ops::decode_frame::<be_wasm_ops::Frame>(frame),
-            Ok(be_wasm_ops::Frame::Start { method, .. }) if method == be_block_protocol::__args::CONNECTION_PING
+            Ok(be_wasm_ops::Frame::Start { method, .. }) if method == be_block_protocol::__args::SERVER_PING
         )
 }
 
@@ -309,9 +411,11 @@ fn pong(peer: &be_wasm_ops::net::Peer, frame: &[u8]) -> Vec<Incoming> {
     let mut others = Vec::new();
     for event in events {
         match event {
-            Incoming::Started(started) if embed::connection::Call::accepts(&started) => {
-                let call = embed::connection::Call::accept(&mut peer.lock(), started);
-                if let Some(embed::connection::Call::Ping { reply }) = call {
+            Incoming::Started(started)
+                if started.method == be_block_protocol::__args::SERVER_PING =>
+            {
+                let call = embed::Call::accept(&mut peer.lock(), started);
+                if let Some(embed::Call::Server(embed::server::Call::Ping { reply })) = call {
                     reply.send(&mut peer.lock(), &());
                 }
             }
@@ -322,14 +426,14 @@ fn pong(peer: &be_wasm_ops::net::Peer, frame: &[u8]) -> Vec<Incoming> {
 }
 
 const ACCEPT_RETRY: Duration = Duration::from_millis(100);
-/// The share of a `read-contents` answer its objects take at most; its journals take half that,
+/// The share of a `query.blocks` answer its objects take at most; its journals take half that,
 /// and its summaries `SUMMARY_BYTES` (`contents_room`).
 const CONTENTS_BYTES: usize = MAX_FRAME_BYTES / 2;
-/// The summaries of one `read-contents` or `read-summaries` answer: hundreds of blocks as they
+/// The summaries of one `query.blocks` or `query.blocks` answer: hundreds of blocks as they
 /// usually are, and a few with metadata near `limits::MAX_METADATA_BYTES`. The client asks again
 /// for those left out.
 const SUMMARY_BYTES: usize = MAX_FRAME_BYTES / 16;
-/// What room a `read-contents` answer whose summaries took `summaries` bytes leaves its objects
+/// What room a `query.blocks` answer whose summaries took `summaries` bytes leaves its objects
 /// and its journals: `CONTENTS_BYTES` and half that, or less beside one summary larger than
 /// `SUMMARY_BYTES`, sent alone.
 fn contents_room(summaries: usize) -> (usize, usize) {
@@ -338,10 +442,9 @@ fn contents_room(summaries: usize) -> (usize, usize) {
     let journals = (CONTENTS_BYTES / 2).min(left / 3);
     (CONTENTS_BYTES.min(left - journals), journals)
 }
-// One summary, with the most metadata and references a block may have, fits a frame on its own:
-// each reference is a length byte and 16 bytes, and the rest of a summary is well under 1 KiB.
-pub(crate) const LARGEST_SUMMARY_BYTES: usize =
-    limits::MAX_METADATA_BYTES + limits::MAX_REFERENCES * 17 + 1024;
+// One summary, with the most metadata a block may have, fits a frame on its own: the rest of a
+// summary is well under 1 KiB, and it names none of the block's references (its content does).
+pub(crate) const LARGEST_SUMMARY_BYTES: usize = limits::MAX_METADATA_BYTES + 1024;
 const _: () =
     assert!(LARGEST_SUMMARY_BYTES + be_block_protocol::FRAME_ENVELOPE_BYTES <= MAX_FRAME_BYTES);
 const _: () = assert!(
@@ -411,7 +514,25 @@ pub async fn serve_with_mail(
             "push services may refuse this server's pushes: set --auth-origin or --public-url to an https:// URL"
         );
     }
+    let stranded = store
+        .stranded_accounts(
+            config
+                .providers
+                .iter()
+                .map(|provider| provider.issuer.clone())
+                .collect(),
+            passkeys::configured_rp_id(&config),
+        )
+        .await?;
+    if stranded > 0 {
+        tracing::warn!(
+            stranded,
+            "accounts sign in only with providers this server no longer has, or with passkeys made for another --auth-origin: let one in with `be-server login-link --account ID`"
+        );
+    }
+    let hub = Arc::new(WatchHub::new());
     let services = Services {
+        discovery: Arc::default(),
         pusher: push::Pusher::new(vapid, subject, &config.push),
         notifications: Arc::new(address::Rate::new(
             limits::MAX_NOTIFICATIONS_PER_MINUTE,
@@ -419,6 +540,10 @@ pub async fn serve_with_mail(
         )),
         block_notifications: Arc::new(address::Rate::new(
             limits::MAX_NOTIFICATIONS_PER_BLOCK,
+            Duration::from_secs(60),
+        )),
+        log_entries: Arc::new(address::Rate::new(
+            log::MAX_ENTRIES_PER_MINUTE,
             Duration::from_secs(60),
         )),
         portal: config
@@ -436,8 +561,8 @@ pub async fn serve_with_mail(
             objects::Objects::Bucket(_) => None,
         },
         store,
-        hub: Arc::new(WatchHub::new()),
-        registry: Arc::new(SessionRegistry::new(config.lease)),
+        registry: Arc::new(SessionRegistry::new(Arc::clone(&hub))),
+        hub,
         config,
         mail,
         http: Arc::new(http::Sessions::default()),
@@ -453,6 +578,7 @@ pub async fn serve_with_mail(
         )),
     };
     let slots = Arc::new(Semaphore::new(MAX_CONNECTIONS));
+    let routes = http::Routes::new(&services);
     let upkeep = tokio::spawn(upkeep(services.clone()));
     tokio::pin!(shutdown);
     loop {
@@ -493,13 +619,12 @@ pub async fn serve_with_mail(
                     },
                 };
                 let _ = stream.set_nodelay(true);
-                let services = services.clone();
+                let (routes, services) = (routes.clone(), services.clone());
                 tokio::spawn(async move {
-                    let admitted = Admitted { place, anonymous, eviction };
-                    if let Err(error) = handle_connection(stream, peer, admitted, services).await {
+                    let admitted = http::Admitted { place, anonymous, eviction, slot };
+                    if let Err(error) = http::serve(stream, peer, admitted, routes, services).await {
                         tracing::debug!(%peer, %error, "a connection ended with an error");
                     }
-                    drop(slot);
                 });
             }
         }
@@ -575,19 +700,14 @@ pub(crate) struct Services {
     s3: Option<s3s::service::S3Service>,
     /// Sends pushes to members who are not connected.
     pusher: Arc<push::Pusher>,
+    /// The providers' discovery documents.
+    discovery: Arc<oidc::Discovery>,
     /// Notifications each account sent this minute.
     notifications: Arc<address::Rate<uuid::Uuid>>,
     /// Notifications each account sent about each block this minute.
     block_notifications: Arc<address::Rate<(uuid::Uuid, uuid::Uuid)>>,
-}
-
-/// What a connection was let in with: its place among its address's connections and among
-/// those not signed in, both taken later for a trusted proxy's, and what tells it it was let go
-/// of to make room.
-pub(crate) struct Admitted {
-    place: Option<address::Held>,
-    anonymous: Option<address::Anonymous>,
-    eviction: Arc<address::Eviction>,
+    /// Log entries each account appended this minute.
+    log_entries: Arc<address::Rate<uuid::Uuid>>,
 }
 
 impl Services {
@@ -597,54 +717,11 @@ impl Services {
     }
 }
 
-async fn handle_connection(
-    stream: TcpStream,
-    peer: SocketAddr,
-    admitted: Admitted,
-    services: Services,
-) -> Result<(), ServerError> {
-    let eviction = Arc::clone(&admitted.eviction);
-    let routed = tokio::select! {
-        routed = http::route(stream, peer, admitted, &services) => routed?,
-        () = eviction.wait() => return Ok(()),
-    };
-    let Some(http::Upgrade {
-        stream,
-        client,
-        authorization,
-        place: _place,
-        anonymous,
-    }) = routed
-    else {
-        return Ok(());
-    };
-    let (stream, heard) = Watched::new(stream);
-    let handshake = accept_async_with_config(
-        stream,
-        Some(WebSocketConfig {
-            max_frame_size: Some(MAX_FRAME_BYTES),
-            max_message_size: Some(MAX_FRAME_BYTES),
-            ..WebSocketConfig::default()
-        }),
-    );
-    let socket = tokio::select! {
-        socket = tokio::time::timeout(HANDSHAKE_TIMEOUT, handshake) => socket
-            .map_err(|_| ServerError::Socket("the websocket handshake timed out".into()))??,
-        () = eviction.wait() => return Ok(()),
-    };
-    tracing::debug!(%client, "connected");
-    serve_socket(
-        socket,
-        &heard,
-        &services,
-        client,
-        authorization,
-        (anonymous, eviction),
-    )
-    .await
-}
-
 /// When a connection last read any bytes, so a message still arriving is not taken for silence.
+/// Writes do not count: one completes once it fits in a buffer (the kernel's, or Caddy's in front),
+/// whether or not anyone reads it, so the server's own pings would keep a vanished client. A
+/// client reading what the server sends pings once it has sent nothing for `PING_INTERVAL`
+/// (be-block-protocol), so it is heard.
 #[derive(Clone)]
 pub(crate) struct Heard(Arc<std::sync::Mutex<tokio::time::Instant>>);
 
@@ -721,6 +798,9 @@ pub(crate) async fn next_heard<M>(
     let mut next = source.next();
     loop {
         tokio::select! {
+            // A message waiting in the buffer counts before the deadline does: when this
+            // connection's own work held the reader past it, the client was not silent.
+            biased;
             message = &mut next => return message,
             () = tokio::time::sleep_until(heard.last() + IDLE_TIMEOUT) => {
                 if heard.last() + IDLE_TIMEOUT <= tokio::time::Instant::now() {
@@ -731,30 +811,42 @@ pub(crate) async fn next_heard<M>(
     }
 }
 
-pub(crate) fn greeting(theirs: Option<&str>) -> Result<(Vec<u8>, bool), ServerError> {
+/// Our build, and what a client's greeting (`theirs`) says once its build is ours; none for
+/// another build's client, which is answered with our build and closed. A greeting of our
+/// build that says nothing readable says no token.
+pub(crate) fn greeting(
+    theirs: Option<&Hello>,
+) -> Result<(&'static str, Option<Greeting>), ServerError> {
     let ours = be_lib_build_id::current().map_err(ServerError::Socket)?;
-    let compatible = theirs.is_some_and(|theirs| be_lib_build_id::compatible(ours, theirs));
-    if !compatible {
+    let Some(theirs) = theirs.filter(|theirs| be_lib_build_id::compatible(ours, &theirs.build))
+    else {
         tracing::info!(
             ours,
-            theirs = theirs.unwrap_or("a build from before the greeting"),
+            theirs = theirs.map_or("a build from before the greeting", |theirs| &theirs.build),
             "refused a client of another build"
         );
-    }
-    Ok((hello(ours), compatible))
+        return Ok((ours, None));
+    };
+    let said = theirs.said().unwrap_or_else(|| {
+        tracing::debug!("a greeting of our build said nothing readable; taking it as no token");
+        Greeting::default()
+    });
+    Ok((ours, Some(said)))
 }
 
+/// Reads a client's greeting: our build, and what it says once its build is ours. Another
+/// build's client is answered and closed.
 async fn greet<S>(
     sink: &mut SplitSink<WebSocketStream<S>, Message>,
     source: &mut SplitStream<WebSocketStream<S>>,
-) -> Result<bool, ServerError>
+) -> Result<(&'static str, Option<Greeting>), ServerError>
 where
     S: AsyncRead + AsyncWrite + Unpin + Send,
 {
     let greeting_frame = async {
         loop {
             match source.next().await {
-                Some(Ok(Message::Binary(bytes))) => return Ok(read_hello(&bytes)),
+                Some(Ok(Message::Binary(bytes))) => return Ok(Some(bytes)),
                 Some(Ok(Message::Ping(payload))) => sink.send(Message::Pong(payload)).await?,
                 Some(Ok(Message::Text(_) | Message::Pong(_) | Message::Frame(_))) => {}
                 Some(Ok(Message::Close(_))) | None => return Ok(None),
@@ -762,15 +854,15 @@ where
             }
         }
     };
-    let theirs = tokio::time::timeout(HANDSHAKE_TIMEOUT, greeting_frame)
+    let frame = tokio::time::timeout(HANDSHAKE_TIMEOUT, greeting_frame)
         .await
-        .map_err(|_| ServerError::Socket("the client never said which build it is".into()))??;
-    let (ours, compatible) = greeting(theirs.as_deref())?;
-    sink.send(Message::Binary(ours)).await?;
-    if !compatible {
+        .map_err(|_| refused("the client never said which build it is"))??;
+    let (ours, greeting) = greeting(frame.as_deref().and_then(read_hello).as_ref())?;
+    if greeting.is_none() {
+        sink.send(Message::Binary(hello(ours, &()))).await?;
         sink.send(Message::Close(None)).await?;
     }
-    Ok(compatible)
+    Ok((ours, greeting))
 }
 
 async fn serve_socket<S>(
@@ -785,20 +877,20 @@ where
     S: AsyncRead + AsyncWrite + Unpin + Send,
 {
     let (mut sink, mut source) = socket.split();
-    let greeted = tokio::select! {
+    let (ours, greeting) = tokio::select! {
         greeted = greet(&mut sink, &mut source) => greeted?,
         () = anonymous.1.wait() => return Ok(()),
     };
-    if !greeted {
+    let Some(greeting) = greeting else {
         return Ok(());
-    }
+    };
     let mut pings =
         tokio::time::interval_at(tokio::time::Instant::now() + PING_INTERVAL, PING_INTERVAL);
     let (outgoing, mut sending) = mpsc::unbounded_channel::<Message>();
     let queued = Arc::new(Outbound::default());
     let mut client = {
         let (outgoing, queued) = (outgoing.clone(), Arc::clone(&queued));
-        Client::open(services, address, false, anonymous, move |frame| {
+        Client::open(services, address, move |frame| {
             if queued.queue(frame.len()) {
                 let _ = outgoing.send(Message::Binary(frame));
             }
@@ -807,6 +899,17 @@ where
     };
     let mut session_changes = services.store.session_changes.subscribe();
     client.connection.header_token = bearer(authorization.as_deref());
+    let welcome = client.greeted(greeting.token).await;
+    let signed_in = welcome.is_ok();
+    sink.send(Message::Binary(hello(ours, &welcome))).await?;
+    if !signed_in {
+        tracing::debug!("closing a connection whose greeting did not sign it in");
+        sink.send(Message::Close(None)).await?;
+        client.close().await;
+        return Ok(());
+    }
+    // Signed in, it no longer counts among the connections that are not.
+    drop(anonymous);
     let (arrived, mut arriving) = mpsc::channel::<Arrived>(INBOUND_FRAMES);
     let (finish, mut finished) = tokio::sync::oneshot::channel::<()>();
 
@@ -874,21 +977,7 @@ where
                     return Err(not_reading());
                 }
                 let roomy = queued.roomy();
-                let deadline = client.connection.sign_in_deadline();
-                let eviction = Arc::clone(&client.connection.eviction);
                 tokio::select! {
-                    () = eviction.wait(), if deadline.is_some() => {
-                        tracing::debug!("closing a connection let go of for a newer one that is not signed in");
-                        let _ = outgoing.send(Message::Close(None));
-                        return Ok(());
-                    }
-                    () = sleep_until_some(deadline) => {
-                        if client.connection.sign_in_deadline().is_some_and(|deadline| deadline <= tokio::time::Instant::now()) {
-                            tracing::debug!("closing a connection that did not sign in in time");
-                            let _ = outgoing.send(Message::Close(None));
-                            return Ok(());
-                        }
-                    }
                     _ = session_changes.changed() => {
                         if client.connection.signed_in().await.is_err() {
                             let _ = outgoing.send(Message::Close(None));
@@ -951,13 +1040,6 @@ where
 
     client.close().await;
     outcome
-}
-
-async fn sleep_until_some(deadline: Option<tokio::time::Instant>) {
-    match deadline {
-        Some(deadline) => tokio::time::sleep_until(deadline).await,
-        None => std::future::pending().await,
-    }
 }
 
 #[cfg(test)]

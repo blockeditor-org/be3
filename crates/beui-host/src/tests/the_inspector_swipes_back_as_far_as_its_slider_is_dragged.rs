@@ -1,7 +1,7 @@
 use super::*;
 use crate::primitives::*;
 use crate::reactive::*;
-use crate::unstyled::BackSlide;
+use crate::styled::BackSlide;
 
 const REVEAL: f32 = 200.0;
 
@@ -11,10 +11,9 @@ fn the_inspector_swipes_back_as_far_as_its_slider_is_dragged() {
     let depth = create_signal(1_u32);
     let page = NodeRef::new();
     let document = build_node(move || {
-        let nested = create_memo(move || depth.get() > 0);
         view! {
             <BackSlide
-                enabled={nested}
+                enabled={move || depth.get() > 0}
                 on_back={move || depth.set(depth.get_untracked() - 1)}
                 behind={|| view! {
                     <Text color=Color32::WHITE>"Previous"</Text>

@@ -310,7 +310,7 @@ impl Foreign {
 }
 
 pub(crate) struct Registry {
-    pub(crate) version: Signal<u64>,
+    pub(crate) changed: Trigger,
     pub(crate) joins: RefCell<HashMap<TabId, Rc<Joined>>>,
     pub(crate) foreign: RefCell<Foreign>,
     pub(crate) state: Signal<DockState>,
@@ -320,9 +320,7 @@ pub(crate) struct Registry {
 
 impl Registry {
     pub(crate) fn bump(&self) {
-        if self.version.is_alive() {
-            self.version.update(|version| *version += 1);
-        }
+        self.changed.notify();
     }
 
     pub(crate) fn joined(&self, host: TabId) -> Option<Rc<Joined>> {
@@ -463,7 +461,24 @@ impl DockJoin {
             registry,
             claimed: Rc::clone(&self.claimed),
             joined: Rc::new(Joined::default()),
+            hidden: Cell::new(false),
         });
+        // Inside a subtree kept while hidden (a `Kept`), the join lets the tab go
+        // while hidden, so what shows there instead (a revision's preview) has it, and takes it
+        // back, with the same declaration, once shown and the tab is free again.
+        if let Some(shown) = kept_shown() {
+            let following = Rc::clone(&link);
+            let changed = following.registry.changed;
+            create_effect_on(
+                move || {
+                    if changed.is_alive() {
+                        changed.track();
+                    }
+                    shown.get()
+                },
+                move |&shown, _| following.follow_shown(shown),
+            );
+        }
         let held = Rc::clone(&link);
         on_cleanup(move || held.release());
         Some(link)
@@ -479,9 +494,38 @@ struct JoinedLink {
     registry: Rc<Registry>,
     claimed: Rc<Cell<bool>>,
     joined: Rc<Joined>,
+    /// Out of the tab while the kept branch it was claimed in is hidden.
+    hidden: Cell<bool>,
 }
 
 impl JoinedLink {
+    fn follow_shown(&self, shown: bool) {
+        match (shown, self.hidden.get()) {
+            (false, false) => {
+                self.hidden.set(true);
+                self.withdraw();
+                self.claimed.set(false);
+            }
+            (true, true) if !self.claimed.get() => {
+                self.claimed.set(true);
+                self.hidden.set(false);
+                if self.joined.declaration.borrow().is_some() {
+                    self.join();
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn join(&self) {
+        self.registry
+            .joins
+            .borrow_mut()
+            .entry(self.host)
+            .or_insert_with(|| Rc::clone(&self.joined));
+        self.registry.bump();
+    }
+
     fn outer(&self, inner: TabId) -> Option<TabId> {
         self.registry.foreign.borrow().outer(self.host, inner)
     }
@@ -525,30 +569,29 @@ impl JoinedLink {
         *self.joined.declaration.borrow_mut() = None;
         *self.joined.events.borrow_mut() = None;
         *self.joined.bodies.borrow_mut() = None;
-        self.claimed.set(false);
+        if !self.hidden.replace(true) {
+            self.claimed.set(false);
+        }
     }
 }
 
 impl DockHostLink for JoinedLink {
     fn declare(&self, declaration: DockDeclaration) {
         *self.joined.declaration.borrow_mut() = Some(declaration);
-        self.registry
-            .joins
-            .borrow_mut()
-            .entry(self.host)
-            .or_insert_with(|| Rc::clone(&self.joined));
-        self.registry.bump();
+        if !self.hidden.get() {
+            self.join();
+        }
     }
 
     fn hosted(&self) -> Memo<Option<DockHosted>> {
         let registry = Rc::clone(&self.registry);
         let host = self.host;
-        let version = registry.version;
+        let changed = registry.changed;
         create_memo(move || {
-            if !version.is_alive() || !registry.state.is_alive() || !registry.above.is_alive() {
+            if !changed.is_alive() || !registry.state.is_alive() || !registry.above.is_alive() {
                 return None;
             }
-            version.get();
+            changed.track();
             registry.hosted(host)
         })
     }

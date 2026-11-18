@@ -45,12 +45,10 @@ The `.bzl` files carry comments on each rule; read them before changing one.
 
 `-m release` builds with cargo's release profile; it is the `buck/constraints:release`
 constraint, added by a modifier in the root `PACKAGE`, so one build can hold both profiles.
-`-m lto` adds `buck/constraints:lto`, under which be-host's binary is linked with fat LTO over
-one codegen unit (a ten-minute link); `./scripts/deploy`'s native builds have it by their
-transition. Each modifier names the configuration (`linux_x86_64_release_lto`), whether the
-modifier or a transition added it (`MODIFIERS` and `with_modifiers` in
-buck/platforms/profile.bzl). Every transition keeps the profile (`keep_profile`) and drops LTO,
-which nothing but be-host's binary selects on. The default platform is `.buckconfig`'s
+The modifier names the configuration (`linux_x86_64_release`), whether the modifier or a
+transition added it (`MODIFIERS` and `with_modifiers` in buck/platforms/profile.bzl), and every
+transition keeps the profile (`keep_profile`). Nothing is linked with LTO
+(decisions/no_lto.md). The default platform is `.buckconfig`'s
 `target_platform_detector_spec`, not a modifier: the root `PACKAGE` says why.
 Everything else is cargo's dev profile with `Cargo.toml`'s `[profile.dev.package]` overrides.
 `--target-platforms root//buck/platforms:<p>` builds for another platform. Everything is built
@@ -65,8 +63,9 @@ for that machine.
 | `windows_arm64`, `windows_x86_64` | MSVC runtime and Windows SDK via xwin | `lld-link` |
 | `android_arm64` | NDK r29, API 24 | lld |
 | `wasi` | the WASI sysroot | rust-lld (be-host on the web) |
-| `wasi_guest` | the WASI sysroot | crates/be-wasm-link (apps and their libraries) |
-| `wasm32` | nothing | rust-lld (games, the gpu shim) |
+| `wasi_guest` | the WASI sysroot | crates/be-wasm-link (apps, root guests and their libraries) |
+| `wasm32` | nothing | rust-lld (games, type modules, the remapper, be-wasm-root-testing: pure guests) |
+| `wasm32_bindgen` | nothing | rust-lld (the gpu shim, through wasm-bindgen) |
 | `wasi_html`, `linux_x86_64_html` | as `wasi`, Linux x86_64 | crates on beui's HTML core |
 
 All build on the same Linux workers. Apple's SDK licence allows it on Apple hardware only, so
@@ -74,7 +73,9 @@ macOS releases must move to a Mac worker before anything ships.
 
 `wasi` and `wasi_guest` are the same triple: be-host links a real wgpu backend and an app only
 wgpu's `custom` one, so the `guest` constraint (`buck/constraints`) tells them apart and
-the facts have a plan for each. Likewise the `html` constraint makes `wasi_html` and
+the facts have a plan for each. `wasm32` and `wasm32_bindgen` are another such pair: the gpu
+shim's wgpu and web-sys import JavaScript, which a pure guest cannot load, so the `bindgen`
+constraint keeps them out of the pure guests' plan. Likewise the `html` constraint makes `wasi_html` and
 `linux_x86_64_html`, whose plans are run with `RUSTFLAGS="--cfg beui_html"` over the packages
 `HTML` in `crates/be-tool-buck/src/plan.rs` names (guides/beui/core.md, Cores). Code picks a core
 with `if CORE == Core::Html`; be-tool-fix-rust-source rejects `#[cfg(beui_html)]` outside beui,
@@ -106,7 +107,9 @@ rebuilds nothing else:
   on ports picked from the checkout's path, which carry every call through nl.be3.pfg.pw's tunnel
   (guides/build_server.md); errors go to `target/re-relay.log`. A relay remembers which blobs the
   server holds and answers `FindMissingBlobs` about them itself, and holds back a caller asking
-  about a blob another is uploading, so a slow link carries each blob once (`cas.go`).
+  about a blob another is uploading, so a slow link carries each blob once (`cas.go`). It forgets a blob
+  when the server says it is missing (an `Execute` refused FAILED_PRECONDITION, a read NOT_FOUND);
+  buck2's daemon keeps its own 12-hour record, which only `./scripts/buck kill` clears.
 - **Retries.** buck2 exits 2 on an infrastructure error, such as a reset partway through a
   download, and does not retry; the wrapper runs the command three times in all
   (`BE3_BUCK_ATTEMPTS`). For `run` it retries the build, not the program: it builds with
@@ -209,13 +212,26 @@ accepted paintings among its inputs: it writes every painting it makes into `MAD
 reads none. Then `painting_compare` (crates/be-tool-paint-compare), keyed on what the test made
 and the crate's `snapshots/`, writes `changed/` (each new or changed painting and a `.why`) and
 `used/` (the SHA-256 of each accepted painting it compared with). So editing or accepting a
-painting reruns only that cheap compare, and a test that paints differently from run to run gives
-one painting per build of its code, from the cache, rather than flipping with the accepted
-painting it read. Only `buck2 test` (a plain `./scripts/test`)
-still hands the test the accepted paintings (`hidden`), which it compares in-process to pass or
-fail.
+painting reruns only that cheap compare, and a test that paints differently from run to run
+gives one painting per build of its code, from the cache, rather than flipping with the accepted
+painting it read. That compare also writes `paintings-names`, each painting made and whether it
+is new or differs. When one does, or the test made one of the paintings `be3.again` names, a
+dynamic action (`_again`) runs the test once more as `record` does and `paint-compare --again`
+compares the second run's paintings with the first's, writing `[again]`'s `flaky`, a line per
+difference or for a second run that failed, which crates/be-tool-verify prints and
+be-tool-local's `ci` puts on the pull request's summary comment. A test that failed leaves an
+earlier report at its path, so neither reads the reports of a package with a failed test, nor
+any when something else failed (a compile, which may have kept a test from running at all):
+be-tool-verify's failures.rs reads which from the event log. It only reports. Otherwise it is an
+empty directory and nothing runs. `./scripts/ci --previews BASE` sets `be3.again` (`-c`) to the
+accepted paintings the branch changed since its merge base with BASE, so a run after a painting
+was accepted, by the author's verify or by CI's autofix, still checks it. The second run's
+action is keyed on the test's code as the first is, so it runs once per build of such a test and
+comes from the cache after that. Only `buck2 test` (a plain `./scripts/test`) still hands the
+test the accepted paintings (`hidden`), which it compares in-process to pass or fail.
 
-- **App tests** are the crate's tests compiled to wasm and run by `be-sdk-test-runner`; they
+- **App tests** are the crate's tests compiled to wasm, linked against the app's libraries and
+  the test library (guides/app_libraries.md, Tests), and run by `be-sdk-test-runner`; they
   compare with only their crate's `snapshots/`, so one crate's paintings leave others cached.
   **Native tests that paint** are `cargo_test(paints = True, run_env = ...)` and work the same way.
   `run_apart = True` (crates/be-host-tests, crates/be-host-stack) makes each test file a
@@ -244,19 +260,20 @@ fail.
 
 `./scripts/verify` and `./scripts/ci` are one `buck2 bxl --keep-going` of `buck/dev/verify.bxl`,
 with `--host` and a `--part` for each part asked for: `lint`, every `source_fix` in the root and
-toolchains cells; `tests`, the `[run]` of every `_be_test` that does not paint and the check pass;
-`app-tests`, those that paint; `thorough`, the thorough tests (below), which the other two leave
-out, and `tests` builds be-host's `:web-dist` in their place; `previews` and `bootstrap`, what `./scripts/ci` asks for; and
-always the crates' rules and Cargo.lock (`//:cargo-plan`) and the sysroot's lockfile
-generated anew, and crates/be-tool-verify. It finds
-each by kind, so a new package, test or crate needs no list. Each test is configured for its own
-default platform (the HTML core's tests for `linux_x86_64_html`), the tools that run here for
-`--host`, and the rest for `linux_x86_64`. The script declares no action of its own and only
-ensures what targets build, so its outputs are the ones `./scripts/buck build` of the same target
-shares: an action declared in BXL would have its output under a path keyed by the script's
-arguments. It prints the manifest crates/be-tool-verify reads, a `kind<TAB>path` line each,
-worked out before anything builds, so the bootstrap writes it whole to
-`target/verify-manifest.txt` even when something failed, and buck2 still exits non-zero.
+toolchains cells; `tests`, the `[run]` of every `_be_test` that does not paint and the check
+pass; `app-tests`, those that paint, with each one's `[again]`; `thorough`, the thorough tests
+(below), which the other two leave out, and `tests` builds be-host's `:web-dist` in their place;
+`previews` and `bootstrap`, what `./scripts/ci` asks for; and always the crates' rules and
+Cargo.lock (`//:cargo-plan`) and the sysroot's lockfile generated anew, and
+crates/be-tool-verify. It finds each by kind, so a new package, test or crate needs no list.
+Each test is configured for its own default platform (the HTML core's tests for
+`linux_x86_64_html`), the tools that run here for `--host`, and the rest for `linux_x86_64`. The
+script declares no action of its own and only ensures what targets build, so its outputs are the
+ones `./scripts/buck build` of the same target shares: an action declared in BXL would have its
+output under a path keyed by the script's arguments. It prints the manifest
+crates/be-tool-verify reads, a `kind<TAB>path` line each, worked out before anything builds, so
+the bootstrap writes it whole to `target/verify-manifest.txt` even when something failed, and
+buck2 still exits non-zero.
 
 **Thorough tests** carry the label `THOROUGH` (buck/dev/test.bzl): each run stays costly on the
 build server however it is written, and a change most verifies make reruns it, so
@@ -265,8 +282,11 @@ command as verify is. .github/workflows/thorough.yml runs that when started by h
 too after a change to what they cover; `./scripts/test` runs one by name as any other. A
 thorough test may not paint (verify's paintings part would find its paintings unused). They are:
 
-- every `web_host_test` (buck/program/drive.bzl): `//crates/be-host:web-host-test` and
-  `//crates/be-host:push-web-host-test`, the whole web page with every app in Chromium, drawn on
+- every `web_host_test` (buck/program/drive.bzl): `//crates/be-host:web-host-test`,
+  `//crates/be-host:push-web-host-test`, `//crates/be-host:own-memory-web-host-test`,
+  `//crates/be-host:shown-again-web-host-test` (about 79 CPU seconds) and
+  `//crates/be-host:grown-web-host-test` (about 44 CPU seconds and 1.5 GB), the
+  whole web page with every app in Chromium, drawn on
   SwiftShader. In November 2026 a run took about 84 and 159 CPU seconds, a fifth of all test CPU
   when every test reran, and depends on be-host and every app (guides/performance.md, Keeping
   verify cheap). They were the only per-change build of the web bundle, so the `tests` part
@@ -282,25 +302,27 @@ the execution platform, so it is always checked.
 
 ## Shipping
 
-- `:native` stages `be-host` and every app's manifest, data, module and `.cwasm`, and every
-  library in their closures as `lib-<SHA-256>.wasm`; `apps.json` lists the manifests, which is
-  how every platform finds its apps. Precompiles are one action per module in `:precompiled`,
-  shared by every bundle, since an action's output path names its target and the same compile in
-  two targets would be two cache entries.
+- `:native` stages `be-host` and every app's manifest, data and module, and every library in
+  their closures as `lib-<SHA-256>.wasm`; `apps.json` lists the manifests, which is how every
+  platform finds its apps. Nothing is compiled ahead: V8 compiles each module as it loads.
 - Every `program()` also has `[archive]`, its directory as one zstd file (crates/be-host-archive);
-  `buck2 run` and `:dev` download only that and unpack it into `target/programs/<name>-<hash>/`.
-- `:web` is be-host for `wasi` and the gpu shim for `wasm32` through wasm-bindgen, with the page
+  `buck2 run` and `:dev` download only that and unpack it into `target/apps/<name>-<hash>/`.
+  The program's source files, such as `build-info.json`, are left out of it and copied in
+  beside it on each run (`--beside`), so a new build id repacks nothing.
+- `:web` is be-host for `wasi` and the gpu shim for `wasm32_bindgen` through wasm-bindgen, with the page
   from crates/be-host/web; `buck2 run` serves it with Caddy and be-server
   (guides/running/web.md, guides/hosting.md).
-- The APK is assembled on a worker without Gradle (`be-tool-buck apk`), with apps only as arm64
-  `.cwasm`s, and signed afterwards on the requesting machine (guides/running/android.md).
+- The APK is assembled on a worker without Gradle (`be-tool-buck apk`), with the apps' `.wasm` as
+  assets, and signed afterwards on the requesting machine (guides/running/android.md). Its V8 is
+  one we build (scripts/internal/build-rusty-v8-android.sh) and host, as rusty_v8 publishes none
+  for Android (third-party/v8/BUCK).
 - CI ships nothing built for a device: the build helper builds APKs and native builds on request
   for crates/be-tool-launcher (guides/build_server.md).
 
 ## rust-analyzer
 
 `./scripts/buck run //:rust-project` writes `rust-project.json` (git-ignored), covering native
-builds and the apps as `wasm32-wasip1-threads`. Rerun it after adding a crate or dependency, and
+builds and the apps as `wasm32-wasip1`. Rerun it after adding a crate or dependency, and
 use an editor extension's rust-analyzer: the toolchain's panics on this workspace.
 
 ## Traps
@@ -326,7 +348,12 @@ use an editor extension's rust-analyzer: the toolchain's panics on this workspac
 - **A crate is built only where cargo planned it.** Building one for a platform whose plan does
   not include it, such as an app crate for anything but `wasi_guest`, fails when the build is
   configured, with `root//buck/constraints:planned_by_cargo unsatisfied`; add the crate to that
-  plan in `PLANS` in `crates/be-tool-buck/src/plan.rs` and run `./scripts/buckify`. A binary or
+  plan in `PLANS` in `crates/be-tool-buck/src/plan.rs` and run `./scripts/buckify`. The
+  browser builds (beui-platform-web, and beui-core-html for wasm rather than the host's HTML
+  platform) are planned only under a web program, so `--target-platforms` alone cannot
+  compile-check them: build a program's `:web-module` instead (`./scripts/buck build //crates/beui-web-demo:web-module`
+  for beui's, `//crates/be-host:web-module` for the host's). A pure guest
+  built with `wasm32_crate`, such as be-wasm-root-testing's root, is named in the `wasm32` plan there. A binary or
   an example is likewise built only for the plans that build it (`cargo build --lib` builds
   none).
 - **Lints** are rustc's, and a warning fails the compile, but verify compiles only
@@ -342,7 +369,11 @@ use an editor extension's rust-analyzer: the toolchain's panics on this workspac
   `cargo_package()` defines and a package without a crate calls itself): be-tool-buck's `fix` runs
   be-tool-fix-rust-source, then rustfmt, over its Rust files and starlark_fmt over its Starlark;
   a fix that enables another shows up on the next run. A new package outside `crates/` calls
-  `package_fix()` in its BUCK.
+  `package_fix()` in its BUCK. `:fix` is a build target, not a binary, so `buck run` refuses it
+  ("not a binary rule"). To apply one package's fixes without verify, run `./scripts/buck build
+  //crates/NAME:fix --show-full-output`. The output it prints is a directory: copy the files
+  under its `changed/` over the checkout at the same paths, and delete the paths its `deleted`
+  file lists.
 - **`UNAUTHENTICATED`** from the server is a wrong or missing key, which buck2 reports as failing
   to reach it.
 - **Downloads**: every `http_archive` needs `size_bytes` as well as `sha256`, or buck2 sends a
@@ -354,8 +385,11 @@ use an editor extension's rust-analyzer: the toolchain's panics on this workspac
   other action without a cache, so fetching inside an action (curl, `git fetch`, cargo, zig)
   happens again on every new daemon: pin a file as a download instead where its hash is stable.
   Googlesource's `+archive` tarballs are made afresh on every download, so PDFium's repositories
-  are GitHub archives of their commits (crates/be-tool-buck/src/pdfium.rs), and Ghostty's Zig
-  packages are pinned beside it in crates/be-lib-ghostty-vt/BUCK and handed to `zig fetch`.
+  are GitHub archives of their commits (crates/be-tool-buck/src/pdfium.rs). Ghostty's source is
+  its GitHub archive mirrored to lfs.pfg.pw, since cloud sessions cannot fetch GitHub archives:
+  bumping it means asking the maintainer to upload the new commit's archive to
+  lfs.pfg.pw/by-name/be3/zig/ first, since agents cannot. Its Zig packages are pinned beside it
+  in crates/be-lib-ghostty-vt/BUCK and unpacked for `zig build --system`.
   The one action that still fetches is xwin's (buck/tools `windows-sdk-*`), which downloads
   the MSVC runtime and Windows SDK packages its pinned manifest lists, each by that manifest's
   hash.

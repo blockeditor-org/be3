@@ -3,6 +3,7 @@ pub use crate::components::drawing::Drawing;
 pub use crate::components::frame::Frame;
 pub use crate::components::grid::{Grid, GridCell};
 pub use crate::components::interactive::Interactive;
+pub use crate::components::keep_alive::{KeepAlive, Kept};
 pub use crate::components::layers::{Layer, Layers};
 pub use crate::components::list::{List, ListItem, Spacer};
 pub use crate::components::offset::Offset;
@@ -10,5 +11,7 @@ pub use crate::components::overlay::{Modality, Overlay, use_modal};
 pub use crate::components::portal::Portal;
 pub use crate::components::root::{Root, SystemBars};
 pub use crate::components::selectable::Selectable;
-pub use crate::components::text::{Break, Gap, Icon, Span, SpanText, Text, TextChild, TextItem};
+pub use crate::components::text::{
+    Blank, Break, Gap, Icon, Span, SpanText, Text, TextChild, TextItem,
+};
 pub use crate::components::virtual_list::VirtualList;

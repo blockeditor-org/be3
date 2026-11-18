@@ -97,11 +97,6 @@ fn Header(review: Review) -> NodeId {
                 .unwrap_or_default()
         })
     });
-    let status = create_memo(move || {
-        review
-            .painting
-            .with(|painting| painting.as_ref().map_or(Status::Changed, |p| p.status))
-    });
     let detail = create_memo(move || {
         review.painting.with(|painting| {
             painting
@@ -110,7 +105,6 @@ fn Header(review: Review) -> NodeId {
                 .unwrap_or_default()
         })
     });
-    let detailed = create_memo(move || !detail.get().is_empty());
     let position = create_memo(move || {
         format!(
             "{} of {}",
@@ -139,14 +133,20 @@ fn Header(review: Review) -> NodeId {
                             {name}
                         </Text>
                     </ListItem>
-                    <Dynamic value={status}>|status: Status|
+                    <Dynamic
+                        value={move || {
+                            review
+                                .painting
+                                .with(|painting| painting.as_ref().map_or(Status::Changed, |p| p.status))
+                        }}
+                    >|status: Status|
                         <StatusBadge status />
                     </Dynamic>
                     <Text style=TextStyle::CAPTION @test_id={"paint_review.position"}>
                         {position}
                     </Text>
                 </List>
-                <Show condition={detailed}>
+                <Show value={move || !detail.with(String::is_empty)}>
                     <Text style=TextStyle::CAPTION @test_id={"paint_review.detail"}>{detail}</Text>
                 </Show>
             </List>
@@ -174,9 +174,6 @@ fn StatusBadge(status: Status) -> NodeId {
 #[component]
 fn Controls(review: Review) -> NodeId {
     let count = create_memo(move || review.frame_count());
-    let many = create_memo(move || count.get() > 1);
-    let first = create_memo(move || review.frame_index.get() == 0);
-    let last = create_memo(move || review.frame_index.get() + 1 >= count.get());
     let position = create_memo(move || {
         let number = review
             .frame
@@ -196,7 +193,6 @@ fn Controls(review: Review) -> NodeId {
             },
         )
     });
-    let counted = create_memo(move || !pixels.get().is_empty());
     let showing = create_memo(move || match (review.holding.get(), review.side.get()) {
         (false, _) => "Showing before and after".to_owned(),
         (true, side) => format!("Showing {}", side.label().to_lowercase()),
@@ -205,16 +201,16 @@ fn Controls(review: Review) -> NodeId {
         <Frame padding={Padding::horizontal(PADDING).bottom(SPACING)}>
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING wrap=true>
                 <Text style=TextStyle::CAPTION @test_id={"paint_review.showing"}>{showing}</Text>
-                <Show condition={counted}>
+                <Show value={move || !pixels.with(String::is_empty)}>
                     <Text style=TextStyle::CAPTION @test_id={"paint_review.pixels"}>{pixels}</Text>
                 </Show>
-                <Show condition={many}>
+                <Show value={move || count.get() > 1}>
                     <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                         <Button
                             icon_only=true
                             glyph=ICON_CHEVRON_LEFT
                             label="The frame before"
-                            disabled={first}
+                            disabled={move || review.frame_index.get() == 0}
                             @test_id={"paint_review.frame.previous"}
                             on_click={move || review.step_frame(-1)}
                         />
@@ -225,7 +221,7 @@ fn Controls(review: Review) -> NodeId {
                             icon_only=true
                             glyph=ICON_CHEVRON_RIGHT
                             label="The frame after"
-                            disabled={last}
+                            disabled={move || review.frame_index.get() + 1 >= count.get()}
                             @test_id={"paint_review.frame.next"}
                             on_click={move || review.step_frame(1)}
                         />
@@ -265,7 +261,6 @@ fn Stage(review: Review) -> NodeId {
         Shown::Missing(notice) => notice,
         _ => String::new(),
     });
-    let noticed = create_memo(move || !notice.get().is_empty());
     let loading = create_memo(move || {
         states.with(|states| {
             states
@@ -283,10 +278,8 @@ fn Stage(review: Review) -> NodeId {
             })
         })
     });
-    let failed = create_memo(move || failure.get().is_some());
-    let reason = create_memo(move || failure.get().unwrap_or_default());
     let camera = review.camera;
-    let fit_request = create_signal(0u64);
+    let fit_request = create_trigger();
     let centering = create_memo(move || (review.open.get(), content.get()));
 
     let image_of = move |slot: usize| {
@@ -314,30 +307,14 @@ fn Stage(review: Review) -> NodeId {
         true => split_x.get().min(first_size.get().x),
         false => first_size.get().x,
     });
-    let first_source = create_memo(move || {
-        let width = first_size.get().x.max(1.0);
-        Some(Rect::from_min_max(
-            pos2(0.0, 0.0),
-            pos2(first_width.get() / width, 1.0),
-        ))
-    });
     let second_x = create_memo(move || split_x.get().min(second_size.get().x));
-    let second_width = create_memo(move || (second_size.get().x - second_x.get()).max(0.0));
-    let second_source = create_memo(move || {
-        let width = second_size.get().x.max(1.0);
-        Some(Rect::from_min_max(
-            pos2(second_x.get() / width, 0.0),
-            pos2(1.0, 1.0),
-        ))
-    });
-    let height = create_memo(move || content.get().map_or(0.0, |size| size.y));
 
     view! {
         <Frame fill=ColorRole::Surface @test_id={"paint_review.stage"}>
             <Container>|size: ReadSignal<Vec2>| {
                 create_effect(move || {
                     let (_, content) = centering.get();
-                    fit_request.get();
+                    fit_request.track();
                     let available = size.get();
                     if let Some(content) = content
                         && available.x > 0.0 && available.y > 0.0 {
@@ -354,10 +331,6 @@ fn Stage(review: Review) -> NodeId {
                             @test_id="paint_review.pan_zoom"
                         >|handle: PanZoomHandle| {
                             let PanZoomHandle { view, scale, focused, .. } = handle;
-                            let handle_x = create_memo(move || {
-                                split_x.get() - HANDLE_WIDTH / 2.0 / scale.get().max(0.01)
-                            });
-                            let handle_width = create_memo(move || HANDLE_WIDTH / scale.get().max(0.01));
                             let drag = move |press: PointerPress| {
                                 let (Some(view), Some(content)) = (view.get_untracked(), content.get_untracked()) else {
                                     return;
@@ -372,11 +345,17 @@ fn Stage(review: Review) -> NodeId {
                                             x=0.0
                                             y=0.0
                                             width={first_width}
-                                            height={create_memo(move || first_size.get().y)}
+                                            height={move || first_size.get().y}
                                         >
                                             <Picture
                                                 image={first}
-                                                source={first_source}
+                                                source={move || {
+                                                    let width = first_size.get().x.max(1.0);
+                                                    Some(Rect::from_min_max(
+                                                        pos2(0.0, 0.0),
+                                                        pos2(first_width.get() / width, 1.0),
+                                                    ))
+                                                }}
                                                 fit=ImageFit::Fill
                                                 smooth=false
                                             />
@@ -384,48 +363,52 @@ fn Stage(review: Review) -> NodeId {
                                         <CanvasItem
                                             x={second_x}
                                             y=0.0
-                                            width={second_width}
-                                            height={create_memo(move || second_size.get().y)}
+                                            width={move || (second_size.get().x - second_x.get()).max(0.0)}
+                                            height={move || second_size.get().y}
                                         >
                                             <Picture
                                                 image={second}
-                                                source={second_source}
+                                                source={move || {
+                                                    let width = second_size.get().x.max(1.0);
+                                                    Some(Rect::from_min_max(
+                                                        pos2(second_x.get() / width, 0.0),
+                                                        pos2(1.0, 1.0),
+                                                    ))
+                                                }}
                                                 fit=ImageFit::Fill
                                                 smooth=false
                                             />
                                         </CanvasItem>
                                         <CanvasItem
-                                            x={handle_x}
+                                            x={move || split_x.get() - HANDLE_WIDTH / 2.0 / scale.get().max(0.01)}
                                             y=0.0
-                                            width={create_memo(move || if comparing.get() { handle_width.get() } else { 0.0 })}
-                                            height={height}
+                                            width={move || if comparing.get() { HANDLE_WIDTH / scale.get().max(0.01) } else { 0.0 }}
+                                            height={move || content.get().map_or(0.0, |size| size.y)}
                                         >
-                                            <Layers>
-                                                <Show condition={comparing}>
-                                                    <Interactive
-                                                        cursor={Some(CursorIcon::ResizeColumn)}
-                                                        on_press={drag}
-                                                        on_drag={drag}
-                                                        @test_id="paint_review.split"
+                                            <Show value={comparing}>
+                                                <Interactive
+                                                    cursor={Some(CursorIcon::ResizeColumn)}
+                                                    on_press={drag}
+                                                    on_drag={drag}
+                                                    @test_id="paint_review.split"
+                                                >
+                                                    <Frame
+                                                        align={Align2::new(Align::Center, Align::Stretch)}
                                                     >
                                                         <Frame
-                                                            align={Align2::new(Align::Center, Align::Stretch)}
-                                                        >
-                                                            <Frame
-                                                                width={Size::Custom(HANDLE_LINE)}
-                                                                height=Length::FILL
-                                                                fill=ColorRole::Accent
-                                                            />
-                                                        </Frame>
-                                                    </Interactive>
-                                                </Show>
-                                            </Layers>
+                                                            width={Size::Custom(HANDLE_LINE)}
+                                                            height=Length::FILL
+                                                            fill=ColorRole::Accent
+                                                        />
+                                                    </Frame>
+                                                </Interactive>
+                                            </Show>
                                         </CanvasItem>
                                     </Canvas>
                                 </Frame>
                             }
                         }</PanZoom>
-                        <Show condition={comparing}>
+                        <Show value={comparing}>
                             <Frame
                                 align={Align2::new(Align::Start, Align::Start)}
                                 padding=Space::Lg
@@ -433,14 +416,14 @@ fn Stage(review: Review) -> NodeId {
                                 <Text style=TextStyle::CAPTION>"Before"</Text>
                             </Frame>
                         </Show>
-                        <Show condition={comparing}>
+                        <Show value={comparing}>
                             <Frame align={Align2::new(Align::End, Align::Start)} padding=Space::Lg>
                                 <Text style=TextStyle::CAPTION>"After"</Text>
                             </Frame>
                         </Show>
                         <Frame align=Align::Center padding=Space::Xl3>
                             <List spacing=Space::None>
-                                <Show condition={loading}>
+                                <Show value={loading}>
                                     <List
                                         align=Align::Center
                                         spacing=SPACING
@@ -453,7 +436,7 @@ fn Stage(review: Review) -> NodeId {
                                         <Text style=TextStyle::CAPTION>"Loading the image"</Text>
                                     </List>
                                 </Show>
-                                <Show condition={noticed}>
+                                <Show value={move || !notice.with(String::is_empty)}>
                                     <Text
                                         style=TextStyle::HEADING
                                         @test_id={"paint_review.image.none"}
@@ -461,7 +444,7 @@ fn Stage(review: Review) -> NodeId {
                                         {notice}
                                     </Text>
                                 </Show>
-                                <Show condition={failed}>
+                                <Show value={failure}>|reason: ReadSignal<String>|
                                     <Text
                                         color=TextColor::Danger
                                         @test_id={"paint_review.image.failed"}
@@ -477,7 +460,7 @@ fn Stage(review: Review) -> NodeId {
                                     variant=ButtonVariant::Secondary
                                     label="Fit"
                                     @test_id="paint_review.fit"
-                                    on_click={move || fit_request.update(|n| *n += 1)}
+                                    on_click={move || fit_request.notify()}
                                 />
                                 <Button
                                     variant=ButtonVariant::Secondary

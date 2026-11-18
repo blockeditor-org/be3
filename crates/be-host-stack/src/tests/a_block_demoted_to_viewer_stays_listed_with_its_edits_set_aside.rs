@@ -23,14 +23,14 @@ fn a_block_demoted_to_viewer_stays_listed_with_its_edits_set_aside() {
             &sharer.me().card(),
             &code,
             be_block_client::contacts::Expected::Contact,
+            &Default::default(),
         ))
         .expect("the sharer accepts the link");
     runtime
         .block_on(peer.refresh_contacts())
         .expect("the sharer lists its contacts");
     let public = peer
-        .keys()
-        .contact(harness.account)
+        .verified_identity(harness.account)
         .expect("the sharer verified this account through the link");
     let block = runtime.block_on(async {
         let block = peer
@@ -80,7 +80,9 @@ fn a_block_demoted_to_viewer_stays_listed_with_its_edits_set_aside() {
         held.graph.ready(Query::Shared)
     });
     assert!(
-        crate::wait_until(|held| Some(held.graph.get(block).is_some())),
+        crate::wait_until("read whether the block is listed", |held| Some(
+            held.graph.get(block).is_some()
+        )),
         "the block this account can still see left the files"
     );
 }

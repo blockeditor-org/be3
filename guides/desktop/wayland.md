@@ -14,8 +14,8 @@ under `:dev`; `runtime_dir.rs`). Programs started by the compositor get `Composi
 them). In a login session all of these also go to D-Bus's activation environment and systemd's
 user manager (be-host's `src/login_session/environment.rs`).
 
-The Apps panel lists the `.desktop` programs of the XDG data dirs (be-host-wayland's `programs.rs`
-reads them and their icons; `programs::load_icon` reads PNG, SVG and XPM) and runs one, or a typed
+The Apps panel lists the `.desktop` programs of the XDG data dirs (be-host-programs
+reads them and their icons; `be_host_programs::load_icon` reads PNG, SVG and XPM) and runs one, or a typed
 command, through `programs::request(ProgramAction)`. Against a driven be-host:
 
     drive exec foot            # runs foot inside it
@@ -125,6 +125,15 @@ Buttons beyond beui's five are `PointerButton::Other` with their evdev code
   the pointer and its window the keyboard. A lock sets `pointer_locked` on the view, so the platform
   hides and holds the cursor (guides/beui/components.md, holding the pointer) and raw motion arrives as relative motion.
   `zwp_pointer_gestures_v1` carries touchpad gestures.
+- **Held keys**: xkb lets a modifier go only after as many releases as presses, so one lost
+  release would hold Ctrl for good. `State::key` drops a press of a key the seat already holds and
+  a release of one it does not (beui-platform-drm's `Keyboard` does the same for beui), so pressing
+  and releasing a key always lets it go. Keys reach the seat only while a window has the keyboard,
+  so `focus_keyboard(None)`, and closing the window with the keyboard, let go of every held key,
+  placeless ones too, without telling any window. A window the keyboard moves to straight from
+  another enters with the held keys and hears their release. A key still physically held when the
+  keyboard comes back to a window is not held there until pressed again: deliberately, since
+  guessing which key (Left or Right Ctrl) beui's modifiers mean could itself leave one stuck.
 - **Keys taken from a window**: a press a capturing action takes (Alt+Tab) arrives as
   `Forwarded::KeyTaken`, and while the window holds keys `State::interrupt_keys` makes its keyboard
   leave and enter again, as an X11 grab would, so their release is no lone tap (Alt alone shows

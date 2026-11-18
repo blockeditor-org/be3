@@ -84,7 +84,6 @@ fn duplicating_a_slide_puts_a_copy_of_its_block_after_it() {
     test.take_requests();
 
     test.key(Key::D, Modifiers::CTRL);
-    test.run();
     copied(&mut test, deck, canvas, canvas_copy, CANVAS);
     assert_eq!(
         blocks(&test),
@@ -100,9 +99,7 @@ fn duplicating_a_slide_puts_a_copy_of_its_block_after_it() {
     );
     test.run();
     test.click(format!("presentation.slide.{}.more", ids[2]));
-    test.run();
     test.click(format!("presentation.slide.{}.duplicate", ids[2]));
-    test.run();
     copied(&mut test, deck, text, text_copy, TEXT);
     assert_eq!(
         blocks(&test),
@@ -119,11 +116,8 @@ fn duplicating_a_slide_puts_a_copy_of_its_block_after_it() {
 
     let ids = slide_ids(&test);
     test.click(format!("presentation.slide.{}", ids[0]));
-    test.run();
     test.key(Key::D, Modifiers::CTRL);
-    test.run();
     test.click(format!("presentation.slide.{}", ids[3]));
-    test.run();
     copied(&mut test, deck, canvas, late_copy, CANVAS);
     assert_eq!(slide_ids(&test).len(), 5);
     assert_eq!(

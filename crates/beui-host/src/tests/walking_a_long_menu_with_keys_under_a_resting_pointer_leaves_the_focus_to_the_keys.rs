@@ -8,7 +8,7 @@ fn walking_a_long_menu_with_keys_under_a_resting_pointer_leaves_the_focus_to_the
     let region = NodeRef::new();
     let (document, [menu]) = toolbar_of(move || {
         let items = view! {
-            <ForEach keys={(0..40).collect::<Vec<usize>>()}>|index: usize| {
+            <ForEach value={(0..40).collect::<Vec<usize>>()}>|index: usize| {
                 let label = format!("Item {index}");
                 view! {
                     <unstyled::MenuItem label />

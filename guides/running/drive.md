@@ -127,7 +127,11 @@ from `drive windows` (each display's window in a login session, say).
 
 A command that presses, points or types at a target first scrolls it into view when a scroll
 hides or cuts it (the accessibility `ScrollIntoView`), then aims at the middle of the part that
-shows. `shot` and `paint` reveal and crop the same way. `BeuiTest::click` does the same.
+shows. It aims at where the target is when the command reads the tree, and the press lands frames
+later: a target still moving (a sheet sliding up as it opens) has moved by then, and the press
+can land beside it, or outside the sheet and close it. Wait for it to settle first (`settle`, or
+`pause` with the clock stopped). beui itself takes a press where things are drawn as it takes it
+(beui-host's `a_tap_on_a_sheet_still_sliding_up_lands_on_the_row_drawn_under_it`). `shot` and `paint` reveal and crop the same way. `BeuiTest::click` does the same.
 
 ## Acting
 
@@ -141,6 +145,13 @@ shows. `shot` and `paint` reveal and crop the same way. `BeuiTest::click` does t
     drive type 'buy milk'           drive key ctrl+z Enter shift+Tab
     drive ime compose ni; drive ime commit 你
     drive act ACTION_ID [PANE]      drive a11y TARGET [ACTION [VALUE]]
+    drive back                      drive back left|right; drive back 0.4; drive back commit|cancel
+
+`back` alone is a whole system back gesture from the left edge, as a phone's swipe or back
+button gives (guides/beui/overlays.md, Back and `BackSlide`). `back left` or `back right` starts
+one from that edge and holds it; `back PROGRESS` (0 to 1) moves it there, starting one from the
+left if none is under way; `back commit` ends it as invoked, `back cancel` as cancelled, so a
+test can stop part way and see what the gesture previews.
 
 `pen draw` packs PER_FRAME samples into each frame, as a fast stylus or a backed-up program
 delivers them. `motion DX DY` is relative motion for a locked pointer. `a11y` acts through the
@@ -164,28 +175,32 @@ A program has settled once a frame asks for no other and `Program::busy` gives n
 be-host is busy while an app starts, owes a frame or has unanswered input, while an editor on
 screen waits for content (its own block's, or a block it watches beside it, such as the text
 app's view state: one that is offline and not cached keeps `settle` waiting), while an account
-request is pending, and while the block store has
-work queued or edits to journal, or, while hurried, to seal (unhurried, a type module seals after
-a quiet spell, which counts as out of step instead). Sending the outbox and asking the server for a block's
-revisions count as unsynced instead (below). A command that needs the server still runs in the
+request is pending, and while the block store has work queued or edits to journal, or, while
+hurried, to seal (unhurried, a type module seals after a quiet spell, which counts as out of step
+instead). Loading a listing the server never answered (a folder's children, what links to a
+block) is busy too, but reading one again after the server answered it (once this device's
+creation or move reaches the server, on a new connection, or for a change the server pushed)
+keeps showing what it held, so, like sending the outbox and asking the server for a block's
+revisions, it counts as unsynced instead (below), and a connection that silently stops answering
+does not hold up `settle` with it. A command that needs the server still runs in the
 block store's loop, so the commands queued behind it keep the host busy until it is answered or
 the connection is declared lost; the busy reason names the step the loop is in. It is never
 busy on its error screen.
 
 `drive synced` waits for more: settled, and `Program::out_of_step` gives no reason. be-host gives
-one while its block store is not connected, has edits waiting to be sent, or has yet to ask for
-what changed since it connected (what it asks for arrives by push after); it fails on a program
-with nothing outside its window to keep in step with. With the clock stopped, a program quiet but
-still out of step may be waiting on a timer of its own (be-host's type modules seal after a quiet
-spell and back off before retrying, on the frame clock): once nothing is in flight that could
-still make progress, `synced` moves the clock to `Program::in_step_due`, the soonest such timer,
-as `pause` would. be-host gives one only while its block store waits on nothing but a type
-module's timer for being in step (not a heartbeat). With `hurry off` and the clock running,
-`synced` waits out that quiet spell (30 s after the last edit), so turn `hurry on` or stop the
-clock before it. `drive offline` waits until
-`Program::connected` says it is not connected, as after its network went away. A device waiting to
-reconnect tries again only when its wait runs out, so after its network comes back `drive
-network` first, as crates/be-host-tests' `HostTest::online` does.
+one while its block store is not connected, has edits waiting to be sent, reads a listing again, or
+has yet to ask for what changed since it connected (what it asks for arrives by push after); it
+fails on a program with nothing outside its window to keep in step with. With the clock stopped, a
+program quiet but still out of step may be waiting on a timer of its own (be-host's type modules
+seal after a quiet spell and back off before retrying, on the frame clock): once nothing is in
+flight that could still make progress, `synced` moves the clock to `Program::in_step_due`, the
+soonest such timer, as `pause` would. be-host gives one only while its block store waits on nothing
+but a type module's timer for being in step (not a read's retry). With `hurry off` and the clock
+running, `synced` waits out that quiet spell (30 s after the last edit), so turn `hurry on` or stop
+the clock before it. `drive offline` waits until `Program::connected` says it is not connected, as
+after its network went away. A device waiting to reconnect tries again only when its wait runs out,
+so after its network comes back `drive network` first, as crates/be-host-tests' `HostTest::online`
+does.
 
 Work the program cannot see is not waited for:
 

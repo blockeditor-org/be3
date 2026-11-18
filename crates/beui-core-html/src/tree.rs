@@ -4,7 +4,7 @@ use std::rc::Rc;
 
 use beui_html::Node;
 use beui_tree::reactive::{
-    ComponentContext, Get, IntoProp, IntoSlotHost, Prop, ReadSignal, ScopeContext, Set, Signal,
+    ComponentContext, Get, IntoSlotHost, LazyChild, Prop, Reader, ScopeContext, Set, Signal,
     SlotHost, SlotId, create_effect, create_signal, current_component,
 };
 pub use beui_types::node::BuildsNode;
@@ -45,17 +45,17 @@ pub fn component_node() -> NodeRef {
     node
 }
 
-pub fn component_placed() -> ReadSignal<bool> {
+pub fn component_placed() -> Reader<bool> {
     let bindings = bindings();
     if let Some(target) = bindings.target.get() {
-        return crate::frame::watch_placed(target);
+        return crate::frame::watch_placed(target).into();
     }
     if let Some(placed) = bindings.placed.borrow().as_ref() {
-        return placed.read_only();
+        return placed.read_only().into();
     }
     let placed = create_signal(false);
     bindings.placed.replace(Some(placed));
-    placed.read_only()
+    placed.read_only().into()
 }
 
 pub fn set_component_state<T: 'static>(state: T) {
@@ -70,9 +70,9 @@ pub fn accessibility_reference(node: NodeId) -> accesskit::NodeId {
     accesskit::NodeId(node.key())
 }
 
-pub fn component_accessibility(node: impl IntoProp<accesskit::Node>) {
+pub fn component_accessibility(node: Prop<accesskit::Node>) {
     let bindings = bindings();
-    let node = node.into_prop();
+
     create_effect(move || {
         let node = node.get();
         match bindings.target.get() {
@@ -109,7 +109,43 @@ pub(crate) fn install_hooks() {
     install_core_hooks(CoreHooks {
         fill_ref: document::fill_ref,
         finish_component,
+        create_host,
     });
+}
+
+/// A host node (`create_host`): a `display: contents` element holding the one child control
+/// flow swaps, passing its placed styles on to that child, so a fraction width or a grid span
+/// set on the host reaches what it holds.
+fn create_host(child: LazyChild<NodeId>) -> NodeId {
+    let host = document::create("Host", "div");
+    document::make_host(host);
+    let slot: Rc<dyn SlotHost<NodeId>> = Rc::new(HostSlot {
+        host,
+        inner: node_host(host),
+    });
+    child.mount_in(slot);
+    host
+}
+
+struct HostSlot {
+    host: NodeId,
+    inner: Rc<dyn SlotHost<NodeId>>,
+}
+
+impl SlotHost<NodeId> for HostSlot {
+    fn append(&self, stored: NodeId) {
+        document::set_host_child(self.host, Some(stored));
+        self.inner.append(stored);
+    }
+
+    fn open(&self) -> SlotId {
+        self.inner.open()
+    }
+
+    fn fill(&self, slot: SlotId, items: Vec<NodeId>) {
+        document::set_host_child(self.host, items.first().copied());
+        self.inner.fill(slot, items);
+    }
 }
 
 pub trait ParentKind: beui_types::tree::ParentKind {

@@ -6,7 +6,7 @@ use super::*;
 fn a_notification_that_arrives_on_an_idle_desktop_keeps_its_full_time() {
     let mut fixture = Fixture::new();
     fixture.test.settle();
-    fixture.test.wait(Duration::from_secs(60));
+    fixture.test.advance(Duration::from_secs(60));
     fixture
         .test
         .set_watched::<NotificationsWatch>(&NotificationInbox {
@@ -15,7 +15,7 @@ fn a_notification_that_arrives_on_an_idle_desktop_keeps_its_full_time() {
                 NotificationRequest::Notify(notification(1, "Mail", "Mia Chen", "Lunch at noon?")),
             )],
         });
-    fixture.test.wait(Duration::from_secs(1));
+    fixture.test.advance(Duration::from_secs(1));
     fixture.settle();
     assert!(
         fixture.test.shown(&toast(1)),
@@ -23,9 +23,11 @@ fn a_notification_that_arrives_on_an_idle_desktop_keeps_its_full_time() {
     );
 
     fixture.test.advance(Duration::from_secs(2));
+    fixture.test.run();
     assert!(fixture.test.shown(&toast(1)), "its time is not up yet");
 
     fixture.test.advance(Duration::from_secs(4));
+    fixture.test.run();
     fixture.settle();
     assert!(!fixture.test.shown(&toast(1)), "its time is up");
 }

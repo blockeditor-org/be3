@@ -2,7 +2,7 @@ use be_sdk_beui::desktop;
 use std::time::Duration;
 
 use be_sdk_beui::be_block::DisplaySettings;
-use be_sdk_beui::be_block_content::ViewState;
+use be_sdk_beui::be_block_content::ViewStateKind;
 use be_sdk_beui::beui::datetime::{HourCycle, SECONDS_PER_DAY, Time};
 use be_sdk_beui::beui::dock::DockState;
 use be_sdk_beui::beui::dock::styled::{DockBarGrip, DockBarSurface};
@@ -30,6 +30,8 @@ use super::status::{Status, StatusButton};
 use super::tray::TrayItems;
 use super::windows::{DeskWindows, WindowChips};
 use beui::{Align, Direction};
+use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 pub(crate) const PROGRAMS_PLACE: DockBarPlacement =
     DockBarPlacement::Beside(DockEdge::Bottom, DockAlign::Start);
@@ -38,7 +40,13 @@ pub(crate) const WINDOWS_PLACE: DockBarPlacement =
 pub(crate) const STATUS_PLACE: DockBarPlacement =
     DockBarPlacement::Beside(DockEdge::Bottom, DockAlign::End);
 const PLACES: [DockBarPlacement; 3] = [PROGRAMS_PLACE, WINDOWS_PLACE, STATUS_PLACE];
-const DISPLAY_BARS: &str = "display-bars-by-monitor";
+/// Where each display other than the first keeps its bars, by monitor.
+#[derive(Default, Deserialize, PartialEq, Serialize)]
+pub(crate) struct SavedBars(Vec<(String, SavedDockLayout)>);
+
+impl ViewStateKind for SavedBars {
+    const ID: Uuid = Uuid::from_u128(0x6465_736b_746f_702d_6261_7273_0000_0001);
+}
 
 const STATUS_SPACING: Space = Space::Xs2;
 const SECONDS_PER_MINUTE: u64 = 60;
@@ -154,19 +162,9 @@ fn like_the_first(first: DockingLayout<TabId>, display: u32) -> DockingSnapshot<
     DockingSnapshot::new(state, bars.map(|bar| (bar, bar)))
 }
 
-type SavedBars = Vec<(String, SavedDockLayout)>;
-
-fn saved_bars(editor: Editor) -> Result<SavedBars, String> {
-    let Some(state) = editor.view_state(DISPLAY_BARS) else {
-        return Ok(Vec::new());
-    };
-    state.read::<SavedBars>().map_err(|error| {
-        format!(
-            "The saved bars of the further displays of session {} could not be read: {error}\n\nThey hold {} bytes, kept unchanged until the bars are reset.",
-            editor.block_id(),
-            state.bytes.len()
-        )
-    })
+fn saved_bars(editor: Editor) -> Ready<Vec<(String, SavedDockLayout)>> {
+    let kept = editor.view_state::<SavedBars>().get()?;
+    Ok(kept.unwrap_or_default().0)
 }
 
 fn save_bars(editor: Editor, monitor: String, layout: SavedDockLayout) {
@@ -179,23 +177,25 @@ fn save_bars(editor: Editor, monitor: String, layout: SavedDockLayout) {
         None => saved.push((monitor, layout)),
     }
     saved.sort_by(|(left, _), (right, _)| left.cmp(right));
-    editor.set_view_state(DISPLAY_BARS, Some(&ViewState::new(&saved, Vec::new())));
+    editor.view_state().set(Some(SavedBars(saved)));
 }
 
 #[component]
 pub(crate) fn UnreadableBarsDialog(editor: Editor) -> NodeId {
-    let report = create_memo(move || saved_bars(editor).err());
+    let report = create_memo(move || match saved_bars(editor) {
+        Err(Pending::Failed(error)) => Some(format!(
+            "The saved bars of the further displays of session {} could not be read: {error}\n\nThey are kept unchanged until the bars are reset.",
+            editor.block_id()
+        )),
+        _ => None,
+    });
     let displays = editor.watch::<DisplaysWatch>();
     let further = create_memo(move || displays.with(|displays| displays.len() > 1));
     let kept = create_signal(false);
-    let open = create_memo(move || report.with(Option::is_some) && further.get() && !kept.get());
-    let reset = move || {
-        let empty: SavedBars = Vec::new();
-        editor.set_view_state(DISPLAY_BARS, Some(&ViewState::new(&empty, Vec::new())));
-    };
+    let reset = move || editor.view_state().set(Some(SavedBars::default()));
     view! {
         <Dialog
-            open={open}
+            open={move || report.with(Option::is_some) && further.get() && !kept.get()}
             kind=DialogKind::Alert
             title="The bars of the other displays could not be read"
             width=Size::Dialog
@@ -315,7 +315,7 @@ pub(crate) fn ProgramsBar(shell: Shell, display: u32, layout: DockingLayout<TabI
     view! {
         <DockBarSurface @test_id={"desktop.bar.apps"}>
             <DockBarGrip bounds={bar_bounds()} />
-            <Show condition={shown}>
+            <Show value={shown}>
                 <ProgramsPanelButton programs_panel={shell.programs_panel} display layout />
             </Show>
         </DockBarSurface>
@@ -377,10 +377,10 @@ fn StatusItems(shell: Shell, display: u32) -> NodeId {
     view! {
         <List direction align=Align::Center spacing=STATUS_SPACING>
             <TrayItems editor={editor} direction />
-            <Show condition={shell.layouts.several}>
+            <Show value={shell.layouts.several}>
                 <LayoutButton layouts={shell.layouts} />
             </Show>
-            <Show condition={keyboard}>
+            <Show value={keyboard}>
                 <Button
                     icon_only=true
                     glyph=ICON_KEYBOARD
@@ -391,10 +391,10 @@ fn StatusItems(shell: Shell, display: u32) -> NodeId {
                     on_click={toggle_keyboard}
                 />
             </Show>
-            <Show condition={rotatable}>
+            <Show value={rotatable}>
                 <RotateButton editor={editor} display={screen} />
             </Show>
-            <Show condition={epaper}>
+            <Show value={epaper}>
                 <Button
                     icon_only=true
                     glyph=ICON_REFRESH_CW

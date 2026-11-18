@@ -62,6 +62,11 @@ pub struct Gpu {
     surfaces: HashMap<u32, Surface>,
     imports: Imports,
     presented: Vec<u32>,
+    /// The texture each surface showed when the app last presented it, and its generation:
+    /// what its host draws, whatever the app configured since.
+    last_presented: HashMap<u32, (wgpu::Texture, u64)>,
+    /// The surfaces let go of since `take_released`.
+    released: Vec<u32>,
     error: Option<String>,
 }
 
@@ -113,6 +118,24 @@ impl Surface {
     }
 }
 
+/// Whether a gpu import only records into a render pass, compute pass or render bundle (set the
+/// pipeline, a viewport, a buffer, draw, dispatch, replay bundles with `execute-bundles`): a few
+/// nanoseconds of appending to a list, made thousands of times a frame. A host times every other
+/// gpu import for its "GPU calls" total and leaves these untimed, since reading the clock around
+/// each cost far more than the call (about 60 ns of 105 a call in be-wasm-host's
+/// example-gpu-calls); their time counts in the step's. Ending a pass and finishing a bundle are
+/// timed: that is where wgpu validates and encodes everything recorded.
+pub fn only_records(function: &str) -> bool {
+    [
+        "[method]render-pass.",
+        "[method]compute-pass.",
+        "[method]render-bundle-encoder.",
+    ]
+    .iter()
+    .find_map(|pass| function.strip_prefix(pass))
+    .is_some_and(|method| !matches!(method, "end" | "finish"))
+}
+
 impl Gpu {
     pub fn new(device: wgpu::Device, queue: wgpu::Queue) -> Self {
         let limits = convert::limits(&device.limits());
@@ -146,6 +169,8 @@ impl Gpu {
             surfaces: HashMap::new(),
             imports: Imports::default(),
             presented: Vec::new(),
+            last_presented: HashMap::new(),
+            released: Vec::new(),
             error: None,
         }
     }
@@ -201,11 +226,27 @@ impl Gpu {
     }
 
     pub fn detach_surface(&mut self, surface: u32) {
-        self.surfaces.remove(&surface);
+        if self.surfaces.remove(&surface).is_some() {
+            self.presented.retain(|presented| *presented != surface);
+            self.last_presented.remove(&surface);
+            self.released.push(surface);
+        }
+    }
+
+    /// The surfaces let go of since the last call, by the app or the host, each once.
+    pub fn take_released(&mut self) -> Vec<u32> {
+        std::mem::take(&mut self.released)
     }
 
     pub fn surface(&self, surface: u32) -> Option<(&wgpu::Texture, u64)> {
         let (texture, generation) = self.surfaces.get(&surface)?.shown();
+        Some((texture, *generation))
+    }
+
+    /// The texture `surface` showed when it was last presented, and its generation: a surface
+    /// configured afresh since (a new size) still shows it until it is presented again.
+    pub fn presented_surface(&self, surface: u32) -> Option<(&wgpu::Texture, u64)> {
+        let (texture, generation) = self.last_presented.get(&surface)?;
         Some((texture, *generation))
     }
 

@@ -14,12 +14,24 @@ library is `//crates/NAME:NAME`, abbreviated `//crates/NAME`, with its other tar
   the platform and aren't apps a person uses.
 - `be-type-*`: the block type module of the app of the same name; `be-type-bundle` holds every
   first-party type module by app id.
-- `be-sdk-*`: what apps are written with: the protocol (`be-sdk-api`), the guest libraries
-  (`be-sdk`, `be-sdk-beui`), the libraries apps link against and the test harness.
+- `be-worker-*`: apps' workers (guides/adding_an_app.md, Workers): `be-worker-<app>` the
+  messages the app and its workers exchange, which the app depends on, and each
+  `be-worker-<app>-<worker>` a worker's `Work` and module, which only the module and the app's
+  tests link.
+- `be-sdk-*`: what apps are written with: the protocol (`be-sdk-api`) and its host half
+  (`be-sdk-app-host`, which every host links, and `be-sdk-root`, which a root guest links to
+  embed apps, with `be-sdk-beui-root` to draw its own surfaces with beui), the guest libraries
+  (`be-sdk`, `be-sdk-beui`),
+  the libraries apps link against and the test harness.
 - `be-host-*`: be-host, split into crates that build in parallel. `be-host-base`,
-  `be-host-services` and `be-host-stack` have no beui; `be-host-runtime` runs apps;
+  `be-host-stack` and `be-host-server` (be-server on a thread, which tests start to sign in
+  against) have no beui, and `be-host-services` (the Linux D-Bus services) and `be-host-programs` (the desktop's
+  installed programs and icons) only beui's types; `be-host-runtime` runs apps;
   `be-host-desktop` holds the desktop hosts; `be-host-testing` and `be-host-tests` are its test
   harness and host tests.
+- `be-root-*`: the root be-host runs in place of its own UI (`be-root`), a guest on the apps'
+  platform (guides/apps/runtime.md), and what it shares with be-host's own UI
+  (`be-root-accounts-ui`, the account picker).
 - `be-block-*`: the block stack (guides/the_new_block_stack.md). `be-server-*`: the server and
   its account portal. `be-wasm-*`: running wasm guests.
 - `be-lib-*`: libraries that know nothing of blocks, apps or beui. `be-lib-stable-hash` is the

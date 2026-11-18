@@ -43,7 +43,7 @@ pub(crate) fn spans(level: f32) -> (f32, f32, f32) {
 #[component]
 pub(crate) fn LevelOsd(
     level: Memo<Option<OsdLevel>>,
-    shown: ReadSignal<u64>,
+    shown: Trigger,
     area: Memo<Rect>,
     id: String,
 ) -> NodeId {
@@ -77,33 +77,29 @@ pub(crate) fn LevelOsd(
         }
         None
     });
-    create_effect(move || {
-        let shown = shown.get();
-        untrack(|| {
-            if shown == 0 {
-                return;
-            }
+    create_effect_on_change(
+        move || shown.track(),
+        move |_, _| {
             fade.stop();
             since.set(Some(now()));
             opacity.set(1.0);
             ticking.restart(OSD_DURATION);
-        });
-    });
+        },
+    );
     let open = create_memo(move || opacity.get() > 0.0 && level.with(Option::is_some));
     // The margin goes on the anchor, not around the card: an overlay's whole content
     // rect takes the presses over the program windows under it, so transparent padding
     // would keep them from the windows.
-    let anchor = create_memo(move || {
-        let area = area.get();
-        let below = area.height() * (1.0 - SCREEN_HEIGHT_FRACTION);
-        OverlayAnchor::Rect(Rect::from_min_max(
-            area.min + vec2(MARGIN, MARGIN),
-            area.max - vec2(MARGIN, below),
-        ))
-    });
     view! {
         <Overlay
-            anchor={anchor}
+            anchor={move || {
+                let area = area.get();
+                let below = area.height() * (1.0 - SCREEN_HEIGHT_FRACTION);
+                OverlayAnchor::Rect(Rect::from_min_max(
+                    area.min + vec2(MARGIN, MARGIN),
+                    area.max - vec2(MARGIN, below),
+                ))
+            }}
             placement=Placement::InsideBottom
             policy=LayerPolicy::Inert
             level=LayerLevel::Top
@@ -120,10 +116,6 @@ pub(crate) fn LevelOsd(
 fn OsdCard(level: Memo<Option<OsdLevel>>, opacity: ReadSignal<f32>, id: String) -> NodeId {
     let muted =
         create_memo(move || level.with(|level| level.as_ref().is_some_and(|level| level.muted)));
-    let glyph_ink = create_memo(move || match muted.get() {
-        true => TextColor::Muted,
-        false => TextColor::Default,
-    });
     let fill = create_memo(move || match muted.get() {
         true => ColorRole::TextMuted,
         false => ColorRole::Accent,
@@ -131,8 +123,6 @@ fn OsdCard(level: Memo<Option<OsdLevel>>, opacity: ReadSignal<f32>, id: String) 
     let glyph = create_memo(move || level.with(|level| level.as_ref().map(|level| level.glyph)));
     let value =
         create_memo(move || level.with(|level| level.as_ref().and_then(|level| level.level)));
-    let present = create_memo(move || value.get().is_some());
-    let absent = create_memo(move || !present.get());
     let label = create_memo(move || {
         level.with(|level| {
             level
@@ -151,16 +141,25 @@ fn OsdCard(level: Memo<Option<OsdLevel>>, opacity: ReadSignal<f32>, id: String) 
             @test_id={id}
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                <Text size=TextSize::Xl color={glyph_ink} align=TextAlign::Center>
+                <Text
+                    size=TextSize::Xl
+                    color={move || match muted.get() {
+                        true => TextColor::Muted,
+                        false => TextColor::Default,
+                    }}
+                    align=TextAlign::Center
+                >
                     <Icon glyph={glyph} />
                 </Text>
-                <Show condition={present}>
+                <Show
+                    value={value}
+                    fallback={move || view! {
+                        <Frame width=BAR_WIDTH>
+                            <Text color=TextColor::Muted>{label}</Text>
+                        </Frame>
+                    }}
+                >|value: ReadSignal<f32>|
                     <LevelBar value label fill />
-                </Show>
-                <Show condition={absent}>
-                    <Frame width=BAR_WIDTH>
-                        <Text color=TextColor::Muted>{label}</Text>
-                    </Frame>
                 </Show>
             </List>
         </Frame>
@@ -168,15 +167,16 @@ fn OsdCard(level: Memo<Option<OsdLevel>>, opacity: ReadSignal<f32>, id: String) 
 }
 
 #[component]
-fn LevelBar(value: Memo<Option<f32>>, label: Memo<String>, fill: Memo<ColorRole>) -> NodeId {
-    let spans = create_memo(move || spans(value.get().unwrap_or_default()));
+fn LevelBar(value: ReadSignal<f32>, label: Memo<String>, fill: Memo<ColorRole>) -> NodeId {
+    let spans = create_memo(move || spans(value.get()));
     let share =
         move |span: fn((f32, f32, f32)) -> f32| create_memo(move || span(spans.get()) + SLIVER);
     let said = create_memo(move || {
         let label = label.get();
-        match value.get() {
-            Some(level) if level > 1.0 => format!("{label} {}%", (level * 100.0).round()),
-            _ => label,
+        let level = value.get();
+        match level > 1.0 {
+            true => format!("{label} {}%", (level * 100.0).round()),
+            false => label,
         }
     });
     view! {

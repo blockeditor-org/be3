@@ -40,7 +40,7 @@ view! {
             <DockSplit id="root" direction=Direction::Horizontal fraction=0.25>
                 <DockPane id="files"><DockTab id=Key::Files title="Files"><Files /></DockTab></DockPane>
                 <DockPane id="editors" empty={move || view! { <Nothing /> }}>
-                    <ForEach keys={open}>|key: Key|
+                    <ForEach value={open}>|key: Key|
                         <DockTab id=key title={title_of(key)} on_close={move || close(key)}>
                             <Panel key />
                         </DockTab>
@@ -85,9 +85,19 @@ rebuild a body only when its document changes.
 ## Panels, focus and keys
 
 A tab's panel is built the first time the tab is shown and belongs to the dock, not the pane: the
-pane shows it through a `Portal`, so the panel keeps its nodes, scroll, caret and state when hidden,
-dragged, floated, or switched between tiled and stacked. A panel no pane shows is not laid out and
-not read by a screen reader.
+dock holds one `KeepAlive` and each pane shows a panel through a `Kept` keyed by its tab (bars'
+panels likewise), so the panel keeps its nodes, scroll, caret and state when hidden, dragged,
+floated, or switched between tiled and stacked. A panel no view shows is paused, not laid out and
+not read by a screen reader; it is dropped once its tab leaves the dock. The panel of a tab whose
+own dock joined this one is in `KeepAlive`'s `awake`, so it keeps running, and so is every bar's,
+whose content may answer keys while its band is hidden. A panel's `kept_shown()` is the dock's
+own, not its `Kept`'s: a pane showing another tab, or building its view again, does not make a
+dock joined from it let go. A view of a tab's content that takes the
+keyboard while no pane or fullscreen view shows its panel (an app putting it back on a popup's
+trigger as a press on another tab closes the popup) does not show the tab again; the back preview,
+which only pictures the page a back gesture goes to, does not count. Tab content is built inside the dock's
+`KeepAlive`, so a `Kept` in it with no `KeepAlive` of its own joins the dock's, which keeps only
+the dock's keys: give it its own `KeepAlive`.
 
 Pressing a pane's chrome (bar, tab, grip) gives the keyboard to the tab it shows: the bar is an
 `Interactive` with `press_focus=false` (guides/beui_keyboard.md) and
@@ -99,14 +109,28 @@ there it shows its tab (`DockTabControl::content_focused`) or, in an empty pane'
 that pane (`DockPaneControl::focus`), which brings the window in front. `content_focused` also
 records that the tab's content has the keyboard, until this document or an empty pane takes it,
 so a dock that stops showing the tab hands the keyboard to the tab shown in its place, as it does
-for focus inside its own panels. A focused empty pane in a joined
+for focus inside its own panels. A pane switching between joined editors' groups builds the shown
+group's body anew, which hands on nothing, so the switch hands it on itself: Next and Previous tab
+from the entry that held the keyboard to the tab the newly shown entry shows (`State::cycle`), and
+a press on a group's tab to the tab that group shows (`chrome_pressed`). A focused empty pane in a joined
 group has no tab, so `DockState::focused_or_host` stands the group's host tab in for it: that is
 what `DockingLayout::focused` and `DockHosted::focused` report.
 
 The dock's tab commands are actions (`tab_actions` in `beui-dock-host/src/unstyled.rs`), so a
-command palette lists them: Ctrl+Tab and Ctrl+Shift+Tab walk the focused pane's tabs (at the
-dock's node with `.capture()`, so they work from inside a text input), and Split right, Split
-down and Close tab act on the tab the focused pane shows.
+command palette lists them: Next tab and Previous tab walk the focused pane's tabs (for a joined
+editor's stage, the tabs of the pane its group stands in, `DockState::standing_leaf`), and Split
+right, Split down and Close tab act on the tab the focused pane shows. Next and Previous are bound
+to `DockHost`'s `tab_keys` (`DockTabKeys::CTRL`, Ctrl+Tab and Ctrl+Shift+Tab, by default; the
+desktop passes Super+Tab so a program keeps Ctrl+Tab) at `KeyAt::Window` with `.capture()`: they
+work from inside a text input and, as intercepted keys (guides/beui_keyboard.md), over an
+embedded editor's view, which is how workspace-ui walks its tabs while an editor has the keyboard.
+They are enabled only while the focus is in the dock: in its area (a `DockDialog` included), in one
+of its floating windows, or on no node of its document, as when an app's view or a program's
+window holds the keyboard. So a `Dialog`, sheet or menu outside the dock keeps them from switching
+the tab under it, and of several docks in one document the one holding the focus takes the key.
+A dock in another document (an editor whose dock stands alone, not joined) hears them only when
+the shell's dock does not take them first: while the shell's focused pane has several tabs, the
+shell walks those.
 The dock binds no other key: the switcher and window actions are actions the shell binds.
 
 ## Modes
@@ -116,7 +140,11 @@ it is on a phone; thresholds are the styled `Docking`'s `NARROW_WIDTH`, `SHORT_H
 `PHONE_LANDSCAPE_WIDTH`):
 
 - **Stacked** (`DockMode::Stacked`): the focused tab fills the dock under the dock's own stacked bar
-  (icon and title, a count that opens a sheet of open tabs, back). No tab bars, splitters or
+  (icon and title, a count that opens a sheet of open tabs, back). A tab's `Pin::Title` action
+  makes the title a button that runs it, with the action's glyph after the title as the cue for
+  what a tap does (a pencil for Rename; a chevron when it has none; `dock.title.cue`). A joined editor's stage (the one
+  bare pane of its group) is named and counted as the tab its dock took the place of
+  (`DockState::standing_in`), so a document reads as itself. No tab bars, splitters or
   windows, but the whole state is kept, so widening tiles it again. Locks are ignored while
   stacked.
 - **Gathered** (`DockMode::Compact`): a compact tree with a bare stage pane (an editor's stage,
@@ -127,9 +155,20 @@ it is on a phone; thresholds are the styled `Docking`'s `NARROW_WIDTH`, `SHORT_H
 ## Menus and pinned actions
 
 A tab hands the dock its menu with `dock_menu(items)`, shown behind More; actions marked `.pin(..)`
-go into the bar. A menu is data, not a node, so a dock showing another app's tabs draws it from rows
+go into the bar. A horizontal bar too narrow for labels (a pane under `ROOMY_BAR`, or a phone's
+stacked bar) leaves `Pin::Label` actions to More; an icons-only sidebar shows them as icons, and leaves one with no glyph to More. A menu is data, not a node, so a dock showing another app's tabs draws it from rows
 it was sent (`ActionBuilder::detached`) and passes the pick back. `unstyled::ActionBar` does the
 split between bar and More for any toolbar.
+
+A pane's tab strip scrolls when its tabs do not fit. The face's `strip` gets the tabs and, as
+`DockStripHandle::menu`, a row for every tab that shows it, with the tab's icon (the shown one chosen, marked at the row's end); the styled strip
+fades the edge tabs lie past and, while any are hidden, ends in an All tabs button
+(`dock.<id>.all-tabs`, rows `dock.<id>.all-tabs.tab.<tab>`) with that menu, since a fade ending on
+the gap between two tabs shows nothing. Showing another tab, from that menu or a key, scrolls it into
+view, and so does laying the strip shorter than before (its pane narrowed) when that hides the shown
+tab: `DockTabBar` watches the strip's measured length, not on its first layout (whose reveal would
+also scroll a page the dock sits in) and not as it grows, so a scroll the person made stays until a
+narrowing hides the shown tab.
 
 ## History and the switcher
 
@@ -150,16 +189,17 @@ a ring outside it, so content gets every press up to its edge.
 - Where a host opens windows (`opens_windows`: space's panels, be-host's desktop), each dock window
   is a real window: its bar and grips call `begin_move`/`begin_resize` and the host moves it. The
   dock keeps each `Placed` report's `HostPlacement` and hands it back when the window reopens. A tab
-  dropped where no window is (`on_drop_outside`) floats into a new window at the pointer.
+  dropped where no window is (its carry's `outside`) floats into a new window at the pointer.
 
 `DockState::windows` is bottom to top, the focused window is on top, and `Document::layers()`
-follows. Drop targets are resolved in the window the `DragPoint` names, in that window's
-coordinates, and never in a window a non-dock layer covers at the pointer.
+follows. The dock's drop site offers each window's places relative to that window's node, topmost
+window first; the board chooses only places in the window the `DragPoint` names.
 
 The window manager (`beui-dock-host/src/unstyled/hosting/manager.rs`, `snap.rs`,
 `beui-dock-state/src/hidden.rs`) is on `DockHostLayout` for any shell: areas (`set_areas`, one `DockArea`
 per display: the whole screen, where a window goes fullscreen, and the work area it is kept, snapped
-and maximized in; a window belongs to the area it overlaps most), snapping, hiding and show-desktop,
+and maximized in; a window belongs to the area it overlaps most), snapping, hiding and show-desktop
+(a `DockWindow` declared `hidden` opens hidden and unfocused, until one of its tabs is shown),
 cycling a `DockTab`'s `group`, and `window_actions(disabled)`, which returns `dock.window.*` and
 `dock.switch.*` actions with no keys, acting on the focused window. The desktop binds them
 (guides/desktop.md); the demo's Window manager page puts them in a menu.
@@ -172,18 +212,75 @@ them (`unstyled/modifier_drag.rs`; the desktop sets Super).
 ## Dragging, groups and locks
 
 Dropping a tab on a tab bar inserts it where the bar parts for it (each bar is a `Reorder`), on a
-pane's middle groups it with the tab the pane shows (`DockDrop::Group`; the highlight names that tab
-unless tidying would only fold it into the pane), on an edge splits it; Alt while dropping floats it. Dragging a pane's grip carries the pane.
+pane's middle groups it with the tab the pane shows (`DockDrop::Group`; the carried tab names that
+tab unless tidying would only fold it into the pane), on an edge splits it; Alt while dropping floats it. Dragging a pane's grip carries the pane.
+Tabs and panes are carries on the drag board (guides/beui/components.md, Drag and drop): a bar's
+row lifts its tab, the grip an `Interactive`'s `drag`, and `DockTiles` is a drop site
+(`unstyled/fluid.rs`). At the lift, `State::spec` offers every drop the state admits as a
+place (`DockPlace`), so a locked place is no place: for each pane laid out now, a split on each
+edge, chosen in a band along it (`EDGE_ZONE` of the pane, each corner split along its diagonal by `Candidate::nearest_edge`; a pane hosting a group gives its edges
+only `OUTER_EDGE`, then its group's places), and grouping in its middle, each zone leaving the pane's tab bar to the bar.
+Each place carries the `DockState` its drop leaves and where the carried item rests in it.
+A surface's places are reached only where it is the topmost of the dock's surfaces under the
+pointer and nothing but the dock's own layers covers it (`open_where`, `State::topmost`), so a menu
+over the dock, a tool-bar band or another dock in the window takes no tab; a dock dialog, modal
+or not, covers no place (`modal` blocks only its parent panel's input). Over no surface of the
+home window, or one that offers no place (the window a lone tab is carried from), a `custom`
+place floats the tab in a window of its own at the pointer, which moves that lone window; with
+Alt held that is the only place. A window the host opens is not the home window: a lone tab
+carried inside its own host-opened window has no place there and goes home, as the host moves
+such a window by its bar. A carry's payload is a
+`DockCarry`, the dragged tab or pane with its dock's id, so another dock in the document, whose tab ids
+may coincide, neither takes it nor hides a tab for it. Tool bars are carries of the same board,
+with a drop site of their own (Dialogs, tool bars, fullscreen).
+
+**From the keyboard.** A tab's row is a drag source whose tab button holds the focus, so a
+focused tab moves with the carry keys (guides/beui_keyboard.md): Ctrl+Shift and an arrow move it
+one place at once, along its bar, into the next bar or into the nearest of the dock's places
+that way, and Move in the palette lifts it for the arrows to step between every place, each
+said by its label ("right of Files", "with Files"), until Enter drops it. A split answers only
+the arrow its edge faces (`step_toward`), so Right reaches "right of" a pane, never its top
+band. Carried off its bar, its row keeps the focus (hidden and shrunk, not collapsed); dropped
+in another bar or pane, where its row is built again, the pane that shows it gives its panel
+the keyboard (`keyboard_after_move`, which lasts only for the drop's edit), as pressing its tab
+would; so does a pointer's drop of a tab its press focused. Pane grips are not focusable, so a pane
+moves only by the pointer.
+
+**Splitters.** A splitter is a carry too (`SplitterCarry`), lifted at a mouse's or pen's press
+(`lifts_on_press`) and past the threshold along its axis by a finger, and the drop site of its own
+carry alone: a `free` place over its tree's canvas, unbounded, which turns the pointer's travel from
+the press into a `SplitSize` as `SplitSize::moved` does. Unlike a tab it previews by writing: each
+place chosen is written with `State::edit` from its site's own effect, and a drop writes its place
+too (not `drag_edit`, whose write runs after input, before the board hears the pointer, so it
+would reach layout a frame late). Escape or a
+cancelled press puts it back to the size it had at the lift. Its carry `reads_outside`,
+so past the window's edge it follows the captured pointer to its clamp, and a release there drops
+it there. It scrolls nothing. Its arrows step it `SPLIT_STEP` of the
+space as before, and a keyboard carry (Move in the palette, Ctrl+Shift and an arrow) steps it the
+same; Space stays unbound.
+
+**The preview.** Nothing is written until the release. While a place is chosen (or a tab bar parts
+for a tab from another pane, `part_for_bar`), each tree canvas lays its panes and splitters out
+as the place's state would (`State::previewed`) and springs every rect from where it is drawn
+(`Parting`, on `DockCurves::settle`): a pane that would close shrinks into its edge away from the
+neighbour taking its room, and a pane that only the drop makes is left open, empty. A pane's panel
+keeps the size it was laid out at while the dock carries anything (`DockHeldSize`), clipped by
+the pane as it moves, so no app or program in it lays out again until the drop commits; a panel
+dropped into another pane moves there through its `Kept`, built once, and an app in it is placed
+at its new size once, never unplaced on the way (a window resized mid-carry resizes its panels only then too); its
+docked tool bars are the pane's and move with it. The carried tab is drawn the size of where it
+would rest (`shaped`), under the pointer but inside its surface (`DockGhost`, the `preview` face with
+`opening`), and glides into that rest on release. A pane keeps showing the tab it shows until the
+drop. The carried tab is listed once: as its bar's preview while it floats, as the opening over a place.
 A group is a tab holding a dock tree of its own (`Entry::Group`); the tree tidies itself after every
 change (a one-tab group becomes the tab). A pinned group is never tidied away and admits only its
 own tabs.
 
 A `locked` pane makes an area, and every tab declared in it lives there (`DockState::home`). While
 locked, a tab at home moves and splits freely inside the area but cannot leave or float; tabs from
-elsewhere are kept out. Locks belong to places, not tabs. Over a drop the state refuses
-(`DockState::admits`, `admits_leaf`) the dock shows the refused marker (`dock.refused`) instead of a
-drop marker, and refuses the drop on the board (`Take::Refuse`), so a release there does nothing and
-the tab glides back to its bar; check `admits` first when a drop test does nothing.
+elsewhere are kept out. Locks belong to places, not tabs. A drop the state refuses
+(`DockState::admits`, `admits_leaf`) is no place: nothing opens there, and a release there
+does nothing and the tab glides back to its bar; check `admits` first when a drop test does nothing.
 
 ## Nested docks and the host seam
 
@@ -194,7 +291,10 @@ host to place. The link comes from the `DockJoin` of the tab body the `Docking` 
 dock in place; a platform's slot (`DockHostSlot::new`) hosts it elsewhere, which is how a dock in an
 app reaches the host across the app protocol (be-sdk-api PROTOCOL.md, "Docks cross apps").
 
-A `Docking` inside a `DockTab` of another joins it and draws nothing. Nesting happens in the
+A `Docking` inside a `DockTab` of another joins it and draws nothing. Built in a `Kept`, the join
+lets the tab go while that subtree is hidden (`kept_shown`) and takes it back,
+with its declaration, once shown and the tab is free; a workspace keeps a live editor this way
+under a revision's preview. Nesting happens in the
 client: the outer dock splices the inner one in as a pinned group keyed `joined:<tab>`, so a host
 only ever sees one declaration, and the inner `DockingLayout` goes through the outer dock. Each layer saves its own layout: the outer snapshot keeps only the hosting tab, so the
 inner dock's owner saves the inner snapshot (be-sdk-beui does, through a `DockKeeper` in every
@@ -215,24 +315,46 @@ alone even inside another dock's tab.
   (`{block type}/{key}` across apps), so every canvas's `tools` bar shares one placement and one
   popped-out window. The dock offers no way to show a hidden bar again: its owner must.
   A bar of a tab that hosts a joined dock (its dock's own bars, which the joined dock lends that
-  tab) shows on the joined dock's first pane until it is dropped on another of its panes
-  (`DockState::bar_panes`, `place_bar_on`, saved with the layout, and kept while a frame child
-  parks it). A bar stays with its pane, not with a tab: when the tab that names its pane leaves
+  tab) shows on the joined dock's first pane until it is dropped on any edge of another of its
+  panes, those of docks joined inside it included (`DockState::bar_panes`, `place_bar_on`, saved
+  with the layout, and kept while a frame child parks it). Only a pane of the bar's own layer is
+  saved: each layer's snapshot drops the docks joined inside it, so a bar left on a deeper
+  layer's pane comes back on its joined dock's first pane. A bar stays with its pane, not with a tab: when the tab that names its pane leaves
   that pane (moved or closed), another tab still there names it; on one pane, bars of outer
   layers start nearer the edge, and a bar dropped among another layer's lands where it was dropped.
-  Dragged by its grip (`unstyled/bars.rs`), a bar docks in an edge's band only within half a
-  band of that edge (the band there, else the bar's thickness), and holds on to the band to half
-  a band past it; a bar grabbed floating over an edge must first be pulled halfway from where it
-  was grabbed towards that edge. Let go at speed outside every band, it is thrown to float over
-  the edge its path runs into; inside a band it docks there.
+  Dragged by its grip (`unstyled/bars.rs`), a bar is a carry on the drag board, lifted by the
+  grip's `Interactive` (`DockBarControl::carry`), and `DockTiles` is its drop site (`State::bar_spec`):
+  `closest(band slots, sticky).when_far(float.thrown())`. Each band of each pane the bar may land
+  on gives a slot at each gap of each run of bars and at its ends, read from the bars' laid-out
+  rects, and is open within a bar of its edge (`DOCK_REACH`), held out to a bar and a half once
+  reached (`DOCK_HOLD`); a bar grabbed floating over an edge reaches that edge's band only once
+  pulled halfway from where it was grabbed towards it. The carried item is a square as long as
+  the bar, centred on the pointer, so a band's slot is the one nearest along it (`following`)
+  whichever way the bar lies. Away from every band it floats (`float_at`, a `custom` place): over
+  the nearest edge of the pane under it (shown while carried only within two bands of that
+  edge), or, over no pane it may land on, in a window of its own; let go at speed there it is
+  thrown along its path first, never into a band, and not at all with motion reduced. The bands
+  draw the chosen place (`Lifting::preview`): the carried bar's slot is a gap its size, and every
+  bar slot glides (`Glide`) from where it was drawn as the place changes, so the bars beside a
+  slot move aside; a dropped bar glides from where it was drawn into its slot. The bar is drawn
+  by the dock (`Carry::drawn_by_site`, `DockBarLifted`), on a band's slot across the band and
+  under the pointer along it, else under the pointer as grabbed; the carry is `kept_in` the
+  dock's window, so it crosses the dock's own windows and leaves the window it was popped into.
+  Panels keep resizing while a bar is carried (`DockHeldSize` holds them only for tabs and
+  panes). The grip's menu button holds the focus, so a focused grip carries its bar from the
+  keyboard between the slots of every band ("the top band of Files"). An app's grip (a hosted
+  `DockBarControl`) sends `DockRequest::MoveBar`, which the root dock relays onto the board as a
+  `PointerId::Relayed` carry.
 - **Hidden bands** (`unstyled/reveal.rs`): a band of the dock's own bars along an edge the user
   auto-hid (`DockState::is_edge_auto_hidden`, saved with the layout) takes no room and is drawn in
   a layer of its own at `LayerLevel::Raised`, slid out from its edge by however far the owner says
   (`DockHostLayout::reveal`). Only a dock whose owner calls `offer_hidden_bands` (the desktop)
   shows Auto-hide in a dock bar's grip menu, and hides every band while a fullscreen tab or
   `set_covered` covers it. The owner hears each band's rect, whether it is covered and whether a
-  bar holds it out (`hidden_bands`; `DockBarControl::hold_band`, which a bar's open panel calls), and
-  decides when to reveal it.
+  bar holds it out (`hidden_bands`), and decides when to reveal it. A bar holds its band out while any
+  overlay opened from inside it, other than an inert one, is open: the dock provides an
+  `OverlaysWithin` (`beui-view/src/components/overlay.rs`) around each bar's content, so a menu, its
+  grip's menu or a panel never has the band slide away from under it.
 - **Fullscreen**: one tab at a time (`DockState::set_fullscreen`) moves its panel into an overlay,
   or a hosted `Window`, over an area; leaving puts it back without rebuilding. The dock binds no key
   to leave: whoever enters offers the way out.
@@ -284,7 +406,8 @@ Across windows:
   `PointerPress` naming the window under the pointer. Forwarding catchers (app regions, Wayland
   windows) get it in their own coordinates once the host has reported both windows' `Moved`.
 - Dragging out of every window: a host sends `PointerLeft` while a button is held over no window;
-  the drag board then drops nothing and calls `Draggable`'s `on_drop_outside`. This happens only
+  the drag board then drops nothing and calls the carry's `outside`, unless the carry
+  `reads_outside` (a splitter). This happens only
   when the host opens every window; elsewhere a drag out drops at the last point inside.
 - `be_lib_ui_types::Input` has no window: it is also the app protocol's input, and an app region is
   always one window.

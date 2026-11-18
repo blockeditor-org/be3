@@ -6,7 +6,6 @@ use be_type_example_counter::{Counter, CounterContent};
 use uuid::Uuid;
 
 use super::*;
-use crate::embedded_server;
 use crate::search::Searching;
 
 mod a_batch_given_back_waits_for_its_index_to_move_on_or_a_growing_delay;
@@ -16,97 +15,139 @@ mod a_block_a_shared_one_links_to_shows_as_no_access_and_nowhere_else;
 mod a_block_another_build_saved_is_offered_for_reset_and_a_held_one_is_reset;
 mod a_block_deleted_from_unfiled_remembers_it_and_apps_never_see_its_id;
 mod a_block_demoted_to_viewer_stays_listed_with_its_edits_set_aside;
+mod a_block_discarded_before_a_restart_is_not_editable_before_a_replica_opens;
 mod a_block_file_brings_a_tree_back_as_a_copy;
 mod a_block_is_indexed_by_the_name_its_commit_carries;
 mod a_block_its_parent_stops_listing_is_deleted_until_it_is_listed_again;
+mod a_block_just_made_in_a_folder_lists_the_folder_among_its_backrefs;
 mod a_block_made_while_a_listing_is_answered_stays_listed;
 mod a_block_made_while_the_server_is_silent_shows_and_takes_edits_at_once;
 mod a_block_named_before_it_arrives_is_created_with_that_name;
 mod a_block_of_a_type_without_a_module_is_found_by_its_name_until_a_full_put;
+mod a_block_opened_on_a_session_journal_older_than_its_head_takes_the_head;
 mod a_block_opens_from_what_this_device_saved_before_its_session_is_joined;
 mod a_block_renamed_in_the_files_is_found_by_its_new_name;
 mod a_block_shared_with_a_new_agent_at_once_is_sealed_to_it;
 mod a_block_the_server_refuses_to_make_leaves_the_files_for_the_unsent_edits;
 mod a_block_waiting_to_be_placed_leaves_a_search_complete_offline;
 mod a_block_whose_module_does_not_start_is_found_by_its_name_then_its_text;
+mod a_block_whose_reads_fail_is_let_go_and_read_again_after_a_restart;
 mod a_block_with_a_plain_form_is_read_as_a_named_file;
+mod a_blocks_members_are_named_by_their_contact_cards_and_others_by_the_server_unverified;
 mod a_branch_is_combined_into_another;
+mod a_branch_is_made_and_combined_offline;
+mod a_branch_moved_elsewhere_while_offline_keeps_both_changes;
 mod a_catch_up_moves_its_watermark_only_past_blocks_that_were_put;
 mod a_catch_up_settle_that_fails_to_write_is_settled_again_first;
-mod a_chat_is_reindexed_without_reading_its_closed_segments_again;
+mod a_change_saved_offline_moves_its_branch_once_the_device_reconnects;
 mod a_chat_message_notifies_the_members_away_who_want_it_through_the_server;
+mod a_chat_message_refused_as_the_outbox_drains_shows_as_not_sent_in_the_open_chat;
 mod a_chat_message_sent_offline_into_a_closed_chat_notifies_once_as_the_outbox_drains;
 mod a_chat_message_sent_with_two_editors_open_notifies_once;
 mod a_chat_message_still_sending_shows_as_sending_after_a_restart;
 mod a_chat_message_told_before_a_restart_is_not_told_again;
 mod a_chat_message_unsent_across_a_restart_notifies_once_after_reconnecting;
-mod a_chat_with_a_closed_segment_is_neither_duplicated_nor_exported;
+mod a_chats_unread_count_is_counted_from_its_head_and_the_accounts_reads;
 mod a_checklist_and_a_counter_are_held_by_one_peer;
 mod a_checkout_no_longer_shown_lets_go_of_what_its_status_read;
 mod a_child_added_while_its_folder_is_renamed_stays_in_it;
 mod a_child_moved_into_a_block_is_added_to_its_content;
 mod a_child_reordered_in_a_folder_is_listed_in_its_new_place;
+mod a_collapsed_folder_inside_a_shown_one_knows_it_has_something_to_expand;
 mod a_commit_in_one_checkout_is_brought_into_another;
 mod a_conflicting_edit_keeps_every_side_until_one_is_chosen;
 mod a_connection_the_server_drops_is_retried_without_moving_a_manual_clock_by_hand;
+mod a_copy_put_in_a_childs_place_in_a_text_made_offline_is_taken;
+mod a_copy_put_in_a_childs_place_is_made_before_the_answer;
+mod a_copy_whose_source_is_gone_puts_the_source_back;
 mod a_counter_lives_in_the_new_stack_and_survives_a_reconnect;
+mod a_data_directory_another_process_holds_is_refused;
+#[cfg(not(target_os = "android"))]
+mod a_debug_print_shows_no_phrase_or_invite_link;
 mod a_defined_index_keeps_the_host_busy_until_its_root_is_read_again;
 mod a_deleted_block_remembers_where_it_was_until_it_is_restored;
 mod a_deleted_database_row_is_no_longer_found;
+mod a_device_opens_a_push_from_its_refs_database_with_its_stack_stopped;
 mod a_device_that_never_wrote_an_index_hears_what_another_device_indexes;
+mod a_discarded_block_opened_before_a_join_says_it_may_be_edited_is_read_only;
 mod a_duplicated_block_carries_what_its_source_held;
 mod a_file_still_duplicates_and_exports_though_it_saves_in_parts;
 mod a_first_connect_that_fails_is_retried_without_moving_a_manual_clock_by_hand;
+mod a_first_edit_refused_for_a_key_not_yet_sealed_lands_once_it_is;
 mod a_flush_counts_an_edit_that_waits_behind_a_command_on_a_silent_server;
 mod a_flush_counts_what_was_unsaved_as_it_answers_not_what_was_sent_after;
+mod a_folder_another_device_fills_is_followed_with_only_what_is_shown_mirrored;
+mod a_folder_is_versioned_copied_and_undone_offline;
 mod a_folder_lists_a_new_child_before_its_edit_is_sealed;
 mod a_folder_versioned_the_moment_it_is_made_waits_for_it_to_be_sent;
+mod a_folder_whose_share_is_taken_back_leaves_the_mirror_with_what_is_in_it;
+mod a_folders_order_is_read_from_its_content_online_and_offline;
+mod a_fork_pulls_and_pushes_offline;
 mod a_fork_pulls_and_pushes_through_its_upstream;
 mod a_half_open_connection_is_noticed_and_the_peer_reconnects;
-mod a_heartbeat_the_server_never_answers_holds_up_no_edit;
 mod a_held_block_stays_open_when_its_editors_close;
 mod a_held_clock_is_offered_a_modules_timer_only_while_nothing_is_in_flight;
+mod a_holder_cut_off_before_it_seals_leaves_its_edits_to_the_next_holder;
+mod a_joined_channel_opens_to_its_host_and_again_to_the_next;
+mod a_keystroke_copies_no_more_of_a_large_graph_than_of_a_small_one;
+mod a_lease_held_here_passes_to_a_peer_that_claims_it;
 mod a_link_carrying_a_share_opens_the_block_the_moment_it_is_accepted;
+mod a_linked_block_moved_out_of_view_shows_as_no_access_not_where_it_was;
 mod a_listing_fails_unless_another_connection_replaced_the_one_it_was_asked_on;
+mod a_local_account_finds_the_text_it_wrote;
+mod a_local_accounts_stack_saves_with_no_server;
+mod a_member_is_admitted_hears_its_host_and_goes_when_revoked;
+mod a_member_that_handshakes_again_is_admitted_again_and_goes_when_banned;
 mod a_merge_conflict_shows_both_versions_and_keeps_the_one_chosen;
+mod a_move_of_one_chats_read_place_recounts_that_chat_alone;
 mod a_name_the_server_refuses_is_taken_back_in_the_files;
 mod a_new_device_gets_the_identity_secret_by_typing_its_code_on_an_open_one;
 mod a_note_written_outside_its_session_is_taken_as_written;
+mod a_page_that_takes_nothing_is_handed_one_whole_seen_not_a_backlog;
 mod a_part_an_editor_puts_is_held_for_its_block_once_the_server_has_it;
 mod a_paste_too_large_to_relay_is_acknowledged_to_its_editor;
 mod a_peer_rejoins_what_was_open_when_the_server_comes_back;
 mod a_peers_edit_during_a_gesture_here_reaches_editors_beneath_it;
 mod a_picked_file_becomes_a_block_of_the_type_that_claims_it;
+mod a_push_opens_through_the_stack_running_in_its_organization;
 mod a_queued_block_the_mirror_cannot_place_is_dropped_and_counted;
 mod a_reconnected_session_hears_the_edits_of_what_it_versions;
-mod a_restore_on_a_follower_keeps_the_state_it_replaced;
+mod a_reply_travels_as_its_number_and_one_dropped_unanswered_drops_what_waits;
+mod a_restore_on_a_peer_keeps_the_state_it_replaced;
 mod a_saved_change_is_undone_and_later_edits_stay;
 mod a_seal_the_connection_loses_is_kept_and_published_after_reconnect;
+mod a_seal_whose_publish_was_lost_trims_the_journal_when_the_outbox_drains_it;
 mod a_search_finds_what_another_device_indexes_while_this_one_is_online;
 mod a_search_index_is_tried_again_when_the_reason_it_failed_has_passed;
 mod a_search_index_made_before_the_server_has_its_root_is_made_again_without_an_error;
 mod a_search_index_set_aside_is_tried_again_after_a_growing_delay;
+mod a_search_index_that_could_not_reach_the_server_is_made_on_the_next_connection;
 mod a_search_index_that_fails_every_write_waits_for_the_next_connection;
+mod a_search_index_write_that_could_not_reach_the_server_waits_for_the_next_connection;
 mod a_search_index_write_that_fails_is_queued_again;
 mod a_second_checkout_copies_the_tree_under_the_same_local_ids;
+mod a_seen_reads_the_same_from_its_bytes;
 mod a_server_gone_silent_while_contacts_sync_holds_up_no_open_or_edit;
-mod a_session_owned_here_follows_a_peer_that_claims_it;
+mod a_server_that_says_the_account_has_no_key_never_has_a_device_replace_its_own;
 mod a_share_made_offline_is_refused_to_the_caller_not_kept_as_an_error;
 mod a_shared_block_listed_before_its_key_is_sealed_unlocks_once_it_is;
+mod a_status_after_a_version_command_reads_nothing_the_command_read;
 mod a_sync_error_clears_once_nothing_waits_to_be_sent;
+mod a_take_returns_once_an_earlier_take_has_told_what_it_took;
 #[cfg(not(target_os = "android"))]
 mod a_terminal_host_answers_this_peer_through_the_blocks_session;
-#[cfg(not(target_os = "android"))]
-mod a_terminal_host_takes_over_a_session_this_peer_opened_first;
+mod a_terminal_host_takes_the_lease_of_a_session_this_peer_opened_first;
 mod a_terminal_hosts_be_is_the_deployments_or_one_built_here;
 mod a_transient_version_failure_is_retried_on_the_backoff_and_on_reconnecting;
 mod a_type_module_that_stops_is_started_again_with_the_edits_it_had_not_sealed;
 mod a_version_command_waiting_on_a_silent_server_holds_up_no_edit;
 mod a_version_status_that_failed_waits_for_its_inputs_or_its_kind_of_news;
+mod a_workspace_made_here_gets_its_index_once_the_peer_kept_its_creation;
 mod an_account_unlocks_with_its_recovery_phrase;
 mod an_app_changes_only_a_blocks_agent_the_person_made_even_as_an_administrator;
 mod an_apps_signature_verifies_and_a_forged_one_does_not;
-mod an_edit_counts_as_unsaved_from_when_it_is_sent_until_it_is_sealed;
+mod an_edit_an_undo_and_an_edit_kept_across_a_crash_all_land;
+mod an_edit_counts_as_unsaved_until_the_device_keeps_it_though_the_server_does_not_answer;
 mod an_edit_in_a_block_opened_offline_is_lacking_until_it_is_published;
 mod an_edit_left_unsent_when_a_switch_reads_its_block_is_sent_and_written_over_once;
 mod an_edit_made_across_a_takeover_is_kept;
@@ -114,23 +155,37 @@ mod an_edit_made_offline_is_lacking_until_the_drain_publishes_it;
 mod an_edit_made_offline_survives_a_restart_and_reaches_the_server_on_reconnect;
 mod an_edit_made_offline_to_a_note_changed_elsewhere_is_held_once_the_merge_publishes;
 mod an_edit_made_while_a_switch_writes_its_block_is_merged_in;
+mod an_edit_sealed_offline_onto_a_seal_the_server_lost_lands_once;
+mod an_edit_submitted_before_a_crash_that_reaches_the_server_after_it_is_given_again_lands_once;
+mod an_edit_submitted_just_before_a_crash_is_sent_once_and_the_next_edit_lands;
+mod an_edit_the_server_ordered_before_a_crash_lands_once_after_another_device_sealed_it;
+mod an_edit_to_a_block_made_editable_again_after_its_edits_were_discarded_lands_once_across_a_crash;
 mod an_edit_typed_here_and_not_yet_sent_when_a_switch_writes_its_block_is_not_doubled;
 mod an_edit_typed_here_while_a_switch_writes_its_block_is_merged_in;
+mod an_editor_of_a_block_no_module_opens_is_told_it_failed;
 mod an_empty_search_request_is_not_a_change;
 mod an_error_that_is_not_about_sending_outlasts_a_device_in_step;
 mod an_idle_peer_never_wakes_its_worker;
 mod an_imported_tree_shows_at_once_and_moves_once_it_is_uploaded;
+mod an_index_over_the_merge_cap_is_compacted_while_idle_and_answers_the_same;
 mod an_invitation_code_opened_as_a_contact_link_is_refused;
 mod an_invite_link_joins_the_organization_and_makes_the_two_contacts;
 mod an_organizations_unsent_edits_are_discarded_once_the_grace_period_passes;
 mod an_owed_seal_keeps_only_a_hurried_driver_waiting;
-mod an_owner_cut_off_before_it_commits_leaves_its_edits_to_the_next_owner;
+mod an_undo_made_while_the_server_is_silent_survives_a_crash;
 mod an_unknown_content_type_has_no_content_in_the_new_stack;
+mod an_unread_count_that_failed_offline_is_tried_again_on_reconnecting;
 mod backing_off_waits_longer_after_each_failure_up_to_a_ceiling;
 mod blocks_moved_renamed_and_deleted_offline_reach_the_server_on_reconnect;
 mod closing_a_block_while_the_server_is_silent_holds_up_no_edit;
+mod discarding_the_unsent_edits_of_a_block_demoted_mid_edit_leaves_nothing_of_it_kept;
+mod edits_deeper_than_the_merge_base_walk_are_merged_over_the_head_the_command_read;
+mod edits_typed_after_a_demotion_stay_discarded_once_the_block_is_editable_again;
 mod flushing_seals_what_the_sessions_hold_and_leaves_them_live;
+mod news_is_taken_by_number_and_an_update_carries_only_what_changed;
 mod news_of_an_older_head_after_a_flush_keeps_the_head_the_replica_reported;
+mod offline_a_block_is_out_of_reach_while_this_device_lacks_every_head;
+mod offline_a_read_or_a_discard_works_out_its_blocks_reach_again_and_no_others;
 mod presence_crosses_between_this_peer_and_another;
 mod removing_an_agent_the_server_no_longer_has_succeeds;
 mod replacing_content_reaches_a_block_open_or_not;
@@ -140,12 +195,15 @@ mod roots_listed_offline_after_a_restart_keep_their_author;
 mod stopping_returns_while_a_connect_goes_unanswered;
 mod taking_a_share_back_rotates_its_keys_and_reseals_the_open_block;
 mod the_host_catches_up_what_other_devices_wrote_and_masks_what_left_the_tree;
+mod the_organizations_settings_are_held_but_never_listed_at_the_root;
 mod the_search_index_queue_forgets_what_can_no_longer_be_indexed;
 mod the_search_text_cap_cuts_on_a_character;
+mod the_version_cache_keeps_only_the_trees_and_commits_used_last;
 mod two_accounts_become_contacts_by_a_link_and_share_a_block;
 mod two_devices_that_edit_one_note_offline_merge_once_both_reconnect;
 mod two_peers_of_one_organization_share_a_counter;
-mod typing_shows_while_a_silent_server_holds_a_seal_and_stopping_keeps_it_here;
+mod typing_shows_while_the_server_is_silent_and_stopping_does_not_wait_on_it;
+mod undo_leaves_the_hosts_own_edits_alone;
 mod undo_steps_back_through_what_this_peer_did;
 mod version_history_lists_the_commits_kept_here_with_the_head_here_current;
 mod what_is_typed_is_found_through_the_workspaces_search_index;
@@ -154,17 +212,26 @@ mod what_is_typed_while_a_seal_waits_on_a_silent_server_survives_a_crash_and_is_
 struct Editor<C: LiveEdit> {
     block: Uuid,
     id: u64,
+    /// The app the editor is, which the host checks an append against.
+    app: &'static str,
     mirror: be_sdk_type_guest::editor::EditorMirror<C>,
     received: Vec<be_sdk_type_guest::editor::ToEditor>,
 }
 
 impl<C: LiveEdit + Clone + Default> Editor<C> {
     fn attach(block: Uuid) -> Self {
+        Self::attach_as(block, "be3.test")
+    }
+
+    /// An editor of the app `app`: the one whose module serves the block's type, to append to
+    /// its log.
+    fn attach_as(block: Uuid, app: &'static str) -> Self {
         static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
         let id = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         attach(block, C::CONTENT_TYPE, id, true);
         let mut editor = Self {
             block,
+            app,
             id,
             mirror: be_sdk_type_guest::editor::EditorMirror::default(),
             received: Vec::new(),
@@ -177,6 +244,7 @@ impl<C: LiveEdit + Clone + Default> Editor<C> {
         from_editor(
             self.block,
             self.id,
+            self.app,
             &be_sdk_type_api::encode_frame(&message),
         );
     }
@@ -198,26 +266,26 @@ impl<C: LiveEdit + Clone + Default> Editor<C> {
         }
     }
 
-    fn wait(&mut self, _what: &str, done: impl Fn(&C) -> bool) {
+    fn wait(&mut self, what: &str, done: impl Fn(&C) -> bool) {
         let id = self.id;
         loop {
             self.pump();
             if self.mirror.content().is_some_and(&done) {
                 return;
             }
-            crate::wait_until(|shared| shared.editor_frames.contains_key(&id).then_some(()));
+            crate::wait_for_frames(what, id);
         }
     }
 
     /// Waits for frames until `done` holds of the editor.
-    fn until(&mut self, _what: &str, done: impl Fn(&Self) -> bool) {
+    fn until(&mut self, what: &str, done: impl Fn(&Self) -> bool) {
         let id = self.id;
         loop {
             self.pump();
             if done(self) {
                 return;
             }
-            crate::wait_until(|shared| shared.editor_frames.contains_key(&id).then_some(()));
+            crate::wait_for_frames(what, id);
         }
     }
 
@@ -230,7 +298,7 @@ impl<C: LiveEdit + Clone + Default> Editor<C> {
     fn operate(&mut self, operation: C::Op) {
         let message = self
             .mirror
-            .operate(operation)
+            .operate(None, operation)
             .expect("an editor operates once it has content");
         self.send(message);
     }
@@ -238,6 +306,28 @@ impl<C: LiveEdit + Clone + Default> Editor<C> {
     fn take_received(&mut self) -> Vec<be_sdk_type_guest::editor::ToEditor> {
         self.pump();
         std::mem::take(&mut self.received)
+    }
+}
+
+impl Editor<be_type_chat::ChatContent> {
+    /// What each message of the chat's log this editor holds says, deleted ones left out.
+    fn messages(&self) -> Vec<String> {
+        be_type_chat::ChatLog::of(self.mirror.log())
+            .messages()
+            .filter(|shown| shown.deleted.is_none())
+            .filter_map(|shown| shown.body.clone())
+            .collect()
+    }
+
+    /// What each message this device sent that the server has not taken says.
+    fn kept(&self) -> Vec<String> {
+        self.mirror
+            .kept()
+            .filter_map(|(_, bytes)| match be_type_chat::ChatEntry::decode(bytes)? {
+                be_type_chat::ChatEntry::Message { body, .. } => Some(body),
+                _ => None,
+            })
+            .collect()
     }
 }
 
@@ -249,13 +339,12 @@ impl<C: LiveEdit> Drop for Editor<C> {
 
 pub struct Harness {
     directory: PathBuf,
-    server: Option<embedded_server::EmbeddedServer>,
+    server: Option<be_host_server::EmbeddedServer>,
     url: String,
     account: Uuid,
     token: String,
     organization: Uuid,
     phrase: be_block_keys::RecoveryPhrase,
-    lease: Duration,
     push: be_server::push::PushConfig,
     relay: Option<be_block_fault_relay::Relay>,
     clock: be_block_client::Clock,
@@ -264,23 +353,16 @@ pub struct Harness {
 
 impl Harness {
     pub fn start() -> Self {
-        Self::leasing(be_server::ServerConfig::OPEN.lease)
+        Self::serving(be_server::push::PushConfig::DEFAULT)
     }
 
     /// A harness whose server pushes to Web Push endpoints on loopback (`PushService`).
     fn pushing() -> Self {
-        Self::serving(
-            be_server::ServerConfig::OPEN.lease,
-            be_server::push::PushConfig {
-                allow_local_endpoints: true,
-                fcm: None,
-                hosts: vec!["127.0.0.1".to_owned()].into(),
-            },
-        )
-    }
-
-    pub fn lapsing() -> Self {
-        Self::leasing(Duration::ZERO)
+        Self::serving(be_server::push::PushConfig {
+            allow_local_endpoints: true,
+            fcm: None,
+            hosts: vec!["127.0.0.1".to_owned()].into(),
+        })
     }
 
     fn relayed() -> Self {
@@ -311,9 +393,13 @@ impl Harness {
     }
 
     fn open_until_it_joins(&self, block: Uuid, content_type: Uuid) {
-        let mut joins = self
-            .relay()
-            .count(|method, _| method == be_block_protocol::__args::SESSIONS_SESSION_JOIN);
+        let mut joins = self.relay().count(|method, args| {
+            method == be_block_protocol::__args::SERVER_READ
+                && be_wasm_ops::decode::<be_block_protocol::__args::ServerReadArgs>(args)
+                    .is_some_and(|asked| {
+                        matches!(asked.query, be_block_protocol::Query::Session { .. })
+                    })
+        });
         open(block, content_type);
         runtime()
             .block_on(joins.wait_for(|joins| *joins > 0))
@@ -321,7 +407,7 @@ impl Harness {
     }
 
     fn miss_a_ping(&self) {
-        let mut due = crate::wait_until(|shared| {
+        let mut due = crate::wait_until("connected, with a ping due", |shared| {
             shared
                 .connected
                 .then(|| shared.connection_due.clone())
@@ -344,22 +430,21 @@ impl Harness {
         });
     }
 
-    fn leasing(lease: Duration) -> Self {
-        Self::serving(lease, be_server::push::PushConfig::DEFAULT)
-    }
-
-    fn serving(lease: Duration, push: be_server::push::PushConfig) -> Self {
+    fn serving(push: be_server::push::PushConfig) -> Self {
         static ONE_STACK: std::sync::Mutex<()> = std::sync::Mutex::new(());
         let one_stack = ONE_STACK
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         be_lib_build_id::install("test");
+        // The previous test's stack has stopped (`stop_and_wait`, unless that test failed), so
+        // nothing counts into these from here on but this test's.
+        crate::version::forget_counts();
         let directory = std::env::temp_dir().join(format!("be-host-be-test-{}", Uuid::new_v4()));
         let runtime = runtime();
         let (profile, token) = runtime.block_on(async {
             be_server::ServerStore::open(directory.join("server"))
                 .unwrap()
-                .register("counter@example.com", "Counter", "correct horse battery")
+                .register("counter@example.com", "Counter")
                 .await
                 .unwrap()
         });
@@ -369,19 +454,26 @@ impl Harness {
             display_name: profile.display_name,
             token,
         };
-        let server = embedded_server::start_embedded_server_at(
+        let server = be_host_server::start_embedded_server_at(
             "127.0.0.1:0",
             directory.join("server"),
-            lease,
             push.clone(),
         )
         .expect("the embedded block server starts");
         let url = server.url.clone();
         let managed = url.clone();
+        let phrase = be_block_keys::RecoveryPhrase::generate();
+        let me = crate::accounts::Me {
+            account: session.account,
+            identity: phrase.secret().to_bytes(),
+            display_name: session.display_name.clone(),
+            email: String::new(),
+        };
         let (account, token, organization) = runtime.block_on(async {
             let organization = crate::accounts::create_organization(
                 managed,
                 session.token.clone(),
+                me,
                 "Counters".to_owned(),
             )
             .await
@@ -395,8 +487,7 @@ impl Harness {
             account,
             token,
             organization,
-            phrase: be_block_keys::RecoveryPhrase::generate(),
-            lease,
+            phrase,
             push,
             relay: None,
             clock: be_block_client::Clock::real(),
@@ -417,10 +508,9 @@ impl Harness {
 
     fn start_server(&mut self, address: &str) {
         self.server = Some(
-            embedded_server::start_embedded_server_at(
+            be_host_server::start_embedded_server_at(
                 address,
                 self.directory.join("server"),
-                self.lease,
                 self.push.clone(),
             )
             .expect("the embedded block server starts again"),
@@ -433,6 +523,7 @@ impl Harness {
 
     fn config(&self, data_dir: PathBuf) -> Config {
         Config {
+            local: false,
             server_url: match &self.relay {
                 Some(relay) => format!("http://{}", relay.address()),
                 None => self.url.clone(),
@@ -550,8 +641,8 @@ impl Outside {
         std::sync::Arc::clone(self.session().peer())
     }
 
-    fn is_owner(&mut self) -> bool {
-        self.session().is_owner()
+    fn is_holder(&mut self) -> bool {
+        self.session().is_holder()
     }
 
     fn claim(&mut self) {
@@ -563,7 +654,7 @@ impl Outside {
         let session = session.as_mut().expect("the outside peer has not left");
         local.block_on(runtime, async {
             session.claim();
-            while !session.is_owner() {
+            while !session.is_holder() {
                 let woken = session.next().await;
                 let heard = matches!(woken, be_tool_cli::replica::Woken::Event(_));
                 session
@@ -662,7 +753,16 @@ fn counted(shared: &Shared, block: Uuid) -> Option<i64> {
 
 #[track_caller]
 fn wait_for_count(block: Uuid, expected: i64) {
-    crate::wait_until(|shared| (counted(shared, block) == Some(expected)).then_some(()));
+    let last = std::cell::Cell::new(None);
+    let waited = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        crate::wait_until(&format!("counted {expected}"), |shared| {
+            last.set(counted(shared, block));
+            (last.get() == Some(expected)).then_some(())
+        })
+    }));
+    if waited.is_err() {
+        panic!("never counted {expected}: it last counted {:?}", last.get());
+    }
 }
 
 fn ask_for(queries: Vec<Query>) {
@@ -673,8 +773,17 @@ fn ask_for(queries: Vec<Query>) {
 }
 
 #[track_caller]
-fn wait_until(_what: &str, ready: impl Fn(&Shared) -> bool) {
-    crate::wait_until(|shared| ready(shared).then_some(()));
+fn wait_until(what: &str, ready: impl Fn(&Shared) -> bool) {
+    crate::wait_until(what, |shared| ready(shared).then_some(()));
+}
+
+/// Whether the container's type made a child change (`change_child`), once it answers.
+#[track_caller]
+fn made(changed: Option<crate::ChildChanged>) -> bool {
+    let changed = changed.expect("the container's type is known");
+    crate::wait_until("the container's type answered the child change", |_| {
+        changed.answer()
+    })
 }
 
 fn add(block: Uuid, by: i64) {
@@ -689,9 +798,9 @@ fn settled(shared: &Shared, block: Uuid) -> bool {
     version_status(shared, block).is_some_and(|status| !status.busy)
 }
 
-fn checkout_state(shared: &Shared, block: Uuid) -> Option<be_block::Checkout> {
+fn checkout_state(shared: &Shared, block: Uuid) -> Option<be_block_repository::Checkout> {
     let held = shared.blocks.get(&block)?;
-    be_block::CheckoutContent::decode(held.bytes())
+    be_block_repository::CheckoutContent::decode(held.bytes())
         .ok()
         .map(|content| content.root())
 }
@@ -722,7 +831,7 @@ fn checkouts(shared: &Shared) -> Vec<Uuid> {
         .graph
         .query(super::graph::Query::Roots)
         .into_iter()
-        .filter(|node| node.content_type == be_block::CheckoutContent::CONTENT_TYPE)
+        .filter(|node| node.content_type == be_block_repository::CheckoutContent::CONTENT_TYPE)
         .map(|node| node.id)
         .collect()
 }
@@ -773,13 +882,16 @@ fn start_versioning(text: &str) -> Versioned {
     );
     create(
         repository,
-        be_block::RepositoryContent::CONTENT_TYPE,
+        be_block_repository::RepositoryContent::CONTENT_TYPE,
         be_block_graph::BlockParent::Root,
         be_block_content::BlockMetadata::named("History"),
-        Some(be_block::RepositoryContent::default().encode()),
+        Some(be_block_repository::RepositoryContent::default().encode()),
         false,
     );
-    show_version(repository, be_block::RepositoryContent::CONTENT_TYPE);
+    show_version(
+        repository,
+        be_block_repository::RepositoryContent::CONTENT_TYPE,
+    );
     version(
         repository,
         be_sdk_api::VersionCommand::Adopt {
@@ -805,7 +917,7 @@ fn second_checkout(versioned: &Versioned) -> Uuid {
     version(
         versioned.repository,
         be_sdk_api::VersionCommand::NewCheckout {
-            branch: be_block::MAIN_BRANCH.to_owned(),
+            branch: be_block_repository::MAIN_BRANCH.to_owned(),
         },
     );
     wait_until("made a second checkout", |shared| {
@@ -830,7 +942,7 @@ fn second_checkout(versioned: &Versioned) -> Uuid {
 }
 
 fn copy_of(block: Uuid, checkout: Uuid) -> Uuid {
-    be_block::version_control::masked(block, be_block::version_control::scope_mask(checkout))
+    be_block_repository::masked(block, be_block_repository::scope_mask(checkout))
 }
 
 fn runtime() -> tokio::runtime::Runtime {
@@ -848,11 +960,11 @@ struct Someone {
 impl Someone {
     fn register(data: &std::path::Path, _url: &str, email: &str, name: &str) -> Self {
         let (profile, token) = runtime()
-            .block_on(be_server::ServerStore::open(data).unwrap().register(
-                email,
-                name,
-                "correct horse battery",
-            ))
+            .block_on(
+                be_server::ServerStore::open(data)
+                    .unwrap()
+                    .register(email, name),
+            )
             .unwrap();
         let session = crate::accounts::Session {
             account: profile.account,
@@ -880,13 +992,25 @@ impl Someone {
         url: &str,
         organization: Uuid,
     ) -> std::sync::Arc<be_block_client::Peer<be_block_store::MemoryStore>> {
+        self.peer_keeping(url, organization, be_block_client::RefsDb::memory())
+            .await
+    }
+
+    /// A peer that keeps what it learns in `refs`, as a device's refs database.
+    async fn peer_keeping(
+        &self,
+        url: &str,
+        organization: Uuid,
+        refs: be_block_client::RefsDb,
+    ) -> std::sync::Arc<be_block_client::Peer<be_block_store::MemoryStore>> {
         let peer = be_block_client::Peer::connect(
             be_block_client::PeerConfig::new(
                 crate::accounts::socket_url(url),
                 self.phrase.secret(),
                 be_block_client::Credentials::Token(self.session.token.clone()),
             )
-            .organization(Some(organization)),
+            .organization(Some(organization))
+            .refs(refs),
             be_block_store::MemoryStore::new(),
         )
         .await
@@ -973,6 +1097,8 @@ struct Device {
     url: String,
     config: Box<dyn Fn() -> be_block_client::PeerConfig>,
     peer: std::cell::RefCell<std::sync::Arc<be_block_client::Peer<be_block_store::MemoryStore>>>,
+    /// The cap its batches' compaction merges under (`search::write`).
+    merge_bytes: std::cell::Cell<u64>,
 }
 
 impl Device {
@@ -1022,6 +1148,7 @@ impl Device {
             url,
             config: Box::new(config),
             peer: std::cell::RefCell::new(std::sync::Arc::new(peer)),
+            merge_bytes: std::cell::Cell::new(be_block_search_index::MERGE_BYTES),
         }
     }
 
@@ -1076,7 +1203,7 @@ impl Device {
                 .await
                 .expect("the other device saves it");
             let head = saved.published().expect("the note is published");
-            let commit = peer.load_commit(head).await.expect("its commit loads");
+            let commit = peer.load_reached(head).await.expect("its commit loads");
             let batch = be_lib_search::Batch {
                 put: vec![be_lib_search::Put {
                     doc: be_lib_search::DocId {
@@ -1102,7 +1229,13 @@ impl Device {
             loop {
                 let before = peer.local_head(index);
                 assert_eq!(
-                    crate::search::write(peer.as_ref(), index, batch.clone()).await,
+                    crate::search::write(
+                        peer.as_ref(),
+                        index,
+                        batch.clone(),
+                        self.merge_bytes.get(),
+                    )
+                    .await,
                     Ok(Some(Vec::new())),
                     "the other device indexes its note"
                 );
@@ -1142,7 +1275,7 @@ impl Device {
             self.runtime
                 .block_on(offline.save(block, &be_type_text::TextBlock::of(text), base));
         assert!(
-            matches!(saved, Err(be_block_client::ClientError::Disconnected(_))),
+            matches!(saved, Ok(be_block_client::Saved::Kept(_))),
             "the other device saved while it was meant to be offline: {saved:?}"
         );
         assert_ne!(offline.local_head(block), base, "the edit was not kept");
@@ -1153,18 +1286,14 @@ impl Device {
         let peer = std::sync::Arc::clone(&self.peer.borrow());
         let token = harness.token.clone();
         let drained = self.runtime.block_on(async {
-            let connection =
-                be_block_client::Connection::connect(&self.url, &be_block_client::Clock::real())
-                    .await
-                    .expect("the other device reaches the server again");
-            let token = be_block_client::ask(be_block_protocol::client::account::authenticate(
-                &connection,
-                Some(token),
-            ))
+            let (connection, signed_in) = be_block_client::Connection::connect(
+                &self.url,
+                &be_block_client::Clock::real(),
+                &be_block_client::Credentials::Token(token),
+            )
             .await
-            .expect("the other device signs in again")
-            .token;
-            peer.attach(connection, token)
+            .expect("the other device reaches the server again and signs in");
+            peer.attach(connection, signed_in.token)
                 .await
                 .expect("the other device opens the workspace again");
             peer.drain(|_| false)
@@ -1305,7 +1434,8 @@ struct ChatRoom {
     members: Vec<(&'static str, Uuid)>,
     /// `away`, signed out, whose peer still holds the chat's key to open what pushes carry.
     reader: Member,
-    _connected: Vec<Member>,
+    /// The members others kept connected, by name.
+    connected: Vec<(&'static str, Member)>,
     pushes: PushService,
 }
 
@@ -1319,14 +1449,8 @@ impl ChatRoom {
         let personal = harness.connect_personal();
         let block = Uuid::new_v4();
         let mut joined = Vec::new();
-        let mut chat = be_type_chat::ChatContent::default();
         for (name, mode, connected) in [("away", None, false)].iter().chain(others) {
             let member = Member::join(harness, personal, &format!("{name}@example.com"), name);
-            let (_, said) = chat.send(
-                block,
-                be_type_chat::Message::new(member.account(), 1, format!("{name} is in")),
-            );
-            chat.apply(&be_type_chat::ChatOp::Edit(said));
             joined.push((*name, *mode, *connected, member));
         }
         create(
@@ -1334,7 +1458,7 @@ impl ChatRoom {
             be_type_chat::ChatContent::CONTENT_TYPE,
             be_block_graph::BlockParent::Root,
             be_block_content::BlockMetadata::named("Lunch"),
-            Some(chat.encode()),
+            Some(be_type_chat::ChatContent::default().encode()),
             false,
         );
         flush();
@@ -1342,7 +1466,9 @@ impl ChatRoom {
         let mut reader = None;
         let mut kept = Vec::new();
         for (name, mode, connected, member) in joined {
-            member.may_view(block);
+            // Each says hello in the chat's log, from its own device.
+            member.may_edit(block);
+            member.says(block, &format!("{name} is in"));
             member.takes_pushes(&pushes, name);
             if let Some(mode) = mode {
                 member.mode(block, mode);
@@ -1354,24 +1480,57 @@ impl ChatRoom {
                     member.signs_out();
                     reader = Some(member);
                 }
-                (_, true) => kept.push(member),
+                (_, true) => kept.push((name, member)),
                 (_, false) => member.signs_out(),
             }
         }
-        Self {
+        let room = Self {
             block,
             personal,
             me: harness.account,
             members,
             reader: reader.expect("away joined"),
-            _connected: kept,
+            connected: kept,
             pushes,
-        }
+        };
+        // This device reads the chat's log while online, which keeps what it read for an
+        // editor opened offline.
+        drop(room.editor());
+        room
     }
 
     /// Starts the host again after `stop`, from what it kept.
     fn restart(&self, harness: &Harness) {
         harness.start_in(self.personal);
+    }
+
+    /// The connected member `name`.
+    fn member(&self, name: &str) -> &Member {
+        self.connected
+            .iter()
+            .find(|(member, _)| *member == name)
+            .map(|(_, member)| member)
+            .expect("the member stays connected")
+    }
+
+    /// Another chat, named `name`, that the connected members may edit, where `from` said
+    /// `body`.
+    fn another(&self, name: &str, from: &str, body: &str) -> Uuid {
+        let block = Uuid::new_v4();
+        create(
+            block,
+            be_type_chat::ChatContent::CONTENT_TYPE,
+            be_block_graph::BlockParent::Root,
+            be_block_content::BlockMetadata::named(name),
+            Some(be_type_chat::ChatContent::default().encode()),
+            false,
+        );
+        flush();
+        for (_, member) in &self.connected {
+            member.may_edit(block);
+        }
+        self.member(from).says(block, body);
+        block
     }
 
     fn account(&self, name: &str) -> Uuid {
@@ -1382,25 +1541,40 @@ impl ChatRoom {
             .expect("the chat has the member")
     }
 
+    /// The chat's editor, which reads the chat's log as the chat app does.
     fn editor(&self) -> Editor<be_type_chat::ChatContent> {
-        let mut editor = Editor::attach(self.block);
+        let mut editor = Editor::attach_as(self.block, "be3.chat");
         editor.wait("was sent the chat", |_| true);
+        let (_, read) = editor.mirror.read_log(0, 100);
+        editor.send(read);
+        editor.until("read the chat's log", |editor| {
+            editor.messages().len() >= self.members.len()
+        });
         editor
     }
 
-    /// Sends `body` from this account, replying to `to`'s first message when given.
+    /// Sends `body` from this account, replying to `to`'s first message when given, which it
+    /// mentions, as the chat app does.
     fn send(&self, editor: &mut Editor<be_type_chat::ChatContent>, body: &str, to: Option<Uuid>) {
-        let content = editor.content();
         let quoted = to.and_then(|author| {
-            content.messages().into_iter().find(|id| {
-                content
-                    .message(*id)
-                    .is_some_and(|message| message.author == author)
-            })
+            be_type_chat::ChatLog::of(editor.mirror.log())
+                .messages()
+                .find(|shown| shown.author == author)
+                .map(|shown| shown.seq)
         });
-        let message = be_type_chat::Message::new(self.me, 2, body).replying_to(quoted);
-        let (_, edit) = content.send(self.block, message);
-        editor.operate(be_type_chat::ChatOp::Edit(edit));
+        let message = be_type_chat::ChatEntry::Message {
+            time: be_block_commit::now_milliseconds(),
+            body: body.to_owned(),
+            reply_to: quoted,
+            attachments: Vec::new(),
+        };
+        let along = be_block_content::Along {
+            announcement: message
+                .announcement(Uuid::new_v4().to_string(), to.into_iter().collect()),
+            redacts: None,
+        };
+        let (_, append) = editor.mirror.append(message.encode(), along);
+        editor.send(append);
     }
 
     /// The next push: whom it went to, its urgency and the text it carries, opened as the
@@ -1458,11 +1632,28 @@ struct Member {
 
 impl Member {
     fn join(harness: &Harness, personal: Uuid, email: &str, name: &str) -> Self {
+        Self::join_keeping(
+            harness,
+            personal,
+            email,
+            name,
+            be_block_client::RefsDb::memory(),
+        )
+    }
+
+    /// Joins with a peer that keeps what it learns in `refs`.
+    fn join_keeping(
+        harness: &Harness,
+        personal: Uuid,
+        email: &str,
+        name: &str,
+        refs: be_block_client::RefsDb,
+    ) -> Self {
         let someone =
             Someone::register(&harness.directory.join("server"), &harness.url, email, name);
         let code = made_link(None);
         let runtime = runtime();
-        let peer = runtime.block_on(someone.peer(&harness.url, personal));
+        let peer = runtime.block_on(someone.peer_keeping(&harness.url, personal, refs));
         runtime
             .block_on(be_block_client::contacts::open_link(
                 &peer.connection(),
@@ -1477,6 +1668,7 @@ impl Member {
                 &someone.me().card(),
                 &code,
                 be_block_client::contacts::Expected::Contact,
+                &Default::default(),
             ))
             .expect("the member accepts");
         let account = someone.session.account;
@@ -1495,6 +1687,32 @@ impl Member {
 
     fn account(&self) -> Uuid {
         self.someone.session.account
+    }
+
+    /// Gets Edit on the block and reads it, which leaves its key with the member's peer.
+    fn may_edit(&self, block: Uuid) {
+        set_access(block, self.account(), be_block_graph::Access::Edit, |_| {});
+        flush_and_send();
+        assert_eq!(status().error, None);
+        self.reads(block);
+    }
+
+    /// Appends a chat message saying `body` to the block's log, from the member's device.
+    fn says(&self, block: Uuid, body: &str) {
+        let message = be_type_chat::ChatEntry::Message {
+            time: be_block_commit::now_milliseconds(),
+            body: body.to_owned(),
+            reply_to: None,
+            attachments: Vec::new(),
+        };
+        self.runtime
+            .block_on(self.peer.append(
+                block,
+                "be3.chat",
+                &message.encode(),
+                be_block_content::Along::default(),
+            ))
+            .expect("the member says hello");
     }
 
     fn may_view(&self, block: Uuid) {
@@ -1519,16 +1737,17 @@ impl Member {
 
     fn mode(&self, block: Uuid, mode: be_block_protocol::NotifyMode) {
         self.runtime
-            .block_on(self.peer.set_notify_mode(block, mode))
+            .block_on(self.peer.set_mute(block, mode))
             .expect("the member sets its mode");
     }
 
     /// Signs out, which the server counts as not connected before it answers.
     fn signs_out(&self) {
         self.runtime
-            .block_on(be_block_protocol::client::account::logout(
+            .block_on(be_block_protocol::write::<(), _>(
                 &self.peer.connection(),
                 None,
+                be_block_protocol::Op::RevokeToken(None),
             ))
             .expect("the logout is answered")
             .expect("the member signs out");

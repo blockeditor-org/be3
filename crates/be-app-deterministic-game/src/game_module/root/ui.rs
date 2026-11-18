@@ -38,18 +38,6 @@ pub fn ModuleView(editor: Editor) -> NodeId {
     let size = create_memo(move || payload.get().map_or(0, |data| data.len()));
     let bytes = create_memo(move || format!("{} bytes", size.get()));
 
-    let name = create_memo(move || match loaded.get() {
-        Loaded::Named(name) => name,
-        _ => String::new(),
-    });
-    let named = create_memo(move || matches!(loaded.get(), Loaded::Named(_)));
-    let reason = create_memo(move || match loaded.get() {
-        Loaded::Failed(error) => error,
-        _ => String::new(),
-    });
-    let failed = create_memo(move || matches!(loaded.get(), Loaded::Failed(_)));
-    let waiting = create_memo(move || loaded.get() == Loaded::Loading);
-
     let chrome = editor.chrome_shown();
     let content = NodeRef::new();
     editor.content(&content);
@@ -61,30 +49,34 @@ pub fn ModuleView(editor: Editor) -> NodeId {
                     <DockTab id=STAGE title="Module">
                         <Frame @node_ref={&content} padding=PADDING>
                             <List spacing=SPACING>
-                                <Show condition={named}>
-                                    <Text
-                                        style=TextStyle::HEADING
-                                        align=TextAlign::Center
-                                        @test_id={"game-module.name"}
-                                    >
-                                        {name}
-                                    </Text>
-                                </Show>
-                                <Show condition={failed}>
-                                    <Text
-                                        style=TextStyle::PARAGRAPH
-                                        align=TextAlign::Center
-                                        color=TextColor::Danger
-                                        @test_id={"game-module.error"}
-                                    >
-                                        {reason}
-                                    </Text>
-                                </Show>
-                                <Show condition={waiting}>
-                                    <Text style=TextStyle::CAPTION align=TextAlign::Center>
-                                        "Loading…"
-                                    </Text>
-                                </Show>
+                                <Dynamic value={loaded}>|loaded: Loaded| {
+                                    match loaded {
+                                    Loaded::Named(name) => view! {
+                                        <Text
+                                            style=TextStyle::HEADING
+                                            align=TextAlign::Center
+                                            @test_id={"game-module.name"}
+                                        >
+                                            {name}
+                                        </Text>
+                                    },
+                                    Loaded::Failed(reason) => view! {
+                                        <Text
+                                            style=TextStyle::PARAGRAPH
+                                            align=TextAlign::Center
+                                            color=TextColor::Danger
+                                            @test_id={"game-module.error"}
+                                        >
+                                            {reason}
+                                        </Text>
+                                    },
+                                    Loaded::Loading => view! {
+                                        <Text style=TextStyle::CAPTION align=TextAlign::Center>
+                                            "Loading…"
+                                        </Text>
+                                    },
+                                    }
+                                }</Dynamic>
                                 <Text align=TextAlign::Center>{source}</Text>
                                 <Text style=TextStyle::CAPTION align=TextAlign::Center>
                                     {bytes}
@@ -93,7 +85,7 @@ pub fn ModuleView(editor: Editor) -> NodeId {
                         </Frame>
                     </DockTab>
                 </DockPane>
-                <Show condition={chrome}>
+                <Show value={chrome}>
                     <DockPane id="panel" locked=true>
                         <DockTab id=PANEL title="Game module">
                             <ModulePanel editor={editor} />
@@ -116,10 +108,7 @@ fn ModulePanel(editor: Editor) -> NodeId {
 
     let read_only = editor.read_only();
     let busy = chooser.busy();
-    let blocked = create_memo(move || busy.get() || read_only.get());
     let error = chooser.error();
-    let failed = create_memo(move || error.get().is_some());
-    let reason = create_memo(move || error.get().unwrap_or_default());
     let replace = move || chooser.open();
     view! {
         <Frame fill=ColorRole::Surface>
@@ -129,11 +118,11 @@ fn ModulePanel(editor: Editor) -> NodeId {
                         <Button
                             label="Replace module..."
                             variant=ButtonVariant::Secondary
-                            disabled={blocked}
+                            disabled={move || busy.get() || read_only.get()}
                             @test_id={"game-module.replace"}
                             on_click={replace}
                         />
-                        <Show condition={failed}>
+                        <Show value={error}>|reason: ReadSignal<String>|
                             <Text style=TextStyle::CAPTION color=TextColor::Danger>{reason}</Text>
                         </Show>
                     </List>

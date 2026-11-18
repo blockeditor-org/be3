@@ -1,7 +1,8 @@
 # Hosting be-server
 
-`./scripts/deploy` updates the be-server binary on the server. Everything else on it (the
-systemd unit, Caddy and its gateway, the data directory on the volume) is its NixOS
+The Deploy workflow (.github/workflows/deploy.yml), run by hand on any branch, runs
+`./scripts/deploy`, which updates the be-server binary on the server. Everything else on it
+(the systemd unit, Caddy and its gateway, the data directory on the volume) is its NixOS
 configuration, `servers/api` (guides/servers.md).
 
 ## Server layout
@@ -66,8 +67,8 @@ header too, so a page on another origin that rebinds its name to 127.0.0.1 is no
   that address, not a hostname that resolves to it;
 - on a wildcard `--addr`, `http://:PORT`, any Host.
 
-The build server's Caddyfile (scripts/internal/nativelink) and the deployed servers' under
-servers/ (`servers/api/Caddyfile`) are front doors on the internet and bind every interface on
+The deployed servers' Caddyfiles under servers/ (`servers/api/Caddyfile`, and the build server's
+`servers/build/Caddyfile`) are front doors on the internet and bind every interface on
 purpose.
 
 `./scripts/verify` enforces this (crates/be-tool-verify, `binds.rs`). It fails on a Caddyfile
@@ -81,7 +82,11 @@ listens on every interface.
 
 The server speaks WebSockets at `/api/be` and the same protocol over HTTP posts at
 `/api/be/http`, for clients behind proxies that refuse WebSockets; signing in through the
-browser is one-shot posts to `/api/be/call`. Caddy (`servers/api/Caddyfile`) supplies TLS at
+browser is one-shot posts to `/api/be/call`. be-server serves HTTP/1.1 only, with hyper and axum
+(decisions/be_server_serves_http_with_axum.md), and refuses any request with a
+`Transfer-Encoding`, a chunked body included, so a proxy in front must pass bodies on with a
+`Content-Length`. Caddy keeps its pooled connections to it for under `IDLE_TIMEOUT`. Caddy
+(`servers/api/Caddyfile`) supplies TLS at
 `api.be3.pfg.pw` and passes everything with the gateway key to the server; nothing serves
 `/build/*` (the build helper, guides/build_server.md) there now. be-host's web build is served
 by Bunny at `be3.pfg.pw`.
@@ -113,17 +118,32 @@ loopback address.
 ### Proxy account credentials
 
 `Authorization: Bearer <account token>` is reserved for be-server account sessions. A proxy may
-inject it into WebSocket upgrades or every HTTP post; the client then calls `authenticate` with
-no token, and the server answers with an empty token so the secret stays outside the client.
+inject it into WebSocket upgrades or every HTTP post; the client then greets the server with no
+token (`Credentials::Header`), and the server's greeting answers with an empty token so the
+secret stays outside the client.
 The Agents dialog's proxy checkbox produces such a bundle (`"authentication": "proxy"`, recovery
 phrase kept for decryption).
 
 ## Accounts and the portal
 
-Remote accounts are made only through the server's `/auth` portal: password sign-in needs
-`--allow-login`, registration also `--allow-registration` and an invite code. Codes are made on
-the server against the data directory (`sudo -u be-server /srv/be-server/be-server invite-code
-... --data-dir /mnt/data/be-server`), which works while the server runs:
+Remote accounts are made only through the server's `/auth` portal, which signs in by a code
+mailed to the account's email, by a provider the operator configures, or by a passkey the
+account added (guides/blocks/server.md, "Accounts"). Signing in needs `--allow-login`,
+registration also `--allow-registration` and an operator invite code. A browser already signed
+in keeps using its session, settings included, without `--allow-login`.
+
+Mail is not delivered yet (plans/deferred/mail_delivery.md): every message, sign-in and
+recovery codes and their links included, goes to the server's log, the hosted server's journal
+(`journalctl -u be-server`). A code works only in the browser whose `be3-attempt` cookie asked
+for it, so a code someone else asked for is no use to a reader of the journal; but a reader can
+ask for a code for any account's email from their own browser and read it there, and so sign in
+to any account with an email while `--allow-login` is on. With it off, nobody can ask for a code
+and the journal holds none a reader can use. On the hosted server the operator's login link
+(below) is the way in; treat the journal as a secret.
+
+Invite codes are made on the server against the data directory (`sudo -u be-server
+/srv/be-server/be-server invite-code ... --data-dir /mnt/data/be-server`), which works while
+the server runs:
 
 ```
 be-server invite-code create --data-dir DATA [--uses N] [--expires DAYS]   # prints the code once
@@ -131,12 +151,56 @@ be-server invite-code list --data-dir DATA
 be-server invite-code revoke --data-dir DATA ID
 ```
 
-The server stores only a code's hash; a registration spends one use when its email is verified,
-and revoking a code also stops registrations still waiting on their email. To bootstrap a
-server, make a code with `--uses 1`, start it with `--allow-registration`, register and verify
-through the portal with the code, then restart it without `--allow-registration`. A deployed server needs
+The server stores only a code's hash; a registration spends one use when the code mailed to its
+email is entered, and revoking a code also stops registrations still waiting on theirs.
+
+The operator signs anyone in without the log with a login link, made the same way:
+
+```
+be-server login-link --data-dir DATA --auth-origin ORIGIN (--email EMAIL | --account ID)
+```
+
+It prints a link on its standard output, never to the server's journal, that works once, within
+fifteen minutes, and ends the account's other sessions, as "I can't sign in" does; the server
+keeps only its hash. Using it needs neither `--allow-login` nor `--allow-registration`, and for
+an email with no account it makes the account, with no invite code, so it is the way in on a
+closed server and a new server's first account is a link for its owner's email. Then sign be-host in through the portal
+as usual, which needs `--allow-login`. A deployed server needs
 `--auth-origin https://api.be3.pfg.pw`, the exact origin used for Origin checks, Secure cookies
 and email links; request headers can't override it.
+
+People can also sign in with an OpenID Connect provider the operator configures, such as Google
+or one Microsoft tenant: `--oidc-providers FILE`, a JSON list kept beside the data directory,
+readable only by `be-server`, since it holds the client secrets:
+
+```
+[
+  {"id": "google", "preset": "google", "client_id": "…", "client_secret": "…"},
+  {"id": "corp", "name": "Example Corp", "issuer": "https://login.microsoftonline.com/TENANT-ID/v2.0",
+   "client_id": "…", "client_secret": "…", "authoritative_email": false}
+]
+```
+
+For each, register a web application with the provider, with the redirect URI
+`AUTH-ORIGIN/auth/oidc/ID/callback` (for Google, an OAuth client in the Google Cloud console with
+the `openid`, `email` and `profile` scopes), and put its client id and secret in the file. The
+server checks the file at start: ids are unique lowercase names, no two providers share an issuer,
+an issuer is https and one tenant's own (no `common` or `{tenantid}`), and only Google's preset or
+an entry marked `authoritative_email` has its verified emails trusted. Secrets never go in flags or
+the log. Changing `--auth-origin` changes every redirect URI. Removing a provider leaves the
+accounts that sign in only with it with no way in but a login link; the server logs how many at
+start. Registering through a provider still needs an invite code.
+
+Once signed in, people can add passkeys from the portal's settings and then sign in with one
+before typing an email. Their RP ID is the `--auth-origin` host, so they work only at that host
+and over HTTPS (or `localhost`); a server reached by IP address offers none. Changing the
+`--auth-origin` host orphans every passkey, as changing `--auth-origin` does every provider's
+redirect URI; the server logs at start how many accounts that strands, and each needs a login
+link.
+
+While mail goes only to the log, an account hears of a way to sign in added or removed, or of
+its email changing, through notices in its mailbox (shown at its next sign-in when none is
+signed in) and the portal's settings page, which lists the last thirty days of changes.
 
 Adding a device: be-host begins a ten-minute authorization request with a one-shot post to
 `/api/be/call` and shows `/auth?code=...`; the user signs in and explicitly approves the code
@@ -155,8 +219,11 @@ Uploads no block takes are deleted after a day.
 Push notifications (guides/blocks/server.md, "Notifications") go out through Web Push with a
 VAPID key the server makes in its database, to the known push services only (FCM, Mozilla,
 Apple, Windows). The key is plaintext inside the database, so inside its backups, which are
-sealed with the backup key, and has no rotation path. A self-hosted UnifiedPush server such as
-ntfy needs `--push-host HOST`, once per host. The server must reach them over IPv4 or native IPv6: behind DNS64, an IPv4-only push
+sealed with the backup key, and has no rotation path. Android devices take pushes through a
+UnifiedPush distributor (decisions/android_push_via_unifiedpush.md): Sunup's endpoints are on
+Mozilla autopush and work as they are; ntfy's, whether on ntfy.sh or a self-hosted ntfy, need
+`--push-host ntfy.sh` (or that server's host), once per host, or the server refuses them when
+the device registers. The server must reach them over IPv4 or native IPv6: behind DNS64, an IPv4-only push
 service resolves into `64:ff9b::/96`, which the server refuses as not public. FCM, for Android devices
 without a UnifiedPush distributor, needs a Firebase project: its service account's JSON key on
 the host, passed as `--fcm-credentials FILE`. The deployment has none yet, so the server offers
@@ -164,9 +231,10 @@ only Web Push.
 
 Browser sessions last 30 days in an HttpOnly cookie scoped to `/auth` and can't be used as
 be-host credentials. Email goes through `mail::Delivery`, which is `LogDelivery`: the server log
-contains every verification and reset link, so the log gives access to those accounts. A
-password reset doesn't unlock encrypted data; that needs the recovery phrase or another unlocked
-device.
+holds every verification link, and every live sign-in, recovery and confirmation code with its
+link, so whoever reads the journal can sign in as any account with an email and take it over by
+recovering it. Keep it to the people who run the server. A recovery doesn't unlock encrypted
+data; that needs the recovery phrase or another unlocked device.
 
 ### The portal's code
 
@@ -185,13 +253,22 @@ test) answers each page with its `Page` as JSON, with the same routes and checks
 
 To see it locally: `./scripts/buck build //crates/be-server-bin:dist --show-output`, run the
 staged `be-server --allow-login --allow-registration` and open http://127.0.0.1:9090/auth,
-registering with a code from `be-server invite-code create`; links are in its log.
+registering with a code from `be-server invite-code create`; mailed codes and links are in its log.
 
-### Local profiles and the default server
+### Local accounts and the default server
 
-Only the embedded server offers local profiles, whose saved token is their only credential, so
-the account picker offers "Remove account…" instead of "Log out". Browser-origin requests can't
-reach the embedded server's account protocol.
+A local account has no server: be-host makes its id, its identity
+(kept in plaintext in the host's state, so no phrase is asked for) and its one organization,
+under the account's own id, on the device (`create_local_account`), and its stack runs on a
+peer of its own (guides/blocks/client.md, Saving and the outbox). It is offered on every
+platform, the web too. Having nothing to sign out of, the account picker offers "Remove
+account…" instead of "Log out", and what needs a server (sharing, members, contacts, agents,
+invitations) answers that a local account has none. On the web it lives only in that origin's
+browser storage, which clearing site data or a private window loses with no phrase to recover
+it; making one there says so. With one member it holds every block, so it goes without what
+the server enforces between members: `may_create`'s reserved ids and who makes workspaces,
+access and visibility, and a block agent's scoping (`bound_may`; it makes no agents). The
+app sandbox is the host's own and holds the same.
 
 `./scripts/deploy` writes `default_server` (`name`, `api_url`, `auth_url`, `gateway_required`)
 into every bundle's `build-info.json`; ordinary builds omit it and offer local or custom servers.
@@ -199,38 +276,58 @@ A deployed download connects only to a server of its own build.
 
 ## Deploying
 
+Deploy from the Actions tab: the Deploy workflow, dispatched on a branch, runs `./scripts/deploy`
+on that branch's head, its inputs turning off the steps below as the `--skip-*` flags do, or
+making it a `--dry-run`. Any branch may deploy: the workflow checks none on purpose. Its keys
+are secrets of the `deploy` environment (Keys, below), and that environment's protection rules
+are the only gate on who deploys and from where. `./scripts/deploy` still runs from a
+checkout with the keys, but nothing needs it to.
+
 `./scripts/deploy` (be-tool-local's `deploy`) builds be-server, `be` and be-host for every
 platform in release in one buck2 command, then:
 
-1. uploads `be` for Linux x86_64 and arm64 to the Bunny storage zone under `data/BUILD/`, reads
-   each back to check its hash, and pins it in `scripts/internal/pins` (guides/tracker.md);
-   every download's `build-info.json` (the APK's too) names each `be`'s URL and SHA-256
+1. uploads `be` for Linux x86_64 and arm64 to the Bunny storage zone under `data/BUILD/` and
+   reads each back to check its hash; every download's `build-info.json` (the APK's too) names each `be`'s URL and SHA-256
    (`terminal_hosts`), so the host installs a terminal host of its own build
    (guides/terminal.md, A terminal host in a boat.dev sandbox);
 2. uploads be-host's downloads (every desktop platform, the web bundle, and the release-signed
    Android APK, id `com.be3.host`) to `data/BUILD/app/` with an index page, and the unpacked
-   web bundle to `data/BUILD/web/`;
+   web bundle to `data/BUILD/web/`, whose apps are also where a deployed `be` downloads the
+   manifests, type modules and host apps it uses from: every `build-info.json` the deploy ships, `be`'s too, names that directory
+   and the SHA-256 of its `app-hashes.json` (`apps`), which `be` checks the apps against
+   (guides/apps/runtime.md, "Headless");
 3. copies `be-server` and `build-info.json` to the VPS, stops the units, swaps the files and
    starts them;
-4. then publishes the mutable entry points: `/index.html` with a `<base href="/data/BUILD/web/">`,
-   `/sw.js` beside it (a service worker only answers below its own path), and the unlinked
-   `web/downloads.html`, and purges them from the CDN.
+4. then publishes the mutable files and purges them from the CDN: `/index.html` with a
+   `<base href="/data/BUILD/web/">`, and under `live/` the unlinked `live/downloads.html` and
+   `live/be-release`, the build id `./scripts/be` downloads `be` for (guides/tracker.md). Nothing
+   else outside `data/` changes. The page registers the bundle's own `data/BUILD/web/sw.js` with
+   scope `/`, so a new build is a new worker.
 
-`--dry-run` changes nothing; `--skip-server` uploads versioned files only; `--skip-downloads` and
+`--dry-run` changes nothing; `--skip-server` uploads versioned files only, and `--skip-be` needs it,
+since a swapped server refuses the last build's `be`; `--skip-downloads` and
 `--skip-android` avoid needing the keystore; `--help` lists the rest. It refuses a dirty working
-tree, so every deployment can be rebuilt; commit the pin it writes.
+tree, so every deployment can be rebuilt, and writes nothing into the checkout.
 
 Versioned paths are the build's Git tree hash. Existing objects are reused only when their
 SHA-256 matches, and deployment refuses to overwrite a versioned path with different bytes, so
-builds never mix. Deployment stops before swapping the server if the web entry point lacks the
-isolation headers.
+builds never mix. Deployment stops before swapping the server if the bundle's page lacks the
+isolation headers or its service worker lacks `Service-Worker-Allowed`.
 
 ### Keys
 
-After the build, a Rust step loads `BUNNY_STORAGE_KEY`, `BUNNY_API_KEY` (for purges) and the
-Android release keystore, asking at a terminal for any that are missing and saving them in
-`~/.config/be3`. It signs the APK locally; no key enters a remote build action. Keep a backup of
-the keystore: installed apps accept updates only with the same certificate.
+After the build, a Rust step loads `BUNNY_STORAGE_KEY` (the `be-app` zone's password),
+`BUNNY_API_KEY` (for purges) and the Android release keystore (`BE3_ANDROID_RELEASE_KEYSTORE`, a
+path), asking at a terminal for any that are missing and saving them in `~/.config/be3`. It
+signs the APK locally; no key enters a remote build action. Keep a backup of the keystore:
+installed apps accept updates only with the same certificate.
+
+The workflow's `deploy` environment holds them as `BE3_DEPLOY_BUNNY_STORAGE_KEY`,
+`BE3_DEPLOY_BUNNY_API_KEY` and `BE3_ANDROID_RELEASE_KEYSTORE` (the keystore's base64), with
+`BE3_DEPLOY_SSH_KEY`, the CI deploy key, a key made for deploys alone whose public half is the
+"CI deploy key" entry among `root`'s keys in `servers/common.nix` (deployed to the server like
+any change there, guides/servers.md), `BE3_DEPLOY_KNOWN_HOSTS`, the VPS's `known_hosts` line,
+and the build server's `BE3_NL_TOKEN` (guides/build_server.md).
 
 ### The CDN
 
@@ -239,8 +336,8 @@ These are settings of the Bunny pull zone, not something the uploader can set:
 | Paths | Headers and caching |
 | --- | --- |
 | `/data/*`, `/`, `/index.html` | `Cross-Origin-Opener-Policy: same-origin`, `Cross-Origin-Embedder-Policy: require-corp` |
-| `/data/*` | CDN TTL one year; `Cache-Control: public, max-age=31536000, immutable` |
-| `/`, `/index.html`, `/sw.js`, `/web/downloads.html` | CDN TTL one hour; `Cache-Control: no-cache` to browsers |
+| `/data/*` | CDN TTL one year; `Cache-Control: public, max-age=31536000, immutable`; `Service-Worker-Allowed: /` |
+| `/`, `/index.html`, `/live/*` | CDN TTL one hour; `Cache-Control: no-cache` to browsers |
 
 The zone resolves directory indexes and keeps uploaded content types (`application/wasm`
 especially).
@@ -252,6 +349,9 @@ commands; on the server, run them as `be-server` with the binary in `/srv/be-ser
 
 - `be-server backup-key > backup.key` makes the key. Keep a copy off the VPS: without it nothing
   can be restored.
+  Keep it as close as the data: the server's own account secret is plain in its database, so a
+  backup with this key opens the organization settings' keys sealed to the server, the storage
+  credentials and every push `auth` secret.
 - `be-server backup --data-dir DATA --to bunny:ZONE --key-file backup.key`, with
   `BUNNY_STORAGE_KEY` and `BUNNY_STORAGE_ENDPOINT` (such as `https://ny.storage.bunnycdn.com`).
   That password can delete what it wrote, so replicate the zone and copy backups somewhere the

@@ -29,7 +29,7 @@ fn a_block_the_server_refuses_to_make_leaves_the_files_for_the_unsent_edits() {
     });
     flush_and_send();
     assert!(
-        crate::wait_until(|shared| Some(shared.error.clone())).is_none(),
+        crate::wait_until("read the error", |shared| Some(shared.error.clone())).is_none(),
         "the refused block's replica tried to join a session the server does not have"
     );
     assert_eq!(
@@ -37,7 +37,10 @@ fn a_block_the_server_refuses_to_make_leaves_the_files_for_the_unsent_edits() {
         Some(2),
         "what was made of it is still shown"
     );
-    let said = crate::wait_until(|shared| Some(shared.sync_error.clone())).unwrap_or_default();
+    let said = crate::wait_until("read the sync error", |shared| {
+        Some(shared.sync_error.clone())
+    })
+    .unwrap_or_default();
     assert!(
         said.contains(crate::refusal(be_block_protocol::ErrorCode::InvalidRequest))
             && !said.contains("InvalidRequest"),

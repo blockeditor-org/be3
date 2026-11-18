@@ -47,7 +47,6 @@ fn the_alternate_screen_sends_the_wheel_and_peeks_at_the_main_screen() {
     harness
         .editor
         .scroll(screen.center(), Vec2::new(0.0, -60.0));
-    harness.editor.run();
     let wheel: Vec<_> = harness
         .sent()
         .into_iter()
@@ -74,7 +73,6 @@ fn the_alternate_screen_sends_the_wheel_and_peeks_at_the_main_screen() {
     harness
         .editor
         .scroll(screen.center(), Vec2::new(0.0, -60.0));
-    harness.editor.run();
     assert!(
         harness.sent().is_empty(),
         "the main screen is only looked at"

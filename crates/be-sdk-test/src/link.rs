@@ -1,34 +1,19 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 
 use be_sdk_api::{
-    BlockCommand, EditorInstanceId, Encoded,
-    blocks::{BlockHistory, BlockSubject, BlockValue, OpenRequest},
+    BlockCommand, EditorInstanceId,
+    blocks::{BlockHistory, BlockValue, OpenRequest},
     embed::blocks::Call,
-    ops::{Connection, OpError, OpId, Outcome, Producer, encode, wire},
+    ops::{OpError, OpId},
+};
+use be_sdk_app_host::{
+    blocks::{self, BlockStore, Created, EditorBlocks, Reply, Subject, Written},
+    wire::Wire,
 };
 use be_sdk_beui::FromEditor;
 use uuid::Uuid;
 
 use crate::ContentStore;
-
-#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
-pub(crate) enum Subject {
-    Blocks(be_sdk_beui::BlockQuery),
-    History(Uuid),
-    Head(Uuid),
-    Artifact(Uuid),
-    Version,
-    Shows,
-    /// A full-text search, which this store never answers: it keeps no index.
-    Search,
-}
-
-struct Watch {
-    subject: Subject,
-    answering: be_sdk_api::Watch<Encoded>,
-    latest: Option<Vec<u8>>,
-    next: Option<OpId>,
-}
 
 pub(crate) enum Sent {
     Open(OpenRequest),
@@ -37,33 +22,142 @@ pub(crate) enum Sent {
     Frame(Uuid, FromEditor),
 }
 
+/// The editor's block calls, answered from the test's `ContentStore` by the library's dispatcher
+/// (`be_sdk_app_host::blocks`) through the editor's wire, which holds its watches' `next`s, its
+/// replicas' streams and its sends (`Wire`).
 pub(crate) struct Link {
     instance: EditorInstanceId,
-    watches: BTreeMap<OpId, Watch>,
-    values: BTreeMap<Subject, Vec<u8>>,
-    replicas: BTreeMap<OpId, Uuid>,
-    producers: BTreeMap<OpId, Producer<Vec<u8>, wire::Bytes>>,
+    held: EditorBlocks,
+    /// The latest value the test set of each subject it sets, which a watch opened later starts
+    /// with.
+    values: Vec<(Subject, BlockValue)>,
     pub(crate) sent: Vec<Sent>,
+}
+
+/// The `Link` with what its calls reach: the store, and the account the editor's host is signed
+/// in to, which the blocks it makes are by: `None` where no call is dispatched (`ended`,
+/// `answers`), which refuses one that makes a block.
+struct Linked<'a> {
+    link: &'a mut Link,
+    store: &'a ContentStore,
+    author: Option<Uuid>,
+}
+
+impl BlockStore for Linked<'_> {
+    fn held(&mut self, instance: EditorInstanceId) -> Option<&mut EditorBlocks> {
+        (instance == self.link.instance).then_some(&mut self.link.held)
+    }
+
+    fn holder(&self, op: OpId) -> Option<EditorInstanceId> {
+        self.link.held.holds(op).then_some(self.link.instance)
+    }
+
+    fn open_block(&mut self, _: EditorInstanceId, request: OpenRequest) -> Result<bool, OpError> {
+        self.link.sent.push(Sent::Open(request));
+        Ok(true)
+    }
+
+    fn act(
+        &mut self,
+        _: EditorInstanceId,
+        block: Uuid,
+        command: BlockCommand,
+    ) -> Result<bool, OpError> {
+        match command {
+            BlockCommand::SetParent(parent) => self.store.set_parent(block, parent),
+            BlockCommand::Define { key, value } => {
+                let key = Uuid::from_bytes(key);
+                self.store.define(block, key, value.clone());
+                self.link.sent.push(Sent::Define(block, key, value));
+            }
+            command => {
+                self.store.command(block, &command);
+                self.link.sent.push(Sent::Command(block, command));
+            }
+        }
+        Ok(true)
+    }
+
+    fn create_block(&mut self, _: EditorInstanceId, created: Created) -> Result<bool, OpError> {
+        let author = self.author.ok_or(OpError::Denied)?;
+        self.store.create_block(
+            created.block.into_bytes(),
+            created.block_type.into_bytes(),
+            created.parent,
+            created.defined,
+            created.content,
+            created.owner_only,
+            author,
+        );
+        Ok(true)
+    }
+
+    fn write_content(&mut self, _: EditorInstanceId, written: Written) -> Result<bool, OpError> {
+        self.store.seed_content(
+            written.block,
+            written.content_type,
+            written.bytes,
+            written.replace,
+        );
+        Ok(true)
+    }
+
+    fn replica_opened(
+        &mut self,
+        instance: EditorInstanceId,
+        _: OpId,
+        block: Uuid,
+        _: Uuid,
+    ) -> bool {
+        self.store.watch_content(instance, block, true);
+        true
+    }
+
+    fn replica_sent(&mut self, instance: EditorInstanceId, block: Uuid, frame: Vec<u8>) -> bool {
+        let Some(message) = FromEditor::from_frame(&frame) else {
+            return false;
+        };
+        self.store.editor_sent(block, instance, message.clone());
+        self.link.sent.push(Sent::Frame(block, message));
+        true
+    }
+
+    fn replica_resumed(&mut self, instance: EditorInstanceId, _: OpId, block: Uuid, _: Uuid) {
+        self.store.resume_content(instance, block);
+    }
+
+    fn replica_ended(&mut self, instance: EditorInstanceId, block: Uuid) {
+        self.store.watch_content(instance, block, false);
+    }
+
+    fn watch_opened(&mut self, _: EditorInstanceId, _: OpId, subject: Subject) -> bool {
+        if let Some((_, value)) = self.link.values.iter().find(|(set, _)| *set == subject) {
+            self.link.held.offer(subject, value);
+        }
+        true
+    }
 }
 
 impl Link {
     pub(crate) fn new(instance: EditorInstanceId) -> Self {
         Self {
             instance,
-            watches: BTreeMap::new(),
-            values: BTreeMap::new(),
-            replicas: BTreeMap::new(),
-            producers: BTreeMap::new(),
+            held: EditorBlocks::default(),
+            values: Vec::new(),
             sent: Vec::new(),
         }
     }
 
-    pub(crate) fn holds(&self, op: OpId) -> bool {
-        self.replicas.contains_key(&op) || self.watches.contains_key(&op)
+    fn linked<'a>(&'a mut self, store: &'a ContentStore, author: Option<Uuid>) -> Linked<'a> {
+        Linked {
+            link: self,
+            store,
+            author,
+        }
     }
 
     fn watch_store(&self, store: &ContentStore) {
-        let subjects = || self.watches.values().map(|watch| watch.subject);
+        let subjects = || self.held.watching();
         store.watch_heads(
             subjects()
                 .filter_map(|subject| match subject {
@@ -74,7 +168,7 @@ impl Link {
         );
         let mut queries: Vec<_> = subjects()
             .filter_map(|subject| match subject {
-                Subject::Blocks(query) => Some(query),
+                Subject::Blocks(query) => Some(be_sdk_beui::BlockQuery::decode(query)),
                 _ => None,
             })
             .collect();
@@ -83,204 +177,76 @@ impl Link {
         store.watch_queries(queries);
     }
 
-    fn watch(&mut self, op: OpId, subject: Subject) {
-        let latest = self.values.get(&subject).cloned();
-        let mut answering = be_sdk_api::Watch::default();
-        answering.opened(op);
-        self.watches.insert(
-            op,
-            Watch {
-                subject,
-                answering,
-                latest,
-                next: None,
-            },
-        );
-    }
-
     /// `author` is the account the editor's host is signed in to, which the blocks it makes
-    /// are by.
-    pub(crate) fn call(
-        &mut self,
-        call: Call,
-        store: &ContentStore,
-        connection: &mut Connection,
-        author: Uuid,
-    ) {
-        let block = Uuid::from_bytes;
-        match call {
-            Call::OpenBlock { reply, request } => {
-                reply.send(connection, &());
-                self.sent.push(Sent::Open(request));
-            }
-            Call::Act {
-                reply,
-                block: id,
-                command,
-            } => {
-                reply.send(connection, &());
-                let id = block(id);
-                match command {
-                    BlockCommand::SetParent(parent) => store.set_parent(id, parent),
-                    BlockCommand::Define { key, value } => {
-                        store.define(id, block(key), value.clone());
-                        self.sent.push(Sent::Define(id, block(key), value));
-                    }
-                    command => {
-                        store.command(id, &command);
-                        self.sent.push(Sent::Command(id, command));
-                    }
-                }
-            }
-            Call::CreateBlock {
-                reply,
-                block,
-                block_type,
-                parent,
-                defined,
-                content,
-                owner_only,
-            } => {
-                reply.send(connection, &());
-                store.create_block(
-                    block, block_type, parent, defined, content, owner_only, author,
-                );
-            }
-            Call::WriteContent {
-                reply,
-                block: id,
-                content_type,
-                bytes,
-                replace,
-            } => {
-                reply.send(connection, &());
-                store.seed_content(block(id), block(content_type), bytes, replace);
-            }
-            Call::ReplicaNew {
-                resource,
-                block: id,
-                ..
-            } => {
-                self.replicas.insert(resource.op(), block(id));
-                store.watch_content(self.instance, block(id), true);
-            }
-            Call::ReplicaFrames { this, stream } => {
-                self.producers.insert(this.op(), stream);
-            }
-            Call::ReplicaSend { this, frame, reply } => {
-                reply.send(connection, &());
-                let Some(id) = self.replicas.get(&this.op()).copied() else {
-                    return;
-                };
-                if let Some(message) = FromEditor::from_frame(&frame) {
-                    store.editor_sent(id, self.instance, message.clone());
-                    self.sent.push(Sent::Frame(id, message));
-                }
-            }
-            Call::BlockWatchNew { resource, subject } => {
-                let subject = match subject {
-                    BlockSubject::Blocks(query) => {
-                        Subject::Blocks(be_sdk_beui::BlockQuery::decode(query))
-                    }
-                    BlockSubject::History(id) => Subject::History(block(id)),
-                    BlockSubject::Head(id) => Subject::Head(block(id)),
-                    BlockSubject::Artifact(id) => Subject::Artifact(block(id)),
-                    BlockSubject::Version => Subject::Version,
-                };
-                self.watch(resource.op(), subject);
-            }
-            Call::SearchWatchNew { resource, .. } => self.watch(resource.op(), Subject::Search),
-            Call::ShowRequestsNew { resource } => self.watch(resource.op(), Subject::Shows),
-            Call::BlockWatchNext { this, reply } => self.wait(this.op(), reply.into_op()),
-            Call::SearchWatchNext { this, reply } => self.wait(this.op(), reply.into_op()),
-            Call::ShowRequestsNext { this, reply } => self.wait(this.op(), reply.into_op()),
+    /// are by. Each call is answered at once, as be-host's runtime answers it.
+    pub(crate) fn call(&mut self, call: Call, store: &ContentStore, wire: &mut Wire, author: Uuid) {
+        let instance = self.instance;
+        match blocks::call(&mut self.linked(store, Some(author)), instance, call).reply {
+            Some(Reply::Answer(op, outcome)) => wire.answer(op, outcome),
+            Some(Reply::Accepted(op)) => wire.accepted(op),
+            None => {}
         }
     }
 
-    fn wait(&mut self, watch: OpId, next: OpId) {
-        if let Some(watch) = self.watches.get_mut(&watch) {
-            watch.next = Some(next);
-        }
-    }
-
-    pub(crate) fn ended(&mut self, op: OpId, store: &ContentStore, connection: &mut Connection) {
-        if let Some(block) = self.replicas.remove(&op) {
-            self.producers.remove(&op);
-            if !self.replicas.values().any(|held| *held == block) {
-                store.watch_content(self.instance, block, false);
-            }
-        } else {
-            self.watches.remove(&op);
-        }
-        connection.complete(op, Outcome::Err(OpError::Canceled));
+    /// A watch or replica the editor dropped, which its wire has answered.
+    pub(crate) fn ended(&mut self, op: OpId, store: &ContentStore) {
+        blocks::ended(&mut self.linked(store, None), op);
     }
 
     pub(crate) fn offer_history(&mut self, block: Uuid, history: &BlockHistory) {
-        let value = encode(&BlockValue::History(*history));
-        self.values.insert(Subject::History(block), value.clone());
-        self.offer(Subject::History(block), value);
+        self.set(Subject::History(block), BlockValue::History(*history));
     }
 
     pub(crate) fn offer_artifact(&mut self, block: Uuid, state: Option<be_sdk_api::ArtifactState>) {
-        let value = encode(&BlockValue::Artifact(state));
-        self.values.insert(Subject::Artifact(block), value.clone());
-        self.offer(Subject::Artifact(block), value);
+        self.set(Subject::Artifact(block), BlockValue::Artifact(state));
+    }
+
+    pub(crate) fn offer_version(&mut self, status: &be_sdk_api::VersionStatus) {
+        self.set(Subject::Version, BlockValue::Version(status.clone()));
+    }
+
+    pub(crate) fn offer_members(
+        &mut self,
+        members: Result<Vec<be_sdk_api::BlockMember>, be_sdk_api::Failure>,
+    ) {
+        self.set(Subject::Members, BlockValue::Members(members));
+    }
+
+    fn set(&mut self, subject: Subject, value: BlockValue) {
+        self.held.offer(subject, &value);
+        self.values.retain(|(set, _)| *set != subject);
+        self.values.push((subject, value));
     }
 
     /// Each watch the editor holds open, by its op, with what it watches.
     #[cfg(test)]
     pub(crate) fn watching(&self) -> Vec<(OpId, Subject)> {
-        self.watches
-            .iter()
-            .map(|(op, watch)| (*op, watch.subject))
-            .collect()
+        self.held.watches().collect()
     }
 
-    pub(crate) fn offer_version(&mut self, status: &be_sdk_api::VersionStatus) {
-        let value = encode(&BlockValue::Version(status.clone()));
-        self.values.insert(Subject::Version, value.clone());
-        self.offer(Subject::Version, value);
-    }
-
-    fn offer(&mut self, subject: Subject, value: Vec<u8>) {
-        for watch in self.watches.values_mut() {
-            if watch.subject == subject {
-                watch.latest = Some(value.clone());
-            }
-        }
-    }
-
-    pub(crate) fn answer(&mut self, store: &ContentStore, connection: &mut Connection) {
+    /// Relays what the store has for the editor's replicas, and answers each watch the editor
+    /// waits on that has a new value.
+    pub(crate) fn answer(&mut self, store: &ContentStore, wire: &mut Wire) {
         self.watch_store(store);
-        let (replicas, producers) = (&self.replicas, &self.producers);
+        let held = &self.held;
         let outgoing = store.outgoing(self.instance, |block, frame| {
-            let replica = replicas
-                .iter()
-                .find(|(_, held)| **held == block)
-                .map(|(op, _)| *op);
-            replica
-                .and_then(|op| producers.get(&op))
-                .is_none_or(|producer| producer.send(connection, frame).is_ok())
+            held.replica(block).is_none_or(|op| wire.relay(op, frame))
         });
         for (block, head) in outgoing.heads {
-            self.offer(
+            self.held.offer(
                 Subject::Head(block),
-                encode(&BlockValue::Head(head.map_err(be_sdk_api::Failure::Failed))),
+                &BlockValue::Head(head.map_err(be_sdk_api::Failure::Failed)),
             );
         }
         for (query, listed) in outgoing.listings {
-            self.offer(
-                Subject::Blocks(query),
-                encode(&BlockValue::Blocks(Ok(listed))),
+            self.held.offer(
+                Subject::Blocks(query.encode()),
+                &BlockValue::Blocks(Ok(listed)),
             );
         }
-        for watch in self.watches.values_mut() {
-            if let Some(next) = watch.next.take() {
-                watch.answering.next_encoded(connection, next);
-            }
-            if let Some(value) = watch.latest.take() {
-                watch.answering.set(connection, value);
-            }
+        let waiting = wire.waiting();
+        for (op, value) in blocks::answers(&mut self.linked(store, None), &waiting) {
+            wire.answer_watch(op, value);
         }
     }
 }

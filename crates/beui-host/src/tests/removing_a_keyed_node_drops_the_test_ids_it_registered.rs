@@ -14,7 +14,7 @@ fn removing_a_keyed_node_drops_the_test_ids_it_registered() {
                 <Button @node_ref=&drop_two on_click={move || items.set(vec![1])}>
                     <Text>"drop"</Text>
                 </Button>
-                <ForEach keys={items}>|value: i64|
+                <ForEach value={items}>|value: i64|
                     <Text @test_id={format!("item.{value}")}>{value.to_string()}</Text>
                 </ForEach>
             </List>

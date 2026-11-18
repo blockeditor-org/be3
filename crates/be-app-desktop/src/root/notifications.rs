@@ -71,7 +71,9 @@ fn source(kept: &Notification) -> String {
 #[derive(Clone, Copy)]
 pub(crate) struct DesktopNotifications {
     shared: Stored<Shared>,
-    revision: ReadSignal<u64>,
+    listed: ReadSignal<Vec<Listed>>,
+    unread: ReadSignal<usize>,
+    toasts: ReadSignal<Vec<Toast>>,
     pub(crate) offered: Memo<bool>,
     locked: Memo<bool>,
     browsing: Signal<bool>,
@@ -84,15 +86,19 @@ struct Shared {
     handled: Cell<u64>,
     arrived: RefCell<NotificationInbox>,
     reported: RefCell<Vec<u32>>,
-    revision: Signal<u64>,
+    /// What the center holds, as the readers show it; `tick` writes them.
+    listed: Signal<Vec<Listed>>,
+    unread: Signal<usize>,
+    toasts: Signal<Vec<Toast>>,
     browsing: Signal<bool>,
-    shown: Cell<u64>,
     expiry: RefCell<Option<Timer>>,
 }
 
 impl DesktopNotifications {
     pub(crate) fn new(editor: Editor) -> Self {
-        let revision = create_signal(0_u64);
+        let listed = create_signal(Vec::new());
+        let unread = create_signal(0);
+        let toasts = create_signal(Vec::new());
         let browsing = create_signal(false);
         let shared = store(Shared {
             editor,
@@ -101,9 +107,10 @@ impl DesktopNotifications {
             handled: Cell::new(0),
             arrived: RefCell::new(NotificationInbox::default()),
             reported: RefCell::new(Vec::new()),
-            revision,
+            listed,
+            unread,
+            toasts,
             browsing,
-            shown: Cell::new(0),
             expiry: RefCell::new(None),
         });
         let expiry = create_timer(move || shared.try_value().and_then(|shared| shared.tick()));
@@ -124,42 +131,30 @@ impl DesktopNotifications {
         });
         Self {
             shared,
-            revision: revision.read_only(),
+            listed: listed.read_only(),
+            unread: unread.read_only(),
+            toasts: toasts.read_only(),
             offered: editor.offered::<NotificationsWatch>(),
             locked: editor.watch::<ScreenLockedWatch>(),
             browsing,
         }
     }
 
-    pub(crate) fn listed(&self) -> Memo<Vec<Listed>> {
-        let revision = self.revision;
-        let shared = self.shared;
-        create_memo(move || {
-            revision.get();
-            shared.with(|shared| shared.center.borrow().listed().map(Listed::of).collect())
-        })
+    pub(crate) fn listed(&self) -> ReadSignal<Vec<Listed>> {
+        self.listed
     }
 
-    pub(crate) fn unread(&self) -> Memo<usize> {
-        let revision = self.revision;
-        let shared = self.shared;
-        create_memo(move || {
-            revision.get();
-            shared.with(|shared| shared.center.borrow().unread())
-        })
+    pub(crate) fn unread(&self) -> ReadSignal<usize> {
+        self.unread
     }
 
     pub(crate) fn toasts(&self) -> Memo<Vec<Toast>> {
-        let revision = self.revision;
+        let toasts = self.toasts;
         let locked = self.locked;
         let browsing = self.browsing;
-        let shared = self.shared;
-        create_memo(move || {
-            revision.get();
-            if locked.get() || browsing.get() {
-                return Vec::new();
-            }
-            shared.with(|shared| shared.center.borrow().toasts().map(toast).collect())
+        create_memo(move || match locked.get() || browsing.get() {
+            true => Vec::new(),
+            false => toasts.get(),
         })
     }
 
@@ -240,7 +235,7 @@ impl Shared {
     fn tick(&self) -> Option<Duration> {
         let elapsed = self.elapsed();
         let received = self.receive(elapsed);
-        let (wait, signals, kept, revision) = {
+        let (wait, signals, kept, listed, unread, toasts) = {
             let mut center = self.center.borrow_mut();
             let wait = center.frame(elapsed);
             if self.browsing.get_untracked() {
@@ -250,9 +245,14 @@ impl Shared {
                 wait,
                 center.take_signals(),
                 center.kept_ids(),
-                center.revision(),
+                center.listed().map(Listed::of).collect(),
+                center.unread(),
+                center.toasts().map(toast).collect(),
             )
         };
+        self.listed.set(listed);
+        self.unread.set(unread);
+        self.toasts.set(toasts);
         let moved = *self.reported.borrow() != kept;
         if received.is_some() || !signals.is_empty() || moved {
             self.reported.replace(kept.clone());
@@ -264,9 +264,6 @@ impl Shared {
                 })
                 .detach()
             });
-        }
-        if self.shown.replace(revision) != revision {
-            self.revision.set(revision);
         }
         wait
     }

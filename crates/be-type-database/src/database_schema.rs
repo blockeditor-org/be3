@@ -4,7 +4,7 @@ use uuid::Uuid;
 
 use be_block_content::Root;
 
-#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq, Serialize)]
+#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq, Hash, Serialize)]
 pub enum DatabaseFieldType {
     #[default]
     String,
@@ -17,7 +17,7 @@ pub enum DatabaseFieldType {
     Relation,
 }
 
-#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq, Serialize)]
+#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq, Hash, Serialize)]
 pub enum DatabaseNumberScale {
     #[default]
     Linear,

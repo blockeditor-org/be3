@@ -84,7 +84,7 @@ pub fn CompiledLogicView(editor: Editor) -> NodeId {
                             <Separator />
                             <List spacing=Space::Sm>
                                 <Text style=TextStyle::HEADING>"Calls"</Text>
-                                <Show condition={no_calls}>
+                                <Show value={no_calls}>
                                     <Text style=TextStyle::CAPTION>
                                         "This component calls nothing else."
                                     </Text>
@@ -106,10 +106,9 @@ pub fn CompiledLogicView(editor: Editor) -> NodeId {
 
 #[component]
 fn Calls(editor: Editor, calls: Memo<Vec<Uuid>>) -> NodeId {
-    let keys = create_memo(move || calls.get());
     view! {
         <List spacing=Space::Xs>
-            <ForEach keys={keys}>|called: Uuid| {
+            <ForEach value={calls}>|called: Uuid| {
                 let block = Some(ChildTarget::new(called, CompiledLogicContent::CONTENT_TYPE));
                 view! {
                     <BlockLink
@@ -125,22 +124,16 @@ fn Calls(editor: Editor, calls: Memo<Vec<Uuid>>) -> NodeId {
 
 #[component]
 fn Lines(lines: Memo<Vec<String>>, #[prop(default = false)] monospace: bool) -> NodeId {
-    let keys = create_memo(move || (0..lines.with(Vec::len)).collect::<Vec<usize>>());
     view! {
         <List spacing=Space::Xs2>
-            <ForEach keys={keys}>|index: usize| {
-                let line = create_memo(move || {
-                    lines.with(|lines| lines.get(index).cloned().unwrap_or_default())
-                });
-                view! {
-                    <Text
-                        size=TextSize::Sm
-                        family={if monospace { Family::Mono } else { Family::Sans }}
-                    >
-                        {line}
-                    </Text>
-                }
-            }</ForEach>
+            <ForEach value={lines}>|line: String|
+                <Text
+                    size=TextSize::Sm
+                    family={if monospace { Family::Mono } else { Family::Sans }}
+                >
+                    {line}
+                </Text>
+            </ForEach>
         </List>
     }
 }

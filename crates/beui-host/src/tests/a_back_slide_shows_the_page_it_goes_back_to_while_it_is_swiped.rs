@@ -1,7 +1,7 @@
 use super::*;
 use crate::primitives::*;
 use crate::reactive::*;
-use crate::unstyled::BackSlide;
+use crate::styled::BackSlide;
 use beui::input::{BackEdge, BackGesture};
 
 #[test]
@@ -11,10 +11,9 @@ fn a_back_slide_shows_the_page_it_goes_back_to_while_it_is_swiped() {
     let page = NodeRef::new();
     let previous = NodeRef::new();
     let document = build_node(move || {
-        let nested = create_memo(move || depth.get() > 0);
         view! {
             <BackSlide
-                enabled={nested}
+                enabled={move || depth.get() > 0}
                 on_back={move || depth.set(depth.get_untracked() - 1)}
                 behind={move || view! {
                     <Text color=Color32::WHITE @node_ref={&previous}>"Previous"</Text>

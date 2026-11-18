@@ -18,6 +18,7 @@ fn a_caret_stops_blinking_a_while_after_it_last_moved() {
                 padding=AREA_PADDING
                 state={state}
                 single_line=true
+                scroll={plain_scroll()}
             />
         }
     });

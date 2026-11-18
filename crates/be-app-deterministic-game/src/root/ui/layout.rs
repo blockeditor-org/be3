@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use be_sdk_beui::beui::{Pos2, Rect, Vec2, pos2, vec2};
 use tabletop_api::Spot;
 use tabletop_api::board::{Area, Board, ItemId, Sprite};
@@ -113,6 +115,15 @@ impl Layout {
             .rev()
             .find(|placed| placed.spot.is_some() && placed.rect.contains(point))
             .and_then(|placed| placed.spot)
+    }
+
+    /// The piece or card on top at each spot, which a press there takes.
+    pub(crate) fn faces(&self) -> HashMap<Spot, ItemId> {
+        self.items
+            .iter()
+            .filter(|placed| movable(&placed.sprite))
+            .filter_map(|placed| Some((placed.spot?, placed.id)))
+            .collect()
     }
 
     pub(crate) fn find(&self, spot: Spot) -> Option<&SpotPlace> {

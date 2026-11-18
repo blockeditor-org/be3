@@ -11,7 +11,16 @@ async fn left(client: &mut TestClient, root: Uuid) -> Vec<Uuid> {
     };
     for _ in 0..50 {
         let page = client
-            .call(|peer| client::blocks::changed_since(peer, root, after.clone(), 100))
+            .call(|peer| {
+                peer.ask::<be_block_protocol::ChangedPage>(
+                    be_block_protocol::Query::Tree {
+                        entry: root,
+                        after: after.clone(),
+                        limit: 100,
+                    },
+                    false,
+                )
+            })
             .await
             .expect("changed-since failed");
         removed.extend(page.removed);
@@ -26,13 +35,12 @@ async fn left(client: &mut TestClient, root: Uuid) -> Vec<Uuid> {
 #[tokio::test]
 async fn changed_since_does_not_name_what_only_its_author_may_read() {
     let harness = Harness::start().await;
-    let mut owner = harness.client().await;
-    owner.register("owner@example.com").await;
+    let mut owner = harness.member("owner@example.com").await;
     owner.personal().await;
     let mut accounts = Vec::new();
     for email in ["editor@example.com", "viewer@example.com"] {
-        let mut client = harness.client().await;
-        let account = client.register(email).await;
+        let mut client = harness.member(email).await;
+        let account = client.id();
         client.personal().await;
         let link = owner.link(None).await;
         let _ = client.accept(link, &[]).await;
@@ -65,22 +73,27 @@ async fn changed_since_does_not_name_what_only_its_author_may_read() {
         .await;
     let secret = Uuid::new_v4();
     let key = Uuid::new_v4();
+    let root = owner.root(secret);
+    let placement = owner.placement(secret, BlockParent::Block(settings)).await;
     let made = owner
         .call(|peer| {
-            client::blocks::create_block(
-                peer,
-                secret,
-                CONTENT,
-                BlockParent::Block(settings),
-                Vec::new(),
-                Vec::new(),
-                key,
-                KeySet {
+            peer.write_all::<be_block_protocol::BlockSummary>(vec![
+                be_block_protocol::Op::CreateBlock {
+                    block: secret,
+                    content_type: CONTENT,
+                    parent: BlockParent::Block(settings),
+                    metadata: Vec::new(),
+                    references: Vec::new(),
+                    key: key,
+                    owner_only: true,
+                    root: root.clone(),
+                    placement: placement,
+                },
+                be_block_protocol::Op::PutKeys(be_block_protocol::PutKeys::Rows(KeySet {
                     keys: vec![row(key, secret, KeyKind::Data)],
                     wrapped: Vec::new(),
-                },
-                true,
-            )
+                })),
+            ])
         })
         .await;
     assert!(made.is_ok(), "{made:?}");

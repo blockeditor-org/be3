@@ -12,7 +12,7 @@ fn a_block_under_a_deleted_one_is_deleted_with_it() {
         vec![
             Node {
                 parent: Some(BlockParent::Detached),
-                references: vec![inside],
+                references: Some(vec![inside]),
                 ..node(folder)
             },
             Node {
@@ -63,7 +63,7 @@ fn a_block_under_a_deleted_one_is_deleted_with_it() {
         "restoring the folder restores what is inside"
     );
 
-    graph.update(folder, |node| node.references.clear());
+    graph.update(folder, |node| node.references = Some(Vec::new()));
     assert_eq!(
         graph.deleted_root(inside),
         Some(inside),

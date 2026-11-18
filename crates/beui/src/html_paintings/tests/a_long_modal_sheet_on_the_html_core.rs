@@ -21,7 +21,7 @@ fn a_long_modal_sheet_on_the_html_core() {
                                 <Scroll>
                                     <List spacing=Space::None>
                                         <ForEach
-                                            keys={(1..=30).collect::<Vec<usize>>()}
+                                            value={(1..=30).collect::<Vec<usize>>()}
                                         >|row: usize|
                                             <ActionRow
                                                 label={format!("Row {row}")}

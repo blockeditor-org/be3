@@ -21,9 +21,9 @@ pub const SETTINGS_TYPE: Uuid = Uuid::from_u128(0x7365_7474_696e_6773_2d62_6c6f_
 /// only View.
 pub const ANYONE_INSIDE: Uuid = Uuid::from_u128(0x616e_796f_6e65_2d69_6e73_6964_652d_3031);
 
-/// The search index's block type (plans/search.md). Under a block it indexes that block's tree
-/// and takes exactly the block's access (`BlockNode::is_search_index`); the server keeps few of
-/// its old states (be-server's `retention`).
+/// The search index's block type (guides/blocks/host.md, "Search"). Under a block it indexes that
+/// block's tree and takes exactly the block's access (`BlockNode::is_search_index`); the server
+/// keeps few of its old states (be-server's `retention`).
 pub const SEARCH_INDEX_TYPE: Uuid = Uuid::from_u128(0x7365_6172_6368_2d69_6e64_6578_2d30_3031);
 
 pub const PREFIXES_TYPE: Uuid = Uuid::from_u128(0x7072_6566_6978_6573_2d6b_696e_642d_3031);
@@ -76,6 +76,10 @@ pub struct BlockNode {
     /// Readable by its author alone: a scope root of its own whose key is sealed only to the
     /// author, never escrowed (`KindVisibility::Owner`). Set when it is made and kept for life.
     pub owner_only: bool,
+    /// The organization's change sequence at the block's last change (`blocks.changed`), which
+    /// the server's `changes.rs` sets with every change it records.
+    #[serde(default)]
+    pub changed: u64,
 }
 
 /// The type of a workspace block (crates/be-type-workspace).
@@ -106,6 +110,7 @@ impl BlockNode {
             size: 0,
             tree_size: 0,
             owner_only: false,
+            changed: 0,
         }
     }
 }
@@ -157,7 +162,6 @@ pub struct BlockGraph {
     entries: HashMap<Uuid, BTreeSet<Uuid>>,
     loose: BTreeSet<Uuid>,
     authored: HashMap<Uuid, usize>,
-    revision: u64,
     changes: u64,
 }
 
@@ -288,16 +292,8 @@ impl BlockGraph {
         self.blocks.len()
     }
 
-    pub const fn revision(&self) -> u64 {
-        self.revision
-    }
-
-    pub fn advance_to(&mut self, revision: u64) {
-        self.revision = self.revision.max(revision);
-    }
-
-    /// Counts the calls that may have changed the graph (everything taking `&mut self` but
-    /// `advance_to`), so a caller can tell whether a failed action left it as it was.
+    /// Counts the calls that may have changed the graph (everything taking `&mut self`), so a
+    /// caller can tell whether a failed action left it as it was.
     pub const fn changes(&self) -> u64 {
         self.changes
     }
@@ -381,6 +377,12 @@ impl BlockGraph {
         let node = self.node_mut(id)?;
         node.version += 1;
         Ok(node.version)
+    }
+
+    /// Records the organization's change sequence at the block's last change.
+    pub fn set_changed(&mut self, id: Uuid, sequence: u64) -> Result<(), GraphError> {
+        self.node_mut(id)?.changed = sequence;
+        Ok(())
     }
 
     pub fn set_head(&mut self, id: Uuid, head: CommitId) -> Result<(), GraphError> {
@@ -499,6 +501,13 @@ impl BlockGraph {
             .get(&id)
             .map(|node| node.references.clone())
             .unwrap_or_default()
+    }
+
+    /// Whether `from` references `to`, without reading its references.
+    pub fn refers(&self, from: Uuid, to: Uuid) -> bool {
+        self.backrefs
+            .get(&to)
+            .is_some_and(|referrers| referrers.contains(&from))
     }
 
     pub fn backrefs(&self, id: Uuid) -> Vec<Uuid> {
@@ -628,6 +637,30 @@ impl BlockGraph {
             }
         }
         Some(node)
+    }
+
+    /// Moves ownership of `id` to `author` (an owner record, guides/blocks/keys.md, "Owner
+    /// records"): they hold what authorship gives from now on, and the block counts among theirs.
+    /// What the former author keeps is a grant the caller writes.
+    pub fn set_author(&mut self, id: Uuid, author: Uuid) -> Result<(), GraphError> {
+        let node = self.node_mut(id)?;
+        let former = std::mem::replace(&mut node.author, author);
+        let granted = node.grants.contains_key(&former);
+        if former == author {
+            return Ok(());
+        }
+        if !granted {
+            unindex(&mut self.entries, former, id);
+        }
+        if let Entry::Occupied(mut count) = self.authored.entry(former) {
+            *count.get_mut() -= 1;
+            if *count.get() == 0 {
+                count.remove();
+            }
+        }
+        self.entries.entry(author).or_default().insert(id);
+        *self.authored.entry(author).or_default() += 1;
+        Ok(())
     }
 
     pub fn grant(&mut self, id: Uuid, account: Uuid, access: Access) -> Result<(), GraphError> {
@@ -931,7 +964,7 @@ impl BlockGraph {
                 };
                 !self.inherited(parent, account).can_view()
                     && level_below(node, account, Access::None, false, self.in_settings(parent))
-                        .can_view()
+                        .can_join()
             })
             .collect()
     }

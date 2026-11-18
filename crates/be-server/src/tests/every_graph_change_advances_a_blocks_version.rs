@@ -10,7 +10,16 @@ async fn every_graph_change_advances_a_blocks_version() {
     let created = owner.read_block(block).await.version;
 
     let response = owner
-        .call(|peer| client::blocks::set_metadata(peer, block, vec![1, 2, 3], Vec::new()))
+        .call(|peer| {
+            peer.write::<be_block_protocol::BlockSummary>(be_block_protocol::Op::Publish {
+                block: block,
+                expected: None,
+                commit: None,
+                references: be_block_protocol::ReferenceChange::between(&[], &Vec::new()),
+                metadata: vec![1, 2, 3],
+                journal: None,
+            })
+        })
         .await;
     let Ok(renamed) = response else {
         panic!("set metadata failed: {response:?}");
@@ -18,9 +27,7 @@ async fn every_graph_change_advances_a_blocks_version() {
     assert!(renamed.version > created);
 
     let response = owner
-        .call(|peer| {
-            client::blocks::set_parent(peer, block, BlockParent::Block(folder), KeySet::default())
-        })
+        .move_keyed(block, BlockParent::Block(folder), KeySet::default())
         .await;
     assert!(matches!(response, Ok(())), "{response:?}");
     let moved = owner.read_block(block).await;

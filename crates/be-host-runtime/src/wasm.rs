@@ -1,23 +1,20 @@
 use std::{
     cell::RefCell,
-    convert::Infallible,
-    path::PathBuf,
     sync::{Arc, Condvar, Mutex, PoisonError, atomic::AtomicBool},
     time::Duration,
 };
 
 use be_host_stack::discovery;
 
+use super::backend::{worker_file, worker_path};
+
 use be_sdk_manifest::AppManifest;
-use be_wasm_guest_host::{
-    Presented, Produced,
-    thread::{self, Runnable, Threaded},
-};
-use be_wasm_host::{App, Host};
+use be_wasm_guest_host::thread::{self, Threaded};
+use be_wasm_host::{Host, PresentedTexture, Presenting, sandbox::Staged};
 
 use super::{
-    backend::StepTime,
-    surface::{PresentedTexture, SurfaceFrame, gpu},
+    surface::{SurfaceFrame, gpu},
+    wire::Wire,
 };
 
 const NO_GPU: &str = "The app host has no graphics device.";
@@ -33,7 +30,6 @@ pub(super) type Mailbox = be_wasm_host::Imports;
 type Gpu = Result<(wgpu::Device, wgpu::Queue), String>;
 
 thread_local! {
-    static CACHE: RefCell<Option<PathBuf>> = const { RefCell::new(None) };
     static PREPARED: RefCell<Vec<Prepared>> = const { RefCell::new(Vec::new()) };
 }
 
@@ -77,20 +73,6 @@ pub(super) fn wait_for_workers(within: Duration) {
     thread::wait_for_workers(within);
 }
 
-pub fn cache_in(directory: PathBuf) {
-    CACHE.with(|cache| *cache.borrow_mut() = Some(directory));
-}
-
-fn cache() -> Option<PathBuf> {
-    CACHE.with(|cache| cache.borrow().clone())
-}
-
-impl Presented for PresentedTexture {
-    fn surface(&self) -> u32 {
-        self.surface
-    }
-}
-
 pub(super) fn frame(textures: Vec<PresentedTexture>, presents: u64) -> SurfaceFrame {
     SurfaceFrame {
         textures,
@@ -102,8 +84,8 @@ pub(super) fn frame(textures: Vec<PresentedTexture>, presents: u64) -> SurfaceFr
 pub(super) fn prepare(app: &AppManifest, module: String) {
     let device = Arc::<Handover>::default();
     let handover = Arc::clone(&device);
-    let started = Host::awaiting(move || handover.wait(), cache().as_deref())
-        .and_then(|host| start(app, &module, host));
+    let started =
+        Host::awaiting(move || handover.wait()).and_then(|host| start(app, &module, host));
     PREPARED.with(|prepared| {
         prepared.borrow_mut().push(Prepared {
             app_id: app.identity.id.clone(),
@@ -143,10 +125,84 @@ pub(super) fn spawn(
         return std::mem::replace(&mut prepared.started, Err(NO_GPU.to_owned()));
     }
     let host = match gpu() {
-        Some((device, queue)) => Host::new(device, queue, cache().as_deref())?,
-        None => Host::on_demand(|| Err(NO_GPU.to_owned()), cache().as_deref())?,
+        Some((device, queue)) => Host::new(device, queue)?,
+        None => Host::on_demand(|| Err(NO_GPU.to_owned()))?,
     };
     start(app, &module, host)
+}
+
+/// The wire to `app`, which serves it the sandbox API for its workers: it may spawn only its own
+/// app's workers (`be_wasm_sandbox_host::Server::for_app`), found by `staged_worker`.
+pub(super) fn wire(app: &AppManifest) -> Wire {
+    Wire::granting(app.extensions.clone())
+        .offering(super::published::offered)
+        .with_sandbox(super::backend::AppSandbox(
+            be_wasm_sandbox_host::Server::for_app(
+                Arc::new(be_host_base::host::wake),
+                app.identity.id.clone(),
+                Box::new(staged_worker),
+            ),
+        ))
+}
+
+/// Tells be-wasm-host what every staged app imports, once, so the libraries they link are
+/// trimmed to that and compiled once for all of them (be_wasm_host::keep_exports).
+fn keep_staged_exports() {
+    static KEPT: std::sync::Once = std::sync::Once::new();
+    KEPT.call_once(|| {
+        let mut names = be_lib_stable_hash::HashSet::default();
+        for manifest in discovery::manifests() {
+            let workers = manifest
+                .workers
+                .iter()
+                .map(|worker| worker_path(&manifest.identity.id, worker));
+            for module in std::iter::once(manifest.entry_point.clone()).chain(workers) {
+                match discovery::open(&module).and_then(be_wasm_host::imported_names) {
+                    Ok(imported) => names.extend(imported),
+                    Err(error) => eprintln!("{module}: {error}"),
+                }
+            }
+        }
+        be_wasm_host::keep_exports(names);
+    });
+}
+
+/// The module `module` of the staged app with the id `app_id`, as the sandbox spawns it
+/// (`be_wasm_sandbox_host::Loader`), read with the libraries it is linked against from the staged
+/// apps, as the host loads every app: the manifest's `entry_point`, or one of its `workers`, staged
+/// under `workers/<app id>/`. It is the one place that maps a module's name to a file, so any
+/// other name, a path or another app's module, is refused.
+pub fn staged_app(app_id: &str, module: &str) -> Result<Staged, String> {
+    let manifest = manifest(app_id)?;
+    if module == manifest.entry_point {
+        return Ok(staged(manifest.entry_point.clone()));
+    }
+    staged_worker(app_id, module)
+}
+
+/// One of the workers of the staged app with the id `app_id`, as `staged_app` finds it: what the
+/// sandbox an app is served finds, since an app starts only its workers, never itself.
+pub fn staged_worker(app_id: &str, module: &str) -> Result<Staged, String> {
+    worker_file(app_id, module).map(staged)
+}
+
+fn manifest(app_id: &str) -> Result<Arc<AppManifest>, String> {
+    discovery::manifests()
+        .into_iter()
+        .find(|manifest| manifest.identity.id == app_id)
+        .ok_or_else(|| format!("no staged app has the id {app_id}"))
+}
+
+/// A staged module, which tells be-wasm-host what every staged app imports before its first read,
+/// on the thread that loads it.
+fn staged(module: String) -> Staged {
+    Staged::new(
+        module,
+        Arc::new(|name| {
+            keep_staged_exports();
+            discovery::open(name)
+        }),
+    )
 }
 
 fn start(
@@ -154,12 +210,12 @@ fn start(
     module: &str,
     host: Host,
 ) -> Result<(Channel, Mailbox, Arc<AtomicBool>), String> {
-    let module = module.to_owned();
+    let staged = staged(module.to_owned());
     let waiting = Arc::<AtomicBool>::default();
     let mailbox = host.imports();
     let channel = host.spawn(
         format!("app {}", app.identity.id),
-        move |host| host.load_from(&module, discovery::open).map(Editor),
+        move |host| staged.load(host).map(Presenting),
         Arc::new(be_host_base::host::wake),
         Arc::clone(&waiting),
         |run| be_host_base::panic_guard::contain(run),
@@ -197,60 +253,6 @@ pub(super) fn pictures(frame: &SurfaceFrame, surfaces: &[u32]) -> Vec<(u32, Pict
             ))
         })
         .collect()
-}
-
-struct Editor(App);
-
-impl Runnable for Editor {
-    type Presented = PresentedTexture;
-
-    fn start(&mut self) -> Result<Produced<PresentedTexture>, String> {
-        let sent = Runnable::start(&mut self.0)?;
-        Ok(produced(&mut self.0, sent))
-    }
-
-    fn step(&mut self, frames: Vec<Vec<u8>>) -> Result<Produced<PresentedTexture>, String> {
-        let sent = Runnable::step(&mut self.0, frames)?;
-        Ok(produced(&mut self.0, sent))
-    }
-
-    fn take_wake(&mut self) -> bool {
-        self.0.take_wake()
-    }
-
-    fn on_wake(&self, wake: be_wasm_guest_host::Wake) {
-        Runnable::on_wake(&self.0, wake);
-    }
-
-    fn stop(&mut self) {
-        self.0.stop();
-    }
-}
-
-fn produced(app: &mut App, sent: Produced<Infallible>) -> Produced<PresentedTexture> {
-    let (gpu, submit) = app.take_gpu_time();
-    let mut presented: Vec<PresentedTexture> = Vec::new();
-    for surface in app.take_presented() {
-        let Some((texture, generation)) = app.surface(surface) else {
-            continue;
-        };
-        presented.retain(|held| held.surface != surface);
-        presented.push(PresentedTexture {
-            surface,
-            texture,
-            generation,
-        });
-    }
-    Produced {
-        painted: !presented.is_empty(),
-        outbound: sent.outbound,
-        presented,
-        took: StepTime {
-            gpu,
-            submit,
-            ..sent.took
-        },
-    }
 }
 
 #[cfg(test)]

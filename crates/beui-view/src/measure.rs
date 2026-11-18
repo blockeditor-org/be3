@@ -74,7 +74,7 @@ pub fn measure_text(node: NodeId) -> TextGeometrySignal {
 
 /// Lays out text that is not in the tree, answering at once on both cores (the
 /// HTML core from the browser's font metrics); `None` before the document has
-/// fonts. Read `use_font_revision()` and `pixels_per_point()` in the memo that
+/// fonts. Track `use_font_changes()` and read `pixels_per_point()` in the memo that
 /// calls it, so it measures again when fonts load or the scale changes.
 pub fn lay_out_text(text: &str, font: FontId, layout: TextLayout) -> Option<TextBlock> {
     crate::core::painter::lay_out_text(text, font, layout).map(TextBlock)

@@ -20,7 +20,7 @@ fn atomic_units_are_single_cursor_units() {
     tester.expect_content(b"a | b");
 }
 
-fn inside_double_angle_span(bytes: &[u8], index: usize) -> bool {
+pub(super) fn inside_double_angle_span(bytes: &[u8], index: usize) -> bool {
     let mut start = None;
     let mut position = 0;
     while position + 1 < bytes.len() {

@@ -39,7 +39,7 @@ pub(super) fn dock_layout_key(block_type: uuid::Uuid) -> String {
 }
 
 pub(super) fn keep_joined(link: &Rc<ProtocolLink>, editor: Editor) {
-    let declares = link.declares.read_only();
+    let declares = link.declares.handle();
     let declaring = link.declaring.read_only();
     let pushed = link.pushed;
     keep_layout(
@@ -47,8 +47,8 @@ pub(super) fn keep_joined(link: &Rc<ProtocolLink>, editor: Editor) {
         &link.host,
         editor,
         move || {
-            pushed.get();
-            declares.get();
+            pushed.track();
+            declares.track();
         },
         create_memo(move || declaring.get()),
     );
@@ -68,8 +68,8 @@ pub(super) fn keeper(host: EditorHost, editor: Editor, claimed: Rc<Cell<bool>>) 
             &host,
             editor,
             move || {
-                layout.with(|_| ());
-                keys.with(|_| ());
+                layout.track();
+                keys.track();
             },
             create_memo(move || keys.with(|keys| !keys.is_empty())),
         );
@@ -269,6 +269,7 @@ fn outside_windows(mut spec: DockSpec) -> DockSpec {
             key: String::new(),
             rect,
             placed: None,
+            hidden: false,
             root: Some(DockSpecNode::Pane(DockSpecPane {
                 key: String::new(),
                 entries: vec![DockSpecEntry::Tab(outside.tab)],

@@ -1,35 +1,49 @@
-use be_block_content::{LiveEdit, Undo, history::History};
+use be_block_content::{
+    LiveEdit, Undo,
+    history::{GestureId, GestureKind, History, Stepped},
+};
 
 pub trait Recorder<C: LiveEdit>: Default {
-    fn record(&mut self, content: &C, operation: &C::Op, origin: Option<u64>, at: u64) {
-        let _ = (content, operation, origin, at);
+    fn record(
+        &mut self,
+        content: &C,
+        operation: &C::Op,
+        origin: Option<u64>,
+        gesture: Option<u64>,
+        at: u64,
+    ) {
+        let _ = (content, operation, origin, gesture, at);
     }
 
-    fn begin(&mut self, origin: Option<u64>) {
-        let _ = origin;
+    fn begin(&mut self, gesture: GestureId, kind: GestureKind) {
+        let _ = (gesture, kind);
     }
 
-    fn commit(&mut self, origin: Option<u64>) {
-        let _ = origin;
+    fn commit(&mut self, gesture: GestureId) {
+        let _ = gesture;
     }
 
     fn split(&mut self, origin: Option<u64>) {
         let _ = origin;
     }
 
-    fn cancel(&mut self, content: &C, origin: Option<u64>) -> Vec<C::Op> {
-        let _ = (content, origin);
+    fn void(&mut self, gesture: GestureId) {
+        let _ = gesture;
+    }
+
+    fn cancel(&mut self, content: &C, gesture: GestureId) -> Vec<C::Op> {
+        let _ = (content, gesture);
         Vec::new()
     }
 
-    fn undo(&mut self, content: &C) -> Vec<C::Op> {
+    fn undo(&mut self, content: &C) -> Stepped<C::Op> {
         let _ = content;
-        Vec::new()
+        Stepped::default()
     }
 
-    fn redo(&mut self, content: &C) -> Vec<C::Op> {
+    fn redo(&mut self, content: &C) -> Stepped<C::Op> {
         let _ = content;
-        Vec::new()
+        Stepped::default()
     }
 
     fn clear(&mut self) {}
@@ -59,31 +73,42 @@ pub struct NoHistory;
 impl<C: LiveEdit> Recorder<C> for NoHistory {}
 
 impl<C: Undo> Recorder<C> for History<C, u64> {
-    fn record(&mut self, content: &C, operation: &C::Op, origin: Option<u64>, at: u64) {
-        History::record(self, content, operation, origin, Some(at));
+    fn record(
+        &mut self,
+        content: &C,
+        operation: &C::Op,
+        origin: Option<u64>,
+        gesture: Option<u64>,
+        at: u64,
+    ) {
+        History::record(self, content, operation, origin, gesture, Some(at));
     }
 
-    fn begin(&mut self, origin: Option<u64>) {
-        History::begin(self, origin);
+    fn begin(&mut self, gesture: GestureId, kind: GestureKind) {
+        History::begin(self, gesture, kind);
     }
 
-    fn commit(&mut self, origin: Option<u64>) {
-        History::commit(self, origin);
+    fn commit(&mut self, gesture: GestureId) {
+        History::commit(self, gesture);
     }
 
     fn split(&mut self, origin: Option<u64>) {
         History::split(self, origin);
     }
 
-    fn cancel(&mut self, content: &C, origin: Option<u64>) -> Vec<C::Op> {
-        History::cancel(self, content, origin)
+    fn void(&mut self, gesture: GestureId) {
+        History::void(self, gesture);
     }
 
-    fn undo(&mut self, content: &C) -> Vec<C::Op> {
+    fn cancel(&mut self, content: &C, gesture: GestureId) -> Vec<C::Op> {
+        History::cancel(self, content, gesture)
+    }
+
+    fn undo(&mut self, content: &C) -> Stepped<C::Op> {
         History::undo(self, content)
     }
 
-    fn redo(&mut self, content: &C) -> Vec<C::Op> {
+    fn redo(&mut self, content: &C) -> Stepped<C::Op> {
         History::redo(self, content)
     }
 

@@ -1,0 +1,80 @@
+package be3:sandbox@0.1.0;
+
+/// Instances the host runs for a guest, of modules it compiled from bytes or
+/// of staged apps (plans/host_as_platform_adapter.md, The sandbox API). Apps
+/// are served it too, to start their workers (decisions/guests_are_single_threaded.md).
+/// Natively each instance has a thread and an isolate of its own, and talks to
+/// its spawner by frames.
+interface sandbox {
+    use be3:shared/ids@0.1.0.{hash};
+
+    /// A module, by the SHA-256 of the bytes it was compiled from.
+    type module-id = hash;
+
+    /// Compiles a pure guest's module from `bytes` off the caller's thread,
+    /// once per host for the same bytes. Answers the module's id, or why the
+    /// bytes are not a pure guest's module. The module stays compiled while
+    /// the guest that compiled it runs, and is never kept on the device.
+    compile: async func(bytes: list<u8>) -> result<module-id, string>;
+
+    /// A staged app, by the id its manifest gives it, such as `be3.checklist`.
+    type app-id = string;
+
+    /// A module a staged app stages: the manifest's `entry_point`, which
+    /// starts the app itself, or one of its `workers`, each started at its
+    /// own `app_start` (guides/adding_an_app.md, Workers). The host maps the
+    /// two names to a file; any other name, such as a path, is refused. An
+    /// app is served the sandbox for its workers alone: it leaves `app` empty
+    /// to name its own, the only one it may name, and may not start its entry
+    /// point.
+    record staged-module {
+        app: app-id,
+        module: string,
+    }
+
+    /// What an instance runs.
+    variant source {
+        /// A module this guest compiled. The instance is a pure guest
+        /// (guides/app_libraries.md, Pure guests): its only imports are its
+        /// transport, and whatever else it may do, its spawner serves it over
+        /// its frames.
+        module(module-id),
+        /// A staged app's module, linked against the libraries it names and
+        /// given WASI, as the host runs that app. One the root guest spawns
+        /// draws on the host's device, and the root names a surface it
+        /// presented by handle, as this instance's resource's op and the
+        /// surface's id, never seeing its pixels; an app's workers have no
+        /// gpu. Its frames are whatever the module speaks: the app protocol
+        /// for the entry point, which the spawner answers as the app's host,
+        /// or a worker's own messages.
+        app(staged-module),
+    }
+
+    /// How an instance runs.
+    record config {
+        /// Its thread's name, which logs and the host's reports show.
+        name: string,
+        /// The most bytes its memory may hold.
+        memory-limit: u64,
+    }
+
+    /// An instance of a source. Dropping it stops it, even in the middle of a
+    /// step, by terminating its isolate. One that could not start, such as
+    /// one of a module this guest did not compile or of an app no staged app
+    /// has the id of, says why from `next`.
+    resource instance {
+        constructor(source: source, config: config);
+        /// Queues frames for it; it is stepped with them as soon as it is
+        /// free.
+        send: async func(frames: list<list<u8>>);
+        /// The frames it sent since the last answer, answered once there is
+        /// at least one, or why it stopped: it could not start, trapped or
+        /// panicked. Once it stopped, every later call fails the same way.
+        next: async func() -> result<list<list<u8>>, string>;
+    }
+}
+
+/// A guest that runs instances.
+world spawner {
+    import sandbox;
+}

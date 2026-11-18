@@ -7,6 +7,7 @@ use crate::anchored::AnchoredStyle;
 use crate::color_picker::HexText;
 use crate::popover::{Popover, PopoverHandle};
 use crate::popup_trigger::PopupTriggerHandle;
+use crate::value_drag::ValueDrag;
 
 pub struct ColorInputHandle {
     pub swatch: NodeId,
@@ -24,7 +25,7 @@ pub struct ColorInputPickerHandle {
     pub value: Binding<Color32>,
     pub alpha: bool,
     pub shown: Memo<bool>,
-    pub on_preview: Callback<Option<Color32>>,
+    pub on_drag_change: Callback<ValueDrag>,
 }
 
 #[derive(Clone, Copy)]
@@ -40,29 +41,23 @@ pub fn ColorInput(
     #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = true)] alpha: bool,
-    on_preview: Callback<Option<Color32>>,
-    swatch: Render<ColorInputSwatchHandle>,
+    on_drag_change: Callback<ValueDrag>,
+    swatch: Render<ColorInputSwatchHandle, NodeId>,
     surface: AnchoredStyle,
-    picker: RenderFn<ColorInputPickerHandle>,
-    field: Render<ColorInputFieldHandle>,
-    #[prop(children)] content: Render<ColorInputHandle>,
+    picker: RenderFn<ColorInputPickerHandle, NodeId>,
+    field: Render<ColorInputFieldHandle, NodeId>,
+    #[prop(children)] content: Render<ColorInputHandle, NodeId>,
 ) -> NodeId {
-    let previewed = create_signal(None::<Color32>);
-    let shown = create_memo(move || previewed.get().unwrap_or_else(|| value.get()));
-    let hex = HexText::new(shown, alpha, value.into_callback());
+    let shown = create_memo(move || value.get());
+    let hex = HexText::new(shown, alpha, Callback::from(value));
     let label = create_memo(move || label.get());
-    let picker_label = create_memo(move || match label.get() {
-        label if label.is_empty() => "Choose a color".to_owned(),
-        label => format!("Choose {label}"),
-    });
     let disabled = create_memo(move || disabled.get());
-    let preview = Callback::new(move |preview: Option<Color32>| {
-        previewed.set(preview);
-        on_preview.call(preview);
-    });
     let swatch_node = view! {
         <Popover
-            label={picker_label}
+            label={move || match label.get() {
+                label if label.is_empty() => "Choose a color".to_owned(),
+                label => format!("Choose {label}"),
+            }}
             icon_only=true
             disabled={disabled}
             surface
@@ -75,7 +70,7 @@ pub fn ColorInput(
                 value,
                 alpha,
                 shown: popover.shown,
-                on_preview: preview,
+                on_drag_change,
             })
         }</Popover>
     };

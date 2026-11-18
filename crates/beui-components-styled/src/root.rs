@@ -1,6 +1,6 @@
 use beui_macros::{component, view};
 use beui_view::primitives;
-use beui_view::reactive::{Child, Get, Prop, create_memo};
+use beui_view::reactive::{Get, NodeId, Prop, create_memo};
 use beui_view::types::SystemBars;
 
 use crate::frame::ColorRole;
@@ -13,7 +13,7 @@ pub fn Root(
     clear_color: Option<Prop<ColorRole>>,
     title: Option<Prop<String>>,
     system_bars: Option<Prop<SystemBars>>,
-    children: Child,
+    children: NodeId,
 ) -> primitives::Root {
     let theme = use_theme();
     let color = create_memo(move || {

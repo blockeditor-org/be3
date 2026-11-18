@@ -2,6 +2,7 @@ use be_server_portal::{PAGE_ID, Page, ROOT_ID};
 use beui::reactive::*;
 
 mod form;
+mod passkey;
 mod screens;
 
 #[cfg(target_arch = "wasm32")]

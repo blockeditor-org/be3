@@ -1,7 +1,7 @@
 load("@prelude//rust:cargo_buildscript.bzl", "buildscript_run")
 load("@prelude//rust:cargo_package.bzl", "cargo")
 load("@root//buck/platforms:cross.bzl", "PLAN_SETTINGS")
-load("@root//buck/platforms:profile.bzl", "OPT_LEVELS", "RELEASE_SYMBOL_FLAGS", "RUST_LOCAL", "dev_only")
+load("@root//buck/platforms:profile.bzl", "OPT_LEVELS", "RUST_LOCAL", "SYMBOL_FLAGS", "dev_only")
 load(":defs.bzl", "proc_macro_visibility")
 
 # The rules for every third-party crate a workspace crate depends on, from
@@ -137,7 +137,10 @@ def _crate(key, crate, fixup):
         mapped_srcs = overlay,
         platform = _platforms(crate, fixup),
         proc_macro = library["proc_macro"],
-        rustc_flags = dev_only(crate.get("profile_flags", [])) + RELEASE_SYMBOL_FLAGS + THIRD_PARTY_OPT + rustc_flags + _plan_flags(fixup),
+        # A crate's own [profile.dev.package] flags come after THIRD_PARTY_OPT: rustc takes the
+        # last of each -C option, so in the other order every override (the ciphers, SHA-2,
+        # RSA) was built at THIRD_PARTY_OPT's level with debug assertions on.
+        rustc_flags = SYMBOL_FLAGS + THIRD_PARTY_OPT + dev_only(crate.get("profile_flags", [])) + rustc_flags + _plan_flags(fixup),
         srcs = [":" + unpacked],
         **(proc_macro_visibility(library["proc_macro"], {}) | RUST_LOCAL),
     )
@@ -156,6 +159,7 @@ def _crate(key, crate, fixup):
         mapped_srcs = overlay,
         named_deps = build_script.get("named_deps", {}),
         platform = _platforms(crate, fixup, script = True),
+        rustc_flags = SYMBOL_FLAGS,
         srcs = [":" + unpacked],
         visibility = [],
         **RUST_LOCAL,

@@ -25,15 +25,10 @@ fn the_transform_fields_edit_the_selected_entity() {
     let mut editor = vector_editor(&rectangles);
 
     editor.click(format!("infinite-canvas.entity.{}", rectangles[0].id));
-    editor.run();
     editor.click(format!("infinite-canvas.entity.{}", rectangles[2].id));
-    editor.run();
     editor.click("infinite-canvas.transform.x");
-    editor.run();
     editor.type_text("50");
-    editor.run();
     editor.key(Key::Enter, Modifiers::NONE);
-    editor.run();
 
     let held = entities(&editor);
     assert_eq!(held[0].transform.center.x, -300.0);

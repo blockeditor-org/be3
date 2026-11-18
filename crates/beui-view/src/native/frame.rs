@@ -23,10 +23,12 @@ fn bind<T: Clone + 'static>(
 ) {
     match prop {
         Prop::Static(value) => with_document(|document| set(document, frame, value)),
-        Prop::Dynamic(read) => create_binding(move || {
-            let value = read.get();
-            with_document(|document| set(document, frame, value));
-        }),
+        Prop::Dynamic(read) => {
+            create_binding(move || {
+                let value = read.get();
+                with_document(|document| set(document, frame, value));
+            });
+        }
     }
 }
 
@@ -44,13 +46,13 @@ pub(crate) fn frame(
     opacity: Prop<f32>,
     fade_edges: Prop<Sides>,
     raised: Prop<bool>,
+    collapsed: Prop<bool>,
+    accessibility_hidden: Prop<bool>,
     children: Option<Child>,
 ) -> NodeId {
     let frame = with_document(|document| {
         let frame = document.create_frame();
-        if let Some(child) = children {
-            document.set_frame_child(frame, child);
-        }
+        document.set_frame_child(frame, children);
         frame
     });
     bind(frame, width, Document::set_frame_width);
@@ -62,6 +64,12 @@ pub(crate) fn frame(
     bind(frame, rotate, Document::set_frame_rotate);
     bind(frame, opacity, Document::set_frame_opacity);
     bind(frame, fade_edges, Document::set_frame_fade_edges);
+    bind(frame, collapsed, Document::set_frame_collapsed);
+    bind(
+        frame,
+        accessibility_hidden,
+        Document::set_frame_accessibility_hidden,
+    );
     if !matches!(raised, Prop::Static(false)) {
         create_binding(move || {
             let raised = raised.get();

@@ -19,7 +19,7 @@ use uuid::Uuid;
 
 use crate::{
     BlockQuery, EditorHost, GraphCommand,
-    host::{ArtifactState, BlockHistory, OpenRequest, StoredHead},
+    host::{ArtifactState, BlockHistory, BlockMember, OpenRequest, StoredHead},
 };
 
 struct Held {
@@ -46,6 +46,7 @@ pub(crate) enum Subject {
     Head(Uuid),
     Artifact(Uuid),
     Version,
+    Members,
 }
 
 impl Subject {
@@ -56,6 +57,7 @@ impl Subject {
             Self::Head(block) => BlockSubject::Head(block.into_bytes()),
             Self::Artifact(block) => BlockSubject::Artifact(block.into_bytes()),
             Self::Version => BlockSubject::Version,
+            Self::Members => BlockSubject::Members,
         }
     }
 
@@ -101,6 +103,9 @@ impl Subject {
                 }),
             ),
             (Self::Version, BlockValue::Version(status)) => host.set_version_status(status),
+            (Self::Members, BlockValue::Members(members)) => host.set_members(
+                members.map(|members| members.into_iter().map(BlockMember::decode).collect()),
+            ),
             (subject, value) => {
                 if cfg!(debug_assertions) {
                     panic!("the host answered a watch of {subject:?} with {value:?}");
@@ -161,7 +166,7 @@ impl Link {
 
     pub(crate) fn exchange(&mut self, instance: EditorInstanceId, host: &EditorHost) {
         self.instance = Some(instance);
-        self.change_graph(host);
+        send_graph(self.instance, host);
         self.watch(host);
         self.send_frames(host);
         for seeded in host.take_seeded_content() {
@@ -173,43 +178,6 @@ impl Link {
         }
         for open in host.take_opens() {
             self.under(|| blocks::open_block(request_of(open)).detach());
-        }
-    }
-
-    fn change_graph(&self, host: &EditorHost) {
-        for command in host.take_graph_commands() {
-            self.under(|| match command {
-                GraphCommand::Create {
-                    id,
-                    block_type,
-                    parent,
-                    defined,
-                    content,
-                    owner_only,
-                } => blocks::create_block(
-                    id.into_bytes(),
-                    block_type.into_bytes(),
-                    parent.encode(),
-                    crate::graph::wire_entries(&defined),
-                    content,
-                    owner_only,
-                )
-                .detach(),
-                GraphCommand::SetParent { id, parent } => {
-                    blocks::act(id.into_bytes(), BlockCommand::SetParent(parent.encode())).detach();
-                }
-                GraphCommand::Define { id, key, value } => blocks::act(
-                    id.into_bytes(),
-                    BlockCommand::Define {
-                        key: key.into_bytes(),
-                        value,
-                    },
-                )
-                .detach(),
-                GraphCommand::Act { id, command } => {
-                    blocks::act(id.into_bytes(), command).detach();
-                }
-            });
         }
     }
 
@@ -377,6 +345,45 @@ impl Link {
 
     fn send_frames(&mut self, host: &EditorHost) {
         host.take_outgoing(|block, message| self.send(host, block, message));
+    }
+}
+
+/// Sends the graph changes `host` holds, before any later call: a host call sends them first
+/// (`EditorHost::ask`), so the host hears of a block made before a call about it.
+pub(crate) fn send_graph(instance: Option<EditorInstanceId>, host: &EditorHost) {
+    for command in host.take_graph_commands() {
+        under(instance, || match command {
+            GraphCommand::Create {
+                id,
+                block_type,
+                parent,
+                defined,
+                content,
+                owner_only,
+            } => blocks::create_block(
+                id.into_bytes(),
+                block_type.into_bytes(),
+                parent.encode(),
+                crate::graph::wire_entries(&defined),
+                content,
+                owner_only,
+            )
+            .detach(),
+            GraphCommand::SetParent { id, parent } => {
+                blocks::act(id.into_bytes(), BlockCommand::SetParent(parent.encode())).detach();
+            }
+            GraphCommand::Define { id, key, value } => blocks::act(
+                id.into_bytes(),
+                BlockCommand::Define {
+                    key: key.into_bytes(),
+                    value,
+                },
+            )
+            .detach(),
+            GraphCommand::Act { id, command } => {
+                blocks::act(id.into_bytes(), command).detach();
+            }
+        });
     }
 }
 

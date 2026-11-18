@@ -80,7 +80,6 @@ pub fn TerminalView(
     let colors = create_memo(move || colors.get());
     let input = create_memo(move || input.get());
     let wheel = create_memo(move || wheel.get());
-    let scrolling = create_memo(move || !wheel.get());
     let history = create_memo(move || history.get());
     let rows = create_memo(move || rows.get());
     let cursor = create_memo(move || cursor.get());
@@ -120,8 +119,7 @@ pub fn TerminalView(
     });
     let spill = Rc::new(Cell::new(0.0_f32));
     let padding = PADDING.px();
-    let size_held = create_signal(Vec2::ZERO);
-    let size = size_held.read_only();
+    let size = create_signal(Vec2::ZERO);
     let measured = create_memo(move || cell().unwrap_or(Vec2::new(7.0, 15.0)));
     create_effect(move || {
         let size = size.get();
@@ -185,30 +183,30 @@ pub fn TerminalView(
                                 }
                             }}
                         >
-                            <List spacing=Space::None>
-                                <Show condition={scrolling}>
+                            <Show
+                                value={wheel}
+                                fallback={move || view! {
                                     <VirtualList
-                                        keys
+                                        value={keys}
                                         item_size=line_height
                                         text={move |key: ObjectId| table.text(key)}
                                     >|key: ReadSignal<ObjectId>|
                                         <TerminalRow key table />
                                     </VirtualList>
-                                </Show>
-                                <Show condition={wheel}>
-                                    <Interactive
-                                        on_wheel={beui::unstyled::gestures::scroll_wheel(None, wheeled.clone())}
-                                    >
-                                        <VirtualList
-                                            keys={screen_keys}
-                                            item_size=line_height
-                                            text={move |key: ObjectId| table.text(key)}
-                                        >|key: ReadSignal<ObjectId>|
-                                            <TerminalRow key table />
-                                        </VirtualList>
-                                    </Interactive>
-                                </Show>
-                            </List>
+                                }}
+                            >
+                                <Interactive
+                                    on_wheel={beui::unstyled::gestures::scroll_wheel(None, wheeled.clone())}
+                                >
+                                    <VirtualList
+                                        value={screen_keys}
+                                        item_size=line_height
+                                        text={move |key: ObjectId| table.text(key)}
+                                    >|key: ReadSignal<ObjectId>|
+                                        <TerminalRow key table />
+                                    </VirtualList>
+                                </Interactive>
+                            </Show>
                         </Interactive>
                     </SelectableText>
                 </Frame>
@@ -218,7 +216,7 @@ pub fn TerminalView(
     let size_measured = measure(built);
     create_effect(move || {
         if let Some(measured) = size_measured.get() {
-            size_held.set(measured.size);
+            size.set(measured.size);
         }
     });
     built
@@ -235,9 +233,6 @@ fn TerminalRow(key: ReadSignal<ObjectId>, table: Table) -> NodeId {
                 .as_ref()
                 .map(|shown| shown.pieces(colors))
                 .unwrap_or_default()
-                .into_iter()
-                .enumerate()
-                .collect::<Vec<_>>()
         })
     });
     let overflow = create_memo(move || {
@@ -254,10 +249,9 @@ fn TerminalRow(key: ReadSignal<ObjectId>, table: Table) -> NodeId {
         at.map(|at| vec![TextCaret::new(at, foreground.get(), caret_width)])
             .unwrap_or_default()
     });
-    let text_color = create_memo(move || TextColor::Custom(foreground.get().into()));
     view! {
-        <Text style=TEXT color={text_color} overflow carets>
-            <ForEach keys={pieces}>|(_, piece): (usize, Piece)|
+        <Text style=TEXT color={move || TextColor::Custom(foreground.get().into())} overflow carets>
+            <ForEach value={pieces}>|piece: Piece|
                 <TerminalPiece piece />
             </ForEach>
         </Text>
@@ -266,7 +260,7 @@ fn TerminalRow(key: ReadSignal<ObjectId>, table: Table) -> NodeId {
 
 #[component]
 fn TerminalPiece(piece: Piece) -> TextChild {
-    match piece {
+    let child: TextChild = match piece {
         Piece::Break => view! {
             <Break />
         }
@@ -311,5 +305,6 @@ fn TerminalPiece(piece: Piece) -> TextChild {
             };
             span.into_child()
         }
-    }
+    };
+    child
 }

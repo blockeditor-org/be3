@@ -1,7 +1,7 @@
 use std::ops::Range;
 use tree_sitter_md::{MarkdownCursor, MarkdownTree};
 
-use super::{SynHlColorScope, SynHlFontFamily, SynHlStyle, SynHlTextSize};
+use super::{Language, SynHlColorScope, SynHlFontFamily, SynHlStyle, SynHlTextSize};
 use crate::TextChange;
 use crate::schema::{LineLook, ListMarker, TableLine, TableRow, join_neighbours};
 
@@ -127,11 +127,13 @@ fn line_look(
         parent = held.parent();
     }
     let mut at = lead;
+    let mut quote_marks = 0;
     for _ in 0..quote {
         let next = skip_spaces(source, at, end);
         if next >= end || source[next] != b'>' {
             break;
         }
+        quote_marks += 1;
         at = next + 1;
         if at < end && source[at] == b' ' {
             at += 1;
@@ -150,6 +152,15 @@ fn line_look(
         true => skip_spaces(source, content, end),
         false => content,
     };
+    // A code line's spaces past its fence's column are its code's own indentation.
+    let content = match block.filter(|_| list.is_none()) {
+        Some(block) => {
+            let fence = blocks[block].start;
+            let column = fence - memchr::memrchr(b'\n', &source[..fence]).map_or(0, |at| at + 1);
+            content.min((start + column).max(at))
+        }
+        None => content,
+    };
     let marker = match content > lead || (continues && content > start) {
         true => start..content,
         false => start..start,
@@ -161,18 +172,19 @@ fn line_look(
                 start..skip_spaces(source, mark.end_byte(), end)
             })
         }
-        _ if top && rule => start..end,
         _ => start..start,
     };
     let look = LineLook {
         marker,
         list: list.map(|(list, _)| list),
-        depth: match list.is_some() || continues {
-            true => lists.saturating_sub(1),
-            false => 0,
+        depth: match (list.is_some() || continues, code_block) {
+            (true, _) => lists.saturating_sub(1),
+            (false, true) => lists,
+            (false, false) => 0,
         },
         continues,
         quote,
+        quote_marks,
         code_block,
         heading: heading.map_or(0, heading_level),
         rule,
@@ -595,22 +607,96 @@ pub(super) fn window_range(
     start..end.max(around.end.min(bytes.len()))
 }
 
+/// `bytes` with its last line ended. CommonMark ends a line at the end of the input as at a
+/// newline, but tree-sitter-md reads a last line without one as something else: `---`, `***`,
+/// a setext underline, a closing fence or a table's delimiter row as a paragraph, and `# a` or
+/// `- [ ] ` as an error. So the parser always reads whole lines.
+fn ended(bytes: &[u8]) -> std::borrow::Cow<'_, [u8]> {
+    match bytes.last() {
+        None | Some(b'\n') => std::borrow::Cow::Borrowed(bytes),
+        Some(_) => std::borrow::Cow::Owned([bytes, b"\n"].concat()),
+    }
+}
+
 fn parse(bytes: &[u8]) -> Option<MarkdownTree> {
     tree_sitter_md::MarkdownParser::default().parse(bytes, None)
 }
 
 pub(super) fn parse_window(source: &[u8]) -> MarkdownWindow {
-    let Some(tree) = parse(source) else {
+    let text = ended(source);
+    let Some(tree) = parse(&text) else {
         return MarkdownWindow {
             styles: vec![SynHlStyle::plain(SynHlColorScope::MarkdownPlainText); source.len()],
             len: source.len(),
             looks: Vec::new(),
         };
     };
+    let mut styles = styles_in(&tree, 0..text.len());
+    highlight_code(&tree, &text, &mut styles);
+    styles.truncate(source.len());
+    let mut looks = looks(&tree, &text);
+    // The line the added newline opens is not in `source`.
+    looks.retain(|(start, _)| *start <= source.len());
     MarkdownWindow {
         len: source.len(),
-        styles: styles_in(&tree, 0..source.len()),
-        looks: looks(&tree, source),
+        styles,
+        looks,
+    }
+}
+
+/// Colors the contents of each fenced code block whose info string names a language with a
+/// highlighter (`Language::for_code_block`; the first word, so `rust,ignore` is Rust) as that
+/// language, leaving its font as code's. One cursor walks the block tree.
+fn highlight_code(tree: &MarkdownTree, source: &[u8], styles: &mut [SynHlStyle]) {
+    let mut cursor = tree.block_tree().walk();
+    loop {
+        let node = cursor.node();
+        let descend = node.kind() != "fenced_code_block";
+        if !descend {
+            let mut language = None;
+            let mut content = None;
+            if cursor.goto_first_child() {
+                loop {
+                    let child = cursor.node();
+                    match child.kind() {
+                        "info_string" => {
+                            language = std::str::from_utf8(&source[child.byte_range()])
+                                .ok()
+                                .and_then(|info| {
+                                    info.split(|c: char| c.is_whitespace() || c == ',')
+                                        .find(|word| !word.is_empty())
+                                })
+                                .and_then(Language::for_code_block);
+                        }
+                        "code_fence_content" => content = Some(child.byte_range()),
+                        _ => {}
+                    }
+                    if !cursor.goto_next_sibling() {
+                        break;
+                    }
+                }
+                cursor.goto_parent();
+            }
+            if let (Some(language), Some(range)) = (language, content) {
+                let colors = super::decorations(language, &source[range.clone()]);
+                for (style, color) in styles[range].iter_mut().zip(colors) {
+                    if style.color == SynHlColorScope::MarkdownCode {
+                        style.color = color.color;
+                    }
+                }
+            }
+        }
+        if descend && cursor.goto_first_child() {
+            continue;
+        }
+        loop {
+            if cursor.goto_next_sibling() {
+                break;
+            }
+            if !cursor.goto_parent() {
+                return;
+            }
+        }
     }
 }
 
@@ -621,7 +707,7 @@ pub(super) fn chain(
     end: usize,
 ) -> Vec<(usize, usize)> {
     let range = window_range(bytes, fences, start..end);
-    let Some(tree) = parse(&bytes[range.clone()]) else {
+    let Some(tree) = parse(&ended(&bytes[range.clone()])) else {
         return Vec::new();
     };
     let document_len = range.len();
@@ -635,11 +721,16 @@ pub(super) fn chain(
     let mut cursor = tree.walk();
     collect_chain(&mut cursor, local_start, local_end, &mut result);
     result.reverse();
-    result.dedup();
     let mut chain: Vec<(usize, usize)> = result
         .into_iter()
-        .map(|(from, to)| (from + range.start, to + range.start))
+        .map(|(from, to)| {
+            (
+                from.min(document_len) + range.start,
+                to.min(document_len) + range.start,
+            )
+        })
         .collect();
+    chain.dedup();
     if chain.last() != Some(&(0, bytes.len())) {
         chain.push((0, bytes.len()));
     }

@@ -106,8 +106,8 @@ pub fn Treemap<K>(
     gap: Prop<f32>,
     #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = String::from("treemap.tile"))] tile_test_id: String,
-    tile: RenderFn<TreemapTileHandle<K>>,
-    #[prop(children)] content: Render<TreemapHandle<K>>,
+    tile: RenderFn<TreemapTileHandle<K>, NodeId>,
+    #[prop(children)] content: Render<TreemapHandle<K>, NodeId>,
 ) -> NodeId
 where
     K: Clone + Eq + Hash + std::fmt::Display + 'static,
@@ -204,7 +204,7 @@ where
     }));
     let canvas = view! {
         <Canvas arrangement>
-            <ForEach keys>|key: TreemapTileKey<K>| {
+            <ForEach value={keys}>|key: TreemapTileKey<K>| {
                 let tile_id = match &key {
                     TreemapTileKey::Item(key) => format!("{tile_test_id}.{key}"),
                     TreemapTileKey::Rest => format!("{tile_test_id}.rest"),
@@ -243,7 +243,7 @@ fn TreemapTileView<K>(
     describe: Func<u64, String>,
     tab_stops: Selector<Option<TreemapTileKey<K>>>,
     focused: Selector<Option<TreemapTileKey<K>>>,
-    tile: RenderFn<TreemapTileHandle<K>>,
+    tile: RenderFn<TreemapTileHandle<K>, NodeId>,
 ) -> NodeId
 where
     K: Clone + Eq + Hash + 'static,

@@ -30,8 +30,9 @@ pub fn encode<T: Serialize + ?Sized>(value: &T) -> Vec<u8> {
     }
 }
 
+/// The one value `bytes` holds: bytes after it make them not that value.
 pub fn decode<T: DeserializeOwned>(bytes: &[u8]) -> Option<T> {
-    ciborium::from_reader(bytes).ok()
+    be_lib_cbor::decode(bytes).ok()
 }
 
 pub(crate) fn is_critical(bytes: &[u8]) -> bool {
@@ -145,6 +146,7 @@ fn field(tree: &Tree, value: &Value, shape: &Shape) -> Stored {
                 .map(|(key, stamped)| {
                     let mut entry = vec![
                         raw(key),
+                        Stored::from(stamped.stamp.rank),
                         Stored::from(stamped.stamp.time),
                         uuid(stamped.stamp.origin),
                     ];
@@ -336,13 +338,14 @@ impl Loading {
                     .filter_map(|entry| {
                         let mut entry = entry.into_array().ok()?.into_iter();
                         let key = encode(&entry.next()?);
+                        let rank = u64::try_from(int(&entry.next()?)?).ok()?;
                         let time = u64::try_from(int(&entry.next()?)?).ok()?;
                         let origin = as_uuid(&entry.next()?)?;
                         let value = entry.next().map(|value| encode(&value));
                         Some((
                             key,
                             Stamped {
-                                stamp: Stamp { time, origin },
+                                stamp: Stamp { rank, time, origin },
                                 value,
                             },
                         ))

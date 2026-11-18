@@ -43,31 +43,51 @@ to a band's edges on the axis the placement opens along (`layer::banded`), so
 a button's panel in a bar opens just past the whole bar while lining up with
 the button.
 
-`BelowStart` opens below its anchor, or above when only that side has room,
-and when neither side has room takes the roomier one and shrinks (scrolling
-what it holds), so it never covers its anchor: completions, tooltips and
-popovers keep their input or button in view. `Placement::Menu`, which menus
-(`MenuPopup`, context menus) and selects use, instead covers its anchor when
-neither side has room, as low as the window allows, and shrinks only when it
-is taller than the window (`layer::resolve_rect`, `layer::room_beside`). A
-menu that must keep clear of what opened it passes `placement=BelowStart` to
-its `MenuButton` or `ContextMenu`: a dock bar's grip and the desktop bar's own
-menus (tray, layouts, window chips), which must not hide the bar. The
-HTML core places a `Menu` from its measured size, since CSS anchor positioning
-cannot cover the anchor; so unlike a `BelowStart`, which CSS keeps on its
-anchor, an open menu there moves only when beui lays out again, not as a DOM
-scroller under its anchor scrolls.
+`Placement::Beside { side, align, gap, margin }` is the anchored placement:
+`side` is `AnchorSide::{Above, Below, Left, Right}`, `align` lines it up with
+the anchor's start edge, centre or end edge (`AnchorAlign`), `gap` keeps it off
+the anchor and `margin` off the window's edges. The constants
+`Placement::BELOW_START`, `ABOVE_CENTER`, `LEFT_END` and the rest name all
+twelve with no gap; `.gap(n)` and `.margin(n)` add them. It opens on its side,
+or on the other when only that one has room, and when neither has room takes
+the roomier one and shrinks (scrolling what it holds), so it never covers its
+anchor: completions, tooltips and popovers keep their input or button in view.
+Only above and below shrink: to the left or right (a submenu) rows don't scroll
+sideways, so it keeps its width and shifts into the window over its anchor.
+Along its side it shifts to stay in the window. `layer::room` is how much room
+it will get there (like Floating UI's `size`); the native core measures its
+content in that room, and content can size itself to it before it opens.
+`Placement::Menu`, which menus (`MenuPopup`, context menus) use,
+instead covers its anchor when neither side has room, as low as the window
+allows, and shrinks only when it is taller than the window
+(`layer::resolve_rect`). A menu that must keep clear of what opened it passes
+`placement=Placement::BELOW_START` to its `MenuButton` or `ContextMenu`: a dock
+bar's grip and the desktop bar's own menus (tray, layouts, window chips), which
+must not hide the bar. The HTML core places a `Menu` and a `Beside` from its
+measured size through `layer::resolve_rect`, as the native core does: CSS
+anchor positioning cannot cover an anchor, and its fallbacks re-align a box
+instead of shifting it and ignore the margin. So an open one there moves only
+when beui lays out again, not as a DOM scroller under its anchor scrolls.
+beui-demo's Placements sample and its `placements.drive` twin check the two
+cores agree near the window's corner. Something placed at a point rather than
+beside anything (the dock's drop marker) is `At`.
 
 `bounds` (window coordinates) narrows the room an overlay is placed, flipped,
 shifted and shrunk in; a menu passes it to its submenus, and a panel that must
 not cover a dock's bands takes the dock's area. The HTML core ignores it, and
-fits menus with CSS anchor fallbacks and a `max-height` from
-`layer::room_beside`.
+caps menus and `Beside` overlays with a `max-width` and `max-height` from
+`layer::room`.
 
-`Placement::Popover` centres content `gap` below the anchor and can point a
-beak at it. The beak lies outside the content's frame and takes no room, so
-give it room with padding: an app's host draws whatever lies outside an
-overlay's content under the editors it holds.
+An overlay `Beside` its anchor above or below it with a `pointer` frame stands
+that frame `gap` off the anchor and can point a beak at it (a `Popover`'s
+`beak`, an editor's child popovers `BELOW_CENTER` with a gap and margin). The beak lies outside the content's
+frame and takes no room, so give it room with padding: an app's host draws
+whatever lies outside an overlay's content under the editors it holds.
+
+Text-area completions and inline widget popups stay non-modal on touch: they
+open `Beside` their field as on a mouse, not as a sheet. Sheets are modal, and
+these must leave the field they belong to live, so this is decided, not a gap
+to fill.
 
 ### Overlays stay in their window
 
@@ -86,11 +106,15 @@ narrow app region. The exception is a window with a layer space, below.
 
 An `Overlay`'s content is built on open and removed on close, like `Show`: a
 closed menu or tooltip costs only its overlay node and nothing in it is
-focusable, hit, or described. `keep_alive=true` builds it on first open and
-keeps it, with its state, while closed (dialogs, popovers, dock windows).
-Content can be built more than once, so it is an `Fn`; a component holding a
-`Render` it may call only once passes `render.once()` to a `keep_alive`
-overlay. State the rest of a component reads (which rows a select's search
+focusable, hit, or described. To keep it, with its state, while closed
+(dialogs, popovers, dock windows), put a `Kept` in the content and a
+`KeepAlive` around the overlay, as a popup's `keep_alive` does in
+`unstyled::Anchored`: what the `Kept` builds on first open is kept,
+paused, while closed. A kept subtree reads the context around its `KeepAlive`,
+not the overlay's, so content that needs the overlay's presence reads it
+outside the `Kept` (`use_overlay_presence()`) and provides it again inside
+(`presence.provide()`). Content can be built more than once, so it is an
+`Fn`. State the rest of a component reads (which rows a select's search
 hides) belongs outside the content, derived from data, since the content's
 nodes may not exist.
 
@@ -98,6 +122,13 @@ An animated close belongs to the overlay, not its owner: the content calls
 `use_overlay_presence()` and hands `linger_while` a memo that stays true until
 its exit finishes. The owner just writes `open` false. `ModalSheet` and `Modal`
 leave this way.
+
+Whatever an overlay is opened from can hear whether any is open beneath it:
+provide an `OverlaysWithin` and read `any()`. Every `Overlay` built under it
+counts while it is open and not `Inert`, and stops counting when it closes or
+goes away with its opener. One made inside another's reach counts as one
+open overlay in it while any of its own is open, so they nest. A dock bar's hidden band stays out this way while a
+menu or panel from the bar is up (guides/beui/docking.md, hidden bands).
 
 ## Policies
 
@@ -221,6 +252,12 @@ dismissable, focus can't leave it (not even to nothing), `Document::locked` is
 true, and listeners above the tree (`on_key` at `KeyAt::Window`, window and host actions)
 hear only media keys (`Key::is_media`).
 
+A root guest's lock screen is a layer of its own over every other, toasts
+hidden, which takes the focus once drawn while the root intercepts none of its
+own keys (be-sdk-root-testing's only its F5 test fixture); the
+lock and the password check are its host's (`be3:root`'s `host.lock` and
+`host.unlock`; guides/apps/runtime.md, The root guest).
+
 ## Modals and dialogs
 
 `unstyled::Modal` is every modal's outer part: an overlay with a scrim that
@@ -258,11 +295,30 @@ finger opened). Which anchor to pass:
 Code that places its own body uses the parts (`DialogCard`, `DialogBody`, a
 `Modal`), as be-host's keep-changes prompt and an app opened as a dialog do.
 
+A root guest's dialog is layers of its own rather than a `Modal` in one
+document (plans/host_as_platform_adapter.md, step 4g4; be-sdk-root-testing's
+is the example): a scrim layer over the rest, which takes no press itself but
+`captures` every press that misses the dialog for its placer, the root's own
+layer, which closes the dialog; and above it the dialog's layer, a document
+showing a `DialogBody` in a card that fills its surface. Once drawn the dialog
+takes the focus (`Embedding::focus`), and closing gives it back to the layer
+that had it, or to none if that layer went meanwhile. With the focus in it,
+Escape is its document's, bubbling from the focus so a popup inside takes it
+first; while it is open and the focus is elsewhere, the root intercepts Escape
+(`Embedding::intercept`) and closes it. Its
+field's input method area is the one the root hands its host
+(`BeuiSurface::ime`).
+
 ## Toasts and `Floating`
 
 `unstyled::Toasts` is a `Pass` overlay at an `Inside*` edge with a live region;
 `styled::Toasts` takes any anchor, so the desktop stacks toasts in a display's
-corner above its bar, at `LayerLevel::Top`. `unstyled::Floating` pins a child
+corner above its bar, at `LayerLevel::Top`. A root guest shows the host's
+notices as toasts on a surface of its own over everything, anchored to a
+rectangle (`OverlayAnchor::Rect`), whose layer is hit only where the
+document's overlays are (`Document::overlay_rects`, through be-sdk-beui-root's
+`BeuiSurface::overlay_area`; guides/apps/runtime.md, Apps in a root).
+`unstyled::Floating` pins a child
 to the top or bottom edge of another node, taking no space (`styled::Tree`'s
 reveal button).
 

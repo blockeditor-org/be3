@@ -39,5 +39,6 @@ fn a_page_tab_dragged_along_its_bar_parts_the_tabs_it_passes() {
         (landed.left() - text.left()).abs() < 1.0,
         "the dragged page tab lands last, in the place of the last tab it passed"
     );
+    test.record();
     test.snapshot("a_page_tab_dragged_along_its_bar_parts_the_tabs_it_passes");
 }

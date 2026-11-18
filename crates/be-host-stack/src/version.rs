@@ -4,20 +4,21 @@ use std::{
     sync::{Arc, PoisonError},
 };
 
-use be_wasm_threads::Mutex;
+use std::sync::Mutex;
 
-use be_block::{
-    Checkout, CheckoutConflict, ConflictKind, MAIN_BRANCH, Repository,
-    version_control::{Action, Kept, Operation, View, masked, scope_mask},
-};
+use be_block_repository::{Action, Kept, Operation, View, masked, scope_mask};
+
 use be_block_client::{ClientError, Peer, Saved, Write};
-use be_block_commit::{ChangeId, Commit, CommitId, CommitKind, now_milliseconds};
+use be_block_commit::{
+    ChangeId, Commit, CommitId, CommitKind, MergeBase, MergeBaseWalk, now_milliseconds,
+};
 use be_block_content::{
     BlockContent, BlockMetadata, Root,
     be_block_model::{Document, Model},
 };
 use be_block_graph::BlockParent;
 use be_block_protocol::ErrorCode;
+use be_block_repository::{Checkout, CheckoutConflict, ConflictKind, MAIN_BRANCH, Repository};
 use be_block_store::{Hash, Manifest};
 use be_block_vcs::{Entry, Side, Tree};
 use be_sdk_api::{
@@ -33,8 +34,19 @@ use super::worker::{Shared, Store, node_of};
 pub(super) use reach::{LoopCall, LoopCalls, Reach};
 
 const LOG_LENGTH: usize = 100;
+/// How many levels of a block's history on each side a write of a block that moved walks to
+/// find the two heads' common ancestor (`merge_over`), before it takes the head it read as the
+/// base.
+pub(crate) const MERGE_BASE_DEPTH: usize = 64;
 
-#[derive(Default)]
+/// What each walk to a merge base found and how many commits it reached (`merge_over`), for a
+/// test to tell that it stopped. A run of the whole test binary runs every test in one process,
+/// so each test's harness starts it empty (`forget_counts`).
+#[cfg(test)]
+pub(crate) static WALKED: std::sync::Mutex<Vec<(MergeBase, usize)>> =
+    std::sync::Mutex::new(Vec::new());
+
+#[derive(Clone, Default, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct VersionState {
     pub revision: u64,
     pub status: VersionStatus,
@@ -42,8 +54,7 @@ pub struct VersionState {
 
 #[derive(Default)]
 pub(super) struct Versions {
-    trees: HashMap<CommitId, Tree>,
-    commits: HashMap<CommitId, Commit>,
+    objects: Objects,
     /// What the graph lists for statuses (`Owner::Version`): the subtrees of the followed
     /// checkouts' roots, and each block `followed` names, whose head moves the connection's
     /// `changes` then tells.
@@ -53,6 +64,135 @@ pub(super) struct Versions {
     /// status, so blocks that left the subtree are let go (`reconcile`).
     followed: HashMap<Uuid, Followed>,
     statuses: Statuses,
+}
+
+/// The trees and commits version control read or wrote, by commit, which never change: one
+/// cache for the loop's `Versions`, which computes the statuses, and each version command's in
+/// the lane (`Served::version`), so neither reads again what the other holds. It keeps the
+/// `TREES_KEPT` trees and `COMMITS_KEPT` commits used last.
+#[derive(Clone, Default)]
+pub(crate) struct Objects(Arc<Mutex<Held>>);
+
+/// How many trees `Objects` keeps: a few for each followed checkout's status (its working
+/// change, its branch's head and its upstream's) and what a command in the lane reads.
+pub(crate) const TREES_KEPT: usize = 64;
+/// How many commits `Objects` keeps; a commit is far smaller than a tree.
+pub(crate) const COMMITS_KEPT: usize = 1024;
+
+#[derive(Default)]
+struct Held {
+    trees: Recent<Tree>,
+    commits: Recent<Commit>,
+}
+
+/// Values by commit, the least recently used let go once there are more than a limit. Eviction
+/// scans every value, which at these limits costs less than keeping them in order.
+struct Recent<V> {
+    values: HashMap<CommitId, (V, u64)>,
+    used: u64,
+}
+
+impl<V> Default for Recent<V> {
+    fn default() -> Self {
+        Self {
+            values: HashMap::new(),
+            used: 0,
+        }
+    }
+}
+
+impl<V: Clone> Recent<V> {
+    fn get(&mut self, id: CommitId) -> Option<V> {
+        self.used += 1;
+        let (value, used) = self.values.get_mut(&id)?;
+        *used = self.used;
+        Some(value.clone())
+    }
+
+    fn put(&mut self, id: CommitId, value: V, limit: usize) {
+        self.used += 1;
+        self.values.insert(id, (value, self.used));
+        if self.values.len() > limit
+            && let Some(oldest) = self
+                .values
+                .iter()
+                .min_by_key(|(_, (_, used))| *used)
+                .map(|(id, _)| *id)
+        {
+            self.values.remove(&oldest);
+        }
+    }
+}
+
+/// How many times each tree and commit was read from the peer, whichever `Objects` keeps it,
+/// for a test to tell that nothing was read twice. Like `WALKED`, each test's harness starts it
+/// empty.
+#[cfg(test)]
+static READS: std::sync::Mutex<Option<HashMap<(&'static str, CommitId), usize>>> =
+    std::sync::Mutex::new(None);
+
+impl Objects {
+    fn held(&self) -> std::sync::MutexGuard<'_, Held> {
+        self.0.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    pub(crate) fn tree(&self, commit: CommitId) -> Option<Tree> {
+        self.held().trees.get(commit)
+    }
+
+    pub(crate) fn commit(&self, commit: CommitId) -> Option<Commit> {
+        self.held().commits.get(commit)
+    }
+
+    pub(crate) fn put_tree(&self, commit: CommitId, tree: Tree) {
+        self.held().trees.put(commit, tree, TREES_KEPT);
+    }
+
+    pub(crate) fn put_commit(&self, id: CommitId, commit: Commit) {
+        self.held().commits.put(id, commit, COMMITS_KEPT);
+    }
+
+    /// How many trees and commits it keeps.
+    #[cfg(test)]
+    pub(crate) fn kept(&self) -> (usize, usize) {
+        let held = self.held();
+        (held.trees.values.len(), held.commits.values.len())
+    }
+}
+
+#[cfg(test)]
+fn count_read(what: &'static str, commit: CommitId) {
+    let mut reads = READS.lock().unwrap_or_else(PoisonError::into_inner);
+    *reads
+        .get_or_insert_default()
+        .entry((what, commit))
+        .or_default() += 1;
+}
+
+/// Forgets what earlier tests counted (`READS`, `WALKED`), as a test's harness starts.
+#[cfg(test)]
+pub(crate) fn forget_counts() {
+    *READS.lock().unwrap_or_else(PoisonError::into_inner) = None;
+    WALKED
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .clear();
+}
+
+/// How many trees and commits version control read from the peer, and which more than once.
+#[cfg(test)]
+pub(crate) fn reads() -> (usize, Vec<(&'static str, CommitId)>) {
+    let reads = READS.lock().unwrap_or_else(PoisonError::into_inner);
+    let reads = reads.as_ref();
+    (
+        reads.map_or(0, |reads| reads.values().sum()),
+        reads
+            .into_iter()
+            .flatten()
+            .filter(|(_, count)| **count > 1)
+            .map(|(read, _)| *read)
+            .collect(),
+    )
 }
 
 struct Followed {
@@ -360,6 +500,14 @@ fn pick<T: Clone + PartialEq>(base: &T, ours: &T, theirs: &T) -> T {
 }
 
 impl Versions {
+    /// A `Versions` that reads and keeps trees and commits in `objects`.
+    pub(super) fn sharing(objects: Objects) -> Self {
+        Self {
+            objects,
+            ..Self::default()
+        }
+    }
+
     pub(super) async fn run(
         &mut self,
         context: &mut Context<'_>,
@@ -416,10 +564,12 @@ impl Versions {
         let Some(commit) = commit else {
             return Ok(Tree::default());
         };
-        if let Some(tree) = self.trees.get(&commit) {
-            return Ok(tree.clone());
+        if let Some(tree) = self.objects.tree(commit) {
+            return Ok(tree);
         }
         let manifest = self.commit_of(peer, commit).await?.manifest;
+        #[cfg(test)]
+        count_read("tree", commit);
         let tree: Tree = be_block_store::decode_value(
             &peer
                 .read_manifest(&manifest)
@@ -427,7 +577,7 @@ impl Versions {
                 .map_err(Failure::client)?,
         )
         .map_err(Failure::stored)?;
-        self.trees.insert(commit, tree.clone());
+        self.objects.put_tree(commit, tree.clone());
         Ok(tree)
     }
 
@@ -449,11 +599,13 @@ impl Versions {
     }
 
     async fn commit_of(&mut self, peer: &Peer<Store>, commit: CommitId) -> Result<Commit, Failure> {
-        if let Some(found) = self.commits.get(&commit) {
-            return Ok(found.clone());
+        if let Some(found) = self.objects.commit(commit) {
+            return Ok(found);
         }
-        let loaded = peer.load_commit(commit).await.map_err(Failure::client)?;
-        self.commits.insert(commit, loaded.clone());
+        let loaded = peer.load_reached(commit).await.map_err(Failure::client)?;
+        #[cfg(test)]
+        count_read("commit", commit);
+        self.objects.put_commit(commit, loaded.clone());
         Ok(loaded)
     }
 
@@ -519,7 +671,16 @@ impl Versions {
         state: &Checkout,
     ) -> Result<(Tree, Working), Failure> {
         let saved = self.tree(context.peer, state.working).await?;
-        let scanned = with_graph(context.shared, |graph| scan(graph, checkout, state, &saved));
+        // Offline, a block's newest head is this device's, which the graph, holding the
+        // server's, does not know until the drain sends it.
+        let peer = context.peer;
+        let here = |real: Uuid, listed: Option<CommitId>| match peer.is_attached() {
+            true => listed,
+            false => peer.local_head(real).or(listed),
+        };
+        let scanned = with_graph(context.shared, |graph| {
+            scan(graph, checkout, state, &saved, here)
+        });
         let root = state.root.map(|root| {
             with_graph(context.shared, |graph| {
                 graph.to_local(scope(checkout), root)
@@ -621,7 +782,7 @@ impl Versions {
             .hold(repository, &held, be_block_protocol::Hold::Lasting)
             .await
             .map_err(failed)?;
-        self.trees.insert(commit, tree.clone());
+        self.objects.put_tree(commit, tree.clone());
         Ok(commit)
     }
 
@@ -638,7 +799,7 @@ impl Versions {
             .hold(repository, &[id.hash()], be_block_protocol::Hold::Lasting)
             .await
             .map_err(failed)?;
-        self.commits.insert(id, commit);
+        self.objects.put_commit(id, commit);
         Ok(id)
     }
 
@@ -655,8 +816,8 @@ impl Versions {
             .with_change(ChangeId::new())
             .with_kind(CommitKind::Snapshot(String::new()));
         let id = self.put(context, repository, commit).await?;
-        if let Some(tree) = self.trees.get(&parent).cloned() {
-            self.trees.insert(id, tree);
+        if let Some(tree) = self.objects.tree(parent) {
+            self.objects.put_tree(id, tree);
         }
         Ok(id)
     }
@@ -796,7 +957,8 @@ impl Versions {
         .with_change(current.change())
         .with_kind(CommitKind::Snapshot(description.to_owned()));
         let finished = self.put(context, repository, finished).await?;
-        self.trees.insert(finished, current.working.tree.clone());
+        self.objects
+            .put_tree(finished, current.working.tree.clone());
         let next = self.start_change(context, repository, finished).await?;
         let branch = state.branch.clone();
         self.operate(
@@ -1863,7 +2025,15 @@ fn with_graph<T>(shared: &Arc<Mutex<Shared>>, read: impl FnOnce(&Graph) -> T) ->
     read(&shared.lock().unwrap_or_else(PoisonError::into_inner).graph)
 }
 
-fn scan(graph: &Graph, checkout: Uuid, state: &Checkout, saved: &Tree) -> Vec<Scanned> {
+/// The blocks of the checkout's tree as they are now, each at the head `here` answers for its
+/// real id and the head the graph lists.
+fn scan(
+    graph: &Graph,
+    checkout: Uuid,
+    state: &Checkout,
+    saved: &Tree,
+    here: impl Fn(Uuid, Option<CommitId>) -> Option<CommitId>,
+) -> Vec<Scanned> {
     let Some(root) = state.root else {
         return Vec::new();
     };
@@ -1881,7 +2051,8 @@ fn scan(graph: &Graph, checkout: Uuid, state: &Checkout, saved: &Tree) -> Vec<Sc
                     .and_then(BlockParent::block)
                     .map(|parent| graph.to_local(scope, parent)),
             };
-            let clean = match node.head {
+            let head = here(real, node.head);
+            let clean = match head {
                 Some(head) => state.clean.get(&real) == Some(&head),
                 None => saved
                     .entries
@@ -1894,7 +2065,7 @@ fn scan(graph: &Graph, checkout: Uuid, state: &Checkout, saved: &Tree) -> Vec<Sc
                 parent,
                 content_type: node.content_type,
                 metadata: stripped(&node.metadata),
-                head: node.head,
+                head,
                 clean,
             })
         })
@@ -2034,14 +2205,32 @@ async fn refresh_heads(context: &mut Context<'_>) -> Result<(), String> {
     Ok(())
 }
 
+/// The head a command reads and writes over: the server's while attached, where this device's
+/// edits are sent before the command writes over them, or offline the newest this device holds,
+/// whose write waits in the outbox behind them.
+async fn head_here(peer: &Peer<Store>, block: Uuid) -> Result<Option<CommitId>, String> {
+    if peer.is_attached() {
+        return peer.remote_head(block).await.map_err(failed);
+    }
+    // This device's head: what it wrote, whether sent or waiting, which a cached summary,
+    // moved only by listings, can lag.
+    match peer
+        .local_head(block)
+        .or_else(|| peer.known_remote_head(block))
+    {
+        Some(head) => Ok(Some(head)),
+        None => peer.newest_head(block).await.map_err(failed),
+    }
+}
+
 async fn read<R: Root + Model + Default>(
     peer: &Peer<Store>,
     block: Uuid,
 ) -> Result<(R, Option<CommitId>), String> {
-    let head = peer.remote_head(block).await.map_err(failed)?;
+    let head = head_here(peer, block).await?;
     let content = match head {
         Some(head) => peer
-            .open_commit::<Document<R>>(head)
+            .open_commit::<Document<R>>(block, head)
             .await
             .map_err(failed)?
             .root(),
@@ -2103,10 +2292,10 @@ async fn relist(
     let change = be_sdk_type_api::Change::Child(super::api_child(change));
     let ctx = (context.peer, context.shared);
     for _ in 0..8 {
-        let head = context.peer.remote_head(parent).await.map_err(failed)?;
+        let head = head_here(context.peer, parent).await?;
         let current = match head {
             Some(head) => {
-                let commit = context.peer.load_commit(head).await.map_err(failed)?;
+                let commit = context.peer.load_head(parent, head).await.map_err(failed)?;
                 Some(
                     context
                         .peer
@@ -2117,9 +2306,13 @@ async fn relist(
             }
             None => None,
         };
+        // A child change can be a sequence edit (a block URL rewritten in text), whose ids are
+        // the client's: this process's own random client keeps them apart from every other
+        // device's, where a fixed one would collide.
+        let client = be_block_content::be_block_model::local_client();
         let bytes = context
             .replicas
-            .apply(ctx, content_type, current, 0, change.clone())
+            .apply(ctx, content_type, current, client, change.clone())
             .await?
             .ok_or("That place cannot hold another block.")?;
         let description = context
@@ -2200,14 +2393,24 @@ async fn create(
         }
         Err(error) => return Err(failed(error)),
     };
+    // Made offline, its creation waits in the outbox: read as of the newest revision this
+    // device knows, as offline answers are, and the listings it belongs in hold it until the
+    // drain sends it, as one the host made does.
+    let uncreated = context.peer.uncreated(block);
+    let summary = match uncreated {
+        true => context.peer.summary(block).await.map_err(failed)?,
+        false => summary,
+    };
     let node = node_of(context.peer, &summary);
     let existing = found.then(|| (summary.head, node.metadata.defined.clone()));
-    context
+    let mut held = context
         .shared
         .lock()
-        .unwrap_or_else(PoisonError::into_inner)
-        .graph
-        .put(node, summary.revision);
+        .unwrap_or_else(PoisonError::into_inner);
+    held.graph.put(node, summary.changed);
+    if uncreated {
+        held.graph.made(block);
+    }
     Ok(existing)
 }
 
@@ -2228,7 +2431,7 @@ async fn set_parent(
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
         .graph
-        .put(node, summary.revision);
+        .put(node, summary.changed);
     Ok(())
 }
 
@@ -2288,7 +2491,7 @@ async fn publish(
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .graph
-            .put(node, summary.revision);
+            .put(node, summary.changed);
         return Ok(summary.head);
     };
     #[cfg(test)]
@@ -2303,7 +2506,7 @@ async fn publish(
         let _ = reached.send(block);
         let _ = go.await;
     }
-    let mut expected = context.peer.remote_head(block).await.map_err(failed)?;
+    let mut expected = head_here(context.peer, block).await?;
     let mut made_from = read.as_ref().map_or(expected, |read| read.head);
     let mut read_content = read.as_ref().and_then(|read| read.content.clone());
     let (mut manifest, mut references, mut derived) = (
@@ -2345,7 +2548,7 @@ async fn publish(
                     waited += 1;
                     let ctx = (context.peer, context.shared);
                     context.replicas.content_sent(ctx, block).await;
-                    expected = context.peer.remote_head(block).await.map_err(failed)?;
+                    expected = head_here(context.peer, block).await?;
                     continue;
                 }
             }
@@ -2376,7 +2579,7 @@ async fn publish(
                     .lock()
                     .unwrap_or_else(PoisonError::into_inner)
                     .graph
-                    .put(node, summary.revision);
+                    .put(node, summary.changed);
                 return Ok(Some(head));
             }
             Saved::Rejected { head } => {
@@ -2414,8 +2617,10 @@ fn merge_defined(
 
 /// `ours`, made from `block`'s content at `made_from` (or from `read_content`, when that head
 /// is not known or shares no history with `theirs`), merged with its content at `theirs`:
-/// the merge written, its references and derived metadata. `None` when there is nothing to
-/// merge: `theirs` is what `made_from` was built on, an edit of this device not sent yet.
+/// the merge written, its references and derived metadata. The base is the two heads' common
+/// ancestor within `MERGE_BASE_DEPTH` levels of each, or else `made_from`. `None` when there
+/// is nothing to merge: `theirs` is what `made_from` was built on, an edit of this device not
+/// sent yet.
 async fn merge_over(
     context: &mut Context<'_>,
     block: Uuid,
@@ -2430,21 +2635,27 @@ async fn merge_over(
         .ok_or("Version control does not know a block it writes.")?;
     let base = match made_from {
         Some(made_from) => {
-            context.peer.fetch_history(theirs).await.map_err(failed)?;
-            context
-                .peer
-                .fetch_history(made_from)
-                .await
-                .map_err(failed)?;
-            let commits = context.peer.commits();
-            if commits.is_ancestor(theirs, made_from).map_err(stored)? {
-                return Ok(None);
-            }
-            match commits.common_ancestor(made_from, theirs).map_err(stored)? {
+            let mut walk = MergeBaseWalk::new(made_from, theirs, MERGE_BASE_DEPTH);
+            let found = context.peer.merge_base(&mut walk).await.map_err(failed)?;
+            #[cfg(test)]
+            WALKED
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .push((found, walk.reached()));
+            let base = match found {
+                MergeBase::Behind => return Ok(None),
+                MergeBase::Base(base) => Some(base),
+                // Edits made while the command ran reach this deep, or past what the server
+                // thinned away of their history, only on top of the head it read, which is
+                // then their common ancestor.
+                MergeBase::Unreached => Some(made_from),
+                MergeBase::Unrelated => None,
+            };
+            match base {
                 Some(base) => Some(
                     context
                         .peer
-                        .load_commit(base)
+                        .load_reached(base)
                         .await
                         .map_err(failed)?
                         .manifest,
@@ -2456,7 +2667,7 @@ async fn merge_over(
     };
     let theirs = context
         .peer
-        .load_commit(theirs)
+        .load_head(block, theirs)
         .await
         .map_err(failed)?
         .manifest;

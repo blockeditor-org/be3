@@ -32,6 +32,11 @@
 //! carries its keys, owed to a child or not, to the new one; keys carried from the first child
 //! go back to the placer's view, like any it held, if the new gift ends with `Keys::Return`. A
 //! gift whose instance or app goes ends with it.
+//!
+//! A view that goes while its instance's content shows in another of its views (a joined
+//! editor's content moving from its main view into its dock tab view, `content_moved`) hands that
+//! view what it held and was given: the gift is given to it anew, and the host moves the keyboard
+//! there (be-host's `AppView`).
 
 use std::time::Duration;
 
@@ -74,11 +79,12 @@ enum Stage {
     Pending,
     /// Given in host pass `pass`. `focused` is the count of frames asked of the child's app when
     /// its view was first seen with the keyboard, and `after` the frame its app has to answer to
-    /// be ready without a text field.
+    /// be ready without a text field, counted from the delivery of its content `content`.
     Given {
         pass: u64,
         focused: Option<u64>,
         after: Option<u64>,
+        content: Option<u64>,
     },
     Ready,
     /// Ended in host pass `pass`, with keys the holder takes back if it has the keyboard by the
@@ -129,15 +135,16 @@ impl Gift {
             Stage::Given {
                 focused: Some(focused),
                 after,
+                content,
                 ..
             } => {
-                if !app.content {
-                    // The content went away again (the editor takes a new one): its frames count
-                    // from when it is back, as the editor has none of it to take keys until then.
-                    *after = None;
-                } else if after.is_none() {
-                    // The first frame can still be the one that shows the content arrive.
-                    *after = Some(asked + 2);
+                if *content != app.content {
+                    // The content arrived, or went away (the editor takes a new one, or asked for
+                    // it again): its frames count from when it is here, as the editor has none
+                    // of it to take keys until then. The first frame can still be the one that
+                    // shows the content arrive.
+                    *content = app.content;
+                    *after = app.content.map(|_| asked + 2);
                 }
                 // An input method asked for in a frame drawn before the focus is a stale one.
                 let typing = app.typing && answered > *focused;
@@ -157,8 +164,9 @@ impl Gift {
 pub struct KeyProgress {
     /// Frames asked of the app and answered by it.
     pub frames: (u64, u64),
-    /// The block content of the view's editor has reached it.
-    pub content: bool,
+    /// The block content of the view's editor has reached it: how many times it has after the
+    /// editor lacked it, so a content delivered again since counts its frames afresh.
+    pub content: Option<u64>,
     /// The view asks for an input method: a text field in it has the keyboard.
     pub typing: bool,
 }
@@ -249,6 +257,19 @@ impl Instances {
         let Some(entry) = self.entries.get_mut(&instance) else {
             return;
         };
+        // A child its last changes took away: the app asked before it heard of the child placed
+        // in its stead, and is told, to ask for that one. The gift it had stands meanwhile, so
+        // the keys it holds carry to the ask that follows.
+        if let GiftTo::Child(child) = to
+            && entry.departed.contains(&child)
+            && !placed(entry).iter().any(|(placed, _)| *placed == child)
+        {
+            self.mailed.push(crate::calls::Outbound::Event(
+                instance,
+                be_sdk_api::app::EditorEvent::GiftMissed(child),
+            ));
+            return;
+        }
         let gift = match entry.gift.take() {
             // Asked again for what it already gives (a dock giving the same tab the keyboard
             // again): its count goes on, as the child's view, already up, says so only once.
@@ -344,6 +365,7 @@ impl Instances {
             pass,
             focused: focused.then_some(asked),
             after: None,
+            content: None,
         };
         true
     }
@@ -482,12 +504,16 @@ impl Instances {
                 pass: given,
                 focused: seen @ None,
                 ..
-            } => {
-                if focused && pass <= *given + 1 {
-                    *seen = Some(app.frames.0);
-                    return true;
+            } if pass <= *given + 1 => {
+                // Till the pass after the gift, an input heard without the keyboard may have been
+                // sent before the view had it (a resting pointer's move as it was laid out).
+                if !focused {
+                    return false;
                 }
+                *seen = Some(app.frames.0);
+                return true;
             }
+            Stage::Given { focused: None, .. } => {}
             Stage::Given { .. } | Stage::Ready => return true,
             _ => return false,
         }
@@ -547,13 +573,30 @@ impl Instances {
         gift.ready(app).then_some(gift.modifiers)
     }
 
-    /// The view `view` is gone: what it held and was owed goes with it.
-    pub(crate) fn forget_keys(&mut self, view: &GiftView) {
+    /// The view `view` is gone: what it held and was owed goes with it, or, when its instance's
+    /// content moved to the view `moved`, goes on to that view, which is given the keyboard anew
+    /// in host pass `pass`.
+    pub(crate) fn forget_keys(&mut self, view: &GiftView, moved: Option<&GiftView>, pass: u64) {
         let mut ended = Vec::new();
         for (instance, entry) in &mut self.entries {
             let Some(gift) = &mut entry.gift else {
                 continue;
             };
+            if let Some(moved) = moved {
+                if gift.to == GiftTo::View(view.clone()) {
+                    gift.to = GiftTo::View(moved.clone());
+                    gift.stage = Stage::Given {
+                        pass,
+                        focused: None,
+                        after: None,
+                        content: None,
+                    };
+                }
+                if gift.holder.as_ref() == Some(view) {
+                    gift.holder = Some(moved.clone());
+                }
+                continue;
+            }
             if gift.to == GiftTo::View(view.clone()) {
                 ended.push(*instance);
             } else if gift.holder.as_ref() == Some(view) {

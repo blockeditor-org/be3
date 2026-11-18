@@ -11,7 +11,7 @@ fn an_offset_leaves_the_wheel_to_the_scroll_around_it() {
         view! {
             <List spacing=0.0>
                 <ListItem grow=1.0>
-                    <Scroll @test_id="scroll">
+                    <Scroll @test_id="scroll" style={plain_scroll()}>
                         <Frame height=150.0>
                             <Offset @test_id="offset">
                                 <List spacing=0.0>
@@ -47,7 +47,7 @@ fn an_offset_leaves_the_wheel_to_the_scroll_around_it() {
 #[component]
 fn Rows(count: usize) -> DynamicSegment<ListItem> {
     view! {
-        <ForEach keys={indices(count)}>|index: usize|
+        <ForEach value={indices(count)}>|index: usize|
             <Text color=Color32::WHITE font={FontId::proportional(20.0)}>
                 {format!("Row {index}")}
             </Text>

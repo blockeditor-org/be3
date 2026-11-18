@@ -1,20 +1,40 @@
 use be_lib_stable_hash::{HashMap, HashSet};
-use std::cell::RefCell;
+use std::borrow::Cow;
+use std::cell::{Cell, RefCell};
 use std::hash::Hash;
+use std::rc::Rc;
 
 use crate::scope::Scope;
-use crate::signal::{Get, OwnedSignal, ReadSignal, Signal};
+use crate::signal::{Get, OwnedSignal, ReadSignal, Set};
 use crate::stored::{OwnedStored, Stored, store};
 
-enum Target<V> {
-    Unchanged,
-    Changed(Signal<V>),
-    Missing,
-}
+mod views;
+
+use views::{Change, Notify};
 
 struct Inner<K: 'static, V: 'static> {
     keys: OwnedSignal<Vec<K>>,
     entries: RefCell<HashMap<K, OwnedSignal<V>>>,
+    views: RefCell<Vec<(u64, Rc<dyn Notify<K, V>>)>>,
+    next_view: Cell<u64>,
+}
+
+impl<K: 'static, V: 'static> Inner<K, V> {
+    fn watched(&self) -> bool {
+        !self.views.borrow().is_empty()
+    }
+
+    fn notify(&self, change: &Change<'_, K, V>) {
+        let views: Vec<_> = self
+            .views
+            .borrow()
+            .iter()
+            .map(|(_, view)| view.clone())
+            .collect();
+        for view in views {
+            view.changed(change);
+        }
+    }
 }
 
 /// One signal per item plus a signal of the order, for a list whose rows bind to their own
@@ -51,6 +71,8 @@ fn empty<K: 'static, V: 'static>() -> Inner<K, V> {
     Inner {
         keys: OwnedSignal::new(Vec::new()),
         entries: RefCell::new(HashMap::default()),
+        views: RefCell::new(Vec::new()),
+        next_view: Cell::new(0),
     }
 }
 
@@ -136,74 +158,113 @@ impl<K: Clone + Eq + Hash + 'static, V: Clone + PartialEq + 'static> KeyedStore<
         V: 'a,
     {
         let mut keys = Vec::new();
+        let mut inserted = 0;
         for (key, value) in items {
-            self.write(&key, value);
+            inserted += usize::from(self.write(&key, Cow::Borrowed(value)));
             keys.push(key);
         }
-        self.set_keys(keys);
+        self.set_keys(keys, inserted);
     }
 
     pub fn reconcile_owned(&self, items: impl IntoIterator<Item = (K, V)>) {
         let mut keys = Vec::new();
+        let mut inserted = 0;
         for (key, value) in items {
-            self.write(&key, &value);
+            inserted += usize::from(self.write(&key, Cow::Owned(value)));
             keys.push(key);
         }
-        self.set_keys(keys);
+        self.set_keys(keys, inserted);
     }
 
     pub fn set(&self, key: K, value: V) {
-        self.write(&key, &value);
-        let inner = self.inner.value();
-        let mut keys = inner.keys.get_untracked();
-        if !keys.contains(&key) {
-            keys.push(key);
-            inner.keys.set_unconditionally(keys);
+        if self.write(&key, Cow::Owned(value)) {
+            self.inner.value().keys.update(|keys| keys.push(key));
         }
+    }
+
+    pub fn update<R>(&self, key: &K, f: impl FnOnce(&mut V) -> R) -> Option<R> {
+        let mut value = self.try_get(key)?.get_untracked();
+        let result = f(&mut value);
+        self.write(key, Cow::Owned(value));
+        Some(result)
     }
 
     pub fn remove(&self, key: &K) {
-        let mut keys = self.inner.with(|inner| inner.keys.get_untracked());
-        keys.retain(|held| held != key);
-        self.set_keys(keys);
+        let inner = self.inner.value();
+        let Some(entry) = inner.entries.borrow_mut().remove(key) else {
+            return;
+        };
+        inner.keys.update(|keys| {
+            if let Some(at) = keys.iter().position(|held| held == key) {
+                keys.remove(at);
+            }
+        });
+        if inner.watched() {
+            entry.with_untracked(|old| inner.notify(&Change::Removed(key, old)));
+        }
     }
 
-    fn write(&self, key: &K, value: &V) {
+    fn write(&self, key: &K, value: Cow<'_, V>) -> bool {
         let inner = self.inner.value();
-        let target = {
-            let entries = inner.entries.borrow();
-            match entries.get(key) {
-                None => Target::Missing,
-                Some(entry) if entry.with_untracked(|current| current == value) => {
-                    Target::Unchanged
+        let entry = inner.entries.borrow().get(key).map(|entry| entry.handle());
+        match entry {
+            Some(entry) => {
+                if !entry.with_untracked(|current| *current == *value) {
+                    let old =
+                        entry.update(|current| std::mem::replace(current, value.into_owned()));
+                    if inner.watched() {
+                        entry.with_untracked(|new| inner.notify(&Change::Updated(key, &old, new)));
+                    }
                 }
-                Some(entry) => Target::Changed(entry.handle()),
+                false
             }
-        };
-        match target {
-            Target::Unchanged => {}
-            Target::Changed(write) => write.set_unconditionally(value.clone()),
-            Target::Missing => {
-                inner
-                    .entries
-                    .borrow_mut()
-                    .insert(key.clone(), OwnedSignal::new(value.clone()));
+            None => {
+                let entry = OwnedSignal::new(value.into_owned());
+                let handle = entry.handle();
+                inner.entries.borrow_mut().insert(key.clone(), entry);
+                if inner.watched() {
+                    handle.with_untracked(|new| inner.notify(&Change::Inserted(key, new)));
+                }
+                true
             }
         }
     }
 
-    fn set_keys(&self, keys: Vec<K>) {
+    fn set_keys(&self, keys: Vec<K>, inserted: usize) {
         let inner = self.inner.value();
         if inner.keys.with_untracked(|current| *current == keys) {
             return;
         }
-        let retained: HashSet<&K> = keys.iter().collect();
-        inner
-            .entries
-            .borrow_mut()
-            .retain(|key, _| retained.contains(key));
-        drop(retained);
+        let watched = inner.watched();
+        let (removed, reordered) = {
+            let retained: HashSet<&K> = keys.iter().collect();
+            let mut entries = inner.entries.borrow_mut();
+            inner.keys.with_untracked(|old| {
+                let removed: Vec<(K, OwnedSignal<V>)> = old
+                    .iter()
+                    .filter(|key| !retained.contains(key))
+                    .filter_map(|key| entries.remove_entry(key))
+                    .collect();
+                let reordered = watched && {
+                    let mut kept = old.iter().filter(|key| retained.contains(key));
+                    let survivors = keys.len() - inserted;
+                    !keys[..survivors].iter().eq(kept.by_ref()) || kept.next().is_some()
+                };
+                (removed, reordered)
+            })
+        };
+        if watched {
+            for (key, entry) in &removed {
+                entry.with_untracked(|old| inner.notify(&Change::Removed(key, old)));
+            }
+        }
+        drop(removed);
         inner.keys.set_unconditionally(keys);
+        if reordered {
+            inner
+                .keys
+                .with_untracked(|keys| inner.notify(&Change::Reordered(keys)));
+        }
     }
 }
 
@@ -224,13 +285,19 @@ pub fn numbered<K: Clone + Hash + Eq>(keys: Vec<K>) -> Vec<(K, usize)> {
 /// Per-key values each built in a detached scope of its own, kept across updates of the
 /// list and disposed when `retain` drops the key.
 pub struct KeyedItems<K, V> {
-    build: Box<dyn Fn(K) -> V>,
+    build: Box<dyn Fn(K, usize) -> V>,
     entries: RefCell<HashMap<(K, usize), (V, Scope)>>,
     mapped: RefCell<(Vec<K>, Vec<V>)>,
 }
 
 impl<K: Clone + Hash + Eq + 'static, V: Clone + 'static> KeyedItems<K, V> {
     pub fn new(build: impl Fn(K) -> V + 'static) -> Self {
+        Self::numbered(move |key, _| build(key))
+    }
+
+    /// Like `new`, with `build` also handed which repeat of its key it builds: 0 for the first
+    /// time a key appears in the keys mapped, 1 for the second, and so on.
+    pub fn numbered(build: impl Fn(K, usize) -> V + 'static) -> Self {
         Self {
             build: Box::new(build),
             entries: RefCell::new(HashMap::default()),
@@ -249,7 +316,7 @@ impl<K: Clone + Hash + Eq + 'static, V: Clone + 'static> KeyedItems<K, V> {
         if let Some(value) = self.get(&key) {
             return value;
         }
-        let built = self.build_scoped(key.clone());
+        let built = self.build_scoped(key.clone(), 0);
         let value = built.0.clone();
         self.entries.borrow_mut().insert((key, 0), built);
         self.forget_mapped();
@@ -262,7 +329,7 @@ impl<K: Clone + Hash + Eq + 'static, V: Clone + 'static> KeyedItems<K, V> {
         if let Some(value) = self.get(&key) {
             return value;
         }
-        let built = self.build_scoped(key.clone());
+        let built = self.build_scoped(key.clone(), 0);
         let value = built.0.clone();
         let scope = built.1.context();
         self.entries.borrow_mut().insert((key, 0), built);
@@ -271,9 +338,9 @@ impl<K: Clone + Hash + Eq + 'static, V: Clone + 'static> KeyedItems<K, V> {
         value
     }
 
-    fn build_scoped(&self, key: K) -> (V, Scope) {
+    fn build_scoped(&self, key: K, repeat: usize) -> (V, Scope) {
         let scope = Scope::detached();
-        let built = scope.context().run(|| (self.build)(key));
+        let built = scope.context().run(|| (self.build)(key, repeat));
         (built, scope)
     }
 
@@ -317,7 +384,7 @@ impl<K: Clone + Hash + Eq + 'static, V: Clone + 'static> KeyedItems<K, V> {
         for numbered in numbered(keys.clone()) {
             let entry = match entries.remove(&numbered) {
                 Some(entry) => entry,
-                None => self.build_scoped(numbered.0.clone()),
+                None => self.build_scoped(numbered.0.clone(), numbered.1),
             };
             mapped.push(entry.0.clone());
             next.insert(numbered, entry);
@@ -343,7 +410,7 @@ impl<K: Clone + Hash + Eq + 'static, V: Clone + 'static> KeyedItems<K, V> {
             return None;
         }
         for key in added {
-            let entry = self.build_scoped(key.clone());
+            let entry = self.build_scoped(key.clone(), 0);
             values.push(entry.0.clone());
             entries.insert((key.clone(), 0), entry);
         }

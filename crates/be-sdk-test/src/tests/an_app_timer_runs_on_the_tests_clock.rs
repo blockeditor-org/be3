@@ -45,8 +45,10 @@ fn an_app_timer_runs_on_the_tests_clock() {
     assert_eq!(test.label("alarm"), "waiting");
 
     test.advance(ALARM - Duration::from_secs(1));
+    test.run();
     assert_eq!(test.label("alarm"), "waiting");
     test.advance(Duration::from_secs(1));
+    test.run();
 
     let rang: u128 = test.label("alarm").parse().expect("the alarm rang");
     let last_step = Duration::from_secs(1).as_millis();
@@ -55,3 +57,5 @@ fn an_app_timer_runs_on_the_tests_clock() {
         "the alarm rang {rang}ms after it was set"
     );
 }
+
+test_editor!(AlarmRoot);

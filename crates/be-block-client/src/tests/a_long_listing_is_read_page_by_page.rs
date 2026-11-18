@@ -21,10 +21,13 @@ async fn a_long_listing_is_read_page_by_page() {
                 .unwrap(),
         );
     }
-    let first = crate::ask(be_block_protocol::client::blocks::list_blocks(
+    let first = crate::ask(be_block_protocol::read::<be_block_protocol::Listed, _>(
         &author.connection(),
-        Listing::Children(BlockParent::Block(workspace)),
-        None,
+        Some(author.organization()),
+        be_block_protocol::Query::List {
+            listing: Listing::Children(BlockParent::Block(workspace)),
+            after: None,
+        },
     ))
     .await
     .unwrap();
@@ -43,7 +46,8 @@ async fn a_long_listing_is_read_page_by_page() {
     made.sort();
     assert_eq!(listed, made);
 
-    // References in an order of their own, not of their ids.
+    // References listed page by page too, in the order of their ids: their own order is in
+    // the block's content, which no summary names.
     let referrer = author
         .create::<TextContent>(BlockParent::Block(workspace))
         .await
@@ -52,18 +56,29 @@ async fn a_long_listing_is_read_page_by_page() {
     order.sort();
     order.reverse();
     order.swap(3, 30);
-    let referred = crate::ask(be_block_protocol::client::blocks::set_metadata(
-        &author.connection(),
-        referrer,
-        Vec::new(),
-        order.clone(),
-    ))
+    let referred = crate::ask(
+        be_block_protocol::write::<be_block_protocol::BlockSummary, _>(
+            &author.connection(),
+            Some(author.organization()),
+            be_block_protocol::Op::Publish {
+                block: referrer,
+                expected: None,
+                commit: None,
+                references: be_block_protocol::ReferenceChange::between(&[], &order.clone()),
+                metadata: Vec::new(),
+                journal: None,
+            },
+        ),
+    )
     .await;
     assert!(referred.is_ok(), "{referred:?}");
-    let first = crate::ask(be_block_protocol::client::blocks::list_blocks(
+    let first = crate::ask(be_block_protocol::read::<be_block_protocol::Listed, _>(
         &author.connection(),
-        Listing::References(referrer),
-        None,
+        Some(author.organization()),
+        be_block_protocol::Query::List {
+            listing: Listing::References(referrer),
+            after: None,
+        },
     ))
     .await
     .unwrap();
@@ -75,7 +90,11 @@ async fn a_long_listing_is_read_page_by_page() {
         .iter()
         .map(|summary| summary.id)
         .collect();
-    assert_eq!(references, order, "references in the block's order");
+    order.sort();
+    assert_eq!(
+        references, order,
+        "every reference, in the order of their ids"
+    );
 
     harness.stop().await;
 }

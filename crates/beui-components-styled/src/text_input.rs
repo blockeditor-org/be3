@@ -11,7 +11,8 @@ use beui_view::reactive::NodeId;
 use beui_view::types::icons::{ICON_COPY, ICON_X};
 
 use crate::list::List;
-use crate::tokens::{Padding, Size, Space, Stroke};
+use crate::tokens::{Movement, Padding, Size, Space, Stroke};
+use beui_components_unstyled::ScrollStyle;
 use beui_view::reactive::*;
 
 use crate::button::{Button, ButtonSize};
@@ -58,7 +59,7 @@ pub fn TextInput(
     let clearable = create_memo(move || clearable.get());
     let copyable = create_memo(move || copyable.get());
     let named = label.clone();
-    let copy_label = create_memo(move || match named.get().is_empty() {
+    let copy_label = create_memo(move || match named.with(String::is_empty) {
         true => "Copy".to_owned(),
         false => format!("Copy {}", named.get()),
     });
@@ -113,8 +114,6 @@ fn TextInputFrame(
         clear,
         copy,
     } = handle;
-    let clearable = create_memo(move || clearable.get() && !empty.get());
-    let marked = create_memo(move || glyph.get().is_some());
     let raised = create_memo(move || !plain.get() || focused.get() || hovered.get());
     let border = create_memo(move || {
         raised
@@ -128,7 +127,7 @@ fn TextInputFrame(
     });
     view! {
         <Frame
-            border={create_memo(move || focused.get().then_some(Border::FOCUS.offset(Stroke::Focus)))}
+            border={move || focused.get().then_some(Border::FOCUS.offset(Stroke::Focus))}
             radius=Radius::Md
         >
             <Frame
@@ -148,7 +147,7 @@ fn TextInputFrame(
                     }}
                     spacing=Space::None
                 >
-                    <Show condition={marked}>
+                    <Show value={move || glyph.with(Option::is_some)}>
                         <Frame padding={Padding::ZERO.left(PADDING_HORIZONTAL)}>
                             <Text color=TextColor::Muted align=TextAlign::Center>
                                 <Icon glyph={glyph} />
@@ -156,7 +155,7 @@ fn TextInputFrame(
                         </Frame>
                     </Show>
                     <ListItem grow=1.0>{field}</ListItem>
-                    <Show condition={clearable}>
+                    <Show value={move || clearable.get() && !empty.get()}>
                         <Frame padding={Padding::horizontal(CLEAR_PADDING)}>
                             <Button
                                 icon_only=true
@@ -169,7 +168,7 @@ fn TextInputFrame(
                             />
                         </Frame>
                     </Show>
-                    <Show condition={copyable}>
+                    <Show value={copyable}>
                         <Frame padding={Padding::horizontal(CLEAR_PADDING)}>
                             <Button
                                 icon_only=true
@@ -201,5 +200,6 @@ pub fn text_input_style() -> TextInputStyle {
         prose: Prop::Static(None),
         geometry: Prop::Static(text_area_geometry()),
         menu: Some(menu_style()),
+        scroll: ScrollStyle::new(Movement::Rubber.spring()),
     }
 }

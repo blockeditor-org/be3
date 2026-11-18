@@ -13,7 +13,9 @@ fn page() -> String { beui_html::render(|| view! { <Shell /> }) }
 fn snippet() -> String { render_fragment(|| view! { <Shell /> }) }
 fn prerendered() -> String { render_to_string(|| view! { <Shell /> }) }
 fn application() -> App { build(|| view! { <Shell /> }) }
-fn deferred() -> RenderFn<()> { RenderFn::new(|_| view! { <Shell /> }) }
+fn deferred() -> RenderFn<u32, Node> { RenderFn::new(|_| view! { <Shell /> }) }
+fn built() -> BuildFn<Node> { BuildFn::new(|| view! { <Shell /> }) }
+fn built_once() -> Build<Node> { Build::new(|| view! { <Shell /> }) }
 fn stored() -> ChildView { store(Box::new(|_| view! { <Shell /> })) }
 impl Widget for App { fn view() -> Node { view! { <Shell /> } } }
 impl Widget for Held { fn view(&self) -> Node { view! { <Shell /> } } }

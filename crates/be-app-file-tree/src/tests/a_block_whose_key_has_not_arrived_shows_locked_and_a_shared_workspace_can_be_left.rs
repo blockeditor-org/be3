@@ -1,6 +1,6 @@
 use be_sdk_beui::be_block_content::BlockContent;
 use be_sdk_beui::{
-    AccessLevel, AdministratorWatch, BlockCommand, BlockInfo, BlockParent, BlockQuery,
+    AccessLevel, AccountRole, BlockCommand, BlockInfo, BlockParent, BlockQuery, RoleWatch,
 };
 use be_type_workspace::WorkspaceContent;
 
@@ -48,7 +48,9 @@ fn a_block_whose_key_has_not_arrived_shows_locked_and_a_shared_workspace_can_be_
         "leaving a workspace someone shared asks the host to take this account off it"
     );
 
-    fixture.test.set_watched::<AdministratorWatch>(&true);
+    fixture
+        .test
+        .set_watched::<RoleWatch>(&Some(AccountRole::Administrator));
     fixture.settle();
     fixture.open_menu(team);
     assert!(fixture.offers("Rename"), "the workspace's menu is open");

@@ -34,6 +34,9 @@ fn escaped(bytes: &[u8]) -> String {
     bytes.iter().map(|byte| format!("\\{byte:02x}")).collect()
 }
 
+/// The guest, importing its memory, unshared as every guest's is
+/// (decisions/guests_are_single_threaded.md). Its gpu imports are fast-API calls where the host's
+/// memories stay put (V8's trap handler is on), and ordinary V8 calls where they may not.
 fn guest() -> String {
     let mut data = Data { bytes: Vec::new() };
     let texture = data.put(be_wasm_ops::encode(&abi::TextureDescriptor {
@@ -136,7 +139,7 @@ fn guest() -> String {
     .join("\n");
     format!(
         r#"(module
-            (import "env" "memory" (memory 1 4 shared))
+            (import "env" "memory" (memory 1 4))
             (import "{GPU}" "create-texture" (func $create_texture (param i32 i32) (result i32)))
             (import "{GPU}" "[method]texture.create-view" (func $create_texture_view (param i32 i32 i32) (result i32)))
             (import "{GPU}" "create-shader-module" (func $create_shader_module (param i32 i32) (result i32)))
@@ -168,9 +171,9 @@ fn guest() -> String {
 
 fn main() {
     let (device, queue) = wgpu::Device::noop(&wgpu::DeviceDescriptor::default());
-    let host = Host::new(device, queue, None).expect("the host should start");
+    let host = Host::new(device, queue).expect("the host should start");
     let mut app = host
-        .load_bytes(guest().as_bytes())
+        .load_bytes(&wat::parse_str(guest()).expect("the guest should assemble"))
         .expect("the guest should load");
     app.start().expect("the guest should start");
     let mut fastest = Duration::MAX;

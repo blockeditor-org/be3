@@ -40,7 +40,7 @@ impl Organization {
         }
     }
 
-    fn open<R: BeuiRoot>(&self, block: Uuid, size: Vec2) -> BeuiTest<R> {
+    fn open<R: BeuiRoot + be_sdk_beui::AppEditor>(&self, block: Uuid, size: Vec2) -> BeuiTest<R> {
         let host = EditorHost::default();
         host.set_account_id(Uuid::nil());
         host.set_organization_id(Uuid::from_u128(0x0e0f));
@@ -135,11 +135,8 @@ fn an_organizations_policies_show_to_its_administrators_and_fix_what_devices_kee
         "an_organizations_policies_show_to_its_administrators_and_fix_what_devices_keep_offline",
     );
     editor.click("settings.organization.workspaces");
-    editor.run();
     editor.key(Key::ArrowDown, Modifiers::NONE);
-    editor.run();
     editor.key(Key::Enter, Modifiers::NONE);
-    editor.run();
     assert_eq!(
         editor
             .content::<OrganizationPoliciesContent>(Some(organization.policies))

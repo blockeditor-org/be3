@@ -2,6 +2,16 @@ use super::*;
 #[allow(unused_imports)]
 use beui_view::native_api::{build, draw_gpu};
 
+/// A scroll with no bar or fade, springing back on the curve of
+/// `styled::Movement::Rubber` (copied: this crate does not link styled).
+#[allow(dead_code)]
+fn plain_scroll() -> beui_components_unstyled::ScrollStyle {
+    beui_components_unstyled::ScrollStyle::new(beui_view::reactive::Spring {
+        stiffness: 180.0,
+        damping: 26.832_815,
+    })
+}
+
 mod a_blur_repaints_the_light_it_spreads_outside_the_damaged_region;
 mod a_blur_thinner_than_a_pixel_spreads_less_light_than_a_whole_one;
 mod a_blurred_region_spreads_light_past_the_shape_that_made_it;
@@ -9,6 +19,7 @@ mod a_bounded_renderer_filters_and_paints_only_within_its_bounds;
 mod a_clip_rectangle_hides_what_falls_outside_it;
 mod a_colour_glyph_paints_its_own_colours_beside_tinted_text;
 mod a_colour_vision_filter_recolours_the_region_it_covers;
+mod a_composited_window_draws_screens_in_place_and_its_ui_over_anchored_views;
 mod a_drawing_paints_between_the_shapes_around_it;
 mod a_drawing_repaints_only_within_each_damaged_region;
 mod a_faded_scroll_fades_its_content_toward_each_edge_with_more_beyond_it;
@@ -19,6 +30,7 @@ mod a_filter_applied_inside_a_clip_filters_only_what_the_clip_holds;
 mod a_filter_leaves_the_painting_outside_its_region_alone;
 mod a_frame_paints_its_outline_over_its_fill;
 mod a_gpu_lost_mid_frame_is_reopened_and_paints_again;
+mod a_layer_of_a_turned_and_clipped_quad_shows_what_the_quad_shows;
 mod a_layer_painted_above_a_filter_keeps_its_own_colours;
 mod a_punch_clears_what_it_covers;
 mod a_rect_rounds_each_corner_by_its_own_radius;
@@ -29,6 +41,7 @@ mod a_repaint_of_two_regions_leaves_what_lies_between_them;
 mod a_replaced_drawing_is_released_once_it_is_repainted;
 mod a_rotated_rectangle_covers_the_corners_it_turned_onto;
 mod a_rounded_texture_quad_leaves_its_corners_uncovered;
+mod a_screen_in_a_composited_window_blends_over_the_ui_beneath_it_and_fades_with_its_group;
 mod a_scrolled_document_moves_the_rows_it_already_encoded;
 mod a_stroked_path_joins_caps_and_dashes_its_line;
 mod a_texture_drawing_fills_its_rect_and_nothing_else;
@@ -40,6 +53,8 @@ mod an_icon_glyph_paints_over_the_background;
 mod an_image_drawn_smaller_averages_the_texels_it_covers;
 mod an_offscreen_surface_draws_every_frame_it_noted_once_it_is_looked_at;
 mod an_srgb_encoded_texture_keeps_its_colour_on_an_srgb_target;
+mod changing_what_lies_between_two_anchored_views_draws_again_only_there;
+mod closing_the_second_of_two_anchored_views_leaves_two_roots;
 mod copying_a_faded_scroll_paints_what_a_full_repaint_would;
 mod copying_a_scrolled_region_paints_what_a_full_repaint_would;
 mod nested_faded_frames_paint_as_the_painting_does_through_partial_repaints;
@@ -57,6 +72,7 @@ mod two_fills_meeting_on_a_seam_paint_as_one;
 mod two_filters_each_change_the_region_they_cover;
 mod two_regions_repainted_under_a_blur_match_a_full_repaint;
 mod two_renderers_on_one_set_of_resources_share_their_glyphs_and_images;
+mod what_the_ui_paints_between_two_anchored_views_lies_between_them;
 mod zoomed_text_stretches_the_glyphs_it_was_rasterised_at;
 
 use std::cell::RefCell;
@@ -285,6 +301,12 @@ impl Target {
     }
 
     pub fn read(&self) -> Capture {
+        self.read_texture(&self.texture)
+    }
+
+    /// What `texture`, a texture the target's size such as one of a composited window's roots,
+    /// holds.
+    pub fn read_texture(&self, texture: &wgpu::Texture) -> Capture {
         let buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("beui test readback"),
             size: (SIZE * SIZE * 4) as u64,
@@ -298,7 +320,7 @@ impl Target {
             });
         encoder.copy_texture_to_buffer(
             wgpu::TexelCopyTextureInfo {
-                texture: &self.texture,
+                texture,
                 mip_level: 0,
                 origin: wgpu::Origin3d::ZERO,
                 aspect: wgpu::TextureAspect::All,
@@ -364,6 +386,84 @@ struct Patch {
     pipeline: wgpu::RenderPipeline,
     bind_group: wgpu::BindGroup,
     placement: wgpu::Buffer,
+}
+
+/// Shows a texture as a surface, as the host's drawings do: a screen is drawn in place and
+/// listed as a layer; where the window is composited, an anchored view is a layer the renderer
+/// composites, and drawn in place where it is not.
+pub struct Shows {
+    texture: wgpu::Texture,
+    surface: be_lib_layers::Surface,
+    id: u64,
+    quads: beui_draw::texture_quad::Quads,
+    placed: RefCell<Vec<beui_draw::compose::Placed>>,
+}
+
+impl Shows {
+    pub fn new(texture: wgpu::Texture, surface: be_lib_layers::Surface, id: u64) -> Self {
+        Self {
+            texture,
+            surface,
+            id,
+            quads: Default::default(),
+            placed: RefCell::new(Vec::new()),
+        }
+    }
+}
+
+impl Draw for Shows {
+    fn prepare(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        _encoder: &mut wgpu::CommandEncoder,
+        at: DrawAt,
+    ) {
+        let quad = beui_draw::texture_quad::Quad {
+            rect: at.rect,
+            clip: at.clip,
+            ..Default::default()
+        };
+        let pipelines = beui_draw::texture_quad::Pipelines::of(device, &at);
+        let texture = pipelines.bind(&self.texture);
+        let inline = !matches!(self.surface, be_lib_layers::Surface::Anchored { .. });
+        let mut placed = self.placed.borrow_mut();
+        placed.clear();
+        if at.composited {
+            let size = (self.texture.width(), self.texture.height());
+            let layer = beui_draw::compose::layer_of(
+                &quad,
+                size,
+                at.pixels_per_point,
+                be_lib_layers::LayerId(self.id),
+                self.surface,
+            )
+            .expect("the surface shows");
+            placed.push(beui_draw::compose::Placed {
+                layer,
+                texture: texture.clone(),
+                opaque: false,
+                srgb_encoded: false,
+                inline,
+            });
+        }
+        let drawn = (inline || !at.composited).then_some((&texture, quad));
+        self.quads.prepare(
+            &pipelines,
+            queue,
+            at.format,
+            [at.screen.x, at.screen.y],
+            drawn,
+        );
+    }
+
+    fn paint(&self, pass: &mut wgpu::RenderPass<'_>, _at: DrawAt) {
+        self.quads.paint(pass);
+    }
+
+    fn layers(&self) -> Vec<beui_draw::compose::Placed> {
+        self.placed.borrow().clone()
+    }
 }
 
 #[derive(Default)]

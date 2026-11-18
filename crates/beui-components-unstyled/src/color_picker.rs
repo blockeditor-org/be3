@@ -6,6 +6,7 @@ use beui_macros::{component, view};
 use crate::choice::{Choice, ChoiceKind, ChoiceOption, ChoiceOptionHandle};
 use crate::color_area::{ColorArea, ColorAreaHandle};
 use crate::slider::{Slider, SliderHandle};
+use crate::value_drag::ValueDrag;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 use beui_view::types::Direction;
@@ -46,31 +47,24 @@ impl ColorModel for Oklch {
 pub struct ColorPickerState<Model: ColorModel = Hsva> {
     color: Signal<Model>,
     value: Binding<Color32>,
-    dragging: Signal<bool>,
     disabled: Memo<bool>,
-    on_preview: Callback<Option<Color32>>,
+    on_drag_change: Callback<ValueDrag>,
 }
 
 impl<Model: ColorModel> ColorPickerState<Model> {
     pub fn new(
         value: Binding<Color32>,
         disabled: Prop<bool>,
-        on_preview: Callback<Option<Color32>>,
+        on_drag_change: Callback<ValueDrag>,
     ) -> Self {
-        let first = value.get_untracked();
-        let color = create_signal(Model::from_color_keeping(first, Model::default()));
-        let dragging = create_signal(false);
-        create_effect(move || {
-            let next = value.get();
-            let held = color.get_untracked();
-            color.set(Model::from_color_keeping(next, held));
+        let color = create_linked_signal(move |held: Option<&Model>| {
+            Model::from_color_keeping(value.get(), held.copied().unwrap_or_default())
         });
         Self {
             color,
             value,
-            dragging,
             disabled: create_memo(move || disabled.get()),
-            on_preview,
+            on_drag_change,
         }
     }
 
@@ -92,20 +86,14 @@ impl<Model: ColorModel> ColorPickerState<Model> {
             return;
         }
         self.color.set(next);
-        let color = next.to_color();
-        if self.dragging.get_untracked() {
-            self.on_preview.call(Some(color));
-        } else {
-            self.value.set(color);
-        }
+        self.value.set(next.to_color());
     }
 
-    pub fn drag(&self, dragging: bool) {
-        self.dragging.set(dragging);
-        if !dragging {
-            self.value.set(self.color.get_untracked().to_color());
-            self.on_preview.call(None);
-        }
+    /// A drag through one of the picker's areas or sliders, passed on to `on_drag_change`:
+    /// `value` is written on every move between, and a cancelled drag has written back its
+    /// start (`ValueDrag`).
+    pub fn drag(&self, change: ValueDrag) {
+        self.on_drag_change.call(change);
     }
 
     pub fn pick(&self, color: Color32) {
@@ -215,11 +203,11 @@ pub struct HexText {
 
 impl HexText {
     pub fn new(shown: Memo<Color32>, alpha: bool, apply: Callback<Color32>) -> Self {
-        let text = create_signal(hex_text(shown.get_untracked(), alpha));
-        create_effect(move || {
+        let text = create_linked_signal(move |typed: Option<&String>| {
             let next = shown.get();
-            if parse_typed(&text.get_untracked(), next) != Some(next) {
-                text.set(hex_text(next, alpha));
+            match typed {
+                Some(typed) if parse_typed(typed, next) == Some(next) => typed.clone(),
+                _ => hex_text(next, alpha),
             }
         });
         Self {
@@ -290,7 +278,7 @@ pub fn ColorPickerArea(
     picker: ColorPickerState,
     #[prop(default = false)] focused: Prop<bool>,
     #[prop(default = 0.0)] thumb: f32,
-    #[prop(children)] content: Render<ColorAreaHandle>,
+    #[prop(children)] content: Render<ColorAreaHandle, NodeId>,
 ) -> NodeId {
     view! {
         <ColorArea
@@ -298,7 +286,7 @@ pub fn ColorPickerArea(
             thumb
             focused
             disabled={picker.disabled()}
-            on_drag_change={move |dragging: bool| picker.drag(dragging)}
+            on_drag_change={move |change: ValueDrag| picker.drag(change)}
             content
         />
     }
@@ -308,7 +296,7 @@ pub fn ColorPickerArea(
 pub fn HueSlider(
     picker: ColorPickerState,
     #[prop(default = 0.0)] thumb: f32,
-    #[prop(children)] content: Render<SliderHandle>,
+    #[prop(children)] content: Render<SliderHandle, NodeId>,
 ) -> NodeId {
     let color = picker.color();
     let hue = create_memo(move || color.get().hue);
@@ -320,7 +308,7 @@ pub fn HueSlider(
             thumb
             disabled={picker.disabled()}
             accessibility={picker.hue_accessibility()}
-            on_drag_change={move |dragging: bool| picker.drag(dragging)}
+            on_drag_change={move |change: ValueDrag| picker.drag(change)}
             content
         />
     }
@@ -330,7 +318,7 @@ pub fn HueSlider(
 pub fn AlphaSlider(
     picker: ColorPickerState,
     #[prop(default = 0.0)] thumb: f32,
-    #[prop(children)] content: Render<SliderHandle>,
+    #[prop(children)] content: Render<SliderHandle, NodeId>,
 ) -> NodeId {
     let color = picker.color();
     let alpha = create_memo(move || color.get().alpha);
@@ -340,7 +328,7 @@ pub fn AlphaSlider(
             thumb
             disabled={picker.disabled()}
             accessibility={picker.alpha_accessibility()}
-            on_drag_change={move |dragging: bool| picker.drag(dragging)}
+            on_drag_change={move |change: ValueDrag| picker.drag(change)}
             content
         />
     }
@@ -348,7 +336,7 @@ pub fn AlphaSlider(
 
 pub struct SwatchHandle {
     pub color: Color32,
-    pub option: ChoiceOptionHandle,
+    pub option: ChoiceOptionHandle<Color32>,
 }
 
 #[component]
@@ -356,35 +344,32 @@ pub fn Swatches(
     picker: ColorPickerState,
     swatches: Vec<Color32>,
     spacing: f32,
-    #[prop(children)] content: RenderFn<SwatchHandle>,
+    #[prop(children)] content: RenderFn<SwatchHandle, NodeId>,
 ) -> NodeId {
     let shown = picker.shown();
     let held = swatches.clone();
-    let chosen = create_memo(move || held.iter().position(|swatch| *swatch == shown.get()));
-    let labels: Vec<String> = swatches
-        .iter()
-        .map(|swatch| format_hex(*swatch, false))
-        .collect();
-    let indices: Vec<usize> = (0..swatches.len()).collect();
-    let picked = swatches.clone();
+    let chosen = create_memo(move || {
+        let shown = shown.get();
+        held.contains(&shown).then_some(shown)
+    });
     view! {
         <Choice
             options={view! {
-                <ForEach keys={indices}>|index: usize|
-                    <ChoiceOption label={labels[index].clone()} />
+                <ForEach value={swatches}>|swatch: Color32|
+                    <ChoiceOption value=swatch label={format_hex(swatch, false)} />
                 </ForEach>
             }}
-            selected={Binding::new(chosen, move |index: Option<usize>| {
-                if let Some(swatch) = index.and_then(|index| picked.get(index)) {
-                    picker.pick(*swatch);
+            selected={Binding::new(chosen, move |swatch: Option<Color32>| {
+                if let Some(swatch) = swatch {
+                    picker.pick(swatch);
                 }
             })}
             kind=ChoiceKind::Radio
             direction=Direction::Horizontal
             wrap=true
             spacing
-        >|option: ChoiceOptionHandle| {
-            let color = swatches[option.index.get_untracked()];
+        >|option: ChoiceOptionHandle<Color32>| {
+            let color = option.value;
             content.call(SwatchHandle { color, option })
         }</Choice>
     }

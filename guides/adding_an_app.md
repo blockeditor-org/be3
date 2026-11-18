@@ -1,7 +1,7 @@
 # Adding an app
 
 Every editor in be-host is an app: a wasm module that runs beside the host (a
-thread under wasmtime, a worker in the browser), speaks the app protocol, and
+thread on V8, a worker in the browser), speaks the app protocol, and
 hands back the surfaces it painted (guides/blocks/apps.md covers blocks on the
 app protocol). The host signs the user in, hosts apps,
 draws the host menu and owns the dialogs an app cannot draw for itself.
@@ -46,7 +46,9 @@ learns about the type except through the manifest.
   dev-dependency). `be_sdk_beui` re-exports `be_block` and the core, so the
   editor depends on nothing else of the framework.
 - `src/lib.rs`: `be_sdk_beui::beui_app!("../manifest.json", { foo => root::FooRoot });`
-  pairs each editor the manifest names with the `BeuiRoot` that draws it. The
+  pairs each editor the manifest names, and each host component (its `hosts`,
+  guides/apps/host_services.md, "Host components"), with the `BeuiRoot` that
+  runs it. The
   framework refuses to start unless the roots cover exactly the manifest's
   editors.
 - `src/root.rs`: `impl be_sdk_beui::BeuiRoot`.
@@ -86,7 +88,9 @@ another block.
 
 - Per-view state is a signal the component makes.
 - State worth keeping for this viewer (scroll position, open folders) goes in
-  the editor's view block: `editor.view_state(key)` and `set_view_state`.
+  the editor's view block: a `ViewStateKind` type read and written with
+  `editor.view_state::<K>()`, on every change (guides/blocks/workspaces.md,
+  View state).
 - Work derived from signals is an effect over them. Something that moves with
   time is a beui timer that stops when idle. Work finishing on another thread
   wakes the editor through `editor.woken()`'s `Waker`.
@@ -96,16 +100,44 @@ another block.
 
 ### Gestures
 
-An editor writes every change as it happens (each frame of a drag, a stroke as
-it grows) so peers see it at once; the client batches saving
-(decisions/editors_write_every_change_as_it_happens.md). Bracket a gesture with
-`begin_gesture` and `commit_gesture` so it undoes as one step;
-`cancel_gesture` puts back what it wrote and leaves no history; `break_step`
-ends the editor's burst of quick edits so its next edit starts a step of its
-own, and inside an open gesture does nothing. The host
-cancels a gesture still open when the instance closes, so a gesture held open
-until something is decided (the canvas's new text, kept only once written in)
-ends with its editor.
+An editor writes every change to its block as it happens (a stroke as it grows,
+text as it is typed) so peers see it at once; the client batches saving. A
+gesture that chooses one result on release, such as dragging a layer, which
+nobody would expect kept half done, is tentative
+(decisions/tentative_edits_wait_for_release.md): open it with
+`ContentProjection::begin_tentative`, make its edits with `operate_in`, and end
+it with `commit_gesture` or `cancel_gesture`. Its edits show at once in every
+view of the block on this device and are sent and saved only when it commits;
+a cancel, the instance closing or a crash leaves no trace. A tentative edit only
+moves or changes what exists: anything a drop creates, create on commit.
+beui's value controls write `value` on every move of a drag and report the drag
+around it as `ValueDrag` (`NumberInput`'s `on_scrub`, `on_drag_change` on `Slider`
+and the colour controls): hold those writes with `DragHold`, passing its `drag` to
+the control and making the editor's edits through its `operate`. Where an edit
+cannot wait in a tentative gesture (a graph definition, an editor command), wrap
+the control's value in beui's `HeldValue`, which shows the drag and writes once
+when it is kept. That decision is about block content; view state is
+written on every change whatever the gesture.
+
+Bracket a gesture that writes as it goes with `begin_gesture` and
+`commit_gesture` so it undoes as one step; `cancel_gesture` puts back what it
+wrote and leaves no history. Each `begin_*` returns a `ContentGesture`, and the
+gesture's edits go through `operate_in(gesture, edit)`; `operate` makes an edit
+outside any gesture; an edit through a handle whose gesture is not open (it
+ended, or began before the content arrived or while the block was not editable)
+is dropped. An editor may hold several gestures at once (a second
+finger, a second controller), each ending on its own. `break_step` ends the
+editor's burst of quick edits so its next edit starts a step of its own, and
+leaves open gestures alone. The host cancels every gesture still open when the
+instance closes, so a gesture held open until something is decided (the
+canvas's new text, kept only once written in) ends with its editor.
+
+The replica may end a gesture itself: an undo while a tentative gesture is held
+cancels it, as do a replacement of the content and a session restart that drops
+what it moved. The projection then cancels the gesture for the editor, drops what
+it makes in it after, and runs `ContentProjection::on_gesture_ended(run)` with
+it: stop the gesture there (a drag lets go of what it carried), and end it as
+you would anyway; ending it again sends nothing.
 
 ### What the host says
 
@@ -145,7 +177,7 @@ framework.
 `be_sdk_test::BeuiTest` runs the editor through the same app session the
 shipped app runs (`be_sdk::headless`), against a stand-in host that holds each
 block in an in-process type module as the host does. It drives the app with
-the same gestures as beui's `testing::Harness` (click, drag, type_text, key,
+the same `testing::Gui` as beui's own tests (click, drag, type_text, key,
 ...), prints the drive steps on failure, and reads back what the app asked of
 the host. Its snapshot is what beui's renderer would hand the GPU, so no
 driver changes it; GPU drawing behind `draw_gpu` (guides/beui/components.md,
@@ -222,8 +254,20 @@ The `be_sdk_manifest` types document every field. What is easy to get wrong:
 - `"block_agents": true` lets the app make agents bound to one block
   (guides/apps/host_services.md, Asking and answering); the host denies those calls
   to any other app.
+- `"sharing": true` lets the app grant or reveal access (`set-access`,
+  `list-access`, `transfer-ownership`, and the share and contact link calls),
+  as the workspace, desktop and settings apps do; the host denies those to any
+  other app but for opening a block it just made to anyone inside, which the
+  editor framework does for every app.
 - `block_types` belong to the type, not an editor (adding_a_block.md, Declare
   it in the manifest).
+- `workers` names the app's worker modules by file name (`"tiles.wasm"`),
+  each a plain `.wasm` name other than the entry point (5, Workers).
+- `"root": true` makes the module a root guest, which `be-host --root=APP` runs
+  in place of its own UI (guides/apps/runtime.md, The root guest): it declares
+  no editors, block types or host components, and be-host refuses to run an
+  app without it as a root. A root is built with `app_module` as an editor is,
+  linked against base and beui (decisions/a_root_links_beui_as_an_app_does.md).
 
 The first editor found for a type is its built-in editor; others are offered
 beside it (Open with, and the Default editors setting). Only the workspace's
@@ -236,13 +280,72 @@ reaches the network (`host.fetch` instead), opens a file (`read_data` for
 staged data), or uses wasm-bindgen. It links against the shared libraries
 (guides/app_libraries.md); `app(libraries = [...])` overrides that. A C or C++
 library links in as a position-independent static library through
-`app(extra_deps = [...])` (PDFium, `third-party/pdfium`). `std::thread` works,
-but only the app's first thread may call the GPU. An app has no fonts of its
-own; the host sends them.
+`app(extra_deps = [...])`, or a worker's `cargo_library(extra_deps = [...])`
+(PDFium, `third-party/pdfium`, in crates/be-worker-pdf-render). An app is
+single-threaded `wasm32-wasip1` (decisions/guests_are_single_threaded.md):
+`std::thread::spawn` fails, so work off the app's frames is a worker (below).
+An app has no fonts of its own; the host sends them.
 
 Data an app ships rather than keeps in a workspace goes in its `app()`'s
 `data`, staged under `data/<app id>/` and read with `list_data`/`read_data`
 (the games editor ships every game module this way).
+
+### Workers
+
+Work that should not hold up the app's frames (rendering a PDF page,
+rasterizing map tiles) runs in a worker: an instance of a module of the app's
+own, on a thread and isolate of its own natively and in a web worker of its own
+in the browser, that the app talks to by messages (`be_sdk::worker`,
+crates/be-sdk-worker; decisions/guests_are_single_threaded.md). The map's
+(crates/be-worker-map, be-worker-map-tiles) and the PDF editor's
+(crates/be-worker-pdf, be-worker-pdf-render) are the examples to copy.
+
+- `be-worker-<app>` holds the messages the app and its workers exchange,
+  encoded however suits them (both examples use postcard, with `serde_bytes`
+  for pixels), and the module names. The app depends on it alone: an app links
+  whatever it depends on, so it must not depend on a worker's work.
+- `be-worker-<app>-<worker>` is one worker: a `Work` (`start`, then `receive`
+  for each message, answering through `App::send`), and beside its Cargo.toml
+  a `worker.rs` that only calls `be_sdk_worker::worker!` on it, which
+  `worker(module = "tiles")` from `buck/wasm/defs.bzl` links as `:module`
+  (against the app's libraries unless `libraries` says; both examples need only
+  the base library). A C library it needs goes in its `cargo_library`'s
+  `extra_deps`, so the app never links it. crates/be-sdk-worker-echo is the
+  smallest.
+- The app names it in `app(workers = ["//crates/be-worker-foo-tiles:module"])`
+  and in its manifest's `"workers": ["tiles.wasm"]`; the stage puts it under
+  `workers/<app id>/` and refuses an app staged without a worker its manifest
+  names.
+- The app starts it with `Worker::spawn("tiles.wasm")`, sends it byte buffers
+  with `send` (or a `Sender` from `sender()`) and awaits each answer with
+  `receive`, one buffer a message, whole and in order. Dropping the `Worker`
+  and its senders stops it; `receive` says why one stopped (it could not
+  start, trapped or panicked).
+- Work every editor of the app asks of goes to one worker they share, since a
+  canvas can show more editors than the app may run workers: each editor holds
+  a `Shared::new("tiles.wasm", wake)`, sends with `send` and takes its own
+  answers with `try_receive` once `wake` is called. The worker starts with the
+  first and stops with the last; one that stopped (a job it failed stops it)
+  fails what each editor had in flight, and the next `send` starts it anew.
+  Each instance is a `Generation`: `send` answers the one a message went to
+  and each `Answer` names the one it came from, so a stop fails only what was
+  sent to that generation, even when a `send` started the next before the
+  editor heard the stop.
+  Each message carries its client, so a `Work` answers whoever asked without
+  the app's messages naming them; it answers inside `receive`, through the
+  `App` it is handed, which lasts only for that call. The map and the PDF editor work this way.
+- A worker has WASI and its libraries but no gpu and no host services: it
+  computes and sends back bytes, which the app uploads or shows. It may block
+  its own thread as long as a job needs.
+- An app may spawn only its own workers, named, never by a path, at most 16 at
+  once with at most 1 GiB of memory each (natively: the browser cannot cap a
+  worker's memory), and compiles no module from bytes (guides/apps/runtime.md,
+  Backends). Its workers stop when it stops or fails.
+- The app's tests run its workers in their own instance: the app
+  dev-depends on the worker crate and the test calls
+  `BeuiTest::serve_worker::<Tiles>("tiles.wasm")`, after which each job the
+  editor sends is done before it next steps. A worker crate tests its `Work`
+  through `be_sdk_worker::Hosted` (`ask`).
 
 ## 6. Build and verify
 

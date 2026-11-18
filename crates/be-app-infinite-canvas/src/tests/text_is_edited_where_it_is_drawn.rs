@@ -14,7 +14,6 @@ fn text_is_edited_where_it_is_drawn() {
     let node = editor.document().find_test_id(&field);
 
     editor.double_click(pos2(resting.right() - 2.0, resting.center().y));
-    editor.run();
     assert_eq!(
         editor.document().find_test_id(&field),
         node,
@@ -23,12 +22,9 @@ fn text_is_edited_where_it_is_drawn() {
     assert_eq!(editor.rect_of(&field), resting, "nothing moves to edit");
 
     editor.type_text("!");
-    editor.run();
     editor.snapshot("editing");
     editor.key(Key::Escape, Modifiers::NONE);
-    editor.run();
     editor.type_text("?");
-    editor.run();
 
     assert_eq!(
         entities(&editor)[0].text.to_str_lossy(),

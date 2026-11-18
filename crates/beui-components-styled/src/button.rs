@@ -224,19 +224,10 @@ pub fn ButtonFace(
     let border = create_memo(move || {
         (revealed.get() && variant.get() == ButtonVariant::Secondary).then_some(Border::DEFAULT)
     });
+    // The Copy handle the closures below share: an `Image` prop is not `Copy`.
     let image = create_memo(move || image.get());
     let pictured = create_memo(move || image.with(Option::is_some));
     let has_leading = leading.is_some();
-    let leading = leading.unwrap_or_else(|| {
-        view! {
-            <Frame />
-        }
-    });
-    let has_glyph = create_memo(move || !has_leading && !pictured.get() && glyph.get().is_some());
-    let trailing = create_memo(move || trailing_glyph.get());
-    let has_trailing = create_memo(move || trailing.get().is_some());
-    let labelled = create_memo(move || !icon_only.get());
-    let busy = create_memo(move || busy.get());
     let justify = create_memo(move || match wide.get() || icon_only.get() {
         true => Justify::Center,
         false => Justify::Start,
@@ -264,21 +255,23 @@ pub fn ButtonFace(
                         justify={justify}
                         spacing=GLYPH_SPACING
                     >
-                        <Show condition={busy}>
+                        <Show value={busy}>
                             <Progress width=INLINE_PROGRESS_WIDTH />
                         </Show>
-                        <Show condition=has_leading>{leading}</Show>
-                        <Show condition={pictured}>
+                        {leading}
+                        <Show value={pictured}>
                             <Frame width=picture height=picture>
                                 <Picture image />
                             </Frame>
                         </Show>
-                        <Show condition={has_glyph}>
+                        <Show
+                            value={move || !has_leading && !pictured.get() && glyph.with(Option::is_some)}
+                        >
                             <Text size=text color={label_color} align=TextAlign::Center>
                                 <Icon glyph={glyph} />
                             </Text>
                         </Show>
-                        <Show condition={labelled}>
+                        <Show value={move || !icon_only.get()}>
                             <ListItem shrink=1.0>
                                 <Text
                                     size=text
@@ -290,9 +283,9 @@ pub fn ButtonFace(
                                 </Text>
                             </ListItem>
                         </Show>
-                        <Show condition={has_trailing}>
+                        <Show value={move || trailing_glyph.with(Option::is_some)}>
                             <Text size=text color={label_color} align=TextAlign::Center>
-                                <Icon glyph={trailing} />
+                                <Icon glyph={trailing_glyph} />
                             </Text>
                         </Show>
                     </List>

@@ -4,22 +4,14 @@ use beui_view::components::overlay::use_modal;
 use beui_view::types::LayerPolicy;
 use beui_view::types::icons::Glyph;
 
-use crate::anchored::{Anchored, AnchoredHandle, AnchoredStyle};
+use crate::anchored::{Anchored, AnchoredHandle, AnchoredStyle, SheetWhen};
 use crate::popup_trigger::{PopupTrigger, PopupTriggerHandle};
 use beui_view::primitives::*;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::OverlayAnchor;
 use beui_view::reactive::*;
 use beui_view::types::Placement;
-use beui_view::types::Rect;
-
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
-pub enum PopoverPlacement {
-    #[default]
-    Below,
-    Beside,
-    Over(u16),
-}
+use beui_view::types::{Pos2, Rect};
 
 #[derive(Clone, Copy)]
 pub struct PopoverHandle {
@@ -34,32 +26,41 @@ struct State {
     trigger: NodeRef,
 }
 
-/// A trigger and an anchored panel, built the first time it opens, that traps Tab
-/// and returns focus to the trigger on close.
+/// A trigger and an anchored panel, kept with its state while closed unless `keep_alive`
+/// is off, that traps Tab; its layer gives the focus back on close.
 ///
 /// Its layer passes input through (`LayerPolicy::Pass`): a press outside asks it
 /// to close and then lands on what was pressed, except a press on its own trigger,
 /// which is left to the trigger so a second click closes rather than reopens it.
 /// Content takes focus by binding `focused` to the handle's `shown`.
+///
+/// Without a `trigger` there is no button: it hangs from `anchor`, which then names
+/// something outside it, and opens and closes only through `open`. It takes any core
+/// `placement`, and `beak` points an arrow at its anchor from the frame its surface binds
+/// to `Dropdown::pointer` while it is above or below it.
 #[component]
 pub fn Popover(
     #[prop(default = ComponentRef::new())] api: ComponentRef<PopoverApi>,
-    trigger: Render<PopupTriggerHandle>,
+    trigger: Option<Render<PopupTriggerHandle, NodeId>>,
     surface: AnchoredStyle,
-    #[prop(children)] content: RenderFn<PopoverHandle>,
+    #[prop(children)] content: RenderFn<PopoverHandle, NodeId>,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = None)] glyph: Prop<Option<Glyph>>,
     #[prop(default = false)] icon_only: Prop<bool>,
     #[prop(default = false)] open: Binding<bool>,
-    anchor: Option<NodeRef>,
+    #[prop(default = None)] at: Binding<Option<Pos2>>,
+    anchor: Option<Prop<OverlayAnchor>>,
     band: Option<NodeRef>,
-    #[prop(default = PopoverPlacement::Below)] placement: Prop<PopoverPlacement>,
+    #[prop(default = Placement::BELOW_START)] placement: Prop<Placement>,
     #[prop(default = None)] bounds: Prop<Option<Rect>>,
-    #[prop(default = true)] refocus_trigger: Prop<bool>,
+    /// On by default here alone among popups: a popover's form keeps what was typed in it.
+    #[prop(default = true)]
+    keep_alive: bool,
+    #[prop(default = 0.0)] beak: Prop<f32>,
+    #[prop(default = SheetWhen::Touched)] sheet: Prop<SheetWhen>,
     accessibility: Option<Prop<Node>>,
 ) -> NodeId {
-    let refocus = create_signal(false);
     let disabled = create_memo(move || disabled.get());
     let label = create_memo(move || label.get());
     let trigger_ref = NodeRef::new();
@@ -70,31 +71,28 @@ pub fn Popover(
 
     create_effect(move || {
         if disabled.get() {
-            open.set(false);
+            untrack(|| open.set(false));
         }
     });
 
-    let refocus_trigger = create_memo(move || refocus_trigger.get());
-    let close = Callback::new(move |()| {
-        if open.get_untracked() {
-            if refocus_trigger.get_untracked() {
-                refocus.set(true);
-            }
-            open.set(false);
-        }
+    let close = Callback::new(move |()| open.set(false));
+    let anchor = anchor.unwrap_or_else(|| Prop::Static(OverlayAnchor::Node(trigger_ref)));
+    // A press on the button, or on the node it hangs from, is left to that to toggle it.
+    let has_button = trigger.is_some();
+    let held = anchor.clone();
+    let pressed = create_memo(move || match has_button {
+        true => Some(trigger_ref),
+        false => held.get().node(),
     });
-    let node = anchor.unwrap_or(trigger_ref);
     let anchor = match band {
-        Some(band) => OverlayAnchor::Band { node, band },
-        None => OverlayAnchor::Node(node),
+        Some(band) => Prop::dynamic(move || match anchor.get() {
+            OverlayAnchor::Node(node) => OverlayAnchor::Band { node, band },
+            anchor => anchor,
+        }),
+        None => anchor,
     };
-    let placement = placement.map(|placement| match placement {
-        PopoverPlacement::Below => Placement::BelowStart,
-        PopoverPlacement::Beside => Placement::RightStart,
-        PopoverPlacement::Over(inset) => Placement::Over(inset),
-    });
-    view! {
-        <List spacing=0.0>
+    let button = trigger.map(|trigger| {
+        view! {
             <PopupTrigger
                 @node_ref=&trigger_ref
                 open
@@ -103,30 +101,26 @@ pub fn Popover(
                 glyph
                 icon_only
                 disabled={disabled}
-                focused={refocus}
                 accessibility={accessibility.unwrap_or_else(|| Prop::Static(Node::new(Role::Button)))}
-                on_focus_change={move |focused: bool| {
-                    if !focused {
-                        refocus.set(false);
-                    }
-                }}
                 content={trigger}
             />
+        }
+    });
+    view! {
+        <List spacing=0.0>
+            {button}
             <Anchored
                 style={surface}
-                anchor=anchor
+                anchor
+                at
                 placement
                 bounds
+                keep_alive
+                beak
+                sheet
                 policy=LayerPolicy::Pass
-                trigger={trigger_ref}
-                open={create_memo(move || open.get())}
-                keep_alive=true
-                on_dismiss={move || {
-                    open.set(false);
-                    if refocus_trigger.get_untracked() {
-                        refocus.set(true);
-                    }
-                }}
+                trigger={pressed}
+                open
             >|handle: AnchoredHandle|
                 <PopoverSurface label>
                     {content.call(PopoverHandle {

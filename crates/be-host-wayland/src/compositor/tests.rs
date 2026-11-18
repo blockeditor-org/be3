@@ -25,6 +25,7 @@ mod a_frame_callback_waits_for_the_flip_of_the_screen_the_window_is_on;
 mod a_fullscreen_window_covers_only_its_own_screen;
 mod a_global_action_that_does_not_intercept_leaves_the_window_its_keys;
 mod a_key_an_action_takes_from_a_window_makes_the_keyboard_leave_and_enter_it_again;
+mod a_key_held_while_the_keyboard_moves_to_another_window_is_released_there;
 mod a_launched_program_is_given_a_token_that_brings_a_window_forward;
 mod a_locked_pointer_holds_still_and_moves_by_the_platforms_raw_motion_until_the_host_loses_focus;
 mod a_locked_session_gives_no_window_the_keyboard_or_the_pointer;
@@ -144,7 +145,7 @@ fn Carried(windows: Windows) -> NodeId {
     let ids = create_memo(clone_list(&windows));
     view! {
         <Layers>
-            <ForEach keys={ids}>|id: WindowId| {
+            <ForEach value={ids}>|id: WindowId| {
                 let carrier = crate::view::Carrier {
                     begin: std::rc::Rc::new(|grab| {
                         BEGUN.with(|begun| begun.borrow_mut().push(grab));
@@ -257,7 +258,7 @@ fn Shown(windows: Windows) -> NodeId {
             >
                 <List spacing=Space::None>
                     <TextInput @test_id={"test.input"} value={text} />
-                    <ForEach keys={ids}>|(id, _): (WindowId, u32)| {
+                    <ForEach value={ids}>|(id, _): (WindowId, u32)| {
                         let list = windows.list();
                         let size = create_memo(move || {
                             list.with(|list| {

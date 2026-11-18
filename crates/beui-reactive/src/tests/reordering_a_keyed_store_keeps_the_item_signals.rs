@@ -13,12 +13,12 @@ fn reordering_a_keyed_store_keeps_the_item_signals() {
     scope.run(|| {
         let runs = item_runs.clone();
         create_effect(move || {
-            first.with(|_| ());
+            first.track();
             runs.set(runs.get() + 1);
         });
         let runs = key_runs.clone();
         create_effect(move || {
-            keys.with(|_| ());
+            keys.track();
             runs.set(runs.get() + 1);
         });
     });
@@ -26,5 +26,5 @@ fn reordering_a_keyed_store_keeps_the_item_signals() {
     flush();
     assert_eq!(item_runs.get(), 1);
     assert_eq!(key_runs.get(), 2);
-    assert!(first.ptr_eq(&store.get(&0)));
+    assert_eq!(first, store.get(&0));
 }

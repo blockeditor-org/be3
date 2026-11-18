@@ -1,0 +1,13 @@
+[package]
+name = "be-lib-input-router"
+description = "The forwarding router: routes a window's input between the surfaces a hit test finds, with capture, gesture claims, focus, intercepted keys, pointer lock and drag and drop"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+be-lib-geometry = { path = "../be-lib-geometry" }
+be-lib-ui-types = { path = "../be-lib-ui-types" }
+
+[lints]
+workspace = true

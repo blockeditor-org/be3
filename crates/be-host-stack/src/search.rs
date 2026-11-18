@@ -1,5 +1,5 @@
-//! Full-text search (plans/search.md): each root block's search index, which the devices that
-//! edit its tree write, and the searches the host and its apps ask for.
+//! Full-text search (guides/blocks/host.md, "Search"): each root block's search index, which the
+//! devices that edit its tree write, and the searches the host and its apps ask for.
 //!
 //! **Indexing.** A head this device's session moved (`Host::status` while it owns the session)
 //! queues its block (`Searching::dirty`). Each round of the worker's loop (`step`) takes the
@@ -12,6 +12,11 @@
 //! fails is queued again; after `MAX_WRITE_FAILURES` in a row to one index, what it writes waits
 //! for the next connection or a growing delay, searches say they are not complete, and the host
 //! shows the error (`Searching::write_failed`).
+//!
+//! **Compacting while idle.** A batch's write compacts a few segments with it, none whose merge
+//! reads more than `MERGE_BYTES`; the merges that cap leaves, up to `IDLE_MERGE_BYTES`, are made
+//! while the host is idle (`compact_idle_indexes`) by the device that wrote the index's last
+//! batch, one index at a time.
 //!
 //! **Searching.** `want` names the searches an owner shows. A search runs in a task over the
 //! index of every root the account views in the open organization (`run`), reading only the
@@ -26,14 +31,14 @@ use std::{
     time::Duration,
 };
 
-use be_block::search_index::{AsyncRead, SearchIndexContent};
-use be_block_client::{Peer, Write};
+use be_block_client::{ListedBlock, Peer, Write};
 use be_block_commit::CommitId;
 use be_block_content::{BlockContent, BlockMetadata, SEARCH_INDEX, be_block_model::BlockRef};
 use be_block_graph::{Access, BlockParent, EDIT_KINDS, SEARCH_INDEX_TYPE, SETTINGS_TYPE};
+use be_block_search_index::{AsyncRead, IDLE_MERGE_BYTES, MERGE_BYTES, SearchIndexContent};
 use be_block_store::{ObjectStore, PartRef};
 use be_lib_search::{Batch, DocId, Put, Query, Text};
-use be_wasm_threads::Mutex;
+use std::sync::Mutex;
 use uuid::Uuid;
 
 use crate::{
@@ -43,8 +48,9 @@ use crate::{
     worker::{Shared, Store, Tasks},
 };
 
-/// How often a commit that cannot be read holds a catch-up's watermark back before it is let
-/// go (a history collected under the head it was listed at never reads).
+/// How often in a row a commit that cannot be read holds a catch-up's watermark back before it
+/// is let go (a history collected under the head it was listed at never reads): kept on this
+/// device (`Peer::let_go`) and read again when each later catch-up starts, until it is read.
 const MAX_READ_FAILURES: u8 = 3;
 /// Writes to an index that may fail in a row (`Unwritten::Failed`) before its batches and
 /// settles are set aside (`Searching::failing`).
@@ -69,7 +75,9 @@ const TEXTS: usize = 256;
 
 /// A search an owner shows: words, `"quoted phrases"`, the last word a prefix
 /// (`be_lib_search::Query::parse`), within a block's tree or everything the account views.
-#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[derive(
+    Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, serde::Deserialize, serde::Serialize,
+)]
 pub struct SearchAsk {
     pub text: String,
     pub within: Option<Uuid>,
@@ -77,19 +85,20 @@ pub struct SearchAsk {
 
 /// A document a search found: its block, the document's key within it (empty for a block that
 /// is one document), and where it matched.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
 pub struct SearchHit {
     pub block: Uuid,
     pub key: String,
     /// The stretch of the text around the first match, or its start when only the name
     /// matched.
     pub snippet: String,
-    /// The matched words, as byte ranges of `snippet`.
+    /// The matched words, as byte ranges of `snippet` (`Query::matches`: a phrase in a row is
+    /// one range).
     pub matches: Vec<Range<usize>>,
 }
 
 /// A search's answer, the best hit first.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
 pub struct Searched {
     pub hits: Vec<SearchHit>,
     /// Every queued edit this device made is indexed.
@@ -141,14 +150,6 @@ struct Confirm {
     drains: u64,
 }
 
-/// What the indexer needs of a block `changed-since` named, which the mirror may not hold.
-#[derive(Clone, Debug)]
-struct Caught {
-    root: Uuid,
-    content_type: Uuid,
-    head: Option<CommitId>,
-}
-
 impl Settle {
     /// The sequence the index has seen every change up to.
     #[cfg(test)]
@@ -185,8 +186,8 @@ pub struct Searching {
     creating: HashMap<Uuid, Uuid>,
     /// Indexes made and not yet named in their root's metadata (`name_indexes`).
     made: Vec<(Uuid, Uuid)>,
-    /// Blocks that `changed-since` named, for the indexer to read where the mirror does not.
-    caught: HashMap<Uuid, Caught>,
+    /// Blocks that `query.tree` named, for the indexer to read where the mirror does not.
+    caught: HashMap<Uuid, ListedBlock>,
     /// Roots whose catch-up runs, and those that ran since this device last connected.
     catching: HashSet<Uuid>,
     caught_up: HashSet<Uuid>,
@@ -206,7 +207,8 @@ pub struct Searching {
     /// so the size it shows is the server's with the define in it.
     confirming: HashMap<Uuid, Confirm>,
     /// Roots whose index could not be made for want of a connection or a graph: not tried
-    /// again until the graph moves past the revision they failed at.
+    /// again until the graph moves past the revision they failed at, or the device connects
+    /// again.
     failed: HashMap<Uuid, u64>,
     /// Roots whose index naming was refused or failed eight times, with the access this
     /// account had then: tried again when the access changes.
@@ -231,19 +233,39 @@ pub struct Searching {
     /// is queued again, until `MAX_WRITE_FAILURES`.
     write_failures: HashMap<Uuid, u32>,
     /// What was set aside after `MAX_WRITE_FAILURES` failed writes to an index in a row, by
-    /// index: queued again on the next connection or once its delay is up.
+    /// index: queued again on the next connection or once its delay is up. A write that could
+    /// not reach the server (`Unwritten::Unreachable`) is set aside here at once, with no delay:
+    /// queued again on the next connection alone.
     failing: HashMap<Uuid, Failing>,
     /// Times in a row an index's writes were set aside, for the delay before the next try.
     set_aside: HashMap<Uuid, u32>,
     /// Writes a test makes fail before they start (`Unwritten::Failed`).
     #[cfg(test)]
     pub(crate) fail_writes: u32,
+    /// By index: the head this device's last write to it left, while it may be the index's
+    /// newest, for the idle pass (`compact_idle_indexes`), and whether that pass has looked at
+    /// it already. Only the device that wrote an index's last batch compacts it while idle.
+    last_written: HashMap<Uuid, LastWritten>,
+    /// The cap a test gives a batch's compaction in place of `MERGE_BYTES`.
+    #[cfg(test)]
+    pub(crate) merge_bytes: Option<u64>,
+    /// Set by a test: no idle pass starts until it is cleared.
+    #[cfg(test)]
+    pub(crate) hold_idle: bool,
+    /// How many idle passes wrote a commit.
+    #[cfg(test)]
+    pub(crate) idle_compactions: u64,
+    /// The watermark each index was last settled at here, for a test to see it move.
+    #[cfg(test)]
+    pub(crate) settled_at: HashMap<Uuid, u64>,
     /// Indexes this device named, by root.
     named: HashMap<Uuid, Uuid>,
     /// The graph revision `unindexed_roots` last looked at.
     scanned: Option<u64>,
     wanted: HashMap<Owner, Vec<SearchAsk>>,
     answers: HashMap<SearchAsk, Answer>,
+    /// Counts the changes to what `shown` answers, for the worker to make it again only then.
+    shown_revision: u64,
     running: HashSet<SearchAsk>,
     /// Documents' text for snippets, by block, key and head.
     texts: HashMap<(Uuid, String, Option<CommitId>), Option<String>>,
@@ -270,9 +292,45 @@ pub struct Searching {
 }
 
 impl Searching {
-    /// The new connection lists nothing yet.
+    /// The new connection lists nothing yet. Roots whose index could not be made are tried
+    /// again: one that failed for want of a connection waits for no graph change.
     pub(crate) fn reconnected(&mut self) {
         self.release_failing(None);
+        self.failed.clear();
+    }
+
+    /// Records that a block was read for a batch: its failures start again from none.
+    pub(crate) fn read(&mut self, block: Uuid) {
+        self.failures.remove(&block);
+    }
+
+    /// Counts a read of `block` that failed, and whether it is let go now: after
+    /// `MAX_READ_FAILURES` in a row it is counted as put, so a catch-up that lists it ends, and
+    /// the caller keeps it to be read again (`Peer::let_go`, `retry`).
+    pub(crate) fn read_failed(&mut self, block: Uuid) -> bool {
+        let failures = self.failures.entry(block).or_default();
+        *failures += 1;
+        if *failures < MAX_READ_FAILURES {
+            return false;
+        }
+        self.failures.remove(&block);
+        true
+    }
+
+    /// Queues a block that was let go again, as a catch-up starts, with what a catch-up listed
+    /// of it when the mirror does not hold it (else the mirror's head is newer).
+    pub(crate) fn retry(&mut self, block: Uuid, listed: Option<ListedBlock>) {
+        if let Some(listed) = listed {
+            self.caught.entry(block).or_insert(listed);
+        }
+        self.dirty.insert(block);
+    }
+
+    /// Forgets what is kept of a block that is not indexed: one detached, or under a root this
+    /// device cannot edit.
+    pub(crate) fn forget(&mut self, block: Uuid) {
+        self.caught.remove(&block);
+        self.failures.remove(&block);
     }
 
     /// Queues a block whose head this device's session moved.
@@ -336,6 +394,42 @@ impl Searching {
         self.busy_with(unindexed).is_some()
     }
 
+    /// The most bytes one merge of a batch's compaction reads.
+    fn merge_bytes(&self) -> u64 {
+        #[cfg(test)]
+        if let Some(bytes) = self.merge_bytes {
+            return bytes;
+        }
+        MERGE_BYTES
+    }
+
+    /// Notes that this device's write left `index` at `head`, for the idle pass.
+    fn last_wrote(&mut self, index: Uuid, head: Option<CommitId>) {
+        match head {
+            Some(head) => {
+                self.last_written.insert(
+                    index,
+                    LastWritten {
+                        head,
+                        looked: false,
+                    },
+                );
+            }
+            None => {
+                self.last_written.remove(&index);
+            }
+        }
+    }
+
+    /// Whether the idle pass has nothing left to do: every index this device wrote last has
+    /// been looked at, or was moved on by another device.
+    #[cfg(test)]
+    pub(crate) fn idle_done<S: ObjectStore>(&self, peer: &Peer<S>) -> bool {
+        self.last_written
+            .iter()
+            .all(|(index, last)| last.looked || !is_newest(peer, *index, last.head))
+    }
+
     fn wanted(&self) -> impl Iterator<Item = &SearchAsk> {
         self.wanted.values().flatten()
     }
@@ -353,13 +447,35 @@ impl Searching {
         };
         let wanted: HashSet<SearchAsk> = self.wanted().cloned().collect();
         self.answers.retain(|asked, _| wanted.contains(asked));
+        self.shown_revision += 1;
         true
     }
 
+    /// Each search's answer as shown so far, `complete` left for the reader to fill in from
+    /// `indexed` (`Seen::searched`).
+    pub(crate) fn shown(&self) -> HashMap<SearchAsk, Searched> {
+        self.answers
+            .iter()
+            .filter_map(|(asked, answer)| Some((asked.clone(), answer.shown.clone()?)))
+            .collect()
+    }
+
+    /// A search's answer as the page reads it (`crate::searched`).
+    #[cfg(test)]
     pub(crate) fn answer(&self, asked: &SearchAsk) -> Option<Searched> {
         let mut shown = self.answers.get(asked)?.shown.clone()?;
         shown.complete = self.indexed();
         Some(shown)
+    }
+
+    pub(crate) fn shown_revision(&self) -> u64 {
+        self.shown_revision
+    }
+
+    /// Forgets every answer: an index they read changed.
+    fn forget_answers(&mut self) {
+        self.answers.clear();
+        self.shown_revision += 1;
     }
 
     /// Nothing this device could index is queued, parked, being made or being written. Offline,
@@ -651,7 +767,7 @@ impl Searching {
         self.moving
             .iter()
             .map(|moving| moving.due)
-            .chain(self.failing.values().map(|failing| failing.due))
+            .chain(self.failing.values().filter_map(|failing| failing.due))
             .min()
     }
 
@@ -660,12 +776,14 @@ impl Searching {
         self.moving.iter().map(|moving| moving.index)
     }
 
-    /// A batch or settle was written to `index`: the next one given back waits the shortest
-    /// delay, and failures count from none.
-    pub(crate) fn wrote(&mut self, index: Uuid) {
+    /// A batch or settle was written to `index`, leaving it at `head` here: the next one given
+    /// back waits the shortest delay, failures count from none, and the idle pass may look at
+    /// the index (`last_written`).
+    pub(crate) fn wrote(&mut self, index: Uuid, head: Option<CommitId>) {
         self.moved.remove(&index);
         self.write_failures.remove(&index);
         self.set_aside.remove(&index);
+        self.last_wrote(index, head);
     }
 
     /// A batch of `blocks` could not be written to `index` at `now` (`Unwritten::Failed`):
@@ -707,6 +825,24 @@ impl Searching {
         }
     }
 
+    /// A batch of `blocks` could not be written to `index` for want of the server
+    /// (`Unwritten::Unreachable`): set aside until the next connection (`reconnected`), counted
+    /// as no failure and shown as no error.
+    pub(crate) fn write_unreachable(&mut self, index: Uuid, blocks: Vec<Uuid>, whole: Vec<Uuid>) {
+        self.whole.extend(whole);
+        let failing = self.failing.entry(index).or_default();
+        failing.due = None;
+        failing.blocks.extend(blocks);
+    }
+
+    /// A settle could not be written to `index` for want of the server, set aside as
+    /// `write_unreachable` sets a batch aside.
+    pub(crate) fn settle_unreachable(&mut self, index: Uuid, settle: Settle) {
+        let failing = self.failing.entry(index).or_default();
+        failing.due = None;
+        failing.settles.push(settle);
+    }
+
     /// Counts a failed write to `index`, and once that makes `MAX_WRITE_FAILURES` in a row,
     /// gives what is set aside for it.
     fn failed_again(&mut self, index: Uuid, now: Duration) -> Option<&mut Failing> {
@@ -723,7 +859,7 @@ impl Searching {
                 .saturating_mul(1 << (*runs - 1).min(16))
                 .min(FAILING_MOST);
         let failing = self.failing.entry(index).or_default();
-        failing.due = due;
+        failing.due = Some(due);
         Some(failing)
     }
 
@@ -732,7 +868,7 @@ impl Searching {
         let due: Vec<Uuid> = self
             .failing
             .iter()
-            .filter(|(_, failing)| now.is_none_or(|now| failing.due <= now))
+            .filter(|(_, failing)| now.is_none_or(|now| failing.due.is_some_and(|due| due <= now)))
             .map(|(index, _)| *index)
             .collect();
         for index in due {
@@ -748,13 +884,30 @@ impl Searching {
     }
 }
 
+/// Whether `head` is the index's newest here: its local head, and the server's as far as this
+/// device knows, so no other device wrote it since.
+fn is_newest<S: ObjectStore>(peer: &Peer<S>, index: Uuid, head: CommitId) -> bool {
+    peer.local_head(index) == Some(head)
+        && peer
+            .known_remote_head(index)
+            .is_none_or(|remote| remote == head)
+}
+
+/// The head this device's last write to an index left (`Searching::last_written`).
+struct LastWritten {
+    head: CommitId,
+    /// The idle pass found nothing over the cap there, or failed: it waits for the next write.
+    looked: bool,
+}
+
 /// What is set aside for an index whose writes kept failing (`Searching::failing`).
 #[derive(Default)]
 struct Failing {
     blocks: Vec<Uuid>,
     /// Its settles, oldest first, put back before any queued since.
     settles: Vec<Settle>,
-    due: Duration,
+    /// When it is queued again; none waits for the next connection alone.
+    due: Option<Duration>,
 }
 
 /// The heads of an index a batch held back was given back at: the mirror's and the one the
@@ -795,6 +948,13 @@ enum Place {
     /// Not indexed: detached, or a block its owner holds by metadata.
     Skip,
     Root(Uuid),
+}
+
+/// Forgets `block` as one a catch-up let go (`Peer::forget_let_go`), logging a write that fails.
+fn forget_let_go(peer: &Peer<Store>, block: Uuid) {
+    if let Err(error) = peer.forget_let_go(block) {
+        eprintln!("be-host: could not forget {block} as let go by search: {error}");
+    }
 }
 
 /// The root whose index holds `block`'s text, within `PLACE_DEPTH` steps.
@@ -865,7 +1025,92 @@ pub(crate) async fn step(
     let mut moved = index(peer, shared, replicas, tasks, clock).await;
     moved |= search(peer, shared, tasks);
     moved |= show(peer, shared, replicas).await;
+    compact_idle_indexes(peer, shared, tasks);
     moved
+}
+
+/// While the host is idle (nothing queued, written, made or caught up for search, no search
+/// running, no command waiting, nothing in the outbox, no module working), compacts an index
+/// whose compaction leaves a merge over `MERGE_BYTES`, with merges up to `IDLE_MERGE_BYTES`, in
+/// a task. Only an index whose newest head here is the one this device's last write left
+/// (`Searching::last_written`) is looked at: the device that wrote the last batch compacts, so
+/// two devices never make the same merge, and nothing is loaded for an index no write here
+/// moved. Each such head is looked at once. The pass counts as a batch being written, so a
+/// batch for that index waits for it and the host is busy until it is sealed and sent; its
+/// commit is a write too, so the next idle round makes the next merge.
+fn compact_idle_indexes(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: &Tasks) {
+    let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+    #[cfg(test)]
+    if held.search.hold_idle {
+        return;
+    }
+    let idle = !held.search.off
+        && held.waiting == 0
+        && held.pending() == 0
+        && held.typing.is_empty()
+        && !held.arriving
+        && !held.draining
+        && held.search.busy_with(wants_index(&held)).is_none();
+    if !idle {
+        return;
+    }
+    // An index another device wrote since, or that a merge moved, is no longer this device's
+    // to compact.
+    held.search
+        .last_written
+        .retain(|index, last| is_newest(peer, *index, last.head));
+    let state = &*held;
+    let due = state
+        .search
+        .last_written
+        .iter()
+        .filter(|(index, last)| {
+            !last.looked
+                && state
+                    .graph
+                    .get(**index)
+                    .is_some_and(|node| node.access.can_edit() && !node.locked)
+        })
+        .map(|(index, last)| (*index, last.head))
+        .min_by_key(|(index, _)| *index);
+    let Some((index, head)) = due else {
+        return;
+    };
+    held.search.writing.insert(index);
+    let cap = held.search.merge_bytes();
+    let (peer, shared, tasks_held) = (Arc::clone(peer), Arc::clone(shared), tasks.clone());
+    tasks.spawn(async move {
+        let compacted = compact_past(&peer, index, head, cap).await;
+        // Sent before it stops counting as busy, as a batch is.
+        tasks_held.sync(&peer, &shared);
+        let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+        held.search.writing.remove(&index);
+        match compacted {
+            Ok(true) => {
+                #[cfg(test)]
+                {
+                    held.search.idle_compactions += 1;
+                }
+                held.search.last_wrote(index, peer.local_head(index));
+            }
+            // Looked at again after this device's next write: an idle pass is never urgent.
+            Ok(false) | Err(_) => {
+                if let Err(error) = compacted {
+                    eprintln!(
+                        "be-host: compacting the search index {index} while idle failed: {error}"
+                    );
+                }
+                if let Some(last) = held.search.last_written.get_mut(&index)
+                    && last.head == head
+                {
+                    last.looked = true;
+                }
+            }
+        }
+        held.progressed += 1;
+        drop(held);
+        crate::changes::wake();
+    });
 }
 
 async fn index(
@@ -882,7 +1127,7 @@ async fn index(
         }
         let roots = unindexed_roots(&mut held);
         let state = &mut *held;
-        let (graph, named) = (&state.graph, &state.search.named);
+        let (graph, named) = (&state.seen.graph, &state.search.named);
         let roots_naming: HashSet<Uuid> = graph
             .nodes()
             .filter(|node| node.parent == Some(BlockParent::Root))
@@ -902,11 +1147,11 @@ async fn index(
             |index| roots_naming.contains(&index),
         );
         held.search
-            .release_partial(|content_type| crate::kind_of(content_type).is_some());
+            .release_partial(|content_type| be_block_type_host::kind_of(content_type).is_some());
         held.search.set_attached(peer.is_attached());
         {
             let state = &mut *held;
-            let graph = &state.graph;
+            let graph = &state.seen.graph;
             state.search.release_unplaced(
                 |missing| graph.get(missing).is_some(),
                 |missing| graph.ready(GraphQuery::Block(missing)),
@@ -944,7 +1189,11 @@ async fn index(
                     }
                     continue;
                 }
-                Place::Skip => continue,
+                Place::Skip => {
+                    held.search.forget(block);
+                    forget_let_go(peer, block);
+                    continue;
+                }
                 Place::Root(root) => root,
             };
             if !held
@@ -952,6 +1201,8 @@ async fn index(
                 .get(root)
                 .is_some_and(|root| root.access.can_edit())
             {
+                held.search.forget(block);
+                forget_let_go(peer, block);
                 continue;
             }
             match index_of(&held.graph, &held.search.named, root) {
@@ -995,7 +1246,7 @@ async fn index(
         // it answered before and which parts' text is held. An index that cannot be loaded
         // gives no entries, so each block is read whole and removes nothing.
         let content = match head_of(peer, index).await {
-            Some(head) => load(peer, head).await.ok(),
+            Some(head) => load(peer, index, head).await.ok(),
             None => None,
         };
         for block in &blocks {
@@ -1021,8 +1272,8 @@ async fn index(
                         .lock()
                         .unwrap_or_else(PoisonError::into_inner)
                         .search
-                        .failures
-                        .remove(block);
+                        .read(*block);
+                    forget_let_go(peer, *block);
                     put_blocks.push(*block);
                     if whole {
                         read_whole.push(*block);
@@ -1034,21 +1285,27 @@ async fn index(
                     if whole {
                         held.search.whole.insert(*block);
                     }
-                    let failures = held.search.failures.entry(*block).or_default();
-                    *failures += 1;
-                    if *failures >= MAX_READ_FAILURES {
-                        held.search.failures.remove(block);
+                    if held.search.read_failed(*block) {
+                        let listed = held.search.caught.get(block).copied();
+                        if let Err(error) = peer.let_go(*block, listed) {
+                            eprintln!("be-host: could not keep {block} to index again: {error}");
+                        }
                         put_blocks.push(*block);
                     }
                 }
             }
         }
+        let bytes = shared
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .search
+            .merge_bytes();
         let (peer, shared, tasks_held) = (Arc::clone(peer), Arc::clone(shared), tasks.clone());
         let clock = clock.clone();
         tasks.spawn(async move {
             let written = match injected_failure(&shared) {
                 Some(failed) => Err(failed),
-                None => write(&peer, index, batch).await,
+                None => write(&peer, index, batch, bytes).await,
             };
             // Sent before the batch stops counting as busy, so the host is never idle with the
             // sealed commit unsent.
@@ -1059,12 +1316,12 @@ async fn index(
                 match written {
                     // Every answer is read again, whichever index it read.
                     Ok(Some(needs_text)) => {
-                        held.search.wrote(index);
+                        held.search.wrote(index, peer.local_head(index));
                         for block in &put_blocks {
                             held.search.caught.remove(block);
                         }
                         held.search.mark_put(put_blocks);
-                        held.search.answers.clear();
+                        held.search.forget_answers();
                         held.search.reread(
                             needs_text
                                 .iter()
@@ -1080,6 +1337,10 @@ async fn index(
                         let heads = index_heads(&peer, &held.graph, index);
                         held.search.hold_moving(index, blocks, heads, clock.now());
                     }
+                    // Out of reach: written on the next connection, with no error shown.
+                    Err(Unwritten::Unreachable(_)) => {
+                        held.search.write_unreachable(index, put_blocks, read_whole);
+                    }
                     // Queued again: what failed may not fail twice. An index that fails every
                     // write waits, and says why. Only the blocks read are: one whose commit
                     // could not be read was left out above, and its read failures count apart.
@@ -1093,7 +1354,7 @@ async fn index(
                     }
                 }
             }
-            be_host_base::host::wake();
+            crate::changes::wake();
         });
     }
     moved
@@ -1126,7 +1387,7 @@ fn unindexed_roots(held: &mut Shared) -> Vec<(Uuid, Uuid)> {
     }
     held.search.scanned = Some(revision);
     let state = &mut *held;
-    let graph = &state.graph;
+    let graph = &state.seen.graph;
     state
         .search
         .prune_given_up(|root| graph.get(root).map(|node| node.access));
@@ -1152,6 +1413,11 @@ pub(crate) fn unindexed(held: &Shared) -> Vec<Uuid> {
                 && node.access.can_edit()
                 && !node.locked
                 && !node.metadata.contains(&SEARCH_INDEX)
+                // A workspace made here (My files, on signing in) is in the mirror before the
+                // peer kept its creation, which pins the root of its log that the index's own
+                // parent record names: until then an index under it is refused as locked. Its
+                // creation settling moves the graph on, which looks again.
+                && !held.graph.changing(node.id)
         })
         .filter(|node| {
             !held.search.creating.contains_key(&node.id)
@@ -1213,7 +1479,7 @@ fn make_indexes(
                     }
                 }
             }
-            be_host_base::host::wake();
+            crate::changes::wake();
         });
     }
 }
@@ -1275,7 +1541,11 @@ async fn puts_of(
     };
     // A commit that cannot be fetched now (a connection, a key) is held back: the block is not
     // put, and a catch-up that listed it does not move its watermark past it.
-    let Ok(commit) = peer.load_commit(head).await else {
+    #[cfg(test)]
+    if failed_read(block) {
+        return None;
+    }
+    let Ok(commit) = peer.load_head(block, head).await else {
         return None;
     };
     // The commit's own time, which the server cannot read: stored as it is, and compared as
@@ -1472,23 +1742,31 @@ async fn documents_of(
     }
 }
 
-/// A document's text at a block's head, for a snippet.
+/// A document's text at `head`, the block's head the mirror holds, for a snippet: `Ok(None)` when
+/// the block has no head or no such text, and `Err` when it could not be read now (the commit, a
+/// part, or its type module: `NotSearched::Type` is as often a module busy or starting under load
+/// as one that cannot answer, so it is not taken for an answer), which a later show tries again.
 async fn text_of(
     peer: &Arc<Peer<Store>>,
     shared: &Arc<Mutex<Shared>>,
     replicas: &mut Replicas,
-    block: Uuid,
+    (block, head): (Uuid, Option<CommitId>),
     content_type: Uuid,
     key: &str,
-) -> Option<String> {
-    let head = peer.newest_head(block).await.ok().flatten()?;
-    let commit = peer.load_commit(head).await.ok()?;
+) -> Result<Option<String>, ()> {
+    let Some(head) = head else {
+        return Ok(None);
+    };
+    let commit = peer.load_head(block, head).await.map_err(drop)?;
     let keys = Some(vec![key.to_owned()]);
-    documents_of(peer, shared, replicas, content_type, &commit, keys, &[])
-        .await??
+    let documents = documents_of(peer, shared, replicas, content_type, &commit, keys, &[])
+        .await
+        .flatten()
+        .ok_or(())?;
+    Ok(documents
         .into_iter()
-        .find(|document| document.key == key)?
-        .body
+        .find(|document| document.key == key)
+        .and_then(|document| document.body))
 }
 
 /// Makes `root`'s index, empty: in a task, beside the worker's loop, offline-first like any
@@ -1513,14 +1791,16 @@ pub(crate) async fn make_index<S: ObjectStore>(
     Ok(())
 }
 
-/// A refusal that passes by itself: the server does not hold the root yet (its own create
-/// still on its way), so the index is made again when the mirror next changes, and no error
-/// is shown.
+/// A failure that passes by itself, so no error is shown: the server does not hold the root
+/// yet (its own create still on its way), and the index is made again when the mirror next
+/// changes; or the server could not be reached (offline, or the keys of the root could not be
+/// asked for), and it is made again on the next connection (`Searching::reconnected`).
 pub(crate) fn not_there_yet(error: &be_block_client::ClientError) -> bool {
-    matches!(
-        error,
-        be_block_client::ClientError::Refused(be_block_protocol::ErrorCode::BlockNotFound, _)
-    )
+    error.is_unreachable()
+        || matches!(
+            error,
+            be_block_client::ClientError::Refused(be_block_protocol::ErrorCode::BlockNotFound, _)
+        )
 }
 
 /// Names a made index in its root's metadata, as a define command does: in the loop, so the
@@ -1615,7 +1895,7 @@ async fn name_indexes(
 /// Starts the catch-up of each root this device may edit whose index is named and has not
 /// been caught up since this device connected (guides/blocks/host.md, "Catching up"): commits
 /// from devices that never index, and blocks that left the tree, are found by what
-/// `changed-since` lists after the index's watermark.
+/// `query.tree` lists after the index's watermark.
 fn start_catch_ups(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: &Tasks) {
     let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
     if held.search.off {
@@ -1626,6 +1906,13 @@ fn start_catch_ups(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: 
         return;
     }
     let due = catch_ups_due(&held, true);
+    // What earlier catch-ups let go is read again, here or after a restart.
+    if !due.is_empty() {
+        for (block, listed) in peer.let_go_blocks() {
+            let mirrored = held.graph.get(block).is_some();
+            held.search.retry(block, listed.filter(|_| !mirrored));
+        }
+    }
     for (root, index) in due {
         held.search.catching.insert(root);
         let (peer, shared, tasks_held) = (Arc::clone(peer), Arc::clone(shared), tasks.clone());
@@ -1651,7 +1938,7 @@ fn start_catch_ups(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: 
                 }
             }
             tasks_held.sync(&peer, &shared);
-            be_host_base::host::wake();
+            crate::changes::wake();
         });
     }
 }
@@ -1684,7 +1971,7 @@ pub(crate) fn catch_ups_due(held: &Shared, attached: bool) -> Vec<(Uuid, Uuid)> 
         .collect()
 }
 
-/// Catches `root`'s index up, a page of `changed-since` at a time from its watermark: each
+/// Catches `root`'s index up, a page of `query.tree` at a time from its watermark: each
 /// page queues the blocks it lists and leaves a settle with the watermark it reaches (all
 /// before the page's last sequence, which the next page may share), so a catch-up that is
 /// interrupted resumes from the last page that was indexed. False while the index has no head
@@ -1699,7 +1986,7 @@ async fn catch_up(
     let Some(head) = head_of(peer, index).await else {
         return Ok(false);
     };
-    let Ok(content) = load(peer, head).await else {
+    let Ok(content) = load(peer, index, head).await else {
         return Ok(false);
     };
     let since = content.index().watermark();
@@ -1708,9 +1995,9 @@ async fn catch_up(
         block: Uuid::max(),
     };
     loop {
-        let page = peer.changed_page(root, after, PAGE).await?;
+        let page = peer.changed_page(root, after, PAGE, false).await?;
         peer.learn(&page.summaries).await?;
-        let blocks: Vec<(Uuid, Caught)> = page
+        let blocks: Vec<(Uuid, ListedBlock)> = page
             .summaries
             .iter()
             .filter(|summary| {
@@ -1723,7 +2010,7 @@ async fn catch_up(
             .map(|summary| {
                 (
                     summary.id,
-                    Caught {
+                    ListedBlock {
                         root,
                         content_type: summary.content_type,
                         head: summary.head,
@@ -1753,7 +2040,7 @@ async fn catch_up(
                 held.search.dirty.insert(block);
             }
         }
-        be_host_base::host::wake();
+        crate::changes::wake();
         match page.next {
             Some(next) => after = next,
             None => return Ok(true),
@@ -1770,6 +2057,11 @@ fn settle_indexes(
     settles: HashMap<Uuid, Settle>,
     clock: &be_block_client::Clock,
 ) {
+    let bytes = shared
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .search
+        .merge_bytes();
     for (index, settle) in settles {
         let (peer, shared, tasks_held) = (Arc::clone(peer), Arc::clone(shared), tasks.clone());
         let clock = clock.clone();
@@ -1791,15 +2083,17 @@ fn settle_indexes(
             };
             let written = match injected_failure(&shared) {
                 Some(failed) => Err(failed),
-                None => write(&peer, index, batch).await,
+                None => write(&peer, index, batch, bytes).await,
             };
             tasks_held.sync(&peer, &shared);
             let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
             held.search.writing.remove(&index);
             match written {
                 Ok(Some(needs_text)) => {
-                    held.search.wrote(index);
-                    held.search.answers.clear();
+                    #[cfg(test)]
+                    held.search.settled_at.insert(index, settle.sequence);
+                    held.search.wrote(index, peer.local_head(index));
+                    held.search.forget_answers();
                     held.search.reread(
                         needs_text
                             .iter()
@@ -1815,6 +2109,9 @@ fn settle_indexes(
                         .or_default()
                         .insert(0, settle);
                 }
+                Err(Unwritten::Unreachable(_)) => {
+                    held.search.settle_unreachable(index, settle);
+                }
                 // Settled again, first, as a batch is written again.
                 Err(Unwritten::Failed(error)) => {
                     if held.search.settle_failed(index, settle, clock.now()) {
@@ -1823,7 +2120,7 @@ fn settle_indexes(
                 }
             }
             drop(held);
-            be_host_base::host::wake();
+            crate::changes::wake();
         });
     }
 }
@@ -1833,7 +2130,7 @@ async fn held_blocks(peer: &Peer<Store>, index: Uuid, blocks: &[Uuid]) -> Vec<Uu
     let Some(head) = head_of(peer, index).await else {
         return Vec::new();
     };
-    let Ok(content) = load(peer, head).await else {
+    let Ok(content) = load(peer, index, head).await else {
         return Vec::new();
     };
     let mut held = Vec::new();
@@ -1868,7 +2165,7 @@ fn confirm_names(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: &T
                 .unwrap_or_else(PoisonError::into_inner)
                 .search
                 .confirmed(root);
-            be_host_base::host::wake();
+            crate::changes::wake();
         });
     }
 }
@@ -1924,10 +2221,11 @@ async fn head_of<S: ObjectStore>(peer: &Peer<S>, index: Uuid) -> Option<CommitId
 
 async fn load<S: ObjectStore>(
     peer: &Peer<S>,
+    index: Uuid,
     head: CommitId,
 ) -> Result<SearchIndexContent, String> {
     let commit = peer
-        .load_commit(head)
+        .load_head(index, head)
         .await
         .map_err(|error| error.to_string())?;
     let stored = peer
@@ -1935,6 +2233,25 @@ async fn load<S: ObjectStore>(
         .await
         .map_err(|error| error.to_string())?;
     SearchIndexContent::from_stored(&stored).map_err(|error| error.to_string())
+}
+
+/// Blocks a test makes every read of fail, as a commit that cannot be fetched does, with the
+/// reads tried: kept apart from `Shared`, so they hold across a restart.
+#[cfg(test)]
+pub(crate) static FAILING_READS: std::sync::Mutex<BTreeMap<Uuid, (bool, u32)>> =
+    std::sync::Mutex::new(BTreeMap::new());
+
+/// Counts a read of `block`, and whether a test makes it fail (`FAILING_READS`).
+#[cfg(test)]
+fn failed_read(block: Uuid) -> bool {
+    let mut failing = FAILING_READS.lock().unwrap_or_else(PoisonError::into_inner);
+    match failing.get_mut(&block) {
+        Some((fails, tries)) => {
+            *tries += 1;
+            *fails
+        }
+        None => false,
+    }
 }
 
 /// What `index` holds for `block` at its newest head.
@@ -1947,13 +2264,21 @@ pub(crate) async fn entries<S: ObjectStore>(
     let Some(head) = head_of(peer, index).await else {
         return Vec::new();
     };
-    let Ok(content) = load(peer, head).await else {
+    let Ok(content) = load(peer, index, head).await else {
         return Vec::new();
     };
     content
         .entries_of(&PeerParts(peer), block.as_bytes())
         .await
         .unwrap_or_default()
+}
+
+/// How many segments `index` has at its newest head.
+#[cfg(test)]
+pub(crate) async fn segment_count<S: ObjectStore>(peer: &Peer<S>, index: Uuid) -> usize {
+    let head = head_of(peer, index).await.expect("the index has a head");
+    let content = load(peer, index, head).await.expect("the index loads");
+    content.index().segment_count()
 }
 
 /// How often a batch is applied to a head the server has let go of before it is given back
@@ -1968,13 +2293,18 @@ pub enum Unwritten {
     /// batch another device published meanwhile let go of the head it replaced, with every
     /// object only that head held. The indexer writes it again on its next pass.
     Moved(String),
+    /// The server could not be reached (`ClientError::is_unreachable`): written again on the
+    /// next connection.
+    Unreachable(String),
     Failed(String),
 }
 
 impl std::fmt::Display for Unwritten {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Moved(error) | Self::Failed(error) => formatter.write_str(error),
+            Self::Moved(error) | Self::Unreachable(error) | Self::Failed(error) => {
+                formatter.write_str(error)
+            }
         }
     }
 }
@@ -1983,6 +2313,7 @@ impl From<be_block_client::ClientError> for Unwritten {
     fn from(error: be_block_client::ClientError) -> Self {
         match error {
             be_block_client::ClientError::MissingObject(_) => Self::Moved(error.to_string()),
+            error if error.is_unreachable() => Self::Unreachable(error.to_string()),
             error => Self::Failed(error.to_string()),
         }
     }
@@ -1995,11 +2326,13 @@ impl From<be_block_client::ClientError> for Unwritten {
 ///
 /// A head the server named can be gone by the time its objects are read (`Unwritten::Moved`):
 /// unless this device built on it, the batch is applied again to the server's head, a few
-/// times while that keeps moving.
+/// times while that keeps moving. The compaction that goes with it makes no merge reading more
+/// than `bytes` (`MERGE_BYTES`).
 pub async fn write<S: ObjectStore>(
     peer: &Peer<S>,
     index: Uuid,
     mut batch: Batch,
+    bytes: u64,
 ) -> Result<Option<Vec<DocId>>, Unwritten> {
     let Some(head) = head_of(peer, index).await else {
         return Ok(None);
@@ -2017,18 +2350,75 @@ pub async fn write<S: ObjectStore>(
                 index,
                 head,
                 batch.clone(),
-                first.replace(false).then_some(now),
+                first.replace(false).then_some((now, bytes)),
             )
         },
-        || async {
-            match peer.pending_commits(index).is_empty() {
-                true => peer.remote_head(index).await.ok().flatten(),
-                false => None,
-            }
-        },
+        || server_head(peer, index),
     )
     .await
     .map(Some)
+}
+
+/// Compacts the index at `head`, this device's last write to it, when a batch's compaction,
+/// capped at `cap` (`MERGE_BYTES`), would leave a merge over it: with merges up to
+/// `IDLE_MERGE_BYTES`, sealing the commit into the outbox. Answers whether it did; not when the
+/// merges left are over that cap too.
+pub async fn compact_past<S: ObjectStore>(
+    peer: &Peer<S>,
+    index: Uuid,
+    head: CommitId,
+    cap: u64,
+) -> Result<bool, Unwritten> {
+    let commit = peer.load_head(index, head).await?;
+    let stored = peer.load_first_part(&commit.manifest).await?;
+    let mut content = SearchIndexContent::from_stored(&stored)
+        .map_err(|error| Unwritten::Failed(error.to_string()))?;
+    if !content.merges_over(cap) {
+        return Ok(false);
+    }
+    let parts = TellingParts {
+        peer,
+        gone: std::cell::Cell::new(false),
+    };
+    let before = content.index().parts();
+    content
+        .compact(
+            &parts,
+            Uuid::new_v4().into_bytes(),
+            be_block_commit::now_milliseconds(),
+            IDLE_MERGE_BYTES,
+        )
+        .await
+        .map_err(|error| match parts.gone.get() {
+            true => Unwritten::Moved(error.to_string()),
+            false => Unwritten::Failed(error.to_string()),
+        })?;
+    if content.index().parts() == before {
+        return Ok(false);
+    }
+    seal_index(peer, index, head, &content).await?;
+    Ok(true)
+}
+
+/// The server's head of the index to write on next, unless this device built on the one tried.
+async fn server_head<S: ObjectStore>(peer: &Peer<S>, index: Uuid) -> Option<CommitId> {
+    match peer.pending_commits(index).is_empty() {
+        true => peer.remote_head(index).await.ok().flatten(),
+        false => None,
+    }
+}
+
+/// Seals `content` into the outbox as the index's commit on `head`.
+async fn seal_index<S: ObjectStore>(
+    peer: &Peer<S>,
+    index: Uuid,
+    head: CommitId,
+    content: &SearchIndexContent,
+) -> Result<(), Unwritten> {
+    let write = Write::encoded(SEARCH_INDEX_TYPE, content.parts(), Some(head))
+        .described(Vec::new(), be_block_content::derived_metadata(content));
+    peer.seal(index, write).await?;
+    Ok(())
 }
 
 /// `attempt`s at `head`, and again at the `newer` head while the one tried was let go of
@@ -2060,9 +2450,9 @@ async fn write_at<S: ObjectStore>(
     index: Uuid,
     head: CommitId,
     mut batch: Batch,
-    compact_at: Option<i64>,
+    compact_at: Option<(i64, u64)>,
 ) -> Result<Vec<DocId>, Unwritten> {
-    let commit = peer.load_commit(head).await?;
+    let commit = peer.load_head(index, head).await?;
     let stored = peer.load_first_part(&commit.manifest).await?;
     let mut content = SearchIndexContent::from_stored(&stored)
         .map_err(|error| Unwritten::Failed(error.to_string()))?;
@@ -2087,15 +2477,13 @@ async fn write_at<S: ObjectStore>(
         .await
         .map_err(|error| unwritten(error.to_string()))?;
     // The device that writes a batch compacts a few segments with it, so queries read few.
-    if let Some(now) = compact_at {
+    if let Some((now, bytes)) = compact_at {
         content
-            .compact(&parts, Uuid::new_v4().into_bytes(), now)
+            .compact(&parts, Uuid::new_v4().into_bytes(), now, bytes)
             .await
             .map_err(|error| unwritten(error.to_string()))?;
     }
-    let write = Write::encoded(SEARCH_INDEX_TYPE, content.parts(), Some(head))
-        .described(Vec::new(), be_block_content::derived_metadata(&content));
-    peer.seal(index, write).await?;
+    seal_index(peer, index, head, &content).await?;
     Ok(needs_text)
 }
 
@@ -2230,7 +2618,7 @@ pub async fn search_index<S: ObjectStore>(
     let (Some(head), _) = search_head(peer, index, listed).await else {
         return Ok(Vec::new());
     };
-    load(peer, head)
+    load(peer, index, head)
         .await?
         .search(&PeerParts(peer), query, limit, peer.latest_believed())
         .await
@@ -2285,12 +2673,15 @@ fn heads(peer: &Peer<Store>, graph: &Graph, indexes: &[Uuid]) -> u64 {
 fn search(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: &Tasks) -> bool {
     let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
     let graph = held.graph.revision;
+    let mut unshown = false;
     for answer in held.search.answers.values_mut() {
         if answer.missing.is_some_and(|at| at != graph) {
             answer.shown = None;
             answer.missing = None;
+            unshown = true;
         }
     }
+    held.search.shown_revision += u64::from(unshown);
     let wanted: Vec<SearchAsk> = held.search.wanted().cloned().collect();
     let mut followed = Vec::new();
     let mut started = false;
@@ -2317,6 +2708,7 @@ fn search(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: &Tasks) -
             let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
             held.search.running.remove(&asked);
             if held.search.wanted().any(|wanted| *wanted == asked) {
+                held.search.shown_revision += 1;
                 held.search.answers.insert(
                     asked,
                     Answer {
@@ -2368,7 +2760,7 @@ async fn run(
         let Some(head) = head else {
             continue;
         };
-        let hits = match load(peer, head).await {
+        let hits = match load(peer, *index, head).await {
             Ok(content) => content
                 .search(&PeerParts(peer), &query, HITS, peer.latest_believed())
                 .await
@@ -2465,12 +2857,14 @@ async fn show(
             });
         }
         let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+        let held = &mut *held;
         let graph = held.graph.revision;
         if let Some(answer) = held.search.answers.get_mut(&asked) {
             answer.shown = Some(Searched {
                 hits,
                 complete: false,
             });
+            held.search.shown_revision += 1;
             // Shown again whenever the mirror moves: a hit may have left the tree, or been moved
             // out of what the search is within, or the mirror may now hold one it lacked.
             answer.missing = Some(graph);
@@ -2481,7 +2875,7 @@ async fn show(
             held.progressed += 1;
         }
     }
-    be_host_base::host::wake();
+    crate::changes::wake();
     true
 }
 
@@ -2502,7 +2896,11 @@ async fn cached_text(
     {
         return text.clone();
     }
-    let text = text_of(peer, shared, replicas, block, content_type, key).await;
+    // One that could not be read is not kept: kept, it would leave the hit's snippet empty until
+    // the block's head moves.
+    let Ok(text) = text_of(peer, shared, replicas, (block, head), content_type, key).await else {
+        return None;
+    };
     let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
     if held.search.texts.len() >= TEXTS {
         held.search.texts.clear();

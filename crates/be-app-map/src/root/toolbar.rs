@@ -11,10 +11,7 @@ use super::state::{MapState, ZOOM_STEP};
 
 #[component]
 pub(crate) fn MapToolbar(state: MapState, fitting: Fitting) -> NodeId {
-    let regionless = create_memo(move || state.preview_region.get().is_none());
     let error = state.last_error;
-    let failed = create_memo(move || error.get().is_some());
-    let reason = create_memo(move || error.get().unwrap_or_default());
     let add = NodeRef::new();
 
     view! {
@@ -54,7 +51,7 @@ pub(crate) fn MapToolbar(state: MapState, fitting: Fitting) -> NodeId {
                 icon_only=true
                 glyph=ICON_SCAN
                 label="Zoom to the preview region"
-                disabled={regionless}
+                disabled={move || state.preview_region.with(Option::is_none)}
                 @test_id={"map.zoom-region"}
                 on_click={move || state.request_fit()}
             />
@@ -65,8 +62,10 @@ pub(crate) fn MapToolbar(state: MapState, fitting: Fitting) -> NodeId {
                 @test_id={"map.reload"}
                 on_click={move || state.reload_tiles()}
             />
-            <Show condition={failed}>
-                <Text style=TextStyle::CAPTION color=TextColor::Danger>{reason}</Text>
+            <Show value={error}>|reason: ReadSignal<String>|
+                <Text style=TextStyle::CAPTION color=TextColor::Danger @test_id={"map.error"}>
+                    {reason}
+                </Text>
             </Show>
         </DockBarSurface>
     }

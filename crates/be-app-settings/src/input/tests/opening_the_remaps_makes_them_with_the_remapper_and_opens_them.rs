@@ -1,5 +1,5 @@
 use super::*;
-use be_sdk_beui::be_block::InputRemapper;
+use be_block_input::InputRemapper;
 use be_sdk_beui::be_block_content::Root;
 use be_sdk_beui::beui::Vec2;
 use be_sdk_beui::{Catalog, EditorDescriptor};
@@ -22,7 +22,6 @@ fn opening_the_remaps_makes_them_with_the_remapper_and_opens_them() {
     });
 
     editor.click("input.remaps");
-    editor.run();
 
     let choice = content(&editor)
         .root()
@@ -43,7 +42,6 @@ fn opening_the_remaps_makes_them_with_the_remapper_and_opens_them() {
     editor.snapshot("opening_the_remaps_makes_them_with_the_remapper_and_opens_them");
 
     editor.click("input.remaps");
-    editor.run();
     let opens = editor.take_opens();
     assert_eq!(opens.len(), 1);
     assert_eq!(
@@ -59,7 +57,6 @@ fn opening_the_remaps_makes_them_with_the_remapper_and_opens_them() {
     );
     editor.snapshot("resetting_the_remaps_asks_before_deleting_them");
     editor.click("input.remapper.reset.confirm");
-    editor.run();
     assert_eq!(content(&editor).root().remapper, None);
     assert!(
         !content(&editor).root().references().contains(&choice.block),

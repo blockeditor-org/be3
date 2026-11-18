@@ -77,7 +77,7 @@ pub(crate) fn LayoutButton(layouts: Layouts) -> NodeId {
             arrow=false
             label
             bounds={bar_bounds()}
-            placement=Placement::BelowStart
+            placement=Placement::BELOW_START
             @test_id={"desktop.layout"}
             items={view! {
                 <LayoutItems layouts />
@@ -93,7 +93,7 @@ fn LayoutItems(layouts: Layouts) -> DynamicSegment<MenuItem> {
         listed.with(|listed| (0..listed.layouts.len() as u32).collect::<Vec<u32>>())
     });
     view! {
-        <ForEach keys>|index: u32|
+        <ForEach value={keys}>|index: u32|
             <LayoutItem layouts index />
         </ForEach>
     }
@@ -111,13 +111,12 @@ fn LayoutItem(layouts: Layouts, index: u32) -> MenuItem {
                 .unwrap_or_default()
         })
     });
-    let checked = create_memo(move || Some(listed.with(|listed| listed.active == index)));
     view! {
         <MenuItem
             label={name}
-            checked
+            checked={move || listed.with(|listed| listed.active == index)}
             radio=true
-            row_test_id={format!("desktop.layout.{index}")}
+            @test_id={format!("desktop.layout.{index}")}
             on_click={move || layouts.switch(index)}
         />
     }

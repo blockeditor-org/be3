@@ -27,7 +27,7 @@ fn the_catalog_is_locked_to_its_pane_until_unlocked_from_its_grip() {
     test.drag(Target::text("Tab \"Components\""), into_pages);
     test.settle();
     assert!(
-        !test.shows("dock.grip.catalog"),
+        !test.shown("dock.grip.catalog"),
         "unlocked, its tab moves into the pages and its emptied pane closes"
     );
 }

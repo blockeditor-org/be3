@@ -19,14 +19,14 @@ fn a_following_virtual_list_of_uneven_rows_settles_while_its_scroll_comes_into_v
         view! {
             <List spacing=0.0>
                 <ListItem grow=1.0>
-                    <Scroll @node_ref=&page>
+                    <Scroll @node_ref=&page style={plain_scroll()}>
                         <Frame height=280.0 />
                         <Frame height=LOG_HEIGHT>
-                            <Scroll @node_ref=&log follow_end=true>
+                            <Scroll @node_ref=&log follow_end=true style={plain_scroll()}>
                                 <Frame padding={Sides::symmetric(0.0, 8.0)}>
                                     <VirtualList
                                         @node_ref=&list
-                                        keys={keys}
+                                        value={keys}
                                         item_size=ESTIMATE
                                     >|index: ReadSignal<usize>| {
                                         let tall = create_memo(move || height(index.get()));

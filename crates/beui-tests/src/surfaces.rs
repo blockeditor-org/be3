@@ -54,6 +54,7 @@ pub fn TimeListFixture() -> NodeId {
                     value={chosen}
                     step_minutes=30
                     row_height=28.0
+                    scroll={beui::unstyled::ScrollStyle::new(Movement::Rubber.spring())}
                     label="Start"
                     option={|option: TimeOptionHandle| {
                         let TimeOptionHandle { label, selected, focused, .. } = option;
@@ -181,17 +182,18 @@ pub fn FloatingFixture() -> NodeId {
 #[component]
 pub fn StackFixture() -> NodeId {
     let wide = create_signal(true);
-    let width = create_memo(move || match wide.get() {
-        true => Length::Size(Size::Custom(900.0)),
-        false => Length::Size(Size::Custom(400.0)),
-    });
     view! {
         <List spacing=Space::Md>
             <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                 <Button label="Narrow" on_click={move || wide.set(false)} />
                 <Button label="Wide" on_click={move || wide.set(true)} />
             </List>
-            <Frame width>
+            <Frame
+                width={move || match wide.get() {
+                    true => Length::Size(Size::Custom(900.0)),
+                    false => Length::Size(Size::Custom(400.0)),
+                }}
+            >
                 <beui::unstyled::Container>|_|
                     <StackBody />
                 </beui::unstyled::Container>
@@ -283,7 +285,6 @@ pub fn ActionBarFixture() -> NodeId {
 #[component]
 pub fn ProgressFixture() -> NodeId {
     let done = create_signal(false);
-    let value = create_memo(move || done.get().then_some(1.0_f32));
     let report = create_memo(move || match done.get() {
         true => "Upload done".to_owned(),
         false => "Uploading".to_owned(),
@@ -291,7 +292,7 @@ pub fn ProgressFixture() -> NodeId {
     view! {
         <List spacing=Space::Md>
             <Frame width=Size::Custom(240.0)>
-                <Progress value label="Upload" />
+                <Progress value={move || done.get().then_some(1.0_f32)} label="Upload" />
             </Frame>
             <Button label="Finish" on_click={move || done.set(true)} />
             <Text>{report}</Text>
@@ -317,7 +318,7 @@ pub fn SheetFixture() -> NodeId {
                 }}
             >
                 <List spacing=Space::None>
-                    <ForEach keys={(1..=3).collect::<Vec<usize>>()}>|row: usize|
+                    <ForEach value={(1..=3).collect::<Vec<usize>>()}>|row: usize|
                         <ActionRow
                             label={format!("Row {row}")}
                             on_click={move || open.set(false)}

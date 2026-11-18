@@ -1,6 +1,6 @@
 use super::*;
 
-use be_sdk_beui::{BlockNotifyMode, Failure, NotifyMode, NotifyModesWatch};
+use be_sdk_beui::{BlockMute, Failure, MutesWatch, NotifyMode};
 use be_sdk_test::HostCall;
 
 fn choose(fixture: &mut Fixture, words: &str) {
@@ -43,9 +43,7 @@ fn a_block_tabs_menu_mutes_its_notifications() {
         !menu_says(&mut fixture, "Notifications"),
         "the menu offers no mode before the host has said what it is"
     );
-    fixture
-        .test
-        .set_watched::<NotifyModesWatch>(&Some(Vec::new()));
+    fixture.test.set_watched::<MutesWatch>(&Some(Vec::new()));
     fixture.settle();
 
     fixture.test.click("dock.editors.menu");
@@ -66,7 +64,7 @@ fn a_block_tabs_menu_mutes_its_notifications() {
         .take_requests()
         .into_iter()
         .find_map(|call| match call {
-            HostCall::SetNotifyMode { reply, block, mode }
+            HostCall::SetMute { reply, block, mode }
                 if block == opened.into_bytes() && mode == NotifyMode::Off =>
             {
                 Some(reply)
@@ -80,10 +78,15 @@ fn a_block_tabs_menu_mutes_its_notifications() {
         menu_says(&mut fixture, "Notifications: All"),
         "a change the host refused goes back to the mode it publishes"
     );
+    assert_eq!(
+        fixture.test.take_reported_failures(),
+        ["The notifications setting could not be changed. The host refused this request."],
+        "the host says why the change did not take"
+    );
 
     fixture
         .test
-        .set_watched::<NotifyModesWatch>(&Some(vec![BlockNotifyMode {
+        .set_watched::<MutesWatch>(&Some(vec![BlockMute {
             block: opened.into_bytes(),
             mode: NotifyMode::Mentions,
         }]));

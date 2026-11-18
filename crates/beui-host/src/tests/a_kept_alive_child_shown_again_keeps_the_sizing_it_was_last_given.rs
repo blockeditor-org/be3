@@ -1,5 +1,5 @@
 use super::*;
-use crate::primitives::Frame;
+use crate::primitives::{Frame, KeepAlive, Kept};
 use crate::reactive::*;
 
 #[test]
@@ -11,11 +11,15 @@ fn a_kept_alive_child_shown_again_keeps_the_sizing_it_was_last_given() {
     let document = build_node(move || {
         view! {
             <List spacing=0.0>
-                <Show keep_alive=true condition={shown}>
-                    <ListItem length=height>
-                        <Frame @node_ref=&child />
-                    </ListItem>
-                </Show>
+                <KeepAlive>
+                    <Show value={shown}>
+                        <ListItem length=height>
+                            <Kept>
+                                <Frame @node_ref=&child />
+                            </Kept>
+                        </ListItem>
+                    </Show>
+                </KeepAlive>
             </List>
         }
     });
@@ -43,5 +47,17 @@ fn a_kept_alive_child_shown_again_keeps_the_sizing_it_was_last_given() {
         drawn(&harness),
         Some(90.0),
         "shown again, it keeps the sizing it was last given, not the one it was built with"
+    );
+
+    shown.set(false);
+    harness.frame(Vec::new());
+    height.set(120.0);
+    harness.frame(Vec::new());
+    shown.set(true);
+    harness.frame(Vec::new());
+    assert_eq!(
+        drawn(&harness),
+        Some(120.0),
+        "a sizing given while it is hidden reaches it when it is shown"
     );
 }

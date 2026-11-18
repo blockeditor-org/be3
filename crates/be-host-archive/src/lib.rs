@@ -153,7 +153,33 @@ fn make_executable(_: &Path) -> Result<(), String> {
     Ok(())
 }
 
-pub fn unpacked(archive: &Path) -> Result<PathBuf, String> {
+/// The directory `archive` is unpacked in, unpacked first unless it already is, with each of
+/// `beside` copied into it by its file name. Those are the files a program keeps out of its archive
+/// (buck/program/defs.bzl) because they change with every build id, which would otherwise pack,
+/// download and unpack the whole program again.
+pub fn unpacked(archive: &Path, beside: &[PathBuf]) -> Result<PathBuf, String> {
+    let dir = unpacked_archive(archive)?;
+    for file in beside {
+        let name = file
+            .file_name()
+            .ok_or_else(|| format!("{} names no file", file.display()))?;
+        let bytes = fs::read(file).map_err(|error| failed("read", file, error))?;
+        let path = dir.join(name);
+        if fs::read(&path).is_ok_and(|held| held == bytes) {
+            continue;
+        }
+        let fresh = dir.join(format!(
+            ".{}.{}",
+            name.to_string_lossy(),
+            std::process::id()
+        ));
+        fs::write(&fresh, &bytes).map_err(|error| failed("write", &fresh, error))?;
+        fs::rename(&fresh, &path).map_err(|error| failed("move", &fresh, error))?;
+    }
+    Ok(dir)
+}
+
+fn unpacked_archive(archive: &Path) -> Result<PathBuf, String> {
     let archive = archive
         .canonicalize()
         .map_err(|error| failed("find", archive, error))?;
@@ -199,8 +225,13 @@ pub fn unpacked(archive: &Path) -> Result<PathBuf, String> {
     Ok(dir)
 }
 
-pub fn run(archive: &Path, program: &str, arguments: &[String]) -> Result<(), String> {
-    let program = unpacked(archive)?.join(program);
+pub fn run(
+    archive: &Path,
+    beside: &[PathBuf],
+    program: &str,
+    arguments: &[String],
+) -> Result<(), String> {
+    let program = unpacked(archive, beside)?.join(program);
     let mut command = std::process::Command::new(&program);
     command.args(arguments);
     #[cfg(unix)]

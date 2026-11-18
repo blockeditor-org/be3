@@ -15,9 +15,19 @@ async fn changes(
         changed: since,
         block: Uuid::max(),
     };
-    for _ in 0..100 {
+    // A page looks at only so many changes in tests (`MAX_SCANNED`), and trashed blocks stay.
+    for _ in 0..1_000 {
         let page = client
-            .call(|peer| client::blocks::changed_since(peer, root, after.clone(), limit))
+            .call(|peer| {
+                peer.ask::<be_block_protocol::ChangedPage>(
+                    be_block_protocol::Query::Tree {
+                        entry: root,
+                        after: after.clone(),
+                        limit: limit,
+                    },
+                    false,
+                )
+            })
             .await
             .expect("changed-since failed");
         changed.extend(page.summaries.iter().map(|summary| summary.id));
@@ -42,8 +52,7 @@ fn sorted(mut blocks: Vec<Uuid>) -> Vec<Uuid> {
 #[tokio::test]
 async fn changed_since_pages_what_changed_in_a_tree_and_names_what_left_it() {
     let harness = Harness::start().await;
-    let mut owner = harness.client().await;
-    owner.register("owner@example.com").await;
+    let mut owner = harness.member("owner@example.com").await;
     owner.organization("notes").await;
 
     let work = owner.create_block(BlockParent::Root).await;
@@ -54,7 +63,7 @@ async fn changed_since_pages_what_changed_in_a_tree_and_names_what_left_it() {
     let elsewhere = owner.create_block(BlockParent::Block(other)).await;
     let lone = owner.create_block(BlockParent::Root).await;
 
-    // A block no block refers to is not held, and a collection takes it: the live ones are
+    // A block no block refers to is not held: the live ones are
     // referred to.
     for (parent, children) in [
         (work, vec![first, stays]),
@@ -62,7 +71,16 @@ async fn changed_since_pages_what_changed_in_a_tree_and_names_what_left_it() {
         (other, vec![elsewhere]),
     ] {
         let referred = owner
-            .call(|peer| client::blocks::set_metadata(peer, parent, Vec::new(), children))
+            .call(|peer| {
+                peer.write::<be_block_protocol::BlockSummary>(be_block_protocol::Op::Publish {
+                    block: parent,
+                    expected: None,
+                    commit: None,
+                    references: be_block_protocol::ReferenceChange::between(&[], &children),
+                    metadata: Vec::new(),
+                    journal: None,
+                })
+            })
             .await;
         assert!(referred.is_ok(), "{referred:?}");
     }
@@ -86,7 +104,16 @@ async fn changed_since_pages_what_changed_in_a_tree_and_names_what_left_it() {
 
     // A change to one block lists that block alone.
     let referred = owner
-        .call(|peer| client::blocks::set_metadata(peer, stays, Vec::new(), Vec::new()))
+        .call(|peer| {
+            peer.write::<be_block_protocol::BlockSummary>(be_block_protocol::Op::Publish {
+                block: stays,
+                expected: None,
+                commit: None,
+                references: be_block_protocol::ReferenceChange::between(&[], &Vec::new()),
+                metadata: Vec::new(),
+                journal: None,
+            })
+        })
         .await;
     assert!(referred.is_ok(), "{referred:?}");
     let (changed, left, watermark_after) = changes(&mut owner, work, watermark, 100).await;
@@ -106,22 +133,15 @@ async fn changed_since_pages_what_changed_in_a_tree_and_names_what_left_it() {
     assert_eq!(changed, vec![elsewhere]);
     assert_eq!(left, sorted(vec![first, inner]));
 
-    // A block trashed and then collected for good is still named, from before it was either.
+    // A block trashed is named as one that left.
     let doomed = owner.create_block(BlockParent::Block(work)).await;
     let (_, _, before_doomed) = changes(&mut owner, work, watermark_moved, 100).await;
     let trashed = owner.move_to(doomed, BlockParent::Detached).await;
     assert!(trashed.is_ok(), "{trashed:?}");
     let (_, left, _) = changes(&mut owner, work, before_doomed, 100).await;
     assert_eq!(left, vec![doomed], "trashed: it left the tree");
-    let collected = owner
-        .call(|peer| client::blocks::collect_detached(peer))
-        .await;
-    assert!(collected.is_ok(), "{collected:?}");
-    let (changed, left, _) = changes(&mut owner, work, before_doomed, 100).await;
-    assert!(changed.is_empty(), "{changed:?}");
-    assert!(left.contains(&doomed), "collected: {left:?}");
 
-    // Several blocks collected for good are all named, however the pages are cut, and a tree
+    // Several blocks trashed are all named, however the pages are cut, and a tree
     // nothing left or joined is told of none of it.
     let (_, _, before_many) = changes(&mut owner, work, watermark_moved, 100).await;
     let mut many = Vec::new();
@@ -131,10 +151,6 @@ async fn changed_since_pages_what_changed_in_a_tree_and_names_what_left_it() {
         assert!(trashed.is_ok(), "{trashed:?}");
         many.push(block);
     }
-    let collected = owner
-        .call(|peer| client::blocks::collect_detached(peer))
-        .await;
-    assert!(collected.is_ok(), "{collected:?}");
     for limit in [1, 2, 100] {
         let (_, left, _) = changes(&mut owner, work, before_many, limit).await;
         for block in &many {
@@ -148,7 +164,7 @@ async fn changed_since_pages_what_changed_in_a_tree_and_names_what_left_it() {
     assert_eq!(changed, vec![lone], "only its own tree");
     assert!(left.is_empty(), "{left:?}");
 
-    // More blocks collected than a page holds are all named: the removal log pages on the
+    // More blocks trashed than a page holds are all named: the removal log pages on the
     // same cursor as the blocks, which a page's limit cuts.
     let (_, _, before_crowd) = changes(&mut owner, work, 0, 100).await;
     let mut crowd = Vec::new();
@@ -158,10 +174,6 @@ async fn changed_since_pages_what_changed_in_a_tree_and_names_what_left_it() {
         assert!(trashed.is_ok(), "{trashed:?}");
         crowd.push(block);
     }
-    let collected = owner
-        .call(|peer| client::blocks::collect_detached(peer))
-        .await;
-    assert!(collected.is_ok(), "{collected:?}");
     let (_, left, _) = changes(&mut owner, work, before_crowd, 500).await;
     for block in &crowd {
         assert!(
@@ -171,43 +183,53 @@ async fn changed_since_pages_what_changed_in_a_tree_and_names_what_left_it() {
         );
     }
 
-    // A block collected between two pages is named by a later one.
+    // A block trashed is named when each page holds one block.
     let late = owner.create_block(BlockParent::Block(work)).await;
     let (_, _, before_late) = changes(&mut owner, work, 0, 100).await;
     let trashed = owner.move_to(late, BlockParent::Detached).await;
     assert!(trashed.is_ok(), "{trashed:?}");
     let page = owner
         .call(|peer| {
-            client::blocks::changed_since(
-                peer,
-                work,
-                ChangeCursor {
-                    changed: before_late,
-                    block: Uuid::max(),
+            peer.ask::<be_block_protocol::ChangedPage>(
+                be_block_protocol::Query::Tree {
+                    entry: work,
+                    after: ChangeCursor {
+                        changed: before_late,
+                        block: Uuid::max(),
+                    },
+                    limit: 1,
                 },
-                1,
+                false,
             )
         })
         .await
         .expect("the first page");
-    let collected = owner
-        .call(|peer| client::blocks::collect_detached(peer))
-        .await;
-    assert!(collected.is_ok(), "{collected:?}");
     let mut left = page.removed.clone();
     let mut after = page.next;
     while let Some(cursor) = after {
         let page = owner
-            .call(|peer| client::blocks::changed_since(peer, work, cursor.clone(), 1))
+            .call(|peer| {
+                peer.ask::<be_block_protocol::ChangedPage>(
+                    be_block_protocol::Query::Tree {
+                        entry: work,
+                        after: cursor.clone(),
+                        limit: 1,
+                    },
+                    false,
+                )
+            })
             .await
             .expect("a later page");
         left.extend(page.removed);
         after = page.next;
     }
-    assert!(left.contains(&late), "collected between pages: {left:?}");
+    assert!(
+        left.contains(&late),
+        "trashed and paged one at a time: {left:?}"
+    );
 
     let still = owner.try_read_block(stays).await;
-    assert!(still.is_ok(), "a live block was collected: {still:?}");
+    assert!(still.is_ok(), "a live block went: {still:?}");
 
     // A block that left a tree is named to that tree even if it moved on again after: each
     // tree it left hears of it.
@@ -229,19 +251,6 @@ async fn changed_since_pages_what_changed_in_a_tree_and_names_what_left_it() {
         "other was not told it left: {left:?}"
     );
 
-    // A block collected while still in a tree (nothing refers to it) is named to that tree.
-    let unreferenced = owner.create_block(BlockParent::Block(third)).await;
-    let (_, _, before_unreferenced) = changes(&mut owner, third, 0, 100).await;
-    let collected = owner
-        .call(|peer| client::blocks::collect_detached(peer))
-        .await;
-    assert!(collected.is_ok(), "{collected:?}");
-    let (_, left, _) = changes(&mut owner, third, before_unreferenced, 100).await;
-    assert!(
-        left.contains(&unreferenced),
-        "collected in its tree: {left:?}"
-    );
-
     // A page that stops on another tree's change names none of its blocks: the cursors only
     // ever hold the caller's own blocks, or none.
     let (_, _, before_busy) = changes(&mut owner, lone, 0, 100).await;
@@ -256,7 +265,16 @@ async fn changed_since_pages_what_changed_in_a_tree_and_names_what_left_it() {
     let mut pages = 0;
     loop {
         let page = owner
-            .call(|peer| client::blocks::changed_since(peer, lone, after.clone(), 100))
+            .call(|peer| {
+                peer.ask::<be_block_protocol::ChangedPage>(
+                    be_block_protocol::Query::Tree {
+                        entry: lone,
+                        after: after.clone(),
+                        limit: 100,
+                    },
+                    false,
+                )
+            })
             .await
             .expect("a page of a tree of its own");
         pages += 1;
@@ -274,22 +292,12 @@ async fn changed_since_pages_what_changed_in_a_tree_and_names_what_left_it() {
         }
     }
 
-    // Only a top-level block's tree can be asked about.
+    // A block below the top is asked about as the tree below it: an entry point of a reader who
+    // may not view its parent.
     let nested = owner.create_block(BlockParent::Block(work)).await;
-    let asked = owner
-        .call(|peer| {
-            client::blocks::changed_since(
-                peer,
-                nested,
-                ChangeCursor {
-                    changed: 0,
-                    block: Uuid::max(),
-                },
-                10,
-            )
-        })
-        .await;
-    assert!(refused_as(&asked, ErrorCode::InvalidRequest), "{asked:?}");
+    let below = owner.create_block(BlockParent::Block(nested)).await;
+    let (changed, _, _) = changes(&mut owner, nested, 0, 100).await;
+    assert_eq!(changed, sorted(vec![nested, below]));
 
     harness.stop().await;
 }

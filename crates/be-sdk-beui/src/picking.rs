@@ -49,7 +49,7 @@ impl From<&NodeRef> for PickAnchor {
     }
 }
 
-type Answer = Box<dyn FnOnce(Result<PickedBlock, Failure>)>;
+type Answer = Box<dyn FnOnce(PickedBlock)>;
 
 #[derive(Clone)]
 pub(crate) struct Picking(Rc<Asked>);
@@ -104,10 +104,8 @@ impl Picking {
         let Some(answer_with) = self.0.answer.borrow_mut().take() else {
             return;
         };
-        match answer {
-            Ok(Some(block)) => answer_with(Ok(block)),
-            Ok(None) => {}
-            Err(failure) => answer_with(Err(failure)),
+        if let Ok(Some(block)) = answer {
+            answer_with(block);
         }
     }
 }
@@ -115,24 +113,15 @@ impl Picking {
 #[component]
 pub(crate) fn Pickers(editor: Editor) -> NodeId {
     let picking = editor.picking();
-    let keys = create_memo(move || {
-        picking
-            .with(|picking| picking.as_ref().map(Picking::serial))
-            .into_iter()
-            .collect::<Vec<_>>()
-    });
     view! {
         <Layers>
-            <ForEach keys>|serial: u64| {
-                match picking.get_untracked().filter(|picking| picking.serial() == serial) {
-                    Some(picking) => view! {
-                        <PickerPopover editor picking />
-                    },
-                    None => view! {
-                        <Frame />
-                    },
-                }
-            }</ForEach>
+            <Keyed
+                value={picking}
+                key={|picking: &Picking| picking.serial()}
+                fallback=()
+            >|picking: ReadSignal<Picking>|
+                <PickerPopover editor picking={picking.get_untracked()} />
+            </Keyed>
             <Popovers editor />
         </Layers>
     }
@@ -169,9 +158,7 @@ fn PickerPopover(editor: Editor, picking: Picking) -> NodeId {
             sized.set(true);
         }
         let carded = state.card && !sheet;
-        if card.get_untracked() != carded {
-            card.set(carded);
-        }
+        card.set(carded);
         if let Some(error) = state.error.clone() {
             return editor.finish_pick(serial, Err(Failure::Failed(error)));
         }
@@ -190,7 +177,7 @@ fn PickerPopover(editor: Editor, picking: Picking) -> NodeId {
             }}
             face
             size={shown}
-            sized={create_memo(move || sized.get())}
+            sized={sized}
             testing="picker.child"
             on_state
             on_dismiss={move || editor.finish_pick(serial, Ok(None))}

@@ -75,8 +75,14 @@ impl ChildState {
     }
 }
 
+/// How many children a slot remembers it placed before (`Slot::before`).
+const BEFORE_KEPT: usize = 4;
+
 struct Slot {
     child: Cell<Option<ChildId>>,
+    /// The children it placed before the one it does: a keyboard given to one the host found no
+    /// longer placed (`EditorHost::missed_gift`) goes to the child in its place.
+    before: RefCell<Vec<ChildId>>,
     state: RefCell<ChildState>,
     on_state: Box<dyn Fn(&ChildState)>,
     on_details: Box<dyn Fn()>,
@@ -103,6 +109,7 @@ impl Children {
         self.next.set(key + 1);
         let slot = Rc::new(Slot {
             child: Cell::new(None),
+            before: RefCell::new(Vec::new()),
             state: RefCell::default(),
             on_state: Box::new(on_state),
             on_details: Box::new(on_details),
@@ -130,6 +137,12 @@ impl Children {
             .collect();
         for slot in slots {
             if let Some(child) = slot.child.get() {
+                if host
+                    .missed_gift()
+                    .is_some_and(|missed| missed != child && slot.before.borrow().contains(&missed))
+                {
+                    host.focus_child(child);
+                }
                 if host.take_child_details(child) {
                     (slot.on_details)();
                 }
@@ -164,8 +177,15 @@ impl PlacedChild {
     }
 
     pub fn place(&self, child: Option<ChildId>) {
-        if self.slot.child.replace(child) != child {
+        let before = self.slot.child.replace(child);
+        if before != child {
             self.moved.set(true);
+            if let Some(before) = before {
+                let mut kept = self.slot.before.borrow_mut();
+                kept.push(before);
+                let over = kept.len().saturating_sub(BEFORE_KEPT);
+                kept.drain(..over);
+            }
         }
     }
 }

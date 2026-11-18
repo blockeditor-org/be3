@@ -4,7 +4,7 @@ mod velocity;
 pub use fling::Fling;
 pub use velocity::Velocity;
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Easing {
     Linear,
     OutQuad,
@@ -30,7 +30,7 @@ pub fn tween(elapsed: f32, duration: f32, easing: Easing) -> f32 {
     })
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, PartialEq, Debug)]
 pub struct Spring {
     pub stiffness: f32,
     pub damping: f32,

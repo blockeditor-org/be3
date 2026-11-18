@@ -15,12 +15,14 @@ mod web;
 
 #[cfg(not(target_arch = "wasm32"))]
 pub use bundle::open;
-#[cfg(target_os = "android")]
+#[cfg(not(target_arch = "wasm32"))]
 pub use bundle::use_assets;
 #[cfg(not(target_arch = "wasm32"))]
 use bundle::{fetch, scan};
 #[cfg(target_arch = "wasm32")]
 pub use web::load;
+#[cfg(target_arch = "wasm32")]
+pub(crate) use web::{adopt, fetched};
 #[cfg(target_arch = "wasm32")]
 use web::{fetch, scan};
 
@@ -92,6 +94,20 @@ impl Apps {
             self.errors.push(format!(
                 "{source}: {} is already the id of an editor that was found first",
                 Uuid::from_bytes(editor.id)
+            ));
+            return;
+        }
+        // One host per type across every app, so what a type's share dialog offers never
+        // depends on which app was found first.
+        if let Some(host) = manifest.hosts.iter().find(|host| {
+            self.manifests
+                .iter()
+                .flat_map(|existing| &existing.hosts)
+                .any(|existing| existing.edits == host.edits)
+        }) {
+            self.errors.push(format!(
+                "{source}: {} already has a host component in an app found first",
+                Uuid::from_bytes(host.edits)
             ));
             return;
         }
@@ -169,11 +185,51 @@ pub fn apps() -> Arc<Apps> {
     Arc::clone(held.get_or_insert_with(|| Arc::new(scan())))
 }
 
+/// Whether `load` installed the apps in this memory.
+#[cfg(target_arch = "wasm32")]
+pub(crate) fn loaded() -> bool {
+    APPS.read()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .is_some()
+}
+
 #[cfg(target_arch = "wasm32")]
 fn install(apps: Apps) {
     *APPS
         .write()
         .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(Arc::new(apps));
+}
+
+/// Puts these manifests, `(source, document)`, in place of the apps found, for a test whose host
+/// stages none, until the answer is dropped: the apps found are the process's, which other tests
+/// in it share. Fails on one discovery would refuse.
+#[cfg(any(test, feature = "testing"))]
+#[must_use = "the manifests are in place only while this is held"]
+pub fn install_for_testing(manifests: &[(&str, &str)]) -> InstalledForTesting {
+    let mut apps = Apps::default();
+    for (source, document) in manifests {
+        apps.add(source, document);
+    }
+    apps.settle();
+    assert!(apps.errors.is_empty(), "{:?}", apps.errors);
+    let before = APPS
+        .write()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .replace(Arc::new(apps));
+    InstalledForTesting(before)
+}
+
+/// Manifests a test put in place (`install_for_testing`), until it is dropped.
+#[cfg(any(test, feature = "testing"))]
+pub struct InstalledForTesting(Option<Arc<Apps>>);
+
+#[cfg(any(test, feature = "testing"))]
+impl Drop for InstalledForTesting {
+    fn drop(&mut self) {
+        *APPS
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = self.0.take();
+    }
 }
 
 pub fn block_type(content_type: Uuid) -> Option<BlockTypeDescriptor> {
@@ -190,7 +246,29 @@ pub fn exported_whole(content_type: Uuid) -> bool {
         })
 }
 
-async fn discover<F>(read: impl Fn(String) -> F) -> Apps
+/// Whether an app's manifest says `content_type` counts what is unread (`counts_unread`), so the
+/// stack starts its module to count it (`unread`).
+pub fn counts_unread(content_type: Uuid) -> bool {
+    apps()
+        .manifests
+        .iter()
+        .flat_map(|manifest| &manifest.block_types)
+        .any(|block_type| {
+            block_type.counts_unread && Uuid::from_bytes(block_type.content_type()) == content_type
+        })
+}
+
+/// What a start read to find its apps: the build's id, and each manifest the index names with
+/// what reading it gave, or why the index could not be read. On the web the page reads it once
+/// and hands it to its host's worker as a stack starts there (`web::fetched`), since the two
+/// share no memory.
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
+pub(crate) struct Read {
+    build_id: Option<String>,
+    manifests: Result<Vec<(String, Result<String, String>)>, String>,
+}
+
+async fn fetch_all<F>(read: impl Fn(String) -> F) -> Read
 where
     F: Future<Output = Result<Vec<u8>, String>>,
 {
@@ -198,24 +276,45 @@ where
         read(be_lib_build_id::FILE.to_owned()),
         read(INDEX.to_owned())
     );
-    if let Ok(id) = id {
-        let _ = be_lib_build_id::install_metadata(&String::from_utf8_lossy(&id));
-    }
-    let mut apps = Apps::default();
-    let manifests = index.and_then(|document| {
+    let index = index.and_then(|document| {
         serde_json::from_slice::<Vec<String>>(&document).map_err(|error| error.to_string())
     });
-    match manifests {
+    let manifests = match index {
         Ok(manifests) => {
             let documents = futures_util::future::join_all(
                 manifests.iter().map(|manifest| read(manifest.clone())),
             )
             .await;
-            for (manifest, read) in manifests.iter().zip(documents) {
-                match read
-                    .and_then(|bytes| String::from_utf8(bytes).map_err(|error| error.to_string()))
-                {
-                    Ok(document) => apps.add(manifest, &document),
+            Ok(manifests
+                .into_iter()
+                .zip(documents)
+                .map(|(manifest, read)| {
+                    let document = read.and_then(|bytes| {
+                        String::from_utf8(bytes).map_err(|error| error.to_string())
+                    });
+                    (manifest, document)
+                })
+                .collect())
+        }
+        Err(error) => Err(error),
+    };
+    Read {
+        build_id: id.ok().map(|id| String::from_utf8_lossy(&id).into_owned()),
+        manifests,
+    }
+}
+
+/// The apps `read` found, and the build's id installed.
+fn settle(read: &Read) -> Apps {
+    if let Some(id) = &read.build_id {
+        let _ = be_lib_build_id::install_metadata(id);
+    }
+    let mut apps = Apps::default();
+    match &read.manifests {
+        Ok(manifests) => {
+            for (manifest, document) in manifests {
+                match document {
+                    Ok(document) => apps.add(manifest, document),
                     Err(error) => apps.error(manifest, error),
                 }
             }
@@ -228,6 +327,20 @@ where
 
 pub fn manifests() -> Vec<Arc<AppManifest>> {
     apps().manifests.clone()
+}
+
+/// The levels a block of `content_type` is shared at when it is hosted: an app's manifest names
+/// a host component that runs on it (guides/apps/host_services.md, "Host components"), with the
+/// levels it offers (plans/hosted_blocks.md, "The share dialog"). Empty for a type no host
+/// component runs on.
+pub fn offered_levels(content_type: Uuid) -> Vec<be_sdk_manifest::OfferedLevel> {
+    apps()
+        .manifests
+        .iter()
+        .flat_map(|manifest| &manifest.hosts)
+        .find(|host| host.edits == content_type.into_bytes())
+        .map(|host| host.levels.clone())
+        .unwrap_or_default()
 }
 
 pub fn entry_point(app_id: &str, entry: &str) -> Option<String> {

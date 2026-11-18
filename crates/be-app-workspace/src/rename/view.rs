@@ -79,22 +79,27 @@ pub fn RenameView(editor: Editor, block: Uuid, sheet: bool) -> NodeId {
         info.with(|info| info())
             .map(|info| info.label(editor.block_types().as_ref()).name)
     });
-    let initial = untrack(|| named.get()).unwrap_or_default();
     let known = create_memo(move || named.with(Option::is_some));
-    let name = create_signal(initial.clone());
-    let invalid = create_memo(move || name.with(|name| name.len() > MAX_NAME_BYTES));
-    let written = std::rc::Rc::new(std::cell::RefCell::new(initial));
+    let written = std::rc::Rc::new(std::cell::RefCell::new(
+        untrack(|| named.get()).unwrap_or_default(),
+    ));
     let edited = std::rc::Rc::new(std::cell::Cell::new(false));
     let (synced, typed) = (std::rc::Rc::clone(&written), std::rc::Rc::clone(&edited));
-    create_effect(move || {
-        let Some(known) = named.get() else {
-            return;
+    // The block's name until the user types one.
+    let name = create_linked_signal(move |held: Option<&String>| {
+        let known = named.get();
+        let Some(held) = held else {
+            return known.unwrap_or_default();
         };
-        if !typed.get() && *synced.borrow() != known {
-            synced.replace(known.clone());
-            untrack(|| name.set(known));
+        match known {
+            Some(known) if !typed.get() && *synced.borrow() != known => {
+                synced.replace(known.clone());
+                known
+            }
+            _ => held.clone(),
         }
     });
+    let invalid = create_memo(move || name.with(|name| name.len() > MAX_NAME_BYTES));
     create_effect(move || {
         let chosen = name.get();
         if *written.borrow() != chosen && !untrack(|| invalid.get()) {
@@ -171,13 +176,6 @@ fn RenameBody(
     accept: Callback<()>,
     dismiss: Callback<()>,
 ) -> NodeId {
-    let previewed = create_signal(None::<Color32>);
-    let shown = create_memo(move || {
-        let look = look.get();
-        previewed
-            .get()
-            .or_else(|| look.color.or(look.type_color).map(rgb))
-    });
     let set_icon = Callback::new(move |icon: Option<&'static str>| {
         let blocks = editor.blocks();
         blocks.define(block, ICON.definition(icon.map(str::to_owned).as_ref()));
@@ -188,16 +186,23 @@ fn RenameBody(
             .blocks()
             .define(block, ICON_COLOR.definition(color.as_ref()));
     });
-    let custom = Binding::new(
-        create_memo(move || {
-            let look = look.get();
-            rgb(look.color.or(look.type_color).unwrap_or(NEUTRAL))
-        }),
-        move |color: Color32| {
-            let [r, g, b, _] = color.to_array();
-            set_color.call(Some([r, g, b]));
-        },
-    );
+    let defined = create_memo(move || {
+        let look = look.get();
+        rgb(look.color.or(look.type_color).unwrap_or(NEUTRAL))
+    });
+    // A drag through the picker shows here and defines the block's colour once, on release.
+    let custom = HeldValue::new(Binding::new(defined, move |color: Color32| {
+        let [r, g, b, _] = color.to_array();
+        set_color.call(Some([r, g, b]));
+    }));
+    let shown = create_memo(move || {
+        let look = look.get();
+        let held = custom.value.get();
+        match held != defined.get() {
+            true => Some(held),
+            false => look.color.or(look.type_color).map(rgb),
+        }
+    });
     let search = create_signal(String::new());
     let rows = create_memo(move || {
         let search = search.get();
@@ -212,19 +217,7 @@ fn RenameBody(
             .collect::<Vec<_>>()
     });
     let empty = create_memo(move || rows.with(Vec::is_empty));
-    let error = create_memo(move || format!("Name must be at most {MAX_NAME_BYTES} UTF-8 bytes."));
-    let pictured = create_memo(move || {
-        let look = look.get();
-        look.icon.and_then(named).or(look.type_icon)
-    });
-    let tinted = create_memo(move || {
-        shown
-            .get()
-            .map_or(TextColor::Muted, |color| TextColor::Custom(color.into()))
-    });
-    let tile = TILE.px();
-    let gap = TILE_SPACING.px();
-    let row_size = create_memo(move || tile + gap);
+    let row_size = TILE.px() + TILE_SPACING.px();
     let field = NodeRef::new();
     let built = view! {
         <DialogBody title="Rename" id="rename" scrolls=false on_dismiss={move || dismiss.call(())}>
@@ -237,8 +230,21 @@ fn RenameBody(
                         fill=ColorRole::Shade
                         align={Align2::CENTER}
                     >
-                        <Text color={tinted} size=TextSize::Xl align=TextAlign::Center>
-                            <Icon glyph={pictured} />
+                        <Text
+                            color={move || {
+                                shown
+                                    .get()
+                                    .map_or(TextColor::Muted, |color| TextColor::Custom(color.into()))
+                            }}
+                            size=TextSize::Xl
+                            align=TextAlign::Center
+                        >
+                            <Icon
+                                glyph={move || {
+                                    let look = look.get();
+                                    look.icon.and_then(named).or(look.type_icon)
+                                }}
+                            />
                         </Text>
                     </Frame>
                     <ListItem grow=1.0>
@@ -252,34 +258,36 @@ fn RenameBody(
                         />
                     </ListItem>
                 </List>
-                <Show condition={invalid}>
-                    <Text style=TextStyle::CAPTION>{error}</Text>
+                <Show value={invalid}>
+                    <Text style=TextStyle::CAPTION>
+                        {format!("Name must be at most {MAX_NAME_BYTES} UTF-8 bytes.")}
+                    </Text>
                 </Show>
                 <Text style=TextStyle::CAPTION>"Color"</Text>
                 <List direction=Direction::Horizontal align=Align::Center spacing=SWATCH_SPACING>
                     <SwatchButton
                         @test_id={"rename.color.default"}
                         label="Block type color"
-                        color={create_memo(move || rgb(look.get().type_color.unwrap_or(NEUTRAL)))}
-                        selected={create_memo(move || look.get().color.is_none())}
+                        color={move || rgb(look.get().type_color.unwrap_or(NEUTRAL))}
+                        selected={move || look.get().color.is_none()}
                         on_click={move || set_color.call(None)}
                     />
-                    <ForEach keys={COLORS.to_vec()}>|(name, color): (&'static str, [u8; 3])|
+                    <ForEach value={COLORS.to_vec()}>|(name, color): (&'static str, [u8; 3])|
                         <SwatchButton
                             @test_id={format!("rename.color.{}", name.to_lowercase())}
                             label={name}
                             color={rgb(color)}
-                            selected={create_memo(move || look.get().color == Some(color))}
+                            selected={move || look.get().color == Some(color)}
                             on_click={move || set_color.call(Some(color))}
                         />
                     </ForEach>
                 </List>
                 <ColorInput
                     @test_id={"rename.custom"}
-                    value={custom}
+                    value={custom.value}
                     label="Custom color"
                     alpha=false
-                    on_preview={move |preview: Option<Color32>| previewed.set(preview)}
+                    on_drag_change={custom.on_drag}
                 />
                 <Text style=TextStyle::CAPTION>"Icon"</Text>
                 <TextInput
@@ -294,12 +302,12 @@ fn RenameBody(
             <ListItem grow=1.0>
                 <Scroll bleed={Bleed::DIALOG.top(false)}>
                     <List spacing=TILE_SPACING>
-                        <Show condition={empty}>
+                        <Show value={empty}>
                             <Text style=TextStyle::CAPTION>"No icons match."</Text>
                         </Show>
-                        <VirtualList keys={rows} item_size={row_size}>|row: ReadSignal<Vec<Tile>>|
+                        <VirtualList value={rows} item_size={row_size}>|row: ReadSignal<Vec<Tile>>|
                             <List direction=Direction::Horizontal spacing=TILE_SPACING>
-                                <ForEach keys={create_memo(move || row.get())}>|tile: Tile|
+                                <ForEach value={row}>|tile: Tile|
                                     <IconTile tile look shown set_icon />
                                 </ForEach>
                             </List>

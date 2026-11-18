@@ -9,8 +9,8 @@ use super::hooks::{LeafSpan, PlainLine, TextLeaf, TextLine, TextMarker};
 #[derive(Clone, Copy)]
 pub struct TextAreaLook {
     pub leaf: RenderFn<TextLeaf, Span>,
-    pub marker: RenderFn<TextMarker>,
-    pub line: RenderFn<TextLine>,
+    pub marker: RenderFn<TextMarker, NodeId>,
+    pub line: RenderFn<TextLine, NodeId>,
     pub geometry: Prop<TextAreaGeometry>,
 }
 
@@ -73,7 +73,9 @@ pub struct BlockGeometry {
     pub quote_space: f32,
     pub code_space: f32,
     pub table_space: f32,
-    pub rule_gap: f32,
     pub cell_padding: f32,
     pub delimiter_size: f32,
+    /// The span at the left of each quote level's column that its `>` owns, the bar drawn in
+    /// its middle; the space after the `>` owns the rest of the column.
+    pub quote_mark: f32,
 }

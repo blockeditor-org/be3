@@ -23,6 +23,7 @@ fn enter_in_a_single_line_text_area_submits_rather_than_breaking_the_line() {
                 state={state}
                 single_line=true
                 on_submit={move || submitted.update(|submitted| *submitted += 1)}
+                scroll={plain_scroll()}
             />
         }
     });

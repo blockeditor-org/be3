@@ -20,7 +20,7 @@ fn a_signal_set_in_one_document_builds_nodes_in_the_document_that_watches_it() {
     let watching = build_node(move || {
         view! {
             <List spacing=0.0>
-                <Show condition={shown}>
+                <Show value={shown}>
                     <Text @test_id={"late"}>"late"</Text>
                 </Show>
             </List>

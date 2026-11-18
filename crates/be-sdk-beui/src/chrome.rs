@@ -22,13 +22,13 @@ pub fn narrow_chrome() -> Memo<bool> {
 }
 
 #[component]
-pub(crate) fn ChromeRoot(#[prop(children)] content: Render<()>) -> NodeId {
+pub(crate) fn ChromeRoot(#[prop(children)] content: Build<NodeId>) -> NodeId {
     view! {
         <Container>|_size: ReadSignal<Vec2>| {
             provide_context(ChromeLayout {
                 narrow: narrower_than(NARROW_WIDTH),
             });
-            content.call(())
+            content.call()
         }</Container>
     }
 }
@@ -56,51 +56,50 @@ pub fn Toolbar(
 }
 
 #[component]
-fn ToolbarFrame(shown: Prop<bool>, fit: Prop<bool>, children: Child) -> DynamicSegment<ListItem> {
-    let shown = create_memo(move || shown.get());
-    let fit = create_memo(move || fit.get());
+fn ToolbarFrame(shown: Prop<bool>, fit: Prop<bool>, children: NodeId) -> DynamicSegment<ListItem> {
     let squeezed = narrow_chrome();
     let narrow = create_memo(move || squeezed.get() && !fit.get());
-    let roomy = create_memo(move || !narrow.get());
-    let spread = create_memo(move || roomy.get().then_some(children));
+    let spread = create_memo(move || (!narrow.get()).then_some(children));
     let scrolled = create_memo(move || narrow.get().then_some(children));
-    view! {
-        <Show keep_alive=true condition={shown}>
-            <Frame fill=ColorRole::Surface>
-                <List spacing=Space::None>
-                    <Show condition={roomy}>
-                        <Frame padding=BAND_PADDING>
-                            <List
-                                direction=Direction::Horizontal
-                                align=Align::Center
-                                spacing=Space::None
-                            >
-                                <ListItem grow=1.0>
-                                    <Portal node={spread} />
-                                </ListItem>
-                            </List>
-                        </Frame>
-                    </Show>
-                    <Show condition={narrow}>
-                        <List
-                            direction=Direction::Horizontal
-                            align=Align::Center
-                            spacing=Space::None
-                        >
-                            <ListItem grow=1.0>
-                                <Scroll direction=Direction::Horizontal>
-                                    <ListItem grow=1.0>
-                                        <Frame padding=BAND_PADDING>
-                                            <Portal node={scrolled} />
-                                        </Frame>
-                                    </ListItem>
-                                </Scroll>
-                            </ListItem>
-                        </List>
-                    </Show>
-                    <Separator />
+    let roomy = move || {
+        view! {
+            <Frame padding=BAND_PADDING>
+                <List direction=Direction::Horizontal align=Align::Center spacing=Space::None>
+                    <ListItem grow=1.0>
+                        <Portal node={spread} />
+                    </ListItem>
                 </List>
             </Frame>
-        </Show>
+        }
+    };
+    view! {
+        <KeepAlive>
+            <Show value={shown}>
+                <Kept>
+                    <Frame fill=ColorRole::Surface>
+                        <List spacing=Space::None>
+                            <Show value={narrow} fallback={roomy}>
+                                <List
+                                    direction=Direction::Horizontal
+                                    align=Align::Center
+                                    spacing=Space::None
+                                >
+                                    <ListItem grow=1.0>
+                                        <Scroll direction=Direction::Horizontal>
+                                            <ListItem grow=1.0>
+                                                <Frame padding=BAND_PADDING>
+                                                    <Portal node={scrolled} />
+                                                </Frame>
+                                            </ListItem>
+                                        </Scroll>
+                                    </ListItem>
+                                </List>
+                            </Show>
+                            <Separator />
+                        </List>
+                    </Frame>
+                </Kept>
+            </Show>
+        </KeepAlive>
     }
 }

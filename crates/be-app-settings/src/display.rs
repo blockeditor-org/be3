@@ -32,7 +32,7 @@ impl be_sdk_beui::BeuiRoot for DisplaySettingsRoot {
                         <List spacing=Space::None>
                             <Keyed
                                 value={device}
-                                key={|device: bool| device}
+                                key={|device: &bool| *device}
                             >|_device: ReadSignal<bool>|
                                 <ListItem grow=1.0>
                                     <DisplaySettingsView editor={editor} settings={settings} />

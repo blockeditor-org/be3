@@ -1,5 +1,5 @@
 use super::*;
-use beui_components_unstyled::{Scroll, ScrollbarStyle};
+use beui_components_unstyled::Scroll;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
 
@@ -8,8 +8,8 @@ fn a_faded_scroll_fades_its_content_toward_each_edge_with_more_beyond_it() {
     let mut document = build(|| {
         view! {
             <Root clear_color={beui_types::color::Color32::BLACK}>
-                <Scroll @test_id="scroll" scrollbar={ScrollbarStyle::default().fading(16.0)}>
-                    <ForEach keys={(0..8).collect::<Vec<usize>>()}>|_: usize|
+                <Scroll @test_id="scroll" style={plain_scroll().fading(16.0)}>
+                    <ForEach value={(0..8).collect::<Vec<usize>>()}>|_: usize|
                         <Frame height=16.0 radius=0.0 fill=Color32::WHITE />
                     </ForEach>
                 </Scroll>

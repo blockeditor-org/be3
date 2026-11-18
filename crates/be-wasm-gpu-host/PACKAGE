@@ -84,7 +84,7 @@ write_package_value("be3.cargo", {
             ],
             "test_features": [],
         },
-        "wasm32": {
+        "wasm32-bindgen": {
             "binaries": {},
             "deps": [
                 "//crates/be-wasm-gpu-abi:be-wasm-gpu-abi",

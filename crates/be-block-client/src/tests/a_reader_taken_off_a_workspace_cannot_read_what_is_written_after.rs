@@ -22,8 +22,7 @@ async fn a_reader_taken_off_a_workspace_cannot_read_what_is_written_after() {
         .unwrap();
     for member in [&reader, &leaver] {
         let public = owner
-            .keys()
-            .contact(member.account())
+            .verified_identity(member.account())
             .expect("the invitation made them contacts");
         owner
             .share(team, member.account(), Access::Edit, &public)
@@ -51,7 +50,10 @@ async fn a_reader_taken_off_a_workspace_cannot_read_what_is_written_after() {
 
     assert_eq!(text(&reader, note).await, "after");
     let fresh = harness.second(&reader).await;
-    let old = fresh.open_commit::<TextContent>(before).await.unwrap();
+    let old = fresh
+        .open_commit::<TextContent>(note, before)
+        .await
+        .unwrap();
     assert_eq!(TextBlock::text(&old), "before", "history stopped opening");
     assert_eq!(text(&fresh, note).await, "after");
 

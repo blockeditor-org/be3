@@ -69,11 +69,6 @@ pub(crate) fn MapInspector(state: MapState) -> NodeId {
 #[component]
 fn MapSidebar(state: MapState) -> NodeId {
     let selected = create_memo(move || state.selected.get());
-    let listing = create_memo(move || selected.get().is_none());
-    let chosen = create_memo(move || selected.get().is_some());
-    let error = state.import_error;
-    let failed = create_memo(move || error.get().is_some());
-    let reason = create_memo(move || error.get().unwrap_or_default());
 
     view! {
         <List spacing=Space::Md>
@@ -81,21 +76,13 @@ fn MapSidebar(state: MapState) -> NodeId {
             <Separator />
             <RegionInspector state={state} />
             <Separator />
-            <Show condition={listing}>
-                <PointList state={state} />
-            </Show>
-            <Show condition={chosen}>
+            <Show
+                value={move || selected.with(Option::is_some)}
+                fallback={move || view! {
+                    <PointList state={state} />
+                }}
+            >
                 <PointDetails state={state} selected={selected} />
-            </Show>
-            <Show condition={failed}>
-                <List spacing=Space::Xs>
-                    <Text style=TextStyle::CAPTION color=TextColor::Danger>{reason}</Text>
-                    <Button
-                        label="Dismiss"
-                        variant=ButtonVariant::Secondary
-                        on_click={move || state.dismiss_import_error()}
-                    />
-                </List>
             </Show>
         </List>
     }
@@ -104,8 +91,7 @@ fn MapSidebar(state: MapState) -> NodeId {
 #[component]
 fn RegionInspector(state: MapState) -> NodeId {
     let region = state.preview_region;
-    let fixed = create_memo(move || region.get().is_some());
-    let loose = create_memo(move || !fixed.get());
+    let fixed = create_memo(move || region.with(Option::is_some));
     let loose_color = TextColor::Muted;
     view! {
         <List spacing=Space::Sm>
@@ -118,15 +104,22 @@ fn RegionInspector(state: MapState) -> NodeId {
                 })}
                 @test_id={"map.preview-region"}
             />
-            <Show condition={loose}>
-                <Text style=TextStyle::CAPTION color={loose_color}>
-                    "Previews show the whole world."
-                </Text>
-            </Show>
-            <Show condition={fixed}>
+            <Show
+                value={fixed}
+                fallback={move || view! {
+                    <Text style=TextStyle::CAPTION color={loose_color}>
+                        "Previews show the whole world."
+                    </Text>
+                }}
+            >
                 <List spacing=Space::Sm>
                     <RegionEdges state={state} />
-                    <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
+                    <List
+                        direction=Direction::Horizontal
+                        align=Align::Center
+                        spacing=Space::Sm
+                        wrap=true
+                    >
                         <Button
                             label="Use current view"
                             variant=ButtonVariant::Secondary
@@ -197,6 +190,7 @@ fn RegionEdges(state: MapState) -> NodeId {
                         value={north}
                         limit=MAX_LATITUDE
                         on_change={set_north}
+                        on_scrub={move |change| state.drag_value(change)}
                     />
                 </ListItem>
                 <ListItem grow=0.5>
@@ -205,15 +199,28 @@ fn RegionEdges(state: MapState) -> NodeId {
                         value={south}
                         limit=MAX_LATITUDE
                         on_change={set_south}
+                        on_scrub={move |change| state.drag_value(change)}
                     />
                 </ListItem>
             </List>
             <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
                 <ListItem grow=0.5>
-                    <Coordinate label={west_label} value={west} limit=180.0 on_change={set_west} />
+                    <Coordinate
+                        label={west_label}
+                        value={west}
+                        limit=180.0
+                        on_change={set_west}
+                        on_scrub={move |change| state.drag_value(change)}
+                    />
                 </ListItem>
                 <ListItem grow=0.5>
-                    <Coordinate label={east_label} value={east} limit=180.0 on_change={set_east} />
+                    <Coordinate
+                        label={east_label}
+                        value={east}
+                        limit=180.0
+                        on_change={set_east}
+                        on_scrub={move |change| state.drag_value(change)}
+                    />
                 </ListItem>
             </List>
         </List>
@@ -250,10 +257,12 @@ fn Coordinate(
     value: Memo<f64>,
     limit: f64,
     on_change: be_sdk_beui::beui::reactive::Callback<f64>,
+    on_scrub: be_sdk_beui::beui::reactive::Callback<ValueDrag>,
 ) -> NodeId {
     view! {
         <NumberInput
             value={Binding::new(value, move |next: f64| on_change.call(next))}
+            on_scrub={on_scrub}
             min={-limit}
             max={limit}
             label={label.to_owned()}
@@ -271,21 +280,22 @@ fn PointList(state: MapState) -> NodeId {
             .map(|point| point.id)
             .collect::<Vec<Uuid>>()
     });
-    let empty = create_memo(move || ids.get().is_empty());
-    let any = create_memo(move || !empty.get());
+    let empty = create_memo(move || ids.with(Vec::is_empty));
     let hint = TextColor::Muted;
     view! {
         <List spacing=Space::Sm>
             <Text>"Points of interest"</Text>
-            <Show condition={empty}>
+            <Show
+                value={empty}
+                fallback={|| view! {
+                    <Text style=TextStyle::CAPTION>"Select a marker to edit it."</Text>
+                }}
+            >
                 <Text style=TextStyle::CAPTION color={hint}>
                     "Add blocks with the + button, by dragging them in from Files, or by pasting an image."
                 </Text>
             </Show>
-            <Show condition={any}>
-                <Text style=TextStyle::CAPTION>"Select a marker to edit it."</Text>
-            </Show>
-            <ForEach keys={ids}>|id: Uuid|
+            <ForEach value={ids}>|id: Uuid|
                 <PointRow state id />
             </ForEach>
         </List>
@@ -325,9 +335,12 @@ fn PointRow(state: MapState, id: Uuid) -> NodeId {
 
 #[component]
 fn Swatch(color: Memo<Color32>) -> NodeId {
-    let color = create_memo(move || TextColor::Custom(color.get().into()));
     view! {
-        <Text size=TextSize::Xs color={color} align=TextAlign::Center>
+        <Text
+            size=TextSize::Xs
+            color={move || TextColor::Custom(color.get().into())}
+            align=TextAlign::Center
+        >
             <Icon glyph=ICON_CIRCLE />
         </Text>
     }
@@ -345,7 +358,6 @@ fn PointDetails(state: MapState, selected: Memo<Option<Uuid>>) -> NodeId {
         let label = state.label_of(point.block_id).ok()?;
         Some(ChildTarget::new(point.block_id, label.block_type))
     });
-    let openable = create_memo(move || block.get().is_none());
     let editor = state.editor();
     let latitude = create_memo(move || point.get().map_or(0.0, |point| point.position.latitude));
     let longitude = create_memo(move || point.get().map_or(0.0, |point| point.position.longitude));
@@ -381,7 +393,7 @@ fn PointDetails(state: MapState, selected: Memo<Option<Uuid>>) -> NodeId {
                 <Button
                     label="Edit"
                     variant=ButtonVariant::Secondary
-                    disabled={openable}
+                    disabled={move || block.with(Option::is_none)}
                     on_click={move || {
                         if let Some(target) = block.get_untracked() {
                             state.editor().host().open_block(target.id, target.block_type);
@@ -422,6 +434,7 @@ fn PointDetails(state: MapState, selected: Memo<Option<Uuid>>) -> NodeId {
                 min={-MAX_LATITUDE}
                 max=MAX_LATITUDE
                 label="Latitude"
+                on_scrub={move |change| state.drag_value(change)}
             />
             <NumberInput
                 value={Binding::new(longitude, move |value: f64| {
@@ -434,16 +447,18 @@ fn PointDetails(state: MapState, selected: Memo<Option<Uuid>>) -> NodeId {
                 min=-180.0
                 max=180.0
                 label="Longitude"
+                on_scrub={move |change| state.drag_value(change)}
             />
             <Text>"Colour"</Text>
             <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
                 <ForEach
-                    keys={COLOR_PRESETS.map(|(name, _)| name.to_owned()).to_vec()}
+                    value={COLOR_PRESETS.map(|(name, _)| name.to_owned()).to_vec()}
                 >|name: String|
                     <ColorPreset state point={point} name />
                 </ForEach>
             </List>
             <ColorInput
+                on_drag_change={move |change| state.drag_value(change)}
                 value={Binding::new(custom, move |color: Color32| {
                     let Some(mut point) = point.get_untracked() else {
                         return;

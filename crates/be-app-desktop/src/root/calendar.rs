@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use be_sdk_beui::be_block_content::Root;
-use be_sdk_beui::be_block_content::ViewState;
+use be_sdk_beui::be_block_content::{ViewRef, ViewStateKind};
 use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::datetime::{Date, HourCycle, SECONDS_PER_DAY, Time};
 use be_sdk_beui::beui::icons::ICON_CALENDAR_DAYS;
@@ -14,9 +14,16 @@ use be_type_database::database::{Database, DatabaseContent, DatabaseValue};
 use be_type_database::database_schema::{DatabaseFieldType, DatabaseSchema, DatabaseSchemaContent};
 use be_type_database::database_view::{DatabaseView, DatabaseViewContent, DatabaseViewKind};
 use beui::{Align, Direction, Extent};
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-pub(crate) const CALENDAR_STATE: &str = "desktop.calendar";
+/// The desktop's calendar, a child block the clock shows.
+#[derive(Deserialize, PartialEq, Serialize)]
+pub(crate) struct KeptCalendar(pub(crate) ViewRef);
+
+impl ViewStateKind for KeptCalendar {
+    const ID: Uuid = Uuid::from_u128(0x6465_736b_746f_702d_6361_6c65_6e64_0001);
+}
 pub(crate) const CALENDAR_WIDTH: f32 = GRID_WIDTH;
 const SPACING: Space = Space::Md;
 const EVENT_SPACING: Space = Space::Xs2;
@@ -50,8 +57,6 @@ pub(crate) fn DesktopCalendar(workspace: Workspace, popover: PopoverHandle) -> N
     });
     let events = day_events(editor, block, day);
     let none = create_memo(move || events.with(Vec::is_empty));
-    let some = create_memo(move || !none.get());
-    let unopened = create_memo(move || block.get().is_none());
     let open = move || {
         if let Some(block) = block.get_untracked() {
             workspace.open_block(block, DatabaseView::CONTENT_TYPE);
@@ -64,20 +69,22 @@ pub(crate) fn DesktopCalendar(workspace: Workspace, popover: PopoverHandle) -> N
                 <Calendar selected={picked} today={Some(today)} width={Length::FILL} />
                 <List spacing=EVENT_SPACING @test_id={"desktop.calendar.events"}>
                     <Text weight=Weight::Bold>{heading}</Text>
-                    <Show condition={none}>
+                    <Show
+                        value={none}
+                        fallback={move || view! {
+                            <ForEach value={events}>|event: DayEvent|
+                                <EventRow event />
+                            </ForEach>
+                        }}
+                    >
                         <Text style=TextStyle::CAPTION>"No events"</Text>
-                    </Show>
-                    <Show condition={some}>
-                        <ForEach keys={events}>|event: DayEvent|
-                            <EventRow event />
-                        </ForEach>
                     </Show>
                 </List>
                 <Button
                     label="Open calendar"
                     glyph=ICON_CALENDAR_DAYS
                     variant=ButtonVariant::Ghost
-                    disabled={unopened}
+                    disabled={move || block.with(Option::is_none)}
                     @test_id={"desktop.calendar.open"}
                     on_click={open}
                 />
@@ -162,18 +169,12 @@ fn day_events(editor: Editor, block: Memo<Option<Uuid>>, day: Memo<Date>) -> Mem
 }
 
 fn calendar_block(editor: Editor) -> Memo<Option<Uuid>> {
-    let view = editor.view_content();
+    let kept = editor.view_state::<KeptCalendar>();
     let stored = create_memo(move || {
-        view.as_ref().and_then(|view| {
-            view.read(|held| {
-                held.root()
-                    .state(CALENDAR_STATE)
-                    .and_then(|state| state.refs.first().copied())
-                    .filter(|id| !id.is_nil())
-            })
+        kept.get()
             .ok()
             .flatten()
-        })
+            .and_then(|calendar| calendar.0.block())
     });
     let children = editor.watch_blocks(BlockQuery::Children(editor.block_id()));
     let created = create_signal(None::<Uuid>);
@@ -189,14 +190,14 @@ fn calendar_block(editor: Editor) -> Memo<Option<Uuid>> {
     });
     let editable = editor.editable();
     create_effect(move || {
-        let ready = view.as_ref().is_some_and(|view| view.ready().is_ok());
+        let ready = editor.view_block().is_some() && !matches!(kept.get(), Err(Pending::Loading));
         if !ready || !editable.get() || held.get().is_some() {
             return;
         }
         untrack(|| {
             let calendar = create_calendar(editor);
             created.set(Some(calendar));
-            editor.set_view_state(CALENDAR_STATE, Some(&ViewState::new(&(), vec![calendar])));
+            kept.set(Some(KeptCalendar(ViewRef::new(calendar))));
         });
     });
     held

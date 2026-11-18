@@ -1,6 +1,6 @@
 use beui_tree::reactive::{
-    ChildSegment, ChildValue, Children, ComponentContext, Get, IntoChild, IntoProp, IntoSegment,
-    Prop, ScopeContext, SlotChild,
+    ChildSegment, ChildValue, Children, ComponentContext, CountOne, Counted, Get, IntoChild,
+    IntoPropValue, IntoSegment, OneOf, Prop, ScopeContext, SlotChild, ZeroOrOne,
 };
 
 use crate::layout::Sizing;
@@ -34,10 +34,10 @@ impl<P: ParentKind> Clone for PlacedItem<P> {
 }
 
 impl<P: ParentKind> Placed<P> {
-    pub fn new(node: NodeId, data: impl IntoProp<P::Data>) -> Self {
+    pub fn new<M>(node: NodeId, data: impl IntoPropValue<Prop<P::Data>, M>) -> Self {
         Self {
             node,
-            data: data.into_prop(),
+            data: data.into_prop_value(),
         }
     }
 }
@@ -54,8 +54,19 @@ impl<P: ParentKind> ChildValue for Placed<P> {
     }
 }
 
+impl<P: ParentKind> Counted for Placed<P> {
+    type Count = CountOne;
+}
+
+beui_tree::one_child_slot!(<P: ParentKind> Placed<P>);
+
 impl<P: ParentKind> SlotChild for Placed<P> {
     type Stored = PlacedItem<P>;
+    type Node = NodeId;
+
+    fn node(stored: &PlacedItem<P>) -> NodeId {
+        stored.node
+    }
 
     fn store(self) -> PlacedItem<P> {
         PlacedItem {
@@ -79,21 +90,35 @@ impl<P: ParentKind> FromPlaced<P> for Placed<P> {
     }
 }
 
-impl<P: ParentKind, T: FromPlaced<P>> IntoChild<T> for Placed<P> {
-    fn into_child(self) -> T {
-        T::from_placed(self)
+/// A placed child where a bare node goes: only a parent whose children are bare nodes takes
+/// one (`FromPlaced`'s message says which parent it was made for).
+impl<P: ParentKind> IntoChild<NodeId> for Placed<P>
+where
+    NodeId: FromPlaced<P>,
+{
+    fn into_child(self) -> NodeId {
+        NodeId::from_placed(self)
+    }
+}
+
+impl<P: ParentKind, Q: ParentKind> IntoChild<Placed<Q>> for Placed<P>
+where
+    Placed<Q>: FromPlaced<P>,
+{
+    fn into_child(self) -> Placed<Q> {
+        Placed::<Q>::from_placed(self)
     }
 }
 
 impl<P: ParentKind, T: FromPlaced<P> + SlotChild> IntoSegment<T> for Placed<P> {
     fn into_segment(self) -> ChildSegment<T> {
-        ChildSegment::One(self.into_child())
+        ChildSegment::One(T::from_placed(self))
     }
 }
 
 impl<P: ParentKind, T: FromPlaced<P> + SlotChild> From<Placed<P>> for Children<T> {
     fn from(child: Placed<P>) -> Self {
-        Self::from(ChildSegment::One(child.into_child()))
+        Self::from(ChildSegment::One(T::from_placed(child)))
     }
 }
 
@@ -121,6 +146,20 @@ impl<P: BareChild> IntoSegment<Placed<P>> for NodeId {
 impl<P: BareChild> IntoSegment<Placed<P>> for Option<NodeId> {
     fn into_segment(self) -> ChildSegment<Placed<P>> {
         ChildSegment::Many(self.into_iter().map(IntoChild::into_child).collect())
+    }
+}
+
+impl<P: BareChild> beui_tree::reactive::Takes<NodeId, ()> for Children<Placed<P>> {
+    fn take(node: NodeId) -> Self {
+        node.into()
+    }
+}
+
+impl<P: ParentKind, T: FromPlaced<P> + SlotChild> beui_tree::reactive::Takes<Placed<P>, ()>
+    for Children<T>
+{
+    fn take(placed: Placed<P>) -> Self {
+        placed.into()
     }
 }
 
@@ -177,3 +216,17 @@ impl ParentKind for CanvasKind {
 }
 
 pub type CanvasItem = Placed<CanvasKind>;
+
+/// A row of a `ForEach` (or any slot of placed children taking one item) that is control
+/// flow building at most one node: a host node holds it, one per row.
+impl<P: BareChild> IntoChild<Placed<P>> for OneOf<NodeId> {
+    fn into_child(self) -> Placed<P> {
+        crate::node::create_host(self.into_lazy()).into_child()
+    }
+}
+
+impl<P: BareChild> IntoChild<Placed<P>> for ZeroOrOne<NodeId> {
+    fn into_child(self) -> Placed<P> {
+        crate::node::create_host(self.into_lazy()).into_child()
+    }
+}

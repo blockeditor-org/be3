@@ -2,7 +2,8 @@
 
 use std::{path::PathBuf, sync::MutexGuard};
 
-use be_host_stack::{Config, embedded_server::EmbeddedServer};
+use be_host_server::EmbeddedServer;
+use be_host_stack::Config;
 use uuid::Uuid;
 
 pub struct Harness {
@@ -32,22 +33,28 @@ impl Harness {
         let (profile, token) = runtime.block_on(async {
             be_server::ServerStore::open(directory.join("server"))
                 .unwrap()
-                .register("counter@example.com", "Counter", "correct horse battery")
+                .register("counter@example.com", "Counter")
                 .await
                 .unwrap()
         });
-        let server = be_host_stack::embedded_server::start_embedded_server_at(
+        let server = be_host_server::start_embedded_server_at(
             "127.0.0.1:0",
             directory.join("server"),
-            be_server::ServerConfig::OPEN.lease,
             be_server::push::PushConfig::DEFAULT,
         )
         .expect("the embedded block server starts");
         let url = server.url.clone();
+        let phrase = be_block_keys::RecoveryPhrase::generate();
         let organization = runtime
             .block_on(be_host_stack::accounts::create_organization(
                 url.clone(),
                 token.clone(),
+                be_host_stack::accounts::Me {
+                    account: profile.account,
+                    identity: phrase.secret().to_bytes(),
+                    display_name: "Counter".to_owned(),
+                    email: "counter@example.com".to_owned(),
+                },
                 "Counters".to_owned(),
             ))
             .expect("the organization is created");
@@ -58,13 +65,14 @@ impl Harness {
             account: profile.account,
             token,
             organization: organization.id,
-            phrase: be_block_keys::RecoveryPhrase::generate(),
+            phrase,
             _one_stack: one_stack,
         }
     }
 
     pub fn connect(&self) {
         be_host_stack::start(Config {
+            local: false,
             server_url: self.url.clone(),
             token: self.token.clone(),
             account: self.account,

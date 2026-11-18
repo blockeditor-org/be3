@@ -179,9 +179,12 @@ impl HeldClip {
     }
 
     /// Whether the system clipboard's text `now` is still what the held clip
-    /// wrote: the check of a platform without a change counter.
+    /// wrote: the check of a platform without a change counter. Line breaks
+    /// are compared as `\n` on both sides, since a platform reads the text
+    /// back through `text_from_system`.
     pub fn wrote(&self, now: Option<&str>) -> bool {
-        self.clip.is_some() && now.filter(|text| !text.is_empty()) == self.written()
+        let lf = |text: &str| text_from_system(text.to_owned());
+        self.clip.is_some() && now.filter(|text| !text.is_empty()).map(lf) == self.written().map(lf)
     }
 
     pub fn drop_clip(&mut self) {
@@ -214,6 +217,60 @@ pub fn fitting<T>(
             fits
         })
         .collect()
+}
+
+/// `text` as a system clipboard with a size limit carries it: whole when it is
+/// at most `units` UTF-16 code units (what an Android Parcel counts), otherwise
+/// cut at a character boundary and ended with `notice`, the two together
+/// within `units`. The whole text stays in the held clip for pastes in the
+/// program.
+pub fn cut_short<'a>(text: &'a str, units: usize, notice: &str) -> std::borrow::Cow<'a, str> {
+    if utf16_units(text) <= units {
+        return std::borrow::Cow::Borrowed(text);
+    }
+    let mut left = units.saturating_sub(utf16_units(notice));
+    let end = text
+        .char_indices()
+        .find(|(_, char)| {
+            let fits = char.len_utf16() <= left;
+            left = left.saturating_sub(char.len_utf16());
+            !fits
+        })
+        .map_or(text.len(), |(at, _)| at);
+    std::borrow::Cow::Owned(format!("{}{notice}", &text[..end]))
+}
+
+/// How many UTF-16 code units `text` takes.
+pub fn utf16_units(text: &str) -> usize {
+    text.chars().map(char::len_utf16).sum()
+}
+
+/// Plain text read from a system clipboard, with its line breaks as beui keeps
+/// them: `\n`. Windows programs write `\r\n`, and a `\r` alone ends a line
+/// too (old Mac programs), so each becomes one `\n`. Every platform passes the
+/// text it reads through this, so a paste never brings a `\r`.
+pub fn text_from_system(text: String) -> String {
+    if !text.contains('\r') {
+        return text;
+    }
+    text.replace("\r\n", "\n").replace('\r', "\n")
+}
+
+/// Plain text with `\r\n` line breaks, as Windows programs expect on the
+/// clipboard: what a copy writes there.
+pub fn text_with_crlf(text: &str) -> String {
+    text_from_system(text.to_owned()).replace('\n', "\r\n")
+}
+
+/// The link `text` is, when it is one http or https URL and nothing else, as a share sheet
+/// takes it apart from text (the web's `ShareData.url`), so the target opens it as a link.
+pub fn shared_link(text: &str) -> Option<&str> {
+    let text = text.trim();
+    let scheme = ["https://", "http://"].iter().any(|scheme| {
+        text.get(..scheme.len())
+            .is_some_and(|start| start.eq_ignore_ascii_case(scheme))
+    });
+    (scheme && !text.contains(char::is_whitespace)).then_some(text)
 }
 
 #[cfg(test)]

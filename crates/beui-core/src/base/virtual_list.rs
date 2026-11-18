@@ -38,6 +38,10 @@ pub struct VirtualListNode<K> {
     held: Vec<Row<K>>,
     retained: VecDeque<K>,
     origin: Option<(K, f32)>,
+    /// The row its owner keeps in place (`set_virtual_list_anchor`): while built, it is the
+    /// origin the next layout lays the rows out from, so rows around it measured anew move
+    /// only what is beyond them.
+    anchor: Option<K>,
     overscan: f32,
 }
 
@@ -55,6 +59,7 @@ impl<K: Clone + Hash + Eq + 'static> VirtualListNode<K> {
             held: Vec::new(),
             retained: VecDeque::new(),
             origin: None,
+            anchor: None,
             overscan: 0.0,
         }
     }
@@ -229,26 +234,37 @@ impl<K: Clone + Hash + Eq + 'static> VirtualListNode<K> {
         );
         let pinned = doc.pinned_to_end() == Some(self.direction);
         let before = self.metrics.total();
-        let rows = match pinned {
+        let mut rows = match pinned {
             true => self.rows_from_end(doc, list, painter, window, main.unwrap_or(before), cross),
             false => self.rows_from_anchor(doc, list, painter, window, main, cross, at_start),
         };
         let mut held = self.holding(doc, &rows);
         self.measure_held(doc, list, painter, &mut held, cross);
-        let shift = match rows.first() {
+        // The origin, which the next layout lays the rows out from, is the anchor while it is
+        // built, else the first row built. The shift is the origin's: how far the rows measured
+        // so far moved it. The rows are placed where it puts them, which is where they settle,
+        // and the offset takes it up so they stay where they are shown.
+        let origin = self
+            .anchor
+            .as_ref()
+            .and_then(|anchor| rows.iter().find(|row| row.key == *anchor))
+            .or(rows.first());
+        let shift = match origin {
             Some(row) => {
                 let wanted = self.metrics.position(row.index);
-                let shift = wanted - row.position;
                 self.origin = Some((row.key.clone(), wanted));
-                shift
+                wanted - row.position
             }
             None => {
                 self.origin = None;
                 0.0
             }
         };
+        for row in &mut rows {
+            row.position += shift;
+        }
         for row in &mut held {
-            row.position = self.metrics.position(row.index) - shift;
+            row.position = self.metrics.position(row.index);
         }
         self.keep(rows, held);
         shift
@@ -451,6 +467,14 @@ impl<K: Clone + Hash + Eq + 'static> Element for VirtualListNode<K> {
                 start + grid.snap(row.position),
                 row.length,
             );
+            let placed = crate::layout::stretched(
+                doc,
+                painter,
+                row.node,
+                placed,
+                self.direction == Direction::Vertical,
+                self.direction == Direction::Horizontal,
+            );
             crate::layout::layout(doc, painter, row.node, placed, out);
         }
         doc.arena.adopt_children(node);
@@ -575,10 +599,12 @@ impl<K: Clone + Hash + Eq + 'static> Element for VirtualListNode<K> {
 impl Document {
     pub fn create_virtual_list<K: Clone + Hash + Eq + 'static>(
         &mut self,
-        build: impl Fn(K) -> NodeId + 'static,
+        build: impl Fn(K, usize) -> NodeId + 'static,
     ) -> NodeOf<VirtualListNode<(K, usize)>> {
         self.arena
-            .insert(VirtualListNode::new(move |(key, _): (K, usize)| build(key)))
+            .insert(VirtualListNode::new(move |(key, repeat): (K, usize)| {
+                build(key, repeat)
+            }))
     }
 
     pub fn set_virtual_list_direction<K: Clone + Hash + Eq + 'static>(
@@ -622,6 +648,19 @@ impl Document {
         let node = self.arena.get_as(list);
         let index = *node.indices.get(&(key.clone(), 0))?;
         Some(node.metrics.position(index))
+    }
+
+    /// Names the row of `key` as the one the list keeps in place as rows around it are measured
+    /// anew, in place of the first row it builds; `None` goes back to that.
+    pub fn set_virtual_list_anchor<K: Clone + Hash + Eq + 'static>(
+        &mut self,
+        list: NodeOf<VirtualListNode<(K, usize)>>,
+        key: Option<K>,
+    ) {
+        let anchor = key.map(|key| (key, 0));
+        self.arena
+            .get_mut_as::<VirtualListNode<(K, usize)>>(list)
+            .anchor = anchor;
     }
 
     pub fn set_virtual_list_overscan<K: Clone + Hash + Eq + 'static>(

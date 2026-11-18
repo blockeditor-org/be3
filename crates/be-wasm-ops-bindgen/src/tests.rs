@@ -2,6 +2,7 @@ use super::*;
 
 mod a_sync_func_outside_a_local_interface_is_refused;
 mod bytes_are_encoded_whole_in_every_position;
+mod only_a_call_taking_a_secret_zeroes_its_arguments;
 
 fn generated(wit: &str, network: bool) -> Result<String, String> {
     let mut resolve = Resolve::new();

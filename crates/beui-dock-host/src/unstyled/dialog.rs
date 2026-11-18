@@ -2,7 +2,7 @@ use beui_view::types::icons::Glyph;
 use std::time::Duration;
 
 use beui_macros::{component, view};
-use beui_view::components::overlay::{Modality, Overlay};
+use beui_view::components::overlay::{Modality, Overlay, use_overlay_presence};
 use beui_view::primitives::*;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::OverlayAnchor;
@@ -29,7 +29,7 @@ pub(crate) struct DialogParts {
     pub(crate) modal: Memo<bool>,
     pub(crate) dismiss_on_outside_press: Memo<bool>,
     pub(crate) on_close: Option<Callback<()>>,
-    pub(crate) content: RenderFn<()>,
+    pub(crate) content: BuildFn<NodeId>,
 }
 
 pub struct DockDialogHandle {
@@ -128,9 +128,7 @@ impl super::State {
             seen.push(child);
             current = Some(child);
         }
-        if current != self.dialog_focus.get_untracked() {
-            self.dialog_focus.set(current);
-        }
+        self.dialog_focus.set(current);
     }
 
     pub(super) fn release_dialog_focus(&self) {
@@ -188,9 +186,12 @@ impl super::State {
             return self.dialog_frames.value().borrow().get(&parent).copied();
         }
         let shown = self.state.with_untracked(|state| state.contains(parent));
-        shown.then(|| {
+        let built = self
+            .panels
+            .with_untracked(|panels| panels.get(&parent).copied());
+        built.filter(|_| shown).map(|built| {
             let panel = NodeRef::new();
-            panel.fill(self.panel(parent));
+            panel.fill(built);
             panel
         })
     }
@@ -202,17 +203,17 @@ pub(super) fn DockDialogs(dock: State) -> NodeId {
     let state = dock.state;
     let described = dock.dialog;
     create_effect(move || {
-        let _ = state.with(DockState::focused_tab);
+        state.track();
         for (dialog, _) in keys.get() {
             if let Some(parts) = described.call(dialog) {
-                parts.modal.get();
+                parts.modal.track();
             }
         }
         untrack(|| dock.settle_dialog_focus());
     });
     view! {
         <beui_view::primitives::List spacing=0.0>
-            <beui_view::reactive::ForEach keys>|(tab, parent): (TabId, TabId)|
+            <beui_view::reactive::ForEach value={keys}>|(tab, parent): (TabId, TabId)|
                 <DockDialogView dock tab parent />
             </beui_view::reactive::ForEach>
         </beui_view::primitives::List>
@@ -264,6 +265,8 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
         if !shown.get() {
             return;
         }
+        // Again once the parent's panel is built, which can be after the dialog.
+        dock.panels.with(|panels| panels.get(&parent).copied());
         if let Some(node) = untrack(|| dock.anchor_ref(parent)) {
             anchor.set(node);
         }
@@ -310,7 +313,7 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
         let control = dock.tab_control(tab);
         provide_context(control);
         provide_context(Modality(create_memo(|| false)));
-        content.call(())
+        content.call()
     });
     store(scope);
     let width = create_memo(move || Extent::px(size.get().x));
@@ -386,10 +389,9 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
     let placed = create_memo(move || {
         let node = anchor.get();
         let moved = offset.get();
-        let popover = Placement::Popover {
-            gap: DIALOG_GAP,
-            margin: DIALOG_MARGIN,
-        };
+        let popover = Placement::BELOW_CENTER
+            .gap(DIALOG_GAP)
+            .margin(DIALOG_MARGIN);
         match pointed.get() {
             Some(rect) => (
                 OverlayAnchor::Pinned {
@@ -424,32 +426,50 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
         },
     );
     let view = view! {
-        <Overlay
-            @node_ref=&overlay
-            anchor={at}
-            placement={placement}
-            policy
-            scrim={scrim}
-            scrim_radius={scrim_radius}
-            pointer={card}
-            beak={beak}
-            shown_in={shown_in}
-            traps_focus=false
-            open={shown}
-            keep_alive=true
-            on_dismiss={move |reason: Dismiss| match reason {
-                Dismiss::OutsidePress if dismiss_on_outside_press.get_untracked() => close.call(()),
-                Dismiss::OutsidePress if blocking.get_untracked() => call_attention(),
-                Dismiss::Escape | Dismiss::Back => close.call(()),
-                Dismiss::OutsidePress | Dismiss::WithParent => {}
-            }}
-        >
-            <Interactive @node_ref=&frame on_press={move |_: PointerPress| dock.focus_dialog(tab)}>
-                {face.call(())}
-            </Interactive>
-        </Overlay>
+        <KeepAlive>
+            <Overlay
+                @node_ref=&overlay
+                anchor={at}
+                placement={placement}
+                policy
+                scrim={scrim}
+                scrim_radius={scrim_radius}
+                pointer={card}
+                beak={beak}
+                shown_in={shown_in}
+                traps_focus=false
+                open={shown}
+                on_dismiss={move |reason: Dismiss| match reason {
+                    Dismiss::OutsidePress if dismiss_on_outside_press.get_untracked() => close.call(()),
+                    Dismiss::OutsidePress if blocking.get_untracked() => call_attention(),
+                    Dismiss::Escape | Dismiss::Back => close.call(()),
+                    Dismiss::OutsidePress | Dismiss::WithParent => {}
+                }}
+            >|| {
+                let presence = use_overlay_presence();
+                view! {
+                    <Kept>|| {
+                        if let Some(presence) = presence {
+                            presence.provide();
+                        }
+                        view! {
+                            <Interactive
+                                @node_ref=&frame
+                                on_press={move |_: PointerPress| dock.focus_dialog(tab)}
+                            >
+                                {face.call(())}
+                            </Interactive>
+                        }
+                    }</Kept>
+                }
+            }</Overlay>
+        </KeepAlive>
     };
+    dock.dialog_layers.value().borrow_mut().insert(tab, overlay);
     on_cleanup(move || {
+        if let Some(layers) = dock.dialog_layers.try_value() {
+            layers.borrow_mut().remove(&tab);
+        }
         if let Some(overlay) = overlay.try_get() {
             overlay.close_overlay();
         }

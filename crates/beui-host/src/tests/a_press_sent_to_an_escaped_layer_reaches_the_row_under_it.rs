@@ -10,7 +10,7 @@ fn a_press_sent_to_an_escaped_layer_reaches_the_row_under_it() {
     let chosen = create_signal(Vec::<usize>::new());
     let (document, [menu]) = toolbar_of(move || {
         let items = view! {
-            <ForEach keys={(0..4).collect::<Vec<usize>>()}>|index: usize| {
+            <ForEach value={(0..4).collect::<Vec<usize>>()}>|index: usize| {
                 let label = format!("Item {index}");
                 view! {
                     <unstyled::MenuItem

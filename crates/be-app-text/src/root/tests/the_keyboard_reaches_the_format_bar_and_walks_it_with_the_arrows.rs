@@ -1,4 +1,5 @@
 use be_sdk_test::BeuiTest;
+use be_sdk_test::prelude::*;
 use beui::{Key, Modifiers};
 
 use super::editor;
@@ -8,40 +9,30 @@ use crate::root::TextRoot;
 fn the_keyboard_reaches_the_format_bar_and_walks_it_with_the_arrows() {
     let mut editor = editor("hello");
     editor.click("text.surface");
-    editor.run();
     assert!(focused(&editor, "text.surface"));
 
     editor.key(Key::Escape, Modifiers::NONE);
-    editor.run();
     editor.key(Key::Tab, Modifiers::NONE);
-    editor.run();
     assert!(
-        focused(&editor, "text.format.heading"),
-        "Tab out of the text lands on the bar's first button"
-    );
-    assert!(
-        editor.shown("text.format.bold"),
-        "the bar stays while the focus is in it"
+        focused(&editor, "text.format.grip"),
+        "Tab out of the text lands on the bar's grip, its first control"
     );
 
     editor.key(Key::ArrowRight, Modifiers::NONE);
-    editor.run();
+    assert!(focused(&editor, "text.format.heading"));
+    editor.key(Key::ArrowRight, Modifiers::NONE);
     assert!(focused(&editor, "text.format.bold"));
     editor.key(Key::End, Modifiers::NONE);
-    editor.run();
     assert!(focused(&editor, "text.format.image"));
     editor.key(Key::ArrowRight, Modifiers::NONE);
-    editor.run();
     assert!(
         focused(&editor, "text.format.image"),
         "the arrows stop at the ends"
     );
     editor.key(Key::Home, Modifiers::NONE);
-    editor.run();
-    assert!(focused(&editor, "text.format.heading"));
+    assert!(focused(&editor, "text.format.grip"));
 
     editor.key(Key::Tab, Modifiers::SHIFT);
-    editor.run();
     assert!(focused(&editor, "text.surface"));
     assert!(editor.shown("text.format.bold"));
 }

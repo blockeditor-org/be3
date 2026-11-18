@@ -9,8 +9,11 @@ fn a_conflicting_edit_keeps_every_side_until_one_is_chosen() {
     let versioned = start_versioning("hello\n");
     let second = second_checkout(&versioned);
     let note = copy_of(versioned.note, second);
-    show_version(versioned.checkout, be_block::CheckoutContent::CONTENT_TYPE);
-    show_version(second, be_block::CheckoutContent::CONTENT_TYPE);
+    show_version(
+        versioned.checkout,
+        be_block_repository::CheckoutContent::CONTENT_TYPE,
+    );
+    show_version(second, be_block_repository::CheckoutContent::CONTENT_TYPE);
     hold(versioned.note, be_type_text::TextContent::CONTENT_TYPE);
     hold(note, be_type_text::TextContent::CONTENT_TYPE);
     wait_until("opened both notes", |shared| {
@@ -40,7 +43,7 @@ fn a_conflicting_edit_keeps_every_side_until_one_is_chosen() {
         .map(|state| (*state.conflicts[0]).clone())
         .expect("the conflict is recorded");
     assert_eq!(conflict.block, note);
-    assert_eq!(conflict.kind, be_block::ConflictKind::Content);
+    assert_eq!(conflict.kind, be_block_repository::ConflictKind::Content);
     let sides = [conflict.base, conflict.ours, conflict.theirs]
         .map(|side| side.expect("every side was kept"));
     for side in sides {

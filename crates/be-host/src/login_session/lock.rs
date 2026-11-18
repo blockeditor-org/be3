@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use be_host_base::password::Password;
+use be_wasm_password::Password;
 
 pub(crate) const FREE_ATTEMPTS: u32 = 3;
 pub(crate) const FIRST_WAIT: Duration = Duration::from_secs(5);
@@ -78,7 +78,7 @@ impl Lock {
         now: Duration,
         authenticate: &mut impl Authenticate,
     ) -> Option<Duration> {
-        if !self.locked || self.checking || password.as_str().is_empty() {
+        if !self.locked || self.checking || password.is_empty() {
             return None;
         }
         if let Some(wait) = self.wait(now) {

@@ -1,15 +1,15 @@
 use crate::__args::{
-    DESKTOP_DISPLAYS_SET_EDGES, DESKTOP_EPAPER_REFRESH, DESKTOP_INPUT_SWITCH_LAYOUT,
+    DESKTOP_DISPLAYS_SET_SCREEN_INPUT, DESKTOP_EPAPER_REFRESH, DESKTOP_INPUT_SWITCH_LAYOUT,
     DESKTOP_MEDIA_REQUEST, DESKTOP_NOTIFICATIONS_REPORT, DESKTOP_POWER_ANSWER_ENDING,
     DESKTOP_POWER_REQUEST, DESKTOP_PROGRAMS_REQUEST, DESKTOP_TRAY_REQUEST, DESKTOP_WIFI_REQUEST,
-    DesktopDisplaysSetEdgesArgs, DesktopEpaperRefreshArgs, DesktopInputSwitchLayoutArgs,
+    DesktopDisplaysSetScreenInputArgs, DesktopEpaperRefreshArgs, DesktopInputSwitchLayoutArgs,
     DesktopMediaRequestArgs, DesktopNotificationsReportArgs, DesktopPowerAnswerEndingArgs,
     DesktopPowerRequestArgs, DesktopProgramsRequestArgs, DesktopTrayRequestArgs,
     DesktopWifiRequestArgs,
 };
 use crate::ops::{MethodId, Started, decode};
 use crate::{
-    EndingAnswer, MediaRequest, NotificationReport, PowerAction, ProgramAction, ScreenEdge,
+    EndingAnswer, MediaRequest, NotificationReport, PowerAction, ProgramAction, ScreenInput,
     TrayRequest, WifiRequest,
 };
 
@@ -40,8 +40,9 @@ pub fn epaper_refresh(started: &Started) -> Option<()> {
     args::<DesktopEpaperRefreshArgs>(started, DESKTOP_EPAPER_REFRESH).map(|_| ())
 }
 
-pub fn set_edges(started: &Started) -> Option<Vec<ScreenEdge>> {
-    args::<DesktopDisplaysSetEdgesArgs>(started, DESKTOP_DISPLAYS_SET_EDGES).map(|args| args.edges)
+pub fn set_screen_input(started: &Started) -> Option<ScreenInput> {
+    args::<DesktopDisplaysSetScreenInputArgs>(started, DESKTOP_DISPLAYS_SET_SCREEN_INPUT)
+        .map(|args| args.input)
 }
 
 pub fn switch_layout(started: &Started) -> Option<u32> {

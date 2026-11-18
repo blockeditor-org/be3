@@ -27,7 +27,7 @@ const SPACING: Space = Space::Xs2;
 
 #[component]
 pub fn Calendar(
-    #[prop(default = None)] selected: Binding<Option<Date>>,
+    selected: Binding<Option<Date>>,
     #[prop(default = None)] min: Prop<Option<Date>>,
     #[prop(default = None)] max: Prop<Option<Date>>,
     #[prop(default = None)] today: Prop<Option<Date>>,
@@ -80,9 +80,6 @@ fn CalendarHeader(handle: CalendarHeaderHandle) -> NodeId {
         year_toggle,
         ..
     } = handle;
-    let no_previous = create_memo(move || !can_previous.get());
-    let no_next = create_memo(move || !can_next.get());
-    let month_shown = create_memo(move || !years_open.get());
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
             <Button
@@ -91,12 +88,12 @@ fn CalendarHeader(handle: CalendarHeaderHandle) -> NodeId {
                 label={previous_label}
                 size=ButtonSize::Small
                 variant=ButtonVariant::Ghost
-                disabled={no_previous}
+                disabled={move || !can_previous.get()}
                 on_click={move || previous.call(())}
             />
             <ListItem grow=1.0>
                 <List direction=Direction::Horizontal justify=Justify::Center spacing=Space::None>
-                    <Show condition={month_shown}>
+                    <Show value={move || !years_open.get()}>
                         <HeaderToggle
                             label={month_label}
                             accessibility={month_toggle}
@@ -118,7 +115,7 @@ fn CalendarHeader(handle: CalendarHeaderHandle) -> NodeId {
                 label={next_label}
                 size=ButtonSize::Small
                 variant=ButtonVariant::Ghost
-                disabled={no_next}
+                disabled={move || !can_next.get()}
                 on_click={move || next.call(())}
             />
         </List>
@@ -132,13 +129,16 @@ fn HeaderToggle(
     open: Memo<bool>,
     on_click: Callback<()>,
 ) -> NodeId {
-    let glyph = create_memo(move || match open.get() {
-        true => ICON_CHEVRON_UP,
-        false => ICON_CHEVRON_DOWN,
-    });
     view! {
         <unstyled::Button label accessibility on_click={on_click}>|button: unstyled::ButtonHandle|
-            <ButtonFace handle={button} variant=ButtonVariant::Ghost trailing_glyph={glyph} />
+            <ButtonFace
+                handle={button}
+                variant=ButtonVariant::Ghost
+                trailing_glyph={move || match open.get() {
+                    true => ICON_CHEVRON_UP,
+                    false => ICON_CHEVRON_DOWN,
+                }}
+            />
         </unstyled::Button>
     }
 }
@@ -180,13 +180,12 @@ fn CellFace(handle: CalendarCellHandle) -> NodeId {
     let fill =
         create_memo(move || cell_fill(selected.get(), disabled.get(), hovered.get(), active.get()));
     let ink = create_memo(move || cell_ink(selected.get(), disabled.get(), outside.get()));
-    let ring = create_memo(move || marked.get() && !selected.get());
     view! {
         <FocusRing focused radius=Radius::Md offset=Stroke::Hairline>
             <Frame
                 height=height
                 fill={fill}
-                border={create_memo(move || ring.get().then_some(Border::new(ColorRole::Accent)))}
+                border={move || (marked.get() && !selected.get()).then_some(Border::new(ColorRole::Accent))}
                 radius=Radius::Md
             >
                 <Text color={ink} align=TextAlign::Center vertical_align=TextAlign::Center>

@@ -5,7 +5,7 @@ use std::{
     sync::{Arc, PoisonError},
 };
 
-use be_wasm_threads::Mutex;
+use std::sync::Mutex;
 
 use be_block_client::transfer::Saved;
 use be_block_graph::BlockParent;
@@ -100,7 +100,7 @@ impl Uploads {
                 while let Some((block, imported)) = receiver.recv().await {
                     super::imported(&peer, &shared, block, imported).await;
                     queue.borrow_mut().finish(block);
-                    be_host_base::host::wake();
+                    crate::changes::wake();
                 }
             };
             futures_util::future::join(uploading, settling).await;

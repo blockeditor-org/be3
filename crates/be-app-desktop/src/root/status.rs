@@ -79,7 +79,6 @@ pub(crate) fn StatusButton(
     let wifi_glyph = create_memo(move || wifi.with(wifi::glyph).to_owned());
     let volume_glyph =
         create_memo(move || volume::glyph(levels.with(|levels| levels.output)).to_owned());
-    let bare = create_memo(move || !wireless.get() && !audible.get() && !powered.get());
     let page = create_signal(Page::Main);
     let shown = create_signal(false);
     let open = Binding::new(shown, move |next: bool| {
@@ -98,22 +97,22 @@ pub(crate) fn StatusButton(
                 open
                 leading={view! {
                     <List direction align=Align::Center spacing=ICON_SPACING>
-                        <Show condition={wireless}>
+                        <Show value={wireless}>
                             <Text @test_id={"desktop.status.wifi"}>
                                 <Icon glyph={wifi_glyph} />
                             </Text>
                         </Show>
-                        <Show condition={audible}>
+                        <Show value={audible}>
                             <Text @test_id={"desktop.status.volume"}>
                                 <Icon glyph={volume_glyph} />
                             </Text>
                         </Show>
-                        <Show condition={powered}>
+                        <Show value={powered}>
                             <Text @test_id={"desktop.status.power"}>
                                 <Icon glyph=ICON_POWER />
                             </Text>
                         </Show>
-                        <Show condition={bare}>
+                        <Show value={move || !wireless.get() && !audible.get() && !powered.get()}>
                             <Text>
                                 <Icon glyph=ICON_SLIDERS_HORIZONTAL />
                             </Text>
@@ -135,9 +134,6 @@ fn QuickSettings(
     page: Signal<Page>,
     popover: PopoverHandle,
 ) -> NodeId {
-    let main = create_memo(move || page.get() == Page::Main);
-    let networks = create_memo(move || page.get() == Page::Wifi);
-    let rotating = create_memo(move || page.get() == Page::Rotate);
     let back = Callback::new(move |()| page.set(Page::Main));
     let close = Callback::new(move |()| popover.close.call(()));
     let Status {
@@ -148,26 +144,28 @@ fn QuickSettings(
     } = status;
     view! {
         <List spacing=SPACING @test_id={"desktop.quick"}>
-            <Show condition={main}>
-                <QuickMain status={status} power={power} page={page} close={close} />
-            </Show>
-            <Show condition={networks}>
-                <WifiPanel editor={editor} status={wifi} on_back={back} />
-            </Show>
-            <Show condition={rotating}>
-                <List spacing=SPACING>
-                    <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                        <BackButton on_click={back} />
-                        <Text style=TextStyle::HEADING>"Rotate the screen"</Text>
+            <Match value={page}>
+                <Case is={Page::Main}>
+                    <QuickMain status={status} power={power} page={page} close={close} />
+                </Case>
+                <Case is={Page::Wifi}>
+                    <WifiPanel editor={editor} status={wifi} on_back={back} />
+                </Case>
+                <Case is={Page::Rotate}>
+                    <List spacing=SPACING>
+                        <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
+                            <BackButton on_click={back} />
+                            <Text style=TextStyle::HEADING>"Rotate the screen"</Text>
+                        </List>
+                        <ScreenRotation
+                            editor={editor}
+                            display={screen}
+                            test_id={"desktop.quick.rotate".to_owned()}
+                            on_picked={close}
+                        />
                     </List>
-                    <ScreenRotation
-                        editor={editor}
-                        display={screen}
-                        test_id={"desktop.quick.rotate".to_owned()}
-                        on_picked={close}
-                    />
-                </List>
-            </Show>
+                </Case>
+            </Match>
         </List>
     }
 }
@@ -197,7 +195,6 @@ fn QuickMain(
     });
     let wifi_on = create_memo(move || wifi.with(|wifi| wifi.enabled));
     let wifi_glyph = create_memo(move || wifi.with(wifi::glyph).to_owned());
-    let rotatable = create_memo(move || screen.with(Option::is_some));
     let networks = move || {
         page.set(Page::Wifi);
         wifi::scan(editor);
@@ -213,7 +210,7 @@ fn QuickMain(
     view! {
         <List spacing=SPACING>
             <List direction=Direction::Horizontal wrap=true spacing=TILE_SPACING>
-                <Show condition={wireless}>
+                <Show value={wireless}>
                     <QuickTile
                         id="desktop.quick.wifi"
                         label={network}
@@ -229,7 +226,7 @@ fn QuickMain(
                     glyph=ICON_KEYBOARD
                     on_click={keyboard}
                 />
-                <Show condition={rotatable}>
+                <Show value={move || screen.with(Option::is_some)}>
                     <QuickTile
                         id="desktop.quick.rotate"
                         label="Rotate"
@@ -237,7 +234,7 @@ fn QuickMain(
                         on_click={move || page.set(Page::Rotate)}
                     />
                 </Show>
-                <Show condition={epaper}>
+                <Show value={epaper}>
                     <QuickTile
                         id="desktop.quick.refresh"
                         label="Refresh"
@@ -246,13 +243,13 @@ fn QuickMain(
                     />
                 </Show>
             </List>
-            <Show condition={audible}>
+            <Show value={audible}>
                 <List spacing=SPACING>
                     <Separator />
                     <VolumePanel editor={editor} levels={levels} />
                 </List>
             </Show>
-            <Show condition={powered}>
+            <Show value={powered}>
                 <List spacing=SPACING>
                     <Separator />
                     <PowerRow choice={power} on_chose={close} />

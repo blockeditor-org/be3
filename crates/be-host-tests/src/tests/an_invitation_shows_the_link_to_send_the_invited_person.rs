@@ -2,7 +2,9 @@ use super::*;
 
 #[test]
 fn an_invitation_shows_the_link_to_send_the_invited_person() {
-    let mut host = HostTest::start(Options::default());
+    let server = Server::start();
+    let dev = server.account("Dev");
+    let mut host = HostTest::device(&dev);
     host.click("#file-tree.host-menu");
     host.click("#host.menu.switch-organization");
     host.click("TextInput \"Organization name\"");
@@ -11,11 +13,9 @@ fn an_invitation_shows_the_link_to_send_the_invited_person() {
     host.wait("#file-tree.host-menu");
     host.click("#file-tree.host-menu");
     host.click("#host.menu.invite");
-    host.wait("Dialog \"Invite member\"");
-    host.click("#host.invite.email");
-    host.type_text("guest@example.com");
-    host.click("#host.invite.send");
+    // Nothing to fill in: the dialog makes the link at once and ends on it.
     host.wait("#host.invite.link");
+    host.wait("#host.invite.qr");
     host.crop("#host.invite.help");
     host.snapshot("an_invitation_shows_the_link_to_send_the_invited_person");
     host.close();

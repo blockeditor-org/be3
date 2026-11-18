@@ -1,4 +1,7 @@
-use be_sdk_beui::be_block_content::{EditorView, EditorViewContent, ViewState};
+use be_sdk_beui::be_block_content::{EditorView, EditorViewContent, ViewState, ViewStateKind};
+use be_sdk_shell::{ClosedViews, SavedLayout};
+
+use crate::root::FilesView;
 use be_type_workspace::{FolderContent, WorkspaceContent};
 
 use be_sdk_beui::beui::{NodeId, Rect, ScrollDelta, Vec2};
@@ -9,6 +12,7 @@ use be_sdk_beui::{
     WindowsWatch,
 };
 use be_sdk_test::BeuiTest;
+use be_sdk_test::prelude::*;
 use std::collections::HashMap;
 use uuid::Uuid;
 
@@ -97,11 +101,15 @@ mod the_blocks_area_splits_into_two_with_block_tabs_in_each;
 mod the_editors_pane_with_no_file_open_keeps_its_grip;
 mod the_link_card_shows_where_the_chosen_block_lives_and_links_it;
 mod the_location_page_shows_the_folders_as_a_tree_with_the_chosen_one_checked;
+mod the_owner_gives_a_block_away_from_the_share_dialog_once_confirmed;
 mod the_picker_never_offers_a_deleted_block_to_link;
 mod the_rename_card_sets_a_blocks_name_icon_and_color;
 mod the_rename_form_opens_with_its_name_selected;
 mod the_rename_form_saves_a_typed_name_and_closes_on_enter;
+mod the_share_dialog_grants_no_knows_it_exists_but_shows_one_held;
 mod the_share_dialog_lists_again_when_a_contact_is_made;
+mod the_share_dialog_makes_a_join_link_on_a_hosted_block;
+mod the_share_dialog_makes_copies_and_revokes_share_links;
 mod the_share_dialog_says_where_each_persons_access_comes_from;
 mod widening_the_phone_with_its_switcher_open_keeps_the_workspace;
 
@@ -109,7 +117,7 @@ const SHOWN_TYPE: Uuid = Uuid::from_u128(0x7368_6f77_6e2d_7479_7065_2d74_6573_74
 const TEMPLATE_EDITOR: Uuid = Uuid::from_u128(0x7465_6d70_6c61_7465_2d65_6469_746f_7231);
 const TEMPLATE_TYPE: Uuid = Uuid::from_u128(0x7465_6d70_6c61_7465_2d74_7970_6531_0000);
 
-struct Fixture<A: be_sdk_beui::BeuiRoot = WorkspaceUiRoot> {
+struct Fixture<A: be_sdk_beui::BeuiRoot + be_sdk_beui::AppEditor = WorkspaceUiRoot> {
     test: BeuiTest<A>,
     host: EditorHost,
     windows: Vec<TestWindow>,
@@ -159,11 +167,12 @@ impl TestWindow {
             origin: Default::default(),
             size: (self.size.x >= 1.0 && self.size.y >= 1.0).then_some(self.size),
             maximized: false,
+            opens_hidden: false,
         }
     }
 }
 
-impl<A: be_sdk_beui::BeuiRoot> Fixture<A> {
+impl<A: be_sdk_beui::BeuiRoot + be_sdk_beui::AppEditor> Fixture<A> {
     fn new(test: BeuiTest<A>, host: EditorHost) -> Self {
         Self {
             test,
@@ -413,7 +422,7 @@ fn profiled_sized(size: Option<Vec2>, layout: Option<ViewState>) -> (Fixture, Uu
     if let Some(layout) = layout {
         let edit = profile
             .root()
-            .set_state("layout", Some(&layout), 1, Uuid::nil());
+            .put_stored(SavedLayout::ID, Some(&layout), 1, Uuid::nil());
         profile.apply(&edit);
     }
     open_editor(size, Some(profile))
@@ -618,7 +627,7 @@ struct Places {
     budget: Uuid,
 }
 
-fn places<A: be_sdk_beui::BeuiRoot>(fixture: &mut Fixture<A>) -> Places {
+fn places<A: be_sdk_beui::BeuiRoot + be_sdk_beui::AppEditor>(fixture: &mut Fixture<A>) -> Places {
     use be_sdk_beui::BlockInfo;
     use be_sdk_beui::be_block_content::BlockContent;
     let places = PLACES;
@@ -676,14 +685,14 @@ fn places<A: be_sdk_beui::BeuiRoot>(fixture: &mut Fixture<A>) -> Places {
     places
 }
 
-fn report_creation<A: be_sdk_beui::BeuiRoot>(
+fn report_creation<A: be_sdk_beui::BeuiRoot + be_sdk_beui::AppEditor>(
     fixture: &mut Fixture<A>,
     progress: be_sdk_beui::CreationProgress,
 ) {
     report_creation_dialog(fixture, progress, be_sdk_beui::DialogStatus::default());
 }
 
-fn report_creation_dialog<A: be_sdk_beui::BeuiRoot>(
+fn report_creation_dialog<A: be_sdk_beui::BeuiRoot + be_sdk_beui::AppEditor>(
     fixture: &mut Fixture<A>,
     progress: be_sdk_beui::CreationProgress,
     dialog: be_sdk_beui::DialogStatus,

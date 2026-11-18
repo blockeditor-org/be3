@@ -27,15 +27,12 @@ fn the_eraser_finds_shapes_where_they_have_moved_to() {
         .center();
 
     editor.key(Key::E, Modifiers::NONE);
-    editor.run();
     editor.down(at, PointerButton::Primary);
     for step in 1..=3 {
-        editor.next_frame();
         editor.hover(at + Vec2::new(step as f32 * 4.0, 0.0));
     }
     editor.run();
     editor.up(at + Vec2::new(12.0, 0.0), PointerButton::Primary);
-    editor.run();
 
     let kept: Vec<Uuid> = entities(&editor).iter().map(|entity| entity.id).collect();
     assert_eq!(

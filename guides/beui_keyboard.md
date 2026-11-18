@@ -29,6 +29,10 @@ control's exact keys are in its code and tests. The patterns that span them:
   is one (`yields_tab_stop`). It takes its scrolling keys only while it can
   scroll that way, so they bubble to the next area out, as nested boxes do in
   a browser.
+- A sheet's handle, a Tab stop only when the sheet has more than one stop and
+  never focused by a press, settles the sheet on the next stop up or down with
+  Up and Down, taking both keys even at the end stop, so they never scroll what
+  holds the sheet; a key never closes it (Escape does).
 - A single-line text input with no `on_submit` leaves Enter to what is around
   it: a dialog runs its confirm action on an Enter nothing took, unless that
   action is disabled or destructive. A multiline area takes Tab to indent;
@@ -43,8 +47,27 @@ control's exact keys are in its code and tests. The patterns that span them:
   (`text_area::keys::caret_key`; the hex view follows it). Shift extends the
   selection with any of them. Backspace and Delete take a word with Alt, and
   with Ctrl elsewhere; Cmd takes the rest of the line (`delete_stop`).
+- A source given `drag` (guides/beui/components.md, Carries and drop sites), with the
+  focus on it or within it (a dock tab's row, a `Reorder` row holding a
+  button), moves one place with Ctrl+Shift and an arrow, lifted, stepped and dropped at
+  once, and offers Move in the command palette while it has the focus, which
+  starts a keyboard carry. A source that does not also activate (a drag handle,
+  a row with no action) lifts that carry on Space too, and on Enter where its own
+  keys don't take Enter; one that activates (a
+  tab, a row button) keeps Space and Enter for activating
+  ([decision](../decisions/beui_activating_drag_sources_keep_their_keys.md)).
+  While the keyboard holds it, the arrows step to the nearest place that way,
+  Space or Enter drops it there and Escape or Tab puts it down, keeping the
+  focus; the source hears these before the node within it that has the focus.
+  A dock tab steps between its bar's places and the dock's ("right of Files",
+  "with Files"). A control's thumb (a slider's, a scrollbar's) lifts by no keys
+  (`lifts_by_keys=false`): its own keys step it.
 - The context menu opens on Shift+F10 or the Menu key with the focus in its
   `ContextMenu` or on the control it is part of; Escape closes one level.
+- Typing letters in a tree or a menu (each submenu on its own) moves to the
+  next enabled item whose label starts with them, through the one
+  `unstyled::typeahead::Typeahead`: letters typed within a second add to the
+  search, and one letter typed again steps through the items it starts.
 - The inspector is a document of its own; Ctrl+Shift+F moves the focus into
   it and back.
 
@@ -101,8 +124,8 @@ window for everything but media keys.
 
 A key command is an action registered under an `action_scope`: it runs after the
 focused control declines the key, and `.capture()` makes it run before the focused
-control instead (the dock's Ctrl+Tab, which works from a text input in a pane but not
-past a dialog; guides/beui/docking.md). A plain-letter chord is skipped while text is
+control instead (the dock's Next tab, which works from a text input in a pane;
+guides/beui/docking.md). A plain-letter chord is skipped while text is
 being typed. A listener that must see raw presses, held keys or releases is
 `on_key(KeyAt::Node(component_node()), KeyPhase::Capture, KeyReveal::Focus, handler)`,
 and `on_key(KeyAt::Window, KeyPhase::Capture, KeyReveal::Focus, handler)` is the
@@ -180,7 +203,8 @@ its repeats and release, back as `Event::InterceptedKey` (taps as
 released, which is how Alt+Tab works over any window. be-host takes intercepted
 keys only from the shell's frame, and not while the view has the keyboard
 itself (`be_host_runtime::view_has_keyboard`), when it hears them in order
-instead. A document with a focus-trapping layer open reports
+instead, nor while one of be-host's own layers takes the keyboard (its palette, a
+prompt; the lock screen excepted, which limits keys itself). A document with a focus-trapping layer open reports
 `WindowRequests::wants_keyboard` (guides/apps/framework.md, Views), so be-host gives an app's view the focus
 while its dialog is open.
 
@@ -195,7 +219,9 @@ focus and each action's label, enabled and checked state), and runs one asked
 for by id (`Context::request_action_in`) whether or not a driver is attached. It, `styled::SearchList` (inline, no overlay) and
 `Select` are stylings of `unstyled::SearchList`. A menu is described once as
 `MenuNode`s; `<MenuNodes nodes />` renders it, and `add_to_menu` adds to the
-document's own `document_menu()`, which an editor frame hands its host.
+enclosing `menu_scope()`, which an editor frame opens around its editor's view and
+hands its host. A scope, not the document: one document holds every editor an app
+shows, and each frame offers only its own editor's commands.
 
 ## One input path
 
@@ -208,7 +234,16 @@ catcher under the event, which a drag between Wayland windows needs), `Left`,
 text, IME and drops. The host keeps no capture, hover or
 focus of its own (`be_host_runtime::forward_view` for an app,
 `be_host_wayland::Compositor` for a window), so capture, claims, overlays,
-focus, interception and the lock apply to both by one set of rules.
+focus, interception and the lock apply to both by one set of rules. Those rules
+are `be-lib-input-router`'s `Router`, which beui-core keeps one of per document
+(`interact::forward`): a press holds its catcher per pointer and button until it
+lifts (a middle press that pans a camera holds none), a held scroll or touchpad
+gesture stays with the catcher it began on, a catcher hears `Left` once the
+pointer is neither over it nor pressed on it by the mouse or pen, and the focus
+is told as it moves. What lies under a point is beui's hit test, handed to the
+router as `forward::Catchers`. The same router routes between surfaces over the
+layer list's hit test (plans/host_as_platform_adapter.md, Input), which the host
+does not do yet.
 `beui_core::interact::forward::Replay` turns a `ForwardedInput` back into the
 raw `Input` a platform would push (positions relative to the catcher over its
 zoom, `PointersCancelled` for a press that ended unreleased, `PointerRested` for a
@@ -219,7 +254,7 @@ An app has a `Replay` per view but its runner keeps one set of modifiers, so
 the app's replays share one `Heard`: modifiers go out with a press or key only
 when they differ from what the app last heard through any view, and always
 after a view lost the keyboard, since the runner lets go of them then.
-An app's document starts without the keyboard (`use_keyboard()` false) and
+An app's document starts without the keyboard (`use_document_keyboard()` false) and
 has it while any of its views does; a focused view that closes takes it away.
 `Editor::has_keyboard` says whether one of that editor's own views has it
 (be-sdk-beui-platform's runner tells `Views::keyboard`), so of two chats shown
@@ -242,8 +277,9 @@ An event goes through, in order:
    outside of, claims and capture, the pointer's session, and focus.
 4. Keys, one at a time along the focus path (above). A key one listener takes
    is gone, text and all; a key bound for a program goes no further.
-5. `forward::route`: the pointer to the catcher under it, a press to its
-   catcher until all buttons lift, keys, text and IME to the focused one.
+5. `forward::route`: the pointer to the catcher the router names for it (the
+   one under it, or the one its press holds), keys, text and IME to the focused
+   one.
 
 So no editor reads the frame's events itself. A host showing several documents
 in one frame (the inspector beside the program) gives each its share with
@@ -259,7 +295,8 @@ hidden or removed node loses the focus and hears `on_focus_change(false)`.
 control built on one makes a press anywhere inside it leave the focus, and a
 text field's caret, where they are; put it on a whole toolbar, not on each
 button, so its padding keeps the focus too. `Document::watch_focused` signals
-the focus and `holds_focus(node_ref)` is a memo of whether it is inside a node.
+the focus and `holds_focus(node_ref)` is a memo of whether it is inside a node;
+`focus_held()` is one of whether any node has it.
 
 `Input::Focus(false)` from a host means the window lost the keyboard only: the
 runner lets go of modifiers and beui of held keys, but a press continues. A
@@ -290,6 +327,14 @@ textarea within the press, since browsers open a keyboard only during a
 gesture. An app's view passes its editor's answer
 on as `Interactive`'s `keyboard`, replacing the document's own. beui's own
 on-screen keyboard is in guides/beui/space.md, The on-screen keyboard.
+
+A root guest's beui documents (be-sdk-beui-root's `BeuiSurface`) have the
+host's clipboard and input method through `be3:root`: copies and pastes go to
+`host.copy` and `host.paste`, the platform's input-method events reach the
+document as input the root's router hands its focused layer, and the root
+names the focused field's area (`BeuiSurface::ime`) as `frame-done`'s `ime`,
+where the host shows the input method and its keyboard
+(guides/apps/runtime.md, The root guest).
 
 ## Touch
 

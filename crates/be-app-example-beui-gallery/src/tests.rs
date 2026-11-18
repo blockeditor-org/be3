@@ -2,6 +2,7 @@ use be_sdk_beui::be_block_content::BlockContent;
 use be_sdk_beui::beui::Vec2;
 use be_sdk_beui::{Creation, EditorHost, GraphCommand, OwnedEditor};
 use be_sdk_test::BeuiTest;
+use be_sdk_test::prelude::*;
 use be_type_example_beui_gallery::BeuiDemoContent;
 use uuid::Uuid;
 

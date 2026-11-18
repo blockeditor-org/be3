@@ -25,12 +25,12 @@ pub fn first_of<T: Copy + 'static>(
     }
 }
 
-pub fn scroll_wheel(
-    axis: impl IntoProp<Option<Direction>>,
-    on_scroll: impl IntoCallback<ScrollGesture, ()>,
+pub fn scroll_wheel<M1, M2>(
+    axis: impl IntoPropValue<Prop<Option<Direction>>, M1>,
+    on_scroll: impl IntoPropValue<Callback<ScrollGesture>, M2>,
 ) -> Callback<WheelInput, bool> {
-    let axis = axis.into_prop();
-    let on_scroll = on_scroll.into_callback();
+    let axis = axis.into_prop_value();
+    let on_scroll = on_scroll.into_prop_value();
     Callback::new(move |input: WheelInput| {
         let WheelInput::Scroll(gesture) = input else {
             return false;
@@ -95,20 +95,20 @@ fn along(axis: Direction, movement: Vec2) -> Vec2 {
     }
 }
 
-pub fn scroll_drag(
-    axis: impl IntoProp<Option<Direction>>,
-    on_drag: impl IntoCallback<DragGesture, ()>,
+pub fn scroll_drag<M1, M2>(
+    axis: impl IntoPropValue<Prop<Option<Direction>>, M1>,
+    on_drag: impl IntoPropValue<Callback<DragGesture>, M2>,
 ) -> Callback<PointerInput, bool> {
     chaining_scroll_drag(axis, |_: Vec2| false, on_drag)
 }
 
-pub fn chaining_scroll_drag(
-    axis: impl IntoProp<Option<Direction>>,
+pub fn chaining_scroll_drag<M1, M2>(
+    axis: impl IntoPropValue<Prop<Option<Direction>>, M1>,
     chains: impl Fn(Vec2) -> bool + 'static,
-    on_drag: impl IntoCallback<DragGesture, ()>,
+    on_drag: impl IntoPropValue<Callback<DragGesture>, M2>,
 ) -> Callback<PointerInput, bool> {
-    let axis = axis.into_prop();
-    let on_drag = on_drag.into_callback();
+    let axis = axis.into_prop_value();
+    let on_drag = on_drag.into_prop_value();
     let mut tracks: Vec<Track> = Vec::new();
     Callback::new(move |input: PointerInput| {
         if input.stage == PointerStage::Down {
@@ -183,8 +183,10 @@ pub struct Autoscroll {
     pub active: ReadSignal<bool>,
 }
 
-pub fn autoscroll(on_autoscroll: impl IntoCallback<AutoscrollGesture, ()>) -> Autoscroll {
-    let on_autoscroll = on_autoscroll.into_callback();
+pub fn autoscroll<M>(
+    on_autoscroll: impl IntoPropValue<Callback<AutoscrollGesture>, M>,
+) -> Autoscroll {
+    let on_autoscroll = on_autoscroll.into_prop_value();
     let active = create_signal(false);
     let state: Rc<RefCell<Option<Scrolling>>> = Rc::default();
     let report = move |scrolling: Scrolling, ended: bool| {
@@ -267,10 +269,10 @@ pub fn autoscroll(on_autoscroll: impl IntoCallback<AutoscrollGesture, ()>) -> Au
     }
 }
 
-pub fn secondary_drag(
-    on_drag: impl IntoCallback<SecondaryDrag, ()>,
+pub fn secondary_drag<M>(
+    on_drag: impl IntoPropValue<Callback<SecondaryDrag>, M>,
 ) -> Callback<PointerInput, bool> {
-    let on_drag = on_drag.into_callback();
+    let on_drag = on_drag.into_prop_value();
     let mut held: Vec<(PointerId, SecondaryDrag)> = Vec::new();
     Callback::new(move |input: PointerInput| {
         if input.button != Some(PointerButton::Secondary) {
@@ -399,11 +401,11 @@ impl Pinch {
     }
 }
 
-pub fn pan_zoom(
-    on_pan: impl IntoCallback<Vec2, ()>,
-    on_zoom: impl IntoCallback<ZoomGesture, ()>,
+pub fn pan_zoom<M1, M2>(
+    on_pan: impl IntoPropValue<Callback<Vec2>, M1>,
+    on_zoom: impl IntoPropValue<Callback<ZoomGesture>, M2>,
 ) -> PanZoom {
-    let (on_pan, on_zoom) = (on_pan.into_callback(), on_zoom.into_callback());
+    let (on_pan, on_zoom) = (on_pan.into_prop_value(), on_zoom.into_prop_value());
     let panning = create_signal(false);
     let pinch = Rc::new(RefCell::new(Pinch {
         factor: 1.0,
@@ -416,9 +418,7 @@ pub fn pan_zoom(
                 let pinch = pinch.borrow();
                 pinch.middle.is_some() || pinch.pinching
             };
-            if panning.get_untracked() != now {
-                panning.set(now);
-            }
+            panning.set(now);
         }
     };
     let flush = {

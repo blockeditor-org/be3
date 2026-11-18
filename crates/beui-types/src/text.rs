@@ -278,6 +278,32 @@ pub fn handle_shape(caret: Rect, handle: CaretHandle) -> (Rect, Corners, f32) {
     }
 }
 
+/// How wide a `Piece::Gap` is: `px`, plus `share` of the width its text wraps at. A text that
+/// wraps nowhere gives a share no room. A gap is never narrower than nothing.
+#[derive(Clone, Copy, PartialEq, Debug, Default)]
+pub struct GapWidth {
+    pub px: f32,
+    pub share: f32,
+}
+
+impl GapWidth {
+    pub const fn px(px: f32) -> Self {
+        Self { px, share: 0.0 }
+    }
+
+    /// Its width in a text that wraps at `wrap_width`.
+    pub fn of(self, wrap_width: f32) -> f32 {
+        let share = match wrap_width.is_finite() {
+            true => self.share * wrap_width,
+            false => 0.0,
+        };
+        (self.px + share).max(0.0)
+    }
+}
+
+/// The content a `Piece::Blank` holds.
+pub const BLANK: &str = " ";
+
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum Piece<'a> {
     Text {
@@ -293,7 +319,15 @@ pub enum Piece<'a> {
         size: Vec2,
         text: &'a str,
     },
-    Gap(f32),
+    Gap(GapWidth),
+    /// A space `width` wide: one byte of content (`BLANK`), so a mark or glyph can cover it,
+    /// and whitespace, so it hangs past a line's end as trailing spaces do (guides/beui/text.md,
+    /// "Wrapping"), taking no room when the line breaks but keeping its width beyond the edge.
+    /// Its line is at least as tall as a line of `style`'s font, as text in it would be.
+    Blank {
+        width: f32,
+        style: SpanStyle,
+    },
     Break,
     Icon {
         glyph: &'a str,
@@ -317,6 +351,7 @@ impl<'a> Piece<'a> {
         match self {
             Piece::Text { text, .. } => text.len(),
             Piece::Inline { text, .. } => text.len(),
+            Piece::Blank { .. } => BLANK.len(),
             Piece::Gap(_) | Piece::Break | Piece::Icon { .. } => 0,
         }
     }
@@ -333,7 +368,6 @@ pub struct RichOptions {
     pub style: SpanStyle,
     pub hang: usize,
     pub anywhere: bool,
-    pub least: bool,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug, Default)]
@@ -455,4 +489,8 @@ impl beui_tree::reactive::IntoProp<Phrase> for &'static str {
     fn into_prop(self) -> beui_tree::reactive::Prop<Phrase> {
         beui_tree::reactive::Prop::Static(Phrase::from(self))
     }
+}
+
+impl beui_tree::reactive::Counted for Phrase {
+    type Count = beui_tree::reactive::CountOne;
 }

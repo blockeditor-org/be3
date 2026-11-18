@@ -3,23 +3,28 @@ use super::*;
 #[tokio::test]
 async fn pairing_messages_reach_only_the_same_accounts_other_connections() {
     let harness = Harness::start().await;
-    let mut laptop = harness.client().await;
-    laptop.register("owner@example.com").await;
+    let mut laptop = harness.member("owner@example.com").await;
     laptop.organization("notes").await;
-    let mut phone = harness.client().await;
-    let response = phone
-        .call(|peer| client::account::authenticate(peer, Some(laptop.token.clone())))
-        .await;
-    assert!(matches!(response, Ok(_)));
+    let mut phone = harness.signed_in(&laptop.token).await;
     let mut stranger = harness.member("stranger@example.com").await;
 
     let unheard = stranger
-        .call(|peer| client::account::pair(peer, None, b"let me in".to_vec()))
+        .call(|peer| {
+            peer.send(
+                be_block_protocol::Target::Devices(None),
+                b"let me in".to_vec(),
+            )
+        })
         .await;
     assert!(matches!(unheard, Ok(())), "{unheard:?}");
 
     let response = phone
-        .call(|peer| client::account::pair(peer, None, b"request".to_vec()))
+        .call(|peer| {
+            peer.send(
+                be_block_protocol::Target::Devices(None),
+                b"request".to_vec(),
+            )
+        })
         .await;
     assert!(matches!(response, Ok(())), "{response:?}");
     let Notice::Paired { from, payload } = laptop.notification().await else {
@@ -32,7 +37,12 @@ async fn pairing_messages_reach_only_the_same_accounts_other_connections() {
     );
 
     let response = laptop
-        .call(|peer| client::account::pair(peer, Some(from), b"reply".to_vec()))
+        .call(|peer| {
+            peer.send(
+                be_block_protocol::Target::Devices(Some(from)),
+                b"reply".to_vec(),
+            )
+        })
         .await;
     assert!(matches!(response, Ok(())), "{response:?}");
     let reply = phone.notification().await;
@@ -42,7 +52,11 @@ async fn pairing_messages_reach_only_the_same_accounts_other_connections() {
     );
 
     let response = stranger
-        .call(|peer| client::organizations::list_organizations(peer))
+        .call(|peer| {
+            peer.read::<Vec<be_block_protocol::Organization>>(
+                be_block_protocol::Query::Organizations,
+            )
+        })
         .await;
     assert!(matches!(response, Ok(_)));
     assert!(

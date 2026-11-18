@@ -15,7 +15,7 @@ fn removing_a_node_with_an_open_tooltip_leaves_nothing_to_paint() {
                 <Button on_click={move || rows.set(Vec::new())}>
                     <Text>"remove"</Text>
                 </Button>
-                <ForEach keys={rows}>|row: i64|
+                <ForEach value={rows}>|row: i64|
                     <Tooltip
                         label="Add a root block"
                         delay={Duration::ZERO}

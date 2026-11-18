@@ -165,7 +165,7 @@ pub(crate) fn ReferenceMenuItem(
             );
         }
     };
-    let label = create_memo(move || {
+    let label = move || {
         let types = workspace.types();
         reference.with(|reference| {
             reference.as_ref().map_or_else(
@@ -173,7 +173,7 @@ pub(crate) fn ReferenceMenuItem(
                 |reference| reference.label(types.as_ref()).name,
             )
         })
-    });
+    };
     let rights = create_memo(move || {
         let containing = containing.get();
         reference.with(|reference| {
@@ -193,13 +193,8 @@ pub(crate) fn ReferenceMenuItem(
             })
         })
     });
-    let add = create_memo(move || rights.get().is_none_or(|rights| rights.0));
     let edit = create_memo(move || rights.get().is_none_or(|rights| rights.1));
     let delete = create_memo(move || rights.get().is_none_or(|rights| rights.2));
-    let unlink = create_memo(move || rights.get().is_none_or(|rights| rights.3));
-    let share = create_memo(move || rights.get().is_none_or(|rights| rights.6));
-    let settings = create_memo(move || rights.get().is_none_or(|rights| rights.7));
-    let offers_delete = create_memo(move || rights.get().is_none_or(|rights| rights.8));
     let files = create_memo(move || workspace.my_files());
     let rooted = create_memo(move || {
         let files = files.get();
@@ -212,32 +207,34 @@ pub(crate) fn ReferenceMenuItem(
                 })
             })
     });
-    let detail = create_memo(move || {
-        match reference.with(|reference| {
-            reference
-                .as_ref()
-                .is_some_and(|reference| reference.deleted)
-        }) {
-            true => "In Recently Deleted".to_owned(),
-            false => String::new(),
-        }
-    });
-    let restore = create_memo(move || {
+    let detail = move || match reference.with(|reference| {
+        reference
+            .as_ref()
+            .is_some_and(|reference| reference.deleted)
+    }) {
+        true => "In Recently Deleted".to_owned(),
+        false => String::new(),
+    };
+    let restore = move || {
         edit.get()
             || reference.with(|reference| {
                 reference
                     .as_ref()
                     .is_none_or(|reference| !reference.deleted)
             })
-    });
-    let delete_label = create_memo(move || match rights.get().is_some_and(|rights| rights.5) {
+    };
+    let delete_label = move || match rights.get().is_some_and(|rights| rights.5) {
         true => "Remove link".to_owned(),
         false => "Delete".to_owned(),
-    });
+    };
     view! {
         <MenuItem label={label} detail={detail}>
             <MenuItem label="Open" on_click={move || act(BlockAction::Open)} />
-            <MenuItem label="Add" disabled={add} on_click={move || act(BlockAction::Picker)} />
+            <MenuItem
+                label="Add"
+                disabled={move || rights.get().is_none_or(|rights| rights.0)}
+                on_click={move || act(BlockAction::Picker)}
+            />
             <MenuItem label="Set parent" disabled={edit}>
                 <MenuItem
                     label="My files"
@@ -246,10 +243,14 @@ pub(crate) fn ReferenceMenuItem(
                 />
             </MenuItem>
             <MenuItem label="Rename" disabled={edit} on_click={move || act(BlockAction::Rename)} />
-            <MenuItem label="Share" disabled={share} on_click={move || act(BlockAction::Share)} />
+            <MenuItem
+                label="Share"
+                disabled={move || rights.get().is_none_or(|rights| rights.6)}
+                on_click={move || act(BlockAction::Share)}
+            />
             <MenuItem
                 label="Unlink"
-                disabled={unlink}
+                disabled={move || rights.get().is_none_or(|rights| rights.3)}
                 on_click={move || act(BlockAction::Unlink)}
             />
             <MenuItem
@@ -259,10 +260,10 @@ pub(crate) fn ReferenceMenuItem(
             />
             <MenuItem
                 label="Settings"
-                disabled={settings}
+                disabled={move || rights.get().is_none_or(|rights| rights.7)}
                 on_click={move || act(BlockAction::Settings)}
             />
-            <Show condition={offers_delete}>
+            <Show value={move || rights.get().is_none_or(|rights| rights.8)}>
                 <MenuItem
                     label={delete_label}
                     disabled={delete}

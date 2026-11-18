@@ -11,8 +11,7 @@ async fn a_device_registers_only_an_endpoint_the_server_would_push_to() {
         ..ServerConfig::OPEN
     })
     .await;
-    let mut member = harness.client().await;
-    member.register("member@example.com").await;
+    let mut member = harness.member("member@example.com").await;
     member.personal().await;
     let device = TestDevice::new();
     let web = |address: &str| device.endpoint(PushService::WebPush, address.to_owned());
@@ -73,7 +72,11 @@ async fn a_device_registers_only_an_endpoint_the_server_would_push_to() {
         ),
     ] {
         let registered = member
-            .call(|peer| client::notifications::register_endpoint(peer, endpoint))
+            .call(|peer| {
+                peer.write::<()>(be_block_protocol::Op::SetPushEndpoint(
+                    be_block_protocol::PushEndpointChange::Register(endpoint),
+                ))
+            })
             .await;
         if !refused_as(&registered, ErrorCode::InvalidRequest) {
             wrong.push((why, registered));

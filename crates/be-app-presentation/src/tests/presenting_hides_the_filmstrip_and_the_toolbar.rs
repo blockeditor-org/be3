@@ -23,10 +23,8 @@ fn presenting_hides_the_filmstrip_and_the_toolbar() {
     test.snapshot("presenting_hides_the_filmstrip_and_the_toolbar");
 
     test.hover("presentation.playback");
-    test.run();
     assert_eq!(detail(&test, "presentation.playback.position"), "1 / 3");
 
     test.key(Key::ArrowRight, Modifiers::NONE);
-    test.run();
     assert_eq!(detail(&test, "presentation.playback.position"), "2 / 3");
 }

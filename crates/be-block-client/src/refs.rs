@@ -48,10 +48,30 @@ pub(crate) enum Table {
     Announcement,
     Summary,
     Held,
+    LetGo,
+    ContactNames,
+    /// The objects a local account's block holds, one row each (`Refs::grow`).
+    Objects,
+    OpenEdits,
+    SetAside,
+    Dropped,
+    /// How far this device last checked each scope's access log (`KeptLog`).
+    Logs,
+    /// The keys minted with a block this device made that no server took (`Refs::unmade`).
+    Unmade,
+    /// The head of each block's signed log this device last verified (`KeptLogHead`).
+    LogHead,
+    /// The entries of signed logs this device read and verified, by block and place.
+    LogEntry,
+    /// The entries this device appended that the server refused, by block and id, until let go
+    /// (`Refs::not_appended`).
+    NotAppended,
+    /// The newest name card each contact signed that this device showed (`Refs::name_card`).
+    NameCards,
 }
 
 impl Table {
-    pub const ALL: [Self; 16] = [
+    pub const ALL: [Self; 28] = [
         Self::Session,
         Self::Head,
         Self::Remote,
@@ -68,6 +88,18 @@ impl Table {
         Self::Announcement,
         Self::Summary,
         Self::Held,
+        Self::LetGo,
+        Self::ContactNames,
+        Self::Objects,
+        Self::OpenEdits,
+        Self::SetAside,
+        Self::Dropped,
+        Self::Logs,
+        Self::Unmade,
+        Self::LogHead,
+        Self::LogEntry,
+        Self::NotAppended,
+        Self::NameCards,
     ];
 
     pub fn code(self) -> u8 {
@@ -88,6 +120,18 @@ impl Table {
             Self::Announcement => 14,
             Self::Summary => 15,
             Self::Held => 16,
+            Self::LetGo => 17,
+            Self::ContactNames => 18,
+            Self::Objects => 19,
+            Self::OpenEdits => 20,
+            Self::SetAside => 21,
+            Self::Dropped => 22,
+            Self::Logs => 23,
+            Self::Unmade => 24,
+            Self::LogHead => 25,
+            Self::LogEntry => 26,
+            Self::NotAppended => 27,
+            Self::NameCards => 28,
         }
     }
 
@@ -193,7 +237,7 @@ pub(crate) struct Session {
     pub role: OrganizationRole,
     pub kind: OrganizationKind,
     pub escrows: Vec<EscrowKey>,
-    pub pinned: Option<EscrowKey>,
+    pub pinned: crate::contacts::Pinned,
     pub server: Option<be_block_protocol::ServerAccount>,
     /// The server's clock less this device's, as last measured (`Peer::server_now`), for
     /// stamping commits offline after a restart.
@@ -214,6 +258,10 @@ pub struct Pending {
     pub references: Vec<Uuid>,
     #[serde(with = "serde_bytes")]
     pub metadata: Vec<u8>,
+    /// For a seal of the block's live session, the journal base it trims the server's journal
+    /// to if it wins the head, its state sealed, and the build that sealed it
+    /// (`Write::seals_journal`).
+    pub journal: Option<be_block_protocol::JournalSeal>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -227,6 +275,36 @@ pub struct Creation {
     pub key: Uuid,
     pub keys: KeySet,
     pub owner_only: bool,
+    /// The root of the block's access log, made with it (`be_block_keys::Entry::root`).
+    #[serde(with = "serde_bytes")]
+    pub root: Vec<u8>,
+    /// The log's next entry: the parent record placing the block at `parent`.
+    #[serde(with = "serde_bytes")]
+    pub placement: Vec<u8>,
+    /// Whether its keys are wrapped under the scope a kept summary named, made offline where
+    /// the signed parent records could not be read: checked before it is sent
+    /// (`Peer::send_creation`).
+    pub unchecked: bool,
+}
+
+impl Creation {
+    /// The write that makes the block: `create-block`, and its keys stored beside it.
+    pub fn ops(&self) -> Vec<be_block_protocol::Op> {
+        vec![
+            be_block_protocol::Op::CreateBlock {
+                block: self.block,
+                content_type: self.content_type,
+                parent: self.parent,
+                metadata: self.metadata.clone(),
+                references: self.references.clone(),
+                key: self.key,
+                owner_only: self.owner_only,
+                root: self.root.clone(),
+                placement: self.placement.clone(),
+            },
+            be_block_protocol::Op::PutKeys(be_block_protocol::PutKeys::Rows(self.keys.clone())),
+        ]
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -245,12 +323,56 @@ pub struct Defining {
     pub references: Vec<Uuid>,
 }
 
+/// Objects held for a block (`Peer::hold`) made offline, uploaded and held once the drain sends
+/// it.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct Holding {
+    pub block: Uuid,
+    pub objects: Vec<Hash>,
+    /// Held for good (`Hold::Lasting`), or until a commit that uses them publishes.
+    pub lasting: bool,
+}
+
+/// An entry for a block's signed log made here that the server refused, kept until let go
+/// (`Peer::refused_entries`), so what the app shows of it outlives the editor and the device
+/// starting again.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct RefusedEntry {
+    pub id: Uuid,
+    /// Sealed under the block's key.
+    #[serde(with = "serde_bytes")]
+    pub payload: Vec<u8>,
+    /// Why the server refused it.
+    pub why: String,
+}
+
+/// An entry for a block's signed log made here, kept until the server takes it
+/// (`Peer::append`): sent in order with the block's other entries, behind its creation.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct Appending {
+    pub block: Uuid,
+    pub id: Uuid,
+    /// Sealed under the block's key.
+    #[serde(with = "serde_bytes")]
+    pub payload: Vec<u8>,
+    #[serde(with = "serde_bytes")]
+    pub signature: Vec<u8>,
+    /// What the server pushes to the block's members once it takes the entry
+    /// (`be_block_content::Along::announcement`), its text sealed.
+    pub(crate) announces: Option<announcements::Made>,
+    /// The entry of the block's log it takes back, redacted once the server takes it
+    /// (`be_block_content::Along::redacts`).
+    pub(crate) redacts: Option<u64>,
+}
+
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub enum Op {
     Create(Creation),
     Publish(Pending),
     Move(Moving),
     Define(Defining),
+    Hold(Holding),
+    Append(Appending),
 }
 
 impl Op {
@@ -260,8 +382,28 @@ impl Op {
             Self::Publish(pending) => pending.block,
             Self::Move(moving) => moving.block,
             Self::Define(defining) => defining.block,
+            Self::Hold(holding) => holding.block,
+            Self::Append(appending) => appending.block,
         }
     }
+}
+
+/// Why what this device made of a block was set aside among the unsent, short of this account
+/// losing access to it.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub enum Aside {
+    /// The server refused it, with the code it gave (a block it would not make, over a quota
+    /// or too large).
+    Refused(ErrorCode),
+    /// It was sealed offline under a key epoch its block's access log shows outdated, which
+    /// someone who lost access may hold, and could not be sealed again under a new epoch
+    /// (`Peer::reseal`: this account may no longer write the block, or no epoch could be made),
+    /// so this device never sent it (guides/blocks/keys.md, "Epochs name their heads").
+    KeyOutdated,
+    /// It was made offline under a scope the server's tree named, which the signed parent
+    /// records do not place its parent under, so its keys were never sent wrapped there
+    /// (guides/blocks/keys.md, "Parent records").
+    Misplaced,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -269,23 +411,25 @@ pub(crate) struct Unsent {
     pub head: Option<CommitId>,
     pub since: i64,
     pub ops: Vec<Op>,
-    /// Why it was set aside: the server refused it, with the code it gave (a block it would
-    /// not make, over a quota or too large), or else this account lost access to it.
-    pub refused: Option<ErrorCode>,
+    /// Why it was set aside (`Aside`), or none when this account lost access to it.
+    pub refused: Option<Aside>,
 }
 
 /// Entries set aside because the block's access was refused. Only `Peer::discard_unsent`
 /// deletes anything here.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct UnsentBlock {
     pub block: Uuid,
     pub head: Option<CommitId>,
     pub commits: Vec<CommitId>,
     pub since: i64,
     pub offerable: bool,
-    /// The code the server refused it with, when it was refused rather than this account
-    /// losing access (`Unsent::refused`): what lost access does to it does not apply.
-    pub refused: Option<ErrorCode>,
+    /// Why it was set aside, when it was refused or outdated rather than this account losing
+    /// access (`Unsent::refused`): what lost access does to it does not apply.
+    pub refused: Option<Aside>,
+    /// How many local edits a replica of it made that this device keeps and that never became
+    /// a commit (`OpenEdits`): discarding drops them too.
+    pub kept_edits: usize,
     /// Its name as this device has it.
     pub name: Option<String>,
 }
@@ -298,12 +442,30 @@ pub struct PendingCounts {
     pub unsent: usize,
 }
 
+/// What a catch-up of a root's search index listed of a block (`Peer::changed_page`): its root,
+/// its type and the head it was listed at.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct ListedBlock {
+    pub root: Uuid,
+    pub content_type: Uuid,
+    pub head: Option<CommitId>,
+}
+
 /// A signing key this device knows an account by (plans/authorship.md): verified when a
 /// contact's card or key change named it, otherwise pinned the first time the server did.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct KnownSigner {
     pub key: [u8; 32],
     pub verified: bool,
+    /// For a verified key a newer verified one replaced: when this device learned of that
+    /// newer key, by the server's clock as it estimated it (`Peer::server_now`); none when it
+    /// could not tell. A record this key signed that the server took later than this is not
+    /// the account's (`Peer::verify_authored`).
+    pub replaced: Option<i64>,
+    /// Replaced by a key this device could not follow to: the contact's chain of key changes
+    /// broke (`contacts::contacts`), so even the newest verified key is no longer current
+    /// (`supersede_signers`), until a link verifies one again.
+    pub superseded: bool,
 }
 
 #[derive(Default)]
@@ -316,21 +478,82 @@ struct State {
     /// Each block's newest summary: what every listing that holds the block shows of it.
     summaries: HashMap<Uuid, BlockSummary>,
     listings: HashMap<Listing, Vec<Uuid>>,
-    /// The server's revision when it answered each `Children` and `Deleted` listing: a summary
-    /// newer than that is of a block made or moved since (`placed_in`).
+    /// The organization's sequence when the server answered each `Children` and `Deleted`
+    /// listing: a summary that changed after it is of a block made or moved since (`placed_in`).
     listed_at: HashMap<Listing, u64>,
     /// The blocks each parent holds, as their summaries place them.
     placed: HashMap<BlockParent, HashSet<Uuid>>,
     keys: HashMap<Uuid, KeyRow>,
     wraps: HashMap<(Uuid, WrappedBy), (u64, WrappedKey)>,
-    contacts: Vec<(Uuid, [u8; 32])>,
+    contacts: Vec<(Uuid, crate::contacts::OwnContact)>,
+    /// Every contact's name as the server last listed it, so a push opened with no connection
+    /// names its sender (`Peer::contact_name`).
+    contact_names: Vec<(Uuid, String)>,
+    /// Each contact's kept name card, with the signing key that opened it.
+    name_cards: HashMap<Uuid, ([u8; 32], be_block_keys::NameCard)>,
     signers: HashMap<Uuid, Vec<KnownSigner>>,
     outbox: BTreeMap<u64, Op>,
     unsent: BTreeMap<Uuid, Unsent>,
     journals: HashMap<Uuid, Journaled>,
     /// What edits made here announce, by block and key, until sent and for a while after.
     announcements: HashMap<Uuid, BTreeMap<String, Waiting>>,
+    /// Blocks the search indexer let go after their commit could not be read, with what a
+    /// catch-up listed of them: read again when the next catch-up starts, across restarts.
+    let_go: HashMap<Uuid, Option<ListedBlock>>,
+    /// The distinct objects each of a local account's blocks holds, which its `size` counts
+    /// (`grow`).
+    objects: HashMap<Uuid, HashSet<Hash>>,
+    open_edits: HashMap<Uuid, OpenEdits>,
+    set_aside: HashMap<Uuid, Vec<SetAside>>,
+    /// Blocks whose local edits were discarded with their unsent edits (`discard_unsent`):
+    /// none are kept or sealed for them until a join says this account may edit them again
+    /// (`may_edit_again`). Forgetting a block keeps its mark: its replica may still be open,
+    /// and a block forgotten comes back marked.
+    dropped: HashSet<Uuid>,
+    logs: HashMap<Uuid, KeptLog>,
+    log_heads: HashMap<Uuid, KeptLogHead>,
+    /// The entries of each block's signed log this device read, by place, payloads sealed.
+    log_entries: HashMap<Uuid, BTreeMap<u64, be_block_protocol::LogEntry>>,
+    /// The keys minted with each block this device made that no server took (`Refs::unmade`).
+    unmade: HashMap<Uuid, Vec<Uuid>>,
+    /// The entries this device appended that the server refused, by block, in the order they
+    /// were refused (`Refs::not_appended`).
+    not_appended: HashMap<Uuid, BTreeMap<u64, RefusedEntry>>,
     next: u64,
+}
+
+/// How far this device last checked a scope's access log, kept across restarts: a log the
+/// server serves later must reach `head` or counts as withheld, and when no log can be read an
+/// epoch is current only if it names one of `current`, every entry from the last that lowered
+/// anyone's access (at `lowering_place`) through the head (/// `KeyBook::outdated`).
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct KeptLog {
+    pub head: [u8; 32],
+    pub place: u64,
+    pub lowering_place: u64,
+    pub current: Vec<[u8; 32]>,
+    /// Each account's level at `head`, as the log named it: what a contact's seal is judged by
+    /// while no log can be read (`KeyBook::sender_may`).
+    pub levels: Vec<([u8; 16], be_block_keys::Level)>,
+    /// Wraps of the block's keys sealed by an account the log never names, taken because that
+    /// account held Edit or above on a block the signed parent records place the block under
+    /// when the wrap arrived (`KeyBook::vouch`): the key, its sender and the digest of what was
+    /// sealed. Each wrap alone: any other, from that sender or another, is judged afresh.
+    pub vouched: Vec<([u8; 16], [u8; 16], [u8; 32])>,
+    /// The whole log as checked to `head`, so a later read checks only the entries after it
+    /// (`be_block_keys::Checked::resume`). None for a proof path, which is checked whole, and
+    /// for a block made here and not yet read back.
+    pub checked: Option<be_block_keys::Checked>,
+}
+
+/// The head of a block's signed log this device last verified: a log the server serves later
+/// must extend it (`be_block_keys::merkle::consistent`), or the server cut or forked it. A local
+/// account, whose log has no server, keeps its tree's right edge to append to (`frontier`).
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct KeptLogHead {
+    pub size: u64,
+    pub root: [u8; 32],
+    pub frontier: Option<be_block_keys::merkle::Frontier>,
 }
 
 /// A block's journal on this device, sealed as on the server: what this device's replica
@@ -338,12 +561,79 @@ struct State {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 struct JournalHead {
     tag: Hash,
-    generation: u64,
     base: JournalBase,
-    /// A seal this device made of the journal, with the last sequence it holds, written with
-    /// the seal's commit in one write and dropped by the next rebase: while it stands, the
-    /// seal's commit holds the journal through that sequence (`Peer::sealing`).
-    sealing: Option<(CommitId, u64)>,
+    /// Where the order stands: what this device heard the server number, or numbered itself
+    /// offline.
+    order: be_block_session::Sequencer,
+}
+
+/// A block's replica origin on this device and its local edits no journal holds yet, as the
+/// host gave them its replica: kept so every replica of the block on this device submits as one
+/// origin, whose count goes on, and one opened after the host stopped is given them again, as
+/// one opened again in the same run is (guides/blocks/host.md, "Opening again").
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+pub struct OpenEdits {
+    /// The replica's origin, which its submissions name.
+    pub origin: u64,
+    /// How many local edits came before the first of `edits` (`opening.taken-before`).
+    pub given_up: u64,
+    /// The last of them submitted to the server, which may hold it.
+    pub submitted_through: u64,
+    /// How many times the session had started over for the replica that made them
+    /// (`status.restarts`).
+    pub restarts: u64,
+    /// Each edit, a `KeptEdit` sealed with the block's key, in the order given.
+    pub edits: Vec<Vec<u8>>,
+    /// Each operation submitted online that holds some of `edits`, a `KeptSubmission` sealed
+    /// with the block's key, oldest first: a replica opened again submits each as it was, so the
+    /// server, holding its id already, answers it held rather than number it again.
+    pub submissions: Vec<Vec<u8>>,
+}
+
+/// A submission the server may hold (`OpenEdits::submissions`): its counter under the
+/// replica's origin, the last local edit it holds, and its payload as the module wrote it.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct KeptSubmission {
+    pub counter: u64,
+    pub through: u64,
+    pub payload: Vec<u8>,
+}
+
+/// Kept edits of a block that could not be read when it opened (`Refs::set_aside`): never
+/// sent, and kept until they read and are told so, then only as a tombstone.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct SetAside {
+    /// Names it among the block's, as the newest are kept.
+    pub id: Uuid,
+    /// How many edits were set aside.
+    pub count: usize,
+    /// The edits, until they read and were told so.
+    pub kept: Option<OpenEdits>,
+}
+
+impl SetAside {
+    /// How many a block keeps, the newest.
+    pub const KEPT: usize = 3;
+}
+
+/// A local edit the host gave a replica: an editor's frame, or a change the host made.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub enum KeptEdit {
+    Frame { editor: u64, bytes: Vec<u8> },
+    Change(KeptChange),
+}
+
+/// A change the host asked of a replica (`be_sdk_type_api::Change`), as kept.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub enum KeptChange {
+    AddChild(Uuid),
+    DeleteChild(Uuid),
+    ReplaceChild { old: Uuid, new: Uuid },
+    ReorderChild { block: Uuid, after: Option<Uuid> },
+    FromFile { name: String, bytes: Vec<u8> },
+    Replace(Vec<u8>),
+    Undo,
+    Redo,
 }
 
 #[derive(Clone, Debug)]
@@ -423,6 +713,14 @@ impl State {
             Table::Held => {
                 self.held.insert(uuid_key(&row.key)?, decode(value)?);
             }
+            Table::Objects => {
+                let (block, object) = row.key.split_at_checked(16).ok_or(StoreError::Corrupt)?;
+                let object: [u8; 32] = object.try_into().map_err(|_| StoreError::Corrupt)?;
+                self.objects
+                    .entry(uuid_key(block)?)
+                    .or_default()
+                    .insert(Hash::from_bytes(object));
+            }
             Table::Listing => {
                 let listing = decode_raw(&row.key)?;
                 let (at, ids): (u64, Vec<Uuid>) = decode(value)?;
@@ -443,6 +741,10 @@ impl State {
                     .insert((wrap.key, wrap.wrapped_by), (sequence, wrap));
             }
             Table::Contacts => self.contacts = decode(value)?,
+            Table::ContactNames => self.contact_names = decode(value)?,
+            Table::NameCards => {
+                self.name_cards.insert(uuid_key(&row.key)?, decode(value)?);
+            }
             Table::Signers => {
                 self.signers.insert(uuid_key(&row.key)?, decode(value)?);
             }
@@ -455,6 +757,43 @@ impl State {
                 self.unsent.insert(uuid_key(&row.key)?, decode(value)?);
             }
             Table::Workspaces => {}
+            Table::OpenEdits => {
+                self.open_edits.insert(uuid_key(&row.key)?, decode(value)?);
+            }
+            Table::SetAside => {
+                self.set_aside.insert(uuid_key(&row.key)?, decode(value)?);
+            }
+            Table::Dropped => {
+                self.dropped.insert(uuid_key(&row.key)?);
+            }
+            Table::Logs => {
+                self.logs.insert(uuid_key(&row.key)?, decode(value)?);
+            }
+            Table::Unmade => {
+                self.unmade.insert(uuid_key(&row.key)?, decode(value)?);
+            }
+            Table::LogHead => {
+                self.log_heads.insert(uuid_key(&row.key)?, decode(value)?);
+            }
+            Table::LogEntry => {
+                let (block, seq) = row.key.split_at_checked(16).ok_or(StoreError::Corrupt)?;
+                self.log_entries
+                    .entry(uuid_key(block)?)
+                    .or_default()
+                    .insert(sequence_key(seq)?, decode(value)?);
+            }
+            Table::LetGo => {
+                self.let_go.insert(uuid_key(&row.key)?, decode(value)?);
+            }
+            Table::NotAppended => {
+                let (block, order) = row.key.split_at_checked(16).ok_or(StoreError::Corrupt)?;
+                let order = sequence_key(order)?;
+                self.next = self.next.max(order + 1);
+                self.not_appended
+                    .entry(uuid_key(block)?)
+                    .or_default()
+                    .insert(order, decode(value)?);
+            }
             Table::Announcement => {
                 let (block, key) = row.key.split_at_checked(16).ok_or(StoreError::Corrupt)?;
                 let key = String::from_utf8(key.to_vec()).map_err(|_| StoreError::Corrupt)?;
@@ -485,13 +824,12 @@ impl State {
                     .or_insert_with(|| Journaled {
                         head: JournalHead {
                             tag: Hash::from_bytes([0; 32]),
-                            generation: 0,
                             base: JournalBase {
                                 commit: None,
                                 sequence: 0,
                                 state: Vec::new(),
                             },
-                            sealing: None,
+                            order: be_block_session::Sequencer::starting(0),
                         },
                         entries: BTreeMap::new(),
                     })
@@ -662,39 +1000,59 @@ impl Refs {
 
     /// Keeps the heads `summaries` name as the server's, but not one `behind` the remote head
     /// already known (`set_remote`). Where `summaries` name a block more than once, only the
-    /// newest head is judged, from the latest summary and, between two of one revision, the one
+    /// newest head is judged, from the latest summary and, between two of one sequence, the one
     /// the other is `behind`: an older one judged against the same known head could otherwise
     /// land after it.
+    /// Answers the heads that moved on from one this device knew, other than its own local
+    /// head: another connection's publishes, as news to whatever holds the block open.
     pub fn observe(
         &self,
         summaries: &[BlockSummary],
         behind: impl Fn(CommitId, CommitId) -> bool,
-    ) -> Result<(), StoreError> {
+    ) -> Result<Vec<(Uuid, CommitId)>, StoreError> {
         let mut latest: HashMap<Uuid, (u64, CommitId)> = HashMap::new();
         for summary in summaries {
             let Some(head) = summary.head else { continue };
-            let newest = latest.get(&summary.id).is_none_or(|(revision, kept)| {
-                *revision < summary.revision
-                    || (*revision == summary.revision && behind(*kept, head))
+            let newest = latest.get(&summary.id).is_none_or(|(changed, kept)| {
+                *changed < summary.changed || (*changed == summary.changed && behind(*kept, head))
             });
             if newest {
-                latest.insert(summary.id, (summary.revision, head));
+                latest.insert(summary.id, (summary.changed, head));
             }
         }
         let heads: Vec<(Uuid, CommitId)> = latest
             .into_iter()
             .map(|(block, (_, head))| (block, head))
             .collect();
-        let mut rows = Vec::new();
+        let (mut rows, mut moved) = (Vec::new(), Vec::new());
         {
             let (mut state, news) = self.judged(&heads, &behind);
             for (block, head) in heads {
-                if news.contains(&block) && state.remotes.insert(block, head) != Some(head) {
+                if !news.contains(&block) {
+                    continue;
+                }
+                let known = state.remotes.insert(block, head);
+                if known != Some(head) {
                     rows.push(row(Table::Remote, block.as_bytes().to_vec(), &head));
+                    if known.is_some() {
+                        moved.push((block, head, state.heads.get(&block).copied()));
+                    }
                 }
             }
         }
-        self.write(rows)
+        self.write(rows)?;
+        // This device's own head, or one it has sealed on top of since, read before its publish
+        // was answered, is no news. Judged with the state let go, as `behind` reads commits. Any
+        // path that sets the local head from a read must observe that read first (`Peer::open`
+        // notes the summary before it remembers the head), or the read's head would pass here as
+        // this device's own.
+        Ok(moved
+            .into_iter()
+            .filter(|(_, head, local)| {
+                local.is_none_or(|local| local != *head && !behind(*head, local))
+            })
+            .map(|(block, head, _)| (block, head))
+            .collect())
     }
 
     pub fn remote(&self, block: Uuid) -> Option<CommitId> {
@@ -724,7 +1082,7 @@ impl Refs {
             match op {
                 Op::Move(moving) => summary.parent = Some(moving.parent),
                 Op::Define(defining) => summary.metadata = defining.metadata.clone(),
-                Op::Create(_) | Op::Publish(_) => {}
+                Op::Create(_) | Op::Publish(_) | Op::Hold(_) | Op::Append(_) => {}
             }
         }
         summary
@@ -737,7 +1095,7 @@ impl Refs {
         let newer = state
             .summaries
             .get(&summary.id)
-            .is_some_and(|known| known.revision > summary.revision);
+            .is_some_and(|known| known.changed > summary.changed);
         if newer || state.summaries.get(&summary.id) == Some(summary) {
             return;
         }
@@ -754,9 +1112,15 @@ impl Refs {
         state.listings.insert(listing, ids);
     }
 
-    pub fn set_listing(&self, listing: Listing, blocks: &[BlockSummary]) -> Result<(), StoreError> {
+    /// Keeps a summary the server answered, with what the outbox has yet to send laid over it,
+    /// unless this device has a newer one of the block.
+    pub fn note(&self, summary: &BlockSummary) -> Result<(), StoreError> {
         let mut rows = Vec::new();
-        Self::set_listing_locked(&mut self.state.lock().unwrap(), listing, blocks, &mut rows);
+        {
+            let mut state = self.state.lock().unwrap();
+            let summary = Self::with_outbox_locked(&state, summary.clone());
+            Self::put(&mut state, &summary, &mut rows);
+        }
         self.write(rows)
     }
 
@@ -776,23 +1140,23 @@ impl Refs {
         Self::put_listing(state, listing, ids, rows);
     }
 
-    /// Keeps a listing as the server answered it at `revision`, which a `Children` or `Deleted`
+    /// Keeps a listing as the server answered it at `sequence`, which a `Children` or `Deleted`
     /// listing keeps too (`placed_in`).
     pub fn listed(
         &self,
         listing: Listing,
         blocks: &[BlockSummary],
-        revision: u64,
+        sequence: u64,
     ) -> Result<(), StoreError> {
         let mut rows = Vec::new();
         {
             let mut state = self.state.lock().unwrap();
             if matches!(listing, Listing::Children(_) | Listing::Deleted)
-                && state.listed_at.insert(listing, revision) != Some(revision)
+                && state.listed_at.insert(listing, sequence) != Some(sequence)
                 && let Some(ids) = state.listings.get(&listing).cloned()
             {
-                // The listing's row holds the revision, so it is written again even unchanged.
-                rows.push(row(Table::Listing, encode_raw(&listing), &(revision, &ids)));
+                // The listing's row holds the sequence, so it is written again even unchanged.
+                rows.push(row(Table::Listing, encode_raw(&listing), &(sequence, &ids)));
             }
             Self::set_listing_locked(&mut state, listing, blocks, &mut rows);
         }
@@ -817,15 +1181,16 @@ impl Refs {
         self.write(rows)
     }
 
-    /// Changes a block's summary on this device, as of the newest revision it knows, and moves it
-    /// between the listings of its old and new parent.
+    /// Changes a block's summary on this device, as of just past the newest sequence it knows (so
+    /// past every listing it read, and before the server's own change, which comes after
+    /// whatever it answered), and moves it between the listings of its old and new parent.
     pub fn revise(&self, mut summary: BlockSummary) -> Result<(), StoreError> {
         let block = summary.id;
         let parent = summary.parent;
         let mut rows = Vec::new();
         {
             let mut state = self.state.lock().unwrap();
-            summary.revision = newest(&state).max(summary.revision);
+            summary.changed = (newest(&state) + 1).max(summary.changed);
             Self::put(&mut state, &summary, &mut rows);
             let listings: Vec<Listing> = state.listings.keys().copied().collect();
             for listing in listings {
@@ -847,7 +1212,6 @@ impl Refs {
                 }
                 Self::put_listing(&mut state, listing, ids, &mut rows);
             }
-            Self::put_listing(&mut state, Listing::Block(block), vec![block], &mut rows);
         }
         self.write(rows)
     }
@@ -879,36 +1243,11 @@ impl Refs {
     }
 
     /// A listing as this device last knew it, for answering offline, as its summaries say now:
-    /// what a block references is its summary's references (one pushed or revised after the
-    /// listing was fetched names them then), children and deleted blocks are placed by their
-    /// summaries (`placed_in`), and backrefs are the summaries that reference the block.
+    /// children and deleted blocks are placed by their summaries (`placed_in`), and the rest are
+    /// as fetched (what a block references the peer reads from the content it kept first,
+    /// `Peer::listing`, as no summary names it).
     pub fn cached_listing(&self, listing: Listing) -> Option<Vec<BlockSummary>> {
         match listing {
-            Listing::References(block) => {
-                let Some(referrer) = self.summary(block) else {
-                    return self.listing(&listing);
-                };
-                Some(
-                    referrer
-                        .references
-                        .iter()
-                        .filter_map(|reference| self.summary(*reference))
-                        .filter(|summary| summary.access.can_know_exists())
-                        .collect(),
-                )
-            }
-            Listing::Backrefs(block) => {
-                let state = self.state.lock().unwrap();
-                state.listings.get(&listing)?;
-                Some(
-                    state
-                        .summaries
-                        .values()
-                        .filter(|summary| summary.references.contains(&block))
-                        .cloned()
-                        .collect(),
-                )
-            }
             Listing::Children(parent) => self.placed_in(listing, parent),
             Listing::Deleted => self.placed_in(listing, BlockParent::Detached),
             _ => self.listing(&listing),
@@ -946,7 +1285,7 @@ impl Refs {
             .iter()
             .filter(|id| !listed.contains(id))
             .filter_map(|id| state.summaries.get(id))
-            .filter(|summary| summary.revision > at)
+            .filter(|summary| summary.changed > at)
             .filter(shown)
             .cloned()
             .collect();
@@ -955,17 +1294,123 @@ impl Refs {
         Some(placed)
     }
 
-    pub fn newest_revision(&self) -> u64 {
-        newest(&self.state.lock().unwrap())
+    /// A local account's answer to `listing` (`Peer::local`), from every summary it holds, in
+    /// the order of block ids as a server's is: with no other member, it may see every block,
+    /// and no settings are hidden from it to open.
+    pub fn local_listing(&self, listing: Listing) -> Vec<BlockSummary> {
+        let state = self.state.lock().unwrap();
+        let placed = |parent: BlockParent| -> Vec<BlockSummary> {
+            state
+                .summaries
+                .values()
+                .filter(|summary| summary.parent == Some(parent))
+                .cloned()
+                .collect()
+        };
+        let mut found = match listing {
+            Listing::Children(parent) => placed(parent),
+            Listing::Deleted => placed(BlockParent::Detached),
+            // From the blocks' content, which the peer reads (`Peer::listing`).
+            Listing::References(_) | Listing::Backrefs(_) => Vec::new(),
+            Listing::Shared | Listing::OpenSettings(_) => Vec::new(),
+        };
+        found.sort_by_key(|summary| summary.id);
+        found.dedup_by_key(|summary| summary.id);
+        found
     }
 
-    /// Offline answers, each as of the newest revision this device knows.
-    pub fn current(&self, mut blocks: Vec<BlockSummary>) -> Vec<BlockSummary> {
-        let newest = self.newest_revision();
-        for summary in &mut blocks {
-            summary.revision = newest;
+    /// Of `objects`, those a local account's `block` does not hold yet (`grow`).
+    pub fn unheld_objects(&self, block: Uuid, objects: &[Hash]) -> Vec<Hash> {
+        let state = self.state.lock().unwrap();
+        let held = state.objects.get(&block);
+        let mut unheld: Vec<Hash> = objects
+            .iter()
+            .filter(|object| held.is_none_or(|held| !held.contains(object)))
+            .copied()
+            .collect();
+        unheld.sort_unstable();
+        unheld.dedup();
+        unheld
+    }
+
+    /// A local account's `block` holds `objects` too, `bytes` of them in all: its `size` and
+    /// the `tree_size` of it and of each block above it grow by that, as a server counts them
+    /// (`size` the distinct objects the block holds, `tree_size` its own and its children's).
+    pub fn grow(&self, block: Uuid, objects: &[Hash], bytes: u64) -> Result<(), StoreError> {
+        let mut rows = Vec::new();
+        {
+            let mut state = self.state.lock().unwrap();
+            let held = state.objects.entry(block).or_default();
+            for object in objects {
+                if held.insert(*object) {
+                    let mut key = block.as_bytes().to_vec();
+                    key.extend_from_slice(object.as_bytes());
+                    rows.push(Row {
+                        table: Table::Objects,
+                        key,
+                        value: Some(Vec::new()),
+                    });
+                }
+            }
+            if bytes > 0 {
+                if let Some(mut summary) = state.summaries.get(&block).cloned() {
+                    summary.size = summary.size.saturating_add(bytes);
+                    state.keep(summary.clone());
+                    rows.push(row(Table::Summary, block.as_bytes().to_vec(), &summary));
+                }
+                Self::add_to_tree(
+                    &mut state,
+                    Some(BlockParent::Block(block)),
+                    bytes as i128,
+                    &mut rows,
+                );
+            }
         }
-        blocks
+        self.write(rows)
+    }
+
+    /// A local account's `block` moved from `from` to `to`: its `tree_size` leaves the blocks
+    /// above where it was and joins those above where it is.
+    pub fn carry_tree(
+        &self,
+        block: Uuid,
+        from: Option<BlockParent>,
+        to: BlockParent,
+    ) -> Result<(), StoreError> {
+        let mut rows = Vec::new();
+        {
+            let mut state = self.state.lock().unwrap();
+            let size = state
+                .summaries
+                .get(&block)
+                .map_or(0, |summary| summary.tree_size) as i128;
+            if size > 0 && from != Some(to) {
+                Self::add_to_tree(&mut state, from, -size, &mut rows);
+                Self::add_to_tree(&mut state, Some(to), size, &mut rows);
+            }
+        }
+        self.write(rows)
+    }
+
+    /// Adds `bytes` to the `tree_size` of `at`'s block and of every block above it.
+    fn add_to_tree(state: &mut State, at: Option<BlockParent>, bytes: i128, rows: &mut Vec<Row>) {
+        let mut at = at.and_then(BlockParent::block);
+        let mut seen = HashSet::new();
+        while let Some(block) = at.filter(|block| seen.insert(*block)) {
+            let Some(mut summary) = state.summaries.get(&block).cloned() else {
+                break;
+            };
+            summary.tree_size =
+                (summary.tree_size as i128 + bytes).clamp(0, u64::MAX as i128) as u64;
+            at = summary.parent.and_then(BlockParent::block);
+            state.keep(summary.clone());
+            rows.push(row(Table::Summary, block.as_bytes().to_vec(), &summary));
+        }
+    }
+
+    /// The newest sequence this device knows of: of a summary, or of a listing it read.
+    pub fn newest_sequence(&self) -> u64 {
+        newest(&self.state.lock().unwrap())
     }
 
     pub fn summary(&self, block: Uuid) -> Option<BlockSummary> {
@@ -1016,12 +1461,222 @@ impl Refs {
         self.write(rows)
     }
 
-    pub fn contacts(&self) -> Vec<(Uuid, [u8; 32])> {
+    /// How far this device last checked each scope's access log (`KeptLog`).
+    pub fn kept_logs(&self) -> Vec<(Uuid, KeptLog)> {
+        self.state
+            .lock()
+            .unwrap()
+            .logs
+            .iter()
+            .map(|(block, kept)| (*block, kept.clone()))
+            .collect()
+    }
+
+    /// Notes `minted`, the keys made with `block` here (`Peer::new_log`), as no server took the
+    /// creation, and drops the log kept at `root`, its root, while it is still that root's. The
+    /// keys stay, so what was set aside of it still reads, but the root they carry is pinned
+    /// through them no more (`KeyBook::set_unmade`), across restarts. Never collected: a row
+    /// for a block never made again names keys nothing else carries.
+    pub fn unmade_root(
+        &self,
+        block: Uuid,
+        root: [u8; 32],
+        minted: &[Uuid],
+    ) -> Result<(), StoreError> {
+        let mut rows = Vec::new();
+        {
+            let mut state = self.state.lock().unwrap();
+            if state
+                .logs
+                .get(&block)
+                .is_some_and(|kept| kept.head == root && kept.place == 0)
+            {
+                state.logs.remove(&block);
+                rows.push(Row {
+                    table: Table::Logs,
+                    key: block.as_bytes().to_vec(),
+                    value: None,
+                });
+            }
+            let keys = state.unmade.entry(block).or_default();
+            let before = keys.len();
+            for key in minted {
+                if !keys.contains(key) {
+                    keys.push(*key);
+                }
+            }
+            if keys.len() != before {
+                rows.push(row(Table::Unmade, block.as_bytes().to_vec(), &*keys));
+            }
+        }
+        self.write(rows)
+    }
+
+    /// The keys `unmade_root` noted, of every block.
+    pub fn unmade(&self) -> Vec<Uuid> {
+        self.state
+            .lock()
+            .unwrap()
+            .unmade
+            .values()
+            .flatten()
+            .copied()
+            .collect()
+    }
+
+    pub fn keep_log(&self, block: Uuid, kept: KeptLog) -> Result<(), StoreError> {
+        if self.state.lock().unwrap().logs.insert(block, kept.clone()) == Some(kept.clone()) {
+            return Ok(());
+        }
+        self.write(vec![row(Table::Logs, block.as_bytes().to_vec(), &kept)])
+    }
+
+    /// The newest record of each verified contact this device has seen, which a record the
+    /// server serves must not be older than (`contacts::contacts`).
+    /// The head of `block`'s signed log this device last verified.
+    pub fn log_head(&self, block: Uuid) -> Option<KeptLogHead> {
+        self.state.lock().unwrap().log_heads.get(&block).cloned()
+    }
+
+    /// Keeps `head` as the newest verified head of `block`'s signed log, with `entries` of it,
+    /// in one write, only while the head kept is still `checked`, the one `head` was proved to
+    /// extend: answers false, keeping nothing, when another read or push moved it meanwhile, so
+    /// a head checked against a stale one never replaces a newer one, nor a sibling of it.
+    pub fn keep_entries(
+        &self,
+        block: Uuid,
+        checked: Option<&KeptLogHead>,
+        head: KeptLogHead,
+        entries: Vec<be_block_protocol::LogEntry>,
+    ) -> Result<bool, StoreError> {
+        let mut state = self.state.lock().unwrap();
+        let same = |kept: Option<&KeptLogHead>| kept.map(|kept| (kept.size, kept.root));
+        if same(state.log_heads.get(&block)) != same(checked) {
+            return Ok(false);
+        }
+        let mut rows = vec![row(Table::LogHead, block.as_bytes().to_vec(), &head)];
+        let kept = state.log_entries.entry(block).or_default();
+        for entry in entries {
+            rows.push(row(
+                Table::LogEntry,
+                journal_entry_key(block, entry.seq),
+                &entry,
+            ));
+            kept.insert(entry.seq, entry);
+        }
+        state.log_heads.insert(block, head);
+        self.write(rows)?;
+        Ok(true)
+    }
+
+    /// Takes the outbox's `sequences` out, keeping each of `refused` (entries of `block` the
+    /// server refused) until let go, in one write.
+    pub fn refuse_appends(
+        &self,
+        block: Uuid,
+        sequences: &[u64],
+        refused: Vec<RefusedEntry>,
+    ) -> Result<(), StoreError> {
+        let mut rows = Vec::new();
+        {
+            let mut state = self.state.lock().unwrap();
+            for sequence in sequences {
+                if state.outbox.remove(sequence).is_some() {
+                    rows.push(Row {
+                        table: Table::Outbox,
+                        key: sequence.to_be_bytes().to_vec(),
+                        value: None,
+                    });
+                }
+            }
+            for entry in refused {
+                let order = state.take();
+                rows.push(row(
+                    Table::NotAppended,
+                    journal_entry_key(block, order),
+                    &entry,
+                ));
+                state
+                    .not_appended
+                    .entry(block)
+                    .or_default()
+                    .insert(order, entry);
+            }
+        }
+        self.write(rows)
+    }
+
+    /// The entries of `block` this device appended that the server refused and the app has not
+    /// let go, in the order they were refused.
+    pub fn not_appended(&self, block: Uuid) -> Vec<RefusedEntry> {
+        let state = self.state.lock().unwrap();
+        state
+            .not_appended
+            .get(&block)
+            .map(|held| held.values().cloned().collect())
+            .unwrap_or_default()
+    }
+
+    /// Lets go of the refused entry `id` of `block`.
+    pub fn let_go_refused(&self, block: Uuid, id: Uuid) -> Result<(), StoreError> {
+        let mut rows = Vec::new();
+        {
+            let mut state = self.state.lock().unwrap();
+            if let Some(held) = state.not_appended.get_mut(&block) {
+                held.retain(|order, entry| {
+                    let keep = entry.id != id;
+                    if !keep {
+                        rows.push(Row {
+                            table: Table::NotAppended,
+                            key: journal_entry_key(block, *order),
+                            value: None,
+                        });
+                    }
+                    keep
+                });
+                if held.is_empty() {
+                    state.not_appended.remove(&block);
+                }
+            }
+        }
+        self.write(rows)
+    }
+
+    /// The entry of `block`'s log this device kept at `seq`.
+    pub fn log_entry(&self, block: Uuid, seq: u64) -> Option<be_block_protocol::LogEntry> {
+        let state = self.state.lock().unwrap();
+        state.log_entries.get(&block)?.get(&seq).cloned()
+    }
+
+    /// The entries of `block`'s log this device kept, from `from`, at most `limit`, in order,
+    /// stopping at the first it does not hold.
+    pub fn log_entries(
+        &self,
+        block: Uuid,
+        from: u64,
+        limit: usize,
+    ) -> Vec<be_block_protocol::LogEntry> {
+        let state = self.state.lock().unwrap();
+        let Some(kept) = state.log_entries.get(&block) else {
+            return Vec::new();
+        };
+        kept.range(from..)
+            .take(limit)
+            .enumerate()
+            .take_while(|(index, (seq, _))| **seq == from + *index as u64)
+            .map(|(_, (_, entry))| entry.clone())
+            .collect()
+    }
+
+    pub fn contacts(&self) -> Vec<(Uuid, crate::contacts::OwnContact)> {
         self.state.lock().unwrap().contacts.clone()
     }
 
-    pub fn set_contacts(&self, mut contacts: Vec<(Uuid, [u8; 32])>) -> Result<(), StoreError> {
-        contacts.sort();
+    pub fn set_contacts(
+        &self,
+        mut contacts: Vec<(Uuid, crate::contacts::OwnContact)>,
+    ) -> Result<(), StoreError> {
+        contacts.sort_by_key(|(account, _)| *account);
         {
             let mut state = self.state.lock().unwrap();
             if state.contacts == contacts {
@@ -1043,15 +1698,83 @@ impl Refs {
             .unwrap_or_default()
     }
 
+    pub fn contact_name(&self, account: Uuid) -> Option<String> {
+        self.state
+            .lock()
+            .unwrap()
+            .contact_names
+            .iter()
+            .find(|(named, _)| *named == account)
+            .map(|(_, name)| name.clone())
+    }
+
+    pub fn set_contact_names(&self, mut names: Vec<(Uuid, String)>) -> Result<(), StoreError> {
+        names.sort();
+        {
+            let mut state = self.state.lock().unwrap();
+            if state.contact_names == names {
+                return Ok(());
+            }
+            state.contact_names = names.clone();
+        }
+        self.write(vec![row(Table::ContactNames, Vec::new(), &names)])
+    }
+
+    /// The newest name card `account` signed with `signing` that this device showed
+    /// (`Peer::refresh_contacts`), which it shows over any older one a server serves. None when
+    /// the card kept was opened with another key: a contact that took a new phrase is named by
+    /// what its new key signs, whatever an old key dated its card.
+    pub fn name_card(
+        &self,
+        account: Uuid,
+        signing: &be_block_keys::SigningPublic,
+    ) -> Option<be_block_keys::NameCard> {
+        self.state
+            .lock()
+            .unwrap()
+            .name_cards
+            .get(&account)
+            .filter(|(kept, _)| *kept == signing.0)
+            .map(|(_, card)| card.clone())
+    }
+
+    /// Keeps `card`, which `signing` opened, as `account`'s newest shown name card, unless one
+    /// `signing` opened dated as late or later is kept already.
+    pub fn keep_name_card(
+        &self,
+        account: Uuid,
+        signing: &be_block_keys::SigningPublic,
+        card: be_block_keys::NameCard,
+    ) -> Result<(), StoreError> {
+        let kept = (signing.0, card);
+        {
+            let mut state = self.state.lock().unwrap();
+            if let Some((key, held)) = state.name_cards.get(&account)
+                && *key == signing.0
+                && held.dated >= kept.1.dated
+            {
+                return Ok(());
+            }
+            state.name_cards.insert(account, kept.clone());
+        }
+        self.write(vec![row(
+            Table::NameCards,
+            account.as_bytes().to_vec(),
+            &kept,
+        )])
+    }
+
     /// Keeps `key` as one `account` signs with: verified once a contact's card or key change
-    /// names it, which no later pin undoes. The newest verified key, last, is the account's current one. A key is
-    /// never forgotten, so what an account signed before a new phrase still verifies, though
-    /// not as its current key (`Peer::verify_authored`).
+    /// names it, which no later pin undoes. The newest verified key, last, is the account's
+    /// current one; each older verified key is marked replaced as of `now`, the server's clock
+    /// (`KnownSigner::replaced`). A key is never forgotten, so what an account signed before a
+    /// new phrase still verifies, though not as its current key (`Peer::verify_authored`).
     pub fn add_signer(
         &self,
         account: Uuid,
         key: [u8; 32],
         verified: bool,
+        now: Option<i64>,
     ) -> Result<(), StoreError> {
         let known = {
             let mut state = self.state.lock().unwrap();
@@ -1059,9 +1782,26 @@ impl Refs {
             // An existing key never moves: a stale card a server replays must not make an
             // old key the newest, which is the account's current one.
             match known.iter_mut().find(|known| known.key == key) {
+                // A key a card or change names again is current again, past a broken chain: a
+                // later break is timed afresh, not by this one.
+                Some(found) if found.verified && verified && found.superseded => {
+                    found.superseded = false;
+                    found.replaced = None;
+                }
                 Some(found) if found.verified || !verified => return Ok(()),
                 Some(found) => found.verified = true,
-                None => known.push(KnownSigner { key, verified }),
+                None => known.push(KnownSigner {
+                    key,
+                    verified,
+                    replaced: None,
+                    superseded: false,
+                }),
+            }
+            let current = known.iter().rposition(|known| known.verified);
+            for (index, older) in known.iter_mut().enumerate() {
+                if older.verified && Some(index) != current && older.replaced.is_none() {
+                    older.replaced = now;
+                }
             }
             known.clone()
         };
@@ -1070,6 +1810,180 @@ impl Refs {
             account.as_bytes().to_vec(),
             &known,
         )])
+    }
+
+    /// Takes every verified key of `account` as replaced, its newest too, as of `now`: its
+    /// chain of key changes broke, so it signs with a key this device could not verify
+    /// (`KnownSigner::superseded`).
+    pub fn supersede_signers(&self, account: Uuid, now: Option<i64>) -> Result<(), StoreError> {
+        let known = {
+            let mut state = self.state.lock().unwrap();
+            let Some(known) = state.signers.get_mut(&account) else {
+                return Ok(());
+            };
+            let mut changed = false;
+            for signer in known.iter_mut().filter(|signer| signer.verified) {
+                if !signer.superseded {
+                    signer.superseded = true;
+                    signer.replaced = signer.replaced.or(now);
+                    changed = true;
+                }
+            }
+            if !changed {
+                return Ok(());
+            }
+            known.clone()
+        };
+        self.write(vec![row(
+            Table::Signers,
+            account.as_bytes().to_vec(),
+            &known,
+        )])
+    }
+
+    /// What the host keeps of an open block's local edits no journal holds yet, to give its
+    /// replica again after the host stops (`OpenEdits`).
+    pub fn open_edits(&self, block: Uuid) -> Option<OpenEdits> {
+        self.state.lock().unwrap().open_edits.get(&block).cloned()
+    }
+
+    /// Keeps `edits` as `block`'s: kept with none too, for its origin and count, which every
+    /// later replica of the block on this device goes on with.
+    /// Whether `block`'s local edits were discarded and the server has not said since that this
+    /// account may edit it: none are kept for it (`keep_open_edits`).
+    pub fn discarded(&self, block: Uuid) -> bool {
+        self.state.lock().unwrap().dropped.contains(&block)
+    }
+
+    /// Every block whose local edits were discarded and the server has not said since that this
+    /// account may edit it (`discarded`).
+    pub fn all_discarded(&self) -> Vec<Uuid> {
+        self.state.lock().unwrap().dropped.iter().copied().collect()
+    }
+
+    /// The server answered that this account may edit `block` (a join's `may-edit`): its edits
+    /// are kept again where they were discarded (`discard_unsent`). A listing that says so is
+    /// not enough, as it may be older than the access that lost it.
+    pub fn may_edit_again(&self, block: Uuid) -> Result<(), StoreError> {
+        if !self.state.lock().unwrap().dropped.remove(&block) {
+            return Ok(());
+        }
+        self.write(vec![Row {
+            table: Table::Dropped,
+            key: block.as_bytes().to_vec(),
+            value: None,
+        }])
+    }
+
+    /// Keeps `edits` as `block`'s, answering whether it did: not for a block whose local edits
+    /// were discarded (`discard_unsent`) until the server says this account may edit it again
+    /// (`may_edit_again`), as kept they would keep it from being forgotten.
+    pub fn keep_open_edits(&self, block: Uuid, edits: OpenEdits) -> Result<bool, StoreError> {
+        let mut state = self.state.lock().unwrap();
+        let mut rows = Vec::new();
+        if state.dropped.contains(&block) {
+            return Ok(false);
+        }
+        if state.open_edits.get(&block) != Some(&edits) {
+            state.open_edits.insert(block, edits.clone());
+            rows.push(row(Table::OpenEdits, block.as_bytes().to_vec(), &edits));
+        }
+        drop(state);
+        self.write(rows)?;
+        Ok(true)
+    }
+
+    /// Moves `block`'s kept edits aside (`SetAside`), for a replica to open under a fresh origin.
+    pub fn set_aside(&self, block: Uuid) -> Result<(), StoreError> {
+        let mut state = self.state.lock().unwrap();
+        let Some(kept) = state.open_edits.remove(&block) else {
+            return Ok(());
+        };
+        let aside = state.set_aside.entry(block).or_default();
+        aside.push(SetAside {
+            id: Uuid::new_v4(),
+            count: kept.edits.len(),
+            kept: Some(kept),
+        });
+        let over = aside.len().saturating_sub(SetAside::KEPT);
+        aside.drain(..over);
+        let aside = aside.clone();
+        drop(state);
+        self.write(vec![
+            row(Table::SetAside, block.as_bytes().to_vec(), &aside),
+            Row {
+                table: Table::OpenEdits,
+                key: block.as_bytes().to_vec(),
+                value: None,
+            },
+        ])
+    }
+
+    /// Every block's kept edits set aside.
+    pub fn set_aside_edits(&self) -> Vec<(Uuid, Vec<SetAside>)> {
+        let state = self.state.lock().unwrap();
+        state
+            .set_aside
+            .iter()
+            .map(|(block, aside)| (*block, aside.clone()))
+            .collect()
+    }
+
+    /// Leaves `block`'s set-aside edits `id` a tombstone, once they read and were told.
+    pub fn tombstone_set_aside(&self, block: Uuid, id: Uuid) -> Result<(), StoreError> {
+        let mut state = self.state.lock().unwrap();
+        let Some(aside) = state.set_aside.get_mut(&block) else {
+            return Ok(());
+        };
+        let Some(entry) = aside.iter_mut().find(|entry| entry.id == id) else {
+            return Ok(());
+        };
+        entry.kept = None;
+        let aside = aside.clone();
+        drop(state);
+        self.write(vec![row(
+            Table::SetAside,
+            block.as_bytes().to_vec(),
+            &aside,
+        )])
+    }
+
+    /// The blocks the search indexer let go (`let_go`).
+    pub fn let_go_blocks(&self) -> Vec<(Uuid, Option<ListedBlock>)> {
+        let state = self.state.lock().unwrap();
+        state
+            .let_go
+            .iter()
+            .map(|(block, listed)| (*block, *listed))
+            .collect()
+    }
+
+    /// Keeps `block` as one the search indexer let go, with what a catch-up listed of it: a
+    /// listing kept before stays when this one has none.
+    pub fn let_go(&self, block: Uuid, listed: Option<ListedBlock>) -> Result<(), StoreError> {
+        let listed = {
+            let mut state = self.state.lock().unwrap();
+            let kept = state.let_go.get(&block).copied();
+            let listed = listed.or(kept.flatten());
+            if kept == Some(listed) {
+                return Ok(());
+            }
+            state.let_go.insert(block, listed);
+            listed
+        };
+        self.write(vec![row(Table::LetGo, block.as_bytes().to_vec(), &listed)])
+    }
+
+    /// Forgets `block` as one the search indexer let go: it was read, or is no longer indexed.
+    pub fn forget_let_go(&self, block: Uuid) -> Result<(), StoreError> {
+        if self.state.lock().unwrap().let_go.remove(&block).is_none() {
+            return Ok(());
+        }
+        self.write(vec![Row {
+            table: Table::LetGo,
+            key: block.as_bytes().to_vec(),
+            value: None,
+        }])
     }
 
     pub fn push(&self, op: Op) -> Result<u64, StoreError> {
@@ -1096,39 +2010,28 @@ impl Refs {
 
     /// Keeps a sealed commit in the outbox. With `sealing`, the last sequence of the block's
     /// journal the commit holds, the journal notes the seal in the same write.
-    pub fn push_publish(&self, pending: Pending, sealing: Option<u64>) -> Result<u64, StoreError> {
+    /// Keeps a sealed commit in the outbox as the block's local head, answering its sequence:
+    /// none for a block whose local edits were discarded (`discard_unsent`), checked as the
+    /// discard checks, so a seal under way as the discard runs never reaches the outbox.
+    pub fn push_publish(&self, pending: Pending) -> Result<Option<u64>, StoreError> {
         let (block, head) = (pending.block, pending.commit);
         let op = Op::Publish(pending);
         let (sequence, rows) = {
             let mut state = self.state.lock().unwrap();
+            if state.dropped.contains(&block) {
+                return Ok(None);
+            }
             let sequence = state.take();
-            let mut rows = vec![
+            let rows = vec![
                 row(Table::Outbox, sequence.to_be_bytes().to_vec(), &op),
                 row(Table::Head, block.as_bytes().to_vec(), &head),
             ];
-            if let Some(through) = sealing
-                && let Some(journal) = state.journals.get_mut(&block)
-            {
-                journal.head.sealing = Some((head, through));
-                rows.push(row(
-                    Table::JournalBase,
-                    block.as_bytes().to_vec(),
-                    &journal.head,
-                ));
-            }
             state.outbox.insert(sequence, op);
             state.heads.insert(block, head);
             (sequence, rows)
         };
         self.write(rows)?;
-        Ok(sequence)
-    }
-
-    /// The seal this device made of the block's journal since its last rebase, and the last
-    /// sequence it holds (`JournalHead::sealing`).
-    pub fn sealing(&self, block: Uuid) -> Option<(CommitId, u64)> {
-        let state = self.state.lock().unwrap();
-        state.journals.get(&block)?.head.sealing
+        Ok(Some(sequence))
     }
 
     /// The block's journal on this device, sealed.
@@ -1143,31 +2046,33 @@ impl Refs {
         })
     }
 
-    /// Appends sealed entries past the journal's last, starting the journal over for another
-    /// `tag`, as the server does.
+    fn journaled(state: &mut State, block: Uuid, tag: Hash) -> &mut Journaled {
+        state.journals.entry(block).or_insert_with(|| Journaled {
+            head: JournalHead {
+                tag,
+                base: JournalBase {
+                    commit: None,
+                    sequence: 0,
+                    state: Vec::new(),
+                },
+                order: be_block_session::Sequencer::starting(0),
+            },
+            entries: BTreeMap::new(),
+        })
+    }
+
+    /// Keeps entries the order numbered (sealed) past the journal's last, starting the journal
+    /// over for another `tag`, as the server does.
     pub fn append_journal(
         &self,
         block: Uuid,
         tag: Hash,
-        generation: u64,
         entries: Vec<JournalEntry>,
     ) -> Result<(), StoreError> {
         let mut rows = Vec::new();
         {
             let mut state = self.state.lock().unwrap();
-            let journal = state.journals.entry(block).or_insert_with(|| Journaled {
-                head: JournalHead {
-                    tag,
-                    generation,
-                    base: JournalBase {
-                        commit: None,
-                        sequence: 0,
-                        state: Vec::new(),
-                    },
-                    sealing: None,
-                },
-                entries: BTreeMap::new(),
-            });
+            let journal = Self::journaled(&mut state, block, tag);
             if journal.head.tag != tag {
                 for sequence in std::mem::take(&mut journal.entries).into_keys() {
                     rows.push(Row {
@@ -1178,21 +2083,12 @@ impl Refs {
                 }
                 journal.head.tag = tag;
             }
-            journal.head.generation = generation;
-            rows.push(row(
-                Table::JournalBase,
-                block.as_bytes().to_vec(),
-                &journal.head,
-            ));
-            let mut last = journal
-                .entries
-                .last_key_value()
-                .map_or(journal.head.base.sequence, |(sequence, _)| *sequence);
             for entry in entries {
-                if entry.sequence <= last {
+                if entry.sequence <= journal.head.order.sequence {
                     continue;
                 }
-                last = entry.sequence;
+                journal.head.order.sequence = entry.sequence;
+                journal.head.order.barrier = journal.head.order.barrier.max(entry.floor);
                 rows.push(row(
                     Table::JournalEntry,
                     journal_entry_key(block, entry.sequence),
@@ -1200,59 +2096,144 @@ impl Refs {
                 ));
                 journal.entries.insert(entry.sequence, entry);
             }
+            rows.push(row(
+                Table::JournalBase,
+                block.as_bytes().to_vec(),
+                &journal.head,
+            ));
         }
         self.write(rows)
     }
 
-    /// Starts the journal over from `base` (sealed), dropping every entry, as the server does,
-    /// and keeps `entries` past it (sealed) in the same write.
+    /// Numbers `submission` (its payload sealed) in this device's own order, as the server
+    /// would, for a session kept offline, and keeps it: the entry every replica of the block on
+    /// this device is to hear.
+    pub fn number_offline(
+        &self,
+        block: Uuid,
+        tag: Hash,
+        submission: be_block_session::Submission,
+    ) -> Result<JournalEntry, StoreError> {
+        // A journal this device starts offline starts on the head it holds.
+        if self.journal(block).is_none() {
+            let base = JournalBase {
+                commit: self.head(block),
+                sequence: 0,
+                state: Vec::new(),
+            };
+            self.rebase_journal(block, tag, base)?;
+        }
+        let entry = {
+            let mut state = self.state.lock().unwrap();
+            let journal = Self::journaled(&mut state, block, tag);
+            let be_block_session::OpId { origin, counter } = submission.id;
+            // Numbered before, as the server does: the entry it holds, not a second one.
+            if let Some(held) = journal
+                .entries
+                .values()
+                .find(|entry| entry.origin == origin && entry.counter == counter)
+            {
+                return Ok(held.clone());
+            }
+            // Numbered on a copy: `append_journal` keeps the entry and moves the order past it.
+            let mut order = journal.head.order;
+            let op = order.number(submission, None);
+            JournalEntry {
+                sequence: op.sequence,
+                origin,
+                counter,
+                base: op.base,
+                floor: op.floor,
+                received: None,
+                payload: op.payload,
+            }
+        };
+        self.append_journal(block, tag, vec![entry.clone()])?;
+        Ok(entry)
+    }
+
+    /// Starts the journal from `base` (sealed), as the server does: keeps the entries after it,
+    /// and for another `tag` drops every entry. A base that goes back while nothing after the
+    /// journal's own base was numbered starts the order afresh from it.
     pub fn rebase_journal(
         &self,
         block: Uuid,
         tag: Hash,
-        generation: u64,
         base: JournalBase,
-        entries: Vec<JournalEntry>,
     ) -> Result<(), StoreError> {
         let mut rows = Vec::new();
         {
             let mut state = self.state.lock().unwrap();
-            // A rebase starts the journal over from a commit: no seal of the old one stands.
-            let head = JournalHead {
-                tag,
-                generation,
-                base,
-                sealing: None,
-            };
-            if let Some(journal) = state.journals.get(&block) {
-                for sequence in journal.entries.keys() {
-                    rows.push(Row {
-                        table: Table::JournalEntry,
-                        key: journal_entry_key(block, *sequence),
-                        value: None,
-                    });
-                }
+            let journal = Self::journaled(&mut state, block, tag);
+            let other = journal.head.tag != tag;
+            let order = journal.head.order;
+            let goes_on = !other
+                && (order.sequence > base.sequence.max(journal.head.base.sequence)
+                    || base.sequence >= journal.head.base.sequence);
+            if !goes_on {
+                journal.head.order = be_block_session::Sequencer::starting(base.sequence);
             }
-            rows.push(row(Table::JournalBase, block.as_bytes().to_vec(), &head));
-            let mut kept = BTreeMap::new();
-            for entry in entries {
-                if entry.sequence <= head.base.sequence {
-                    continue;
-                }
+            let cut = match other {
+                true => u64::MAX,
+                false => base.sequence,
+            };
+            let dropped: Vec<u64> = journal.entries.range(..=cut).map(|(at, _)| *at).collect();
+            for sequence in dropped {
+                journal.entries.remove(&sequence);
+                rows.push(Row {
+                    table: Table::JournalEntry,
+                    key: journal_entry_key(block, sequence),
+                    value: None,
+                });
+            }
+            journal.head.tag = tag;
+            journal.head.base = base;
+            rows.push(row(
+                Table::JournalBase,
+                block.as_bytes().to_vec(),
+                &journal.head,
+            ));
+        }
+        self.write(rows)
+    }
+
+    /// Makes this device's journal `journal` (sealed), as the server holds it: its base, its
+    /// entries and its order, whatever this device held before.
+    pub fn replace_journal(&self, block: Uuid, journal: Journal) -> Result<(), StoreError> {
+        let mut rows = Vec::new();
+        {
+            let mut state = self.state.lock().unwrap();
+            let held = Self::journaled(&mut state, block, journal.tag);
+            for sequence in std::mem::take(&mut held.entries).into_keys() {
+                rows.push(Row {
+                    table: Table::JournalEntry,
+                    key: journal_entry_key(block, sequence),
+                    value: None,
+                });
+            }
+            let mut order = be_block_session::Sequencer::starting(journal.base.sequence);
+            for entry in &journal.entries {
+                order.sequence = order.sequence.max(entry.sequence);
+                order.barrier = order.barrier.max(entry.floor);
+            }
+            held.head = JournalHead {
+                tag: journal.tag,
+                base: journal.base,
+                order,
+            };
+            for entry in journal.entries {
                 rows.push(row(
                     Table::JournalEntry,
                     journal_entry_key(block, entry.sequence),
                     &entry,
                 ));
-                kept.insert(entry.sequence, entry);
+                held.entries.insert(entry.sequence, entry);
             }
-            state.journals.insert(
-                block,
-                Journaled {
-                    head,
-                    entries: kept,
-                },
-            );
+            rows.push(row(
+                Table::JournalBase,
+                block.as_bytes().to_vec(),
+                &held.head,
+            ));
         }
         self.write(rows)
     }
@@ -1263,6 +2244,15 @@ impl Refs {
             .outbox
             .values()
             .any(|op| matches!(op, Op::Create(creation) if creation.block == block))
+    }
+
+    /// The parent record of the block's creation waiting in the outbox, signed here.
+    pub fn creation_placement(&self, block: Uuid) -> Option<Vec<u8>> {
+        let state = self.state.lock().unwrap();
+        state.outbox.values().find_map(|op| match op {
+            Op::Create(creation) if creation.block == block => Some(creation.placement.clone()),
+            _ => None,
+        })
     }
 
     /// Whether the block's creation was set aside among the unsent edits.
@@ -1295,16 +2285,50 @@ impl Refs {
             .collect()
     }
 
+    /// The operation waiting at `sequence`, as it stands now: a commit sealed again
+    /// (`replace_publishes`) keeps its place.
+    pub fn op(&self, sequence: u64) -> Option<Op> {
+        self.state.lock().unwrap().outbox.get(&sequence).cloned()
+    }
+
+    /// Puts each publish in `rewritten` in the place of the one at its sequence, and moves the
+    /// block's local head to what `moved` put in its place, in one write: what `Peer::reseal`
+    /// sealed again. The head is read here, under the lock, so a commit made while the
+    /// commits were sealed again stays the head.
+    pub fn replace_publishes(
+        &self,
+        block: Uuid,
+        rewritten: Vec<(u64, Pending)>,
+        moved: &HashMap<CommitId, CommitId>,
+    ) -> Result<(), StoreError> {
+        let mut rows = Vec::with_capacity(rewritten.len() + 1);
+        {
+            let mut state = self.state.lock().unwrap();
+            for (sequence, pending) in rewritten {
+                let op = Op::Publish(pending);
+                if let Some(held) = state.outbox.get_mut(&sequence) {
+                    rows.push(row(Table::Outbox, sequence.to_be_bytes().to_vec(), &op));
+                    *held = op;
+                }
+            }
+            if let Some(head) = state.heads.get(&block).and_then(|head| moved.get(head)) {
+                let head = *head;
+                rows.push(row(Table::Head, block.as_bytes().to_vec(), &head));
+                state.heads.insert(block, head);
+            }
+        }
+        self.write(rows)
+    }
+
     pub fn holds(&self, sequence: u64) -> bool {
         self.state.lock().unwrap().outbox.contains_key(&sequence)
     }
 
     pub fn has_structural(&self, block: Uuid) -> bool {
         let state = self.state.lock().unwrap();
-        state
-            .outbox
-            .values()
-            .any(|op| op.block() == block && !matches!(op, Op::Publish(_)))
+        state.outbox.values().any(|op| {
+            op.block() == block && !matches!(op, Op::Publish(_) | Op::Hold(_) | Op::Append(_))
+        })
     }
 
     pub fn below(&self, root: Uuid) -> HashSet<Uuid> {
@@ -1342,6 +2366,13 @@ impl Refs {
                 .chain(state.unsent.keys().copied())
                 .chain(
                     state
+                        .open_edits
+                        .iter()
+                        .filter(|(_, kept)| !kept.edits.is_empty())
+                        .map(|(block, _)| *block),
+                )
+                .chain(
+                    state
                         .journals
                         .iter()
                         .filter(|(_, journal)| !journal.entries.is_empty())
@@ -1352,7 +2383,6 @@ impl Refs {
             let about = |listing: &Listing| match listing {
                 Listing::Children(BlockParent::Block(block))
                 | Listing::Backrefs(block)
-                | Listing::Block(block)
                 | Listing::References(block)
                 | Listing::OpenSettings(block) => gone.contains(block),
                 _ => false,
@@ -1397,6 +2427,44 @@ impl Refs {
                         key: block.as_bytes().to_vec(),
                         value: None,
                     });
+                }
+                // A log's entries go, its head stays: a log served later still has to extend
+                // what this device saw.
+                for seq in state
+                    .log_entries
+                    .remove(block)
+                    .unwrap_or_default()
+                    .into_keys()
+                {
+                    rows.push(Row {
+                        table: Table::LogEntry,
+                        key: journal_entry_key(*block, seq),
+                        value: None,
+                    });
+                }
+                for order in state
+                    .not_appended
+                    .remove(block)
+                    .unwrap_or_default()
+                    .into_keys()
+                {
+                    rows.push(Row {
+                        table: Table::NotAppended,
+                        key: journal_entry_key(*block, order),
+                        value: None,
+                    });
+                }
+                for (table, gone_too) in [
+                    (Table::OpenEdits, state.open_edits.remove(block).is_some()),
+                    (Table::SetAside, state.set_aside.remove(block).is_some()),
+                ] {
+                    if gone_too {
+                        rows.push(Row {
+                            table,
+                            key: block.as_bytes().to_vec(),
+                            value: None,
+                        });
+                    }
                 }
                 for (table, held) in [
                     (Table::Head, &mut state.heads),
@@ -1462,7 +2530,7 @@ impl Refs {
         &self,
         block: Uuid,
         since: i64,
-        refused: Option<ErrorCode>,
+        refused: Option<Aside>,
     ) -> Result<bool, StoreError> {
         let mut rows = Vec::new();
         {
@@ -1474,6 +2542,21 @@ impl Refs {
                 .map(|(sequence, _)| *sequence)
                 .collect();
             if moved.is_empty() {
+                return Ok(false);
+            }
+            // Its local edits were discarded: what it sealed before that and the server refused
+            // since goes with them, rather than being set aside to be discarded again.
+            if state.dropped.contains(&block) {
+                for sequence in moved {
+                    state.outbox.remove(&sequence);
+                    rows.push(Row {
+                        table: Table::Outbox,
+                        key: sequence.to_be_bytes().to_vec(),
+                        value: None,
+                    });
+                }
+                drop(state);
+                self.write(rows)?;
                 return Ok(false);
             }
             let head = state.heads.get(&block).copied();
@@ -1506,9 +2589,9 @@ impl Refs {
         self.state.lock().unwrap().unsent.contains_key(&block)
     }
 
-    /// The code the server refused `block` with, when what this device made of it was set aside
-    /// for that (`Unsent::refused`).
-    pub fn refused(&self, block: Uuid) -> Option<ErrorCode> {
+    /// Why what this device made of `block` was set aside, when it was refused or outdated
+    /// (`Unsent::refused`).
+    pub fn refused(&self, block: Uuid) -> Option<Aside> {
         self.state
             .lock()
             .unwrap()
@@ -1552,15 +2635,96 @@ impl Refs {
         Ok(true)
     }
 
-    pub fn take_unsent(&self, block: Uuid) -> Result<Option<Unsent>, StoreError> {
-        let Some(unsent) = self.state.lock().unwrap().unsent.remove(&block) else {
-            return Ok(None);
+    /// Drops the local edits this device keeps of `block`: its kept edits (`OpenEdits`), its
+    /// journal, the commits it sealed that wait in the outbox, and its local head, which falls
+    /// back to the server's. For a block this account lost access to, which they can never
+    /// reach and which `forget` would otherwise keep for them.
+    #[cfg(test)]
+    pub fn drop_local_edits(&self, block: Uuid) -> Result<(), StoreError> {
+        let mut rows = Vec::new();
+        Self::dropping_local_edits(&mut self.state.lock().unwrap(), block, &mut rows);
+        self.write(rows)
+    }
+
+    fn dropping_local_edits(state: &mut State, block: Uuid, rows: &mut Vec<Row>) {
+        state.dropped.insert(block);
+        rows.push(row(Table::Dropped, block.as_bytes().to_vec(), &()));
+        let sealed: Vec<u64> = state
+            .outbox
+            .iter()
+            .filter(|(_, op)| op.block() == block && matches!(op, Op::Publish(_)))
+            .map(|(sequence, _)| *sequence)
+            .collect();
+        for sequence in sealed {
+            state.outbox.remove(&sequence);
+            rows.push(Row {
+                table: Table::Outbox,
+                key: sequence.to_be_bytes().to_vec(),
+                value: None,
+            });
+        }
+        // What it sealed is discarded, so its head is the server's again: a block kept for
+        // another reason must not build on the discarded commit once it may edit again.
+        match state.remotes.get(&block).copied() {
+            Some(remote) => {
+                if state.heads.insert(block, remote) != Some(remote) {
+                    rows.push(row(Table::Head, block.as_bytes().to_vec(), &remote));
+                }
+            }
+            None => {
+                if state.heads.remove(&block).is_some() {
+                    rows.push(Row {
+                        table: Table::Head,
+                        key: block.as_bytes().to_vec(),
+                        value: None,
+                    });
+                }
+            }
+        }
+        if state.open_edits.remove(&block).is_some() {
+            rows.push(Row {
+                table: Table::OpenEdits,
+                key: block.as_bytes().to_vec(),
+                value: None,
+            });
+        }
+        if let Some(journal) = state.journals.remove(&block) {
+            for sequence in journal.entries.into_keys() {
+                rows.push(Row {
+                    table: Table::JournalEntry,
+                    key: journal_entry_key(block, sequence),
+                    value: None,
+                });
+            }
+            rows.push(Row {
+                table: Table::JournalBase,
+                key: block.as_bytes().to_vec(),
+                value: None,
+            });
+        }
+    }
+
+    /// Takes `block`'s unsent edits away, discarding them. Set aside as this account lost access
+    /// to it, its local edits go with them (`discard_unsent`), in the same step: a commit the
+    /// server refuses meanwhile is not set aside again.
+    pub fn discard_unsent(&self, block: Uuid) -> Result<Option<Unsent>, StoreError> {
+        let mut rows = Vec::new();
+        let unsent = {
+            let mut state = self.state.lock().unwrap();
+            let Some(unsent) = state.unsent.remove(&block) else {
+                return Ok(None);
+            };
+            rows.push(Row {
+                table: Table::Unsent,
+                key: block.as_bytes().to_vec(),
+                value: None,
+            });
+            if unsent.refused.is_none() {
+                Self::dropping_local_edits(&mut state, block, &mut rows);
+            }
+            unsent
         };
-        self.write(vec![Row {
-            table: Table::Unsent,
-            key: block.as_bytes().to_vec(),
-            value: None,
-        }])?;
+        self.write(rows)?;
         Ok(Some(unsent))
     }
 }
@@ -1605,10 +2769,9 @@ fn sequence_key(bytes: &[u8]) -> Result<u64, StoreError> {
 }
 
 fn newest(state: &State) -> u64 {
-    state
-        .summaries
-        .values()
-        .map(|summary| summary.revision)
+    let summaries = state.summaries.values().map(|summary| summary.changed);
+    summaries
+        .chain(state.listed_at.values().copied())
         .max()
         .unwrap_or_default()
 }

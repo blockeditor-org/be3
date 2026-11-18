@@ -3,6 +3,7 @@ use be_sdk_beui::beui::native::Document;
 use be_sdk_beui::beui::{Input, Modifiers, NodeId, PointerButton, Pos2, Vec2};
 use be_sdk_beui::{EditorHost, OwnedEditor};
 use be_sdk_test::BeuiTest;
+use be_sdk_test::prelude::*;
 use be_type_workspace::{FolderContent, WorkspaceContent};
 use uuid::Uuid;
 
@@ -10,6 +11,7 @@ use crate::root::FileTreeRoot;
 
 mod a_block_only_an_open_tab_shows_is_not_used_anywhere;
 mod a_block_whose_key_has_not_arrived_shows_locked_and_a_shared_workspace_can_be_left;
+mod a_chat_row_counts_its_unread_messages_until_they_are_read;
 mod a_folder_reopened_from_the_view_is_listed_before_the_files_are_shown;
 mod a_folder_still_loading_says_so_only_after_a_moment;
 mod a_folder_that_could_not_be_listed_says_why;
@@ -17,17 +19,22 @@ mod a_link_to_a_deleted_block_is_marked_and_can_restore_it;
 mod a_linked_block_it_cannot_see_shows_no_access_rather_than_locked;
 mod a_narrow_files_pane_gives_its_filter_the_width_between_the_buttons;
 mod a_narrow_files_pane_on_a_desktop_keeps_the_tree;
+mod a_new_block_s_rename_is_dropped_once_the_keyboard_goes_to_another_block;
 mod a_new_workspace_is_made_at_the_top_and_named_in_place;
 mod a_phone_lists_what_is_shared_with_it;
 mod a_phone_reaches_the_account_s_system_blocks;
 mod a_phone_walks_into_folders_and_opens_files;
+mod a_phrase_hit_marks_and_opens_at_its_words_in_a_row;
 mod a_pinned_block_is_listed_first_in_its_workspace;
+mod a_rename_ends_as_left_once_the_keyboard_goes_to_another_block;
 mod a_row_carried_among_its_siblings_parts_them_and_is_reordered_on_drop;
 mod a_row_dropped_between_the_rows_of_another_folder_moves_there_in_that_place;
 mod a_row_in_a_folder_is_reordered_among_its_siblings;
 mod a_row_whose_access_or_settings_are_its_own_opens_them_from_an_icon;
 mod a_row_whose_container_keeps_no_order_only_moves_into_folders;
 mod a_tag_from_the_workspace_marks_a_block_and_shows_on_its_row;
+mod a_tree_whose_view_block_cannot_be_read_still_shows;
+mod a_tree_whose_view_block_never_loads_still_shows;
 mod a_workspace_header_adds_into_that_workspace;
 mod a_workspace_is_shown_with_what_it_holds_already_listed;
 mod a_workspace_s_rows_follow_the_order_it_lists_its_children_in;
@@ -150,9 +157,7 @@ impl Fixture {
     fn lift(&mut self, block: Uuid) {
         let from = self.row(block).center();
         self.test.down(from, PointerButton::Primary);
-        self.test.next_frame();
         self.test.hover(from + Vec2::new(0.0, 4.0));
-        self.test.next_frame();
         self.test.hover(from + Vec2::new(0.0, 10.0));
         self.settle();
     }
@@ -396,7 +401,6 @@ fn expand(
     fixture
         .test
         .click(format!("file-tree.{}.chevron", folder.id));
-    fixture.test.run();
     fixture
         .host
         .set_blocks(be_sdk_beui::BlockQuery::References(folder.id), inside);

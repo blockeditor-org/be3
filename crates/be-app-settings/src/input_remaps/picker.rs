@@ -82,7 +82,6 @@ pub(super) fn KeyPicker(
     let open = create_memo(move || picking.get().is_some());
     let target = create_memo(move || picking.get().map(|picking| picking.target));
     let wheel = create_memo(move || target.get() == Some(Target::On));
-    let nothing = create_memo(move || target.get() == Some(Target::Key));
     let title = create_memo(move || {
         match target.get() {
             Some(Target::On) | None => "Choose what you press",
@@ -97,13 +96,9 @@ pub(super) fn KeyPicker(
         true => vec![Tab::Press, Tab::Mouse, Tab::AllKeys],
         false => vec![Tab::Mouse, Tab::AllKeys],
     });
-    let first = move || {
-        tabs.with_untracked(|tabs| {
-            tabs.iter()
-                .position(|tab| *tab == Tab::Press)
-                .or_else(|| tabs.iter().position(|tab| *tab == Tab::AllKeys))
-        })
-        .unwrap_or(0)
+    let first = move || match pressable.get_untracked() {
+        true => Tab::Press,
+        false => Tab::AllKeys,
     };
     let tab = create_signal(first());
     let query = create_signal(String::new());
@@ -123,10 +118,8 @@ pub(super) fn KeyPicker(
             });
         }
     });
-    let shown = move |which: Tab| {
-        create_memo(move || tabs.with(|tabs| tabs.get(tab.get()) == Some(&which)))
-    };
-    let pressing = shown(Tab::Press);
+    let current = create_memo(move || Some(tab.get()));
+    let pressing = create_memo(move || tab.get() == Tab::Press);
     let capture = editor.watch_while::<InputCaptureWatch>(move || {
         open.get() && pressing.get() && listening.get() && !resting.get()
     });
@@ -158,31 +151,35 @@ pub(super) fn KeyPicker(
             <List spacing=SPACING>
                 <Tabs
                     options={view! {
-                        <ForEach keys={tabs}>|which: Tab|
-                            <ChoiceOption label={which.label()} />
+                        <ForEach value={tabs}>|which: Tab|
+                            <ChoiceOption value=which label={which.label()} />
                         </ForEach>
                     }}
                     selected={tab}
                     label="Find the key by"
                     @test_id={"input-remaps.picker.tabs"}
                 />
-                <Show condition={pressing}>
-                    <PressTab
-                        target={target}
-                        listening={listening}
-                        capture={capture}
-                        listen_again={listen_again}
-                        pick={pick}
-                    />
-                </Show>
-                <Show condition={shown(Tab::Mouse)}>
-                    <MouseTab wheel={wheel} pick={pick} />
-                </Show>
-                <Show condition={shown(Tab::AllKeys)}>
-                    <AllKeysTab query={query} wheel={wheel} pick={pick} />
+                <Show value={current}>|current: ReadSignal<Tab>|
+                    <Match value={current}>
+                        <Case is={Tab::Press}>
+                            <PressTab
+                                target={target}
+                                listening={listening}
+                                capture={capture}
+                                listen_again={listen_again}
+                                pick={pick}
+                            />
+                        </Case>
+                        <Case is={Tab::Mouse}>
+                            <MouseTab wheel={wheel} pick={pick} />
+                        </Case>
+                        <Case is={Tab::AllKeys}>
+                            <AllKeysTab query={query} wheel={wheel} pick={pick} />
+                        </Case>
+                    </Match>
                 </Show>
                 <Separator />
-                <Show condition={nothing}>
+                <Show value={move || target.get() == Some(Target::Key)}>
                     <List direction=Direction::Horizontal align=Align::Center spacing=KEY_SPACING>
                         <Button
                             label=NOTHING
@@ -292,8 +289,17 @@ fn PressTab(
                 .collect::<Vec<_>>()
         })
     });
-    let idle = create_memo(move || !listening.get());
-    let waiting = create_memo(move || listening.get() && held.with(Vec::is_empty));
+    let idle = move || {
+        view! {
+            <Button
+                label="Start listening"
+                glyph={Some(ICON_KEYBOARD)}
+                variant=ButtonVariant::Primary
+                @test_id={"input-remaps.picker.listen"}
+                on_click={move || listening.set(true)}
+            />
+        }
+    };
     let prompt = create_memo(move || {
         match (listening.get(), target.get()) {
             (true, _) if !held.with(Vec::is_empty) => "Now the key, or let go…",
@@ -309,22 +315,13 @@ fn PressTab(
     view! {
         <Frame border=Border::DEFAULT radius=Radius::Md padding={Padding::all(Space::Xl)}>
             <List spacing=SPACING align=Align::Center>
-                <Show condition={idle}>
-                    <Button
-                        label="Start listening"
-                        glyph={Some(ICON_KEYBOARD)}
-                        variant=ButtonVariant::Primary
-                        @test_id={"input-remaps.picker.listen"}
-                        on_click={move || listening.set(true)}
-                    />
-                </Show>
-                <Show condition={listening}>
+                <Show value={listening} fallback={idle}>
                     <List spacing=SPACING align=Align::Center>
                         <List direction=Direction::Horizontal spacing=KEY_SPACING wrap=true>
-                            <ForEach keys={held}>|name: String|
+                            <ForEach value={held}>|name: String|
                                 <KeyCap label={label(&name)} />
                             </ForEach>
-                            <Show condition={waiting}>
+                            <Show value={move || listening.get() && held.with(Vec::is_empty)}>
                                 <Text color=TextColor::Muted>"Listening…"</Text>
                             </Show>
                         </List>
@@ -344,13 +341,11 @@ fn PressTab(
 
 #[component]
 fn MouseTab(wheel: Memo<bool>, pick: Callback<Picked>) -> NodeId {
-    let buttons = create_memo(|| keys::buttons());
-    let wheels = create_memo(|| keys::wheels());
     view! {
         <List spacing=SPACING>
-            <KeyButtons title="Buttons" names={buttons} pick={pick} />
-            <Show condition={wheel}>
-                <KeyButtons title="Wheel" names={wheels} pick={pick} />
+            <KeyButtons title="Buttons" names={keys::buttons()} pick={pick} />
+            <Show value={wheel}>
+                <KeyButtons title="Wheel" names={keys::wheels()} pick={pick} />
             </Show>
         </List>
     }
@@ -376,7 +371,6 @@ fn AllKeysTab(query: Signal<String>, wheel: Memo<bool>, pick: Callback<Picked>) 
     let kinds = create_memo(move || {
         listed.with(|listed| listed.iter().map(|(kind, _)| *kind).collect::<Vec<_>>())
     });
-    let none = create_memo(move || kinds.with(Vec::is_empty) && !wheeled.get());
     let nothing =
         create_memo(move || format!("No key matches \u{201c}{}\u{201d}.", query.get().trim()));
     view! {
@@ -389,7 +383,7 @@ fn AllKeysTab(query: Signal<String>, wheel: Memo<bool>, pick: Callback<Picked>) 
                 clearable=true
                 @test_id={"input-remaps.picker.search"}
             />
-            <ForEach keys={kinds}>|kind: be_lib_remap::names::KeyKind| {
+            <ForEach value={kinds}>|kind: be_lib_remap::names::KeyKind| {
                 let names = create_memo(move || {
                     listed.with(|listed| {
                         listed
@@ -403,10 +397,10 @@ fn AllKeysTab(query: Signal<String>, wheel: Memo<bool>, pick: Callback<Picked>) 
                     <KeyButtons title={kind.title()} names={names} pick={pick} />
                 }
             }</ForEach>
-            <Show condition={wheeled}>
+            <Show value={wheeled}>
                 <KeyButtons title="Wheel" names={wheels} pick={pick} />
             </Show>
-            <Show condition={none}>
+            <Show value={move || kinds.with(Vec::is_empty) && !wheeled.get()}>
                 <Text style=TextStyle::CAPTION>{nothing}</Text>
             </Show>
         </List>
@@ -414,13 +408,13 @@ fn AllKeysTab(query: Signal<String>, wheel: Memo<bool>, pick: Callback<Picked>) 
 }
 
 #[component]
-fn KeyButtons(title: Prop<String>, names: Memo<Vec<String>>, pick: Callback<Picked>) -> NodeId {
+fn KeyButtons(title: Prop<String>, names: Prop<Vec<String>>, pick: Callback<Picked>) -> NodeId {
     let title = create_memo(move || title.get());
     view! {
         <List spacing=CATEGORY_SPACING>
             <Text style=TextStyle::CAPTION>{title}</Text>
             <List direction=Direction::Horizontal spacing=KEY_SPACING wrap=true>
-                <ForEach keys={names}>|name: String| {
+                <ForEach value={names}>|name: String| {
                     let chosen = name.clone();
                     view! {
                         <Button
@@ -453,10 +447,10 @@ fn TypedKey(
         (false, Ok(name)) => format!("Uses {}.", label(&name)),
         (false, Err(problem)) => problem,
     });
-    let style = create_memo(move || match !empty.get() && unusable.get() {
+    let style = move || match !empty.get() && unusable.get() {
         true => TextStyle::CAPTION.color(TextColor::Danger),
         false => TextStyle::CAPTION,
-    });
+    };
     let use_it = move || {
         if let Ok(name) = read.get_untracked() {
             pick.call(Picked::key(name));

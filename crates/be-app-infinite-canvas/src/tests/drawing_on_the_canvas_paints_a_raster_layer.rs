@@ -4,11 +4,9 @@ use super::*;
 fn drawing_on_the_canvas_paints_a_raster_layer() {
     let mut editor = raster_editor(&[]);
     editor.click("infinite-canvas.dock.tool.pencil");
-    editor.run();
     let center = editor.rect_of("infinite-canvas.canvas").center();
 
     editor.drag(center + Vec2::new(4.0, 4.0), center + Vec2::new(44.0, 4.0));
-    editor.run();
     let layers = rasters(&editor);
     let [layer] = layers.as_slice() else {
         panic!("a stroke on empty canvas makes one layer, made {layers:?}");
@@ -32,7 +30,6 @@ fn drawing_on_the_canvas_paints_a_raster_layer() {
     assert_eq!(raster.pixel(21, 16), Some(BLACK));
 
     editor.drag(center + Vec2::new(4.0, 20.0), center + Vec2::new(4.0, 60.0));
-    editor.run();
     assert_eq!(
         rasters(&editor).len(),
         1,
@@ -44,7 +41,6 @@ fn drawing_on_the_canvas_paints_a_raster_layer() {
         center + Vec2::new(-200.0, 0.0),
         center + Vec2::new(-180.0, 0.0),
     );
-    editor.run();
     assert_eq!(painted(&raster_of(&editor, layer.id)), 12);
     assert_eq!(rasters(&editor).len(), 2);
     editor.snapshot("drawing_on_the_canvas_paints_a_raster_layer");

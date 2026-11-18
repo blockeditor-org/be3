@@ -15,6 +15,7 @@ use uuid::Uuid;
 
 pub(crate) mod actions;
 pub(crate) mod canvas;
+pub(crate) mod carry;
 pub(crate) mod components;
 pub(crate) mod entities;
 pub(crate) mod export;
@@ -43,7 +44,7 @@ use mode::{MODE, ModeBar};
 use raster::RasterDialogs;
 use sidebar::CanvasInspector;
 use state::CanvasState;
-use toolbar::{ImportError, STAGE, SelectionDock, TOOLS, ToolBar, ZOOM, ZoomBar, tools_open};
+use toolbar::{STAGE, SelectionDock, TOOLS, ToolBar, ZOOM, ZoomBar, tools_open};
 use touch::TouchSetting;
 
 use crate::geometry::MIN_SIZE;
@@ -61,18 +62,17 @@ impl be_sdk_beui::BeuiRoot for CanvasRoot {
     #[component]
     fn View(editor: Editor) -> Root {
         let presented = editor.presenting();
-        let editing = create_memo(move || !presented.get());
         view! {
             <Root>
                 <Loaded>
-                    <Layers>
-                        <Show condition={editing}>
+                    <Show
+                        value={presented}
+                        fallback={move || view! {
                             <CanvasEditor editor={editor} />
-                        </Show>
-                        <Show condition={presented}>
-                            <CanvasPresented editor={editor} />
-                        </Show>
-                    </Layers>
+                        }}
+                    >
+                        <CanvasPresented editor={editor} />
+                    </Show>
                 </Loaded>
             </Root>
         }
@@ -97,19 +97,12 @@ fn CanvasEditor(editor: Editor) -> NodeId {
     let state = CanvasState::new(editor, false);
     state.watch();
 
-    editor.on_replace_child(move |old, new| {
-        state.is_alive() && state.replace_referenced_block(old, new)
-    });
-
     report_intrinsic_size(editor, state);
 
     let content = NodeRef::new();
     editor.content(&content);
     editor.keep_fitted(|| Some(Fit::Centre));
     let chrome = editor.chrome_shown();
-    let inspected = create_memo(move || {
-        chrome.get() && state.profile.get() != be_type_infinite_canvas::CanvasProfile::Prototyping
-    });
     let scope = NodeRef::new();
     action_scope(&scope);
     let actions = canvas_actions(state);
@@ -127,7 +120,6 @@ fn CanvasEditor(editor: Editor) -> NodeId {
                     <DockTab id=STAGE title="Canvas">
                         <List @node_ref=&scope spacing=Space::None>
                             <TouchSetting editor choice={touch} />
-                            <ImportError state={state} />
                             <ExportDialog exporter />
                             <RasterDialogs state />
                             <ListItem grow=1.0>
@@ -139,7 +131,12 @@ fn CanvasEditor(editor: Editor) -> NodeId {
                         </List>
                     </DockTab>
                 </DockPane>
-                <Show condition={inspected}>
+                <Show
+                    value={move || {
+                        chrome.get()
+                            && state.profile.get() != be_type_infinite_canvas::CanvasProfile::Prototyping
+                    }}
+                >
                     <DockSplit
                         id="side"
                         direction=Direction::Vertical

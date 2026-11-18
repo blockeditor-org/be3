@@ -3,19 +3,39 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use be_block_commit::{CommitId, now_milliseconds};
 use be_block_graph::{Access, BlockParent};
-use be_block_protocol::{BlockSummary, ErrorCode, Listing, PublishOutcome, client};
-use be_block_store::ObjectStore;
+use be_block_protocol::{BlockSummary, ErrorCode, Listing, PublishOutcome};
+use be_block_store::{Hash, ObjectStore};
 use uuid::Uuid;
 
 use super::{Drained, Peer, Reconciled};
 use crate::{
     ClientError,
-    refs::{Creation, Defining, Moving, Op, Pending, PendingCounts, UnsentBlock},
+    refs::{Creation, Defining, Holding, Moving, Op, Pending, PendingCounts, UnsentBlock},
 };
 
 impl<S: ObjectStore> Peer<S> {
     pub fn pending(&self) -> PendingCounts {
         self.refs.counts()
+    }
+
+    /// What waits in the outbox, in the order the drain sends it: each operation's kind and
+    /// block, for a host to name what keeps it from being in step.
+    pub fn outbox(&self) -> Vec<(&'static str, Uuid)> {
+        self.refs
+            .outbox()
+            .into_iter()
+            .map(|(_, op)| {
+                let kind = match op {
+                    Op::Create(_) => "create",
+                    Op::Publish(_) => "publish",
+                    Op::Move(_) => "move",
+                    Op::Define(_) => "define",
+                    Op::Hold(_) => "hold",
+                    Op::Append(_) => "append",
+                };
+                (kind, op.block())
+            })
+            .collect()
     }
 
     pub fn has_pending(&self, block: Uuid) -> bool {
@@ -27,9 +47,9 @@ impl<S: ObjectStore> Peer<S> {
         self.refs.is_unsent(block)
     }
 
-    /// The code the server refused to make `block` with, while what this device made of it is
-    /// set aside for that (`UnsentBlock::refused`).
-    pub fn refusal(&self, block: Uuid) -> Option<ErrorCode> {
+    /// Why what this device made of `block` is set aside, when it was refused or outdated
+    /// (`UnsentBlock::refused`).
+    pub fn refusal(&self, block: Uuid) -> Option<crate::refs::Aside> {
         self.refs.refused(block)
     }
 
@@ -107,7 +127,73 @@ impl<S: ObjectStore> Peer<S> {
         }))?;
         summary.parent = Some(parent);
         self.refs.revise(summary)?;
+        self.settle_locally()?;
         Ok(())
+    }
+
+    /// Keeps a hold of `objects` for `block` in the outbox, which uploads and holds them once it
+    /// is sent (`drain_hold`): kept on this device meanwhile.
+    pub(super) fn hold_later(
+        &self,
+        block: Uuid,
+        objects: &[Hash],
+        hold: be_block_protocol::Hold,
+    ) -> Result<(), ClientError> {
+        self.commits.vault().store().sync()?;
+        self.refs.push(Op::Hold(Holding {
+            block,
+            objects: objects.to_vec(),
+            lasting: matches!(hold, be_block_protocol::Hold::Lasting),
+        }))?;
+        self.settle_locally()?;
+        Ok(())
+    }
+
+    /// The block's history as far as this device holds it, from the server's head as last heard
+    /// back through every parent it has: what `history` answers offline. A commit it never
+    /// fetched ends the walk there.
+    pub(super) fn history_held(
+        &self,
+        block: Uuid,
+    ) -> Result<Vec<be_block_protocol::HistoryEntry>, ClientError> {
+        let head = self
+            .known_remote_head(block)
+            .or_else(|| self.refs.summary(block).and_then(|summary| summary.head));
+        // Each commit after its parents (a walk that puts a commit down once every parent it
+        // holds is down), then oldest first, which keeps that order where two share a time.
+        let mut entries = Vec::new();
+        let mut done = HashSet::new();
+        let mut stack: Vec<(CommitId, bool)> = head.into_iter().map(|id| (id, false)).collect();
+        while let Some((id, parents_down)) = stack.pop() {
+            if done.contains(&id) {
+                continue;
+            }
+            let Some(commit) = self.commits.try_get(id)? else {
+                done.insert(id);
+                continue;
+            };
+            if !parents_down {
+                stack.push((id, true));
+                stack.extend(
+                    commit
+                        .parents
+                        .iter()
+                        .filter(|parent| !done.contains(*parent))
+                        .map(|parent| (*parent, false)),
+                );
+                continue;
+            }
+            done.insert(id);
+            entries.push(be_block_protocol::HistoryEntry {
+                commit: id,
+                parents: commit.parents,
+                time: commit.time,
+                pinned: matches!(commit.kind, be_block_commit::CommitKind::Bookmark(_)),
+                head: Some(id) == head,
+            });
+        }
+        entries.sort_by_key(|entry| entry.time);
+        Ok(entries)
     }
 
     pub(super) fn define_locally(
@@ -123,6 +209,7 @@ impl<S: ObjectStore> Peer<S> {
         }))?;
         summary.metadata = metadata;
         self.refs.revise(summary.clone())?;
+        self.settle_locally()?;
         Ok(summary)
     }
 
@@ -219,10 +306,162 @@ impl<S: ObjectStore> Peer<S> {
         Ok(reached)
     }
 
-    pub(super) fn create_locally(&self, creation: Creation) -> Result<BlockSummary, ClientError> {
+    pub(super) fn create_locally(
+        &self,
+        creation: Creation,
+        made: crate::peer::MadeRoot<'_>,
+    ) -> Result<BlockSummary, ClientError> {
         let summary = self.record_creation(&creation)?;
-        self.refs.push(Op::Create(creation))?;
+        // Its keys are kept on the device already: failing here, they are kept as unmade, or
+        // the next start would pin the root they carry (`forget_made`).
+        if let Err(error) = self.refs.push(Op::Create(creation.clone())) {
+            made.hold();
+            self.forget_made(&creation)?;
+            return Err(error.into());
+        }
+        made.kept()?;
+        self.settle_locally()?;
         Ok(summary)
+    }
+
+    /// Keeps on the device the log made with `creation` (`new_log`), once the outbox keeps it.
+    pub(super) fn keep_made_log(&self, creation: &Creation) -> Result<(), ClientError> {
+        let Some(root) = crate::peer::made_root(creation) else {
+            return Ok(());
+        };
+        if let Some(kept) = self.keys.kept_log(creation.block)
+            && kept.head == root
+        {
+            self.refs.keep_log(creation.block, kept)?;
+        }
+        Ok(())
+    }
+
+    /// Lets go of the root and log made with `creation` (`new_log`), on the device and in
+    /// memory, as no server took it (`KeyBook::forget_made`).
+    pub(super) fn forget_made(&self, creation: &Creation) -> Result<(), ClientError> {
+        let Some(root) = crate::peer::made_root(creation) else {
+            return Ok(());
+        };
+        let block = creation.block;
+        let minted: Vec<Uuid> = creation.keys.keys.iter().map(|row| row.id).collect();
+        self.keys.forget_made(block, root, &minted);
+        self.refs.unmade_root(block, root, &minted)?;
+        // Nothing is sealed under its keys any more: the block's key is the server's, read
+        // again from its summary (`key_now`).
+        {
+            let mut current = self.current.lock().unwrap();
+            if current.get(&block).is_some_and(|key| minted.contains(key)) {
+                current.remove(&block);
+            }
+        }
+        if let Some(mut summary) = self.refs.summary(block)
+            && summary.key.is_some_and(|key| minted.contains(&key))
+        {
+            summary.key = None;
+            self.refs.note(&summary)?;
+        }
+        Ok(())
+    }
+
+    /// A local account's outbox settled as a server would answer it (`Peer::local`): every
+    /// creation, move, definition and hold is final as it was kept, and a commit is the block's
+    /// head when it goes on the head the block has (`publish_locally`). One that does not waits
+    /// as a divergence to merge, as the drain would find it, and what follows of its block
+    /// waits behind it. Does nothing for a peer with a server.
+    pub(super) fn settle_locally(&self) -> Result<Vec<Drained>, ClientError> {
+        let mut outcomes = Vec::new();
+        if !self.local {
+            return Ok(outcomes);
+        }
+        let mut stopped = HashSet::new();
+        for (sequence, op) in self.refs.outbox() {
+            let block = op.block();
+            if stopped.contains(&block) || !self.refs.holds(sequence) {
+                continue;
+            }
+            let outcome = match op {
+                Op::Publish(pending) => match self.publish_locally(&pending)? {
+                    PublishOutcome::Published(head) => {
+                        self.settle(sequence, &pending, head)?;
+                        let mut objects = pending.chunks.clone();
+                        objects.push(pending.commit.hash());
+                        self.grow_locally(block, &objects)?;
+                        // Its summary says the head too, as a server's listing would.
+                        if let Some(mut summary) = self.refs.summary(block)
+                            && summary.head != Some(head)
+                        {
+                            summary.head = Some(head);
+                            self.refs.revise(summary)?;
+                        }
+                        Drained::Published { block, head }
+                    }
+                    PublishOutcome::Rejected(remote) => {
+                        stopped.insert(block);
+                        Drained::Diverged {
+                            block,
+                            local: self.local_head(block).unwrap_or(pending.commit),
+                            remote,
+                        }
+                    }
+                },
+                Op::Create(_) => {
+                    self.refs.remove(&[sequence])?;
+                    Drained::Created { block }
+                }
+                Op::Move(moving) => {
+                    self.refs.remove(&[sequence])?;
+                    self.refs.carry_tree(block, moving.from, moving.parent)?;
+                    Drained::Moved {
+                        block,
+                        from: moving.from,
+                    }
+                }
+                Op::Define(_) => {
+                    self.refs.remove(&[sequence])?;
+                    Drained::Defined { block }
+                }
+                Op::Hold(holding) => {
+                    self.refs.remove(&[sequence])?;
+                    self.grow_locally(block, &holding.objects)?;
+                    Drained::Held { block }
+                }
+                Op::Append(appending) => self.append_locally(sequence, appending)?,
+            };
+            if !matches!(outcome, Drained::Diverged { .. }) {
+                self.settled_here.lock().unwrap().insert(block);
+            }
+            outcomes.push(outcome);
+        }
+        Ok(outcomes)
+    }
+
+    /// A local account's `block` holds `objects` too: its size counts the bytes of those it did
+    /// not hold yet, as a server counts the distinct objects a block holds (`Refs::grow`).
+    fn grow_locally(&self, block: Uuid, objects: &[Hash]) -> Result<(), ClientError> {
+        let unheld = self.refs.unheld_objects(block, objects);
+        let store = self.commits.vault().store();
+        let mut bytes = 0u64;
+        for object in &unheld {
+            bytes += store.len(*object)?.unwrap_or_default() as u64;
+        }
+        self.refs.grow(block, &unheld, bytes)?;
+        Ok(())
+    }
+
+    /// What a server answers a publish, for a local account: taken when it goes on the block's
+    /// head, a commit already reached by it settled, and otherwise refused with that head.
+    pub(super) fn publish_locally(&self, pending: &Pending) -> Result<PublishOutcome, ClientError> {
+        let head = self.known_remote_head(pending.block);
+        if pending.expected == head {
+            return Ok(PublishOutcome::Published(pending.commit));
+        }
+        match head {
+            Some(head) if self.commits.is_ancestor(pending.commit, head)? => {
+                Ok(PublishOutcome::Published(head))
+            }
+            head => Ok(PublishOutcome::Rejected(head)),
+        }
     }
 
     pub(super) fn record_creation(&self, creation: &Creation) -> Result<BlockSummary, ClientError> {
@@ -267,12 +506,18 @@ impl<S: ObjectStore> Peer<S> {
             author: Some(self.account),
             parent: Some(creation.parent),
             head: None,
-            references: creation.references.clone(),
             metadata: creation.metadata.clone(),
             version: None,
             key: Some(creation.key),
             scope,
-            revision: 0,
+            changed: 0,
+            // Its tree is its parent's, as far as this device knows.
+            entry: match creation.parent {
+                BlockParent::Block(parent) => {
+                    self.refs.summary(parent).and_then(|parent| parent.entry)
+                }
+                BlockParent::Root | BlockParent::Detached => Some(creation.block),
+            },
             held: true,
             opens_inside: false,
             sets_access: false,
@@ -301,7 +546,7 @@ impl<S: ObjectStore> Peer<S> {
                 .ok_or_else(|| ClientError::Disconnected(reason.clone()))?;
             summary.head = self.held_head(*block).or(summary.head);
             let content = match summary.head {
-                Some(head) => Some(self.read_at(head).await?),
+                Some(head) => Some(self.read_at(*block, head).await?),
                 None => None,
             };
             let journal = self.local_journal(*block).ok().flatten();
@@ -316,9 +561,10 @@ impl<S: ObjectStore> Peer<S> {
 
     pub(super) async fn read_at(
         &self,
+        block: Uuid,
         head: CommitId,
     ) -> Result<be_block_store::Stored, ClientError> {
-        let commit = self.load_commit(head).await?;
+        let commit = self.load_head(block, head).await?;
         self.load_manifest(&commit.manifest).await
     }
 
@@ -331,11 +577,34 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     async fn drain_outbox(&self, skip: impl Fn(Uuid) -> bool) -> Result<Vec<Drained>, ClientError> {
+        if self.local {
+            return self.settle_locally();
+        }
         let mut outcomes: Vec<Drained> = Vec::new();
         let mut stopped = HashSet::new();
-        for (sequence, op) in self.refs.outbox() {
+        for (sequence, _) in self.refs.outbox() {
+            // As it stands now: a commit sealed again (`reseal`) keeps its place.
+            let Some(op) = self.refs.op(sequence) else {
+                continue;
+            };
             let block = op.block();
-            if skip(block) || stopped.contains(&block) || !self.refs.holds(sequence) {
+            // A log's entries wait only behind the block's creation, not behind its content:
+            // a diverged or refused publish holds back none of them.
+            if let Op::Append(_) = op {
+                if skip(block) || self.refs.creating(block) || self.refs.is_unsent(block) {
+                    continue;
+                }
+                match self.send_appends(block).await {
+                    Ok(drained) => outcomes.extend(drained),
+                    Err(error) if error.is_unreachable() && outcomes.is_empty() => {
+                        return Err(error);
+                    }
+                    Err(error) if error.is_unreachable() => break,
+                    Err(_) => outcomes.push(Drained::Failed { block }),
+                }
+                continue;
+            }
+            if skip(block) || stopped.contains(&block) {
                 continue;
             }
             // What was made since of a block the server refused to make joins it among the
@@ -344,15 +613,29 @@ impl<S: ObjectStore> Peer<S> {
                 self.move_to_unsent(block, None)?;
                 continue;
             }
-            let publishing = match &op {
+            let mut publishing = match &op {
                 Op::Publish(pending) => Some(pending.commit),
                 _ => None,
             };
             let sent = match op {
                 Op::Create(creation) => self.send_creation(sequence, creation).await,
-                Op::Publish(pending) => self.drain_publish(sequence, pending).await,
+                // Sealed again under a new epoch: sent once more as it now stands, and set
+                // aside if that is refused as outdated too.
+                Op::Publish(pending) => match self.drain_publish(sequence, pending, true).await {
+                    Ok(resealed @ Drained::Resealed { .. }) => {
+                        outcomes.push(resealed);
+                        let Some(Op::Publish(pending)) = self.refs.op(sequence) else {
+                            continue;
+                        };
+                        publishing = Some(pending.commit);
+                        self.drain_publish(sequence, pending, false).await
+                    }
+                    sent => sent,
+                },
                 Op::Move(moving) => self.drain_move(sequence, moving).await,
                 Op::Define(defining) => self.drain_define(sequence, defining).await,
+                Op::Hold(holding) => self.drain_hold(sequence, holding).await,
+                Op::Append(_) => unreachable!("a log's entries are sent above"),
             };
             let outcome = match sent {
                 Ok(outcome) => outcome,
@@ -389,8 +672,12 @@ impl<S: ObjectStore> Peer<S> {
                 Drained::Created { .. }
                 | Drained::Moved { .. }
                 | Drained::Defined { .. }
+                | Drained::Held { .. }
+                | Drained::Appended { .. }
+                | Drained::NotAppended { .. }
                 | Drained::Refused { .. }
                 | Drained::SetAside { .. }
+                | Drained::Resealed { .. }
                 | Drained::Failed { .. } => {}
             }
             outcomes.push(outcome);
@@ -501,6 +788,44 @@ impl<S: ObjectStore> Peer<S> {
         Ok(())
     }
 
+    /// Whether `creation`, made offline under the scope its kept summary named
+    /// (`Creation::unchecked`), wraps a key under the key of a block its parent does not lie at
+    /// or under by the signed parent records (`Peer::signed_below`), or one it cannot tell for a
+    /// root it never pinned. A read that does not get through is a failure to send, tried again
+    /// later.
+    async fn misplaced(&self, creation: &Creation) -> Result<bool, ClientError> {
+        let BlockParent::Block(parent) = creation.parent else {
+            return Ok(false);
+        };
+        let scopes: HashSet<Uuid> = creation
+            .keys
+            .wrapped
+            .iter()
+            .filter_map(|wrap| match wrap.wrapped_by {
+                // The escrow key is the organization's, under no block.
+                be_block_protocol::WrappedBy::Key(key)
+                    if self
+                        .keys
+                        .row(key)
+                        .is_some_and(|row| row.kind == be_block_protocol::KeyKind::Scope) =>
+                {
+                    self.keys.block_of(key)
+                }
+                _ => None,
+            })
+            .filter(|scope| *scope != creation.block)
+            .collect();
+        for scope in scopes {
+            match self.signed_below(parent, scope).await {
+                Ok(()) => {}
+                // A root this device never pinned stays so: waiting would hold the outbox.
+                Err(ClientError::Forged(_) | ClientError::Locked(_)) => return Ok(true),
+                Err(error) => return Err(error),
+            }
+        }
+        Ok(false)
+    }
+
     async fn send_creation(
         &self,
         sequence: u64,
@@ -510,32 +835,56 @@ impl<S: ObjectStore> Peer<S> {
         // Made under a block the server refused to make: it cannot be made either, and waits
         // set aside with it, restored with it (`restore_unsent`).
         if let BlockParent::Block(parent) = creation.parent
-            && let Some(code) = self.refs.refused(parent)
+            && let Some(why) = self.refs.refused(parent)
         {
-            self.move_to_unsent(block, Some(code))?;
-            return Ok(Drained::SetAside { block, code });
+            self.move_to_unsent(block, Some(why))?;
+            return Ok(Drained::SetAside { block, why });
         }
-        let response = crate::ask(client::blocks::create_block(
+        // Made offline under the scope a kept summary named: its keys go up only wrapped under
+        // the key of a block the signed parent records place it under.
+        if creation.unchecked && self.misplaced(&creation).await? {
+            let why = crate::refs::Aside::Misplaced;
+            self.move_to_unsent(block, Some(why))?;
+            return Ok(Drained::SetAside { block, why });
+        }
+        let response = crate::ask(be_block_protocol::write_all::<
+            be_block_protocol::BlockSummary,
+            _,
+        >(
             &self.connection(),
-            block,
-            creation.content_type,
-            creation.parent,
-            creation.metadata.clone(),
-            creation.references.clone(),
-            creation.key,
-            creation.keys.clone(),
-            creation.owner_only,
+            Some(self.organization),
+            creation.ops(),
         ))
         .await;
         match response {
             Ok(summary) => {
+                // Taken before its row goes, so a listing laid over between the two never
+                // misses it (`Peer::with_outbox`).
+                self.taken(block);
                 self.refs.remove(&[sequence])?;
+                self.keys.made_taken(block);
                 self.note(&summary);
+                self.escrow_created(&creation.keys).await;
                 Ok(Drained::Created { block })
             }
+            // Made by this device already, its answer lost; or by someone else, as one this
+            // device opened offline with no summary of it (`ensure_type`): what was made here of
+            // it is not the block, and is set aside, its root and log let go.
             Err(ClientError::Refused(ErrorCode::BlockAlreadyExists, _)) => {
-                self.refs.remove(&[sequence])?;
-                Ok(Drained::Created { block })
+                if self.made_here(&creation).await? {
+                    self.taken(block);
+                    self.refs.remove(&[sequence])?;
+                    self.keys.made_taken(block);
+                    return Ok(Drained::Created { block });
+                }
+                let why = crate::refs::Aside::Refused(ErrorCode::BlockAlreadyExists);
+                self.forget_made(&creation)?;
+                self.move_to_unsent(block, Some(why))?;
+                // The block as the server has it, in place of what this device made of it. Its
+                // answer is not needed here: failing, the block's next listing or summary reads
+                // it, and the creation is set aside either way.
+                let _ = self.server_summary(block).await;
+                Ok(Drained::SetAside { block, why })
             }
             Err(ClientError::Refused(code, _)) if lost_access(code) => {
                 self.refused(sequence, block, code).await
@@ -544,9 +893,29 @@ impl<S: ObjectStore> Peer<S> {
             // device made of it is set aside, to be restored or discarded, so nothing waits
             // behind a creation that never goes.
             Err(ClientError::Refused(code, _)) => {
-                self.move_to_unsent(block, Some(code))?;
-                Ok(Drained::SetAside { block, code })
+                self.move_to_unsent(block, Some(crate::refs::Aside::Refused(code)))?;
+                Ok(Drained::SetAside {
+                    block,
+                    why: crate::refs::Aside::Refused(code),
+                })
             }
+            Err(error) => Err(error),
+        }
+    }
+
+    /// Whether the block the server has under `creation`'s id is one this account made: its
+    /// log starts at the root made with it, which every device of the account makes the same
+    /// (`Entry::root` signs the account and the block alone), so the first of two devices
+    /// counts. A block this account may not read the log of is someone else's.
+    pub(super) async fn made_here(&self, creation: &Creation) -> Result<bool, ClientError> {
+        let Some(root) = crate::peer::made_root(creation) else {
+            return Ok(false);
+        };
+        match self.served_log(creation.block).await {
+            Ok(steps) => Ok(steps.first().is_some_and(|first| first.hash() == root)),
+            // Deliberately someone else's: this account may read the log of any block it made,
+            // so one it may not read is not one it made.
+            Err(ClientError::Refused(code, _)) if lost_access(code) => Ok(false),
             Err(error) => Err(error),
         }
     }
@@ -555,6 +924,7 @@ impl<S: ObjectStore> Peer<S> {
         let block = moving.block;
         match self.send_parent(block, moving.parent).await {
             Ok(()) => {
+                self.taken(block);
                 self.refs.remove(&[sequence])?;
                 let _ = self
                     .follow_prefixes(block, moving.from, moving.parent)
@@ -580,26 +950,61 @@ impl<S: ObjectStore> Peer<S> {
         }
     }
 
+    async fn drain_hold(&self, sequence: u64, holding: Holding) -> Result<Drained, ClientError> {
+        let block = holding.block;
+        let hold = match holding.lasting {
+            true => be_block_protocol::Hold::Lasting,
+            false => be_block_protocol::Hold::UntilCommitted,
+        };
+        match self.send_hold(block, &holding.objects, hold).await {
+            Ok(()) => {
+                self.refs.remove(&[sequence])?;
+                Ok(Drained::Held { block })
+            }
+            Err(ClientError::Refused(code, _)) if lost_access(code) => {
+                self.refused(sequence, block, code).await
+            }
+            // As a publish is: set aside only when sending it again cannot help, and otherwise
+            // kept to try again (a quota, a missing key), since a hold dropped could let what a
+            // commit still to publish uses be collected first.
+            Err(ClientError::Refused(code, _)) if never_taken(code) => {
+                self.move_to_unsent(block, Some(crate::refs::Aside::Refused(code)))?;
+                Ok(Drained::SetAside {
+                    block,
+                    why: crate::refs::Aside::Refused(code),
+                })
+            }
+            Err(error) => Err(error),
+        }
+    }
+
     async fn drain_define(
         &self,
         sequence: u64,
         defining: Defining,
     ) -> Result<Drained, ClientError> {
         let block = defining.block;
-        let response = crate::ask(client::blocks::set_metadata(
+        let response = crate::ask(be_block_protocol::write::<be_block_protocol::Described, _>(
             &self.connection(),
-            block,
-            defining.metadata.clone(),
-            defining.references.clone(),
+            Some(self.organization),
+            be_block_protocol::Op::Publish {
+                block: block,
+                expected: None,
+                commit: None,
+                references: be_block_protocol::ReferenceChange::between(&[], &defining.references),
+                metadata: defining.metadata.clone(),
+                journal: None,
+            },
         ))
         .await;
         match response {
-            Ok(summary) => {
+            Ok(be_block_protocol::Described::Block(summary)) => {
                 self.refs.remove(&[sequence])?;
                 self.note(&summary);
                 Ok(Drained::Defined { block })
             }
-            Err(ClientError::Refused(ErrorCode::BlockHasContent, _)) => {
+            // It has content now: what it defined goes in a commit.
+            Ok(be_block_protocol::Described::Rejected(_)) => {
                 self.refs.remove(&[sequence])?;
                 let plain = self
                     .commits
@@ -627,7 +1032,15 @@ impl<S: ObjectStore> Peer<S> {
         }
     }
 
-    async fn drain_publish(&self, sequence: u64, pending: Pending) -> Result<Drained, ClientError> {
+    /// Sends a commit waiting in the outbox. With `reseal`, one sealed offline under a key the
+    /// logs now show outdated is sealed again under a new epoch (`Drained::Resealed`), to be
+    /// sent as it then stands; otherwise, or when it cannot be, it is set aside.
+    async fn drain_publish(
+        &self,
+        sequence: u64,
+        pending: Pending,
+        reseal: bool,
+    ) -> Result<Drained, ClientError> {
         let block = pending.block;
         match self.send_pending(&pending).await {
             Ok(PublishOutcome::Published(head)) => {
@@ -652,8 +1065,26 @@ impl<S: ObjectStore> Peer<S> {
             // block is set aside with the reason, to be restored or discarded, rather than
             // sent again every round.
             Err(ClientError::Refused(code, _)) if never_taken(code) => {
-                self.move_to_unsent(block, Some(code))?;
-                Ok(Drained::SetAside { block, code })
+                self.move_to_unsent(block, Some(crate::refs::Aside::Refused(code)))?;
+                Ok(Drained::SetAside {
+                    block,
+                    why: crate::refs::Aside::Refused(code),
+                })
+            }
+            // Sealed offline under a key the log now shows outdated (`send_pending`): the edit
+            // is this account's and only its key may be held by someone who lost access, so it
+            // is sealed again under a new epoch this device vouches for. Set
+            // aside, never sent, when this account may no longer write the block as the logs
+            // show now, or no such epoch can be made.
+            Err(ClientError::Outdated(_)) => {
+                if reseal && self.reseal(block).await? {
+                    return Ok(Drained::Resealed { block });
+                }
+                self.move_to_unsent(block, Some(crate::refs::Aside::KeyOutdated))?;
+                Ok(Drained::SetAside {
+                    block,
+                    why: crate::refs::Aside::KeyOutdated,
+                })
             }
             Err(error) => Err(error),
         }
@@ -696,6 +1127,14 @@ impl<S: ObjectStore> Peer<S> {
                 self.refs.remove(&[sequence])?;
                 Ok(Drained::Created { block })
             }
+            Some((_, Op::Hold(_) | Op::Append(_))) => {
+                self.refs.remove(&[sequence])?;
+                Ok(Drained::Refused {
+                    block,
+                    code,
+                    restored: false,
+                })
+            }
             Some((_, Op::Move(_) | Op::Define(_))) => {
                 self.refs.remove(&[sequence])?;
                 self.unchanged(block).await;
@@ -714,10 +1153,9 @@ impl<S: ObjectStore> Peer<S> {
 
     /// After the server refused a move or a definition: this device shows the block as the
     /// server has it again, not with the change it refused (its name, its place in a listing).
+    /// What still waits in the outbox of it (a move or definition behind the refused one) is
+    /// laid over the server's summary (`server_summary`), so it is kept.
     async fn unchanged(&self, block: Uuid) {
-        if self.refs.has_structural(block) {
-            return;
-        }
         if let Ok(summary) = self.server_summary(block).await {
             let _ = self.refs.revise(summary);
         }
@@ -748,7 +1186,7 @@ impl<S: ObjectStore> Peer<S> {
     pub fn move_to_unsent(
         &self,
         block: Uuid,
-        refused: Option<ErrorCode>,
+        refused: Option<crate::refs::Aside>,
     ) -> Result<bool, ClientError> {
         let commits: HashSet<CommitId> = self.pending_commits(block).into_iter().collect();
         self.refs.commits_refused(block, &commits)?;
@@ -789,6 +1227,10 @@ impl<S: ObjectStore> Peer<S> {
                     .and_then(|summary| self.metadata(&summary).ok())
                     .and_then(|metadata| metadata.name()),
                 refused: unsent.refused,
+                kept_edits: self
+                    .refs
+                    .open_edits(block)
+                    .map_or(0, |kept| kept.edits.len()),
             })
             .collect()
     }
@@ -816,8 +1258,23 @@ impl<S: ObjectStore> Peer<S> {
         Ok(restored)
     }
 
+    /// Discards what was set aside of `block`. Set aside because this account lost access, the
+    /// local edits kept beside it go too: they can never reach the block, and kept they would
+    /// keep it from being forgotten.
     pub fn discard_unsent(&self, block: Uuid) -> Result<bool, ClientError> {
-        Ok(self.refs.take_unsent(block)?.is_some())
+        let Some(unsent) = self.refs.discard_unsent(block)? else {
+            return Ok(false);
+        };
+        // A creation discarded unsent never reached a server: the root and log made with it
+        // (`new_log`) are no block's, and kept they would refuse making it again.
+        for op in &unsent.ops {
+            if let Op::Create(creation) = op
+                && creation.block == block
+            {
+                self.forget_made(creation)?;
+            }
+        }
+        Ok(true)
     }
 }
 
@@ -847,8 +1304,11 @@ pub(super) fn lost_access(code: ErrorCode) -> bool {
 }
 
 /// A refusal sending the same change again cannot get past: the change itself is wrong (a
-/// malformed request, an object over the size limit), where a quota, a missing key or the
-/// store may come right by the next try.
+/// malformed request, an object over the size limit, a time too far ahead), where a quota, a
+/// missing key or the store may come right by the next try.
 fn never_taken(code: ErrorCode) -> bool {
-    matches!(code, ErrorCode::InvalidRequest | ErrorCode::ObjectTooLarge)
+    matches!(
+        code,
+        ErrorCode::InvalidRequest | ErrorCode::ObjectTooLarge | ErrorCode::CommitAhead
+    )
 }

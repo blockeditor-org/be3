@@ -5,14 +5,10 @@ use be_sdk_beui::beui::Modifiers;
 fn configuring_a_storage_opens_a_card_on_it() {
     let mut editor = editor();
     editor.key(Key::Five, Modifiers::NONE);
-    editor.run();
     editor.key(Key::One, Modifiers::NONE);
-    editor.run();
     editor.key(Key::BracketRight, Modifiers::NONE);
-    editor.run();
     let point = canvas_point(&editor, Vec2::new(-60.0, -80.0));
     editor.click(point);
-    editor.run();
     assert_eq!(
         grid(&editor).components().count(),
         1,
@@ -20,11 +16,8 @@ fn configuring_a_storage_opens_a_card_on_it() {
     );
 
     editor.key(Key::Five, Modifiers::NONE);
-    editor.run();
     editor.key(Key::Two, Modifiers::NONE);
-    editor.run();
     editor.click(point);
-    editor.run();
 
     assert!(
         editor.shown("logic-grid.storage-bit.0"),

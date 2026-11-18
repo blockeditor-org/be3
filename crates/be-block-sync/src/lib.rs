@@ -24,7 +24,12 @@ pub const ERRORS_FILE: &str = "BE_SYNC_ERRORS.txt";
 pub const IGNORE_FILE: &str = ".beignore";
 pub const UNEXPORTED_FILE: &str = "unexported.txt";
 
-const CLIENT: u64 = 0x6265_2d73_796e;
+/// The client a pass makes its edits as: this process's own random client. A file read into
+/// text and a child change can both be sequence edits, whose ids are the client's, so a fixed
+/// client shared by every device would collide.
+fn client() -> u64 {
+    be_block_content::be_block_model::local_client()
+}
 /// A block whose write failed or was overtaken keeps its old index entry, so
 /// the next pass merges it again; `sync` runs up to this many.
 const PASSES: usize = 4;

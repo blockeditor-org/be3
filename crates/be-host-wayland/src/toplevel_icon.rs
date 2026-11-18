@@ -13,8 +13,8 @@ use smithay::wayland::xdg_toplevel_icon::{
     ToplevelIconCachedState, XdgToplevelIconHandler, XdgToplevelIconManager,
 };
 
-use crate::programs::NamedIcons;
 use crate::state::{State, WindowId};
+use be_host_programs::NamedIcons;
 
 pub const ICON_PIXELS: u32 = 64;
 const ASKED_SIZES: [i32; 2] = [32, 64];

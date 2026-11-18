@@ -3,8 +3,8 @@ use super::*;
 #[tokio::test]
 async fn a_block_agent_is_refused_while_its_block_is_in_the_trash() {
     let harness = Harness::start().await;
-    let mut owner = harness.client().await;
-    let me = owner.register("owner@example.com").await;
+    let mut owner = harness.member("owner@example.com").await;
+    let me = owner.id();
     let organization = owner.organization("team").await;
     let folder = owner.create_block(BlockParent::Root).await;
     let terminal = owner.create_block(BlockParent::Block(folder)).await;
@@ -16,19 +16,22 @@ async fn a_block_agent_is_refused_while_its_block_is_in_the_trash() {
         .await;
     let published = owner
         .call(|peer| {
-            client::blocks::publish(
-                peer,
-                folder,
-                head,
-                None,
-                Vec::new(),
-                objects_change(&[], chunks.clone()),
-                1_000,
-                false,
-                listing(&[], vec![terminal]),
-                Vec::new(),
-                Vec::new(),
-            )
+            peer.write::<be_block_protocol::PublishOutcome>(be_block_protocol::Op::Publish {
+                block: folder,
+                expected: None,
+                commit: Some(be_block_protocol::NewCommit {
+                    id: head,
+                    parents: Vec::new(),
+                    held: objects_change(&[], chunks.clone()),
+                    time: 1_000,
+                    pinned: false,
+                    objects: Vec::new(),
+                    log_through: None,
+                }),
+                references: listing(&[], vec![terminal]),
+                metadata: Vec::new(),
+                journal: None,
+            })
         })
         .await;
     assert!(published.is_ok(), "{published:?}");
@@ -40,28 +43,30 @@ async fn a_block_agent_is_refused_while_its_block_is_in_the_trash() {
     ] {
         let mut agent = harness.second_connection(&token, organization).await;
         let response = owner
-            .call(|peer| {
-                client::blocks::set_parent(peer, trashed, BlockParent::Detached, KeySet::default())
-            })
+            .move_keyed(trashed, BlockParent::Detached, KeySet::default())
             .await;
         assert!(response.is_ok(), "{response:?}");
         agent.ended().await;
 
-        let mut again = harness.client().await;
-        let signing = token.clone();
+        // Signed in without listening: following its contacts would be refused too.
+        let again = TestClient::unheard(&harness.socket(), &token).await;
+        let Ok(mut again) = again else {
+            panic!("the trash deleted the block's agent");
+        };
         let response = again
-            .call(|peer| client::account::authenticate(peer, Some(signing)))
-            .await;
-        assert!(
-            response.is_ok(),
-            "the trash deleted the block's agent: {response:?}"
-        );
-        let response = again
-            .call(|peer| client::organizations::open_organization(peer, organization))
+            .call(|peer| {
+                peer.read_in::<be_block_protocol::Listed>(
+                    Some(organization),
+                    Query::List {
+                        listing: Listing::Children(BlockParent::Root),
+                        after: None,
+                    },
+                )
+            })
             .await;
         assert!(
             refused_as(&response, ErrorCode::PermissionDenied),
-            "an agent opened its organization while its block is in the trash: {response:?}"
+            "an agent read its organization while its block is in the trash: {response:?}"
         );
 
         owner

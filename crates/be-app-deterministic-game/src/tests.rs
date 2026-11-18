@@ -3,6 +3,7 @@ use be_sdk_beui::be_block_content::BlockContent;
 use be_sdk_beui::beui::{Pos2, Vec2};
 use be_sdk_beui::{Creation, EditorHost, OwnedEditor};
 use be_sdk_test::BeuiTest;
+use be_sdk_test::prelude::*;
 use be_type_deterministic_game::{
     DeterministicGame, DeterministicGameContent, GameModuleContent, GameModuleFile,
 };
@@ -12,12 +13,16 @@ use uuid::Uuid;
 
 use crate::root::{DeterministicGameRoot, module_filter, seats};
 
+mod a_carried_piece_snaps_onto_a_square_it_can_move_to;
+mod a_chess_move_is_played_with_the_keys_alone;
 mod a_module_that_is_not_a_game_is_reported;
 mod a_new_player_can_take_the_other_side;
 mod a_piece_is_dragged_from_square_to_square;
+mod a_pile_is_read_once_as_its_top_card;
 mod a_played_card_flies_from_the_hand_to_the_discard_pile;
 mod a_player_joins_by_clicking_the_deck_even_without_the_chrome;
 mod a_promotion_asks_which_piece_to_become;
+mod a_selected_piece_is_carried_to_a_square_from_the_keyboard;
 mod choosing_a_staged_game_copies_it_into_the_workspace;
 mod clicking_a_card_then_the_discard_pile_plays_it;
 mod clicking_an_open_tile_places_a_mark;

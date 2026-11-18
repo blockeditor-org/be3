@@ -31,11 +31,12 @@ that need a real terminal on a real machine, such as `claude`, from inside be-ho
 The host writes its emulator's state into `Terminal` as ordinary edits through its `Session`,
 after every PTY read: rows that scrolled off move into `history`, then every shown row that
 differs, the cursor, size, colours and title are set. The replica seals on its own schedule like
-any owner (guides/type_modules.md). Viewers just render the document.
+any lease holder (guides/type_modules.md). Viewers just render the document.
 
-Who writes is decided by the live session's lease: a host writes only while its replica owns the
-session, stands by while another `TerminalHost` owns it, and otherwise claims every few seconds
-(`CLAIM_INTERVAL`). A host that becomes the writer and finds a shell in the document that isn't
+Who writes is decided by the live session's lease: a host writes only while its replica holds the
+lease, stands by while another `TerminalHost` holds it, and otherwise claims every few seconds
+(`CLAIM_INTERVAL`). A claim takes the lease at once, so a host first waits that long on a new
+holder: its presence, which says whether it is another host, may not have arrived yet. A host that becomes the writer and finds a shell in the document that isn't
 its own restores: the old screen goes into history behind a faint `Restored session: <date>`
 line and a new shell starts. After the shell exits, the next key starts another.
 
@@ -79,13 +80,16 @@ sandbox (decisions/a_sandboxs_terminal_host_is_a_block_bound_agent.md):
    (the settings haven't loaded) the agent and the block are removed again.
 3. `uname -m`, then `terminal-host-binary(arch)`: a deployed build answers the URL and SHA-256 of
    its own `be` (`build-info.json`'s `terminal_hosts`, which `./scripts/deploy` writes into the
-   downloads); a development build answers the bytes of a `be` built into
-   `~/.cache/be3/terminal-host/ARCH` (`./scripts/buck build //crates/be-tool-cli:native
-   --target-platforms root//buck/platforms:linux_ARCH --out ~/.cache/be3/terminal-host/ARCH`; the
-   failure names it), which goes up through an https upload URL unless the sandbox has it already.
-   Either way a command checks the SHA-256 before `be` can run, fetching nothing when a `be` with
-   that hash is there and staging under a name of the terminal's own, so two installs in one sandbox
-   never share a file. Each build's `be` and `build-info.json` go in
+   downloads), which reads its apps from the release; a development build answers the files of
+   `//crates/be-tool-cli:terminal-host` built into `~/.cache/be3/terminal-host/ARCH`
+   (`./scripts/buck build //crates/be-tool-cli:terminal-host --target-platforms
+   root//buck/platforms:linux_ARCH --out ~/.cache/be3/terminal-host/ARCH`; the failure names it):
+   `be` with every app's manifest and type module beside it, which it reads blocks through as a
+   `be` staged here does (guides/apps/runtime.md, "Headless"). Each goes up through an https
+   upload URL unless the sandbox has all of them with their SHA-256 already. Either way a command
+   checks each file's SHA-256 before `be` can run, fetching nothing when they are there, staging
+   each under a name of the terminal's own, so two installs in one sandbox never share a file,
+   and moving `be` into place last. Each build's files and `build-info.json` go in
    `/home/user/.local/lib/be3/builds/BUILD`, and `blocks/BLOCK` links the build a terminal runs, so
    a terminal connected from another build never replaces another's `be`.
 4. The units `be-terminal@.service` and `be-terminal@.path` and the credentials file (the agent's

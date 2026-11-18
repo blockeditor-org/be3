@@ -86,3 +86,13 @@ pub fn parse_block_urls(bytes: &[u8]) -> Vec<BlockUrl> {
     }
     urls
 }
+
+/// Where the id of `block` sits in each block URL in `bytes` that names it: the ranges to
+/// rewrite to point those URLs at another block.
+pub fn block_id_ranges(bytes: &[u8], block: Uuid) -> Vec<Range<usize>> {
+    parse_block_urls(bytes)
+        .into_iter()
+        .filter(|url| url.block == block)
+        .map(|url| url.range.end - UUID_TEXT_BYTES..url.range.end)
+        .collect()
+}

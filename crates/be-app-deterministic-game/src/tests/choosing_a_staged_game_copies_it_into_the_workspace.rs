@@ -41,7 +41,6 @@ fn choosing_a_staged_game_copies_it_into_the_workspace() {
     let name = Game::load(TIC_TAC_TOE).unwrap().name().to_owned();
     assert_eq!(editor.label("game.staged.0"), name);
     editor.click("game.staged.0");
-    editor.run();
 
     let game = creation.create_block().unwrap();
     editor.run();

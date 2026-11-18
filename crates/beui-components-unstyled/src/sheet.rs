@@ -1,16 +1,21 @@
+#[cfg(test)]
+mod tests;
+
 use std::cell::Cell;
 use std::rc::Rc;
 use std::time::Duration;
 
 use crate::gestures;
 use crate::watched::Watched;
+use accesskit::Role;
 use beui_macros::{component, view};
 
 use super::back_slide::BACK_DRAG_SHARE;
 use super::fling::Fling;
 use super::modal::{Modal, ModalHandle, ModalMotion, ModalPlacement};
-use super::rubber_band::{SCROLL_SPRING, WINDOW_SPRING, bounce, rubber_band, spring_back, unband};
+use super::rubber_band::{Spring, bounce, rubber_band, spring_back, unband};
 use beui_view::components::overlay::use_overlay_presence;
+use beui_view::drag;
 use beui_view::primitives::*;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
@@ -19,11 +24,14 @@ use beui_view::types::Color;
 use beui_view::types::Direction;
 use beui_view::types::ScrollPosition;
 use beui_view::types::{BackGesture, CursorIcon, DragGesture, PointerPress, ScrollGesture};
-use beui_view::types::{Measured, Rect, vec2};
+use beui_view::types::{Key, KeyPress};
+use beui_view::types::{Measured, Modifiers, Rect, Vec2, pos2, vec2};
 
 const CLOSE_SHARE: f32 = 0.4;
 const CLOSE_DISTANCE: f32 = 96.0;
-const PROJECTION: f32 = 0.2;
+/// How far a flick carries a sheet on before it chooses a stop: longer than a carried item's
+/// throw, so a quick flick down from high up closes it.
+const THROWN_SECONDS: f32 = 0.2;
 const RELEASED_STRETCH: f32 = 0.35;
 const EPSILON: f32 = 0.5;
 const ENTER_SECONDS: f32 = 0.3;
@@ -35,6 +43,8 @@ const HANDOFF_SECONDS: f32 = 0.1;
 
 pub struct SheetGripHandle {
     pub dragging: ReadSignal<bool>,
+    /// Whether the handle has the keyboard focus, for the grip's focus ring.
+    pub focused: ReadSignal<bool>,
     pub on_drag: Callback<DragGesture>,
 }
 
@@ -136,7 +146,20 @@ struct Held {
     backing: bool,
 }
 
+/// How a sheet's motions look: the easing it rises on (`enter`) and comes back
+/// to a stop on after a drag or a back gesture lets go (`settle`), and the
+/// springs it comes back on when pulled past its top (`pull`) and its content
+/// when scrolled past an end (`rubber`).
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub struct SheetCurves {
+    pub enter: Easing,
+    pub settle: Easing,
+    pub pull: Spring,
+    pub rubber: Spring,
+}
+
 struct Motion {
+    curves: SheetCurves,
     extent: Memo<f32>,
     shares: Rc<[f32]>,
     resting: Rest,
@@ -155,6 +178,37 @@ struct Motion {
     on_presence: Callback<f32>,
     on_gone: Callback<()>,
     on_close: Callback<()>,
+}
+
+/// Which of `places` (heights) a release at `height`, rising at `velocity`, lands on:
+/// `closest(places).thrown()`, thrown at any speed, so a release lands where its path leads
+/// in `THROWN_SECONDS`. The sheet is a continuous drag, its height and its content's scroll
+/// one travel under the finger, so only its release is a spec, evaluated here rather than
+/// carried; `node` is any laid-out node, as the places are read in its points unplaced.
+fn snap_to<D: Clone + 'static>(
+    node: NodeRef,
+    height: f32,
+    velocity: f32,
+    places: impl IntoIterator<Item = (f32, D)>,
+) -> Option<D> {
+    // Heights rise up the y axis, as the sheet's top does.
+    let at = |height: f32| Rect::from_min_size(pos2(0.0, -height), Vec2::ZERO);
+    let spec = drag::closest(
+        places
+            .into_iter()
+            .map(|(place, drop)| drag::Candidate::new(drop, at(place), node)),
+    )
+    .thrown()
+    .thrown_for(THROWN_SECONDS)
+    .with_distance(0.0);
+    let placed = |_: NodeId| Some((Rect::ZERO, 1.0));
+    let evaluation = drag::Evaluation {
+        point: drag::DragPoint::at(pos2(0.0, -height), Modifiers::default()),
+        velocity: vec2(0.0, -velocity),
+        released: true,
+        placed: &placed,
+    };
+    drag::evaluate(&spec, &evaluation, &drag::DragFrame::default()).drop
 }
 
 fn own_units(measured: Measured) -> Rect {
@@ -606,7 +660,7 @@ impl Motion {
             self.place_height(self.resting);
             return false;
         }
-        let eased = Easing::OutCubic.sample(progress);
+        let eased = self.curves.enter.sample(progress);
         self.held.borrow_mut().slide = Slide::Morphing {
             elapsed,
             from,
@@ -679,7 +733,7 @@ impl Motion {
             } => {
                 let elapsed = before + elapsed;
                 let progress = tween(elapsed, ENTER_SECONDS, Easing::Linear);
-                let eased = Easing::OutCubic.sample(progress);
+                let eased = self.curves.enter.sample(progress);
                 let next = match progress >= 1.0 {
                     true => Slide::Shown,
                     false => Slide::Entering { elapsed, waited },
@@ -713,7 +767,7 @@ impl Motion {
             } => {
                 let elapsed = before + elapsed;
                 let progress = tween(elapsed, RETURN_SECONDS, Easing::Linear);
-                let eased = Easing::OutCubic.sample(progress);
+                let eased = self.curves.settle.sample(progress);
                 let next = match progress >= 1.0 {
                     true => Slide::Shown,
                     false => Slide::Returning { elapsed, from },
@@ -739,25 +793,26 @@ impl Motion {
     }
 
     fn snap_phase(&self, height: f32, velocity: f32, shape: &Shape) -> Phase {
-        let projected = height + velocity * PROJECTION;
         let lowest = shape.stops.first().map_or(shape.top, |(stop, _)| *stop);
-        let close_below = lowest - (lowest * CLOSE_SHARE).min(CLOSE_DISTANCE);
-        if projected < close_below {
-            return Phase::Snap {
+        // Closing is a place as far below the lowest stop as the close distance doubled, so
+        // a release past the close distance chooses it.
+        let close = lowest - 2.0 * (lowest * CLOSE_SHARE).min(CLOSE_DISTANCE);
+        let places = shape
+            .stops
+            .iter()
+            .map(|(stop, rest)| (*stop, Some(*rest)))
+            .chain([(close, None)]);
+        match snap_to(self.slot, height, velocity, places) {
+            Some(None) => Phase::Snap {
                 target: Rest::Free(height),
                 velocity: (-velocity).max(0.0),
                 closes: true,
-            };
-        }
-        let target = shape
-            .stops
-            .iter()
-            .min_by(|(a, _), (b, _)| (a - projected).abs().total_cmp(&(b - projected).abs()))
-            .map_or(self.top_rest(), |(_, rest)| *rest);
-        Phase::Snap {
-            target,
-            velocity,
-            closes: false,
+            },
+            target => Phase::Snap {
+                target: target.flatten().unwrap_or(self.top_rest()),
+                velocity,
+                closes: false,
+            },
         }
     }
 
@@ -896,7 +951,15 @@ impl Motion {
         }
         self.dragging.set(false);
         if std::mem::take(&mut self.held.borrow_mut().dismiss_drag) {
-            if self.shifted.get() - velocity * PROJECTION > self.height() * CLOSE_SHARE {
+            // Shown, or closed: a place twice the close share down, so a release past the
+            // share closes.
+            let closes = snap_to(
+                self.slot,
+                -self.shifted.get(),
+                velocity,
+                [(0.0, false), (-2.0 * CLOSE_SHARE * self.height(), true)],
+            );
+            if closes == Some(true) {
                 self.close((-velocity).max(0.0));
             } else {
                 self.start(Phase::SheetBounce {
@@ -947,6 +1010,45 @@ impl Motion {
         if self.held.borrow_mut().handle.take().is_some() {
             self.cancel_handle();
         }
+    }
+
+    /// Moves the sheet to the next stop up or down from where it is going (the stop a snap
+    /// under way settles on, so quick presses walk the stops), as a release there would
+    /// settle; the lowest stop is as far down as a key takes it (Escape closes). Whether there
+    /// was one that way.
+    fn step_stop(&self, up: bool) -> bool {
+        if self.held.borrow().travel.is_some() {
+            return false;
+        }
+        let shape = self.shape();
+        let snapping = match self.held.borrow().phase {
+            Phase::Snap { target, .. } => Some(target),
+            _ => None,
+        };
+        let height = match snapping {
+            Some(target) => self.rest_height(target, &shape),
+            None => self.height(),
+        };
+        let next = match up {
+            true => shape
+                .stops
+                .iter()
+                .find(|(stop, _)| *stop > height + EPSILON),
+            false => shape
+                .stops
+                .iter()
+                .rev()
+                .find(|(stop, _)| *stop < height - EPSILON),
+        };
+        let Some((_, rest)) = next else {
+            return false;
+        };
+        self.start(Phase::Snap {
+            target: *rest,
+            velocity: 0.0,
+            closes: false,
+        });
+        true
     }
 
     fn handle_active(&self, active: bool) {
@@ -1028,7 +1130,7 @@ impl Motion {
                 let (target, closes) = (*target, *closes);
                 let goal = self.rest_height(target, &shape);
                 let mut distance = self.height() - goal;
-                spring_back(&mut distance, velocity, elapsed, WINDOW_SPRING);
+                spring_back(&mut distance, velocity, elapsed, self.curves.pull);
                 if closes && goal + distance <= 0.0 {
                     distance = 0.0;
                     *velocity = 0.0;
@@ -1073,7 +1175,7 @@ impl Motion {
             }
             Phase::SheetBounce { velocity } => {
                 let mut shift = self.shifted.get();
-                spring_back(&mut shift, velocity, elapsed, SCROLL_SPRING);
+                spring_back(&mut shift, velocity, elapsed, self.curves.rubber);
                 let settled = shift == 0.0 && *velocity == 0.0;
                 if settled {
                     held.phase = Phase::Still;
@@ -1084,7 +1186,7 @@ impl Motion {
             }
             Phase::Bounce { velocity } => {
                 let mut stretch = unband(overscroll, shape.viewport);
-                let back = bounce(&mut stretch, velocity, elapsed);
+                let back = bounce(&mut stretch, velocity, elapsed, self.curves.rubber);
                 if stretch == 0.0 {
                     held.phase = Fling::new(back).map_or(Phase::Still, Phase::Fling);
                 }
@@ -1112,12 +1214,13 @@ pub fn Sheet(
     stops: Vec<f32>,
     #[prop(default = false)] fit: bool,
     #[prop(default = 0.0)] fade: f32,
-    grip: Render<SheetGripHandle>,
-    panel: Render<Child>,
+    curves: SheetCurves,
+    grip: Render<SheetGripHandle, NodeId>,
+    panel: Render<NodeId, NodeId>,
     on_presence: Callback<f32>,
     on_gone: Callback<()>,
     on_close: Callback<()>,
-    children: Child,
+    children: NodeId,
 ) -> NodeId {
     let mut stops = stops;
     stops.sort_by(f32::total_cmp);
@@ -1131,18 +1234,10 @@ pub fn Sheet(
     let dragging = create_signal(false);
     let shift = create_signal(HIDDEN_SHIFT);
     let gone = create_signal(true);
-    let present = create_memo(move || !gone.get());
-    let sheet_length = create_memo(move || match rest_at.get() {
-        Rest::Free(height) => Some(height),
-        Rest::Share(_) | Rest::Fitted => None,
-    });
-    let sheet_max = create_memo(move || match rest_at.get() {
-        Rest::Share(share) => share * extent.get(),
-        Rest::Fitted | Rest::Free(_) => f32::INFINITY,
-    });
     let content = NodeRef::new();
     let slot = NodeRef::new();
     let motion = store(Motion {
+        curves,
         extent,
         shares,
         resting,
@@ -1190,78 +1285,87 @@ pub fn Sheet(
             motion.place_content(offset, 0.0);
         }
     });
-    let was_open = Cell::new(false);
-    create_effect(move || {
-        let open = open.get();
-        if open == was_open.replace(open) {
-            return;
-        }
-        untrack(|| match open {
-            true => motion.value().enter(motion),
-            false => motion.value().leave(motion),
-        });
-    });
+    create_effect_on(
+        move || open.get(),
+        move |&open, was| {
+            if open == was.copied().unwrap_or(false) {
+                return;
+            }
+            match open {
+                true => motion.value().enter(motion),
+                false => motion.value().leave(motion),
+            }
+        },
+    );
     let flinging = motion.with(|motion| motion.held.flag());
     let flinging = create_memo(move || match flinging.get() {
         true => vec![Claim::always(true)],
         false => Vec::new(),
     });
-    let shifted = create_memo(move || vec2(0.0, shift.get()));
     let axis = create_memo(|| Some(Direction::Vertical));
     let catcher = NodeRef::new();
+    let handle_focused = create_signal(false);
     let grip = grip.call(SheetGripHandle {
         dragging: dragging.read_only(),
+        focused: handle_focused.read_only(),
         on_drag: Callback::new(move |gesture| motion.value().outside_drag(gesture)),
     });
-    // The kept-alive `Show` builds its children once.
+    // The `Kept` builds its child once.
     let panel = panel.once();
     let sheet = view! {
         <List spacing=0.0>
-            <Show keep_alive=true condition={present}>
-                <ListItem length=sheet_length max=sheet_max shrink=1.0>
-                    <Frame @node_ref=&slot translate={shifted}>
-                        {panel.call(view! {
-                            <Frame>
-                                <Interactive
-                                    @node_ref=&catcher
-                                    claims={flinging}
-                                    on_press={move |_: PointerPress| motion.value().stop_fling()}
-                                    on_wheel={gestures::scroll_wheel(axis, move |gesture: ScrollGesture| motion.value().wheel(gesture))}
-                                    on_pointer={gestures::scroll_drag(axis, move |gesture: DragGesture| motion.value().drag(gesture))}
-                                >
-                                    <List spacing=0.0>
+            <KeepAlive>
+                <Show value={move || !gone.get()}>
+                    <ListItem
+                        length={move || match rest_at.get() {
+                            Rest::Free(height) => Some(height),
+                            Rest::Share(_) | Rest::Fitted => None,
+                        }}
+                        max={move || match rest_at.get() {
+                            Rest::Share(share) => share * extent.get(),
+                            Rest::Fitted | Rest::Free(_) => f32::INFINITY,
+                        }}
+                        shrink=1.0
+                    >
+                        <Kept>
+                            <Frame @node_ref=&slot translate={move || vec2(0.0, shift.get())}>
+                                {panel.call(view! {
+                                    <Frame>
                                         <Interactive
-                                            @test_id={"sheet.handle"}
-                                            cursor=CursorIcon::ResizeVertical
-                                            on_pointer={gestures::scroll_drag(axis, move |gesture: DragGesture| motion.value().outside_drag(gesture))}
-                                            on_press={move |press: PointerPress| motion.value().handle_press(press)}
-                                            on_drag={move |press: PointerPress| motion.value().handle_drag(press)}
-                                            on_cancel={move || motion.value().handle_cancel()}
-                                            on_active_change={move |active: bool| motion.value().handle_active(active)}
-                                            children={Some(grip)}
-                                        />
-                                        <ListItem shrink=1.0>
-                                            <Frame fade_edges={edges}>
-                                                <Offset
-                                                    @node_ref=&content
-                                                    fit=true
-                                                    on_change={move |value: ScrollPosition| {
-                                                        if !motion.value().settle_content(value) {
-                                                            position.set(Some(value));
-                                                        }
-                                                    }}
-                                                >
-                                                    {children}
-                                                </Offset>
-                                            </Frame>
-                                        </ListItem>
-                                    </List>
-                                </Interactive>
+                                            @node_ref=&catcher
+                                            claims={flinging}
+                                            on_press={move |_: PointerPress| motion.value().stop_fling()}
+                                            on_wheel={gestures::scroll_wheel(axis, move |gesture: ScrollGesture| motion.value().wheel(gesture))}
+                                            on_pointer={gestures::scroll_drag(axis, move |gesture: DragGesture| motion.value().drag(gesture))}
+                                        >
+                                            <List spacing=0.0>
+                                                <SheetHandle motion focused={handle_focused}>
+                                                    {grip}
+                                                </SheetHandle>
+                                                <ListItem shrink=1.0>
+                                                    <Frame fade_edges={edges}>
+                                                        <Offset
+                                                            @node_ref=&content
+                                                            fit=true
+                                                            on_change={move |value: ScrollPosition| {
+                                                                if !motion.value().settle_content(value) {
+                                                                    position.set(Some(value));
+                                                                }
+                                                            }}
+                                                        >
+                                                            {children}
+                                                        </Offset>
+                                                    </Frame>
+                                                </ListItem>
+                                            </List>
+                                        </Interactive>
+                                    </Frame>
+                                })}
                             </Frame>
-                        })}
-                    </Frame>
-                </ListItem>
-            </Show>
+                        </Kept>
+                    </ListItem>
+                </Show>
+            </KeepAlive>
         </List>
     };
     on_back(open, move |gesture| motion.value().back(gesture));
@@ -1275,11 +1379,12 @@ pub fn ModalSheet(
     stops: Vec<f32>,
     #[prop(default = false)] fit: bool,
     #[prop(default = 0.0)] fade: f32,
+    curves: SheetCurves,
     scrim: Prop<Color>,
-    grip: Render<SheetGripHandle>,
-    panel: Render<Child>,
+    grip: Render<SheetGripHandle, NodeId>,
+    panel: Render<NodeId, NodeId>,
     on_close: Callback<()>,
-    #[prop(children)] content: Render,
+    #[prop(children)] content: Build<NodeId>,
 ) -> NodeId {
     let shown = open;
     view! {
@@ -1296,12 +1401,13 @@ pub fn ModalSheet(
                 stops
                 fit
                 fade
+                curves
                 grip
                 panel
                 on_presence={modal.presence}
                 on_close={on_close}
             >
-                {content.call(())}
+                {content.call()}
             </ModalSheetBody>
         </Modal>
     }
@@ -1314,11 +1420,12 @@ fn ModalSheetBody(
     stops: Vec<f32>,
     fit: bool,
     fade: f32,
-    grip: Render<SheetGripHandle>,
-    panel: Render<Child>,
+    curves: SheetCurves,
+    grip: Render<SheetGripHandle, NodeId>,
+    panel: Render<NodeId, NodeId>,
     on_presence: Callback<f32>,
     on_close: Callback<()>,
-    children: Child,
+    children: NodeId,
 ) -> NodeId {
     let gone = create_signal(false);
     let reopened = open;
@@ -1338,10 +1445,9 @@ fn ModalSheetBody(
     });
     let extent = create_signal(0.0);
     let highest = stops.iter().copied().fold(0.0, f32::max);
-    let room = create_memo(move || extent.get() * (1.0 - highest));
     let built = view! {
         <List spacing=0.0>
-            <ListItem grow=1.0 min=room>
+            <ListItem grow=1.0 min={move || extent.get() * (1.0 - highest)}>
                 <Interactive
                     @test_id={"sheet.outside"}
                     on_click={on_close}
@@ -1360,6 +1466,7 @@ fn ModalSheetBody(
                     stops
                     fit
                     fade
+                    curves
                     grip
                     panel
                     on_presence={move |presence: f32| on_presence.call(presence)}
@@ -1378,4 +1485,76 @@ fn ModalSheetBody(
         }
     });
     built
+}
+
+/// The sheet's handle: dragged, it moves the sheet; focused (by Tab, never by a press, so a
+/// drag on a phone keeps the field being edited), Up and Down settle it on the next stop
+/// that way. Both keys are taken, pressed and let go, even where no stop is that way, so
+/// they never scroll what holds the sheet. A screen reader finds it as a slider named
+/// "Sheet height" whose value is the share of the extent it stands at, read as the stop it
+/// rests at ("Stop 2 of 3"), which its Increment and
+/// Decrement step (a phone's screen reader swiping up and down). A Tab stop, and a slider,
+/// only when the sheet has more than one stop.
+#[component]
+fn SheetHandle(motion: Stored<Motion>, focused: Signal<bool>, children: NodeId) -> NodeId {
+    let axis = create_memo(|| Some(Direction::Vertical));
+    let (rest_at, extent, shares) =
+        motion.with(|motion| (motion.rest_at, motion.extent, Rc::clone(&motion.shares)));
+    let steps = motion.with(|motion| !motion.fit) && shares.len() > 1;
+    let share = create_memo(move || match rest_at.get() {
+        Rest::Share(share) => share,
+        Rest::Free(height) => height / extent.get(),
+        Rest::Fitted => 1.0,
+    });
+    // A sheet with one stop has no height to choose: its handle is only dragged.
+    if steps {
+        let accessibility =
+            crate::labelled_node(Role::Slider, None, Prop::Static("Sheet height".to_owned()));
+        component_accessibility(create_memo(move || {
+            let mut node = accessibility.get();
+            let share = share.get();
+            node.set_numeric_value(f64::from(share * 100.0));
+            node.set_min_numeric_value(0.0);
+            node.set_max_numeric_value(100.0);
+            // Read as the stop it rests at, or the share it was let go at between them.
+            node.set_value(match rest_at.get() {
+                Rest::Share(at) => match shares.iter().position(|stop| *stop == at) {
+                    Some(stop) => format!("Stop {} of {}", stop + 1, shares.len()),
+                    None => format!("{}%", (share * 100.0).round()),
+                },
+                _ => format!("{}%", (share * 100.0).round()),
+            });
+            node
+        }));
+    }
+    view! {
+        <Interactive
+            @test_id={"sheet.handle"}
+            focusable=true
+            tab_stop={steps}
+            press_focus=false
+            on_step={move |delta: f32| {
+                motion.value().step_stop(delta > 0.0);
+            }}
+            on_focus_change={focused}
+            on_key={move |press: KeyPress| {
+                let up = match press.key {
+                    Key::ArrowUp => true,
+                    Key::ArrowDown => false,
+                    _ => return false,
+                };
+                if press.pressed {
+                    motion.value().step_stop(up);
+                }
+                true
+            }}
+            cursor=CursorIcon::ResizeVertical
+            on_pointer={gestures::scroll_drag(axis, move |gesture: DragGesture| motion.value().outside_drag(gesture))}
+            on_press={move |press: PointerPress| motion.value().handle_press(press)}
+            on_drag={move |press: PointerPress| motion.value().handle_drag(press)}
+            on_cancel={move || motion.value().handle_cancel()}
+            on_active_change={move |active: bool| motion.value().handle_active(active)}
+            children={Some(children)}
+        />
+    }
 }

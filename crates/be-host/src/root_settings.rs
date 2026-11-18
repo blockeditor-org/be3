@@ -103,6 +103,9 @@ pub(crate) struct RootSettings {
     chosen_profile: Option<Uuid>,
     set_up: Option<Uuid>,
     cache: RefCell<Cache>,
+    /// Each reads kind's layer blocks as `reads_moved` last read them, and whether it sent
+    /// their content (none of a layer was loaded yet, otherwise).
+    reads: RefCell<HashMap<Uuid, (Vec<Uuid>, bool)>>,
 }
 
 impl RootSettings {
@@ -118,6 +121,7 @@ impl RootSettings {
             chosen_profile: None,
             set_up: None,
             cache: RefCell::default(),
+            reads: RefCell::default(),
         }
     }
 
@@ -171,7 +175,8 @@ impl RootSettings {
                 BlockParent::Root,
                 BlockMetadata::default(),
                 Some(SettingsContent::default().encode()),
-                false,
+                // A guest's settings only it reads (`be_host_stack::guest`).
+                be_host_stack::guest(),
             );
             self.created = Some(block);
         }
@@ -195,6 +200,10 @@ impl RootSettings {
     }
 
     pub(crate) fn ensure_my_files(&mut self) -> Option<Uuid> {
+        // A guest keeps no files of its own here (`be_host_stack::guest`).
+        if be_host_stack::guest() {
+            return None;
+        }
         if self.my_files().is_none()
             && be_host_stack::ready(be_host_stack::Query::Roots)
             && let Some((account, organization)) = be_host_stack::identity()
@@ -237,6 +246,10 @@ impl RootSettings {
     /// Makes the account's Unfiled once the server has said it has none. It has no content:
     /// it holds every block whose parent names it.
     pub(crate) fn ensure_unfiled(&mut self) -> Option<Uuid> {
+        // A guest keeps no files of its own here (`be_host_stack::guest`).
+        if be_host_stack::guest() {
+            return None;
+        }
         if self.unfiled().is_none()
             && let Some(block) = be_host_stack::unfiled()
             && self.created_unfiled != Some(block)
@@ -376,6 +389,49 @@ impl RootSettings {
             .current_profile(&settings, client)
             .and_then(|profile| self.settings_profile(profile));
         settings.layers(kind, profile.as_ref())
+    }
+
+    /// The account's layers of each reads kind of `kinds` (`be_host_stack::unread`) whose layers
+    /// `changes` moved: each its content's bytes, lowest first (every device, then this
+    /// device). Reads nothing when nothing changed, and only the kinds whose layer blocks
+    /// changed or whose content did; a kind waits until each layer it has is loaded.
+    pub(crate) fn reads_moved(
+        &self,
+        kinds: impl FnOnce() -> Vec<Uuid>,
+        changes: &be_host_stack::Changes,
+        client: Uuid,
+    ) -> Vec<(Uuid, Vec<Vec<u8>>)> {
+        // Which blocks hold the layers moves with the graph (the settings at the root), the
+        // settings and the profile, whose content are block changes; the modules' kinds with
+        // `stale`.
+        if !(changes.graph || changes.stale || changes.every_block || !changes.blocks.is_empty()) {
+            return Vec::new();
+        }
+        let mut read = self.reads.borrow_mut();
+        let mut moved = Vec::new();
+        for kind in kinds() {
+            let layers = self.layers(kind, client);
+            let blocks: Vec<Uuid> = [layers.every_device, layers.this_device]
+                .into_iter()
+                .flatten()
+                .collect();
+            let unchanged = read.get(&kind).is_some_and(|(held, sent)| {
+                *sent && *held == blocks && !blocks.iter().any(|block| changes.block(*block))
+            });
+            if unchanged {
+                continue;
+            }
+            let contents: Option<Vec<Vec<u8>>> = blocks
+                .iter()
+                .map(|block| {
+                    be_host_stack::hold(*block, kind);
+                    be_host_stack::content(*block).map(|content| content.bytes().to_vec())
+                })
+                .collect();
+            read.insert(kind, (blocks, contents.is_some()));
+            moved.extend(contents.map(|contents| (kind, contents)));
+        }
+        moved
     }
 
     fn current_profile(&self, settings: &Settings, client: Uuid) -> Option<Uuid> {

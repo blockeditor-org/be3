@@ -14,9 +14,9 @@ fn an_overflowing_toolbar_hands_its_tab_stop_to_its_buttons_and_reveals_them() {
         move || {
             arrow_focus(row, Direction::Horizontal);
             view! {
-                <Scroll @node_ref=&scroll direction=Direction::Horizontal>
+                <Scroll @node_ref=&scroll direction=Direction::Horizontal style={plain_scroll()}>
                     <List @node_ref=&row direction=Direction::Horizontal spacing=0.0>
-                        <ForEach keys={indices(buttons.len())}>|index: usize| {
+                        <ForEach value={indices(buttons.len())}>|index: usize| {
                             let button = buttons[index];
                             view! {
                                 <Frame width=100.0>

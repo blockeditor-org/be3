@@ -26,7 +26,7 @@ async fn granted_locked(owner: &Peer<MemoryStore>, guest: &Peer<MemoryStore>, na
 
 /// The guest's summary of `block`, learned.
 async fn listed(guest: &Peer<MemoryStore>, block: Uuid) -> BlockSummary {
-    let listed = guest.list(Listing::Block(block)).await.unwrap();
+    let listed = vec![guest.summary(block).await.unwrap()];
     guest.learn(&listed).await.unwrap();
     let [summary] = listed.as_slice() else {
         panic!("the guest lists {listed:?}");
@@ -37,7 +37,7 @@ async fn listed(guest: &Peer<MemoryStore>, block: Uuid) -> BlockSummary {
 /// A share whose key reaches the server after its grant (as `Peer::share` sends them, or a
 /// pending grant sealed later): the guest's device lists the block while it has no key, then
 /// opens it once the key is sealed to it, though it already looked for that key once. The
-/// server tells it so (`keys-changed`); a device away as the key was sealed asks for every key
+/// server tells it so (`topic.keys`); a device away as the key was sealed asks for every key
 /// as it attaches again.
 #[tokio::test]
 async fn a_key_sealed_after_the_block_was_listed_unlocks_it() {

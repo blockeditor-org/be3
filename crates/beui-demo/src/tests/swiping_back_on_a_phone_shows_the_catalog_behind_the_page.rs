@@ -9,7 +9,7 @@ const FRAME_LIMIT: usize = 60;
 fn swiping_back_on_a_phone_shows_the_catalog_behind_the_page() {
     let mut test = demo(PHONE);
     open(&mut test, Page::Buttons);
-    assert!(!test.shows("demo.catalog.Buttons"));
+    assert!(!test.shown("demo.catalog.Buttons"));
 
     test.frame(vec![
         Input::Back(BackGesture::Started {
@@ -18,7 +18,7 @@ fn swiping_back_on_a_phone_shows_the_catalog_behind_the_page() {
         Input::Back(BackGesture::Progressed(1.0)),
     ]);
     assert!(
-        test.shows("demo.catalog.Buttons"),
+        test.shown("demo.catalog.Buttons"),
         "the catalog shows behind the page while back is swiped"
     );
     test.snapshot("swiping_back_shows_the_catalog_behind_the_page");
@@ -34,5 +34,5 @@ fn swiping_back_on_a_phone_shows_the_catalog_behind_the_page() {
         test.document().find_test_id("dock.back").is_none(),
         "back reaches the catalog"
     );
-    assert!(test.shows("demo.catalog.Buttons"));
+    assert!(test.shown("demo.catalog.Buttons"));
 }

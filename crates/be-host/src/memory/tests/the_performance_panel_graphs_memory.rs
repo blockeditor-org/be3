@@ -1,5 +1,6 @@
 use super::*;
 use be_sdk_test::DocumentTest;
+use be_sdk_test::prelude::*;
 use beui::Vec2;
 use beui::reactive::*;
 use beui::styled::Root;

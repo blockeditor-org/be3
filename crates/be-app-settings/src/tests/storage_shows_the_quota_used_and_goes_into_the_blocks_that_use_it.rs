@@ -58,7 +58,6 @@ fn storage_shows_the_quota_used_and_goes_into_the_blocks_that_use_it() {
     );
 
     storage.click(&format!("settings.storage.block.{work}"));
-    storage.run();
     for inside in [photos, notes, work] {
         assert!(
             storage.shown(&format!("settings.storage.block.{inside}")),
@@ -69,6 +68,5 @@ fn storage_shows_the_quota_used_and_goes_into_the_blocks_that_use_it() {
     storage.snapshot("storage_inside_a_workspace");
 
     storage.click("settings.storage.up");
-    storage.run();
     assert!(storage.shown(&format!("settings.storage.block.{personal}")));
 }

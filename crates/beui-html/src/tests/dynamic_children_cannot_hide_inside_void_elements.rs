@@ -6,7 +6,7 @@ fn dynamic_children_cannot_hide_inside_void_elements() {
     render(|| {
         view! {
             <Element tag="input">
-                <Show condition={false}>"hidden"</Show>
+                <Show value={move || false}>"hidden"</Show>
             </Element>
         }
     });

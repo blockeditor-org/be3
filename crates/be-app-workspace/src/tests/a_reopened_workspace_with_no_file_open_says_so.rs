@@ -6,7 +6,7 @@ fn a_reopened_workspace_with_no_file_open_says_so() {
     assert!(fixture.says("No file open"));
 
     let layout = profile(&fixture)
-        .state("layout")
+        .stored(SavedLayout::ID)
         .cloned()
         .expect("the layout is saved in the profile");
     let (mut reopened, _) = profiled_sized(Some(WIDE), Some(layout));

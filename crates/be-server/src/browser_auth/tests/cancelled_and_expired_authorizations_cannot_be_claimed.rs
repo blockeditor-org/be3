@@ -23,7 +23,7 @@ async fn cancelled_and_expired_authorizations_cannot_be_claimed() {
         Ok(Polled::Expired)
     ));
     assert!(matches!(sessions.poll(&code, &secret), Ok(Polled::Expired)));
-    let form = sessions.form("", address);
+    let form = sessions.form("", address, None);
     tokio::time::advance(LIFETIME + Duration::from_secs(1)).await;
     assert!(sessions.consume_form(&form, "").is_err());
 }

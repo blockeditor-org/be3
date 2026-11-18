@@ -6,7 +6,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use be_block_content::presence::{ChannelKind, PresenceKind};
-use be_block_content::{EditorViewContent, ViewState};
+use be_block_content::{EditorViewContent, ViewStateKind};
 use be_lib_geometry::{CanvasView, Pos2, Rect, Vec2};
 use be_sdk_api::{ChildContent, FitArea, HostPanel, HostWindowId, WebViewId};
 use uuid::Uuid;
@@ -208,7 +208,6 @@ pub struct ContentCache {
     due: Rc<RefCell<Vec<Option<Uuid>>>>,
 }
 
-type ReplaceChild = Rc<dyn Fn(Uuid, Uuid) -> bool>;
 type Wake = (u64, Arc<AtomicU64>, Rc<dyn Fn(u64)>);
 
 #[derive(Clone)]
@@ -219,7 +218,6 @@ struct Inner {
     block: Uuid,
     scale: Rc<Cell<PointScale>>,
     contents: Rc<ContentCache>,
-    replace: RefCell<Option<ReplaceChild>>,
     content_rect: Cell<Rect>,
     intrinsic: Cell<Option<Vec2>>,
     pending_resize: Cell<Option<Vec2>>,
@@ -254,7 +252,6 @@ impl EditorCore {
             block,
             scale,
             contents,
-            replace: RefCell::new(None),
             content_rect: Cell::new(Rect::ZERO),
             intrinsic: Cell::new(None),
             pending_resize: Cell::new(None),
@@ -359,25 +356,19 @@ impl EditorCore {
             .map(|block| self.content_of::<EditorViewContent>(block))
     }
 
-    pub fn view_state(&self, key: &str) -> Option<ViewState> {
-        self.view_content()?
-            .read(|view| view.root().state(key).cloned())
-            .ok()
-            .flatten()
-    }
-
-    pub fn set_view_state(&self, key: &str, state: Option<&ViewState>) {
+    /// Keeps `value` as the `K` in the view block (none removes it), unless it is kept already.
+    pub fn set_view_state<K: ViewStateKind>(&self, value: Option<&K>) {
         let Some(view) = self.view_content() else {
             return;
         };
         let client = self.0.host.client_id();
         let now = now_milliseconds();
-        let edit = view.read(|held| {
-            let root = held.root();
-            (root.state(key) != state).then(|| root.set_state(key, state, now, client))
-        });
-        if let Some(edit) = edit.ok().flatten() {
-            view.operate_anyway(edit);
+        let edit = view.read(|held| held.root().set_view_state(value, now, client));
+        match edit {
+            Ok(Ok(Some(edit))) => view.operate_anyway(edit),
+            Ok(Ok(None)) | Err(_) => {}
+            // A kind that cannot be encoded is a bug in its type: what is kept stays.
+            Ok(Err(error)) => debug_assert!(false, "a view state cannot be encoded: {error}"),
         }
     }
 
@@ -471,15 +462,6 @@ impl EditorCore {
 
     pub fn report_reveal(&self, client_id: u64) {
         self.0.pending_reveal.set(Some(client_id));
-    }
-
-    pub fn on_replace_child(&self, replace: impl Fn(Uuid, Uuid) -> bool + 'static) {
-        *self.0.replace.borrow_mut() = Some(Rc::new(replace));
-    }
-
-    pub fn replace_child(&self, old: Uuid, new: Uuid) -> bool {
-        let replace = self.0.replace.borrow().clone();
-        replace.is_some_and(|replace| replace(old, new))
     }
 
     pub fn content_rect(&self) -> Rect {

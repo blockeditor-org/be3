@@ -46,9 +46,6 @@ pub(crate) fn HandBar(
     play: Play,
     hidden: Memo<Vec<ItemId>>,
 ) -> NodeId {
-    let rect_held = create_signal(Rect::ZERO);
-    let rect = rect_held.read_only();
-    create_effect(move || bar.set(rect.get()));
     let shown = create_memo(move || !hand.with(Vec::is_empty));
     let keys = create_memo(move || {
         hand.with(|hand| {
@@ -60,7 +57,7 @@ pub(crate) fn HandBar(
     let screen = Some(CanvasView::new(Pos2::ZERO, 1.0));
     let built = view! {
         <Layers>
-            <Show condition={shown}>
+            <Show value={shown}>
                 <Frame
                     height={Size::Custom(BAR_HEIGHT)}
                     fill=ColorRole::Surface
@@ -68,18 +65,18 @@ pub(crate) fn HandBar(
                     @test_id={"game.hand"}
                 >
                     <Canvas view={screen}>
-                        <ForEach keys={keys}>|(id, spot): (ItemId, Spot)|
-                            <HandItem id spot hand={hand} bar={rect} play={play} hidden={hidden} />
+                        <ForEach value={keys}>|(id, spot): (ItemId, Spot)|
+                            <HandItem id spot hand={hand} bar={bar} play={play} hidden={hidden} />
                         </ForEach>
                     </Canvas>
                 </Frame>
             </Show>
         </Layers>
     };
-    let rect_measured = measure(built);
+    let measured = measure(built);
     create_effect(move || {
-        if let Some(measured) = rect_measured.get() {
-            rect_held.set(measured.rect);
+        if let Some(measured) = measured.get() {
+            bar.set(measured.rect);
         }
     });
     built
@@ -90,7 +87,7 @@ fn HandItem(
     id: ItemId,
     spot: Spot,
     hand: Memo<Vec<HandCard>>,
-    bar: ReadSignal<Rect>,
+    bar: Prop<Rect>,
     play: Play,
     hidden: Memo<Vec<ItemId>>,
 ) -> CanvasItem {
@@ -106,7 +103,7 @@ fn HandItem(
             .unwrap_or(Rect::ZERO)
     });
     let theme = use_theme();
-    let draw: Prop<Draw> = Prop::dynamic(move || {
+    let draw = move || {
         let held = held.get();
         let mark = play.mark(spot);
         let hidden = hidden.with(|hidden| hidden.contains(&id));
@@ -120,13 +117,13 @@ fn HandItem(
             }
             paint_card_mark(painter, rect, mark, 1.0, &theme);
         }) as Draw
-    });
+    };
     view! {
         <CanvasItem
-            x={create_memo(move || rect.get().left())}
-            y={create_memo(move || rect.get().top())}
-            width={create_memo(move || rect.get().width().max(1.0))}
-            height={create_memo(move || rect.get().height().max(1.0))}
+            x={move || rect.get().left()}
+            y={move || rect.get().top()}
+            width={move || rect.get().width().max(1.0)}
+            height={move || rect.get().height().max(1.0)}
             clip=false
             @test_id={spot_test_id(spot)}
         >

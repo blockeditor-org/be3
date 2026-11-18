@@ -7,18 +7,15 @@ async fn revoking_an_http_session_removes_its_access() {
     let mut stream = tokio::net::TcpStream::connect(harness.address)
         .await
         .unwrap();
-    let (_, session, _) = post(&mut stream, None, &[&hello(BUILD)]).await;
+    let (status, session, _) = post(&mut stream, None, &[&token_hello(&owner.token)]).await;
+    assert_eq!(status, 200);
     let session = session.unwrap();
     let mut posted = Posted::new();
-    let _authenticating = client::account::authenticate(&posted.peer, Some(owner.token.clone()));
-    let sent = posted.frames();
-    let (status, _, frames) = post(&mut stream, Some(&session), &[&sent[0]]).await;
-    assert_eq!(status, 200);
-    posted.heard(&frames);
     let mut browser = Browser::default();
     browser
-        .login(&harness, "http-revoke@example.com", "correct horse battery")
+        .sign_in_by_code(&harness, "http-revoke@example.com")
         .await;
+    browser.prove(&harness, "http-revoke@example.com").await;
     assert_eq!(
         browser
             .submit(&harness, "/auth/sessions", "/auth/sessions/others", &[])
@@ -26,7 +23,9 @@ async fn revoking_an_http_session_removes_its_access() {
             .0,
         303
     );
-    let _listed = client::organizations::list_organizations(&posted.peer);
+    let _listed = posted
+        .peer
+        .read::<Vec<be_block_protocol::Organization>>(be_block_protocol::Query::Organizations);
     let list = posted.frames();
     assert_eq!(post(&mut stream, Some(&session), &[&list[0]]).await.0, 404);
 }

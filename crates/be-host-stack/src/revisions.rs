@@ -1,6 +1,6 @@
 use std::sync::{Arc, PoisonError};
 
-use be_wasm_threads::Mutex;
+use std::sync::Mutex;
 
 use be_block_client::Peer;
 use be_block_commit::CommitId;
@@ -11,10 +11,11 @@ use uuid::Uuid;
 use super::{
     Content, Shared,
     replicas::Replicas,
+    seen::Edit,
     worker::{Command, Store},
 };
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct Preview {
     pub source: Uuid,
     pub root: Uuid,
@@ -24,7 +25,7 @@ pub struct Preview {
 }
 
 pub fn source(block: Uuid) -> Option<Uuid> {
-    super::with_shared(|shared| {
+    super::with_seen(|shared| {
         shared
             .revision_previews
             .get(&block)
@@ -34,7 +35,7 @@ pub fn source(block: Uuid) -> Option<Uuid> {
 }
 
 pub fn error(block: Uuid) -> Option<String> {
-    super::with_shared(|shared| {
+    super::with_seen(|shared| {
         shared
             .revision_previews
             .contains_key(&block)
@@ -45,7 +46,7 @@ pub fn error(block: Uuid) -> Option<String> {
 }
 
 pub fn released(block: Uuid) -> bool {
-    super::with_shared(|shared| {
+    super::with_seen(|shared| {
         shared
             .revision_previews
             .get(&block)
@@ -55,17 +56,14 @@ pub fn released(block: Uuid) -> bool {
 }
 
 pub fn load(alias: Uuid, source: Uuid, content_type: Uuid) {
-    let wanted = super::with_shared_mut(|shared| {
-        let preview = shared.revision_previews.get_mut(&alias)?;
-        if preview.released || preview.content.is_some() || preview.requested {
-            return None;
-        }
-        preview.requested = true;
-        Some(())
+    let wanted = super::with_seen(|shared| {
+        shared.revision_previews.get(&alias).is_some_and(|preview| {
+            !preview.released && preview.content.is_none() && !preview.requested
+        })
     })
-    .flatten()
-    .is_some();
+    .unwrap_or_default();
     if wanted {
+        super::edit(vec![Edit::Requested(alias)]);
         super::send(Command::PreviewChild {
             alias,
             source,
@@ -91,19 +89,20 @@ pub(super) async fn load_child(
         }
         let head = summary.head.ok_or("This file has no saved content.")?;
         let commit = peer
-            .load_commit(head)
+            .load_head(source, head)
             .await
             .map_err(|error| error.to_string())?;
         let bytes = peer
             .read_manifest(&commit.manifest)
             .await
             .map_err(|error| error.to_string())?;
-        super::is_known(content_type)
+        be_block_type_host::is_known(content_type)
             .then(|| Content::new(content_type, bytes))
             .ok_or("This file cannot be previewed.".to_owned())
     }
     .await;
     let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+    held.reach_dirty.insert(source);
     if let Some(preview) = held.revision_previews.get_mut(&alias)
         && !preview.released
     {
@@ -118,73 +117,42 @@ pub(super) async fn load_child(
 }
 
 pub fn alias(parent: Uuid, block: Uuid) -> Uuid {
-    super::with_shared_mut(|shared| {
-        let Some(root) = shared
-            .revision_previews
-            .get(&parent)
-            .map(|preview| preview.root)
-        else {
-            return block;
-        };
-        if let Some(id) = shared.preview_aliases.get(&(root, block)) {
-            return *id;
-        }
-        let id = Uuid::new_v4();
-        shared.preview_aliases.insert((root, block), id);
-        shared.revision_previews.insert(
-            id,
-            Preview {
-                source: block,
-                root,
-                content: shared.blocks.get(&block).cloned(),
-                released: false,
-                requested: false,
-            },
-        );
-        id
+    let Some((root, aliased)) = super::with_seen(|shared| {
+        let root = shared.revision_previews.get(&parent)?.root;
+        Some((root, shared.preview_aliases.get(&(root, block)).copied()))
     })
-    .unwrap_or(block)
+    .flatten() else {
+        return block;
+    };
+    if let Some(id) = aliased {
+        return id;
+    }
+    let id = Uuid::new_v4();
+    super::edit(vec![Edit::Alias { root, block, id }]);
+    id
 }
 
 pub fn release(root: Uuid) {
-    super::with_shared_mut(|shared| {
-        for (id, preview) in shared
-            .revision_previews
-            .iter_mut()
-            .filter(|(_, preview)| preview.root == root && !preview.released)
-        {
-            preview.released = true;
-            shared.released_previews.push(*id);
-        }
-    });
-    be_host_base::host::wake();
+    super::edit(vec![Edit::Release(root)]);
 }
 
 pub fn collect_released(release: impl FnOnce(&[Uuid])) {
-    let ids = super::with_shared_mut(|shared| std::mem::take(&mut shared.released_previews))
-        .unwrap_or_default();
+    let ids = super::with_seen(|shared| shared.released_previews.clone()).unwrap_or_default();
     if ids.is_empty() {
         return;
     }
     release(&ids);
-    super::with_shared_mut(|shared| {
-        for id in ids {
-            if let Some(preview) = shared.revision_previews.get_mut(&id) {
-                preview.content = None;
-            }
-            shared.unreadable.remove(&id);
-        }
-    });
+    super::edit(vec![Edit::Collected(ids)]);
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
 pub enum Asked {
     List,
     Preview([u8; 32]),
     Restore([u8; 32]),
 }
 
-#[derive(Debug)]
+#[derive(Debug, serde::Deserialize, serde::Serialize)]
 pub enum Answered {
     Listed(Result<Vec<Revision>, String>),
     Previewed(Result<Uuid, String>),
@@ -195,7 +163,7 @@ pub fn request(block: Uuid, request: Asked, reply: impl FnOnce(Answered) + Send 
     super::send(Command::Revision {
         block,
         request,
-        reply: Box::new(reply),
+        reply: crate::replies::expect(reply),
     });
 }
 
@@ -233,7 +201,7 @@ pub(super) async fn list(peer: &Arc<Peer<Store>>, block: Uuid) -> Result<Vec<Rev
         .map_err(|error| error.to_string())?;
     let mut kept = Vec::new();
     for commit in peer.pending_commits(block) {
-        if let Ok(loaded) = peer.load_commit(commit).await {
+        if let Ok(loaded) = peer.load_reached(commit).await {
             kept.push((commit, loaded.time));
         }
     }
@@ -314,7 +282,7 @@ async fn perform(
         return Err("This revision is no longer available.".into());
     }
     let saved = peer
-        .load_commit(commit)
+        .load_head(block, commit)
         .await
         .map_err(|error| error.to_string())?;
     if saved.manifest.content_type != summary.content_type {
@@ -341,7 +309,7 @@ async fn perform(
         .await
         .map_err(|error| error.to_string())?;
     if !restore {
-        let content = super::is_known(summary.content_type)
+        let content = be_block_type_host::is_known(summary.content_type)
             .then(|| Content::new(summary.content_type, bytes))
             .ok_or("This revision cannot be previewed.")?;
         let id = Uuid::new_v4();
@@ -365,16 +333,11 @@ async fn perform(
     if !replicas.is_open(block) {
         return Err("Open this file before restoring a revision.".into());
     }
-    // The state being replaced is kept as a bookmark, so pruning never takes it.
+    // The state being replaced is kept as a bookmark, so pruning never takes it; what the
+    // order does not hold yet the replica stashes under the restore.
     replicas
         .bookmark((peer, shared), block, "Before restoring")
         .await;
-    if !replicas.status(block).is_some_and(|status| status.clean) {
-        return Err(
-            "The current edits are still being saved. Try restoring again once they are saved."
-                .into(),
-        );
-    }
     replicas
         .change((peer, shared), block, Change::Replace(bytes))
         .await;

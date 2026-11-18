@@ -16,7 +16,7 @@ fn a_pane_whose_every_tab_is_closable_shows_its_close_even_with_one_tab() {
                             <dock::DockTab id="notes" title="Notes" on_close={|| {}}>
                                 <Frame @test_id={"content.notes"} />
                             </dock::DockTab>
-                            <Show condition={second}>
+                            <Show value={second}>
                                 <dock::DockTab id="outline" title="Outline" on_close={|| {}}>
                                     <Frame @test_id={"content.outline"} />
                                 </dock::DockTab>

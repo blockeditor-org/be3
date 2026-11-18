@@ -11,7 +11,7 @@ use be_sdk_beui::beui::icons::{ICON_CHECK, ICON_FLAG, ICON_X};
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::{Editor, LoadingPane};
-use tabletop_api::{Board, Control, GameActionOption, GameScreen, Gesture};
+use tabletop_api::{Board, Control, GameActionOption, GameScreen, Gesture, Spot};
 
 mod annotations;
 mod board;
@@ -203,7 +203,7 @@ pub(crate) fn Game(
         <List spacing=Space::None>
             <Keyed
                 value={snapshot}
-                key={|snapshot: GameSnapshot| snapshot.shape()}
+                key={|snapshot: &GameSnapshot| snapshot.shape()}
             >|snapshot: ReadSignal<GameSnapshot>|
                 <ListItem grow=1.0>
                     <GameShape editor game snapshot />
@@ -219,25 +219,25 @@ fn GameShape(
     game: Stored<Rc<dyn GameModel>>,
     snapshot: ReadSignal<GameSnapshot>,
 ) -> NodeId {
-    let shape = snapshot.get_untracked().shape();
-    let loading = shape == Shape::Loading;
-    let failed = shape == Shape::Error;
-    let playing = shape == Shape::Screen;
     view! {
         <List spacing=Space::None>
-            <Show condition=loading>
-                <ListItem grow=1.0>
-                    <LoadingPane label="Loading the game" />
-                </ListItem>
-            </Show>
-            <Show condition=failed>
-                <GameError snapshot={snapshot} />
-            </Show>
-            <Show condition=playing>
-                <ListItem grow=1.0>
-                    <GamePlay editor={editor} game={game} snapshot={snapshot} />
-                </ListItem>
-            </Show>
+            {match snapshot.get_untracked().shape() {
+                Shape::Loading => view! {
+                    <ListItem grow=1.0>
+                        <LoadingPane label="Loading the game" />
+                    </ListItem>
+                },
+                Shape::Error => view! {
+                    <ListItem>
+                        <GameError snapshot={snapshot} />
+                    </ListItem>
+                },
+                Shape::Screen => view! {
+                    <ListItem grow=1.0>
+                        <GamePlay editor={editor} game={game} snapshot={snapshot} />
+                    </ListItem>
+                },
+            }}
         </List>
     }
 }
@@ -287,22 +287,22 @@ fn GamePlay(
             .filter(|action| matches!(action.gesture, None | Some(Gesture::Control(_))))
             .collect::<Vec<_>>()
     });
-    let selected = create_signal(None);
-    let choices = create_signal(Vec::new());
-    let dragging = create_signal(None);
-    let over = create_signal(None);
-    create_effect(move || {
-        actions.with(|_| {});
-        selected.set(None);
-        choices.set(Vec::new());
+    let selected = create_linked_signal(move || {
+        actions.track();
+        None::<Spot>
     });
+    let choices = create_linked_signal(move || {
+        actions.track();
+        Vec::<Action>::new()
+    });
+    // Nothing is carried until the stage, whose drop site gives this, is built.
+    let over = create_signal(None).read_only();
     let play = Play {
         game,
         actions,
         editable,
         selected,
         choices,
-        dragging,
         over,
     };
     let drawn = create_memo(move || board.with(Layout::of));
@@ -329,20 +329,18 @@ fn GamePlay(
     let chrome = editor.chrome_shown();
     view! {
         <List spacing=Space::None>
-            <Keyed value={chrome} key={|shown: bool| shown}>|chrome: ReadSignal<bool>| {
-                match chrome.get_untracked() {
-                    true => view! {
-                        <ListItem grow=1.0>
-                            <GameDock editor stage play drawn layout hand panel />
-                        </ListItem>
-                    },
-                    false => view! {
-                        <ListItem grow=1.0>
-                            <Stage content={stage} editor play drawn layout hand steps />
-                        </ListItem>
-                    },
-                }
-            }</Keyed>
+            <Show
+                value={chrome}
+                fallback={move || view! {
+                    <ListItem grow=1.0>
+                        <Stage content={stage} editor play drawn layout hand steps />
+                    </ListItem>
+                }}
+            >
+                <ListItem grow=1.0>
+                    <GameDock editor stage play drawn layout hand panel />
+                </ListItem>
+            </Show>
             <Banner anchor={stage} table />
         </List>
     }
@@ -360,7 +358,6 @@ fn GameDock(
 ) -> NodeId {
     let steps = panel.steps;
     let Panel { table, shown, .. } = panel;
-    let choosing = create_memo(move || !play.choices.with(Vec::is_empty));
     let dock = DockingLayout::<&'static str>::new();
     view! {
         <Docking layout={dock} focus={Some(STAGE)}>
@@ -383,7 +380,7 @@ fn GameDock(
             >
                 <ActionBar panel />
             </DockBar>
-            <Show condition={choosing}>
+            <Show value={move || !play.choices.with(Vec::is_empty)}>
                 <DockBar
                     id=CHOICES
                     parent=STAGE
@@ -421,7 +418,7 @@ fn ActionBar(panel: Panel) -> NodeId {
 #[component]
 fn SeatPicker(game: Stored<Rc<dyn GameModel>>, seat: Memo<Seat>) -> NodeId {
     let names = create_memo(move || seat.get().names);
-    let seat_keys = create_memo(move || (0..names.get().len()).collect::<Vec<_>>());
+    let seat_keys = create_memo(move || (0..names.with(Vec::len)).collect::<Vec<_>>());
     let playing = create_memo(move || Some(seat.get().playing));
     let seated = move |seat: Option<usize>| {
         if let Some(seat) = seat {
@@ -433,12 +430,12 @@ fn SeatPicker(game: Stored<Rc<dyn GameModel>>, seat: Memo<Seat>) -> NodeId {
             <ListItem shrink=1.0>
                 <Select
                     options={view! {
-                        <ForEach keys={seat_keys}>|seat: usize| {
+                        <ForEach value={seat_keys}>|seat: usize| {
                             let label = create_memo(move || {
                                 names.with(|names| names.get(seat).cloned().unwrap_or_default())
                             });
                             view! {
-                                <ChoiceOption label />
+                                <ChoiceOption value=seat label />
                             }
                         }</ForEach>
                     }}
@@ -482,7 +479,7 @@ fn Controls(
 ) -> NodeId {
     view! {
         <List direction={direction} align=Align::Center spacing=Space::Sm>
-            <ForEach keys={controls}>|action: Action|
+            <ForEach value={controls}>|action: Action|
                 <ControlButton game action editable={editable} />
             </ForEach>
         </List>
@@ -493,7 +490,6 @@ fn Controls(
 fn ControlButton(game: Stored<Rc<dyn GameModel>>, action: Action, editable: Memo<bool>) -> NodeId {
     let disabled = create_memo(move || !editable.get());
     let confirming = create_signal(false);
-    let asking = create_memo(move || !confirming.get());
     let glyph = match action.gesture {
         Some(Gesture::Control(Control::Resign)) => ICON_FLAG,
         _ => ICON_CHECK,
@@ -505,17 +501,19 @@ fn ControlButton(game: Stored<Rc<dyn GameModel>>, action: Action, editable: Memo
     let effect = action.effect;
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
-            <Show condition={asking}>
-                <Button
-                    icon_only=true
-                    glyph={glyph}
-                    label={label.clone()}
-                    disabled={disabled}
-                    @test_id={format!("game.control.{index}")}
-                    on_click={move || confirming.set(true)}
-                />
-            </Show>
-            <Show condition={confirming}>|| {
+            <Show
+                value={confirming}
+                fallback={move || view! {
+                    <Button
+                        icon_only=true
+                        glyph={glyph}
+                        label={label.clone()}
+                        disabled={disabled}
+                        @test_id={format!("game.control.{index}")}
+                        on_click={move || confirming.set(true)}
+                    />
+                }}
+            >|| {
                 let confirm = confirm.clone(); let effect = effect.clone(); let question = question.clone(); view! {
                     <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
                         <Text style=TextStyle::CAPTION>{question}</Text>
@@ -550,7 +548,6 @@ fn Banner(anchor: NodeRef, table: Memo<Table>) -> NodeId {
             dismissed.set(false);
         }
     });
-    let open = create_memo(move || ending.with(Option::is_some) && !dismissed.get());
     let text = create_memo(move || {
         ending.with(|ending| {
             ending
@@ -564,7 +561,7 @@ fn Banner(anchor: NodeRef, table: Memo<Table>) -> NodeId {
     });
     let color = TextColor::Default;
     view! {
-        <Floating anchor open={open}>
+        <Floating anchor open={move || ending.with(Option::is_some) && !dismissed.get()}>
             <Frame padding=BANNER_MARGIN>
                 <Frame
                     fill=ColorRole::Surface
@@ -594,13 +591,15 @@ fn Banner(anchor: NodeRef, table: Memo<Table>) -> NodeId {
 #[component]
 fn ChoiceButtons(play: Play) -> NodeId {
     let choices = play.choices;
-    let keys = create_memo(move || choices.get());
     let cancel = move || play.cancel();
     let bar = use_dock_bar();
-    let direction = create_memo(move || bar.map_or(Direction::Vertical, |bar| bar.direction()));
     view! {
-        <List direction={direction} align=Align::Center spacing=Space::Sm>
-            <ForEach keys={keys}>|action: Action| {
+        <List
+            direction={move || bar.map_or(Direction::Vertical, |bar| bar.direction())}
+            align=Align::Center
+            spacing=Space::Sm
+        >
+            <ForEach value={choices}>|action: Action| {
                 let index = action.index;
                 view! {
                     <Button
@@ -673,12 +672,10 @@ pub(crate) fn GameCreation(
         }
         String::new()
     });
-    let has_status = create_memo(move || !status.get().is_empty());
     let status_color = create_memo(move || match snapshot.get().error.is_some() {
         true => TextColor::Danger,
         false => TextColor::Muted,
     });
-    let unready = create_memo(move || !snapshot.get().ready);
     let accepted = create_signal(false);
     view! {
         <DialogBody
@@ -690,13 +687,13 @@ pub(crate) fn GameCreation(
                     accepted.set(true);
                     creation.value().accept();
                 })
-                .disabled(unready)
+                .disabled(move || snapshot.with(|snapshot| !snapshot.ready))
                 .busy(accepted),
             ]}
             on_dismiss={move || creation.value().cancel()}
         >
             <List spacing=Space::Md align=Align::Start>
-                <ForEach keys={games}>|game: StagedChoice| {
+                <ForEach value={games}>|game: StagedChoice| {
                     let index = game.index;
                     let (variant, disabled, caption) = match &game.state {
                         StagedState::Loading => (ButtonVariant::Secondary, true, String::new()),
@@ -718,13 +715,11 @@ pub(crate) fn GameCreation(
                                 @test_id={format!("game.staged.{index}")}
                                 on_click={move || creation.value().choose_staged(index)}
                             />
-                            <Show condition={failed}>|| {
-                                let caption = caption.clone(); view! {
-                                    <Text style=TextStyle::CAPTION color=TextColor::Danger>
-                                        {caption}
-                                    </Text>
-                                }
-                            }</Show>
+                            {failed.then(|| view! {
+                                <Text style=TextStyle::CAPTION color=TextColor::Danger>
+                                    {caption}
+                                </Text>
+                            })}
                         </List>
                     }
                 }</ForEach>
@@ -734,7 +729,7 @@ pub(crate) fn GameCreation(
                     @test_id={"game.choose"}
                     on_click={move || creation.value().choose_module()}
                 />
-                <Show condition={has_status}>
+                <Show value={move || !status.with(String::is_empty)}>
                     <Text style=TextStyle::CAPTION color={status_color} @test_id={"game.selection"}>
                         {status}
                     </Text>

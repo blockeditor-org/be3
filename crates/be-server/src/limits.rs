@@ -19,6 +19,14 @@ pub const MAX_CONTACT_LINKS_PER_ACCOUNT: i64 = 1_000;
 pub const MAX_CONTACTS_PER_ACCOUNT: i64 = 10_000;
 /// Invitations an organization may have outstanding.
 pub const MAX_INVITATIONS_PER_ORGANIZATION: i64 = 1_000;
+/// Invitations an organization's list keeps, outstanding and ended; making one past it lets go
+/// of the oldest ended.
+pub const MAX_INVITATIONS_KEPT_PER_ORGANIZATION: i64 = 2_000;
+/// How long an invitation's link works, in seconds.
+pub const INVITATION_LIFETIME: i64 = 7 * 86_400;
+/// How long an ended invitation (accepted, expired or revoked) stays in its organization's list,
+/// in seconds.
+pub const INVITATION_RETENTION: i64 = 30 * 86_400;
 /// Escrow keys an organization may make; each rotation makes one.
 pub const MAX_ESCROWS_PER_ORGANIZATION: i64 = 1_000;
 
@@ -35,30 +43,33 @@ pub const MAX_MENTIONS: usize = 1_024;
 
 /// Live sessions one connection may be joined to at once.
 pub const MAX_SESSIONS_PER_CONNECTION: usize = 1_024;
-/// Listings one connection may hold at once: folders, references and backlinks open. A block's
-/// own listing (`Listing::Block`), which nothing unlists, does not count (`watch.rs`, `counts`).
-pub const MAX_LISTINGS_PER_CONNECTION: usize = 65_536;
+/// Entry points one connection may follow at once (`query.tree`'s `follow`): the top-level
+/// blocks and shared blocks whose trees hold what it shows.
+pub const MAX_FOLLOWS_PER_CONNECTION: usize = 4_096;
 /// Streams (watches, session events, change feeds) one connection may have open at once.
 pub const MAX_STREAMS_PER_CONNECTION: usize = 16_384;
 
-/// An organization name, an agent's name, a local profile's display name: the portal's limit
+/// An organization name, an agent's name, an account's display name: the portal's limit
 /// on display names.
 pub const MAX_NAME_BYTES: usize = 200;
 /// A block's metadata. It is kept in memory in the graph and sent in every summary, so it is
-/// small next to a frame: one summary, with `MAX_REFERENCES` references too, fits a frame, and
-/// calls answering many summaries split their answers by bytes rather than by count, sending a
-/// large one alone.
+/// small next to a frame: one summary fits a frame many times over, and calls answering many
+/// summaries split their answers by bytes rather than by count, sending a large one alone.
 pub const MAX_METADATA_BYTES: usize = 64 * 1024;
 pub use be_block_protocol::MAX_REFERENCES;
-/// The bytes of keys, with their wraps, one `get-keys` page holds.
+/// The bytes of keys, with their wraps, one `query.keys` page holds.
 pub const KEY_PAGE_BYTES: usize = MAX_FRAME_BYTES / 2;
-/// The bytes of summaries one `list-blocks` page holds; its ids take half that more.
+/// The bytes of summaries one `query.list` page holds; its ids take half that more.
 pub const LISTING_PAGE_BYTES: usize = MAX_FRAME_BYTES / 8;
 /// A sealed blob the server keeps for a client: contact cards and their sealed copies, invitation
 /// payloads, pinned escrows, pending grants.
 pub const MAX_SEALED_BYTES: usize = 64 * 1024;
-/// Accounts named in one `get-signing-keys`: more than a chat shows at once.
+/// Accounts named in one `query.signing-keys`: more than a chat shows at once.
 pub const MAX_SIGNING_KEYS_ASKED: usize = 1_024;
+/// Bytes in one published name card (`publish-name`): a name and an email, with room to spare.
+pub const MAX_NAME_CARD_BYTES: usize = 4 * 1024;
+/// Ops one `write` applies in one transaction, which holds the database meanwhile.
+pub const MAX_OPS_PER_WRITE: usize = 256;
 /// A pairing message between an account's connections.
 pub const MAX_PAIRING_BYTES: usize = 64 * 1024;
 /// A message relayed in a live session. Replicas relay operations of at most 1 MiB and send a
@@ -66,9 +77,50 @@ pub const MAX_PAIRING_BYTES: usize = 64 * 1024;
 /// be-sdk-type-guest); a catch-up snapshot carries the operations since the last seal, so this
 /// leaves room for both.
 pub const MAX_RELAY_BYTES: usize = MAX_FRAME_BYTES / 2;
+/// Messages one account sends a session's lease holder on its host channel a second, on
+/// average, across all its connections (`session-send.host`; plans/hosted_blocks.md): a Join
+/// member admitted by a link is no contact of the host, so the server keeps it from flooding
+/// one. The holder's own sends are not limited.
+pub const HOST_MESSAGES_PER_SECOND: f64 = 30.0;
+/// The burst of host-channel messages an account may send at once before
+/// `HOST_MESSAGES_PER_SECOND` holds it back.
+pub const HOST_MESSAGE_BURST: f64 = 120.0;
+/// The largest message on a session's host channel.
+pub const MAX_HOST_MESSAGE_BYTES: usize = 64 * 1024;
+
+/// A token bucket: `take` answers whether one more may go now, at `rate` a second over a burst
+/// of `burst`.
+pub(crate) struct Bucket {
+    tokens: f64,
+    filled: Option<std::time::Instant>,
+}
+
+impl Bucket {
+    pub(crate) fn full(burst: f64) -> Self {
+        Self {
+            tokens: burst,
+            filled: None,
+        }
+    }
+
+    pub(crate) fn take(&mut self, now: std::time::Instant, rate: f64, burst: f64) -> bool {
+        if let Some(filled) = self.filled {
+            let added = now.saturating_duration_since(filled).as_secs_f64() * rate;
+            self.tokens = (self.tokens + added).min(burst);
+        }
+        self.filled = Some(now);
+        match self.tokens >= 1.0 {
+            true => {
+                self.tokens -= 1.0;
+                true
+            }
+            false => false,
+        }
+    }
+}
 /// The objects one commit of a search index may hold. Every viewer's search reads the index,
 /// and any editor of its root may write it, so it is bounded well above an index of a gigabyte
-/// of text (plans/search.md, "Scale").
+/// of text (plans/deferred/search.md, "Scale").
 pub const MAX_INDEX_BYTES: u64 = 2 * 1024 * 1024 * 1024;
 pub use be_block_commit::MAX_COMMIT_AHEAD;
 

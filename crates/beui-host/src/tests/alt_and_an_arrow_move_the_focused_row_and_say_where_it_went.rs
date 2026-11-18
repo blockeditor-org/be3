@@ -24,8 +24,8 @@ fn alt_and_an_arrow_move_the_focused_row_and_say_where_it_went() {
     let said = harness
         .accessible()
         .into_iter()
-        .find(|node| node.role() == accesskit::Role::Status)
-        .and_then(|node| node.label().map(str::to_owned));
+        .filter(|node| node.role() == accesskit::Role::Status)
+        .find_map(|node| node.label().map(str::to_owned));
     assert_eq!(said.as_deref(), Some("Row 1 moved to position 2 of 3"));
     harness.frame(Vec::new());
     let moving = top_of(&harness, "row.1");

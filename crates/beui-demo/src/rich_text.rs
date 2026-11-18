@@ -114,7 +114,7 @@ pub(crate) fn editor_seeds() -> Vec<Seed> {
     ]
 }
 
-pub(crate) fn render_marker() -> RenderFn<TextMarker> {
+pub(crate) fn render_marker() -> RenderFn<TextMarker, NodeId> {
     RenderFn::new(|marker: TextMarker| match marker.kind.get_untracked() {
         MarkerKind::Void(_) => view! {
             <Mention marker />

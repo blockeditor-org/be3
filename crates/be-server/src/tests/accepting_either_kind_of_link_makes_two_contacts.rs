@@ -2,32 +2,28 @@ use super::*;
 
 /// Whether `client` lists `account` among its contacts.
 async fn knows(client: &mut TestClient, account: Uuid) -> bool {
-    client
-        .contacts()
-        .await
-        .iter()
-        .any(|contact| contact.account == account)
+    client.contacts().await.contains(&account)
 }
 
 #[tokio::test]
 async fn accepting_either_kind_of_link_makes_two_contacts() {
     let harness = Harness::start().await;
-    let mut admin = harness.client().await;
-    let admin_id = admin.register("admin@example.com").await;
+    let mut admin = harness.member("admin@example.com").await;
+    let admin_id = admin.id();
     let organization = admin.organization("team").await;
 
-    let mut friend = harness.client().await;
-    let friend_id = friend.register("friend@example.com").await;
+    let mut friend = harness.member("friend@example.com").await;
+    let friend_id = friend.id();
     let link = admin.link(None).await;
     let accepted = friend.accept(link, &[]).await;
     assert!(matches!(accepted, Ok(())), "{accepted:?}");
     assert!(knows(&mut friend, admin_id).await);
     assert!(knows(&mut admin, friend_id).await);
 
-    let mut colleague = harness.client().await;
-    let colleague_id = colleague.register("colleague@example.com").await;
+    let mut colleague = harness.member("colleague@example.com").await;
+    let colleague_id = colleague.id();
     let invitation = admin
-        .invite(organization, "colleague@example.com")
+        .invite(organization)
         .await
         .expect("an administrator invites");
     let accepted = colleague.accept(invitation, &[]).await;

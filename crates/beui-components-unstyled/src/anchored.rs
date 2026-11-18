@@ -1,17 +1,18 @@
 use beui_macros::{component, view};
-use beui_view::components::overlay::Overlay;
+use beui_view::components::overlay::{Overlay, use_overlay_presence};
+use beui_view::measure::measure;
 use beui_view::primitives::*;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::OverlayAnchor;
 use beui_view::reactive::*;
 use beui_view::types::Placement;
-use beui_view::types::Rect;
 use beui_view::types::{Dismiss, LayerPolicy};
+use beui_view::types::{Pos2, Rect, Vec2};
 
 pub struct AnchoredSheetHandle {
     pub open: Memo<bool>,
     pub on_close: Callback<()>,
-    pub content: Render,
+    pub content: Build<NodeId>,
 }
 
 #[derive(Clone, Copy)]
@@ -20,15 +21,41 @@ pub struct AnchoredHandle {
     pub shown: Memo<bool>,
 }
 
+/// What a dropdown look wraps: the popup's content, and the frame its arrow points from. A
+/// look that draws a frame around the content binds `pointer` to it, so a popup given a
+/// `beak` stands that frame off its anchor and points the beak from it.
+#[derive(Clone, Copy)]
+pub struct Dropdown {
+    pub content: NodeId,
+    pub pointer: NodeRef,
+    anchor: Memo<OverlayAnchor>,
+}
+
+impl Dropdown {
+    /// The width of the node the popup hangs from, in its own units, once it is laid out (a
+    /// frame late on the HTML core), and `None` while it opens at a point: a select's list is
+    /// at least as wide as its trigger.
+    pub fn anchor_width(self) -> Memo<Option<f32>> {
+        let anchor = self.anchor;
+        create_memo(move || {
+            let node = match anchor.get() {
+                OverlayAnchor::Node(node) | OverlayAnchor::Band { node, .. } => node.try_get()?,
+                _ => return None,
+            };
+            Some(measure(node).get()?.size.x)
+        })
+    }
+}
+
 #[derive(Clone, Copy)]
 pub struct AnchoredStyle {
-    pub(crate) dropdown: RenderFn<Child>,
-    pub(crate) sheet: RenderFn<AnchoredSheetHandle>,
+    pub(crate) dropdown: RenderFn<Dropdown, NodeId>,
+    pub(crate) sheet: RenderFn<AnchoredSheetHandle, NodeId>,
 }
 
 impl AnchoredStyle {
     pub fn new(
-        dropdown: impl Fn(Child) -> NodeId + 'static,
+        dropdown: impl Fn(Dropdown) -> NodeId + 'static,
         sheet: impl Fn(AnchoredSheetHandle) -> NodeId + 'static,
     ) -> Self {
         Self {
@@ -46,27 +73,36 @@ pub enum SheetWhen {
     Never,
 }
 
-/// The surface every anchored popup sits on: a dropdown under `anchor` when a
-/// mouse or pen opened it, the same content in a sheet when a finger did
-/// (`touched_by_finger`), unless `sheet` says otherwise. Content is built once per
-/// look the first time that look opens; bind focus to the handle's `shown`, not to
-/// `open`.
+/// The surface every popup sits on: a dropdown placed by `placement` beside `anchor` (or
+/// at the point `at`, pinned to the anchor's node) when a mouse or pen opened it, the
+/// same content in a sheet when a finger did (`touched_by_finger`), unless `sheet` says
+/// otherwise. A dismiss writes `open` false; an `Inert` one (a tooltip) takes no
+/// dismissal, so it never claims Back or a press outside. Content is built once per look the first
+/// time that look opens, and removed on close unless `keep_alive` keeps it, with its
+/// state, while closed; bind focus to the handle's `shown`, not to `open`. `beak` points
+/// an arrow at the anchor from the frame the look binds to `Dropdown::pointer`.
 #[component]
 pub fn Anchored(
     style: AnchoredStyle,
     anchor: Prop<OverlayAnchor>,
-    #[prop(default = Placement::BelowStart)] placement: Prop<Placement>,
+    #[prop(default = None)] at: Prop<Option<Pos2>>,
+    #[prop(default = Placement::BELOW_START)] placement: Prop<Placement>,
     #[prop(default = None)] bounds: Prop<Option<Rect>>,
-    open: Prop<bool>,
+    /// Every popup takes one; only `Popover` keeps its content by default.
+    #[prop(default = false)]
+    keep_alive: bool,
+    #[prop(default = 0.0)] beak: Prop<f32>,
+    open: Binding<bool>,
     #[prop(default = SheetWhen::Touched)] sheet: Prop<SheetWhen>,
     #[prop(default = true)] traps_focus: Prop<bool>,
     #[prop(default = LayerPolicy::BlocksAll)] policy: Prop<LayerPolicy>,
-    trigger: Option<NodeRef>,
-    #[prop(default = false)] keep_alive: bool,
+    #[prop(default = None)] trigger: Prop<Option<NodeRef>>,
     #[prop(default = NodeRef::new())] overlay: NodeRef,
-    on_dismiss: Callback<()>,
-    #[prop(children)] content: RenderFn<AnchoredHandle>,
+    #[prop(children)] content: RenderFn<AnchoredHandle, NodeId>,
 ) -> NodeId {
+    let never_sheet = matches!(sheet, Prop::Static(SheetWhen::Never));
+    let inert = policy.clone();
+    let dismissable = create_memo(move || inert.get() != LayerPolicy::Inert);
     let mut was_open = false;
     let mut touched = false;
     let as_sheet = create_memo(move || {
@@ -88,36 +124,84 @@ pub fn Anchored(
         ever_raised |= raised.get();
         ever_raised
     });
-    view! {
-        <List spacing=0.0>
+    let anchor = create_memo(move || at_point(anchor.get(), at.get()));
+    let close = Callback::new(move |()| open.set(false));
+    let pointer = NodeRef::new();
+    let look = move |sheet: bool, shown: Memo<bool>| {
+        let built = move || content.call(AnchoredHandle { sheet, shown });
+        match keep_alive {
+            false => built(),
+            true => {
+                let presence = use_overlay_presence();
+                view! {
+                    <Kept key={sheet}>|| {
+                        if let Some(presence) = presence {
+                            presence.provide();
+                        }
+                        built()
+                    }</Kept>
+                }
+            }
+        }
+    };
+    let dropdown = move || {
+        view! {
             <Overlay
                 @node_ref=&overlay
-                anchor
+                anchor={anchor}
                 placement
                 bounds
                 policy
                 traps_focus
-                trigger={trigger}
+                trigger
+                pointer={pointer}
+                beak
                 open={dropped}
-                keep_alive
-                on_dismiss={move |_: Dismiss| on_dismiss.call(())}
-                content={move || style.dropdown.call(content.call(AnchoredHandle {
-                    sheet: false,
-                    shown: dropped,
-                }))}
+                dismissable={dismissable}
+                on_dismiss={move |_: Dismiss| close.call(())}
+                content={move || style.dropdown.call(Dropdown {
+                    content: look(false, dropped),
+                    pointer,
+                    anchor,
+                })}
             />
-            <Show condition={sheet_built}>|| {
-                style.sheet.call(AnchoredSheetHandle {
-                    open: raised,
-                    on_close: Callback::new(move |()| on_dismiss.call(())),
-                    content: Render::new(move |()| {
-                        content.call(AnchoredHandle {
-                            sheet: true,
-                            shown: raised,
-                        })
-                    }),
-                })
-            }</Show>
-        </List>
+        }
+    };
+    // A popup that never becomes a sheet (a tooltip) is its overlay alone: no list around it
+    // and no empty `Show` for a sheet it never builds.
+    let surfaces = move || match never_sheet {
+        true => dropdown(),
+        false => view! {
+            <List spacing=0.0>
+                {dropdown()}
+                <Show value={sheet_built}>|| {
+                    style.sheet.call(AnchoredSheetHandle {
+                        open: raised,
+                        on_close: close,
+                        content: Build::new(move || look(true, raised)),
+                    })
+                }</Show>
+            </List>
+        },
+    };
+    match keep_alive {
+        false => surfaces(),
+        true => view! {
+            <KeepAlive>{surfaces()}</KeepAlive>
+        },
+    }
+}
+
+/// `anchor`, or the point `at` pinned to its node so it follows the node as it moves.
+fn at_point(anchor: OverlayAnchor, at: Option<Pos2>) -> OverlayAnchor {
+    let Some(at) = at else {
+        return anchor;
+    };
+    match anchor.node() {
+        Some(node) => OverlayAnchor::Pinned {
+            node,
+            rect: Rect::from_min_size(at, Vec2::ZERO),
+        },
+        None => OverlayAnchor::Point(at),
     }
 }

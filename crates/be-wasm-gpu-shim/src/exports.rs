@@ -41,6 +41,9 @@ impl Caller for Shim {
     }
 
     fn host<R>(&mut self, function: &'static str, call: impl FnOnce(&mut Gpu) -> R) -> Option<R> {
+        if be_wasm_gpu_host::only_records(function) {
+            return Some(call(&mut self.gpu));
+        }
         let started = crate::now();
         let result = call(&mut self.gpu);
         let took = crate::now() - started;

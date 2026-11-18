@@ -6,15 +6,14 @@ use crate::button::{ButtonSize, ButtonVariant};
 use crate::menu_button::PopupButtonFace;
 use crate::sheet::AnchoredSheet;
 use beui_components_unstyled as unstyled;
-use beui_components_unstyled::{
-    AnchoredStyle, PopoverHandle, PopoverPlacement, PopupTriggerHandle,
-};
+use beui_components_unstyled::{AnchoredStyle, Dropdown, PopoverHandle, PopupTriggerHandle};
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 
+use crate::theme::POINTER_REACH;
 use crate::tokens::{Length, Size, Space};
 use beui_view::types::Extent;
-use beui_view::types::Rect;
+use beui_view::types::{Placement, Pos2, Rect};
 
 pub const PANEL_PADDING: Space = Space::Lg;
 pub const PANEL_MAX_WIDTH: Size = Size::Popover;
@@ -29,14 +28,24 @@ pub fn Popover(
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = PANEL_MAX_WIDTH)] max_width: Prop<Size>,
     #[prop(default = false)] open: Binding<bool>,
-    #[prop(default = PopoverPlacement::Below)] placement: Prop<PopoverPlacement>,
-    band: Option<NodeRef>,
+    #[prop(default = None)] at: Binding<Option<Pos2>>,
+    #[prop(default = Placement::BELOW_START)] placement: Prop<Placement>,
     #[prop(default = None)] bounds: Prop<Option<Rect>>,
+    #[prop(default = true)] keep_alive: bool,
+    /// Points an arrow at what it opened from while it is above or below it; give the
+    /// placement a gap for the arrow to fill.
+    #[prop(default = false)]
+    arrow: Prop<bool>,
+    band: Option<NodeRef>,
     leading: Option<Child>,
-    #[prop(children)] content: RenderFn<PopoverHandle>,
+    #[prop(children)] content: RenderFn<PopoverHandle, NodeId>,
 ) -> NodeId {
     let max_width = create_memo(move || Some(max_width.get()));
     let surface = popover_surface(max_width);
+    let beak = create_memo(move || match arrow.get() {
+        true => POINTER_REACH,
+        false => 0.0,
+    });
     view! {
         <unstyled::Popover
             label
@@ -44,9 +53,12 @@ pub fn Popover(
             icon_only
             disabled
             open
+            at
             placement
-            band
             bounds
+            keep_alive
+            beak={beak}
+            band
             surface
             trigger={move |handle: PopupTriggerHandle| view! {
                 <PopupButtonFace handle variant size leading />
@@ -57,12 +69,14 @@ pub fn Popover(
     }
 }
 
-pub fn popover_surface(max_width: impl IntoProp<Option<Size>>) -> AnchoredStyle {
-    let max_width = max_width.into_prop();
+pub fn popover_surface<M1>(max_width: impl IntoPropValue<Prop<Option<Size>>, M1>) -> AnchoredStyle {
+    let max_width = max_width.into_prop_value();
     AnchoredStyle::new(
-        move |content| {
+        move |dropdown: Dropdown| {
             view! {
-                <PopoverPanel max_width={max_width}>{content}</PopoverPanel>
+                <PopoverPanel pointer={dropdown.pointer} max_width={max_width}>
+                    {dropdown.content}
+                </PopoverPanel>
             }
         },
         |handle| {
@@ -76,10 +90,12 @@ pub fn popover_surface(max_width: impl IntoProp<Option<Size>>) -> AnchoredStyle 
 #[component]
 pub fn PopoverPanel(
     #[prop(default = None)] max_width: Prop<Option<Size>>,
+    #[prop(default = NodeRef::new())] pointer: NodeRef,
     children: Child,
 ) -> NodeId {
     view! {
         <Frame
+            @node_ref=&pointer
             fill=ColorRole::Surface
             border={Border::DEFAULT}
             radius=Radius::Lg

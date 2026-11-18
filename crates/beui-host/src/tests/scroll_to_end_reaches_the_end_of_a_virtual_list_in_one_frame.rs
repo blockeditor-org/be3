@@ -15,10 +15,10 @@ fn scroll_to_end_reaches_the_end_of_a_virtual_list_in_one_frame() {
         view! {
             <List spacing=0.0>
                 <ListItem grow=1.0>
-                    <Scroll @node_ref=&scroll api>
+                    <Scroll @node_ref=&scroll api style={plain_scroll()}>
                         <VirtualList
                             @node_ref=&list
-                            keys={indices(500)}
+                            value={indices(500)}
                             item_size=ESTIMATE
                         >|_index: ReadSignal<usize>|
                             <Frame height=ACTUAL>

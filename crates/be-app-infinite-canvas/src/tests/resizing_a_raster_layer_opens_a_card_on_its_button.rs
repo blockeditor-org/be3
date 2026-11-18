@@ -7,10 +7,8 @@ fn resizing_a_raster_layer_opens_a_card_on_its_button() {
     let mut editor = raster_editor(std::slice::from_ref(&layer));
     paint(&mut editor, layer.id, &[(0, 0)], RED);
     editor.click(format!("infinite-canvas.entity.{}", layer.id));
-    editor.run();
 
     editor.click("infinite-canvas.raster.resize");
-    editor.run();
     assert!(editor.shown("infinite-canvas.raster.resizing.confirm"));
     let button = editor.rect_of("infinite-canvas.raster.resize");
     let card = editor.rect_of("infinite-canvas.raster.resizing");
@@ -30,10 +28,8 @@ fn resizing_a_raster_layer_opens_a_card_on_its_button() {
     );
     editor.type_text("12");
     editor.key(Key::Enter, Modifiers::NONE);
-    editor.run();
     if editor.shown("infinite-canvas.raster.resizing.confirm") {
         editor.click("infinite-canvas.raster.resizing.confirm");
-        editor.run();
     }
     let raster = raster_of(&editor, layer.id);
     assert_eq!((raster.width(), raster.height()), (12, 8));

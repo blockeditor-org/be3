@@ -11,7 +11,7 @@ fn editing_a_tree_row_keeps_a_name_on_enter_or_a_click_away_and_escape_puts_it_b
     test.frame(Vec::new());
     press_key(&mut test, Key::F2);
     assert!(
-        test.shows("demo.tree.3.rename"),
+        test.shown("demo.tree.3.rename"),
         "F2 edits the focused row's name in place"
     );
     let row = test.rect_of("demo.tree.3.row").height();
@@ -21,11 +21,11 @@ fn editing_a_tree_row_keeps_a_name_on_enter_or_a_click_away_and_escape_puts_it_b
     test.frame(vec![Input::Text("app.rs".to_owned())]);
     press_key(&mut test, Key::ArrowDown);
     assert!(
-        test.shows("demo.tree.3.rename"),
+        test.shown("demo.tree.3.rename"),
         "the arrow keys stay in the field rather than walking the tree"
     );
     press_key(&mut test, Key::Enter);
-    assert!(!test.shows("demo.tree.3.rename"), "Enter ends the edit");
+    assert!(!test.shown("demo.tree.3.rename"), "Enter ends the edit");
     assert_eq!(
         showing(test.document(), root, "Renamed demo.rs to app.rs"),
         1,
@@ -37,12 +37,12 @@ fn editing_a_tree_row_keeps_a_name_on_enter_or_a_click_away_and_escape_puts_it_b
     test.click("demo.tree.rename");
     test.frame(Vec::new());
     assert!(
-        test.shows("demo.tree.5.rename"),
+        test.shown("demo.tree.5.rename"),
         "Rename in a row's menu edits it"
     );
     test.frame(vec![Input::Text("icon.png".to_owned())]);
     press_key(&mut test, Key::Escape);
-    assert!(!test.shows("demo.tree.5.rename"), "Escape ends the edit");
+    assert!(!test.shown("demo.tree.5.rename"), "Escape ends the edit");
     assert_eq!(
         showing(test.document(), root, "Kept logo.png"),
         1,
@@ -51,7 +51,7 @@ fn editing_a_tree_row_keeps_a_name_on_enter_or_a_click_away_and_escape_puts_it_b
 
     press_key(&mut test, Key::F2);
     assert!(
-        test.shows("demo.tree.5.rename"),
+        test.shown("demo.tree.5.rename"),
         "Escape hands the keyboard back to the row, so F2 edits it again"
     );
     test.frame(vec![Input::Text("   ".to_owned())]);
@@ -67,7 +67,7 @@ fn editing_a_tree_row_keeps_a_name_on_enter_or_a_click_away_and_escape_puts_it_b
     test.click("demo.tree.8.row");
     test.frame(Vec::new());
     assert!(
-        !test.shows("demo.tree.5.rename"),
+        !test.shown("demo.tree.5.rename"),
         "clicking away ends the edit"
     );
     assert_eq!(
@@ -81,7 +81,7 @@ fn editing_a_tree_row_keeps_a_name_on_enter_or_a_click_away_and_escape_puts_it_b
     test.frame(vec![Input::Focus(false)]);
     test.frame(Vec::new());
     assert!(
-        !test.shows("demo.tree.8.rename"),
+        !test.shown("demo.tree.8.rename"),
         "the window losing the keyboard ends the edit"
     );
     assert_eq!(

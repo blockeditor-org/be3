@@ -11,7 +11,8 @@ Rust on both sides is generated from it into this crate. The world imports:
   `missing-characters`) and the watches of preferences, the UTC offset, fonts
   and input;
 - `blocks` (`blocks.wit`): the blocks an editor reads and changes, its replicas,
-  the graph, history, heads, artifact states and version control;
+  the graph, history, heads, artifact states, version control and who may
+  view the editor's block, named;
 - `shell` (`shell.wit`, with its shapes in `shell-types`): what an editor tells
   the shell around it, its menus, children, audio, web views and creations.
   Everything one way is a `shell-message` in a `tell`, sent once a pass in
@@ -534,7 +535,7 @@ that places a child in the body of one of its dock's tabs names that tab
 `dock-item`s with depths, as menus are, and each tab's `dock-tab`, with a key
 that names it for good) and draws no chrome. The host splices each
 declaration into its placer's in place of that tab, as a pinned group
-(`dock-group.child`) whose tabs it names through the child
+(`dock-group.child`, titled as that tab was) whose tabs it names through the child
 (`dock-tab-path.via`) and whose keys it prefixes with the tab's key and the
 child's block id (`dock_prefix`, `DockDeclaration::splice`), up to the root,
 the instance whose own frame is not docked: only the root hears its docked
@@ -863,12 +864,11 @@ exclusive: a child that owns a frame of its own never takes the frame it was
 placed in.
 
 A child that owns a frame of its own may also be given the framework's top bar
-over it, and the placement says which: the plain bar, or the one a phone
-shows, which carries how many files the parent has open. The phone bar's back
-button, title and file count do nothing inside the child: the instance reports
-which of them was pressed, and the host hands that to the instance that placed
-the child, which decides what going back, switching file or showing the file's
-details means.
+over it (`child-placement.top-bar`). Whether frames lay out as on a phone is not
+the placer's to say: the shell tells the host (`set-phone-layout`, heard only
+from the shell; workspace-ui says so while its dock stacks), and the host sets
+`frame-spec.phone` on every frame from it, placed, joined to a dock or shown in
+a dialog, so they all agree.
 
 The panels the host draws itself - its debugging panels - are placed by the
 instance that draws the window, never by the host: the host asks that
@@ -913,7 +913,10 @@ is heard. Any other child placed hidden is unavailable. A placement's
 person asked to close it, which closes a program window and does nothing yet for
 any other child, and `focus-child` (or `focus-block-child`, for the child that will show a
 block) or the keyboard the host gives the view that
-shows the child gives a program window the keyboard. A program window placed
+shows the child gives a program window the keyboard. A `focus-child` for a child the
+host took away in a recent change of children (the editor had not heard yet of the
+child placed in its stead) is answered `gift-missed`, and the editor may ask again for
+the child it places now. A program window placed
 nowhere, or only hidden, is suspended. A block
 already open above the instance is refused, so an editor cannot be nested inside
 itself. The host bounds how many children of one view it will run as editors and
@@ -996,7 +999,7 @@ are informational, require no response, and may arrive independently of a
 rendered frame.
 
 Neither peer polls the other: an app runs beside the host - a thread of its
-own under wasmtime, a worker of its own in the browser - and either side may
+own natively, a worker of its own in the browser - and either side may
 send at any time.
 
 Every host call that changes what an app lays out against - the screens,
@@ -1114,8 +1117,8 @@ surfaces whose screens changed, and the damage it reports names the screen
 each rectangle falls on.
 
 An app never learns where its pixels live. It asks its host for a render
-target and draws into an opaque texture, which is the host's own under
-wasmtime and the worker's offscreen canvas in the browser. Which surface each
+target and draws into an opaque texture, which is the host's own
+natively and the worker's offscreen canvas in the browser. Which surface each
 screen is drawn into is the layout the app sends whenever its screens
 change, and the host shows each screen's texture until another frame presents
 it. A frame that presented anything counts its presents, which is how the host

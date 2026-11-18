@@ -9,6 +9,10 @@ fn a_queued_block_the_mirror_cannot_place_is_dropped_and_counted() {
     let nowhere = Uuid::new_v4();
     with_shared_mut(|shared| shared.search.reread([nowhere]));
     retry_now();
-    crate::wait_until(|shared| (shared.search.unplaceable == 1).then_some(()));
-    crate::wait_until(|shared| shared.search.indexed().then_some(()));
+    crate::wait_until("counted the block it cannot place", |shared| {
+        (shared.search.unplaceable == 1).then_some(())
+    });
+    crate::wait_until("indexed everything", |shared| {
+        shared.search.indexed().then_some(())
+    });
 }

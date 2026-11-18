@@ -17,7 +17,7 @@ use beui::styled::*;
 use beui::{
     Align, CursorIcon, Dismiss, Forwarded, ForwardedInput, ImeCursor, LayerPolicy, Modifiers,
     NodeId, OverlayAnchor, Placement, PointerButton, PointerEvent, PointerId, PointerPhase, Pos2,
-    Rect, Vec2, WindowId, WindowPlacement, WindowReport, native::Region, pos2,
+    Rect, Vec2, WindowId, WindowPlacement, WindowReport, drag, native::Region, pos2,
 };
 use uuid::Uuid;
 
@@ -143,7 +143,7 @@ pub(crate) struct Rounded(pub(crate) Memo<f32>);
 
 #[derive(Clone, Copy)]
 pub(crate) struct PanDrag {
-    pub(crate) asked: ReadSignal<u64>,
+    pub(crate) asked: Trigger,
     pub(crate) pan: Callback<Vec2>,
 }
 
@@ -260,11 +260,11 @@ pub(crate) fn AppView(
     #[prop(default = false)] passive: Prop<bool>,
     #[prop(default = 0.0)] rotation: Prop<f32>,
     #[prop(default = 1.0)] opacity: Prop<f32>,
-    #[prop(default = None)] pan_drag: Option<PanDrag>,
+    pan_drag: Option<PanDrag>,
     #[prop(default = false)] offscreen: bool,
     #[prop(default = false)] nests_windows: bool,
-    #[prop(default = None)] opens_at: Option<Memo<Rect>>,
-    #[prop(default = None)] shares: Option<ChildNodes>,
+    opens_at: Option<Memo<Rect>>,
+    shares: Option<ChildNodes>,
     on_focus: Callback<()>,
     child_view: ChildView,
 ) -> NodeId {
@@ -312,7 +312,7 @@ pub(crate) fn AppView(
     });
     let any = super::any();
     let presenting = create_memo(move || {
-        any.get();
+        any.track();
         block.is_some() && {
             let app_id = app_id.value();
             super::editors::editors().with(|open| {
@@ -452,13 +452,13 @@ pub(crate) fn AppView(
         placer.call(Some(placement));
     }
     create_effect(move || {
-        let _ = frame.get();
-        let _ = view.get();
-        let _ = zoom.get();
-        let _ = floated_rect.map(|rect| rect.get());
-        let _ = floated_placement.map(|placement| placement.get());
-        let _ = origin.get();
-        let _ = anchor_bounds.get();
+        frame.track();
+        view.track();
+        zoom.track();
+        floated_rect.map(|rect| rect.track());
+        floated_placement.map(|placement| placement.track());
+        origin.track();
+        anchor_bounds.track();
         placer.call(placed.get());
     });
     if shows_desktop {
@@ -470,7 +470,7 @@ pub(crate) fn AppView(
     }
     let behind = use_context::<Behind>();
     let state = create_memo(move || {
-        revision.get();
+        revision.track();
         let mut state = be_host_runtime::placed_view(
             &editor.app,
             instance,
@@ -518,10 +518,9 @@ pub(crate) fn AppView(
             placer: Placer::new(&app_id.value(), instance, region.id),
         },
     );
-    let (reports, tick) = super::editors::reports();
+    let reports = super::editors::reports();
     super::editors::provide_reports(reports);
     create_effect(move || {
-        tick.get();
         let statuses = super::desktop::merged_statuses(
             (app_id.value().to_string(), instance, region.id),
             mount,
@@ -546,11 +545,11 @@ pub(crate) fn AppView(
         };
     }
     let frames = create_memo(move || {
-        revision.get();
+        revision.track();
         be_host_runtime::frames(&app_id.value())
     });
     let placed = create_memo(move || {
-        revision.get();
+        revision.track();
         be_host_runtime::view_placed(&app_id.value(), instance, region.id)
     });
     let drawing = |part: Part| {
@@ -703,7 +702,7 @@ pub(crate) fn AppView(
     );
     let catcher_zoom = zoom;
     create_effect(move || {
-        revision.get();
+        revision.track();
         let zoom = catcher_zoom.get();
         let rect = state.with(|view| view.rect);
         if let Some(node) = catcher.try_get() {
@@ -729,6 +728,8 @@ pub(crate) fn AppView(
     });
     let shown_view: GiftView = (app_id.value().to_string(), instance, region.id);
     let gift_placer = asked.map(|asked| (asked.placer.app, asked.placer.instance));
+    let key_placers = store(key_placers(gift_placer, instance, &region));
+    let docked = region.placement == ViewPlacement::Dock;
     let rebuilt = shown_view.clone();
     create_effect(move || {
         if let Some(node) = catcher.try_get() {
@@ -741,21 +742,42 @@ pub(crate) fn AppView(
             });
         }
     });
+    if region.placement == ViewPlacement::Dock {
+        keyboard_follows_content(shown_view.clone(), key_placers, revision, &catcher);
+    }
     let gone = shown_view.clone();
     on_cleanup(move || {
         if let Some(node) = catcher.try_get() {
             let placed = be_host_runtime::view_placed(&gone.0, gone.1, gone.2).is_some();
-            if !placed {
-                be_host_runtime::forget_keys(&gone, gift_placer);
+            // A main view that goes while its instance's content shows in one of its dock tab
+            // views (a joined editor's, its main view staying placed but shown nowhere) hands that
+            // view the keyboard, as the runtime hands it the keys held for it (`forget_keys`).
+            let moved = be_host_runtime::content_moved(&gone.0, gone.1, gone.2)
+                .map(|to| (gone.0.clone(), gone.1, to));
+            if !placed || moved.is_some() {
+                be_host_runtime::forget_keys(&gone, &key_placers.value());
                 REBUILT.with_borrow_mut(|rebuilt| rebuilt.remove(&gone));
             }
             super::desktop::forget_catcher(node);
             try_with_document(|document| {
-                if document.focused_node() == Some(node) {
-                    if placed {
-                        keep_focus_for_rebuild(&gone);
+                if document.focused_node() != Some(node) {
+                    return;
+                }
+                let taker = moved.as_ref().and_then(|(app, instance, view)| {
+                    super::desktop::catcher_of_view(app, *instance, *view)
+                });
+                match (&moved, taker) {
+                    (Some(_), Some(taker)) => document.focus_focusable(taker),
+                    (Some(moved), None) => {
+                        keep_focus_for_rebuild(moved);
+                        document.blur();
                     }
-                    document.blur();
+                    (None, _) => {
+                        if placed {
+                            keep_focus_for_rebuild(&gone);
+                        }
+                        document.blur();
+                    }
                 }
             });
         }
@@ -816,7 +838,7 @@ pub(crate) fn AppView(
         pointed.set((input.hovered, input.pointer));
         let app = app_id.value();
         let progress = key_progress(&app, instance, state);
-        be_host_runtime::route_keys(&routed_view, gift_placer, progress, &mut input);
+        be_host_runtime::route_keys(&routed_view, &key_placers.value(), progress, &mut input);
         let mut handed = handing.get();
         let input = handed.route(input);
         handing.set(handed);
@@ -869,11 +891,11 @@ pub(crate) fn AppView(
     let typing = create_memo(move || state.with(|view| view.ime.is_some()));
     let settled_view = store(shown_view.clone());
     create_effect(move || {
-        revision.get();
-        typing.get();
+        revision.track();
+        typing.track();
         gifts::track(&app_id.value(), instance);
-        if let Some((app, instance)) = gift_placer {
-            gifts::track(app, instance);
+        for (app, instance) in key_placers.value().iter() {
+            gifts::track(app, *instance);
         }
         let Some(node) = catcher.try_get() else {
             return;
@@ -883,8 +905,12 @@ pub(crate) fn AppView(
             let focused =
                 try_with_document(|document| document.focus_is_within(node)).unwrap_or(false);
             let progress = key_progress(&app, instance, state);
-            let owed =
-                be_host_runtime::settle_keys(&settled_view.value(), gift_placer, progress, focused);
+            let owed = be_host_runtime::settle_keys(
+                &settled_view.value(),
+                &key_placers.value(),
+                progress,
+                focused,
+            );
             if let Some(modifiers) = owed {
                 let (hovered, pointer) = pointed.get();
                 forward.call(ForwardedInput {
@@ -901,8 +927,8 @@ pub(crate) fn AppView(
     if let Some(block) = block.filter(|_| region.is_main()) {
         let used = create_memo(move || state.with(|view| view.used));
         create_effect(move || {
-            revision.get();
-            rect.get();
+            revision.track();
+            rect.track();
             let parent = enclosing
                 .and_then(|Enclosing(parent)| parent.get())
                 .and_then(|parent| parent.try_get());
@@ -920,7 +946,7 @@ pub(crate) fn AppView(
             }
         });
         create_effect(move || {
-            used.get();
+            used.track();
             if let Some(node) = catcher.try_get() {
                 untrack(|| handoff::laid_out(node, now()));
             }
@@ -943,7 +969,6 @@ pub(crate) fn AppView(
                 .collect::<Vec<_>>()
         })
     });
-    let was_promoted = store(RefCell::new(Vec::<Uuid>::new()));
     let hand_to = move |to: NodeId, (within, lands_in): (Rect, Option<Rect>)| {
         let mut handed = handing.get();
         let cancel = handed.hand_to(to, within, lands_in, now());
@@ -959,18 +984,19 @@ pub(crate) fn AppView(
             );
         }
     };
-    create_effect(move || {
-        let promoted = promoted.get();
-        untrack(|| {
-            let blocks: Vec<Uuid> = promoted.iter().map(|(block, _)| *block).collect();
-            let before = was_promoted.value().replace(blocks.clone());
-            for gone in before.iter().filter(|block| !blocks.contains(block)) {
+    create_effect_on(
+        move || promoted.get(),
+        move |promoted, before| {
+            let before = before.map_or(&[][..], Vec::as_slice);
+            let holds =
+                |list: &[(Uuid, _)], block: &Uuid| list.iter().any(|(held, _)| held == block);
+            for (gone, _) in before.iter().filter(|(block, _)| !holds(promoted, block)) {
                 handoff::stop_awaiting(*gone);
             }
             let Some(own) = catcher.try_get() else {
                 return;
             };
-            for (block, within) in promoted.iter().filter(|(block, _)| !before.contains(block)) {
+            for (block, within) in promoted.iter().filter(|(block, _)| !holds(before, block)) {
                 let within = *within;
                 match handoff::receiver_of(own, *block) {
                     Some(to) => hand_to(to, within),
@@ -980,14 +1006,12 @@ pub(crate) fn AppView(
                     ),
                 }
             }
-        });
-    });
+        },
+    );
     if let Some(pan_drag) = pan_drag {
-        create_effect(move || {
-            if pan_drag.asked.get() == 0 {
-                return;
-            }
-            untrack(|| {
+        create_effect_on_change(
+            move || pan_drag.asked.track(),
+            move |_, _| {
                 let mut steered = steering.get();
                 let cancel = steered.take_over(pan_drag.pan);
                 steering.set(steered);
@@ -1001,8 +1025,8 @@ pub(crate) fn AppView(
                         &|_| None,
                     );
                 }
-            });
-        });
+            },
+        );
     }
     let back = move |gesture: beui::BackGesture| {
         be_host_runtime::back_view(&app_id.value(), instance, region.id, gesture);
@@ -1040,26 +1064,46 @@ pub(crate) fn AppView(
                     })
             })
     };
-    let taken = move |point: DragPoint| {
-        takes(point.pos - state.with_untracked(|view| view.rect.min.to_vec2()))
-    };
-    let over = move |over: Option<(BlockDrag, DragPoint)>| {
-        let over = over
-            .filter(|(_, point)| taken(*point))
-            .map(|(drag, point)| (drag, point.pos, DropAction::of(point.modifiers)));
-        be_host_runtime::drag_over_view(&app_id.value(), instance, region.id, over, false);
-    };
-    let dropped = move |(drag, point): (BlockDrag, DragPoint)| {
-        if taken(point) {
-            be_host_runtime::drag_over_view(
-                &app_id.value(),
-                instance,
-                region.id,
-                Some((drag, point.pos, DropAction::of(point.modifiers))),
-                true,
-            );
-        }
-    };
+    // A block carried over the view is the app's to take where it takes the pointer: the
+    // site's place is the window point and what the keys held make of the drop, which the
+    // app hears as the drag moves and on the drop.
+    let area = NodeRef::new();
+    // Only the view holding the editor's content takes it (its main view, or the dock view
+    // given its frame), never one of its bars: the editor hears the drag over that view.
+    let site = use_drop_site(
+        Func::new(move |_: BlockDrag| region.is_main() || frame.get_untracked().is_some()),
+        Func::new(move |drag: BlockDrag| {
+            // Only inside the view: `takes` reads a point already known to be in it, as a
+            // press is, and says only which parts of it are the app's. Both it and the runtime
+            // read window points against the view's rect, not the node's own (scaled) points,
+            // so the place reads the pointer's window point rather than the local one.
+            drag::custom(area, move |_: Pos2, point: DragPoint| {
+                let rect = state.with_untracked(|view| view.rect);
+                (rect.contains(point.pos) && takes(point.pos - rect.min.to_vec2())).then_some((
+                    drag,
+                    point.pos,
+                    DropAction::of(point.modifiers),
+                ))
+            })
+        }),
+        Callback::new(
+            move |(_, over): (BlockDrag, (BlockDrag, Pos2, DropAction))| {
+                be_host_runtime::drag_over_view(
+                    &app_id.value(),
+                    instance,
+                    region.id,
+                    Some(over),
+                    true,
+                );
+            },
+        ),
+    );
+    create_effect_on(
+        move || site.over.get(),
+        move |over: &Option<(BlockDrag, Pos2, DropAction)>, _| {
+            be_host_runtime::drag_over_view(&app_id.value(), instance, region.id, *over, false);
+        },
+    );
     let pressed_outside = move |pos: Pos2| {
         if state.with_untracked(|view| view.anchored.iter().any(|layer| layer.takes(pos))) {
             return;
@@ -1070,7 +1114,7 @@ pub(crate) fn AppView(
         if passive.get() {
             return beui::Area::Nowhere;
         }
-        revision.get();
+        revision.track();
         let content = frame.get().and_then(|frame| frame.content);
         let beyond = match (region.is_main(), content) {
             (true, Some(placed)) => be_host_runtime::frame_rects(
@@ -1163,51 +1207,54 @@ pub(crate) fn AppView(
     let backdrop_radius = create_memo(move || corner_radius.map_or(0.0, |radius| radius.get()));
     let upright = create_memo(move || rotation.get() == 0.0 && opacity.get() >= 1.0);
     let built = view! {
-        <DropTarget on_over={over} on_drop={dropped}>|_: DropHandle|
-            <Layers>
-                <Backdrop state radius={backdrop_radius} upright />
-                <ViewChildren state={state} rect={rect} nodes={children} below=true />
-                <Interactive
-                    @node_ref={&catcher}
-                    focusable=true
-                    press_focus={create_memo(move || !presented.get())}
-                    cursor={cursor}
-                    ime={ime}
-                    keyboard={keyboard}
-                    ime_cursor={ime_cursor}
-                    ime_text={ime_text}
-                    pastes={pastes}
-                    clipboard_keys={clipboard_keys}
-                    every_sample={every_sample}
-                    on_forward={forward}
-                    hit_area={hit_area}
-                    claims={claims}
-                    drawing={pen_surface}
-                    on_press_outside={pressed_outside}
-                    on_focus_change={move |focused: bool| {
-                        if focused {
-                            on_focus.call(());
+        <Layers @node_ref=&area>
+            <Backdrop state radius={backdrop_radius} upright />
+            <ViewChildren state={state} rect={rect} nodes={children} below=true />
+            <Interactive
+                @node_ref={&catcher}
+                focusable=true
+                press_focus={move || !presented.get()}
+                cursor={cursor}
+                ime={ime}
+                keyboard={keyboard}
+                ime_cursor={ime_cursor}
+                ime_text={ime_text}
+                pastes={pastes}
+                clipboard_keys={clipboard_keys}
+                every_sample={every_sample}
+                on_forward={forward}
+                hit_area={hit_area}
+                claims={claims}
+                drawing={pen_surface}
+                on_press_outside={pressed_outside}
+                on_focus_change={move |focused: bool| {
+                    if focused {
+                        if docked {
+                            // The keyboard is in the instance's dock tab view: a main view
+                            // that went with it must not take it back if it is built again.
+                            forget_main_rebuild(&app_id.value(), instance);
                         }
-                    }}
-                >
-                    <Embed slot={slot} punch=false @node_ref={&anchor}>
-                        <Drawing draw={base} />
-                    </Embed>
-                </Interactive>
-                <Notices loading failure id={crash_id.clone()} />
-                <ViewChildren state rect nodes={children} below=false />
-                <Drawing draw={marks} />
-                <Show condition={shows_desktop}>||
-                    <DesktopWindows editor={desktop_editor.with(Clone::clone)} state rect />
-                </Show>
-                <Scrims state />
-                <Drawing draw={floating} />
-                <Show condition={blocked}>||
-                    <Interactive press_focus=false on_forward={|_: ForwardedInput| {}} />
-                </Show>
-                {windows}
-            </Layers>
-        </DropTarget>
+                        on_focus.call(());
+                    }
+                }}
+            >
+                <Embed slot={slot} punch=false @node_ref={&anchor}>
+                    <Drawing draw={base} />
+                </Embed>
+            </Interactive>
+            <Notices loading failure id={crash_id.clone()} />
+            <ViewChildren state rect nodes={children} below=false />
+            <Drawing draw={marks} />
+            {shows_desktop.then(|| view! {
+                <DesktopWindows editor={desktop_editor.with(Clone::clone)} state rect />
+            })}
+            <Scrims state />
+            <Drawing draw={floating} />
+            <Show value={blocked}>||
+                <Interactive press_focus=false on_forward={|_: ForwardedInput| {}} />
+            </Show>
+            {windows}
+        </Layers>
     };
     on_back(handles_back, back);
     built
@@ -1215,41 +1262,25 @@ pub(crate) fn AppView(
 
 /// Fills the view with the color its app clears it to, under its children: space the app leaves
 /// for a child shows that color, never what is behind the view, before the child draws there and
-/// after it goes. A turned or faded view gets none, which would show through it twice.
+/// after it goes. It fills the view's laid box, not its last placement, so a view growing before
+/// its app reports the new size shows that color beyond its last frame too. A turned or faded
+/// view gets none, which would show through it twice. It needs no clip of its own: the
+/// placement's `clip` is the painter's clip where the view's embed paints
+/// (`EmbedPlacement`), and this frame is painted under the same ancestors, so it is clipped
+/// there already.
 #[component]
 fn Backdrop(state: Memo<PlacedView>, radius: Memo<f32>, upright: Memo<bool>) -> NodeId {
-    let backdrop = create_memo(move || {
-        let color = state.with(|view| view.backdrop)?;
-        upright.get().then(|| {
-            state.with(|view| {
-                let shown = view
-                    .rect
-                    .intersect(view.clip)
-                    .translate(-view.rect.min.to_vec2());
-                (shown, color)
-            })
-        })
-    });
-    let rect = create_memo(move || backdrop.get().map_or(Rect::ZERO, |(rect, _)| rect));
     let fill = create_memo(move || {
+        let color = upright
+            .get()
+            .then(|| state.with(|view| view.backdrop))
+            .flatten();
         ColorRole::Custom(beui::color::Color::literal(
-            backdrop
-                .get()
-                .map_or(beui::color::Color32::TRANSPARENT, |(_, color)| color),
+            color.unwrap_or(beui::color::Color32::TRANSPARENT),
         ))
     });
     view! {
-        <Canvas>
-            <CanvasItem
-                x={create_memo(move || rect.get().min.x)}
-                y={create_memo(move || rect.get().min.y)}
-                width={create_memo(move || rect.get().width().max(0.0))}
-                height={create_memo(move || rect.get().height().max(0.0))}
-                pointer=false
-            >
-                <Frame fill={fill} radius={create_memo(move || Radius::Custom(radius.get()))} />
-            </CanvasItem>
-        </Canvas>
+        <Frame fill={fill} radius={move || Radius::Custom(radius.get())} />
     }
 }
 
@@ -1258,7 +1289,7 @@ fn Scrims(state: Memo<PlacedView>) -> NodeId {
     let count = create_memo(move || state.with(|view| (0..view.scrims.len()).collect::<Vec<_>>()));
     view! {
         <Canvas>
-            <ForEach keys={count}>|index: usize| {
+            <ForEach value={count}>|index: usize| {
                 let scrim = create_memo(move || {
                     state.with(|view| {
                         view.scrims.get(index).map(|scrim| beui::layer::Scrim {
@@ -1324,7 +1355,7 @@ fn DesktopWindows(editor: ViewEditor, state: Memo<PlacedView>, rect: Memo<Rect>)
     let editor = store(editor);
     view! {
         <Canvas>
-            <ForEach keys={keys}>|window: ViewId| {
+            <ForEach value={keys}>|window: ViewId| {
                 let editor = editor.with(Clone::clone);
                 let key = super::desktop::FloatedKey {
                     app: editor.app_id().to_owned(),
@@ -1375,7 +1406,7 @@ fn OverlaidWindows(editor: ViewEditor, region: View, nodes: ChildNodes) -> NodeI
     let editor = store(editor);
     view! {
         <Layers>
-            <ForEach keys={keys}>|window: ViewId| {
+            <ForEach value={keys}>|window: ViewId| {
                 let editor = editor.with(Clone::clone);
                 let key = super::desktop::FloatedKey {
                     app: editor.app_id().to_owned(),
@@ -1481,7 +1512,7 @@ fn PanelWindows(editor: ViewEditor, region: View, rect: Memo<Rect>) -> NodeId {
     };
     view! {
         <Layers>
-            <ForEach keys={keys}>|window: ViewId| {
+            <ForEach value={keys}>|window: ViewId| {
                 let id = WindowId::next();
                 hosted.with(|hosted| hosted.borrow_mut().insert(window, id));
                 on_cleanup(move || {
@@ -1517,7 +1548,6 @@ fn PanelWindows(editor: ViewEditor, region: View, rect: Memo<Rect>) -> NodeId {
                 view! {
                     <Window id={Some(id)} size placement on_report={report}>|handle: WindowHandle| {
                         follow_panel_asks(panel, handle);
-                        let hosted = create_memo(move || handle.is_window());
                         view! {
                             <Layers>
                                 <AppView
@@ -1526,7 +1556,7 @@ fn PanelWindows(editor: ViewEditor, region: View, rect: Memo<Rect>) -> NodeId {
                                     child_view
                                     on_focus={Callback::new(|()| {})}
                                 />
-                                <Show condition={hosted}>||
+                                <Show value={move || handle.is_window()}>||
                                     <AnchoredViews />
                                 </Show>
                             </Layers>
@@ -1548,20 +1578,17 @@ fn follow_panel_asks(panel: Memo<Option<(Vec2, super::desktop::Panel)>>, handle:
                 })
         })
     });
-    let seen = StoredCell::new(asked.get_untracked());
-    create_effect(move || {
-        let (moves, resizes, edge) = asked.get();
-        let (moved, resized, _) = seen.get();
-        seen.set((moves, resizes, edge));
-        untrack(|| {
+    create_effect_on_change(
+        move || asked.get(),
+        move |&(moves, resizes, edge), &(moved, resized, _)| {
             if moves != moved {
                 handle.begin_move();
             }
             if resizes != resized {
                 handle.begin_resize(edge);
             }
-        });
-    });
+        },
+    );
 }
 
 fn gesture_of(carry: Carry) -> be_sdk_window_stack::Gesture {
@@ -1596,16 +1623,20 @@ fn edge_of(edge: be_sdk_api::WindowEdge) -> beui::WindowEdge {
     }
 }
 
+/// Lifts a block an app began to drag onto the board, at the pointer pressing in it: from
+/// there the app views it is carried over hear it (`drag_over_view`). A drag that arrives once
+/// nothing presses (the app's message came after the release) lifts nothing.
 pub(super) fn carry(drag: BlockDrag) {
-    let Some(pointer) = try_with_document(|document| document.last_pointer) else {
+    let Some(pressing) = try_with_document(|document| document.last_pointer).flatten() else {
         return;
     };
-    let board = beui::unstyled::drag_board();
-    let Some(pointer) = pointer.filter(|_| !board.carrying()) else {
+    let Some(pointer) = pressing.pointer else {
         return;
     };
-    let point = DragPoint::at(pointer.pos, Modifiers::NONE);
-    board.begin(beui::unstyled::DragSource::new(Rc::new(drag)), point);
+    let point = DragPoint::at(pressing.pos, Modifiers::NONE)
+        .in_window(pressing.window)
+        .by(pointer);
+    beui::unstyled::drag_board().lift(drag::Carry::new(drag).drawn_by_site(), point);
 }
 
 fn focus_when_asked(
@@ -1639,7 +1670,7 @@ fn focus_when_given(
     asked: Option<AskedFocus>,
     (app, own, region): (Stored<String>, EditorInstanceId, ViewId),
     state: Memo<PlacedView>,
-    revision: beui::reactive::ReadSignal<u64>,
+    revision: Trigger,
     catcher: &NodeRef,
     primary: Memo<bool>,
 ) {
@@ -1678,7 +1709,7 @@ fn focus_when_given(
         });
     });
     create_effect(move || {
-        revision.get();
+        revision.track();
         if !asked.asked.get() || !primary.get() {
             return;
         }
@@ -1770,18 +1801,20 @@ fn focus_when_presenting(
 }
 
 fn toggle_keyboard_when_asked(state: Memo<PlacedView>, primary: Memo<bool>) {
-    let toggles = create_memo(move || state.with(|view| view.keyboard_toggles));
-    let seen = StoredCell::new(None::<u32>);
-    create_effect(move || {
-        let Some(toggles) = toggles.get() else {
-            return;
-        };
-        let before = seen.get();
-        seen.set(Some(toggles));
-        if before.is_some_and(|before| before != toggles) && primary.get_untracked() {
-            untrack(toggle_keyboard);
-        }
+    // The last count of toggles asked, kept while the view reports none.
+    let toggles = create_memo(move |previous: Option<&Option<u32>>| {
+        state
+            .with(|view| view.keyboard_toggles)
+            .or(previous.copied().flatten())
     });
+    create_effect_on_change(
+        move || toggles.get(),
+        move |now, before| {
+            if now.is_some() && before.is_some() && now != before && primary.get_untracked() {
+                toggle_keyboard();
+            }
+        },
+    );
 }
 
 thread_local! {
@@ -1789,6 +1822,68 @@ thread_local! {
     /// the catcher built for the view in its place takes the keyboard back, so moving a view (a
     /// child placed in a new pane) does not drop it.
     static REBUILT: RefCell<HashSet<GiftView>> = RefCell::new(HashSet::new());
+}
+
+/// The editors whose gifts may owe a view keys: the one that placed it, and, for a docked
+/// instance's dock tab view, the one that placed the instance, whose gift to it moves there from
+/// its main view with its content (`keyboard_follows_content`). Read once, when the view is
+/// built, from the placement the host keeps then (`docked_placer`).
+fn key_placers(
+    placer: Option<(&'static str, EditorInstanceId)>,
+    instance: EditorInstanceId,
+    region: &View,
+) -> Vec<(&'static str, EditorInstanceId)> {
+    let mut placers: Vec<_> = placer.into_iter().collect();
+    if region.placement == ViewPlacement::Dock
+        && let Some((app, placing, _)) = be_host_runtime::docked_placer(instance)
+    {
+        let docked = (app_name(&app), placing);
+        if !placers.contains(&docked) {
+            placers.push(docked);
+        }
+    }
+    placers
+}
+
+/// A joined editor's content shows in its main view until its dock is hosted, then in one of its
+/// dock's tab views, built after the main view goes (the main view stays placed, shown nowhere).
+/// A main view that went with the keyboard left it to be taken back (`keep_focus_for_rebuild`):
+/// the dock tab view its content moved to takes it instead, and the keys held for the main view
+/// with it (`forget_keys` finds where the content moved).
+fn keyboard_follows_content(
+    view: GiftView,
+    placers: Stored<Vec<(&'static str, EditorInstanceId)>>,
+    revision: beui::reactive::Trigger,
+    catcher: &NodeRef,
+) {
+    let catcher = *catcher;
+    let view = store(view);
+    create_effect(move || {
+        revision.track();
+        let Some(node) = catcher.try_get() else {
+            return;
+        };
+        untrack(|| {
+            let (app, instance, region) = (*view.value()).clone();
+            if be_host_runtime::content_view(&app, instance) != region {
+                return;
+            }
+            let main = (app, instance, ViewId::MAIN);
+            if !REBUILT.with_borrow_mut(|rebuilt| rebuilt.remove(&main)) {
+                return;
+            }
+            be_host_runtime::forget_keys(&main, &placers.value());
+            try_with_document(|document| {
+                if document.focused_node().is_none() {
+                    document.focus_focusable(node);
+                }
+            });
+        });
+    });
+}
+
+fn forget_main_rebuild(app: &str, instance: EditorInstanceId) {
+    REBUILT.with_borrow_mut(|rebuilt| rebuilt.remove(&(app.to_owned(), instance, ViewId::MAIN)));
 }
 
 fn keep_focus_for_rebuild(view: &GiftView) {
@@ -1867,27 +1962,6 @@ fn take_keyboard(
 
 #[component]
 fn Notices(loading: Memo<bool>, failure: Memo<Option<Failure>>, id: String) -> NodeId {
-    let failed = create_memo(move || failure.get().is_some());
-    let still_loading = create_memo(move || loading.get() && failure.get().is_none());
-    let title = create_memo(move || {
-        failure
-            .get()
-            .map(|failure| failure.title)
-            .unwrap_or_default()
-    });
-    let detail = create_memo(move || {
-        failure
-            .get()
-            .map(|failure| failure.detail)
-            .unwrap_or_default()
-    });
-    let restart = create_memo(move || failure.get().and_then(|failure| failure.restart));
-    let reloadable = create_memo(move || restart.get().is_some());
-    let reload = move || {
-        if let Some(app) = restart.get_untracked() {
-            be_host_runtime::restart_app(&app);
-        }
-    };
     let loading_item = create_memo(|| HostItem::Notice {
         text: "Loading app…".to_owned(),
         busy: true,
@@ -1895,20 +1969,29 @@ fn Notices(loading: Memo<bool>, failure: Memo<Option<Failure>>, id: String) -> N
     });
     view! {
         <Frame align=Align::Center>
-            <List spacing=Space::None>
-                <Show condition={failed}>
+            <Show
+                value={failure}
+                fallback={move || view! {
+                    <Show value={loading}>
+                        <HostItemFace content={loading_item} />
+                    </Show>
+                }}
+            >|failure: ReadSignal<Failure>| {
+                let restart = create_memo(move || failure.with(|failure| failure.restart.clone()));
+                view! {
                     <CrashNotice
-                        title={title}
-                        detail={detail}
-                        reloadable={reloadable}
-                        on_reload={reload}
+                        title={move || failure.with(|failure| failure.title.clone())}
+                        detail={move || failure.with(|failure| failure.detail.clone())}
+                        reloadable={move || restart.with(Option::is_some)}
+                        on_reload={move || {
+                            if let Some(app) = restart.get_untracked() {
+                                be_host_runtime::restart_app(&app);
+                            }
+                        }}
                         id={id.clone()}
                     />
-                </Show>
-                <Show condition={still_loading}>
-                    <HostItemFace content={loading_item} />
-                </Show>
-            </List>
+                }
+            }</Show>
         </Frame>
     }
 }
@@ -1932,7 +2015,7 @@ fn ViewChildren(
     });
     view! {
         <Canvas>
-            <ForEach keys={keys}>|key: ChildId| {
+            <ForEach value={keys}>|key: ChildId| {
                 let child = create_memo(move || {
                     state.with(|view| {
                         view.children.iter().find(|child| child.child == key).cloned()
@@ -2061,9 +2144,7 @@ impl ChildNodes {
                 .map(|built| (built.node, built.holder))
         });
         if let Some((node, holder)) = held {
-            if holder.is_alive() && holder.get_untracked() != self.mount {
-                holder.set(self.mount);
-            }
+            holder.set(self.mount);
             return node;
         }
         let (views, region) = self.shared.with(|held| (held.views, held.region.clone()));

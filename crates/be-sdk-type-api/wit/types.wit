@@ -22,18 +22,38 @@ interface types {
     /// Derived metadata, by key.
     type entries = list<entry>;
 
-    /// The server's state of a block's session: its lease.
+    /// One connection in a block's session (be-block-protocol's
+    /// `participant`).
+    record participant {
+        client: client-id,
+        tag: session-tag,
+        may-edit: bool,
+        claimed: option<u64>,
+    }
+
+    /// Who is in a block's session as of its `index`-th membership entry,
+    /// in the order they joined (be-block-protocol's `session-state`): the
+    /// lease holder and the build the session speaks follow from it
+    /// (`be_block_session::Membership`).
     record session-state {
-        generation: u64,
-        owner: option<client-id>,
-        participants: list<client-id>,
-        clean-at: option<commit-id>,
+        index: u64,
+        after: u64,
+        participants: list<participant>,
     }
 
     record resume-merge {
         base: option<commit-id>,
         ours: commit-id,
         theirs: commit-id,
+    }
+
+    /// A remote head that seals this session's order through `through`, made
+    /// on the replica's local head.
+    record resume-sealed {
+        commit: commit-id,
+        through: u64,
+        /// The run of the order it seals (`status.restarts`).
+        restarts: u64,
     }
 
     /// How a replica's local head relates to the remote one.
@@ -43,6 +63,10 @@ interface types {
         fast-forward(commit-id),
         publish(commit-id),
         merge(resume-merge),
+        /// The remote head is a seal of this session made on the local one:
+        /// news of the seal, taken once the replica applied as far, not a
+        /// head to merge, which would count what both hold twice.
+        sealed(resume-sealed),
     }
 
     /// The plain form a type has outside the host.
@@ -67,10 +91,76 @@ interface types {
         /// The stored form read whole decodes to the content (`be_block::BlockContent::WHOLE_BYTES`),
         /// so a copy of its bytes loses nothing.
         whole-bytes: bool,
+        /// The type keeps a signed log beside its content (plans/signed_logs.md):
+        /// its replicas read it with `host.read-log`, hear it with
+        /// `replica.logged`, append with `host.append`, and fold it into what
+        /// they describe (`be_block_content::LogFold`).
+        log: bool,
         /// The type's default content (`Default`), encoded.
         blank: list<u8>,
         /// `blank` described, with no organization.
         blank-description: description,
+        /// The owner-only settings kind holding where the account read blocks of this
+        /// type up to, for a type that counts what is unread (`replicas.unread`); none
+        /// for one that does not.
+        reads: option<content-type-id>,
+    }
+
+    /// An entry of a block's signed log as the host read and verified it.
+    record log-item {
+        /// Its place in the log.
+        seq: u64,
+        id: uuid,
+        /// The account that appended it, as the server recorded it.
+        author: account-id,
+        /// When the server took it, by the server's clock.
+        arrival: s64,
+        /// The bytes the app appended; none once redacted, or while no key
+        /// this device holds opens them.
+        payload: option<list<u8>>,
+        /// Who of `author` signed it as this app's, as far as the device can tell.
+        signer: signer,
+    }
+
+    /// Who signed a log entry (`be_block_client::Signer`), `unknown` when it
+    /// could not be told (offline, or its payload unopened), or `redacted` when
+    /// its payload is gone and with it what was signed.
+    enum signer {
+        verified,
+        unverified,
+        changed,
+        replaced,
+        bad,
+        unknown,
+        redacted,
+    }
+
+    /// A run of a block's signed log from where it was asked: `size` is the
+    /// log's length as the host verified it.
+    record log-page {
+        size: u64,
+        items: list<log-item>,
+        /// The entries this device appended that the server has not taken
+        /// yet, in order: they wait in its outbox, and reach the log later.
+        kept: list<kept-entry>,
+        /// The entries this device appended that the server refused, kept
+        /// until let go (`host.let-go-refused`), in the order they were refused.
+        refused: list<refused-entry>,
+    }
+
+    /// An entry this device appended that the server refused: its id, the
+    /// bytes the app appended and why.
+    record refused-entry {
+        id: uuid,
+        payload: list<u8>,
+        why: string,
+    }
+
+    /// An entry this device appended that waits for the server: its id and
+    /// the bytes the app appended.
+    record kept-entry {
+        id: uuid,
+        payload: list<u8>,
     }
 
     record description {
@@ -158,11 +248,20 @@ interface types {
 
     record status {
         head: option<commit-id>,
-        owner: bool,
+        /// Holds the lease, so seals.
+        holder: bool,
+        /// How many times the session started over (a restart, or the last
+        /// one out leaving) before what this replica applied: local edits made
+        /// before a later one cannot be applied, since what they were made on
+        /// is gone.
+        restarts: u64,
         clean: bool,
-        /// Whatever is not clean is in the journal: an owner appended all it
-        /// sequenced.
+        /// Every local edit is in the order: none waits to be submitted or
+        /// numbered.
         journaled: bool,
+        /// While `journaled` is false, what keeps the replica's edits out of the
+        /// journal, for a host to name when it waits on them.
+        unjournaled: option<unjournaled>,
         owes-seal: bool,
         incompatible: bool,
         diverged: bool,
@@ -174,13 +273,11 @@ interface types {
         /// the host sent them: what this status reflects of them.
         taken: u64,
         /// How many of those the host need not give the replica again when it
-        /// opens it on `head`: for an owner, those `head` holds (a replacement on
-        /// its way is not among them); for a follower, once it is clean, those
-        /// its owner accepted into the session's journal.
+        /// opens it on `head`: those `head` holds.
         sealed-taken: u64,
-        /// How many of those `head` and this device's journal on it hold
-        /// together (at least `sealed-taken`): the host need not give them
-        /// again when it opens the replica on `head` with that journal.
+        /// How many of those the order holds (at least `sealed-taken`): the
+        /// host need not give them again when it opens the replica on the
+        /// journal.
         journaled-taken: u64,
         /// The `opening.epoch` the replica was opened with, which `taken`
         /// counts from.
@@ -191,26 +288,6 @@ interface types {
         peer(client-id),
         editor(editor-id),
         host,
-    }
-
-    /// What a message to peers carries, which the server checks against its
-    /// sender: `peer` for presence, channel messages and asking to catch up,
-    /// which any participant sends; `edit` for operations and session state,
-    /// only from a participant with edit access. The host passes it to the
-    /// server and ignores it for an editor or itself.
-    enum relay-kind {
-        peer,
-        edit,
-    }
-
-    /// What the server says of a peer's message it relayed.
-    record delivery {
-        /// What the server checked its sender may send: the replica drops a
-        /// message that asks for more (`Wire::kind`).
-        kind: relay-kind,
-        /// When the server took it, in milliseconds since the Unix epoch by
-        /// its clock, which the sender cannot claim.
-        received: s64,
     }
 
     variant recipients {
@@ -257,6 +334,29 @@ interface types {
         malformed(string),
     }
 
+    /// What keeps a replica's edits out of the journal (`status.unjournaled`),
+    /// with the timers that may bring them in, on the replica's clock.
+    record unjournaled {
+        loaded: bool,
+        /// Edits submitted that the server has not yet numbered.
+        pending: u32,
+        /// Edits waiting to be submitted, behind a seal or a part being put.
+        unsent: u32,
+        /// Edits an earlier opening may have submitted, shown but held until
+        /// the replica joins.
+        doubtful: u32,
+        /// A part of one of its operations is being put.
+        putting: bool,
+        put-retry-at: option<u64>,
+        merge-retry-at: option<u64>,
+        seal-retry-at: option<u64>,
+        merge-failures: u8,
+        /// The next edit to submit holds what an earlier opening submitted,
+        /// which goes again once the replica has taken the local edits through
+        /// this number.
+        resubmits-through: option<u64>,
+    }
+
     /// What undo and redo can do on this device, and why they cannot.
     record undo-state {
         can-undo: bool,
@@ -269,10 +369,28 @@ interface types {
         lost-edits: bool,
     }
 
-    /// One operation the owner sequenced: a session message the module wrote,
-    /// the same bytes a peer hears relayed.
+    /// What a replica hands its session's order: its id (`origin`,
+    /// `counter`), the last sequence number it had applied (`base`), whether
+    /// nothing based before it applies once it is numbered (`barrier`), and
+    /// the entry the module wrote.
+    record submission {
+        origin: u64,
+        counter: u64,
+        base: u64,
+        barrier: bool,
+        payload: list<u8>,
+    }
+
+    /// One submission the order numbered, its payload opened: its place, its
+    /// id, its base, the last barrier (`floor`): one based below it is passed over, and when the
+    /// server took it (none for an order kept offline).
     record journal-entry {
         sequence: u64,
+        origin: u64,
+        counter: u64,
+        base: u64,
+        floor: u64,
+        received: option<s64>,
         payload: list<u8>,
     }
 
@@ -288,10 +406,12 @@ interface types {
         mentions: list<account-id>,
     }
 
-    /// An announcement of the edit an owner sequenced as `sequence`.
-    record announced {
-        sequence: u64,
-        announcement: announcement,
+    /// What goes with an entry appended to a block's signed log
+    /// (`be_block_content::Along`): the push the server sends once it takes the
+    /// entry, and the place of an entry the new one takes back, redacted then.
+    record along {
+        announcement: option<announcement>,
+        redacts: option<u64>,
     }
 
     /// Where a journal starts: a commit (none for no content), the last
@@ -302,8 +422,8 @@ interface types {
         state: list<u8>,
     }
 
-    /// What a block's session owners sequenced since `base` and did not
-    /// commit, by this module's build.
+    /// The session's order since `base`, which no commit holds yet, by this
+    /// module's build.
     record journal {
         base: journal-base,
         entries: list<journal-entry>,
@@ -313,6 +433,13 @@ interface types {
         bytes: list<u8>,
         /// Zero is a clean merge.
         conflicts: u32,
+    }
+
+    /// Where the account read one block up to (`be_block_content::Unread::places`),
+    /// in bytes only the type reads.
+    record block-place {
+        block: block-id,
+        place: list<u8>,
     }
 
     /// A searchable document of a block (`be_block::SearchDocument`).

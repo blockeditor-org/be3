@@ -128,10 +128,11 @@ pub struct Document {
     /// meanwhile is fired late in the frame or asked for then, so it asks for nothing itself.
     timers_open: Cell<bool>,
     scale: ::beui_reactive::OwnedSignal<f32>,
-    attached: ::beui_reactive::OwnedSignal<u64>,
+    attached: ::beui_reactive::OwnedTrigger,
     focus_visible: ::beui_reactive::OwnedSignal<bool>,
     focus_watched: ::beui_reactive::OwnedSignal<Option<NodeId>>,
     fullscreen: ::beui_reactive::OwnedSignal<bool>,
+    share_sheet: ::beui_reactive::OwnedSignal<bool>,
     viewport_size: ::beui_reactive::OwnedSignal<Vec2>,
     reattached: Cell<bool>,
     pub(crate) pointer_lockers: RefCell<Vec<NodeOf<crate::base::interactive::InteractiveNode>>>,
@@ -190,7 +191,9 @@ pub struct Document {
     overlay_line: OverlayLine,
     anchor_shift: f32,
     pinned_to_end: Option<beui_types::Direction>,
-    pub(crate) reveals: NodeMap<NodeId>,
+    /// Each viewer's node to reveal, and the part of it (fractions of its size), if not the
+    /// whole.
+    pub(crate) reveals: NodeMap<(NodeId, Option<Rect>)>,
     pub(crate) viewport: Option<(Context, Rect, f32)>,
     pub(crate) hidden: bool,
     pub(crate) embeds: Vec<std::rc::Weak<crate::base::embed::EmbedState>>,
@@ -200,6 +203,7 @@ pub struct Document {
     pub(crate) canvas_moves: Vec<NodeId>,
     pub(crate) canvas_moves_from: u64,
     pub copied: Option<crate::clipboard::Clip>,
+    shared: Option<crate::clipboard::Clip>,
     next_paint: Option<Instant>,
     now: Instant,
     reactive_scope: ::beui_reactive::Scope,
@@ -214,6 +218,9 @@ pub struct Document {
     pub accessibility_id: u32,
     pub accessibility: NodeMap<Node>,
     accessibility_ranks: NodeMap<u64>,
+    descriptions: NodeMap<String>,
+    /// For each node `set_description` was called on, the node it described.
+    described_for: NodeMap<NodeId>,
     pub accessibility_tree: RefCell<AccessibilityTree>,
     performance: PerformanceTracker,
     pub work: WorkCounters,
@@ -385,10 +392,11 @@ impl Document {
             timer_frame: Cell::new(0),
             timers_open: Cell::new(false),
             scale: ::beui_reactive::OwnedSignal::new(1.0),
-            attached: ::beui_reactive::OwnedSignal::new(0),
+            attached: ::beui_reactive::OwnedTrigger::new(),
             focus_visible: ::beui_reactive::OwnedSignal::new(false),
             focus_watched: ::beui_reactive::OwnedSignal::new(None),
             fullscreen: ::beui_reactive::OwnedSignal::new(false),
+            share_sheet: ::beui_reactive::OwnedSignal::new(false),
             viewport_size: ::beui_reactive::OwnedSignal::new(Vec2::ZERO),
             reattached: Cell::new(false),
             pointer_lockers: RefCell::default(),
@@ -456,6 +464,7 @@ impl Document {
             canvas_moves: Vec::new(),
             canvas_moves_from: 0,
             copied: None,
+            shared: None,
             next_paint: None,
             now: crate::timer::frame_clock(),
             reactive_scope: ::beui_reactive::Scope::new(),
@@ -470,6 +479,8 @@ impl Document {
             accessibility_id: accessibility::next_document_id(),
             accessibility: NodeMap::default(),
             accessibility_ranks: NodeMap::default(),
+            descriptions: NodeMap::default(),
+            described_for: NodeMap::default(),
             accessibility_tree: RefCell::default(),
             performance: PerformanceTracker::default(),
             work: WorkCounters::default(),
@@ -600,8 +611,9 @@ impl Document {
         Rc::clone(&self.timers)
     }
 
-    pub fn watch_context(&self) -> ::beui_reactive::ReadSignal<u64> {
-        self.attached.read_only()
+    /// Notified when the document is attached to a context again, as when its fonts change.
+    pub fn watch_context(&self) -> ::beui_reactive::Trigger {
+        self.attached.handle()
     }
 
     pub fn watch_pixels_per_point(&self) -> ::beui_reactive::ReadSignal<f32> {
@@ -614,6 +626,11 @@ impl Document {
 
     pub fn watch_fullscreen(&self) -> ::beui_reactive::ReadSignal<bool> {
         self.fullscreen.read_only()
+    }
+
+    /// Whether the platform has a share sheet for `share`.
+    pub fn watch_share_sheet(&self) -> ::beui_reactive::ReadSignal<bool> {
+        self.share_sheet.read_only()
     }
 
     pub fn watch_focused(&self) -> ::beui_reactive::ReadSignal<Option<NodeId>> {
@@ -778,33 +795,30 @@ impl Document {
     }
 
     pub fn set_modifiers(&self, modifiers: Modifiers) {
-        if self.modifiers.get_untracked() != modifiers {
-            self.modifiers.set(modifiers);
-        }
+        self.modifiers.set(modifiers);
     }
 
     fn run_timers(&self) {
         let scale = self.pixels_per_point();
-        if self.scale.get_untracked() != scale {
-            self.scale.set(scale);
-        }
+        self.scale.set(scale);
         let fullscreen = self
             .viewport
             .as_ref()
             .is_some_and(|(ctx, _, _)| ctx.fullscreen());
-        if self.fullscreen.get_untracked() != fullscreen {
-            self.fullscreen.set(fullscreen);
-        }
+        self.fullscreen.set(fullscreen);
+        let share_sheet = self
+            .viewport
+            .as_ref()
+            .is_some_and(|(ctx, _, _)| ctx.has_share_sheet());
+        self.share_sheet.set(share_sheet);
         let size = self
             .viewport
             .as_ref()
             .map_or(Vec2::ZERO, |(_, rect, _)| rect.size());
-        if self.viewport_size.get_untracked() != size {
-            self.viewport_size.set(size);
-        }
+        self.viewport_size.set(size);
         let reattached = self.reattached.replace(false);
         if reattached {
-            self.attached.update(|attached| *attached += 1);
+            self.attached.notify();
         }
         self.publish_pointer_lock(reattached);
         self.timer_frame.set(self.timer_frame.get() + 1);
@@ -1074,9 +1088,7 @@ impl Document {
                 }
                 document.theme.set(preferences.theme);
             }
-            if document.canvas_touch.get_untracked() != preferences.canvas_touch {
-                document.canvas_touch.set(preferences.canvas_touch);
-            }
+            document.canvas_touch.set(preferences.canvas_touch);
         });
     }
 
@@ -1111,8 +1123,40 @@ impl Document {
         }
     }
 
+    /// Describes the first node at or within `id` that has accessibility of its own with
+    /// `description`, where that gives no description and another label, as a tooltip describes
+    /// the control it wraps; `None` takes it away.
+    /// The node is found when this is called: one that appears within later is not described.
+    pub fn set_description(&mut self, bound: NodeId, description: Option<String>) {
+        let id = self.described_within(bound).unwrap_or(bound);
+        if let Some(previous) = self.described_for.insert(bound, id)
+            && previous != id
+            && self.descriptions.remove(&previous).is_some()
+        {
+            self.arena.touch(previous);
+        }
+        if self.descriptions.get(&id) == description.as_ref() {
+            return;
+        }
+        match description {
+            Some(description) => self.descriptions.insert(id, description),
+            None => self.descriptions.remove(&id),
+        };
+        self.arena.touch(id);
+    }
+
+    /// The description `set_description` gave `id`.
+    pub(crate) fn description(&self, id: NodeId) -> Option<&str> {
+        self.descriptions.get(&id).map(String::as_str)
+    }
+
     pub fn copy(&mut self, clip: crate::clipboard::Clip) {
         self.copied = Some(clip);
+    }
+
+    /// Hands `clip` to the platform's share sheet at the end of the frame.
+    pub fn share(&mut self, clip: crate::clipboard::Clip) {
+        self.shared = Some(clip);
     }
 
     pub fn request_paste(&mut self) {
@@ -1311,6 +1355,8 @@ impl Document {
         self.reveals.remove(&id);
         self.accessibility.remove(&id);
         self.accessibility_ranks.remove(&id);
+        self.descriptions.remove(&id);
+        self.described_for.remove(&id);
         self.accessibility_tree.get_mut().forget(id, &self.arena);
         for test_id in self.node_test_ids.remove(&id).unwrap_or_default() {
             self.drop_test_id(id, &test_id);
@@ -1473,6 +1519,17 @@ impl Document {
             ctx.report_damage(rect);
             self.conceal_embeds(false);
         }
+        // An embed's listener hears only where the frame leaves it: one whose node moves to
+        // another parent (a kept panel shown in another pane, its old pane removed by the
+        // frame's input) is never heard unplaced on the way.
+        let embeds: Vec<_> = self
+            .embeds
+            .iter()
+            .filter_map(|embed| embed.upgrade())
+            .collect();
+        for embed in &embeds {
+            embed.hold();
+        }
         let mut measurement = FrameMeasurement::new();
         self.work.reset();
         let scale = ctx.pixels_per_point();
@@ -1567,6 +1624,9 @@ impl Document {
         if let Some(clip) = self.copied.take() {
             ctx.copy(clip);
         }
+        if let Some(clip) = self.shared.take() {
+            ctx.share(clip);
+        }
         if std::mem::take(&mut self.paste_requested) {
             ctx.request_paste();
         }
@@ -1592,6 +1652,9 @@ impl Document {
                 }
                 passes
             });
+        for embed in embeds {
+            embed.release();
+        }
         self.sync_escapes();
         crate::current::run_in(self, Document::refresh_inert_embeds);
         self.ask_for_windows(ctx);
@@ -3056,17 +3119,17 @@ fn verifying_paint() -> bool {
     cfg!(test) || VERIFY_PAINT.load(std::sync::atomic::Ordering::Relaxed)
 }
 
-static FAIL_UNSETTLED_LAYOUT: std::sync::atomic::AtomicBool =
-    std::sync::atomic::AtomicBool::new(false);
-
 /// Panics when a frame's layout has not settled after eight layouts, instead of
 /// painting the last one and asking for another frame (debug builds log what kept
-/// changing). Always on in beui-core's tests; be-sdk-test turns it on.
+/// changing). Always on in beui-core's tests; be-sdk-test turns it on. It holds for
+/// documents laid out on the calling thread only, so a test turning it on or off
+/// leaves the tests running beside it alone.
 pub fn fail_unsettled_layout(enabled: bool) {
-    FAIL_UNSETTLED_LAYOUT.store(enabled, std::sync::atomic::Ordering::Relaxed);
+    FAIL_UNSETTLED_LAYOUT.set(enabled);
 }
 
 thread_local! {
+    static FAIL_UNSETTLED_LAYOUT: Cell<bool> = const { Cell::new(false) };
     static DELAY_MEASUREMENT: Cell<bool> =
         Cell::new(std::env::var_os("BEUI_DELAY_MEASUREMENT").is_some_and(|value| value == "1"));
 }
@@ -3083,7 +3146,7 @@ fn delaying_measurement() -> bool {
 }
 
 fn failing_unsettled_layout() -> bool {
-    cfg!(test) || FAIL_UNSETTLED_LAYOUT.load(std::sync::atomic::Ordering::Relaxed)
+    cfg!(test) || FAIL_UNSETTLED_LAYOUT.get()
 }
 
 const LAYOUTS_PER_FRAME: usize = 8;

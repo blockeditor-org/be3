@@ -6,7 +6,7 @@ use crate::{PreferenceLayer, PreferenceSource};
 fn a_glide_snaps_when_unarmed_or_when_animations_are_off() {
     let _root = RootScope::new();
     let order = create_signal(vec![1_u64, 2, 3]);
-    let arm = create_signal(0_u64);
+    let arm = create_trigger();
     let mut harness = Harness::new(gliding_rows(order, arm));
     harness.settle();
 
@@ -28,7 +28,7 @@ fn a_glide_snaps_when_unarmed_or_when_animations_are_off() {
     );
     harness.frame(Vec::new());
     order.set(vec![1, 2, 3]);
-    arm.update(|arm| *arm += 1);
+    arm.notify();
     harness.frame(Vec::new());
     assert_eq!(
         top_of(&harness, "row.1"),

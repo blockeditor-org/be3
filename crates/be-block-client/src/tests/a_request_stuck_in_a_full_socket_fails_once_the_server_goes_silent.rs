@@ -1,6 +1,5 @@
 use super::*;
 use crate::connection::{PING_INTERVAL, PONG_WAIT};
-use be_block_protocol::client;
 
 #[tokio::test]
 async fn a_request_stuck_in_a_full_socket_fails_once_the_server_goes_silent() {
@@ -12,22 +11,32 @@ async fn a_request_stuck_in_a_full_socket_fails_once_the_server_goes_silent() {
         .expect("the server listens on an address");
     let relay = be_block_fault_relay::Relay::start(server);
     let clock = Clock::manual();
-    let connection = Connection::connect(&relay.url(), &clock).await.unwrap();
+    let connection = harness.connection(&relay.url(), &clock).await;
 
     relay.jam_at_next_request();
     let heard = relay.heard();
-    let answer = crate::ask(client::blocks::publish(
+    let answer = crate::ask(be_block_protocol::write::<
+        be_block_protocol::PublishOutcome,
+        _,
+    >(
         &connection,
-        uuid::Uuid::nil(),
-        be_block_commit::CommitId::from_hash(be_block_store::Hash::of(b"a commit")),
-        None,
-        Vec::new(),
-        be_block_protocol::ObjectChange::default(),
-        0,
-        false,
-        be_block_protocol::ReferenceChange::default(),
-        Vec::new(),
-        vec![vec![7; be_block_protocol::MAX_FRAME_BYTES - 1024]],
+        Some(uuid::Uuid::nil()),
+        be_block_protocol::Op::Publish {
+            block: uuid::Uuid::nil(),
+            expected: None,
+            commit: Some(be_block_protocol::NewCommit {
+                id: be_block_commit::CommitId::from_hash(be_block_store::Hash::of(b"a commit")),
+                parents: Vec::new(),
+                held: be_block_protocol::ObjectChange::default(),
+                time: 0,
+                pinned: false,
+                objects: vec![vec![7; be_block_protocol::MAX_FRAME_BYTES - 1024]],
+                log_through: None,
+            }),
+            references: be_block_protocol::ReferenceChange::default(),
+            metadata: Vec::new(),
+            journal: None,
+        },
     ));
     relay.heard_beyond(heard).await;
     clock.advance(PING_INTERVAL + PONG_WAIT);

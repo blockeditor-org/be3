@@ -42,13 +42,9 @@ fn each_setting_opens_as_a_page_beside_the_list() {
     settings.take_opens();
 
     settings.click("settings.devices");
-    settings.run();
     settings.click("settings.organization");
-    settings.run();
     settings.click(&format!("settings.profile.{tablet}"));
-    settings.run();
     settings.click("settings.offline");
-    settings.run();
     let opens: Vec<(Uuid, Option<Uuid>)> = settings
         .take_opens()
         .into_iter()

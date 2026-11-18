@@ -38,6 +38,25 @@ pub(super) trait ShownFrame {
     }
 }
 
+/// Where the worker `module` of the staged app with the id `app_id` is staged, relative to the
+/// staged apps, if its manifest names it under `workers`: the one place that maps a worker's name
+/// to a file on every platform, so any other name, a path or another app's module, is refused.
+pub(super) fn worker_file(app_id: &str, module: &str) -> Result<String, String> {
+    let manifest = discovery::manifests()
+        .into_iter()
+        .find(|manifest| manifest.identity.id == app_id)
+        .ok_or_else(|| format!("no staged app has the id {app_id}"))?;
+    if manifest.workers.iter().any(|worker| worker == module) {
+        return Ok(worker_path(app_id, module));
+    }
+    Err(format!("{app_id} stages no worker named {module:?}"))
+}
+
+/// Where a worker module of the app `app_id` is staged (crates/be-tool-buck's stage).
+pub(super) fn worker_path(app_id: &str, worker: &str) -> String {
+    format!("workers/{app_id}/{worker}")
+}
+
 pub(super) struct Backend {
     module: Option<String>,
     worker: Option<Worker<platform::Channel>>,
@@ -53,7 +72,7 @@ impl Backend {
             module: discovery::entry_point(&app.identity.id, &app.entry_point),
             worker: None,
             mailbox: None,
-            wire: Wire::granting(app.extensions.clone()),
+            wire: platform::wire(app),
             started: host::now(),
             error: None,
         }
@@ -63,7 +82,7 @@ impl Backend {
         self.shutdown();
         self.started = host::now();
         self.error = None;
-        self.wire = Wire::granting(app.extensions.clone());
+        self.wire = platform::wire(app);
         let Some(module) = self.module.clone() else {
             self.error = Some(NO_ENTRY_POINT.to_owned());
             return;
@@ -92,18 +111,7 @@ impl Backend {
     }
 
     pub(super) fn send(&mut self, outbound: Vec<Outbound>) {
-        self.wired(|wire| {
-            for outbound in outbound {
-                match outbound {
-                    Outbound::Open(opening) => wire.open(*opening),
-                    Outbound::Close(instance) => wire.close(instance),
-                    Outbound::Event(instance, event) => wire.event(instance, event),
-                    Outbound::Editor(instance, call) => wire.call(instance, call),
-                    Outbound::App(call) => wire.app_call(call),
-                }
-            }
-            wire.flush_hearing();
-        });
+        self.wired(|wire| wire.send(outbound));
     }
 
     pub(super) fn accept(&mut self, accepted: &HelloAccepted) {
@@ -125,6 +133,7 @@ impl Backend {
                 self.error.get_or_insert(failure);
             }
         }
+        self.wire.poll_sandbox();
         if let Some(failure) = worker.queue(self.wire.take_outbound()) {
             self.fail(failure);
         }
@@ -182,7 +191,11 @@ impl Backend {
     }
 
     pub(super) fn received_frame(&mut self) -> Option<Frame> {
-        let (presented, presents) = self.worker.as_mut()?.take_presented()?;
+        let worker = self.worker.as_mut()?;
+        // The presenter lets an app's textures go by its layout (`SurfacePresenter::retain`), so
+        // the surfaces it released need nothing more here.
+        worker.take_released();
+        let (presented, presents) = worker.take_presented()?;
         Some(platform::frame(presented, presents))
     }
 
@@ -225,6 +238,7 @@ impl Backend {
     pub(super) fn shutdown(&mut self) {
         self.worker = None;
         self.mailbox = None;
+        self.wire.stop_sandbox();
     }
 
     pub(super) fn offer(&mut self, image: u64, picture: &Picture) {
@@ -254,11 +268,12 @@ impl Backend {
         &mut self,
         placements: Vec<super::web::Placement>,
         layers: Option<super::web::Overlay>,
+        retained: &[u32],
     ) {
         let Some(worker) = &mut self.worker else {
             return;
         };
-        if let Err(error) = worker.channel.place(placements, layers) {
+        if let Err(error) = worker.channel.place(placements, layers, retained) {
             self.error.get_or_insert(error);
         }
     }
@@ -278,12 +293,15 @@ impl Backend {
         }
     }
 
+    /// Stops the app with `failure`, and every worker it started with it.
     fn fail(&mut self, failure: String) {
         self.error.get_or_insert(failure);
-        self.worker = None;
-        self.mailbox = None;
+        self.shutdown();
     }
 }
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod tests;
 
 pub(super) fn prepare(app: &AppManifest) {
     if let Some(module) = discovery::entry_point(&app.identity.id, &app.entry_point) {
@@ -304,5 +322,34 @@ pub(super) struct Availability(pub(super) Result<(), String>);
 impl Availability {
     pub(super) fn missing() -> Self {
         Self(Err(NOT_INSTALLED.to_owned()))
+    }
+}
+
+/// The sandbox an app is served on its wire for its workers (`Server::for_app`).
+pub(super) struct AppSandbox(pub(super) be_wasm_sandbox_host::Server);
+
+impl be_sdk_app_host::sandbox::Sandbox for AppSandbox {
+    fn call(
+        &mut self,
+        call: be_wasm_sandbox_api::embed::sandbox::Call,
+        connection: &mut be_sdk_api::ops::Connection,
+    ) {
+        self.0.call(call, connection);
+    }
+
+    fn canceled(
+        &mut self,
+        op: be_sdk_api::ops::OpId,
+        connection: &mut be_sdk_api::ops::Connection,
+    ) -> bool {
+        self.0.canceled(op, connection)
+    }
+
+    fn poll(&mut self, connection: &mut be_sdk_api::ops::Connection) {
+        self.0.poll(connection);
+    }
+
+    fn stop(self: Box<Self>, why: &str, connection: &mut be_sdk_api::ops::Connection) {
+        self.0.stop(why, connection);
     }
 }

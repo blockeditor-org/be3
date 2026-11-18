@@ -6,16 +6,17 @@ use std::rc::Rc;
 use be_sdk_beui::be_block_content::Edit;
 use be_sdk_beui::be_sdk_ui::BlockLabel;
 use be_sdk_beui::beui::reactive::*;
+use be_sdk_beui::beui::unstyled::ValueDrag;
 use be_sdk_beui::beui::{Image, Pos2, Rect, Vec2};
-use be_sdk_beui::{BlockFilter, ContentProjection, Drag, Editor, FileDrop, Waker};
+use be_sdk_beui::{BlockFilter, Drag, DragHold, Editor, FileDrop, Waker};
 use be_sdk_beui::{BlockInfo, BlockParent, BlockQuery};
 use be_type_map::{Map, MapColor, MapContent, MapCoordinate, MapPoint, MapRegion};
 use uuid::Uuid;
 
 use crate::geo::MapView;
-use crate::raster::{TILE_PIXELS, TileLabel};
 use crate::tiles::{TileId, TileWorker};
 use be_type_image::{ImageContent, ImageFile};
+use be_worker_map::{TILE_PIXELS, TileLabel};
 use beui::ClipItem;
 use beui::clipboard::formats;
 
@@ -45,7 +46,8 @@ impl TileState {
 }
 
 struct MapInner {
-    block: ContentProjection<MapContent>,
+    /// What a sidebar control's drag writes, held until it is kept (`drag_value`).
+    hold: DragHold<MapContent>,
     worker: RefCell<Option<TileWorker>>,
     tiles: RefCell<HashMap<TileId, TileState>>,
     used: RefCell<HashMap<TileId, u64>>,
@@ -61,16 +63,16 @@ pub(crate) struct MapState {
     editor: Editor,
     preview: bool,
     fit_requested: Signal<bool>,
-    pub(crate) points: ReadSignal<Vec<MapPoint>>,
-    pub(crate) preview_region: ReadSignal<Option<MapRegion>>,
-    pub(crate) displayed_region: ReadSignal<MapRegion>,
+    pub(crate) points: Memo<Vec<MapPoint>>,
+    pub(crate) preview_region: Memo<Option<MapRegion>>,
+    pub(crate) displayed_region: Memo<MapRegion>,
     pub(crate) selected: Signal<Option<Uuid>>,
     pub(crate) visible_region: Signal<MapRegion>,
     pub(crate) last_error: Signal<Option<String>>,
-    pub(crate) import_error: Signal<Option<String>>,
     pub(crate) labels: Memo<Ready<HashMap<Uuid, BlockLabel>>>,
-    pub(crate) revision: Signal<u64>,
-    pub(crate) reloads: Signal<u64>,
+    /// Notified when the held tiles change (`with_tiles`).
+    pub(crate) tiles_changed: Trigger,
+    pub(crate) reloads: Trigger,
     pub(crate) anchor: Signal<[f64; 2]>,
     inner: Stored<MapInner>,
 }
@@ -84,7 +86,6 @@ impl MapState {
         let selected = create_signal(None);
         let visible_region = create_signal(MapRegion::WORLD);
         let last_error = create_signal(None);
-        let import_error = create_signal(None);
         let references = editor.watch_blocks(BlockQuery::References(editor.block_id()));
         let labels = create_memo(move || {
             let types = editor.block_types();
@@ -94,8 +95,8 @@ impl MapState {
                 .map(|reference: BlockInfo| (reference.id, reference.label(types.as_ref())))
                 .collect())
         });
-        let revision = create_signal(0);
-        let reloads = create_signal(0);
+        let tiles_changed = create_trigger();
+        let reloads = create_trigger();
         let fit_requested = create_signal(true);
         let anchor = create_signal([0.0, 0.0]);
         Self {
@@ -108,13 +109,12 @@ impl MapState {
             selected,
             visible_region,
             last_error,
-            import_error,
             labels,
-            revision,
+            tiles_changed,
             reloads,
             anchor,
             inner: store(MapInner {
-                block,
+                hold: DragHold::new(block),
                 worker: RefCell::new(None),
                 tiles: RefCell::new(HashMap::new()),
                 used: RefCell::new(HashMap::new()),
@@ -143,10 +143,6 @@ impl MapState {
         self.selected.set(id);
     }
 
-    pub(crate) fn dismiss_import_error(&self) {
-        self.import_error.set(None);
-    }
-
     pub(crate) fn request_fit(&self) {
         self.fit_requested.set(true);
     }
@@ -160,16 +156,23 @@ impl MapState {
         inner.used.borrow_mut().clear();
         self.last_error.set(None);
         self.bump();
-        self.reloads.update(|reloads| *reloads += 1);
+        self.reloads.notify();
     }
 
     fn bump(&self) {
-        self.revision.update(|revision| *revision += 1);
+        self.tiles_changed.notify();
     }
 
     pub(crate) fn record(&self, edit: Edit) {
-        let inner = self.inner.value();
-        inner.block.operate(edit);
+        // Every edit goes through the hold, so one made by another path while a sidebar
+        // control is scrubbed (a point dragged on the map) lands in the scrub's hold too.
+        self.inner.value().hold.operate(edit);
+    }
+
+    /// A sidebar control's drag starts or ends: what it writes between is held
+    /// (`DragHold`).
+    pub(crate) fn drag_value(&self, change: ValueDrag) {
+        self.inner.value().hold.drag(change);
     }
 
     pub(crate) fn remove_point(&self, id: Uuid) {
@@ -197,7 +200,7 @@ impl MapState {
     ) {
         self.editor
             .pick_block(BlockFilter::default(), anchor, move |picked| {
-                if let (true, Ok(picked)) = (self.inner.is_alive(), picked) {
+                if self.inner.is_alive() {
                     self.place_picked(picked.id(), at);
                 }
             });
@@ -240,8 +243,8 @@ impl MapState {
     }
 
     pub(crate) fn camera(&self) -> Option<CanvasView> {
-        let _ = self.editor.canvas().get();
-        let _ = self.anchor.get();
+        self.editor.canvas().track();
+        self.anchor.track();
         self.anchored_camera()
     }
 
@@ -277,9 +280,9 @@ impl MapState {
     }
 
     pub(crate) fn visible(&self) -> Rect {
-        let _ = self.editor.canvas().get();
-        let _ = self.editor.placed().get();
-        let _ = self.anchor.get();
+        self.editor.canvas().track();
+        self.editor.placed().track();
+        self.anchor.track();
         let screen = self.screen_rect();
         Rect::from_min_max(self.unscreen(screen.min), self.unscreen(screen.max))
     }
@@ -315,9 +318,7 @@ impl MapState {
         let centre = host.to_canvas(self.screen_rect().center());
         let zoom = super::tiles::tile_zoom(world, host.scale);
         let anchor = world.tile_anchor(zoom, centre);
-        if self.anchor.get_untracked() != anchor {
-            self.anchor.set(anchor);
-        }
+        self.anchor.set(anchor);
     }
 
     pub(crate) fn label_of(&self, block: Uuid) -> Ready<BlockLabel> {
@@ -390,15 +391,9 @@ impl MapState {
         let inner = self.inner.value();
         let (waker, woken) = self.editor.woken();
         *inner.waker.borrow_mut() = waker;
-        create_effect(move || {
-            woken.with(|_| ());
-            untrack(|| self.collect_tiles());
-        });
+        create_effect_on(move || woken.track(), move |_, _| self.collect_tiles());
         let drag = self.editor.drag();
-        create_effect(move || {
-            let drag = drag.get();
-            untrack(|| self.take_drag(drag));
-        });
+        create_effect_on(move || drag.get(), move |drag, _| self.take_drag(*drag));
         let files = self.editor.files();
         create_effect(move || {
             let drop = files.get();
@@ -410,36 +405,37 @@ impl MapState {
         let world = self.editor.world();
         let placed = self.editor.placed();
         let canvas = self.editor.canvas();
-        create_effect(move || {
-            world.with(|_| ());
-            placed.with(|_| ());
-            canvas.with(|_| ());
-            untrack(|| self.settle_anchor());
-        });
-        let world = self.editor.world();
-        let placed = self.editor.placed();
-        let canvas = self.editor.canvas();
-        create_effect(move || {
-            world.with(|_| ());
-            placed.with(|_| ());
-            canvas.with(|_| ());
-            self.anchor.with(|_| ());
-            self.preview_region.with(|_| ());
-            self.fit_requested.with(|_| ());
-            untrack(|| self.settle_view());
-        });
+        create_effect_on(
+            move || {
+                world.track();
+                placed.track();
+                canvas.track();
+            },
+            move |_, _| self.settle_anchor(),
+        );
+        create_effect_on(
+            move || {
+                world.track();
+                placed.track();
+                canvas.track();
+                self.anchor.track();
+                self.preview_region.track();
+                self.fit_requested.track();
+            },
+            move |_, _| self.settle_view(),
+        );
     }
 
     fn settle_view(&self) {
         let inner = self.inner.value();
         let view = self.view();
-        let visible = untrack(|| self.visible());
+        let visible = self.visible();
         let region = view.region(visible);
-        if self.visible_region.get_untracked() != region {
-            self.visible_region.set(region);
-        }
+        self.visible_region.set(region);
         inner.view_center.set(view.coordinate(visible.center()));
-        if self.sized()
+        // The fit waits for the map's place: until then its world is the whole editor's, and the
+        // region it fits would move once the map is laid out.
+        if self.editor.placed().get_untracked().is_positive()
             && self.host_camera().is_some()
             && self.fit_requested.get_untracked()
             && let Some(preview) = self.preview_region.get_untracked()
@@ -456,7 +452,9 @@ impl MapState {
         let available = (clip.size() - Vec2::splat(24.0)).max(Vec2::new(1.0, 1.0));
         let factor =
             (available.x / shown.width().max(0.01)).min(available.y / shown.height().max(0.01));
-        self.editor.zoom(factor);
+        // About the map's own centre, which the pan below assumes: the host zooms about the
+        // editor's, which an inspector beside the map moves off it.
+        self.editor.zoom_at(factor, clip.center());
         self.editor.pan((clip.center() - shown.center()) * factor);
     }
 
@@ -490,7 +488,6 @@ impl MapState {
             inner.pending_file_drop.set(Some(at(drop.position)));
             return;
         }
-        self.import_error.set(None);
         let base = inner
             .pending_file_drop
             .take()
@@ -509,7 +506,6 @@ impl MapState {
     pub(crate) fn take_paste(&self, pasted: ClipItem) {
         let inner = self.inner.value();
         if pasted.format == formats::PNG {
-            self.import_error.set(None);
             let position = inner.view_center.get();
             self.import(
                 ImageFile::from_file("Pasted Image.png".to_owned(), pasted.data),

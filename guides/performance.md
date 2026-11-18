@@ -65,13 +65,17 @@ while working on it.
 
 ### Apps and the server
 
-- `//crates/be-wasm-host:example-gpu-calls` times an app's per-draw gpu calls through wasmtime
-  into wgpu's noop device: about 130 ns a call in October 2026.
+- `//crates/be-wasm-host:example-gpu-calls` times an app's per-draw gpu calls through V8
+  into wgpu's noop device: about 120 ns a call in November 2026.
 - `//crates/be-block-model:example-text-snapshot-bench` (the suite's `text-snapshot`) times an
   editor decoding a 1 MB text's snapshot and adopting its session state. The target is under
   1 ms in release.
 - `//crates/be-block-graph:example-access-bench` times the server's access queries on an
   organization of 100,000 blocks.
+- A head moved from elsewhere costs the holder a three-way merge over the whole content, a
+  fast-forward too, so the reload keeps the identities edits on their way name
+  (guides/type_modules.md, "Sealing"); only a holder alone, with no editor and nothing on its
+  way, loads the head as it is.
 - An editor's `examples/` are built for the host too (`app()` in buck/wasm/defs.bzl), which is
   how an editor gets a benchmark.
 
@@ -101,8 +105,8 @@ What keeps a gesture's cost independent of the document's size:
 - Every frame of a gesture writes the document (guides/adding_an_app.md, Gestures), but nothing walks it:
   a be-block-model `Document` updates its block references from what each edit touched; the
   host's worker encodes a snapshot only every few hundred operations; and pending edits rebase
-  under a peer's by what either touched (`Document::rebase`), with followers told by a `Beneath`
-  operation rather than a snapshot (guides/blocks/apps.md).
+  under a peer's numbered before them by what either touched (`Document::rebase`), with editors
+  told by a `Beneath` operation rather than a snapshot (guides/blocks/apps.md).
 - A pan, zoom or pen move places and paints only what is in view, found through a grid of world
   cells. A pen lift reads only the new stroke: the editor's catalog of frames, embedded blocks
   and bounds is fed by the entities each change touched, and only changed items are refiled in
@@ -161,8 +165,8 @@ for this (`release` in the open bench, `lift` for the canvas bench's pen lift).
 
 ### Profiling be-host
 
-- `BE3_PERF_MAP=1 ./scripts/buck run -m release //crates/be-host:dev` makes wasmtime write
-  `/tmp/perf-PID.map`, naming the apps' compiled wasm; record with `perf record -g -p PID` around
+- `BE3_PERF_MAP=1 ./scripts/buck run -m release //crates/be-host:dev` makes V8 write
+  `/tmp/perf-PID.map` (`--perf-basic-prof`), naming the apps' compiled wasm; record with `perf record -g -p PID` around
   the `drive` commands being measured.
 - Each app runs on a thread named `app <id>` (cut to 15 characters), so `perf report --sort comm`
   splits by app and `--comms 'app be3.data'` keeps one. The block store is `be-host-be`, and
@@ -187,11 +191,10 @@ can overlap running at once (decisions/host_startup_overlaps_app_loading.md):
 - The apps whose editors were open, the shell's app and the apps its manifest `opens` are warmed
   as soon as the host knows it will open a workspace, before its window and GPU exist
   (`warm_apps`, `be_host_runtime::warm`): a warmed app loads and links on its own thread and
-  waits for the device only when it first reaches the GPU. Linking its libraries (about 0.3 s
-  each) is most of an app's start; mapping its `.cwasm` takes milliseconds.
+  waits for the device only when it first reaches the GPU. V8 compiles each module as it
+  loads (Liftoff, then TurboFan on hot code), with no code cache on disk; a library is compiled
+  once per process and shared by every app that links it.
 - An app with no editors open is stopped after `IDLE_TIMEOUT` (30 s, `Host::stop_idle`).
-- On desktop every `.cwasm` is mapped from its file (`Module::deserialize_file`) rather than
-  read and copied; they total about 400 MB.
 - The content of an editor's references (up to four) is prefetched once its block's node is
   known. The be worker joins queued `Open`s concurrently, but awaits listings between commands,
   so a query making several listing requests holds up everything behind it: a block's
@@ -207,8 +210,7 @@ Performance host panel draws them above its timings; `$XDG_STATE_HOME/be-host/me
 the login session's log, and kept as `memory.previous.tsv` by the next run) has the same minutes
 as lines of KiB, each wasm guest's memory too, for plotting elsewhere.
 
-- Resident is `RssAnon + RssFile + RssShmem` from `/proc/self/status`. File-backed includes the
-  `.cwasm` pages apps have run, which are mapped from their files. Shared is mostly the `wl_shm`
+- Resident is `RssAnon + RssFile + RssShmem` from `/proc/self/status`. Shared is mostly the `wl_shm`
   buffers of Wayland programs' windows, which their own processes count too.
 - An app's wasm memory never shrinks, so it is that app's peak heap
   (`be_host_runtime::wasm_memories`, kept by be-wasm-host after each call into the guest).
@@ -217,15 +219,20 @@ as lines of KiB, each wasm guest's memory too, for plotting elsewhere.
 - A leak shows as a line that keeps rising while the computer is idle, or that steps up at each
   screen lock or terminal switch and never comes back down.
 
+A root guest's host zeroes every frame the root sent once it has read it
+(be-wasm-root-host's `Core::received`), so a password handed over (`host.unlock`) lives on
+nowhere in the host's copy: a memset over bytes it has just decoded, small next to the decode.
+
 ## Size
 
-What ships is `./scripts/deploy`'s `//crates/be-host:native`, as `-m release -m lto` builds it. In
-October 2026 on Linux x86_64 that was 896 MB (297 MB gzipped): `.cwasm` 595 MB (Cranelift's code
-is about 2.5× the wasm it compiles), `.wasm` 198 MB (mostly apps, each instantiating beui's and
-`beui-reactive`'s generics for its own types; type modules about 1.8 MB each), be-host 102 MB.
+What ships is `./scripts/deploy`'s `//crates/be-host:native`, as `-m release` builds it:
+be-host and the `.wasm` of every app, library and type module, which V8 compiles as they load. In
+October 2026 on Linux x86_64 the `.wasm` came to 198 MB (mostly apps, each instantiating beui's
+and `beui-reactive`'s generics for its own types; type modules about 1.8 MB each) and be-host to
+102 MB (with fat LTO, since removed: decisions/no_lto.md), before linking V8 made it about 36 MB larger.
 
 To see where it goes: `size -A` and `nm -S --size-sort -C` for be-host, twiggy (`twiggy top -n
-100000 --format csv`) for a module, `size -A` on a `.cwasm` (an ELF file). Attribute a generic
+100000 --format csv`) for a module. Attribute a generic
 instance to the innermost first-party type in its name, not to `core` or `alloc`. Code in a
 generic function that does not depend on its type parameter is copied for every instance and
 every closure type, so moving it out (`probe_erased`, `Computation::new`'s `parts`) shrinks every
@@ -255,6 +262,8 @@ faster by more threads is no cheaper there, and one that waits idle costs little
   started. bash's `time` misses a browser's processes, which are reparented and never reaped.
 - **Per test in a crate:** run its `:test-harness` here with `RUSTC_BOOTSTRAP=1 HARNESS -Z
   unstable-options --report-time`.
+- **A cached test** keeps its output, `run-test` line included, so `./scripts/test //crates/x:test`
+  reads what each of a crate's test targets cost without running them again.
 
 ### What it cost in November 2026
 
@@ -267,20 +276,36 @@ web host tests depend on be-host and every app. In CPU seconds:
 | 127 host tests (crates/be-host-tests), 0.8 to 7 each, median 2.5 | 355 |
 | be-host's `:push-web-host-test` (two accounts, the whole web host in Chromium), now thorough | 233 |
 | be-host's `:web-host-test`, now thorough | 104 |
+| be-host's `:shown-again-web-host-test` (with its idle check), thorough | 79 |
+| be-host's `:grown-web-host-test`, thorough | 44 |
 | be-block-client, be-server, beui-host (in-process, many tests) | 51, 38, 43 |
 | beui-tests' and beui-demo-html's `:web-test` | 35, 23 |
 | the largest app tests: infinite-canvas, beui-demo, map, desktop | 32, 26, 22, 17 |
 | 151 be-host-stack parts | 29 |
 
-A change under beui costs far more in compiling than in testing: each of about thirty app test
-modules is compiled (checklist's: 95 CPU s of rustc) and then precompiled by Cranelift (60 CPU s;
-about 20 s of wall on 16 cores, which is how buck2 reports it), for tests that take well under a
-second to run. A test module holds about ten times the code of the same app linked against the
-shared libraries (guides/app_libraries.md): 25.7 MB of code against 2.5 MB, most of it base and
-beui, which every module compiles again.
+A change under beui recompiles each of about thirty app test modules. Each is linked against the
+shared libraries (guides/app_libraries.md, Tests), so it holds only its crate and its tests:
+checklist's is 3.3 MB, where with base, beui and be-sdk-test in it, as until November 2026, it
+was 47 MB. Its rustc, about 13 CPU s here, is the compile of the crate itself; the link
+was never the cost.
 
 Since then the web host tests draw a smaller page (a quarter less) and are thorough tests, which
 verify leaves out (guides/buck2.md, What verify builds); the C under host builds is optimised.
+
+### What a commit reruns
+
+Over the 300 commits to November 15, 2026, 244 edit a crate's library, and such a commit reruns
+about 486 CPU s of tests on average (each target's CPU from its cached output, times the share of
+those commits that rebuild it), measured before buck/cargo/third_party.bzl applied the
+`[profile.dev.package]` overrides. Two thirds of that is the host tests: all 136 run be-host,
+which 192 of the 244 commits rebuild (through beui, the dock, the block stack and the server, all
+of which they exercise), and they cost about 416 CPU s a run, 6% less since. Next come beui-host
+(42 s a run, rerun by 115 of the 244 commits), be-host-stack (26 s, 174), infinite-canvas (28 s,
+148), be-block-client (58 s, 59), beui-demo and the desktop app. A host test costs at least about
+0.9 CPU s on the build server (before the fix; about 11% less after it), the start and stop of
+be-host with the base apps; most of that was then the apps' start in wasmtime (module
+deserialization and type registration), which V8 has since replaced, not signing in or the
+embedded server.
 
 ### Rules
 
@@ -298,12 +323,17 @@ verify leaves out (guides/buck2.md, What verify builds); the C under host builds
   test's server, Caddy, Chromium and sign-in about 30 CPU s. Put a new check into an existing
   scenario when it needs the same setup.
 - **Optimise what a test runs a lot, not the test.** Hot dependencies are compiled optimised in
-  dev builds (`[profile.dev.package]` in Cargo.toml: the ciphers, Argon2, Cranelift), and so is
+  dev builds (`[profile.dev.package]` in Cargo.toml: the ciphers, Argon2), and so is
   the C a third-party build script compiles, at its crate's own level (`_build_script_opt` in
   buck/cargo/third_party.bzl): SQLite at `-O0` made every server and host query slower.
 - **Compiles are the larger cost.** Before making a dependency of every app heavier, count it
-  thirty times: once for each app test module that compiles and precompiles it
-  (plans/app_tests_linked_against_libraries.md would share it instead).
+  thirty times, once for each app and app test module that compiles it, unless it lives in a
+  library (guides/app_libraries.md): a crate only tests use belongs in the test library, so
+  each test module does not link it again.
+- **A changed painting costs its test a second run.** When a test makes a painting that is new
+  or differs from the accepted one, and in CI for every painting a pull request changed, the
+  test runs once more and its paintings are compared again (`_again` in buck/dev/test.bzl), once
+  per build of its code. A test whose paintings change with most changes doubles its cost.
 - **What stays costly becomes thorough.** A test that costs tens of CPU seconds a run however it
   is written, and that most changes rerun, carries `THOROUGH` and leaves verify for
   `./scripts/verify --thorough`; add it to the list in guides/buck2.md with its cost.
@@ -315,3 +345,7 @@ left: decisions/page_teardown_runs_during_the_frame.md,
 decisions/system_allocator_over_jemalloc_or_mimalloc.md,
 decisions/accessibility_tree_always_built.md, decisions/no_idle_time_glyph_prerasterizing.md.
 Measured and not worth their code: decisions/reactive_scopes_keep_their_simple_paths.md.
+Crate splits and cut edges measured for what an edit rebuilds, and how to measure one:
+decisions/no_crate_splits_inside_dependency_chains.md,
+decisions/app_tests_compile_with_their_app.md,
+decisions/native_test_binaries_link_statically.md.

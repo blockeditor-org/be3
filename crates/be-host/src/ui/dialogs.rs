@@ -1,15 +1,16 @@
 use be_block_protocol::OrganizationRole;
 use beui::NodeId;
 use beui::Overflow;
-use beui::icons::{ICON_TRASH, ICON_USER_MINUS};
+use beui::icons::{ICON_COPY, ICON_TRASH, ICON_USER_MINUS};
 use beui::reactive::*;
 use beui::styled::*;
 use beui::text::Phrase;
-use uuid::Uuid;
 
-use be_host_accounts_ui::ErrorText;
+use be_root_accounts_ui::ErrorText;
 
-use super::{HostUiStore, UiCommand, send};
+use super::{
+    AgentRow, ContactRow, HostUiStore, InvitationRow, MemberRow, UiCommand, UnsentRow, send,
+};
 use beui::{Align, Direction};
 
 #[component]
@@ -19,8 +20,10 @@ pub(super) fn Dialogs(view: HostUiStore) -> NodeId {
             <DiscardDialog view={view} />
             <LeaveDialog view={view} />
             <InviteDialog view={view} />
+            <InvitationsDialog view={view} />
             <AgentsDialog view={view} />
             <ContactsDialog view={view} />
+            <ShareLinkDialog view={view} />
             <MembersDialog view={view} />
             <AboutDialog view={view} />
             <UnsentDialog view={view} />
@@ -31,45 +34,199 @@ pub(super) fn Dialogs(view: HostUiStore) -> NodeId {
 #[component]
 fn InviteDialog(view: HostUiStore) -> NodeId {
     let invite = view.invite;
-    let open = create_memo(move || invite.get().is_some());
-    let busy = create_memo(move || invite.get().is_some_and(|invite| invite.busy));
-    let sent = create_memo(move || invite.get().map(|invite| invite.sent));
-    let email = create_signal(String::new());
-    let administrator = create_signal(false);
-    create_effect(move || {
-        sent.get();
-        untrack(|| email.set(String::new()));
-    });
-    let role = create_memo(move || match administrator.get() {
-        true => OrganizationRole::Administrator,
-        false => OrganizationRole::Editor,
-    });
-    let cannot = create_memo(move || email.get().trim().is_empty());
+    let open = create_memo(move || invite.with(Option::is_some));
+    let link = create_memo(move || invite.get().and_then(|invite| invite.link));
+    let made = create_memo(move || link.with(Option::is_some));
+    let sheet = use_share_sheet();
     view! {
         <Dialog
             open={open}
             title="Invite member"
-            width={Size::Custom(380.0)}
+            width={Size::Custom(400.0)}
             id="host.invite"
             actions={vec![
-                DialogAction::primary("Create invite link", move || {
-                    send(UiCommand::SendInvite(email.get_untracked(), role.get_untracked()))
+                DialogAction::primary("Copy link", move || {
+                    if let Some(link) = link.get_untracked() {
+                        copy(Clip::text(link));
+                    }
                 })
-                .disabled(cannot)
-                .busy(busy)
-                .named("send"),
+                .disabled(move || !made.get())
+                .named("copy"),
+                DialogAction::secondary("Share", move || {
+                    if let Some(link) = link.get_untracked() {
+                        share(Clip::text(link));
+                    }
+                })
+                .disabled(move || !made.get())
+                .shown(sheet)
+                .named("share"),
+                DialogAction::cancel("Done"),
             ]}
             on_dismiss={|| send(UiCommand::CloseInvite)}
         >
-            <InvitePanel view email administrator role />
+            <InvitePanel view />
         </Dialog>
+    }
+}
+
+/// What the Invite member dialog shows: the link it made, as text and as a QR code, and that
+/// nothing was sent.
+#[component]
+fn InvitePanel(view: HostUiStore) -> NodeId {
+    let invite = view.invite;
+    let organization = create_memo(move || {
+        format!(
+            "Anyone who opens this link with an account on this server can join {} as an editor, once, within seven days.",
+            invite
+                .get()
+                .map(|invite| invite.organization)
+                .unwrap_or_default()
+        )
+    });
+    let busy = create_memo(move || invite.get().is_some_and(|invite| invite.busy));
+    let error = create_memo(move || invite.get().and_then(|invite| invite.error));
+    view! {
+        <Frame>
+            <List spacing=Space::Md>
+                <Text style=TextStyle::PARAGRAPH>{organization}</Text>
+                <Show value={busy}>
+                    <Progress width=INLINE_PROGRESS_WIDTH />
+                </Show>
+                <ErrorText text={error} />
+                <Show
+                    value={move || invite.get().and_then(|invite| invite.link)}
+                >|link: ReadSignal<String>| {
+                    let code = create_memo(move || link.with(|link| crate::qr::image(link)));
+                    view! {
+                        <List spacing=Space::Md>
+                            <Text style=TextStyle::CAPTION @test_id={"host.invite.help"}>
+                                "Nothing was sent: send this link yourself, through an app you trust, or show them the code to scan. You can copy it again from Invitations."
+                            </Text>
+                            <TextInput
+                                value={Binding::new(link, Callback::empty())}
+                                label="Invite link"
+                                @test_id={"host.invite.link"}
+                            />
+                            <List align=Align::Center spacing=Space::None>
+                                <Frame
+                                    width={Size::Custom(192.0)}
+                                    height={Size::Custom(192.0)}
+                                    @test_id={"host.invite.qr"}
+                                >
+                                    <Picture image={code} smooth=false />
+                                </Frame>
+                            </List>
+                        </List>
+                    }
+                }</Show>
+            </List>
+        </Frame>
+    }
+}
+
+#[component]
+fn InvitationsDialog(view: HostUiStore) -> NodeId {
+    let invitations = view.invitations;
+    let open = create_memo(move || invitations.with(Option::is_some));
+    view! {
+        <Dialog
+            open={open}
+            title="Invitations"
+            width={Size::Custom(520.0)}
+            size=DialogSize::Large
+            id="host.invitations"
+            actions={vec![
+                DialogAction::primary("New invite link", || send(UiCommand::InviteMember))
+                    .named("new"),
+            ]}
+            on_dismiss={|| send(UiCommand::CloseInvitations)}
+        >
+            <InvitationsPanel view />
+        </Dialog>
+    }
+}
+
+/// The organization's invite list: each invitation's state, whose it is and when, its link again
+/// for the person's own, revoking one still open, and a fresh link for one expired.
+#[component]
+fn InvitationsPanel(view: HostUiStore) -> NodeId {
+    let invitations = view.invitations;
+    let shown = create_memo(move || invitations.get().unwrap_or_default());
+    let busy = create_memo(move || shown.get().busy);
+    let error = create_memo(move || shown.get().error);
+    let rows = create_memo(move || shown.get().rows);
+    let empty = create_memo(move || rows.with(Vec::is_empty) && !busy.get());
+    view! {
+        <Frame>
+            <List spacing=Space::Md>
+                <Text style=TextStyle::CAPTION>
+                    "An invite link joins whoever opens it as an editor, once, within seven days. Revoke one you no longer want used; remove someone who joined from Members."
+                </Text>
+                <Show value={empty}>
+                    <Text style=TextStyle::PARAGRAPH>"No invitations yet."</Text>
+                </Show>
+                <ForEach
+                    value={rows}
+                    key={|row: &InvitationRow| row.id}
+                >|row: ReadSignal<InvitationRow>| {
+                    let id = row.with_untracked(|row| row.id);
+                    let title = create_memo(move || row.get().title);
+                    let detail = create_memo(move || row.get().detail);
+                    let link = create_memo(move || row.get().link);
+                    view! {
+                        <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
+                            <ListItem grow=1.0>
+                                <List spacing=Space::Xs2>
+                                    <Text>{title}</Text>
+                                    <Text style=TextStyle::CAPTION>{detail}</Text>
+                                </List>
+                            </ListItem>
+                            <Show value={move || link.with(Option::is_some)}>
+                                <Button
+                                    icon_only=true
+                                    glyph=ICON_COPY
+                                    label="Copy link"
+                                    @test_id={format!("host.invitations.copy.{id}")}
+                                    on_click={move || {
+                                        if let Some(link) = link.get_untracked() {
+                                            copy(Clip::text(link));
+                                        }
+                                    }}
+                                />
+                            </Show>
+                            <Show value={move || row.get().revocable}>
+                                <Button
+                                    label="Revoke"
+                                    variant=ButtonVariant::Secondary
+                                    disabled={busy}
+                                    @test_id={format!("host.invitations.revoke.{id}")}
+                                    on_click={move || send(UiCommand::RevokeInvitation(id))}
+                                />
+                            </Show>
+                            <Show value={move || row.get().renewable}>
+                                <Button
+                                    label="New link"
+                                    variant=ButtonVariant::Secondary
+                                    @test_id={format!("host.invitations.renew.{id}")}
+                                    on_click={|| send(UiCommand::InviteMember)}
+                                />
+                            </Show>
+                        </List>
+                    }
+                }</ForEach>
+                <Show value={busy}>
+                    <Progress width=INLINE_PROGRESS_WIDTH />
+                </Show>
+                <ErrorText text={error} />
+            </List>
+        </Frame>
     }
 }
 
 #[component]
 fn AgentsDialog(view: HostUiStore) -> NodeId {
     let agents = view.agents;
-    let open = create_memo(move || agents.get().is_some());
+    let open = create_memo(move || agents.with(Option::is_some));
     let title = create_memo(
         move || match agents.get().and_then(|agents| agents.created) {
             Some(_) => "Agent credentials".to_owned(),
@@ -77,7 +234,6 @@ fn AgentsDialog(view: HostUiStore) -> NodeId {
         },
     );
     let made = create_memo(move || agents.get().and_then(|agents| agents.created).is_some());
-    let creating = create_memo(move || !made.get());
     let busy = create_memo(move || agents.get().is_some_and(|agents| agents.busy));
     let name = create_signal(String::new());
     create_effect(move || {
@@ -97,7 +253,7 @@ fn AgentsDialog(view: HostUiStore) -> NodeId {
                 DialogAction::primary("Add agent", move || send(UiCommand::CreateAgent(name.get_untracked())))
                     .disabled(cannot)
                     .busy(busy)
-                    .shown(creating)
+                    .shown(move || !made.get())
                     .named("add"),
                 DialogAction::cancel("Done").shown(made),
             ]}
@@ -111,7 +267,7 @@ fn AgentsDialog(view: HostUiStore) -> NodeId {
 #[component]
 fn ContactsDialog(view: HostUiStore) -> NodeId {
     let contacts = view.contacts;
-    let open = create_memo(move || contacts.get().is_some());
+    let open = create_memo(move || contacts.with(Option::is_some));
     let busy = create_memo(move || contacts.get().is_some_and(|contacts| contacts.busy));
     view! {
         <Dialog
@@ -133,9 +289,84 @@ fn ContactsDialog(view: HostUiStore) -> NodeId {
 }
 
 #[component]
+fn ShareLinkDialog(view: HostUiStore) -> NodeId {
+    let share_link = view.share_link;
+    let open = create_memo(move || share_link.with(Option::is_some));
+    let shown = create_memo(move || share_link.get().unwrap_or_default());
+    let busy = create_memo(move || shown.get().busy);
+    let error = create_memo(move || shown.get().error);
+    let offer = create_memo(move || shown.get().offer.unwrap_or_default());
+    let offered = create_memo(move || !offer.with(String::is_empty));
+    let opened = create_memo(move || shown.get().opened.unwrap_or_default());
+    let pasted = create_signal(String::new());
+    create_effect(move || {
+        if offered.get() {
+            untrack(|| pasted.set(String::new()));
+        }
+    });
+    let cannot_open = create_memo(move || busy.get() || pasted.get().trim().is_empty());
+    view! {
+        <Dialog
+            open={open}
+            title="Open a share link"
+            width={Size::Custom(460.0)}
+            id="host.share-link"
+            on_dismiss={|| send(UiCommand::CloseShareLinks)}
+        >
+            <List spacing=Space::Md>
+                <Text style=TextStyle::CAPTION>
+                    "Someone shared a block with you by a link. Opening it gives your account what the link grants, and makes no one your contact."
+                </Text>
+                <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
+                    <ListItem grow=1.0>
+                        <TextInput
+                            value={pasted}
+                            label="Share link"
+                            @test_id={"host.share-link.paste"}
+                            on_submit={move |value: String| send(UiCommand::OpenShareLink(value))}
+                        />
+                    </ListItem>
+                    <Button
+                        label="Open"
+                        variant=ButtonVariant::Secondary
+                        disabled={cannot_open}
+                        @test_id={"host.share-link.open"}
+                        on_click={move || send(UiCommand::OpenShareLink(pasted.get_untracked()))}
+                    />
+                </List>
+                <Show value={busy}>
+                    <Progress width=INLINE_PROGRESS_WIDTH />
+                </Show>
+                <Dialog
+                    open={offered}
+                    kind=DialogKind::Alert
+                    title="Open this block?"
+                    id="host.share-link.offered"
+                    actions={vec![
+                        DialogAction::primary("Open", || send(UiCommand::AcceptShareLink)).named("accept"),
+                        DialogAction::cancel("Cancel"),
+                    ]}
+                    on_dismiss={|| send(UiCommand::DeclineShareLink)}
+                >
+                    <Text style=TextStyle::PARAGRAPH @test_id={"host.share-link.offer"}>
+                        {offer}
+                    </Text>
+                </Dialog>
+                <Show value={move || !opened.with(String::is_empty)}>
+                    <Text style=TextStyle::PARAGRAPH @test_id={"host.share-link.opened"}>
+                        {opened}
+                    </Text>
+                </Show>
+                <ErrorText text={error} />
+            </List>
+        </Dialog>
+    }
+}
+
+#[component]
 fn MembersDialog(view: HostUiStore) -> NodeId {
     let members = view.members;
-    let open = create_memo(move || members.get().is_some());
+    let open = create_memo(move || members.with(Option::is_some));
     view! {
         <Dialog
             open={open}
@@ -163,58 +394,49 @@ fn MembersPanel(view: HostUiStore) -> NodeId {
     let shown = create_memo(move || members.get().unwrap_or_default());
     let busy = create_memo(move || shown.get().busy);
     let error = create_memo(move || shown.get().error);
-    let keys = create_memo(move || {
-        shown
-            .get()
-            .members
-            .iter()
-            .map(|member| member.account)
-            .collect::<Vec<Uuid>>()
-    });
+    let rows = create_memo(move || shown.get().members);
     let removing = create_memo(move || shown.get().removing.unwrap_or_default());
-    let asks_removal = create_memo(move || !removing.get().is_empty());
     view! {
         <Frame>
             <List spacing=Space::Md>
                 <Text style=TextStyle::CAPTION>
                     "Administrators can open every block in this organization. Removing someone takes away what was shared with them here, and gives new keys to everything they could open."
                 </Text>
-                <ForEach keys={keys}>|account: Uuid| {
-                    let row = create_memo(move || {
-                        shown
-                            .get()
-                            .members
-                            .into_iter()
-                            .find(|member| member.account == account)
-                            .unwrap_or_default()
-                    });
+                <ForEach
+                    value={rows}
+                    key={|member: &MemberRow| member.account}
+                >|row: ReadSignal<MemberRow>| {
+                    let account = row.with_untracked(|row| row.account);
                     let name = create_memo(move || row.get().name);
                     let detail = create_memo(move || row.get().detail);
-                    let fixed = create_memo(move || {
-                        let row = row.get();
-                        row.me || row.agent || busy.get()
-                    });
-                    let role_label = create_memo(move || match row.get().administrator {
-                        true => "Make editor".to_owned(),
-                        false => "Make administrator".to_owned(),
-                    });
+                    let unsigned = create_memo(move || row.get().unsigned);
                     let next_role = move || match row.get_untracked().administrator {
                         true => OrganizationRole::Editor,
                         false => OrganizationRole::Administrator,
                     };
-                    let unremovable = create_memo(move || row.get().me || busy.get());
                     view! {
                         <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                             <ListItem grow=1.0>
                                 <List spacing=Space::Xs2>
                                     <Text>{name}</Text>
                                     <Text style=TextStyle::CAPTION>{detail}</Text>
+                                    <Show value={unsigned}>
+                                        <Text style={TextStyle::CAPTION.color(TextColor::Warning)}>
+                                            "No invitation signed them in: the server added them. Remove them unless you know why they are here."
+                                        </Text>
+                                    </Show>
                                 </List>
                             </ListItem>
                             <Button
-                                label={role_label}
+                                label={move || match row.get().administrator {
+                                    true => "Make editor".to_owned(),
+                                    false => "Make administrator".to_owned(),
+                                }}
                                 variant=ButtonVariant::Secondary
-                                disabled={fixed}
+                                disabled={move || {
+                                    let row = row.get();
+                                    row.me || row.agent || busy.get()
+                                }}
                                 @test_id={format!("host.members.role.{account}")}
                                 on_click={move || send(UiCommand::SetMemberRole(account, next_role()))}
                             />
@@ -222,19 +444,19 @@ fn MembersPanel(view: HostUiStore) -> NodeId {
                                 icon_only=true
                                 glyph=ICON_USER_MINUS
                                 label="Remove member"
-                                disabled={unremovable}
+                                disabled={move || row.get().me || busy.get()}
                                 @test_id={format!("host.members.remove.{account}")}
                                 on_click={move || send(UiCommand::RemoveMember(account))}
                             />
                         </List>
                     }
                 }</ForEach>
-                <Show condition={busy}>
+                <Show value={busy}>
                     <Progress width=INLINE_PROGRESS_WIDTH />
                 </Show>
                 <ErrorText text={error} />
                 <Dialog
-                    open={asks_removal}
+                    open={move || !removing.with(String::is_empty)}
                     kind=DialogKind::Alert
                     title="Remove member?"
                     id="host.members.remove"
@@ -257,23 +479,11 @@ fn ContactsPanel(view: HostUiStore) -> NodeId {
     let shown = create_memo(move || contacts.get().unwrap_or_default());
     let busy = create_memo(move || shown.get().busy);
     let error = create_memo(move || shown.get().error);
-    let keys = create_memo(move || {
-        shown
-            .get()
-            .contacts
-            .iter()
-            .map(|contact| contact.account)
-            .collect::<Vec<Uuid>>()
-    });
-    let none = create_memo(move || keys.with(Vec::is_empty));
-    let link = create_memo(move || shown.get().link.unwrap_or_default());
-    let has_link = create_memo(move || !link.get().is_empty());
+    let rows = create_memo(move || shown.get().contacts);
     let offer = create_memo(move || shown.get().offer.unwrap_or_default());
-    let offered = create_memo(move || !offer.get().is_empty());
+    let offered = create_memo(move || !offer.with(String::is_empty));
     let connected = create_memo(move || shown.get().connected.unwrap_or_default());
-    let has_connected = create_memo(move || !connected.get().is_empty());
     let removing = create_memo(move || shown.get().removing.unwrap_or_default());
-    let asks_removal = create_memo(move || !removing.get().is_empty());
     let pasted = create_signal(String::new());
     create_effect(move || {
         if offered.get() {
@@ -287,25 +497,30 @@ fn ContactsPanel(view: HostUiStore) -> NodeId {
                 <Text style=TextStyle::CAPTION>
                     "You can share only with your contacts. Someone becomes one when you send them a contact link yourself, through an app you trust, and they open it, or when they send you theirs."
                 </Text>
-                <Show condition={none}>
-                    <Text style=TextStyle::CAPTION>"No contacts yet."</Text>
-                </Show>
-                <ForEach keys={keys}>|account: Uuid| {
-                    let row = create_memo(move || {
-                        shown
-                            .get()
-                            .contacts
-                            .into_iter()
-                            .find(|contact| contact.account == account)
-                            .unwrap_or_default()
-                    });
+                <ForEach
+                    value={rows}
+                    key={|contact: &ContactRow| contact.account}
+                    fallback={|| view! {
+                        <Text style=TextStyle::CAPTION>"No contacts yet."</Text>
+                    }}
+                >|row: ReadSignal<ContactRow>| {
+                    let account = row.with_untracked(|row| row.account);
                     let name = create_memo(move || row.get().name);
                     let detail = create_memo(move || {
                         let row = row.get();
-                        match row.verified {
-                            true => row.email,
-                            false if row.email.is_empty() => "Not confirmed yet".to_owned(),
-                            false => format!("{}, not confirmed yet", row.email),
+                        use be_block_client::contacts::Mismatch;
+                        match (row.verified, row.mismatch) {
+                            (true, Some(Mismatch::Older)) => format!(
+                                "{}. The server sent an older key for them than this device has; it keeps the newer one.",
+                                row.email
+                            ),
+                            (true, Some(Mismatch::Unreadable)) => format!(
+                                "{}. The server's copy of this contact can't be read here, so this device keeps the one it had. If you took a new recovery phrase on another device, this one needs it too.",
+                                row.email
+                            ),
+                            (true, None) => row.email,
+                            (false, _) if row.email.is_empty() => "Not confirmed yet".to_owned(),
+                            (false, _) => format!("{}, not confirmed yet", row.email),
                         }
                     });
                     view! {
@@ -327,7 +542,7 @@ fn ContactsPanel(view: HostUiStore) -> NodeId {
                     }
                 }</ForEach>
                 <Dialog
-                    open={asks_removal}
+                    open={move || !removing.with(String::is_empty)}
                     kind=DialogKind::Alert
                     title="Remove contact?"
                     id="host.contacts.remove"
@@ -339,7 +554,7 @@ fn ContactsPanel(view: HostUiStore) -> NodeId {
                 >
                     <Text style=TextStyle::PARAGRAPH>{removing}</Text>
                 </Dialog>
-                <Show condition={has_link}>
+                <Show value={move || shown.get().link}>|link: ReadSignal<String>|
                     <List spacing=Space::Sm>
                         <Text style=TextStyle::PARAGRAPH @test_id={"host.contacts.link-help"}>
                             "Send this link yourself, through an app you trust, to the one person you want to connect with. It works once, and it is shown only once."
@@ -383,7 +598,7 @@ fn ContactsPanel(view: HostUiStore) -> NodeId {
                 >
                     <Text style=TextStyle::PARAGRAPH @test_id={"host.contacts.offer"}>{offer}</Text>
                 </Dialog>
-                <Show condition={has_connected}>
+                <Show value={move || !connected.with(String::is_empty)}>
                     <Text style=TextStyle::PARAGRAPH>{connected}</Text>
                 </Show>
                 <ErrorText text={error} />
@@ -399,64 +614,56 @@ fn AgentsPanel(view: HostUiStore, name: Signal<String>) -> NodeId {
     let organization = create_memo(move || format!("Organization: {}", shown.get().organization));
     let error = create_memo(move || shown.get().error);
     let created = create_memo(move || shown.get().created);
-    let made = create_memo(move || created.get().is_some());
-    let creating = create_memo(move || !made.get());
-    let keys = create_memo(move || {
-        shown
-            .get()
-            .agents
-            .iter()
-            .map(|agent| agent.account)
-            .collect::<Vec<Uuid>>()
-    });
-    let none = create_memo(move || keys.with(Vec::is_empty));
+    let rows = create_memo(move || shown.get().agents);
     view! {
         <Frame>
             <List spacing=Space::Md>
-                <Show condition={creating}>
-                    <List spacing=Space::Md>
-                        <Text style=TextStyle::CAPTION>{organization}</Text>
-                        <Text style=TextStyle::CAPTION>
-                            "An agent is an account for a program, such as a coding agent. It sees only the blocks you share with it. Share a workspace or blocks with it from this device after setup. This list shows the agents you created."
-                        </Text>
-                        <Show condition={none}>
-                            <Text style=TextStyle::CAPTION>"No agents yet."</Text>
-                        </Show>
-                        <ForEach keys={keys}>|account: Uuid| {
-                            let label = create_memo(move || {
-                                shown
-                                    .get()
-                                    .agents
-                                    .iter()
-                                    .find(|agent| agent.account == account)
-                                    .map(|agent| agent.name.clone())
-                                    .unwrap_or_default()
-                            });
-                            view! {
-                                <List
-                                    direction=Direction::Horizontal
-                                    align=Align::Center
-                                    spacing=Space::Md
-                                >
-                                    <ListItem grow=1.0>
-                                        <Text overflow=Overflow::Ellipsis>{label}</Text>
-                                    </ListItem>
-                                    <Button
-                                        icon_only=true
-                                        glyph=ICON_TRASH
-                                        label="Remove agent"
-                                        @test_id={format!("host.agents.remove.{account}")}
-                                        on_click={move || send(UiCommand::RemoveAgent(account))}
-                                    />
-                                </List>
-                            }
-                        }</ForEach>
-                        <Text style=TextStyle::CAPTION>"Name"</Text>
-                        <TextInput value={name} label="Agent name" @test_id={"host.agents.name"} />
-                        <ErrorText text={error} />
-                    </List>
-                </Show>
-                <Show condition={made}>
+                <Show
+                    value={created}
+                    fallback={move || view! {
+                        <List spacing=Space::Md>
+                            <Text style=TextStyle::CAPTION>{organization}</Text>
+                            <Text style=TextStyle::CAPTION>
+                                "An agent is an account for a program, such as a coding agent. It sees only the blocks you share with it. Share a workspace or blocks with it from this device after setup. This list shows the agents you created."
+                            </Text>
+                            <ForEach
+                                value={rows}
+                                key={|agent: &AgentRow| agent.account}
+                                fallback={|| view! {
+                                    <Text style=TextStyle::CAPTION>"No agents yet."</Text>
+                                }}
+                            >|agent: ReadSignal<AgentRow>| {
+                                let account = agent.with_untracked(|agent| agent.account);
+                                let label = create_memo(move || agent.with(|agent| agent.name.clone()));
+                                view! {
+                                    <List
+                                        direction=Direction::Horizontal
+                                        align=Align::Center
+                                        spacing=Space::Md
+                                    >
+                                        <ListItem grow=1.0>
+                                            <Text overflow=Overflow::Ellipsis>{label}</Text>
+                                        </ListItem>
+                                        <Button
+                                            icon_only=true
+                                            glyph=ICON_TRASH
+                                            label="Remove agent"
+                                            @test_id={format!("host.agents.remove.{account}")}
+                                            on_click={move || send(UiCommand::RemoveAgent(account))}
+                                        />
+                                    </List>
+                                }
+                            }</ForEach>
+                            <Text style=TextStyle::CAPTION>"Name"</Text>
+                            <TextInput
+                                value={name}
+                                label="Agent name"
+                                @test_id={"host.agents.name"}
+                            />
+                            <ErrorText text={error} />
+                        </List>
+                    }}
+                >|created: ReadSignal<super::CreatedAgent>|
                     <AgentCredentials created={created} />
                 </Show>
             </List>
@@ -465,10 +672,8 @@ fn AgentsPanel(view: HostUiStore, name: Signal<String>) -> NodeId {
 }
 
 #[component]
-fn AgentCredentials(created: Memo<Option<super::CreatedAgent>>) -> NodeId {
-    let field = |read: fn(&super::CreatedAgent) -> String| {
-        create_memo(move || created.get().as_ref().map(read).unwrap_or_default())
-    };
+fn AgentCredentials(created: ReadSignal<super::CreatedAgent>) -> NodeId {
+    let field = |read: fn(&super::CreatedAgent) -> String| create_memo(move || created.with(read));
     let heading = field(|created| {
         format!(
             "Copy these secret credentials for {}. They are shown only once. Set BE3_AGENT_CREDENTIALS to this value, then share a workspace or blocks with the agent.",
@@ -476,12 +681,7 @@ fn AgentCredentials(created: Memo<Option<super::CreatedAgent>>) -> NodeId {
         )
     });
     let proxy = create_signal(false);
-    let credentials = create_memo(move || {
-        created
-            .get()
-            .map(|created| created.bundle(proxy.get()))
-            .unwrap_or_default()
-    });
+    let credentials = create_memo(move || created.with(|created| created.bundle(proxy.get())));
     let header = field(|created| format!("Bearer {}", created.token));
     view! {
         <List spacing=Space::Sm>
@@ -493,7 +693,7 @@ fn AgentCredentials(created: Memo<Option<super::CreatedAgent>>) -> NodeId {
                 checked={proxy}
                 @test_id={"host.agents.proxy"}
             />
-            <Show condition={proxy}>
+            <Show value={proxy}>
                 <List spacing=Space::Sm>
                     <Text style=TextStyle::PARAGRAPH>
                         "Add a proxy rule for the server in these credentials (api.be3.pfg.pw for the hosted service). Set its Authorization header to the value below and keep it outside the agent container. If a gateway secret is required, add Be3-Gateway-Authorization: Bearer <gateway secret> as a separate rule."
@@ -519,7 +719,7 @@ fn AgentCredentials(created: Memo<Option<super::CreatedAgent>>) -> NodeId {
 #[component]
 fn UnsentDialog(view: HostUiStore) -> NodeId {
     let unsent = view.unsent;
-    let open = create_memo(move || unsent.get().is_some());
+    let open = create_memo(move || unsent.with(Option::is_some));
     view! {
         <Dialog
             open={open}
@@ -538,15 +738,7 @@ fn UnsentDialog(view: HostUiStore) -> NodeId {
 fn UnsentPanel(view: HostUiStore) -> NodeId {
     let unsent = view.unsent;
     let shown = create_memo(move || unsent.get().unwrap_or_default());
-    let keys = create_memo(move || {
-        shown
-            .get()
-            .rows
-            .iter()
-            .map(|row| row.block)
-            .collect::<Vec<Uuid>>()
-    });
-    let none = create_memo(move || keys.with(Vec::is_empty));
+    let rows = create_memo(move || shown.get().rows);
     let discarding = create_memo(move || {
         let shown = shown.get();
         let block = shown.discarding?;
@@ -568,28 +760,28 @@ fn UnsentPanel(view: HostUiStore) -> NodeId {
                 <Text style=TextStyle::CAPTION>
                     "These edits were made on this device but could not be sent: you can no longer edit these blocks, or the server refused them. They stay here until you restore or discard them. Restore sends them again."
                 </Text>
-                <Show condition={none}>
-                    <Text style=TextStyle::CAPTION>"No unsent edits."</Text>
-                </Show>
-                <ForEach keys={keys}>|block: Uuid| {
-                    let row = create_memo(move || {
-                        shown
-                            .get()
-                            .rows
-                            .into_iter()
-                            .find(|row| row.block == block)
-                            .unwrap_or_default()
-                    });
+                <ForEach
+                    value={rows}
+                    key={|row: &UnsentRow| row.block}
+                    fallback={|| view! {
+                        <Text style=TextStyle::CAPTION>"No unsent edits."</Text>
+                    }}
+                >|row: ReadSignal<UnsentRow>| {
+                    let block = row.with_untracked(|row| row.block);
                     let name = create_memo(move || row.get().name);
                     let detail = create_memo(move || {
                         let row = row.get();
-                        match (row.refused, row.offerable) {
+                        let why = match (row.refused, row.offerable) {
                             (Some(why), _) => format!("The server refused it: {why}"),
                             (None, true) => "You can edit it again".to_owned(),
                             (None, false) => "You cannot edit it now".to_owned(),
+                        };
+                        match row.kept_edits {
+                            0 => why,
+                            1 => format!("{why}. 1 unsaved edit"),
+                            kept => format!("{why}. {kept} unsaved edits"),
                         }
                     });
-                    let blocked = create_memo(move || !row.get().offerable);
                     view! {
                         <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                             <ListItem grow=1.0>
@@ -601,7 +793,7 @@ fn UnsentPanel(view: HostUiStore) -> NodeId {
                             <Button
                                 label="Restore"
                                 variant=ButtonVariant::Primary
-                                disabled={blocked}
+                                disabled={move || !row.get().offerable}
                                 @test_id={format!("host.unsent.restore.{block}")}
                                 on_click={move || send(UiCommand::RestoreUnsent(block))}
                             />
@@ -649,72 +841,6 @@ fn AboutDialog(view: HostUiStore) -> NodeId {
 }
 
 #[component]
-fn InvitePanel(
-    view: HostUiStore,
-    email: Signal<String>,
-    administrator: Signal<bool>,
-    role: Memo<OrganizationRole>,
-) -> NodeId {
-    let invite = view.invite;
-    let organization = create_memo(move || {
-        format!(
-            "Organization: {}",
-            invite
-                .get()
-                .map(|invite| invite.organization)
-                .unwrap_or_default()
-        )
-    });
-    let error = create_memo(move || invite.get().and_then(|invite| invite.error));
-    let link = create_memo(move || {
-        invite
-            .get()
-            .and_then(|invite| invite.link)
-            .unwrap_or_default()
-    });
-    let has_link = create_memo(move || !link.get().is_empty());
-    let role_index = create_memo(move || usize::from(administrator.get()));
-    let description = create_memo(move || match role.get() {
-        OrganizationRole::Administrator => "Can open every block in the organization.".to_owned(),
-        OrganizationRole::Editor => {
-            "Can only open blocks they create or are given access to.".to_owned()
-        }
-    });
-    view! {
-        <Frame>
-            <List spacing=Space::Md>
-                <Text style=TextStyle::CAPTION>{organization}</Text>
-                <Text style=TextStyle::CAPTION>"Email address"</Text>
-                <TextInput value={email} label="Email address" @test_id={"host.invite.email"} />
-                <Text style=TextStyle::CAPTION>"Role"</Text>
-                <SegmentedControl
-                    label="Role"
-                    selected={Binding::new(role_index, move |index: usize| administrator.set(index == 1))}
-                    options={view! {
-                        <ChoiceOption label={OrganizationRole::Editor.label()} />
-                        <ChoiceOption label={OrganizationRole::Administrator.label()} />
-                    }}
-                />
-                <Text style=TextStyle::CAPTION>{description}</Text>
-                <ErrorText text={error} />
-                <Show condition={has_link}>
-                    <List spacing=Space::Sm>
-                        <Text style=TextStyle::PARAGRAPH @test_id={"host.invite.help"}>
-                            "Send them this link yourself, through an app you trust. Only their account can use it, and only once. It is shown only once."
-                        </Text>
-                        <TextInput
-                            value={Binding::new(link, Callback::empty())}
-                            label="Invite link"
-                            @test_id={"host.invite.link"}
-                        />
-                    </List>
-                </Show>
-            </List>
-        </Frame>
-    }
-}
-
-#[component]
 fn AboutPanel() -> NodeId {
     view! {
         <Frame>
@@ -737,7 +863,7 @@ fn LeaveDialog(view: HostUiStore) -> NodeId {
         leaving.with(|leaving| match leaving {
             Some(leaving) => Phrase::new()
                 .text("Leave ")
-                .quoted(be_block::quotable_name(&leaving.name))
+                .quoted(be_lib_quoted_name::quotable_name(&leaving.name))
                 .text("?"),
             None => Phrase::new(),
         })
@@ -748,7 +874,7 @@ fn LeaveDialog(view: HostUiStore) -> NodeId {
         let from = match within {
             Some(within) => Phrase::new()
                 .text("You will no longer see it, in ")
-                .quoted(be_block::quotable_name(&within))
+                .quoted(be_lib_quoted_name::quotable_name(&within))
                 .text(", or anything inside it"),
             None => Phrase::new().text("You will no longer see it or anything inside it"),
         };
@@ -760,7 +886,6 @@ fn LeaveDialog(view: HostUiStore) -> NodeId {
     let busy = create_memo(move || busy.get());
     let refused = view.leave_refused;
     let refused = create_memo(move || refused.get());
-    let was_refused = create_memo(move || !refused.get().is_empty());
     view! {
         <Dialog
             open={open}
@@ -779,7 +904,7 @@ fn LeaveDialog(view: HostUiStore) -> NodeId {
             on_dismiss={|| send(UiCommand::CancelLeave)}
         >
             <Text style=TextStyle::PARAGRAPH>{message}</Text>
-            <Show condition={was_refused}>
+            <Show value={move || !refused.with(String::is_empty)}>
                 <Text style=TextStyle::CAPTION @test_id="host.leave.refused">{refused}</Text>
             </Show>
         </Dialog>
@@ -789,7 +914,7 @@ fn LeaveDialog(view: HostUiStore) -> NodeId {
 #[component]
 fn DiscardDialog(view: HostUiStore) -> NodeId {
     let discard = view.discard;
-    let open = create_memo(move || discard.get().is_some());
+    let open = create_memo(move || discard.with(Option::is_some));
     let title = create_memo(move || {
         discard
             .get()

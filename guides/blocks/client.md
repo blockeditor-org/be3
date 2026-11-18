@@ -8,8 +8,11 @@ crate.
 ## Connection
 
 `Connection` is a `be_wasm_ops::net::Peer` (`Side::Guest`) that implements
-`Caller`, so the generated `be_block_protocol::client::<interface>` functions
-take `&connection`. Below it, `transport/` has a `Writer`, a `Reader` and a
+`Caller`, so `be_block_protocol::read`, `ask` and `write` and the generated
+`be_block_protocol::client::server` functions take `&connection`. It works in
+no organization of its own: each call names one (a `Peer` its own,
+`Peer::organization`), or none for the account's own, so one connection may
+serve any of the account's organizations. Below it, `transport/` has a `Writer`, a `Reader` and a
 `spawn` per platform (tokio and tokio-tungstenite natively, the browser's
 `WebSocket` in `web.rs`). Natively an `http(s)://` URL takes the server's HTTP
 posts (`transport/native/http.rs`), and both go through `HTTPS_PROXY`;
@@ -17,24 +20,42 @@ posts (`transport/native/http.rs`), and both go through `HTTPS_PROXY`;
 origin (native only: a browser cannot add one to a websocket).
 `be_block_client::call_once` makes one call that needs no sign-in as a one-shot
 post (`post_once`: natively the HTTP transport, on the web a `fetch` with
-credentials), which is how a browser sign-in is begun and polled; every
-connection's first call is `authenticate` (guides/blocks/server.md, "Signing
-in").
+credentials), which is how a browser sign-in is begun and polled. Every
+connection signs in with its greeting: `Connection::connect` takes
+`Credentials` (a token, or `Header` for the request's Authorization header a
+proxy injects) and answers the connection and who it signed in as, or the
+server's refusal, the connection then closed (guides/blocks/server.md,
+"Signing in").
 
-It opens connection-wide streams on the first `subscribe()` and a session's as
-`join_session` is called, and pumps every stream into one `broadcast` of
-`be_block_client::Event`. A block's heads arrive as `Event::BlockChanged` on
-the `changes` stream once the block is listed (reading its summary lists it);
-`own` marks a change this connection's own call made, which it learns from
-`organization-opened.client` (`Connection::opened`). Key work arrives as
-`Event::KeyWork`; `Peer::key_work` reads the first value of a stream of it. A receiver that falls behind re-lists
-what it wants and rejoins its sessions, as after a reconnect.
+It opens the server's one `events` stream on the first `subscribe()` and pumps
+it into one `broadcast` of `be_block_client::Event`. As it attaches, a peer
+follows what it hears as it changes (`Peer::follow_topics`: a read with
+`follow` of its keys, key work, roots and notification modes, and the account's
+contacts, mailbox and storage, each let go of when the server refuses it, as it
+does a block's agent); each topic arrives as an `Event` that says only to read
+again (`KeysChanged`, `KeyWorkChanged`, `Roots`, `StorageChanged`, ...).
+Blocks are read, not announced: `Peer::listing` reads a listing and the
+sequence it was read at (`Listed`), `Peer::summary` one block (a `blocks`
+query). What changes arrives as trees: `Peer::changed_since(entry,
+since, follow)` reads the tree of an entry point (`block-summary.entry`) from
+a sequence, following it with `follow`, and `Event::TreeAdvanced` tells when a
+followed tree changed, once until it is read to its end
+(guides/blocks/server.md, "Listings and following trees"); `Peer::unfollow`
+stops. `Event::Roots` says the top, the trash or Shared with me may have
+changed. A summary's `changed` orders it against every other of its block: the
+refs database keeps the newest (`Refs::put`), and a change this device makes
+offline is stamped just past the newest sequence it knows (`Refs::revise`). Key
+work changing arrives as `Event::KeyWorkChanged`, on which the host reads it
+(`Peer::key_work`) and tends it. A receiver that falls behind re-lists what it wants, reads again
+the trees it follows and rejoins its sessions, as after a reconnect.
 
 **Deciding the server is gone.** A socket can stay open with nothing behind it
 (a laptop that slept, a proxy that stopped forwarding) and the transport never
 says so, so `Connection` decides: see `CONNECT_TIMEOUT`, `PING_INTERVAL` and
 `PONG_WAIT`. `ClientError::is_unreachable` covers a timed-out connect and a
-disconnect. The worker alternates reading frames and writing commands and keeps
+disconnect; a key lookup that could not reach the server passes that error on
+rather than `Locked`, which means the keys answered and none opens
+(guides/blocks/keys.md). The worker alternates reading frames and writing commands and keeps
 reading while a write is under way, so neither side's flood starves the other.
 
 Every deadline reads a `be_block_client::Clock` passed to
@@ -89,92 +110,205 @@ any other refusal is `Refused(Storage, ..)`.
 ## Live sessions
 
 A block being edited is in a session, which each device holds in its type
-module's replica (guides/type_modules.md); the peer only relays, seals and
-stores for it. `Peer::relay` puts a relay on the connection without waiting for
-the answer to the one before, so a pen stroke's thousands of operations cost no
-more round trips than one.
+module's replica (guides/type_modules.md); the peer only relays, submits, seals
+and stores for it. `Peer::relay` puts a relay on the connection without waiting
+for the answer to the one before, so a pen stroke's presence costs no more round
+trips than one message.
 
-The owner sequences and broadcasts. A follower applies its own edit at once,
-rebases it over operations that arrive meanwhile, and reconciles against the
-owner's echo; a replica keeps `confirmed` and `visible` (confirmed plus
-pending). Only the owner seals, at pauses (guides/type_modules.md, Peers): a
-seal writes a commit, heartbeats `clean_at`, rebases the journal, and tells
-the followers with `SessionMessage::Sealed` which commit holds which sequence
-number.
+The server orders the session (decisions/live_edits_are_ordered_by_the_server.md).
+`Connection::join_session(organization, block, tag)` (a `session` read that
+follows) names the build of the block's type the connection runs, and answers
+the session's membership as of joining (`SessionState`), which
+`Event::Membership` entries then follow; the session's events that arrive
+before the join is answered are held until it is, so none reaches a subscriber
+ahead of it
+(guides/blocks/server.md, "Membership"); the session speaks its first
+participant's build (`Membership::tag`) and the server refuses submissions from
+any other.
+`Peer::submit` seals a submission's payload with the block's key and hands it to
+the server (an `ordered` send), which numbers it, keeps it in the block's journal and
+sends it to every participant, its author too, as `Event::Sequenced`; the answer
+comes once it is kept. Every replica applies that one order. A replica keeps
+`confirmed` (the order applied) and `visible` (confirmed plus its own edits not
+yet numbered). The lease holder seals at pauses (guides/type_modules.md, Peers):
+a seal is a publish whose `Write::seals_journal` carries the journal's base, which
+trims the server's journal only as the commit wins the head, and every
+participant hears which commit holds which sequence number (`Event::Sealed`).
 
-- **One edit in flight.** A follower's typing waits in the replica's `unsent`
-  queue while an edit is unconfirmed, folded by `LiveEdit::absorb_operation`
-  (`SeqOp::absorb` for a sequence), stopping before the relay size limit.
-- **`Sealed` keeps the follower's head right, and ownership depends on it.** A
-  follower that takes over carries on from the last sealed head and the old
-  numbering, accepts its pending operations as its own, and owes a seal for
-  what the old owner accepted after its last one. With the head wrong, the new
-  owner's first save is refused and resume reads its unsaved work as something
-  to fast-forward over.
-- **Ownership moves under a live owner** when a host's `Event::Claim` takes a
-  lapsed lease (a terminal host takes the block from the viewer that opened
-  it). The old owner hears it from the next `Lease` and becomes a follower;
-  what it accepted meanwhile reaches the new owner as `Accepted` from a
-  non-owner, which `Sequencer::inherit` keeps when it continues the numbering,
-  and otherwise the new owner applies it and its next seal reloads every
-  follower.
-- **Catching up.** A follower is catching up until the owner's `Snapshot`
-  arrives and resends `Catchup` to each new owner. A replica ignores
-  `Event::Claim` while catching up, and one promoted while catching up makes
-  its first seal a reload: otherwise the old owner's unsaved operations would
-  be lost.
-- **Conflicts.** A merge that conflicts first stashes the owner's unsaved side
+- **One edit in flight.** A replica's typing waits in its `unsent` queue while an
+  edit of its own is unconfirmed, folded by `LiveEdit::absorb_operation`
+  (`SeqOp::absorb` for a sequence), stopping before the submission size limit
+  (decisions/a_replica_keeps_one_edit_in_flight.md).
+- **The lease** only decides who seals and who merges a head moved from
+  elsewhere; taking it moves no state, since every replica has the order and the
+  last seal's head. Every replica derives the holder from the session's
+  membership (`Membership::holder`), and a claim (`Connection::claim`, a host's
+  `Event::Claim`) takes it at once (a terminal host takes the block from the
+  viewer that opened it).
+- **Conflicts.** A merge that conflicts first stashes the holder's unsaved side
   as a commit (`Command::Stash`), so the merge has both sides as parents, and
   reports a `be_block_type_host::Conflict`; be-host keeps it per block
   (`be_host_stack::conflicts`) and shows "See both versions".
-- **Incompatible messages.** A session message this build cannot decode marks
-  the session incompatible; on a follower also diverged, and a diverged session
-  refuses to edit or seal.
+- **Incompatible entries.** An entry this build cannot decode marks the session
+  incompatible; every replica of the build passes over it alike, so their copies
+  agree. A replica whose build is not the session's is diverged and refuses to
+  edit or seal.
+- **Offline**, there is no server to order: the device numbers submissions in its
+  own order over its own journal (`Refs::number_offline`, which numbers an OpId
+  once, as the server does), and the replica, which
+  holds the made-up session's lease, seals what it orders into commits the outbox
+  keeps. Before it rejoins, the host seals it, so the work reaches the session as
+  a commit that merges, not as operations.
 
 ## The journal
 
-What the owner sequenced since its last commit is kept durable in the block's
-journal, so a commit can wait for a pause. A journal is a base (a commit, or
-none for no content; the last sequence number it holds; the session state as
-of it) and entries (sequence number, lease generation, payload), all sealed
-with the block key; the server keeps it beside history, never in it
-(`be_server::journal`), and records the module tag that wrote it.
+What the order numbered since the last seal is durable in the block's journal,
+so a commit can wait for a pause. A journal is a base (a commit, or none for no
+content; the last sequence number it holds; the session state as of it, sealed
+with the block key) and entries (sequence number, the submission's id and base,
+its floor, when the server took it, and the sealed payload); the server keeps it
+beside history, never in it (`be_server::journal`), and records the build that
+wrote it. A journal starts on the block's head when the first submission
+arrives.
 
-- `Peer::append` seals entries, keeps them in the device's journal in the refs
-  database and, online, sends `sessions.append`, which relays each entry to the
-  other participants as a relay would and keeps it when the caller owns the
-  session's current generation: one call broadcasts and appends. Entries at or
-  below the last sequence number are dropped as already held.
-- `Peer::rebase_journal` starts the journal over from a base, dropping every
-  entry, and keeps the entries it is given past the base in the same write on
-  the device (online, the server gets a rebase and then an append): an owner
-  rebases after each commit, and on taking a session before it appends.
-- **A seal on its way.** The owner keeps journaling what is typed while its
-  seal waits on the server. The seal's commit records the session generation
-  and last sequence it holds (`Commit::sealed_through`); once it lands the owner
-  rebases onto it carrying what came after, and followers, who applied that
-  already, reload the seal and hear it again (`SessionMessage::Sealed` with
-  `reload`). A device that stopped after the server took the seal and before it
-  heard so opens on the commit the seal was made on, replays its own journal
-  there and takes the seal as its head, when its journal noted that seal
-  (written with the seal's commit in one refs write, dropped by the next rebase:
-  `Peer::sealing`) and holds the seal's last entry in its generation
-  (`reaches_seal`; guides/type_modules.md, Peers).
-- Joining (`Connection::join_session`) answers the journal as of joining, so a
-  replica opening on its base needs no state from the owner
-  (`be_block_type_host::Replicas` picks the server's or the device's,
-  whichever holds more). `read_contents` answers each block's journal
-  (`BlockRead::journal`, opened; offline the device's); a reader applies it
-  with `Modules::readable`, which replays it through the type when its tag is
-  the module's and its base is the head, and reads the head alone otherwise.
-  Export, `be download` and the tracker's reads go through it; `be sync` reads
-  heads alone, since it records which head it synced and what it writes to
-  disk must be that head.
-- A journal is its module tag's: an append of another tag is refused until the
-  owner rebases, and a replica of another build opens on the head alone and
-  reports the edits lost (guides/blocks/host.md, Undo). A rebase of another tag
-  that drops entries marks the journal `lost` until it moves to another commit,
-  so every device opening the block meanwhile is told too.
+- The server numbers and keeps each submission in one transaction
+  (`journal::submit`, with `be_block_session::Sequencer`), refusing one of another
+  build while the journal holds entries; a submission whose id the journal holds
+  is answered and not numbered again.
+- A seal trims it: the journal starts from the seal's commit at the sequence it
+  holds, keeping what came after. The server's is trimmed by the seal's publish
+  itself (`Write::seals_journal`, kept with the commit in the outbox
+  (`Pending::journal`, with the build that sealed it) so a drained seal trims too), only as it wins the
+  head; `Peer::rebase_journal` trims this device's, and with `trim` the
+  server's with no new commit (a publish of the head on itself, which the server
+  takes only from the holder; none for a base with no commit, which stays on this
+  device). A seal names its build and its run of the order (the replica's
+  `restarts`), so the server passes over a stale one (guides/blocks/server.md,
+  "Membership"). A base that goes back while nothing after the
+  journal's own base was numbered (the last one out, sequence zero) starts the
+  order afresh. Entries of another build are dropped, and the journal marked
+  `lost` until it moves to another commit, so every device opening the block
+  meanwhile is told.
+- This device's journal in the refs database copies what it heard
+  (`Peer::heard_entry`, as each `Event::Sequenced` arrives), and is trimmed by
+  this device's seals, so a replica opened offline opens on the order as this
+  device last knew it; offline it also holds what the device numbered itself.
+  Every join, first or again, makes it the journal joining answered
+  (`Peer::keep_journal`, `replicas::mirror`): with no copy, the device would
+  number offline from sequence zero, behind entries its replica opened on, and
+  the replica would pass its own entries over as ones it applied (it reports
+  an error when one of its pending submissions comes back so). A block whose
+  journal holds entries this device numbered offline, their only copy, does
+  not join on opening: it opens on that journal, seals, and joins once a drain
+  sent the seal (`Replicas::created`), as a block made offline does. A seal made
+  offline (`SealedThrough::offline`) counts the device's own order, so on the
+  server's journal it is a head to merge, never a seal the journal reaches.
+- **A seal on its way.** The holder goes on applying the order while its seal
+  waits on the server. The seal's commit records the last sequence it holds
+  (`Commit::sealed_through`), and the server trims the journal to it as the
+  commit lands. A seal that has not landed yet leaves the journal on the commit
+  the seal was made on: a replica opening on the
+  seal replays the journal there and takes the seal as its head when the journal
+  reaches the seal's last entry (`reaches_seal`, `journal_for`), and is answered as
+  the replica's news (`Resume::Sealed`) only when the seal counts the same restarts
+  as the journal's base (`SealedThrough::restarts`): a seal of another run of the
+  order is merged as a head.
+- **Which edits the order holds.** The journal's base names, per origin, the last
+  counter the order numbered (`wire::BaseState`), and a device keeps one origin per
+  block (`refs::OpenEdits`), so edits it gives again after the trim that dropped
+  their entries are found there and not numbered twice. The base names only the
+  `BaseState::KEPT_ORIGINS` origins numbered most recently: an accepted limit. A
+  replica opening on a full base that no longer names its origin cannot tell
+  which of the edits it submitted the order holds, so it sends none of them
+  again (those up to `opening.kept-submitted`) and tells each editor it may have
+  been sent (`UNCERTAIN_EDIT`); edits it never submitted are sent.
+- Joining (`Connection::join_session`) answers the journal as of joining, and
+  what the order numbers after reaches the connection as `Event::Sequenced`, so a
+  replica opening on the journal's base needs nothing from another client.
+  `read_contents` answers each block's journal (`BlockRead::journal`, opened;
+  offline the device's); a reader applies it with `Modules::readable`, which
+  replays it through the type when its tag is the module's and its base is the
+  head, and reads the head alone otherwise. Export, `be download` and the
+  tracker's reads go through it; `be sync` reads heads alone, since it records
+  which head it synced and what it writes to disk must be that head.
+- A replica of another build opens on the head alone, following the order from
+  its last number, and reports the edits lost (guides/blocks/host.md, Undo); its
+  holder starts the journal over.
+
+## Signed logs
+
+A block's signed log (guides/blocks/server.md, "Signed logs"; `peer/log.rs`)
+is read and appended a page at a time, and nothing the server serves of it is
+taken unproven.
+
+- **Appending.** `Peer::append(block, app, payload)` seals a random
+  32-byte salt and the payload under the block's key, signs the entry's id
+  and the hash of the salt and the app's bytes framed by its id
+  (`be_block_protocol::log_signed` over `Said::hash`, under `sign_authored`,
+  so the signature binds the block and the app, verifies wherever the
+  plaintext and salt go, and confirms no guessed payload to whoever lacks the
+  key), and keeps it in the outbox (`refs::Op::Append`). Opening strips the
+  salt (`LoggedEntry::opened`, a `Said`; `LoggedEntry::bytes`); a payload that
+  opens to less than a salt is `LoggedEntry::malformed`. The leaf
+  commits to the sealed bytes, so after a redaction who wrote an entry is the
+  log's word, its signature no longer checkable. Online, with nothing of the block waiting ahead of it,
+  it goes at once with any of the block's entries that wait
+  (`send_appends`, batched), answering `Appended::Logged` with its place and
+  arrival; otherwise `Appended::Kept`, and the drain sends it in order
+  (`Drained::Appended`). A log's entries wait only behind the block's
+  creation, never behind its content: a diverged publish holds none back. One
+  the server refuses leaves the outbox (`Drained::NotAppended`,
+  `Appended::Refused`) and is kept, with why, until the app lets it go
+  (`refused_entries`, `let_go_refused`; `Table::NotAppended`), so what the app
+  shows of it outlives the editor and the device starting again. A local
+  account numbers and stamps entries on the device (`append_locally`),
+  keeping its tree's right edge (`KeptLogHead::frontier`).
+- **Reading.** `Peer::read_log(block, from, limit)` reads a page and follows
+  the log. The page is taken only when its range proof ties its entries to the
+  head the server names (`merkle::range_root`), every payload matches its
+  hash, and a consistency proof shows that head extends the one this device
+  kept (`merkle::consistent`); then the head and the page are kept in the refs
+  database (`Refs::keep_entries`; `KeptLogHead`, and entries by block and
+  place), and opened, the block's keys asked for once if one is missing. A
+  page anywhere in a log, the first of a million-entry chat's or one a search
+  hit points into, costs that page and O(log n) hashes (`LogRead::proof_hashes`).
+  Offline it answers what was kept, from `from` up to the first entry it
+  lacks. `Peer::logged` takes an `Event::Appended`: at once when it extends
+  the kept head, else by reading from the kept head. One told late, after a
+  read moved the kept head past it (a page from the log's start, an export),
+  is answered all the same, as proved against the kept head, never the head
+  the push names alone: those it holds as held, the rest read again
+  (`read_log`). Whoever follows the log drops those it holds by their place.
+- **Cut and forked logs.** A head the server serves that does not extend the
+  kept one (shorter, or with other entries) is `ClientError::LogForked`, and
+  nothing of that answer is kept; so is a push of a head no longer than the
+  kept one that differs from what is held. A page that names an id twice, or
+  whose arrivals go back (within it or against the entries kept beside it), is
+  `Tampered`. The kept head moves only by compare-and-set
+  (`Refs::keep_entries`): a page checked against a head that a push or another
+  read moved meanwhile is read again against the head kept now, so a head is
+  never replaced by an older one or a sibling; one that moved to the page's
+  own head takes the page as it is. A push told late is checked against its
+  own proof first: one that does not prove is `Tampered`, not a fork. `forget` drops a log's entries
+  but keeps its head.
+- **Exports.** `Peer::export_log` reads a block's whole log, opened, as an
+  export carries it (`ExportedEntry`, `transfer::Saved::log`), and
+  `Peer::verify_exported` checks an entry against the block it was written in
+  (the file's id for it) and its salt, wherever the file was imported, with
+  no key of the block. A redacted entry, or one this device cannot open, is
+  carried without what it said, and verifies as nothing (`None`). Offline it
+  carries the run from the log's start this device kept. An export proves
+  each entry's author, app and block, not that the file holds the whole log
+  or its order: it carries no head or proof, so whoever edits the file can
+  drop entries or reorder them unseen.
+- **Redactions.** A device keeps a payload it already holds until it reads
+  that page again; what tells it to is a later entry naming the redacted one
+  (chat's deletion entry, plans/signed_logs.md step 5).
+- **Who wrote an entry.** `Peer::verify_entry(block, app, ..., said, signature)`
+  is `verify_authored` over what the app said and its salt, with the entry's arrival,
+  which only the server sets, so a contact's replaced key that
+  signed an entry the server took after this device learned of the new key
+  answers `Replaced` (guides/blocks/keys.md, "Verifying").
 
 ## The refs database
 
@@ -182,8 +316,10 @@ A `Peer` keeps what it learns in `RefsDb` (`be_block_client::refs`, SQLite on
 every platform, in the origin private file system on the web), keyed by server,
 account and organization: local and last-known remote heads, the newest head
 whose content it has read whole, raw `BlockSummary`s (metadata stays sealed),
-key rows and wraps, verified contacts and escrow chain, the workspace list, the
-outbox, the unsent area and each block's journal. A sealed commit and its local
+the pages of signed logs it read and each log's last verified head,
+key rows and wraps, verified contacts, every contact's name and the escrow chain, the workspace list, the
+outbox, the unsent area, each block's journal and the blocks the search indexer let
+go (`Peer::let_go`). A sealed commit and its local
 head are written in one transaction (`Refs::push_publish`), and so is a publish
 settling: its outbox entries leave as the remote and local heads move on
 (`Refs::settle`), so no reader sees an empty outbox beside the old heads. The
@@ -199,30 +335,36 @@ self-describing: a field marked `skip_serializing_if` is written as nothing and
 never decodes again, so a refs type never uses it, and `#[serde(default)]` does
 nothing for a field missing from an older record.
 
-`Peer::list(listing)` reads any `Listing` (`children` and `summary` are its
-only shorthands): every page of a long one (`listed.next`, in the order of
-block ids, so a `References` listing is put back in the block's own order),
-and the summaries
+`Peer::list(listing)` reads any `Listing` (`Peer::listing` with the sequence
+it was read at; `children` is its only shorthand, and `summary` reads one
+block): every page of a long one (`listed.next`, in the order of
+block ids, a `References` listing too), and the summaries
 of each page's `rest` with `read-summaries`, `MAX_SUMMARIES_ASKED` at a time,
 keeping each block once and leaving out a summary read later that the listing
 would no longer hold (`still_in`). A block's references past
 `MAX_REFERENCES` are refused before anything is sealed or put in the outbox
-(`bounded`). The refs database keeps one summary per block, the newest
-revision winning, and a listing is the ids it held: a copy kept per listing went stale offline (a listing fetched
+(`bounded`). The refs database keeps one summary per block, the larger `changed`
+winning, and a listing is the ids it held: a copy kept per listing went stale offline (a listing fetched
 before another device's seal, or the copy a parent's listing held). Offline, a
 listing answers as the summaries place its blocks now:
 
-- a block's `References` are what its summary references, so a seal or an
-  offline commit after the listing was fetched shows;
-- its `Backrefs` are the summaries that reference it;
+- a block's `References` are what the content it kept references
+  (`Peer::references_here`), so a seal or an offline commit after the listing
+  was fetched shows, or the listing as fetched when it kept none;
+- its `Backrefs` are the listing as fetched;
 - a block's `Children`, and the `Deleted` blocks, are those the listing held
   that their summaries still put there, then those whose summaries put them
-  there and are newer than the revision the server answered the listing at
+  there and changed after the sequence the server answered the listing at
   (`Refs::listed`, kept with the listing). So a block made online, moved in,
   or pushed since the listing was fetched shows, and one moved away does not.
 
 A summary is dropped only with the blocks `forget` drops, so one the server no
-longer lists stays until then.
+longer lists stays until then. No summary names what its block references:
+`Peer::content_references` reads it from the block's newest commit this device
+has (one in the outbox first, else the summary's head), with its parts'
+(`references_of`), or from its metadata for a block with no content yet, in
+the content's order. A local account answers `References` and `Backrefs` from
+it too, having no server that keeps references.
 
 `Peer::cached` builds a peer from it with no network, and `Peer::attach` hands
 it a signed-in connection later (after every reconnect), which opens the
@@ -243,7 +385,9 @@ the server vouches for, then the text sealed under the block's data key with
 the organization, block, sender and send time. `Peer::open_notification` opens
 that offline from the cached key rows, with no block load and no type module,
 refusing one sealed about another organization, block or sender, or older than
-`MAX_NOTIFICATION_AGE_MILLISECONDS`.
+`MAX_NOTIFICATION_AGE_MILLISECONDS`; `Peer::contact_name` and `Peer::kept_name`
+name its sender and block from the refs database alone, for a device that opens
+a push with the app closed (`be_host_stack::device_push`).
 
 ## Saving and the outbox
 
@@ -251,9 +395,12 @@ A save is a `be_block_client::Write` in two steps: `Peer::seal` writes the
 commit, records it in the outbox and moves the local head; `publish_sealed`
 sends it. `Peer::write` does both.
 
-- **Offline**, a failed publish stays in the outbox, as do creates
-  (`refs::Op::Create`), moves (`Op::Move`) and defines on a block with no
-  content (`Op::Define`); these rewrite the cached summary so listings show
+- **Offline**, a failed publish stays in the outbox (`Peer::write` answers
+  `Saved::Kept`), as do creates (`refs::Op::Create`), moves (`Op::Move`),
+  defines on a block with no content (`Op::Define`), holds of objects for a
+  block (`Op::Hold`, from `Peer::hold`, which version control puts on its
+  snapshots) and entries for a block's signed log (`Op::Append`, "Signed
+  logs"); creates, moves and defines rewrite the cached summary so listings show
   them, and later ones for a block queue behind earlier ones. `keep_creation`,
   `keep_definition` and `keep_move` put them there online too (the host's
   path); a publish waits behind a creation, move or define of its block, and
@@ -267,10 +414,40 @@ sends it. `Peer::write` does both.
   kept (`RefsDb::set_listing`, which `Peer::note` and listings keep it
   through) and where it is returned (`Peer::summary_with_outbox`), and a server
   listing with what the outbox adds or moves (`Peer::with_outbox`): an answer
-  the server gave before those reached it would otherwise undo them here.
-  Sending a move carries its databases' prefixes along (`Moving::from`).
+  the server gave before those reached it would otherwise undo them here. A
+  listing is laid over too with each block whose creation or move the server
+  took while it was out (`Peer::sent_since`, marked before it is asked for), as
+  this device now has it: calls on one connection are answered in order, so
+  the answer was read before the server took that write. One the server
+  refused was never taken, and the answer stands for its block.
+  Each goes up as one write: a creation as `[create-block, put-keys(rows)]`
+  (`Creation::ops`), a move as `[move, put-keys(rows)]` with the keys
+  `Peer::rescope` made for its new scope (none within one), and a define as a
+  `publish` with no commit, expecting no head. Sending a move carries its
+  databases' prefixes along (`Moving::from`).
+  `Peer::history` answers offline with the history the device holds, walked
+  from the server's head as last heard (`history_held`): it can hold commits
+  the server has since pruned, where online it lists only what the server keeps.
   Sharing, access, members, invites, agents, contacts and pairing need the
   server.
+- **A local account** (`Peer::local`; guides/hosting.md, Local accounts and the default server) has no server:
+  its refs scope has an empty server, and the session row is made on the device
+  the first time (role editor, kind personal, no escrows). It runs every change
+  through the offline paths above, then settles the outbox on the device as a
+  server would answer it (`settle_locally`, which is its `drain`): creations,
+  moves, definitions and holds are final as they are kept, and a publish is the
+  block's head when it goes on the head the block has (`publish_locally`, the
+  server's compare-and-swap), else `Saved::Rejected`, or `Drained::Diverged` to
+  merge. A settled commit or hold grows the block's `size` by the bytes of the
+  objects it did not hold yet, and the `tree_size` of it and every block above
+  it, and a settled move carries its `tree_size` along (`Refs::grow`,
+  `carry_tree`), as a server counts them. Listings answer from every summary it
+  holds (`Refs::local_listing`),
+  history from its store (`history_held`), and what needs a server is refused as
+  offline. be-host-stack runs it when its `Config` says `local` (set outright,
+  never read from an empty `server_url`): the line never goes up (`Line::Local`), the stack starts
+  as arrived (`arrive_locally`), and its status says `local`, which the host
+  shows as saved rather than offline.
 - **Links** (`contacts.rs`): `make_link` and `invite` make a contact link or an
   invitation, and `open_link` and `accept_link` read and accept the kind the
   caller asks consent for (`Expected`), refusing the other, and answer the
@@ -281,7 +458,10 @@ sends it. `Peer::write` does both.
   `Drained` per block. A rejected publish whose remote head already contains
   the commit is settled, not diverged; an entry is settled once a published
   head descends from it. `Peer::reconcile` finishes a diverged block, answering
-  `Reconciled::Merge` when the replica host has to merge.
+  `Reconciled::Merge` when the replica host has to merge. A commit sealed
+  offline under a key the logs now show outdated is sealed again under a new
+  epoch and sent (`Drained::Resealed`), or set aside (guides/blocks/keys.md,
+  "Outdated epochs").
 - **The unsent area.** A block whose access is refused (on a publish, a create,
   `summary`, or a drain refused `PermissionDenied`/`BlockNotFound` after
   re-reading the summary) moves its entries to `Peer::unsent`;
@@ -293,9 +473,10 @@ sends it. `Peer::write` does both.
   organization's lost-access policy never deletes it, and cached listings leave
   it out. What is made in it is set aside with its refusal, and restoring it
   restores them. A publish refused as a change the server will never take
-  (`InvalidRequest`, `ObjectTooLarge`) is set aside the same way rather than
+  (`InvalidRequest`, `ObjectTooLarge`, `CommitAhead`) is set aside the same way rather than
   sent again every round. A refused move or define puts back the summary the server has
-  (`unchanged`, `Drained::Refused` with `restored`).
+  at once, with what still waits of the block laid over it (`unchanged`,
+  `Drained::Refused` with `restored`).
 - `Peer::pending` counts outbox operations, local commits, their blocks and
   unsent blocks.
 

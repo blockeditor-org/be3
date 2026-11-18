@@ -19,10 +19,12 @@ fn arrived(operation: Vec<u8>, mine: bool) -> crate::EditorOperation {
 
 mod a_foreign_edit_during_an_edit_in_flight_keeps_both;
 mod a_foreign_edit_during_an_edit_in_flight_runs_only_what_either_touched;
+mod a_gesture_the_replica_ended_is_cancelled_and_its_later_edits_dropped;
 mod a_peer_edit_beneath_the_hosts_unsettled_edits_runs_only_what_either_touched;
 mod a_snapshot_carries_where_removed_items_were;
 mod an_edit_before_the_content_arrives_is_dropped;
 mod an_edit_coming_back_as_mine_runs_nothing_again;
+mod an_edit_in_a_gesture_that_is_not_open_is_dropped;
 mod an_edit_rereads_only_the_objects_it_touched;
 mod an_operation_runs_only_the_watchers_of_what_it_touched;
 mod an_undecodable_operation_asks_for_a_fresh_snapshot;

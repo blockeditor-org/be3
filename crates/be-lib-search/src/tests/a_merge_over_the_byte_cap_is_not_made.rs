@@ -29,10 +29,16 @@ fn a_merge_over_the_byte_cap_is_not_made() {
     let written = run(index.compact(&store, id(10), 1, usize::MAX, total / 2, bytes)).unwrap();
     assert!(written.added.is_empty());
     assert_eq!(index.segment_count(), 4);
+    assert!(index.merges_over(total / 2, bytes));
+    assert!(!index.merges_over(total, bytes));
 
     // With room for them, they merge.
     let written = run(index.compact(&store, id(11), 1, usize::MAX, total, bytes)).unwrap();
     store.keep(&written);
     assert_eq!(index.segment_count(), 1);
+    assert!(
+        !index.merges_over(0, |_| u64::MAX),
+        "one segment has nothing to merge"
+    );
     assert_eq!(found(&index, &store, "uniq2v0x "), [doc(2)].into());
 }

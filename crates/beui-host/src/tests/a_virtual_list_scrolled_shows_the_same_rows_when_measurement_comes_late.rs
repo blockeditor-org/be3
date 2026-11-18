@@ -11,9 +11,9 @@ fn a_virtual_list_scrolled_shows_the_same_rows_when_measurement_comes_late() {
             view! {
                 <List spacing=0.0>
                     <ListItem grow=1.0>
-                        <Scroll @test_id="scroll">
+                        <Scroll @test_id="scroll" style={plain_scroll()}>
                             <VirtualList
-                                keys={(0..400).collect::<Vec<usize>>()}
+                                value={(0..400).collect::<Vec<usize>>()}
                                 item_size=24.0
                             >|index: ReadSignal<usize>|
                                 <Text>{create_memo(move || format!("Row {}", index.get()))}</Text>

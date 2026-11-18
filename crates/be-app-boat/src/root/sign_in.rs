@@ -19,8 +19,7 @@ pub(super) fn SignIn(state: State) -> NodeId {
     let read_only = editor.read_only();
     let organization =
         create_memo(move || state.filters.with(|filters| filters.organization.clone()));
-    let organization_draft = create_signal(organization.get_untracked());
-    create_effect(move || organization_draft.set(organization.get()));
+    let organization_draft = create_linked_signal(move || organization.get());
     let secret = create_signal(String::new());
     let today = Date::today();
     let expiry = create_signal(Some(DateTime::new(
@@ -94,8 +93,6 @@ pub(super) fn SignIn(state: State) -> NodeId {
     let open_keys = move || {
         editor.then(editor.host().open_url(API_KEYS), |_| {});
     };
-    let problem_text = create_memo(move || problem.get().unwrap_or_default());
-    let has_problem = create_memo(move || problem.with(Option::is_some));
     let replacing = create_memo(move || reconnecting.get() && state.key.with(Option::is_some));
     view! {
         <List spacing=SECTION_SPACING @test_id="boat.sign-in">
@@ -182,9 +179,9 @@ pub(super) fn SignIn(state: State) -> NodeId {
                             </Text>
                         </List>
                     </Step>
-                    <Show condition={has_problem}>
+                    <Show value={problem}>|problem: ReadSignal<String>|
                         <Text color=TextColor::Danger @test_id="boat.sign-in.problem">
-                            {problem_text}
+                            {problem}
                         </Text>
                     </Show>
                     <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
@@ -196,7 +193,7 @@ pub(super) fn SignIn(state: State) -> NodeId {
                             @test_id="boat.sign-in.connect"
                             on_click={move || connect()}
                         />
-                        <Show condition={replacing}>
+                        <Show value={replacing}>
                             <Button
                                 label="Cancel"
                                 @test_id="boat.sign-in.cancel"

@@ -22,11 +22,8 @@ fn a_slide_dragged_along_a_wide_filmstrip_passes_the_slide_beside_it() {
     let grab = first.center();
     let past = test.point_of(&format!("presentation.slide.{}", ids[1])) + Vec2::new(10.0, 0.0);
     test.down(grab, PointerButton::Primary);
-    test.next_frame();
     test.hover(grab + Vec2::new(6.0, 0.0));
-    test.next_frame();
     test.hover(past);
-    test.run();
     test.advance(Duration::from_millis(500));
     test.run();
     let carried = test.rect_of(&format!("presentation.slide.{}", ids[1]));

@@ -27,16 +27,17 @@ fn a_folder_lists_a_new_child_before_its_edit_is_sealed() {
     wait_until("knew the folder's type", |_| {
         is_known(FolderContent::CONTENT_TYPE)
     });
-    assert_eq!(
-        change_child(folder, FolderContent::CONTENT_TYPE, ChildChange::Add(child)),
-        Some(true)
-    );
-    let unsealed = crate::wait_until(|shared| {
+    assert!(made(change_child(
+        folder,
+        FolderContent::CONTENT_TYPE,
+        ChildChange::Add(child)
+    )));
+    let unsealed = crate::wait_until("listed the new child in the folder", |shared| {
         shared
             .graph
             .get(folder)
-            .filter(|node| node.references.contains(&child))
-            .map(|_| shared.unsealed)
+            .filter(|node| node.refers_to(child) == Some(true))
+            .map(|_| shared.unsealed())
     });
     assert!(
         unsealed > 0,

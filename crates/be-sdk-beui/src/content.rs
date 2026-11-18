@@ -1,11 +1,11 @@
-use std::cell::Cell;
-use std::hash::Hash;
 use std::rc::Rc;
 
 use be_block_content::be_block_model::{Document, Field, FieldRef, List, Model};
 use be_block_content::{LiveEdit, ObjectId, Root, Touched};
 use be_sdk::LackingEdit;
-use be_sdk::{EditorHost, LiveContent, Objects, Projected, Subscription, Unready};
+use be_sdk::{
+    BlockWatch, ContentGesture, EditorHost, LiveContent, Objects, Projected, Subscription, Unready,
+};
 use beui::reactive::*;
 
 pub(crate) fn ready<T>(read: Result<T, Unready>) -> Ready<T> {
@@ -20,10 +20,16 @@ pub(crate) fn keep(subscription: Subscription) {
 }
 
 struct Projection<C: LiveEdit> {
-    _announcing: Subscription,
-    announced: OwnedSignal<u64>,
+    announcing: std::cell::RefCell<Vec<Subscription>>,
+    announced: OwnedTrigger,
+    /// Whether the content arrived: what every read waits on, so an editor never shows the
+    /// empty content first.
+    arrived: OwnedSource<()>,
+    /// The graph's watch of the block, for a projection of a block that may be one this
+    /// viewer cannot view (`unless_unviewable`).
+    found: Option<BlockWatch>,
     live: LiveContent<C>,
-    payload: std::cell::RefCell<Option<(OwnedSignal<Ready<Payload>>, Subscription)>>,
+    payload: std::cell::RefCell<Option<(Scope, AsyncMemo<Payload>)>>,
 }
 
 pub struct ContentProjection<C: LiveEdit>(Stored<Projection<C>>);
@@ -81,18 +87,67 @@ impl<C: LiveEdit + Clone + Default + 'static> OwnedContentProjection<C> {
 
 impl<C: LiveEdit + Clone + Default + 'static> From<LiveContent<C>> for OwnedContentProjection<C> {
     fn from(live: LiveContent<C>) -> Self {
-        let announced = OwnedSignal::new(0);
-        let bumped = announced.handle();
+        Self::following(live, None)
+    }
+}
+
+impl<C: LiveEdit + Clone + Default + 'static> OwnedContentProjection<C> {
+    /// A projection of a block that may be one this viewer cannot view, which `found` (the
+    /// graph's watch of it) tells: deleted elsewhere, or no longer shared, its content never
+    /// arrives, so the projection settles with the empty content rather than hold a `Loading`
+    /// for ever.
+    pub(crate) fn unless_unviewable(live: LiveContent<C>, found: BlockWatch) -> Self {
+        Self::following(live, Some(found))
+    }
+
+    fn following(live: LiveContent<C>, found: Option<BlockWatch>) -> Self {
         let state = OwnedStored::new(Projection {
-            _announcing: live.on_revision(move |_| bumped.update(|count| *count += 1)),
-            announced,
+            announcing: std::cell::RefCell::new(Vec::new()),
+            announced: OwnedTrigger::new(),
+            arrived: OwnedSource::from(arrival(&live, found.as_ref())),
+            found,
             live,
             payload: std::cell::RefCell::new(None),
         });
+        let held = state.handle();
+        let settle = move || {
+            if let Some(projection) = held.try_value() {
+                projection
+                    .arrived
+                    .set(arrival(&projection.live, projection.found.as_ref()));
+            }
+        };
+        let projection = state.value();
+        let mut announcing = vec![projection.live.on_revision(move |_| {
+            settle();
+            if let Some(projection) = held.try_value() {
+                projection.announced.notify();
+            }
+        })];
+        if let Some(found) = &projection.found {
+            announcing.push(found.on_change(settle));
+        }
+        projection.announcing.replace(announcing);
         Self {
             handle: ContentProjection(state.handle()),
             _state: state,
         }
+    }
+}
+
+/// Whether `live` arrived; while it is still loading, settled when `found` says the block is
+/// not one this viewer can view.
+fn arrival<C: LiveEdit + Clone + Default + 'static>(
+    live: &LiveContent<C>,
+    found: Option<&BlockWatch>,
+) -> Ready<()> {
+    let viewable = || match found.map(BlockWatch::read) {
+        Some(Ok(list)) => list.first().is_some_and(|info| info.access.can_view()),
+        _ => true,
+    };
+    match ready(live.ready()) {
+        Err(Pending::Loading) if !viewable() => Ok(()),
+        arrived => arrived,
     }
 }
 
@@ -147,25 +202,110 @@ impl<C: LiveEdit + Clone + Default + 'static> ContentProjection<C> {
         self.inner().live.block()
     }
 
+    /// Whether the content arrived, waiting until it does (at the nearest `Loading`, when
+    /// read outside a memo; a memo that reads it is pending until then).
     pub fn ready(&self) -> Ready<()> {
+        self.inner().arrived.get()
+    }
+
+    /// Subscribes the running computation to every change of the content, and to its arrival,
+    /// without reading it: for one that recomputes from the content some other way.
+    pub fn track(&self) {
         let projection = self.inner();
-        projection.announced.get();
-        ready(projection.live.ready())
+        projection.announced.track();
+        projection.arrived.track();
+    }
+
+    /// Appends `bytes` to the block's signed log, with what goes `along` with it
+    /// (`LiveContent::append`): where it went is taken with `take_appended` under the token
+    /// this answers.
+    pub fn append(&self, bytes: Vec<u8>, along: be_block_content::Along) -> u64 {
+        self.inner().live.append(bytes, along)
+    }
+
+    /// Where the entries `append` asked for went since this was last asked, by token: their
+    /// place and arrival, none while one waits on the device, or why it was refused. Each
+    /// answer moves the revision, so an effect that tracks the content takes them.
+    pub fn take_appended(&self) -> Vec<(u64, Result<be_block_content::LogAppended, String>)> {
+        self.inner().live.take_appended()
+    }
+
+    /// Asks for at most `limit` entries of the block's signed log from `from`, which join
+    /// `with_log` as they come back.
+    pub fn read_log(&self, from: u64, limit: u32) {
+        self.inner().live.read_log(from, limit);
+    }
+
+    /// Reads the entries of the block's signed log this editor holds, in the log's order
+    /// (`LiveContent::with_log`), subscribing the running computation to them.
+    pub fn with_log<R>(
+        &self,
+        read: impl FnOnce(&mut dyn Iterator<Item = &be_block_content::LogItem>) -> R,
+    ) -> R {
+        let projection = self.inner();
+        projection.announced.track();
+        projection.live.with_log(read)
+    }
+
+    /// The log's length as this editor last heard it, subscribing the running computation.
+    pub fn log_size(&self) -> u64 {
+        let projection = self.inner();
+        projection.announced.track();
+        projection.live.log_size()
+    }
+
+    /// Reads the entries this device appended that the server has not taken yet
+    /// (`LiveContent::with_kept`), subscribing the running computation to them.
+    pub fn with_kept<R>(
+        &self,
+        read: impl FnOnce(&mut dyn Iterator<Item = (uuid::Uuid, &[u8])>) -> R,
+    ) -> R {
+        let projection = self.inner();
+        projection.announced.track();
+        projection.live.with_kept(read)
+    }
+
+    /// Reads the entries the host refused to append (`LiveContent::with_refused`), subscribing
+    /// the running computation to them.
+    pub fn with_refused<R>(
+        &self,
+        read: impl FnOnce(&mut dyn Iterator<Item = (u64, &[u8], &str)>) -> R,
+    ) -> R {
+        let projection = self.inner();
+        projection.announced.track();
+        projection.live.with_refused(read)
+    }
+
+    /// Lets go of a refused entry: sent again as a new one, or given up.
+    pub fn dismiss_refused(&self, token: u64) {
+        self.inner().live.dismiss_refused(token);
     }
 
     pub fn revision(&self) -> Ready<u64> {
         let projection = self.inner();
-        projection.announced.get();
+        projection.announced.track();
+        projection.arrived.get()?;
         ready(projection.live.revision())
     }
 
     pub fn read<T>(&self, read: impl FnOnce(&C) -> T) -> Ready<T> {
         let projection = self.inner();
-        projection.announced.get();
+        projection.announced.track();
+        projection.arrived.get()?;
         ready(projection.live.read(read))
     }
 
-    fn watch<T>(&self, key: Option<Touched>, project: impl Fn(&C) -> T + 'static) -> ReadSignal<T>
+    /// `signal`, pending until the content arrived: an editor never shows the empty content
+    /// first.
+    fn once_arrived<T: Clone + PartialEq + 'static>(&self, signal: Signal<T>) -> Memo<T> {
+        let arrived = self.inner().arrived.handle();
+        create_memo(move || {
+            arrived.track();
+            signal.get()
+        })
+    }
+
+    fn watch<T>(&self, key: Option<Touched>, project: impl Fn(&C) -> T + 'static) -> Memo<T>
     where
         T: Clone + PartialEq + 'static,
     {
@@ -176,36 +316,21 @@ impl<C: LiveEdit + Clone + Default + 'static> ContentProjection<C> {
             Some(key) => live.on_touched(key, run),
             None => live.on_change(run),
         });
-        read.read_only()
+        self.once_arrived(read)
     }
 
-    pub fn project<T>(&self, project: impl Fn(&C) -> T + 'static) -> ReadSignal<T>
+    pub fn project<T>(&self, project: impl Fn(&C) -> T + 'static) -> Memo<T>
     where
         T: Clone + PartialEq + 'static,
     {
         self.watch(None, project)
     }
 
-    pub fn project_on<T>(&self, key: Touched, project: impl Fn(&C) -> T + 'static) -> ReadSignal<T>
+    pub fn project_on<T>(&self, key: Touched, project: impl Fn(&C) -> T + 'static) -> Memo<T>
     where
         T: Clone + PartialEq + 'static,
     {
         self.watch(Some(key), project)
-    }
-
-    pub fn project_keyed<K, V>(
-        &self,
-        project: impl Fn(&C, &KeyedStore<K, V>) + 'static,
-    ) -> KeyedStore<K, V>
-    where
-        K: Clone + Eq + Hash + 'static,
-        V: Clone + PartialEq + 'static,
-    {
-        let live = self.live();
-        let store: KeyedStore<K, V> = KeyedStore::new();
-        live.visible(|content| project(content, &store));
-        keep(live.on_change(move |content, _| project(content, &store)));
-        store
     }
 
     pub fn on_touched(&self, key: Touched, run: impl Fn(&C, &[Touched]) + 'static) {
@@ -238,20 +363,44 @@ impl<C: LiveEdit + Clone + Default + 'static> ContentProjection<C> {
         self.inner().live.dismiss_lacking(id);
     }
 
-    pub fn begin_gesture(&self) {
-        self.inner().live.begin_gesture();
+    /// Makes an edit in the open gesture `gesture` (`LiveContent::operate_in`).
+    pub fn operate_in(&self, gesture: ContentGesture, operation: C::Op) {
+        self.inner().live.operate_in(gesture, operation);
     }
 
-    pub fn commit_gesture(&self) {
-        self.inner().live.commit_gesture();
+    /// Opens an undo group (`LiveContent::begin_gesture`).
+    pub fn begin_gesture(&self) -> ContentGesture {
+        self.inner().live.begin_gesture()
+    }
+
+    /// Opens a tentative gesture (`LiveContent::begin_tentative`): its edits show at once in
+    /// every view of the block on this device and are sent only when it commits.
+    pub fn begin_tentative(&self) -> ContentGesture {
+        self.inner().live.begin_tentative()
+    }
+
+    pub fn commit_gesture(&self, gesture: ContentGesture) {
+        self.inner().live.commit_gesture(gesture);
+    }
+
+    pub fn cancel_gesture(&self, gesture: ContentGesture) {
+        self.inner().live.cancel_gesture(gesture);
+    }
+
+    /// Whether `gesture` is open: begun, and ended neither here nor by the replica.
+    pub fn gesture_open(&self, gesture: ContentGesture) -> bool {
+        self.inner().live.gesture_open(gesture)
+    }
+
+    /// Runs `run`, for as long as the current scope lives, for each of this editor's gestures
+    /// the replica ended (`LiveContent::on_gesture_ended`): it is cancelled already, and the
+    /// editor only stops it, as a drag lets go of what it carried.
+    pub fn on_gesture_ended(&self, run: impl Fn(ContentGesture) + 'static) {
+        keep(self.live().on_gesture_ended(run));
     }
 
     pub fn break_step(&self) {
         self.inner().live.break_step();
-    }
-
-    pub fn cancel_gesture(&self) {
-        self.inner().live.cancel_gesture();
     }
 
     pub fn pump(&self) {
@@ -282,49 +431,51 @@ impl<K: be_block_content::BlobKind> ContentProjection<be_block_content::Blob<K>>
     /// The payload, which a kind that loads only its header (`BlobKind::LOADS`) leaves in the
     /// store: read by range once the first snapshot arrives, and again with each new one (a
     /// replacement), never on a header edit.
-    pub fn payload(&self) -> ReadSignal<Ready<Payload>> {
+    pub fn payload(&self) -> AsyncMemo<Payload> {
         let projection = self.inner();
-        if let Some((signal, _)) = projection.payload.borrow().as_ref() {
-            return signal.handle().read_only();
+        if let Some((_, payload)) = projection.payload.borrow().as_ref() {
+            return *payload;
         }
-        let owned = OwnedSignal::new(Err(Pending::Loading));
-        let payload = owned.handle();
-        let fetched = Rc::new(Cell::new(None::<u64>));
+        let announced = projection.announced.handle();
         let this = *self;
-        let fetch = Rc::new(move || {
-            let live = this.live();
-            let Ok(length) = live.stored_length() else {
-                return;
-            };
-            let snapshot = live.snapshots();
-            if fetched.get() == Some(snapshot) {
-                return;
-            }
-            fetched.set(Some(snapshot));
-            let (start, held) = live.visible(|blob| {
-                let start = be_block_content::encode_streamed(blob.header(), &[]).len() as u64;
-                let whole = start + blob.data().len() as u64 == length;
-                (start, whole.then(|| Payload(blob.data().into())))
+        // Kept with the projection, which outlives the scope that first asked for it.
+        let scope = Scope::detached();
+        let payload = scope.run(|| {
+            let stored = create_memo(move || {
+                announced.track();
+                let live = this.live();
+                live.stored_length()
+                    .ok()
+                    .map(|length| (length, live.snapshots()))
             });
-            if let Some(held) = held {
-                payload.set(Ok(held));
-                return;
-            }
-            let current = Rc::clone(&fetched);
-            live.read_range(start, length.saturating_sub(start), move |read| {
-                if current.get() != Some(snapshot) {
-                    return;
+            create_async_memo(move || {
+                let stored = stored.get();
+                let live = this.live();
+                let read = stored.map(|(length, _)| {
+                    let (start, held) = live.visible(|blob| {
+                        let start =
+                            be_block_content::encode_streamed(blob.header(), &[]).len() as u64;
+                        let whole = start + blob.data().len() as u64 == length;
+                        (start, whole.then(|| Payload(blob.data().into())))
+                    });
+                    match held {
+                        Some(held) => Ok(held),
+                        None => Err(live.read_range(start, length.saturating_sub(start))),
+                    }
+                });
+                async move {
+                    match read.ok_or(Pending::Loading)? {
+                        Ok(held) => Ok(held),
+                        Err(reading) => reading
+                            .await
+                            .map(|bytes| Payload(bytes.into()))
+                            .map_err(Pending::Failed),
+                    }
                 }
-                payload.set(
-                    read.map(|bytes| Payload(bytes.into()))
-                        .map_err(Pending::Failed),
-                );
-            });
+            })
         });
-        fetch();
-        let subscription = projection.live.on_revision(move |_| fetch());
-        *projection.payload.borrow_mut() = Some((owned, subscription));
-        payload.read_only()
+        *projection.payload.borrow_mut() = Some((scope, payload));
+        payload
     }
 }
 
@@ -332,7 +483,7 @@ impl<R: Root + 'static> ContentProjection<Document<R>>
 where
     Document<R>: LiveEdit + Clone + Default,
 {
-    pub fn field<M: 'static, F>(&self, object: ObjectId, field: FieldRef<M, F>) -> ReadSignal<F>
+    pub fn field<M: 'static, F>(&self, object: ObjectId, field: FieldRef<M, F>) -> Memo<F>
     where
         F: Field + Clone + PartialEq + 'static,
     {
@@ -345,7 +496,7 @@ where
         &self,
         owner: ObjectId,
         field: FieldRef<M, List<T>>,
-    ) -> ReadSignal<Vec<ObjectId>> {
+    ) -> Memo<Vec<ObjectId>> {
         self.project_on(Touched::Field(owner, field.index()), move |content| {
             content.ids(owner, field)
         })
@@ -355,7 +506,7 @@ where
         &self,
         owner: ObjectId,
         field: FieldRef<M, List<T>>,
-    ) -> ReadSignal<Objects<T>>
+    ) -> Memo<Objects<T>>
     where
         T: Model + 'static,
     {
@@ -365,10 +516,10 @@ where
                 .with_untracked(|held| Objects::reread(content, owner, field, touched, held));
             objects.set(next);
         });
-        objects.read_only()
+        self.once_arrived(objects)
     }
 
-    pub fn object<T>(&self, id: ObjectId) -> ReadSignal<Option<T>>
+    pub fn object<T>(&self, id: ObjectId) -> Memo<Option<T>>
     where
         T: Model + Clone + PartialEq + 'static,
     {
@@ -384,6 +535,67 @@ where
                 read.set(next);
             },
         ));
-        read.read_only()
+        self.once_arrived(read)
+    }
+}
+
+/// Holds what a value control's drag writes into a block in a tentative gesture
+/// (decisions/tentative_edits_wait_for_release.md): pass `drag` to the control's drag callback
+/// (`NumberInput`'s `on_scrub`, `on_drag_change` on `Slider` and the colour controls) and make
+/// the editor's edits through `operate`. Every view of the block on this device follows the
+/// drag; it is written once, as one undo step, when kept, and leaves nothing when called off.
+/// An editor that already holds gestures of its own (the canvas, whose drags on its surface
+/// and in its sidebar share one) keeps its one hold rather than adding a `DragHold` beside it.
+pub struct DragHold<C: LiveEdit> {
+    content: ContentProjection<C>,
+    gesture: StoredCell<Option<ContentGesture>>,
+}
+
+impl<C: LiveEdit> Clone for DragHold<C> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<C: LiveEdit> Copy for DragHold<C> {}
+
+impl<C: LiveEdit + Clone + Default + 'static> DragHold<C> {
+    pub fn new(content: ContentProjection<C>) -> Self {
+        Self {
+            content,
+            gesture: StoredCell::new(None),
+        }
+    }
+
+    /// Follows the control's drag: opens the gesture as it starts, commits it when it is kept
+    /// and cancels it when it is called off. A gesture the replica ended meanwhile takes no
+    /// more edits, and ending it sends nothing.
+    pub fn drag(&self, change: beui::unstyled::ValueDrag) {
+        use beui::unstyled::ValueDrag;
+        match change {
+            ValueDrag::Started => {
+                if self.gesture.get().is_none() {
+                    self.gesture.set(Some(self.content.begin_tentative()));
+                }
+            }
+            ValueDrag::Kept => {
+                if let Some(gesture) = self.gesture.take() {
+                    self.content.commit_gesture(gesture);
+                }
+            }
+            ValueDrag::Cancelled => {
+                if let Some(gesture) = self.gesture.take() {
+                    self.content.cancel_gesture(gesture);
+                }
+            }
+        }
+    }
+
+    /// Makes `operation` in the drag's gesture while one is held, else outside any.
+    pub fn operate(&self, operation: C::Op) {
+        match self.gesture.get() {
+            Some(gesture) => self.content.operate_in(gesture, operation),
+            None => self.content.operate(operation),
+        }
     }
 }

@@ -51,13 +51,14 @@ pub fn access_of(level: AccessLevel) -> be_block_graph::Access {
     match level {
         AccessLevel::None => be_block_graph::Access::None,
         AccessLevel::KnowExists => be_block_graph::Access::KnowExists,
+        AccessLevel::Join => be_block_graph::Access::Join,
         AccessLevel::View => be_block_graph::Access::View,
         AccessLevel::Edit => be_block_graph::Access::Edit,
         AccessLevel::Manage => be_block_graph::Access::Manage,
     }
 }
 
-pub fn notify_mode_of(mode: be_sdk_api::NotifyMode) -> be_block_protocol::NotifyMode {
+pub fn mute_of(mode: be_sdk_api::NotifyMode) -> be_block_protocol::NotifyMode {
     match mode {
         be_sdk_api::NotifyMode::All => be_block_protocol::NotifyMode::All,
         be_sdk_api::NotifyMode::Mentions => be_block_protocol::NotifyMode::Mentions,
@@ -65,7 +66,7 @@ pub fn notify_mode_of(mode: be_sdk_api::NotifyMode) -> be_block_protocol::Notify
     }
 }
 
-pub fn notify_mode_to(mode: be_block_protocol::NotifyMode) -> be_sdk_api::NotifyMode {
+pub fn mute_to(mode: be_block_protocol::NotifyMode) -> be_sdk_api::NotifyMode {
     match mode {
         be_block_protocol::NotifyMode::All => be_sdk_api::NotifyMode::All,
         be_block_protocol::NotifyMode::Mentions => be_sdk_api::NotifyMode::Mentions,
@@ -75,6 +76,7 @@ pub fn notify_mode_to(mode: be_block_protocol::NotifyMode) -> be_sdk_api::Notify
 
 pub fn grants_of(
     listed: Result<be_block_protocol::AccessList, String>,
+    levels: Vec<be_sdk_manifest::OfferedLevel>,
 ) -> Result<be_sdk_api::AccessListing, String> {
     listed.map(|list| be_sdk_api::AccessListing {
         grants: list
@@ -94,17 +96,80 @@ pub fn grants_of(
                 effective: level_of(entry.effective),
                 source: entry.source.map(Uuid::into_bytes),
                 waiting: entry.waiting,
+                through_link: entry.through_link,
+                guest: matches!(entry.role, be_block_protocol::OrganizationRole::Guest),
             })
             .collect(),
         company: list.company,
+        host: list.host.map(Uuid::into_bytes),
         set_inside: list.set_inside,
+        levels: levels
+            .into_iter()
+            .map(|level| be_sdk_api::OfferedLevel {
+                access: match level.access {
+                    be_sdk_manifest::OfferedAccess::Join => be_sdk_api::AccessLevel::Join,
+                    be_sdk_manifest::OfferedAccess::View => be_sdk_api::AccessLevel::View,
+                    be_sdk_manifest::OfferedAccess::Edit => be_sdk_api::AccessLevel::Edit,
+                    be_sdk_manifest::OfferedAccess::Manage => be_sdk_api::AccessLevel::Manage,
+                },
+                name: level.name,
+                line: level.line,
+            })
+            .collect(),
     })
+}
+
+pub fn admits_of(admits: be_block_protocol::LinkAdmits) -> be_sdk_api::LinkAdmits {
+    match admits {
+        be_block_protocol::LinkAdmits::Members => be_sdk_api::LinkAdmits::Members,
+        be_block_protocol::LinkAdmits::Anyone => be_sdk_api::LinkAdmits::Anyone,
+    }
+}
+
+pub fn link_admits(admits: be_sdk_api::LinkAdmits) -> be_block_keys::Admits {
+    match admits {
+        be_sdk_api::LinkAdmits::Members => be_block_keys::Admits::Members,
+        be_sdk_api::LinkAdmits::Anyone => be_block_keys::Admits::Anyone,
+    }
+}
+
+/// Names a block's members for an editor (`block-subject.members`) from what the server named
+/// (`list_names`): a contact by the name on the card this device verified (`Contact::verified`)
+/// and pinned with no mismatch since, the signed-in account by its own (`own_name`, its name as
+/// of sign-in, which its cards carry), and anyone else by the name the server gave, which the server could
+/// have changed, so unverified. Read again as the contacts change, without asking the server.
+pub fn members_of(named: &[be_block_protocol::AccountName]) -> Vec<be_sdk_api::BlockMember> {
+    let contacts = crate::contacts();
+    let me = crate::own_name().filter(|(_, name)| !name.trim().is_empty());
+    named
+        .iter()
+        .map(|named| {
+            let card = contacts.iter().find(|contact| {
+                contact.account == named.account
+                    && contact.public.is_some()
+                    && contact.verified != 0
+                    && contact.mismatch.is_none()
+                    && !contact.display_name.is_empty()
+            });
+            let (name, verified) = match (card, &me) {
+                (Some(contact), _) => (contact.display_name.clone(), true),
+                (None, Some((account, name))) if *account == named.account => (name.clone(), true),
+                (None, _) => (named.display_name.clone(), false),
+            };
+            be_sdk_api::BlockMember {
+                account: named.account.into_bytes(),
+                name,
+                verified,
+            }
+        })
+        .collect()
 }
 
 pub fn level_of(access: be_block_graph::Access) -> AccessLevel {
     match access {
         be_block_graph::Access::None => AccessLevel::None,
         be_block_graph::Access::KnowExists => AccessLevel::KnowExists,
+        be_block_graph::Access::Join => AccessLevel::Join,
         be_block_graph::Access::View => AccessLevel::View,
         be_block_graph::Access::Edit => AccessLevel::Edit,
         be_block_graph::Access::Manage => AccessLevel::Manage,
@@ -129,29 +194,25 @@ pub fn info_of(node: &Node, deleted: bool, unfiled: Option<Uuid>, out_of_reach: 
         size: node.size,
         tree_size: node.tree_size,
         out_of_reach,
+        unread: node.unread,
     }
 }
 
 pub fn answer(query: BlockQuery) -> Vec<BlockInfo> {
     let nodes = crate::query(query_of(query));
     let unfiled = crate::unfiled();
-    let nodes: Vec<(Node, bool)> = match crate::offline_peer() {
-        Some(peer) => nodes
-            .into_iter()
-            .map(|node| {
-                let out_of_reach = out_of_reach(&peer, &node);
-                (node, out_of_reach)
-            })
-            .collect(),
-        None => nodes.into_iter().map(|node| (node, false)).collect(),
-    };
-    crate::with_graph(|graph| {
+    crate::with_seen(|seen| {
         nodes
             .iter()
-            .filter(|(node, _)| node.access.can_know_exists() && Some(node.id) != unfiled)
-            .map(|(node, out_of_reach)| {
-                let deleted = graph.deleted_root(node.id).is_some();
-                info_of(node, deleted, unfiled, *out_of_reach)
+            .filter(|node| node.access.can_know_exists() && Some(node.id) != unfiled)
+            .map(|node| {
+                let deleted = seen.graph.deleted_root(node.id).is_some();
+                let source = seen
+                    .revision_previews
+                    .get(&node.id)
+                    .map_or(node.id, |preview| preview.source);
+                let out_of_reach = seen.out_of_reach.contains(&source);
+                info_of(node, deleted, unfiled, out_of_reach)
             })
             .collect()
     })
@@ -173,7 +234,8 @@ pub fn entries_of(entries: MetadataEntries) -> be_block_content::Entries {
 }
 
 /// Offline, whether this device holds none of a block's heads whole (`Peer::held_head`), so it
-/// can neither open nor change it. A block with no content yet has nothing to hold.
+/// can neither open nor change it. A block with no content yet has nothing to hold. The worker
+/// asks it, into `Seen::out_of_reach`.
 pub(crate) fn out_of_reach(peer: &Peer<Store>, node: &Node) -> bool {
     node.head.is_some() && peer.held_head(node.id).is_none()
 }

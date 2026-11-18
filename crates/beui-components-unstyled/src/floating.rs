@@ -23,8 +23,7 @@ pub fn Floating(
     #[prop(default = Edge::Bottom)] edge: Prop<Edge>,
     #[prop(default = true)] open: Prop<bool>,
     #[prop(default = true)] interactive: Prop<bool>,
-    #[prop(default = false)] keep_alive: bool,
-    #[prop(children)] content: RenderFn<()>,
+    #[prop(children)] content: BuildFn<NodeId>,
 ) -> NodeId {
     let placement = edge.map(|edge| match edge {
         Edge::Top => Placement::InsideTop,
@@ -45,8 +44,7 @@ pub fn Floating(
             policy={mode}
             traps_focus=false
             open={open}
-            keep_alive
-            content={move || content.call(())}
+            content={move || content.call()}
         />
     }
 }

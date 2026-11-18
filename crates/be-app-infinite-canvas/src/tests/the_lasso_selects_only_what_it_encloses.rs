@@ -46,7 +46,6 @@ fn the_lasso_selects_only_what_it_encloses() {
     ];
 
     editor.click("infinite-canvas.dock.tool.Select");
-    editor.run();
     editor.step(vec![
         Input::PointerMoved(lasso[0]),
         Input::PointerButton {
@@ -73,7 +72,6 @@ fn the_lasso_selects_only_what_it_encloses() {
     editor.snapshot("the_lasso_selects_only_what_it_encloses");
 
     editor.key(Key::Delete, Modifiers::NONE);
-    editor.run();
     let mut left_over: Vec<Uuid> = entities(&editor).iter().map(|entity| entity.id).collect();
     left_over.sort();
     assert_eq!(

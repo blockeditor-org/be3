@@ -28,9 +28,14 @@ fn plans_pick_crates_by_name_and_examples() {
     assert!(plan("wasi-guest").contains("-p be-app-canvas -p be-app-text "));
     let wasm32 = plan("wasm32");
     assert!(wasm32.starts_with(
-        "build --target TRIPLE -p tabletop-rules-chess -p be-type-text -p be-wasm-gpu-shim"
+        "build --target TRIPLE -p tabletop-rules-chess -p be-type-text -p be-lib-remap-module"
     ));
     assert!(!wasm32.contains("be-type-bundle"));
+    assert!(
+        !wasm32.contains("be-wasm-gpu-shim"),
+        "the gpu shim, which imports JavaScript, has a plan of its own"
+    );
+    assert!(plan("wasm32-bindgen").starts_with("build --target TRIPLE -p be-wasm-gpu-shim "));
     assert!(
         plan("wasi-html")
             .ends_with("-p beui-demo-html --lib --unit-graph -Z unstable-options --locked")

@@ -32,6 +32,7 @@ fn two_accounts_become_contacts_by_a_link_and_share_a_block() {
             &guest.me().card(),
             &code,
             be_block_client::contacts::Expected::Contact,
+            &Default::default(),
         ))
         .expect("the guest accepts");
     let again = runtime.block_on(be_block_client::contacts::open_link(
@@ -52,6 +53,7 @@ fn two_accounts_become_contacts_by_a_link_and_share_a_block() {
             &peer.connection(),
             peer.account(),
             &guest.phrase.secret(),
+            &Default::default(),
         ))
         .expect("the guest lists its contacts");
     assert_eq!(theirs.len(), 1);

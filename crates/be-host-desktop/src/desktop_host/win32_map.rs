@@ -320,6 +320,8 @@ pub fn known_window(
         size: Vec2::new(width as f32 / scale, height as f32 / scale),
         min_size: Vec2::ZERO,
         maximized: false,
+        // Showing an entry captures it, so the person picks each from the window chips.
+        opens_hidden: true,
         fullscreen,
         responding: entry.responding,
         icon: entry.icon.as_ref().map(|icon| Picture {

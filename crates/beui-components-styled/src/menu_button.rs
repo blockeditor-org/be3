@@ -10,7 +10,7 @@ use beui_view::reactive::*;
 use beui_view::types::Image;
 use beui_view::types::ScrollGesture;
 use beui_view::types::icons::ICON_CHEVRON_DOWN;
-use beui_view::types::{Placement, Rect};
+use beui_view::types::{Placement, Pos2, Rect};
 
 #[component]
 pub fn MenuButton(
@@ -27,8 +27,10 @@ pub fn MenuButton(
     #[prop(default = false)] secondary_opens: Prop<bool>,
     #[prop(default = false)] capture_presses: Prop<bool>,
     #[prop(default = false)] open: Binding<bool>,
-    #[prop(default = None)] bounds: Prop<Option<Rect>>,
+    #[prop(default = None)] at: Binding<Option<Pos2>>,
     #[prop(default = Placement::Menu)] placement: Prop<Placement>,
+    #[prop(default = None)] bounds: Prop<Option<Rect>>,
+    #[prop(default = false)] keep_alive: bool,
     leading: Option<Child>,
     items: Children<MenuItem>,
     on_click: Callback<()>,
@@ -42,6 +44,7 @@ pub fn MenuButton(
         <unstyled::MenuButton
             items
             open
+            at
             label
             glyph
             icon_only
@@ -49,8 +52,9 @@ pub fn MenuButton(
             click_opens
             secondary_opens
             capture_presses
-            bounds
             placement
+            bounds
+            keep_alive
             menu={menu_style()}
             trigger={move |handle: PopupTriggerHandle| view! {
                 <PopupButtonFace
@@ -94,7 +98,7 @@ pub(crate) fn PopupButtonFace(
             size
             image
             trailing_glyph={trailing}
-            pressed={create_memo(move || open.get())}
+            pressed={open}
             placeholder
             leading
         />

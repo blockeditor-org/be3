@@ -7,7 +7,7 @@ use crate::calendar::{CALENDAR_WIDTH, Calendar};
 use crate::focus_ring::FocusRing;
 use crate::list::List;
 use crate::popover::{PANEL_PADDING, popover_surface};
-use crate::scroll::scrollbar_style;
+use crate::scroll::scroll_style;
 use crate::tabs::Tabs;
 use crate::text::{Icon, Text, TextColor};
 use crate::theme::field_border;
@@ -17,15 +17,14 @@ use beui_components_unstyled as unstyled;
 use beui_components_unstyled::datetime::{Date, DateTime, HourCycle, Time, Weekday};
 use beui_components_unstyled::{
     ButtonHandle, ChoiceOption, DateSegmentHandle, DateTimeBoxHandle, DateTimeCalendarHandle,
-    DateTimePanelHandle, DateTimePanelLayout, DateTimeParts, DateTimeTimesHandle,
-    DateTimeTriggerHandle, PopoverPlacement, PopupTriggerHandle, TimeOptionHandle, grid_columns,
-    narrower_than,
+    DateTimePage, DateTimePanelHandle, DateTimePanelLayout, DateTimeParts, DateTimeTimesHandle,
+    DateTimeTriggerHandle, PopupTriggerHandle, TimeOptionHandle, grid_columns, narrower_than,
 };
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 use beui_view::types::icons::{ICON_CALENDAR_DAYS, ICON_CLOCK};
 use beui_view::types::{Align, Direction, Justify, TextAlign};
-use beui_view::types::{Align2, Extent};
+use beui_view::types::{Align2, Extent, Placement};
 
 const HEIGHT: Size = Size::Field;
 const PADDING_HORIZONTAL: Space = Space::Md;
@@ -46,7 +45,7 @@ const STACK_BREAKPOINT: f32 = 460.0;
 
 #[component]
 pub fn DateTimeField(
-    #[prop(default = None)] value: Binding<Option<DateTime>>,
+    value: Binding<Option<DateTime>>,
     #[prop(default = DateTimeParts::DateTime)] parts: DateTimeParts,
     #[prop(default = HourCycle::H24)] hour_cycle: HourCycle,
     #[prop(default = String::new())] label: Prop<String>,
@@ -70,7 +69,7 @@ pub fn DateTimeField(
             max
             today
             paged={narrow}
-            placement={PopoverPlacement::Over(PANEL_PADDING.px() as u16)}
+            placement={Placement::Over(PANEL_PADDING.px() as u16)}
             surface={popover_surface(None)}
             segment={|handle: DateSegmentHandle| view! {
                 <SegmentFace handle />
@@ -78,7 +77,7 @@ pub fn DateTimeField(
             literal={|text: String| view! {
                 <LiteralFace text />
             }}
-            segments={|field: Child| view! {
+            segments={|field: NodeId| view! {
                 <Frame height=HEIGHT padding={Padding::horizontal(PADDING_HORIZONTAL)}>
                     {field}
                 </Frame>
@@ -117,9 +116,8 @@ fn FieldBox(handle: DateTimeBoxHandle) -> NodeId {
         false => ColorRole::Control,
     });
     let outer = trigger.is_some();
-    let ring = create_memo(move || outer && focused.get());
     view! {
-        <FocusRing focused={ring} offset=Stroke::Focus>
+        <FocusRing focused={move || outer && focused.get()} offset=Stroke::Focus>
             <Frame
                 height=HEIGHT
                 fill={fill}
@@ -248,10 +246,10 @@ fn PickerPanel(
         least.max(field_width.get())
     });
     view! {
-        <Frame width={create_memo(move || Size::Custom(panel_width.get()))}>
+        <Frame width={move || Length::Size(Size::Custom(panel_width.get()))}>
             <List spacing=PANEL_SPACING>
                 <List direction=Direction::Horizontal spacing=Space::None>
-                    <Frame width={create_memo(move || Size::Custom(field_width.get()))}>
+                    <Frame width={move || Length::Size(Size::Custom(field_width.get()))}>
                         {field}
                     </Frame>
                 </List>
@@ -274,9 +272,9 @@ fn PickerPanel(
                     spacing=Space::Md
                 >
                     <Button label=now_label variant=ButtonVariant::Secondary on_click={now} />
-                    <Show condition=clearable>
+                    {clearable.then(|| view! {
                         <Button label="Clear" variant=ButtonVariant::Ghost on_click={clear} />
-                    </Show>
+                    })}
                 </List>
             </List>
         </Frame>
@@ -288,8 +286,8 @@ fn PanelBody(
     shape: DateTimePanelLayout,
     calendar: DateTimeCalendarHandle,
     times: DateTimeTimesHandle,
-    page: ReadSignal<usize>,
-    show_page: Callback<usize>,
+    page: ReadSignal<DateTimePage>,
+    show_page: Callback<DateTimePage>,
     width: Memo<f32>,
     first_weekday: Weekday,
     step_minutes: u32,
@@ -298,61 +296,57 @@ fn PanelBody(
     let beside =
         create_memo(move || (width.get() - spacing - TIME_LIST_WIDTH).min(CALENDAR_MAX_WIDTH));
     let alone = create_memo(move || width.get().min(CALENDAR_MAX_WIDTH));
-    let dates = create_memo(move || page.get() == 0);
-    let times_shown = create_memo(move || page.get() == 1);
-    view! {
-        <List spacing=PANEL_SPACING>
-            <Show condition={shape == DateTimePanelLayout::Beside}>
-                <List direction=Direction::Horizontal spacing=PANEL_SPACING>
-                    <CalendarPane handle={calendar} width={beside} first_weekday />
-                    <ListItem grow=1.0>
-                        <TimePane
-                            handle={times}
-                            step_minutes
-                            max_columns=1
-                            height=TIME_LIST_HEIGHT
-                        />
-                    </ListItem>
-                </List>
-            </Show>
-            <Show condition={shape == DateTimePanelLayout::Date}>
-                <Centred>
-                    <CalendarPane handle={calendar} width={alone} first_weekday />
-                </Centred>
-            </Show>
-            <Show condition={shape == DateTimePanelLayout::Time}>
-                <TimePane
-                    handle={times}
-                    step_minutes
-                    max_columns=MAX_GRID_COLUMNS
-                    height=TIME_GRID_HEIGHT
+    let body = match shape {
+        DateTimePanelLayout::Beside => view! {
+            <List direction=Direction::Horizontal spacing=PANEL_SPACING>
+                <CalendarPane handle={calendar} width={beside} first_weekday />
+                <ListItem grow=1.0>
+                    <TimePane handle={times} step_minutes max_columns=1 height=TIME_LIST_HEIGHT />
+                </ListItem>
+            </List>
+        },
+        DateTimePanelLayout::Date => view! {
+            <Centred>
+                <CalendarPane handle={calendar} width={alone} first_weekday />
+            </Centred>
+        },
+        DateTimePanelLayout::Time => view! {
+            <TimePane
+                handle={times}
+                step_minutes
+                max_columns=MAX_GRID_COLUMNS
+                height=TIME_GRID_HEIGHT
+            />
+        },
+        DateTimePanelLayout::Paged => view! {
+            <List spacing=PANEL_SPACING>
+                <Tabs
+                    options={view! {
+                        <ChoiceOption value=DateTimePage::Date label="Date" />
+                        <ChoiceOption value=DateTimePage::Time label="Time" />
+                    }}
+                    selected={Binding::new(page, show_page)}
                 />
-            </Show>
-            <Show condition={shape == DateTimePanelLayout::Paged}>
-                <List spacing=PANEL_SPACING>
-                    <Tabs
-                        options={view! {
-                            <ChoiceOption label="Date" />
-                            <ChoiceOption label="Time" />
-                        }}
-                        selected={Binding::new(page, show_page)}
-                    />
-                    <Show condition={dates}>
-                        <Centred>
-                            <CalendarPane handle={calendar} width={alone} first_weekday />
-                        </Centred>
-                    </Show>
-                    <Show condition={times_shown}>
+                <Show
+                    value={move || page.get() == DateTimePage::Date}
+                    fallback={move || view! {
                         <TimePane
                             handle={times}
                             step_minutes
                             max_columns=MAX_GRID_COLUMNS
                             height=TIME_GRID_HEIGHT
                         />
-                    </Show>
-                </List>
-            </Show>
-        </List>
+                    }}
+                >
+                    <Centred>
+                        <CalendarPane handle={calendar} width={alone} first_weekday />
+                    </Centred>
+                </Show>
+            </List>
+        },
+    };
+    view! {
+        <List spacing=PANEL_SPACING>{body}</List>
     }
 }
 
@@ -393,7 +387,7 @@ fn CalendarPane(
             first_weekday
             focused
             show={shown}
-            width={create_memo(move || Length::Size(Size::Custom(width.get())))}
+            width={move || Length::Size(Size::Custom(width.get()))}
         />
     }
 }
@@ -427,7 +421,7 @@ fn TimePane(
                 max_columns
                 spacing={if centred { TIME_GRID_SPACING.px() } else { 0.0 }}
                 label="Time"
-                scrollbar={scrollbar_style()}
+                scroll={scroll_style()}
                 option={move |handle: TimeOptionHandle| view! {
                     <TimeOptionFace handle centred />
                 }}

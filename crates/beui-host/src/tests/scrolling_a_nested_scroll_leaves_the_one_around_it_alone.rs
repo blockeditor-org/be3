@@ -11,9 +11,9 @@ fn scrolling_a_nested_scroll_leaves_the_one_around_it_alone() {
         view! {
             <List spacing=0.0>
                 <ListItem grow=1.0>
-                    <Scroll @test_id="outer">
+                    <Scroll @test_id="outer" style={plain_scroll()}>
                         <Frame height=150.0>
-                            <Scroll @test_id="inner">
+                            <Scroll @test_id="inner" style={plain_scroll()}>
                                 <Rows count=20 />
                             </Scroll>
                         </Frame>
@@ -43,7 +43,7 @@ fn scrolling_a_nested_scroll_leaves_the_one_around_it_alone() {
 #[component]
 fn Rows(count: usize) -> DynamicSegment<ListItem> {
     view! {
-        <ForEach keys={indices(count)}>|index: usize|
+        <ForEach value={indices(count)}>|index: usize|
             <Text color=Color32::WHITE font={FontId::proportional(20.0)}>
                 {format!("Row {index}")}
             </Text>

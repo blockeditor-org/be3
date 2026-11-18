@@ -3,14 +3,14 @@ use be_sdk_beui::{Drag, Editor};
 
 use super::entries::Folder;
 
-pub(crate) fn watch(editor: Editor, folder: Folder) -> Memo<Option<bool>> {
+pub(crate) fn watch(editor: Editor, folder: Folder) -> ReadSignal<Option<bool>> {
     let state = create_signal(None::<bool>);
     let drag = editor.drag();
     create_effect(move || {
         let drag = drag.get();
         untrack(|| land(editor, &folder, state, drag));
     });
-    create_memo(move || state.get())
+    state.read_only()
 }
 
 fn land(editor: Editor, folder: &Folder, state: Signal<Option<bool>>, drag: Option<Drag>) {

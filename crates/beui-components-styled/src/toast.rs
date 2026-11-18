@@ -5,7 +5,7 @@ use beui_macros::{component, view};
 use crate::button::ButtonSize;
 use crate::button::{Button, ButtonVariant};
 use crate::list::List;
-use crate::scroll::scrollbar_style;
+use crate::scroll::scroll_style;
 use crate::text::{Icon, Text, TextColor, TextSize, Weight};
 use crate::tokens::{Padding, Size, Space};
 use beui_components_unstyled as unstyled;
@@ -60,7 +60,7 @@ pub fn Toasts(
             width={WIDTH.px()}
             margin={MARGIN.px()}
             spacing={SPACING.px()}
-            scrollbar={scrollbar_style()}
+            scroll={scroll_style()}
             on_dismiss
             on_action
             on_activate
@@ -138,53 +138,50 @@ fn ToastCard(handle: ToastHandle) -> NodeId {
         }
         false => named.set_label(message.clone()),
     }
+    let mark = match pictured {
+        true => view! {
+            <ToastPicture image />
+        },
+        false => view! {
+            <Frame width=PICTURE_SIZE>
+                <Text color={tint} align=TextAlign::Center>
+                    <Icon glyph={glyph} />
+                </Text>
+            </Frame>
+        },
+    };
     let content = view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-            <Show condition={pictured}>
-                <ToastPicture image={image.clone()} />
-            </Show>
-            <Show condition={!pictured}>
-                <Frame width=PICTURE_SIZE>
-                    <Text color={tint} align=TextAlign::Center>
-                        <Icon glyph={glyph} />
-                    </Text>
-                </Frame>
-            </Show>
+            {mark}
             <ListItem grow=1.0>
                 <List spacing=TEXT_SPACING>
-                    <Show condition={sourced}>|| {
-                        let source = source.clone(); view! {
-                            <Text
-                                size=TextSize::Xs
-                                color=TextColor::Muted
-                                overflow={clamped(SOURCE_LINES)}
-                            >
-                                {source}
-                            </Text>
-                        }
-                    }</Show>
-                    <Show condition={titled}>|| {
-                        let title = title.clone(); view! {
-                            <Text
-                                color={title_color}
-                                weight=Weight::Bold
-                                overflow={clamped(TITLE_LINES)}
-                            >
-                                {title}
-                            </Text>
-                        }
-                    }</Show>
-                    <Show condition={said}>|| {
-                        let message = message.clone(); view! {
-                            <Text
-                                size={message_size}
-                                color={message_color}
-                                overflow={clamped(MESSAGE_LINES)}
-                            >
-                                {message}
-                            </Text>
-                        }
-                    }</Show>
+                    {sourced.then(|| view! {
+                        <Text
+                            size=TextSize::Xs
+                            color=TextColor::Muted
+                            overflow={clamped(SOURCE_LINES)}
+                        >
+                            {source}
+                        </Text>
+                    })}
+                    {titled.then(|| view! {
+                        <Text
+                            color={title_color}
+                            weight=Weight::Bold
+                            overflow={clamped(TITLE_LINES)}
+                        >
+                            {title}
+                        </Text>
+                    })}
+                    {said.then(|| view! {
+                        <Text
+                            size={message_size}
+                            color={message_color}
+                            overflow={clamped(MESSAGE_LINES)}
+                        >
+                            {message}
+                        </Text>
+                    })}
                 </List>
             </ListItem>
         </List>
@@ -224,9 +221,9 @@ fn ToastCard(handle: ToastHandle) -> NodeId {
                         on_click={dismiss}
                     />
                 </List>
-                <Show condition={acted}>
-                    <ToastActions id actions={actions.clone()} act />
-                </Show>
+                {acted.then(|| view! {
+                    <ToastActions id actions act />
+                })}
             </List>
         </Frame>
     }
@@ -250,7 +247,7 @@ fn ToastActions(id: u64, actions: Vec<ToastAction>, act: Callback<String>) -> No
             justify=Justify::End
             spacing=SPACING
         >
-            <ForEach keys={actions}>|action: ToastAction| {
+            <ForEach value={actions}>|action: ToastAction| {
                 let key = action.key.clone();
                 view! {
                     <Button

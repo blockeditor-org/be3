@@ -23,12 +23,12 @@ async fn one_address_cannot_fill_the_pending_sign_ins_or_forms() {
         "another address still begins a sign-in"
     );
 
-    let first_form = sessions.form("", busy);
+    let first_form = sessions.form("", busy, None);
     for _ in 0..2 * FORMS_PER_ADDRESS {
-        sessions.form("", busy);
+        sessions.form("", busy, None);
     }
     assert_eq!(sessions.forms.lock().unwrap().len(), FORMS_PER_ADDRESS);
     assert!(sessions.consume_form(&first_form, "").is_err());
-    let other_form = sessions.form("", IpAddr::from([198, 51, 100, 1]));
+    let other_form = sessions.form("", IpAddr::from([198, 51, 100, 1]), None);
     assert!(sessions.consume_form(&other_form, "").is_ok());
 }

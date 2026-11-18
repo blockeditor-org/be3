@@ -15,6 +15,9 @@
     "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDL79C5G2D0ONHfw/mPQudf0hY2EkD7boM6LJzq9gesc be3-hetzner-test"
     # The owner's.
     "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIE8XE24zrQ5Z5cBfeP3ZJeYjlY6e3vIfK2VU78G9uBXU"
+    # CI deploy key: the Deploy workflow's (.github/workflows/deploy.yml, guides/hosting.md, Keys), a key of its
+    # own whose private half is the deploy environment's BE3_DEPLOY_SSH_KEY. Uncomment it with the public key.
+    # "ssh-ed25519 AAAA... be3-ci-deploy"
   ];
 
   networking.firewall = {

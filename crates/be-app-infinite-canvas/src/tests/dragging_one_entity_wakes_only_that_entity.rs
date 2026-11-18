@@ -25,7 +25,7 @@ fn CountingCanvas(editor: be_sdk_beui::Editor, ids: Vec<Uuid>) -> NodeId {
         let signals = state.entities.watch(id);
         let stored = signals.stored();
         create_effect(move || {
-            stored.with(|_| ());
+            stored.track();
             WOKEN.with_borrow_mut(|woken| *woken.entry(id).or_default() += 1);
         });
     }
@@ -80,7 +80,6 @@ fn dragging_one_entity_wakes_only_that_entity() {
         .rect_of(&format!("infinite-canvas.entity.{moved}"))
         .center();
     editor.drag(from, from + Vec2::new(60.0, 40.0));
-    editor.run();
 
     let after = super::entities(&editor);
     let dropped = after.iter().find(|entity| entity.id == moved).unwrap();

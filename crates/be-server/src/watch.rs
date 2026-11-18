@@ -3,16 +3,13 @@ use std::{
     sync::atomic::{AtomicU64, Ordering},
 };
 
-use be_block_graph::BlockParent;
-use be_block_protocol::{
-    BlockSummary, ClientId, Listing, OrganizationRole, PairingMessage, SessionState,
-};
+use be_block_protocol::{ClientId, OrganizationRole, PairingMessage};
 use tokio::sync::{
     Mutex,
     mpsc::{Sender, error::TrySendError},
 };
 
-use crate::{Identity, ServerError, limits::MAX_LISTINGS_PER_CONNECTION};
+use crate::{Identity, ServerError, limits::MAX_FOLLOWS_PER_CONNECTION};
 use uuid::Uuid;
 
 /// A block in the organization that holds it. Live sessions are keyed by both: block
@@ -24,182 +21,117 @@ pub struct Place {
     pub block: Uuid,
 }
 
-/// Listings a connection keeps after they were refused, so a block read before it is made is
-/// announced once it is. Past this many, a refused listing is dropped at once.
-pub const REFUSED_LISTINGS: usize = 256;
-
 #[derive(Clone, Debug)]
 pub enum Push {
-    BlockChanged {
-        block: BlockSummary,
-        /// The connection whose call changed it.
-        from: ClientId,
+    /// A tree the connection follows advanced (`tree-advanced`).
+    TreeAdvanced {
+        organization: Uuid,
+        entry: Uuid,
+        sequence: u64,
     },
-    BlockRemoved {
-        block: Uuid,
-        revision: u64,
+    /// The account's roots in the organization may have changed (`topic.roots`).
+    Roots {
+        organization: Uuid,
     },
-    SessionChanged {
+    /// The server wrote a membership entry into a session's order.
+    Membership {
         block: Place,
-        state: SessionState,
+        entry: std::sync::Arc<be_block_protocol::MembershipEntry>,
+    },
+    /// A seal moved a session's block's head to `commit`, holding its order through `through`.
+    Sealed {
+        block: Place,
+        commit: be_block_commit::CommitId,
+        through: u64,
+        run: u64,
     },
     Relayed {
         block: Place,
         from: ClientId,
-        /// What the server checked the sender may send.
-        kind: be_block_protocol::RelayKind,
         /// Shared by every participant's queue, so a relay to many costs one copy.
         payload: std::sync::Arc<[u8]>,
         received: i64,
     },
+    /// A message on a session's host channel (`session-send.host`), to one member.
+    Hosted {
+        block: Place,
+        from: ClientId,
+        payload: std::sync::Arc<[u8]>,
+        received: i64,
+    },
+    /// Who holds a session's lease now, told to every member as it changes.
+    Host {
+        block: Place,
+        host: Option<be_block_protocol::SessionHost>,
+    },
+    /// A Join member came or went, told to the lease holder.
+    Joiner {
+        block: Place,
+        change: be_block_protocol::JoinerChange,
+    },
+    /// The order numbered a submission: every participant hears it, its author too.
+    Sequenced {
+        block: Place,
+        entry: std::sync::Arc<be_block_protocol::JournalEntry>,
+    },
     Paired(PairingMessage),
-    ContactsChanged,
-    KeyWorkChanged,
-    /// Keys the account may open were stored (`keys-changed`).
-    KeysChanged,
-    /// The account's notification modes changed through another of its connections.
-    NotifyModesChanged,
+    /// Entries were appended to a block's signed log (`event.appended`): told to the log's
+    /// followers who may still view the block.
+    Logged {
+        block: Place,
+        told: std::sync::Arc<crate::log::Told>,
+    },
+    /// A message arrived in the account's mailbox, or was deleted (`store/mailbox.rs`).
+    MailboxChanged,
+    /// The account's key work in the organization may have changed (`topic.key-work`).
+    KeyWorkChanged {
+        organization: Uuid,
+    },
+    /// Keys the account may open in the organization were stored (`topic.keys`).
+    KeysChanged {
+        organization: Uuid,
+    },
+    /// The account's mutes in the organization changed through another of its
+    /// connections (`topic.mutes`).
+    MutesChanged {
+        organization: Uuid,
+    },
 }
 
 #[derive(Default)]
 struct Joined {
     accounts: HashMap<u64, Uuid>,
     by_account: HashMap<Uuid, HashSet<u64>>,
-    organizations: HashMap<u64, Identity>,
+    /// The organizations each connection works in: those it named in a call it was let make,
+    /// with who it is there.
+    organizations: HashMap<u64, HashMap<Uuid, Identity>>,
     by_organization: HashMap<Uuid, HashSet<u64>>,
     by_member: HashMap<(Uuid, Uuid), HashSet<u64>>,
     administrators: HashMap<Uuid, HashSet<u64>>,
-    interests: HashMap<u64, Interest>,
+    /// The entry points each connection follows, in any organization it works in.
+    follows: HashMap<u64, HashMap<Place, Told>>,
+    /// The connections following each entry point.
+    followers: HashMap<Place, HashSet<u64>>,
+    /// The blocks whose signed logs each connection follows (`topic.block-log`).
+    log_follows: HashMap<u64, HashSet<Place>>,
+    /// The connections following each block's signed log.
+    log_followers: HashMap<Place, HashSet<u64>>,
 }
 
-/// What a connection was told of a block that decides which of its listings hold it.
-pub(crate) struct Facts {
-    parent: Option<BlockParent>,
-    held: bool,
-    entry: bool,
-    /// A set, since a referrer's may run to `MAX_REFERENCES` and is asked of every change.
-    references: HashSet<Uuid>,
-    opens_inside: bool,
-}
-
-impl Facts {
-    /// What a block's summary tells, given apart (`blocks::facts_of` reads it from the graph
-    /// without making a summary).
-    pub(crate) fn new(
-        parent: Option<BlockParent>,
-        held: bool,
-        entry: bool,
-        references: HashSet<Uuid>,
-        opens_inside: bool,
-    ) -> Self {
-        Self {
-            parent,
-            held,
-            entry,
-            references,
-            opens_inside,
-        }
-    }
-
-    pub(crate) fn of(summary: &BlockSummary, entry: bool) -> Self {
-        Self {
-            parent: summary.parent,
-            held: summary.held,
-            entry,
-            references: summary.references.iter().copied().collect(),
-            opens_inside: summary.opens_inside,
-        }
-    }
-}
-
-#[derive(Default)]
-struct Interest {
-    listings: HashSet<Listing>,
-    refused: HashSet<Listing>,
-    /// The `Listing::References` and `Listing::OpenSettings` among `listings`, kept apart so
-    /// matching a block costs a few lookups rather than a pass over every listing.
-    references: HashSet<Uuid>,
-    open_settings: usize,
-    /// The listings that count against `MAX_LISTINGS_PER_CONNECTION`: every one but a block's
-    /// own (`Listing::Block`), which a client never unlists. Those are bounded instead by the blocks
-    /// the caller may know of, and refused ones by `REFUSED_LISTINGS`.
-    counted: usize,
-    known: HashMap<Uuid, Facts>,
-    /// Listings registered and still being read: until `listed` records what they hold, any
-    /// block may be among it, so a change to any block is offered (`WatchHub::knowing`).
-    reading: usize,
-}
-
-fn counts(listing: Listing) -> bool {
-    !matches!(listing, Listing::Block(_))
-}
-
-impl Interest {
-    /// Adds a listing and answers whether it is new, or `None` when the connection already
-    /// holds `MAX_LISTINGS_PER_CONNECTION`.
-    fn list(&mut self, listing: Listing) -> Option<bool> {
-        if self.listings.contains(&listing) {
-            return Some(false);
-        }
-        if counts(listing) {
-            if self.counted >= MAX_LISTINGS_PER_CONNECTION {
-                return None;
-            }
-            self.counted += 1;
-        }
-        self.listings.insert(listing);
-        match listing {
-            Listing::References(referrer) => {
-                self.references.insert(referrer);
-            }
-            Listing::OpenSettings(_) => self.open_settings += 1,
-            _ => {}
-        }
-        Some(true)
-    }
-
-    fn unlist(&mut self, listing: Listing) {
-        if !self.listings.remove(&listing) {
-            return;
-        }
-        if counts(listing) {
-            self.counted -= 1;
-        }
-        match listing {
-            Listing::References(referrer) => {
-                self.references.remove(&referrer);
-            }
-            Listing::OpenSettings(_) => self.open_settings -= 1,
-            _ => {}
-        }
-    }
-
-    fn matches(&self, block: Uuid, facts: &Facts) -> bool {
-        self.listings.contains(&Listing::Block(block))
-            || facts
-                .parent
-                .is_some_and(|parent| self.listings.contains(&Listing::Children(parent)))
-            || (facts.parent.is_some() && !facts.held && self.listings.contains(&Listing::Deleted))
-            || (facts.entry && self.listings.contains(&Listing::Shared))
-            || (facts.opens_inside && self.open_settings > 0)
-            || facts
-                .references
-                .iter()
-                .any(|target| self.listings.contains(&Listing::Backrefs(*target)))
-            || self.references.iter().any(|referrer| {
-                self.known
-                    .get(referrer)
-                    .is_some_and(|referrer| referrer.references.contains(&block))
-            })
-    }
-
-    fn told(&mut self, block: Uuid, facts: Facts) -> bool {
-        if self.matches(block, &facts) {
-            self.known.insert(block, facts);
-            return true;
-        }
-        self.known.remove(&block).is_some()
-    }
+/// What a connection was told of an entry point it follows. Once it is told the tree advanced,
+/// it is told nothing more of it until it reads the tree's changes to their end, so however
+/// many changes come in a burst it hears of them once, then once more for those after its read.
+#[derive(Clone, Copy, Debug, Default)]
+struct Told {
+    /// Told, or reading, and not yet read to the end.
+    outstanding: bool,
+    /// The newest sequence the tree advanced to while outstanding.
+    latest: Option<u64>,
+    /// The sequence the connection last read the tree to its end at. A change's write reaches
+    /// the hub after it commits, so a read can take the change first: a change at or before
+    /// this is one the connection has, and telling it of one would leave it outstanding for a
+    /// read the connection, already past it, never makes.
+    read: u64,
 }
 
 fn unindex<K: Eq + std::hash::Hash>(index: &mut HashMap<K, HashSet<u64>>, key: K, client: u64) {
@@ -212,16 +144,63 @@ fn unindex<K: Eq + std::hash::Hash>(index: &mut HashMap<K, HashSet<u64>>, key: K
 }
 
 impl Joined {
+    fn identity(&self, client: u64, organization: Uuid) -> Option<Identity> {
+        self.organizations.get(&client)?.get(&organization).copied()
+    }
+
     fn leave_account(&mut self, client: u64) {
         if let Some(account) = self.accounts.remove(&client) {
             unindex(&mut self.by_account, account, client);
         }
-        self.leave_organization(client);
+        let organizations: Vec<Uuid> = self
+            .organizations
+            .get(&client)
+            .map(|joined| joined.keys().copied().collect())
+            .unwrap_or_default();
+        for organization in organizations {
+            self.leave_organization(client, organization);
+        }
+        self.follows.remove(&client);
+        for place in self.log_follows.remove(&client).unwrap_or_default() {
+            unindex(&mut self.log_followers, place, client);
+        }
     }
 
-    fn leave_organization(&mut self, client: u64) {
-        self.interests.remove(&client);
-        if let Some(identity) = self.organizations.remove(&client) {
+    fn leave_organization(&mut self, client: u64, organization: Uuid) {
+        if let Some(follows) = self.follows.get_mut(&client) {
+            let left: Vec<Place> = follows
+                .keys()
+                .filter(|place| place.organization == organization)
+                .copied()
+                .collect();
+            for place in left {
+                follows.remove(&place);
+                unindex(&mut self.followers, place, client);
+            }
+        }
+        if let Some(follows) = self.log_follows.get_mut(&client) {
+            let left: Vec<Place> = follows
+                .iter()
+                .filter(|place| place.organization == organization)
+                .copied()
+                .collect();
+            for place in left {
+                follows.remove(&place);
+                unindex(&mut self.log_followers, place, client);
+            }
+        }
+        let identity = self
+            .organizations
+            .get_mut(&client)
+            .and_then(|joined| joined.remove(&organization));
+        if self
+            .organizations
+            .get(&client)
+            .is_some_and(HashMap::is_empty)
+        {
+            self.organizations.remove(&client);
+        }
+        if let Some(identity) = identity {
             unindex(&mut self.by_organization, identity.organization, client);
             unindex(
                 &mut self.by_member,
@@ -283,134 +262,231 @@ impl WatchHub {
         client
     }
 
-    /// Registers a listing before it is read, so nothing changed during the read is missed;
-    /// answers whether the connection did not already hold it, and refuses it once the
-    /// connection holds `MAX_LISTINGS_PER_CONNECTION`.
-    pub async fn list(&self, client: u64, listing: Listing) -> Result<bool, ServerError> {
+    /// Follows `place`, before the read that starts it, so nothing changed during the read is
+    /// missed; answers whether it did not follow it already. Refused once the connection
+    /// follows `MAX_FOLLOWS_PER_CONNECTION`, and while it does not work in the organization.
+    pub async fn follow(&self, client: u64, place: Place) -> Result<bool, ServerError> {
         let mut joined = self.joined.lock().await;
-        let interest = joined.interests.entry(client).or_default();
-        let new = interest.list(listing).ok_or_else(|| {
-            crate::limits::too_many(
-                "listings one connection holds; unlist some first",
-                MAX_LISTINGS_PER_CONNECTION,
-            )
-        })?;
-        interest.reading += 1;
+        if joined
+            .organizations
+            .get(&client)
+            .is_none_or(|organizations| !organizations.contains_key(&place.organization))
+        {
+            return Ok(false);
+        }
+        let follows = joined.follows.entry(client).or_default();
+        if !follows.contains_key(&place) && follows.len() >= MAX_FOLLOWS_PER_CONNECTION {
+            return Err(crate::limits::too_many(
+                "entry points one connection follows; unfollow some first",
+                MAX_FOLLOWS_PER_CONNECTION,
+            ));
+        }
+        let new = !follows.contains_key(&place);
+        follows.entry(place).or_default().outstanding = true;
+        joined.followers.entry(place).or_default().insert(client);
         Ok(new)
     }
 
-    /// A listing the store refused. One the connection held before stays as it was; a new one is
-    /// kept, and counted, up to `REFUSED_LISTINGS`.
-    pub async fn refused(&self, client: u64, listing: Listing, new: bool) {
+    /// Follows the signed log of `place`, before the read that starts it. Refused once the
+    /// connection follows `MAX_FOLLOWS_PER_CONNECTION` logs, and while it does not work in the
+    /// organization.
+    pub async fn follow_log(&self, client: u64, place: Place) -> Result<(), ServerError> {
         let mut joined = self.joined.lock().await;
-        let interest = joined.interests.entry(client).or_default();
-        interest.reading = interest.reading.saturating_sub(1);
-        if !new {
-            return;
+        if joined
+            .organizations
+            .get(&client)
+            .is_none_or(|organizations| !organizations.contains_key(&place.organization))
+        {
+            return Ok(());
         }
-        match interest.refused.len() < REFUSED_LISTINGS {
-            true => {
-                interest.refused.insert(listing);
-            }
-            false => {
-                interest.unlist(listing);
-            }
+        let follows = joined.log_follows.entry(client).or_default();
+        if !follows.contains(&place) && follows.len() >= MAX_FOLLOWS_PER_CONNECTION {
+            return Err(crate::limits::too_many(
+                "logs one connection follows; unfollow some first",
+                MAX_FOLLOWS_PER_CONNECTION,
+            ));
         }
+        follows.insert(place);
+        joined
+            .log_followers
+            .entry(place)
+            .or_default()
+            .insert(client);
+        Ok(())
     }
 
-    /// A page of a listing was read: `told` is what the connection is told of each of its
-    /// blocks.
-    pub(crate) async fn listed(&self, client: u64, listing: Listing, told: Vec<(Uuid, Facts)>) {
+    pub async fn unfollow_log(&self, client: u64, place: Place) {
         let mut joined = self.joined.lock().await;
-        let interest = joined.interests.entry(client).or_default();
-        interest.reading = interest.reading.saturating_sub(1);
-        interest.refused.remove(&listing);
-        for (block, facts) in told {
-            interest.told(block, facts);
+        if let Some(follows) = joined.log_follows.get_mut(&client) {
+            follows.remove(&place);
         }
+        unindex(&mut joined.log_followers, place, client);
     }
 
-    pub async fn unlist(&self, client: u64, listing: Listing) {
-        let mut joined = self.joined.lock().await;
-        let Some(interest) = joined.interests.get_mut(&client) else {
-            return;
-        };
-        interest.unlist(listing);
-        interest.refused.remove(&listing);
-        let known = std::mem::take(&mut interest.known);
-        interest.known = known
-            .into_iter()
-            .filter(|(block, facts)| interest.matches(*block, facts))
-            .collect();
-    }
-
-    pub async fn tell(&self, client: u64, message: Push, entry: bool) {
-        let told = {
-            let mut joined = self.joined.lock().await;
-            let interest = joined.interests.entry(client).or_default();
-            match &message {
-                Push::BlockChanged { block, .. } => {
-                    interest.told(block.id, Facts::of(block, entry))
-                }
-                Push::BlockRemoved { block, .. } => interest.known.remove(block).is_some(),
-                _ => true,
-            }
-        };
-        if told {
-            self.send_to(client, message).await;
-        }
-    }
-
-    /// The connections to `organization` already told of `block`, or reading a listing that may
-    /// hold it: the only ones a change that moves nothing but its head can reach, since it
-    /// leaves which listings match the block as they were. `tell` still matches the block
-    /// against each one's listings, so one reading something else costs a summary and no
-    /// message.
-    pub async fn knowing(&self, organization: Uuid, block: Uuid) -> Vec<(u64, Identity)> {
+    /// The connections following the signed log of `place`, with who each is there.
+    pub async fn log_followers(&self, place: Place) -> Vec<(u64, Identity)> {
         let joined = self.joined.lock().await;
         joined
-            .by_organization
-            .get(&organization)
+            .log_followers
+            .get(&place)
             .into_iter()
             .flatten()
-            .filter(|client| {
-                joined.interests.get(client).is_some_and(|interest| {
-                    interest.reading > 0 || interest.known.contains_key(&block)
-                })
-            })
-            .filter_map(|client| {
-                joined
-                    .organizations
-                    .get(client)
-                    .map(|identity| (*client, *identity))
-            })
+            .filter_map(|client| Some((*client, joined.identity(*client, place.organization)?)))
             .collect()
     }
 
-    pub async fn removed(&self, organization: Uuid, block: Uuid, revision: u64) {
-        let targets: Vec<u64> = {
-            let mut joined = self.joined.lock().await;
-            let clients: Vec<u64> = joined
-                .by_organization
-                .get(&organization)
-                .into_iter()
-                .flatten()
-                .copied()
-                .collect();
-            clients
-                .into_iter()
-                .filter(|client| {
-                    joined
-                        .interests
-                        .get_mut(client)
-                        .is_some_and(|interest| interest.known.remove(&block).is_some())
-                })
-                .collect()
-        };
-        let mut clients = self.clients.lock().await;
-        for target in targets {
-            deliver(&mut clients, target, Push::BlockRemoved { block, revision });
+    /// A read of the tree of `place` failed: the next change is told again, as after a read to
+    /// the end.
+    pub async fn unread(&self, client: u64, place: Place) {
+        let mut joined = self.joined.lock().await;
+        if let Some(told) = joined
+            .follows
+            .get_mut(&client)
+            .and_then(|follows| follows.get_mut(&place))
+        {
+            *told = Told {
+                read: told.read,
+                ..Told::default()
+            };
         }
+    }
+
+    /// `client` may no longer view `place`: it is told once more that the tree advanced, so
+    /// it reads it and is refused, and it follows the entry no longer.
+    pub async fn left(&self, client: u64, place: Place, sequence: u64) {
+        self.unfollow(client, place).await;
+        self.send_to(
+            client,
+            Push::TreeAdvanced {
+                organization: place.organization,
+                entry: place.block,
+                sequence,
+            },
+        )
+        .await;
+    }
+
+    pub async fn unfollow(&self, client: u64, place: Place) {
+        let mut joined = self.joined.lock().await;
+        if let Some(follows) = joined.follows.get_mut(&client) {
+            follows.remove(&place);
+        }
+        unindex(&mut joined.followers, place, client);
+    }
+
+    /// The connections following any of `blocks` in `organization`, with the block each
+    /// follows: those a change on the path of `blocks` may have to tell.
+    pub async fn followers(
+        &self,
+        organization: Uuid,
+        blocks: &[Uuid],
+    ) -> Vec<(u64, Identity, Uuid)> {
+        let joined = self.joined.lock().await;
+        let mut found = Vec::new();
+        for block in blocks {
+            let place = Place {
+                organization,
+                block: *block,
+            };
+            for client in joined.followers.get(&place).into_iter().flatten() {
+                if let Some(identity) = joined
+                    .organizations
+                    .get(client)
+                    .and_then(|organizations| organizations.get(&organization))
+                {
+                    found.push((*client, *identity, *block));
+                }
+            }
+        }
+        found
+    }
+
+    /// Tells `client` that the tree of `place` advanced to `sequence`, unless it was told
+    /// already and has not read it to the end since (`Told`).
+    pub async fn advance(&self, client: u64, place: Place, sequence: u64) {
+        let send = {
+            let mut joined = self.joined.lock().await;
+            let Some(told) = joined
+                .follows
+                .get_mut(&client)
+                .and_then(|follows| follows.get_mut(&place))
+            else {
+                return;
+            };
+            if sequence <= told.read {
+                return;
+            }
+            match told.outstanding {
+                true => {
+                    told.latest = Some(told.latest.unwrap_or_default().max(sequence));
+                    false
+                }
+                false => {
+                    told.outstanding = true;
+                    true
+                }
+            }
+        };
+        if send {
+            self.send_to(
+                client,
+                Push::TreeAdvanced {
+                    organization: place.organization,
+                    entry: place.block,
+                    sequence,
+                },
+            )
+            .await;
+        }
+    }
+
+    /// `client` read the tree of `place` to its end, as of `sequence`: told of anything since,
+    /// and otherwise told again of the next change. `sequence` and the one `advance` is given
+    /// are both the organization's `change_sequence`, read under the store's one database
+    /// connection, so a change at or before `sequence` is one the read took (`Told::read`).
+    pub async fn read(&self, client: u64, place: Place, sequence: u64) {
+        let send = {
+            let mut joined = self.joined.lock().await;
+            let Some(told) = joined
+                .follows
+                .get_mut(&client)
+                .and_then(|follows| follows.get_mut(&place))
+            else {
+                return;
+            };
+            told.read = told.read.max(sequence);
+            match told.latest.take().filter(|latest| *latest > sequence) {
+                Some(latest) => Some(latest),
+                None => {
+                    told.outstanding = false;
+                    None
+                }
+            }
+        };
+        if let Some(sequence) = send {
+            self.send_to(
+                client,
+                Push::TreeAdvanced {
+                    organization: place.organization,
+                    entry: place.block,
+                    sequence,
+                },
+            )
+            .await;
+        }
+    }
+
+    /// Tells the connections of `accounts` in `organization`, and its administrators', that
+    /// their roots may have changed.
+    pub async fn roots(&self, organization: Uuid, accounts: &BTreeSet<Uuid>) {
+        let clients: Vec<u64> = self
+            .audience(organization, accounts)
+            .await
+            .into_iter()
+            .map(|(client, _)| client)
+            .collect();
+        self.send_every(&clients, &Push::Roots { organization })
+            .await;
     }
 
     pub async fn join_account(&self, client: u64, account: Uuid) {
@@ -453,26 +529,74 @@ impl WatchHub {
         sent
     }
 
+    /// `client` works in `identity.organization` as `identity` from now: it named the
+    /// organization in a call it was let make. Joining again takes a changed role.
     pub async fn join_organization(&self, client: u64, identity: Identity) {
         let mut joined = self.joined.lock().await;
-        joined.leave_organization(client);
-        joined.organizations.insert(client, identity);
+        let organization = identity.organization;
+        if joined
+            .organizations
+            .get(&client)
+            .and_then(|organizations| organizations.get(&organization))
+            .is_some_and(|held| held.role != identity.role)
+        {
+            unindex(&mut joined.administrators, organization, client);
+        }
+        joined
+            .organizations
+            .entry(client)
+            .or_default()
+            .insert(organization, identity);
         joined
             .by_organization
-            .entry(identity.organization)
+            .entry(organization)
             .or_default()
             .insert(client);
         joined
             .by_member
-            .entry((identity.organization, identity.account))
+            .entry((organization, identity.account))
             .or_default()
             .insert(client);
         if identity.role == OrganizationRole::Administrator {
             joined
                 .administrators
-                .entry(identity.organization)
+                .entry(organization)
                 .or_default()
                 .insert(client);
+        }
+    }
+
+    /// `account`'s role in `organization` changed: every connection of it there is who it is
+    /// now, so the next call each makes is admitted by the new role.
+    pub async fn set_role(&self, organization: Uuid, account: Uuid, role: OrganizationRole) {
+        let mut joined = self.joined.lock().await;
+        let clients: Vec<u64> = joined
+            .by_member
+            .get(&(organization, account))
+            .into_iter()
+            .flatten()
+            .copied()
+            .collect();
+        for client in clients {
+            if let Some(identity) = joined
+                .organizations
+                .get_mut(&client)
+                .and_then(|organizations| organizations.get_mut(&organization))
+            {
+                identity.role = role;
+            }
+            match role {
+                OrganizationRole::Administrator => {
+                    joined
+                        .administrators
+                        .entry(organization)
+                        .or_default()
+                        .insert(client);
+                }
+                OrganizationRole::Editor | OrganizationRole::Guest => {
+                    unindex(&mut joined.administrators, organization, client);
+                }
+            }
         }
     }
 
@@ -501,17 +625,13 @@ impl WatchHub {
         }
         clients
             .into_iter()
-            .filter_map(|client| {
-                joined
-                    .organizations
-                    .get(&client)
-                    .map(|identity| (client, *identity))
-            })
+            .filter_map(|client| Some((client, joined.identity(client, organization)?)))
             .collect()
     }
 
-    pub async fn identity(&self, client: u64) -> Option<Identity> {
-        self.joined.lock().await.organizations.get(&client).copied()
+    /// Who `client` is in `organization`, once it works there.
+    pub async fn identity(&self, client: u64, organization: Uuid) -> Option<Identity> {
+        self.joined.lock().await.identity(client, organization)
     }
 
     pub async fn clients_of(&self, organization: Uuid, account: Uuid) -> Vec<(u64, Identity)> {
@@ -521,12 +641,7 @@ impl WatchHub {
             .get(&(organization, account))
             .into_iter()
             .flatten()
-            .filter_map(|client| {
-                joined
-                    .organizations
-                    .get(client)
-                    .map(|identity| (*client, *identity))
-            })
+            .filter_map(|client| Some((*client, joined.identity(*client, organization)?)))
             .collect()
     }
 
@@ -557,7 +672,7 @@ impl WatchHub {
                 .copied()
                 .collect();
             for client in &clients {
-                joined.leave_organization(*client);
+                joined.leave_organization(*client, organization);
             }
             clients
         };
@@ -588,13 +703,20 @@ impl WatchHub {
         {
             let mut joined = self.joined.lock().await;
             joined.leave_account(client);
-            joined.interests.remove(&client);
         }
         self.clients.lock().await.remove(&client);
     }
 
     pub async fn send_to(&self, client: u64, message: Push) {
         deliver(&mut *self.clients.lock().await, client, message);
+    }
+
+    /// Sends `message` to each of `clients`, the sender among them.
+    pub async fn send_every(&self, clients: &[u64], message: &Push) {
+        let mut senders = self.clients.lock().await;
+        for client in clients {
+            deliver(&mut senders, *client, message.clone());
+        }
     }
 
     pub async fn send_all(&self, clients: &[u64], from: u64, message: &Push) {

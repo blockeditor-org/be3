@@ -17,7 +17,7 @@ pub struct PopupTriggerHandle {
 pub fn PopupTrigger(
     open: Binding<bool>,
     popup: HasPopup,
-    content: Render<PopupTriggerHandle>,
+    content: Render<PopupTriggerHandle, NodeId>,
     #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = None)] glyph: Prop<Option<Glyph>>,
     #[prop(default = false)] icon_only: Prop<bool>,

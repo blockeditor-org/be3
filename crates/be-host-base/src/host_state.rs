@@ -3,9 +3,11 @@ use std::fmt;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-mod native;
+mod kept;
+mod store;
 
-pub use native::HostStateStore;
+pub use kept::{Keeper, Write};
+pub use store::{Held, HostStateStore};
 
 #[derive(Clone, Debug)]
 pub struct HostStateError(String);
@@ -37,6 +39,15 @@ pub enum ServerLocation {
 }
 
 impl ServerLocation {
+    /// The server's address: none for a local account, which has no server
+    /// (guides/hosting.md, Local accounts and the default server).
+    pub fn url(&self) -> String {
+        match self {
+            Self::Local => String::new(),
+            Self::Remote(url) => url.clone(),
+        }
+    }
+
     pub fn key(&self) -> &str {
         match self {
             Self::Local => "local",
@@ -45,7 +56,7 @@ impl ServerLocation {
     }
 }
 
-#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
+#[derive(Clone, Deserialize, PartialEq, Eq, Serialize)]
 pub struct SavedAccount {
     pub server: ServerLocation,
     pub id: Uuid,
@@ -56,6 +67,22 @@ pub struct SavedAccount {
     pub last_organization_id: Option<Uuid>,
     #[serde(default)]
     pub authorization: Option<String>,
+}
+
+/// Leaves out the token and authorization, so no log ever holds them.
+impl std::fmt::Debug for SavedAccount {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("SavedAccount")
+            .field("server", &self.server)
+            .field("id", &self.id)
+            .field("email", &self.email)
+            .field("name", &self.name)
+            .field("token", &"..")
+            .field("last_organization_id", &self.last_organization_id)
+            .field("authorization", &self.authorization.as_ref().map(|_| ".."))
+            .finish()
+    }
 }
 
 #[cfg(all(test, not(target_arch = "wasm32")))]

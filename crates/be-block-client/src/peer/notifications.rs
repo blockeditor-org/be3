@@ -4,9 +4,7 @@
 
 use be_block_commit::now_milliseconds;
 use be_block_content::Announcement;
-use be_block_protocol::{
-    BlockNotifyMode, MAX_NOTIFICATION_BYTES, NotifyMode, PushEndpoint, PushMessage, client,
-};
+use be_block_protocol::{BlockMute, MAX_NOTIFICATION_BYTES, NotifyMode, PushEndpoint, PushMessage};
 use be_block_store::ObjectStore;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -64,7 +62,7 @@ fn cut(text: &str, bytes: usize) -> &str {
 }
 
 impl Notification {
-    fn encode(&self) -> Vec<u8> {
+    pub(crate) fn encode(&self) -> Vec<u8> {
         let cut = Notification {
             text: cut(&self.text, MAX_NOTIFICATION_TEXT).to_owned(),
             ..self.clone()
@@ -101,7 +99,17 @@ impl<S: ObjectStore> Peer<S> {
             text: text.to_owned(),
         };
         let sealed = self.seal_notification(&notification).await?;
-        client::notifications::notify(&self.connection(), block, sealed, mentions, keys).await??;
+        be_block_protocol::client::server::send(
+            &self.connection(),
+            Some(self.organization),
+            be_block_protocol::Target::Push {
+                block: block,
+                mentions: mentions,
+                keys: keys,
+            },
+            sealed,
+        )
+        .await??;
         Ok(())
     }
 
@@ -232,7 +240,7 @@ impl<S: ObjectStore> Peer<S> {
         message: &PushMessage,
         now: i64,
     ) -> Result<OpenedNotification, ClientError> {
-        let notification = Notification::decode(&self.commits.vault().open(&message.sealed)?)?;
+        let notification = Notification::decode(&self.open_for(message.block, &message.sealed)?)?;
         if notification.organization != message.organization {
             return Err(ClientError::Encoding(
                 "the notification was sealed about another organization".into(),
@@ -264,27 +272,61 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     /// The blocks whose mode the account set to other than `all`.
-    pub async fn notify_modes(&self) -> Result<Vec<BlockNotifyMode>, ClientError> {
-        Ok(client::notifications::notify_modes(&self.connection()).await??)
+    pub async fn mutes(&self) -> Result<Vec<BlockMute>, ClientError> {
+        Ok(
+            be_block_protocol::read::<Vec<be_block_protocol::BlockMute>, _>(
+                &self.connection(),
+                Some(self.organization),
+                be_block_protocol::Query::Mutes,
+            )
+            .await??,
+        )
     }
 
-    pub async fn set_notify_mode(&self, block: Uuid, mode: NotifyMode) -> Result<(), ClientError> {
-        client::notifications::set_notify_mode(&self.connection(), block, mode).await??;
+    pub async fn set_mute(&self, block: Uuid, mode: NotifyMode) -> Result<(), ClientError> {
+        be_block_protocol::write::<(), _>(
+            &self.connection(),
+            Some(self.organization),
+            be_block_protocol::Op::SetMute {
+                block: block,
+                mode: mode,
+            },
+        )
+        .await??;
         Ok(())
     }
 
     /// The server's VAPID public key, which a browser subscribes with.
     pub async fn push_key(&self) -> Result<Vec<u8>, ClientError> {
-        Ok(client::notifications::push_key(&self.connection()).await??)
+        let info = be_block_protocol::read::<be_block_protocol::ServerInfo, _>(
+            &self.connection(),
+            None,
+            be_block_protocol::Query::ServerInfo,
+        );
+        Ok(info.await??.push_key)
     }
 
     pub async fn register_endpoint(&self, endpoint: PushEndpoint) -> Result<(), ClientError> {
-        client::notifications::register_endpoint(&self.connection(), endpoint).await??;
+        be_block_protocol::write::<(), _>(
+            &self.connection(),
+            Some(self.organization),
+            be_block_protocol::Op::SetPushEndpoint(
+                be_block_protocol::PushEndpointChange::Register(endpoint),
+            ),
+        )
+        .await??;
         Ok(())
     }
 
     pub async fn unregister_endpoint(&self, address: String) -> Result<(), ClientError> {
-        client::notifications::unregister_endpoint(&self.connection(), address).await??;
+        be_block_protocol::write::<(), _>(
+            &self.connection(),
+            Some(self.organization),
+            be_block_protocol::Op::SetPushEndpoint(be_block_protocol::PushEndpointChange::Forget(
+                address,
+            )),
+        )
+        .await??;
         Ok(())
     }
 }

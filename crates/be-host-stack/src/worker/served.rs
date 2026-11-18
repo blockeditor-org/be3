@@ -18,11 +18,11 @@ use std::{
     sync::{Arc, PoisonError},
 };
 
-use be_wasm_threads::Mutex;
+use std::sync::Mutex;
 use uuid::Uuid;
 
 use super::{Command, Peer, Shared, Store, Tasks};
-use crate::version::{Context, LoopCalls, Reach, Versions};
+use crate::version::{Context, LoopCalls, Objects, Reach, Versions};
 
 #[derive(Default)]
 pub(super) struct Served {
@@ -34,9 +34,16 @@ pub(super) struct Served {
     holding: Rc<RefCell<HashMap<Uuid, usize>>>,
     /// Commands for the loop that wait (see the module's doc).
     deferred: Rc<RefCell<VecDeque<Command>>>,
+    /// The trees and commits the loop's statuses and the lane's version commands share.
+    objects: Objects,
 }
 
 impl Served {
+    /// The trees and commits each version command reads and writes, for the loop's `Versions`.
+    pub(super) fn objects(&self) -> Objects {
+        self.objects.clone()
+    }
+
     /// Hands `command` to the lane; it counts as unsynced (`Shared::serving`) until it ends.
     pub(super) fn start(
         &mut self,
@@ -67,18 +74,19 @@ impl Served {
         block: Uuid,
         command: be_sdk_api::VersionCommand,
     ) {
-        let (peer, shared, served_tasks, calls) = (
+        let (peer, shared, served_tasks, calls, objects) = (
             Arc::clone(peer),
             Arc::clone(shared),
             tasks.clone(),
             calls.clone(),
+            self.objects.clone(),
         );
         // The busy flag set by `Ran::version` lives in this stack's `Shared`: a task dropped
         // with the stack (stopped or restarted) cannot leave it set on the next, which starts
         // from a fresh `Shared`.
         self.run(&shared.clone(), tasks, vec![block], async move {
             served_tasks.sent(&peer, &shared, None).await;
-            let outcome = Versions::default()
+            let outcome = Versions::sharing(objects)
                 .run(
                     &mut Context {
                         peer: &peer,
@@ -136,7 +144,7 @@ impl Served {
                 .lock()
                 .unwrap_or_else(PoisonError::into_inner)
                 .serving -= 1;
-            be_host_base::host::wake();
+            crate::changes::wake();
         });
     }
 

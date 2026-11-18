@@ -39,7 +39,8 @@ fn a_file_still_duplicates_and_exports_though_it_saves_in_parts() {
         shared.graph.get(block).is_some()
     });
     // A file's `encode` is all of it, so a copy through bytes loses nothing and is not refused.
-    let (copy, _) = duplicate(block).expect("the file is in the graph");
+    let copy = Uuid::now_v7();
+    duplicate(block, copy).expect("the file is in the graph");
     ask_for(vec![Query::Block(copy)]);
     wait_until("the copy holds the file", |shared| {
         shared

@@ -1,10 +1,13 @@
+use crate::reactive::BuildFn;
 use crate::reactive::Callback;
 use crate::reactive::NodeId;
 use crate::reactive::NodeRef;
 use crate::reactive::OverlayAnchor;
 use crate::reactive::Prop;
-use crate::reactive::RenderFn;
-use crate::reactive::{Get, Memo, Set, Signal, create_memo, create_signal, use_context};
+use crate::reactive::{
+    Get, Memo, Set, Signal, StoredCell, create_effect, create_memo, create_signal, on_cleanup,
+    provide_context, untrack, use_context,
+};
 use crate::types::Color;
 use crate::types::Dismiss;
 use crate::types::LayerLevel;
@@ -18,7 +21,7 @@ use beui_macros::component;
 #[component]
 pub fn Overlay(
     anchor: Prop<OverlayAnchor>,
-    #[prop(default = Placement::BelowStart)] placement: Prop<Placement>,
+    #[prop(default = Placement::BELOW_START)] placement: Prop<Placement>,
     #[prop(default = None)] bounds: Prop<Option<Rect>>,
     #[prop(default = Color::TRANSPARENT)] scrim: Prop<Color>,
     #[prop(default = 0.0)] scrim_radius: Prop<f32>,
@@ -26,19 +29,25 @@ pub fn Overlay(
     #[prop(default = LayerLevel::Normal)] level: Prop<LayerLevel>,
     #[prop(default = true)] traps_focus: Prop<bool>,
     #[prop(default = None)] shown_in: Prop<Option<WindowId>>,
-    trigger: Option<NodeRef>,
+    #[prop(default = None)] trigger: Prop<Option<NodeRef>>,
     pointer: Option<NodeRef>,
     #[prop(default = 0.0)] beak: Prop<f32>,
     #[prop(default = None)] window: Prop<Option<WindowSpec>>,
     open: Prop<bool>,
-    #[prop(default = false)] keep_alive: bool,
     #[prop(default = true)] dismissable: Prop<bool>,
     on_dismiss: Callback<Dismiss>,
-    #[prop(children)] content: RenderFn<()>,
+    #[prop(children)] content: BuildFn<NodeId>,
 ) -> NodeId {
     let blocks = policy.clone();
+    let open = create_memo(move || open.get());
+    if let Some(within) = use_context::<OverlaysWithin>() {
+        let takes_input = policy.clone();
+        within.follow(create_memo(move || {
+            open.get() && takes_input.get() != LayerPolicy::Inert
+        }));
+    }
     let presence = OverlayPresence::new(
-        create_memo(move || open.get()),
+        open,
         create_memo(move || blocks.get() == LayerPolicy::BlocksAll),
     );
     crate::core::overlay(
@@ -55,12 +64,57 @@ pub fn Overlay(
         pointer,
         beak,
         window,
-        keep_alive,
         dismissable,
         on_dismiss,
         presence,
         content,
     )
+}
+
+/// Hears whether any overlay opened beneath where it is provided is open, other than an
+/// `Inert` one (a tooltip): whatever provides it can then stay put while a menu or popover opened
+/// from inside it is up, as a dock's hidden band stays out while a bar in it has one open. One
+/// made inside another's reach counts as one open overlay in it while any of its own is open, so
+/// the outer one hears everything beneath it however they nest.
+#[derive(Clone, Copy)]
+pub struct OverlaysWithin(Signal<usize>);
+
+impl OverlaysWithin {
+    pub fn new() -> Self {
+        let within = Self(create_signal(0));
+        if let Some(outer) = use_context::<Self>() {
+            outer.follow(create_memo(move || within.any()));
+        }
+        within
+    }
+
+    /// Whether one is open, tracked.
+    pub fn any(self) -> bool {
+        self.0.get() > 0
+    }
+
+    fn follow(self, open: Memo<bool>) {
+        let counted = StoredCell::new(false);
+        let count = move |open: bool| {
+            if counted.replace(open) != open && self.0.is_alive() {
+                self.0.update(|count| match open {
+                    true => *count += 1,
+                    false => *count = count.saturating_sub(1),
+                });
+            }
+        };
+        create_effect(move || {
+            let open = open.get();
+            untrack(|| count(open));
+        });
+        on_cleanup(move || count(false));
+    }
+}
+
+impl Default for OverlaysWithin {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -98,6 +152,14 @@ impl OverlayPresence {
 
     pub fn open(self) -> Memo<bool> {
         self.open
+    }
+
+    /// Provides this presence, and whether it is modal, to what is built in it: what an
+    /// overlay's content reads, for a `Kept` inside the content to carry into its kept
+    /// subtree, which reads only the context around its `KeepAlive`.
+    pub fn provide(self) {
+        provide_context(self);
+        provide_context(self.modality());
     }
 
     pub fn linger_while(self, showing: Memo<bool>) {

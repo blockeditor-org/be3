@@ -1,4 +1,4 @@
-use be_block_commit::retention::DAY;
+use be_block_commit::DAY;
 use be_block_commit::{CommitId, CommitSummary, plan_retention};
 
 use super::*;

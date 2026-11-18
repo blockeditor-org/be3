@@ -9,15 +9,10 @@ use std::{
 use be_block_store::{Hash, ObjectStore};
 
 use crate::objects::{BucketConfig, Objects};
-use chacha20poly1305::{
-    ChaCha20Poly1305, Key, Nonce,
-    aead::{Aead, KeyInit},
-};
-use rand::TryRngCore;
+use be_block_keys::aead;
 use rusqlite::Connection;
 
-const SEALED_MAGIC: &[u8] = b"be3-backup-v1";
-const NONCE_LEN: usize = 12;
+const SEALED_MAGIC: &[u8] = b"be3-backup-v2";
 const DATABASES: &str = "databases";
 const OBJECTS: &str = "objects";
 /// Objects read from the server's store in one `Objects::get_many`.
@@ -246,11 +241,7 @@ pub struct BackupKey([u8; 32]);
 
 impl BackupKey {
     pub fn generate() -> Self {
-        let mut key = [0u8; 32];
-        rand::rngs::OsRng
-            .try_fill_bytes(&mut key)
-            .expect("the operating system has entropy");
-        Self(key)
+        Self(crate::new_secret_bytes())
     }
 
     pub fn to_hex(&self) -> String {
@@ -263,29 +254,28 @@ impl BackupKey {
             .ok_or(BackupError::Key)
     }
 
-    fn cipher(&self) -> ChaCha20Poly1305 {
-        ChaCha20Poly1305::new(Key::from_slice(&self.0))
-    }
-
-    fn seal(&self, plain: &[u8]) -> Vec<u8> {
-        let mut nonce = [0u8; NONCE_LEN];
-        rand::rngs::OsRng
-            .try_fill_bytes(&mut nonce)
-            .expect("the operating system has entropy");
-        let ciphertext = self
-            .cipher()
-            .encrypt(Nonce::from_slice(&nonce), plain)
-            .expect("chacha20poly1305 never fails on a valid key and nonce");
+    /// The snapshot `name`d by its time, sealed for a backup (`be_block_keys::aead`):
+    /// `SEALED_MAGIC`, a random nonce, then the ciphertext, which authenticates the magic and
+    /// the name, so an older snapshot renamed to look newer opens nothing.
+    fn seal(&self, name: &str, plain: &[u8]) -> Vec<u8> {
+        let nonce = aead::random_nonce();
+        let ciphertext = aead::seal(&self.0, &nonce, &associated(name), plain);
         [SEALED_MAGIC, &nonce, &ciphertext].concat()
     }
 
-    fn open(&self, sealed: &[u8]) -> Result<Vec<u8>, BackupError> {
+    fn open(&self, name: &str, sealed: &[u8]) -> Result<Vec<u8>, BackupError> {
         let rest = sealed.strip_prefix(SEALED_MAGIC).ok_or(BackupError::Key)?;
-        let (nonce, ciphertext) = rest.split_at_checked(NONCE_LEN).ok_or(BackupError::Key)?;
-        self.cipher()
-            .decrypt(Nonce::from_slice(nonce), ciphertext)
-            .map_err(|_| BackupError::Key)
+        let (nonce, ciphertext) = rest
+            .split_at_checked(aead::NONCE_LEN)
+            .ok_or(BackupError::Key)?;
+        let nonce: aead::Nonce = nonce.try_into().map_err(|_| BackupError::Key)?;
+        aead::open(&self.0, &nonce, &associated(name), ciphertext).map_err(|_| BackupError::Key)
     }
+}
+
+/// What a snapshot's seal binds beside its bytes: the magic and the snapshot's name, its time.
+fn associated(name: &str) -> Vec<u8> {
+    [SEALED_MAGIC, name.as_bytes()].concat()
 }
 
 #[derive(Debug, Default, Eq, PartialEq)]
@@ -346,7 +336,7 @@ pub fn backup(
 
     let seconds = now.duration_since(UNIX_EPOCH).unwrap_or_default().as_secs();
     let name = format!("{}.sealed", timestamp(seconds));
-    target.put(&format!("{DATABASES}/{name}"), &key.seal(&snapshot))?;
+    target.put(&format!("{DATABASES}/{name}"), &key.seal(&name, &snapshot))?;
     let pruned = prune(target, seconds)?;
     Ok(BackupReport {
         snapshot: name,
@@ -428,7 +418,7 @@ pub fn restore(
     let sealed = target
         .get(&format!("{DATABASES}/{name}"))?
         .ok_or_else(|| BackupError::Missing(format!("snapshot {name}")))?;
-    let database = key.open(&sealed)?;
+    let database = key.open(&name, &sealed)?;
     fs::create_dir_all(data_dir)?;
     let objects = Objects::open(data_dir, bucket)?;
     let staging = data_dir.join("restoring.sqlite");

@@ -7,11 +7,14 @@ interface organizations {
         organization-role, public-key,
     };
 
+    /// An organization the account is a member of: its role there, and the
+    /// organization's escrow chain.
     record organization {
         id: organization-id,
         name: string,
         kind: organization-kind,
         role: organization-role,
+        escrows: list<escrow-key>,
     }
 
     /// The server's own account, which blocks shared with the server are
@@ -21,34 +24,20 @@ interface organizations {
         public: public-key,
     }
 
-    /// An organization this connection now works in: the caller's role, the
-    /// escrow chain, and the escrow key the caller pinned, sealed to itself
-    /// (empty when none).
-    record organization-opened {
-        organization: organization-id,
-        /// This connection, as `block-changed.from`, pairing and sessions name
-        /// it.
-        client: client-id,
-        role: organization-role,
-        kind: organization-kind,
-        escrows: list<escrow-key>,
-        pinned: list<u8>,
+    /// What `server-info` answers: the server's own account, its VAPID public
+    /// key (RFC 8292, uncompressed P-256) a browser subscribes to pushes with,
+    /// whether it sends pushes through FCM (it was started with credentials;
+    /// without, a device registers only a Web Push endpoint), and its clock
+    /// when it answered, in milliseconds since the epoch: a client stamps its
+    /// commits no later than it plus a little, so the server takes them however
+    /// fast the client's own clock runs.
+    record server-info {
         server: server-account,
-        /// The server's clock when it answered, in milliseconds since the epoch: a client
-        /// stamps its commits no later than it plus a little, so the server takes them
-        /// however fast the client's own clock runs.
+        push-key: list<u8>,
+        offers-fcm: bool,
         time: s64,
     }
 
-    list-organizations: async func() -> result<list<organization>, error>;
-
-    /// Makes a company organization with the caller as its administrator.
-    create-organization: async func(name: string) -> result<organization, error>;
-
-    /// Makes `organization` the one every later block, key and member call
-    /// of this connection works in, and starts over what the connection
-    /// listed.
-    open-organization: async func(organization: organization-id) -> result<organization-opened, error>;
 }
 
 /// The members and agents of the organization this connection opened, or of
@@ -80,34 +69,11 @@ interface members {
         token: string,
     }
 
-    /// The members of the organization open: every one, to an
-    /// administrator; to anyone else, the agents it made.
-    list-members: async func() -> result<list<member>, error>;
+    /// A block's agent's block, and the grant of Edit on it to the agent
+    /// that its creator signed (be_block_keys::Grant).
+    record bound-agent {
+        block: block-id,
+        signed: list<u8>,
+    }
 
-    set-role: async func(account: account-id, role: organization-role) -> result<_, error>;
-
-    /// Removes a member of the organization open: any, by an administrator;
-    /// an agent, by the account that made it (a block's agent, only while it
-    /// manages the block). An agent removed is deleted, with what it was
-    /// granted and what was sealed to it.
-    remove-member: async func(account: account-id) -> result<_, error>;
-
-    /// Makes an agent account in `organization` with the recovery key
-    /// `recovery` and the signing key `signing` derived with it, a contact card for the caller, and its escrow key sealed
-    /// for it. With `bound-to`, which needs Manage on that block, the agent
-    /// is granted Edit on it and reaches nothing else: it is a block's agent
-    /// (`member.bound-to`), removed with its grant or its block.
-    create-agent: async func(
-        organization: organization-id,
-        name: string,
-        recovery: public-key,
-        signing: public-key,
-        contact: list<u8>,
-        escrow: list<u8>,
-        bound-to: option<block-id>,
-    ) -> result<created-agent, error>;
-
-    /// A new token for an agent the caller made; every older one stops
-    /// signing it in, and its connections close.
-    rotate-agent-token: async func(organization: organization-id, account: account-id) -> result<string, error>;
 }

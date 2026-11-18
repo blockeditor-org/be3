@@ -113,7 +113,7 @@ fn VideoEditor(editor: Editor) -> NodeId {
                     </DockTab>
                 </DockPane>
             </DockSplit>
-            <Show condition={chrome}>
+            <Show value={chrome}>
                 <DockBar
                     id=FRAME_RATE_BAR
                     parent=PLAYER
@@ -164,11 +164,7 @@ fn EffectsColumn(state: VideoState) -> NodeId {
 #[component]
 fn FrameRateBar(state: VideoState) -> NodeId {
     let rate = state.frame_rate;
-    let chosen = create_memo(move || {
-        FRAME_RATES
-            .into_iter()
-            .position(|option| option == rate.get())
-    });
+    let chosen = create_memo(move || Some(rate.get()));
     let options = (0..FRAME_RATES.len()).collect::<Vec<usize>>();
     view! {
         <DockBarSurface spacing=Space::Sm @test_id={"video.frame-rate-bar"}>
@@ -177,16 +173,17 @@ fn FrameRateBar(state: VideoState) -> NodeId {
             </Frame>
             <Select
                 options={view! {
-                    <ForEach keys={options}>|index: usize|
-                        <ChoiceOption label={frame_rate_label(FRAME_RATES[index])} />
+                    <ForEach value={options}>|index: usize|
+                        <ChoiceOption
+                            value={FRAME_RATES[index]}
+                            label={frame_rate_label(FRAME_RATES[index])}
+                        />
                     </ForEach>
                 }}
-                selected={Binding::new(chosen, move |index: Option<usize>| {
-                    let Some(frame_rate) = index.and_then(|index| FRAME_RATES.get(index).copied())
-                    else {
-                        return;
-                    };
-                    state.operate(VideoOperation::SetFrameRate { frame_rate });
+                selected={Binding::new(chosen, move |frame_rate: Option<_>| {
+                    if let Some(frame_rate) = frame_rate {
+                        state.operate(VideoOperation::SetFrameRate { frame_rate });
+                    }
                 })}
                 label="Frames per second"
                 @test_id={"video.frame-rate"}
@@ -198,11 +195,6 @@ fn FrameRateBar(state: VideoState) -> NodeId {
 #[component]
 fn PlaybackBar(state: VideoState) -> NodeId {
     let playing = state.playing;
-    let empty = create_memo(move || state.duration.get() == 0);
-    let glyph = create_memo(move || match playing.get() {
-        true => ICON_PAUSE,
-        false => ICON_PLAY,
-    });
     let playhead = state.playhead;
     let duration = state.duration;
     let rate = state.frame_rate;
@@ -226,9 +218,12 @@ fn PlaybackBar(state: VideoState) -> NodeId {
             />
             <Button
                 icon_only=true
-                glyph={glyph}
+                glyph={move || match playing.get() {
+                    true => ICON_PAUSE,
+                    false => ICON_PLAY,
+                }}
                 label="Play"
-                disabled={empty}
+                disabled={move || state.duration.get() == 0}
                 @test_id={"video.play"}
                 on_click={move || state.toggle_playback()}
             />
@@ -247,10 +242,10 @@ fn PlaybackBar(state: VideoState) -> NodeId {
 fn TimelineTools(state: VideoState) -> NodeId {
     let none = create_memo(move || state.selected.get().is_none());
     let bar = use_dock_bar();
-    let across = create_memo(move || match bar.map(|bar| bar.direction()) {
+    let across = move || match bar.map(|bar| bar.direction()) {
         Some(Direction::Vertical) => Direction::Horizontal,
         _ => Direction::Vertical,
-    });
+    };
     view! {
         <DockBarSurface spacing=Space::Sm @test_id={"video.timeline-tools"}>
             <Frame @test_id={"video.timeline-tools.grip"}>
@@ -300,6 +295,7 @@ fn TimelineTools(state: VideoState) -> NodeId {
                 icon_only=true
                 glyph=ICON_ZOOM_IN
                 label="Zoom the timeline in"
+                @test_id={"video.zoom_in"}
                 on_click={move || state.zoom_timeline(ZOOM_STEP)}
             />
             <Button

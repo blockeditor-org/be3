@@ -1,7 +1,10 @@
 use be_lib_geometry::{Pos2, Rect, Vec2};
 
-use crate::input::{Modifiers, PointerPress};
+use crate::input::{Modifiers, PointerId, PointerPress};
 use crate::window::WindowId;
+
+mod spec;
+pub use spec::*;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct DragPoint {
@@ -12,6 +15,8 @@ pub struct DragPoint {
     pub fraction: Vec2,
     pub modifiers: Modifiers,
     pub item: Rect,
+    /// Which pointer carries: a board follows one carry per pointer.
+    pub pointer: PointerId,
 }
 
 impl DragPoint {
@@ -24,6 +29,7 @@ impl DragPoint {
             fraction: press.fraction,
             modifiers: press.modifiers,
             item: Rect::ZERO,
+            pointer: press.pointer,
         }
     }
 
@@ -36,7 +42,12 @@ impl DragPoint {
             fraction: Vec2::ZERO,
             modifiers,
             item: Rect::ZERO,
+            pointer: PointerId::Mouse,
         }
+    }
+
+    pub fn by(self, pointer: PointerId) -> Self {
+        Self { pointer, ..self }
     }
 
     pub fn in_window(self, window: WindowId) -> Self {
@@ -64,93 +75,36 @@ impl DragPoint {
     }
 }
 
-pub type Accepts = std::rc::Rc<dyn Fn(&dyn std::any::Any) -> bool>;
-pub type Dropped = std::rc::Rc<dyn Fn(&dyn std::any::Any, DragPoint)>;
-pub type Over = std::rc::Rc<dyn Fn(Option<(&dyn std::any::Any, DragPoint)>)>;
-pub type Pending = std::rc::Rc<dyn Fn(DragPoint)>;
-pub type Outside = std::rc::Rc<dyn Fn(DragPoint)>;
-
-/// What a target does with a carried item at a point.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum Take {
-    /// It is the target there and takes the drop.
-    Drop,
-    /// It is the target there, so it hears the item over it and can show it is refused, but a
-    /// release ends the drag as nothing taking it: the source hears `cancelled`.
-    Refuse,
-    /// It lets the point through to the target beneath, as if it were not there.
-    Pass,
-}
-
-/// A place a carried item may be dropped. `accepts` says which payloads it takes at all,
-/// `takes` what it does with one at a point (`Take`), and `holds` names the payloads it keeps wherever the pointer is when no other target
-/// accepts them. `hides_preview` asks the source to show the item in place, not floating.
-pub struct Target {
-    pub id: u64,
-    pub node: crate::node::NodeRef,
-    pub accepts: Accepts,
-    pub takes: std::rc::Rc<dyn Fn(DragPoint) -> Take>,
-    pub carrying: std::rc::Rc<dyn Fn(bool)>,
-    pub over: Over,
-    pub dropped: Dropped,
-    pub hides_preview: std::rc::Rc<dyn Fn() -> bool>,
-    pub holds: Accepts,
-}
-
-/// What a drag carries and who hears how it goes: `follow` every point, `floating` when
-/// the item leaves for or comes back from the floating preview, `outside` a release
-/// outside every window, `cancelled` an end nothing took, `dropped` a target taking it.
-/// `item` is the carried item's rect relative to the pointer.
-pub struct DragSource {
-    pub payload: std::rc::Rc<dyn std::any::Any>,
-    pub item: Rect,
-    pub follow: std::rc::Rc<dyn Fn(DragPoint)>,
-    pub floating: std::rc::Rc<dyn Fn(bool)>,
-    pub outside: Outside,
-    pub cancelled: std::rc::Rc<dyn Fn()>,
-    pub dropped: std::rc::Rc<dyn Fn()>,
-}
-
-impl DragSource {
-    pub fn new(payload: std::rc::Rc<dyn std::any::Any>) -> Self {
-        Self {
-            payload,
-            item: Rect::ZERO,
-            follow: std::rc::Rc::new(|_| {}),
-            floating: std::rc::Rc::new(|_| {}),
-            outside: std::rc::Rc::new(|_| {}),
-            cancelled: std::rc::Rc::new(|| {}),
-            dropped: std::rc::Rc::new(|| {}),
-        }
-    }
-}
-
 /// How far from a scroller's edge a carried item starts scrolling it.
 pub const EDGE_BAND: f32 = 40.0;
 
 /// A scroll area a carried item scrolls while it is held near an edge: `scroll` hears how
-/// far into the band the pointer is (negative toward the start), or None when it stops.
+/// far into the band the pointer is along each axis (negative toward the start), or None
+/// when it stops. `movable` says which ways it can move now, along x and then y, toward the
+/// start and toward the end: a list scrolls along one axis, a canvas's world along both.
 pub struct EdgeScroller {
     pub id: u64,
     pub node: crate::node::NodeRef,
-    pub axis: std::rc::Rc<dyn Fn() -> crate::layout::Direction>,
-    pub movable: std::rc::Rc<dyn Fn() -> [bool; 2]>,
-    pub scroll: std::rc::Rc<dyn Fn(Option<f32>)>,
+    pub movable: std::rc::Rc<dyn Fn() -> [[bool; 2]; 2]>,
+    pub scroll: std::rc::Rc<dyn Fn(Option<Vec2>)>,
 }
 
 impl EdgeScroller {
-    pub fn depth(&self, rect: Rect, pos: Pos2) -> Option<f32> {
-        let axis = (self.axis)();
-        let along = |pos: Pos2| axis.main(pos.to_vec2());
-        let (start, end) = (along(rect.min), along(rect.max));
-        let band = EDGE_BAND.min((end - start) / 4.0);
-        let at = along(pos);
+    pub fn depth(&self, rect: Rect, pos: Pos2) -> Option<Vec2> {
         let movable = (self.movable)();
-        match () {
-            _ if at < start + band && movable[0] => Some(at - (start + band)),
-            _ if at > end - band && movable[1] => Some(at - (end - band)),
-            _ => None,
-        }
+        let axis = |at: f32, start: f32, end: f32, movable: [bool; 2]| {
+            let band = EDGE_BAND.min((end - start) / 4.0);
+            match () {
+                _ if at < start + band && movable[0] => at - (start + band),
+                _ if at > end - band && movable[1] => at - (end - band),
+                _ => 0.0,
+            }
+        };
+        let depth = Vec2::new(
+            axis(pos.x, rect.min.x, rect.max.x, movable[0]),
+            axis(pos.y, rect.min.y, rect.max.y, movable[1]),
+        );
+        (depth != Vec2::ZERO).then_some(depth)
     }
 }
 
@@ -164,12 +118,35 @@ pub trait Space {
 pub type Order<'a> = &'a dyn Fn(crate::node::NodeId) -> (Vec<usize>, WindowId);
 
 /// The drag board as a core drives it: pointer points, releases, Escape, and the pointer
-/// leaving the window.
+/// leaving the window. It holds a carry per pointer: each pointer's points move and release
+/// only its own.
 pub trait Driver {
+    /// Whether anything is carried.
     fn carrying(&self) -> bool;
     fn set_outside(&self, outside: bool);
     fn track(&self, point: DragPoint, order: Order);
-    fn release(&self, cancelled: bool, order: Order);
+    /// `pointer` let go (or lost its press); a carry held by another pointer goes on.
+    fn release(&self, pointer: PointerId, cancelled: bool, order: Order);
+    /// Puts down every carry (Escape); whether there was one.
     fn cancel(&self) -> bool;
+    /// Stops every carry's edge scrolling: the core has lost the pointer's position.
     fn stop_edge(&self);
+    /// Whether `pointer` may lift a carry now: it carries none already.
+    fn lifts(&self, pointer: PointerId) -> bool;
+    /// Lifts `carry` at `point`, a drag an `Interactive`'s `drag` began: from here the
+    /// carried item chooses among the places the drop sites that accept it give. `None`
+    /// when `point`'s pointer carries something already.
+    fn lift(&self, carry: Carry, point: DragPoint) -> Option<CarryId>;
+    /// Puts `carry` down without dropping it, if it is still carried: its source is gone.
+    fn put_down(&self, carry: CarryId);
+    /// Whether `carry` is still carried; tracked.
+    fn holds(&self, carry: CarryId) -> bool;
+    /// The frame `carry` shows, while it is carried; tracked.
+    fn frame(&self, carry: CarryId) -> Option<DragFrame>;
+    /// Moves the keyboard's carry to the nearest place `toward` from where it is; whether one
+    /// was there.
+    fn step(&self, toward: Vec2) -> bool;
+    /// What the last carry said for a screen reader (lifted, each place a step chooses, put
+    /// down), and which carry; tracked.
+    fn said(&self) -> Option<(CarryId, String)>;
 }

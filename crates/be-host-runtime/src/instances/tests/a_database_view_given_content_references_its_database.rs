@@ -28,7 +28,7 @@ fn a_database_view_given_content_references_its_database() {
     let view = Uuid::new_v4();
     let (database, other) = (Uuid::new_v4(), Uuid::new_v4());
     let mut instances = placed_on(view, DatabaseViewContent::CONTENT_TYPE);
-    be_host_stack::wait_until(|_| {
+    be_host_stack::wait_until("knew the database view type", |_| {
         be_host_stack::is_known(DatabaseViewContent::CONTENT_TYPE).then_some(())
     });
 
@@ -40,15 +40,15 @@ fn a_database_view_given_content_references_its_database() {
         &be_sdk_type_guest::editor::FromEditor::Resend,
     );
     instances.next_screens(PASS);
-    be_host_stack::wait_until(|shared| {
+    be_host_stack::wait_until("the view names its database", |shared| {
         let held = shared.blocks.get(&view)?;
         (database_in(held.bytes()) == Some(database)).then_some(())
     });
 
     be_host_stack::flush_and_send();
-    be_host_stack::wait_until(|shared| {
+    be_host_stack::wait_until("the view references its database", |shared| {
         let node = shared.graph.get(view)?;
-        (node.references == [database]).then_some(())
+        (node.references.as_deref() == Some(&[database][..])).then_some(())
     });
 
     seed(&mut instances, view, other);

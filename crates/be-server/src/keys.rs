@@ -4,7 +4,7 @@ use std::ops::Bound;
 use be_block_graph::BlockGraph;
 use be_block_protocol::{
     ErrorCode, EscrowKey, KeyChange, KeyKind, KeyPage, KeyRow, KeySet, KeyWork, OrganizationKind,
-    OwnKind, OwnSealed, SealedKey, SigningKey, Unsealed, WrappedBy, WrappedKey,
+    SealedKey, SigningKey, Unsealed, WrappedBy, WrappedKey,
 };
 use rusqlite::{Connection, OptionalExtension, params};
 use uuid::Uuid;
@@ -147,7 +147,7 @@ pub(crate) fn wraps_of(
     Ok(wraps)
 }
 
-/// The key rows `get-keys` serves of `blocks`, by id: those of the blocks the caller may view,
+/// The key rows `query.keys` serves of `blocks`, by id: those of the blocks the caller may view,
 /// and to an administrator the organization's escrow keys.
 fn served_rows(
     graph: &BlockGraph,
@@ -344,15 +344,25 @@ pub(crate) fn store_keys(
                 }
             }
             WrappedBy::Account(account) => {
-                if !is_member_of(connection, account, organization)? {
+                if !crate::store::holds_membership(connection, account, organization)? {
                     return Err(refused(format!(
                         "account {account} is not a member of this organization"
                     )));
                 }
-                if account != caller && !crate::contacts::is_contact(connection, caller, account)? {
+                // To a contact, or to a grantee the block's log names, with
+                // the keys its grant names, which a device checks as the server does.
+                let granted = row.kind == KeyKind::Scope
+                    && crate::access::granted_level(connection, organization, row.block, account)?
+                        .is_some_and(|level| level >= be_block_keys::Level::View);
+                if account != caller
+                    && !granted
+                    && !crate::contacts::is_contact(connection, caller, account)?
+                {
                     return Err(ServerError::Refused(
                         ErrorCode::NotAContact,
-                        format!("a key may be sealed only to a contact, and {account} is not one"),
+                        format!(
+                            "a key is sealed only to a contact or a grantee its block's log names, and {account} is neither"
+                        ),
                     ));
                 }
                 if row.kind == KeyKind::Escrow
@@ -399,6 +409,7 @@ pub(crate) fn store_keys(
             current.insert(row.block, *row);
         }
     }
+    let rekeyed: Vec<Uuid> = current.keys().copied().collect();
     for (block, row) in current {
         connection.execute(
             "UPDATE blocks SET key_id = ?3 WHERE organization_id = ?1 AND id = ?2",
@@ -409,6 +420,10 @@ pub(crate) fn store_keys(
             ],
         )?;
         graph.set_key(block, row.id)?;
+    }
+    // A summary names its block's key, so a block with a new one changed.
+    if !rekeyed.is_empty() {
+        crate::changes::touch(connection, graph, organization, &rekeyed)?;
     }
     for wrap in &set.wrapped {
         let changed = connection.execute(
@@ -473,7 +488,7 @@ pub(crate) fn escrow_chain(
     organization: Uuid,
 ) -> Result<Vec<EscrowKey>, ServerError> {
     let mut statement = connection.prepare_cached(
-        "SELECT id, epoch, public, signing, signature FROM keys
+        "SELECT id, epoch, public, maker, signature, head FROM keys
          WHERE organization_id = ?1 AND block_id = ?1 AND kind = 'escrow'
          ORDER BY epoch",
     )?;
@@ -482,18 +497,20 @@ pub(crate) fn escrow_chain(
             row.get::<_, String>(0)?,
             row.get::<_, i64>(1)?,
             row.get::<_, Vec<u8>>(2)?,
-            row.get::<_, Vec<u8>>(3)?,
+            row.get::<_, String>(3)?,
             row.get::<_, Vec<u8>>(4)?,
+            row.get::<_, Vec<u8>>(5)?,
         ))
     })?;
     let mut chain = Vec::new();
     for row in rows {
-        let (id, epoch, public, signing, signature) = row?;
+        let (id, epoch, public, maker, signature, head) = row?;
         chain.push(EscrowKey {
             id: parse_uuid(&id)?,
             epoch: u64::try_from(epoch).map_err(|_| ServerError::Corrupt)?,
             public: public.try_into().map_err(|_| ServerError::Corrupt)?,
-            signing: signing.try_into().map_err(|_| ServerError::Corrupt)?,
+            head: head.try_into().map_err(|_| ServerError::Corrupt)?,
+            maker: parse_uuid(&maker)?,
             signature,
         });
     }
@@ -507,24 +524,12 @@ pub(crate) fn current_escrow(
     Ok(escrow_chain(connection, organization)?.pop())
 }
 
-pub(crate) fn pinned_escrow(
-    connection: &Connection,
-    account: Uuid,
-    organization: Uuid,
-) -> Result<Vec<u8>, ServerError> {
-    Ok(connection
-        .query_row(
-            "SELECT sealed FROM pinned_escrows WHERE account_id = ?1 AND organization_id = ?2",
-            params![account.to_string(), organization.to_string()],
-            |row| row.get(0),
-        )
-        .optional()?
-        .unwrap_or_default())
-}
-
+/// Leaves what `account` pins for `organization`, sealed by it for itself, in its mailbox from
+/// `from` (`letter.pinned`), for a device to keep in the account's block.
 pub(crate) fn pin_escrow(
     connection: &Connection,
     account: Uuid,
+    from: Uuid,
     organization: Uuid,
     sealed: &[u8],
 ) -> Result<(), ServerError> {
@@ -536,12 +541,15 @@ pub(crate) fn pin_escrow(
         sealed.len(),
         crate::limits::MAX_SEALED_BYTES,
     )?;
-    connection.execute(
-        "INSERT OR REPLACE INTO pinned_escrows (account_id, organization_id, sealed)
-         VALUES (?1, ?2, ?3)",
-        params![account.to_string(), organization.to_string(), sealed],
-    )?;
-    Ok(())
+    crate::store::mailbox::leave(
+        connection,
+        account,
+        Some(from),
+        &be_block_protocol::Letter::Pinned {
+            organization,
+            sealed: sealed.to_vec(),
+        },
+    )
 }
 
 pub(crate) fn organization_kind(
@@ -556,6 +564,58 @@ pub(crate) fn organization_kind(
     crate::store::decode_kind(&kind)
 }
 
+/// For an administrator's device: the newest data key of each block inside the organization's
+/// settings (the policies blocks), for each administrator it is not sealed to. A device that
+/// trusts the key seals it to them as itself, so another administrator writes those blocks under
+/// a key it trusts: wrapped under the settings key, which the server holds, it vouches for
+/// nothing (guides/blocks/keys.md, Trust). Owner-only blocks are never listed.
+fn settings_unsealed(
+    connection: &Connection,
+    graph: &BlockGraph,
+    organization: Uuid,
+    server: Uuid,
+    work: &mut KeyWork,
+) -> Result<(), ServerError> {
+    let settings = be_block::organization_settings(organization);
+    let administrators = administrators(connection, organization)?;
+    for block in graph.ids() {
+        let inside = block == settings || graph.ancestors(block).any(|above| above == settings);
+        let owner_only = std::iter::once(block)
+            .chain(graph.ancestors(block))
+            .any(|above| graph.get(above).is_some_and(|node| node.owner_only));
+        if !inside || owner_only {
+            continue;
+        }
+        let Some(key) = latest_data_key(connection, organization, block)? else {
+            continue;
+        };
+        let wraps = wraps_of(connection, organization, key)?;
+        for account in &administrators {
+            if !wraps.iter().any(|wrap| {
+                wrap.wrapped_by == WrappedBy::Account(*account) && wrap.sender != server
+            }) {
+                work.unsealed.push(Unsealed {
+                    key,
+                    account: *account,
+                });
+            }
+        }
+    }
+    Ok(())
+}
+
+fn latest_data_key(
+    connection: &Connection,
+    organization: Uuid,
+    block: Uuid,
+) -> Result<Option<Uuid>, ServerError> {
+    Ok(keys_of_block(connection, organization, block)?
+        .into_iter()
+        .filter(|row| row.kind == KeyKind::Data)
+        .max_by_key(|row| row.epoch)
+        .map(|row| row.id))
+}
+
 fn latest_scope_key(
     connection: &Connection,
     organization: Uuid,
@@ -566,6 +626,128 @@ fn latest_scope_key(
         .filter(|row| row.kind == KeyKind::Scope)
         .max_by_key(|row| row.epoch)
         .map(|row| row.id))
+}
+
+/// What a write must leave whole, checked once at its end (`ServerStore::check_whole`).
+pub(crate) enum Whole {
+    /// `block` was made naming `key` its data key.
+    Made { block: Uuid, key: Uuid },
+    /// `block` was moved from below the scope `scope_before` (none from the top or the trash).
+    Moved {
+        block: Uuid,
+        scope_before: Option<Uuid>,
+    },
+}
+
+fn made_whole(
+    connection: &Connection,
+    identity: Identity,
+    block: Uuid,
+    key: Uuid,
+) -> Result<(), ServerError> {
+    match key_row(connection, identity.organization, key)? {
+        Some(row) if row.block == block && row.kind == KeyKind::Data => Ok(()),
+        _ => Err(refused(format!(
+            "block {block} is made with its data key {key}, stored in the same write"
+        ))),
+    }
+}
+
+/// Whether the move of `block` left every key it took into a new scope opening from that
+/// scope's latest key: the block's own scope key if it is a scope whose key does, else its data
+/// key and, below it, each block's data key, or a nested scope's key, of what the mover may view
+/// (`Peer::rescope` sends these). A move within one scope, to the top or the trash, of a block
+/// readable by its author alone, or into a scope with no key, takes no key anywhere new. What
+/// lies in a block readable by its author alone is skipped, as `rescope` skips an owner-only
+/// block and what is below it; a nested scope moved out of one is not, and `rescope` wraps its
+/// key under the new scope too. Only the scope's latest key counts: a key wrapped under an older
+/// one (a block trashed while its scope rotated) is wrapped again. A few queries a block moved,
+/// inside the write's transaction, as `rescope` lists and wraps each one.
+fn moved_whole(
+    connection: &Connection,
+    graph: &BlockGraph,
+    seen: &Visibility,
+    identity: Identity,
+    block: Uuid,
+    scope_before: Option<Uuid>,
+) -> Result<(), ServerError> {
+    let organization = identity.organization;
+    let Some(be_block_graph::BlockParent::Block(parent)) = graph.get(block).map(|node| node.parent)
+    else {
+        return Ok(());
+    };
+    let scope = graph.scope(parent);
+    if scope_before == Some(scope) || graph.owner_only_root(block).is_some() {
+        return Ok(());
+    }
+    let Some(under) = latest_scope_key(connection, organization, scope)? else {
+        return Ok(());
+    };
+    let opens = |key: Uuid| opens_from(connection, organization, key, under);
+    let unwrapped = |key: Uuid| {
+        ServerError::Refused(
+            ErrorCode::KeyMissing,
+            format!("a move into scope {scope} wraps key {key} under that scope's key {under}"),
+        )
+    };
+    if graph.is_scope_root(block)
+        && let Some(own) = latest_scope_key(connection, organization, block)?
+        && opens(own)?
+    {
+        return Ok(());
+    }
+    let mut level = vec![block];
+    while !level.is_empty() {
+        let mut below = Vec::new();
+        for node in level {
+            if node != block {
+                if !seen.can_view(graph, node) || graph.owner_only_root(node).is_some() {
+                    continue;
+                }
+                if graph.is_scope_root(node) {
+                    if let Some(nested) = latest_scope_key(connection, organization, node)?
+                        && !opens(nested)?
+                    {
+                        return Err(unwrapped(nested));
+                    }
+                    continue;
+                }
+            }
+            if let Some(data) = latest_data_key(connection, organization, node)?
+                && !opens(data)?
+            {
+                return Err(unwrapped(data));
+            }
+            below.extend(graph.children(be_block_graph::BlockParent::Block(node)));
+        }
+        level = below;
+    }
+    Ok(())
+}
+
+/// Whether `key` opens from `under`: wrapped under it, or under a key that does.
+fn opens_from(
+    connection: &Connection,
+    organization: Uuid,
+    key: Uuid,
+    under: Uuid,
+) -> Result<bool, ServerError> {
+    let mut seen = BTreeSet::from([key]);
+    let mut next = vec![key];
+    while let Some(key) = next.pop() {
+        for wrap in wraps_of(connection, organization, key)? {
+            let WrappedBy::Key(by) = wrap.wrapped_by else {
+                continue;
+            };
+            if by == under {
+                return Ok(true);
+            }
+            if seen.insert(by) {
+                next.push(by);
+            }
+        }
+    }
+    Ok(false)
 }
 
 pub(crate) fn is_viewer(
@@ -584,6 +766,10 @@ pub(crate) fn is_viewer(
             None => false,
             Some(be_block_protocol::OrganizationRole::Administrator) => {
                 graph.contains(block) && !graph.closed_to(block, account)
+            }
+            // A guest reaches only what links granted it, not the organization's settings.
+            Some(be_block_protocol::OrganizationRole::Guest) => {
+                graph.inherited(block, account).can_view()
             }
             Some(be_block_protocol::OrganizationRole::Editor) => {
                 graph.inherited(block, account).can_view()
@@ -804,29 +990,10 @@ fn rotated(connection: &Connection, organization: Uuid, block: Uuid) -> Result<(
     Ok(())
 }
 
-pub(crate) fn forget_block_keys(
-    connection: &Connection,
-    organization: Uuid,
-    block: Uuid,
-) -> Result<(), ServerError> {
-    for row in keys_of_block(connection, organization, block)? {
-        connection.execute(
-            "DELETE FROM wrapped_keys
-             WHERE organization_id = ?1 AND (key_id = ?2 OR wrapped_by = ?2)",
-            params![organization.to_string(), row.id.to_string()],
-        )?;
-    }
-    connection.execute(
-        "DELETE FROM keys WHERE organization_id = ?1 AND block_id = ?2",
-        params![organization.to_string(), block.to_string()],
-    )?;
-    Ok(())
-}
-
 impl ServerStore {
-    /// A page of the keys `get-keys` serves: those after `after` in the order of their ids, each
+    /// A page of the keys `query.keys` serves: those after `after` in the order of their ids, each
     /// with its wraps, while they fit in `ServerConfig::key_page_bytes` (at least one). A key made with a
-    /// smaller id while a client pages is not skipped for good: `keys-changed` tells it to
+    /// smaller id while a client pages is not skipped for good: `topic.keys` tells it to
     /// read again.
     pub async fn get_keys(
         &self,
@@ -850,10 +1017,15 @@ impl ServerStore {
                 None => graph
                     .visible(identity.account)
                     .into_keys()
-                    .chain(match graph.contains(settings) {
-                        true => graph.subtree(settings),
-                        false => Vec::new(),
-                    })
+                    // A guest reads none of the organization's settings.
+                    .chain(
+                        match graph.contains(settings)
+                            && identity.role != be_block_protocol::OrganizationRole::Guest
+                        {
+                            true => graph.subtree(settings),
+                            false => Vec::new(),
+                        },
+                    )
                     .collect(),
                 Some(blocks) => blocks
                     .into_iter()
@@ -871,7 +1043,35 @@ impl ServerStore {
         .await
     }
 
-    /// Stores `set` and answers whom to tell (`keys-changed`), none when it stored nothing:
+    /// Checks what a write must leave whole, once it wrote everything (`Whole`): a block it
+    /// made has the data key it names, and a move into another scope left every key it took
+    /// there opening from the new scope's key. A refusal keeps the cached graph, which the
+    /// write's rollback then reads again.
+    pub(crate) async fn check_whole(
+        &self,
+        identity: Identity,
+        check: Whole,
+    ) -> Result<(), ServerError> {
+        self.with_graph(identity.organization, move |_, graph, database| {
+            Ok(match check {
+                Whole::Made { block, key } => made_whole(database, identity, block, key),
+                Whole::Moved {
+                    block,
+                    scope_before,
+                } => moved_whole(
+                    database,
+                    graph,
+                    &visibility(identity),
+                    identity,
+                    block,
+                    scope_before,
+                ),
+            })
+        })
+        .await?
+    }
+
+    /// Stores `set` and answers whom to tell (`topic.keys`), none when it stored nothing:
     /// the viewers of each block it gave a key or wrapped one of under another, and each account
     /// it sealed a key to that views the key's block. Administrators are told anyway, which is
     /// all an escrow wrap tells.
@@ -917,6 +1117,8 @@ impl ServerStore {
             let escrow = escrows.last().map(|escrow| escrow.id);
             let mut work = KeyWork {
                 escrows,
+                unsigned_members: unsigned_members(database, organization, identity)?,
+                unsigned_revocations: unsigned_revocations(database, graph, organization, &seen)?,
                 ..KeyWork::default()
             };
             let pending = pending_rotations(database, organization)?;
@@ -972,6 +1174,9 @@ impl ServerStore {
                 {
                     work.unescrowed.push(key);
                 }
+            }
+            if seen.administrator() {
+                settings_unsealed(database, graph, organization, server, &mut work)?;
             }
             if seen.administrator()
                 && let Some(escrow) = escrow
@@ -1119,26 +1324,51 @@ impl ServerStore {
                     crate::limits::MAX_ESCROWS_PER_ORGANIZATION,
                 ));
             }
-            let next = current_escrow(database, organization)?.map_or(1, |previous| previous.epoch + 1);
+            let previous = current_escrow(database, organization)?;
+            let next = previous.as_ref().map_or(1, |previous| previous.epoch + 1);
             if escrow.epoch != next {
                 return Err(refused(format!(
                     "the next escrow key is epoch {next}, not {}",
                     escrow.epoch
                 )));
             }
+            // Checked as devices check it (`verify_escrow`): made and signed by an administrator
+            // the organization's log names, chained to the epoch before, under the log's head
+            // now, so a demotion is behind every new epoch (guides/blocks/keys.md, "Epochs name
+            // their heads").
+            let head = crate::access::checked_organization_log(database, organization)?
+                .map(|checked| checked.head);
+            if head != Some(escrow.head) {
+                return Err(refused(
+                    "an escrow key names the head of the organization's log it is made under",
+                ));
+            }
+            let maker = crate::access::administrator_signing(database, organization, identity.account)?;
+            let chained = escrow.chained(
+                organization,
+                previous.map_or(Uuid::nil(), |previous| previous.id),
+            );
+            if escrow.maker != identity.account
+                || !maker.is_some_and(|maker| maker.verifies_escrow(&chained, &escrow.signature))
+            {
+                return Err(refused(
+                    "an escrow key is signed by the administrator making it, as the organization's log names them",
+                ));
+            }
             let transaction = be_block_sqlite_schema::write_transaction(database)?;
             transaction.execute(
                 "INSERT INTO keys
-                    (organization_id, id, block_id, kind, epoch, created, public, signing, signature)
-                 VALUES (?1, ?2, ?1, 'escrow', ?3, ?4, ?5, ?6, ?7)",
+                    (organization_id, id, block_id, kind, epoch, created, public, maker, signature, head)
+                 VALUES (?1, ?2, ?1, 'escrow', ?3, ?4, ?5, ?7, ?6, ?8)",
                 params![
                     organization.to_string(),
                     escrow.id.to_string(),
                     i64::try_from(escrow.epoch).map_err(|_| refused("that epoch is too large"))?,
                     now_milliseconds(),
                     escrow.public.to_vec(),
-                    escrow.signing.to_vec(),
-                    escrow.signature
+                    escrow.signature,
+                    escrow.maker.to_string(),
+                    escrow.head.to_vec()
                 ],
             )?;
             store_keys(
@@ -1177,13 +1407,6 @@ impl ServerStore {
         .await
     }
 
-    pub async fn pin_escrow(&self, identity: Identity, sealed: Vec<u8>) -> Result<(), ServerError> {
-        self.with_database(move |_, database| {
-            pin_escrow(&database, identity.account, identity.organization, &sealed)
-        })
-        .await
-    }
-
     /// The signing keys of those of `accounts` the caller may know: itself, its contacts and
     /// the members of the organization open. A key the server holds is only what the account
     /// sent; a device trusts it only on first use (plans/deferred/authorship.md).
@@ -1207,12 +1430,16 @@ impl ServerStore {
                 if !known {
                     continue;
                 }
-                let signing: Option<Vec<u8>> = database
-                    .prepare_cached("SELECT signing FROM recovery_keys WHERE account_id = ?1")?
-                    .query_row([account.to_string()], |row| row.get(0))
+                let signing: Option<(Vec<u8>, Vec<u8>)> = database
+                    .prepare_cached(
+                        "SELECT signing, name FROM recovery_keys WHERE account_id = ?1",
+                    )?
+                    .query_row([account.to_string()], |row| Ok((row.get(0)?, row.get(1)?)))
                     .optional()?;
-                if let Some(key) = signing.and_then(|key| <[u8; 32]>::try_from(key).ok()) {
-                    found.push(SigningKey { account, key });
+                if let Some((key, name)) = signing
+                    && let Ok(key) = <[u8; 32]>::try_from(key)
+                {
+                    found.push(SigningKey { account, key, name });
                 }
             }
             Ok(found)
@@ -1220,10 +1447,53 @@ impl ServerStore {
         .await
     }
 
+    /// Keeps `signed`, `account`'s name card (`be_block_keys::NameCard`), when it is dated after
+    /// the one kept; one dated no later is ignored, not refused. Refuses one that does not name
+    /// the account or that its current signing key did not sign.
+    pub async fn publish_name(&self, account: Uuid, signed: Vec<u8>) -> Result<(), ServerError> {
+        if signed.len() > crate::limits::MAX_NAME_CARD_BYTES {
+            return Err(crate::limits::too_many(
+                "bytes in a name card",
+                crate::limits::MAX_NAME_CARD_BYTES,
+            ));
+        }
+        self.with_database(move |_, database| {
+            let signing: Option<Vec<u8>> = database
+                .prepare_cached("SELECT signing FROM recovery_keys WHERE account_id = ?1")?
+                .query_row([account.to_string()], |row| row.get(0))
+                .optional()?;
+            let card = signing
+                .and_then(|key| <[u8; 32]>::try_from(key).ok())
+                .and_then(|key| {
+                    be_block_keys::NameCard::open(&signed, &be_block_keys::SigningPublic(key))
+                })
+                .filter(|card| card.account == account.into_bytes())
+                .ok_or_else(|| {
+                    ServerError::Refused(
+                        ErrorCode::InvalidRequest,
+                        "a name card names its account and is signed with its signing key".into(),
+                    )
+                })?;
+            let dated = i64::try_from(card.dated).map_err(|_| {
+                ServerError::Refused(
+                    ErrorCode::InvalidRequest,
+                    "a name card's date is too late".into(),
+                )
+            })?;
+            database.execute(
+                "UPDATE recovery_keys SET name = ?2, name_dated = ?3
+                 WHERE account_id = ?1 AND name_dated < ?3",
+                params![account.to_string(), signed, dated],
+            )?;
+            Ok(())
+        })
+        .await
+    }
+
     pub async fn recovery_key(
         &self,
         account: Uuid,
-    ) -> Result<(Option<[u8; 32]>, Vec<SealedKey>, Vec<OwnSealed>), ServerError> {
+    ) -> Result<(Option<[u8; 32]>, Vec<SealedKey>), ServerError> {
         let (public, memberships) = {
             self.with_database(move |_, database| {
                 let public = recovery_key_of(&database, account)?;
@@ -1302,10 +1572,117 @@ impl ServerStore {
                 .await?;
             sealed.extend(found);
         }
-        let own = self
-            .with_database(move |_, database| crate::contacts::own_sealed(database, account))
-            .await?;
-        Ok((public, sealed, own))
+        Ok((public, sealed))
+    }
+
+    /// Every access log `account` signed a record in, at its head (`recovery-key`'s `logs`).
+    pub async fn signed_logs(
+        &self,
+        account: Uuid,
+    ) -> Result<Vec<be_block_protocol::SignedLog>, ServerError> {
+        self.with_database(move |_, database| crate::access::signed_logs(&database, account))
+            .await
+    }
+
+    /// Holds `part` of `account`'s move to new keys for the `set-recovery-key` that names them
+    /// (`stage-recovery-key`): parts staged for other keys go, and each key or log it names
+    /// replaces what was staged for it. A part names only keys sealed to the account and logs
+    /// it signed in, so what it stages stays bounded by what the move needs.
+    pub async fn stage_recovery_key(
+        &self,
+        account: Uuid,
+        part: be_block_protocol::RecoveryKeyPart,
+    ) -> Result<(), ServerError> {
+        let by = encode_wrapped_by(WrappedBy::Account(account));
+        self.with_database(move |_, database| {
+            let transaction = be_block_sqlite_schema::write_transaction(database)?;
+            let who = account.to_string();
+            let (public, signing) = (part.public.to_vec(), part.signing.to_vec());
+            for table in ["recovery_sealed_parts", "recovery_retirement_parts"] {
+                transaction.execute(
+                    &format!(
+                        "DELETE FROM {table} WHERE account_id = ?1
+                            AND (public != ?2 OR signing != ?3)"
+                    ),
+                    params![who, public, signing],
+                )?;
+            }
+            for key in &part.sealed {
+                let held: bool = transaction
+                    .prepare_cached(
+                        "SELECT EXISTS (SELECT 1 FROM wrapped_keys
+                         WHERE organization_id = ?1 AND key_id = ?2 AND wrapped_by = ?3
+                            AND sender = ?4)",
+                    )?
+                    .query_row(
+                        params![key.organization.to_string(), key.key.to_string(), by, who],
+                        |row| row.get(0),
+                    )?;
+                if !held {
+                    return Err(refused(format!(
+                        "{} is not a key you sealed for yourself",
+                        key.key
+                    )));
+                }
+                transaction.execute(
+                    "INSERT OR REPLACE INTO recovery_sealed_parts
+                        (account_id, public, signing, organization_id, key_id, sealed)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                    params![
+                        who,
+                        public,
+                        signing,
+                        key.organization.to_string(),
+                        key.key.to_string(),
+                        key.sealed
+                    ],
+                )?;
+            }
+            for retirement in &part.retirements {
+                let (names, column) = match retirement.kind {
+                    be_block_protocol::LogKind::Block => ("access_log_names", "block_id"),
+                    be_block_protocol::LogKind::Organization => {
+                        ("organization_log_names", "organization_id")
+                    }
+                };
+                let signed: bool = transaction
+                    .prepare_cached(&format!(
+                        "SELECT EXISTS (SELECT 1 FROM {names}
+                         WHERE account_id = ?1 AND organization_id = ?2 AND {column} = ?3)"
+                    ))?
+                    .query_row(
+                        params![
+                            who,
+                            retirement.organization.to_string(),
+                            retirement.log.to_string()
+                        ],
+                        |row| row.get(0),
+                    )?;
+                if !signed {
+                    return Err(refused(format!(
+                        "you signed in no log of {}",
+                        retirement.log
+                    )));
+                }
+                transaction.execute(
+                    "INSERT OR REPLACE INTO recovery_retirement_parts
+                        (account_id, public, signing, organization_id, kind, log_id, entry)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                    params![
+                        who,
+                        public,
+                        signing,
+                        retirement.organization.to_string(),
+                        log_kind_name(retirement.kind),
+                        retirement.log.to_string(),
+                        retirement.entry
+                    ],
+                )?;
+            }
+            transaction.commit()?;
+            Ok(())
+        })
+        .await
     }
 
     pub async fn set_recovery_key(
@@ -1314,27 +1691,25 @@ impl ServerStore {
         public: [u8; 32],
         signing: [u8; 32],
         sealed: Vec<SealedKey>,
-        own: Vec<OwnSealed>,
         changes: Vec<KeyChange>,
+        retirements: Vec<be_block_protocol::Retirement>,
     ) -> Result<(), ServerError> {
-        let (previous, held, mut held_own) = self.recovery_key(account).await?;
-        if previous.is_none() {
-            held_own.clear();
-        }
+        let (_, held) = self.recovery_key(account).await?;
         let by = encode_wrapped_by(WrappedBy::Account(account));
-        self.with_database(move |_, database| {
+        self.with_database(move |store, database| {
+            // What parts staged for these keys carry, beside what this write does: its own go
+            // over theirs.
+            let (sealed, retirements) =
+                with_staged(database, account, &public, &signing, sealed, retirements)?;
             let resealed: BTreeMap<(Uuid, Uuid), &SealedKey> = sealed
                 .iter()
                 .map(|key| ((key.organization, key.key), key))
                 .collect();
-            let mut needed = Vec::new();
-            for held in &held {
-                if held.sender == account
-                    || crate::contacts::is_verified_contact(&database, account, held.sender)?
-                {
-                    needed.push(held);
-                }
-            }
+            // What the account sealed for itself. What its contacts sealed to it the device
+            // reseals as far as its records of them in the account's block reach, which the
+            // server cannot read.
+            let needed: Vec<&SealedKey> =
+                held.iter().filter(|held| held.sender == account).collect();
             if let Some(missing) = needed
                 .iter()
                 .find(|held| !resealed.contains_key(&(held.organization, held.key)))
@@ -1342,19 +1717,6 @@ impl ServerStore {
                 return Err(refused(format!(
                     "a new recovery key must seal every key the old one did, and {} is missing",
                     missing.key
-                )));
-            }
-            let resealed_own: BTreeMap<(OwnKind, Uuid), &OwnSealed> = own
-                .iter()
-                .map(|sealed| ((sealed.kind, sealed.id), sealed))
-                .collect();
-            if let Some(missing) = held_own
-                .iter()
-                .find(|held| !resealed_own.contains_key(&(held.kind, held.id)))
-            {
-                return Err(refused(format!(
-                    "a new recovery key must reseal every contact and link the old one did, and {} is missing",
-                    missing.id
                 )));
             }
             for change in &changes {
@@ -1366,32 +1728,37 @@ impl ServerStore {
                 }
             }
             let transaction = be_block_sqlite_schema::write_transaction(database)?;
-            for change in &changes {
-                transaction.execute(
-                    "INSERT INTO key_changes (account_id, contact_id, position, sealed)
-                     VALUES (?1, ?2,
-                        (SELECT COALESCE(MAX(position), -1) + 1 FROM key_changes
-                         WHERE account_id = ?1 AND contact_id = ?2),
-                        ?3)",
-                    params![
-                        account.to_string(),
-                        change.contact.to_string(),
-                        change.sealed
-                    ],
+            for change in changes {
+                crate::store::mailbox::leave(
+                    &transaction,
+                    change.contact,
+                    Some(account),
+                    &be_block_protocol::Letter::KeyChange(change.sealed),
                 )?;
             }
-            for held in &held_own {
-                crate::contacts::reseal_own(
-                    &transaction,
-                    account,
-                    resealed_own[&(held.kind, held.id)],
-                )?;
+            crate::access::append_retirements(
+                &transaction,
+                account,
+                &be_block_keys::PublicIdentity {
+                    public: be_block_keys::RecoveryPublic(public),
+                    signing: be_block_keys::SigningPublic(signing),
+                },
+                &retirements,
+            )?;
+            if let Some(old) = recovery_key_of(&transaction, account)? {
+                store.server_key().reseal_from(&transaction, account, old)?;
             }
             transaction.execute(
                 "INSERT OR REPLACE INTO recovery_keys (account_id, public, signing)
                  VALUES (?1, ?2, ?3)",
                 params![account.to_string(), public.to_vec(), signing.to_vec()],
             )?;
+            for table in ["recovery_sealed_parts", "recovery_retirement_parts"] {
+                transaction.execute(
+                    &format!("DELETE FROM {table} WHERE account_id = ?1"),
+                    [account.to_string()],
+                )?;
+            }
             transaction.execute("DELETE FROM wrapped_keys WHERE wrapped_by = ?1", [&by])?;
             for held in &held {
                 let Some(key) = resealed.get(&(held.organization, held.key)) else {
@@ -1447,4 +1814,173 @@ impl ServerStore {
         })
         .await
     }
+}
+
+/// The organization's members its log does not name, whose escrow
+/// wraps administrators do not open until one is signed in: every such member, to an
+/// administrator; the caller alone, to a member, so its device shows that it waits. None in an
+/// organization with no log.
+fn unsigned_members(
+    connection: &Connection,
+    organization: Uuid,
+    identity: Identity,
+) -> Result<Vec<Uuid>, ServerError> {
+    let Some(checked) = crate::access::checked_organization_log(connection, organization)? else {
+        return Ok(Vec::new());
+    };
+    let mut statement = connection.prepare_cached(
+        "SELECT account_id FROM memberships WHERE organization_id = ?1 ORDER BY account_id",
+    )?;
+    let members: Vec<String> = statement
+        .query_map([organization.to_string()], |row| row.get(0))?
+        .collect::<Result<_, _>>()?;
+    let server = crate::organization::server_account(connection)?;
+    let mut unsigned = Vec::new();
+    for member in members {
+        let member = parse_uuid(&member)?;
+        let shown = member != server && (identity.is_administrator() || member == identity.account);
+        if shown && checked.member(member.into_bytes()).is_none() {
+            unsigned.push(member);
+        }
+    }
+    Ok(unsigned)
+}
+
+/// Revocations the server made on its own of grants blocks' logs name, in blocks `seen` may
+/// manage, for a device to sign (`blocks::write_grant`).
+fn unsigned_revocations(
+    connection: &Connection,
+    graph: &BlockGraph,
+    organization: Uuid,
+    seen: &crate::blocks::Visibility,
+) -> Result<Vec<be_block_protocol::Revocation>, ServerError> {
+    let mut statement = connection.prepare_cached(
+        "SELECT block_id, account_id FROM unsigned_revocations WHERE organization_id = ?1
+         ORDER BY block_id, account_id",
+    )?;
+    let rows: Vec<(String, String)> = statement
+        .query_map([organization.to_string()], |row| {
+            Ok((row.get(0)?, row.get(1)?))
+        })?
+        .collect::<Result<_, _>>()?;
+    let mut found = Vec::new();
+    for (block, account) in rows {
+        let block = parse_uuid(&block)?;
+        if graph.contains(block) && seen.can_manage(graph, block) {
+            found.push(be_block_protocol::Revocation {
+                block,
+                account: parse_uuid(&account)?,
+            });
+        }
+    }
+    Ok(found)
+}
+
+fn log_kind_name(kind: be_block_protocol::LogKind) -> &'static str {
+    match kind {
+        be_block_protocol::LogKind::Block => "block",
+        be_block_protocol::LogKind::Organization => "organization",
+    }
+}
+
+fn parse_log_kind(name: &str) -> Result<be_block_protocol::LogKind, ServerError> {
+    match name {
+        "block" => Ok(be_block_protocol::LogKind::Block),
+        "organization" => Ok(be_block_protocol::LogKind::Organization),
+        _ => Err(ServerError::Corrupt),
+    }
+}
+
+/// `sealed` and `retirements`, with what parts staged for `account`'s move to `public` and
+/// `signing` carry (`stage-recovery-key`) beside them: the write's own go over a part's for
+/// the same key or log. A key the write seals twice is refused, as a log it retires twice is
+/// by the check after.
+fn with_staged(
+    database: &Connection,
+    account: Uuid,
+    public: &[u8; 32],
+    signing: &[u8; 32],
+    sealed: Vec<SealedKey>,
+    retirements: Vec<be_block_protocol::Retirement>,
+) -> Result<(Vec<SealedKey>, Vec<be_block_protocol::Retirement>), ServerError> {
+    let who = account.to_string();
+    let mut keys: BTreeMap<(Uuid, Uuid), SealedKey> = BTreeMap::new();
+    let mut statement = database.prepare_cached(
+        "SELECT organization_id, key_id, sealed FROM recovery_sealed_parts
+         WHERE account_id = ?1 AND public = ?2 AND signing = ?3",
+    )?;
+    let rows = statement.query_map(params![who, public.to_vec(), signing.to_vec()], |row| {
+        Ok((
+            row.get::<_, String>(0)?,
+            row.get::<_, String>(1)?,
+            row.get::<_, Vec<u8>>(2)?,
+        ))
+    })?;
+    for row in rows {
+        let (organization, key, bytes) = row?;
+        let (organization, key) = (parse_uuid(&organization)?, parse_uuid(&key)?);
+        keys.insert(
+            (organization, key),
+            SealedKey {
+                organization,
+                key,
+                sender: account,
+                sealed: bytes,
+            },
+        );
+    }
+    let mut sealed_here = std::collections::HashSet::new();
+    for key in sealed {
+        if !sealed_here.insert((key.organization, key.key)) {
+            return Err(refused(format!(
+                "a new recovery key seals {} once",
+                key.key
+            )));
+        }
+        keys.insert((key.organization, key.key), key);
+    }
+    let mut logs: BTreeMap<(Uuid, &'static str, Uuid), be_block_protocol::Retirement> =
+        BTreeMap::new();
+    let mut statement = database.prepare_cached(
+        "SELECT organization_id, kind, log_id, entry FROM recovery_retirement_parts
+         WHERE account_id = ?1 AND public = ?2 AND signing = ?3",
+    )?;
+    let rows = statement.query_map(params![who, public.to_vec(), signing.to_vec()], |row| {
+        Ok((
+            row.get::<_, String>(0)?,
+            row.get::<_, String>(1)?,
+            row.get::<_, String>(2)?,
+            row.get::<_, Vec<u8>>(3)?,
+        ))
+    })?;
+    for row in rows {
+        let (organization, kind, log, entry) = row?;
+        let kind = parse_log_kind(&kind)?;
+        let retirement = be_block_protocol::Retirement {
+            organization: parse_uuid(&organization)?,
+            kind,
+            log: parse_uuid(&log)?,
+            entry,
+        };
+        logs.insert(
+            (retirement.organization, log_kind_name(kind), retirement.log),
+            retirement,
+        );
+    }
+    let mut own = std::collections::HashSet::new();
+    let mut retired: Vec<be_block_protocol::Retirement> = Vec::new();
+    for retirement in retirements {
+        let at = (
+            retirement.organization,
+            log_kind_name(retirement.kind),
+            retirement.log,
+        );
+        // Twice in the write itself stays twice, for the check to refuse.
+        if own.insert(at) {
+            logs.remove(&at);
+        }
+        retired.push(retirement);
+    }
+    retired.extend(logs.into_values());
+    Ok((keys.into_values().collect(), retired))
 }

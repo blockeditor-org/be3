@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn queue_serves_latest_requests_first() {
-    let mut worker = TileWorker::spawn(Waker::default());
+    let mut worker = read_worker();
     let first = TileId {
         zoom: 1,
         x: 0,

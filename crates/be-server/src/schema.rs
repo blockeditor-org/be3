@@ -12,10 +12,10 @@ pub fn initialize(connection: &Connection) -> Result<(), ServerError> {
 const SCHEMA: &str = "
     CREATE TABLE accounts (
         id              TEXT PRIMARY KEY,
-        email           TEXT NOT NULL UNIQUE,
-        display_name    TEXT NOT NULL,
-        password_hash   TEXT NOT NULL,
-        local_profile   INTEGER NOT NULL DEFAULT 0
+        -- The verified email, if the account has one: an email identity's, or an authoritative
+        -- provider's. None for an account made through a provider that gave no verified email.
+        email           TEXT UNIQUE,
+        display_name    TEXT NOT NULL
     );
 
     CREATE TABLE sessions (
@@ -24,22 +24,113 @@ const SCHEMA: &str = "
         kind            TEXT NOT NULL DEFAULT 'legacy',
         public_id       TEXT NOT NULL DEFAULT '',
         created         INTEGER NOT NULL DEFAULT 0,
-        expires         INTEGER NOT NULL DEFAULT 0
+        expires         INTEGER NOT NULL DEFAULT 0,
+        proved          INTEGER NOT NULL DEFAULT 0
     );
+
+    CREATE TABLE identities (
+        id              TEXT PRIMARY KEY,
+        account_id      TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+        kind            TEXT NOT NULL,
+        subject         TEXT NOT NULL,
+        created         INTEGER NOT NULL,
+        -- For a provider (`oidc`), the verified email it last gave, if it is authoritative for
+        -- email.
+        email           TEXT NOT NULL DEFAULT '',
+        -- For a passkey, the key and signature counter webauthn-rs checks it with (JSON).
+        credential      TEXT NOT NULL DEFAULT '',
+        UNIQUE (kind, subject)
+    );
+    CREATE INDEX identities_account ON identities(account_id);
+
+    CREATE TABLE sign_in_codes (
+        attempt_hash    TEXT PRIMARY KEY,
+        code_hash       TEXT NOT NULL,
+        purpose         TEXT NOT NULL,
+        account_id      TEXT NOT NULL DEFAULT '',
+        email           TEXT NOT NULL,
+        display_name    TEXT NOT NULL DEFAULT '',
+        invite_hash     TEXT NOT NULL DEFAULT '',
+        device_code     TEXT NOT NULL DEFAULT '',
+        tries           INTEGER NOT NULL DEFAULT 0,
+        expires         INTEGER NOT NULL,
+        created         INTEGER NOT NULL,
+        address         TEXT NOT NULL,
+        network         TEXT NOT NULL,
+        remembered      INTEGER NOT NULL DEFAULT 0,
+        -- For a code that links a provider: its identity's subject and the email it gave.
+        identity        TEXT NOT NULL DEFAULT '',
+        identity_email  TEXT NOT NULL DEFAULT ''
+    );
+    CREATE INDEX sign_in_codes_address ON sign_in_codes(address, created);
+    CREATE INDEX sign_in_codes_network ON sign_in_codes(network, created);
+    CREATE INDEX sign_in_codes_account ON sign_in_codes(account_id, created);
+
+    CREATE TABLE oidc_states (
+        state_hash      TEXT PRIMARY KEY,
+        provider        TEXT NOT NULL,
+        verifier        TEXT NOT NULL,
+        nonce           TEXT NOT NULL,
+        attempt_hash    TEXT NOT NULL,
+        device_code     TEXT NOT NULL DEFAULT '',
+        intent          TEXT NOT NULL,
+        link_account    TEXT NOT NULL DEFAULT '',
+        address         TEXT NOT NULL,
+        expires         INTEGER NOT NULL
+    );
+
+    CREATE TABLE oidc_pending (
+        attempt_hash    TEXT PRIMARY KEY,
+        provider        TEXT NOT NULL,
+        subject         TEXT NOT NULL,
+        email           TEXT NOT NULL DEFAULT '',
+        display_name    TEXT NOT NULL DEFAULT '',
+        device_code     TEXT NOT NULL DEFAULT '',
+        expires         INTEGER NOT NULL
+    );
+
+    CREATE TABLE login_links (
+        token_hash TEXT PRIMARY KEY,
+        account_id TEXT NOT NULL DEFAULT '',
+        email      TEXT NOT NULL DEFAULT '',
+        expires    INTEGER NOT NULL
+    );
+
+    -- An account's mailbox (`store/mailbox.rs`): each message kept until a device of the
+    -- account deletes it. `sender_id` is '' for the server's own notices; `letter` is the
+    -- encoded `be_block_protocol::Letter`, and `kind` its case (`notice`, `accepted`,
+    -- `key-change`), which the hold and the bounds read; `created` is in milliseconds.
+    CREATE TABLE mailbox (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        account_id      TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+        sender_id       TEXT NOT NULL DEFAULT '',
+        kind            TEXT NOT NULL,
+        letter          BLOB NOT NULL,
+        created         INTEGER NOT NULL
+    );
+    CREATE INDEX mailbox_account ON mailbox(account_id, id);
+    CREATE INDEX mailbox_sender ON mailbox(sender_id);
+
+    -- Ways to sign in added to or removed from an account, and its email changing (`kind`:
+    -- `added`, `removed`, `email`), kept `IDENTITY_HISTORY` for the portal's settings page and
+    -- to cap how many are added a day.
+    CREATE TABLE identity_changes (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        account_id      TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+        kind            TEXT NOT NULL,
+        label           TEXT NOT NULL,
+        created         INTEGER NOT NULL
+    );
+    CREATE INDEX identity_changes_account ON identity_changes(account_id, created);
 
     CREATE TABLE account_mail (
         token_hash TEXT PRIMARY KEY,
-        purpose TEXT NOT NULL,
         account_id TEXT NOT NULL DEFAULT '',
         email TEXT NOT NULL,
-        display_name TEXT NOT NULL DEFAULT '',
-        password_hash TEXT NOT NULL DEFAULT '',
-        device_code TEXT NOT NULL DEFAULT '',
         expires INTEGER NOT NULL,
-        address TEXT NOT NULL DEFAULT '',
-        invite_hash TEXT NOT NULL DEFAULT ''
+        address TEXT NOT NULL DEFAULT ''
     );
-    CREATE INDEX account_mail_email ON account_mail(email, purpose);
+    CREATE INDEX account_mail_email ON account_mail(email);
     CREATE INDEX account_mail_address ON account_mail(address);
 
     CREATE TABLE organizations (
@@ -49,6 +140,25 @@ const SCHEMA: &str = "
         kind            TEXT NOT NULL DEFAULT 'company',
         change_sequence INTEGER NOT NULL DEFAULT 0
     );
+
+    -- A company organization's access log (guides/blocks/keys.md), in order,
+    -- as access_log keeps a block's.
+    CREATE TABLE organization_log (
+        organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+        position        INTEGER NOT NULL,
+        entry           BLOB NOT NULL,
+        PRIMARY KEY (organization_id, position)
+    );
+
+    -- Every account the organization's log names keys for (its signers,
+    -- grantees and administrators): a new recovery key retires each in it.
+    CREATE TABLE organization_log_names (
+        organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+        account_id      TEXT NOT NULL,
+        PRIMARY KEY (organization_id, account_id)
+    );
+
+    CREATE INDEX organization_log_names_account ON organization_log_names (account_id);
 
     CREATE TABLE memberships (
         organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
@@ -61,40 +171,59 @@ const SCHEMA: &str = "
         id              TEXT PRIMARY KEY,
         owner_id        TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
         card            BLOB NOT NULL,
-        code            BLOB NOT NULL,
         grant_organization TEXT NOT NULL DEFAULT '',
         grant_block     TEXT NOT NULL DEFAULT '',
         grant_access    TEXT NOT NULL DEFAULT '',
         grant_key       TEXT NOT NULL DEFAULT '',
         grant_sealed    BLOB NOT NULL DEFAULT x'',
         invite_organization TEXT NOT NULL DEFAULT '',
-        invite_email    TEXT NOT NULL DEFAULT '',
-        invite_role     TEXT NOT NULL DEFAULT '',
         invite_escrow   BLOB NOT NULL DEFAULT x'',
-        accepter_id     TEXT NOT NULL DEFAULT '',
-        accepter_card   BLOB NOT NULL DEFAULT x''
+        -- An invitation's key, derived from its code, which its record in the organization's
+        -- log names and which signs its accepter in.
+        invite_key      BLOB NOT NULL DEFAULT x'',
+        -- An invitation's times, in seconds since the epoch: made, expiring, first read, and
+        -- accepted or revoked (0 for not yet).
+        invite_created  INTEGER NOT NULL DEFAULT 0,
+        invite_expires  INTEGER NOT NULL DEFAULT 0,
+        invite_opened   INTEGER NOT NULL DEFAULT 0,
+        invite_ended    INTEGER NOT NULL DEFAULT 0,
+        invite_revoked  INTEGER NOT NULL DEFAULT 0,
+        -- Its inviter's device finished it: made the accepter a contact
+        -- (`delete-link` on an accepted one);
+        -- the row stays for the organization's invite list until its retention passes.
+        invite_finished INTEGER NOT NULL DEFAULT 0,
+        accepter_id     TEXT NOT NULL DEFAULT ''
     );
 
     CREATE INDEX links_owner
         ON links (owner_id);
 
+    CREATE INDEX links_invitations
+        ON links (invite_organization, invite_created);
+
+    -- Share links (guides/blocks/keys.md, Share links), by the id their code derives: whom
+    -- each admits, the key its record in the block's log names, and what it hands its opener,
+    -- sealed with the code. Revoking one deletes it.
+    CREATE TABLE share_links (
+        id              TEXT PRIMARY KEY,
+        organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+        block_id        TEXT NOT NULL,
+        maker_id        TEXT NOT NULL,
+        access          TEXT NOT NULL,
+        admits          TEXT NOT NULL,
+        link_key        BLOB NOT NULL,
+        sealed          BLOB NOT NULL,
+        created         INTEGER NOT NULL
+    );
+
+    CREATE INDEX share_links_block
+        ON share_links (organization_id, block_id);
+
     CREATE TABLE contacts (
         account_id      TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
         contact_id      TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
-        sealed          BLOB NOT NULL DEFAULT x'',
         PRIMARY KEY (account_id, contact_id)
     );
-
-    CREATE TABLE key_changes (
-        account_id      TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
-        contact_id      TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
-        position        INTEGER NOT NULL,
-        sealed          BLOB NOT NULL,
-        PRIMARY KEY (account_id, contact_id, position)
-    );
-
-    CREATE INDEX key_changes_contact
-        ON key_changes (contact_id);
 
     CREATE TABLE blocks (
         organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
@@ -113,21 +242,71 @@ const SCHEMA: &str = "
         PRIMARY KEY (organization_id, id)
     );
 
+    -- Each block's access log (guides/blocks/keys.md), in order: entries as
+    -- be_block_keys::Entry::encode wrote them, each checked as devices check it.
+    CREATE TABLE access_log (
+        organization_id TEXT NOT NULL,
+        block_id        TEXT NOT NULL,
+        position        INTEGER NOT NULL,
+        entry           BLOB NOT NULL,
+        PRIMARY KEY (organization_id, block_id, position),
+        FOREIGN KEY (organization_id, block_id)
+            REFERENCES blocks(organization_id, id) ON DELETE CASCADE
+    );
+
+    -- Every account a block's log names keys for, as organization_log_names.
+    CREATE TABLE access_log_names (
+        organization_id TEXT NOT NULL,
+        block_id        TEXT NOT NULL,
+        account_id      TEXT NOT NULL,
+        PRIMARY KEY (organization_id, block_id, account_id),
+        FOREIGN KEY (organization_id, block_id)
+            REFERENCES blocks(organization_id, id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX access_log_names_account ON access_log_names (account_id);
+
+    -- Each record in a block's log whose signer's right comes from a block above
+    -- (be_block_keys::Authority::Inherited): whose records that block's log serves whole to a
+    -- reader of a block below it who may not view it, so the reader checks the signer there.
+    -- Only the chain's last block: the blocks between are proven by their parent records,
+    -- which every path serves whole.
+    CREATE TABLE access_log_authorities (
+        organization_id TEXT NOT NULL,
+        above_id        TEXT NOT NULL,
+        block_id        TEXT NOT NULL,
+        signer          TEXT NOT NULL,
+        PRIMARY KEY (organization_id, above_id, block_id, signer),
+        FOREIGN KEY (organization_id, block_id)
+            REFERENCES blocks(organization_id, id) ON DELETE CASCADE
+    );
+
+    -- Grants a block's log names that the server revoked on its own (remove-contact,
+    -- delete-agent), until a device's signed revocation goes in the log.
+    CREATE TABLE unsigned_revocations (
+        organization_id TEXT NOT NULL,
+        block_id        TEXT NOT NULL,
+        account_id      TEXT NOT NULL,
+        PRIMARY KEY (organization_id, block_id, account_id),
+        FOREIGN KEY (organization_id, block_id)
+            REFERENCES blocks(organization_id, id) ON DELETE CASCADE
+    );
+
     CREATE INDEX blocks_changed
         ON blocks (organization_id, changed, id);
 
     CREATE TABLE block_departures (
         organization_id TEXT NOT NULL,
-        root            TEXT NOT NULL,
+        entry           TEXT NOT NULL,
         block_id        TEXT NOT NULL,
         changed         INTEGER NOT NULL,
         time            INTEGER NOT NULL,
         owner           TEXT,
-        PRIMARY KEY (organization_id, root, block_id)
+        PRIMARY KEY (organization_id, entry, block_id)
     );
 
     CREATE INDEX block_departures_changed
-        ON block_departures (organization_id, root, changed, block_id);
+        ON block_departures (organization_id, entry, changed, block_id);
 
     CREATE INDEX block_departures_time
         ON block_departures (organization_id, time);
@@ -192,7 +371,33 @@ const SCHEMA: &str = "
     CREATE TABLE recovery_keys (
         account_id      TEXT PRIMARY KEY REFERENCES accounts(id) ON DELETE CASCADE,
         public          BLOB NOT NULL,
-        signing         BLOB NOT NULL DEFAULT x''
+        signing         BLOB NOT NULL DEFAULT x'',
+        -- The newest name card its devices published (`publish-name`), and its date.
+        name            BLOB NOT NULL DEFAULT x'',
+        name_dated      INTEGER NOT NULL DEFAULT 0
+    );
+
+    -- Parts of a move to a new recovery key staged ahead of its `set-recovery-key`
+    -- (`stage-recovery-key`): each key sealed again to the new key, and each log's retirement.
+    CREATE TABLE recovery_sealed_parts (
+        account_id      TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+        public          BLOB NOT NULL,
+        signing         BLOB NOT NULL,
+        organization_id TEXT NOT NULL,
+        key_id          TEXT NOT NULL,
+        sealed          BLOB NOT NULL,
+        PRIMARY KEY (account_id, organization_id, key_id)
+    );
+
+    CREATE TABLE recovery_retirement_parts (
+        account_id      TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+        public          BLOB NOT NULL,
+        signing         BLOB NOT NULL,
+        organization_id TEXT NOT NULL,
+        kind            TEXT NOT NULL,
+        log_id          TEXT NOT NULL,
+        entry           BLOB NOT NULL,
+        PRIMARY KEY (account_id, organization_id, kind, log_id)
     );
 
     CREATE TABLE keys (
@@ -203,16 +408,12 @@ const SCHEMA: &str = "
         epoch           INTEGER NOT NULL,
         created         INTEGER NOT NULL,
         public          BLOB NOT NULL DEFAULT x'',
-        signing         BLOB NOT NULL DEFAULT x'',
+        -- An escrow key's maker, whose identity key made `signature`, and the
+        -- head of the organization's log it was made under.
+        maker           TEXT NOT NULL DEFAULT '',
+        head            BLOB NOT NULL DEFAULT x'',
         signature       BLOB NOT NULL DEFAULT x'',
         PRIMARY KEY (organization_id, id)
-    );
-
-    CREATE TABLE pinned_escrows (
-        account_id      TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
-        organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-        sealed          BLOB NOT NULL,
-        PRIMARY KEY (account_id, organization_id)
     );
 
     CREATE TABLE rotations (
@@ -332,11 +533,13 @@ const SCHEMA: &str = "
         organization_id TEXT NOT NULL,
         block_id        TEXT NOT NULL,
         tag             BLOB NOT NULL,
-        generation      INTEGER NOT NULL,
         base_commit     TEXT,
         base_sequence   INTEGER NOT NULL,
         base_state      BLOB NOT NULL,
+        sequence        INTEGER NOT NULL,
+        barrier         INTEGER NOT NULL,
         lost            INTEGER NOT NULL DEFAULT 0,
+        run             INTEGER NOT NULL DEFAULT 0,
         PRIMARY KEY (organization_id, block_id)
     );
 
@@ -344,15 +547,51 @@ const SCHEMA: &str = "
         organization_id TEXT NOT NULL,
         block_id        TEXT NOT NULL,
         sequence        INTEGER NOT NULL,
-        generation      INTEGER NOT NULL,
+        origin          INTEGER NOT NULL,
+        counter         INTEGER NOT NULL,
+        base            INTEGER NOT NULL,
+        floor           INTEGER NOT NULL,
+        received        INTEGER,
         payload         BLOB NOT NULL,
         PRIMARY KEY (organization_id, block_id, sequence)
     );
 
-    CREATE TABLE revision_floor (
-        id              INTEGER PRIMARY KEY CHECK (id = 1),
-        revision        INTEGER NOT NULL
+    CREATE UNIQUE INDEX journal_entries_by_id
+        ON journal_entries (organization_id, block_id, origin, counter);
+
+    CREATE TABLE block_log_heads (
+        organization_id TEXT NOT NULL,
+        block_id        TEXT NOT NULL,
+        size            INTEGER NOT NULL,
+        root            BLOB NOT NULL,
+        bytes           INTEGER NOT NULL,
+        PRIMARY KEY (organization_id, block_id)
     );
+
+    CREATE TABLE block_logs (
+        organization_id TEXT NOT NULL,
+        block_id        TEXT NOT NULL,
+        seq             INTEGER NOT NULL,
+        id              BLOB NOT NULL,
+        author          TEXT NOT NULL,
+        arrival         INTEGER NOT NULL,
+        payload_hash    BLOB NOT NULL,
+        signature       BLOB NOT NULL,
+        payload         BLOB,
+        PRIMARY KEY (organization_id, block_id, seq)
+    );
+
+    CREATE UNIQUE INDEX block_logs_by_id
+        ON block_logs (organization_id, block_id, id);
+
+    CREATE TABLE block_log_nodes (
+        organization_id TEXT NOT NULL,
+        block_id        TEXT NOT NULL,
+        level           INTEGER NOT NULL,
+        position        INTEGER NOT NULL,
+        hash            BLOB NOT NULL,
+        PRIMARY KEY (organization_id, block_id, level, position)
+    ) WITHOUT ROWID;
 
     CREATE TABLE push_key (
         id              INTEGER PRIMARY KEY CHECK (id = 1),
@@ -374,7 +613,7 @@ const SCHEMA: &str = "
     CREATE INDEX push_endpoints_address ON push_endpoints (address);
     CREATE INDEX push_endpoints_organization ON push_endpoints (organization_id);
 
-    CREATE TABLE notify_modes (
+    CREATE TABLE mutes (
         organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
         block_id        TEXT NOT NULL,
         account_id      TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,

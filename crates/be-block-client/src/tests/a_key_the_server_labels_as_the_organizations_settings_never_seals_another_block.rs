@@ -91,25 +91,24 @@ async fn a_key_the_server_labels_as_the_organizations_settings_never_seals_anoth
         scope,
         format!("account:{}", victim.account()),
         server,
-        secret.seal_for(
-            server.into_bytes(),
-            &Party {
-                account: victim.account().into_bytes(),
-                public: victim.keys().identity().public(),
-            },
-            scope.as_bytes(),
-            &scope_plain,
-        ),
+        secret
+            .seal_for(
+                server.into_bytes(),
+                &Party {
+                    account: victim.account().into_bytes(),
+                    public: victim.keys().identity().public(),
+                },
+                scope.as_bytes(),
+                &scope_plain,
+            )
+            .unwrap(),
     );
     let data = insert_key(&database, organization, note, "data");
-    insert_wrap(
-        &database,
-        organization,
-        data,
-        scope.to_string(),
-        server,
-        ContentKey::from_bytes(scope_plain).seal(data, &data_plain),
-    );
+    insert_wrap(&database, organization, data, scope.to_string(), server, {
+        let ring = be_block_store::Keyring::new();
+        ring.insert(data, ContentKey::from_bytes(scope_plain), note);
+        ring.seal(data, &data_plain).unwrap()
+    });
 
     let reopened = harness.second(&victim).await;
     reopened.refresh_keys(None).await.unwrap();

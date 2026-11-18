@@ -1,6 +1,6 @@
 use super::*;
 
-use be_block_protocol::{ClientId, RelayKind};
+use be_block_protocol::ClientId;
 
 use crate::Event;
 use be_type_example_counter::CounterContent;
@@ -21,7 +21,7 @@ async fn heard(
         } = events.recv().await.unwrap()
             && relayed == block
         {
-            let plain = peer.unseal(&payload).unwrap();
+            let plain = peer.unseal(block, &payload).unwrap();
             heard.push((from, payload, plain));
         }
     }
@@ -41,18 +41,27 @@ async fn relayed_messages_reach_one_peer_or_all_of_them_sealed() {
     let mut on_phone = phone.connection().subscribe();
     let mut on_laptop = laptop.connection().subscribe();
     let mut on_tablet = tablet.connection().subscribe();
-    let (phone_id, ..) = phone.connection().join_session(block).await.unwrap();
-    let (laptop_id, ..) = laptop.connection().join_session(block).await.unwrap();
-    tablet.connection().join_session(block).await.unwrap();
+    let (phone_id, ..) = phone
+        .connection()
+        .join_session(phone.organization(), block, BUILD)
+        .await
+        .unwrap();
+    let (laptop_id, ..) = laptop
+        .connection()
+        .join_session(laptop.organization(), block, BUILD)
+        .await
+        .unwrap();
+    tablet
+        .connection()
+        .join_session(tablet.organization(), block, BUILD)
+        .await
+        .unwrap();
 
     let to_laptop = phone
-        .relay(block, Some(laptop_id), RelayKind::Peer, b"to the laptop")
+        .relay(block, Some(laptop_id), b"to the laptop")
         .await
         .unwrap();
-    let to_everyone = phone
-        .relay(block, None, RelayKind::Peer, b"to everyone")
-        .await
-        .unwrap();
+    let to_everyone = phone.relay(block, None, b"to everyone").await.unwrap();
     to_laptop.await.unwrap();
     to_everyone.await.unwrap();
 

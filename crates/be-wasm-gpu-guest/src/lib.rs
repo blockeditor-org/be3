@@ -85,6 +85,12 @@ pub fn acquire_surface_texture(surface: u32) -> Result<wgpu::Texture, String> {
     described(texture)
 }
 
+/// `texture`, from the guest bindings (such as a surface's texture be-sdk-root's `OwnSurface`
+/// acquired), as a wgpu texture to draw into.
+pub fn texture(texture: gpu::Texture) -> Result<wgpu::Texture, String> {
+    described(texture)
+}
+
 pub fn import_texture(image: u64) -> Option<wgpu::Texture> {
     described(gpu::import_texture(image)?).ok()
 }
@@ -122,6 +128,8 @@ pub fn present_surface(surface: u32) {
 }
 
 pub fn release_surface(surface: u32) {
+    // For an id never configured this makes and drops an unknown surface, which is harmless: the
+    // host lets go only of a surface it holds (`Gpu::detach_surface`'s `is_some()`).
     let released = SURFACES.with(|surfaces| surfaces.borrow_mut().remove(&surface));
     drop(released.unwrap_or_else(|| gpu::Surface::new(surface)));
 }

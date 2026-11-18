@@ -8,12 +8,13 @@ use be_server::store::ServerStore;
 use crate::cores::Cores;
 
 pub const EMAIL: &str = "ada@example.com";
-pub const PASSWORD: &str = "correct horse battery";
 pub const SERVE: &str = "serve";
 
 pub struct Server {
     pub address: SocketAddr,
     pub url: String,
+    /// The browser session `serve` made for the account, which approves sign-ins.
+    cookie: String,
     child: Option<Child>,
 }
 
@@ -35,7 +36,8 @@ impl Server {
         let mut line = String::new();
         let _ = stdout.read_line(&mut line);
         std::thread::spawn(move || std::io::copy(&mut stdout, &mut std::io::stderr()));
-        let Ok(address) = line.trim().parse::<SocketAddr>() else {
+        let (address, cookie) = line.trim().split_once(' ').unwrap_or_default();
+        let Ok(address) = address.parse::<SocketAddr>() else {
             drop(child.stdin.take());
             let status = child.wait().map_err(|error| error.to_string())?;
             return Err(format!(
@@ -45,6 +47,7 @@ impl Server {
         Ok(Self {
             address,
             url: format!("http://{address}"),
+            cookie: cookie.to_owned(),
             child: Some(child),
         })
     }
@@ -52,13 +55,8 @@ impl Server {
     pub fn approve(&self, code: &str) -> Result<(), String> {
         let mut browser = Browser {
             address: self.address,
-            cookie: String::new(),
+            cookie: self.cookie.clone(),
         };
-        browser.submit(
-            "/auth/login",
-            "/auth/login",
-            &[("email", EMAIL), ("password", PASSWORD)],
-        )?;
         browser.submit(
             &format!("/auth?code={code}"),
             "/auth/approve",
@@ -83,21 +81,22 @@ pub fn serve(build_info: &Path, data: &Path) -> Result<(), String> {
         .enable_all()
         .build()
         .map_err(|error| error.to_string())?;
-    let listener = runtime
+    let (cookie, listener) = runtime
         .block_on(async {
             let store = ServerStore::open(data)?;
-            store.register(EMAIL, "Ada", PASSWORD).await?;
-            Ok::<_, be_server::ServerError>(())
+            let (profile, _) = store.register(EMAIL, "Ada").await?;
+            store.browser_session(profile.account).await
         })
         .map_err(|error| format!("could not make the account: {error}"))
-        .and_then(|()| {
+        .and_then(|cookie| {
             runtime
                 .block_on(tokio::net::TcpListener::bind("127.0.0.1:0"))
+                .map(|listener| (cookie, listener))
                 .map_err(|error| error.to_string())
         })?;
     let address = listener.local_addr().map_err(|error| error.to_string())?;
     let mut stdout = std::io::stdout();
-    writeln!(stdout, "{address}")
+    writeln!(stdout, "{address} {cookie}")
         .and_then(|()| stdout.flush())
         .map_err(|error| error.to_string())?;
     let (shutdown, stopped) = tokio::sync::oneshot::channel();

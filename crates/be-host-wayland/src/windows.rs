@@ -301,12 +301,8 @@ impl Windows {
 
     pub(crate) fn set_cursor(&self, cursor: CursorIcon, image: Option<CursorImage>) {
         let inner = self.0.value();
-        if inner.cursor.get_untracked() != cursor {
-            inner.cursor.set(cursor);
-        }
-        if inner.cursor_image.with_untracked(|shown| *shown != image) {
-            inner.cursor_image.set(image);
-        }
+        inner.cursor.set(cursor);
+        inner.cursor_image.set(image);
     }
 
     pub(crate) fn open(&self, id: WindowId) {
@@ -335,9 +331,7 @@ impl Windows {
             let asks = typing
                 .filter(|(window, _)| window == id)
                 .map(|(_, asks)| asks as u32);
-            if signals.typing.get_untracked() != asks {
-                signals.typing.set(asks);
-            }
+            signals.typing.set(asks);
         }
     }
 
@@ -489,9 +483,7 @@ impl Windows {
         if focused && let Some(dialog) = self.blocked_by(id) {
             self.raise(dialog);
         }
-        if let Some(signals) = self.signals(id)
-            && signals.focused.get_untracked() != focused
-        {
+        if let Some(signals) = self.signals(id) {
             signals.focused.set(focused);
         }
         let was = inner.focused.get();

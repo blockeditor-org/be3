@@ -16,7 +16,6 @@ mod layout_names;
 mod pacing;
 mod pointer;
 mod presentation;
-pub mod programs;
 mod render;
 mod runtime_dir;
 mod selection;

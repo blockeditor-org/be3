@@ -1,4 +1,4 @@
-# A draggable dropped on a target hands it its payload.
+# An item carried onto a place that takes it is dropped there.
 clock stop
 wait 'value="Dropped nothing"'
 drag '#drag.apple' '#drag.basket' 4

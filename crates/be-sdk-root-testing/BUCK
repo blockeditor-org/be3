@@ -1,0 +1,34 @@
+load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_package")
+load("@root//buck/program:defs.bzl", "app_data", "app_types")
+load("@root//buck/wasm:defs.bzl", "app_module")
+
+cargo_package()
+
+# A root guest built on be-sdk-root and be-sdk-beui-root, which
+# be-wasm-root-host's tests run: it spawns the triangle as a staged app, shows
+# its screen, and draws its own surface with beui. A root is linked against the
+# app libraries as an editor is (decisions/a_root_links_beui_as_an_app_does.md),
+# so :module is root_testing.wasm linked against base and beui.
+app_module(
+    name = "module",
+    module = "root_testing",
+)
+
+# Its constants, which the tests that run it read natively.
+cargo_library()
+
+# The root staged as an app, with no editors, data or block types, for a host
+# test that runs it with `be-host --root=be3.root-testing`
+# (crates/be-host-tests/BUCK).
+export_file(
+    name = "manifest",
+    src = "manifest.json",
+)
+
+app_data(
+    name = "data",
+)
+
+app_types(
+    name = "types",
+)

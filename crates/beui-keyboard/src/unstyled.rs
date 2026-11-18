@@ -20,7 +20,7 @@ pub use layout::{Action, KeyAt, KeyDef, Layer, Layout, Modifier, Role, Slider, S
 #[derive(Clone, Copy)]
 pub struct KeyboardHandle {
     engine: Stored<RefCell<Engine>>,
-    revision: Signal<u64>,
+    changed: Trigger,
 }
 
 impl KeyboardHandle {
@@ -63,7 +63,7 @@ impl KeyboardHandle {
     }
 
     fn read<R>(&self, read: impl FnOnce(&Engine) -> R) -> R {
-        self.revision.get();
+        self.changed.track();
         self.engine.with(|engine| read(&engine.borrow()))
     }
 
@@ -79,7 +79,7 @@ impl KeyboardHandle {
         if paste {
             request_typed_paste();
         }
-        self.revision.update(|revision| *revision += 1);
+        self.changed.notify();
         result
     }
 }
@@ -96,10 +96,13 @@ pub struct KeyCapHandle {
 }
 
 #[component]
-pub fn SoftwareKeyboard(cap: RenderFn<KeyCapHandle>, emoji: RenderFn<KeyboardHandle>) -> NodeId {
+pub fn SoftwareKeyboard(
+    cap: RenderFn<KeyCapHandle, NodeId>,
+    emoji: RenderFn<KeyboardHandle, NodeId>,
+) -> NodeId {
     let engine = store(RefCell::new(Engine::default()));
-    let revision = create_signal(0u64);
-    let keyboard = KeyboardHandle { engine, revision };
+    let changed = create_trigger();
+    let keyboard = KeyboardHandle { engine, changed };
     let layer = keyboard.layer();
     let repeat = create_timer(move || {
         let now = now();
@@ -173,12 +176,12 @@ enum Cell {
 fn KeyRows(
     layout: &'static Layout,
     keyboard: KeyboardHandle,
-    cap: RenderFn<KeyCapHandle>,
+    cap: RenderFn<KeyCapHandle, NodeId>,
 ) -> NodeId {
     let rows: Vec<usize> = (0..layout.rows.len()).collect();
     view! {
         <List spacing=0.0>
-            <ForEach keys={rows}>|row: usize|
+            <ForEach value={rows}>|row: usize|
                 <ListItem grow={layout.rows[row].height}>
                     <KeyRow layout row keyboard cap />
                 </ListItem>
@@ -192,7 +195,7 @@ fn KeyRow(
     layout: &'static Layout,
     row: usize,
     keyboard: KeyboardHandle,
-    cap: RenderFn<KeyCapHandle>,
+    cap: RenderFn<KeyCapHandle, NodeId>,
 ) -> NodeId {
     let keys = layout.rows[row].keys;
     let mut cells = Vec::new();
@@ -213,7 +216,7 @@ fn KeyRow(
     let layer = keyboard.layer();
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
-            <ForEach keys={cells}>|cell: Cell| {
+            <ForEach value={cells}>|cell: Cell| {
                 match cell {
                     Cell::Gap(column) => view! {
                         <ListItem grow={keys[column].shift}>
@@ -278,7 +281,7 @@ fn KeyRow(
 }
 
 #[component]
-fn KeyCell(handle: KeyCapHandle, cap: RenderFn<KeyCapHandle>) -> NodeId {
+fn KeyCell(handle: KeyCapHandle, cap: RenderFn<KeyCapHandle, NodeId>) -> NodeId {
     let label = handle
         .def
         .value(Slot::Center)

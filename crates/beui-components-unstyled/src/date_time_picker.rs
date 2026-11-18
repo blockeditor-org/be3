@@ -7,16 +7,16 @@ use crate::date_time_field::{
     DateDraft, DateSegment, DateSegmentHandle, DateTimeField, DateTimeParts,
 };
 use crate::datetime::{Date, DateTime, HourCycle, Time};
-use crate::popover::{Popover, PopoverHandle, PopoverPlacement};
+use crate::popover::{Popover, PopoverHandle};
 use crate::popup_trigger::PopupTriggerHandle;
 use beui_view::primitives::*;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
-use beui_view::types::{CursorIcon, PointerPress};
+use beui_view::types::{CursorIcon, Placement, PointerPress};
 
 pub struct DateTimeBoxHandle {
-    pub field: Child,
-    pub trigger: Option<Child>,
+    pub field: NodeId,
+    pub trigger: Option<NodeId>,
     pub focused: ReadSignal<bool>,
     pub hovered: ReadSignal<bool>,
     pub disabled: Memo<bool>,
@@ -54,14 +54,22 @@ pub struct DateTimeTimesHandle {
     pub pick: Callback<Time>,
 }
 
+/// The page a paged date and time panel shows.
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Default)]
+pub enum DateTimePage {
+    #[default]
+    Date,
+    Time,
+}
+
 pub struct DateTimePanelHandle {
-    pub field: Child,
+    pub field: NodeId,
     pub field_width: Memo<f32>,
     pub layout: Memo<DateTimePanelLayout>,
     pub calendar: DateTimeCalendarHandle,
     pub times: DateTimeTimesHandle,
-    pub page: ReadSignal<usize>,
-    pub show_page: Callback<usize>,
+    pub page: ReadSignal<DateTimePage>,
+    pub show_page: Callback<DateTimePage>,
     pub now: Callback<()>,
     pub now_label: &'static str,
     pub clear: Callback<()>,
@@ -74,15 +82,15 @@ struct Field {
     hour_cycle: HourCycle,
     label: Memo<String>,
     disabled: Memo<bool>,
-    segment: RenderFn<DateSegmentHandle>,
-    literal: RenderFn<String>,
-    segments: RenderFn<Child>,
-    frame: RenderFn<DateTimeBoxHandle>,
+    segment: RenderFn<DateSegmentHandle, NodeId>,
+    literal: RenderFn<String, NodeId>,
+    segments: RenderFn<NodeId, NodeId>,
+    frame: RenderFn<DateTimeBoxHandle, NodeId>,
 }
 
 #[component]
 pub fn DateTimePicker(
-    #[prop(default = None)] value: Binding<Option<DateTime>>,
+    value: Binding<Option<DateTime>>,
     #[prop(default = DateTimeParts::DateTime)] parts: DateTimeParts,
     #[prop(default = HourCycle::H24)] hour_cycle: HourCycle,
     #[prop(default = String::new())] label: Prop<String>,
@@ -91,14 +99,14 @@ pub fn DateTimePicker(
     #[prop(default = None)] max: Prop<Option<Date>>,
     #[prop(default = None)] today: Prop<Option<Date>>,
     #[prop(default = false)] paged: Prop<bool>,
-    #[prop(default = PopoverPlacement::Below)] placement: PopoverPlacement,
-    segment: RenderFn<DateSegmentHandle>,
-    literal: RenderFn<String>,
-    segments: RenderFn<Child>,
-    field: RenderFn<DateTimeBoxHandle>,
-    trigger: Render<DateTimeTriggerHandle>,
+    #[prop(default = Placement::BELOW_START)] placement: Placement,
+    segment: RenderFn<DateSegmentHandle, NodeId>,
+    literal: RenderFn<String, NodeId>,
+    segments: RenderFn<NodeId, NodeId>,
+    field: RenderFn<DateTimeBoxHandle, NodeId>,
+    trigger: Render<DateTimeTriggerHandle, NodeId>,
     surface: AnchoredStyle,
-    panel: RenderFn<DateTimePanelHandle>,
+    panel: RenderFn<DateTimePanelHandle, NodeId>,
 ) -> NodeId {
     let min = create_memo(move || min.get());
     let max = create_memo(move || max.get());
@@ -147,8 +155,11 @@ pub fn DateTimePicker(
         open_at.call(outer_segment.get_untracked().unwrap_or(first));
         None
     });
-    let refocus_trigger = create_memo(move || !from_field.get());
     let shown = open;
+    // Opened from the field, it moves the focus its layer gave back on to the segment last
+    // focused inside it. It closes first: the field asks for a segment's focus through effects
+    // that run after the layer has given the focus back to the segment it opened from, which
+    // the field would then take as its focused segment instead.
     let open = Binding::new(shown, move |now_open: bool| {
         shown.set(now_open);
         if now_open {
@@ -186,7 +197,6 @@ pub fn DateTimePicker(
                         anchor=anchor
                         placement
                         surface
-                        refocus_trigger
                         trigger={move |handle: PopupTriggerHandle| trigger.call(DateTimeTriggerHandle {
                             popover: handle,
                             label: picker_label,
@@ -231,7 +241,7 @@ pub fn DateTimePicker(
 fn FieldBox(
     field: Field,
     focus: Prop<Option<DateSegment>>,
-    #[prop(default = None)] trigger: Option<Child>,
+    trigger: Option<NodeId>,
     on_segment_focus: Callback<Option<DateSegment>>,
     on_open: Callback<DateSegment>,
     on_draft: Callback<DateDraft>,
@@ -297,7 +307,7 @@ fn PickerPanel(
     min: Memo<Option<Date>>,
     max: Memo<Option<Date>>,
     today: Memo<Option<Date>>,
-    panel: RenderFn<DateTimePanelHandle>,
+    panel: RenderFn<DateTimePanelHandle, NodeId>,
 ) -> NodeId {
     let PopoverHandle {
         shown: open, close, ..
@@ -325,7 +335,7 @@ fn PickerPanel(
             )),
         }
     });
-    let tab = create_signal(0usize);
+    let tab = create_signal(DateTimePage::Date);
     create_effect(move || {
         if open.get() {
             let timed = inner_focus.get_untracked().is_some_and(|segment| {
@@ -334,14 +344,17 @@ fn PickerPanel(
                     DateSegment::Hour | DateSegment::Minute | DateSegment::Period
                 )
             });
-            tab.set(usize::from(timed));
+            tab.set(match timed {
+                true => DateTimePage::Time,
+                false => DateTimePage::Date,
+            });
         }
     });
     let date = create_memo(move || current.get().map(|value| value.date));
     let time = create_memo(move || current.get().map(|value| value.time));
     let calendar_focused = create_memo(move || open.get() && !from_field.get() && parts.has_date());
     let list_focused = create_memo(move || {
-        open.get() && !from_field.get() && (!parts.has_date() || tab.get() == 1)
+        open.get() && !from_field.get() && (!parts.has_date() || tab.get() == DateTimePage::Time)
     });
     let pick_date = Callback::new(move |date: Date| {
         let time = current
@@ -350,7 +363,7 @@ fn PickerPanel(
         current.set(Some(DateTime::new(date, time)));
         match parts {
             DateTimeParts::Date => close.call(()),
-            DateTimeParts::DateTime if paged.get_untracked() => tab.set(1),
+            DateTimeParts::DateTime if paged.get_untracked() => tab.set(DateTimePage::Time),
             DateTimeParts::DateTime | DateTimeParts::Time => {}
         }
     });

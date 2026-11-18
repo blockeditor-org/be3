@@ -7,7 +7,6 @@ use super::*;
 fn a_new_view_of_a_database_in_no_folder_goes_to_unfiled() {
     let (mut harness, _editor) = editor();
     harness.click("database.new-view");
-    harness.run();
 
     let store = harness.store();
     let views: Vec<_> = store

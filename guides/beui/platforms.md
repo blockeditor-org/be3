@@ -1,7 +1,7 @@
 # beui platforms
 
 What runs underneath a beui program: the runner every platform shares, how
-input is normalized, the clipboard, renderers, and what is particular to each
+input is normalized, the clipboard, the share sheet, renderers, and what is particular to each
 platform. How a program uses them is in guides/beui/programs.md.
 
 ## Where the code is
@@ -9,8 +9,9 @@ platform. How a program uses them is in guides/beui/programs.md.
 - crates/beui-runner: `Platform`, `PlatformServices`, `Runner`, `Layer`, the
   input intake (`intake.rs`), the `Renderer` trait and `environment`
   (`BEUI_PLATFORM`, `BEUI_RENDERER`, `BEUI_LAYERS`).
-- crates/beui-host: picks a platform (`native_platform`, `web_platform`), loads
-  the renderer and stacks layers (`src/runner.rs`).
+- crates/beui-host-window: picks a native platform (`native_platform`), loads
+  the renderer and stacks layers (`src/runner.rs`); crates/beui-host does the
+  same for the web (`web_platform`).
 - crates/beui-platform-winit (desktop), beui-platform-web (+ beui-web-input,
   the browser's event mapping), beui-platform-android (with its Java in
   `android/`), beui-platform-drm (displays and libinput with no display
@@ -32,7 +33,7 @@ or a `Waker` was woken.
 `requests` (`WindowRequests`, the same type an app sends its host: cursor,
 pointer lock, back handling, keyboard wanted, intercepted keys, paste kinds,
 IME area), `cursor_image`, `typed` and `appearance`. The runner calls
-`show_window` only when it changed. One-off actions (copy, paste, file pick,
+`show_window` only when it changed. One-off actions (copy, share, paste, file pick,
 fullscreen, close) have calls of their own. `typed` counts frames that
 delivered text, because typing moves the platform's own copy of a field (the
 web's hidden textarea, Android's editable) even when the program rejects it;
@@ -103,7 +104,10 @@ does not count as `has_events`, so a platform does not spin waiting.
 A platform pushes an `Incoming`: an `Input` in physical pixels, logical pixels
 or points (`Units`), a file drag (`Incoming::FileDrag`, which never crosses the
 app protocol: the app's host turns it into `drag-over`), a timestamp, or a
-window report. The intake is the one place input becomes `Event`s; drive's
+window report. The intake is the one place input becomes `Event`s, after the
+program has taken what it routes itself (`Program::input`, offered each input
+in points just before it becomes events, with the timestamp the platform gave
+it, if any); drive's
 gestures, the on-screen keyboard and typed pastes push `Input` there too, so
 they are normalized like a window's. At the start of each frame it converts to
 points, stamps keys and buttons with the held modifiers, drops a held
@@ -119,6 +123,11 @@ moves keeps both, so a click lands where it was made. An `Interactive` with
 `every_sample` (the canvas pen during a stroke) sets
 `WindowRequests::every_sample`, and then every move is kept and `on_drag` runs
 per sample.
+
+Each pointer is named by a `PointerId`: `Mouse`, each `Touch` finger (an XR controller's
+laser is a touch, `is_controller`), `Pen`, and two the platforms never report: `Keyboard`, a
+keyboard carrying a dragged item, and `Relayed`, a carry whose points another program or
+window relays (a dock bar an app's grip moves across the app protocol).
 
 Per-device behaviour that spans platforms:
 
@@ -175,8 +184,13 @@ of its selection and reads them from another program's; macOS knows by the
 pasteboard's change count and writes them as pasteboard types, reverse-DNS UTIs
 made from their format id (`org.be3.clip.blocks`); Android lists them among
 the clip's description's MIME types and keeps them, base64, in its extras, with
-a nonce of the copy that tells its clip from another's, and leaves out what
-would overrun 256 KB there (`clip::fitting`), which stays in the held clip
+a nonce of the copy that tells its clip from another's. A clip crosses Binder,
+whose transactions stop near 1 MB, so text and extras share a budget of UTF-16
+units: the text has first claim, beyond which it goes there cut short with a
+notice (`clip::cut_short`), and formats that would overrun what it leaves are
+left out (`clip::fitting`); both stay whole in the held clip, which answers
+pastes in the program until the clipboard changes even when nothing could be
+put there
 (`beui-platform-android/src/clipboard.rs`, written without an emulator: only
 its compiling is checked). All of them hold an item's
 `ClipItem::stored` bytes, refs and all. Elsewhere the plain text on the
@@ -192,6 +206,13 @@ it; elsewhere the plain text, or a PNG when there is none. Its Xvfb tests run
 where `Xvfb` is installed and skip with a message where it is not, as on the
 build workers. The macOS code has no Mac to run on: only its compiling is
 checked, and the rule it shares with Windows (`beside`) is tested.
+
+Text inside beui has `\n` line breaks. Every read of plain text from a system
+clipboard (each platform, the HTML core's `paste` event, be-host-wayland's
+reads of a program's selection) goes through `clip::text_from_system`, which
+turns `\r\n` and a lone `\r` into `\n`; on Windows a copy writes `\r\n`
+(`clip::text_with_crlf`). `HeldClip::wrote` compares line breaks as `\n` on
+both sides.
 
 The focus reads the clipboard only by pasting: an `Interactive`'s `pastes`
 lists the format ids it takes, preferred first, and its `on_paste` gets a
@@ -209,6 +230,23 @@ program sees the key: it stops the browser's copy, paste and cut but lets
 Ctrl+Shift+V make a `paste` event. A node that takes these keys and leaves
 Ctrl+V unanswered gets no paste on the web.
 
+## Share sheet
+
+`reactive::share(Clip)` hands a clip to the platform's share sheet, and
+`reactive::use_share_sheet()` says whether there is one: show a Share control
+only while it is true. The native core keeps the clip until the end of the frame
+(`Document::share`, `Context::share`, `FrameOutput::shared`), when the runner
+calls `PlatformServices::share`, where `has_share_sheet`, read each frame, says
+there is a sheet. Call it from the press: the web shares only within a user
+gesture, which the end of the press's frame still is. The web
+(`beui-web-input/src/share.rs`, used by both cores) has one where
+`navigator.share` is defined, and passes the clip's plain text as `url` when it
+is one link (`clip::shared_link`), else as `text`; Android always has one, an
+`ACTION_SEND` of the plain text through the system's chooser (`BeuiView.share`,
+only compile-checked). Desktops and DRM have none, nor does beui inside an app
+yet: the app protocol does not carry a share. The headless `Simulation` has one
+when a test sets `share_sheet`, and keeps what was shared in `shared`.
+
 ## Renderers
 
 Platforms name no renderer crate: they draw through a
@@ -218,7 +256,12 @@ a raw window handle (`WindowSurface`) or made with its element
 target on one device, and a `Renderer` per target; give every window or panel
 on a device a renderer over the same `Resources`, as be-sdk-beui-platform does
 per app module, beui-layer-space for its panels and beui-platform-drm for its
-displays. `Renderer::capture` reads the presented frame back for a screenshot.
+displays. `Renderer::capture` reads the presented frame back for a screenshot. A renderer
+`set_window` marks (present.rs's, each DRM display's) is composited while the program turns
+`beui_draw::compose` on, as be-host does: its UI goes into root textures (one more above each
+anchored view), with surfaces
+drawings show in place, and the window is drawn from its layer list (guides/apps/runtime.md,
+The layer list); `Renderer::scissors` is then where that pass drew.
 
 ## Per platform
 
@@ -267,7 +310,7 @@ the focus takes text, the document scrolls the focused field into what is
 left. beui's own on-screen keyboard is guides/beui/space.md.
 
 **Headless.** `beui_platform_headless::Simulation` is the window: a
-`PlatformServices` with a clipboard and a screen to go fullscreen into, and the
+`PlatformServices` with a clipboard, a share sheet a test can turn on, and a screen to go fullscreen into, and the
 only window a driver can `resize`. beui's tests drive one with a renderer that
 draws nothing.
 
@@ -294,11 +337,13 @@ window. `Displays::screenshot` reads every desktop display's last drawn picture
 back (`Screen::capture`) and joins them into one (`screenshot.rs`). Tests make a `Displays` of their own with `Displays::new` and change
 it with `set`.
 
-**Screen edges** (`edges.rs`, a `ScreenEdges` handle through `Setup`): the program sets edges of
-displays (`ScreenEdges::set`) and hears `EdgeState`s back (`watch`). A `wall` edge stops relative
-pointer motion even where another display begins, and counts the pointer's push on past it,
-except the motion that brought the pointer there (and, for a `deliberate` edge, anything until it
-has rested there a moment); a finger landing just inside it is the edge's (`pull`, `pulls`) and
-never reaches a window. An open edge reports whether the pointer is in its `keep` (`near`) and
-counts fingers landing outside it (`taps_away`). Absolute pointers (tablets) and a locked pointer
-pass every wall. The logic is plain (`Edges`), tested in `edges/tests/`.
+**Screen input** (`screen_input.rs`, a `ScreenInput` handle through `Setup`): the program sets
+walls and regions (`ScreenInput::set`) and hears what happened at each (`state`, `watch`); it
+holds no policy of its own. A `Wall`, a stretch of a display's side, stops relative pointer motion
+even where another display begins, and says whether the pointer rests `against` it and how far
+motion that began there ran on past it (`pushed`, which only grows). A `Region` says whether the
+pointer is in it and counts fingers landing in it; one that `captures_touch` takes a finger landing
+in it until it lifts (`touch`, `lifts`, `lifted`), and the finger never reaches a window, not
+even once the region goes while it is down. Every
+finger landing anywhere is counted too (`touch_downs`). Absolute pointers (tablets) and a locked
+pointer pass every wall. The logic is plain (`Input`), tested in `screen_input/tests/`.

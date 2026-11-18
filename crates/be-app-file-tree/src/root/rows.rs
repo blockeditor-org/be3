@@ -1,7 +1,7 @@
-use be_sdk_beui::be_block_content::ViewState;
+use be_sdk_beui::be_block_content::ViewStateKind;
 use be_sdk_beui::be_sdk_ui::bytes_label;
 use be_sdk_beui::beui::icons::Glyph;
-use std::cell::{Cell, RefCell};
+use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 use std::time::{Duration, Instant};
@@ -77,6 +77,9 @@ pub(crate) struct Row {
     pub(crate) detail: Option<String>,
     /// In Unfiled, a block nothing references.
     pub(crate) unused: bool,
+    /// How many things in the block the account has not read (`BlockInfo::unread`): a chat's
+    /// new messages, shown as a badge on the row.
+    pub(crate) unread: u32,
 }
 
 #[derive(Clone, PartialEq, Default)]
@@ -137,6 +140,7 @@ impl Row {
             tags: Vec::new(),
             detail: None,
             unused: false,
+            unread: 0,
         }
     }
 
@@ -145,9 +149,8 @@ impl Row {
     }
 }
 
-const OPENED: &str = "opened";
-
-#[derive(Default, Deserialize, Serialize)]
+/// Which folders and sections are open, kept in the view so the tree reopens as it was.
+#[derive(Default, Deserialize, PartialEq, Serialize)]
 #[serde(default)]
 struct Opened {
     expanded: Vec<Uuid>,
@@ -156,6 +159,10 @@ struct Opened {
     shared_closed: bool,
     system: bool,
     unfiled: bool,
+}
+
+impl ViewStateKind for Opened {
+    const ID: Uuid = Uuid::from_u128(0x6669_6c65_2d74_7265_652d_6f70_656e_0001);
 }
 
 #[derive(Clone, Copy, Default, PartialEq)]
@@ -225,7 +232,7 @@ pub(crate) struct Tree {
     folded: Signal<Folded>,
     expanded: Signal<HashSet<Uuid>>,
     collapsed: Signal<HashSet<Uuid>>,
-    remembered: Signal<u64>,
+    remembered: Trigger,
     entered: Signal<Option<RowKey>>,
 }
 
@@ -243,32 +250,16 @@ impl Tree {
         let collapsed = create_signal(HashSet::<Uuid>::new());
         let folded = create_signal(Folded::default());
         let rows = create_signal(Vec::<Row>::new());
-        let remembered = create_signal(0_u64);
+        let remembered = create_trigger();
         let entered = create_signal(None::<RowKey>);
-        let tick = create_signal(0_u64);
+        let tick = create_trigger();
         let timer = create_timer(move || {
-            tick.update(|count| *count += 1);
+            tick.notify();
             None
         });
 
-        let restored = Rc::new(Cell::new(false));
-        let adopted = Rc::clone(&restored);
-        let view = editor.view_content();
-        create_binding(move || {
-            if adopted.get() {
-                return;
-            }
-            let Some(view) = view else {
-                return;
-            };
-            let Ok(opened) = view.read(|held| {
-                held.root()
-                    .state(OPENED)
-                    .and_then(ViewState::value::<Opened>)
-            }) else {
-                return;
-            };
-            untrack(|| {
+        editor.view_state::<Opened>().keep(
+            move |opened| {
                 if let Some(opened) = opened {
                     expanded.set(opened.expanded.into_iter().collect());
                     collapsed.set(opened.collapsed.into_iter().collect());
@@ -279,16 +270,38 @@ impl Tree {
                         unfiled_open: opened.unfiled,
                     });
                 }
-            });
-            adopted.set(true);
-        });
+            },
+            move || {
+                let mut expanded: Vec<Uuid> = expanded.get().into_iter().collect();
+                let mut collapsed: Vec<Uuid> = collapsed.get().into_iter().collect();
+                let Folded {
+                    orphans_open,
+                    shared_closed,
+                    system_open,
+                    unfiled_open,
+                } = folded.get();
+                expanded.sort_unstable();
+                collapsed.sort_unstable();
+                Opened {
+                    expanded,
+                    orphans: orphans_open,
+                    collapsed,
+                    shared_closed,
+                    system: system_open,
+                    unfiled: unfiled_open,
+                }
+            },
+        );
 
+        // A guest keeps nothing of its own here but its settings: Shared with me is all its
+        // files pane shows (decisions/a_guest_makes_only_its_own_shell.md).
+        let role = editor.watch::<be_sdk_beui::RoleWatch>();
         let build = Rc::clone(&watched);
         let host = editor.host();
         let building = client.clone();
         create_binding(move || {
-            remembered.get();
-            tick.get();
+            remembered.track();
+            tick.track();
             let mut watched = build.borrow_mut();
             let open = expanded.get();
             let collapsed = collapsed.get();
@@ -339,7 +352,47 @@ impl Tree {
                 .as_ref()
                 .map(|_| own_system(held.clone(), host.account_id()))
                 .map_err(Clone::clone);
-            let loose = clock.listed(&shared).map(shared_with_me);
+            let guest = role.get() == Some(be_sdk_beui::AccountRole::Guest);
+            let loose = clock.listed(&shared).map(|shared| match guest {
+                // What is shared at the top shows there too, as everything else a guest reaches.
+                true => {
+                    let mut all = shared;
+                    all.extend(
+                        held.iter()
+                            .filter(|block| all.iter().all(|shared| shared.id != block.id))
+                            .cloned()
+                            .collect::<Vec<_>>(),
+                    );
+                    shared_with_me(all)
+                }
+                false => shared_with_me(shared),
+            });
+            if guest {
+                let mut builder = Builder {
+                    account: host.account_id(),
+                    client: &building,
+                    types: types.as_ref(),
+                    watched: &mut watched,
+                    clock,
+                    rows: Vec::new(),
+                    pinned: HashMap::new(),
+                    seen: HashSet::new(),
+                    used: HashSet::new(),
+                    entered: entered.get(),
+                };
+                builder.push_shared(loose, !shared_closed);
+                let (built, due) = builder.finish();
+                watched.sections.clear();
+                watched.workspaces.clear();
+                watched.unfiled = None;
+                watched.orphans = None;
+                drop(watched);
+                if let Some(due) = due {
+                    timer.start(due.saturating_duration_since(clock.now));
+                }
+                rows.set(built);
+                return;
+            }
             match unfiled_open {
                 true if watched.unfiled.is_none() => {
                     watched.unfiled = Some(Listing::watch(&building, BlockQuery::Unfiled));
@@ -407,44 +460,12 @@ impl Tree {
             builder.push_shared(loose, !shared_closed);
             builder.push_orphans(showing);
             builder.push_system(system, system_open);
-            let due = builder.clock.due;
-            let seen = std::mem::take(&mut builder.seen);
-            let used = std::mem::take(&mut builder.used);
-            let built = builder.rows;
-            watched.shown.retain(|id, _| seen.contains(id));
-            watched.used_by.retain(|id, _| used.contains(id));
+            let (built, due) = builder.finish();
             drop(watched);
             if let Some(due) = due {
                 timer.start(due.saturating_duration_since(clock.now));
             }
             rows.set(built);
-        });
-        create_effect(move || {
-            let mut expanded: Vec<Uuid> = expanded.get().into_iter().collect();
-            let mut collapsed: Vec<Uuid> = collapsed.get().into_iter().collect();
-            let Folded {
-                orphans_open,
-                shared_closed,
-                system_open,
-                unfiled_open,
-            } = folded.get();
-            if !restored.get() {
-                return;
-            }
-            expanded.sort_unstable();
-            collapsed.sort_unstable();
-            let opened = ViewState::new(
-                &Opened {
-                    expanded,
-                    orphans: orphans_open,
-                    collapsed,
-                    shared_closed,
-                    system: system_open,
-                    unfiled: unfiled_open,
-                },
-                Vec::new(),
-            );
-            untrack(|| editor.set_view_state(OPENED, Some(&opened)));
         });
 
         Self {
@@ -479,7 +500,7 @@ impl Tree {
                 .block_types
                 .insert(id, block_type)
         });
-        self.remembered.update(|count| *count += 1);
+        self.remembered.notify();
     }
 
     pub(crate) fn workspaces(&self) -> HashSet<Uuid> {
@@ -634,6 +655,22 @@ fn note_for(
 }
 
 impl Builder<'_> {
+    /// The rows built, and when they must be built again: what was watched for rows no longer
+    /// shown is let go.
+    fn finish(self) -> (Vec<Row>, Option<Instant>) {
+        let Self {
+            watched,
+            rows,
+            seen,
+            used,
+            clock,
+            ..
+        } = self;
+        watched.shown.retain(|id, _| seen.contains(id));
+        watched.used_by.retain(|id, _| used.contains(id));
+        (rows, clock.due)
+    }
+
     fn push_orphans(&mut self, open: bool) {
         self.rows.push(Row {
             key: RowKey::Orphans,
@@ -1086,6 +1123,10 @@ pub(crate) fn describe(
         tags: Vec::new(),
         detail: None,
         unused: false,
+        unread: match ordinary {
+            true => reference.unread,
+            false => 0,
+        },
     }
 }
 
@@ -1214,6 +1255,7 @@ pub(crate) fn access_name(access: AccessLevel) -> &'static str {
         AccessLevel::Manage => "Can manage",
         AccessLevel::Edit => "Can edit",
         AccessLevel::View => "Can view",
+        AccessLevel::Join => "Can join",
         AccessLevel::KnowExists => "Can see that it exists",
         AccessLevel::None => "None",
     }
@@ -1223,6 +1265,7 @@ pub(crate) fn access_hint(access: AccessLevel) -> &'static str {
     match access {
         AccessLevel::Manage | AccessLevel::Edit => "",
         AccessLevel::View => "You can view this block, but not change it.",
+        AccessLevel::Join => "You can join whoever hosts this block, but not open it.",
         AccessLevel::KnowExists | AccessLevel::None => {
             "You can see that this block exists, but not open it."
         }
@@ -1233,7 +1276,9 @@ pub(crate) fn access_marker(access: AccessLevel) -> Option<Glyph> {
     match access {
         AccessLevel::Manage | AccessLevel::Edit => None,
         AccessLevel::View => Some(be_sdk_beui::beui::icons::ICON_EYE),
-        AccessLevel::KnowExists | AccessLevel::None => Some(be_sdk_beui::beui::icons::ICON_LOCK),
+        AccessLevel::Join | AccessLevel::KnowExists | AccessLevel::None => {
+            Some(be_sdk_beui::beui::icons::ICON_LOCK)
+        }
     }
 }
 

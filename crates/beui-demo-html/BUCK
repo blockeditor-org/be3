@@ -28,7 +28,8 @@ web_program(
 
 # src/drive/*.drive in Chromium against :web: every page opens, the long modal
 # sheet opens and closes, only Selectable text selects, and controls carry
-# their ARIA roles and states, and each overlay reads once, as what it is.
+# their ARIA roles and states, each overlay reads once, as what it is, and an
+# anchored overlay near the window's corner flips and shifts as natively.
 web_drive_test(
     name = "web-test",
     bundle = ":web",

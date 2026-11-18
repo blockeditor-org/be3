@@ -1,14 +1,14 @@
 use std::marker::PhantomData;
 use std::sync::{Arc, PoisonError};
 
-use be_wasm_threads::Mutex;
+use std::sync::Mutex;
 use std::time::Instant;
 
 use be_block_client::Event;
 use be_block_client::{ClientError, Peer};
 use be_block_commit::CommitId;
 use be_block_content::LiveEdit;
-use be_block_protocol::{ClientId, SessionState};
+use be_block_protocol::ClientId;
 use be_block_store::ObjectStore;
 use be_block_type_host::{Conflict, HOST_EDITOR, Replicas, Source};
 use be_sdk_type_api::{Description, EditorId, Status};
@@ -71,6 +71,8 @@ impl<S: ObjectStore + 'static> be_block_type_host::Host for Held<S> {
         }
     }
 
+    fn set_marked(_: &Arc<Mutex<Self>>, _: Uuid, _: bool) {}
+
     fn owned(_: &Arc<Mutex<Self>>, _: Uuid) -> bool {
         false
     }
@@ -108,7 +110,7 @@ impl<S: ObjectStore + 'static> be_block_type_host::Host for Held<S> {
 
     fn counted(
         _: &Arc<Mutex<Self>>,
-        _: usize,
+        _: Vec<be_block_type_host::Owing>,
         _: Vec<be_block_type_host::Owing>,
         _: Vec<be_block_type_host::Owing>,
     ) {
@@ -132,6 +134,9 @@ pub struct Session<S: ObjectStore + 'static, C: LiveEdit + Clone + Default> {
     events: broadcast::Receiver<Event>,
     closed: watch::Receiver<bool>,
     mirror: EditorMirror<C>,
+    /// The entry point whose tree holds the block, followed so another device's publish
+    /// reaches the replica, and the sequence read to.
+    followed: Option<(Uuid, u64)>,
 }
 
 impl<S: ObjectStore + 'static, C: LiveEdit + Clone + Default> Session<S, C> {
@@ -154,6 +159,7 @@ impl<S: ObjectStore + 'static, C: LiveEdit + Clone + Default> Session<S, C> {
             events,
             closed,
             mirror: EditorMirror::default(),
+            followed: None,
         };
         if !be_block_type_host::is_known(content_type) {
             return Err(format!("no type module has the block type {content_type}"));
@@ -161,7 +167,7 @@ impl<S: ObjectStore + 'static, C: LiveEdit + Clone + Default> Session<S, C> {
         session
             .replicas
             .open((&session.peer, &session.shared), block, content_type, true)
-            .await;
+            .await?;
         if !session.replicas.is_open(block) {
             let errors = std::mem::take(&mut held(&session.shared).errors);
             return Err(match errors.is_empty() {
@@ -169,7 +175,11 @@ impl<S: ObjectStore + 'static, C: LiveEdit + Clone + Default> Session<S, C> {
                 false => errors.join("; "),
             });
         }
+        session.follow().await;
         session.settle().await;
+        if let Some(failure) = session.mirror.failure() {
+            return Err(format!("block {block}: {failure}"));
+        }
         Ok(session)
     }
 
@@ -190,7 +200,7 @@ impl<S: ObjectStore + 'static, C: LiveEdit + Clone + Default> Session<S, C> {
     }
 
     pub fn edit(&mut self, operation: C::Op) {
-        if let Some(message) = self.mirror.operate(operation) {
+        if let Some(message) = self.mirror.operate(None, operation) {
             self.say(message);
         }
     }
@@ -203,27 +213,65 @@ impl<S: ObjectStore + 'static, C: LiveEdit + Clone + Default> Session<S, C> {
         self.replicas.status(self.block)
     }
 
-    pub fn is_owner(&self) -> bool {
-        self.status().is_some_and(|status| status.owner)
+    pub fn is_holder(&self) -> bool {
+        self.status().is_some_and(|status| status.holder)
     }
 
     pub fn client(&self) -> Option<ClientId> {
         self.replicas.session(self.block).map(|(client, _)| client)
     }
 
-    pub fn state(&self) -> Option<&SessionState> {
-        self.replicas.session(self.block).map(|(_, state)| state)
+    /// Who holds the lease of the block's session, by its membership.
+    pub fn holder(&self) -> Option<ClientId> {
+        self.replicas.holder(self.block)
     }
 
     pub fn claim(&mut self) {
         self.replicas.claim(self.block);
     }
 
+    /// Seals what the order holds, once it holds every edit submitted here.
     pub async fn seal(&mut self) {
+        while self.replicas.ordering() {
+            let woken = self.next().await;
+            if self.handle(woken).await.is_err() {
+                break;
+            }
+        }
         self.replicas
             .seal((&self.peer, &self.shared), self.block, false)
             .await;
         self.settle().await;
+    }
+
+    /// Follows the tree the block lies in, from its summary now.
+    async fn follow(&mut self) {
+        let Ok(summary) = self.peer.summary(self.block).await else {
+            return;
+        };
+        let Some(entry) = summary.entry else {
+            return;
+        };
+        if let Ok((_, _, since)) = self.peer.changed_since(entry, summary.changed, true).await {
+            self.followed = Some((entry, since));
+        }
+    }
+
+    /// Reads what changed in the followed tree, and tells the replica the block's head.
+    async fn advanced(&mut self) {
+        let Some((entry, since)) = self.followed else {
+            return;
+        };
+        let Ok((_, _, sequence)) = self.peer.changed_since(entry, since, false).await else {
+            return;
+        };
+        self.followed = Some((entry, sequence));
+        let ctx = (&self.peer, &self.shared);
+        for (block, head) in self.peer.take_moved_heads() {
+            if block == self.block {
+                self.replicas.heard_head(ctx, block, head);
+            }
+        }
     }
 
     fn say(&mut self, message: FromEditor) {
@@ -271,7 +319,12 @@ impl<S: ObjectStore + 'static, C: LiveEdit + Clone + Default> Session<S, C> {
                 Some(Event::KeysChanged) => {
                     self.peer.keys_changed();
                     // The session's block opened before this woke, so none is left closed.
-                    self.replicas.unlock(&self.shared);
+                    self.replicas.unlock(ctx).await;
+                }
+                Some(Event::TreeAdvanced { entry, .. })
+                    if self.followed.is_some_and(|(followed, _)| followed == entry) =>
+                {
+                    self.advanced().await;
                 }
                 Some(event) => self.replicas.heard(ctx, &event),
                 None => self.replicas.resynchronize(ctx),

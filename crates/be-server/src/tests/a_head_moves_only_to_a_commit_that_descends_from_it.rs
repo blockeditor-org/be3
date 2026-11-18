@@ -14,19 +14,22 @@ async fn publish_onto(
     let change = objects_change(held, chunks);
     client
         .call(|peer| {
-            client::blocks::publish(
-                peer,
-                block,
-                commit,
-                expected,
-                parents,
-                change,
-                time,
-                false,
-                listing(&[], Vec::new()),
-                Vec::new(),
-                Vec::new(),
-            )
+            peer.write::<be_block_protocol::PublishOutcome>(be_block_protocol::Op::Publish {
+                block: block,
+                expected: expected,
+                commit: Some(be_block_protocol::NewCommit {
+                    id: commit,
+                    parents: parents,
+                    held: change,
+                    time: time,
+                    pinned: false,
+                    objects: Vec::new(),
+                    log_through: None,
+                }),
+                references: listing(&[], Vec::new()),
+                metadata: Vec::new(),
+                journal: None,
+            })
         })
         .await
 }
@@ -34,8 +37,8 @@ async fn publish_onto(
 #[tokio::test]
 async fn a_head_moves_only_to_a_commit_that_descends_from_it() {
     let harness = Harness::start().await;
-    let mut client = harness.client().await;
-    let account = client.register("one@example.com").await;
+    let mut client = harness.member("one@example.com").await;
+    let account = client.id();
     client.organization("notes").await;
     let author = Author::new(account);
     let block = client.create_block(BlockParent::Root).await;

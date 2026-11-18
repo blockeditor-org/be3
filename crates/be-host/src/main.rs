@@ -1,4 +1,6 @@
 use beui_reactive::Set;
+#[cfg(target_os = "android")]
+mod android_push;
 #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
 mod arguments;
 mod compositor;
@@ -7,17 +9,26 @@ mod debug;
 mod display;
 mod editors;
 mod frame;
+mod host_files;
+mod hosting;
 mod input;
 #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
 mod instance;
+mod invitations;
 mod local_settings;
 #[cfg(target_os = "linux")]
 mod login_session;
 mod members;
 #[cfg(target_os = "linux")]
 mod memory;
+#[cfg(any(target_arch = "wasm32", target_os = "android"))]
+mod pressed_notifications;
+mod qr;
 mod reveals;
+#[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
+mod root;
 mod root_settings;
+mod share_link;
 mod shell_route;
 mod surfaces;
 mod ui;
@@ -27,26 +38,24 @@ mod web_push;
 use std::{
     collections::{HashMap, HashSet},
     error::Error,
-    io,
     path::PathBuf,
     rc::Rc,
 };
 
 #[cfg(not(target_arch = "wasm32"))]
-use std::path::Path;
+use std::io;
 
 use accounts::{AccountError, Session};
-use be_block::{DisplaySettings, InputSettings, WORKSPACE_EDITOR};
+use be_block::{DisplaySettings, WORKSPACE_EDITOR};
 use be_block_content::Root;
 use be_block_graph::{Access, BlockParent};
+use be_block_input::InputSettings;
 use be_block_protocol::{Organization, OrganizationRole};
 use be_host_base::{host, host_state, notices, panic_guard, performance, platform};
 use be_host_desktop::desktop_host::{DesktopHost, Host};
 use be_host_runtime::{BlockOpen, EditorAction};
 #[cfg(target_os = "linux")]
 use be_host_services::{media, notifications, screenshot, tray, wifi};
-#[cfg(not(target_arch = "wasm32"))]
-use be_host_stack::embedded_server;
 use be_host_stack::{accounts, invite_link, keys, offline_choice};
 use be_sdk_api::{
     AccessLevel, ArtifactAction, BlockCommand, BlockLocation, HostPanel, ShellDialog,
@@ -134,6 +143,9 @@ fn run_host(
     dev_token: Option<String>,
 ) -> Result<(), Box<dyn Error>> {
     panic_guard::install();
+    if let Some(app) = arguments.root {
+        return root::run(app, native_options());
+    }
     let data_dir = storage_dir().ok_or("the application-data directory is unavailable")?;
     std::fs::create_dir_all(&data_dir)
         .map_err(|error| format!("could not make {}: {error}", data_dir.display()))?;
@@ -148,15 +160,7 @@ fn run_host(
     if arguments.drm {
         core.start_screen_lock();
     }
-    let options = beui_host::native::RunOptions {
-        #[cfg(target_os = "linux")]
-        device_extensions: &be_lib_dmabuf::DEVICE_EXTENSIONS,
-        #[cfg(target_os = "linux")]
-        platforms: vec![Box::new(beui_platform_drm::Drm)],
-        #[cfg(windows)]
-        device_extensions: &be_host_win32_capture::DEVICE_EXTENSIONS,
-        ..run_options()
-    };
+    let options = native_options();
     if arguments.dev_workspace {
         core.open_dev_workspace(arguments.dev_server.clone(), dev_token);
     }
@@ -164,7 +168,22 @@ fn run_host(
         core.run_as_desktop();
     }
     core.warm_apps();
-    beui_host::native::run_with(options, Shell::new(core))
+    beui_host_window::run_with(options, Shell::new(core))
+}
+
+/// How be-host opens its window natively: on the displays themselves too (`BEUI_PLATFORM=drm`),
+/// on a device that shares textures with the programs and windows it shows.
+#[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
+fn native_options() -> beui_host::native::RunOptions {
+    beui_host::native::RunOptions {
+        #[cfg(target_os = "linux")]
+        device_extensions: &be_lib_dmabuf::DEVICE_EXTENSIONS,
+        #[cfg(target_os = "linux")]
+        platforms: vec![Box::new(beui_platform_drm::Drm)],
+        #[cfg(windows)]
+        device_extensions: &be_host_win32_capture::DEVICE_EXTENSIONS,
+        ..run_options()
+    }
 }
 
 #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
@@ -192,14 +211,61 @@ fn hand_over(
     Ok(())
 }
 
+/// In the host's worker (`web/be-worker.js`): runs the work the page started there under the
+/// name `entry`, from the port and bytes it sent (`be_host_stack::start_in_worker`).
+/// Every entry is named here.
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen::prelude::wasm_bindgen]
+pub fn be_worker_run(
+    entry: String,
+    port: web_sys::MessagePort,
+    bytes: Vec<u8>,
+) -> web_sys::js_sys::Promise {
+    be_wasm_threads::initialize_worker();
+    let port = be_host_stack::Port::new(port);
+    let work: std::pin::Pin<Box<dyn std::future::Future<Output = ()>>> = match entry.as_str() {
+        be_host_stack::STACK_ENTRY => Box::pin(be_host_stack::run_stack(port, bytes)),
+        host_files::ENTRY => Box::pin(host_files::keep(port, bytes)),
+        _ => {
+            // Dropped, so what waits on it on the page hears the worker stopped.
+            drop(port);
+            return web_sys::js_sys::Promise::reject(&wasm_bindgen::JsValue::from_str(&format!(
+                "the host's worker has no entry named {entry}"
+            )));
+        }
+    };
+    wasm_bindgen_futures::future_to_promise(async move {
+        work.await;
+        Ok(wasm_bindgen::JsValue::UNDEFINED)
+    })
+}
+
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen::prelude::wasm_bindgen]
 pub async fn run_web(canvas_id: String) -> Result<(), wasm_bindgen::JsValue> {
     be_wasm_threads::initialize_page();
     panic_guard::install();
     be_host_stack::discovery::load().await;
-    let mut core =
-        HostCore::new().map_err(|error| wasm_bindgen::JsValue::from_str(&error.to_string()))?;
+    // The page makes no file call: the host's worker reads its files and answers, while the
+    // page's start-up look stays up (`#status`), then the host shows its first screen.
+    // An error named `BeSavedData` tells the page (host.js) the saved data could not be read,
+    // not that drawing failed.
+    let (failures, report) = desk().mailbox(HostCore::host_files_failed);
+    let (host_state, workspaces) = host_files::open(PathBuf::from(WEB_DATA_DIR), report)
+        .await
+        .map_err(|error| {
+            let error = web_sys::js_sys::Error::new(&error);
+            error.set_name("BeSavedData");
+            wasm_bindgen::JsValue::from(error)
+        })?;
+    let mut core = HostCore::new(host_state, workspaces, Some(failures))
+        .map_err(|error| wasm_bindgen::JsValue::from_str(&error.to_string()))?;
+    if let Some(status) = web_sys::window()
+        .and_then(|window| window.document())
+        .and_then(|document| document.get_element_by_id("status"))
+    {
+        status.set_attribute("hidden", "")?;
+    }
     let options = run_options();
     web_push::install();
     let location = web_sys::window()
@@ -211,6 +277,11 @@ pub async fn run_web(canvas_id: String) -> Result<(), wasm_bindgen::JsValue> {
     }
     if location.hash()?.starts_with("#invite/") {
         core.open_invite(&location.href()?);
+        page.set_hash("");
+        location.replace(&page.href())?;
+    }
+    if location.hash()?.starts_with("#share/") {
+        core.share_links.open_from_address(&location.href()?);
         page.set_hash("");
         location.replace(&page.href())?;
     }
@@ -287,7 +358,7 @@ pub async fn automate(
 // unsafe(ffi)
 #[cfg(target_os = "android")]
 #[unsafe(no_mangle)]
-fn android_main(android: beui_host::native::AndroidApp) {
+fn android_main(android: beui_host_window::AndroidApp) {
     let assets = android.clone();
     be_host_stack::discovery::use_assets(move |path| {
         use std::io::Read;
@@ -302,12 +373,14 @@ fn android_main(android: beui_host::native::AndroidApp) {
     });
     panic_guard::install();
     let storage_root = android.internal_data_path();
+    if let Some(files) = &storage_root {
+        android_push::install(files.clone());
+    }
     let options = run_options();
     let exit_code = match HostCore::new(storage_root)
         .map_err(|error| error.to_string())
         .and_then(|core| {
-            beui_host::native::run_with(options, Shell::new(core))
-                .map_err(|error| error.to_string())
+            beui_host_window::run_with(options, Shell::new(core)).map_err(|error| error.to_string())
         }) {
         Ok(()) => 0,
         Err(error) => {
@@ -565,9 +638,13 @@ impl beui::native::Program for Shell {
 
 struct HostCore {
     host_state: HostStateStore,
+    /// The organizations each saved account last listed (`host_files`).
+    workspaces: host_files::WorkspaceCache,
+    /// Where the web's host worker tells of a change to the host's files it could not keep.
+    #[cfg(target_arch = "wasm32")]
+    host_files_failed: Option<host::Mailbox>,
 
     client_id: Uuid,
-    local_server_url: String,
     accounts: Vec<Account>,
     signed_in: bool,
     add_account_open: bool,
@@ -593,13 +670,14 @@ struct HostCore {
 
     reauth: Option<ReauthState>,
     removing_account: Option<Account>,
-    invite_open: bool,
-    invite_sent: u64,
-    invite_link: Option<String>,
+    invitations: invitations::Invitations,
     agents_open: bool,
     agents: Vec<be_block_protocol::Agent>,
     agent_created: Option<accounts::AgentCredentials>,
     contacts: contacts::Contacts,
+    share_links: share_link::ShareLinks,
+    /// An organization a share link opened into, which the host opens once it lists it.
+    opening_after_link: Option<Uuid>,
     /// What the host stack changed since the last frame.
     stack_changes: be_host_stack::ChangeWatch,
     /// The `be_host_base::push_device::revision` the push device watch last published.
@@ -607,10 +685,10 @@ struct HostCore {
     /// What a pressed notification's block last waited on (the open organization, how many
     /// there are, the changes unsaved), so it is tried again only when that or the graph
     /// changes.
-    #[cfg(target_arch = "wasm32")]
+    #[cfg(any(target_arch = "wasm32", target_os = "android"))]
     pressed_waiting_on: Option<(Option<Uuid>, usize, usize)>,
-    /// The organization this browser's push subscription was last registered for.
-    #[cfg(target_arch = "wasm32")]
+    /// The organization this device's push endpoint was last registered for.
+    #[cfg(any(target_arch = "wasm32", target_os = "android"))]
     push_synced: Option<Uuid>,
     members: members::Members,
     scheduled_organization_list: bool,
@@ -637,6 +715,8 @@ struct HostCore {
     display_round: Option<u64>,
     block_types: HashMap<Uuid, Uuid>,
     registry: Rc<EditorRegistry>,
+    /// The host components this device runs (plans/hosted_blocks.md, "Hosting").
+    hosts: hosting::Hosts,
     editors: compositor::OwnedEditors,
 
     watched_artifacts: Vec<Uuid>,
@@ -669,7 +749,6 @@ struct HostCore {
     allow_close: bool,
     data_dir: PathBuf,
     #[cfg(not(target_arch = "wasm32"))]
-    embedded_server: Option<embedded_server::EmbeddedServer>,
     _handoffs: Option<host::Mailbox>,
     error: Option<String>,
     pending_error_action: Option<ErrorAction>,
@@ -726,9 +805,66 @@ struct PendingAccountRequest {
     authorization: Option<String>,
 }
 
+/// An invite link being opened. Its code is held across signing in or registering, so the
+/// invitation is there to accept once an account is.
+/// How an invite link being opened shows: whose it is and into what, and whether the account
+/// signed in can join it, or why not.
+fn joining_row(joining: &Joining) -> Option<ui::JoiningRow> {
+    use be_block_protocol::InvitationState;
+    let (organization, inviter) = match (&joining.invitation, &joining.preview) {
+        (Some(invited), _) => (invited.organization_name.clone(), invited.inviter.clone()),
+        (None, Some(preview)) => (preview.organization_name.clone(), preview.inviter.clone()),
+        (None, None) => return None,
+    };
+    // An ended invitation names neither.
+    let (organization, inviter) = match organization.is_empty() {
+        true => ("an organization".to_owned(), "Someone".to_owned()),
+        false => (organization, inviter),
+    };
+    let ended = match joining.preview.as_ref().map(|preview| preview.state) {
+        Some(InvitationState::Accepted) => Some("This invitation was already used."),
+        Some(InvitationState::Expired) => Some("This invitation expired."),
+        Some(InvitationState::Revoked) => Some("This invitation was revoked."),
+        _ => None,
+    };
+    let problem = match (ended, &joining.refused) {
+        (Some(ended), _) => format!("{ended} Ask whoever invited you for a new link."),
+        (None, Some(refused)) => format!(
+            "{} Sign in with another account to accept it.",
+            sentence(refused)
+        ),
+        (None, None) => String::new(),
+    };
+    Some(ui::JoiningRow {
+        organization,
+        inviter,
+        can_join: joining.invitation.is_some() && problem.is_empty(),
+        problem,
+    })
+}
+
+/// A refusal as a sentence: capitalized, with a full stop.
+fn sentence(text: &str) -> String {
+    let mut characters = text.trim().chars();
+    let Some(first) = characters.next() else {
+        return String::new();
+    };
+    let mut sentence: String = first.to_uppercase().chain(characters).collect();
+    if !sentence.ends_with('.') {
+        sentence.push('.');
+    }
+    sentence
+}
+
 struct Joining {
     link: InviteLink,
+    /// Read before signing in: whose invitation it is, into what, and where it stands.
+    preview: Option<accounts::InvitationPreview>,
+    /// Read by the account signed in, which may accept it.
     invitation: Option<accounts::Invited>,
+    /// Why the account signed in can't take it (already a member, say).
+    refused: Option<String>,
+    _previewing: host::Mailbox,
 }
 
 enum OrganizationOperation {
@@ -736,19 +872,19 @@ enum OrganizationOperation {
     Create(String),
     LookUp(be_block_keys::InviteCode),
     Join(be_block_keys::InviteCode),
-    Invite(String, OrganizationRole),
     ListAgents,
     CreateAgent(String),
     RemoveAgent(Uuid),
 }
 
 enum OrganizationResult {
-    Loaded(Vec<Organization>, accounts::Keys),
+    /// The organizations listed, the account's keys, and the server and account they were
+    /// listed for, under which they are cached (`host_files::WorkspaceCache`).
+    Loaded(Vec<Organization>, accounts::Keys, (String, Uuid)),
     Cached(Vec<Organization>),
     Created(Organization),
     Invitation(accounts::Invited),
     Joined(Uuid),
-    Invited(String),
     Agents(
         Option<Vec<be_block_protocol::Agent>>,
         Option<accounts::AgentCredentials>,
@@ -775,19 +911,34 @@ struct PendingTransfer {
     destination: Option<Uuid>,
     parent_after: Option<BlockParent>,
     stage: TransferStage,
+    /// Puts a block back in the source a refused move took it out of: refused again, it is not
+    /// reported twice.
+    putting_back: bool,
+    /// What the block is called as it is queued, for a refusal to name: the graph can let it go
+    /// once its source does.
+    name: String,
+    /// Where the block sat in a source block, after which sibling (none: first), as it was
+    /// queued: a block put back after a refusal goes back there when the source keeps an order.
+    was_after: Option<Option<Uuid>>,
 }
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone)]
 struct PendingReorder {
     child: Uuid,
     parent: Uuid,
     after: Option<Uuid>,
+    /// What the parent's type answered, once the reorder was sent.
+    answer: Option<be_host_stack::ChildChanged>,
 }
 
-#[derive(Clone, Copy)]
+/// A transfer takes a block out of its source, then puts it in its destination, each through
+/// the container's type, which answers whether it made the change.
+#[derive(Clone)]
 enum TransferStage {
     DeleteSource,
+    DeletingSource(be_host_stack::ChildChanged),
     AddDestination,
+    AddingDestination(be_host_stack::ChildChanged),
 }
 
 #[derive(Clone)]
@@ -797,29 +948,16 @@ struct PendingCopy {
     stage: CopyStage,
 }
 
-#[cfg(not(target_arch = "wasm32"))]
-const CACHES: [&str; 1] = ["app-cache"];
-
-#[cfg(not(target_arch = "wasm32"))]
-fn forget_caches_of_other_builds(data_dir: &Path) -> io::Result<()> {
-    let stamp = data_dir.join("build-id");
-    let current = be_lib_build_id::current().map_err(io::Error::other)?;
-    if std::fs::read_to_string(&stamp).is_ok_and(|cached| cached == current) {
-        return Ok(());
-    }
-    for cache in CACHES {
-        match std::fs::remove_dir_all(data_dir.join(cache)) {
-            Err(error) if error.kind() != io::ErrorKind::NotFound => return Err(error),
-            _ => {}
-        }
-    }
-    std::fs::write(stamp, current)
-}
-
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 enum CopyStage {
     Duplicate,
-    Replace { copy_id: Uuid, block_type: Uuid },
+    /// The container's type was asked to put a copy, `copy_id`, in the original's place: the
+    /// stack makes the copy as the type takes it (`be_host_stack::replace_with_copy`), so a
+    /// refusal leaves no copy behind, and the host places it in the container once it answers.
+    Replacing {
+        copy_id: Uuid,
+        answer: be_host_stack::ChildChanged,
+    },
 }
 
 impl HostCore {
@@ -829,33 +967,42 @@ impl HostCore {
             .or_else(storage_dir)
             .ok_or_else(|| io::Error::other("application-data directory is unavailable"))?;
         std::fs::create_dir_all(&data_dir)?;
-        forget_caches_of_other_builds(&data_dir)?;
         panic_guard::report_in(&data_dir);
-        be_host_runtime::cache_in(data_dir.join("app-cache"));
-        let embedded_server = embedded_server::start_embedded_server(data_dir.join("server"))?;
-        let url = embedded_server.url.clone();
+        be_host_runtime::cache_code_in(data_dir.join("code-cache"));
         let host_state = HostStateStore::open(data_dir.join("host.sqlite3"))?;
-        let mut core = Self::with_state(host_state, url)?;
+        let mut core = Self::with_state(host_state)?;
+        core.workspaces = host_files::WorkspaceCache::open(&data_dir, &core.accounts);
         core.programs.keep_files_in(data_dir.join("files"));
         core.data_dir = data_dir;
-        core.embedded_server = Some(embedded_server);
         Ok(core)
     }
 
+    /// With what the host's worker read of its files (`host_files::open`), and the mailbox it
+    /// tells of a change it could not keep.
     #[cfg(target_arch = "wasm32")]
-    fn new() -> Result<Self, Box<dyn Error + Send + Sync>> {
-        let data_dir = PathBuf::from(WEB_DATA_DIR);
-        std::fs::create_dir_all(&data_dir)?;
-        let host_state = HostStateStore::open(data_dir.join("host.sqlite3"))?;
-        let mut core = Self::with_state(host_state, String::new())?;
-        core.data_dir = data_dir;
+    fn new(
+        host_state: HostStateStore,
+        workspaces: host_files::WorkspaceCache,
+        failures: Option<host::Mailbox>,
+    ) -> Result<Self, Box<dyn Error + Send + Sync>> {
+        let mut core = Self::with_state(host_state)?;
+        core.host_files_failed = failures;
+        core.workspaces = workspaces;
+        core.data_dir = PathBuf::from(WEB_DATA_DIR);
         Ok(core)
     }
 
-    fn with_state(
-        host_state: HostStateStore,
-        url: String,
-    ) -> Result<Self, Box<dyn Error + Send + Sync>> {
+    /// A change to the host's files the web's host worker could not keep (out of space, a
+    /// failed write), shown as a host error, as a write that fails in place is.
+    #[cfg(target_arch = "wasm32")]
+    fn host_files_failed(&mut self, unkept: host_files::Unkept) {
+        notices::report(format!(
+            "This device could not save {}: the page will undo it when it reloads ({}).",
+            unkept.what, unkept.error
+        ));
+    }
+
+    fn with_state(host_state: HostStateStore) -> Result<Self, Box<dyn Error + Send + Sync>> {
         let client_id = host_state.client_id()?;
         let accounts = host_state.accounts()?;
         accounts::authorize(&accounts);
@@ -881,16 +1028,15 @@ impl HostCore {
             last_organization_id: None,
             authorization: None,
         });
-        let server_url = match &account.server {
-            ServerLocation::Local => url.clone(),
-            ServerLocation::Remote(remote) => remote.clone(),
-        };
+        let server_url = account.server.url();
         let registry = Rc::new(EditorRegistry::new());
         let editors = compositor::OwnedEditors::install(Rc::clone(&registry), client_id);
         let mut core = Self {
             host_state,
+            workspaces: host_files::WorkspaceCache::default(),
+            #[cfg(target_arch = "wasm32")]
+            host_files_failed: None,
             client_id,
-            local_server_url: url,
             accounts,
             signed_in,
             add_account_open: false,
@@ -915,18 +1061,18 @@ impl HostCore {
             organization_error: None,
             reauth: None,
             removing_account: None,
-            invite_open: false,
-            invite_sent: 0,
-            invite_link: None,
+            invitations: invitations::Invitations::default(),
             agents_open: false,
             agents: Vec::new(),
             agent_created: None,
             contacts: contacts::Contacts::default(),
+            share_links: share_link::ShareLinks::default(),
+            opening_after_link: None,
             stack_changes: be_host_stack::ChangeWatch::new(),
             push_device_published: None,
-            #[cfg(target_arch = "wasm32")]
+            #[cfg(any(target_arch = "wasm32", target_os = "android"))]
             pressed_waiting_on: None,
-            #[cfg(target_arch = "wasm32")]
+            #[cfg(any(target_arch = "wasm32", target_os = "android"))]
             push_synced: None,
             members: members::Members::default(),
             scheduled_organization_list: false,
@@ -955,6 +1101,7 @@ impl HostCore {
             display_round: None,
             block_types: HashMap::new(),
             registry,
+            hosts: hosting::Hosts::default(),
             editors,
             watched_artifacts: Vec::new(),
             dynamic_artifact_sessions: HashMap::new(),
@@ -978,7 +1125,6 @@ impl HostCore {
             allow_close: false,
             data_dir: PathBuf::new(),
             #[cfg(not(target_arch = "wasm32"))]
-            embedded_server: None,
             _handoffs: None,
             error: None,
             pending_error_action: None,
@@ -1057,7 +1203,7 @@ impl HostCore {
         self.run_media();
         self.run_wifi();
         display::run_epaper();
-        display::run_edges();
+        display::run_screen_input();
         input::run_layout_requests();
     }
 
@@ -1260,10 +1406,9 @@ impl HostCore {
         .collect()
     }
 
-    /// Signs in to the dev workspace's account, on the embedded server or at `remote_url`: with
-    /// `token` when given (a test's server issues one per device of an account,
-    /// crates/be-host-tests), and otherwise as a new local profile, or through the browser on a
-    /// remote server.
+    /// Signs in to the dev workspace's account: a local account, made on this device if there is
+    /// none, or at `remote_url` with `token` when given (a test's server issues one per device of
+    /// an account, crates/be-host-tests), and otherwise through the browser.
     #[cfg(not(target_os = "android"))]
     fn open_dev_workspace(&mut self, remote_url: Option<String>, token: Option<String>) {
         self.dev_workspace = true;
@@ -1304,12 +1449,56 @@ impl HostCore {
             return;
         };
         self.organization_error = None;
+        // The person's own link reads nothing: opening it would mark it opened for them.
+        if self.signed_in
+            && be_host_stack::is_own_invitation(&self.server_url, self.account.id, &link.code)
+        {
+            self.organization_error = Some(
+                "This is your own invite link: send it to the person you want to invite."
+                    .to_owned(),
+            );
+            return;
+        }
+        // Read before signing in at the server the link names, so whoever has no account
+        // here yet sees who invited them and to what.
+        let server = link
+            .server
+            .clone()
+            .unwrap_or_else(|| accounts::link_base(&self.server_url));
+        let code = link.code.clone();
         self.joining = Some(Joining {
             link,
+            preview: None,
             invitation: None,
+            refused: None,
+            _previewing: request(
+                accounts::preview_invitation(server, code),
+                HostCore::invitation_previewed,
+            ),
         });
-        if self.signed_in && self.organizations_loaded && !self.keys.needs_recovery() {
-            self.look_up_invite();
+    }
+
+    fn invitation_previewed(
+        &mut self,
+        previewed: Result<accounts::InvitationPreview, AccountError>,
+    ) {
+        match previewed {
+            Ok(preview) => {
+                if let Some(joining) = &mut self.joining {
+                    joining.preview = Some(preview);
+                }
+                if self.signed_in
+                    && self.organizations_loaded
+                    && !self.keys.needs_recovery()
+                    && self.keys.lost().is_none()
+                {
+                    self.look_up_invite();
+                }
+            }
+            Err(error) => {
+                self.joining = None;
+                self.organization_error = Some(error.message);
+            }
         }
     }
 
@@ -1317,7 +1506,15 @@ impl HostCore {
         let Some(joining) = &self.joining else {
             return;
         };
-        if joining.invitation.is_some() {
+        // Looked up once a preview says it is open, and once per account signed in.
+        let open = joining.preview.as_ref().is_some_and(|preview| {
+            matches!(
+                preview.state,
+                be_block_protocol::InvitationState::Waiting
+                    | be_block_protocol::InvitationState::Opened
+            )
+        });
+        if joining.invitation.is_some() || joining.refused.is_some() || !open {
             return;
         }
         if !joining.link.is_for(&accounts::link_base(&self.server_url)) {
@@ -1357,30 +1554,23 @@ impl HostCore {
             .cloned()
     }
 
-    /// Signs in at the form's server: as a new local profile on the embedded one, with `token`
-    /// on a remote one when given, and through the browser otherwise.
+    /// Signs in: as a new local account made on this device (`create_local_account`), or at the
+    /// form's server with `token` when given, and through the browser otherwise.
     fn begin_account_request(&mut self, form: AccountForm, token: Option<String>) {
-        let remote = form.remote || !platform::HAS_EMBEDDED_SERVER;
-        let requested_url = if remote {
-            form.remote_url.clone()
-        } else {
-            self.local_server_url.clone()
-        };
-        let url = requested_url.trim().trim_end_matches('/').to_owned();
+        if !form.remote {
+            self.create_local_account(form.display_name);
+            return;
+        }
+        let url = form.remote_url.trim().trim_end_matches('/').to_owned();
         if url.is_empty() {
             self.account_error = Some("a server address is required".to_owned());
             return;
         }
-        let server = if remote {
-            ServerLocation::Remote(url.clone())
-        } else {
-            ServerLocation::Local
-        };
-        let authorization = Some(form.authorization.trim().to_owned())
-            .filter(|header| remote && !header.is_empty());
+        let server = ServerLocation::Remote(url.clone());
+        let authorization =
+            Some(form.authorization.trim().to_owned()).filter(|header| !header.is_empty());
         be_block_client::authorize(&url, authorization.clone());
         let requested = url.clone();
-        let display_name = form.display_name;
         let default = platform::default_account_server();
         let auth_url = default
             .filter(|server| server.api_url == url)
@@ -1391,11 +1581,7 @@ impl HostCore {
         let (check_now, checks) = tokio::sync::mpsc::unbounded_channel();
         platform::spawn_request(async move {
             let notify = post.clone();
-            let result = if !remote {
-                accounts::create_local_profile(requested, display_name)
-                    .await
-                    .map_err(|error| error.to_string())
-            } else if let Some(token) = token {
+            let result = if let Some(token) = token {
                 accounts::token_login(requested, token)
                     .await
                     .map_err(|error| error.to_string())
@@ -1423,6 +1609,42 @@ impl HostCore {
             url,
             authorization,
         });
+    }
+
+    /// A local account, which has no server (guides/hosting.md, Local accounts and the default server): its id, its identity and
+    /// its one organization are made on this device, the organization under the account's own
+    /// id, and it signs in at once. Its key is kept in plaintext beside its data, as a device
+    /// that holds everything it has has nothing a phrase would protect.
+    fn create_local_account(&mut self, display_name: String) {
+        let id = Uuid::now_v7();
+        let saved = SavedAccount {
+            server: ServerLocation::Local,
+            id,
+            email: String::new(),
+            name: display_name,
+            token: String::new(),
+            last_organization_id: None,
+            authorization: None,
+        };
+        let identity = be_block_keys::RecoveryPhrase::generate()
+            .secret()
+            .to_bytes();
+        let kept = self
+            .host_state
+            .save_account(&saved)
+            .and_then(|()| self.host_state.set_identity(&saved, identity));
+        if let Err(error) = kept {
+            self.account_error = Some(error.to_string());
+            return;
+        }
+        self.accounts = self.host_state.accounts().unwrap_or_else(|error| {
+            self.account_error = Some(error.to_string());
+            Vec::new()
+        });
+        self.account_error = None;
+        self.server_url = String::new();
+        self.add_account_open = false;
+        self.switch_account(saved);
     }
 
     fn account_answered(&mut self, event: accounts::LoginEvent) {
@@ -1495,17 +1717,19 @@ impl HostCore {
     }
 
     fn forget_account(&mut self, account: &Account) {
-        let url = match &account.server {
-            ServerLocation::Local => self.local_server_url.clone(),
-            ServerLocation::Remote(url) => url.clone(),
-        };
+        let url = account.server.url();
         let token = account.token.clone();
-        #[cfg(target_arch = "wasm32")]
-        web_push::sign_out(url, token, self.accounts.len() <= 1);
-        #[cfg(not(target_arch = "wasm32"))]
-        platform::spawn_request(async move {
-            let _ = accounts::logout(url, token, None).await;
-        });
+        // A local account has no server to sign out of.
+        if account.server != ServerLocation::Local {
+            #[cfg(target_arch = "wasm32")]
+            web_push::sign_out(url, token, self.accounts.len() <= 1);
+            #[cfg(target_os = "android")]
+            android_push::sign_out(&self.host_state, url, token, self.accounts.len() <= 1);
+            #[cfg(all(not(target_arch = "wasm32"), not(target_os = "android")))]
+            platform::spawn_request(async move {
+                let _ = accounts::logout(url, token, None).await;
+            });
+        }
 
         if let Err(error) = self.host_state.remove_account(account) {
             self.account_error = Some(error.to_string());
@@ -1525,9 +1749,43 @@ impl HostCore {
         let url = self.server_url.clone();
         let token = self.account.token.clone();
         let me = self.me();
-        let cache = self.workspace_cache();
         let account = self.account.id;
+        let cached = self.workspaces.workspaces(&url, account);
+        // A local account's one organization, and its key, are on this device: nothing to ask.
+        let local = (self.account.server == ServerLocation::Local).then(|| {
+            let keys = accounts::Keys {
+                account,
+                recovery: self.identity.map(|identity| {
+                    be_block_keys::RecoverySecret::from_bytes(identity)
+                        .identity()
+                        .public
+                }),
+                sealed: Vec::new(),
+                logs: Vec::new(),
+            };
+            let organization = Organization {
+                id: account,
+                name: "Personal".to_owned(),
+                kind: be_block_protocol::OrganizationKind::Personal,
+                role: OrganizationRole::Editor,
+                escrows: Vec::new(),
+            };
+            (organization, keys)
+        });
         let work = async move {
+            if let Some((organization, keys)) = local {
+                return match operation {
+                    OrganizationOperation::Load => Ok(OrganizationResult::Loaded(
+                        vec![organization],
+                        keys,
+                        (url, account),
+                    )),
+                    _ => Err(AccountError {
+                        message: "A local account has no server to do that with.".to_owned(),
+                        invalid_token: false,
+                    }),
+                };
+            }
             let me = || {
                 me.clone().ok_or_else(|| AccountError {
                     message: "Unlock this account with its recovery phrase first.".to_owned(),
@@ -1538,26 +1796,28 @@ impl HostCore {
                 OrganizationOperation::Load => {
                     match accounts::organizations(url.clone(), token.clone()).await {
                         Ok(organizations) => {
-                            if let Some(cache) = &cache {
-                                let _ = cache.set_workspaces(&url, account, &organizations);
+                            let keys = accounts::keys(url.clone(), token.clone()).await?;
+                            // Shown with or without an organization open, so a new account
+                            // sees them too; while one is open, its stack follows changes.
+                            if let Ok(listed) = accounts::account_notices(url.clone(), token).await
+                            {
+                                notices::account_notices(listed);
                             }
-                            let keys = accounts::keys(url, token).await?;
-                            Ok(OrganizationResult::Loaded(organizations, keys))
+                            Ok(OrganizationResult::Loaded(
+                                organizations,
+                                keys,
+                                (url, account),
+                            ))
                         }
-                        Err(error) if !error.invalid_token => {
-                            let cached = cache
-                                .and_then(|cache| cache.workspaces(&url, account).ok())
-                                .unwrap_or_default();
-                            match cached.is_empty() {
-                                true => Err(error),
-                                false => Ok(OrganizationResult::Cached(cached)),
-                            }
-                        }
+                        Err(error) if !error.invalid_token => match cached.is_empty() {
+                            true => Err(error),
+                            false => Ok(OrganizationResult::Cached(cached)),
+                        },
                         Err(error) => Err(error),
                     }
                 }
                 OrganizationOperation::Create(name) => {
-                    accounts::create_organization(url, token, name)
+                    accounts::create_organization(url, token, me()?, name)
                         .await
                         .map(OrganizationResult::Created)
                 }
@@ -1569,13 +1829,6 @@ impl HostCore {
                         .await
                         .map(OrganizationResult::Joined)
                 }
-                OrganizationOperation::Invite(email, role) => be_host_stack::invite(email, role)
-                    .await
-                    .map(OrganizationResult::Invited)
-                    .map_err(|message| AccountError {
-                        message,
-                        invalid_token: false,
-                    }),
                 OrganizationOperation::ListAgents => be_host_stack::agents()
                     .await
                     .map(|agents| OrganizationResult::Agents(Some(agents), None))
@@ -1634,12 +1887,22 @@ impl HostCore {
                 }
                 self.open_any_organization();
             }
-            Ok(OrganizationResult::Loaded(organizations, keys)) => {
+            Ok(OrganizationResult::Loaded(organizations, keys, (url, account))) => {
+                self.workspaces.set(&url, account, organizations.clone());
                 self.organizations = organizations;
                 self.organizations_loaded = true;
                 self.organizations_load_failed = false;
                 self.organizations_cached = false;
-                self.keys.loaded(keys);
+                // A local account's server is this device: nothing it says is a stranger's.
+                let held = match self.account.server {
+                    ServerLocation::Local => None,
+                    _ => self.identity,
+                };
+                self.keys.loaded(keys, held);
+                if let Some(lost) = self.keys.lost() {
+                    self.organization_error = Some(lost.into());
+                    return;
+                }
                 if self.keys.needs_recovery() {
                     // A local account's key sits in plaintext beside its database, so
                     // there is nothing to lose and no phrase to make the user save.
@@ -1694,10 +1957,7 @@ impl HostCore {
                 self.organizations_load_failed = false;
                 self.begin_organization_request(OrganizationOperation::Load);
             }
-            Ok(OrganizationResult::Invited(link)) => {
-                self.invite_sent += 1;
-                self.invite_link = Some(link);
-            }
+
             Ok(OrganizationResult::Agents(agents, created)) => {
                 if let Some(agents) = agents {
                     self.agents = agents;
@@ -1707,6 +1967,17 @@ impl HostCore {
                 }
             }
             Err(error) if error.invalid_token => self.begin_reauth(),
+            // A preview read is kept: the account signed in can't take the invitation, and is
+            // told whose it is and offered another account.
+            Err(error)
+                if self.joining.as_ref().is_some_and(|joining| {
+                    joining.preview.is_some() && joining.invitation.is_none()
+                }) =>
+            {
+                if let Some(joining) = &mut self.joining {
+                    joining.refused = Some(error.message);
+                }
+            }
             Err(error) => {
                 self.joining = self
                     .joining
@@ -1740,7 +2011,7 @@ impl HostCore {
         }
         let ServerLocation::Remote(url) = account.server else {
             self.reauth.as_mut().unwrap().error = Some(
-                "This local profile is no longer available. Create a new local account.".into(),
+                "This local account is no longer available. Create a new local account.".into(),
             );
             return;
         };
@@ -1869,7 +2140,7 @@ impl HostCore {
                     .host_state
                     .set_last_organization_details(&self.account, &listed);
                 self.organization = Some(listed);
-                self.publish_administrator();
+                self.publish_role();
             }
             None => {
                 let mut account = self.account.clone();
@@ -1896,6 +2167,7 @@ impl HostCore {
         self.dynamic_artifact_settings_open = None;
         self.root_settings = RootSettings::new(self.root_settings.shell());
         offline_choice::forget();
+        be_host_stack::unread::forget();
         self.choosing_session = false;
         self.shell = None;
         self.input.set_layers(Default::default());
@@ -1962,10 +2234,6 @@ impl HostCore {
         self.identity.is_none() || self.keys.needs_unlock(self.identity)
     }
 
-    fn workspace_cache(&self) -> Option<be_block_client::RefsDb> {
-        be_host_stack::refs_in(&self.data_dir).ok()
-    }
-
     fn retry_organizations(&mut self) {
         if self.pending_organization_request.is_some() || self.reauth.is_some() {
             return;
@@ -1996,10 +2264,7 @@ impl HostCore {
     }
 
     fn switch_account(&mut self, account: Account) {
-        let server_url = match &account.server {
-            ServerLocation::Local => self.local_server_url.clone(),
-            ServerLocation::Remote(url) => url.clone(),
-        };
+        let server_url = account.server.url();
         self.focus_reports.clear();
         self.artifact_watches.clear();
         be_host_stack::stop();
@@ -2020,6 +2285,11 @@ impl HostCore {
         self.allow_close = false;
         self.organization = None;
         self.organizations.clear();
+        // A held invite link is looked up again for the account signed in now.
+        if let Some(joining) = &mut self.joining {
+            joining.invitation = None;
+            joining.refused = None;
+        }
         self.resumed = false;
         self.organizations_loaded = false;
         self.organizations_load_failed = false;
@@ -2027,14 +2297,14 @@ impl HostCore {
         self.pending_organization_request = None;
         self.organization_error = None;
         self.reauth = None;
-        self.invite_open = false;
-        self.invite_link = None;
+        self.invitations = invitations::Invitations::default();
         self.agents_open = false;
         self.agent_created = None;
         self.contacts.close();
         self.members.close();
         self.root_settings = RootSettings::new(self.root_settings.shell());
         offline_choice::forget();
+        be_host_stack::unread::forget();
         self.choosing_session = false;
         self.shell = None;
         self.input.set_layers(Default::default());
@@ -2140,6 +2410,9 @@ impl HostCore {
             destination: Some(parent),
             parent_after: (!linked).then_some(BlockParent::Block(parent)),
             stage: TransferStage::AddDestination,
+            putting_back: false,
+            name: name_of(child, "that block"),
+            was_after: None,
         });
     }
 
@@ -2186,6 +2459,12 @@ impl HostCore {
             destination: Some(destination),
             parent_after: (!is_reference).then_some(BlockParent::Block(destination)),
             stage: TransferStage::DeleteSource,
+            putting_back: false,
+            name: name_of(child, "that block"),
+            was_after: match source {
+                SidebarDragSource::Block(source) => sibling_before(source, child),
+                _ => None,
+            },
         });
     }
 
@@ -2193,34 +2472,43 @@ impl HostCore {
         if child == parent || after == Some(child) || refused_offline(parent) {
             return;
         }
-        let reorder = PendingReorder {
+        let queued = self.pending_reorders.iter().any(|reorder| {
+            (reorder.child, reorder.parent, reorder.after) == (child, parent, after)
+        });
+        if queued || !self.ensure_editor(parent) {
+            return;
+        }
+        self.pending_reorders.push(PendingReorder {
             child,
             parent,
             after,
-        };
-        if self.pending_reorders.contains(&reorder) || !self.ensure_editor(parent) {
-            return;
-        }
-        self.pending_reorders.push(reorder);
+            answer: None,
+        });
     }
 
     fn process_pending_reorders(&mut self) {
         let pending = std::mem::take(&mut self.pending_reorders);
-        for reorder in pending {
+        for mut reorder in pending {
+            if let Some(answer) = &reorder.answer {
+                match answer.answer() {
+                    None => self.pending_reorders.push(reorder),
+                    Some(false) => refuse_reorder(reorder.parent, reorder.child),
+                    Some(true) => {}
+                }
+                continue;
+            }
             let moving = self
                 .pending_transfers
                 .iter()
                 .any(|transfer| transfer.child == reorder.child);
-            let done = !moving
-                && self
+            if !moving {
+                reorder.answer = self
                     .with_editor(reorder.parent, |editor| {
                         editor.reorder_child(reorder.child, reorder.after)
                     })
-                    .flatten()
-                    .is_some();
-            if !done {
-                self.pending_reorders.push(reorder);
+                    .flatten();
             }
+            self.pending_reorders.push(reorder);
         }
     }
 
@@ -2263,8 +2551,10 @@ impl HostCore {
             }
             RestoreTo::Into(destination) => destination,
         };
+        // While the destination's content is not read, as the server says it holds the block.
         let listed = be_host_stack::node(destination)
-            .is_some_and(|parent| parent.references.contains(&root));
+            .and_then(|parent| parent.refers_to(root))
+            .unwrap_or(node.held && node.parent == Some(BlockParent::Block(destination)));
         match listed {
             true => be_host_stack::set_parent(root, BlockParent::Block(destination)),
             false => self.queue_move(
@@ -2306,6 +2596,9 @@ impl HostCore {
             destination: None,
             parent_after: None,
             stage: TransferStage::DeleteSource,
+            putting_back: false,
+            name: name_of(child, "that block"),
+            was_after: None,
         });
     }
 
@@ -2323,39 +2616,79 @@ impl HostCore {
                 continue;
             }
             if matches!(transfer.stage, TransferStage::DeleteSource) {
-                let ready = match transfer.source {
-                    None | Some(SidebarDragSource::Orphaned) => Some(true),
+                transfer.stage = match transfer.source {
+                    None | Some(SidebarDragSource::Orphaned) => TransferStage::AddDestination,
                     Some(SidebarDragSource::Unfiled) if transfer.destination.is_some() => {
-                        Some(true)
+                        TransferStage::AddDestination
                     }
                     Some(SidebarDragSource::Root | SidebarDragSource::Unfiled) => {
                         be_host_stack::set_parent(transfer.child, BlockParent::Detached);
-                        Some(true)
+                        TransferStage::AddDestination
                     }
-                    Some(SidebarDragSource::Block(source)) => self
-                        .with_editor(source, |editor| editor.delete_child(transfer.child))
-                        .flatten(),
+                    Some(SidebarDragSource::Block(source)) => {
+                        let deleting = self
+                            .with_editor(source, |editor| editor.delete_child(transfer.child))
+                            .flatten();
+                        let Some(answer) = deleting else {
+                            self.pending_transfers.push(transfer);
+                            continue;
+                        };
+                        TransferStage::DeletingSource(answer)
+                    }
                 };
-                if ready != Some(true) {
+            }
+            if let TransferStage::DeletingSource(answer) = &transfer.stage {
+                match answer.answer() {
+                    None => {
+                        self.pending_transfers.push(transfer);
+                        continue;
+                    }
+                    Some(false) => {
+                        self.refused_transfer(transfer, false);
+                        continue;
+                    }
+                    Some(true) => transfer.stage = TransferStage::AddDestination,
+                }
+            }
+            if matches!(transfer.stage, TransferStage::AddDestination)
+                && let Some(destination) = transfer.destination
+                && !is_unfiled(destination)
+            {
+                let adding = self
+                    .with_editor(destination, |editor| editor.add_child(transfer.child))
+                    .flatten();
+                let Some(answer) = adding else {
                     self.pending_transfers.push(transfer);
                     continue;
+                };
+                transfer.stage = TransferStage::AddingDestination(answer);
+            }
+            if let TransferStage::AddingDestination(answer) = &transfer.stage {
+                match answer.answer() {
+                    None => {
+                        self.pending_transfers.push(transfer);
+                        continue;
+                    }
+                    Some(false) => {
+                        self.refused_transfer(transfer, true);
+                        continue;
+                    }
+                    Some(true) => {}
                 }
-                transfer.stage = TransferStage::AddDestination;
             }
 
-            let ready = transfer.destination.map_or(Some(true), |destination| {
-                match is_unfiled(destination) {
-                    true => Some(true),
-                    false => self
-                        .with_editor(destination, |editor| editor.add_child(transfer.child))
-                        .flatten(),
-                }
-            });
-            if ready != Some(true) {
-                self.pending_transfers.push(transfer);
-                continue;
+            // A block put back goes where it sat, when its source keeps an order and still
+            // holds the sibling it followed: adding put it last.
+            if transfer.putting_back
+                && let (Some(after), Some(source)) = (transfer.was_after, transfer.destination)
+                && self.keeps_order(source)
+                && after.is_none_or(|sibling| {
+                    be_host_stack::node(source)
+                        .is_some_and(|node| node.contents().contains(&sibling))
+                })
+            {
+                self.queue_reorder(transfer.child, source, after);
             }
-
             if let Some(parent) = transfer.parent_after {
                 self.set_block_parent(transfer.child, parent);
             }
@@ -2363,6 +2696,53 @@ impl HostCore {
                 be_host_stack::placing(transfer.child, false);
             }
         }
+    }
+
+    /// Whether `block`'s type keeps an order of its children (its manifest's
+    /// `children.reorder`).
+    fn keeps_order(&self, block: Uuid) -> bool {
+        self.block_type_of(block)
+            .and_then(be_host_stack::discovery::block_type)
+            .is_some_and(|block_type| block_type.children.reorder)
+    }
+
+    /// A container's type refused a transfer's change: out of its source (`into` false) or into
+    /// its destination. The block goes back where the file tree showed it, its source taking it
+    /// again when it already let it go, and the person is told why.
+    fn refused_transfer(&mut self, transfer: PendingTransfer, into: bool) {
+        be_host_stack::placing(transfer.child, false);
+        if into {
+            match transfer.source {
+                Some(SidebarDragSource::Block(source)) => {
+                    self.pending_transfers.push(PendingTransfer {
+                        child: transfer.child,
+                        source: None,
+                        destination: Some(source),
+                        parent_after: None,
+                        stage: TransferStage::AddDestination,
+                        putting_back: true,
+                        name: transfer.name.clone(),
+                        was_after: transfer.was_after,
+                    });
+                }
+                Some(SidebarDragSource::Root) => {
+                    be_host_stack::set_parent(transfer.child, BlockParent::Root);
+                }
+                Some(SidebarDragSource::Unfiled | SidebarDragSource::Orphaned) | None => {}
+            }
+        }
+        if transfer.putting_back {
+            if let Some(source) = transfer.destination {
+                refuse_put_back(source, &transfer.name);
+            }
+            return;
+        }
+        let container = match (into, transfer.destination, transfer.source) {
+            (true, Some(destination), _) => destination,
+            (false, _, Some(SidebarDragSource::Block(source))) => source,
+            _ => return,
+        };
+        refuse_transfer(container, &transfer.name, into);
     }
 
     fn queue_copy(&mut self, source: Uuid, container: Uuid) {
@@ -2389,41 +2769,57 @@ impl HostCore {
         let pending = std::mem::take(&mut self.pending_copies);
         for mut copy in pending {
             if let CopyStage::Duplicate = copy.stage {
-                if !self.ensure_editor(copy.source) {
+                if !self.ensure_editor(copy.source) || !self.ensure_editor(copy.container) {
                     self.pending_copies.push(copy);
                     continue;
                 }
-                let Some((copy_id, block_type)) = be_host_stack::duplicate(copy.source) else {
+                match self
+                    .with_editor(copy.container, |editor| editor.takes_replace())
+                    .flatten()
+                {
+                    None => {
+                        self.pending_copies.push(copy);
+                        continue;
+                    }
+                    Some(false) => {
+                        refuse_copy(copy.container);
+                        continue;
+                    }
+                    Some(true) => {}
+                }
+                // The stack makes the copy as the container takes it, before it answers.
+                let replacing = self
+                    .with_editor(copy.container, |editor| editor.copy_in_place(copy.source))
+                    .flatten();
+                let Some((copy_id, answer)) = replacing else {
                     self.pending_copies.push(copy);
                     continue;
                 };
-                copy.stage = CopyStage::Replace {
-                    copy_id,
-                    block_type,
-                };
+                copy.stage = CopyStage::Replacing { copy_id, answer };
             }
-            let CopyStage::Replace {
-                copy_id,
-                block_type,
-            } = copy.stage
-            else {
-                unreachable!("copy stage was just set to Replace")
+            let CopyStage::Replacing { copy_id, answer } = &copy.stage else {
+                unreachable!("copy stage was just set to Replacing")
             };
-
-            if !self.ensure_editor(copy.container) {
+            let copy_id = *copy_id;
+            match answer.answer() {
+                None => {
+                    self.pending_copies.push(copy);
+                    continue;
+                }
+                // Refused before any copy was made: nothing is left behind.
+                Some(false) => {
+                    refuse_copy(copy.container);
+                    continue;
+                }
+                Some(true) => {}
+            }
+            // Made: the copy exists, detached, and goes in the container now. A host stopped
+            // before this leaves it detached, and the container still names it.
+            let made = be_host_stack::node(copy_id).map(|node| node.content_type);
+            let Some(block_type) = made.or_else(|| self.block_type_of(copy.source)) else {
                 self.pending_copies.push(copy);
                 continue;
-            }
-            let replaced = self
-                .with_editor(copy.container, |editor| {
-                    editor.replace_child(copy.source, copy_id)
-                })
-                .flatten();
-            if replaced != Some(true) {
-                self.pending_copies.push(copy);
-                continue;
-            }
-
+            };
             self.set_block_parent(copy_id, BlockParent::Block(copy.container));
             self.show_block(
                 Some(copy.container),
@@ -2457,6 +2853,7 @@ impl HostCore {
     }
 
     fn ensure_shell(&mut self) -> Option<Uuid> {
+        be_host_stack::set_guest(self.role() == be_sdk_api::AccountRole::Guest);
         self.root_settings.ensure_my_files();
         self.root_settings.ensure_unfiled();
         let class = root_settings::device_class();
@@ -2549,8 +2946,8 @@ impl HostCore {
     /// Opens the blocks notifications named that were pressed, switching to their
     /// organization first. One that cannot open yet (the organization or the block is not
     /// loaded, or changes are unsaved) is held until the organizations, the graph or the
-    /// unsaved changes change, and dropped after `web_push::OPENING_PATIENCE`.
-    #[cfg(target_arch = "wasm32")]
+    /// unsaved changes change, and dropped after `pressed_notifications::OPENING_PATIENCE`.
+    #[cfg(any(target_arch = "wasm32", target_os = "android"))]
     fn open_pressed_notifications(&mut self, changes: &be_host_stack::Changes) {
         let waiting = |host: &Self| {
             (
@@ -2561,14 +2958,14 @@ impl HostCore {
                 be_host_stack::status().unsaved,
             )
         };
-        if !web_push::has_openings()
+        if !pressed_notifications::has_openings()
             || (!changes.graph && self.pressed_waiting_on == Some(waiting(self)))
         {
             return;
         }
         self.pressed_waiting_on = None;
-        for opening in web_push::take_openings() {
-            if opening.pressed.elapsed() > web_push::OPENING_PATIENCE {
+        for opening in pressed_notifications::take_openings() {
+            if opening.pressed.elapsed() > pressed_notifications::OPENING_PATIENCE {
                 continue;
             }
             let now = waiting(self);
@@ -2584,20 +2981,20 @@ impl HostCore {
                 match other {
                     Some(other) if now.2 == 0 => {
                         self.open_organization(other);
-                        web_push::hold(opening);
+                        pressed_notifications::hold(opening);
                     }
                     // The organizations are listed and it is not among them: the person
                     // is not a member, so there is nothing to open.
                     None if !self.organizations.is_empty() => {}
                     _ => {
-                        web_push::hold(opening);
+                        pressed_notifications::hold(opening);
                         self.pressed_waiting_on = Some(now);
                     }
                 }
                 continue;
             }
             let Some(node) = be_host_stack::node(opening.block) else {
-                web_push::hold(opening);
+                pressed_notifications::hold(opening);
                 self.pressed_waiting_on = Some(now);
                 continue;
             };
@@ -2614,11 +3011,16 @@ impl HostCore {
         }
     }
 
-    /// Registers this browser's push subscription for each organization as it is opened, once
-    /// it connects (`bePush.sync`): the person turned pushes on in one, and a subscription the
-    /// push service replaced is found here.
-    #[cfg(target_arch = "wasm32")]
+    /// Registers this device's push endpoint for each organization as it is opened, once it
+    /// connects (`bePush.sync` in a browser): the person turned pushes on in one, and an
+    /// endpoint the push service replaced is found here. On Android, a new endpoint from the
+    /// distributor registers again.
+    #[cfg(any(target_arch = "wasm32", target_os = "android"))]
     fn sync_push_subscription(&mut self) {
+        #[cfg(target_os = "android")]
+        if android_push::changed() {
+            self.push_synced = None;
+        }
         let Some(organization) = self
             .organization
             .as_ref()
@@ -2633,7 +3035,10 @@ impl HostCore {
             return;
         }
         self.push_synced = Some(organization);
+        #[cfg(target_arch = "wasm32")]
         web_push::sync();
+        #[cfg(target_os = "android")]
+        android_push::sync(&self.host_state);
     }
 
     fn show_block(&mut self, from: Option<Uuid>, open: BlockOpen) {
@@ -3092,6 +3497,7 @@ impl HostCore {
         let access = match access {
             AccessLevel::None => Access::None,
             AccessLevel::KnowExists => Access::KnowExists,
+            AccessLevel::Join => Access::Join,
             AccessLevel::View => Access::View,
             AccessLevel::Edit => Access::Edit,
             AccessLevel::Manage => Access::Manage,
@@ -3109,6 +3515,9 @@ impl HostCore {
     fn handle_block_command(&mut self, from: Option<Uuid>, id: Uuid, command: BlockCommand) {
         match command {
             BlockCommand::Share => self.show_dialog(from, id, ShellDialog::Share),
+            // Only an editor of the block keeps hosting it.
+            BlockCommand::KeepHosting(keep) if from == Some(id) => self.hosts.keep(id, keep),
+            BlockCommand::KeepHosting(_) => {}
             BlockCommand::Leave => ask_to_leave(&mut self.leaving, id),
             BlockCommand::CloseEditor if from == Some(id) => self.close_itself(id),
             BlockCommand::CloseEditor => {
@@ -3150,6 +3559,9 @@ impl HostCore {
                 self.queue_reorder(id, Uuid::from_bytes(parent), after.map(Uuid::from_bytes))
             }
             BlockCommand::Restore => self.restore(id),
+            // The runtime answers them for a host component and a Join member
+            // (`Instances::act_on`).
+            BlockCommand::TellMember(_) | BlockCommand::TellHost(_) => {}
             BlockCommand::Place {
                 block_type,
                 parent,
@@ -3322,7 +3734,7 @@ impl HostCore {
         self.root_settings.heard(&changes);
         self.input.heard(&changes);
         self.display.heard(&changes);
-        self.sync_local_settings();
+        self.sync_local_settings(&changes);
         self.programs.frame();
         self.sync_be_stack();
         self.notice_reconnect();
@@ -3331,25 +3743,55 @@ impl HostCore {
         });
         self.contacts
             .poll(&accounts::link_base(&self.server_url), ready);
+        self.share_links
+            .poll(&accounts::link_base(&self.server_url), ready);
+        let current = self
+            .organization
+            .as_ref()
+            .map(|organization| organization.id);
+        if let Some(elsewhere) = self.share_links.take_elsewhere(current) {
+            // Listed again, so a guest's new organization is among them, then opened.
+            self.opening_after_link = Some(elsewhere);
+            self.organizations_loaded = false;
+            self.begin_organization_request(OrganizationOperation::Load);
+        }
+        if self.organizations_loaded
+            && let Some(wanted) = self.opening_after_link
+            && let Some(organization) = self
+                .organizations
+                .iter()
+                .find(|organization| organization.id == wanted)
+                .cloned()
+        {
+            self.opening_after_link = None;
+            self.open_organization(organization);
+        }
         if changes.contacts {
             self.contacts.publish();
         }
-        #[cfg(target_arch = "wasm32")]
+        #[cfg(any(target_arch = "wasm32", target_os = "android"))]
         {
             self.open_pressed_notifications(&changes);
             self.sync_push_subscription();
         }
         self.publish_storage(changes.storage);
-        if changes.notify_modes {
-            self.publish_notify_modes();
+        if changes.mutes {
+            self.publish_mutes();
         }
         self.publish_push_device();
         self.load_organizations_if_needed();
         if self.choosing_session {
+            be_host_stack::set_guest(self.role() == be_sdk_api::AccountRole::Guest);
             self.root_settings.ensure();
             performance::end_frame();
             return;
         }
+        self.hosts.step(
+            self.registry.hosted(),
+            self.registry.app_block_types(),
+            self.client_id,
+            changes.graph,
+        );
         self.process_pending_transfers();
         self.process_pending_reorders();
         self.process_pending_copies();
@@ -3425,14 +3867,15 @@ impl HostCore {
         if be_host_stack::installed_for(self.account.id, organization) {
             return;
         }
-        let link_base = if self.server_url == self.local_server_url {
+        let link_base = if self.server_url.is_empty() {
             String::new()
         } else {
             accounts::link_base(&self.server_url)
         };
         be_host_base::watches::publish::<be_sdk_api::LinkBaseWatch>(&link_base);
-        self.publish_administrator();
+        self.publish_role();
         be_host_stack::start(be_host_stack::Config {
+            local: self.account.server == ServerLocation::Local,
             server_url: self.server_url.clone(),
             token: self.account.token.clone(),
             account: self.account.id,
@@ -3461,18 +3904,18 @@ impl HostCore {
         be_host_base::watches::publish::<be_sdk_api::StorageUsageWatch>(&usage);
     }
 
-    /// Publishes the account's notification modes, which the host stack read anew.
-    fn publish_notify_modes(&mut self) {
-        let modes = be_host_stack::notify_modes().map(|modes| {
-            modes
+    /// Publishes the account's mutes, which the host stack read anew.
+    fn publish_mutes(&mut self) {
+        let mutes = be_host_stack::mutes().map(|mutes| {
+            mutes
                 .into_iter()
-                .map(|(block, mode)| be_sdk_api::BlockNotifyMode {
+                .map(|(block, mode)| be_sdk_api::BlockMute {
                     block: block.into_bytes(),
-                    mode: be_host_stack::app_graph::notify_mode_to(mode),
+                    mode: be_host_stack::app_graph::mute_to(mode),
                 })
                 .collect::<Vec<_>>()
         });
-        be_host_base::watches::publish::<be_sdk_api::NotifyModesWatch>(&modes);
+        be_host_base::watches::publish::<be_sdk_api::MutesWatch>(&mutes);
     }
 
     /// Publishes whether this device shows pushes whenever it changed.
@@ -3494,16 +3937,30 @@ impl HostCore {
         );
     }
 
-    fn publish_administrator(&self) {
-        be_host_base::watches::publish::<be_sdk_api::AdministratorWatch>(
-            &self.organization.as_ref().is_some_and(|organization| {
-                organization.kind == be_block_protocol::OrganizationKind::Company
-                    && organization.role == OrganizationRole::Administrator
-            }),
+    fn publish_role(&self) {
+        be_host_base::watches::publish::<be_sdk_api::RoleWatch>(
+            &self.organization.as_ref().map(|_| self.role()),
         );
     }
 
-    fn sync_local_settings(&mut self) {
+    /// The account's role in the organization open, a member while none is: an administrator
+    /// only of a company.
+    fn role(&self) -> be_sdk_api::AccountRole {
+        match self.organization.as_ref() {
+            Some(organization) if organization.role == OrganizationRole::Guest => {
+                be_sdk_api::AccountRole::Guest
+            }
+            Some(organization)
+                if organization.kind == be_block_protocol::OrganizationKind::Company
+                    && organization.role == OrganizationRole::Administrator =>
+            {
+                be_sdk_api::AccountRole::Administrator
+            }
+            _ => be_sdk_api::AccountRole::Member,
+        }
+    }
+
+    fn sync_local_settings(&mut self, changes: &be_host_stack::Changes) {
         if self.root_settings.loaded() {
             let settings = &self.root_settings;
             let company = self
@@ -3518,6 +3975,11 @@ impl HostCore {
                 settings.workspaces(),
                 company.is_none(),
             );
+            for (kind, layers) in
+                settings.reads_moved(be_host_stack::unread::kinds, changes, self.client_id)
+            {
+                be_host_stack::unread::publish(kind, layers);
+            }
             self.input
                 .set_layers(settings.layers(InputSettings::CONTENT_TYPE, self.client_id));
             self.display
@@ -3552,8 +4014,6 @@ impl HostCore {
             UiCommand::CancelErrorAction => self.pending_error_action = None,
             UiCommand::ConfirmErrorAction => match self.pending_error_action.take() {
                 Some(ErrorAction::DeleteClientDatabase) => self.delete_client_database(),
-                #[cfg(not(target_arch = "wasm32"))]
-                Some(ErrorAction::DeleteServerDatabase) => self.delete_server_database(),
                 None => {}
             },
             UiCommand::Exit => std::process::exit(1),
@@ -3695,9 +4155,13 @@ impl HostCore {
             UiCommand::CancelRemoveAccount => self.removing_account = None,
             UiCommand::OpenInspector => self.inspector_requested = Some(true),
             UiCommand::InviteMember => {
-                self.invite_open = true;
-                self.invite_link = None;
+                if self.organization.is_some() {
+                    self.invitations.invite();
+                }
             }
+            UiCommand::OpenInvitations => self.invitations.show(),
+            UiCommand::CloseInvitations => self.invitations.close(),
+            UiCommand::RevokeInvitation(link) => self.invitations.revoke(link),
             UiCommand::SwitchOrganization => {
                 if be_host_stack::flush() == 0 {
                     self.scheduled_organization_list = true;
@@ -3719,7 +4183,18 @@ impl HostCore {
                 }
             }
             UiCommand::CancelDiscardUnsent => self.discarding_unsent = None,
-            UiCommand::DismissToast(id) => notices::dismiss(id),
+            UiCommand::DismissToast(id) => {
+                if let Some(account) = notices::dismiss(id) {
+                    let dismissing = accounts::dismiss_account_notice(
+                        self.server_url.clone(),
+                        self.account.token.clone(),
+                        account,
+                    );
+                    platform::spawn_request(async move {
+                        let _ = dismissing.await;
+                    });
+                }
+            }
             UiCommand::CycleTheme => self.cycle_theme(),
             UiCommand::KeepDisplay(round) => self.answer_display(round, true),
             UiCommand::RevertDisplay(round) => self.answer_display(round, false),
@@ -3747,16 +4222,7 @@ impl HostCore {
             }
             #[cfg(not(target_os = "linux"))]
             UiCommand::LockScreen | UiCommand::Unlock(_) | UiCommand::LockPower(_) => {}
-            UiCommand::SendInvite(email, role) => {
-                if self.organization.is_some() && !email.trim().is_empty() {
-                    self.invite_link = None;
-                    self.begin_organization_request(OrganizationOperation::Invite(email, role));
-                }
-            }
-            UiCommand::CloseInvite => {
-                self.invite_open = false;
-                self.invite_link = None;
-            }
+            UiCommand::CloseInvite => self.invitations.close_invite(),
             UiCommand::OpenAgents => {
                 self.agents_open = true;
                 self.agent_created = None;
@@ -3764,6 +4230,7 @@ impl HostCore {
                     self.begin_organization_request(OrganizationOperation::ListAgents);
                 }
             }
+            UiCommand::StopHosting(block) => self.hosts.keep(block, false),
             UiCommand::OpenContacts => self.contacts.show(),
             UiCommand::OpenMembers => self.members.show(),
             UiCommand::CloseMembers => self.members.close(),
@@ -3778,6 +4245,13 @@ impl HostCore {
                 .paste(&text, &accounts::link_base(&self.server_url)),
             UiCommand::AcceptContact => self.contacts.accept(),
             UiCommand::DeclineContact => self.contacts.decline(),
+            UiCommand::OpenShareLinks => self.share_links.show(),
+            UiCommand::CloseShareLinks => self.share_links.close(),
+            UiCommand::OpenShareLink(text) => self
+                .share_links
+                .paste(&text, &accounts::link_base(&self.server_url)),
+            UiCommand::AcceptShareLink => self.share_links.accept(),
+            UiCommand::DeclineShareLink => self.share_links.decline(),
             UiCommand::RemoveContact(account) => self.contacts.ask_remove(account),
             UiCommand::ConfirmRemoveContact => self.contacts.confirm_remove(),
             UiCommand::CancelRemoveContact => self.contacts.cancel_remove(),
@@ -3879,18 +4353,13 @@ impl HostCore {
             _ => ui::SyncState::Saved,
         };
         let listed = matches!(screen, ui::Screen::Accounts | ui::Screen::Organizations);
-        let cache = listed.then(|| self.workspace_cache()).flatten();
         let companies = |account: &SavedAccount| -> Vec<String> {
-            let Some(cache) = &cache else {
+            if !listed {
                 return Vec::new();
-            };
-            let url = match &account.server {
-                ServerLocation::Local => self.local_server_url.clone(),
-                ServerLocation::Remote(url) => url.clone(),
-            };
-            cache
+            }
+            let url = account.server.url();
+            self.workspaces
                 .workspaces(&url, account.id)
-                .unwrap_or_default()
                 .into_iter()
                 .filter(|organization| {
                     organization.kind == be_block_protocol::OrganizationKind::Company
@@ -3965,15 +4434,7 @@ impl HostCore {
                     .iter()
                     .map(|organization| (organization.id, organization.name.clone()))
                     .collect(),
-                joining: self
-                    .joining
-                    .as_ref()
-                    .and_then(|joining| joining.invitation.as_ref())
-                    .map(|invitation| ui::JoiningRow {
-                        organization: invitation.organization_name.clone(),
-                        role: invitation.invitation.role.label().to_lowercase(),
-                        email: invitation.invitation.email.clone(),
-                    }),
+                joining: self.joining.as_ref().and_then(joining_row),
                 busy: self.pending_organization_request.is_some(),
                 error: self.organization_error.clone(),
                 created: self.organization_created,
@@ -3988,6 +4449,7 @@ impl HostCore {
                 error: reauth.error.clone(),
             }),
             status: ui::StatusView {
+                hosting: self.hosts.kept(&self.registry),
                 sync,
                 unsaved: be_status.unsaved > 0,
                 unsent: be_status.unsent,
@@ -4027,7 +4489,7 @@ impl HostCore {
                     organization.kind == be_block_protocol::OrganizationKind::Company
                         && organization.role == OrganizationRole::Administrator
                 }),
-                escrow_warning: be_host_stack::escrow_warning().map(str::to_owned),
+                escrow_warning: be_host_stack::escrow_warning(),
             },
             agents: self.agents_open.then(|| ui::AgentsView {
                 organization: organization_name.clone(),
@@ -4044,14 +4506,10 @@ impl HostCore {
                 created: self.agent_created.clone(),
             }),
             contacts: self.contacts.view(),
+            share_link: self.share_links.view(),
             members: self.members.view(self.account.id),
-            invite: self.invite_open.then(|| ui::InviteView {
-                organization: organization_name,
-                busy: self.pending_organization_request.is_some(),
-                error: self.organization_error.clone(),
-                sent: self.invite_sent,
-                link: self.invite_link.clone(),
-            }),
+            invite: self.invitations.invite_view(organization_name),
+            invitations: self.invitations.view(),
             about: self.about_open,
             unsent: self.unsent_open.then(|| ui::UnsentView {
                 rows: be_host_stack::unsent()
@@ -4061,6 +4519,7 @@ impl HostCore {
                         name: unsent.name.unwrap_or_else(|| "Untitled".to_owned()),
                         offerable: unsent.offerable,
                         refused: unsent.refused,
+                        kept_edits: unsent.kept_edits,
                     })
                     .collect(),
                 discarding: self.discarding_unsent,
@@ -4084,7 +4543,6 @@ impl HostCore {
 
     #[cfg(not(target_arch = "wasm32"))]
     fn restart(&mut self) {
-        be_host_stack::flush();
         be_host_stack::stop();
         match Self::new(Some(self.data_dir.clone())) {
             Ok(mut fresh) => {
@@ -4103,16 +4561,31 @@ impl HostCore {
         }
     }
 
+    /// Starts again from the host state the page holds, which is what its worker keeps.
     #[cfg(target_arch = "wasm32")]
     fn restart(&mut self) {
-        be_host_stack::flush();
         be_host_stack::stop();
-        match Self::new() {
+        let host_state = std::mem::replace(&mut self.host_state, HostStateStore::placeholder());
+        let workspaces = std::mem::take(&mut self.workspaces);
+        match Self::new(host_state, workspaces, self.host_files_failed.take()) {
             Ok(fresh) => *self = fresh,
             Err(error) => self.error = Some(error.to_string()),
         }
     }
 
+    /// Has the host's worker delete the host state, and starts again without it.
+    #[cfg(target_arch = "wasm32")]
+    fn delete_client_database(&mut self) {
+        match self.workspaces.forget_host_state() {
+            Some(fresh) => {
+                self.host_state = fresh;
+                self.restart();
+            }
+            None => self.error = Some("the host's worker is gone".to_owned()),
+        }
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
     fn delete_client_database(&mut self) {
         let path = self.data_dir.join("host.sqlite3");
         let _ = std::mem::replace(&mut self.host_state, HostStateStore::placeholder());
@@ -4124,24 +4597,11 @@ impl HostCore {
         }
         self.restart();
     }
-
-    #[cfg(not(target_arch = "wasm32"))]
-    fn delete_server_database(&mut self) {
-        be_host_stack::stop_and_wait();
-        self.embedded_server = None;
-        let path = self.data_dir.join("server");
-        if let Err(error) = std::fs::remove_dir_all(&path)
-            && error.kind() != io::ErrorKind::NotFound
-        {
-            self.error = Some(format!("failed to delete {}: {error}", path.display()));
-            return;
-        }
-        self.restart();
-    }
 }
 
 fn sync_state(status: &be_host_stack::Status) -> ui::SyncState {
-    match (&status.error, status.connected) {
+    // A local account has no server: saved on this device is saved.
+    match (&status.error, status.connected || status.local) {
         (_, false) if status.connecting => ui::SyncState::Connecting,
         (_, false) => ui::SyncState::Offline {
             waiting: status.waiting,
@@ -4246,6 +4706,56 @@ fn restore_to(
 /// parent alone.
 fn is_unfiled(block: Uuid) -> bool {
     be_host_stack::node(block).is_some_and(|node| node.unfiled())
+}
+
+/// Says that `container` keeps linking to the block an unlink would have copied: its type
+/// cannot put a copy in the block's place, or the container can't be changed right now.
+fn name_of(block: Uuid, otherwise: &str) -> String {
+    be_host_stack::node(block)
+        .and_then(|node| node.metadata.name())
+        .unwrap_or_else(|| otherwise.to_owned())
+}
+
+/// A container's type refused to let the block called `child` out (`into` false) or to take it
+/// in.
+fn refuse_transfer(container: Uuid, child: &str, into: bool) {
+    let container = name_of(container, "That block");
+    notices::refuse(match into {
+        true => format!("{container} can't hold {child}, so it stays where it was."),
+        false => format!("{container} can't let go of {child}, so it stays where it was."),
+    });
+}
+
+/// The sibling `child` follows in `container`'s content (none: it is first), or none when the
+/// container does not hold it.
+fn sibling_before(container: Uuid, child: Uuid) -> Option<Option<Uuid>> {
+    let contents = be_host_stack::node(container)?.contents();
+    let at = contents.iter().position(|held| *held == child)?;
+    Some(at.checked_sub(1).map(|before| contents[before]))
+}
+
+/// A source that let a block go refused to take it back after its destination refused it.
+fn refuse_put_back(source: Uuid, child: &str) {
+    let source = name_of(source, "Its folder");
+    notices::refuse(format!("{source} couldn't take {child} back either."));
+}
+
+/// A container's type refused to put `child` somewhere else in its order.
+fn refuse_reorder(container: Uuid, child: Uuid) {
+    let (container, child) = (
+        name_of(container, "That block"),
+        name_of(child, "that block"),
+    );
+    notices::refuse(format!(
+        "{container} can't move {child} within it, so it stays where it was."
+    ));
+}
+
+fn refuse_copy(container: Uuid) {
+    let name = name_of(container, "That block");
+    notices::refuse(format!(
+        "{name} can't take its own copy of that block, so it still links to the original."
+    ));
 }
 
 /// Offline, a block goes into, out of or along a container by changing the container's content,

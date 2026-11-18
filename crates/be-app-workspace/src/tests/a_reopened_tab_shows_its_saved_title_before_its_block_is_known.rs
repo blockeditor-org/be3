@@ -11,11 +11,10 @@ fn a_reopened_tab_shows_its_saved_title_before_its_block_is_known() {
 
     let saved = profile(&fixture);
     let mut reopened_profile = EditorView::document(None);
-    for key in ["layout", "titles"] {
-        let state = saved.state(key).cloned().expect("the profile keeps it");
+    for (id, state) in saved.state.iter() {
         let edit = reopened_profile
             .root()
-            .set_state(key, Some(&state), 1, Uuid::nil());
+            .put_stored(*id, Some(state), 1, Uuid::nil());
         reopened_profile.apply(&edit);
     }
     let (mut reopened, _) = open_editor(None, Some(reopened_profile));

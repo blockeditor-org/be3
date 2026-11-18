@@ -23,12 +23,11 @@ impl be_sdk_beui::BeuiRoot for DefaultEditorsRoot {
                 <Loaded>|| {
                     let settings = LayeredSettings::<EditorSettings>::page(editor);
                     let device = settings.on_this_device();
-                    editor.block_types_known();
                     view! {
                         <List spacing=Space::None>
                             <Keyed
                                 value={device}
-                                key={|device: bool| device}
+                                key={|device: &bool| *device}
                             >|_device: ReadSignal<bool>|
                                 <ListItem grow=1.0>
                                     <DefaultEditorsView editor={editor} settings={settings} />

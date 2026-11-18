@@ -9,12 +9,12 @@ fn a_hidden_show_gives_its_share_of_the_space_to_its_visible_siblings() {
     let document = build_node(move || {
         view! {
             <List spacing=0.0>
-                <Show condition=false>
+                <Show value={move || false}>
                     <ListItem grow=1.0>
                         <Frame />
                     </ListItem>
                 </Show>
-                <Show condition=true>
+                <Show value={move || true}>
                     <ListItem grow=1.0>
                         <Frame @node_ref=&shown />
                     </ListItem>

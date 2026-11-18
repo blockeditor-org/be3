@@ -1,6 +1,7 @@
 use be_block_graph::Access;
 
 use super::*;
+use be_block_session::Membership;
 
 /// One account attacks another's block with what it can learn of it: its id and the hashes of its
 /// objects. Nothing it does tells it anything, reaches the owner's connections, or changes the
@@ -8,8 +9,8 @@ use super::*;
 #[tokio::test]
 async fn another_account_cannot_reach_a_block_by_its_id_or_its_objects_by_their_hashes() {
     let harness = Harness::start().await;
-    let mut owner = harness.client().await;
-    let account = owner.register("owner@example.com").await;
+    let mut owner = harness.member("owner@example.com").await;
+    let account = owner.id();
     owner.personal().await;
     let author = Author::new(account);
     let block = owner.create_block(BlockParent::Root).await;
@@ -35,13 +36,18 @@ async fn another_account_cannot_reach_a_block_by_its_id_or_its_objects_by_their_
     owner.notifications.clear();
 
     // In an organization of its own, the owner's block is not there.
-    let mut attacker = harness.client().await;
-    attacker.register("attacker@example.com").await;
+    let mut attacker = harness.member("attacker@example.com").await;
     let elsewhere = attacker.organization("elsewhere").await;
     let read = attacker.try_read_block(block).await;
     assert!(refused_as(&read, ErrorCode::BlockNotFound), "{read:?}");
     let contents = attacker
-        .call(|peer| client::blocks::read_contents(peer, vec![block], Vec::new()))
+        .call(|peer| {
+            peer.read::<be_block_protocol::Contents>(be_block_protocol::Query::Blocks {
+                blocks: vec![block],
+                contents: true,
+                held: Vec::new(),
+            })
+        })
         .await;
     assert!(
         refused_as(&contents, ErrorCode::BlockNotFound),
@@ -64,24 +70,33 @@ async fn another_account_cannot_reach_a_block_by_its_id_or_its_objects_by_their_
     assert_eq!(missing.as_ref().ok(), Some(&hashes), "{missing:?}");
     let decoy = attacker.create_block(BlockParent::Root).await;
     let held = attacker
-        .call(|peer| client::objects::hold_objects(peer, decoy, hashes.clone(), Hold::Lasting))
+        .call(|peer| {
+            peer.write::<()>(be_block_protocol::Op::HoldObjects {
+                block: decoy,
+                objects: hashes.clone(),
+                hold: Hold::Lasting,
+            })
+        })
         .await;
     assert!(refused_as(&held, ErrorCode::ObjectNotFound), "{held:?}");
     let stolen = attacker
         .call(|peer| {
-            client::blocks::publish(
-                peer,
-                decoy,
-                commit,
-                None,
-                Vec::new(),
-                objects_change(&[], chunks.clone()),
-                1_000,
-                false,
-                listing(&[], Vec::new()),
-                Vec::new(),
-                Vec::new(),
-            )
+            peer.write::<be_block_protocol::PublishOutcome>(be_block_protocol::Op::Publish {
+                block: decoy,
+                expected: None,
+                commit: Some(be_block_protocol::NewCommit {
+                    id: commit,
+                    parents: Vec::new(),
+                    held: objects_change(&[], chunks.clone()),
+                    time: 1_000,
+                    pinned: false,
+                    objects: Vec::new(),
+                    log_through: None,
+                }),
+                references: listing(&[], Vec::new()),
+                metadata: Vec::new(),
+                journal: None,
+            })
         })
         .await;
     assert!(refused_as(&stolen, ErrorCode::ObjectNotFound), "{stolen:?}");
@@ -93,7 +108,13 @@ async fn another_account_cannot_reach_a_block_by_its_id_or_its_objects_by_their_
         );
     }
     let contents = attacker
-        .call(|peer| client::blocks::read_contents(peer, vec![decoy], Vec::new()))
+        .call(|peer| {
+            peer.read::<be_block_protocol::Contents>(be_block_protocol::Query::Blocks {
+                blocks: vec![decoy],
+                contents: true,
+                held: Vec::new(),
+            })
+        })
         .await;
     assert!(
         matches!(&contents, Ok(contents) if contents.objects.is_empty()),
@@ -118,7 +139,7 @@ async fn another_account_cannot_reach_a_block_by_its_id_or_its_objects_by_their_
     attacker.follow(block).await;
     let (impostor, in_copy) = attacker.join_session(block).await;
     assert_eq!(
-        in_copy.participants,
+        in_copy.clients(),
         vec![impostor],
         "the attacker joined the owner's session"
     );
@@ -134,22 +155,18 @@ async fn another_account_cannot_reach_a_block_by_its_id_or_its_objects_by_their_
         ),
         "{response:?}"
     );
-    let relayed = attacker
-        .relay(block, None, RelayKind::Edit, b"forged edit".to_vec())
-        .await;
+    let relayed = attacker.relay(block, None, b"forged edit".to_vec()).await;
     assert!(matches!(relayed, Ok(())), "{relayed:?}");
     let deleted = attacker
-        .call(|peer| {
-            client::blocks::set_parent(peer, block, BlockParent::Detached, KeySet::default())
-        })
+        .move_keyed(block, BlockParent::Detached, KeySet::default())
         .await;
     assert!(matches!(deleted, Ok(())), "{deleted:?}");
     let _ = elsewhere;
 
     // Inside the owner's organization, an account it shared the block with to view may not take
     // its lease, nor change it.
-    let mut viewer = harness.client().await;
-    let viewer_account = viewer.register("viewer@example.com").await;
+    let mut viewer = harness.member("viewer@example.com").await;
+    let viewer_account = viewer.id();
     viewer.personal().await;
     let link = owner.link(None).await;
     let accepted = viewer.accept(link, &[]).await;
@@ -157,37 +174,31 @@ async fn another_account_cannot_reach_a_block_by_its_id_or_its_objects_by_their_
     let granted = owner.grant(block, viewer_account, Access::View).await;
     assert!(matches!(granted, Ok(())), "{granted:?}");
     viewer.join_session(block).await;
-    let claimed = viewer.sessions[&block]
-        .claim_ownership(session.generation + 1)
-        .await
-        .expect("the connection stayed open");
+    let claimed = viewer.claim(block).await;
     assert!(
         refused_as(&claimed, ErrorCode::PermissionDenied),
         "{claimed:?}"
     );
     let stolen = viewer
-        .call(|peer| client::objects::hold_objects(peer, block, vec![unheld.hash()], Hold::Lasting))
+        .call(|peer| {
+            peer.write::<()>(be_block_protocol::Op::HoldObjects {
+                block: block,
+                objects: vec![unheld.hash()],
+                hold: Hold::Lasting,
+            })
+        })
         .await;
     assert!(
         refused_as(&stolen, ErrorCode::PermissionDenied),
         "{stolen:?}"
     );
 
-    // The owner heard nothing of any of it, and its block is as it was.
+    // The owner was relayed nothing of any of it, and its block is as it was.
     owner.round_trip().await;
     let heard: Vec<&Notice> = owner
         .notifications
         .iter()
-        .filter(|notice| match notice {
-            // What the owner's own calls changed is not the attacker's doing.
-            Notice::BlockChanged {
-                block: changed,
-                from,
-            } => changed.id == block && Some(*from) != owner.client,
-            Notice::BlockRemoved { block: gone, .. } => *gone == block,
-            Notice::Relayed { .. } => true,
-            _ => false,
-        })
+        .filter(|notice| matches!(notice, Notice::Relayed { .. }))
         .collect();
     assert!(heard.is_empty(), "the owner heard the attacker: {heard:?}");
     let after = owner.read_block(block).await;
@@ -195,13 +206,10 @@ async fn another_account_cannot_reach_a_block_by_its_id_or_its_objects_by_their_
         (after.head, after.parent, after.metadata),
         (before.head, before.parent, before.metadata)
     );
-    let state = owner
-        .heartbeat(block, session.generation, None)
-        .await
-        .expect("the owner still beats");
-    assert_eq!(state.owner, session.owner, "the lease changed hands");
+    let state = owner.joined_state(block).await;
+    assert_eq!(state.holder(), session.holder(), "the lease changed hands");
     assert!(
-        !state.participants.contains(&impostor),
+        !state.has(impostor),
         "the attacker is in the owner's session"
     );
 

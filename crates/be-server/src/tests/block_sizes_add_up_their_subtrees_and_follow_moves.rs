@@ -3,8 +3,8 @@ use super::*;
 #[tokio::test]
 async fn block_sizes_add_up_their_subtrees_and_follow_moves() {
     let harness = Harness::start().await;
-    let mut client = harness.client().await;
-    let account = client.register("sizer@example.com").await;
+    let mut client = harness.member("sizer@example.com").await;
+    let account = client.id();
     let organization = client.organization("sizes").await;
     let author = Author::new(account);
     let bytes_of = |hashes: &[Hash]| -> u64 {
@@ -73,14 +73,7 @@ async fn block_sizes_add_up_their_subtrees_and_follow_moves() {
 
     let token = client.token.clone();
     let moved = client
-        .call(|peer| {
-            client::blocks::set_parent(
-                peer,
-                child,
-                BlockParent::Block(elsewhere),
-                KeySet::default(),
-            )
-        })
+        .move_keyed(child, BlockParent::Block(elsewhere), KeySet::default())
         .await;
     assert!(moved.is_ok(), "{moved:?}");
     assert_eq!(client.read_block(folder).await.tree_size, 0);
@@ -95,9 +88,7 @@ async fn block_sizes_add_up_their_subtrees_and_follow_moves() {
     );
 
     let deleted = client
-        .call(|peer| {
-            client::blocks::set_parent(peer, child, BlockParent::Detached, KeySet::default())
-        })
+        .move_keyed(child, BlockParent::Detached, KeySet::default())
         .await;
     assert!(deleted.is_ok(), "{deleted:?}");
     assert_eq!(
@@ -105,12 +96,5 @@ async fn block_sizes_add_up_their_subtrees_and_follow_moves() {
         0,
         "a deleted block left its parent"
     );
-    let collected = client
-        .call(|peer| client::blocks::collect_detached(peer))
-        .await;
-    assert!(collected.is_ok(), "{collected:?}");
-    let usage = client.storage().await.unwrap();
-    assert_eq!(usage.held, 0, "collecting a block stops charging for it");
-
     harness.stop().await;
 }

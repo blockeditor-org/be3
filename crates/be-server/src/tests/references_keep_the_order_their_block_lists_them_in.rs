@@ -3,8 +3,8 @@ use super::*;
 #[tokio::test]
 async fn references_keep_the_order_their_block_lists_them_in() {
     let harness = Harness::start().await;
-    let mut client = harness.client().await;
-    let account = client.register("presenter@example.com").await;
+    let mut client = harness.member("presenter@example.com").await;
+    let account = client.id();
     let organization = client.organization("talks").await;
     let author = Author::new(account);
 
@@ -27,19 +27,22 @@ async fn references_keep_the_order_their_block_lists_them_in() {
             .await;
         let response = client
             .call(|peer| {
-                client::blocks::publish(
-                    peer,
-                    deck,
-                    commit,
-                    head,
-                    head.into_iter().collect(),
-                    objects_change(&held_before, chunks.clone()),
-                    time,
-                    false,
-                    listing(&listed, references.clone()),
-                    Vec::new(),
-                    Vec::new(),
-                )
+                peer.write::<be_block_protocol::PublishOutcome>(be_block_protocol::Op::Publish {
+                    block: deck,
+                    expected: head,
+                    commit: Some(be_block_protocol::NewCommit {
+                        id: commit,
+                        parents: head.into_iter().collect(),
+                        held: objects_change(&held_before, chunks.clone()),
+                        time: time,
+                        pinned: false,
+                        objects: Vec::new(),
+                        log_through: None,
+                    }),
+                    references: listing(&listed, references.clone()),
+                    metadata: Vec::new(),
+                    journal: None,
+                })
             })
             .await;
         assert!(
@@ -50,7 +53,7 @@ async fn references_keep_the_order_their_block_lists_them_in() {
             "{response:?}"
         );
         assert_eq!(
-            client.read_block(deck).await.references,
+            harness.kept_references(organization, deck).await,
             *references,
             "the server did not keep the order the block listed its references in"
         );
@@ -63,8 +66,9 @@ async fn references_keep_the_order_their_block_lists_them_in() {
     drop(client);
     let harness = harness.restart().await;
     let mut client = harness.second_connection(&token, organization).await;
+    assert!(client.read_block(deck).await.head.is_some());
     assert_eq!(
-        client.read_block(deck).await.references,
+        harness.kept_references(organization, deck).await,
         moved,
         "the order of references was lost when the server reopened"
     );

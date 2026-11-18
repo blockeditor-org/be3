@@ -62,9 +62,9 @@ pub(crate) fn DockStackBar(handle: DockStackHandle) -> NodeId {
     let titled = create_memo(move || action.with(Option::is_some));
     view! {
         <List spacing=Space::None>
-            <Frame fill=ColorRole::Surface padding=BAR_PADDING>
+            <Frame fill=ColorRole::Surface padding=BAR_PADDING @test_id={"dock.stack"}>
                 <List direction=Direction::Horizontal align=Align::Center spacing=BAR_SPACING>
-                    <Show condition={backward}>
+                    <Show value={backward}>
                         <Button
                             icon_only=true
                             @test_id={"dock.back"}
@@ -76,18 +76,16 @@ pub(crate) fn DockStackBar(handle: DockStackHandle) -> NodeId {
                     </Show>
                     <ListItem grow=1.0>
                         <List spacing=Space::None>
-                            <Dynamic value={titled}>|titled: bool| {
-                                match titled {
-                                    true => view! {
-                                        <DockTitleButton action title icon noticed />
-                                    },
-                                    false => view! {
-                                        <Frame padding={Padding::horizontal(TITLE_PADDING)}>
-                                            <DockTitle title icon noticed opens=false />
-                                        </Frame>
-                                    },
-                                }
-                            }</Dynamic>
+                            <Show
+                                value={titled}
+                                fallback={move || view! {
+                                    <Frame padding={Padding::horizontal(TITLE_PADDING)}>
+                                        <DockTitle title icon noticed cue={create_memo(|| None)} />
+                                    </Frame>
+                                }}
+                            >
+                                <DockTitleButton action title icon noticed />
+                            </Show>
                         </List>
                     </ListItem>
                     <DockMenu menu room=BarRoom::Phone test_prefix={"dock".to_owned()} />
@@ -117,6 +115,16 @@ fn DockTitleButton(
                 .unwrap_or_default()
         })
     });
+    // What a tap does, after the title: the action's own glyph (a pencil for Rename), so the
+    // title reads as renamable rather than as a menu.
+    let cue = create_memo(move || match disabled.get() {
+        true => None,
+        false => action.with(|action| {
+            action
+                .as_ref()
+                .map(|action| action.glyph().unwrap_or(ICON_CHEVRON_DOWN))
+        }),
+    });
     view! {
         <unstyled::Button
             @test_id={"dock.title"}
@@ -133,7 +141,6 @@ fn DockTitleButton(
                 true => ColorRole::Hover,
                 false => ColorRole::None,
             });
-            let opens = create_memo(move || !disabled.get());
             view! {
                 <Frame
                     fill={fill}
@@ -143,7 +150,7 @@ fn DockTitleButton(
                     padding={Padding::horizontal(TITLE_PADDING)}
                     align={Align2::new(Align::Stretch, Align::Center)}
                 >
-                    <DockTitle title icon noticed opens />
+                    <DockTitle title icon noticed cue />
                 </Frame>
             }
         }</unstyled::Button>
@@ -155,16 +162,15 @@ fn DockTitle(
     title: Memo<String>,
     icon: Memo<Option<Glyph>>,
     noticed: Memo<bool>,
-    opens: Prop<bool>,
+    cue: Memo<Option<Glyph>>,
 ) -> NodeId {
-    let pictured = create_memo(move || icon.get().is_some());
     let label = create_memo(move || match noticed.get() {
         true => TextColor::Accent,
         false => TextColor::Default,
     });
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=TITLE_SPACING>
-            <Show condition={pictured}>
+            <Show value={move || icon.with(Option::is_some)}>
                 <Text color=TextColor::Accent align=TextAlign::Center>
                     <Icon glyph={icon} />
                 </Text>
@@ -172,9 +178,9 @@ fn DockTitle(
             <ListItem shrink=1.0>
                 <Text color={label} overflow=Overflow::Ellipsis>{title}</Text>
             </ListItem>
-            <Show condition={opens}>
-                <Text color=TextColor::Muted align=TextAlign::Center>
-                    <Icon glyph=ICON_CHEVRON_DOWN />
+            <Show value={move || cue.with(Option::is_some)}>
+                <Text color=TextColor::Muted align=TextAlign::Center @test_id={"dock.title.cue"}>
+                    <Icon glyph={cue} />
                 </Text>
             </Show>
         </List>
@@ -237,7 +243,7 @@ pub(crate) fn DockSwitcher(handle: DockSwitcherHandle) -> NodeId {
                 </Frame>
                 <Frame padding=SHEET_PADDING>
                     <List spacing=CARD_SPACING>
-                        <Show condition={none}>
+                        <Show value={none}>
                             <Text style=TextStyle::CAPTION>"Nothing else is open."</Text>
                         </Show>
                         <Grid
@@ -245,16 +251,16 @@ pub(crate) fn DockSwitcher(handle: DockSwitcherHandle) -> NodeId {
                             column_spacing=CARD_SPACING
                             row_spacing=CARD_SPACING
                         >
-                            <ForEach keys={tabs}>|tab: TabId|
+                            <ForEach value={tabs}>|tab: TabId|
                                 <DockSwitcherCard handle={card.call(tab)} />
                             </ForEach>
                         </Grid>
                     </List>
                 </Frame>
-                <Show condition={rowed}>
+                <Show value={rowed}>
                     <Frame padding=SHEET_PADDING>
                         <List spacing=Space::None>
-                            <ForEach keys={fixed}>|tab: TabId|
+                            <ForEach value={fixed}>|tab: TabId|
                                 <DockSwitcherRow handle={card.call(tab)} />
                             </ForEach>
                         </List>
@@ -335,7 +341,7 @@ fn DockSwitcherCard(handle: DockSwitcherCardHandle) -> NodeId {
                     </ListRow>
                 </ListItem>
                 <List spacing=Space::None>
-                    <Show condition={closable}>
+                    {closable.then(|| view! {
                         <Button
                             icon_only=true
                             @test_id={close_id.clone()}
@@ -344,8 +350,8 @@ fn DockSwitcherCard(handle: DockSwitcherCardHandle) -> NodeId {
                             variant=ButtonVariant::Ghost
                             on_click={close}
                         />
-                    </Show>
-                    <Show condition={offered}>
+                    })}
+                    <Show value={offered}>
                         <MenuButton
                             icon_only=true
                             variant=ButtonVariant::Ghost

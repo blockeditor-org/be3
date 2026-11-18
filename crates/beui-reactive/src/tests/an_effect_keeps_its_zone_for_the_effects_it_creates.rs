@@ -13,7 +13,7 @@ fn an_effect_keeps_its_zone_for_the_effects_it_creates() {
         let seen = seen.clone();
         scope.run(move || {
             create_effect(move || {
-                outer.get();
+                outer.track();
                 let seen = seen.clone();
                 create_effect(move || seen.borrow_mut().push(inner.get()));
             });

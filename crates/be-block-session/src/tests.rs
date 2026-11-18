@@ -4,25 +4,22 @@ use uuid::Uuid;
 
 use super::*;
 
-mod a_clean_handoff_needs_no_merge;
-mod a_follower_resubmits_only_what_the_owner_never_accepted;
-mod a_new_owner_keeps_the_numbering_of_what_the_old_one_accepted_late;
-mod a_sequencer_tells_again_only_the_numbers_it_gave;
-mod a_sequencer_that_takes_over_owes_a_seal_for_what_it_inherited;
-mod an_expired_lease_can_be_claimed_but_a_held_one_cannot;
-mod only_a_participant_that_may_edit_is_granted_the_lease;
-mod ownership_moves_on_when_the_owner_leaves;
+mod replicas_fed_one_order_agree_on_the_holder_at_every_number;
 mod resuming_only_merges_when_history_actually_diverged;
+mod the_first_participant_names_the_build_the_session_speaks;
+mod the_holder_is_the_last_claimant_with_edit_access_else_the_first_editor;
+mod the_order_numbers_each_submission_and_carries_its_floor;
 
 const CONTENT: Uuid = Uuid::from_u128(0x7465_7874);
 const AUTHOR: Uuid = Uuid::from_u128(0xa170);
 const KEY: Uuid = Uuid::from_u128(0x6b65);
+const TAG: be_block_store::Hash = be_block_store::Hash::from_bytes([7; 32]);
 
 fn commits() -> CommitStore<MemoryStore> {
     CommitStore::new(
         Vault::new(MemoryStore::new(), {
             let keys = Keyring::new();
-            keys.insert(KEY, ContentKey::from_bytes([3; 32]));
+            keys.insert(KEY, ContentKey::from_bytes([3; 32]), uuid::Uuid::nil());
             keys
         })
         .with_chunker(ChunkerConfig::SMALL),
@@ -64,4 +61,11 @@ fn merged(
             &Commit::new(manifest, AUTHOR, time).with_parents(parents),
         )
         .unwrap()
+}
+
+fn joined(may_edit: bool, tag: be_block_store::Hash) -> be_block_protocol::MembershipChange {
+    be_block_protocol::MembershipChange::Joined(be_block_protocol::JoinedParticipant {
+        tag,
+        may_edit,
+    })
 }

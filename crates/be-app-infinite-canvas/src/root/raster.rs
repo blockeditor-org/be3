@@ -527,16 +527,17 @@ pub(crate) fn RasterGuideDrawing(
             color: beui::reactive::resolve_color(theme.border.get()),
         })
     });
-    let draw = Prop::dynamic(move || -> Draw {
-        let guide = guide.get();
-        Rc::new(move |painter: &Painter, _rect: Rect| {
-            if let Some(guide) = guide.as_ref() {
-                guide.draw(painter);
-            }
-        })
-    });
     view! {
-        <Drawing draw={draw} />
+        <Drawing
+            draw={move || -> Draw {
+                let guide = guide.get();
+                Rc::new(move |painter: &Painter, _rect: Rect| {
+                    if let Some(guide) = guide.as_ref() {
+                        guide.draw(painter);
+                    }
+                })
+            }}
+        />
     }
 }
 
@@ -548,16 +549,15 @@ pub(crate) fn rastering(state: CanvasState) -> Memo<bool> {
 pub(crate) fn RasterPanel(state: CanvasState) -> NodeId {
     let layer = create_memo(move || state.selected_raster().is_some());
     let narrow = be_sdk_beui::narrow_chrome();
-    let roomy = create_memo(move || !narrow.get());
     view! {
         <List spacing=SPACING @test_id={"infinite-canvas.raster"}>
             <BrushSection state={state} />
             <ColorSection state={state} />
-            <Show condition={layer}>
+            <Show value={layer}>
                 <LayerSection state={state} />
             </Show>
             <PixelSection />
-            <Show condition={roomy}>
+            <Show value={move || !narrow.get()}>
                 <List spacing=SPACING>
                     <Separator />
                     <ShortcutsSection raster=true />
@@ -640,8 +640,6 @@ fn ColorSection(state: CanvasState) -> NodeId {
         }
         None => text.set(typed),
     };
-    let current = create_memo(move || pixel_color(color.get()));
-    let current_label = create_memo(move || format_hex_color(color.get()));
     let cannot_add = create_memo(move || {
         palette.with(|palette| {
             palette.len() >= MAX_RASTER_PALETTE_COLORS || palette.contains(&color.get())
@@ -649,14 +647,13 @@ fn ColorSection(state: CanvasState) -> NodeId {
     });
     let cannot_remove =
         create_memo(move || palette.with(|palette| !palette.contains(&color.get())));
-    let swatches = create_memo(move || (0..palette.with(Vec::len)).collect::<Vec<usize>>());
     view! {
         <Accordion title="Colour" open={open}>
             <List spacing=Space::Sm>
                 <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
                     <SwatchButton
-                        color={current}
-                        label={current_label}
+                        color={move || pixel_color(color.get())}
+                        label={move || format_hex_color(color.get())}
                         radius=Radius::Xs
                         on_click={move || {}}
                     />
@@ -670,21 +667,16 @@ fn ColorSection(state: CanvasState) -> NodeId {
                     </ListItem>
                 </List>
                 <List direction=Direction::Horizontal wrap=true spacing=Space::Xs>
-                    <ForEach keys={swatches}>|index: usize| {
-                        let swatch = create_memo(move || {
-                            palette.with(|palette| palette.get(index).copied().unwrap_or_default())
-                        });
-                        let fill = create_memo(move || pixel_color(swatch.get()));
-                        let label = create_memo(move || format_hex_color(swatch.get()));
-                        let chosen = create_memo(move || swatch.get() == color.get());
+                    <ForEach value={palette}>|swatch: CanvasPixel, index: ReadSignal<usize>| {
+                        let chosen = create_memo(move || swatch == color.get());
                         view! {
                             <SwatchButton
-                                color={fill}
-                                label={label}
+                                color={pixel_color(swatch)}
+                                label={format_hex_color(swatch)}
                                 selected={chosen}
                                 radius=Radius::Xs
-                                @test_id={format!("infinite-canvas.raster.swatch.{index}")}
-                                on_click={move || tools.set_color(swatch.get_untracked())}
+                                @test_id={move || format!("infinite-canvas.raster.swatch.{}", index.get())}
+                                on_click={move || tools.set_color(swatch)}
                             />
                         }
                     }</ForEach>
@@ -869,10 +861,10 @@ pub(crate) fn RasterDialogs(state: CanvasState) -> NodeId {
                         </ListItem>
                     </List>
                     <Text style=TextStyle::CAPTION>"Anchor"</Text>
-                    <ForEach keys={rows}>|row: usize|
+                    <ForEach value={rows}>|row: usize|
                         <AnchorRow tools={tools} row={row} />
                     </ForEach>
-                    <Show condition={cropping}>
+                    <Show value={cropping}>
                         <Text style=TextStyle::CAPTION color=TextColor::Warning>
                             "Shrinking crops the pixels outside the anchored region."
                         </Text>
@@ -903,7 +895,7 @@ fn AnchorRow(tools: RasterTools, row: usize) -> NodeId {
     let entries = (0..3).map(|column| row * 3 + column).collect::<Vec<_>>();
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
-            <ForEach keys={entries}>|index: usize| {
+            <ForEach value={entries}>|index: usize| {
                 let (anchor, glyph, label) = ANCHORS[index];
                 let chosen = tools.resize_anchor;
                 let pressed = create_memo(move || chosen.get() == anchor);

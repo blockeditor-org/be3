@@ -77,11 +77,10 @@ fn MainFace(handle: ButtonHandle, variant: ButtonVariant) -> NodeId {
     } = handle;
     let fill = create_memo(move || half_fill(variant, disabled.get(), hovered.get(), active.get()));
     let ink = create_memo(move || variant.label(disabled.get()));
-    let has_glyph = create_memo(move || glyph.get().is_some());
     view! {
         <HalfFace fill focused side=Side::Leading padding=LABEL_PADDING_HORIZONTAL>
             <List direction=Direction::Horizontal align=Align::Center spacing=GLYPH_SPACING>
-                <Show condition={has_glyph}>
+                <Show value={move || glyph.with(Option::is_some)}>
                     <Text color={ink} align=TextAlign::Center>
                         <Icon glyph={glyph} />
                     </Text>

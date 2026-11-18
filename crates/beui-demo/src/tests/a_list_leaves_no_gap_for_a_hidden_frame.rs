@@ -9,7 +9,7 @@ fn a_list_leaves_no_gap_for_a_hidden_frame() {
             <Root>
                 <List spacing=Space::Md>
                     <Frame @test_id="first" height=Size::Sm />
-                    <Show condition=false>
+                    <Show value={move || false}>
                         <Frame height=Size::Sm />
                     </Show>
                     <Frame @test_id="last" height=Size::Sm />

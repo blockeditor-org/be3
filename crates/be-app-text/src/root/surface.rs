@@ -21,7 +21,7 @@ pub(crate) fn TextSurface(state: State) -> NodeId {
     });
     let cursors = state.text.cursors();
     let remote_cursors = create_memo(move || {
-        cursors.get();
+        cursors.track();
         let remote = state.remote_cursors.get();
         be_sdk_text::remote_carets(
             state.text,
@@ -55,15 +55,17 @@ pub(crate) fn TextSurface(state: State) -> NodeId {
         untrack(|| take_drag(state, drag));
     });
     create_effect(move || {
-        state.text.content().get();
+        state.text.content().track();
         state.refresh_embeds();
     });
     let visible = state.editor.presence_visible();
-    create_effect(move || {
-        let visible = visible.get();
-        state.text.cursors().get();
-        untrack(|| state.publish_cursor(visible));
-    });
+    create_effect_on(
+        move || {
+            state.text.cursors().track();
+            visible.get()
+        },
+        move |&visible, _| state.publish_cursor(visible),
+    );
     let revealed = state.editor.revealed();
     create_effect(move || {
         let Some(client_id) = revealed.get() else {
@@ -78,7 +80,6 @@ pub(crate) fn TextSurface(state: State) -> NodeId {
 
     select_where_opened(state);
     caret_when_given_the_keyboard(state);
-    let typing = state.typing;
     view! {
         <TextArea
             state={state.text}
@@ -86,9 +87,10 @@ pub(crate) fn TextSurface(state: State) -> NodeId {
             remote_cursors={remote_cursors}
             drop_caret={drop_caret}
             read_only={state.editor.read_only()}
+            line_numbers={state.line_numbers}
+            scroll_past_end=true
             @test_id={"text.surface"}
             on_widget_press={move |widget: usize| focus_embed(state, widget)}
-            on_focus_change={typing}
             on_image_paste={move |image: PickedFile| paste_image(state, image)}
             block={embed_row}
             selected_widget={open_row}
@@ -97,15 +99,17 @@ pub(crate) fn TextSurface(state: State) -> NodeId {
 }
 
 /// An empty text given the keyboard (an editor that just made it handed it over, as a deck's
-/// "Add notes" does) puts its caret in the text, so typing starts there.
+/// "Add notes" does) puts its caret in the text, so typing starts there. It watches this
+/// instance's own views (`Editor::has_keyboard`), not the app's: every text of the app shares one
+/// document, and another empty text taking the caret would take the keyboard from this one.
 fn caret_when_given_the_keyboard(state: State) {
-    let keyboard = use_keyboard();
+    let keyboard = state.editor.has_keyboard();
     let read_only = state.editor.read_only();
     let armed = StoredCell::new(false);
     let had = StoredCell::new(false);
     create_effect(move || {
         let given = keyboard.get();
-        state.text.content().get();
+        state.text.content().track();
         if !given {
             had.set(false);
             armed.set(false);
@@ -219,7 +223,6 @@ fn paste_image(state: State, file: PickedFile) {
     let source_name = image.header().source_name.clone();
     let id = state.create_image_block(&image);
     state.insert_image_embed(id, &source_name);
-    state.import_error.set(None);
 }
 
 /// Opened at a search hit's place (`editor-event.reveal`), the text selects the first place its
@@ -229,7 +232,7 @@ fn select_where_opened(state: State) {
     let revealed = state.editor.pushed(Pushed::Reveal);
     let wanted = create_signal(None::<SearchLocation>);
     create_effect(move || {
-        revealed.get();
+        revealed.track();
         if let Some(at) = untrack(|| state.editor.host().take_reveal()) {
             wanted.set(Some(at));
         }
@@ -238,7 +241,7 @@ fn select_where_opened(state: State) {
     let restored = state.position_restored;
     let content = state.text.content();
     create_effect(move || {
-        content.get();
+        content.track();
         let Some(at) = wanted.get() else {
             return;
         };

@@ -6,8 +6,8 @@ use super::*;
 #[tokio::test]
 async fn a_block_in_unfiled_stays_live_without_a_listing_until_it_is_deleted() {
     let harness = Harness::start().await;
-    let mut client = harness.client().await;
-    let account = client.register("filer@example.com").await;
+    let mut client = harness.member("filer@example.com").await;
+    let account = client.id();
     let organization = client.organization("notes").await;
     let unfiled = be_block::unfiled(organization, account);
     let made = make(
@@ -23,15 +23,15 @@ async fn a_block_in_unfiled_stays_live_without_a_listing_until_it_is_deleted() {
     let deleted = client.create_block(BlockParent::Block(unfiled)).await;
     assert!(client.read_block(kept).await.held);
     assert!(client.read_block(deleted).await.held);
-    assert!(client.read_block(unfiled).await.references.is_empty());
-
-    let collected = collect(&mut client).await;
-    assert!(collected.is_empty(), "nothing was deleted: {collected:?}");
+    assert!(
+        harness
+            .kept_references(organization, unfiled)
+            .await
+            .is_empty()
+    );
 
     let response = client
-        .call(|peer| {
-            client::blocks::set_parent(peer, deleted, BlockParent::Detached, KeySet::default())
-        })
+        .move_keyed(deleted, BlockParent::Detached, KeySet::default())
         .await;
     assert!(matches!(response, Ok(())), "{response:?}");
     assert!(!client.read_block(deleted).await.held);
@@ -43,12 +43,10 @@ async fn a_block_in_unfiled_stays_live_without_a_listing_until_it_is_deleted() {
     );
 
     let response = client
-        .call(|peer| {
-            client::blocks::set_parent(peer, deleted, BlockParent::Detached, KeySet::default())
-        })
+        .move_keyed(deleted, BlockParent::Detached, KeySet::default())
         .await;
     assert!(matches!(response, Ok(())), "{response:?}");
-    assert_eq!(collect(&mut client).await, vec![deleted]);
+    assert!(!client.read_block(deleted).await.held);
     assert!(client.read_block(kept).await.held);
 
     let response = client.move_to(unfiled, BlockParent::Detached).await;
@@ -78,29 +76,24 @@ pub(super) async fn make(
         keys: vec![row(key, block, KeyKind::Data)],
         wrapped: Vec::new(),
     };
+    let root = client.root(block);
+    let placement = client.placement(block, parent).await;
     client
         .call(|peer| {
-            client::blocks::create_block(
-                peer,
-                block,
-                content_type,
-                parent,
-                Vec::new(),
-                Vec::new(),
-                key,
-                keys,
-                false,
-            )
+            peer.write_all::<be_block_protocol::BlockSummary>(vec![
+                be_block_protocol::Op::CreateBlock {
+                    block: block,
+                    content_type: content_type,
+                    parent: parent,
+                    metadata: Vec::new(),
+                    references: Vec::new(),
+                    key: key,
+                    owner_only: false,
+                    root: root,
+                    placement: placement,
+                },
+                be_block_protocol::Op::PutKeys(be_block_protocol::PutKeys::Rows(keys)),
+            ])
         })
         .await
-}
-
-async fn collect(client: &mut TestClient) -> Vec<Uuid> {
-    let response = client
-        .call(|peer| client::blocks::collect_detached(peer))
-        .await;
-    let Ok(be_block_protocol::Collected { blocks, .. }) = response else {
-        panic!("collection failed: {response:?}");
-    };
-    blocks
 }

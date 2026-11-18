@@ -1,9 +1,8 @@
 # The constraints the root PACKAGE's modifiers add to a command's platform
-# (`-m release`, `-m lto`), each named by what it appends to a configuration's
-# label, in this order: linux_x86_64_release_lto. Every configuration that has
-# one is named so, whether a modifier or a transition made it (with_modifiers).
+# (`-m release`), each named by what it appends to a configuration's label:
+# linux_x86_64_release. Every configuration that has one is named so, whether a
+# modifier or a transition made it (with_modifiers).
 MODIFIERS = {
-    "lto": "root//buck/constraints:lto",
     "release": "root//buck/constraints:release",
 }
 
@@ -31,9 +30,7 @@ def modifiers_of(configuration: ConfigurationInfo, values: list) -> list:
 
 # What every transition in the build does with the platform it replaces: the
 # target platform changes, the profile (buck/constraints:release) does not, so
-# a release build's apps and Android library are release builds too. LTO is
-# dropped: only be-host's binary selects on it, and what deploys that adds it
-# itself (crates/be-tool-local/defs.bzl).
+# a release build's apps and Android library are release builds too.
 def keep_profile(incoming: PlatformInfo, target: PlatformInfo, refs: struct) -> PlatformInfo:
     return with_modifiers(target, modifiers_of(incoming.configuration, [refs.release[ConstraintValueInfo]]))
 
@@ -56,13 +53,14 @@ def dev_only(flags):
 # override.
 #
 # - toolchain: cargo's dev profile on the host, its app profile on wasm, since
-#   cranelift is far slower at an unoptimised module, and its release profile.
+#   an unoptimised module is far slower to compile to machine code and to run,
+#   and its release profile.
 #   The opt level is also what tells build scripts OPT_LEVEL, so the
 #   toolchain's release level is 3 everywhere: libm's build script fails at s.
 # - member, every workspace crate: on wasm outside a release build, 1 rather
 #   than the app profile's 2. A change under beui recompiles each of them for
 #   the apps, and at 2 that took a third of the CPU ./scripts/verify spent on a
-#   change to geometry, for modules no slower to precompile or test. In a
+#   change to geometry, for modules no slower to test. In a
 #   release build on wasm32-unknown-unknown, which is the type modules (and
 #   the games, input remaps and the browser's gpu shim, whose heavy part is
 #   third-party), `s`: the checklist's module went from 2.29 MB to 1.67 MB
@@ -80,17 +78,14 @@ def dev_only(flags):
 #   so a change under beui recompiles every app, and at 2 LLVM made that the
 #   longest part of ./scripts/verify: thirty apps took 1,130 seconds of
 #   compiling at 2 and 270 at 0. The modules are about two and a half times the
-#   size and take half as long again to precompile, and the app tests ran no
-#   slower.
+#   size, and the app tests ran no slower.
 # - app_test, a crate's tests compiled to wasm (app_tests): 1 on wasm, 0 in a
-#   release build. Every module instantiates beui's generics anew, so a change
-#   to beui recompiles about thirty of them at once, and each is then
-#   precompiled (wasm_test_harness), which costs about as much CPU again. At 2
-#   LLVM is most of that: the step took twice as long, though the tests run
-#   faster and the modules are smaller to precompile. At 1 rather than 0
-#   checklist's tests took the same CPU to compile (93 s against 95) and 15%
-#   less to precompile (60 s against 71), since most of a module's code is
-#   its dependencies', compiled at their own levels.
+#   release build. A change to beui recompiles about thirty test crates at
+#   once. The modules are linked against the app libraries, so a module is
+#   only its crate and tests: checklist's compiles in about 13 CPU s. At 2 LLVM
+#   took twice as long, for a module a little smaller; 1 took the same rustc
+#   time as 0 and its module took 15% less to compile to machine code,
+#   measured when the modules still held their dependencies.
 # - fuzz, a fuzz target and the library under it (cargo_fuzz): optimised, as
 #   cargo-fuzz builds one.
 OPT_LEVELS = {
@@ -138,16 +133,19 @@ released = rule(
     impl = _released_impl,
 )
 
-# Every crate's own flags in a release build (they cannot be the toolchain's,
-# whose rustc_cfg runs rustc without nightly options). Legacy mangling names a
-# generic instance by its path and a hash rather than by every type argument, so
-# a symbol is a third the length: 16 MB less in be-host, whose backtraces
-# still name each function, and a seventh off the apps, whose name sections
-# and exports are made of these symbols.
-RELEASE_SYMBOL_FLAGS = select({
-    "DEFAULT": [],
-    "root//buck/constraints:release": ["-Zunstable-options", "-Csymbol-mangling-version=legacy"],
-})
+# Every crate's own flags in every build, given by every rule that runs rustc:
+# first-party crates, their tests, fuzz targets and apps' modules, third-party
+# crates and their build scripts (they cannot be the toolchain's, whose
+# rustc_cfg runs rustc without nightly options). Legacy mangling names a generic
+# instance by its path and a hash rather than by every type argument, so a
+# symbol is a third the length. In a release build that is 16 MB less in
+# be-host, whose backtraces still name each function, and a seventh off the
+# apps, whose name sections and exports are made of these symbols. In a dev
+# build the symbol names were the largest part of a native test binary, ahead of
+# its code: legacy takes be-host's from 454 MB to 370 MB (its names from 169 MB
+# to 86 MB) and be-host-stack's from 260 MB to 209 MB (96 MB to 46 MB), and the
+# build server stores every test binary a change relinks.
+SYMBOL_FLAGS = ["-Zunstable-options", "-Csymbol-mangling-version=legacy"]
 
 # Whether every action runs on this machine: a local build names
 # :execution_platforms_local when no build server is reachable

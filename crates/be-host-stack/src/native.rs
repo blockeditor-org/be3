@@ -4,14 +4,11 @@ use std::{
     time::Duration,
 };
 
-use be_wasm_threads::Mutex;
+use std::sync::Mutex;
 
 use be_block_store::FileStore;
 
-use super::{
-    Config,
-    worker::{Inbox, Shared, serve},
-};
+use super::worker::{Inbox, Shared, Start, serve};
 
 const FLUSH_TIMEOUT: Duration = Duration::from_secs(5);
 
@@ -43,7 +40,7 @@ impl Running {
 }
 
 pub(super) fn spawn(
-    config: Config,
+    start: Start,
     inbox: Inbox,
     shared: Arc<Mutex<Shared>>,
     changed: Arc<Condvar>,
@@ -66,13 +63,13 @@ pub(super) fn spawn(
                     return;
                 }
             };
-            let directory = config.data_dir.join("be-objects");
+            let directory = start.config.data_dir.join("be-objects");
             let store = move || {
                 FileStore::open(&directory)
                     .map_err(|error| format!("the local object store cannot open: {error}"))
             };
             tokio::task::LocalSet::new()
-                .block_on(&runtime, serve(config, store, inbox, shared, changed));
+                .block_on(&runtime, serve(start, store, inbox, shared, changed));
         })
         .ok();
     Running(worker)
@@ -82,6 +79,9 @@ pub(super) fn spawn_local(task: impl Future<Output = ()> + 'static) {
     tokio::task::spawn_local(task);
 }
 
+/// Nothing runs first natively: the host keeps its files itself.
+pub(super) fn first() {}
+
 pub(super) fn await_flush(sealed: std::sync::mpsc::Receiver<usize>) -> Option<usize> {
-    sealed.recv_timeout(FLUSH_TIMEOUT).ok()
+    crate::wait_for_answer(&sealed, FLUSH_TIMEOUT)
 }

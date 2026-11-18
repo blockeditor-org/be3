@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use be_block_client::{ClientError, Clock, Connection};
-use be_block_protocol::client;
+use be_block_client::{ClientError, Clock, Connection, Credentials};
+use be_block_protocol::Authenticated;
 use tokio::sync::{Mutex, OwnedMutexGuard};
 use uuid::Uuid;
 
@@ -40,23 +40,32 @@ fn held() -> &'static Mutex<Vec<Held>> {
     }
 }
 
-pub async fn connect(server_url: &str) -> Result<Arc<Connection>, ClientError> {
-    open(server_url, &Clock::real()).await
+/// A new connection signed in with `token`, and who it signed in as.
+pub async fn connect(
+    server_url: &str,
+    token: &str,
+) -> Result<(Arc<Connection>, Authenticated), ClientError> {
+    open(server_url, token, &Clock::real()).await
 }
 
-async fn open(server_url: &str, clock: &Clock) -> Result<Arc<Connection>, ClientError> {
+async fn open(
+    server_url: &str,
+    token: &str,
+    clock: &Clock,
+) -> Result<(Arc<Connection>, Authenticated), ClientError> {
     let socket = be_block_client::socket_url(server_url);
+    let credentials = Credentials::Token(token.to_owned());
     #[cfg(not(target_arch = "wasm32"))]
     {
         let clock = clock.clone();
         home()
-            .spawn(async move { Connection::connect(&socket, &clock).await })
+            .spawn(async move { Connection::connect(&socket, &clock, &credentials).await })
             .await
             .map_err(|error| ClientError::Disconnected(error.to_string()))?
     }
     #[cfg(target_arch = "wasm32")]
     {
-        Connection::connect(&socket, clock).await
+        Connection::connect(&socket, clock, &credentials).await
     }
 }
 
@@ -70,13 +79,7 @@ pub async fn signed_in(server_url: &str, token: &str, clock: &Clock) -> Result<L
     {
         return Ok(held.link.clone());
     }
-    let connection = open(server_url, clock).await?;
-    let account = be_block_client::ask(client::account::authenticate(
-        &connection,
-        Some(token.to_owned()),
-    ))
-    .await?
-    .account;
+    let (connection, Authenticated { account, .. }) = open(server_url, token, clock).await?;
     let link = Link {
         connection,
         account,

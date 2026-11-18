@@ -11,17 +11,17 @@
 // wrong assumption surfaces as a clear error instead of silently corrupting
 // state.
 //
-// The file system is the host's only: once the page binds files.js's channel
-// (bindFiles), every call on a descriptor other than the standard streams is
-// forwarded to that worker, which answers it from the origin private file
-// system, and the caller waits for the answer. A worker waits with
-// Atomics.wait; the page, which may not block, spins until
-// plans/web_page_never_waits.md moves its file calls into a worker. An app
-// binds no channel and has no file system at all.
+// The file system is the host's only: once the host's worker binds files.js's
+// channel (bindFiles), every call on a descriptor other than the standard
+// streams is forwarded to that worker, which answers it from the origin private
+// file system, and the caller waits for the answer with Atomics.wait. Only a
+// worker binds one: be-host's page refuses every file call loudly (refuseFiles),
+// since it may not wait. An app binds no channel and has no file system at all.
 //
-// The memory is shared, so it is a SharedArrayBuffer. TextDecoder and
-// getRandomValues both refuse to look at one, and every call that reads or
-// writes bytes copies through an unshared buffer for that reason.
+// The memory may be shared (be-host's own; an app's never is), and then it is a
+// SharedArrayBuffer. TextDecoder and getRandomValues both refuse to look at
+// one, and every call that reads or writes bytes copies through an unshared
+// buffer for that reason.
 
 /** @type {WebAssembly.Memory | null} */
 let memory = null;
@@ -67,6 +67,18 @@ export const CONTROL = { LOCK: 0, STATE: 1, CALL: 2, RESULT: 3, IDLE: 0, ASKED: 
 /** @type {{control: Int32Array, args: BigInt64Array} | null} */
 let files = null;
 
+// Set on be-host's page, which makes no file call: each one fails, saying so (refuseFiles).
+let refusing = false;
+
+/**
+ * Has every file call fail, naming itself on the console, rather than answer as if there were
+ * no files: be-host's page binds no channel, since its host's worker makes the file calls
+ * (decisions/the_web_page_never_waits.md), so a call on the page is a bug worth hearing about.
+ */
+export function refuseFiles() {
+    refusing = true;
+}
+
 const canBlock = typeof WorkerGlobalScope !== "undefined" && self instanceof WorkerGlobalScope;
 
 /**
@@ -86,11 +98,11 @@ export function filesChannel() {
     return files?.channel ?? null;
 }
 
+// Only a worker forwards a file call, so this waits for real: a page binds no channel, and
+// Atomics.wait would throw on one rather than spin.
 function waitWhile(control, index, value) {
     while (Atomics.load(control, index) === value) {
-        if (canBlock) {
-            Atomics.wait(control, index, value);
-        }
+        Atomics.wait(control, index, value);
     }
 }
 
@@ -327,6 +339,12 @@ function file(name, stream, none) {
         }
         if (files !== null) {
             return forward(name, values);
+        }
+        if (refusing) {
+            console.error(
+                `be-host: the page made a file call, ${name}, which only the host's worker makes (decisions/the_web_page_never_waits.md)`,
+            );
+            return name.startsWith("fd_") ? EBADF : ENOENT;
         }
         if (none) {
             return none(...values);

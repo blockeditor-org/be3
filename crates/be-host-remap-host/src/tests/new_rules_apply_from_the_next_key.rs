@@ -39,6 +39,7 @@ fn new_rules_apply_from_the_next_key() {
         rules = [{ on = "CapsLock", send = "Delete" }]
         "#;
     assert_eq!(remapper.configure(Some(written.to_vec())), vec![]);
+    assert_eq!(remapper.started(), vec![]);
     assert_eq!(
         remapper.input(press("CapsLock"), NOW),
         vec![press("Delete")]

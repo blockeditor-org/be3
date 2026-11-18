@@ -2,37 +2,38 @@ use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 
 use super::*;
 
-/// Connects as if from `address`, through the trusted proxy every test connects from.
+/// A socket as if from `address`, through the trusted proxy every test connects from, that has
+/// not greeted the server yet.
 async fn from(
     harness: &Harness,
     address: &str,
-) -> Result<TestClient, tokio_tungstenite::tungstenite::Error> {
+) -> Result<Socket, tokio_tungstenite::tungstenite::Error> {
     let mut request = harness.socket().into_client_request().unwrap();
     request
         .headers_mut()
         .insert("x-forwarded-for", address.parse().unwrap());
-    let (mut socket, _) = connect_async(request).await?;
-    socket.send(WsMessage::Binary(hello(BUILD))).await.unwrap();
-    assert_eq!(
-        next_binary(&mut socket)
-            .await
-            .as_deref()
-            .and_then(read_hello)
-            .as_deref(),
-        Some(BUILD)
-    );
-    Ok(TestClient::over(socket))
+    Ok(connect_async(request).await?.0)
 }
 
-/// One address holds only so many connections that are not signed in, and those that do not sign
-/// in are closed.
+/// Signs `socket` in with `token`, in its greeting.
+async fn signed_in(mut socket: Socket, token: &str) -> TestClient {
+    let greeting = be_block_protocol::Greeting {
+        token: Some(token.to_owned()),
+    };
+    socket
+        .send(WsMessage::Binary(hello(BUILD, &greeting)))
+        .await
+        .unwrap();
+    TestClient::welcomed(socket)
+        .await
+        .expect("the greeting signs in")
+}
+
+/// One address holds only so many connections whose greeting has not signed them in, and one
+/// that signs in no longer counts among them.
 #[tokio::test]
 async fn clients_not_signed_in_hold_only_their_share() {
-    let harness = Harness::configured(ServerConfig {
-        sign_in_timeout: Duration::from_secs(3),
-        ..ServerConfig::OPEN
-    })
-    .await;
+    let harness = Harness::start().await;
     let token = harness.register("signed@example.com", "Signed").await;
 
     let mut crowd = Vec::new();
@@ -47,16 +48,22 @@ async fn clients_not_signed_in_hold_only_their_share() {
         from(&harness, "203.0.113.7").await.is_err(),
         "an address held more connections that are not signed in than it may"
     );
-    let mut signed = from(&harness, "198.51.100.1")
-        .await
-        .expect("another address was refused");
-    let response = signed
-        .call(|peer| client::account::authenticate(peer, Some(token)))
-        .await;
-    assert!(response.is_ok(), "{response:?}");
-    for mut waiting in crowd {
-        waiting.ended().await;
-    }
+    let mut elsewhere = signed_in(
+        from(&harness, "198.51.100.1")
+            .await
+            .expect("another address was refused"),
+        &token,
+    )
+    .await;
+
+    let mut signed = signed_in(crowd.pop().unwrap(), &token).await;
+    let another = from(&harness, "203.0.113.7").await;
+    assert!(
+        another.is_ok(),
+        "a connection that signed in still held its place among those that have not"
+    );
     signed.round_trip().await;
+    elsewhere.round_trip().await;
+    drop(crowd);
     harness.stop().await;
 }

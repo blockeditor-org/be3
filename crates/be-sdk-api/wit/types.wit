@@ -5,7 +5,7 @@ interface types {
     use be3:manifest/types@0.1.0.{app-identity, parent-view};
     use accessibility.{color, described-action, description};
     use be3:ui/types@0.1.0.{
-        key-chord, modifiers, pos2, rect, vec2, input, window-level, window-requests,
+        key-chord, modifiers, pos2, rect, vec2, input, window-level, window-requests, fonts,
     };
     use be3:preferences/types@0.1.0.{preferences};
 
@@ -169,25 +169,6 @@ interface types {
         preferences: preferences,
     }
 
-    enum font-role {
-        text,
-        monospace,
-        fallback,
-        icons,
-    }
-
-    record font-face {
-        role: font-role,
-        index: u32,
-        data: list<u8>,
-    }
-
-    /// Faces to add, or with `replace` the whole set.
-    record fonts {
-        replace: bool,
-        faces: list<font-face>,
-    }
-
     enum frame-chrome {
         none,
         drawn,
@@ -196,7 +177,6 @@ interface types {
     enum top-bar {
         hidden,
         shown,
-        phone,
     }
 
     /// How a frame shown as a dialog is laid out. The editor draws the
@@ -229,6 +209,9 @@ interface types {
         /// with no control of its own, from a shortcut or the palette,
         /// points at it.
         anchor: option<rect>,
+        /// Laid out as on a phone: set by the host on every frame from what the shell says of
+        /// itself (`set-phone-layout`), so every editor, placed or joined, agrees.
+        phone: bool,
     }
 
     record viewport-metrics {
@@ -679,9 +662,15 @@ interface types {
         rect: surface-rect,
     }
 
+    /// `painted` is the placement each surface the frame painted was painted
+    /// at: its size and raster are those of the texture now on that surface,
+    /// which the host shows at that size whatever size the layout has asked for
+    /// since, so a layout that lands before the present of its size never
+    /// stretches the last one.
     record presented-frame {
         sequence: u64,
         damage: list<screen-damage>,
+        painted: list<screen-placement>,
     }
 
     /// A view of the app: an instance and one of its views.
@@ -837,18 +826,47 @@ interface types {
         sheet: bool,
     }
 
+    /// A host component opening on a block (the manifest's `hosts`): no frame,
+    /// no view and no input, attached to the block's replica as an editor is.
+    /// Host services that need a person or a screen (a picker, a dialog, a
+    /// web view, the clipboard) refuse it, and it gets no gpu.
+    record open-host {
+        block-id: block-id,
+        block-type: block-type-id,
+        editable: bool,
+    }
+
+    /// An editor opening on a block its account may only join
+    /// (`access-level.join`; plans/hosted_blocks.md, "Hosting"): it is given no
+    /// content, only the block's host channel (`editor-event.channel`,
+    /// `block-command.tell-host`). An editor open on a block whose access
+    /// falls to Join, or rises from it, is closed and opened again as the
+    /// other kind.
+    record open-join {
+        block-id: block-id,
+        block-type: block-type-id,
+        page-origin: string,
+        host-palette: bool,
+    }
+
     /// How an editor instance opens: on a block, as a creation dialog, on an
-    /// artifact's settings, as a picker, or as a form renaming a block.
+    /// artifact's settings, as a picker, as a form renaming a block, as a host
+    /// component, which has no frame, or on a block it may only join.
     variant opening-kind {
         block(open-block),
         creation(open-creation),
         artifact(open-artifact),
         picker(open-picker),
         rename(open-rename),
+        host(open-host),
+        join(open-join),
     }
 
     /// An editor instance opening: which instance, which editor, who opens it
-    /// and how.
+    /// and how. An instance closed may be opened again under the same id: an
+    /// editor whose block's access crosses between Join and View is closed and
+    /// opened as the other kind (`open-join`). Each opening follows a close;
+    /// an instance is never opened twice without one.
     record opening {
         instance: editor-instance-id,
         editor: editor-id,
@@ -929,6 +947,9 @@ interface types {
         key: string,
         pinned: bool,
         child: option<child-id>,
+        /// What the group is called in its pane's bar: for a child's dock spliced in place of
+        /// a tab, that tab's title. Empty names it after the tabs inside.
+        title: string,
     }
 
     /// A floating window of the dock, in the points of the view that
@@ -936,10 +957,14 @@ interface types {
     /// is, for a window the host shows on its own, the `host-place` it last
     /// reported: where it was put, which `rect` may not be while the host
     /// keeps the window on smaller displays, and where it opens again.
+    /// `hidden` opens the window hidden and unfocused the first time it is
+    /// added, as a hidden window keeps its place and shows when one of its
+    /// tabs is shown; a window already there keeps its state.
     record dock-window {
         key: string,
         rect: rect,
         placed: option<string>,
+        hidden: bool,
     }
 
     variant dock-item-kind {

@@ -1,0 +1,7 @@
+{
+  "id": "be3.root-testing",
+  "name": "Root testing",
+  "version": "0.1.0",
+  "root": true,
+  "entry_point": "root_testing.wasm"
+}

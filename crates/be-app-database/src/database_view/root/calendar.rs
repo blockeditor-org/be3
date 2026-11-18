@@ -30,8 +30,6 @@ enum Layout {
 }
 
 impl Layout {
-    const ALL: [Self; 3] = [Self::Day, Self::Week, Self::Month];
-
     fn label(self) -> &'static str {
         match self {
             Self::Day => "Day",
@@ -104,18 +102,19 @@ pub fn CalendarView(data: Data) -> NodeId {
             })
         })
     });
-    let missing = create_memo(move || !ready.get());
     view! {
         <Frame fill=ColorRole::Background>
             <List spacing=Space::None>
-                <Show condition={missing}>
-                    <Frame padding=GUTTER>
-                        <Text style=TextStyle::CAPTION>
-                            "Choose a date field to use the calendar view."
-                        </Text>
-                    </Frame>
-                </Show>
-                <Show condition={ready}>
+                <Show
+                    value={ready}
+                    fallback={|| view! {
+                        <Frame padding=GUTTER>
+                            <Text style=TextStyle::CAPTION>
+                                "Choose a date field to use the calendar view."
+                            </Text>
+                        </Frame>
+                    }}
+                >
                     <ListItem grow=1.0>
                         <Calendar data={data} />
                     </ListItem>
@@ -131,12 +130,6 @@ fn Calendar(data: Data) -> NodeId {
     let layout = create_signal(Layout::default());
     let anchor = create_signal(today());
     let header = create_memo(move || layout.get().header(anchor.get()));
-    let layout_index = create_memo(move || {
-        Layout::ALL
-            .iter()
-            .position(|shown| *shown == layout.get())
-            .unwrap_or(0)
-    });
     let previous = move || anchor.set(layout.get_untracked().step(anchor.get_untracked(), -1));
     let next = move || anchor.set(layout.get_untracked().step(anchor.get_untracked(), 1));
     let to_today = move || anchor.set(today());
@@ -176,15 +169,11 @@ fn Calendar(data: Data) -> NodeId {
                     <SegmentedControl
                         label="Layout"
                         options={view! {
-                            <ChoiceOption label={Layout::Day.label()} />
-                            <ChoiceOption label={Layout::Week.label()} />
-                            <ChoiceOption label={Layout::Month.label()} />
+                            <ChoiceOption value=Layout::Day label={Layout::Day.label()} />
+                            <ChoiceOption value=Layout::Week label={Layout::Week.label()} />
+                            <ChoiceOption value=Layout::Month label={Layout::Month.label()} />
                         }}
-                        selected={Binding::new(layout_index, move |chosen: usize| {
-                            if let Some(shown) = Layout::ALL.get(chosen) {
-                                layout.set(*shown);
-                            }
-                        })}
+                        selected={layout}
                         @test_id={"database-view.calendar.layout"}
                     />
                 </List>

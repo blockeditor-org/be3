@@ -9,6 +9,7 @@ be-block-protocol = { path = "../be-block-protocol" }
 be-sdk-api = { path = "../be-sdk-api" }
 be-lib-build-id = { path = "../be-lib-build-id" }
 rusqlite = { version = "0.32", features = ["bundled"] }
+postcard = { version = "1", features = ["use-std"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 be-block-sqlite-schema = { path = "../be-block-sqlite-schema" }

@@ -51,8 +51,9 @@ In be-host-desktop, `desktop_host/win32.rs` (`Win32`) is the `DesktopHost`, with
 - `WindowsWatch` is the snapshot's entries; `win32_map::known_window` makes the rest of each
   window's status. A window's name is its Start menu program's (`win32_map::ProgramNames`): the one
   it was launched from, else the shortcut whose AppUserModelID or target matches its program id or
-  command, known once the Apps panel has listed programs. The shell opens a tab for every window
-  and a hidden one for every display.
+  command, known once the Apps panel has listed programs. Every entry is listed `opens_hidden`,
+  since showing one captures it: the shell opens a hidden tab for each, nothing is captured or
+  focused until the person shows it from its window chip, and only then is it captured.
 - `WindowSurface` starts a capture when mounted, which happens only for shown entries, and stops it
   when unmounted. `before` hands the newest `Frame` to each surface. A capture `Lost::Failed`
   restarts once, then toasts (`win32_map::recovery`).
@@ -95,8 +96,12 @@ included.
 - On a display entry, the release point on the monitor (`focus::display_point`) is looked up with
   `WindowFromPoint`; if it is one of be-host's own windows (its mirror in the capture) nothing
   happens (`FocusError::OnHost`).
-- The shell's `focus` window action does nothing on Windows (`win32_map::shell_focus`;
-  decisions/windows_shell_focus_does_not_start_focus_mode.md).
+- Nothing else starts it: not a hover, a press that began on a grab handle or space's chrome, a
+  drag, or the shell giving the window the keyboard, which `WindowSurface`'s `focus` reports
+  whenever the dock focuses the tab (a chip, a panel's chrome, be-host coming back to the front).
+  `win32_content::CapturedContent` takes every press on content, popups' too, and only its click
+  reaches `ContentInput::clicked`, the one caller of `Watcher::focus`; its test runs on Linux
+  (decisions/windows_shell_focus_does_not_start_focus_mode.md).
 - XR controller presses (`PointerId::is_controller`) are injected instead, since a laser has no
   physical cursor.
 

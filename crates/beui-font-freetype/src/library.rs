@@ -1,4 +1,5 @@
 use be_lib_stable_hash::HashSet;
+use be_lib_ui_types::FontRole;
 use std::cell::RefCell;
 use std::fmt;
 use std::ops::Deref;
@@ -84,6 +85,22 @@ impl FontSources {
             fallback: vec![FontData::from_static(beui_fonts::NOTO_EMOJI_REGULAR)],
             icons: vec![FontData::from_static(ICONS_FONT)],
         }
+    }
+
+    /// The sources of `faces`, each in the list its role names, in order: the fonts a host
+    /// gives an app or a root (be3:ui's `font-role`).
+    pub fn of_faces(faces: impl IntoIterator<Item = (FontRole, FontData)>) -> Self {
+        let mut sources = Self::default();
+        for (role, data) in faces {
+            let list = match role {
+                FontRole::Text => &mut sources.proportional,
+                FontRole::Monospace => &mut sources.monospace,
+                FontRole::Fallback => &mut sources.fallback,
+                FontRole::Icons => &mut sources.icons,
+            };
+            list.push(data);
+        }
+        sources
     }
 
     pub fn is_empty(&self) -> bool {

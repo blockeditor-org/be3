@@ -17,11 +17,6 @@ const SPACING: Space = Space::Md;
 const ROW_SPACING: Space = Space::Xs2;
 const PASSPHRASE_LENGTHS: std::ops::RangeInclusive<usize> = 8..=64;
 const WEP_KEY_LENGTHS: [usize; 4] = [5, 10, 13, 26];
-const HIDDEN_SECURITIES: [WifiSecurity; 3] = [
-    WifiSecurity::Password,
-    WifiSecurity::Wep,
-    WifiSecurity::Open,
-];
 
 fn bars(strength: u8) -> Glyph {
     match strength {
@@ -142,7 +137,6 @@ pub(crate) fn scan(editor: Editor) {
 #[component]
 pub(crate) fn WifiPanel(editor: Editor, status: Memo<WifiStatus>, on_back: Callback<()>) -> NodeId {
     let enabled = create_memo(move || status.with(|status| status.enabled));
-    let off = create_memo(move || !enabled.get());
     let ssids = create_memo(move || status.with(ordered));
     let none = create_memo(move || enabled.get() && ssids.with(Vec::is_empty));
     let asking = create_signal(None::<String>);
@@ -162,16 +156,16 @@ pub(crate) fn WifiPanel(editor: Editor, status: Memo<WifiStatus>, on_back: Callb
             </List>
             <Frame height={Length::Size(LIST_HEIGHT)}>
                 <Scroll bleed={Bleed::POPOVER.top(false)}>
-                    <Show condition={off}>
+                    <Show value={move || !enabled.get()}>
                         <Text style=TextStyle::CAPTION>"Wi-Fi is off."</Text>
                     </Show>
-                    <Show condition={none}>
+                    <Show value={none}>
                         <Text style=TextStyle::CAPTION>"No networks found."</Text>
                     </Show>
-                    <ForEach keys={ssids}>|ssid: String|
+                    <ForEach value={ssids}>|ssid: String|
                         <NetworkRow editor={editor} status={status} ssid asking={asking} />
                     </ForEach>
-                    <Show condition={enabled}>
+                    <Show value={enabled}>
                         <OtherNetwork editor={editor} status={status} other={other} />
                     </Show>
                 </Scroll>
@@ -260,12 +254,12 @@ fn NetworkRow(
                             <ListItem grow=1.0>
                                 <List spacing=ROW_SPACING>
                                     <Text>{ssid.clone()}</Text>
-                                    <Show condition={captioned}>
+                                    <Show value={captioned}>
                                         <Text style=TextStyle::CAPTION>{said}</Text>
                                     </Show>
                                 </List>
                             </ListItem>
-                            <Show condition={secured}>
+                            <Show value={secured}>
                                 <Text
                                     size=TextSize::Sm
                                     color=TextColor::Muted
@@ -277,7 +271,7 @@ fn NetworkRow(
                         </List>
                     </ListRow>
                 </ListItem>
-                <Show condition={connected}>
+                <Show value={connected}>
                     <Button
                         label="Disconnect"
                         variant=ButtonVariant::Ghost
@@ -286,7 +280,7 @@ fn NetworkRow(
                     />
                 </Show>
             </List>
-            <Show condition={asked}>
+            <Show value={asked}>
                 <PasswordEntry
                     editor={editor}
                     ssid={entered.clone()}
@@ -309,8 +303,6 @@ fn PasswordEntry(
     let unusable = create_memo(move || !password.with(|password| usable(security.get(), password)));
     let id = format!("desktop.wifi.network.{ssid}");
     let named = ssid.clone();
-    let label = create_memo(move || format!("{} for {named}", secret_name(security.get())));
-    let placeholder = create_memo(move || secret_name(security.get()).to_owned());
     let connect = move || {
         let typed = password.get_untracked();
         if !usable(security.get_untracked(), &typed) {
@@ -333,8 +325,8 @@ fn PasswordEntry(
                     value={password}
                     kind={InputKind::Password}
                     focused=true
-                    placeholder
-                    label
+                    placeholder={move || secret_name(security.get()).to_owned()}
+                    label={move || format!("{} for {named}", secret_name(security.get()))}
                     @test_id={password_test_id}
                     on_submit={move |_: String| submitted()}
                 />
@@ -365,7 +357,7 @@ fn OtherNetwork(editor: Editor, status: Memo<WifiStatus>, other: Signal<bool>) -
                     </ListItem>
                 </List>
             </ListRow>
-            <Show condition={other}>
+            <Show value={other}>
                 <HiddenEntry editor={editor} status={status} other={other} />
             </Show>
         </List>
@@ -375,22 +367,15 @@ fn OtherNetwork(editor: Editor, status: Memo<WifiStatus>, other: Signal<bool>) -
 #[component]
 fn HiddenEntry(editor: Editor, status: Memo<WifiStatus>, other: Signal<bool>) -> NodeId {
     let name = create_signal(String::new());
-    let chosen = create_signal(0usize);
+    let security = create_signal(WifiSecurity::Password);
     let password = create_signal(String::new());
     let joining = create_signal(None::<String>);
-    let security = create_memo(move || {
-        HIDDEN_SECURITIES
-            .get(chosen.get())
-            .copied()
-            .unwrap_or(WifiSecurity::Open)
-    });
     let keyed = create_memo(move || security.get() != WifiSecurity::Open);
     let secret = create_memo(move || secret_name(security.get()).to_owned());
     let ready = create_memo(move || {
         name.with(|name| !name.is_empty())
             && password.with(|password| usable(security.get(), password))
     });
-    let unready = create_memo(move || !ready.get());
     let said = create_memo(move || {
         let Some(joined) = joining.get() else {
             return String::new();
@@ -444,13 +429,13 @@ fn HiddenEntry(editor: Editor, status: Memo<WifiStatus>, other: Signal<bool>) ->
                 @test_id={"desktop.wifi.hidden.security"}
                 label="Security"
                 options={view! {
-                    <ChoiceOption label="Password" />
-                    <ChoiceOption label="WEP" />
-                    <ChoiceOption label="None" />
+                    <ChoiceOption value=WifiSecurity::Password label="Password" />
+                    <ChoiceOption value=WifiSecurity::Wep label="WEP" />
+                    <ChoiceOption value=WifiSecurity::Open label="None" />
                 }}
-                selected={chosen}
+                selected={security}
             />
-            <Show condition={keyed}>
+            <Show value={keyed}>
                 <TextInput
                     value={password}
                     kind={InputKind::Password}
@@ -467,7 +452,7 @@ fn HiddenEntry(editor: Editor, status: Memo<WifiStatus>, other: Signal<bool>) ->
                 <Button
                     label="Connect"
                     variant=ButtonVariant::Primary
-                    disabled={unready}
+                    disabled={move || !ready.get()}
                     @test_id={"desktop.wifi.hidden.connect"}
                     on_click={join}
                 />

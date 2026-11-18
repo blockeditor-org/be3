@@ -1,19 +1,37 @@
 use std::collections::BTreeSet;
+use std::sync::Arc;
+use std::time::Duration;
 
 use be_lib_remap::names::{BUTTON_FIRST, CODE_LIMIT, Modifier};
 use be_lib_remap::protocol::{decode, encode};
 use be_lib_remap::{Input, Output, Reply, Request, Source, Window};
-use wasmi::{
-    Config, Engine, Instance, Linker, Memory, Module, Store, StoreLimits, StoreLimitsBuilder,
-    TypedFunc,
-};
+use be_wasm_guest_host::Deadline;
+use be_wasm_host::sandbox::{self, Instance};
 
 pub use be_lib_remap;
+pub use be_wasm_guest_host::Wake;
+pub use be_wasm_host::sandbox::{Compiling, Module};
 
 pub mod capture;
 
-pub const START_FUEL: u64 = 50_000_000;
-pub const CALL_FUEL: u64 = 5_000_000;
+/// How long the remaps may take to answer, past which they fail and are terminated.
+#[derive(Clone, Copy, Debug)]
+pub struct Limits {
+    /// From spawning their instance to answering `Start`, which reads their config: generous
+    /// enough for a loaded machine or a slow device.
+    pub start: Duration,
+    /// For anything else. Input waits for them meanwhile.
+    pub call: Duration,
+}
+
+impl Default for Limits {
+    fn default() -> Self {
+        Self {
+            start: Duration::from_secs(5),
+            call: Duration::from_millis(100),
+        }
+    }
+}
 pub const MEMORY_BYTES: usize = 16 << 20;
 pub const FAILURES_BEFORE_STOPPING: usize = 3;
 pub const FAILURE_WINDOW: u64 = 60_000_000;
@@ -26,14 +44,21 @@ const KEY_L: u16 = 38;
 const TERMINAL_KEYS: [u16; 12] = [59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 87, 88];
 
 pub struct Remapper {
-    engine: Engine,
     module: Module,
+    wake: Wake,
+    limits: Limits,
     running: Option<Running>,
     config: Option<Vec<u8>>,
     window: Option<Window>,
     physical: BTreeSet<Source>,
     pressed: BTreeSet<Source>,
     bypassed: BTreeSet<Source>,
+    /// The keys in `bypassed` that were pressed while the remaps started, rather than with a
+    /// session chord: once the remaps answer `Start`, they are told of them and their releases go
+    /// to the remaps. Key repeats never reach the filter (libinput sends presses and releases
+    /// only), so a held key is pressed once.
+    bypassed_starting: BTreeSet<Source>,
+    forced: BTreeSet<Source>,
     locked: bool,
     failures: Vec<u64>,
     stopped: bool,
@@ -41,35 +66,59 @@ pub struct Remapper {
     problems: Vec<String>,
 }
 
+/// The remaps' instance, which runs in the sandbox on a thread of its own and answers each
+/// request with one frame.
 struct Running {
-    store: Store<StoreLimits>,
-    memory: Memory,
-    buffer: TypedFunc<u32, u32>,
-    handle: TypedFunc<u32, u64>,
+    instance: Instance,
+    /// While `Start` is unanswered, the time on the input clock it must be answered by, which
+    /// `deadline` reports so the host's timer comes then. Input passes through unchanged
+    /// meanwhile, so it never waits for a start.
+    starting: Option<u64>,
+    /// What `Start` told them.
+    told: Told,
+}
+
+/// The input and window the remaps were started with.
+#[derive(Clone, PartialEq, Default)]
+struct Told {
+    window: Option<Window>,
+    held: BTreeSet<Source>,
+    pressed: BTreeSet<Source>,
 }
 
 impl Remapper {
-    pub fn new(module: &[u8]) -> Result<Self, String> {
-        let mut config = Config::default();
-        config.consume_fuel(true);
-        let engine = Engine::new(&config);
-        let module = Module::new(&engine, module)
-            .map_err(|error| format!("this is not a remap module: {error}"))?;
-        Ok(Self {
-            engine,
+    /// Compiles a remap module in the sandbox, off the caller's thread, and calls `wake` once
+    /// it is done; `Remapper::new` takes what it compiled.
+    pub fn compile(module: Vec<u8>, wake: Wake) -> Compiling {
+        sandbox::compile(module, wake)
+    }
+
+    /// Remaps running `module`, whose instance calls `wake` when it answers, after which the
+    /// host calls `poll`.
+    pub fn new(module: Module, wake: Wake) -> Self {
+        Self {
             module,
+            wake,
+            limits: Limits::default(),
             running: None,
             config: None,
             window: None,
             physical: BTreeSet::new(),
             pressed: BTreeSet::new(),
             bypassed: BTreeSet::new(),
+            bypassed_starting: BTreeSet::new(),
+            forced: BTreeSet::new(),
             locked: false,
             failures: Vec::new(),
             stopped: false,
             deadline: None,
             problems: Vec::new(),
-        })
+        }
+    }
+
+    pub fn with_limits(mut self, limits: Limits) -> Self {
+        self.limits = limits;
+        self
     }
 
     pub fn configure(&mut self, config: Option<Vec<u8>>) -> Vec<Output> {
@@ -88,7 +137,8 @@ impl Remapper {
             return Vec::new();
         }
         self.window = window.clone();
-        if self.running.is_none() {
+        // Remaps still starting are told once `Start` is answered (`poll`).
+        if !self.ready() {
             return Vec::new();
         }
         match self.call(&Request::Focus(window), now) {
@@ -109,14 +159,33 @@ impl Remapper {
     }
 
     pub fn input(&mut self, input: Input, now: u64) -> Vec<Output> {
+        let mut out = self.remap(input, now);
+        // A modifier the session's own keys pressed past the remaps is let go with its own
+        // release, whatever the remaps make of that release.
+        if let Input::Release(source) = input
+            && self.forced.remove(&source)
+        {
+            out.extend(self.deliver(vec![input]));
+        }
+        out
+    }
+
+    fn remap(&mut self, input: Input, now: u64) -> Vec<Output> {
+        // Taking a start's answer first, so a fresh `Start` is not told of this input too.
+        let mut out = self.poll(now);
+        out.extend(self.remap_polled(input, now));
+        out
+    }
+
+    fn remap_polled(&mut self, input: Input, now: u64) -> Vec<Output> {
         match input {
             Input::Press(source) => {
                 self.physical.insert(source);
             }
-            Input::Release(source) => {
-                self.physical.remove(&source);
-            }
-            Input::Wheel { .. } => {}
+            // A key pressed before these remaps saw it (before they were installed, or before the
+            // session left its terminal) went on as it was, so its release does too.
+            Input::Release(source) if !self.physical.remove(&source) => return vec![input],
+            Input::Release(_) | Input::Wheel { .. } => {}
         }
         if !self.active() {
             return self.deliver(vec![input]);
@@ -131,6 +200,13 @@ impl Remapper {
                 .filter(|key| self.physical.contains(key))
                 .map(Input::Press)
                 .collect();
+            for output in &outputs {
+                if let Input::Press(modifier) = output
+                    && !self.pressed.contains(modifier)
+                {
+                    self.forced.insert(*modifier);
+                }
+            }
             outputs.push(input);
             return self.deliver(outputs);
         }
@@ -139,28 +215,125 @@ impl Remapper {
         {
             return self.deliver(vec![input]);
         }
-        if let Err(error) = self.start(now) {
-            let mut out = self.fail(&error, now);
+        let mut out = Vec::new();
+        // Until the remaps answer `Start` (or after it failed), input passes through as it is,
+        // and so does the release of a key pressed meanwhile.
+        if !self.ready() {
+            if let Input::Press(source) = input
+                && self.active()
+                && self.bypassed.insert(source)
+            {
+                self.bypassed_starting.insert(source);
+            }
             out.extend(self.deliver(vec![input]));
             return out;
         }
-        if !self.active() {
-            return self.deliver(vec![input]);
-        }
         match self.call(&Request::Input { input, now }, now) {
-            Ok(outputs) => outputs,
+            Ok(outputs) => out.extend(outputs),
             Err(error) => {
-                let mut out = self.fail(&error, now);
+                out.extend(self.fail(&error, now));
                 out.extend(self.deliver(vec![input]));
-                out
             }
+        }
+        out
+    }
+
+    /// Starts the remaps when they should run and are not running, and takes their answer to
+    /// `Start` once it came, without waiting: the host calls this whenever their instance wakes
+    /// it, and input and the timer call it too. A start not answered by `Limits::start` on the
+    /// input clock fails when the timer `deadline` asks for comes.
+    pub fn poll(&mut self, now: u64) -> Vec<Output> {
+        if !self.active() {
+            return Vec::new();
+        }
+        let Some(running) = self.running.as_mut() else {
+            return match self.start(now) {
+                Ok(()) => Vec::new(),
+                Err(error) => self.fail(&error, now),
+            };
+        };
+        let Some(by) = running.starting else {
+            return Vec::new();
+        };
+        let answers = match running.instance.receive() {
+            Ok(answers) => answers,
+            Err(error) => return self.fail(&format!("they stopped: {error}"), now),
+        };
+        let reply = match answers.as_slice() {
+            [] if now >= by => return self.fail("they did not answer in time", now),
+            [] => return Vec::new(),
+            [reply] => read(reply),
+            _ => Err("they answered more than once".to_owned()),
+        };
+        match reply.and_then(|reply| self.started(reply, now)) {
+            Ok(out) => out,
+            Err(error) => self.fail(&error, now),
+        }
+    }
+
+    /// Takes the remaps' answer to `Start`. Should the keys held or pressed, or the window, have
+    /// changed since it was sent, they are started again with what is true now, waiting as for any
+    /// call, so they never act on input they missed.
+    fn started(&mut self, reply: Reply, now: u64) -> Result<Vec<Output>, String> {
+        if !self.take_start(&reply)? {
+            return Ok(Vec::new());
+        }
+        // The keys pressed while they started are theirs from now: told below as held, should they
+        // still be, and their releases going to them.
+        for source in std::mem::take(&mut self.bypassed_starting) {
+            self.bypassed.remove(&source);
+        }
+        let told = self.told();
+        let Some(running) = self.running.as_mut() else {
+            return Err("the remaps did not start".to_owned());
+        };
+        let reply = match running.told == told {
+            true => reply,
+            false => {
+                let reply = running.call(&start_request(&self.config, &told), self.limits.call)?;
+                if !self.take_start(&reply)? {
+                    return Ok(Vec::new());
+                }
+                reply
+            }
+        };
+        if let Some(running) = self.running.as_mut() {
+            running.starting = None;
+            running.told = told;
+        }
+        Ok(self.settle(reply, now))
+    }
+
+    /// Whether the remaps may run after this answer to `Start`: not if their config could not be
+    /// read, which stops them. Remaps that press keys as they start fail.
+    fn take_start(&mut self, reply: &Reply) -> Result<bool, String> {
+        if let Some(problem) = &reply.problem {
+            self.running = None;
+            self.stopped = true;
+            self.problems.push(format!(
+                "The input remaps could not be read, so they stay off until they change: {problem}"
+            ));
+            return Ok(false);
+        }
+        match reply.outputs.is_empty() {
+            true => Ok(true),
+            false => Err("the remaps pressed keys while starting".to_owned()),
+        }
+    }
+
+    /// What the remaps are told as they start: everything but the keys that bypass them, whose
+    /// releases pass as they are.
+    fn told(&self) -> Told {
+        Told {
+            window: self.window.clone(),
+            held: self.physical.difference(&self.bypassed).copied().collect(),
+            pressed: self.pressed.difference(&self.bypassed).copied().collect(),
         }
     }
 
     pub fn timer(&mut self, now: u64) -> Vec<Output> {
-        if !self.active() || self.running.is_none() {
-            self.deadline = None;
-            return Vec::new();
+        if !self.ready() {
+            return self.poll(now);
         }
         match self.call(&Request::Timer { now }, now) {
             Ok(outputs) => outputs,
@@ -168,8 +341,13 @@ impl Remapper {
         }
     }
 
+    /// When the host's timer should call `timer`: when the remaps asked, or when their start
+    /// must have been answered by.
     pub fn deadline(&self) -> Option<u64> {
-        self.deadline
+        match self.running.as_ref().and_then(|running| running.starting) {
+            Some(by) => Some(by),
+            None => self.deadline,
+        }
     }
 
     pub fn running(&self) -> bool {
@@ -183,9 +361,11 @@ impl Remapper {
     pub fn forget_held(&mut self) {
         self.running = None;
         self.deadline = None;
+        self.bypassed_starting.clear();
         self.physical.clear();
         self.pressed.clear();
         self.bypassed.clear();
+        self.forced.clear();
     }
 
     pub fn take_problems(&mut self) -> Vec<String> {
@@ -196,41 +376,41 @@ impl Remapper {
         self.config.is_some() && !self.locked && !self.stopped
     }
 
+    /// Whether the remaps should run and are still starting (or about to).
+    #[cfg(test)]
+    fn starting(&self) -> bool {
+        self.active() && !self.ready()
+    }
+
+    fn ready(&self) -> bool {
+        self.active()
+            && self
+                .running
+                .as_ref()
+                .is_some_and(|running| running.starting.is_none())
+    }
+
     fn call(&mut self, request: &Request, now: u64) -> Result<Vec<Output>, String> {
-        self.start(now)?;
         let Some(running) = self.running.as_mut() else {
             return Err("the remaps did not start".to_owned());
         };
-        let reply = running.call(&encode(request), CALL_FUEL)?;
+        let reply = running.call(&encode(request), self.limits.call)?;
         Ok(self.settle(reply, now))
     }
 
+    /// Spawns the remaps' instance and sends it `Start`, which `poll` takes the answer to.
     fn start(&mut self, now: u64) -> Result<(), String> {
-        if self.running.is_some() {
-            return Ok(());
-        }
-        let config = self.config.clone().unwrap_or_default();
-        let mut running = Running::new(&self.engine, &self.module)?;
-        let request = Request::Start {
-            config,
-            window: self.window.clone(),
-            held: self.physical.iter().copied().collect(),
-            pressed: self.pressed.iter().copied().collect(),
-        };
-        let reply = running.call(&encode(&request), START_FUEL)?;
-        if let Some(problem) = reply.problem {
-            self.stopped = true;
-            self.problems.push(format!(
-                "The input remaps could not be read, so they stay off until they change: {problem}"
-            ));
-            return Ok(());
-        }
+        let mut running = Running::new(&self.module, Arc::clone(&self.wake))?;
+        let told = self.told();
+        running
+            .instance
+            .send(vec![start_request(&self.config, &told)])
+            .map_err(|error| format!("they stopped: {error}"))?;
+        running.starting = Some(now.saturating_add(micros(self.limits.start)));
+        running.told = told;
         self.running = Some(running);
-        let outputs = self.settle(reply, now);
-        if outputs.is_empty() {
-            return Ok(());
-        }
-        Err("the remaps pressed keys while starting".to_owned())
+        self.deadline = None;
+        Ok(())
     }
 
     fn settle(&mut self, reply: Reply, now: u64) -> Vec<Output> {
@@ -272,7 +452,7 @@ impl Remapper {
             ));
         } else {
             self.problems.push(format!(
-                "The input remaps failed ({error}) and start again with the next key or button."
+                "The input remaps failed ({error}) and start again."
             ));
         }
         out
@@ -281,6 +461,8 @@ impl Remapper {
     fn release_held(&mut self) -> Vec<Output> {
         self.running = None;
         self.deadline = None;
+        // Keys pressed while the remaps started stay bypassed: their releases pass as they are.
+        self.bypassed_starting.clear();
         let released: Vec<Source> = self
             .pressed
             .iter()
@@ -316,77 +498,61 @@ fn valid(source: Source) -> bool {
 }
 
 impl Running {
-    fn new(engine: &Engine, module: &Module) -> Result<Self, String> {
-        let limits = StoreLimitsBuilder::new().memory_size(MEMORY_BYTES).build();
-        let mut store = Store::new(engine, limits);
-        store.limiter(|limits| limits);
-        store
-            .set_fuel(START_FUEL)
-            .map_err(|error| format!("the remaps could not be given fuel: {error}"))?;
-        let linker = Linker::<StoreLimits>::new(engine);
-        let instance = linker
-            .instantiate_and_start(&mut store, module)
+    fn new(module: &Module, wake: Wake) -> Result<Self, String> {
+        let config = sandbox::Config {
+            name: "input remaps".to_owned(),
+            memory_limit: MEMORY_BYTES,
+            display: None,
+        };
+        let instance = sandbox::spawn(sandbox::Source::Module(module.clone()), config, wake)
             .map_err(|error| format!("the remaps would not start: {error}"))?;
-        let memory = instance
-            .get_memory(&store, "memory")
-            .ok_or_else(|| "the remap module exports no memory".to_owned())?;
         Ok(Self {
-            buffer: export(&store, &instance, "be_remap_buffer")?,
-            handle: export(&store, &instance, "be_remap_handle")?,
-            store,
-            memory,
+            instance,
+            starting: None,
+            told: Told::default(),
         })
     }
 
-    fn call(&mut self, request: &[u8], fuel: u64) -> Result<Reply, String> {
-        let length = u32::try_from(request.len())
-            .map_err(|_| "the request is too long for the remaps".to_owned())?;
-        self.store
-            .set_fuel(fuel)
-            .map_err(|error| format!("the remaps could not be given fuel: {error}"))?;
-        let pointer = self
-            .buffer
-            .call(&mut self.store, length)
-            .map_err(|error| stopped(&error))?;
-        self.memory
-            .write(&mut self.store, pointer as usize, request)
-            .map_err(|_| "the remaps gave a buffer outside their memory".to_owned())?;
-        let answer = self
-            .handle
-            .call(&mut self.store, length)
-            .map_err(|error| stopped(&error))?;
-        let pointer = (answer >> 32) as usize;
-        let length = (answer & u64::from(u32::MAX)) as usize;
-        if length > MOST_REPLY_BYTES {
-            return Err("the remaps answered at too great a length".to_owned());
-        }
-        let end = pointer
-            .checked_add(length)
-            .ok_or_else(|| "the remaps answered outside their memory".to_owned())?;
-        let reply = self
-            .memory
-            .data(&self.store)
-            .get(pointer..end)
-            .ok_or_else(|| "the remaps answered outside their memory".to_owned())?;
-        decode(reply).map_err(|error| format!("the remaps answered with nothing readable: {error}"))
+    /// Sends `request` and waits up to `within` for the one frame that answers it. A module that
+    /// takes longer is dropped by the caller, which terminates it.
+    fn call(&mut self, request: &[u8], within: Duration) -> Result<Reply, String> {
+        let deadline = Deadline::after(within);
+        self.instance
+            .send(vec![request.to_vec()])
+            .map_err(|error| format!("they stopped: {error}"))?;
+        let answers = self
+            .instance
+            .wait(deadline)
+            .map_err(|error| format!("they stopped: {error}"))?;
+        let [reply] = answers.as_slice() else {
+            return Err(match answers.is_empty() {
+                true => "they did not answer in time".to_owned(),
+                false => "they answered more than once".to_owned(),
+            });
+        };
+        read(reply)
     }
 }
 
-fn stopped(error: &wasmi::Error) -> String {
-    match error.as_trap_code() {
-        Some(wasmi::TrapCode::OutOfFuel) => "they ran out of fuel".to_owned(),
-        _ => format!("they stopped: {error}"),
+fn read(reply: &[u8]) -> Result<Reply, String> {
+    if reply.len() > MOST_REPLY_BYTES {
+        return Err("the remaps answered at too great a length".to_owned());
     }
+    decode(reply).map_err(|error| format!("the remaps answered with nothing readable: {error}"))
 }
 
-fn export<Parameters: wasmi::WasmParams, Results: wasmi::WasmResults>(
-    store: &Store<StoreLimits>,
-    instance: &Instance,
-    name: &str,
-) -> Result<TypedFunc<Parameters, Results>, String> {
-    instance
-        .get_typed_func(store, name)
-        .map_err(|error| format!("the remap module has no usable {name}: {error}"))
+fn start_request(config: &Option<Vec<u8>>, told: &Told) -> Vec<u8> {
+    encode(&Request::Start {
+        config: config.clone().unwrap_or_default(),
+        window: told.window.clone(),
+        held: told.held.iter().copied().collect(),
+        pressed: told.pressed.iter().copied().collect(),
+    })
+}
+
+/// `duration` on the input clock, which counts microseconds.
+fn micros(duration: Duration) -> u64 {
+    u64::try_from(duration.as_micros()).unwrap_or(u64::MAX)
 }
 
 #[cfg(test)]

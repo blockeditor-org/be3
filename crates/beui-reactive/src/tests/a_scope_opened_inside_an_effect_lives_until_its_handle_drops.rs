@@ -16,7 +16,7 @@ fn a_scope_opened_inside_an_effect_lives_until_its_handle_drops() {
     outer.run(move || {
         crate::provide_context(Label("outer"));
         create_effect(move || {
-            tick.get();
+            tick.track();
             let scope = owner_scope()
                 .expect("an effect always has an owner")
                 .child()

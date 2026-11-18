@@ -10,7 +10,6 @@ fn clicking_the_draw_pile_draws_a_card() {
     let mut editor = editor_after(CRAZY_8S.to_vec(), actions.clone());
 
     editor.click("game.pile.0");
-    editor.run();
 
     let played = moves(&editor);
     assert_eq!(played.len(), actions.len() + 1);

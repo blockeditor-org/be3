@@ -55,7 +55,6 @@ fn a_selected_bound_arrow_shows_where_each_end_is_anchored() {
     );
 
     editor.click(format!("infinite-canvas.entity.{}", arrow.id));
-    editor.run();
     assert_eq!(editor.label("infinite-canvas.selection"), "Arrow selected");
     editor.snapshot("a_selected_bound_arrow_shows_where_each_end_is_anchored");
 }

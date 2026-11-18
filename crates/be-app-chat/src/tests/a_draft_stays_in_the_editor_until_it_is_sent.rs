@@ -3,16 +3,10 @@ use super::*;
 #[test]
 fn a_draft_stays_in_the_editor_until_it_is_sent() {
     let mut chat = Harness::new(&[(ROSA, "Lunch?")]);
-    let before = chat.content();
-
     chat.write("Sure, at noon");
-    assert_eq!(chat.content(), before, "a draft is not in the block");
+    assert_eq!(chat.bodies(), ["Lunch?"], "a draft is not in the chat");
 
-    chat.arrive(signed_by(
-        &chat.content(),
-        ROSA,
-        Message::new(ROSA, MORNING + MINUTE, "Or one?"),
-    ));
+    chat.arrive(ROSA, &message(MORNING + MINUTE, "Or one?"));
     assert_eq!(
         chat.editor.label("chat.draft"),
         "Sure, at noon",

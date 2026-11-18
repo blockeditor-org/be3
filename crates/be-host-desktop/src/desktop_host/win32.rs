@@ -10,16 +10,15 @@ use beui::native::{Document, draw_gpu};
 use beui::reactive::*;
 use beui::styled::*;
 use beui::{
-    Forwarded, ForwardedInput, NodeId, PointerPhase, Pos2, Rect, Vec2, WindowPlacement,
-    WindowReport, WindowRole, native::Context, native::Drawing, native::Setup,
+    NodeId, Pos2, Rect, Vec2, WindowPlacement, WindowReport, WindowRole, native::Context,
+    native::Drawing, native::Setup,
 };
 
 use crate::programs::ProgramSource;
 use crate::window_body::WindowStatus;
 
-use super::win32_map::{
-    self, ContentPress, HotkeyState, Notes, ProgramNames, Recovery, Refusal, entry_id,
-};
+use super::win32_content::{CapturedContent, ContentInput, Laser};
+use super::win32_map::{self, HotkeyState, Notes, ProgramNames, Recovery, Refusal, entry_id};
 use super::win32_overlay::EntryOverlay;
 use super::win32_shape::Shaping;
 use super::{DesktopHost, DesktopSettings};
@@ -60,7 +59,8 @@ struct Captured {
 #[derive(Clone, Copy)]
 struct Signals {
     snapshot: Signal<Arc<Snapshot>>,
-    notes: Signal<u64>,
+    /// `NOTES` as of the last `before`, for the window bodies.
+    notes: Signal<Notes>,
 }
 
 struct Host {
@@ -79,9 +79,10 @@ thread_local! {
     static NEXT_USER: Cell<u64> = const { Cell::new(0) };
     static SHAPING: RefCell<Shaping> = RefCell::new(Shaping::default());
     static CHANGES: Cell<u64> = const { Cell::new(0) };
+    /// Edited from anywhere, in or out of the document; `before` publishes it to
+    /// `Signals::notes` inside the document.
     static NOTES: RefCell<Notes> = RefCell::new(Notes::default());
     static NAMES: RefCell<ProgramNames> = RefCell::new(ProgramNames::default());
-    static NOTED: Cell<u64> = const { Cell::new(0) };
 }
 
 fn edit_notes(change: impl FnOnce(&mut Notes)) {
@@ -91,7 +92,6 @@ fn edit_notes(change: impl FnOnce(&mut Notes)) {
         *notes != before
     });
     if edited {
-        NOTED.set(NOTED.get() + 1);
         changed();
     }
 }
@@ -122,7 +122,7 @@ impl DesktopHost for Win32 {
     fn create() {
         SIGNALS.set(Some(Signals {
             snapshot: create_signal(Arc::new(Snapshot::default())),
-            notes: create_signal(0),
+            notes: create_signal(Notes::default()),
         }));
     }
 
@@ -246,8 +246,10 @@ impl DesktopHost for Win32 {
                 {
                     captured.drawn = frame.version();
                     let texture = frame.texture().clone();
+                    // A captured window is a program window: a surface the host owns.
                     let drawing = beui::native::drawing(
-                        beui::native::texture_quad::TextureDraw::keeping(texture, frame),
+                        beui::native::texture_quad::TextureDraw::keeping(texture, frame)
+                            .hosted(source.entry().0),
                     );
                     frames.extend(
                         captured
@@ -302,9 +304,7 @@ impl DesktopHost for Win32 {
             if signals.snapshot.get_untracked().revision != snapshot.revision {
                 signals.snapshot.set(snapshot);
             }
-            if signals.notes.get_untracked() != NOTED.get() {
-                signals.notes.set(NOTED.get());
-            }
+            signals.notes.set(NOTES.with_borrow(Notes::clone));
             for (signal, drawing) in frames {
                 signal.set(drawing);
             }
@@ -359,13 +359,12 @@ impl DesktopHost for Win32 {
 
     fn window_status(window: HostWindowId) -> Option<WindowStatus> {
         let signals = signals()?;
-        signals.notes.get();
         let id = entry_id(window);
         signals.snapshot.with(|snapshot| {
             let entry = snapshot.entry(id)?;
             let parent = entry.parent.and_then(|parent| snapshot.entry(parent));
             SHAPING.with_borrow(|shaping| {
-                NOTES.with_borrow(|notes| {
+                signals.notes.with(|notes| {
                     NAMES.with_borrow(|names| {
                         let record =
                             win32_map::known_window(snapshot, entry, shaping, notes, names);
@@ -430,7 +429,7 @@ impl DesktopHost for Win32 {
     }
 
     #[component]
-    fn WindowSurface(window: HostWindowId, focus: Memo<u64>) -> NodeId {
+    fn WindowSurface(window: HostWindowId, focus: Trigger) -> NodeId {
         let id = entry_id(window);
         let Some(signals) = signals() else {
             return view! {
@@ -449,16 +448,6 @@ impl DesktopHost for Win32 {
                     .is_some_and(|entry| win32_map::secure_notice(snapshot, entry))
             })
         });
-        let hovered = create_signal(false);
-        create_effect(move || {
-            let over = hovered.get();
-            untrack(|| {
-                edit_notes(|notes| match over {
-                    true => notes.hovered = Some(id),
-                    false => notes.hovered = notes.hovered.filter(|held| *held != id),
-                });
-            });
-        });
         on_cleanup(move || {
             edit_notes(|notes| notes.hovered = notes.hovered.filter(|held| *held != id))
         });
@@ -470,10 +459,7 @@ impl DesktopHost for Win32 {
                     .unwrap_or_default()
             })
         });
-        let pressed = Rc::new(Cell::new(false));
-        let press = Rc::new(RefCell::new(ContentPress::default()));
-        let rect_held = create_signal(Rect::ZERO);
-        let rect = rect_held.read_only();
+        let rect = create_signal(Rect::ZERO);
         let drawn = create_memo(move || {
             snapshot.with(|snapshot| {
                 snapshot
@@ -482,15 +468,8 @@ impl DesktopHost for Win32 {
             })
         });
         create_effect(move || {
-            drawn.get();
+            drawn.track();
             resize(id, rect.get().size());
-        });
-        let asked_focus = StoredCell::new(focus.get_untracked());
-        create_effect(move || {
-            let asked = focus.get();
-            if asked_focus.replace(asked) != asked {
-                untrack(|| focus_entry(id, None));
-            }
         });
         let drawn_width = create_memo(move || drawn.get().x);
         let drawn_height = create_memo(move || drawn.get().y);
@@ -533,20 +512,19 @@ impl DesktopHost for Win32 {
             <Layers>
                 <Canvas>
                     <CanvasItem x=0.0 y=0.0 width={drawn_width} height={drawn_height}>
-                        <Interactive
-                            focusable=true
-                            @test_id={format!("win32.window.{}", id.0)}
-                            on_hover_change={hovered}
-                            on_forward={move |input: ForwardedInput| forwarded(id, &pressed, &press, input)}
+                        <CapturedContent
+                            input={Rc::new(EntryInput(id)) as Rc<dyn ContentInput>}
+                            focus={Some(focus)}
+                            tag={format!("win32.window.{}", id.0)}
                         >
                             <Layers>
-                                <Drawing draw={Prop::dynamic(move || draw_gpu(drawing.get()))} />
+                                <Drawing draw={move || draw_gpu(drawing.get())} />
                                 <EntryOverlay secure off_screen />
                             </Layers>
-                        </Interactive>
+                        </CapturedContent>
                     </CanvasItem>
                 </Canvas>
-                <ForEach keys={keys}>|key: (u64, Option<(u32, u32)>)| {
+                <ForEach value={keys}>|key: (u64, Option<(u32, u32)>)| {
                     let handle = Handle(key.0);
                     let placed = create_memo(move || {
                         popups.with(|popups| {
@@ -558,7 +536,7 @@ impl DesktopHost for Win32 {
                     });
                     let at = create_memo(move || placed.get().map_or(Pos2::ZERO, |at| at.min));
                     let size = create_memo(move || placed.get().map_or(Vec2::ZERO, |at| at.size()));
-                    let open = create_memo(move || placed.get().is_some());
+                    let open = create_memo(move || placed.with(Option::is_some));
                     let placement = WindowPlacement::Over {
                         window: parent,
                         at: at.get_untracked(),
@@ -582,7 +560,7 @@ impl DesktopHost for Win32 {
         let rect_measured = measure(built);
         create_effect(move || {
             if let Some(measured) = rect_measured.get() {
-                rect_held.set(measured.rect);
+                rect.set(measured.rect);
             }
         });
         built
@@ -859,76 +837,35 @@ fn release(source: Source, user: u64) {
     drop(capture);
 }
 
-fn clicked(press: &RefCell<ContentPress>, input: &ForwardedInput) -> Vec<Pos2> {
-    let size = input.rect.size();
-    let mut clicks = Vec::new();
-    let mut press = press.borrow_mut();
-    for event in &input.events {
-        let Forwarded::Pointer { event, over } = event else {
-            continue;
-        };
-        if event.pointer.is_controller() {
-            continue;
-        }
-        let local = over.map_or(event.pos - input.rect.min.to_vec2(), |over| over.local);
-        match event.phase {
-            PointerPhase::Down(_) => press.down(event.pointer, local),
-            PointerPhase::Move => press.moved(event.pointer, local),
-            PointerPhase::Up(_) => clicks.extend(press.up(event.pointer, local, size)),
-            PointerPhase::Cancel | PointerPhase::Gone => press.cancel(),
-            _ => {}
-        }
-    }
-    clicks
-}
+/// A Windows window's or display's content: a click on it starts focus mode at that point, and a
+/// controller's laser is injected.
+struct EntryInput(EntryId);
 
-fn forwarded(
-    id: EntryId,
-    pressed: &Cell<bool>,
-    press: &RefCell<ContentPress>,
-    input: ForwardedInput,
-) {
-    let size = input.rect.size();
-    for local in clicked(press, &input) {
-        let snapshot = snapshot();
-        let at = snapshot
+impl ContentInput for EntryInput {
+    fn clicked(&self, at: Pos2, panel: Vec2) {
+        let id = self.0;
+        let point = snapshot()
             .entry(id)
-            .map(|entry| win32_map::frame_point(entry.frame, size, local));
-        focus_entry(id, at);
+            .map(|entry| win32_map::frame_point(entry.frame, panel, at));
+        focus_entry(id, point);
     }
-    for event in &input.events {
-        let Forwarded::Pointer { event, over } = event else {
-            continue;
-        };
-        if !event.pointer.is_controller() {
-            continue;
-        }
-        let local = over.map_or(event.pos - input.rect.min.to_vec2(), |over| over.local);
-        let action = match event.phase {
-            PointerPhase::Down(button) => {
-                pressed.set(true);
-                be_host_win32_input::PointerAction::Press(button)
-            }
-            PointerPhase::Up(button) => {
-                pressed.set(false);
-                be_host_win32_input::PointerAction::Release(button)
-            }
-            PointerPhase::Move if pressed.get() => be_host_win32_input::PointerAction::Move,
-            PointerPhase::Cancel | PointerPhase::Gone => {
-                pressed.set(false);
-                continue;
-            }
-            _ => continue,
+
+    fn laser(&self, at: Pos2, laser: Laser, panel: Vec2) {
+        let id = self.0;
+        let action = match laser {
+            Laser::Press(button) => be_host_win32_input::PointerAction::Press(button),
+            Laser::Release(button) => be_host_win32_input::PointerAction::Release(button),
+            Laser::Move => be_host_win32_input::PointerAction::Move,
         };
         let snapshot = snapshot();
         let Some(entry) = snapshot.entry(id) else {
-            continue;
+            return;
         };
         let injected = be_host_win32_input::inject(
             &snapshot,
             entry,
-            size,
-            &be_host_win32_input::Event::Pointer { at: local, action },
+            panel,
+            &be_host_win32_input::Event::Pointer { at, action },
         );
         match injected {
             Ok(()) => refuse(id, None),
@@ -938,30 +875,37 @@ fn forwarded(
             Err(error) => eprintln!("be-host: input did not reach {}: {error}", entry.title),
         }
     }
+
+    fn hovered(&self, over: bool) {
+        let id = self.0;
+        edit_notes(|notes| match over {
+            true => notes.hovered = Some(id),
+            false => notes.hovered = notes.hovered.filter(|held| *held != id),
+        });
+    }
 }
 
-fn popup_forwarded(
+/// A popup's content: a click on it starts focus mode on its toplevel at that point.
+struct PopupInput {
     entry: EntryId,
     handle: Handle,
-    press: &RefCell<ContentPress>,
-    input: ForwardedInput,
-) {
-    let size = input.rect.size();
-    for local in clicked(press, &input) {
-        let snapshot = snapshot();
-        let at = snapshot.entry(entry).and_then(|toplevel| {
+}
+
+impl ContentInput for PopupInput {
+    fn clicked(&self, at: Pos2, panel: Vec2) {
+        let point = snapshot().entry(self.entry).and_then(|toplevel| {
             let popup = toplevel
                 .popups
                 .iter()
-                .find(|popup| popup.handle == handle)?;
+                .find(|popup| popup.handle == self.handle)?;
             Some(win32_map::popup_point(
                 toplevel.frame,
                 popup.frame,
-                size,
-                local,
+                panel,
+                at,
             ))
         });
-        focus_entry(entry, at);
+        focus_entry(self.entry, point);
     }
 }
 
@@ -972,17 +916,15 @@ fn PopupSurface(entry: EntryId, handle: Handle) -> NodeId {
     if let Some(user) = acquire(source, drawing) {
         on_cleanup(move || release(source, user));
     }
-    let press = RefCell::new(ContentPress::default());
     view! {
-        <Interactive
-            focusable=true
-            press_focus=false
-            tab_stop=false
-            @test_id={format!("win32.popup.{}", handle.0)}
-            on_forward={move |input: ForwardedInput| popup_forwarded(entry, handle, &press, input)}
+        <CapturedContent
+            input={Rc::new(PopupInput { entry, handle }) as Rc<dyn ContentInput>}
+            focus={None}
+            tag={format!("win32.popup.{}", handle.0)}
+            popup=true
         >
-            <Drawing draw={Prop::dynamic(move || draw_gpu(drawing.get()))} />
-        </Interactive>
+            <Drawing draw={move || draw_gpu(drawing.get())} />
+        </CapturedContent>
     }
 }
 

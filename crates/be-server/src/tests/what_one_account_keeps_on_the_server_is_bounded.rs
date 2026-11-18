@@ -15,21 +15,20 @@ async fn what_one_account_keeps_on_the_server_is_bounded() {
     let store = ServerStore::open(&directory).unwrap();
     let long = "x".repeat(MAX_NAME_BYTES + 1);
     refused(
-        store.create_local_profile(&long).await,
+        store.register("long@example.com", &long).await,
         ErrorCode::InvalidRequest,
     );
-    let (profile, _) = store.create_local_profile("Owner").await.unwrap();
+    let (profile, _) = store.register("owner@example.com", "Owner").await.unwrap();
     let account = profile.account;
     refused(
-        store.create_organization(account, &long).await,
+        signed_organization(&store, account, &long).await,
         ErrorCode::InvalidRequest,
     );
 
     let organizations: Vec<Uuid> = {
         let mut made = Vec::new();
         for index in 0..MAX_ORGANIZATIONS_PER_ACCOUNT {
-            let organization = store
-                .create_organization(account, &format!("Company {index}"))
+            let organization = signed_organization(&store, account, &format!("Company {index}"))
                 .await
                 .unwrap();
             made.push(organization.id);
@@ -37,7 +36,7 @@ async fn what_one_account_keeps_on_the_server_is_bounded() {
         made
     };
     refused(
-        store.create_organization(account, "One too many").await,
+        signed_organization(&store, account, "One too many").await,
         ErrorCode::OverQuota,
     );
     let organization = organizations[0];
@@ -52,37 +51,42 @@ async fn what_one_account_keeps_on_the_server_is_bounded() {
             .create_agent(
                 account,
                 organization,
+                agent_id(account, &unused_keys(7)),
                 &long,
-                [0; 32],
-                [0; 32],
+                [7; 32],
+                [7; 32],
                 Vec::new(),
                 Vec::new(),
+                Vec::new(),
+                None,
                 None,
             )
             .await,
         ErrorCode::InvalidRequest,
     );
 
+    let (giver, given) = (Uuid::new_v4(), Uuid::new_v4());
     store
         .with_database(move |_, database| {
         let transaction = be_block_sqlite_schema::write_transaction(database).unwrap();
         for index in 0..MAX_CONTACT_LINKS_PER_ACCOUNT {
             transaction
                 .execute(
-                    "INSERT INTO links (id, owner_id, card, code) VALUES (?1, ?2, x'', x'')",
+                    "INSERT INTO links (id, owner_id, card) VALUES (?1, ?2, x'')",
                     params![Uuid::new_v4().to_string(), account.to_string()],
                 )
                 .unwrap();
             transaction
                 .execute(
-                    "INSERT INTO links (id, owner_id, card, code, invite_organization, invite_email,
-                                        invite_role)
-                     VALUES (?1, ?2, x'', x'', ?3, ?4, 'editor')",
+                    "INSERT INTO links (id, owner_id, card, invite_organization,
+                                        invite_created, invite_expires)
+                     VALUES (?1, ?2, x'', ?3, ?4, ?5)",
                     params![
                         Uuid::new_v4().to_string(),
                         account.to_string(),
                         organization.to_string(),
-                        format!("{index}@example.com")
+                        index,
+                        i64::MAX
                     ],
                 )
                 .unwrap();
@@ -111,12 +115,38 @@ async fn what_one_account_keeps_on_the_server_is_bounded() {
                 )
                 .unwrap();
         }
+        // A block someone else owns, which they would give to the account.
+        transaction
+            .execute(
+                "INSERT INTO blocks (organization_id, id, content_type, author, parent_kind, payer)
+                 VALUES (?1, ?2, ?3, ?4, 0, ?4)",
+                params![
+                    organization.to_string(),
+                    given.to_string(),
+                    CONTENT.to_string(),
+                    giver.to_string()
+                ],
+            )
+            .unwrap();
+        // The giver is a contact of the account, so the transfer below is refused for the
+        // account's bound alone: to anyone else, a transfer is refused before it.
+        transaction
+            .execute(
+                "INSERT INTO accounts (id, email, display_name) VALUES (?1, ?1, 'Giver')",
+                [giver.to_string()],
+            )
+            .unwrap();
+        transaction
+            .execute(
+                "INSERT INTO contacts (account_id, contact_id) VALUES (?1, ?2)",
+                params![giver.to_string(), account.to_string()],
+            )
+            .unwrap();
         for _ in 0..MAX_CONTACTS_PER_ACCOUNT {
             let contact = Uuid::new_v4().to_string();
             transaction
                 .execute(
-                    "INSERT INTO accounts (id, email, display_name, password_hash)
-                     VALUES (?1, ?1, 'Contact', '!')",
+                    "INSERT INTO accounts (id, email, display_name) VALUES (?1, ?1, 'Contact')",
                     [&contact],
                 )
                 .unwrap();
@@ -138,8 +168,8 @@ async fn what_one_account_keeps_on_the_server_is_bounded() {
                 account,
                 Uuid::new_v4(),
                 Vec::new(),
-                Vec::new(),
                 be_block_protocol::LinkKind::Contact(None),
+                None,
             )
             .await,
         ErrorCode::OverQuota,
@@ -150,30 +180,26 @@ async fn what_one_account_keeps_on_the_server_is_bounded() {
                 account,
                 Uuid::new_v4(),
                 vec![0; MAX_SEALED_BYTES + 1],
-                Vec::new(),
                 be_block_protocol::LinkKind::Contact(None),
+                None,
             )
             .await,
         ErrorCode::InvalidRequest,
     );
-    let invite = |email: &'static str| {
+    let invite = || {
         store.create_link(
             account,
             Uuid::new_v4(),
             Vec::new(),
-            Vec::new(),
             be_block_protocol::LinkKind::Invitation(be_block_protocol::Invitation {
                 organization,
-                email: email.into(),
-                role: OrganizationRole::Editor,
                 escrow: Vec::new(),
             }),
+            // Refused for the bound before the record is read.
+            Some(Vec::new()),
         )
     };
-    refused(invite("new@example.com").await, ErrorCode::OverQuota);
-    invite("0@example.com")
-        .await
-        .expect("inviting someone again replaces their invitation");
+    refused(invite().await, ErrorCode::OverQuota);
     refused(
         store
             .create_escrow(
@@ -182,7 +208,8 @@ async fn what_one_account_keeps_on_the_server_is_bounded() {
                     id: Uuid::new_v4(),
                     epoch: MAX_ESCROWS_PER_ORGANIZATION as u64 + 1,
                     public: [0; 32],
-                    signing: [0; 32],
+                    head: [0; 32],
+                    maker: Uuid::nil(),
                     signature: Vec::new(),
                 },
                 KeySet::default(),
@@ -195,11 +222,14 @@ async fn what_one_account_keeps_on_the_server_is_bounded() {
             .create_agent(
                 account,
                 organization,
+                agent_id(account, &unused_keys(7)),
                 "Agent",
-                [0; 32],
-                [0; 32],
+                [7; 32],
+                [7; 32],
                 Vec::new(),
                 Vec::new(),
+                Vec::new(),
+                None,
                 None,
             )
             .await,
@@ -215,8 +245,9 @@ async fn what_one_account_keeps_on_the_server_is_bounded() {
             metadata,
             Vec::new(),
             Uuid::new_v4(),
-            KeySet::default(),
             false,
+            Vec::new(),
+            Vec::new(),
         )
     };
     refused(
@@ -224,6 +255,35 @@ async fn what_one_account_keeps_on_the_server_is_bounded() {
         ErrorCode::InvalidRequest,
     );
     refused(block(Vec::new()).await, ErrorCode::OverQuota);
+    let secret = be_block_keys::RecoveryPhrase::generate().secret();
+    let transfer = be_block_keys::Entry::sign(
+        &secret,
+        giver.into_bytes(),
+        given.into_bytes(),
+        None,
+        true,
+        be_block_keys::Record::Owner(be_block_keys::Owner {
+            account: account.into_bytes(),
+            identity: unused_keys(9),
+        }),
+    );
+    refused(
+        store
+            .set_access(
+                Identity {
+                    account: giver,
+                    organization,
+                    role: OrganizationRole::Editor,
+                    bound: None,
+                },
+                given,
+                account,
+                be_block_graph::Access::Manage,
+                Some(transfer.encode()),
+            )
+            .await,
+        ErrorCode::OverQuota,
+    );
 
     let _ = std::fs::remove_dir_all(directory);
 }

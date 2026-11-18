@@ -47,8 +47,8 @@ pub(crate) fn Posted(
                 <html::Input
                     r#type="hidden"
                     name={name}
-                    value={Prop::dynamic(move || value.get())}
-                    disabled={create_memo(move || disabled.get() || value.get().is_none())}
+                    value={move || value.get()}
+                    disabled={move || disabled.get() || value.with(Option::is_none)}
                 />
                 {content}
             </html::Div>
@@ -65,13 +65,13 @@ pub fn Form(
     #[prop(default = String::new())] action: Prop<String>,
     #[prop(default = Vec::new())] hidden: Vec<(&'static str, String)>,
     on_submit: Callback<()>,
-    #[prop(children)] content: Render,
+    #[prop(children)] content: Build<NodeId>,
 ) -> NodeId {
     let submit = on_submit;
     provide_context(FormContext {
         submit: Callback::new(move |()| submit.call(())),
     });
-    let content = content.call(());
+    let content = content.call();
     if CORE != Core::Html {
         return content;
     }

@@ -215,7 +215,7 @@ where
     I: PartialEq + 'static,
 {
     view! {
-        <ForEach keys={documents.slots()}>|slot: DockSlot| {
+        <ForEach value={documents.slots()}>|slot: DockSlot| {
             let content = documents.contents.get(&slot);
             tab.call(DockDocument {
                 documents,
@@ -231,7 +231,7 @@ where
 #[component]
 pub fn DockDocumentBody<K, T, I>(
     document: DockDocument<K, T, I>,
-    #[prop(children)] body: RenderFn<ReadSignal<T>>,
+    #[prop(children)] body: RenderFn<ReadSignal<T>, NodeId>,
 ) -> NodeId
 where
     K: DockKey,
@@ -239,10 +239,12 @@ where
     I: PartialEq + 'static,
 {
     let documents = document.documents;
-    let identity = Func::new(move |content: T| documents.identity(&content));
     view! {
         <List spacing=0.0>
-            <Keyed value={document.content} key={identity}>|content: ReadSignal<T>| {
+            <Keyed
+                value={document.content}
+                key={move |content: &T| documents.identity(content)}
+            >|content: ReadSignal<T>| {
                 let body = body.call(content);
                 view! {
                     <ListItem grow=1.0>{body}</ListItem>

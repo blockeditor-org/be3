@@ -284,11 +284,18 @@ impl DockDeclaration {
             .as_ref()
             .map(|main| inward.node(main))
             .unwrap_or_else(|| empty_pane(format!("{prefix}/")));
+        let title = self
+            .tabs
+            .iter()
+            .find(|tab| tab.tab == host)
+            .map(|tab| tab.title.clone())
+            .unwrap_or_default();
         let group = DockEntry::Group {
             group: DockGroup {
                 key: prefix.to_owned(),
                 pinned: true,
                 child: Some(child),
+                title,
             },
             root: Box::new(root),
         };

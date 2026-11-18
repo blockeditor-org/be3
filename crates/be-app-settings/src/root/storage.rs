@@ -24,19 +24,19 @@ const ABOUT_MAP: &str =
 #[component]
 pub fn StoragePage(editor: Editor) -> NodeId {
     let usage = editor.watch::<StorageUsageWatch>();
-    let known = create_memo(move || usage.with(Option::is_some));
-    let unknown = create_memo(move || !known.get());
     view! {
         <Scroll>
             <Frame padding=PADDING>
                 <List spacing=SECTION_SPACING>
                     <Text style=TextStyle::HEADING>"Storage"</Text>
-                    <Show condition={unknown}>
-                        <Text style=TextStyle::CAPTION @test_id="settings.storage.unknown">
-                            {NO_SERVER}
-                        </Text>
-                    </Show>
-                    <Show condition={known}>
+                    <Show
+                        value={move || usage.with(Option::is_some)}
+                        fallback={|| view! {
+                            <Text style=TextStyle::CAPTION @test_id="settings.storage.unknown">
+                                {NO_SERVER}
+                            </Text>
+                        }}
+                    >
                         <Usage usage />
                     </Show>
                     <Section title="What uses it" caption=ABOUT_MAP>
@@ -63,7 +63,6 @@ fn Usage(usage: Memo<Option<AccountStorage>>) -> NodeId {
             .filter(|quota| *quota > 0)
             .map(|quota| (used.get() as f64 / quota as f64).min(1.0) as f32)
     });
-    let limited = create_memo(move || quota.get().is_some());
     let full = create_memo(move || share.get().is_some_and(|share| share >= 1.0));
     let summary = create_memo(move || match quota.get() {
         Some(quota) => format!("{} of {} used", bytes_label(used.get()), bytes_label(quota)),
@@ -71,29 +70,31 @@ fn Usage(usage: Memo<Option<AccountStorage>>) -> NodeId {
     });
     let pending =
         create_memo(move || usage.with(|usage| usage.as_ref().map_or(0, |usage| usage.pending)));
-    let waiting = create_memo(move || pending.get() > 0);
     let pending_label = create_memo(move || {
         format!(
             "{} uploaded and not yet kept in a block",
             bytes_label(pending.get())
         )
     });
-    let fill = create_memo(move || match full.get() {
-        true => ColorRole::Danger,
-        false => ColorRole::Accent,
-    });
     view! {
         <List spacing=SPACING>
             <Text @test_id="settings.storage.used">{summary}</Text>
-            <Show condition={limited}>
-                <Progress value={share} label="Storage used" fill />
+            <Show value={move || quota.with(Option::is_some)}>
+                <Progress
+                    value={share}
+                    label="Storage used"
+                    fill={move || match full.get() {
+                        true => ColorRole::Danger,
+                        false => ColorRole::Accent,
+                    }}
+                />
             </Show>
-            <Show condition={full}>
+            <Show value={full}>
                 <Text color=TextColor::Danger>
                     "The quota is full: new uploads are refused until something is deleted."
                 </Text>
             </Show>
-            <Show condition={waiting}>
+            <Show value={move || pending.get() > 0}>
                 <Text style=TextStyle::CAPTION>{pending_label}</Text>
             </Show>
         </List>

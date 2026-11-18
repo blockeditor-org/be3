@@ -10,6 +10,6 @@ fn a_phone_shows_the_grid() {
     review.test.click("paint_review.painting.beui-demo.buttons");
     review.deliver();
     review.test.settle();
-    assert!(review.test.shows("paint_review.stage"));
+    assert!(review.test.shown("paint_review.stage"));
     review.test.snapshot("a_phone_compares_a_painting");
 }

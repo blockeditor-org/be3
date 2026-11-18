@@ -18,6 +18,7 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-lib-stable-hash:be-lib-stable-hash",
+                "//crates/be-lib-ui-types:be-lib-ui-types",
                 "//crates/beui-core:beui-core",
                 "//crates/beui-fonts:beui-fonts",
                 "//crates/beui-types:beui-types",
@@ -35,6 +36,7 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-lib-stable-hash:be-lib-stable-hash",
+                "//crates/be-lib-ui-types:be-lib-ui-types",
                 "//crates/beui-core:beui-core",
                 "//crates/beui-fonts:beui-fonts",
                 "//crates/beui-types:beui-types",
@@ -52,6 +54,7 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-lib-stable-hash:be-lib-stable-hash",
+                "//crates/be-lib-ui-types:be-lib-ui-types",
                 "//crates/beui-core:beui-core",
                 "//crates/beui-fonts:beui-fonts",
                 "//crates/beui-types:beui-types",
@@ -69,6 +72,7 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-lib-stable-hash:be-lib-stable-hash",
+                "//crates/be-lib-ui-types:be-lib-ui-types",
                 "//crates/beui-core:beui-core",
                 "//crates/beui-fonts:beui-fonts",
                 "//crates/beui-types:beui-types",
@@ -86,6 +90,7 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-lib-stable-hash:be-lib-stable-hash",
+                "//crates/be-lib-ui-types:be-lib-ui-types",
                 "//crates/beui-core:beui-core",
                 "//crates/beui-fonts:beui-fonts",
                 "//crates/beui-types:beui-types",
@@ -103,6 +108,7 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-lib-stable-hash:be-lib-stable-hash",
+                "//crates/be-lib-ui-types:be-lib-ui-types",
                 "//crates/beui-core:beui-core",
                 "//crates/beui-fonts:beui-fonts",
                 "//crates/beui-types:beui-types",
@@ -119,6 +125,7 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-lib-stable-hash:be-lib-stable-hash",
+                "//crates/be-lib-ui-types:be-lib-ui-types",
                 "//crates/beui-core:beui-core",
                 "//crates/beui-fonts:beui-fonts",
                 "//crates/beui-types:beui-types",
@@ -135,6 +142,7 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-lib-stable-hash:be-lib-stable-hash",
+                "//crates/be-lib-ui-types:be-lib-ui-types",
                 "//crates/beui-core:beui-core",
                 "//crates/beui-fonts:beui-fonts",
                 "//crates/beui-types:beui-types",
@@ -152,6 +160,7 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-lib-stable-hash:be-lib-stable-hash",
+                "//crates/be-lib-ui-types:be-lib-ui-types",
                 "//crates/beui-core:beui-core",
                 "//crates/beui-fonts:beui-fonts",
                 "//crates/beui-types:beui-types",

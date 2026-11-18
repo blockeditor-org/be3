@@ -11,7 +11,7 @@ use beui_view::types::Color;
 use beui_view::types::Corners;
 use beui_view::types::{SpanBackground, SpanStyle};
 
-use super::rows::RowTable;
+use super::rows::{RowTable, quote_in_text, quoted_nesting_em};
 use super::state::TextAreaState;
 use beui_view::types::{Align2, Extent, Sides};
 
@@ -54,6 +54,9 @@ impl From<ListMarker> for MarkerKind {
 pub struct TextMarker {
     pub state: TextAreaState,
     pub line: usize,
+    /// The marker's kind. Its variant, and whether a bullet is written (`written`), hold for the
+    /// hook's life: the area builds the hook anew when they change, so a hook may choose what to
+    /// draw from them once, untracked. What a kind carries (a number, a check) changes in place.
     pub kind: Memo<MarkerKind>,
     pub label: Memo<String>,
     pub depth: Memo<usize>,
@@ -66,7 +69,7 @@ impl TextMarker {
     pub fn number(&self) -> Memo<String> {
         let (kind, label) = (self.kind, self.label);
         create_memo(move || match kind.get() {
-            MarkerKind::Number(_) if !label.get().is_empty() => label.get(),
+            MarkerKind::Number(_) if !label.with(String::is_empty) => label.get(),
             MarkerKind::Number(number) => format!("{number}."),
             _ => String::new(),
         })
@@ -79,7 +82,7 @@ impl TextMarker {
 
     pub fn written(&self) -> Memo<bool> {
         let label = self.label;
-        create_memo(move || !label.get().is_empty())
+        create_memo(move || !label.with(String::is_empty))
     }
 
     pub fn gap(&self) -> Memo<Sides> {
@@ -128,6 +131,15 @@ impl Margin {
             hangs,
         }
     }
+
+    /// The room a code block leaves inside its background on each side, around its text: some
+    /// where markers hang into the margin, none where its background stands just outside it.
+    pub fn code_padding(&self, size: f32) -> f32 {
+        match self.hangs {
+            true => size * CODE_PADDING_EM,
+            false => 0.0,
+        }
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -142,6 +154,11 @@ pub struct TextLine {
     pub outdent: Memo<f32>,
     pub space: Memo<(f32, f32)>,
     pub table: Memo<Option<RowTable>>,
+    /// How far short of the text's right edge a rule on this line ends, so a line hook draws
+    /// it only as far as its characters' shares, where its carets and selection end.
+    pub rule_short: Memo<f32>,
+    /// How far past the text's left edge a rule on this line starts (past a quote's gutter).
+    pub rule_start: Memo<f32>,
     pub text: NodeId,
 }
 
@@ -202,6 +219,10 @@ impl TextLine {
                 false => 0.0,
             };
             let margin = margin.get();
+            // A row that lays its quote's gutter out itself lays the nesting after it too.
+            if quote_in_text(&look) {
+                return margin.left - outdent.get();
+            }
             let hung = listed && look.quote == 0 && margin.hangs;
             let nested = (levels - f32::from(u8::from(hung))) * LIST_INDENT_EM;
             let indent = (look.quote as f32 * QUOTE_INDENT_EM + nested) * size.get();
@@ -216,9 +237,34 @@ impl TextLine {
 
     pub fn code_padding(&self) -> Memo<f32> {
         let (look, size, margin) = (self.look, self.size, self.margin);
-        create_memo(move || match look.get().code_block && margin.get().hangs {
-            true => size.get() * CODE_PADDING_EM,
+        create_memo(move || match look.get().code_block {
+            true => margin.get().code_padding(size.get()),
             false => 0.0,
+        })
+    }
+
+    /// How far past `left` a code line's background starts: past its quote's gutter and any
+    /// list nesting after it, which its row lays out before the text (`quote_in_text`).
+    pub fn code_start(&self) -> Memo<f32> {
+        let (look, size) = (self.look, self.size);
+        create_memo(move || {
+            let look = look.get();
+            match look.code_block && quote_in_text(&look) {
+                true => {
+                    (look.quote as f32 * QUOTE_INDENT_EM + quoted_nesting_em(&look)) * size.get()
+                }
+                false => 0.0,
+            }
+        })
+    }
+
+    /// The code padding a line puts before its text: none where its row lays it out after the
+    /// quote's gutter.
+    pub fn code_lead(&self) -> Memo<f32> {
+        let (look, padding) = (self.look, self.code_padding());
+        create_memo(move || match quote_in_text(&look.get()) {
+            true => 0.0,
+            false => padding.get(),
         })
     }
 
@@ -234,7 +280,7 @@ impl TextLine {
         let (state, start) = (self.state, self.start);
         let content = state.content();
         create_memo(move || {
-            content.get();
+            content.track();
             let start = start.get();
             state.with_snapshot(|snapshot| {
                 snapshot
@@ -364,7 +410,7 @@ pub fn TableLines(line: TextLine, color: Memo<Color>, rule: f32) -> NodeId {
     view! {
         <Layers>
             <Layers>
-                <ForEach keys={edges}>|edge: u32|
+                <ForEach value={edges}>|edge: u32|
                     <Frame
                         padding={Sides::new(f32::from_bits(edge), 0.0, 0.0, 0.0)}
                         align={Align2::new(Align::Start, Align::Stretch)}
@@ -413,10 +459,11 @@ pub fn LeafSpan(
 #[component]
 pub fn PlainLine(line: TextLine) -> NodeId {
     let (left, right, code) = (line.left(), line.right(), line.code_padding());
+    let lead = line.code_lead();
     let padding = create_memo(move || {
         let (above, below) = line.space.get();
         Sides::new(
-            left.get() + code.get(),
+            left.get() + lead.get(),
             above,
             right.get() + code.get(),
             below,

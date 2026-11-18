@@ -30,7 +30,7 @@ fn select_all_in_a_selectable_virtual_list_copies_every_row_without_building_the
                     <Scroll @node_ref=&scroll>
                         <SelectableText>
                             <VirtualList
-                                keys={(0..ROWS).collect::<Vec<usize>>()}
+                                value={(0..ROWS).collect::<Vec<usize>>()}
                                 item_size=20.0
                                 text={label}
                             >|index: ReadSignal<usize>|

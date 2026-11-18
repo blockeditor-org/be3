@@ -6,10 +6,10 @@ package be3:block-type@0.1.0;
 /// request has that request as its parent (only `read-part`).
 interface host {
     use types.{
-        announced, announcement, byte-range, commit-id, description, journal-base, journal-entry,
-        loaded, merging,
-        part-ref, recipients, relay-kind, resume, status, written,
+        along, announcement, byte-range, commit-id, description, journal-base, loaded, log-page, merging,
+        submission, part-ref, recipients, resume, status, written,
     };
+    use be3:shared/ids@0.1.0.{uuid};
 
     /// The frame clock in milliseconds. The module starts it once; the host
     /// yields the time whenever it moved, ahead of any other frame. The module
@@ -23,9 +23,8 @@ interface host {
     /// The soonest clock time at which a timer of the module's own keeps a
     /// block in step with the server (a seal after a quiet spell, a journal
     /// append, a retry's backoff), none while no such work waits on time; said
-    /// again whenever it changes. A heartbeat or a read's retry is not such
-    /// work. A host that holds its clock still moves it here to let that work
-    /// happen.
+    /// again whenever it changes. A read's retry is not such work. A host that
+    /// holds its clock still moves it here to let that work happen.
     in-step-at: async func(at: option<u64>);
 
     /// A commit's stored form; with `first-part`, only the bytes of its root's
@@ -51,15 +50,22 @@ interface host {
     /// unchanged save answers `published` with the same head; one sealed on
     /// this device alone, offline or behind others in its outbox, answers
     /// `kept`, and the replica hears `drained` once it reaches the server.
-    /// `sealed-through`, for a seal of the session's owner, is the session's generation and the
-    /// last sequence number the content holds: kept with the commit, so what was journaled past
-    /// it while the commit was on its way replays on top of it when the journal is still on the
-    /// commit's parent.
+    /// `sealed-through`, for a seal of the lease holder, is the last sequence number of the
+    /// session's order the content holds: kept with the commit, so what the order numbered
+    /// past it while the commit was on its way replays on top of it when the journal is still
+    /// on the commit's parent.
+    /// `journal-state`, with it, is the session state as of that number: the server's
+    /// journal starts from the commit with it only if the publish wins the head, and every
+    /// replica hears `replica.sealed`. The host keeps this device's journal likewise.
     publish: async func(
         expected: option<commit-id>,
         merging: option<merging>,
         content: written,
-        sealed-through: option<tuple<u64, u64>>,
+        sealed-through: option<u64>,
+        journal-state: option<list<u8>>,
+        /// How many times the session had started over (`status.restarts`): a
+        /// seal's sequence counts in that run of the order alone.
+        restarts: u64,
     ) -> result<publish-outcome, string>;
 
     variant publish-outcome {
@@ -71,40 +77,85 @@ interface host {
     /// Writes a commit that moves no head.
     stash: async func(parent: option<commit-id>, content: written) -> result<commit-id, string>;
 
+    /// Appends `bytes` to the block's signed log (a type with `type-info.log`):
+    /// the host signs them as this app's, for the person, so a module can neither
+    /// skip signing nor sign as anyone else or for another app, seals them and
+    /// keeps them until the server takes them. Every replica of the block hears
+    /// the entry through `replica.logged` once it is in the log, this one too.
+    /// What goes `along` with it is kept with it and done once the server takes
+    /// it.
+    append: async func(bytes: list<u8>, along: along) -> result<appended, not-appended>;
+
+    /// Why an entry was not appended. `id` names one the server refused,
+    /// which the device keeps until let go (`log-page.refused`); none for
+    /// one the device never made (too large, or no key to seal it with).
+    record not-appended {
+        id: option<uuid>,
+        why: string,
+    }
+
+    /// Lets go of an entry the server refused (`log-page.refused`): sent
+    /// again as a new one, or given up.
+    let-go-refused: async func(id: uuid);
+
+    /// Where an entry went: its id, and its place and arrival once the server
+    /// took it, none while it waits on this device for the server.
+    record appended {
+        id: uuid,
+        place: option<log-place>,
+    }
+
+    record log-place {
+        seq: u64,
+        arrival: s64,
+    }
+
+    /// At most `limit` entries of the block's signed log from `from`, verified
+    /// against the head the device holds; reading follows the log, so what is
+    /// appended after reaches the replica through `replica.logged`.
+    read-log: async func(%from: u64, limit: u32) -> result<log-page, string>;
+
     /// The host fetches both histories and runs `be_session::resume`.
     resume-session: async func(local: option<commit-id>) -> result<resume, string>;
 
-    /// Sent once per generation when the owner is gone from the participants.
-    claim-lease: async func(generation: u64);
+    /// Claims the lease, as a terminal host does: the server writes the claim
+    /// into the session's order, and this replica holds the lease from it.
+    claim: async func();
 
-    /// The owner's heartbeat.
-    report-clean: async func(generation: u64, clean-at: option<commit-id>);
+    /// Hands the session's order a submission: the server numbers it, keeps it
+    /// in the block's journal and every replica hears it (`replica.sequenced`),
+    /// this one too. Offline the host numbers it in this device's own order
+    /// and the replica hears it the same way. `announcements` are those of the
+    /// edits made on this device it holds: the host keeps them and sends them
+    /// once the server holds the edit.
+    submit: async func(submission: submission, announcements: list<announcement>) -> submitted;
 
-    /// The owner of `generation` appends what it sequenced to the block's
-    /// journal, on the device and on the server, and with `relay` the server
-    /// relays each entry to every other participant as `send` to peers would.
-    /// True once the server holds the entries; false when only the device
-    /// does (offline, or the server did not take them). `announcements` are
-    /// those of the edits made on this device among the entries: the host
-    /// keeps them beside the entries and sends them once the server holds
-    /// the entries, or a commit of this device that holds them (`rebase-journal`).
-    append: async func(
-        generation: u64,
-        entries: list<journal-entry>,
-        relay: bool,
-        announcements: list<announced>,
-    ) -> bool;
+    variant submitted {
+        /// The server numbered it.
+        held,
+        /// Numbered in this device's own order, offline: the server lacks it
+        /// until a commit that holds it reaches it.
+        kept,
+        /// It did not reach the order (the connection dropped, or the server
+        /// refused it for now): the replica hears nothing of it.
+        failed(string),
+        /// The server refused it because this account may not edit the block:
+        /// it never reaches the order, so the replica gives it up as one the
+        /// order passed over.
+        refused(string),
+    }
 
-    /// The owner of `generation` starts the journal from `base`: after each
-    /// commit, and before its first append when the journal it opened with
-    /// was not its base. `entries` are what it sequenced past the base
-    /// meanwhile, kept with the base in one write. The announcements kept
-    /// beside the entries `base` holds go with its commit when this device
-    /// sealed it, sent once the server holds it; the others are dropped.
-    rebase-journal: async func(generation: u64, base: journal-base, entries: list<journal-entry>);
+    /// The journal starts from `base` with no new commit: the last one out
+    /// restarting it, or a new build starting it over. `restarts` is the run
+    /// of the order it is in (`status.restarts`). The server takes it only
+    /// from the lease holder while `base.commit` is the head; this device's
+    /// journal takes it either way. The announcements kept beside the entries
+    /// `base` holds go with its commit when this device sealed it, sent once
+    /// the server holds it.
+    rebase-journal: async func(base: journal-base, restarts: u64);
 
     /// Opaque bytes for a peer, every peer, an editor or the host.
-    send: async func(to: recipients, kind: relay-kind, bytes: list<u8>);
+    send: async func(to: recipients, bytes: list<u8>);
 
     report-status: async func(status: status);
 
@@ -116,8 +167,4 @@ interface host {
 
     error: async func(message: string);
 
-    /// Announcements of edits made on this device that the server already
-    /// holds (a follower's, once the owner accepted them): the host sends each
-    /// it has not sent before.
-    announce: async func(announcements: list<announcement>);
 }

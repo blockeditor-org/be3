@@ -3,6 +3,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 pub mod commit;
 pub mod merge;
+#[cfg(feature = "store")]
 pub mod retention;
 #[cfg(feature = "store")]
 mod store;
@@ -11,24 +12,31 @@ pub use commit::{ChangeId, Commit, CommitId, CommitKind, SealedThrough};
 pub use merge::{
     Conflict, Merge, MergeOutcome, MergeResult, merge_lines, merge_slices, render_conflicts,
 };
+#[cfg(feature = "store")]
 pub use retention::{CommitSummary, RetentionPlan, RetentionPolicy, plan as plan_retention};
 #[cfg(feature = "store")]
-pub use store::CommitStore;
+pub use store::{CommitStore, MergeBase, MergeBaseWalk};
+
+/// Spans of commit time, in milliseconds.
+pub const MINUTE: i64 = 60 * 1000;
+pub const HOUR: i64 = 60 * MINUTE;
+pub const DAY: i64 = 24 * HOUR;
+pub const WEEK: i64 = 7 * DAY;
 
 /// How far past the server's clock a commit's time may be: a device's clock may run a little
 /// fast, but a far-future time would win every comparison by commit time, as a search query's
 /// merge makes, and escape history's thinning by age. The server refuses a later one; a
 /// search reader does not believe one past its own clock plus this (`be_lib_search::Commit::believed`).
-pub const MAX_COMMIT_AHEAD: i64 = retention::HOUR;
+pub const MAX_COMMIT_AHEAD: i64 = HOUR;
 
 /// How far past the server's clock a device stamps a commit at most, once it knows that clock
 /// (`commit_time`): well inside `MAX_COMMIT_AHEAD`, which the measurement's error stays under.
-pub const COMMIT_CLOCK_SLACK: i64 = retention::MINUTE;
+pub const COMMIT_CLOCK_SLACK: i64 = MINUTE;
 
 /// The furthest a measurement of the server's clock may pull this device's commit times back
 /// (`trusts_measurement`): a server whose clock reads earlier than that is not believed, so a
 /// malicious one cannot make every later edit look older than what it follows.
-pub const MAX_CLOCK_PULLBACK: i64 = retention::DAY;
+pub const MAX_CLOCK_PULLBACK: i64 = DAY;
 
 /// Whether a measured server clock, `server_now` against this device's `local`, is taken: one
 /// that would pull commit times back by more than `MAX_CLOCK_PULLBACK` is not.
@@ -74,16 +82,31 @@ static PINNED_NOW: AtomicI64 = AtomicI64::new(UNPINNED);
 const UNPINNED: i64 = i64::MIN;
 
 /// The time commits are stamped with and the server's retention reads, in milliseconds since
-/// the epoch: the system clock unless `pin_now` pinned it.
+/// the epoch: the system clock, moved by `shift_now`, unless `pin_now` pinned it.
 pub fn now_milliseconds() -> i64 {
     match PINNED_NOW.load(Ordering::Relaxed) {
-        UNPINNED => SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map_or(0, |elapsed| {
-                i64::try_from(elapsed.as_millis()).unwrap_or(i64::MAX)
-            }),
+        UNPINNED => system_milliseconds().saturating_add(SHIFT.load(Ordering::Relaxed)),
         pinned => pinned,
     }
+}
+
+fn system_milliseconds() -> i64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |elapsed| {
+            i64::try_from(elapsed.as_millis()).unwrap_or(i64::MAX)
+        })
+}
+
+static SHIFT: AtomicI64 = AtomicI64::new(0);
+
+/// Has `now_milliseconds` read `at` now and run on from there with the system clock, for the
+/// whole process: a test whose devices' clocks start at a set moment
+/// (`beui_core::timer::TEST_WALL_CLOCK`) runs a server in its own process on a clock that
+/// agrees with theirs, as a server's and its devices' clocks do, and still moves on, which its
+/// sessions and leases need.
+pub fn start_now_at(at: i64) {
+    SHIFT.store(at.saturating_sub(system_milliseconds()), Ordering::Relaxed);
 }
 
 /// Pins `now_milliseconds` for the whole process, `None` unpins it. A test drives it: be-host

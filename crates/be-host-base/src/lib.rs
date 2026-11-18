@@ -2,7 +2,6 @@ pub mod host;
 pub mod host_state;
 pub mod notices;
 pub mod panic_guard;
-pub mod password;
 pub mod performance;
 pub mod platform;
 pub mod program_editors;

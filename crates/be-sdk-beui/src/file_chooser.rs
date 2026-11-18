@@ -145,14 +145,11 @@ where
     let chosen = chooser.name();
     let name = create_memo(move || chosen.get().unwrap_or_else(|| "No file chosen".to_owned()));
     let failure = chooser.error();
-    let failed = create_memo(move || failure.get().is_some());
-    let reason = create_memo(move || failure.get().unwrap_or_default());
     let busy = chooser.busy();
     let choose = move || chooser.open();
     let choose_id = format!("{id_prefix}.choose");
     let error_id = format!("{id_prefix}.error");
     let accepted = create_signal(false);
-    let unready = create_memo(move || !chosen_file.get());
     let accepting = creation.clone();
     let cancelling = creation;
     view! {
@@ -165,7 +162,7 @@ where
                     accepted.set(true);
                     accepting.accept();
                 })
-                .disabled(unready)
+                .disabled(move || !chosen_file.get())
                 .busy(accepted),
             ]}
             on_dismiss={move || cancelling.cancel()}
@@ -181,7 +178,7 @@ where
                     <Text style=TextStyle::CAPTION>{name}</Text>
                 </ListItem>
             </List>
-            <Show condition={failed}>
+            <Show value={failure}>|reason: ReadSignal<String>|
                 <Text style=TextStyle::CAPTION color=TextColor::Danger @test_id={error_id.clone()}>
                     {reason}
                 </Text>

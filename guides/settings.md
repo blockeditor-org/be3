@@ -71,19 +71,26 @@ the server included (decisions/owner_only_settings_are_never_escrowed.md). Its b
 `ensure_block_kind` pass `owner_only` to `Blocks::create_at`, the app protocol's `create-block`
 carries the flag, and the host passes it to `Peer::create_block`. It is made only in the
 author's own `Settings` or `SettingsProfile` (`be_block::holds_owner_only`, checked by the host
-and the server), nothing moves into it, block files leave it out, and collecting a detached
+and the server), or as the account's own block (`be_block::account_block`, at the top of the
+personal organization, where the account keeps its contacts' records: guides/blocks/keys.md,
+"Contacts"), nothing moves into it, block files leave it out, and collecting a detached
 subtree takes it with its parent. The block protocol's
 `create-block` stores it on the block for its whole life (`BlockNode::owner_only`), and the
 block is a scope root of its own whose key is sealed to its author alone (guides/blocks/keys.md,
 Escrow). Everyone else, administrators too, at most knows it exists
 (`BlockGraph::closed_to`, `Visibility::inherited` in `be-server/src/blocks.rs`); only the
-author moves it, and no one is granted it, by `set-access` or a contact link. `RootSetting` and `SettingsLayers` make a kind's
+author moves it, and no one is granted it, by a grant (`append-log`) or a contact link. `RootSetting` and `SettingsLayers` make a kind's
 block for an account with no `Settings` yet together with its `Settings`, whose first version
 already lists it, since a block just made can't be read back to edit; `write_all` answers false
 when what it writes to hasn't loaded, rather than dropping the write. Like every kind it syncs to every device unless a
 profile keeps it, and belongs to one organization. Losing the recovery phrase loses it, which
 the Settings list says in a company organization (`ONLY_YOURS` in `root/ui.rs`); an app holding
 a key just asks to connect again.
+
+A guest's `Settings` (guides/blocks/keys.md, "Share links") is itself owner-only, at the top
+of the organization it is a guest of: be-host makes it so (`RootSettings::set_guest`), and the
+server lets a guest make no other block but what lies in it
+(decisions/a_guest_makes_only_its_own_shell.md).
 
 ## Prefixes and tags
 
@@ -101,7 +108,8 @@ governs while it can't read the policy
 (decisions/server_enforced_settings_are_shared_with_the_server.md). The server seals the
 organization settings block's key to every member itself; clients accept that key for this
 block alone and only to read (decisions/a_server_sealed_key_never_seals_anything.md).
-`OrganizationPolicies` are enforced by the server (`ServerStore::policies`). A personal account
+`OrganizationPolicies` are enforced by the server (`ServerStore::policies`), among them whom
+share links may admit (`link_sharing`, guides/blocks/keys.md, "Share links"). A personal account
 never deletes anything on losing access
 (decisions/personal_account_data_is_never_deleted_automatically.md).
 

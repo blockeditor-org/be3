@@ -32,28 +32,39 @@ thread_local! {
     static COMMANDS: RefCell<Vec<UiCommand>> = const { RefCell::new(Vec::new()) };
 }
 
-const COPY_REPORT: &str = "copy-report";
-const OPEN_LINK: &str = "open-link";
+thread_local! {
+    /// The host's notices as toasts, and the notices' generation they were made at.
+    static NOTICE_TOASTS: RefCell<(Option<u64>, Vec<Toast>)> = const { RefCell::new((None, Vec::new())) };
+}
 
+/// The host's notices as toasts, made again only once the notices changed.
 pub(crate) fn notice_toasts() -> Vec<Toast> {
+    let generation = be_host_base::notices::generation();
+    NOTICE_TOASTS.with(|made| {
+        let mut made = made.borrow_mut();
+        if made.0 != Some(generation) {
+            *made = (Some(generation), make_notice_toasts());
+        }
+        made.1.clone()
+    })
+}
+
+fn make_notice_toasts() -> Vec<Toast> {
     be_host_base::notices::shown()
         .into_iter()
-        .map(|notice| {
-            let report = notice.report.iter().map(|_| ToastAction {
-                key: COPY_REPORT.to_owned(),
-                label: "Copy report".to_owned(),
-            });
-            let link = notice.link.iter().map(|_| ToastAction {
-                key: OPEN_LINK.to_owned(),
-                label: "Open".to_owned(),
-            });
-            Toast {
-                id: notice.id,
-                message: notice.message,
-                danger: notice.link.is_none() && !notice.refusal,
-                actions: report.chain(link).collect(),
-                ..Toast::default()
-            }
+        .map(|notice| Toast {
+            id: notice.id,
+            danger: notice.failure(),
+            actions: notice
+                .actions()
+                .into_iter()
+                .map(|(key, label)| ToastAction {
+                    key: key.to_owned(),
+                    label: label.to_owned(),
+                })
+                .collect(),
+            message: notice.message,
+            ..Toast::default()
         })
         .collect()
 }
@@ -93,8 +104,6 @@ pub(crate) struct PairingRow {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum ErrorAction {
     DeleteClientDatabase,
-    #[cfg(not(target_arch = "wasm32"))]
-    DeleteServerDatabase,
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -104,7 +113,7 @@ pub(crate) struct ErrorView {
     pub(crate) unsaved: usize,
 }
 
-pub(crate) use be_host_accounts_ui::AccountRow;
+pub(crate) use be_root_accounts_ui::AccountRow;
 
 pub(crate) fn account_row(
     account: &SavedAccount,
@@ -135,12 +144,25 @@ pub(crate) struct AddAccountView {
     pub(crate) error: Option<String>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub(crate) struct AccountForm {
     pub(crate) remote: bool,
     pub(crate) remote_url: String,
     pub(crate) authorization: String,
     pub(crate) display_name: String,
+}
+
+/// Leaves out the authorization, so no log ever holds it.
+impl std::fmt::Debug for AccountForm {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("AccountForm")
+            .field("remote", &self.remote)
+            .field("remote_url", &self.remote_url)
+            .field("authorization", &"..")
+            .field("display_name", &self.display_name)
+            .finish()
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -154,8 +176,13 @@ pub(crate) enum OrganizationsState {
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct JoiningRow {
     pub(crate) organization: String,
-    pub(crate) role: String,
-    pub(crate) email: String,
+    /// Who invited them, from the inviter's card.
+    pub(crate) inviter: String,
+    /// Why this account can't take it (already a member, say), or why nobody can (expired);
+    /// empty while it can be joined.
+    pub(crate) problem: String,
+    /// Signed in with an account that may join it now.
+    pub(crate) can_join: bool,
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -194,6 +221,8 @@ pub(crate) struct UnsentRow {
     pub(crate) offerable: bool,
     /// Why the server refused it, in words, when it did rather than access being lost.
     pub(crate) refused: Option<&'static str>,
+    /// Edits kept on this device that never became a commit.
+    pub(crate) kept_edits: usize,
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -219,6 +248,8 @@ pub(crate) struct StatusView {
     pub(crate) company: bool,
     pub(crate) administrator: bool,
     pub(crate) escrow_warning: Option<String>,
+    /// The blocks this device keeps hosting with no editor open (Keep hosting), by name.
+    pub(crate) hosting: Vec<(Uuid, String)>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -236,13 +267,60 @@ pub(crate) struct ProfileRow {
     pub(crate) current: bool,
 }
 
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Default, PartialEq)]
 pub(crate) struct InviteView {
     pub(crate) organization: String,
     pub(crate) busy: bool,
     pub(crate) error: Option<String>,
-    pub(crate) sent: u64,
     pub(crate) link: Option<String>,
+}
+
+/// Leaves out the link, a bearer secret, so no log ever holds it.
+impl std::fmt::Debug for InviteView {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("InviteView")
+            .field("organization", &self.organization)
+            .field("busy", &self.busy)
+            .field("error", &self.error)
+            .field("link", &self.link.as_ref().map(|_| ".."))
+            .finish()
+    }
+}
+
+/// An invitation in the organization's invite list.
+#[derive(Clone, PartialEq)]
+pub(crate) struct InvitationRow {
+    pub(crate) id: Uuid,
+    pub(crate) title: String,
+    pub(crate) detail: String,
+    /// Its link again, for one of the person's own still open.
+    pub(crate) link: Option<String>,
+    pub(crate) revocable: bool,
+    /// Expired: a fresh link takes its place in one step.
+    pub(crate) renewable: bool,
+}
+
+/// Leaves out the link, a bearer secret, so no log ever holds it.
+impl std::fmt::Debug for InvitationRow {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("InvitationRow")
+            .field("id", &self.id)
+            .field("title", &self.title)
+            .field("detail", &self.detail)
+            .field("link", &self.link.as_ref().map(|_| ".."))
+            .field("revocable", &self.revocable)
+            .field("renewable", &self.renewable)
+            .finish()
+    }
+}
+
+#[derive(Clone, Debug, Default, PartialEq)]
+pub(crate) struct InvitationsView {
+    pub(crate) rows: Vec<InvitationRow>,
+    pub(crate) busy: bool,
+    pub(crate) error: Option<String>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -251,9 +329,11 @@ pub(crate) struct ContactRow {
     pub(crate) name: String,
     pub(crate) email: String,
     pub(crate) verified: bool,
+    /// How the server's record of this contact differed from the one this device kept.
+    pub(crate) mismatch: Option<be_block_client::contacts::Mismatch>,
 }
 
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Default, PartialEq)]
 pub(crate) struct ContactsView {
     pub(crate) contacts: Vec<ContactRow>,
     pub(crate) link: Option<String>,
@@ -264,6 +344,32 @@ pub(crate) struct ContactsView {
     pub(crate) error: Option<String>,
 }
 
+/// The dialog opening a share link someone sent: what it would open, asked first, what it
+/// opened, and why it could not.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub(crate) struct ShareLinkView {
+    pub(crate) offer: Option<String>,
+    pub(crate) opened: Option<String>,
+    pub(crate) busy: bool,
+    pub(crate) error: Option<String>,
+}
+
+/// Leaves out the link, a bearer secret, so no log ever holds it.
+impl std::fmt::Debug for ContactsView {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("ContactsView")
+            .field("contacts", &self.contacts)
+            .field("link", &self.link.as_ref().map(|_| ".."))
+            .field("offer", &self.offer)
+            .field("connected", &self.connected)
+            .field("removing", &self.removing)
+            .field("busy", &self.busy)
+            .field("error", &self.error)
+            .finish()
+    }
+}
+
 #[derive(Clone, Debug, Default, PartialEq)]
 pub(crate) struct MemberRow {
     pub(crate) account: Uuid,
@@ -272,6 +378,8 @@ pub(crate) struct MemberRow {
     pub(crate) administrator: bool,
     pub(crate) me: bool,
     pub(crate) agent: bool,
+    /// A person no record in the organization's log signed in: the server added them on its own.
+    pub(crate) unsigned: bool,
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -342,8 +450,10 @@ pub(crate) struct HostUi {
     pub(crate) removing_account: Option<String>,
     pub(crate) status: StatusView,
     pub(crate) invite: Option<InviteView>,
+    pub(crate) invitations: Option<InvitationsView>,
     pub(crate) agents: Option<AgentsView>,
     pub(crate) contacts: Option<ContactsView>,
+    pub(crate) share_link: Option<ShareLinkView>,
     pub(crate) members: Option<MembersView>,
     pub(crate) about: bool,
     pub(crate) unsent: Option<UnsentView>,
@@ -359,7 +469,7 @@ pub(crate) struct HostUi {
     pub(crate) lock: LockView,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub(crate) enum UiCommand {
     Restart,
     AskErrorAction(ErrorAction),
@@ -408,9 +518,13 @@ pub(crate) enum UiCommand {
     ConfirmDiscardUnsent,
     CancelDiscardUnsent,
     CloseApp,
-    SendInvite(String, OrganizationRole),
     CloseInvite,
+    OpenInvitations,
+    CloseInvitations,
+    RevokeInvitation(Uuid),
     OpenAgents,
+    /// Stops hosting a block kept hosting (`hosting::Hosts::keep`).
+    StopHosting(Uuid),
     CloseAgents,
     OpenContacts,
     CloseContacts,
@@ -418,6 +532,11 @@ pub(crate) enum UiCommand {
     OpenContactLink(String),
     AcceptContact,
     DeclineContact,
+    OpenShareLinks,
+    CloseShareLinks,
+    OpenShareLink(String),
+    AcceptShareLink,
+    DeclineShareLink,
     /// Leave the block the dialog showed, unless another one is pending by then.
     ConfirmLeave(Uuid),
     CancelLeave,
@@ -451,7 +570,7 @@ pub(crate) enum UiCommand {
     /// Cycles the theme setting through the system's, light and dark.
     CycleTheme,
     #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
-    Unlock(be_host_base::password::Password),
+    Unlock(be_wasm_password::Password),
     #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
     LockPower(be_sdk_api::PowerAction),
 }
@@ -461,32 +580,28 @@ pub(crate) fn Displays(view: HostUiStore) -> NodeId {
     let shown = crate::display::shown();
     let windowed = create_memo(move || shown.with(|shown| !shown.is_empty()));
     view! {
-        <Layers>
-            <Dynamic value={windowed}>|windowed: bool| {
-                match windowed {
-                    false => view! {
-                        <Layers>
-                            <Root view />
-                            <AnchoredViews />
-                        </Layers>
-                    },
-                    true => {
-                        let keys = create_memo(move || {
-                            shown.with(|shown| {
-                                shown.iter().map(|display| display.id.clone()).collect::<Vec<_>>()
-                            })
-                        });
-                        view! {
-                            <Layers>
-                                <ForEach keys={keys}>|id: String|
-                                    <DisplayWindow view id />
-                                </ForEach>
-                            </Layers>
-                        }
-                    }
-                }
-            }</Dynamic>
-        </Layers>
+        <Show
+            value={windowed}
+            fallback={move || view! {
+                <Layers>
+                    <Root view />
+                    <AnchoredViews />
+                </Layers>
+            }}
+        >|| {
+            let keys = create_memo(move || {
+                shown.with(|shown| {
+                    shown.iter().map(|display| display.id.clone()).collect::<Vec<_>>()
+                })
+            });
+            view! {
+                <Layers>
+                    <ForEach value={keys}>|id: String|
+                        <DisplayWindow view id />
+                    </ForEach>
+                </Layers>
+            }
+        }</Show>
     }
 }
 
@@ -536,16 +651,14 @@ fn DisplayWindow(view: HostUiStore, id: String) -> NodeId {
             view! {
                 <beui::styled::Root>
                     <Layers>
-                        <Dynamic value={primary}>|primary: bool| {
-                            match primary {
-                                true => view! {
-                                    <Root view />
-                                },
-                                false => view! {
-                                    <SecondaryDisplay view index />
-                                },
-                            }
-                        }</Dynamic>
+                        <Show
+                            value={primary}
+                            fallback={move || view! {
+                                <SecondaryDisplay view index />
+                            }}
+                        >
+                            <Root view />
+                        </Show>
                         <AnchoredViews />
                     </Layers>
                 </beui::styled::Root>
@@ -561,13 +674,16 @@ fn SecondaryDisplay(view: HostUiStore, index: Memo<usize>) -> NodeId {
     let screen = view.screen;
     let presenting = view.presenting;
     let shell = crate::compositor::shell();
-    let desktop = create_memo(move || {
-        screen.get() == Screen::Organization && !presenting.get() && shell.get().is_some()
-    });
     view! {
         <Frame @node_ref=&area>
             <List spacing=Space::None>
-                <Show condition={desktop}>
+                <Show
+                    value={move || {
+                        screen.get() == Screen::Organization
+                            && !presenting.get()
+                            && shell.with(Option::is_some)
+                    }}
+                >
                     <Dynamic value={index}>|index: usize| {
                         let display = u32::try_from(index).unwrap_or(u32::MAX);
                         view! {
@@ -645,12 +761,11 @@ pub(crate) fn Root(view: HostUiStore) -> NodeId {
 #[component]
 fn HostActions(view: HostUiStore) -> NodeId {
     let screen = view.screen;
-    let signed_in = create_memo(move || screen.get() == Screen::Organization);
     Action::new("host.switch-account", "Switch account", || {
         send(UiCommand::SwitchAccount)
     })
     .glyph(beui::icons::ICON_USERS)
-    .enabled(signed_in)
+    .enabled(move || screen.get() == Screen::Organization)
     .register();
     Action::new(
         "host.theme",
@@ -670,7 +785,6 @@ fn DisplayChrome(view: HostUiStore, area: NodeRef, primary: bool) -> NodeId {
     let notices = view.toasts;
     let toasts = create_memo(move || slow_save.with_toast(notices.get()));
     let keep_display = view.keep_display;
-    let asking = create_memo(move || keep_display.get().is_some());
     let round = create_memo(move || keep_display.get().unwrap_or_default());
     let toasts = create_memo(move || match primary {
         true => toasts.get(),
@@ -687,12 +801,12 @@ fn DisplayChrome(view: HostUiStore, area: NodeRef, primary: bool) -> NodeId {
                     id => send(UiCommand::DismissToast(id)),
                 }}
                 on_action={move |(id, key): (u64, String)| {
-                    if key == COPY_REPORT
+                    if key == be_host_base::notices::COPY_REPORT
                         && let Some(report) = be_host_base::notices::report_of(id)
                     {
                         copy(Clip::text(report));
                     }
-                    if key == OPEN_LINK
+                    if key == be_host_base::notices::OPEN_LINK
                         && let Some(link) = be_host_base::notices::link_of(id)
                     {
                         if let Err(error) = be_host_base::platform::open_link(&link) {
@@ -703,7 +817,7 @@ fn DisplayChrome(view: HostUiStore, area: NodeRef, primary: bool) -> NodeId {
                 }}
             />
             <keep_changes::KeepChanges
-                open={asking}
+                open={move || keep_display.with(Option::is_some)}
                 title="Keep these display settings?"
                 timeout=crate::display::ANSWER_WITHIN
                 round={round}

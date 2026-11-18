@@ -45,7 +45,7 @@ pub fn PdfEditor(editor: Editor) -> NodeId {
     let device = editor.pixels_per_point();
     let (waker, rendered) = editor.woken();
     create_effect(move || {
-        rendered.get();
+        rendered.track();
         let _measure = performance.measure("Editor pump");
         let size = pages.shown().get_untracked().size();
         pages.pump(
@@ -88,11 +88,8 @@ pub fn PdfEditor(editor: Editor) -> NodeId {
     let busy = chooser.busy();
     let blocked = create_memo(move || read_only.get() || busy.get());
     let failure = chooser.error();
-    let refused = create_memo(move || failure.get().is_some());
-    let refusal = create_memo(move || failure.get().unwrap_or_default());
     let choose = move || chooser.open();
-    let source = block.project(|pdf| pdf.header().source_name.clone());
-    let name = create_memo(move || source.get());
+    let name = block.project(|pdf| pdf.header().source_name.clone());
 
     let chrome = editor.chrome_shown();
     let content = NodeRef::new();
@@ -108,26 +105,23 @@ pub fn PdfEditor(editor: Editor) -> NodeId {
     let details = Details {
         name,
         blocked,
-        refused,
-        refusal,
+        failure,
         choose: Callback::new(move |()| choose()),
     };
     view! {
         <List spacing=Space::None>
-            <Keyed value={chrome} key={|shown: bool| shown}>|chrome: ReadSignal<bool>| {
-                match chrome.get_untracked() {
-                    true => view! {
-                        <ListItem grow=1.0>
-                            <PdfDock editor content shown controls details />
-                        </ListItem>
-                    },
-                    false => view! {
-                        <ListItem grow=1.0>
-                            <Viewer editor content shown />
-                        </ListItem>
-                    },
-                }
-            }</Keyed>
+            <Show
+                value={chrome}
+                fallback={move || view! {
+                    <ListItem grow=1.0>
+                        <Viewer editor content shown />
+                    </ListItem>
+                }}
+            >
+                <ListItem grow=1.0>
+                    <PdfDock editor content shown controls details />
+                </ListItem>
+            </Show>
         </List>
     }
 }
@@ -146,8 +140,7 @@ struct Controls {
 struct Details {
     name: Memo<String>,
     blocked: Memo<bool>,
-    refused: Memo<bool>,
-    refusal: Memo<String>,
+    failure: ReadSignal<Option<String>>,
     choose: Callback<()>,
 }
 
@@ -238,8 +231,7 @@ fn DetailsPanel(details: Details) -> NodeId {
     let Details {
         name,
         blocked,
-        refused,
-        refusal,
+        failure,
         choose,
     } = details;
     view! {
@@ -252,7 +244,7 @@ fn DetailsPanel(details: Details) -> NodeId {
                 @test_id={"pdf.replace"}
                 on_click={move || choose.call(())}
             />
-            <Show condition={refused}>
+            <Show value={failure}>|refusal: ReadSignal<String>|
                 <Text style=TextStyle::CAPTION color=TextColor::Danger>{refusal}</Text>
             </Show>
         </List>
@@ -281,8 +273,6 @@ fn PageCanvas(
     #[prop(default = None)] view: be_sdk_beui::beui::reactive::Prop<Option<CanvasView>>,
 ) -> NodeId {
     let size = create_memo(move || shown.get().size());
-    let width = create_memo(move || size.get().x);
-    let height = create_memo(move || size.get().y);
     let keys =
         create_memo(move || (0..shown.with(|shown| shown.tiles.len())).collect::<Vec<usize>>());
     let failed = create_memo(move || shown.get().error.is_some());
@@ -291,10 +281,15 @@ fn PageCanvas(
         <List spacing=Space::None>
             <ListItem grow=1.0>
                 <Canvas view={view}>
-                    <CanvasItem x=0.0 y=0.0 width={width} height={height}>
+                    <CanvasItem
+                        x=0.0
+                        y=0.0
+                        width={move || size.get().x}
+                        height={move || size.get().y}
+                    >
                         <Frame fill={ColorRole::Custom(PAGE_FILL.into())} />
                     </CanvasItem>
-                    <ForEach keys={keys}>|index: usize| {
+                    <ForEach value={keys}>|index: usize| {
                         let tile = create_memo(move || {
                             shown.with(|shown| shown.tiles.get(index).cloned())
                         });
@@ -326,7 +321,7 @@ fn PageCanvas(
                     }</ForEach>
                 </Canvas>
             </ListItem>
-            <Show condition={failed}>
+            <Show value={failed}>
                 <Text style=TextStyle::CAPTION color=TextColor::Danger @test_id={"pdf.error"}>
                     {reason}
                 </Text>
@@ -348,7 +343,7 @@ pub fn PdfPreview(editor: Editor) -> NodeId {
     let device = editor.pixels_per_point();
     let (waker, rendered) = editor.woken();
     create_effect(move || {
-        rendered.get();
+        rendered.track();
         let _measure = performance.measure("Preview pump");
         let size = pages.shown().get_untracked().size();
         pages.pump(

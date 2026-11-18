@@ -8,17 +8,27 @@ use super::*;
 fn an_owed_seal_keeps_only_a_hurried_driver_waiting() {
     let block = Uuid::new_v4();
     let shared = Shared {
-        owing: 1,
-        owing_blocks: vec![be_block_type_host::Owing {
-            block,
-            content_type: Uuid::new_v4(),
-            publish_error: None,
-            journaled: true,
-            unreported: false,
-            publishing: 0,
-            joining: false,
-            closing: false,
-        }],
+        seen: crate::Seen {
+            owing: 1,
+            owing_blocks: vec![be_block_type_host::Owing {
+                block,
+                content_type: Uuid::new_v4(),
+                publish_error: None,
+                journaled: true,
+                clean: false,
+                owes_seal: true,
+                diverged: false,
+                unjournaled: None,
+                now: 0,
+                unreported: false,
+                publishing: 0,
+                joining: false,
+                rejoin_held: None,
+                closing: false,
+                keep_error: None,
+            }],
+            ..crate::Seen::default()
+        },
         ..Shared::default()
     };
     assert!(

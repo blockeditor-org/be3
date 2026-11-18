@@ -14,9 +14,8 @@ fn a_chat_message_sent_offline_into_a_closed_chat_notifies_once_as_the_outbox_dr
         for body in ["Running late", "Ten minutes", "Order for me"] {
             room.send(&mut editor, body, None);
         }
-        editor.until("took the messages", |editor| {
-            editor.content().messages().len() == 4
-        });
+        // Each waits in the outbox before the chat closes.
+        editor.until("kept the messages", |editor| editor.kept().len() == 3);
     }
     flush();
     wait_until("kept the messages in the outbox", |shared| {

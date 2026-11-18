@@ -4,11 +4,12 @@ use beui::icons::Glyph;
 use beui::icons::{
     ICON_ARCHIVE_RESTORE, ICON_ARROW_LEFT_RIGHT, ICON_BOT, ICON_BUG, ICON_CLOUD_ALERT,
     ICON_CLOUD_CHECK, ICON_CLOUD_OFF, ICON_CLOUD_SYNC, ICON_CONTACT, ICON_INFO, ICON_KEY,
-    ICON_LAYOUT_PANEL_LEFT, ICON_POWER, ICON_SHIELD_ALERT, ICON_USER_COG, ICON_USER_PLUS,
-    ICON_USERS,
+    ICON_LAYOUT_PANEL_LEFT, ICON_LINK, ICON_MAIL, ICON_POWER, ICON_RADIO_TOWER, ICON_SHIELD_ALERT,
+    ICON_USER_COG, ICON_USER_PLUS, ICON_USERS,
 };
 use beui::reactive::*;
 use beui::styled::*;
+use uuid::Uuid;
 
 use super::debug::DebugPanels;
 use super::dialogs::Dialogs;
@@ -31,12 +32,11 @@ fn OrganizationBody(view: HostUiStore) -> NodeId {
     let debug = view.debug;
     provide_context(DebugPanels(create_memo(move || debug.get())));
     let presenting = view.presenting;
-    let normal = create_memo(move || !presenting.get());
     let status = create_memo(move || view.status.get());
     provide_context(HostStatus(status));
     view! {
         <List spacing=Space::None>
-            <Show condition={normal}>
+            <Show value={move || !presenting.get()}>
                 <ListItem grow=1.0>
                     <MainSurface />
                 </ListItem>
@@ -124,83 +124,105 @@ fn HostMenu(
     let company = create_memo(move || status.get().company);
     let administrator = create_memo(move || status.get().administrator);
     let escrow_warning = create_memo(move || status.get().escrow_warning.unwrap_or_default());
-    let warned = create_memo(move || !escrow_warning.get().is_empty());
+    let warned = create_memo(move || !escrow_warning.with(String::is_empty));
+    let hosting = create_memo(move || status.get().hosting);
     let items = view! {
         <MenuItem
-            row_test_id={"host.menu.status".to_owned()}
+            @test_id={"host.menu.status".to_owned()}
             label={sync_label}
             glyph={sync_glyph}
             detail={sync_detail}
             disabled=true
         />
-        <Show condition={has_unsent}>
+        <Show value={has_unsent}>
             <MenuItem
-                row_test_id={"host.menu.unsent".to_owned()}
+                @test_id={"host.menu.unsent".to_owned()}
                 label="Unsent edits"
                 glyph=ICON_ARCHIVE_RESTORE
                 detail={unsent_detail}
                 on_click={move || pick(UiCommand::Unsent(true))}
             />
         </Show>
-        <Show condition={warned}>
+        <Show value={warned}>
             <MenuItem
-                row_test_id={"host.menu.escrow-warning".to_owned()}
+                @test_id={"host.menu.escrow-warning".to_owned()}
                 label="Escrow key not verified"
                 glyph=ICON_SHIELD_ALERT
                 detail={escrow_warning}
                 disabled=true
             />
         </Show>
+        <ForEach value={hosting}>|kept: (Uuid, String)|
+            <MenuItem
+                @test_id={format!("host.menu.hosting.{}", kept.0)}
+                label={format!("Stop hosting {}", kept.1)}
+                glyph=ICON_RADIO_TOWER
+                detail="Kept hosting here"
+                on_click={move || pick(UiCommand::StopHosting(kept.0))}
+            />
+        </ForEach>
         <MenuItem
-            row_test_id={"host.menu.contacts".to_owned()}
+            @test_id={"host.menu.contacts".to_owned()}
             label="Contacts"
             glyph=ICON_CONTACT
             separated=true
             on_click={move || pick(UiCommand::OpenContacts)}
         />
-        <Show condition={company}>
+        <MenuItem
+            @test_id={"host.menu.share-link".to_owned()}
+            label="Open a share link"
+            glyph=ICON_LINK
+            on_click={move || pick(UiCommand::OpenShareLinks)}
+        />
+        <Show value={company}>
             <MenuItem
-                row_test_id={"host.menu.invite".to_owned()}
+                @test_id={"host.menu.invite".to_owned()}
                 label="Invite member"
                 glyph=ICON_USER_PLUS
                 detail={organization}
                 on_click={move || pick(UiCommand::InviteMember)}
             />
         </Show>
-        <Show condition={administrator}>
+        <Show value={administrator}>
             <MenuItem
-                row_test_id={"host.menu.members".to_owned()}
+                @test_id={"host.menu.members".to_owned()}
                 label="Members"
                 glyph=ICON_USERS
                 on_click={move || pick(UiCommand::OpenMembers)}
             />
+            <MenuItem
+                @test_id={"host.menu.invitations".to_owned()}
+                label="Invitations"
+                glyph=ICON_MAIL
+                on_click={move || pick(UiCommand::OpenInvitations)}
+            />
         </Show>
         <MenuItem
-            row_test_id={"host.menu.agents".to_owned()}
+            @test_id={"host.menu.agents".to_owned()}
             label="Agents"
             glyph=ICON_BOT
             on_click={move || pick(UiCommand::OpenAgents)}
         />
         <MenuItem
-            row_test_id={"host.menu.switch-session".to_owned()}
+            @test_id={"host.menu.switch-session".to_owned()}
             label="Sessions and profiles"
             glyph=ICON_LAYOUT_PANEL_LEFT
             on_click={move || pick(UiCommand::SwitchSession)}
         />
         <MenuItem
-            row_test_id={"host.menu.switch-organization".to_owned()}
+            @test_id={"host.menu.switch-organization".to_owned()}
             label="Switch organization"
             glyph=ICON_ARROW_LEFT_RIGHT
             on_click={move || pick(UiCommand::SwitchOrganization)}
         />
         <MenuItem
-            row_test_id={"host.menu.recovery-phrase".to_owned()}
+            @test_id={"host.menu.recovery-phrase".to_owned()}
             label="New recovery phrase"
             glyph=ICON_KEY
             on_click={move || pick(UiCommand::NewRecoveryPhrase)}
         />
         <MenuItem
-            row_test_id={"host.menu.accounts".to_owned()}
+            @test_id={"host.menu.accounts".to_owned()}
             label="Manage accounts"
             glyph=ICON_USER_COG
             detail={signed_in_as}
@@ -208,22 +230,22 @@ fn HostMenu(
             on_click={move || pick(UiCommand::ManageAccounts)}
         />
         <MenuItem
-            row_test_id={"host.menu.about".to_owned()}
+            @test_id={"host.menu.about".to_owned()}
             label="About"
             glyph=ICON_INFO
             on_click={move || pick(UiCommand::About(true))}
         />
-        <Show condition={can_close}>
+        <Show value={can_close}>
             <MenuItem
-                row_test_id={"host.menu.close".to_owned()}
+                @test_id={"host.menu.close".to_owned()}
                 label="Close be-host"
                 glyph=ICON_POWER
                 on_click={move || pick(UiCommand::CloseApp)}
             />
         </Show>
-        <ForEach keys={HostPanel::ALL.to_vec()}>|shown: HostPanel|
+        <ForEach value={HostPanel::ALL.to_vec()}>|shown: HostPanel|
             <MenuItem
-                row_test_id={format!("host.menu.panel.{shown:?}")}
+                @test_id={format!("host.menu.panel.{shown:?}")}
                 label={shown.title().to_owned()}
                 glyph={panel_icon(shown).to_owned()}
                 separated={shown == HostPanel::ALL[0]}
@@ -231,7 +253,7 @@ fn HostMenu(
             />
         </ForEach>
         <MenuItem
-            row_test_id={"host.menu.inspector".to_owned()}
+            @test_id={"host.menu.inspector".to_owned()}
             label="Inspector"
             glyph=ICON_BUG
             on_click={move || pick(UiCommand::OpenInspector)}
@@ -244,18 +266,22 @@ fn HostMenu(
                 items
                 anchor={beui::OverlayAnchor::Point(beui::Pos2::ZERO)}
                 placement=beui::Placement::Fill
-                open=true
-                sheet=true
-                on_dismiss={move || {
-                    if let Some(report) = report {
+                open={Binding::new(true, move |open: bool| {
+                    if !open && let Some(report) = report {
                         report.done.set(true);
                     }
-                }}
+                })}
+                sheet=true
             />
         };
     }
+    // The popover starts at a size of its own and grows to what the menu reports, and the rows
+    // measure only what that start gave them: what they need is that plus what their scroll
+    // holds beyond its viewport, so the popover grows to them, and only a window too short for
+    // them scrolls, in the menu's own scroll.
+    let scrolled = create_signal(beui::ScrollPosition::ZERO);
     let rows = view! {
-        <MenuRows active=true items />
+        <MenuRows active=true items on_scroll={move |position| scrolled.set(position)} />
     };
     if let Some(report) = report {
         let held = NodeRef::new();
@@ -275,9 +301,16 @@ fn HostMenu(
             },
         );
         let measured = measure(rows);
+        // One memo of both, so the popover hears one size per change of either: never the
+        // rows' new measure with the scroll's old overflow, a frame too tall.
+        let wanted = create_memo(move || {
+            let measured = measured.get()?;
+            let beyond = scrolled.with(|scrolled| (scrolled.content - scrolled.viewport).max(0.0));
+            Some(measured.rect.size() + beui::vec2(0.0, beyond))
+        });
         create_effect(move || {
-            if let Some(measured) = measured.get() {
-                report.size.set(Some(measured.rect.size()));
+            if let Some(wanted) = wanted.get() {
+                report.size.set(Some(wanted));
             }
         });
     }

@@ -22,7 +22,7 @@ fn a_for_each_row_picks_and_changes_its_own_size() {
                 <Button @node_ref=&toggle on_click={move || tall.update(|tall| *tall = !*tall)}>
                     <Text>"toggle"</Text>
                 </Button>
-                <ForEach keys={vec![0, 1]}>|index: usize| {
+                <ForEach value={vec![0, 1]}>|index: usize| {
                     match index {
                         0 => view! {
                             <ListItem length>

@@ -1,32 +1,42 @@
 load("@root//buck/cargo:defs.bzl", "app_packages", "cargo_binary", "cargo_library", "cargo_package", "cargo_test")
-load("@root//buck/program:defs.bzl", "program", "type_bundle")
+load("@root//buck/program:defs.bzl", "program")
 
 cargo_package()
 
 cargo_library()
 
-# The tests name block types from the editors' manifests, as be does from the
-# bundle it carries.
+# The apps whose host components `be` runs (guides/apps/host_services.md, "Host
+# components"). No app's manifest, type module or wasm is compiled into `be`: one built here
+# reads the apps staged beside it, as be-host does, and a deployed `be` ships alone and reads
+# its release's (src/release.rs, guides/apps/runtime.md, "Headless"), so an app changing never
+# relinks it. The tests point it at :test-host-apps (BE_BUNDLE).
+HOST_APPS = ["example-counter"]
+
+program(
+    name = "test-host-apps",
+    app_types = ["//crates/be-app-{}:types".format(app) for app in HOST_APPS],
+    data = ["//crates/be-app-{}:data".format(app) for app in HOST_APPS],
+    index = True,
+    manifests = ["//crates/be-app-{}:manifest".format(app) for app in HOST_APPS],
+    modules = ["//crates/be-app-{}:module".format(app) for app in HOST_APPS],
+)
+
+# The tests name block types from every editor's manifest, as a `be` with every app
+# beside it does, and read the counter's modules from :test-host-apps.
 cargo_test(
-    env = {"EDITOR_MANIFESTS": "$(location //crates/be-sdk-manifest:editor-manifests)"},
-)
-
-# be carries every app's manifest and type module in its executable, so a
-# release is one file (guides/type_modules.md, "Hosts").
-type_bundle(
-    name = "app-types",
-    app_types = ["//{}:types".format(package) for package in app_packages()],
-    manifests = ["//{}:manifest".format(package) for package in app_packages()],
-)
-
-cargo_binary(
     env = {
-        "APP_TYPES": "$(location :app-types)",
+        "BE_BUNDLE": "$(location :test-host-apps)",
+        "EDITOR_MANIFESTS": "$(location //crates/be-sdk-manifest:editor-manifests)",
+        # be-host-runtime links ALSA for apps' audio, from the sysroot it was linked against.
+        "LD_LIBRARY_PATH": "$(location //buck/sysroot:amd64)/usr/lib/x86_64-linux-gnu:$(location //buck/sysroot:amd64-test)/usr/lib/x86_64-linux-gnu",
     },
 )
 
-# be with its build-info.json file beside it, which it greets the server with:
-# `./scripts/buck run //crates/be-tool-cli:native -- ARGS`.
+cargo_binary()
+
+# be alone with its build-info.json, which it greets the server with: what a deploy ships, which
+# then reads its release's apps. Built here it finds no apps beside it, so it reads no block's
+# content; :dev runs one that does.
 program(
     name = "native",
     binary = ":bin",
@@ -35,4 +45,47 @@ program(
     manifests = [],
     modules = [],
     visibility = ["//crates/be-tool-local:"],
+)
+
+app_names = [package.removeprefix("crates/be-app-") for package in app_packages()]
+
+# be with apps beside it, as a deployed be reads its release's:
+# `./scripts/buck run //crates/be-tool-cli:dev -- ARGS`. It stages every app's manifest and type
+# module, and the modules and data of HOST_APPS and those `-c be3.apps=text,database` names,
+# each crates/be-app-NAME by its NAME, as be-host's :dev takes it, whose host components it
+# runs. The bundle is named after them, :dev-database-text, so each selection has outputs of
+# its own.
+dev_extra_apps = sorted({name.strip(): None for name in read_config("be3", "apps", "").split(",") if name.strip() and name.strip() not in HOST_APPS}.keys())
+
+[
+    fail("be3.apps names {}, which is no crates/be-app-NAME: it is a comma-separated list of {}".format(name, ", ".join(app_names)))
+    for name in dev_extra_apps
+    if name not in app_names
+]
+
+dev_bundle = "-".join(["dev"] + dev_extra_apps) if dev_extra_apps else "dev-bundle"
+
+# Each is be with every app's manifest and type module beside it, which it reads blocks
+# through, and the modules and data of the apps whose host components it runs alone:
+# :terminal-host is what a development build of be-host uploads as a terminal host
+# (guides/terminal.md), built into ~/.cache/be3/terminal-host/ARCH with
+# `--target-platforms root//buck/platforms:linux_ARCH --out`, and runs none.
+[
+    program(
+        name = name,
+        app_types = ["//crates/be-app-{}:types".format(app) for app in app_names],
+        binary = ":bin",
+        data = ["//crates/be-app-{}:data".format(app) if app in hosted else None for app in app_names],
+        executable_name = "be",
+        files = ["//buck/program:build-info.json"],
+        index = True,
+        manifests = ["//crates/be-app-{}:manifest".format(app) for app in app_names],
+        modules = ["//crates/be-app-{}:module".format(app) if app in hosted else None for app in app_names],
+    )
+    for name, hosted in [("terminal-host", []), (dev_bundle, HOST_APPS + dev_extra_apps)]
+]
+
+alias(
+    name = "dev",
+    actual = ":" + dev_bundle,
 )

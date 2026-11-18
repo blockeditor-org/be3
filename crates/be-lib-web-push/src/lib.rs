@@ -129,6 +129,95 @@ pub fn open(ecdh_secret: &[u8], ua_public: &[u8], auth: &[u8], body: &[u8]) -> O
     (plain[end] == 2).then(|| plain[..end].to_vec())
 }
 
+/// A device's RFC 8291 keys: the P-256 key pair a push is encrypted to and the authentication
+/// secret, which a device that receives pushes without a browser keeps and registers with its
+/// endpoint.
+#[derive(Clone, PartialEq, Eq)]
+pub struct DeviceKeys {
+    private: p256::SecretKey,
+    auth: [u8; 16],
+}
+
+impl std::fmt::Debug for DeviceKeys {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("DeviceKeys")
+    }
+}
+
+/// Overwrites kept key bytes with zeros, in writes the compiler keeps, so a copy read from or
+/// written to storage does not linger in memory.
+pub fn forget(bytes: &mut [u8]) {
+    zeroize::Zeroize::zeroize(bytes);
+}
+
+/// The length of `DeviceKeys::to_bytes`: the private key, then the authentication secret.
+pub const DEVICE_KEYS_BYTES: usize = 32 + 16;
+
+impl DeviceKeys {
+    pub fn generate() -> Self {
+        let random = SystemRandom::new();
+        let mut auth = [0; 16];
+        random
+            .fill(&mut auth)
+            .expect("the system's random source answers");
+        loop {
+            let mut scalar = [0; 32];
+            random
+                .fill(&mut scalar)
+                .expect("the system's random source answers");
+            // Almost every 32 bytes are a scalar below the curve's order and not zero.
+            if let Ok(private) = p256::SecretKey::from_slice(&scalar) {
+                return Self { private, auth };
+            }
+        }
+    }
+
+    /// Keys kept with `to_bytes`.
+    pub fn from_bytes(bytes: &[u8]) -> Option<Self> {
+        if bytes.len() != DEVICE_KEYS_BYTES {
+            return None;
+        }
+        Some(Self {
+            private: p256::SecretKey::from_slice(&bytes[..32]).ok()?,
+            auth: bytes[32..].try_into().ok()?,
+        })
+    }
+
+    /// The keys to keep, holding the private key: `forget` them once kept.
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let mut bytes = self.private.to_bytes().to_vec();
+        bytes.extend_from_slice(&self.auth);
+        bytes
+    }
+
+    /// The public key, uncompressed (65 bytes), which a push is encrypted to (`p256dh`).
+    pub fn public(&self) -> Vec<u8> {
+        use p256::elliptic_curve::sec1::ToEncodedPoint;
+        self.private
+            .public_key()
+            .to_encoded_point(false)
+            .as_bytes()
+            .to_vec()
+    }
+
+    pub fn auth(&self) -> [u8; 16] {
+        self.auth
+    }
+
+    /// Decrypts a push sent to these keys, dropping its padding.
+    pub fn open(&self, body: &[u8]) -> Option<Vec<u8>> {
+        let sender = p256::PublicKey::from_sec1_bytes(sender_key(body)?).ok()?;
+        let secret =
+            p256::ecdh::diffie_hellman(self.private.to_nonzero_scalar(), sender.as_affine());
+        open(
+            secret.raw_secret_bytes().as_slice(),
+            &self.public(),
+            &self.auth,
+            body,
+        )
+    }
+}
+
 fn derive(
     ecdh_secret: &[u8],
     as_public: &[u8],

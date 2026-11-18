@@ -18,19 +18,22 @@ async fn publish_references(
     let before = author.held_by(expected);
     client
         .call(|peer| {
-            client::blocks::publish(
-                peer,
-                block,
-                commit,
-                expected,
-                expected.into_iter().collect(),
-                objects_change(&before, chunks),
-                time,
-                false,
-                references,
-                Vec::new(),
-                Vec::new(),
-            )
+            peer.write::<be_block_protocol::PublishOutcome>(be_block_protocol::Op::Publish {
+                block: block,
+                expected: expected,
+                commit: Some(be_block_protocol::NewCommit {
+                    id: commit,
+                    parents: expected.into_iter().collect(),
+                    held: objects_change(&before, chunks),
+                    time: time,
+                    pinned: false,
+                    objects: Vec::new(),
+                    log_through: None,
+                }),
+                references: references,
+                metadata: Vec::new(),
+                journal: None,
+            })
         })
         .await
 }
@@ -41,9 +44,9 @@ async fn publish_references(
 #[tokio::test]
 async fn a_publish_adding_a_reference_the_block_already_holds_moves_it() {
     let harness = Harness::start().await;
-    let mut client = harness.client().await;
-    let account = client.register("linker@example.com").await;
-    client.organization("links").await;
+    let mut client = harness.member("linker@example.com").await;
+    let account = client.id();
+    let organization = client.organization("links").await;
     let author = Author::new(account);
     let view = client.create_block(BlockParent::Root).await;
     let [a, b, c] = [
@@ -65,7 +68,10 @@ async fn a_publish_adding_a_reference_the_block_already_holds_moves_it() {
     let Ok(be_block_protocol::PublishOutcome::Published(head)) = first else {
         panic!("{first:?}");
     };
-    assert_eq!(client.read_block(view).await.references, vec![a, b]);
+    assert_eq!(
+        harness.kept_references(organization, view).await,
+        vec![a, b]
+    );
 
     // `b` is added at the front though the block holds it, and `c` at the end.
     let readding = ReferenceChange {
@@ -89,7 +95,10 @@ async fn a_publish_adding_a_reference_the_block_already_holds_moves_it() {
         matches!(second, Ok(be_block_protocol::PublishOutcome::Published(_))),
         "{second:?}"
     );
-    assert_eq!(client.read_block(view).await.references, vec![b, a, c]);
+    assert_eq!(
+        harness.kept_references(organization, view).await,
+        vec![b, a, c]
+    );
 
     harness.stop().await;
 }

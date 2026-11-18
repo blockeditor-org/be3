@@ -3,8 +3,8 @@ use super::*;
 #[tokio::test]
 async fn requests_sent_before_a_close_are_still_carried_out() {
     let harness = Harness::start().await;
-    let mut reader = harness.client().await;
-    let account = reader.register("author@example.com").await;
+    let mut reader = harness.member("author@example.com").await;
+    let account = reader.id();
     let organization = reader.organization("notes").await;
     let blocks = [
         reader.create_block(BlockParent::Root).await,
@@ -31,18 +31,23 @@ async fn requests_sent_before_a_close_are_still_carried_out() {
         .iter()
         .cloned()
         .map(|(block, head, chunks)| {
-            client::blocks::publish(
-                &publisher.peer,
-                block,
-                head,
-                None,
-                Vec::new(),
-                objects_change(&[], chunks),
-                1_000,
-                false,
-                listing(&[], Vec::new()),
-                Vec::new(),
-                Vec::new(),
+            publisher.peer.write::<be_block_protocol::PublishOutcome>(
+                be_block_protocol::Op::Publish {
+                    block: block,
+                    expected: None,
+                    commit: Some(be_block_protocol::NewCommit {
+                        id: head,
+                        parents: Vec::new(),
+                        held: objects_change(&[], chunks),
+                        time: 1_000,
+                        pinned: false,
+                        objects: Vec::new(),
+                        log_through: None,
+                    }),
+                    references: listing(&[], Vec::new()),
+                    metadata: Vec::new(),
+                    journal: None,
+                },
             )
         })
         .collect();
@@ -51,10 +56,13 @@ async fn requests_sent_before_a_close_are_still_carried_out() {
 
     let mut moved = Vec::new();
     while moved.len() < heads.len() {
-        if let Notice::BlockChanged { block, .. } = reader.graph_change().await
-            && let Some(head) = block.head
-        {
-            moved.push((block.id, head));
+        if let Notice::TreeAdvanced { entry, .. } = reader.graph_change().await {
+            let (summaries, _) = reader.read_changes(entry).await;
+            moved.extend(
+                summaries
+                    .into_iter()
+                    .filter_map(|block| Some((block.id, block.head?))),
+            );
         }
     }
     let expected: Vec<_> = heads

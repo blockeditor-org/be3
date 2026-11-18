@@ -24,9 +24,9 @@ use beui_view::types::{Color, Modifiers, Pos2, Rect};
 use super::dialog::{DialogParts, DockDialogHandle};
 use super::{
     BarCovers, BarFloats, Dock, DockApi, DockAwayHandle, DockBarBandHandle, DockBarHandle,
-    DockChromeHandle, DockConfig, DockGripHandle, DockHighlightHandle, DockPreviewHandle,
+    DockChromeHandle, DockConfig, DockCurves, DockGripHandle, DockPreviewHandle,
     DockSplitterHandle, DockStackHandle, DockStripHandle, DockSwitchHandle, DockSwitcherHandle,
-    DockTabHandle,
+    DockTabHandle, DockTabKeys,
 };
 use beui_components_unstyled::menu_popup::MenuStyle;
 pub use manager::{DockArea, DockWindowActions, holding_area};
@@ -128,7 +128,7 @@ struct HeldDialog {
 struct HostInner {
     _scope: Scope,
     bodies: RefCell<Option<DockBodies>>,
-    placed: Signal<u64>,
+    placed: Trigger,
     events: RefCell<Option<Callback<DockHostEvent>>>,
     dialogs: RefCell<HashMap<TabId, HeldDialog>>,
     dock: Cell<Option<ComponentRef<DockApi>>>,
@@ -191,7 +191,7 @@ impl DockHostLayout {
         let inner = HostInner {
             _scope: owner.into_scope(),
             bodies: RefCell::default(),
-            placed: create_signal(0),
+            placed: create_trigger(),
             events: RefCell::default(),
             dialogs: RefCell::default(),
             dock: Cell::new(None),
@@ -235,9 +235,7 @@ impl DockHostLayout {
     /// Says something outside covers the dock, so its floating dock bars drop from `LayerLevel::Raised`
     /// to `Normal` under it, as they do under a fullscreen tab.
     pub fn set_covered(&self, covered: bool) {
-        if self.covered.get_untracked() != covered {
-            self.covered.set(covered);
-        }
+        self.covered.set(covered);
     }
 
     /// Lets the band of the dock's own bars along each edge hide until revealed (`reveal`): the
@@ -415,9 +413,7 @@ impl DockHostLayout {
         next.adopt_bar_placements(&current, &bar_key);
         let hosts: Vec<TabId> = structure.hosts.iter().map(|(host, _, _)| *host).collect();
         let held = self.inner().hosts;
-        if held.with_untracked(|held| *held != hosts) {
-            held.set(hosts);
-        }
+        held.set(hosts);
         if next != current {
             self.state.set(next);
         }
@@ -508,7 +504,7 @@ impl DockHostLayout {
                 modal: read(|described| described.modal),
                 dismiss_on_outside_press: read(|described| described.dismiss_on_outside_press),
                 on_close: closable.then(|| Callback::new(move |()| layout.close(tab))),
-                content: RenderFn::new(move |()| layout.body(tab)),
+                content: BuildFn::new(move || layout.body(tab)),
             };
             (described, parts)
         });
@@ -541,6 +537,7 @@ struct HostStyle {
     short_below: f32,
     short_narrower_than: f32,
     drag_modifier: Prop<Option<Modifiers>>,
+    tab_keys: Prop<DockTabKeys>,
     menu: MenuStyle,
     splitter_thickness: f32,
     splitter_reach: f32,
@@ -549,28 +546,27 @@ struct HostStyle {
     back_shade: Prop<Color>,
     icon_sidebar_width: f32,
     inset: Prop<f32>,
-    tab: RenderFn<DockTabHandle>,
-    frame: Option<RenderFn<NodeId>>,
-    fullscreen: Option<RenderFn<NodeId>>,
-    away: Option<RenderFn<DockAwayHandle>>,
-    chrome: Option<RenderFn<DockChromeHandle>>,
-    bar: Option<RenderFn<DockBarHandle>>,
-    splitter: Option<RenderFn<DockSplitterHandle>>,
-    strip: Option<RenderFn<DockStripHandle>>,
-    grip: Option<RenderFn<DockGripHandle>>,
-    highlight: Option<RenderFn<DockHighlightHandle>>,
-    refused: Option<RenderFn<()>>,
-    preview: Option<RenderFn<DockPreviewHandle>>,
-    stack: Option<RenderFn<DockStackHandle>>,
-    switcher: Option<RenderFn<DockSwitcherHandle>>,
-    switch: Option<RenderFn<DockSwitchHandle>>,
-    dialog_chrome: Option<RenderFn<DockDialogHandle>>,
+    tab: RenderFn<DockTabHandle, NodeId>,
+    frame: Option<RenderFn<NodeId, NodeId>>,
+    fullscreen: Option<RenderFn<NodeId, NodeId>>,
+    away: Option<RenderFn<DockAwayHandle, NodeId>>,
+    chrome: Option<RenderFn<DockChromeHandle, NodeId>>,
+    bar: Option<RenderFn<DockBarHandle, NodeId>>,
+    splitter: Option<RenderFn<DockSplitterHandle, NodeId>>,
+    strip: Option<RenderFn<DockStripHandle, NodeId>>,
+    grip: Option<RenderFn<DockGripHandle, NodeId>>,
+    preview: Option<RenderFn<DockPreviewHandle, NodeId>>,
+    stack: Option<RenderFn<DockStackHandle, NodeId>>,
+    switcher: Option<RenderFn<DockSwitcherHandle, NodeId>>,
+    switch: Option<RenderFn<DockSwitchHandle, NodeId>>,
+    dialog_chrome: Option<RenderFn<DockDialogHandle, NodeId>>,
     dialog_beak: f32,
+    curves: DockCurves,
     dialog_radius: f32,
     dialog_scrim: Prop<Color>,
     window_border: f32,
     bar_margin: f32,
-    bar_band: Option<RenderFn<DockBarBandHandle>>,
+    bar_band: Option<RenderFn<DockBarBandHandle, NodeId>>,
 }
 
 #[derive(Clone)]
@@ -611,7 +607,7 @@ impl DockHostLink for LocalLink {
     fn place(&self, bodies: DockBodies) {
         let inner = self.layout.inner();
         *inner.bodies.borrow_mut() = Some(bodies);
-        inner.placed.update(|placed| *placed += 1);
+        inner.placed.notify();
         let joined = inner.bars_link.borrow().is_some();
         if let Some(bars) = self.bars.clone().filter(|_| !joined) {
             join_bars(self.layout, bars);
@@ -641,6 +637,7 @@ fn HostedDock(layout: DockHostLayout, style: HostStyle) -> NodeId {
         short_below,
         short_narrower_than,
         drag_modifier,
+        tab_keys,
         menu,
         splitter_thickness,
         splitter_reach,
@@ -658,14 +655,13 @@ fn HostedDock(layout: DockHostLayout, style: HostStyle) -> NodeId {
         splitter,
         strip,
         grip,
-        highlight,
-        refused,
         preview,
         stack,
         switcher,
         switch,
         dialog_chrome,
         dialog_beak,
+        curves,
         dialog_radius,
         dialog_scrim,
         window_border,
@@ -734,7 +730,7 @@ fn HostedDock(layout: DockHostLayout, style: HostStyle) -> NodeId {
     };
     let content = RenderFn::new(move |tab: TabId| {
         let known = move || {
-            placed.get();
+            placed.track();
             layout.inner().bodies.borrow().is_some()
                 && declared.with(|declared| {
                     declared
@@ -747,17 +743,9 @@ fn HostedDock(layout: DockHostLayout, style: HostStyle) -> NodeId {
         }
         let ready = create_memo(known);
         view! {
-            <Layers>
-                <Dynamic value={ready}>|ready: bool| {
-                    match ready {
-                        true => place(tab),
-                        false => view! {
-                            <Frame />
-                        },
-                    }
-                }</Dynamic>
-            </Layers>
+            <Show value={ready}>|| { place(tab) }</Show>
         }
+        .into_output()
     });
     let empty = RenderFn::new(move |leaf: LeafId| {
         let key = layout
@@ -825,6 +813,7 @@ fn HostedDock(layout: DockHostLayout, style: HostStyle) -> NodeId {
                 short_narrower_than,
                 mode: layout.mode,
                 drag_modifier,
+                tab_keys,
                 splitter_thickness,
                 splitter_reach,
                 group_inset,
@@ -842,8 +831,6 @@ fn HostedDock(layout: DockHostLayout, style: HostStyle) -> NodeId {
                 splitter,
                 strip,
                 grip,
-                highlight,
-                refused,
                 preview,
                 stack,
                 switcher,
@@ -852,6 +839,7 @@ fn HostedDock(layout: DockHostLayout, style: HostStyle) -> NodeId {
                 dialog,
                 dialog_chrome,
                 dialog_beak,
+                curves,
                 dialog_radius,
                 dialog_scrim: create_memo(move || dialog_scrim.get()),
                 window_border,
@@ -920,7 +908,8 @@ fn join_bars(layout: DockHostLayout, link: Rc<dyn DockHostLink>) {
 /// Given `bars` (or inside a `DockHost` that was), it is joined by bars only: it declares its owned
 /// bars to that link and draws none of them while the link hosts them. `drag_modifier` (none by
 /// default) turns a drag anywhere in a floating window into a move, and a secondary drag into a
-/// resize, while those modifiers are held.
+/// resize, while those modifiers are held. `tab_keys` are the chords of Next tab and Previous tab
+/// (`DockTabKeys::CTRL` by default).
 #[component]
 pub fn DockHost(
     #[prop(default = DockHostLayout::new())] layout: DockHostLayout,
@@ -930,6 +919,7 @@ pub fn DockHost(
     #[prop(default = 0.0)] short_below: f32,
     #[prop(default = 0.0)] short_narrower_than: f32,
     #[prop(default = None)] drag_modifier: Prop<Option<Modifiers>>,
+    #[prop(default = DockTabKeys::CTRL)] tab_keys: Prop<DockTabKeys>,
     menu: MenuStyle,
     splitter_thickness: f32,
     #[prop(default = 0.0)] splitter_reach: f32,
@@ -938,34 +928,33 @@ pub fn DockHost(
     back_shade: Prop<Color>,
     icon_sidebar_width: f32,
     #[prop(default = 0.0)] inset: Prop<f32>,
-    tab: RenderFn<DockTabHandle>,
-    frame: Option<RenderFn<NodeId>>,
-    fullscreen: Option<RenderFn<NodeId>>,
-    away: Option<RenderFn<DockAwayHandle>>,
-    chrome: Option<RenderFn<DockChromeHandle>>,
-    bar: Option<RenderFn<DockBarHandle>>,
-    splitter: Option<RenderFn<DockSplitterHandle>>,
-    strip: Option<RenderFn<DockStripHandle>>,
-    grip: Option<RenderFn<DockGripHandle>>,
-    highlight: Option<RenderFn<DockHighlightHandle>>,
-    refused: Option<RenderFn<()>>,
-    preview: Option<RenderFn<DockPreviewHandle>>,
-    stack: Option<RenderFn<DockStackHandle>>,
-    switcher: Option<RenderFn<DockSwitcherHandle>>,
-    switch: Option<RenderFn<DockSwitchHandle>>,
-    dialog_chrome: Option<RenderFn<DockDialogHandle>>,
+    tab: RenderFn<DockTabHandle, NodeId>,
+    frame: Option<RenderFn<NodeId, NodeId>>,
+    fullscreen: Option<RenderFn<NodeId, NodeId>>,
+    away: Option<RenderFn<DockAwayHandle, NodeId>>,
+    chrome: Option<RenderFn<DockChromeHandle, NodeId>>,
+    bar: Option<RenderFn<DockBarHandle, NodeId>>,
+    splitter: Option<RenderFn<DockSplitterHandle, NodeId>>,
+    strip: Option<RenderFn<DockStripHandle, NodeId>>,
+    grip: Option<RenderFn<DockGripHandle, NodeId>>,
+    preview: Option<RenderFn<DockPreviewHandle, NodeId>>,
+    stack: Option<RenderFn<DockStackHandle, NodeId>>,
+    switcher: Option<RenderFn<DockSwitcherHandle, NodeId>>,
+    switch: Option<RenderFn<DockSwitchHandle, NodeId>>,
+    dialog_chrome: Option<RenderFn<DockDialogHandle, NodeId>>,
     #[prop(default = 0.0)] dialog_beak: f32,
+    curves: DockCurves,
     #[prop(default = 0.0)] dialog_radius: f32,
     #[prop(default = Color::TRANSPARENT)] dialog_scrim: Prop<Color>,
     #[prop(default = 0.0)] window_border: f32,
     #[prop(default = 0.0)] bar_margin: f32,
-    bar_band: Option<RenderFn<DockBarBandHandle>>,
-    #[prop(children)] content: Render,
+    bar_band: Option<RenderFn<DockBarBandHandle, NodeId>>,
+    #[prop(children)] content: Build<NodeId>,
 ) -> NodeId {
     let joined =
         use_context::<DockHostSlot>().is_some_and(|slot| !slot.is_local() && !slot.is_claimed());
     if joined {
-        return content.call(());
+        return content.call();
     }
     let style = HostStyle {
         api,
@@ -973,6 +962,7 @@ pub fn DockHost(
         short_below,
         short_narrower_than,
         drag_modifier,
+        tab_keys,
         menu,
         splitter_thickness,
         splitter_reach,
@@ -990,14 +980,13 @@ pub fn DockHost(
         splitter,
         strip,
         grip,
-        highlight,
-        refused,
         preview,
         stack,
         switcher,
         switch,
         dialog_chrome,
         dialog_beak,
+        curves,
         dialog_radius,
         dialog_scrim,
         window_border,
@@ -1032,5 +1021,5 @@ pub fn DockHost(
     });
     provide_context(DockJoin::none());
     provide_context(DockHostSlot::local(link));
-    content.call(())
+    content.call()
 }

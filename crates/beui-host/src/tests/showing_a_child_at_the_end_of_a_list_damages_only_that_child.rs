@@ -11,7 +11,7 @@ fn showing_a_child_at_the_end_of_a_list_damages_only_that_child() {
             <List spacing=0.0>
                 <Frame height=40.0 fill=Color32::WHITE />
                 <Frame height=40.0 fill={Color32::from_gray(128)} />
-                <Show condition={shown}>
+                <Show value={shown}>
                     <Frame height=20.0 fill=Color32::BLACK />
                 </Show>
             </List>

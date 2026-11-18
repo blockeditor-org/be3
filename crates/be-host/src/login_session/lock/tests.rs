@@ -14,7 +14,8 @@ struct Recorder {
 
 impl Authenticate for Recorder {
     fn start(&mut self, attempt: u64, password: Password) {
-        self.attempts.push((attempt, password.as_str().to_owned()));
+        self.attempts
+            .push((attempt, password.as_str().unwrap_or_default().to_owned()));
     }
 }
 
@@ -31,7 +32,7 @@ fn locked() -> Lock {
 }
 
 fn password(typed: &str) -> Password {
-    Password::new(typed.to_owned())
+    Password::from(typed.to_owned())
 }
 
 fn seconds(seconds: u64) -> Duration {

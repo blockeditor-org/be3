@@ -332,8 +332,8 @@ impl OverlayNode {
         );
         let available = match (inside, self.placement) {
             (true, _) => anchor_rect.intersect(area).size().max(Vec2::ZERO),
-            (false, Placement::Popover { margin, .. }) => {
-                area.shrink(f32::from(margin)).size().max(Vec2::ZERO)
+            (false, Placement::Beside { .. }) => {
+                beui_types::layer::room(area, anchor_rect, self.placement)
             }
             (false, _) => area.size(),
         };
@@ -376,7 +376,7 @@ impl OverlayNode {
         area: Rect,
         out: &Rects,
     ) {
-        if !matches!(self.placement, Placement::Popover { .. }) {
+        if !self.points() {
             return;
         }
         let Some(frame) = self
@@ -411,7 +411,7 @@ impl OverlayNode {
         });
         let reach = doc.arena.get_as::<BeakNode>(beak).reach;
         let pointing = placed.and_then(|rect| {
-            if !matches!(self.placement, Placement::Popover { .. }) {
+            if !self.points() {
                 return None;
             }
             let (lowest, highest) = beak_room(reach, &style, rect);
@@ -438,6 +438,15 @@ impl OverlayNode {
         if let Some(rect) = placed {
             crate::layout::layout(doc, painter, beak.id(), rect, out);
         }
+    }
+
+    /// Whether the content stands off its anchor by its pointer frame and points a beak at it:
+    /// above or below its anchor, where the beak can point.
+    fn points(&self) -> bool {
+        matches!(
+            self.placement,
+            Placement::Beside { side, .. } if side.vertical()
+        )
     }
 
     pub(crate) fn dims(&self) -> bool {
@@ -737,6 +746,16 @@ impl Document {
 
     pub fn overlay_beak(&self, overlay: NodeOf<OverlayNode>) -> Option<NodeId> {
         Some(self.arena.get_as::<OverlayNode>(overlay).beak.id())
+    }
+
+    /// Where the beak paints its tip, from the left of its pointer frame, or `None` while it
+    /// points at nothing: what the next paint draws, not what layout last asked for.
+    pub fn overlay_beak_points_at(&self, overlay: NodeOf<OverlayNode>) -> Option<f32> {
+        let beak = self.arena.get_as::<OverlayNode>(overlay).beak;
+        let node = self.arena.get_as::<BeakNode>(beak);
+        node.pointing
+            .filter(|_| node.reach > 0.0)
+            .map(|pointing| pointing.at)
     }
 
     pub fn set_overlay_scrim(&mut self, overlay: NodeOf<OverlayNode>, color: impl Into<Color>) {

@@ -35,6 +35,55 @@ pub struct AppManifest {
     pub network: Vec<String>,
     pub extensions: Vec<String>,
     pub block_agents: bool,
+    /// Whether the app may grant or reveal access (guides/apps/host_services.md).
+    pub sharing: bool,
+    /// The app's host components (guides/apps/host_services.md, "Host components").
+    pub hosts: Vec<HostManifest>,
+    /// The app's worker modules, by file name, which it may start through the sandbox API
+    /// (guides/adding_an_app.md, Workers).
+    pub workers: Vec<String>,
+    /// Whether the app is a root guest (plans/host_as_platform_adapter.md, The root guest),
+    /// which `be-host --root=APP` runs in place of its own UI: a module with no editors, block
+    /// types or host components of its own, staged as an app is so it spawns the apps it embeds.
+    pub root: bool,
+}
+
+/// A host component: a component of the app's wasm with no frame, which the host opens on a
+/// block of the type it `edits`, attached to the replica as an editor with Edit is, with no
+/// view and no input. It is how a hosted block's host runs (plans/hosted_blocks.md), in
+/// be-host or headless in `be` (plans/headless_apps.md).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct HostManifest {
+    pub id: [u8; 16],
+    pub name: String,
+    /// The block type it runs on.
+    pub edits: [u8; 16],
+    /// The levels a block of the type is shared at, each named and said in a line for what
+    /// it adds for the type's stored content (plans/hosted_blocks.md, "The share dialog"):
+    /// Join always. The dialog lists them by level, whatever order they are written in. Only
+    /// a type of the app's own: on another's, a host could rename that type's levels.
+    pub levels: Vec<OfferedLevel>,
+}
+
+/// A level a hosted type offers in the share dialog.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct OfferedLevel {
+    pub access: OfferedAccess,
+    /// What the dialog calls it ("Join game", "Host").
+    pub name: String,
+    /// One line saying what it lets someone do with the stored block.
+    pub line: String,
+}
+
+/// The core levels a hosted type may offer: every one a grant may give.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum OfferedAccess {
+    Join,
+    View,
+    Edit,
+    Manage,
 }
 
 pub const EXTENSIONS: &[&str] = &["be3:desktop"];
@@ -56,6 +105,8 @@ pub struct BlockTypeManifest {
     pub descriptor: BlockTypeDescriptor,
     pub module: String,
     pub exported_whole: bool,
+    /// The type counts what is unread (`counts_unread` in the manifest).
+    pub counts_unread: bool,
 }
 
 impl BlockTypeManifest {
@@ -169,12 +220,17 @@ pub enum ManifestError {
     InvalidNetworkHost,
     UnknownExtension,
     NoEditors,
+    RootWithComponents,
     DuplicateEditor,
     DuplicateBlockType,
     SeveralTypeModules,
     DuplicateTemplate,
     TemplateWithoutBlockType,
     ServiceWithTemplates,
+    DuplicateHost,
+    InvalidLevels,
+    HostOfAnotherType,
+    InvalidWorker,
 }
 
 impl fmt::Display for ManifestError {
@@ -198,6 +254,20 @@ impl fmt::Display for ManifestError {
             Self::NoEditors => {
                 formatter.write_str("the app declares no editors and no block types")
             }
+            Self::RootWithComponents => formatter
+                .write_str("a root declares no editors, block types or host components"),
+            Self::InvalidWorker => formatter.write_str(
+                "a worker is not a plain .wasm file name, is named twice, or is the entry point",
+            ),
+            Self::DuplicateHost => formatter.write_str(
+                "a host component shares an id or name with an editor or another host, or two run on one type",
+            ),
+            Self::InvalidLevels => formatter.write_str(
+                "a host component's levels must offer Join, and each level once",
+            ),
+            Self::HostOfAnotherType => formatter.write_str(
+                "a host component runs only on a block type its own app declares",
+            ),
             Self::DuplicateBlockType => {
                 formatter.write_str("two block types are declared with the same id or name")
             }
@@ -233,7 +303,11 @@ impl AppManifest {
         {
             return Err(ManifestError::InvalidIdentity);
         }
-        if self.editors.is_empty() && self.block_types.is_empty() {
+        if self.root {
+            if !self.editors.is_empty() || !self.block_types.is_empty() || !self.hosts.is_empty() {
+                return Err(ManifestError::RootWithComponents);
+            }
+        } else if self.editors.is_empty() && self.block_types.is_empty() {
             return Err(ManifestError::NoEditors);
         }
         for (index, block_type) in self.block_types.iter().enumerate() {
@@ -259,6 +333,45 @@ impl AppManifest {
             }
             editor.validate()?;
         }
+        for (index, host) in self.hosts.iter().enumerate() {
+            manifest_string("host name", &host.name)?;
+            // One registry of components, so a host shares no id or name with an editor or
+            // another host, and one host per type, which a hosted block's lease names.
+            if self.hosts[..index].iter().any(|other| {
+                other.id == host.id || other.name == host.name || other.edits == host.edits
+            }) || self
+                .editors
+                .iter()
+                .any(|editor| editor.id == host.id || editor.name == host.name)
+            {
+                return Err(ManifestError::DuplicateHost);
+            }
+            // A host names and offers the levels of its own app's type alone: on another's (text,
+            // or another app's) it could relabel a level or turn on Join in that type's dialog.
+            if !self
+                .block_types
+                .iter()
+                .any(|block_type| block_type.content_type() == host.edits)
+            {
+                return Err(ManifestError::HostOfAnotherType);
+            }
+            if !host
+                .levels
+                .iter()
+                .any(|level| level.access == OfferedAccess::Join)
+                || host.levels.iter().enumerate().any(|(index, level)| {
+                    host.levels[..index]
+                        .iter()
+                        .any(|other| other.access == level.access)
+                })
+            {
+                return Err(ManifestError::InvalidLevels);
+            }
+            for level in &host.levels {
+                manifest_string("level name", &level.name)?;
+                manifest_string("level line", &level.line)?;
+            }
+        }
         manifest_string("entry point", &self.entry_point)?;
         for host in &self.network {
             manifest_string("network host", host)?;
@@ -268,6 +381,15 @@ impl AppManifest {
                     .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'-'))
             {
                 return Err(ManifestError::InvalidNetworkHost);
+            }
+        }
+        for (index, worker) in self.workers.iter().enumerate() {
+            manifest_string("worker", worker)?;
+            if !plain_module(worker)
+                || *worker == self.entry_point
+                || self.workers[..index].contains(worker)
+            {
+                return Err(ManifestError::InvalidWorker);
             }
         }
         for (index, extension) in self.extensions.iter().enumerate() {
@@ -322,3 +444,15 @@ fn manifest_string(field: &'static str, value: &str) -> Result<(), ManifestError
 }
 #[cfg(test)]
 mod tests;
+
+/// Whether `name` is a module's plain file name, such as `tiles.wasm`: no path, only ASCII
+/// letters, digits, `.`, `-` and `_`, ending in `.wasm`.
+pub fn plain_module(name: &str) -> bool {
+    name.strip_suffix(".wasm").is_some_and(|stem| {
+        !stem.is_empty()
+            && !stem.starts_with('.')
+            && stem
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'-' | b'_'))
+    })
+}

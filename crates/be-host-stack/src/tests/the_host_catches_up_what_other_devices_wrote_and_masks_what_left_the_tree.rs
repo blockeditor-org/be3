@@ -18,7 +18,7 @@ fn finds(text: &str, within: Option<Uuid>, blocks: &[Uuid]) {
     want_searches(Owner::Host, vec![ask.clone()]);
     let mut expected = blocks.to_vec();
     expected.sort();
-    crate::wait_until(|shared| {
+    crate::wait_until(&format!("found {text:?} in what it should"), |shared| {
         let answer = shared.search.answer(&ask)?;
         let mut found: Vec<Uuid> = answer.hits.iter().map(|hit| hit.block).collect();
         found.sort();

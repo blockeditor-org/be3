@@ -11,7 +11,7 @@ const MAGIC: &[u8] = b"be3 block file\n";
 const VERSION: u32 = 1;
 const TOP: u32 = u32::MAX;
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
 pub struct Saved {
     pub id: Uuid,
     pub block_type: Uuid,
@@ -19,6 +19,10 @@ pub struct Saved {
     pub metadata: BlockMetadata,
     pub references: Vec<Uuid>,
     pub content: Option<Vec<u8>>,
+    /// The block's signed log, opened, each entry as its author signed it in the block `id`
+    /// (`Peer::export_log`, `Peer::verify_exported`), a redacted one without what it said;
+    /// empty for a block with none.
+    pub log: Vec<crate::ExportedEntry>,
 }
 
 pub fn encode(blocks: &[Saved]) -> Vec<u8> {
@@ -48,6 +52,24 @@ pub fn encode(blocks: &[Saved]) -> Vec<u8> {
                 out.extend(content);
             }
             None => out.push(0),
+        }
+        out.extend((block.log.len() as u32).to_le_bytes());
+        for entry in &block.log {
+            out.extend(entry.seq.to_le_bytes());
+            out.extend(entry.id.as_bytes());
+            out.extend(entry.author.as_bytes());
+            out.extend(entry.arrival.to_le_bytes());
+            match &entry.said {
+                Some(said) => {
+                    out.push(1);
+                    out.extend(said.salt);
+                    out.extend((said.bytes.len() as u64).to_le_bytes());
+                    out.extend(&said.bytes);
+                }
+                None => out.push(0),
+            }
+            out.extend((entry.signature.len() as u32).to_le_bytes());
+            out.extend(&entry.signature);
         }
     }
     out
@@ -89,6 +111,38 @@ pub fn decode(bytes: &[u8]) -> Result<Vec<Saved>, String> {
                 Some(reader.take(length)?.to_vec())
             }
         };
+        let mut log = Vec::new();
+        for _ in 0..reader.u32()? {
+            let seq = reader.u64()?;
+            let id = reader.uuid()?;
+            let author = reader.uuid()?;
+            let arrival = reader.u64()? as i64;
+            let said = match reader.take(1)?[0] {
+                0 => None,
+                _ => {
+                    let salt = reader
+                        .take(crate::LOG_SALT_BYTES)?
+                        .try_into()
+                        .expect("the salt is taken whole");
+                    let length = usize::try_from(reader.u64()?)
+                        .map_err(|_| "an entry in the file is too large".to_owned())?;
+                    Some(crate::Said {
+                        salt,
+                        bytes: reader.take(length)?.to_vec(),
+                    })
+                }
+            };
+            let length = reader.u32()? as usize;
+            let signature = reader.take(length)?.to_vec();
+            log.push(crate::ExportedEntry {
+                seq,
+                id,
+                author,
+                arrival,
+                said,
+                signature,
+            });
+        }
         blocks.push(Saved {
             id,
             block_type,
@@ -96,6 +150,7 @@ pub fn decode(bytes: &[u8]) -> Result<Vec<Saved>, String> {
             metadata,
             references,
             content,
+            log,
         });
     }
     let mut seen = std::collections::HashSet::new();
@@ -272,6 +327,8 @@ pub fn renumber(blocks: Vec<Saved>) -> Vec<Saved> {
                     .map(|reference| ids.get(reference).copied().unwrap_or(*reference))
                     .collect(),
                 content: block.content.map(|bytes| swap.apply(&bytes)),
+                // A copy starts its own log: what the original's authors signed is the original's.
+                log: Vec::new(),
             }
         })
         .collect()

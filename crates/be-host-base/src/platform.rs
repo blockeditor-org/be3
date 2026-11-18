@@ -11,8 +11,6 @@ pub use utc_offset::utc_offset;
 #[cfg(target_arch = "wasm32")]
 pub use web::{Request, spawn_request};
 
-pub const HAS_EMBEDDED_SERVER: bool = cfg!(not(target_arch = "wasm32"));
-
 pub const SENDS_HEADERS: bool = cfg!(not(target_arch = "wasm32"));
 
 pub fn default_account_server() -> Option<be_lib_build_id::DefaultServer> {

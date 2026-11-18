@@ -12,7 +12,7 @@ fn a_merge_over_parts_reads_only_the_parts_each_side_changed() {
             saved => panic!("the base publishes: {saved:?}"),
         };
         let base = peer
-            .load_commit(head)
+            .load_reached(head)
             .await
             .expect("the base loads")
             .manifest;
@@ -75,7 +75,7 @@ fn a_merge_over_parts_reads_only_the_parts_each_side_changed() {
             saved => panic!("the merge publishes: {saved:?}"),
         };
         let manifest = peer
-            .load_commit(published)
+            .load_reached(published)
             .await
             .expect("the merge loads")
             .manifest;

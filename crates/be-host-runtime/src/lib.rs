@@ -8,24 +8,29 @@ use be_sdk_manifest::AppManifest;
 use beui::{Rect, Vec2};
 use uuid::Uuid;
 
+use be_sdk_app_host::{calls, sent, session, wire};
+
 mod audio;
 mod backend;
-mod calls;
 mod description;
 mod docks;
 mod events;
 mod fonts;
+
+pub use fonts::bundled as bundled_fonts;
+mod headless;
 mod heads;
 mod input;
 mod instances;
+mod layers;
+mod members;
+pub use headless::{Headless, begin_host_frame};
 mod palette;
 mod pieces;
 mod presenter;
 mod previews;
 mod published;
 mod runtime;
-mod sent;
-mod session;
 #[cfg(not(target_arch = "wasm32"))]
 mod surface;
 #[cfg(not(target_arch = "wasm32"))]
@@ -33,7 +38,6 @@ mod wasm;
 #[cfg(target_arch = "wasm32")]
 mod web;
 mod windows;
-mod wire;
 
 /// Each running wasm guest, apps and type modules alike, by the name its thread has (`app ID` for
 /// an app), with the bytes of linear memory it holds.
@@ -43,7 +47,7 @@ pub use description::describe;
 pub use events::{Heard, InstanceEvent, listen};
 pub use input::BlockDrag;
 pub use instances::gift::{GiftView, KeyProgress, is_press};
-pub use instances::{EditorView, Focus};
+pub use instances::{EditorView, Focus, roles_revision, set_hosting};
 pub(crate) use palette::host_draws_palette;
 pub use palette::{PaletteAsk, draw_palette, instance_actions, run_view_action, take_palette_asks};
 pub use pieces::uncovered as uncovered_pieces;
@@ -64,25 +68,23 @@ pub use runtime::{
 };
 pub use runtime::{
     artifact, artifact_draft, assigned_size, begin_frame, busy, card, close, commit_creation,
-    content_delivered, content_view, crash, creation, dialog_status, dismiss, drawing, flush,
-    forget_dialog_answer, frame_child, frame_rects, frames_answered, hold, in_use, install,
-    intrinsic_size, kill, menu, menu_pick, pass_child_focus, picked, poll, present, presenting,
-    preview_image, record_pacing, regenerate_artifact, render_clip, replace_child, replace_gpu,
-    report_child_details, report_child_focus, report_children, request_painting, resized,
-    restart_app, reveal, revoke_frame_child, running, set_artifact_states, set_focus,
-    set_presence_visible, set_presented, set_shell, settle, show_block, show_dialog, show_history,
-    show_panel, start_frames, take_steps, take_stopped, view_placement_of, view_size, warm,
+    content_delivered, content_moved, content_view, crash, creation, dialog_status, dismiss,
+    docked_placer, drawing, editing_and_hosting, flush, forget_dialog_answer, frame_child,
+    frame_rects, frames_answered, hold, host, in_use, install, install_headless, intrinsic_size,
+    kill, menu, menu_pick, pass_child_focus, picked, poll, present, presenting, preview_image,
+    record_pacing, regenerate_artifact, render_clip, replace_gpu, report_child_details,
+    report_child_focus, report_children, request_painting, resized, restart_app, reveal,
+    revoke_frame_child, running, set_artifact_states, set_focus, set_presence_visible,
+    set_presented, set_shell, settle, show_block, show_dialog, show_history, show_panel,
+    start_frames, take_steps, take_stopped, view_placement_of, view_size, warm,
 };
 pub use runtime::{
     child_failed_for_gift, child_up_for_gift, end_gift, forget_keys, route_keys, sent_press,
     settle_keys, take_gift,
 };
-pub use windows::{forget_windows, request_windows, take_window_requests};
-
 #[cfg(not(target_arch = "wasm32"))]
-pub fn cache_in(directory: std::path::PathBuf) {
-    wasm::cache_in(directory);
-}
+pub use wasm::{staged_app, staged_worker};
+pub use windows::{forget_windows, request_windows, take_window_requests};
 
 pub fn exiting() {
     runtime::exiting();
@@ -90,6 +92,22 @@ pub fn exiting() {
     {
         surface::stop();
         wasm::wait_for_workers(std::time::Duration::from_secs(2));
+        be_wasm_host::persist();
+    }
+}
+
+/// Keeps what V8 optimises of the apps' modules under `directory`, so a later start loads it
+/// (be_wasm_host::cache_code_in). `BE3_CODE_CACHE` names another directory instead, which
+/// `BE3_CODE_CACHE_READ_ONLY` only reads: a host test's, which its build made by running its host
+/// (crates/be-host-tests/apps.bzl).
+#[cfg(not(target_arch = "wasm32"))]
+pub fn cache_code_in(directory: std::path::PathBuf) {
+    match std::env::var_os("BE3_CODE_CACHE") {
+        Some(given) => be_wasm_host::cache_code_in(
+            given.into(),
+            std::env::var_os("BE3_CODE_CACHE_READ_ONLY").is_none(),
+        ),
+        None => be_wasm_host::cache_code_in(directory, true),
     }
 }
 
@@ -443,12 +461,17 @@ pub enum InstanceRole {
     Artifact(Uuid, EditorBlock, Uuid),
     Picker(Uuid),
     Rename(Uuid, Uuid, bool),
+    /// A host component (the manifest's `hosts`) on a block: no frame, no view, no input
+    /// (guides/apps/host_services.md, "Host components").
+    Host(Uuid, EditorBlock),
 }
 
 impl InstanceRole {
     pub fn block(self) -> Option<EditorBlock> {
         match self {
-            Self::Editor(_, block) | Self::Artifact(_, block, _) => Some(block),
+            Self::Editor(_, block) | Self::Artifact(_, block, _) | Self::Host(_, block) => {
+                Some(block)
+            }
             Self::Creation(..) | Self::Picker(..) | Self::Rename(..) => None,
         }
     }

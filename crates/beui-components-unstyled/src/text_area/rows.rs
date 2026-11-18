@@ -9,26 +9,39 @@ use beui_view::reactive::*;
 use beui_view::types::Color;
 use beui_view::types::SpanStyle;
 use beui_view::types::Vec2;
-use beui_view::types::{DEFAULT_FONT_SIZE, Piece};
+use beui_view::types::text::BLANK;
+use beui_view::types::{DEFAULT_FONT_SIZE, GapWidth, Piece};
 use beui_view::types::{FontId, TextAlign, TextLayout};
 
 use super::colors::TextAreaColors;
 use super::look::{BlockGeometry, TextAreaGeometry};
 use super::state::Snapshot;
 
+mod quote;
+mod rule;
 mod table;
+
+pub use quote::{quote_in_text, quoted_nesting_em};
 
 pub use table::{CellAlign, RowTable, TableColumns, table_columns};
 
 pub const BODY_SIZE: f32 = DEFAULT_FONT_SIZE;
 pub const CODE_SIZE: f32 = BODY_SIZE;
 
+/// The size markup laid out unseen in a share of the row is set in (a shared rule's
+/// characters, a quote's `>`s), so each is narrower than the room it stands for and a
+/// difference in measuring it cannot push past that room. A browser whose minimum font size is
+/// set (off by default, as in Chrome and Firefox) lays it out at that size while it is
+/// measured on a canvas at this one, so a rule's characters overrun their slack and its row
+/// can wrap; a quote's prefix only grows wider than its column.
+const UNSEEN_SIZE: f32 = 1.0;
 const MASK: &str = "*";
 const OBJECT: &str = "\u{fffc}";
 const NEWLINE_MARKER: &str = "\u{23ce}";
-const NEWLINE_SLOT: &str = "mm";
-const CARRIAGE_RETURN: &str = "\u{200b}";
 const ELLIPSIS: &str = "...";
+const CONTROL_NAME_EM: f32 = 0.7;
+/// Set either side of a control character's name, so it does not run into the text.
+const CONTROL_SPACE: char = '\u{2009}';
 const DELETED_PREVIEW: usize = 48;
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -80,6 +93,9 @@ pub struct RowOptions {
     pub single_line: bool,
     pub prose: Option<Prose>,
     pub geometry: TextAreaGeometry,
+    /// The room a code block leaves inside its background before its text
+    /// (`Margin::code_padding`), which a quoted code line lays out after its quote's gutter.
+    pub code_padding: f32,
 }
 
 impl RowOptions {
@@ -131,7 +147,9 @@ pub struct Segment {
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum SpanKind {
     Text,
-    Space(f32),
+    Space(GapWidth),
+    /// A `Piece::Blank`: room holding one display byte that hangs past the row's end.
+    Blank(f32),
     Inline(usize),
 }
 
@@ -149,7 +167,9 @@ pub struct Invisible {
     pub display: Range<usize>,
     pub glyph: &'static str,
     pub font: FontId,
-    pub trailing: bool,
+    /// Drawn whether or not it is selected: trailing whitespace, and a control character, which
+    /// is nothing but its marker.
+    pub always: bool,
 }
 
 #[derive(Clone, PartialEq, Debug, Default)]
@@ -171,6 +191,11 @@ pub struct Row {
     pub props: MarkSet,
     pub invisibles: Vec<Invisible>,
     pub table: Option<RowTable>,
+    /// How far short of the row's end a shared rule's last share ends (its slack, and the room
+    /// what follows its characters takes), so the rule is drawn only as far as its carets go.
+    pub rule_short: f32,
+    /// How far past the text's left edge a rule starts: past a quote's gutter.
+    pub rule_start: f32,
 }
 
 impl Row {
@@ -289,6 +314,10 @@ impl Row {
                 match span.kind {
                     SpanKind::Text => Piece::text(text, span.style),
                     SpanKind::Space(width) => Piece::Gap(width),
+                    SpanKind::Blank(width) => Piece::Blank {
+                        width,
+                        style: span.style,
+                    },
                     SpanKind::Inline(_) => {
                         flow += 1;
                         Piece::Inline {
@@ -391,9 +420,31 @@ fn invisible_marker(byte: u8) -> Option<&'static str> {
     match byte {
         b' ' => Some("\u{00b7}"),
         b'\t' => Some("\u{21e5}"),
-        b'\r' => Some("\u{240d}"),
-        _ => None,
+        _ => control_marker(byte),
     }
+}
+
+/// The name shown for a control character with no width of its own (NUL, BEL, CR and the
+/// rest of C0, and DEL), its ASCII abbreviation, which takes its place, and so its width, in
+/// the row. Tab and newline have markers of their own; a newline's is drawn in a hanging
+/// blank. The abbreviations are text, not Control Pictures symbols, which the bundled fonts do
+/// not have.
+fn control_marker(byte: u8) -> Option<&'static str> {
+    const NAMES: [&str; 32] = [
+        "NUL", "SOH", "STX", "ETX", "EOT", "ENQ", "ACK", "BEL", "BS", "HT", "LF", "VT", "FF", "CR",
+        "SO", "SI", "DLE", "DC1", "DC2", "DC3", "DC4", "NAK", "SYN", "ETB", "CAN", "EM", "SUB",
+        "ESC", "FS", "GS", "RS", "US",
+    ];
+    match byte {
+        b'\t' | b'\n' => None,
+        0x7f => Some("DEL"),
+        _ => NAMES.get(usize::from(byte)).copied(),
+    }
+}
+
+/// The font a control character's name is shown in, smaller than the text around it.
+fn control_font(font: FontId) -> FontId {
+    FontId::monospace(font.size * CONTROL_NAME_EM)
 }
 
 fn invisibles_of(
@@ -412,14 +463,18 @@ fn invisibles_of(
         }
         let display = row.to_display(at)..row.to_display(at + 1);
         let shown = row.display.get(display.clone()).unwrap_or_default();
-        let real = match byte {
-            b'\r' => shown == CARRIAGE_RETURN,
-            _ => shown.as_bytes() == [*byte],
+        let control = control_marker(*byte).is_some();
+        let real = match control {
+            true => shown.trim_matches(CONTROL_SPACE) == glyph,
+            false => shown.as_bytes() == [*byte],
         };
         let Some(span) = row
             .spans
             .iter()
-            .find(|span| span.kind == SpanKind::Text && span.range.contains(&display.start))
+            .find(|span| {
+                matches!(span.kind, SpanKind::Text | SpanKind::Blank(_))
+                    && span.range.contains(&display.start)
+            })
             .filter(|_| real)
         else {
             continue;
@@ -429,7 +484,7 @@ fn invisibles_of(
             display,
             glyph,
             font: span.style.font,
-            trailing: at >= trailing_from,
+            always: control || at >= trailing_from,
         });
     }
     found
@@ -524,7 +579,7 @@ impl Builder<'_> {
         self.row.hang = self.row.display.len();
     }
 
-    fn gap(&mut self, width: f32, style: SpanStyle) {
+    fn gap(&mut self, width: GapWidth, style: SpanStyle) {
         let at = self.row.display.len();
         self.row.spans.push(RowSpan {
             range: at..at,
@@ -789,15 +844,39 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
         false => highlight.line_look(start),
     };
     builder.row.look = look.clone();
-    let marker = look.marker.start.clamp(start, end)..look.marker.end.clamp(start, end);
+    let mut marker = look.marker.start.clamp(start, end)..look.marker.end.clamp(start, end);
     let mut marked = look.list.is_some() || !marker.is_empty();
+    // A code line's prefix and marker take its code's monospace, so they make it no taller.
+    let lead = match look.code_block && look.list.is_none() {
+        true => SpanStyle {
+            font: builder.span_style(style_at(marker.end)).font,
+            ..body
+        },
+        false => body,
+    };
+    // A quote laid over its gutter by the row: what its marker held past the prefix is a list's
+    // marker (or a continuation's or code line's list spaces) as before, else text as wide as
+    // it is.
+    let mut index = start;
+    let mut gutter = 0.0;
+    if quote_in_text(&look) && !options.mask {
+        (index, gutter) = builder.quote_prefix(&look, start..end, lead);
+        let listed = look.list.is_some() || look.continues || look.code_block;
+        marker = match listed {
+            true => index..marker.end.max(index),
+            false => index..index,
+        };
+        marked = look.list.is_some() || !marker.is_empty();
+    }
     if let (Some(table), Some(columns)) = (look.table, inputs.columns.clone())
         && !options.mask
     {
         if marked {
             builder.marker(&look, marker.clone(), body);
         }
-        builder.table_row(table, marker.end..end, &columns, body);
+        let from = builder.table_lead(index.max(marker.end)..end, body);
+        gutter += from.1;
+        builder.table_row(table, from.0..end, &columns, gutter, body);
         builder.row.space = line_space(&look, line, &options);
         let delimiter = table.row == TableRow::Delimiter;
         let mut row = finish(builder, body);
@@ -816,10 +895,20 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
         false => snapshot.runs_in(start, end),
     };
     let run_starts = |at: usize| runs.binary_search_by_key(&at, |run| run.at).is_ok();
-    let mut index = start;
+    let shared = marker.is_empty();
+    let mut rule = None;
+    if look.rule && !options.mask {
+        if marked {
+            builder.marker(&look, marker.clone(), body);
+            marked = false;
+        }
+        let from = index.max(marker.end);
+        index = trailing_from.max(from);
+        rule = Some(builder.rule(from..index, shared, gutter, body));
+    }
     while index < end || marked {
         if marked && index >= marker.start {
-            builder.marker(&look, marker.clone(), body);
+            builder.marker(&look, marker.clone(), lead);
             marked = false;
             index = marker.end;
             continue;
@@ -873,14 +962,18 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
             continue;
         }
         let byte = bytes[index];
-        if invisibles && byte == b'\r' {
-            builder.push(
-                CARRIAGE_RETURN,
-                index..index + 1,
-                false,
-                base,
-                SpanKind::Text,
-            );
+        if let Some(glyph) = control_marker(byte).filter(|_| invisibles) {
+            // The marker drawn over it (`invisibles_of`) is laid out in its place, unseen, with
+            // a thin space on each side, so the row makes room for it apart from the text.
+            let unseen = SpanStyle {
+                font: control_font(base.font),
+                color: Color::TRANSPARENT,
+                underline: false,
+                strikethrough: false,
+                ..base
+            };
+            let room = format!("{CONTROL_SPACE}{glyph}{CONTROL_SPACE}");
+            builder.push(&room, index..index + 1, false, unseen, SpanKind::Text);
             builder.leaf(style_at(index));
             index += 1;
             continue;
@@ -903,7 +996,7 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
                 || style_at(stop) != style
                 || run_starts(stop)
                 || (formats.is_some() && bytes[stop..end].starts_with(VOID.as_bytes()))
-                || (invisibles && bytes[stop] == b'\r')
+                || (invisibles && control_marker(bytes[stop]).is_some())
             {
                 break;
             }
@@ -929,7 +1022,7 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
     if invisibles {
         builder.row.invisibles = invisibles_of(&builder.row, bytes, &marker, trailing_from);
     }
-    hang_into_margin(&mut builder.row, &look, &options);
+    hang_into_margin(&mut builder.row, &look);
     builder.row.space = line_space(&look, line, &options);
     if newline && invisibles {
         let style = SpanStyle {
@@ -939,13 +1032,17 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
             ..builder.span_style(style_at(end))
         };
         let at = builder.row.display.len();
-        builder.push(NEWLINE_SLOT, end..end + 1, false, style, SpanKind::Text);
+        // The newline's marker is drawn in a blank as wide as it, which hangs past the row's
+        // end, so it never wraps the last word, or itself, onto a row of its own.
+        let width = lay_out_text(NEWLINE_MARKER, style.font, TextLayout::DEFAULT)
+            .map_or(style.font.size, |line| line.size().x);
+        builder.push(BLANK, end..end + 1, false, style, SpanKind::Blank(width));
         builder.row.invisibles.push(Invisible {
             source: end,
             display: at..builder.row.display.len(),
             glyph: NEWLINE_MARKER,
             font: style.font,
-            trailing: false,
+            always: false,
         });
     }
     if snapshot
@@ -953,17 +1050,20 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
         .iter()
         .any(|section| section.collapsed && section.line_start == start)
     {
-        builder.gap(options.geometry.ellipsis_gap, body);
+        builder.gap(GapWidth::px(options.geometry.ellipsis_gap), body);
         let style = SpanStyle::new(
             FontId::monospace(options.body_size),
             inputs.colors.gutter_arrow,
         );
         builder.push(ELLIPSIS, end..end, false, style, SpanKind::Text);
     }
+    if let Some(rule) = rule {
+        builder.fit_rule(rule);
+    }
     finish(builder, body)
 }
 
-fn hang_into_margin(row: &mut Row, look: &LineLook, options: &RowOptions) {
+fn hang_into_margin(row: &mut Row, look: &LineLook) {
     if look.hang.is_empty() || !look.marker.is_empty() {
         return;
     }
@@ -977,10 +1077,7 @@ fn hang_into_margin(row: &mut Row, look: &LineLook, options: &RowOptions) {
             lay_out_text(text, span.style.font, TextLayout::DEFAULT).map(|line| line.size().x)
         })
         .sum();
-    row.outdent = match look.rule {
-        true => width + options.geometry.blocks.rule_gap * options.scale(),
-        false => width,
-    };
+    row.outdent = width;
     row.hang = end;
 }
 

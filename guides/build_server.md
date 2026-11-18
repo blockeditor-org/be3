@@ -40,14 +40,14 @@ server it is.
 
 One Hetzner CPX62 (16 shared AMD EPYC Genoa vCPUs, 32 GB, 601 GB of local disk, in Helsinki, €111 a month) runs
 NativeLink's cache, scheduler and worker as one process, inside the image `worker_properties` names, so the worker
-hardlinks inputs from the same store clients upload to and nothing crosses a network between them. Everything it runs
-is in scripts/internal/nativelink/ (none of it is a secret); `bash setup.sh nl.be3.pfg.pw`, run as root on a new
-Ubuntu 24.04 server, installs it, and running it again updates it.
+hardlinks inputs from the same store clients upload to and nothing crosses a network between them. The machine is the
+NixOS configuration `build` in servers/ (`servers/build`, guides/servers.md), deployed like any other server; NativeLink
+is its release binary, pinned there, run in the action image by Docker. Its log is `journalctl -u nativelink`.
 
-- **The front door** is Caddy on port 443 (`Caddyfile`, `nl-caddy.service`), with a Let's Encrypt certificate it gets
+- **The front door** is Caddy on port 443 (`Caddyfile`), with a Let's Encrypt certificate it gets
   itself for nl.be3.pfg.pw. It answers 401 to any request without `Authorization: Bearer TOKEN` and forwards the rest
-  to NativeLink on 127.0.0.1 over cleartext HTTP/2. The token is `NL_TUNNEL_TOKEN` in `/etc/nl-caddy.env` on the
-  server, which `setup.sh` makes once.
+  to NativeLink on 127.0.0.1 over cleartext HTTP/2. The token is `NL_TUNNEL_TOKEN` in `/var/lib/nl-secrets/caddy.env` on
+  the server, made once when the server first starts and kept there.
 - **The key** is that token: `BE3_NL_TOKEN`, `.nl-token` at the checkout's root or `~/.config/be3/nl-token`, asked
   for at a terminal. CI has it as the secret `BE3_NL_TOKEN`. buck2 reaches the server directly over TLS; behind an HTTPS proxy, through the relay.
 - **Behind a proxy, through the tunnel.** A cloud session's proxy speaks only HTTP/1.1, handles about 240 requests a
@@ -73,8 +73,9 @@ Ubuntu 24.04 server, installs it, and running it again updates it.
   `cas/content.exec`, which the limit does not see and which can grow as large again, so the limit is under half the
   disk. Nothing is copied
   elsewhere: a lost server means a new one and a cold cache, whose first `./scripts/verify` took 30 minutes, most of it
-  the client uploading toolchain archives. buck2 and the relay remember for hours which blobs the server holds, so
-  after emptying the cache by hand restart every client's daemon (`./scripts/buck kill`).
+  the client uploading toolchain archives. buck2 remembers for hours which blobs the server holds (the relay for ten
+  minutes, and less once the server says one is missing), so after emptying the cache by hand restart every client's
+  daemon (`./scripts/buck kill`).
 - **One worker runs 16 actions**, one per vCPU. A rustc runs many threads, so a full queue keeps the load far above 16
   (up to 280), and a lone tail action, such as the last big compile or link, gets all 16 vCPUs.
 - **CI waits behind everyone else.** Among actions waiting for a slot NativeLink runs the highest priority first, then
@@ -95,9 +96,9 @@ Ubuntu 24.04 server, installs it, and running it again updates it.
 
 ### The dashboard
 
-https://nl.be3.pfg.pw/ is a Grafana dashboard of the server and of every build (`scripts/internal/nativelink/dashboard`,
-which `setup.sh` installs). Caddy lets a browser through when it holds the cookie `be3_dash=NL_DASH_TOKEN` (from
-`/etc/nl-caddy.env`); without it, the only page is `/gate`, which asks for the token and sets the cookie.
+https://nl.be3.pfg.pw/ is a Grafana dashboard of the server and of every build (`servers/build/dashboard`).
+Caddy lets a browser through when it holds the cookie `be3_dash=NL_DASH_TOKEN` (from
+`/var/lib/nl-secrets/caddy.env`); without it, the only page is `/gate`, which asks for the token and sets the cookie.
 
 - **The machine**: node_exporter's CPU by mode (steal is a shared vCPU given to another machine), pressure (the share of
   time something waited for a CPU, memory or the disk), memory and swap, disk and network.
@@ -114,7 +115,7 @@ which `setup.sh` installs). Caddy lets a browser through when it holds the cooki
   kind is the command (`verify`, `test`, `build`, `run`, `bxl`), with `-cloud` behind a proxy; in CI it is `ci-EVENT`
   for `./scripts/ci` and `ci-EVENT-COMMAND` for the rest. `target/build-record.json` is the last one sent. Ask it
   anything with `sqlite3 /var/lib/nl-stats/builds.db` on the server.
-- The dashboard is `build-server.json`; the UI cannot save changes to it, so change the file and run `setup.sh`.
+- The dashboard is `build-server.json`; the UI cannot save changes to it, so change the file and deploy.
 
 ## When a build keeps failing
 
@@ -126,9 +127,23 @@ Behind an HTTPS proxy, as in a cloud session, buck2 reaches nl.be3.pfg.pw throug
   what finished cached. Failing every time means the server is down or overloaded. The proxy
   also cuts every call after five minutes; the relay then repeats the `Execute`, which joins the
   running action (`broke off ..., making it again` in its log), and buck2 sees nothing.
-- **`action input missing from CAS`** (`not found in either fast or slow store`): the server lost a blob this client
-  remembers it holding (above): `./scripts/buck kill` and run it again. When it survives
-  `./scripts/buck clean`, run `./scripts/buck kill; rm -rf ~/.buck/buckd buck-out`.
+- **`action input missing from CAS`** (`not found in either fast or slow store`), or **`Action ... is missing from
+  CAS; client should re-upload it and retry`**: the server lost a blob that a client remembers it holding. Two
+  layers remember. The relay recovers by itself: when an `Execute` is refused FAILED_PRECONDITION, or a read
+  NOT_FOUND, it forgets the blobs the server named (or, when it named none, all it remembered), logging `forgot ...`
+  with the digests and why. buck2's daemon does not: it keeps its own record of what `FindMissingBlobs` answered for
+  12 hours (fixed in its gRPC client; no buckconfig option bounds it), never forgets on a refused `Execute`, and so
+  never asks the relay again or uploads; buck2's restarter (on in .buckconfig) does not count that refusal as
+  corrupt state, so it does not restart for it. So when the error survives `./scripts/buck`'s retries, `./scripts/buck kill`
+  and run the command again: the new daemon asks the relay, which has forgotten, and uploads. Fallbacks, in order,
+  if it survives that: kill this checkout's relays too (each checkout, a worktree included, runs its own pair,
+  `target/tools/re-relay-*/re-relay serve` under that checkout, and they outlive `./scripts/buck kill`;
+  `pgrep -a re-relay` lists them; kill this checkout's two by PID, and the next `./scripts/buck` starts them again;
+  a removed agent worktree leaves its own pair running, under a path that no longer exists: kill those too);
+  then `./scripts/buck kill`, kill the relays and `rm -rf ~/.buck/buckd buck-out` together before running it.
+- **`could not run ...: No such file`** after a full disk forced clearing part of `buck-out`:
+  the daemon still believes the outputs it deleted exist. `./scripts/buck kill`, then remove all of
+  `buck-out`, never only part of it.
 - **`the proxy answered 401 Unauthorized`**: the session has no key for that server
   (`credentials missing`) or a refused one (`invalid token`).
 - **A test's output**: `./scripts/test` prints it from the `--event-log` buck2 test wrote to
@@ -138,7 +153,11 @@ Behind an HTTPS proxy, as in a cloud session, buck2 reaches nl.be3.pfg.pw throug
   `./scripts/buck build //crates/X:test --show-full-output` and run it here with a name filter
   and `CARGO_MANIFEST_DIR=$PWD/crates/X` (painting tests need it). A timing-dependent hang can
   take dozens of runs; run several copies at once in a loop, and
-  `gdb -p PID -batch -ex 'thread apply all bt'` shows what a hung one waits on.
+  `gdb -p PID -batch -ex 'thread apply all bt'` shows what a hung one waits on. A `run_apart`
+  crate's binary (guides/buck2.md) runs every test its filter matches in one process, which buck
+  never does: process-wide state (be-block-type-host's registry of types, a
+  test's counters) carries from one to the next, so a test that fails only there may read what
+  an earlier one left. Run it with `--exact` and the full name to run one alone.
 
 ## The build helper
 

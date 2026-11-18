@@ -7,8 +7,8 @@ use uuid::Uuid;
 
 use crate::{
     AppIdentity, AppManifest, BlockTypeDescriptor, BlockTypeManifest, ChildOperations,
-    EditorCapabilities, EditorManifest, Edits, InteractionMode, ManifestError, ParentView, Press,
-    ResizeMode, ShellRequest, TemplateCategory, TemplateManifest,
+    EditorCapabilities, EditorManifest, Edits, HostManifest, InteractionMode, ManifestError,
+    ParentView, Press, ResizeMode, ShellRequest, TemplateCategory, TemplateManifest,
 };
 
 #[cfg(test)]
@@ -42,6 +42,35 @@ pub struct ManifestDocument {
     /// rest); the host denies those calls to any other.
     #[serde(default)]
     pub block_agents: bool,
+    /// Whether the app may grant or reveal access (`set-access`, `list-access`,
+    /// `transfer-ownership`, the share and contact link calls); the host denies those to any
+    /// other, but for opening a settings kind of its own block to anyone inside.
+    #[serde(default)]
+    pub sharing: bool,
+    /// The app's host components, by name: each a component of the app's wasm with no frame
+    /// that the host runs on a block of one type (`HostManifest`).
+    #[serde(default)]
+    pub hosts: InOrder<HostDocument>,
+    /// The app's worker modules, by file name (`tiles.wasm`), each built by a crate of its own
+    /// and staged beside the app under `workers/<id>/` (guides/adding_an_app.md, Workers).
+    #[serde(default)]
+    pub workers: Vec<String>,
+    /// Whether the app is a root guest, which `be-host --root=APP` runs in place of its own UI
+    /// (`AppManifest::root`).
+    #[serde(default)]
+    pub root: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct HostDocument {
+    /// A fresh uuid for this host component, as an editor's.
+    pub id: String,
+    /// The `CONTENT_TYPE` of the type it runs on.
+    pub edits: String,
+    /// The levels the share dialog offers on a block of the type, Join among them
+    /// (`HostManifest::levels`).
+    pub levels: Vec<crate::OfferedLevel>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -110,6 +139,11 @@ pub struct BlockTypeDocument {
     /// run. A be-tool-cli test holds every manifest to its module.
     #[serde(default)]
     pub plain_file: bool,
+    /// The type counts what the account has not read (`be_block_content::Unread`), so the host
+    /// starts its module to count it for a row before anything else asks the module. A
+    /// be-tool-cli test holds every manifest to its module.
+    #[serde(default)]
+    pub counts_unread: bool,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -247,6 +281,24 @@ impl ManifestDocument {
             network: self.network,
             extensions: self.extensions,
             block_agents: self.block_agents,
+            sharing: self.sharing,
+            hosts: self
+                .hosts
+                .0
+                .into_iter()
+                .map(|(name, host)| {
+                    Ok(HostManifest {
+                        id: Uuid::parse_str(&host.id)
+                            .map_err(|_| ManifestError::InvalidEditorId)?
+                            .into_bytes(),
+                        name,
+                        edits: block_type(&host.edits)?,
+                        levels: host.levels,
+                    })
+                })
+                .collect::<Result<_, ManifestError>>()?,
+            workers: self.workers,
+            root: self.root,
         };
         manifest.validate()?;
         Ok(manifest)
@@ -268,6 +320,7 @@ impl BlockTypeDocument {
             },
             module: self.module,
             exported_whole: self.exported_whole,
+            counts_unread: self.counts_unread,
         })
     }
 }

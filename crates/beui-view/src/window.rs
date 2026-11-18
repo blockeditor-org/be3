@@ -82,7 +82,7 @@ impl WindowHandle {
     }
 }
 
-fn provided(handle: WindowHandle, content: RenderFn<WindowHandle>) -> NodeId {
+fn provided(handle: WindowHandle, content: RenderFn<WindowHandle, NodeId>) -> NodeId {
     provide_context(handle);
     content.call(handle)
 }
@@ -104,9 +104,8 @@ pub fn Window(
     #[prop(default = true)] open: Prop<bool>,
     #[prop(default = LayerLevel::Normal)] level: Prop<LayerLevel>,
     #[prop(default = false)] fullscreen: Prop<bool>,
-    #[prop(default = false)] keep_alive: bool,
     on_report: Callback<WindowReport>,
-    #[prop(children)] content: RenderFn<WindowHandle>,
+    #[prop(children)] content: RenderFn<WindowHandle, NodeId>,
 ) -> NodeId {
     let id = id.unwrap_or_else(WindowId::next);
     let opens = opens_windows();
@@ -177,7 +176,6 @@ pub fn Window(
             window={spec}
             traps_focus=false
             open={open}
-            keep_alive={keep_alive}
         >
             <Frame width=width height=height>{provided(handle, content)}</Frame>
         </Overlay>

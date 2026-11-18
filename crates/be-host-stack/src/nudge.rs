@@ -55,18 +55,22 @@ impl Nudged {
     }
 
     pub async fn changed(&mut self) -> Result<(), Stopped> {
-        poll_fn(|context| {
-            self.state.waker.register(context.waker());
-            if self.state.closed.load(Ordering::Acquire) {
-                return Poll::Ready(Err(Stopped));
-            }
-            let count = self.state.count.load(Ordering::Acquire);
-            if count != self.seen {
-                self.seen = count;
-                return Poll::Ready(Ok(()));
-            }
-            Poll::Pending
-        })
-        .await
+        poll_fn(|context| self.poll_changed(context)).await
+    }
+
+    pub fn poll_changed(
+        &mut self,
+        context: &mut std::task::Context<'_>,
+    ) -> Poll<Result<(), Stopped>> {
+        self.state.waker.register(context.waker());
+        if self.state.closed.load(Ordering::Acquire) {
+            return Poll::Ready(Err(Stopped));
+        }
+        let count = self.state.count.load(Ordering::Acquire);
+        if count != self.seen {
+            self.seen = count;
+            return Poll::Ready(Ok(()));
+        }
+        Poll::Pending
     }
 }

@@ -1,7 +1,7 @@
 use beui::native::WindowSize;
 use beui::{native::Context, vec2};
 use beui_host::native::FreetypeFonts;
-use beui_host::native::testing::{Showing, Stepped};
+use beui_host::native::testing::{Gui, Showing, Snapshots, Stepped};
 
 use super::*;
 use crate::ui::keys::PairingDialog;
@@ -23,6 +23,15 @@ impl Shown {
             signed_in_as: "Signed in as Ada".to_owned(),
             ..Default::default()
         };
+        Self::start(move || {
+            let status = create_memo(move || status.clone());
+            view! {
+                <HostMenu status pick={Callback::new(send)} report={None} />
+            }
+        })
+    }
+
+    fn status(status: StatusView) -> Self {
         Self::start(move || {
             let status = create_memo(move || status.clone());
             view! {
@@ -94,12 +103,14 @@ fn unsent_view() -> HostUi {
                     name: "Trip notes".to_owned(),
                     offerable: true,
                     refused: None,
+                    kept_edits: 0,
                 },
                 UnsentRow {
                     block: uuid::Uuid::from_u128(2),
                     name: "Budget".to_owned(),
                     offerable: false,
                     refused: None,
+                    kept_edits: 3,
                 },
                 UnsentRow {
                     block: uuid::Uuid::from_u128(3),
@@ -108,6 +119,7 @@ fn unsent_view() -> HostUi {
                     refused: Some(be_host_stack::refusal(
                         be_block_protocol::ErrorCode::OverQuota,
                     )),
+                    kept_edits: 0,
                 },
             ],
             discarding: None,
@@ -118,6 +130,8 @@ fn unsent_view() -> HostUi {
 
 mod approving_a_device_offline_says_it_needs_a_connection;
 mod leaving_offline_says_it_needs_a_connection;
+mod the_invite_dialog_ends_on_its_link_and_the_list_shows_each_invitation;
 mod the_leave_dialog_quotes_a_long_or_tricky_name_safely;
+mod the_menu_lists_what_this_device_keeps_hosting_with_stop;
 mod the_status_says_whether_changes_are_saved_syncing_offline_or_failed;
 mod unsent_edits_can_be_restored_or_discarded;

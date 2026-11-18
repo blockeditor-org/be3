@@ -1,7 +1,10 @@
 use std::hash::{DefaultHasher, Hash, Hasher};
 
 use proc_macro2::{Group, Punct, Spacing, TokenStream, TokenTree};
-use syn::{ImplItem, ImplItemFn, ItemImpl, ItemTrait, TraitItem, TraitItemFn, parse_quote};
+use syn::{
+    Block, ImplItem, ImplItemFn, ItemImpl, ItemTrait, ReturnType, TraitItem, TraitItemFn,
+    parse_quote,
+};
 
 use super::*;
 
@@ -98,12 +101,18 @@ fn without_default(param: &GenericParam) -> GenericParam {
     param
 }
 
-fn wrap_body(label: &str, block: &Block) -> Block {
+fn wrap_body(label: &str, output: &ReturnType, block: &Block) -> Block {
+    let body = match output {
+        ReturnType::Type(_, ty) => {
+            quote! { ::__beui_tree::reactive::ComponentOutput::<#ty>::into_output(#block) }
+        }
+        ReturnType::Default => quote! { #block },
+    };
     parse_quote! {
         {
             ::__beui_tree::reactive::component(
                 &::__beui_tree::reactive::ComponentInfo { name: #label, module: module_path!() },
-                move || #block,
+                move || #body,
             )
         }
     }
@@ -194,7 +203,7 @@ pub(crate) fn expand_trait(mut item: ItemTrait) -> syn::Result<TokenStream> {
             default: method
                 .default
                 .as_ref()
-                .map(|block| wrap_body(&label, block)),
+                .map(|block| wrap_body(&label, &method.sig.output, block)),
             semi_token: method.semi_token,
         }));
         let constructor = constructor(
@@ -293,7 +302,7 @@ pub(crate) fn expand_impl(mut item: ItemImpl) -> syn::Result<TokenStream> {
                 vis: method.vis,
                 defaultness: method.defaultness,
                 sig: body_sig,
-                block: wrap_body(&label, &method.block),
+                block: wrap_body(&label, &method.sig.output, &method.block),
             }));
             continue;
         }
@@ -316,7 +325,7 @@ pub(crate) fn expand_impl(mut item: ItemImpl) -> syn::Result<TokenStream> {
             vis: Visibility::Inherited,
             defaultness: None,
             sig: body_sig,
-            block: wrap_body(&label, &method.block),
+            block: wrap_body(&label, &method.sig.output, &method.block),
         }));
         items.push(syn::parse2(constructor(
             &method.vis,

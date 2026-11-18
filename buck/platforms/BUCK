@@ -64,8 +64,9 @@ target_platform(
     ],
 )
 
-# The same triple as above, and what tells the two apart. An app is built for
-# this one; be-host's web bundle is built for the one above. Its setting is the
+# An app, its libraries and workers: wasm32-wasip1 rather than the threaded
+# triple above (decisions/guests_are_single_threaded.md), which be-host's web
+# bundle is built for. Its setting is the
 # one above's with one more constraint, so select() takes it as the more
 # specific (cross.bzl's PLAN_SETTINGS).
 target_platform(
@@ -104,6 +105,18 @@ target_platform(
     constraint_values = [
         "prelude//cpu/constraints:cpu[wasm32]",
         "prelude//os/constraints:os[none]",
+    ],
+)
+
+# The same triple as above, for the browser's gpu shim, which wasm-bindgen
+# binds to the page: told apart so that its wgpu and web-sys stay out of the
+# pure guests above (buck/constraints:bindgen).
+target_platform(
+    name = "wasm32_bindgen",
+    constraint_values = [
+        "prelude//cpu/constraints:cpu[wasm32]",
+        "prelude//os/constraints:os[none]",
+        "root//buck/constraints:bindgen",
     ],
 )
 

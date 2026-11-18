@@ -7,9 +7,7 @@ use super::{DesktopHost, DesktopSettings};
 use crate::known_window::KnownWindow;
 use crate::programs::{Opener, ProgramSource};
 use crate::window_body::WindowStatus;
-use be_host_wayland::programs::{
-    DesktopEntry, Environment, IconThemes, MimeGlobs, NamedIcons, load_icon,
-};
+use be_host_programs::{DesktopEntry, Environment, IconThemes, MimeGlobs, NamedIcons, load_icon};
 use be_host_wayland::{Compositor, Launch, Server, WindowId, WindowView, Windows};
 use be_sdk_api::{
     HostImage, HostProgram, HostWindow, HostWindowId, MenuAsk, Picture, WindowKind, WindowOrigin,
@@ -284,7 +282,7 @@ impl DesktopHost for Linux {
 
     fn window_status(window: HostWindowId) -> Option<WindowStatus> {
         let windows = windows()?;
-        windows.changes().get();
+        windows.changes().track();
         let id = WindowId(window.0);
         windows.list().with(|list| {
             let info = list.iter().find(|info| info.id == id)?;
@@ -356,7 +354,7 @@ impl DesktopHost for Linux {
     }
 
     #[component]
-    fn WindowSurface(window: HostWindowId, focus: Memo<u64>) -> NodeId {
+    fn WindowSurface(window: HostWindowId, focus: Trigger) -> NodeId {
         let occluders = crate::occlusion::occlusion();
         let occluders = create_memo(move || {
             occluders
@@ -378,7 +376,7 @@ impl DesktopHost for Linux {
         });
         match windows() {
             Some(windows) => view! {
-                <WindowView windows id={WindowId(window.0)} occluders carrier focus />
+                <WindowView windows id={WindowId(window.0)} occluders carrier focus={Some(focus)} />
             },
             None => view! {
                 <Frame />
@@ -418,6 +416,7 @@ fn known_window(
         size: info.size,
         min_size: info.min_size,
         maximized: info.maximized,
+        opens_hidden: false,
         fullscreen: info.fullscreen,
         responding: info.responding,
         icon: icon.map(|icon| Picture {

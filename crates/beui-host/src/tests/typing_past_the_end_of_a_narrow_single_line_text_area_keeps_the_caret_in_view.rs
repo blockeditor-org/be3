@@ -25,6 +25,7 @@ fn typing_past_the_end_of_a_narrow_single_line_text_area_keeps_the_caret_in_view
                         @node_ref=&area
                         state={state}
                         single_line=true
+                        scroll={plain_scroll()}
                     />
                 </Frame>
             </List>

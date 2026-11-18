@@ -26,7 +26,7 @@ use beui_text_editor_core::{
 
 use beui_macros::{component, view};
 
-use crate::{Scroll, ScrollbarStyle};
+use crate::{Scroll, ScrollStyle};
 use beui_view::primitives::*;
 use beui_view::reactive::ImeCursor;
 use beui_view::reactive::NodeId;
@@ -43,7 +43,6 @@ use beui_view::types::{CursorIcon, ImeEvent, ImeText, Key, KeyPress, PointerPres
 use beui_view::types::{HANDLE_RADIUS, handle_center, toolbar_anchor};
 use beui_view::types::{Pos2, Rect, Vec2};
 
-use beui_text_editor_core::ListMarker;
 use beui_text_editor_core::TextFragment;
 use completion::{Completions, Query, query};
 use lines::{Lines, SingleLine};
@@ -54,13 +53,14 @@ use beui_view::types::{Extent, Sides};
 pub use colors::{SyntaxColors, TextAreaColors};
 pub use completion::{Completer, Completion, CompletionMenu, CompletionRowHandle};
 pub use emoji::{emoji_completer, search_emoji};
+use hooks::MARGIN_MIN_WIDTH_EM;
 pub use hooks::{
     LeafSpan, Margin, MarkerColumn, MarkerKind, PlainLine, QuoteBar, TableFill, TableLines,
     TextLeaf, TextLine, TextMarker,
 };
 pub use look::{BlockGeometry, ChipGeometry, TextAreaGeometry, TextAreaLook, WidgetGeometry};
 pub use rows::{Prose, RowTable, TextWidget};
-pub use state::{ProseLine, ScrollAnchor, TextAreaLayout, TextAreaState};
+pub use state::{Cursors, ProseLine, ScrollAnchor, TextAreaLayout, TextAreaState};
 
 const TOUCH_HANDLE_HIT_RADIUS: f32 = 24.0;
 const CARET_HANDLE_TAP_SLACK: f32 = 4.0;
@@ -73,6 +73,8 @@ const SELECT_ALL_CLICKS: u32 = 4;
 const WORD_CLICKS: u32 = 2;
 const LINE_CLICKS: u32 = 3;
 const HANDLE_SLACK: f32 = 0.5;
+/// How many digits of a line number the gutter has room for.
+const GUTTER_DIGITS: usize = 4;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RemoteTextCursor {
@@ -114,7 +116,7 @@ struct Held {
     rows: RefCell<BTreeMap<usize, RowEntry>>,
     measured: RefCell<HashMap<NodeId, ReadSignal<Option<Measured>>>>,
     texts: RefCell<HashMap<NodeId, TextGeometrySignal>>,
-    rows_measured: Signal<u64>,
+    rows_measured: Trigger,
     registered: Cell<u64>,
     reveal_attempts: Cell<u8>,
     row_cache: RefCell<lines::RowCache>,
@@ -148,7 +150,7 @@ impl Held {
     fn track_text(&self, node: NodeId) {
         self.track(node);
         self.texts.borrow_mut().insert(node, measure_text(node));
-        self.rows_measured.update(|count| *count += 1);
+        self.rows_measured.notify();
     }
 
     fn forget(&self, node: NodeId) {
@@ -161,7 +163,7 @@ impl Held {
 struct Surface {
     state: TextAreaState,
     single_line: bool,
-    line_numbers: bool,
+    scroll_past_end: bool,
     held: Stored<Held>,
     starts: Memo<Rc<Vec<usize>>>,
     visible: Memo<Vec<usize>>,
@@ -175,6 +177,8 @@ struct Surface {
     prose: Memo<Option<Prose>>,
     metrics: Memo<(f32, u64)>,
     gutter: Memo<f32>,
+    /// The room a document's lines leave at their sides, the same for every row.
+    margin: Memo<Margin>,
     padding: Memo<Sides>,
     scroll: ReadSignal<ScrollPosition>,
     offset: Signal<f32>,
@@ -193,11 +197,11 @@ struct Surface {
     remote_cursors: Memo<Vec<RemoteTextCursor>>,
     drop_caret: Memo<Option<usize>>,
     text_extent: Signal<Vec2>,
-    block: Option<RenderFn<usize>>,
-    selected_widget: Option<RenderFn<usize>>,
+    block: Option<RenderFn<usize, NodeId>>,
+    selected_widget: Option<RenderFn<usize, NodeId>>,
     leaf: RenderFn<TextLeaf, beui_view::components::text::Span>,
-    marker: RenderFn<TextMarker>,
-    line: RenderFn<TextLine>,
+    marker: RenderFn<TextMarker, NodeId>,
+    line: RenderFn<TextLine, NodeId>,
     rights: Signal<BTreeMap<u64, f32>>,
     on_content_size: Callback<Vec2>,
     completion: Memo<Option<Query>>,
@@ -525,7 +529,14 @@ impl Surface {
         }
         if (exact.is_some() && there) || target >= most {
             self.state.take_scroll_to();
-            if let Some(reached) = self.top_anchor(offset) {
+            // At its line the view is where it was asked to be, so the anchor is reported as
+            // asked: read back in the layout it settles in, it can name a row the list is about
+            // to move. Only one cut short at the end of the text is read back.
+            let reached = match target >= most {
+                true => self.top_anchor(offset),
+                false => Some(anchor),
+            };
+            if let Some(reached) = reached {
                 self.state.set_scrolled(reached);
             }
         }
@@ -1012,10 +1023,6 @@ fn hold(cx: &Context, press: PointerPress) {
 fn select_at(cx: &Context, pos: Pos2, clicks: u32, extend: bool, syntax: bool) {
     if let Some((entry, index, item)) = cx.inline_at(pos) {
         match item.inline {
-            Inline::Marker(ListMarker::Check(_)) => {
-                cx.state.set_selecting(false);
-                return;
-            }
             Inline::Widget(index) => {
                 let Some(widget) = cx.widgets.get_untracked().get(index).cloned() else {
                     return;
@@ -1269,24 +1276,21 @@ fn field_key(cx: &Context, press: KeyPress) -> bool {
         && (cx.completion_key(press) || keys::key(cx, press))
 }
 
-fn gutter_width(line_count: usize, font_size: f32, geometry: &TextAreaGeometry) -> f32 {
+/// The gutter's width, which holds `GUTTER_DIGITS` digits whatever the line count, so the text
+/// does not move as lines are added; a longer number is cut to its last digits
+/// (`lines::gutter_number`).
+fn gutter_width(font_size: f32, geometry: &TextAreaGeometry) -> f32 {
     let digit = lay_out_text("0", FontId::monospace(font_size), TextLayout::DEFAULT)
         .map_or(font_size * 0.6, |line| line.size().x);
-    let mut digits = 1;
-    let mut value = line_count.max(1);
-    while value >= 10 {
-        value /= 10;
-        digits += 1;
-    }
     let (left, right) = geometry.gutter_padding;
-    left + geometry.gutter_arrow + digit * digits as f32 + right
+    left + geometry.gutter_arrow + digit * GUTTER_DIGITS as f32 + right
 }
 
 #[derive(Clone, Copy)]
 struct Field {
     cx: Context,
     described: Memo<Node>,
-    frame: Stored<RefCell<Option<Render<Child>>>>,
+    frame: Stored<RefCell<Option<Render<NodeId, NodeId>>>>,
     inner: NodeRef,
     field_placed: Signal<Option<ReadSignal<Rect>>>,
     cursor: Memo<CursorIcon>,
@@ -1316,12 +1320,18 @@ struct Field {
 /// `on_submit` or, without one, is left to what is around it (a dialog's
 /// confirm), and Tab, Escape, Alt+Up/Down and the Ctrl chords above are left
 /// alone. Space always inserts text.
+///
+/// `line_numbers` shows the gutter of line numbers (and folding arrows) for a document that is
+/// not rich text; it holds four digits whatever the line count. `scroll_past_end` leaves room
+/// below the last line to scroll it up to the top of the view, as an editor that fills its
+/// place does; an area whose height follows its text must not, or it would grow with the room.
 #[component]
 pub fn TextArea(
     #[prop(default = ComponentRef::new())] api: ComponentRef<TextAreaApi>,
     state: TextAreaState,
     #[prop(default = false)] single_line: bool,
-    #[prop(default = true)] line_numbers: bool,
+    #[prop(default = true)] line_numbers: Prop<bool>,
+    #[prop(default = false)] scroll_past_end: bool,
     #[prop(default = Vec::new())] widgets: Prop<Vec<TextWidget>>,
     colors: Prop<TextAreaColors>,
     look: TextAreaLook,
@@ -1339,11 +1349,11 @@ pub fn TextArea(
     #[prop(default = None)] prose: Prop<Option<Prose>>,
     #[prop(default = false)] show_runs: Prop<bool>,
     #[prop(default = Vec::new())] client_colors: Prop<Vec<(u64, Color)>>,
-    #[prop(default = ScrollbarStyle::default())] scrollbar: ScrollbarStyle,
+    scroll: ScrollStyle,
     accessibility: Option<Prop<Node>>,
-    frame: Option<Render<Child>>,
-    block: Option<RenderFn<usize>>,
-    selected_widget: Option<RenderFn<usize>>,
+    frame: Option<Render<NodeId, NodeId>>,
+    block: Option<RenderFn<usize, NodeId>>,
+    selected_widget: Option<RenderFn<usize, NodeId>>,
     on_content_size: Callback<Vec2>,
     #[prop(default = Completer::none())] completer: Completer,
     completion_menu: Option<CompletionMenu>,
@@ -1363,7 +1373,7 @@ pub fn TextArea(
         rows: RefCell::new(BTreeMap::new()),
         measured: RefCell::default(),
         texts: RefCell::default(),
-        rows_measured: create_signal(0),
+        rows_measured: create_trigger(),
         registered: Cell::new(0),
         reveal_attempts: Cell::new(0),
         row_cache: RefCell::default(),
@@ -1375,8 +1385,8 @@ pub fn TextArea(
         false => area.get(),
     });
     let scale = pixels_per_point();
-    let fonts = use_font_revision();
-    let scroll = create_signal(ScrollPosition::ZERO);
+    let fonts = use_font_changes();
+    let scrolled = create_signal(ScrollPosition::ZERO);
     let offset = create_signal(0.0_f32);
     let shift = create_signal(0.0_f32);
     let focused = create_signal(false);
@@ -1420,10 +1430,10 @@ pub fn TextArea(
     let accessible = state.content();
     let moved = state.cursors();
     let described = create_memo(move || {
-        accessible.get();
+        accessible.track();
         let bytes = state.bytes();
         if bytes.len() > ACCESSIBLE_TEXT_LIMIT {
-            moved.get();
+            moved.track();
         }
         let caret = state.caret_indices().first().copied().unwrap_or(0);
         let mut node = accessibility.get();
@@ -1449,14 +1459,14 @@ pub fn TextArea(
 
     let content = state.content();
     let starts = create_memo(move || {
-        content.get();
+        content.track();
         state.with_snapshot(|snapshot| match snapshot.starts.is_empty() {
             true => Rc::new(vec![0]),
             false => Rc::clone(&snapshot.starts),
         })
     });
     let visible = create_memo(move || {
-        content.get();
+        content.track();
         let starts = starts.get();
         state.with_snapshot(|snapshot| {
             starts
@@ -1467,27 +1477,50 @@ pub fn TextArea(
                 .collect::<Vec<usize>>()
         })
     });
+    let line_numbers = create_memo(move || line_numbers.get());
     let gutter = create_memo(move || {
-        scale.get();
-        fonts.get();
-        content.get();
+        scale.track();
+        fonts.track();
+        content.track();
         let rich = state.with_snapshot(|snapshot| snapshot.language == TextLanguage::RichText);
-        match single_line || !line_numbers || rich {
+        match single_line || !line_numbers.get() || rich {
             true => 0.0,
-            false => gutter_width(starts.get().len(), font_size.get(), &geometry.get()),
+            false => gutter_width(font_size.get(), &geometry.get()),
         }
     });
+    let margin = create_memo(move || {
+        content.track();
+        let document = state.with_snapshot(|snapshot| {
+            matches!(
+                snapshot.language,
+                TextLanguage::Markdown | TextLanguage::RichText
+            )
+        });
+        if !document || prose.with(Option::is_some) || single_line {
+            return Margin::default();
+        }
+        let size = font_size.get();
+        let padding = padding.get();
+        let width = view_width.get() - gutter.get() - padding.left - padding.right;
+        // Beside the gutter, markers do not hang into a margin of their own: the gutter is the
+        // room at the text's side.
+        Margin::centered(
+            width,
+            size,
+            gutter.get() == 0.0 && view_width.get() >= size * MARGIN_MIN_WIDTH_EM,
+        )
+    });
     let composition = create_memo(move || {
-        state.cursors().get();
-        state.content().get();
+        state.cursors().track();
+        state.content().track();
         Some(Composition {
             range: state.composition()?,
         })
     });
     let completion = create_memo(move || {
         let trigger = trigger?;
-        state.cursors().get();
-        state.content().get();
+        state.cursors().track();
+        state.content().track();
         if !focused.get() || locked.get() || state.composition().is_some() {
             return None;
         }
@@ -1502,7 +1535,7 @@ pub fn TextArea(
         let Some(query) = completion.get() else {
             return false;
         };
-        dismissed.get() != Some(query.range.start) && !completions.get().is_empty()
+        dismissed.get() != Some(query.range.start) && !completions.with(Vec::is_empty)
     });
     let highlighted = create_signal(0_usize);
     create_effect(move || match completion.get() {
@@ -1517,7 +1550,7 @@ pub fn TextArea(
     let cx = Surface {
         state,
         single_line,
-        line_numbers,
+        scroll_past_end,
         held,
         starts,
         visible,
@@ -1529,16 +1562,22 @@ pub fn TextArea(
         placeholder,
         font_size,
         prose,
-        metrics: create_memo(move || (scale.get(), fonts.get())),
+        // The scale, and a count of the times it or the fonts changed: rows cached under other
+        // metrics were laid out in other fonts.
+        metrics: create_memo(move |previous: Option<&(f32, u64)>| {
+            fonts.track();
+            (scale.get(), previous.map_or(0, |(_, changes)| changes + 1))
+        }),
         gutter,
+        margin,
         padding,
-        scroll: scroll.read_only(),
+        scroll: scrolled.read_only(),
         offset,
         shift,
         view_width,
         view_height: create_memo(move || view_size.get().y),
         focused,
-        keyboard: use_keyboard(),
+        keyboard: use_document_keyboard(),
         autoscroll,
         viewport,
         list: NodeRef::new(),
@@ -1572,8 +1611,8 @@ pub fn TextArea(
         let content = state.content();
         create_effect(move || {
             let width = text_extent.get().x;
-            view_width.get();
-            content.get();
+            view_width.track();
+            content.track();
             let empty = state.with_snapshot(|snapshot| snapshot.bytes.is_empty());
             let room = untrack(|| cx.room());
             let most = match empty {
@@ -1587,7 +1626,7 @@ pub fn TextArea(
     }
 
     let ime_cursor = create_memo(move || {
-        state.cursors().get();
+        state.cursors().track();
         if !focused.get() {
             return None;
         }
@@ -1597,8 +1636,8 @@ pub fn TextArea(
         })
     });
     let ime_text = create_memo(move || {
-        state.cursors().get();
-        state.content().get();
+        state.cursors().track();
+        state.content().track();
         if !focused.get() {
             return None;
         }
@@ -1625,7 +1664,7 @@ pub fn TextArea(
     });
     let content = state.content();
     let shown = create_memo(move || {
-        content.get();
+        content.track();
         let value = String::from_utf8_lossy(&state.bytes()).into_owned();
         match (value.is_empty(), masked.get()) {
             (true, _) => placeholder.get(),
@@ -1640,7 +1679,7 @@ pub fn TextArea(
     });
     let reveals = state.reveals();
     create_effect(move || {
-        reveals.get();
+        reveals.track();
         revealing.start(Duration::ZERO);
     });
     // `rights` changes as rows are laid out (each reports its right edge), so it stands for
@@ -1649,8 +1688,8 @@ pub fn TextArea(
     // that started it rather than in later frames that ask for no time.
     let rights = cx.rights;
     create_effect(move || {
-        let position = scroll.get();
-        rights.with(|_| ());
+        let position = scrolled.get();
+        rights.track();
         if single_line || position.viewport <= 0.0 {
             return;
         }
@@ -1663,12 +1702,12 @@ pub fn TextArea(
             }
         });
     });
-    let viewport_was = StoredCell::new(0.0_f32);
-    create_effect(move || {
-        let position = scroll.get();
-        let was = viewport_was.replace(position.viewport);
-        untrack(|| cx.keep_caret_in_sight(position, was));
-    });
+    create_effect_on(
+        move || scrolled.get(),
+        move |&position, was| {
+            cx.keep_caret_in_sight(position, was.map_or(0.0, |was| was.viewport));
+        },
+    );
     let hover_cursor = create_signal(CursorIcon::Text);
     let cursor = create_memo(move || match disabled.get() {
         true => CursorIcon::Default,
@@ -1692,18 +1731,9 @@ pub fn TextArea(
         on_hover_change,
         on_image_paste,
     };
-    let multi_line = !single_line;
     let width = create_memo(move || size.get().x);
     let height = create_memo(move || size.get().y);
-    let border_color = create_memo(move || colors.get().gutter_border);
-    let border_x = create_memo(move || gutter.get() - 1.0);
-    let border_width = create_memo(move || match gutter.get() > 0.0 {
-        true => 1.0,
-        false => 0.0,
-    });
-    let has_menu = completion_menu.is_some();
-    let menu = create_memo(move || has_menu && completing.get());
-    if multi_line {
+    if !single_line {
         action_scope(&outer);
         actions::register(state, locked, find);
     }
@@ -1711,32 +1741,40 @@ pub fn TextArea(
     let built = view! {
         <Frame @node_ref=&outer>
             <List spacing=0.0>
-                <Show condition={single_line}>
-                    <ListItem grow=1.0>
-                        <Editing field={field} />
-                    </ListItem>
-                </Show>
-                <Show condition={multi_line}>||
-                    <ListItem grow=1.0>
-                        <Canvas width={width} height={height}>
-                            <CanvasItem x={border_x} y=0.0 width={border_width} height={height}>
-                                <Frame fill=border_color />
-                            </CanvasItem>
-                            <CanvasItem x=0.0 y=0.0 width={width} height={height}>
-                                <Scroll offset={offset} scrollbar on_change={scroll}>
-                                    <Editing field={field} />
-                                </Scroll>
-                            </CanvasItem>
-                        </Canvas>
-                    </ListItem>
-                </Show>
-                <Show condition={menu}>|| {
-                    let menu = completion_menu
-                        .expect("a completion menu is only shown when the area was given one");
-                    view! {
+                {match single_line {
+                    true => view! {
+                        <ListItem grow=1.0>
+                            <Editing field={field} />
+                        </ListItem>
+                    },
+                    false => view! {
+                        <ListItem grow=1.0>
+                            <Canvas width={width} height={height}>
+                                <CanvasItem
+                                    x={move || gutter.get() - 1.0}
+                                    y=0.0
+                                    width={move || match gutter.get() > 0.0 {
+                                        true => 1.0,
+                                        false => 0.0,
+                                    }}
+                                    height={height}
+                                >
+                                    <Frame fill={move || colors.get().gutter_border} />
+                                </CanvasItem>
+                                <CanvasItem x=0.0 y=0.0 width={width} height={height}>
+                                    <Scroll offset={offset} style={scroll} on_change={scrolled}>
+                                        <Editing field={field} />
+                                    </Scroll>
+                                </CanvasItem>
+                            </Canvas>
+                        </ListItem>
+                    },
+                }}
+                {completion_menu.map(|menu| view! {
+                    <Show value={completing}>
                         <Completions cx menu />
-                    }
-                }</Show>
+                    </Show>
+                })}
             </List>
         </Frame>
     };
@@ -1789,7 +1827,7 @@ fn Editing(field: Field) -> NodeId {
             focusable=true
             focused
             tab_stop
-            ime={create_memo(move || !locked.get())}
+            ime={move || !locked.get()}
             keyboard={match keyboard_on_focus {
                 true => SoftKeyboard::OnFocus,
                 false => SoftKeyboard::OnPress,
@@ -1815,11 +1853,11 @@ fn Editing(field: Field) -> NodeId {
             }}
             cursor
             repeat_drag={autoscroll}
-            capture_presses={create_memo(move || !disabled.get())}
-            claims={create_memo(move || match cx.disabled.get() {
+            capture_presses={move || Area::when(!disabled.get())}
+            claims={move || match cx.disabled.get() {
                 true => Vec::new(),
                 false => vec![Claim::always(Area::CaretHandles)],
-            })}
+            }}
             on_press={move |event: PointerPress| press(&cx, event)}
             on_click_at={move |event: PointerPress| tap(&cx, event)}
             on_secondary_press={move |event: PointerPress| hold(&cx, event)}
@@ -1869,34 +1907,25 @@ fn area_hit(tree: &impl Inspect, cx: &Context, pos: Pos2) -> Option<usize> {
 
 #[component]
 fn FieldFrame(report: Signal<Option<ReadSignal<Rect>>>, children: Child) -> NodeId {
-    let placed_held = create_signal(Rect::ZERO);
-    let placed = placed_held.read_only();
-    report.set_unconditionally(Some(placed));
+    let placed = create_signal(Rect::ZERO);
+    report.set_unconditionally(Some(placed.read_only()));
     let built = view! {
         <Frame>{children}</Frame>
     };
     let placed_measured = measure(built);
     create_effect(move || {
         if let Some(measured) = placed_measured.get() {
-            placed_held.set(measured.rect);
+            placed.set(measured.rect);
         }
     });
     built
 }
 
+/// The area's own cursor. A checkbox marker's hook draws its own control, which shows its
+/// pointing hand and takes its clicks over exactly its rect; the rest of the marker's column is
+/// text, so it is not treated as part of the checkbox here.
 fn hover_cursor(cx: &Context, pos: Pos2) -> CursorIcon {
-    let pointing = matches!(
-        cx.inline_at(pos),
-        Some((
-            _,
-            _,
-            InlineItem {
-                inline: Inline::Marker(ListMarker::Check(_)),
-                ..
-            }
-        ))
-    ) || cx.gutter_arrow_at(pos).is_some();
-    match pointing {
+    match cx.gutter_arrow_at(pos).is_some() {
         true => CursorIcon::PointingHand,
         false => CursorIcon::Text,
     }

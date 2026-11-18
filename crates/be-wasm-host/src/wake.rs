@@ -4,11 +4,9 @@ use std::sync::{
 };
 
 use be_wasm_guest_abi as abi;
-use wasmtime::{Caller, Linker};
 
-pub(crate) trait Wakes {
-    fn wake(&self) -> &Arc<Wake>;
-}
+use crate::engine::Defined;
+use crate::state::state_of;
 
 #[derive(Default)]
 pub(crate) struct Wake {
@@ -33,11 +31,32 @@ impl Wake {
     }
 }
 
-pub(crate) fn link<T: Wakes + 'static>(linker: &mut Linker<T>) -> Result<(), String> {
-    linker
-        .func_wrap(abi::HOST_MODULE, abi::HOST_WAKE, |caller: Caller<'_, T>| {
-            caller.data().wake().wake();
-        })
-        .map(|_| ())
-        .map_err(|error| format!("{} could not be linked: {error}", abi::HOST_WAKE))
+fn host_wake(
+    _: &mut v8::PinScope,
+    arguments: v8::FunctionCallbackArguments,
+    _: v8::ReturnValue<v8::Value>,
+) {
+    // the function's data is its State (state_of).
+    // unsafe(memory)
+    let state = unsafe { state_of(arguments.data()) };
+    let wake = Arc::clone(&state.wake);
+    if let Err(panic) = crate::gpu::contained(|| wake.wake()) {
+        state.fatal.get_or_insert(panic);
+        state.isolate.terminate_execution();
+    }
+}
+
+pub(crate) fn define<'s>(
+    scope: &mut v8::PinScope<'s, '_>,
+    defined: &mut Defined<'s>,
+    data: v8::Local<'s, v8::Value>,
+) -> Result<(), String> {
+    crate::engine::function(
+        scope,
+        defined,
+        abi::HOST_MODULE,
+        abi::HOST_WAKE,
+        data,
+        host_wake,
+    )
 }

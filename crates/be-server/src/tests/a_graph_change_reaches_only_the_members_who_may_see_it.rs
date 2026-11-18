@@ -1,72 +1,48 @@
 use super::*;
 use be_block_graph::Access;
 
-async fn join(
+pub(super) async fn join(
     harness: &Harness,
     owner: &mut TestClient,
     organization: Uuid,
     email: &str,
     invitation: u128,
 ) -> (TestClient, Uuid) {
-    let mut member = harness.client().await;
-    let account = member.register(email).await;
+    let mut member = harness.member(email).await;
+    let account = member.id();
     let response = owner
-        .call(|peer| {
-            client::contacts::create_link(
-                peer,
-                Uuid::from_u128(invitation),
-                Vec::new(),
-                Vec::new(),
-                be_block_protocol::LinkKind::Invitation(be_block_protocol::Invitation {
-                    organization,
-                    email: email.into(),
-                    role: OrganizationRole::Editor,
-                    escrow: Vec::new(),
-                }),
-            )
-        })
+        .invite_with(
+            Uuid::from_u128(invitation),
+            organization,
+            Vec::new(),
+            Vec::new(),
+        )
         .await;
     assert!(matches!(response, Ok(())), "{response:?}");
     let _ = member
-        .call(|peer| {
-            client::contacts::accept_link(
-                peer,
-                Uuid::from_u128(invitation),
-                Vec::new(),
-                Vec::new(),
-                Vec::new(),
-            )
-        })
+        .accept(Uuid::from_u128(invitation), &Vec::new())
         .await;
     member.open(organization).await;
     (member, account)
 }
 
 async fn grant(owner: &mut TestClient, block: Uuid, account: Uuid, access: Access) {
-    let response = owner
-        .call(|peer| client::blocks::set_access(peer, block, account, access))
-        .await;
+    let response = owner.grant(block, account, access).await;
     assert!(matches!(response, Ok(())), "{response:?}");
 }
 
-async fn changes(client: &mut TestClient, count: usize) -> Vec<(Uuid, bool)> {
-    let mut seen = Vec::new();
-    for _ in 0..count {
-        seen.push(match client.graph_change().await {
-            Notice::BlockChanged { block, .. } => (block.id, true),
-            Notice::BlockRemoved { block, .. } => (block, false),
-            other => panic!("{other:?}"),
-        });
+/// The next `tree-advanced` or `roots` told, skipping nothing.
+async fn told(client: &mut TestClient) -> Notice {
+    match client.graph_change().await {
+        Notice::TreeAdvanced { entry, .. } => Notice::TreeAdvanced { entry, sequence: 0 },
+        other => other,
     }
-    seen.sort();
-    seen
 }
 
 #[tokio::test]
 async fn a_graph_change_reaches_only_the_members_who_may_see_it() {
     let harness = Harness::start().await;
-    let mut owner = harness.client().await;
-    owner.register("owner@example.com").await;
+    let mut owner = harness.member("owner@example.com").await;
     let organization = owner.organization("shared").await;
     let folder = owner.create_block(BlockParent::Root).await;
     let inside = owner.create_block(BlockParent::Block(folder)).await;
@@ -85,10 +61,11 @@ async fn a_graph_change_reaches_only_the_members_who_may_see_it() {
 
     grant(&mut owner, folder, account, Access::View).await;
     assert_eq!(
-        changes(&mut viewer, 1).await,
-        [(folder, true)],
-        "a block inside a folder is heard of only once the folder is listed"
+        told(&mut viewer).await,
+        Notice::Roots,
+        "a grant changes what the grantee finds at the top"
     );
+    assert_eq!(viewer.follow(inside).await, folder);
     let listed = viewer.list(BlockParent::Block(folder)).await;
     assert_eq!(
         listed.iter().map(|block| block.id).collect::<Vec<_>>(),
@@ -97,23 +74,74 @@ async fn a_graph_change_reaches_only_the_members_who_may_see_it() {
 
     let response = owner
         .call(|peer| {
-            client::blocks::set_metadata(peer, inside, b"sealed name".to_vec(), Vec::new())
+            peer.write::<be_block_protocol::BlockSummary>(be_block_protocol::Op::Publish {
+                block: inside,
+                expected: None,
+                commit: None,
+                references: be_block_protocol::ReferenceChange::between(&[], &Vec::new()),
+                metadata: b"sealed name".to_vec(),
+                journal: None,
+            })
         })
         .await;
     assert!(matches!(response, Ok(_)), "{response:?}");
-    assert_eq!(changes(&mut viewer, 1).await, [(inside, true)]);
+    assert_eq!(
+        told(&mut viewer).await,
+        Notice::TreeAdvanced {
+            entry: folder,
+            sequence: 0
+        }
+    );
+    let (changed, _) = viewer.read_changes(folder).await;
+    assert!(changed.iter().any(|block| block.id == inside));
 
     grant(&mut owner, folder, account, Access::None).await;
-    let mut expected = vec![(folder, false), (inside, false)];
-    expected.sort();
-    assert_eq!(changes(&mut viewer, 2).await, expected);
+    assert_eq!(
+        told(&mut viewer).await,
+        Notice::TreeAdvanced {
+            entry: folder,
+            sequence: 0
+        },
+        "a follower that lost view is told once, to read the tree and be refused"
+    );
+    assert_eq!(told(&mut viewer).await, Notice::Roots);
+    let response = viewer
+        .call(|peer| {
+            peer.ask::<be_block_protocol::ChangedPage>(
+                be_block_protocol::Query::Tree {
+                    entry: folder,
+                    after: be_block_protocol::ChangeCursor {
+                        changed: 0,
+                        block: Uuid::max(),
+                    },
+                    limit: 10,
+                },
+                false,
+            )
+        })
+        .await;
+    assert!(
+        response.is_err(),
+        "a tree is read only by who may view it: {response:?}"
+    );
+    owner.create_block(BlockParent::Block(folder)).await;
+    owner.round_trip().await;
+    viewer.round_trip().await;
+    assert!(
+        !viewer
+            .notifications
+            .iter()
+            .any(|notice| matches!(notice, Notice::TreeAdvanced { .. })),
+        "and it follows the tree no longer"
+    );
 
     let own = outsider.create_block(BlockParent::Root).await;
     assert_eq!(
-        changes(&mut outsider, 1).await,
-        [(own, true)],
+        told(&mut outsider).await,
+        Notice::Roots,
         "the outsider heard of blocks it may not see"
     );
+    assert_eq!(outsider.follow(own).await, own);
 
     harness.stop().await;
 }

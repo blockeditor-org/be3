@@ -13,7 +13,7 @@ fn a_virtual_list_builds_its_overscan_beyond_the_window() {
                     <Offset @node_ref=&scroll>
                         <VirtualList
                             @node_ref=&list
-                            keys={indices(100)}
+                            value={indices(100)}
                             item_size=VIRTUAL_ITEM_HEIGHT
                             overscan={VIRTUAL_ITEM_HEIGHT * 2.0}
                         >|_: ReadSignal<usize>|

@@ -25,6 +25,7 @@ fn on_a_phone_the_more_sheet_keeps_its_cancel_below_the_list() {
         cancel.bottom() <= size.y && cancel.top() > size.y / 2.0,
         "Cancel stays in view at the foot of the sheet, below the list that scrolls: {cancel:?}"
     );
+    fixture.test.leave();
     fixture
         .test
         .snapshot("on_a_phone_the_more_sheet_keeps_its_cancel_below_the_list");

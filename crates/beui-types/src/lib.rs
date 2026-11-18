@@ -44,10 +44,10 @@ pub use drag::DragPoint;
 pub use forward::{Aim, Forwarded, ForwardedInput, Heard, Over, Replay, Replayed};
 pub use image::{CursorImage, Image, ImageFit, ImageId, Thumbhash};
 pub use input::{
-    AutoscrollGesture, BackEdge, BackGesture, CursorIcon, DragGesture, ImeEvent, ImeText, Key,
-    KeyPhase, KeyPress, Modifiers, PointerButton, PointerId, PointerInput, PointerPress,
-    PointerSample, PointerStage, ScrollGesture, SecondaryDrag, SoftKeyboard, TOUCH_DRAG_THRESHOLD,
-    TouchDrags, WHEEL_LATCH_TIMEOUT, WheelInput, ZoomGesture,
+    AutoscrollGesture, BackEdge, BackGesture, CursorIcon, DRAG_THRESHOLD, DragGesture, ImeEvent,
+    ImeText, Key, KeyPhase, KeyPress, Modifiers, PointerButton, PointerId, PointerInput,
+    PointerPress, PointerSample, PointerStage, ScrollGesture, SecondaryDrag, SoftKeyboard,
+    TOUCH_DRAG_THRESHOLD, TouchDrags, WHEEL_LATCH_TIMEOUT, WheelInput, ZoomGesture,
 };
 pub use input::{
     DroppedFile, Event, FileDrag, Input, KeyChord, Keyboard, Keystroke, Pen, PenPhase,
@@ -55,8 +55,8 @@ pub use input::{
 };
 pub use keys::{KeyAt, KeyEvent, KeyInput, KeyReveal, KeyTarget};
 pub use layer::{
-    AboveEmbeds, Dismiss, EscapedLayer, HostTransform, LayerEdge, LayerLevel, LayerPlacement,
-    LayerPolicy, LayerSpace, OverlayAnchor, Placement,
+    AboveEmbeds, AnchorAlign, AnchorSide, Dismiss, EscapedLayer, HostTransform, LayerEdge,
+    LayerLevel, LayerPlacement, LayerPolicy, LayerSpace, OverlayAnchor, Placement,
 };
 pub use layout::{
     Align, Align2, CanvasArrangement, CanvasView, Corners, Direction, Extent, ItemSize, Justify,
@@ -68,9 +68,9 @@ pub use pixel_grid::PixelGrid;
 pub use preferences::{PreferenceLayers, PreferenceSource};
 pub use region::{Area, Claim, HitRegion};
 pub use text::{
-    CaretHandle, DEFAULT_FONT_SIZE, FontFamily, FontId, HANDLE_RADIUS, LineBox, Overflow, Piece,
-    RichOptions, SpanBackground, SpanStyle, TextAlign, TextCaret, TextGlyph, TextLayout, TextMark,
-    WrapAt, handle_center, toolbar_anchor,
+    CaretHandle, DEFAULT_FONT_SIZE, FontFamily, FontId, GapWidth, HANDLE_RADIUS, LineBox, Overflow,
+    Piece, RichOptions, SpanBackground, SpanStyle, TextAlign, TextCaret, TextGlyph, TextLayout,
+    TextMark, WrapAt, handle_center, toolbar_anchor,
 };
 pub use window::{
     HostPlacement, ImeArea, SystemBars, WindowEdge, WindowId, WindowLevel, WindowPlacement,

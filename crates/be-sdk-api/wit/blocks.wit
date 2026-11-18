@@ -53,6 +53,9 @@ interface blocks {
         /// The host is offline and holds no version of the block's content whole, so the block
         /// can be neither opened nor changed until it reconnects.
         out-of-reach: bool,
+        /// How many things in the block's content this account has not read, for a type
+        /// that counts them (a chat's new messages); zero otherwise.
+        unread: u32,
     }
 
     enum artifact-action {
@@ -143,6 +146,69 @@ interface blocks {
         close-editor,
         set-parent(block-location),
         define(define-command),
+        /// Sends a member of the block's host channel `payload`, sealed on its
+        /// channel (plans/hosted_blocks.md, "Hosting"). Only a host component
+        /// of the block, while this device hosts it, and only to a member it
+        /// heard join (`member-event.joined`).
+        tell-member(member-said),
+        /// Sends the block's host `payload`, sealed on this device's channel to
+        /// it (plans/hosted_blocks.md, "Hosting"). Only an editor opened as a
+        /// Join member (`opening-kind.join`), and only while the channel is
+        /// open (`channel-event.open`): what is told while it is not is lost.
+        tell-host(list<u8>),
+        /// Keeps this device hosting the block after its last editor here
+        /// closes (`true`), or no longer (plans/hosted_blocks.md, "Hosting"):
+        /// the shell lists it among what this device hosts, with Stop. Kept in
+        /// memory only, so quitting the host stops it.
+        keep-hosting(bool),
+    }
+
+    /// Whether this device hosts an editor's block: runs its host component
+    /// (plans/hosted_blocks.md, "Hosting"), and whether it keeps hosting it
+    /// once its editors here close (`block-command.keep-hosting`).
+    enum hosting-here {
+        no,
+        yes,
+        kept,
+    }
+
+    /// The host channel of the block an editor opened as a Join member
+    /// (`opening-kind.join`; plans/hosted_blocks.md, "Hosting"): what the host
+    /// says on it, and whether it is open.
+    variant channel-event {
+        /// A host answered: the channel is open to the account that hosts.
+        /// Told again, after `closed`, when another account's device takes the
+        /// lease or the channel is made again.
+        open(account-id),
+        /// No host is online, or the channel broke and is being made again:
+        /// what was told on it and not answered may be lost.
+        closed,
+        said(list<u8>),
+    }
+
+    /// A member of the host channel of the block a host component runs on came,
+    /// spoke or went (plans/hosted_blocks.md, "Hosting"). The host admits a
+    /// member once the signed logs give its account Join or above and it proves
+    /// its key; one whose access ends, or that leaves, goes.
+    variant member-event {
+        joined(joined-member),
+        said(member-said),
+        left(u64),
+    }
+
+    /// A member admitted to the channel: the number the host calls it by while
+    /// it stays, its account, and the level the signed logs give it, as the host
+    /// checked them.
+    record joined-member {
+        member: u64,
+        account: account-id,
+        level: access-level,
+    }
+
+    /// What a member said, or what is said to it.
+    record member-said {
+        member: u64,
+        payload: list<u8>,
     }
 
     enum conflict-side {
@@ -255,9 +321,13 @@ interface blocks {
     }
 
     /// Where in a block a search found something (`search-hit`): the document
-    /// within it, empty for a block that is one document, and the words it
-    /// matched. The editor that shows the block selects the first place they
-    /// occur, where it supports a location (`editor-event.reveal`).
+    /// within it, empty for a block that is one document, and the words of its
+    /// first match (a phrase's words in a row), which is where the document's text
+    /// first matches the query. The editor that shows the block selects the
+    /// first place they occur, where it supports a location (`editor-event.reveal`).
+    /// The words alone are enough: the first match is the first place in the
+    /// text the query matches, so no earlier place holds the same words in text
+    /// the editor shows as the index read it.
     record search-location {
         key: string,
         text: string,
@@ -325,27 +395,43 @@ interface blocks {
         send: async func(frame: list<u8>);
     }
 
+    /// An account that may view the editor's own block, or its author, and
+    /// the name to show for it (`block-subject.members`). `verified` when the
+    /// name is the one on the account's contact card, which this device
+    /// verified, or the signed-in account's own; otherwise it is the name the
+    /// account gave the server, which the server could have changed, and the
+    /// editor marks it as unverified.
+    record block-member {
+        account: account-id,
+        name: string,
+        verified: bool,
+    }
+
     /// What a `block-watch` follows: the blocks a query lists, a block's undo
-    /// history, the content stored at its head, an artifact block's state, or
-    /// the version control status of the editor's own block, for a block that
-    /// has one.
+    /// history, the content stored at its head, an artifact block's state, or,
+    /// of the editor's own block, its version control status (for a block that
+    /// has one) or its members.
     variant block-subject {
         blocks(block-query),
         history(block-id),
         head(block-id),
         artifact(block-id),
         version,
+        members,
     }
 
     /// The latest value of a `block-subject`, the variant of the same name.
     /// `head` is none for a block without content; `artifact` none while the
-    /// host knows no state for it.
+    /// host knows no state for it. `members` is answered again as who may view
+    /// the block or the contacts' names change; it fails while the host cannot
+    /// ask the server (offline, or a host with none).
     variant block-value {
         blocks(result<list<block-info>, failure>),
         history(block-history),
         head(result<option<stored-head>, failure>),
         artifact(option<artifact-state>),
         version(version-status),
+        members(result<list<block-member>, failure>),
     }
 
     /// Follows a subject. `next` answers with its latest value once it differs
@@ -356,7 +442,7 @@ interface blocks {
         next: async func() -> block-value;
     }
 
-    /// A document full-text search found (plans/search.md).
+    /// A document full-text search found (guides/blocks/host.md, "Search").
     record search-hit {
         block-id: block-id,
         /// The document within the block; empty for a block that is one document.
@@ -364,7 +450,8 @@ interface blocks {
         /// The stretch of its text around the first match, or its start when only the
         /// block's name matched.
         snippet: string,
-        /// The matched words, as byte ranges of `snippet`.
+        /// The matched words, as byte ranges of `snippet` in order: a phrase where its
+        /// words occur in a row is one range, and a word of it alone is none.
         matches: list<tuple<u32, u32>>,
     }
 

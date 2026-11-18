@@ -1,8 +1,10 @@
 use crate::measured_rect;
+use beui::primitives::Interactive;
 use beui::reactive::*;
 use beui::styled::*;
-use beui::unstyled::{DragHandle, DragPoint, Draggable, DropHandle, DropTarget};
+use beui::unstyled::{place_on, use_drop_site};
 use beui::{Align, Direction, ScrollPosition};
+use beui::{PointerPress, Pos2, Rect, Vec2};
 
 #[component]
 pub fn RowsFixture() -> NodeId {
@@ -38,7 +40,7 @@ pub fn RowsFixture() -> NodeId {
                     }}
                     on_click={move || chosen.set("Export".to_owned())}
                 />
-                <Progress value={create_memo(|| Some(0.5_f32))} label="Working" />
+                <Progress value={Some(0.5_f32)} label="Working" />
             </List>
             <Text>{report}</Text>
         </List>
@@ -60,7 +62,7 @@ pub fn ScrollFixture() -> NodeId {
                         })
                     }}
                 >
-                    <ForEach keys={(1..=30).collect::<Vec<u32>>()}>|row: u32|
+                    <ForEach value={(1..=30).collect::<Vec<u32>>()}>|row: u32|
                         <Button
                             label={format!("Item {row}")}
                             @test_id={format!("scroll.item{row}")}
@@ -69,6 +71,63 @@ pub fn ScrollFixture() -> NodeId {
                 </Scroll>
             </Frame>
             <Text>{create_memo(move || format!("Scrolled to the {}", position.get()))}</Text>
+        </List>
+    }
+}
+
+/// A virtual list in a scroll at row 40, whose rows above it, built by its overscan, grow:
+/// the list keeps row 40 where it is shown, also where the browser does not anchor the scroll
+/// itself.
+#[component]
+pub fn VirtualAnchorFixture() -> NodeId {
+    const ROW: f32 = 20.0;
+    let grown = create_signal(false);
+    let anchor = create_signal(None::<Rect>);
+    let above = create_signal(None::<Rect>);
+    let keys: Vec<u32> = (0..200).collect();
+    let scroll = view! {
+        <Scroll offset={40.0 * ROW}>
+            <VirtualList
+                value={keys}
+                item_size=ROW
+                overscan={ROW * 20.0}
+                anchor={Some(40_u32)}
+            >|row: ReadSignal<u32>| {
+                let built = view! {
+                    <Frame
+                        height={create_memo(move || {
+                            let grows = grown.get() && (30..40).contains(&row.get());
+                            Size::Custom(if grows { ROW * 3.0 } else { ROW })
+                        })}
+                        @test_id={create_memo(move || format!("anchor.row{}", row.get()))}
+                    >
+                        <Text>{create_memo(move || format!("Row {}", row.get()))}</Text>
+                    </Frame>
+                };
+                let rect = measured_rect(built);
+                create_effect(move || match row.get() {
+                    40 => anchor.set(rect.get()),
+                    39 => above.set(rect.get()),
+                    _ => {}
+                });
+                built
+            }</VirtualList>
+        </Scroll>
+    };
+    let shown = measured_rect(scroll);
+    let report = create_memo(move || match (above.get(), anchor.get(), shown.get()) {
+        (Some(above), Some(anchor), Some(shown)) => format!(
+            "Row 39 {:.0} tall, row 40 at {:.0}",
+            above.height(),
+            anchor.min.y - shown.min.y
+        ),
+        _ => "Unmeasured".to_owned(),
+    });
+    view! {
+        <List spacing=Space::Md>
+            <Frame width=Size::Custom(200.0) height=Size::Custom(200.0)>{scroll}</Frame>
+            <Button label="Grow" @test_id="anchor.grow" on_click={move || grown.set(true)} />
+            <Text>{report}</Text>
         </List>
     }
 }
@@ -94,7 +153,7 @@ pub fn ScrollChainFixture() -> NodeId {
                     <Text>"Above"</Text>
                     <Frame height=Size::Custom(120.0)>
                         <Scroll on_change={move |at: ScrollPosition| inner.set(reach(at))}>
-                            <ForEach keys={(1..=20).collect::<Vec<u32>>()}>|row: u32|
+                            <ForEach value={(1..=20).collect::<Vec<u32>>()}>|row: u32|
                                 <Button
                                     label={format!("Inner {row}")}
                                     @test_id={format!("nest.inner{row}")}
@@ -102,7 +161,7 @@ pub fn ScrollChainFixture() -> NodeId {
                             </ForEach>
                         </Scroll>
                     </Frame>
-                    <ForEach keys={(1..=10).collect::<Vec<u32>>()}>|row: u32|
+                    <ForEach value={(1..=10).collect::<Vec<u32>>()}>|row: u32|
                         <Button
                             label={format!("Outer {row}")}
                             @test_id={format!("nest.outer{row}")}
@@ -115,43 +174,46 @@ pub fn ScrollChainFixture() -> NodeId {
     }
 }
 
+/// Fruit carried onto the places that take it, one of each in a scroll that cannot show
+/// both at once.
 #[component]
 pub fn DragFixture() -> NodeId {
     let dropped = create_signal(String::from("nothing"));
     let report = create_memo(move || format!("Dropped {}", dropped.get()));
-    let apple = create_memo(|| Some("apple".to_owned()));
+    let (basket, bin) = (NodeRef::new(), NodeRef::new());
+    use_drop_site(
+        Func::new(|_: String| true),
+        Func::new(move |_: String| {
+            beui::drag::closest(
+                [place_on(basket, ()), place_on(bin, ())]
+                    .into_iter()
+                    .flatten(),
+            )
+        }),
+        Callback::new(move |(fruit, ()): (String, ())| dropped.set(fruit)),
+    );
+    let carried = |fruit: &'static str| {
+        Func::new(move |_: PointerPress| Some(beui::drag::Carry::new(fruit.to_owned())))
+    };
     view! {
         <List spacing=Space::Xl>
-            <Draggable
-                payload={apple}
-                preview={|fruit: String| view! {
-                    <Text>{fruit}</Text>
-                }}
-            >|_: DragHandle|
+            <Interactive drag={carried("apple")}>
                 <Card @test_id="drag.apple">
                     <Text>"Apple"</Text>
                 </Card>
-            </Draggable>
-            <DropTarget
-                on_drop={move |(fruit, _): (String, DragPoint)| dropped.set(fruit)}
-            >|_: DropHandle|
-                <Frame
-                    width=Size::Custom(200.0)
-                    height=Size::Custom(80.0)
-                    fill=ColorRole::Surface
-                    @test_id="drag.basket"
-                >
-                    <Text>"Basket"</Text>
-                </Frame>
-            </DropTarget>
+            </Interactive>
+            <Frame
+                @node_ref=&basket
+                width=Size::Custom(200.0)
+                height=Size::Custom(80.0)
+                fill=ColorRole::Surface
+                @test_id="drag.basket"
+            >
+                <Text>"Basket"</Text>
+            </Frame>
             <Frame width=Size::Custom(200.0) height=Size::Custom(120.0)>
                 <Scroll>
-                    <Draggable
-                        payload={create_memo(|| Some("pear".to_owned()))}
-                        preview={|fruit: String| view! {
-                            <Text>{fruit}</Text>
-                        }}
-                    >|_: DragHandle|
+                    <Interactive drag={carried("pear")}>
                         <Frame
                             height=Size::Custom(60.0)
                             fill=ColorRole::Surface
@@ -159,20 +221,58 @@ pub fn DragFixture() -> NodeId {
                         >
                             <Text>"Pear"</Text>
                         </Frame>
-                    </Draggable>
+                    </Interactive>
                     <Frame height=Size::Custom(40.0) />
-                    <DropTarget
-                        on_drop={move |(fruit, _): (String, DragPoint)| dropped.set(fruit)}
-                    >|_: DropHandle|
-                        <Frame
-                            height=Size::Custom(60.0)
-                            fill=ColorRole::Surface
-                            @test_id="drag.box"
-                        >
-                            <Text>"Box"</Text>
-                        </Frame>
-                    </DropTarget>
+                    <Frame
+                        @node_ref=&bin
+                        height=Size::Custom(60.0)
+                        fill=ColorRole::Surface
+                        @test_id="drag.box"
+                    >
+                        <Text>"Box"</Text>
+                    </Frame>
                 </Scroll>
+            </Frame>
+            <Text>{report}</Text>
+        </List>
+    }
+}
+
+/// An item lifted by an `Interactive`'s `drag` and dropped on a site: the site shows what
+/// is over it while carried and writes only at the release.
+#[component]
+pub fn CarryFixture() -> NodeId {
+    let dropped = create_signal(String::from("nothing"));
+    let basket = NodeRef::new();
+    let site = use_drop_site(
+        Func::new(|_: String| true),
+        Func::new(move |_: String| {
+            let rest = Rect::from_min_size(Pos2::ZERO, Vec2::new(40.0, 20.0));
+            beui::drag::fixed(beui::drag::Candidate::new((), rest, basket))
+        }),
+        Callback::new(move |(fruit, ()): (String, ())| dropped.set(fruit)),
+    );
+    let report = create_memo(move || match site.over.get() {
+        Some(()) => "Over basket".to_owned(),
+        None => format!("Dropped {}", dropped.get()),
+    });
+    view! {
+        <List spacing=Space::Xl>
+            <Interactive
+                drag={Func::new(|_: PointerPress| Some(beui::drag::Carry::new("apple".to_owned())))}
+            >
+                <Card @test_id="carry.apple">
+                    <Text>"Apple"</Text>
+                </Card>
+            </Interactive>
+            <Frame
+                @node_ref=&basket
+                width=Size::Custom(200.0)
+                height=Size::Custom(80.0)
+                fill=ColorRole::Surface
+                @test_id="carry.basket"
+            >
+                <Text>"Basket"</Text>
             </Frame>
             <Text>{report}</Text>
         </List>
@@ -212,7 +312,7 @@ pub fn ReorderFixture() -> NodeId {
         <List spacing=Space::Xl>
             <Frame width=Size::Custom(240.0)>
                 <Reorder
-                    keys={fruits}
+                    value={fruits}
                     payload={Func::new(|fruit: &'static str| Some(fruit))}
                     text={|fruit: &'static str| fruit.to_owned()}
                     preview={|fruit: &'static str| view! {
@@ -225,7 +325,7 @@ pub fn ReorderFixture() -> NodeId {
                     }}
                 >|reorder: ReorderHandle<&'static str, &'static str>|
                     <List spacing=Space::Xs>
-                        <ForEach keys={reorder.order}>|fruit: &'static str|
+                        <ForEach value={reorder.order} handle={reorder.rows}>|fruit: &'static str|
                             <ReorderItem reorder item=fruit>|_: ReorderItemHandle|
                                 <Card @test_id={format!("reorder.{fruit}")}>
                                     <Text>{fruit}</Text>
@@ -268,7 +368,7 @@ fn LongList() -> NodeId {
             <Frame width=Size::Custom(120.0) height=Size::Custom(160.0) @test_id="long.view">
                 <Scroll on_change={move |at: ScrollPosition| reached.set(reach(at))}>
                     <Reorder
-                        keys={rows}
+                        value={rows}
                         payload={Func::new(|row: u32| Some(row))}
                         text={|row: u32| format!("Row {row}")}
                         preview={|row: u32| view! {
@@ -285,7 +385,7 @@ fn LongList() -> NodeId {
                         }}
                     >|reorder: ReorderHandle<u32, u32>|
                         <List spacing=SHELF_GAP>
-                            <ForEach keys={reorder.order}>|row: u32|
+                            <ForEach value={reorder.order} handle={reorder.rows}>|row: u32|
                                 <ReorderItem reorder item=row>|_: ReorderItemHandle|
                                     <Frame
                                         height=Size::Custom(SHELF_ROW)
@@ -333,7 +433,7 @@ fn Shelf(shelf: usize, shelves: Signal<Vec<Vec<&'static str>>>) -> NodeId {
     view! {
         <Frame width=Size::Custom(120.0) @test_id={format!("shelf.{shelf}")}>
             <Reorder
-                keys={keys}
+                value={keys}
                 payload={Func::new(|vegetable: Vegetable| Some(vegetable))}
                 accepts={Func::new(|_: Vegetable| true)}
                 preview={|vegetable: Vegetable| view! {
@@ -341,6 +441,7 @@ fn Shelf(shelf: usize, shelves: Signal<Vec<Vec<&'static str>>>) -> NodeId {
                         width=Size::Custom(120.0)
                         height=Size::Custom(SHELF_ROW)
                         fill=ColorRole::Accent
+                        @test_id="shelf.preview"
                     >
                         <Text>{vegetable.0}</Text>
                     </Frame>
@@ -355,7 +456,7 @@ fn Shelf(shelf: usize, shelves: Signal<Vec<Vec<&'static str>>>) -> NodeId {
                 })}
             >|reorder: ReorderHandle<Vegetable, Vegetable>|
                 <List spacing=SHELF_GAP>
-                    <ForEach keys={reorder.order}>|vegetable: Vegetable|
+                    <ForEach value={reorder.order} handle={reorder.rows}>|vegetable: Vegetable|
                         <ReorderItem reorder item=vegetable>|_: ReorderItemHandle|
                             <Frame
                                 height=Size::Custom(SHELF_ROW)

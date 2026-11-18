@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-pub use be_block::ConflictKind;
+pub use be_block_repository::ConflictKind;
 
 use be_block_commit::{ChangeId, Commit, CommitId, CommitKind, CommitStore};
 use be_block_content::{BlockMetadata, NAME};

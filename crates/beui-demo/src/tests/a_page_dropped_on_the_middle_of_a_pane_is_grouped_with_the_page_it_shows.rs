@@ -25,15 +25,15 @@ fn a_page_dropped_on_the_middle_of_a_pane_is_grouped_with_the_page_it_shows() {
     test.frame(vec![Input::PointerMoved(alone)]);
     test.frame(Vec::new());
     assert!(
-        test.shows("dock.refused") && !test.shows("dock.drop.label"),
-        "over the locked catalog the page is refused, so nothing is named"
+        test.shown("dock.preview") && !test.shown("dock.drop") && !test.shown("dock.drop.label"),
+        "over the locked catalog the page is still carried but has no drop, so nothing is named"
     );
     test.frame(vec![Input::PointerMoved(to)]);
     test.frame(Vec::new());
 
     let root = test.document().root().expect("the demo built a root");
     assert!(
-        test.shows("dock.drop.label"),
+        test.shown("dock.drop.label"),
         "the highlight over the middle of a pane says what the drop does"
     );
     assert_eq!(

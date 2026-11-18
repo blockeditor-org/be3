@@ -3,7 +3,7 @@ use be_sdk_beui::beui::icons::{ICON_ROTATE_CCW_CLOCK, ICON_TRASH};
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 
-use super::panel::TabInfo;
+use super::panel::{Deleted, TabInfo};
 use super::workspace::Workspace;
 use beui::{Align, Direction, Overflow};
 
@@ -23,7 +23,6 @@ pub(crate) fn DeletedBar(
                 .and_then(|info| info.deleted.clone())
         })
     });
-    let shown = create_memo(move || deleted.with(Option::is_some));
     let caption = create_memo(move || {
         deleted.with(
             |deleted| match deleted.as_ref().and_then(|deleted| deleted.inside.as_ref()) {
@@ -42,7 +41,7 @@ pub(crate) fn DeletedBar(
         })
     });
     view! {
-        <Show condition={shown}>
+        <Show value={deleted}>|deleted: ReadSignal<Deleted>|
             <Frame
                 fill=ColorRole::Surface
                 padding={Padding::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
@@ -66,11 +65,7 @@ pub(crate) fn DeletedBar(
                         glyph=ICON_ROTATE_CCW_CLOCK
                         variant=ButtonVariant::Secondary
                         disabled={locked}
-                        on_click={move || {
-                            if let Some(deleted) = deleted.get_untracked() {
-                                workspace.host().restore_block(deleted.root);
-                            }
-                        }}
+                        on_click={move || workspace.host().restore_block(deleted.with_untracked(|deleted| deleted.root))}
                     />
                 </List>
             </Frame>

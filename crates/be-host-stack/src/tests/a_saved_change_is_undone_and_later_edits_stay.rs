@@ -19,7 +19,10 @@ fn a_saved_change_is_undone_and_later_edits_stay() {
     let harness = Harness::start();
     harness.connect();
     let versioned = start_versioning("hello\n");
-    show_version(versioned.checkout, be_block::CheckoutContent::CONTENT_TYPE);
+    show_version(
+        versioned.checkout,
+        be_block_repository::CheckoutContent::CONTENT_TYPE,
+    );
     hold(versioned.note, be_type_text::TextContent::CONTENT_TYPE);
     wait_until("opened the note", |shared| {
         text_of(shared, versioned.note).is_some()

@@ -4,6 +4,9 @@ pub struct Email {
     pub body: String,
 }
 
+/// Sends a message. `send` is called on the request's path, while the portal answers, so a
+/// delivery that talks to a mail server must queue the message and send it elsewhere, never
+/// make the request wait on it (plans/deferred/mail_delivery.md).
 pub trait Delivery: Send + Sync {
     fn send(&self, email: Email);
 }

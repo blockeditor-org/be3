@@ -9,7 +9,7 @@ fn the_window_sample_floats_beside_its_button_where_nothing_opens_windows() {
     test.click("demo.window.trigger");
     test.frame(Vec::new());
     assert!(
-        test.shows("demo.window.panel"),
+        test.shown("demo.window.panel"),
         "the button opens the window, shown over the page as an overlay"
     );
     let trigger = test.rect_of("demo.window.trigger");
@@ -23,7 +23,7 @@ fn the_window_sample_floats_beside_its_button_where_nothing_opens_windows() {
     test.click("demo.window.trigger");
     test.frame(Vec::new());
     assert!(
-        !test.shows("demo.window.panel"),
+        !test.shown("demo.window.panel"),
         "the button closes it again"
     );
 }

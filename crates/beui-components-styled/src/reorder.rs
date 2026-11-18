@@ -4,14 +4,56 @@ use beui_macros::{component, view};
 use beui_view::primitives::Layers;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
-use beui_view::types::{CursorIcon, Vec2};
+use beui_view::types::{CursorIcon, Direction, Vec2};
 
-use beui_components_unstyled::{ReorderHandle, ReorderItemHandle};
+use beui_components_unstyled::{ReorderHandle, ReorderItemHandle, ReorderMove};
 
 use crate::frame::{Border, ColorRole, Frame, Radius};
-use crate::tokens::{Padding, Space, Stroke};
+use crate::tokens::{Movement, Padding, Space, Stroke};
 
 pub const LIFT_DROP: Space = Space::Xs;
+
+/// `unstyled::Reorder` settling its rows and gaps on the theme's `Movement::Settle`.
+#[component]
+pub fn Reorder<K, P>(
+    value: Prop<Vec<K>>,
+    #[prop(default = Direction::Vertical)] direction: Prop<Direction>,
+    payload: Func<K, Option<P>>,
+    accepts: Option<Func<P, bool>>,
+    #[prop(default = false)] disabled: Prop<bool>,
+    #[prop(default = false)] fixed: Prop<bool>,
+    slot: Option<Func<P, Option<usize>>>,
+    #[prop(default = false)] lifts_on_long_press: bool,
+    text: Callback<K, String>,
+    on_move: Callback<ReorderMove<K, P>>,
+    on_drag_change: Callback<Option<K>>,
+    preview: RenderFn<P, NodeId>,
+    #[prop(children)] content: Render<ReorderHandle<K, P>, NodeId>,
+) -> NodeId
+where
+    K: Clone + Eq + Hash + 'static,
+    P: Clone + PartialEq + 'static,
+{
+    view! {
+        <beui_components_unstyled::Reorder
+            value
+            spring={Movement::Settle.spring()}
+            direction
+            payload
+            accepts
+            disabled
+            fixed
+            slot
+            lifts_on_long_press
+            text={text}
+            on_move={on_move}
+            on_drag_change={on_drag_change}
+            preview
+        >|handle: ReorderHandle<K, P>| {
+            content.call(handle)
+        }</beui_components_unstyled::Reorder>
+    }
+}
 
 #[component]
 pub fn ReorderItem<K, P>(
@@ -22,7 +64,7 @@ pub fn ReorderItem<K, P>(
     #[prop(default = false)] capture_presses: Prop<bool>,
     #[prop(default = CursorIcon::Default)] cursor: Prop<CursorIcon>,
     on_click: Callback<()>,
-    #[prop(children)] content: Render<ReorderItemHandle>,
+    #[prop(children)] content: Render<ReorderItemHandle, NodeId>,
 ) -> NodeId
 where
     K: Clone + Eq + Hash + 'static,

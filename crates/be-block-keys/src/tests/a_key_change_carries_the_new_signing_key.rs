@@ -10,7 +10,7 @@ fn a_key_change_carries_the_new_signing_key() {
         account: theirs,
         public: contact.public(),
     };
-    let sealed = old.seal_key_change(account, &to, fresh.identity());
+    let sealed = old.seal_key_change(account, &to, fresh.identity()).unwrap();
     let from = Party {
         account,
         public: old.public(),
@@ -24,7 +24,9 @@ fn a_key_change_carries_the_new_signing_key() {
     ));
 
     let forger = RecoveryPhrase::generate().secret();
-    let forged = forger.seal_key_change(account, &to, forger.identity());
+    let forged = forger
+        .seal_key_change(account, &to, forger.identity())
+        .unwrap();
     assert_eq!(
         contact.open_key_change(&from, theirs, &forged),
         Err(KeyError::Sender),

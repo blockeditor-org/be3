@@ -1,6 +1,6 @@
 use be_sdk_beui::be_block::{
-    Allowance, LostAccess, OfflinePolicy, OfflineSettings, OrganizationPolicies, Settings,
-    SettingsContent, WhoMay,
+    Allowance, LinkSharing, LostAccess, OfflinePolicy, OfflineSettings, OrganizationPolicies,
+    Settings, SettingsContent, WhoMay,
 };
 use be_sdk_beui::be_block_content::be_block_model::Document;
 use be_sdk_beui::be_block_content::{
@@ -35,15 +35,16 @@ struct Policy<R> {
     label: &'static str,
     description: &'static str,
     options: &'static [&'static str],
-    get: fn(&R) -> usize,
+    /// The option the stored value is, or `None` for a value none of them is.
+    get: fn(&R) -> Option<usize>,
     set: fn(usize) -> Edit,
 }
 
-fn index_of<T: PartialEq>(all: &[T], value: &T) -> usize {
-    all.iter().position(|held| held == value).unwrap_or(0)
+fn index_of<T: PartialEq>(all: &[T], value: &T) -> Option<usize> {
+    all.iter().position(|held| held == value)
 }
 
-const POLICIES: [Policy<OrganizationPolicies>; 4] = [
+const POLICIES: [Policy<OrganizationPolicies>; 5] = [
     Policy {
         key: "sharing",
         label: "Sharing outside the organization",
@@ -58,6 +59,23 @@ const POLICIES: [Policy<OrganizationPolicies>; 4] = [
         set: |index| {
             OrganizationPolicies::set_outside_sharing(
                 [None, Some(Allowance::Blocked)][index.min(1)],
+            )
+        },
+    },
+    Policy {
+        key: "share-links",
+        label: "Who share links admit",
+        description: "Anyone with a block's link may open it as its maker chose, within this. Anyone with an account joins as a guest, who sees only what links share; it needs sharing outside allowed. Narrowing this leaves grants already made.",
+        options: &["Members", "Anyone with an account", "No share links"],
+        get: |policies| {
+            index_of(
+                &[LinkSharing::Members, LinkSharing::Anyone, LinkSharing::Off],
+                &policies.link_sharing.unwrap_or_default(),
+            )
+        },
+        set: |index| {
+            OrganizationPolicies::set_link_sharing(
+                [None, Some(LinkSharing::Anyone), Some(LinkSharing::Off)][index.min(2)],
             )
         },
     },
@@ -199,8 +217,8 @@ pub(super) fn OrganizationPage(editor: Editor) -> NodeId {
             .map(|index| policy_row::<OrganizationPolicies>(editor, settings, *index))
             .collect()
     };
-    let sharing = organization(&[0, 1]);
-    let storage = organization(&[2, 3]);
+    let sharing = organization(&[0, 1, 2]);
+    let storage = organization(&[3, 4]);
     let devices: Vec<Row> = (0..OFFLINE_POLICIES.len())
         .map(|index| policy_row::<OfflineSettings>(editor, settings, index))
         .collect();
@@ -225,7 +243,7 @@ fn PolicyRows(rows: Vec<Row>, locked: Memo<bool>) -> NodeId {
     let keys: Vec<usize> = (0..rows.len()).collect();
     view! {
         <List spacing=Space::None>
-            <ForEach keys={keys}>|index: usize| {
+            <ForEach value={keys}>|index: usize| {
                 let row = rows[index].clone();
                 view! {
                     <PolicyRow
@@ -286,7 +304,7 @@ where
                     .ok()
             })
             .unwrap_or_default();
-        Some(get(&held))
+        get(&held)
     });
     let choose = Callback::new(move |chosen: Option<usize>| {
         if let (Some(chosen), Some(settings)) = (chosen, settings.get_untracked()) {
@@ -314,7 +332,7 @@ fn PolicyRow(
     locked: Memo<bool>,
     separated: bool,
 ) -> NodeId {
-    let options: Vec<String> = options.iter().map(|label| (*label).to_owned()).collect();
+    let numbers: Vec<usize> = (0..options.len()).collect();
     view! {
         <SettingsRow
             label={label.to_owned()}
@@ -326,8 +344,8 @@ fn PolicyRow(
                 <Select
                     width={Extent::fraction(1.0)}
                     options={view! {
-                        <ForEach keys={options}>|label: String|
-                            <ChoiceOption label={label} />
+                        <ForEach value={numbers}>|option: usize|
+                            <ChoiceOption value=option label={options[option].to_owned()} />
                         </ForEach>
                     }}
                     selected={Binding::new(selected, move |chosen: Option<usize>| choose.call(chosen))}
@@ -353,17 +371,17 @@ fn keep_setting(workspace: Uuid) -> Setting<OfflineSettings, bool> {
 #[component]
 pub(super) fn OfflinePage(editor: Editor) -> NodeId {
     let workspaces = workspaces(editor);
-    let listed = create_memo(move || !workspaces.with(Vec::is_empty));
-    let none = create_memo(move || !listed.get());
     let layered = LayeredSettings::<OfflineSettings>::this_device(editor);
     let resolved = editor.resolved_settings::<OfflineSettings>(editor.block_id());
     view! {
         <SettingsPage>
             <SettingsSection title="Offline" description={OFFLINE_ABOUT}>
-                <Show condition={none}>
-                    <SettingsRow label="No workspaces yet" compact=true />
-                </Show>
-                <ForEach keys={workspaces}>|workspace: Uuid| {
+                <ForEach
+                    value={workspaces}
+                    fallback={|| view! {
+                        <SettingsRow label="No workspaces yet" compact=true />
+                    }}
+                >|workspace: Uuid, index: ReadSignal<usize>| {
                     let setting = keep_setting(workspace);
                     let personal = create_memo(move || editor.organization_settings().is_none());
                     let choice = create_memo(move || {
@@ -373,17 +391,14 @@ pub(super) fn OfflinePage(editor: Editor) -> NodeId {
                     });
                     let on = create_memo(move || choice.get().keep);
                     let fixed = create_memo(move || choice.get().fixed);
-                    let note = create_memo(move || match fixed.get() {
-                        true => FIXED.to_owned(),
-                        false => String::new(),
-                    });
-                    let label = create_memo(move || name_of(editor, workspace));
-                    let first = create_memo(move || workspaces.with(|all| all.first() != Some(&workspace)));
                     view! {
                         <SettingsRow
-                            label={label}
-                            note={note}
-                            separated={first}
+                            label={move || name_of(editor, workspace)}
+                            note={move || match fixed.get() {
+                                true => FIXED.to_owned(),
+                                false => String::new(),
+                            }}
+                            separated={move || index.get() != 0}
                             locked={fixed}
                             compact=true
                         >

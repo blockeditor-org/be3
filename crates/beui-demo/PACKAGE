@@ -32,6 +32,7 @@ write_package_value("be3.cargo", {
             "binaries": {
                 "demo": [
                     "//crates/be-lib-stable-hash:be-lib-stable-hash",
+                    "//crates/beui-host-window:beui-host-window",
                     "//crates/beui-host:beui-host",
                     "//crates/beui-macros:beui-macros",
                     "//crates/beui-text-editor-core:beui-text-editor-core",
@@ -40,6 +41,7 @@ write_package_value("be3.cargo", {
             },
             "deps": [
                 "//crates/be-lib-stable-hash:be-lib-stable-hash",
+                "//crates/beui-host-window:beui-host-window",
                 "//crates/beui-host:beui-host",
                 "//crates/beui-macros:beui-macros",
                 "//crates/beui-text-editor-core:beui-text-editor-core",
@@ -52,6 +54,7 @@ write_package_value("be3.cargo", {
                         "//crates/be-sdk-test:be-sdk-test",
                         "//crates/be-tool-bench:be-tool-bench",
                         "//crates/beui-core:beui-core",
+                        "//crates/beui-host-window:beui-host-window",
                         "//crates/beui-host:beui-host",
                         "//crates/beui-inspector:beui-inspector",
                         "//crates/beui-layer-space:beui-layer-space",
@@ -70,6 +73,7 @@ write_package_value("be3.cargo", {
                         "//crates/be-sdk-test:be-sdk-test",
                         "//crates/be-tool-bench:be-tool-bench",
                         "//crates/beui-core:beui-core",
+                        "//crates/beui-host-window:beui-host-window",
                         "//crates/beui-host:beui-host",
                         "//crates/beui-inspector:beui-inspector",
                         "//crates/beui-layer-space:beui-layer-space",
@@ -100,6 +104,7 @@ write_package_value("be3.cargo", {
             "binaries": {
                 "demo": [
                     "//crates/be-lib-stable-hash:be-lib-stable-hash",
+                    "//crates/beui-host-window:beui-host-window",
                     "//crates/beui-host:beui-host",
                     "//crates/beui-macros:beui-macros",
                     "//crates/beui-text-editor-core:beui-text-editor-core",
@@ -108,6 +113,7 @@ write_package_value("be3.cargo", {
             },
             "deps": [
                 "//crates/be-lib-stable-hash:be-lib-stable-hash",
+                "//crates/beui-host-window:beui-host-window",
                 "//crates/beui-host:beui-host",
                 "//crates/beui-macros:beui-macros",
                 "//crates/beui-text-editor-core:beui-text-editor-core",
@@ -120,6 +126,7 @@ write_package_value("be3.cargo", {
                         "//crates/be-sdk-test:be-sdk-test",
                         "//crates/be-tool-bench:be-tool-bench",
                         "//crates/beui-core:beui-core",
+                        "//crates/beui-host-window:beui-host-window",
                         "//crates/beui-host:beui-host",
                         "//crates/beui-inspector:beui-inspector",
                         "//crates/beui-layer-space:beui-layer-space",
@@ -138,6 +145,7 @@ write_package_value("be3.cargo", {
                         "//crates/be-sdk-test:be-sdk-test",
                         "//crates/be-tool-bench:be-tool-bench",
                         "//crates/beui-core:beui-core",
+                        "//crates/beui-host-window:beui-host-window",
                         "//crates/beui-host:beui-host",
                         "//crates/beui-inspector:beui-inspector",
                         "//crates/beui-layer-space:beui-layer-space",
@@ -168,6 +176,7 @@ write_package_value("be3.cargo", {
             "binaries": {
                 "demo": [
                     "//crates/be-lib-stable-hash:be-lib-stable-hash",
+                    "//crates/beui-host-window:beui-host-window",
                     "//crates/beui-host:beui-host",
                     "//crates/beui-macros:beui-macros",
                     "//crates/beui-text-editor-core:beui-text-editor-core",
@@ -176,6 +185,7 @@ write_package_value("be3.cargo", {
             },
             "deps": [
                 "//crates/be-lib-stable-hash:be-lib-stable-hash",
+                "//crates/beui-host-window:beui-host-window",
                 "//crates/beui-host:beui-host",
                 "//crates/beui-macros:beui-macros",
                 "//crates/beui-text-editor-core:beui-text-editor-core",
@@ -188,6 +198,7 @@ write_package_value("be3.cargo", {
                         "//crates/be-sdk-test:be-sdk-test",
                         "//crates/be-tool-bench:be-tool-bench",
                         "//crates/beui-core:beui-core",
+                        "//crates/beui-host-window:beui-host-window",
                         "//crates/beui-host:beui-host",
                         "//crates/beui-inspector:beui-inspector",
                         "//crates/beui-layer-space:beui-layer-space",
@@ -206,6 +217,7 @@ write_package_value("be3.cargo", {
                         "//crates/be-sdk-test:be-sdk-test",
                         "//crates/be-tool-bench:be-tool-bench",
                         "//crates/beui-core:beui-core",
+                        "//crates/beui-host-window:beui-host-window",
                         "//crates/beui-host:beui-host",
                         "//crates/beui-inspector:beui-inspector",
                         "//crates/beui-layer-space:beui-layer-space",
@@ -236,6 +248,7 @@ write_package_value("be3.cargo", {
             "binaries": {
                 "demo": [
                     "//crates/be-lib-stable-hash:be-lib-stable-hash",
+                    "//crates/beui-host-window:beui-host-window",
                     "//crates/beui-host:beui-host",
                     "//crates/beui-macros:beui-macros",
                     "//crates/beui-text-editor-core:beui-text-editor-core",
@@ -244,6 +257,7 @@ write_package_value("be3.cargo", {
             },
             "deps": [
                 "//crates/be-lib-stable-hash:be-lib-stable-hash",
+                "//crates/beui-host-window:beui-host-window",
                 "//crates/beui-host:beui-host",
                 "//crates/beui-macros:beui-macros",
                 "//crates/beui-text-editor-core:beui-text-editor-core",
@@ -256,6 +270,7 @@ write_package_value("be3.cargo", {
                         "//crates/be-sdk-test:be-sdk-test",
                         "//crates/be-tool-bench:be-tool-bench",
                         "//crates/beui-core:beui-core",
+                        "//crates/beui-host-window:beui-host-window",
                         "//crates/beui-host:beui-host",
                         "//crates/beui-inspector:beui-inspector",
                         "//crates/beui-layer-space:beui-layer-space",
@@ -274,6 +289,7 @@ write_package_value("be3.cargo", {
                         "//crates/be-sdk-test:be-sdk-test",
                         "//crates/be-tool-bench:be-tool-bench",
                         "//crates/beui-core:beui-core",
+                        "//crates/beui-host-window:beui-host-window",
                         "//crates/beui-host:beui-host",
                         "//crates/beui-inspector:beui-inspector",
                         "//crates/beui-layer-space:beui-layer-space",
@@ -304,6 +320,7 @@ write_package_value("be3.cargo", {
             "binaries": {
                 "demo": [
                     "//crates/be-lib-stable-hash:be-lib-stable-hash",
+                    "//crates/beui-host-window:beui-host-window",
                     "//crates/beui-host:beui-host",
                     "//crates/beui-macros:beui-macros",
                     "//crates/beui-text-editor-core:beui-text-editor-core",
@@ -312,6 +329,7 @@ write_package_value("be3.cargo", {
             },
             "deps": [
                 "//crates/be-lib-stable-hash:be-lib-stable-hash",
+                "//crates/beui-host-window:beui-host-window",
                 "//crates/beui-host:beui-host",
                 "//crates/beui-macros:beui-macros",
                 "//crates/beui-text-editor-core:beui-text-editor-core",
@@ -324,6 +342,7 @@ write_package_value("be3.cargo", {
                         "//crates/be-sdk-test:be-sdk-test",
                         "//crates/be-tool-bench:be-tool-bench",
                         "//crates/beui-core:beui-core",
+                        "//crates/beui-host-window:beui-host-window",
                         "//crates/beui-host:beui-host",
                         "//crates/beui-inspector:beui-inspector",
                         "//crates/beui-layer-space:beui-layer-space",
@@ -342,6 +361,7 @@ write_package_value("be3.cargo", {
                         "//crates/be-sdk-test:be-sdk-test",
                         "//crates/be-tool-bench:be-tool-bench",
                         "//crates/beui-core:beui-core",
+                        "//crates/beui-host-window:beui-host-window",
                         "//crates/beui-host:beui-host",
                         "//crates/beui-inspector:beui-inspector",
                         "//crates/beui-layer-space:beui-layer-space",
@@ -450,6 +470,7 @@ write_package_value("be3.cargo", {
             "binaries": {
                 "demo": [
                     "//crates/be-lib-stable-hash:be-lib-stable-hash",
+                    "//crates/beui-host-window:beui-host-window",
                     "//crates/beui-host:beui-host",
                     "//crates/beui-macros:beui-macros",
                     "//crates/beui-text-editor-core:beui-text-editor-core",
@@ -458,6 +479,7 @@ write_package_value("be3.cargo", {
             },
             "deps": [
                 "//crates/be-lib-stable-hash:be-lib-stable-hash",
+                "//crates/beui-host-window:beui-host-window",
                 "//crates/beui-host:beui-host",
                 "//crates/beui-macros:beui-macros",
                 "//crates/beui-text-editor-core:beui-text-editor-core",
@@ -470,6 +492,7 @@ write_package_value("be3.cargo", {
                         "//crates/be-sdk-test:be-sdk-test",
                         "//crates/be-tool-bench:be-tool-bench",
                         "//crates/beui-core:beui-core",
+                        "//crates/beui-host-window:beui-host-window",
                         "//crates/beui-host:beui-host",
                         "//crates/beui-inspector:beui-inspector",
                         "//crates/beui-layer-space:beui-layer-space",
@@ -488,6 +511,7 @@ write_package_value("be3.cargo", {
                         "//crates/be-sdk-test:be-sdk-test",
                         "//crates/be-tool-bench:be-tool-bench",
                         "//crates/beui-core:beui-core",
+                        "//crates/beui-host-window:beui-host-window",
                         "//crates/beui-host:beui-host",
                         "//crates/beui-inspector:beui-inspector",
                         "//crates/beui-layer-space:beui-layer-space",
@@ -518,6 +542,7 @@ write_package_value("be3.cargo", {
             "binaries": {
                 "demo": [
                     "//crates/be-lib-stable-hash:be-lib-stable-hash",
+                    "//crates/beui-host-window:beui-host-window",
                     "//crates/beui-host:beui-host",
                     "//crates/beui-macros:beui-macros",
                     "//crates/beui-text-editor-core:beui-text-editor-core",
@@ -526,6 +551,7 @@ write_package_value("be3.cargo", {
             },
             "deps": [
                 "//crates/be-lib-stable-hash:be-lib-stable-hash",
+                "//crates/beui-host-window:beui-host-window",
                 "//crates/beui-host:beui-host",
                 "//crates/beui-macros:beui-macros",
                 "//crates/beui-text-editor-core:beui-text-editor-core",
@@ -538,6 +564,7 @@ write_package_value("be3.cargo", {
                         "//crates/be-sdk-test:be-sdk-test",
                         "//crates/be-tool-bench:be-tool-bench",
                         "//crates/beui-core:beui-core",
+                        "//crates/beui-host-window:beui-host-window",
                         "//crates/beui-host:beui-host",
                         "//crates/beui-inspector:beui-inspector",
                         "//crates/beui-layer-space:beui-layer-space",
@@ -556,6 +583,7 @@ write_package_value("be3.cargo", {
                         "//crates/be-sdk-test:be-sdk-test",
                         "//crates/be-tool-bench:be-tool-bench",
                         "//crates/beui-core:beui-core",
+                        "//crates/beui-host-window:beui-host-window",
                         "//crates/beui-host:beui-host",
                         "//crates/beui-inspector:beui-inspector",
                         "//crates/beui-layer-space:beui-layer-space",

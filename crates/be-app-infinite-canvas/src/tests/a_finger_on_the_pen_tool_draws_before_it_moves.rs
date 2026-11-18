@@ -6,13 +6,10 @@ fn a_finger_on_the_pen_tool_draws_before_it_moves() {
     let mut editor = phone(&[]);
 
     editor.click("infinite-canvas.dock.tool.Pen");
-    editor.run();
     let at = editor.rect_of("infinite-canvas.canvas").center();
     editor.fingers(TouchPhase::Start, &[(1, at)]);
-    editor.run();
     editor.snapshot("a_finger_on_the_pen_tool_draws_before_it_moves");
     editor.fingers(TouchPhase::End, &[(1, at)]);
-    editor.run();
 
     let entities = entities(&editor);
     assert_eq!(entities.len(), 1, "the tap adds one stroke");

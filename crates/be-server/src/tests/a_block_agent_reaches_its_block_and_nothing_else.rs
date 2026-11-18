@@ -4,79 +4,84 @@ use be_block_graph::Access;
 
 /// Calls that reach past one block, which a block's agent may not make whatever they name.
 const REACHING_PAST: &[&str] = &[
-    "begin-browser-login",
-    "poll-browser-login",
-    "create-local-profile",
-    "storage-changed",
-    "pair",
-    "paired",
+    "device-login (begin)",
+    "device-login (poll)",
+    "storage",
+    "send devices",
     "create-organization",
-    "list-members",
-    "set-role",
-    "remove-member",
+    "members",
+    "append-log (role)",
+    "delete-agent",
     "create-agent",
     "rotate-agent-token",
-    "create-link",
+    "create-link (contact)",
     "create-link (invitation)",
-    "get-link",
+    "link",
     "accept-link",
-    "list-links",
     "delete-link",
-    "put-contact",
     "remove-contact",
-    "set-parent",
-    "collect-detached",
-    "set-access",
-    "list-access",
+    "move",
+    "append-log (grant)",
+    "append-log (ban)",
+    "access",
+    "names",
     "set-recovery-key",
-    "get-signing-keys",
-    "create-escrow",
-    "push-key",
-    "offers-fcm",
-    "register-endpoint",
-    "unregister-endpoint",
-    "notify-modes",
-    "notify-modes-changed",
-    "keys-changed",
-    "set-notify-mode",
+    "signing-keys",
+    "put-keys (escrow)",
+    "set-push-endpoint (register)",
+    "set-push-endpoint (forget)",
+    "mutes",
+    "set-mute",
 ];
 
-/// Calls that name no block, which a terminal host makes on connecting; each answers only
+/// Cases that name no block, which a terminal host makes on connecting; each answers only
 /// about the agent's own block.
 const CONNECTING: &[&str] = &[
     "ping",
-    "open-organization",
-    "list-organizations",
-    "list-contacts",
-    "contacts-changed",
-    "upload-urls",
+    "authenticate",
+    "events",
+    "organizations",
+    "log (organization)",
+    // Where its contacts' records and key changes arrive, which it keeps, having no block of
+    // its own, or deletes once it followed them.
+    "mailbox",
+    "delete-message",
+    "reserve-uploads",
     "download-urls",
-    "list-blocks",
-    "read-summaries",
-    "unlist",
-    "changes",
-    "get-keys",
-    "put-keys",
-    "get-recovery-key",
-    "reseal-keys",
-    "get-key-work",
-    "key-work-changed",
-    "pin-escrow",
-    "logout",
+    "list",
+    "blocks",
+    "unfollow tree",
+    "unfollow session",
+    "unfollow block-log",
+    "unfollow keys",
+    "unfollow key-work",
+    "unfollow roots",
+    "unfollow storage",
+    "unfollow mailbox",
+    "unfollow mutes",
+    "keys",
+    "put-keys (rows)",
+    "recovery-key",
+    "put-keys (reseal)",
+    "key-work",
+    "server-info",
+    "revoke-token",
 ];
 
 #[tokio::test]
 async fn a_block_agent_reaches_its_block_and_nothing_else() {
     let harness = Harness::start().await;
-    let mut owner = harness.client().await;
-    let me = owner.register("owner@example.com").await;
+    let mut owner = harness.member("owner@example.com").await;
+    let me = owner.id();
     let organization = owner.organization("team").await;
     let terminal = owner.create_block(BlockParent::Root).await;
     let elsewhere = owner.create_block(BlockParent::Root).await;
     let under = owner.create_block(BlockParent::Block(elsewhere)).await;
     let (account, token) = owner.block_agent(organization, terminal).await.unwrap();
 
-    let response = owner.call(|peer| client::members::list_members(peer)).await;
+    let response = owner
+        .call(|peer| peer.read::<Vec<be_block_protocol::Member>>(be_block_protocol::Query::Members))
+        .await;
     assert!(
         matches!(&response, Ok(members) if members.iter().any(|member| member.account == account
             && member.created_by == Some(me)
@@ -84,7 +89,9 @@ async fn a_block_agent_reaches_its_block_and_nothing_else() {
         "a block's agent is listed as its block's: {response:?}"
     );
     let response = owner
-        .call(|peer| client::blocks::list_access(peer, terminal))
+        .call(|peer| {
+            peer.read::<be_block_protocol::AccessList>(be_block_protocol::Query::Access(terminal))
+        })
         .await;
     let Ok(access) = response else {
         panic!("listing the block's access failed: {response:?}");
@@ -114,53 +121,38 @@ async fn a_block_agent_reaches_its_block_and_nothing_else() {
     }
     let response = agent
         .call(|peer| {
-            client::blocks::create_block(
-                peer,
-                Uuid::new_v4(),
-                CONTENT,
-                BlockParent::Root,
-                Vec::new(),
-                Vec::new(),
-                KEY,
-                KeySet::default(),
-                false,
-            )
+            peer.write_all::<be_block_protocol::BlockSummary>(vec![
+                be_block_protocol::Op::CreateBlock {
+                    block: Uuid::new_v4(),
+                    content_type: CONTENT,
+                    parent: BlockParent::Root,
+                    metadata: Vec::new(),
+                    references: Vec::new(),
+                    key: KEY,
+                    owner_only: false,
+                    root: Vec::new(),
+                    placement: Vec::new(),
+                },
+                be_block_protocol::Op::PutKeys(be_block_protocol::PutKeys::Rows(KeySet::default())),
+            ])
         })
         .await;
     assert!(
         refused_as(&response, ErrorCode::PermissionDenied),
         "a block's agent made a block at the root: {response:?}"
     );
-    for (name, call) in [
-        (
-            "moving",
-            client::blocks::set_parent(
-                &agent.peer,
-                terminal,
-                BlockParent::Block(inside),
-                KeySet::default(),
-            ),
-        ),
-        (
-            "deleting",
-            client::blocks::set_parent(
-                &agent.peer,
-                terminal,
-                BlockParent::Detached,
-                KeySet::default(),
-            ),
-        ),
+    for (name, parent) in [
+        ("moving", BlockParent::Block(inside)),
+        ("deleting", BlockParent::Detached),
     ] {
-        let response = call.await.expect("the connection stayed open");
+        let response = agent.move_to(terminal, parent).await;
         assert!(
             refused_as(&response, ErrorCode::PermissionDenied),
             "{name} its own block answered {response:?}"
         );
     }
     let response = agent
-        .call(|peer| {
-            client::blocks::set_parent(peer, terminal, BlockParent::Detached, KeySet::default())
-        })
+        .move_keyed(terminal, BlockParent::Detached, KeySet::default())
         .await;
     assert!(
         refused_as(&response, ErrorCode::PermissionDenied),
@@ -197,8 +189,7 @@ async fn a_block_agent_reaches_its_block_and_nothing_else() {
     agent.round_trip().await;
     assert!(
         agent.notifications.iter().all(|notice| match notice {
-            Notice::BlockChanged { block, .. } => [terminal, inside].contains(&block.id),
-            Notice::BlockRemoved { block, .. } => [terminal, inside].contains(block),
+            Notice::TreeAdvanced { entry, .. } => [terminal, inside].contains(entry),
             _ => true,
         }),
         "a block's agent heard of another block"
@@ -237,7 +228,9 @@ async fn a_block_agent_reaches_its_block_and_nothing_else() {
         "a block's agent was given key work outside its block: {work:?}"
     );
     let response = agent
-        .call(|peer| client::keys::get_recovery_key(peer))
+        .call(|peer| {
+            peer.read::<be_block_protocol::RecoveryKey>(be_block_protocol::Query::RecoveryKey)
+        })
         .await;
     let Ok(recovery) = response else {
         panic!("reading the recovery key failed: {response:?}");
@@ -250,12 +243,24 @@ async fn a_block_agent_reaches_its_block_and_nothing_else() {
         "a block's agent was sealed another block's key"
     );
     assert!(
-        agent
-            .contacts()
-            .await
-            .iter()
-            .all(|contact| contact.account == me),
+        agent.contacts().await.iter().all(|contact| *contact == me),
         "a block's agent has contacts beyond its creator"
+    );
+
+    let followed = agent
+        .call(|peer| {
+            peer.ask::<be_block_protocol::KeyPage>(
+                Query::Keys {
+                    blocks: None,
+                    after: None,
+                },
+                true,
+            )
+        })
+        .await;
+    assert!(
+        refused_as(&followed, ErrorCode::PermissionDenied),
+        "a block's agent followed the keys topic, which tells of every block's: {followed:?}"
     );
 
     let answers = agent.everything(elsewhere, organization).await;
@@ -268,7 +273,7 @@ async fn a_block_agent_reaches_its_block_and_nothing_else() {
                 ),
                 "{name} answered a block's agent: {answer:?}"
             );
-        } else if !CONNECTING.contains(name) && *name != "authenticate" {
+        } else if !CONNECTING.contains(name) {
             assert!(
                 matches!(
                     answer,

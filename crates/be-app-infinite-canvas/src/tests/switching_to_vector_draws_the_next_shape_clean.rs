@@ -7,10 +7,8 @@ fn switching_to_vector_draws_the_next_shape_clean() {
     editor.run();
 
     editor.click("infinite-canvas.dock.tool.Rectangle");
-    editor.run();
     let from = editor.rect_of("infinite-canvas.canvas").center();
     editor.drag(from, from + Vec2::new(120.0, 80.0));
-    editor.run();
 
     let drawn = entities(&editor);
     assert_eq!(drawn.len(), 1);

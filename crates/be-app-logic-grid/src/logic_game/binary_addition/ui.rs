@@ -54,11 +54,6 @@ pub(crate) fn BinaryAddition(editor: Editor, block: crate::logic_game::root::Gam
     let title = create_memo(move || format!("Problem {} of {count}", page.get() + 1));
     let first = create_memo(move || page.get() == 0);
     let last = create_memo(move || page.get() + 1 >= count);
-    let not_last = create_memo(move || !last.get());
-    let blocked = create_memo(move || !correct.get());
-    let passed = create_memo(move || checked.get() && correct.get());
-    let failed = create_memo(move || checked.get() && !correct.get());
-    let done = create_memo(move || last.get() && correct.get() && finished.get());
 
     let check = move || checked.set(true);
     let reset = move || {
@@ -105,12 +100,12 @@ pub(crate) fn BinaryAddition(editor: Editor, block: crate::logic_game::root::Gam
                     @test_id={"quiz.reset"}
                     on_click={reset}
                 />
-                <Show condition={passed}>
+                <Show value={move || checked.get() && correct.get()}>
                     <Text style=TextStyle::CAPTION color=TextColor::Success>
                         "This page is correct."
                     </Text>
                 </Show>
-                <Show condition={failed}>
+                <Show value={move || checked.get() && !correct.get()}>
                     <Text style=TextStyle::CAPTION color=TextColor::Danger>
                         "Some blanks still need work."
                     </Text>
@@ -125,16 +120,16 @@ pub(crate) fn BinaryAddition(editor: Editor, block: crate::logic_game::root::Gam
                     @test_id={"quiz.previous"}
                     on_click={back}
                 />
-                <Show condition={not_last}>
+                <Show value={move || !last.get()}>
                     <Button
                         label="Next"
                         variant=ButtonVariant::Primary
-                        disabled={blocked}
+                        disabled={move || !correct.get()}
                         @test_id={"quiz.next"}
                         on_click={forward}
                     />
                 </Show>
-                <Show condition={done}>
+                <Show value={move || last.get() && correct.get() && finished.get()}>
                     <Text style=TextStyle::CAPTION color=TextColor::Success>
                         <Icon glyph=ICON_CIRCLE_CHECK />
                         "Every problem is correct."
@@ -201,7 +196,7 @@ fn OperandRows(operands: Memo<Vec<String>>) -> NodeId {
     let rows = create_memo(move || (0..operands.with(Vec::len)).collect::<Vec<usize>>());
     view! {
         <List spacing=ROW_SPACING>
-            <ForEach keys={rows}>|index: usize| {
+            <ForEach value={rows}>|index: usize| {
                 let operand = create_memo(move || {
                     operands.with(|operands| operands.get(index).cloned().unwrap_or_default())
                 });
@@ -227,7 +222,7 @@ fn OperandRow(sign: Memo<String>, operand: Memo<String>) -> NodeId {
             <Frame width=LABEL_WIDTH>
                 <Text style=TextStyle::CAPTION align=TextAlign::End>{sign}</Text>
             </Frame>
-            <ForEach keys={bits}>|column: usize| {
+            <ForEach value={bits}>|column: usize| {
                 let bit = create_memo(move || {
                     operand.with(|operand| {
                         operand.chars().nth(column).map(String::from).unwrap_or_default()
@@ -260,7 +255,7 @@ fn BitRow(
             <Frame width=LABEL_WIDTH>
                 <Text style=TextStyle::CAPTION align=TextAlign::End>{label}</Text>
             </Frame>
-            <ForEach keys={columns}>|column: usize| {
+            <ForEach value={columns}>|column: usize| {
                 let answer = create_memo(move || {
                     answers.with(|answers| answers.get(column).copied().flatten())
                 });
@@ -298,18 +293,17 @@ fn BitCell(
     read_only: Memo<bool>,
     on_click: Callback<()>,
 ) -> NodeId {
-    let label = create_memo(move || match answer.get() {
-        Some(bit) => u8::from(bit).to_string(),
-        None => " ".to_owned(),
-    });
     view! {
         <Frame
             width=CELL
-            border={create_memo(move || wrong.get().then(|| Border::new(ColorRole::Danger).width(Stroke::Hairline).offset(Stroke::Hairline)))}
+            border={move || wrong.get().then(|| Border::new(ColorRole::Danger).width(Stroke::Hairline).offset(Stroke::Hairline))}
             radius=Radius::Sm
         >
             <Button
-                label={label}
+                label={move || match answer.get() {
+                    Some(bit) => u8::from(bit).to_string(),
+                    None => " ".to_owned(),
+                }}
                 variant=ButtonVariant::Secondary
                 disabled={read_only}
                 on_click={on_click}

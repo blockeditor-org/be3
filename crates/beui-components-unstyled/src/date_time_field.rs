@@ -136,22 +136,21 @@ struct State {
 #[component]
 pub fn DateTimeField(
     #[prop(default = ComponentRef::new())] api: ComponentRef<DateTimeFieldApi>,
-    #[prop(default = None)] value: Binding<Option<DateTime>>,
+    value: Binding<Option<DateTime>>,
     #[prop(default = DateTimeParts::DateTime)] parts: DateTimeParts,
     #[prop(default = HourCycle::H24)] hour_cycle: HourCycle,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = false)] focused: Prop<bool>,
     #[prop(default = None)] focus_segment: Prop<Option<DateSegment>>,
     #[prop(default = String::new())] label: Prop<String>,
-    segment: RenderFn<DateSegmentHandle>,
-    literal: RenderFn<String>,
+    segment: RenderFn<DateSegmentHandle, NodeId>,
+    literal: RenderFn<String, NodeId>,
     on_focus_change: Callback<bool>,
     on_segment_focus: Callback<Option<DateSegment>>,
     on_draft: Callback<DateDraft>,
     on_open: Callback<DateSegment>,
 ) -> NodeId {
     let order = segments(parts, hour_cycle);
-    let count = order.len();
     let first = order[0];
     let initial = value.get_untracked();
     let values = create_signal(split(initial, hour_cycle));
@@ -219,7 +218,7 @@ pub fn DateTimeField(
         });
     });
     let focus = state.focus;
-    let within = create_memo(move || focus.get().is_some());
+    let within = create_memo(move || focus.with(Option::is_some));
     create_effect(move || on_focus_change.call(within.get()));
     create_effect(move || {
         if focused.get() {
@@ -236,20 +235,20 @@ pub fn DateTimeField(
         node
     }));
 
-    let items: Vec<usize> = (0..count).collect();
+    let order = state.order.value();
+    let segments: Vec<(DateSegment, String)> = order
+        .iter()
+        .enumerate()
+        .map(|(index, &kind)| match index {
+            0 => (kind, String::new()),
+            _ => (kind, separator(order[index - 1], kind)),
+        })
+        .collect();
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
-            <ForEach keys={items}>|index: usize| {
-                let order = state.order.value();
-                let segment_kind = order[index];
-                let prefix = match index {
-                    0 => String::new(),
-                    _ => separator(order[index - 1], segment_kind),
-                };
-                view! {
-                    <SegmentView state segment=segment_kind prefix literal face={segment} />
-                }
-            }</ForEach>
+            <ForEach value={segments}>|(kind, prefix): (DateSegment, String)|
+                <SegmentView state segment=kind prefix literal face={segment} />
+            </ForEach>
         </List>
     }
 }
@@ -259,13 +258,12 @@ fn SegmentView(
     state: State,
     segment: DateSegment,
     prefix: String,
-    literal: RenderFn<String>,
-    face: RenderFn<DateSegmentHandle>,
+    literal: RenderFn<String, NodeId>,
+    face: RenderFn<DateSegmentHandle, NodeId>,
 ) -> NodeId {
     let hovered = create_signal(false);
     let is_focused = create_signal(false);
     let focused = create_memo(move || state.focus.get() == Some(segment));
-    let tab_stop = create_memo(move || !state.disabled.get());
     let value = create_memo(move || state.values.get()[segment.index()]);
     let typed = create_memo(move || match state.typing.get() {
         Some((typing, buffer)) if typing == segment => Some(buffer),
@@ -278,7 +276,8 @@ fn SegmentView(
             |value| format_segment(segment, value),
         ),
     });
-    let placeholder = create_memo(move || typed.get().is_none() && value.get().is_none());
+    let placeholder =
+        create_memo(move || typed.with(Option::is_none) && value.with(Option::is_none));
     component_accessibility(create_memo(move || {
         let mut node = Node::new(Role::SpinButton);
         node.set_label(segment.label());
@@ -306,11 +305,11 @@ fn SegmentView(
         focused: is_focused.read_only(),
         disabled: state.disabled,
     });
-    let shown = !prefix.is_empty();
+    let prefix = (!prefix.is_empty()).then(|| literal.call(prefix));
     view! {
         <Interactive
             focusable=true
-            tab_stop
+            tab_stop={move || !state.disabled.get()}
             focused
             ime={is_focused}
             on_focus_change={move |has_focus: bool| {
@@ -323,10 +322,7 @@ fn SegmentView(
             cursor=CursorIcon::Text
             on_hover_change={hovered}
         >
-            <List direction=Direction::Horizontal spacing=0.0>
-                <Show condition=shown>|| { literal.call(prefix.clone()) }</Show>
-                {content}
-            </List>
+            <List direction=Direction::Horizontal spacing=0.0>{prefix}{content}</List>
         </Interactive>
     }
 }

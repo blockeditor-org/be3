@@ -23,7 +23,7 @@ fn moving_between_paintings_keeps_the_preview() {
             .frame(vec![Input::PointerMoved(beui::pos2(x, y))]);
         review.test.frame(Vec::new());
         assert!(
-            review.test.shows("paint_review.preview"),
+            review.test.shown("paint_review.preview"),
             "the preview stays up at x {x}"
         );
         x += 4.0;

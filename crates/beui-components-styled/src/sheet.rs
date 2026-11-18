@@ -2,10 +2,11 @@ use crate::frame::{ColorRole, Frame, Radius};
 use beui_macros::{component, view};
 
 use crate::border::Separator;
+use crate::focus_ring::FocusRing;
 use crate::list::List;
-use crate::tokens::{Size, Space};
+use crate::tokens::{Movement, Size, Space, Stroke};
 use beui_components_unstyled as unstyled;
-use beui_components_unstyled::{AnchoredSheetHandle, SheetGripHandle};
+use beui_components_unstyled::{AnchoredSheetHandle, SheetCurves, SheetGripHandle};
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 use beui_view::types::Align;
@@ -16,6 +17,12 @@ const HANDLE_HEIGHT: Size = Size::Md;
 const GRIP_WIDTH: Size = Size::Custom(36.0);
 const GRIP_HEIGHT: Size = Size::Custom(4.0);
 const ANCHORED_STOPS: [f32; 2] = [0.5, 0.9];
+const CURVES: SheetCurves = SheetCurves {
+    enter: Movement::Enter.easing(),
+    settle: Movement::Settle.easing(),
+    pull: Movement::Pull.spring(),
+    rubber: Movement::Rubber.spring(),
+};
 
 pub fn modal_sheet_room(extent: f32) -> f32 {
     let grip = crate::tokens::Stroke::Hairline.px() + HANDLE_HEIGHT.px();
@@ -30,7 +37,7 @@ pub fn Sheet(
     #[prop(default = SHEET_STOPS.to_vec())] stops: Vec<f32>,
     #[prop(default = false)] fit: bool,
     on_close: Callback<()>,
-    children: Child,
+    children: NodeId,
 ) -> NodeId {
     view! {
         <unstyled::Sheet
@@ -40,10 +47,11 @@ pub fn Sheet(
             stops
             fit
             fade={crate::theme::SCROLL_FADE}
-            grip={|_: SheetGripHandle| view! {
-                <SheetGrip />
+            curves=CURVES
+            grip={|handle: SheetGripHandle| view! {
+                <SheetGrip focused={handle.focused} />
             }}
-            panel={|content: Child| view! {
+            panel={|content: NodeId| view! {
                 <SheetPanel>{content}</SheetPanel>
             }}
             on_close={on_close}
@@ -60,7 +68,7 @@ pub fn ModalSheet(
     #[prop(default = SHEET_STOPS.to_vec())] stops: Vec<f32>,
     #[prop(default = false)] fit: bool,
     on_close: Callback<()>,
-    #[prop(children)] content: Render,
+    #[prop(children)] content: Build<NodeId>,
 ) -> NodeId {
     let theme = crate::theme::use_theme();
     let scrim = create_memo(move || ColorRole::Scrim.resolve(&theme));
@@ -71,16 +79,17 @@ pub fn ModalSheet(
             stops
             fit
             fade={crate::theme::SCROLL_FADE}
+            curves=CURVES
             scrim={scrim}
-            grip={|_: SheetGripHandle| view! {
-                <SheetGrip />
+            grip={|handle: SheetGripHandle| view! {
+                <SheetGrip focused={handle.focused} />
             }}
-            panel={|content: Child| view! {
+            panel={|content: NodeId| view! {
                 <SheetPanel>{content}</SheetPanel>
             }}
             on_close={on_close}
         >|| {
-            content.call(())
+            content.call()
         }</unstyled::ModalSheet>
     }
 }
@@ -100,7 +109,7 @@ pub(crate) fn AnchoredSheet(handle: AnchoredSheetHandle, padding: Space) -> Node
             fit=true
             on_close={on_close}
         >||
-            <Frame padding>{content.call(())}</Frame>
+            <Frame padding>{content.call()}</Frame>
         </ModalSheet>
     }
 }
@@ -113,17 +122,19 @@ fn SheetPanel(children: Child) -> NodeId {
 }
 
 #[component]
-fn SheetGrip() -> NodeId {
+fn SheetGrip(focused: ReadSignal<bool>) -> NodeId {
     view! {
         <List spacing=Space::None>
             <Separator />
             <Frame height=HANDLE_HEIGHT align=Align::Center>
-                <Frame
-                    width=GRIP_WIDTH
-                    height=GRIP_HEIGHT
-                    radius=Radius::Xs
-                    fill=ColorRole::TextMuted
-                />
+                <FocusRing focused offset=Stroke::Focus>
+                    <Frame
+                        width=GRIP_WIDTH
+                        height=GRIP_HEIGHT
+                        radius=Radius::Xs
+                        fill=ColorRole::TextMuted
+                    />
+                </FocusRing>
             </Frame>
         </List>
     }

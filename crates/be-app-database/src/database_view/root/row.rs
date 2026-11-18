@@ -108,8 +108,6 @@ pub fn RowPanel(data: Data, row: ObjectId) -> NodeId {
     let add_page = move || {
         data.create_page(row, title.get_untracked());
     };
-    let missing = create_memo(move || page.get().is_none());
-    let present = create_memo(move || page.get().is_some());
     let target = create_memo(move || {
         page.get()
             .map(|page| ChildTarget::new(page, TextContent::CONTENT_TYPE))
@@ -173,22 +171,22 @@ pub fn RowPanel(data: Data, row: ObjectId) -> NodeId {
                                                 glyph=ICON_TRASH
                                                 danger=true
                                                 disabled={delete_off}
-                                                row_test_id={"database-view.detail.delete".to_owned()}
+                                                @test_id={"database-view.detail.delete".to_owned()}
                                                 on_click={remove}
                                             />
                                         }}
                                     />
                                 </List>
                                 <List spacing=Space::Xs2>
-                                    <ForEach keys={properties}>|field: Uuid|
+                                    <ForEach value={properties}>|field: Uuid|
                                         <Property data={data} row={row} field={field} />
                                     </ForEach>
                                 </List>
-                                <ForEach keys={link_fields}>|field: Uuid|
+                                <ForEach value={link_fields}>|field: Uuid|
                                     <LinkSection data={data} row={row} field={field} />
                                 </ForEach>
                                 <Separator />
-                                <Show condition={missing}>
+                                <Show value={move || page.get().is_none()}>
                                     <List direction=Direction::Horizontal spacing=Space::None>
                                         <Button
                                             glyph=ICON_FILE_PLUS
@@ -204,7 +202,7 @@ pub fn RowPanel(data: Data, row: ObjectId) -> NodeId {
                         </Frame>
                     </Scroll>
                 </ListItem>
-                <Show condition={present}>
+                <Show value={move || page.get().is_some()}>
                     <ListItem grow=1.0>
                         <ChildBlock
                             editor={editor}
@@ -250,7 +248,6 @@ fn Property(data: Data, row: ObjectId, field: Uuid) -> NodeId {
                 .is_some_and(|known| known.field_type == DatabaseFieldType::Enum)
         })
     });
-    let other = create_memo(move || !choice.get());
     let values = create_memo(move || {
         let index = data
             .row_ids
@@ -271,7 +268,6 @@ fn Property(data: Data, row: ObjectId, field: Uuid) -> NodeId {
     let picked = move |option: Option<Uuid>| {
         data.set_value(row, field, option.map(DatabaseValue::Enum));
     };
-    let fields = create_memo(move || known.get().into_iter().collect::<Vec<_>>());
     let changed = move |change: DatabaseValueChange| {
         data.set_value(row, change.field_id, change.value);
     };
@@ -291,19 +287,11 @@ fn Property(data: Data, row: ObjectId, field: Uuid) -> NodeId {
             </ListItem>
             <ListItem grow=1.0>
                 <Frame>
-                    <List spacing=Space::None>
-                        <Show condition={choice}>
-                            <ChoicePicker
-                                field={known}
-                                chosen={chosen}
-                                disabled={choice_off}
-                                picker_id={format!("database-view.detail.field.{field}")}
-                                on_pick={picked}
-                            />
-                        </Show>
-                        <Show condition={other}>
+                    <Show
+                        value={choice}
+                        fallback={move || view! {
                             <DatabaseValueEditor
-                                fields={fields}
+                                fields={move || known.get().into_iter().collect::<Vec<_>>()}
                                 values={values}
                                 labels={labels}
                                 disabled={value_off}
@@ -312,8 +300,16 @@ fn Property(data: Data, row: ObjectId, field: Uuid) -> NodeId {
                                 on_change={changed}
                                 on_pick={pick_block}
                             />
-                        </Show>
-                    </List>
+                        }}
+                    >
+                        <ChoicePicker
+                            field={known}
+                            chosen={chosen}
+                            disabled={choice_off}
+                            picker_id={format!("database-view.detail.field.{field}")}
+                            on_pick={picked}
+                        />
+                    </Show>
                 </Frame>
             </ListItem>
         </List>
@@ -373,10 +369,8 @@ fn LinkSection(data: Data, row: ObjectId, field: Uuid) -> NodeId {
     let add_keys = create_memo(move || {
         addable.with(|rows| rows.iter().map(|(link, _)| *link).collect::<Vec<RowRef>>())
     });
-    let added = move |index: Option<usize>| {
-        let Some(link) = index.and_then(|index| {
-            addable.with_untracked(|rows| rows.get(index).map(|(link, _)| *link))
-        }) else {
+    let added = move |chosen: Option<RowRef>| {
+        let Some(link) = chosen else {
             return;
         };
         let mut wanted = links.get_untracked();
@@ -396,7 +390,7 @@ fn LinkSection(data: Data, row: ObjectId, field: Uuid) -> NodeId {
                     <Frame>
                         <Select
                             options={view! {
-                                <ForEach keys={add_keys}>|link: RowRef| {
+                                <ForEach value={add_keys}>|link: RowRef| {
                                     let label = create_memo(move || {
                                         addable.with(|rows| {
                                             rows.iter()
@@ -405,7 +399,7 @@ fn LinkSection(data: Data, row: ObjectId, field: Uuid) -> NodeId {
                                         })
                                     });
                                     view! {
-                                        <ChoiceOption label={label} />
+                                        <ChoiceOption value=link label={label} />
                                     }
                                 }</ForEach>
                             }}
@@ -418,7 +412,7 @@ fn LinkSection(data: Data, row: ObjectId, field: Uuid) -> NodeId {
                     </Frame>
                 </ListItem>
             </List>
-            <ForEach keys={links}>|link: RowRef|
+            <ForEach value={links}>|link: RowRef|
                 <LinkedRow data={data} row={row} field={field} link={link} links={links} />
             </ForEach>
         </List>
@@ -493,11 +487,9 @@ fn LinkedRow(
                 >
                     <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                         <Frame width={Size::Custom(MARK_SIZE)} height={Size::Custom(MARK_SIZE)}>
-                            <Layers>
-                                <Show condition={marked}>
-                                    <ChoiceMark option={option} size=MARK />
-                                </Show>
-                            </Layers>
+                            <Show value={marked}>
+                                <ChoiceMark option={option} size=MARK />
+                            </Show>
                         </Frame>
                         <Text style=TextStyle::CAPTION>{code}</Text>
                         <ListItem grow=1.0 shrink=1.0>

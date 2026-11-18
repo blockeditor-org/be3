@@ -1,6 +1,8 @@
 use super::*;
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 
+/// A greeting with no token signs in with the request's Authorization header, which a proxy
+/// injects, and the server's greeting never tells the token back.
 #[tokio::test]
 async fn proxy_account_authentication_never_discloses_the_token() {
     let harness = Harness::start().await;
@@ -13,34 +15,33 @@ async fn proxy_account_authentication_never_discloses_the_token() {
                 .insert("Authorization", format!("Bearer {token}").parse().unwrap());
         }
         let (mut socket, _) = connect_async(request).await.unwrap();
-        socket.send(WsMessage::Binary(hello(BUILD))).await.unwrap();
-        next_binary(&mut socket).await.unwrap();
-        let mut client = TestClient::over(socket);
-        let response = client
-            .call(|peer| client::account::authenticate(peer, None))
-            .await;
+        socket
+            .send(WsMessage::Binary(one_shot_hello()))
+            .await
+            .unwrap();
+        let signed_in = TestClient::welcomed(socket).await;
         match token {
             Some(token) if token == owner.token => {
-                assert!(matches!(response, Ok(Authenticated { token, .. }) if token.is_empty()));
+                let mut client = signed_in.expect("the header signs the greeting in");
+                assert!(client.token.is_empty(), "the server told the token back");
                 assert!(matches!(
                     client
-                        .call(|peer| client::organizations::list_organizations(peer))
+                        .call(|peer| peer.read::<Vec<be_block_protocol::Organization>>(
+                            be_block_protocol::Query::Organizations
+                        ))
                         .await,
                     Ok(_)
                 ));
                 let _ = client
-                    .call(|peer| client::account::logout(peer, None))
+                    .call(|peer| peer.write::<()>(be_block_protocol::Op::RevokeToken(None)))
                     .await;
             }
-            _ => assert!(matches!(response, Err(_))),
+            _ => assert!(signed_in.is_err()),
         }
     }
-    let mut client = harness.client().await;
-    assert!(matches!(
-        client
-            .call(|peer| client::account::authenticate(peer, Some(owner.token.clone())))
-            .await,
-        Err(_)
-    ));
+    assert!(
+        harness.sign_in(&owner.token).await.is_err(),
+        "a token logged out through the header still signs in"
+    );
     harness.stop().await;
 }

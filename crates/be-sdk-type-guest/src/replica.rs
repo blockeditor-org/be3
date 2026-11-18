@@ -1,89 +1,87 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
 
 use be_block_commit::{CommitId, MergeResult};
-use be_block_content::{Landed, LiveEdit, Merge, Settling};
-use be_block_protocol::{ClientId, SessionState};
-use be_block_session::{
-    Follower, Inherited, OpId, Payload, Resume, Sequencer, SessionMessage, SessionOp,
+use be_block_content::{
+    Landed, LiveEdit, Merge, Settling,
+    history::{GestureId, GestureKind, Stepped},
 };
+use be_block_protocol::{ClientId, SessionState};
+use be_block_session::Membership;
+use be_block_session::{OpId, Payload, Resume, SessionMessage, SessionOp, Submission};
 use be_block_store::{Hash, PartRef};
 use be_sdk_type_api::{
-    Change, Delivery, EditorId, Endpoint, FileChange, Journal, JournalBase, JournalEntry, Merging,
-    Recipients, RelayKind, ReplicaId, SessionTag, Status, UndoState, Written,
+    Change, EditorId, Endpoint, FileChange, Journal, JournalBase, KeptSubmission, Merging,
+    Recipients, ReplicaId, SessionTag, Status, UndoState, Unjournaled, Written,
 };
 use uuid::Uuid;
 
-use crate::lacking::{Carried, Lacking, Until};
+use crate::holds::{Holds, This, Took};
+use crate::lacking::{Carried, Lacking};
 use crate::{
     FromFileFn, Recorder,
     editor::{EditorOperation, FromEditor, Gesture, PeerMessage, PeerPresence, Snapshot, ToEditor},
     effect::{Answer, Effect, HeadEvent, RequestId, Token},
-    wire::Wire,
+    wire::{self, Entry, Submitted},
 };
 
-/// An owner commits once its session has gone this long with no edits: a natural pause,
-/// which is the state retention prefers to keep.
+/// The lease holder commits once its session has gone this long with no edits: a natural
+/// pause, which is the state retention prefers to keep.
 pub const QUIET_INTERVAL: u64 = 30_000;
 
-/// How long a follower waits before it puts again the part of an edit whose put failed.
+/// How long a replica waits before it puts again the part of an edit whose put failed.
 const PUT_RETRY_INTERVAL: u64 = 5_000;
 
-/// The longest a follower waits between puts of an edit's part, which double from
+/// The longest a replica waits between puts of an edit's part, which double from
 /// `PUT_RETRY_INTERVAL`.
 const PUT_RETRY_CEILING: u64 = 60_000;
 
-/// How many times a part is read before it counts as unavailable, and how long the first
-/// wait is (it doubles each time).
-const READ_ATTEMPTS: u32 = 4;
-
-/// An owner reads a follower's part this many times, the waits growing to a minute, before
-/// it gives up and tells the follower to submit again: it holds every message behind the read,
-/// so it is slower to give up than a follower.
-const OWNER_READ_ATTEMPTS: u32 = 10;
-
-/// How many times a follower submits again at the owner's word before it leaves its edit
-/// pending and reports it.
-const MOST_RESENDS: u32 = 3;
+/// How long the first wait is before a part that could not be read is read again; it doubles up
+/// to `READ_RETRY_CEILING`. The order waits behind it: every replica applies the entry, so none
+/// skips it for a read that failed here.
 const READ_RETRY_CEILING: u64 = 60_000;
 const READ_RETRY_INTERVAL: u64 = 1_000;
 
-/// The longest part a peer may name, and the most messages kept waiting behind a read. A
-/// message over either is not waited for: the replica asks the owner to catch it up instead.
+/// The longest part an entry may name: one longer is passed over by every replica alike, unread.
 const LARGEST_PART: u64 = 64 * LARGEST_RELAYED_OPERATION as u64;
-const MOST_HELD_JOBS: usize = 10_000;
 
-/// An owner commits at most this long after the first edit since its last commit, while edits
-/// go on, which bounds what a restore point misses and what a reader replays.
+/// The lease holder commits at most this long after the first edit since its last commit, while
+/// edits go on, which bounds what a restore point misses and what a reader replays.
 pub const COMMIT_INTERVAL: u64 = 5 * 60_000;
 
-/// An owner commits once what it appended to the journal since its last commit passes this,
-/// so replaying a journal stays well under a second.
+/// The lease holder commits once the order since its last commit passes this, so replaying a
+/// journal stays well under a second.
 pub const JOURNAL_BYTES: usize = 1024 * 1024;
 
-/// An owner alone in its session appends what it sequenced this often, folded, so a crash
-/// loses at most this much; with others there it appends each operation as it relays it.
-pub const APPEND_INTERVAL: u64 = 250;
-
-/// An owner restarts its session at a commit once the session state passes this and outgrows
+/// The holder restarts its session at a commit once the session state passes this and outgrows
 /// the visible content: tombstones and positions kept for concurrent edits, which a reload from
 /// the commit drops. It waits for a commit it makes alone, so nobody's edits need carrying over,
 /// until the state passes `RESTART_CEILING` times this.
 pub const RESTART_STATE_BYTES: usize = 1024 * 1024;
 
-/// How far past `RESTART_STATE_BYTES` session state grows before an owner with others in the
+/// How far past `RESTART_STATE_BYTES` session state grows before a holder with others in the
 /// session restarts anyway.
 pub const RESTART_CEILING: usize = 4;
 
-pub const HEARTBEAT_INTERVAL: u64 = be_block_session::LEASE_MILLISECONDS as u64 / 2;
+/// How long a replica asked to close waits for the order to bring back what it submitted before
+/// it seals and goes.
+const CLOSING_PATIENCE: u64 = 5_000;
 
 const JOURNAL_LIMIT: usize = 1024;
 /// An operation whose bytes pass this goes by the part they were put as (`Payload::Part`).
 pub(crate) const LARGEST_RELAYED_OPERATION: usize = 1024 * 1024;
-const REPLACE_ATTEMPTS: u8 = 4;
-/// How many commits a follower kept the owner remembers having saved.
-const SAVED_KEPT: usize = 64;
-const DIVERGED: &str = "an edit from a peer running a different version";
+/// How many operations a replica keeps of the order since its last seal, to apply again on top of
+/// a reload: past this a reload applies what it kept.
+const LOG_LIMIT: usize = 65_536;
+/// How many contents shown before a reload a replica keeps for its editors' late edits
+/// (`Replica::shown_before`).
+const SHOWN_BEFORE_KEPT: usize = 4;
+
+const DIVERGED: &str = "the session runs a different version of this block's type";
 const CLAIMED_ARRIVAL: &str = "an edit may not say when the server took it";
+pub(crate) const UNCERTAIN_EDIT: &str = "an edit kept while this device was away may have \
+     been sent already and was not sent again: the session no longer records whether it landed";
+pub(crate) const STALE_EDIT: &str = "an edit kept while this device was away was not sent: the session \
+     started over from its saved content meanwhile, so what the edit changed is gone";
 
 /// Whether `operation` already holds an arrival stamp (`LiveEdit::arrival`).
 fn claims_arrival<C: LiveEdit>(operation: &mut C::Op) -> bool {
@@ -96,6 +94,13 @@ pub(crate) struct Opened {
     pub(crate) organization: Uuid,
     pub(crate) client: ClientId,
     pub(crate) tag: SessionTag,
+    pub(crate) origin: u64,
+    pub(crate) taken_before: u64,
+    pub(crate) doubtful_through: u64,
+    pub(crate) kept_restart: u64,
+    pub(crate) kept_through: u64,
+    pub(crate) kept_submitted: u64,
+    pub(crate) kept_submissions: Vec<KeptSubmission>,
     pub(crate) head: Option<CommitId>,
     pub(crate) session: SessionState,
     pub(crate) journal: Option<Journal>,
@@ -111,8 +116,20 @@ pub(crate) struct Opened {
     /// The type's merge by parts (`MergeParts`), as a `PartsMerge<C>` for its content, if it
     /// merges by parts.
     pub(crate) parts_merge: Option<std::rc::Rc<dyn std::any::Any>>,
+    /// The type's fold of its signed log (`LogFold`), as a `Fold<C>`, if it has a log that what
+    /// its content shows folds (`LogFold::FOLDS`).
+    pub(crate) fold: Option<std::rc::Rc<dyn std::any::Any>>,
+    /// Whether the type has a signed log (`type-info.log`).
+    pub(crate) log: bool,
     pub(crate) now: u64,
 }
+
+/// How a type folds an entry of its signed log into what it shows (`LogFold::fold`).
+pub(crate) type Fold<C> = fn(&mut C, &be_block_content::LogItem);
+
+/// The entries of its log a replica of a type whose content folds it reads at a time
+/// (`Replica::read_on`).
+const LOG_OPENED: u32 = 256;
 
 pub(crate) trait AnyReplica {
     fn start(&mut self, out: &mut Vec<Effect>);
@@ -124,7 +141,7 @@ pub(crate) trait AnyReplica {
     fn wake_at(&self) -> Option<u64>;
 
     /// The soonest of `wake_at`'s timers that keep the block in step with the server: not a
-    /// heartbeat or a read's retry.
+    /// read's retry.
     fn in_step_at(&self) -> Option<u64>;
 
     fn released(&self) -> bool;
@@ -135,12 +152,20 @@ pub(crate) trait AnyReplica {
     fn adopt(&mut self, carried: Carried);
 }
 
+/// How the host answered a submission.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) enum Outcome {
+    Held,
+    Kept,
+    Failed(String),
+    /// Refused for want of edit access: it never reaches the order.
+    Refused(String),
+}
+
 pub(crate) enum Input {
     Message {
         from: Endpoint,
         bytes: Vec<u8>,
-        /// What the server says of a peer's message.
-        delivery: Option<Delivery>,
     },
     Attach {
         editor: EditorId,
@@ -158,8 +183,16 @@ pub(crate) enum Input {
     Head(HeadEvent),
     Lease {
         session: SessionState,
-        resynchronize: bool,
     },
+    /// A seal moved the head to `head`, holding the order through `through` in the run
+    /// `restarts`.
+    Sealed {
+        head: CommitId,
+        through: u64,
+        restarts: u64,
+    },
+    /// The order numbered these, in order.
+    Sequenced(Vec<SessionOp>),
     Read {
         token: Token,
         result: Result<be_block_content::Stored, String>,
@@ -172,15 +205,28 @@ pub(crate) enum Input {
         token: Token,
         result: Result<be_block_content::PartRef, String>,
     },
+    /// Where an entry appended to the block's signed log went (`host.append`).
+    Appended {
+        token: Token,
+        result: Result<be_block_content::LogAppended, be_block_content::LogNotAppended>,
+    },
+    /// A run of the block's signed log read (`host.read-log`): its length and the entries.
+    LogRead {
+        token: Token,
+        result: Result<be_block_content::LogPage, String>,
+    },
+    /// Entries appended to the block's signed log (`replica.logged`).
+    Logged(Vec<be_block_content::LogItem>),
+    /// Every entry this device appended that the server refused and keeps (`replica.refused`).
+    Refused(Vec<(Uuid, Vec<u8>, String)>),
     Resumed {
         token: Token,
         result: Result<Resume, String>,
     },
-    /// The host's answer to an append of the entries `from..=through`.
-    Appended {
-        from: u64,
-        through: u64,
-        held: bool,
+    /// The host's answer to the submission `counter`.
+    Submitted {
+        counter: u64,
+        outcome: Outcome,
     },
     Drained {
         refused: bool,
@@ -215,11 +261,6 @@ enum Journaled<Op> {
     Replaced,
 }
 
-enum Role {
-    Owner(Sequencer),
-    Follower(Follower),
-}
-
 #[derive(Clone, Copy, Eq, PartialEq)]
 enum Sealing {
     Due,
@@ -232,12 +273,10 @@ enum Job<C> {
     /// A peer's message, decoded (none when this build cannot read it).
     Heard {
         from: ClientId,
-        wire: Option<Wire>,
-        /// What the server checked the sender may send.
-        kind: RelayKind,
-        /// When the server took it, by its clock.
-        received: Option<i64>,
+        message: Option<SessionMessage>,
     },
+    /// The next entry of the order, held back while the parts it names are read.
+    Ordered(SessionOp),
     Seal {
         sealing: Sealing,
         reply: Option<RequestId>,
@@ -246,62 +285,49 @@ enum Job<C> {
     Replace {
         content: C,
         reply: Option<RequestId>,
-        outright: bool,
     },
-    Keep(Keeping),
-    /// A part this replica put for one of its operations was answered: the owner sequences what
-    /// it held, a follower submits what it has not sent.
+    /// A part this replica put for one of its operations was answered: what waited behind it
+    /// is submitted.
     Unblocked,
-    /// The owner could not put the part of an operation too large to relay.
-    Unput,
-    Restart(CommitId),
     Release,
 }
 
 impl<C> Job<C> {
+    /// Whether the job may run while a seal is on its way: the order goes on meanwhile, and so
+    /// does what editors do.
     fn passes_a_seal(&self) -> bool {
         matches!(
             self,
-            Job::Input(
-                Input::Message {
-                    from: Endpoint::Editor(_),
-                    ..
-                } | Input::Attach { .. }
-                    | Input::Resent { .. }
-                    | Input::Detach { .. }
-                    | Input::Content { .. }
-                    | Input::Change {
-                        change: Change::Child(_) | Change::Undo | Change::Redo,
+            Job::Ordered(_)
+                | Job::Heard { .. }
+                | Job::Unblocked
+                | Job::Input(
+                    Input::Message {
+                        from: Endpoint::Editor(_),
                         ..
-                    }
-            )
+                    } | Input::Attach { .. }
+                        | Input::Resent { .. }
+                        | Input::Detach { .. }
+                        | Input::Content { .. }
+                        | Input::Lease { .. }
+                        | Input::Change {
+                            change: Change::Child(_) | Change::Undo | Change::Redo,
+                            ..
+                        }
+                )
         )
     }
 }
 
-#[derive(Clone, Copy)]
-struct Handed {
-    commit: CommitId,
-    base: Option<CommitId>,
-}
-
-#[derive(Clone, Copy)]
-struct Keeping {
-    commit: CommitId,
-    base: Option<CommitId>,
-    from: ClientId,
-    attempts: u8,
-}
-
 /// A part a replica puts: for an editor that asked, or the bytes of one of its own operations
-/// too large to relay, by their hash.
+/// too large to submit inline, by their hash.
 #[derive(Clone, Copy)]
 enum Putting {
     Editor { editor: EditorId, token: u64 },
     Operation(Hash),
 }
 
-/// An operation too large to relay, as the part its bytes are put as.
+/// An operation too large to submit inline, as the part its bytes are put as.
 #[derive(Clone, Copy)]
 enum Upload {
     Putting,
@@ -331,37 +357,57 @@ enum Slot<C> {
     Ready(C),
 }
 
-impl Handed {
-    fn message(&self) -> SessionMessage {
-        SessionMessage::Kept {
-            commit: self.commit,
-            base: self.base,
-        }
-    }
+/// What this replica submitted that has not come back numbered.
+/// A reload waiting to be submitted until the part its state goes by is put
+/// (`Replica::submit_reloads`).
+struct PendingReload {
+    commit: CommitId,
+    head: bool,
+    replace: bool,
+    restart: bool,
+    /// Its `BaseState`, encoded.
+    state: Vec<u8>,
+    reply: Option<RequestId>,
+    through: u64,
+}
+
+struct Sent<C: LiveEdit> {
+    id: OpId,
+    /// The operation it submitted, none for a reload or a stash to keep.
+    operation: Option<C::Op>,
+    payload: Payload,
+    entry: Entry,
+    /// A replacement's request, answered once it lands.
+    reply: Option<RequestId>,
+}
+
+/// An edit of the tentative layer: made in an open tentative gesture, or one that committed and
+/// waits for the rest, shown but not sent (guides/type_modules.md, Tentative gestures).
+struct Held<Op> {
+    gesture: GestureId,
+    /// The serial its message is held under (`Holds`), which numbers it once the layer commits.
+    serial: u64,
+    operation: Op,
+}
+
+/// An operation the order applied since the last seal, kept to apply again on top of a reload.
+struct Logged<Op> {
+    sequence: u64,
+    operation: Op,
+    /// This replica made it.
+    mine: bool,
 }
 
 enum Then {
     Load,
-    Snapshot {
-        head: Option<CommitId>,
-        sealed: u64,
-        sequence: u64,
-        ops: Vec<SessionOp>,
-        state: Vec<u8>,
-        applied: u64,
-    },
-    SealedReload {
-        head: CommitId,
-        sequence: u64,
-        state: Vec<u8>,
+    Reload {
+        op: SessionOp,
+        commit: CommitId,
+        head: bool,
+        replace: bool,
         restart: bool,
-    },
-    Restarted {
-        head: CommitId,
-    },
-    Replacement,
-    FastForward {
-        to: CommitId,
+        state: Vec<u8>,
+        through: u64,
     },
     FastForwardMerge {
         to: CommitId,
@@ -374,24 +420,20 @@ enum Then {
     },
 }
 
-enum AfterPublish<C> {
+enum AfterPublish {
     Seal {
         retry: bool,
         reply: Option<RequestId>,
+        /// The stash this seal keeps as its second parent.
+        kept: Option<CommitId>,
+        /// The order it holds, and the session state as of it.
+        through: u64,
+        state: Vec<u8>,
     },
-    Replace {
-        content: C,
-        attempts: u8,
-        reply: Option<RequestId>,
-        outright: bool,
-        merging: Option<Merging>,
-    },
-    Merged {
-        value: C,
-    },
-    Kept {
-        keeping: Keeping,
-    },
+    /// The holder merged a head moved from elsewhere: the order then reloads it, with the
+    /// merge's session state, which keeps the identities of what the merge left as it was
+    /// (be-block-model's `spliced`): an edit made before the merge and numbered after it lands.
+    Merged { through: u64, state: Vec<u8> },
 }
 
 enum AfterStash<C> {
@@ -400,11 +442,20 @@ enum AfterStash<C> {
         expected: CommitId,
         base: Option<CommitId>,
         count: usize,
+        through: u64,
     },
-    Replace {
+    /// What this replica had not seen sealed, kept before its replacement: the replacement is
+    /// stashed on top of it.
+    Unsaved {
         content: C,
         reply: Option<RequestId>,
     },
+    /// The replacement, stashed: the order takes it as a barrier.
+    Replacement {
+        state: Vec<u8>,
+        reply: Option<RequestId>,
+    },
+    /// What a replacement of another replica would drop here, kept in history.
     Keep,
 }
 
@@ -439,15 +490,16 @@ struct MergeRead {
 
 /// What a merge goes on to do once it has merged.
 enum MergeThen<C> {
-    /// The head moved to `to` while this replica had work the server lacks: ours is what it
+    /// The head moved to `to` while this holder had work the server lacks: ours is what it
     /// confirmed.
-    FastForward { to: CommitId },
+    FastForward { to: CommitId, through: u64 },
     Resume {
         base: Option<CommitId>,
         ours: CommitId,
         theirs: CommitId,
         unsealed: bool,
         ours_content: C,
+        through: u64,
     },
 }
 
@@ -457,9 +509,9 @@ const MERGE_READ_TRIES: u8 = 3;
 /// How long a merge that could not read its parts waits to be tried again, doubling up to the
 /// ceiling.
 const MERGE_RETRY_INTERVAL: u64 = 5_000;
-const MERGE_RETRY_CEILING: u64 = 60_000;
+pub(crate) const MERGE_RETRY_CEILING: u64 = 60_000;
 
-/// How long an owner whose seal failed (its block's key not on this device while offline, say)
+/// How long a holder whose seal failed (its block's key not on this device while offline, say)
 /// waits before it seals again, doubling up to `SEAL_RETRY_CEILING`.
 const SEAL_RETRY_INTERVAL: u64 = 5_000;
 const SEAL_RETRY_CEILING: u64 = 60_000;
@@ -482,7 +534,7 @@ enum Wait<C> {
     },
     Publish {
         token: Token,
-        then: AfterPublish<C>,
+        then: AfterPublish,
     },
     Stash {
         token: Token,
@@ -505,34 +557,109 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     organization: Uuid,
     client: ClientId,
     tag: SessionTag,
+    /// What this replica's submissions name it, kept across its reopenings.
+    origin: u64,
     from_file: Option<FromFileFn>,
     parts_merge: Option<PartsMerge<C>>,
+    fold: Option<Fold<C>>,
+    /// Whether the type has a signed log, folded or not.
+    has_log: bool,
+    /// The entries of the block's signed log this replica heard or read, by place, each id once
+    /// at its first place, folded onto what it describes.
+    signed_log: crate::editor::HeldLog,
+    /// What it describes with a type's log: the content as last described, with the log's
+    /// entries before the place it names folded onto it, which the log's next entries fold onto
+    /// in turn while the content stays as it is.
+    folded: Option<(C, u64)>,
+    /// Entries of the log heard or read since it last described.
+    log_grew: bool,
+    /// The log's length as last read.
+    log_size: u64,
+    /// Whether this replica read its log yet, which follows it.
+    log_read: bool,
+    /// Appends an editor asked for, by the token of the call: the editor and its token.
+    appends: BTreeMap<Token, (EditorId, u64)>,
+    /// Reads of the log, by the token of the call: the editor and its token, or none for the
+    /// replica's own as it opens.
+    log_reads: BTreeMap<Token, Option<(EditorId, u64)>>,
     state: SessionState,
-    role: Role,
+    /// The order applied so far.
     confirmed: C,
+    /// `confirmed` with this replica's own edits not yet numbered on top.
     visible: C,
-    unsent: VecDeque<(C::Op, usize, u64)>,
-    held: VecDeque<C::Op>,
+    /// What it submitted that has not come back numbered, in order.
+    pending: VecDeque<Sent<C>>,
+    /// Edits waiting to be submitted: the operation, a bound on its size, how many edits it
+    /// absorbed, the last local edit it holds, and the submission of an earlier opening that
+    /// holds them, which it goes as (`kept_submissions`).
+    unsent: VecDeque<(C::Op, usize, u64, u64, Option<KeptSubmission>)>,
+    /// The tentative layer: every open tentative gesture's edits, in the order made, shown on
+    /// top of `unsent` and never submitted until the last of them ends.
+    tentative: Vec<Held<C::Op>>,
+    /// `visible` without the layer, while it holds edits, once something needed it: what an
+    /// ordinary edit's undo step is recorded against, and what is stashed or read.
+    beneath: Option<C>,
+    /// Which editor messages the open tentative gestures hold, followed as the host follows them.
+    holds: Holds,
+    /// The open tentative gestures this replica ended itself (an edit of theirs did not carry
+    /// over a restart, a replacement took what they moved): their edits are dropped until their
+    /// editors end them.
+    voided: BTreeSet<GestureId>,
+    /// The held message being taken, and its gesture.
+    held_now: Option<(GestureId, u64)>,
+    /// The undo being taken cancelled the layer, which is all it does.
+    undo_spent: bool,
     in_flight: u64,
     covered: bool,
+    /// The last sequence number of the order applied.
+    applied: u64,
+    /// Entries numbered past `applied + 1`, until those before them arrive.
+    ahead: BTreeMap<u64, SessionOp>,
+    log: VecDeque<Logged<C::Op>>,
+    /// The head, and the sequence of the order it holds, with the session state as of it.
     base: Option<CommitId>,
     sealed: u64,
     sealed_state: Vec<u8>,
-    /// The sequence and session state the seal on its way holds, when the owner is alone and
-    /// keeps sequencing and journaling what is typed meanwhile (`journals_during_seal`).
-    sealing_through: Option<(u64, Vec<u8>)>,
-    reload: bool,
-    catching_up: bool,
-    /// The number of the last operation this replica made, owner or follower, from a random
-    /// start: ids never repeat, nor meet those of another replica of the block on the same
-    /// connection, for an owner refuses an id it took already.
-    ids: u64,
+    /// Each origin's highest `through` the order holds, and the sequence holding it: carried in
+    /// the journal's base and in reloads (`wire::BaseState`), so a replica opened again knows its
+    /// own edits after the entries that held them were trimmed.
+    origins: BTreeMap<u64, (u64, u64)>,
+    /// A seal the holder announced past what this replica applied, taken once it applies that
+    /// far.
+    heard_seal: Option<(CommitId, u64)>,
+    /// Stashes the order kept, which the holder's seals take as second parents, oldest first.
+    keep: Vec<CommitId>,
+    /// The reloads this holder submitted that have not come back: it seals none meanwhile.
+    reloading: Vec<OpId>,
+    /// Reloads waiting for the part their state goes by (`submit_reloads`): seals wait for
+    /// them as for those in `reloading`.
+    reloads_putting: VecDeque<PendingReload>,
+    /// A restart is due, the last seal fell short of what the order numbered, and this holder is
+    /// alone: its own edits wait (`flush`), unsubmitted (so in the host's kept edits, not the
+    /// journal), and it seals again once what it submitted is numbered (`seal_for_restart`). A
+    /// seal that fails lets them go until the next comes back short.
+    restart_short: bool,
+    /// Said once that a due restart was put off past `RESTART_CEILING` times the limit.
+    restart_overdue: bool,
+    /// The last barrier applied.
+    replaced_at: u64,
+    /// The counter of this replica's last submission, from a random start: ids never repeat.
+    counter: u64,
+    /// What earlier openings submitted of the local edits this one is given again, oldest first
+    /// (`opening.kept-submissions`): the edits each holds go as exactly that submission, under
+    /// its id, which the server answers as held if the earlier one reached it. Each is let go
+    /// once a local edit past it is taken, or the order holds it.
+    kept_submissions: VecDeque<KeptSubmission>,
+    /// The most local edits (`Submitted::through`) of this replica's origin the order holds.
+    own_through: u64,
+    /// Own entries the order numbered since the last seal, with what each holds of the local
+    /// edits: how many the head holds once a seal holds them.
+    own_numbered: VecDeque<(u64, u64)>,
     presence: BTreeMap<(ClientId, Uuid), Vec<u8>>,
     shown: BTreeMap<Uuid, Vec<u8>>,
     presence_changed: bool,
     channel: Vec<PeerMessage>,
     incompatible: bool,
-    other_builds: BTreeSet<ClientId>,
     diverged: bool,
     unreadable: Option<String>,
     history: H,
@@ -541,6 +668,25 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     /// Editors attached that wait for `resent` before they are sent their snapshot, and
     /// nothing of the content until then.
     holding: BTreeSet<EditorId>,
+    /// The hash of the snapshot each editor was told last, encoded, while nothing told it
+    /// since changed what it shows: a replica opened again in this one's place (`carry`) does
+    /// not tell an editor a snapshot it holds already.
+    snapshots_shown: BTreeMap<EditorId, be_block_store::Hash>,
+    /// How many reloads (a merge's, a head's, a restart's; not a replacement's) landed with
+    /// editors attached since the replica opened: each editor's snapshot names it, and each
+    /// says once it was shown one (`FromEditor::Shown`).
+    reloads: u64,
+    /// The reloads each editor said it was shown, from its snapshot on attaching: an edit it
+    /// sends while that is behind `reloads` was made on what it showed before.
+    shown_reloads: BTreeMap<EditorId, u64>,
+    /// What the editors showed before each reload, by the reloads before it, with the edits
+    /// made on it since, while an editor has not said it was shown a later one: what an edit
+    /// of theirs made on it is carried from (`carried_over_a_reload`). Only those some editor
+    /// may still be showing are kept (`prune_shown`); none after a replacement, which drops
+    /// them.
+    shown_before: BTreeMap<u64, C>,
+    /// Editors said to have fallen further behind than `shown_before` reaches, each once.
+    fell_behind: BTreeSet<EditorId>,
     projected: Settling<C>,
     landed: Vec<(Landed<C::Op>, Option<EditorId>)>,
     resnapshot: bool,
@@ -551,94 +697,94 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     now: u64,
     owes_since: Option<u64>,
     last_edit: Option<u64>,
+    /// When this replica made the first edit no seal holds yet: a holder's pause is timed from
+    /// it, not from when the order brought the edit back.
+    edited_since: Option<u64>,
     opened_journal: Option<Journal>,
-    /// The seal this device made on the head it opened at, which the server took after the
-    /// journal was last rebased (`opening.sealed-head`): taken once the journal is replayed.
+    /// The seal made on the head it opened at, which the server took before the journal was
+    /// trimmed (`opening.sealed-head`): taken once the journal is replayed.
     sealed_head: Option<be_sdk_type_api::SealedHead>,
-    rebased: bool,
-    unappended: Vec<SessionOp>,
-    append_at: Option<u64>,
-    /// When a follower puts again the part of an operation whose put failed.
+    /// When a replica puts again the part of an operation whose put failed.
     put_retry_at: Option<u64>,
     /// When a merge that could not read its parts is tried again, and how often it failed since
     /// one resolved.
     merge_retry_at: Option<u64>,
     merge_failures: u8,
-    /// When an owner whose seals failed seals again, and how many failed in a row.
+    /// When a holder whose seals failed seals again, and how many failed in a row.
     seal_retry_at: Option<u64>,
     seal_failures: u8,
-    appended_bytes: usize,
-    applied_ops: Vec<SessionOp>,
-    restarting: bool,
+    /// The bytes of the order since the last seal.
+    ordered_bytes: usize,
     restarted_at: Option<CommitId>,
     lost_edits: bool,
+    /// How many local edits, counted across openings, the head holds.
+    sealed_taken: u64,
     /// How many local edits (an editor's messages, the host's changes) this replica has taken
     /// since it opened, applied or dropped, which its status reports (`Status::taken`): the
     /// host keeps each one it sent past that count to give again should the replica reopen.
     taken: u64,
-    /// The first of those whose operations wait in `held`, not yet sequenced: an owner
-    /// sequences local edits in the order it takes them, so every one taken before it is.
-    held_from: u64,
-    /// How many local edits were taken when this replica was last clean: all of them are in
-    /// its head.
-    clean_taken: u64,
-    /// The first local edit that replaces the content and has not landed yet: the replacement
-    /// is published as a commit of its own, not sequenced, so none taken since counts as
-    /// sequenced until it lands or fails.
+    /// How many local edits earlier openings of this replica took that this one is not given
+    /// (`opening.taken-before`): `taken` counts on from there.
+    taken_before: u64,
+    /// The last local edit given again that an earlier opening submitted without hearing it
+    /// ordered (`opening.doubtful-through`): shown, in `doubtful` with every local edit made
+    /// after it, but neither numbered nor submitted, since the server may hold it already. Only
+    /// before the replica joins.
+    doubtful_through: u64,
+    /// Those edits, in the order made, with the number of the first.
+    doubtful: Vec<C::Op>,
+    first_doubtful: Option<u64>,
+    /// Whether the local edit being taken is doubtful: `edit` keeps what it makes in `doubtful`.
+    doubtful_now: bool,
+    /// How many times the session started over before what this replica applied
+    /// (`status.restarts`, `wire::BaseState::restarts`).
+    restarts: u64,
+    /// What the host kept across a stop (`opening.kept-restart`, `opening.kept-through`): once
+    /// loaded on an order restarted since, the local edits through `stale_through` are dropped.
+    kept_restart: u64,
+    kept_through: u64,
+    stale_through: u64,
+    /// The last local edit the host submitted for this origin (`opening.kept-submitted`), and
+    /// how far a base that no longer names the origin leaves its edits possibly sent.
+    kept_submitted: u64,
+    uncertain_through: u64,
+    /// Whether a base this replica took was full and did not name its origin: aged out of it.
+    aged_out: bool,
+    /// Whether the journal opened on holds an entry of this origin: how far the order holds its
+    /// edits is known exactly then, whatever the base names.
+    own_in_journal: bool,
+    /// The first local edit that replaces the content and has not landed yet: none taken since
+    /// counts as in the order until it lands or fails.
     replacing_from: Option<u64>,
-    /// How many local edits its seal on the way holds: those sequenced when it began.
-    sealing_taken: u64,
-    /// How many local edits its head holds (`Status::sealed_taken`).
-    sealed_taken: u64,
-    /// How many local edits its head and its journal hold (`Status::journaled_taken`).
-    journaled_taken: u64,
+    /// The last local edit a replacement from elsewhere dropped unsent: a stash or reload counts
+    /// it in the order (`entry_through`), so a replica opened again never sends it onto the
+    /// content that replaced it.
+    replaced_through: u64,
     /// Which opening this is (`Opened::epoch`), said with every status.
     epoch: u64,
-    beaten: Option<u64>,
-    active: bool,
     sealing: bool,
-    claimed: Option<u64>,
-    replaced_at: u64,
-    reached: Option<CommitId>,
-    awaiting: Option<CommitId>,
-    replacing: bool,
-    handed: Vec<Handed>,
-    saved: VecDeque<CommitId>,
+    closing: Option<u64>,
     loaded: bool,
     released: bool,
     reported: Reported,
     ranges: Vec<RangeRead>,
     /// Parts this replica asked the host to put, by the token of the call.
     puts: BTreeMap<Token, Putting>,
-    /// This replica's operations too large to relay, by the hash of their bytes.
+    /// This replica's operations too large to submit inline, by the hash of their bytes.
     uploads: HashMap<Hash, Upload>,
     /// The bytes of operations sent by their part that this replica put or read, until it has
-    /// applied them and no pending operation of its own names them.
+    /// applied them and nothing pending names them.
     payloads: HashMap<PartRef, Vec<u8>>,
     /// Payload parts being read, by the token of the call.
     reading: BTreeMap<Token, PartRef>,
-    /// Payload parts whose read failed: an operation naming one cannot be applied.
-    /// Reads of parts that failed, and when each is tried again.
+    /// Reads of parts that failed, how often, and when each is tried again.
     read_failures: HashMap<PartRef, u32>,
     read_retry: HashMap<PartRef, u64>,
-    /// How many catch-ups in a row were asked for because a part could not be read, and when
-    /// the next is asked for if no answer came.
-    catch_up_failures: u32,
-    catch_up_at: Option<u64>,
-    /// Senders whose owner-only messages a follower ignored because the lease it knew named
-    /// another owner: when one becomes the owner, the follower asks to be caught up.
-    ignored_owners: Vec<ClientId>,
-    /// The last owners this replica knew of, the newest last: an owner takes over the
-    /// `Accepted` only of one of them, whose lease lapsed before it noticed.
-    past_owners: Vec<ClientId>,
-    /// How many times the owner told this follower to submit again since one of its edits was
-    /// last accepted.
-    resends: u32,
     /// How many times in a row a put failed.
     put_failures: u32,
     /// What the server lacks of the edits made here (`ToEditor::Lacking`).
     lacking: Lacking,
-    /// The journal opened on is this device's own (`opening.journal-kept`).
+    /// The journal opened on is this device's own, numbered offline (`opening.journal-kept`).
     journal_kept: bool,
     /// What commits of the block this device keeps (`opening.commits-kept`).
     commits_kept: be_sdk_type_api::KeptCommits,
@@ -663,7 +809,7 @@ where
             // What the commits kept add over the server's head is read with them.
             (Some(head), Some(server)) => self.read(vec![Some(head), server], Then::Load),
             (Some(head), None) => self.read(vec![Some(head)], Then::Load),
-            (None, _) => self.loaded(C::default()),
+            (None, _) => self.load(C::default()),
         }
         self.run(out);
     }
@@ -674,22 +820,34 @@ where
             Input::Read { token, result } => self.answer_read(token, result),
             Input::PartRead { token, result } => self.answer_part_read(token, result),
             Input::PartPut { token, result } => self.answer_part_put(token, result),
+            Input::Appended { token, result } => {
+                if let Some((editor, token)) = self.appends.remove(&token) {
+                    self.tell_editor(editor, &ToEditor::Appended { token, result });
+                }
+            }
+            Input::LogRead { token, result } => self.answer_log_read(token, result),
+            Input::Logged(items) => self.logged(items),
+            Input::Refused(entries) => {
+                let editors: Vec<EditorId> = self.editors.keys().copied().collect();
+                for editor in editors {
+                    self.tell_editor(editor, &ToEditor::Refused(entries.clone()));
+                }
+            }
             Input::Resumed { token, result } => self.answer_resume(token, result),
             Input::Message {
                 from: Endpoint::Peer(from),
                 bytes,
-                delivery,
+                ..
             } => self.jobs.push_back(Job::Heard {
                 from,
-                wire: Wire::decode(&bytes),
-                kind: delivery.map_or(RelayKind::Peer, |delivery| delivery.kind),
-                received: delivery.map(|delivery| delivery.received),
+                message: wire::decode(&bytes),
             }),
-            Input::Appended {
-                from,
-                through,
-                held,
-            } => self.lacking.appended(from, through, held),
+            Input::Sequenced(ops) => {
+                for op in ops {
+                    self.jobs.push_back(Job::Ordered(op));
+                }
+            }
+            Input::Submitted { counter, outcome } => self.answer_submitted(counter, outcome),
             Input::Drained { refused, commits } => self.lacking.drained(refused, &commits),
             Input::Head(
                 event @ (HeadEvent::Published { .. }
@@ -704,9 +862,6 @@ where
 
     fn tick(&mut self, now: u64, out: &mut Vec<Effect>) {
         self.now = self.now.max(now);
-        if self.append_at.is_some_and(|at| self.now >= at) {
-            self.append_unappended();
-        }
         let due: Vec<PartRef> = self
             .read_retry
             .iter()
@@ -716,20 +871,14 @@ where
         for part in due {
             self.read_retry.remove(&part);
         }
-        if self.catch_up_at.is_some_and(|at| self.now >= at) {
-            self.catch_up_at = None;
-            if self.catching_up {
-                self.regreet();
-            }
-        }
         if self.put_retry_at.is_some_and(|at| self.now >= at) {
             self.put_retry_at = None;
             self.flush();
         }
         if self.merge_retry_at.is_some_and(|at| self.now >= at) {
             self.merge_retry_at = None;
-            // The owner reconciles; a follower leaves that to the owner.
-            if self.is_owner() {
+            // The holder reconciles; any other replica leaves that to the holder.
+            if self.is_holder() {
                 self.jobs.push_back(Job::Reconcile);
             }
         }
@@ -741,24 +890,13 @@ where
                 reply: None,
             });
         }
-        if self.beat_at().is_some_and(|at| self.now >= at) {
-            self.heartbeat();
-        }
         self.run(out);
     }
 
     fn wake_at(&self) -> Option<u64> {
-        let seal = match self.sealing {
-            true => None,
-            false => self.commit_at(),
-        };
-        seal.into_iter()
-            .chain(self.append_at)
-            .chain(self.put_retry_at)
-            .chain(self.merge_retry_at)
-            .chain(self.catch_up_at)
+        self.in_step_at()
+            .into_iter()
             .chain(self.read_retry.values().copied())
-            .chain(self.beat_at())
             .min()
     }
 
@@ -768,10 +906,9 @@ where
             false => self.commit_at(),
         };
         seal.into_iter()
-            .chain(self.append_at)
             .chain(self.put_retry_at)
             .chain(self.merge_retry_at)
-            .chain(self.catch_up_at)
+            .chain(self.closing.map(|since| since + CLOSING_PATIENCE))
             .min()
     }
 
@@ -780,10 +917,14 @@ where
     }
 
     fn carry(&mut self) -> Carried {
-        self.lacking.carry()
+        Carried {
+            snapshots_shown: std::mem::take(&mut self.snapshots_shown),
+            ..self.lacking.carry()
+        }
     }
 
-    fn adopt(&mut self, carried: Carried) {
+    fn adopt(&mut self, mut carried: Carried) {
+        self.snapshots_shown = std::mem::take(&mut carried.snapshots_shown);
         self.lacking.adopt(carried);
         self.lacking
             .opened_with(self.commits_kept, &self.refused_commits);
@@ -803,41 +944,88 @@ where
             organization: opened.organization,
             client: opened.client,
             tag: opened.tag,
+            origin: opened.origin,
             from_file: opened.from_file,
             parts_merge: opened.parts_merge.as_ref().and_then(|merge| {
                 let merge = merge.downcast_ref::<PartsMerge<C>>().copied();
                 debug_assert!(merge.is_some(), "a merge by parts of another content type");
                 merge
             }),
+            fold: opened.fold.as_ref().and_then(|fold| {
+                let fold = fold.downcast_ref::<Fold<C>>().copied();
+                debug_assert!(fold.is_some(), "a fold of another content type");
+                fold
+            }),
+            signed_log: crate::editor::HeldLog::default(),
+            folded: None,
+            has_log: opened.log,
+            log_grew: false,
+            log_size: 0,
+            log_read: false,
+            appends: BTreeMap::new(),
+            log_reads: BTreeMap::new(),
             state: opened.session,
-            role: Role::Follower(Follower::new(opened.client)),
             projected: Settling::new(empty.clone(), Vec::new()),
             sealed_state: Vec::new(),
-            sealing_through: None,
+            origins: BTreeMap::new(),
             visible: empty.clone(),
             confirmed: empty,
+            pending: VecDeque::new(),
             unsent: VecDeque::new(),
-            held: VecDeque::new(),
+            tentative: Vec::new(),
+            beneath: None,
+            holds: Holds::default(),
+            voided: BTreeSet::new(),
+            held_now: None,
+            undo_spent: false,
             in_flight: 0,
             covered: true,
+            applied: 0,
+            ahead: BTreeMap::new(),
+            log: VecDeque::new(),
             base: opened.head,
             sealed: 0,
-            reload: false,
-            catching_up: false,
-            // Leaves room for 2^48 operations after it.
-            ids: Uuid::new_v4().as_u64_pair().0 >> 16,
+            heard_seal: None,
+            keep: Vec::new(),
+            reloading: Vec::new(),
+            reloads_putting: VecDeque::new(),
+            restart_short: false,
+            restart_overdue: false,
+            replaced_at: 0,
+            // Leaves room for 2^48 submissions after it.
+            counter: Uuid::new_v4().as_u64_pair().0 >> 16,
+            // In order, each holding the edits after the one before it: one that does not is not
+            // as the edits it would hold, and they go anew.
+            kept_submissions: opened.kept_submissions.into_iter().fold(
+                VecDeque::new(),
+                |mut kept, submission| {
+                    if kept
+                        .back()
+                        .is_none_or(|last: &KeptSubmission| last.through < submission.through)
+                    {
+                        kept.push_back(submission);
+                    }
+                    kept
+                },
+            ),
+            own_through: 0,
+            own_numbered: VecDeque::new(),
             presence: BTreeMap::new(),
             shown: BTreeMap::new(),
             presence_changed: false,
             channel: Vec::new(),
             incompatible: false,
-            other_builds: BTreeSet::new(),
             diverged: false,
             unreadable: None,
             history: H::default(),
             editors: BTreeMap::new(),
             acknowledged: BTreeMap::new(),
             holding: BTreeSet::new(),
+            snapshots_shown: BTreeMap::new(),
+            reloads: 0,
+            shown_reloads: BTreeMap::new(),
+            shown_before: BTreeMap::new(),
+            fell_behind: BTreeSet::new(),
             landed: Vec::new(),
             resnapshot: false,
             described: false,
@@ -847,39 +1035,37 @@ where
             now: opened.now,
             owes_since: None,
             last_edit: None,
+            edited_since: None,
             opened_journal: opened.journal,
             sealed_head: opened.sealed_head,
-            rebased: false,
-            unappended: Vec::new(),
-            append_at: None,
             put_retry_at: None,
             merge_retry_at: None,
             merge_failures: 0,
             seal_retry_at: None,
             seal_failures: 0,
-            appended_bytes: 0,
-            applied_ops: Vec::new(),
-            restarting: false,
+            ordered_bytes: 0,
             restarted_at: None,
             lost_edits: opened.lost_edits,
             taken: 0,
-            held_from: 0,
-            clean_taken: 0,
-            replacing_from: None,
-            sealing_taken: 0,
             sealed_taken: 0,
-            journaled_taken: 0,
+            taken_before: opened.taken_before,
+            doubtful_through: opened.doubtful_through,
+            doubtful: Vec::new(),
+            first_doubtful: None,
+            doubtful_now: false,
+            restarts: 0,
+            kept_restart: opened.kept_restart,
+            kept_through: opened.kept_through,
+            stale_through: 0,
+            kept_submitted: opened.kept_submitted,
+            uncertain_through: 0,
+            aged_out: false,
+            own_in_journal: false,
+            replacing_from: None,
+            replaced_through: 0,
             epoch: opened.epoch,
-            beaten: None,
-            active: false,
             sealing: false,
-            claimed: None,
-            replaced_at: 0,
-            reached: None,
-            awaiting: None,
-            replacing: false,
-            handed: Vec::new(),
-            saved: VecDeque::new(),
+            closing: None,
             loaded: false,
             released: false,
             reported: Reported::default(),
@@ -890,11 +1076,6 @@ where
             reading: BTreeMap::new(),
             read_failures: HashMap::new(),
             read_retry: HashMap::new(),
-            catch_up_failures: 0,
-            catch_up_at: None,
-            ignored_owners: Vec::new(),
-            past_owners: Vec::new(),
-            resends: 0,
             put_failures: 0,
             lacking: Lacking::default(),
             journal_kept: opened.journal_kept,
@@ -910,9 +1091,29 @@ where
 
     fn run(&mut self, out: &mut Vec<Effect>) {
         loop {
+            // A seal that came due as the order brought work back starts now: the host ticks
+            // only when its clock moves.
+            if !self.sealing
+                && self.seal_would_settle()
+                && self.commit_at().is_some_and(|at| self.now >= at)
+            {
+                self.sealing = true;
+                self.jobs.push_back(Job::Seal {
+                    sealing: Sealing::Due,
+                    reply: None,
+                });
+            }
             self.flush_editors();
             if self.released {
                 break;
+            }
+            if self.closing.is_some() && self.waiting.is_none() && self.settled_to_close() {
+                self.closing = None;
+                self.jobs.push_front(Job::Release);
+                self.jobs.push_front(Job::Seal {
+                    sealing: Sealing::Due,
+                    reply: None,
+                });
             }
             let Some(job) = self.jobs.front() else {
                 break;
@@ -920,57 +1121,21 @@ where
             if self.waiting.is_some() && !(self.sealing_out() && job.passes_a_seal()) {
                 break;
             }
-            // A peer's message waits for the parts its operations name, and so does all that
-            // came after it.
-            if let Job::Heard {
-                from,
-                wire: Some(wire),
-                kind,
-                ..
-            } = job
-            {
-                let (from, wire) = (*from, wire.clone());
-                if !wire.sent_as(*kind) || self.not_heeded(from, &wire) {
-                    self.jobs.pop_front();
-                    continue;
-                }
-            }
-            let Some(job) = self.jobs.front() else {
-                break;
-            };
-            let mut missing = Vec::new();
-            let mut backing_off = false;
-            let mut too_large = None;
-            if let Job::Heard {
-                wire: Some(wire), ..
-            } = job
-            {
-                for part in named_parts(wire) {
-                    if self.payloads.contains_key(&part) {
-                        continue;
+            // The order's next entry waits for the parts it names, and so does all that came
+            // after it.
+            if let Job::Ordered(op) = job {
+                let missing = self.missing_parts(op);
+                if !missing.is_empty() {
+                    let backing_off = missing
+                        .iter()
+                        .any(|part| self.read_retry.contains_key(part));
+                    if !backing_off {
+                        for part in missing {
+                            self.read_payload(part);
+                        }
                     }
-                    if part.length() > LARGEST_PART {
-                        too_large = Some(part);
-                    } else if self.read_retry.contains_key(&part) {
-                        backing_off = true;
-                    } else {
-                        missing.push(part);
-                    }
+                    break;
                 }
-            }
-            if let Some(part) = too_large {
-                self.part_unavailable(part);
-                continue;
-            }
-            if !missing.is_empty() || backing_off {
-                for part in missing {
-                    self.read_payload(part);
-                }
-                if self.jobs.len() > MOST_HELD_JOBS && !self.is_owner() {
-                    self.drop_heard(|_| true);
-                    self.catch_up_later();
-                }
-                break;
             }
             let Some(job) = self.jobs.pop_front() else {
                 break;
@@ -978,25 +1143,43 @@ where
             self.job(job);
         }
         self.prune_payloads();
-        match self.loaded && self.is_owner() && !self.released {
-            true => {
-                self.beaten.get_or_insert(self.now);
-            }
-            false => self.beaten = None,
-        }
         self.tell_lacking();
         self.report();
         out.append(&mut self.out);
     }
 
-    /// Whether what the owner's editors do while its seal is on the way is sequenced and
-    /// journaled at once, as at any other time, rather than held until the seal is answered: so
-    /// it is on this device whatever the server does. Only when the seal holds a known sequence
-    /// (`sealing_through`), which `seal` records unless the seal restarts the session; then what
-    /// is typed is held. Followers that applied what came after the seal reload the seal and
-    /// hear it again (`settle_at`).
-    fn journals_during_seal(&self) -> bool {
-        self.sealing_through.is_some()
+    /// Whether a replica asked to close may seal and go: the order brought back what it
+    /// submitted, or it waited long enough.
+    fn settled_to_close(&self) -> bool {
+        let settled = self.unreadable.is_some()
+            || !self.loaded
+            || self.diverged
+            || (self.pending.is_empty()
+                && self.unsent.is_empty()
+                && self.reloading.is_empty()
+                && self.reloads_putting.is_empty());
+        settled
+            || self
+                .closing
+                .is_some_and(|since| self.now >= since + CLOSING_PATIENCE)
+    }
+
+    /// The parts an entry names that this replica has yet to read, unless one is longer than any
+    /// part an entry may name: every replica passes that entry over unread.
+    fn missing_parts(&self, op: &SessionOp) -> Vec<PartRef> {
+        let Some(part) =
+            Submitted::decode(&op.payload).and_then(|submitted| submitted.entry.part())
+        else {
+            return Vec::new();
+        };
+        if op.sequence <= self.applied
+            || op.base < op.floor
+            || part.length() > LARGEST_PART
+            || self.payloads.contains_key(&part)
+        {
+            return Vec::new();
+        }
+        vec![part]
     }
 
     fn sealing_out(&self) -> bool {
@@ -1009,42 +1192,6 @@ where
         )
     }
 
-    /// Sequences what the owner held back, in order, stopping at an operation whose part is
-    /// still being put.
-    fn sequence_held(&mut self) {
-        if !self.is_owner() {
-            for operation in std::mem::take(&mut self.held) {
-                let size = C::encode_operation(&operation).len();
-                self.unsent.push_back((operation, size, 1));
-            }
-            self.lacking.waiting_to_unsettled();
-            return self.flush();
-        }
-        while !self.held.is_empty() && !self.putting() {
-            let Some(payload) = self.payload_of(C::encode_operation(&self.held[0])) else {
-                break;
-            };
-            let Some(operation) = self.held.pop_front() else {
-                break;
-            };
-            let Role::Owner(sequencer) = &mut self.role else {
-                break;
-            };
-            self.ids += 1;
-            let id = OpId {
-                client: self.client,
-                counter: self.ids,
-            };
-            if let Some(op) = sequencer.accept(id, payload) {
-                self.lacking.sequenced(op.sequence);
-                self.confirmed.apply(&operation);
-                self.sequenced(op);
-            }
-        }
-    }
-
-    /// Whether a part this replica puts for one of its operations is unanswered: what it holds
-    /// or has not sent waits behind it.
     fn putting(&self) -> bool {
         self.uploads
             .values()
@@ -1054,7 +1201,7 @@ where
     /// What an operation encoded as `bytes` goes as: the bytes, or for one too large to relay
     /// the part they were put as. None until that part is put, which this starts.
     fn payload_of(&mut self, bytes: Vec<u8>) -> Option<Payload> {
-        if bytes.len() <= LARGEST_RELAYED_OPERATION {
+        if bytes.len() <= largest_inline() {
             return Some(Payload::Inline(bytes));
         }
         let hash = Hash::of(&bytes);
@@ -1110,163 +1257,48 @@ where
                 self.payloads.insert(part, bytes);
                 self.read_failures.remove(&part);
             }
-            Err(error) if matches!(self.waiting, Some(Wait::Payloads { .. })) => {
-                self.error(format!("an operation's part could not be read: {error}"));
-            }
             Err(error) => {
                 let failures = self.read_failures.entry(part).or_default();
                 *failures += 1;
                 let failures = *failures;
-                let limit = match self.is_owner() {
-                    true => OWNER_READ_ATTEMPTS,
-                    false => READ_ATTEMPTS,
-                };
-                if failures < limit {
-                    let wait =
-                        (READ_RETRY_INTERVAL << (failures - 1).min(6)).min(READ_RETRY_CEILING);
-                    self.read_retry.insert(part, self.now + wait);
-                } else {
+                if failures == 3 {
                     self.error(format!("an operation's part could not be read: {error}"));
-                    self.part_unavailable(part);
                 }
+                let wait = (READ_RETRY_INTERVAL << (failures - 1).min(6)).min(READ_RETRY_CEILING);
+                self.read_retry.insert(part, self.now + wait);
             }
         }
         if self.reading.is_empty()
             && let Some(Wait::Payloads { .. }) = &self.waiting
             && let Some(Wait::Payloads { loaded }) = self.waiting.take()
         {
-            self.loaded(loaded);
-        }
-    }
-
-    /// A part a peer's message names cannot be read, however often it is tried. The messages
-    /// that name it are dropped. A follower asks the owner to catch it up, which hands it the
-    /// commit the owner made of the edit, and asks again, ever less often, until an answer
-    /// applies; the owner reports it, and the sender's edit stays pending until it resynchronizes.
-    /// Nothing here is a divergence: only bytes that do not decode are.
-    fn part_unavailable(&mut self, part: PartRef) {
-        let named = |job: &Job<C>| match job {
-            Job::Heard {
-                wire: Some(wire), ..
-            } => named_parts(wire).contains(&part),
-            _ => false,
-        };
-        let senders = self.drop_heard(named);
-        if self.is_owner() {
-            for from in senders {
-                self.send(Some(from), &SessionMessage::Resend);
-            }
-        } else {
-            self.catch_up_later();
-        }
-    }
-
-    /// Drops the peer messages `drop` picks, and what was known of reading their parts.
-    /// Answers who sent the `Submit`s among them.
-    fn drop_heard(&mut self, pick: impl Fn(&Job<C>) -> bool) -> Vec<ClientId> {
-        let mut senders = Vec::new();
-        let jobs = std::mem::take(&mut self.jobs);
-        for job in jobs {
-            if !matches!(job, Job::Heard { .. }) || !pick(&job) {
-                self.jobs.push_back(job);
-                continue;
-            }
-            if let Job::Heard {
-                from,
-                wire: Some(wire),
-                ..
-            } = &job
-            {
-                if matches!(wire, Wire::Session(SessionMessage::Submit { .. }))
-                    && !senders.contains(from)
-                {
-                    senders.push(*from);
-                }
-                for part in named_parts(wire) {
-                    self.read_failures.remove(&part);
-                    self.read_retry.remove(&part);
-                }
-            }
-        }
-        senders
-    }
-
-    /// Asks the owner to catch this follower up now if it has not been asked for lately, and
-    /// again after 5 s, 10 s and so on up to a minute should no answer apply.
-    fn catch_up_later(&mut self) {
-        match self.catch_up_failures == 0 || self.catch_up_at.is_none() {
-            true => self.regreet(),
-            false => self.catching_up = true,
-        }
-    }
-
-    fn regreet(&mut self) {
-        let wait = (PUT_RETRY_INTERVAL << self.catch_up_failures.min(4)).min(PUT_RETRY_CEILING);
-        self.catch_up();
-        self.catch_up_failures += 1;
-        self.catch_up_at = Some(self.now + wait);
-    }
-
-    /// Whether a follower ignores `wire` from `from`: what only the owner sends from anyone
-    /// else (a viewer can relay anything), and what only the owner acts on. One from a sender
-    /// that may be an owner the follower has not heard of yet is remembered, so that the
-    /// follower asks to be caught up should that sender become the owner.
-    fn not_heeded(&mut self, from: ClientId, wire: &Wire) -> bool {
-        if !matches!(self.role, Role::Follower(_)) {
-            return false;
-        }
-        let Wire::Session(message) = wire else {
-            return false;
-        };
-        match message {
-            SessionMessage::Submit { .. }
-            | SessionMessage::Catchup { .. }
-            | SessionMessage::Kept { .. } => true,
-            SessionMessage::Accepted { .. }
-            | SessionMessage::Snapshot { .. }
-            | SessionMessage::Sealed { .. }
-            | SessionMessage::Replaced { .. }
-            | SessionMessage::Saved { .. }
-            | SessionMessage::Resend => {
-                let ignored = Some(from) != self.state.owner;
-                if ignored && !self.ignored_owners.contains(&from) {
-                    if self.ignored_owners.len() >= 8 {
-                        self.ignored_owners.remove(0);
+            let missing = self.journal_parts();
+            match missing.is_empty() {
+                true => self.loaded(loaded),
+                false => {
+                    for part in missing {
+                        self.read_payload(part);
                     }
-                    self.ignored_owners.push(from);
+                    self.waiting = Some(Wait::Payloads { loaded });
                 }
-                ignored
             }
-            _ => false,
         }
-    }
-
-    /// Asks the owner for what this follower missed, and ignores what the owner sends until it
-    /// answers.
-    fn catch_up(&mut self) {
-        if self.is_owner() {
-            return;
-        }
-        self.catching_up = true;
-        self.greet();
     }
 
     /// Drops the bytes of payload parts once nothing waiting or pending names them. Nothing
-    /// goes while the replica waits: what it waits for may apply them (a snapshot's operations).
+    /// goes while the replica waits: what it waits for may apply them.
     fn prune_payloads(&mut self) {
         if self.payloads.is_empty() || self.waiting.is_some() {
             return;
         }
         let mut named: HashSet<PartRef> = self.reading.values().copied().collect();
-        if let Role::Follower(follower) = &self.role {
-            named.extend(follower.pending_parts());
-        }
+        named.extend(self.pending.iter().filter_map(|sent| sent.payload.part()));
         for job in &self.jobs {
-            if let Job::Heard {
-                wire: Some(wire), ..
-            } = job
+            if let Job::Ordered(op) = job
+                && let Some(part) =
+                    Submitted::decode(&op.payload).and_then(|submitted| submitted.entry.part())
             {
-                named.extend(named_parts(wire));
+                named.insert(part);
             }
         }
         self.payloads.retain(|part, _| named.contains(part));
@@ -1282,40 +1314,21 @@ where
             Err(error) => {
                 self.uploads.remove(&hash);
                 self.error(format!(
-                    "an edit too large to relay could not be put: {error}"
+                    "an edit too large to submit inline could not be put: {error}"
                 ));
-                self.jobs.push_back(Job::Unput);
+                // Kept, and put again after a while, when it next goes out.
+                if !self.unsent.is_empty() || !self.reloads_putting.is_empty() {
+                    let wait =
+                        (PUT_RETRY_INTERVAL << self.put_failures.min(4)).min(PUT_RETRY_CEILING);
+                    self.put_failures += 1;
+                    self.put_retry_at = Some(self.now + wait);
+                }
             }
         }
     }
 
-    fn unblocked(&mut self) {
-        if !(self.is_owner() && self.sealing_out() && !self.journals_during_seal()) {
-            self.sequence_held();
-        }
-    }
-
-    /// The owner could not put an operation's part (offline, or the server does not have the
-    /// block yet): it commits what it shows instead, which needs no part. A follower keeps the
-    /// operation and puts it again when it next sends.
-    fn unput(&mut self) {
-        if !self.is_owner() {
-            if !self.unsent.is_empty() {
-                let wait = (PUT_RETRY_INTERVAL << self.put_failures.min(4)).min(PUT_RETRY_CEILING);
-                self.put_failures += 1;
-                self.put_retry_at = Some(self.now + wait);
-            }
-            return;
-        }
-        if self.held.is_empty() || self.putting() {
-            return;
-        }
-        self.held.clear();
-        self.replace(self.visible.clone(), None, false);
-    }
-
-    /// When the owner commits what it owes: after a quiet spell, at most `COMMIT_INTERVAL`
-    /// after it started owing, or at once when the journal grew past `JOURNAL_BYTES`.
+    /// When the holder commits what it owes: after a quiet spell, at most `COMMIT_INTERVAL`
+    /// after it started owing, or at once when the order grew past `JOURNAL_BYTES`.
     fn commit_at(&self) -> Option<u64> {
         // No due seal while a merge cannot read its parts: it would publish on the old base and be
         // rejected at each tick until the merge's timer fires. The work stays in the journal.
@@ -1327,183 +1340,473 @@ where
         if let Some(at) = self.seal_retry_at {
             return Some(at);
         }
-        if self.appended_bytes >= JOURNAL_BYTES {
+        if self.ordered_bytes >= JOURNAL_BYTES || !self.keep.is_empty() {
             return Some(since);
         }
         let quiet = self.last_edit.map_or(since, |edited| edited.max(since)) + QUIET_INTERVAL;
         Some(quiet.min(since + COMMIT_INTERVAL))
     }
 
-    /// Commits now rather than at the next pause: before a build that cannot replay this one's
-    /// journal reads the block, or when a follower needs a reload.
-    fn commit_now(&mut self) {
-        if self.is_owner() && !self.is_clean() && !self.sealing {
-            self.sealing = true;
-            self.jobs.push_back(Job::Seal {
-                sealing: Sealing::Due,
-                reply: None,
-            });
-        }
-    }
-
     fn alone(&self) -> bool {
         self.state
-            .participants
+            .clients()
             .iter()
             .all(|participant| *participant == self.client)
     }
 
-    /// The owner sequenced `op`: with others in the session it appends it to the journal and
-    /// relays it in one call; alone it appends it within `APPEND_INTERVAL`, folded. While a seal
-    /// that failed waits to be retried it appends at once, as that seal would have before it
-    /// published: no seal is owed meanwhile (`seal_would_settle`), so none would.
-    fn sequenced(&mut self, op: SessionOp) {
-        self.last_edit = Some(self.now);
-        self.unappended.push(op);
-        match self.alone() && self.seal_retry_at.is_none() {
-            true => {
-                self.append_at.get_or_insert(self.now + APPEND_INTERVAL);
-            }
-            false => self.append_unappended(),
+    fn is_holder(&self) -> bool {
+        self.state.is_holder(self.client)
+    }
+
+    /// Notes that the order holds `origin`'s local edits through `through` at `sequence`.
+    fn note_origin(&mut self, origin: u64, through: u64, sequence: u64) {
+        let noted = self.origins.entry(origin).or_insert((0, 0));
+        if through >= noted.0 {
+            *noted = (through, sequence);
         }
     }
 
-    fn append_unappended(&mut self) {
-        self.append_at = None;
-        let ops = std::mem::take(&mut self.unappended);
-        if ops.is_empty() {
-            return;
-        }
-        if self.is_owner() {
-            self.journaled_taken = self.sequenced_taken();
-        }
-        let from = ops[0].sequence;
-        match self.alone() {
-            true => {
-                let folded = fold::<C>(ops);
-                self.append(folded, false, from);
-            }
-            false => self.append(ops, true, from),
-        }
-    }
-
-    /// Appends `ops`, which hold every operation from `from` on: a folded op holds those it
-    /// absorbed.
-    fn append(&mut self, ops: Vec<SessionOp>, relay: bool, from: u64) {
-        if !self.is_owner() || ops.is_empty() {
-            return;
-        }
-        if !self.rebased {
-            self.rebase_journal(Vec::new());
-        }
-        self.appended_bytes += ops.iter().map(parted).sum::<usize>();
-        let entries: Vec<JournalEntry> = ops
-            .into_iter()
-            .map(|op| JournalEntry {
-                sequence: op.sequence,
-                payload: Wire::Session(SessionMessage::Accepted { op }).encode(),
-            })
+    /// `content`, the type's session state, with how far the order holds each origin as of
+    /// `sequence`: the most recently numbered `BaseState::KEPT_ORIGINS` of them.
+    fn base_state(&self, content: Vec<u8>, sequence: u64) -> Vec<u8> {
+        let mut origins: Vec<(u64, u64, u64)> = self
+            .origins
+            .iter()
+            .filter(|(_, (_, at))| *at <= sequence)
+            .map(|(origin, (through, at))| (*origin, *through, *at))
             .collect();
-        self.appended_bytes += entries
-            .iter()
-            .map(|entry| entry.payload.len())
-            .sum::<usize>();
-        let through = entries
-            .iter()
-            .map(|entry| entry.sequence)
-            .max()
-            .unwrap_or(from);
-        let announcements = self.lacking.take_appended(from, through);
-        self.out.push(Effect::Append {
-            replica: self.id,
-            generation: self.state.generation,
-            entries,
-            relay,
-            from,
-            announcements,
-        });
+        origins.sort_by_key(|(_, _, at)| std::cmp::Reverse(*at));
+        origins.truncate(crate::wire::BaseState::KEPT_ORIGINS);
+        crate::wire::BaseState {
+            content,
+            origins,
+            restarts: self.restarts,
+        }
+        .encode()
     }
 
-    /// Starts the journal from this owner's base: its last commit, the sequence number that
-    /// commit holds, and the session state as of it.
-    fn rebase_journal(&mut self, entries: Vec<JournalEntry>) {
-        self.rebased = true;
+    /// Takes the origins a base or reload carries, this replica's own included, and answers the
+    /// type's session state in it; none when it does not decode.
+    /// `at_most` is the sequence the state is had at: an origin noted past it was numbered in
+    /// an order that started over since, and counts as held there.
+    fn adopt_base_state(&mut self, bytes: &[u8], at_most: u64) -> Option<Vec<u8>> {
+        let state = crate::wire::BaseState::decode(bytes)?;
+        self.restarts = self.restarts.max(state.restarts);
+        let full = state.origins.len() >= crate::wire::BaseState::KEPT_ORIGINS;
+        self.aged_out = full
+            && !state
+                .origins
+                .iter()
+                .any(|(origin, ..)| *origin == self.origin);
+        for (origin, through, at) in state.origins {
+            self.note_origin(origin, through, at.min(at_most));
+            if origin == self.origin {
+                self.own_through = self.own_through.max(through);
+            }
+        }
+        Some(state.content)
+    }
+
+    /// Starts the journal from this holder's base: its last commit, the sequence it holds, and
+    /// the session state as of it.
+    fn rebase_journal(&mut self) {
         self.out.push(Effect::Rebase {
             replica: self.id,
-            generation: self.state.generation,
+            restarts: self.restarts,
             base: JournalBase {
                 commit: self.base,
                 sequence: self.sealed,
-                state: self.sealed_state.clone(),
+                state: self.base_state(self.sealed_state.clone(), self.sealed),
             },
-            entries,
         });
     }
 
-    fn beat_at(&self) -> Option<u64> {
-        let busy = self.active || !self.is_clean();
-        self.beaten
-            .filter(|_| busy)
-            .map(|beaten| beaten + HEARTBEAT_INTERVAL)
+    /// Counts a local edit as taken as its job runs (`taken`), with the held operations of a
+    /// tentative layer that commits as it does, before it (`Holds`). A message a tentative
+    /// gesture holds is not a local edit.
+    fn take(&mut self, job: &Job<C>) -> (bool, Took) {
+        let took = match job {
+            Job::Input(Input::Message {
+                from: Endpoint::Editor(editor),
+                bytes,
+                ..
+            }) => self
+                .holds
+                .message(*editor, FromEditor::decode(bytes).as_ref()),
+            Job::Input(Input::Change {
+                change: Change::Undo,
+                ..
+            }) => self.holds.undo(),
+            Job::Input(Input::Detach { editor }) => self.holds.detach(*editor),
+            _ => Took::default(),
+        };
+        let local = took.this == This::Counted
+            && matches!(
+                job,
+                Job::Input(
+                    Input::Message {
+                        from: Endpoint::Editor(_),
+                        ..
+                    } | Input::Change { .. }
+                )
+            );
+        self.taken += took.counted.len() as u64 + u64::from(local);
+        (local, took)
     }
 
-    fn heartbeat(&mut self) {
-        self.beaten = Some(self.now);
-        self.active = false;
-        let clean_at = self.base.filter(|_| self.is_clean());
-        self.out.push(Effect::ReportClean {
-            replica: self.id,
-            generation: self.state.generation,
-            clean_at,
-        });
-    }
-
-    /// Counts a local edit as taken as its job runs (`taken`).
-    fn take(&mut self, job: &Job<C>) {
-        if matches!(
-            job,
-            Job::Input(
-                Input::Message {
-                    from: Endpoint::Editor(_),
-                    ..
-                } | Input::Change { .. }
-            )
-        ) {
-            self.taken += 1;
-        }
+    /// The local edit just taken, counted across this replica's openings.
+    fn edit_number(&self) -> u64 {
+        self.taken_before + self.taken
     }
 
     fn job(&mut self, job: Job<C>) {
-        self.take(&job);
+        let base = self.edit_number();
+        let (local, took) = self.take(&job);
+        self.follow(&job, took, base);
+        self.run_job(job, local);
+        self.held_now = None;
+        self.undo_spent = false;
+        // A local edit taken, even one not made, may complete what an earlier opening
+        // submitted (`kept_submissions`), which waits for it.
+        if local && self.unsent.front().is_some_and(|(.., kept)| kept.is_some()) {
+            self.flush();
+        }
+    }
+
+    /// Does what a job did to the tentative gestures (`take`), before the job itself runs, and
+    /// whatever its editor may: their ends, their beginnings, and the layer committing. `base`
+    /// is the local edit taken last before it, after which a committing layer's edits number.
+    fn follow(&mut self, job: &Job<C>, took: Took, base: u64) {
+        if let (
+            This::Held(serial),
+            Some(gesture),
+            Job::Input(Input::Message {
+                from: Endpoint::Editor(_),
+                ..
+            }),
+        ) = (took.this, took.gesture, job)
+        {
+            self.held_now = Some((gesture, serial));
+        }
+        if matches!(
+            job,
+            Job::Input(Input::Change {
+                change: Change::Undo,
+                ..
+            })
+        ) && took.undone
+        {
+            // Undo while the layer is held cancels all of it, as Escape would, and is spent.
+            // The open gestures stay open, voided, until their editors end them (`Holds::undo`).
+            let _ = self.history.undo(&self.visible);
+            for gesture in self.holds.open() {
+                self.history.begin(*gesture, GestureKind::Tentative);
+            }
+            self.undo_spent = true;
+            for gesture in took.voided {
+                if self.voided.insert(gesture) {
+                    self.gesture_ended(gesture);
+                }
+            }
+            if !std::mem::take(&mut self.tentative).is_empty() {
+                self.rebuild_visible();
+            }
+            return;
+        }
+        let mut dropped = false;
+        for (gesture, committed) in &took.ended {
+            self.voided.remove(gesture);
+            match committed {
+                true => self.history.commit(*gesture),
+                false => {
+                    // A tentative gesture's edits were never written: they leave the layer.
+                    let _ = self.history.cancel(&self.visible, *gesture);
+                    let before = self.tentative.len();
+                    self.tentative.retain(|held| held.gesture != *gesture);
+                    dropped |= self.tentative.len() != before;
+                }
+            }
+        }
+        if took.settled {
+            self.commit_layer(base, &took.counted, dropped);
+        } else if dropped {
+            self.rebuild_visible();
+        }
+        if let Some(gesture) = took.opened {
+            // An undo group open under its name commits first.
+            self.history.commit(gesture);
+            self.history.begin(gesture, GestureKind::Tentative);
+        }
+    }
+
+    /// The last open tentative gesture ended: the edits of those that committed leave the
+    /// layer, in the order made, for the end of the ordinary path, numbered after `base` in
+    /// the order of `counted`. They stay where they show, so are not applied again unless
+    /// some cannot go (the order holds them already, or they were kept across a stop that
+    /// outdated them).
+    fn commit_layer(&mut self, base: u64, counted: &[u64], mut rebuild: bool) {
+        let layer = std::mem::take(&mut self.tentative);
+        self.beneath = None;
+        let mut queued = false;
+        for Held {
+            serial, operation, ..
+        } in layer
+        {
+            let rank = counted.iter().position(|counted| *counted == serial);
+            debug_assert!(
+                rank.is_some(),
+                "a held edit its layer's commit does not count"
+            );
+            let Some(rank) = rank else {
+                rebuild = true;
+                continue;
+            };
+            let number = base + 1 + rank as u64;
+            if number <= self.own_through {
+                rebuild = true;
+                continue;
+            }
+            if number <= self.stale_through || number <= self.uncertain_through {
+                let why = match number <= self.stale_through {
+                    true => STALE_EDIT,
+                    false => UNCERTAIN_EDIT,
+                };
+                self.lacking.add_dropped(C::encode_operation(&operation));
+                self.error(why);
+                rebuild = true;
+                continue;
+            }
+            if number <= self.doubtful_through || self.first_doubtful.is_some() {
+                self.first_doubtful.get_or_insert(number);
+                self.doubtful.push(operation);
+                continue;
+            }
+            let announcements = self.visible.announcements(&operation);
+            self.queue(operation, number, announcements);
+            queued = true;
+        }
+        if rebuild {
+            self.rebuild_visible();
+        }
+        if queued {
+            self.edited_since.get_or_insert(self.now);
+            self.last_edit = Some(self.now);
+            self.flush();
+        }
+    }
+
+    /// An edit made in the open tentative gesture `gesture`, its message held under `serial`:
+    /// shown on top, told to the other editors, and kept in the layer.
+    fn hold(
+        &mut self,
+        gesture: GestureId,
+        serial: u64,
+        mut operation: C::Op,
+        origin: Option<EditorId>,
+        record: bool,
+    ) -> bool {
+        if self.diverged {
+            self.error(DIVERGED);
+            return false;
+        }
+        if claims_arrival::<C>(&mut operation) {
+            self.error(CLAIMED_ARRIVAL);
+            self.reproject();
+            return true;
+        }
+        // Its gesture ended here: what it moved is gone, so the edit applies as nothing. Its
+        // editor, which showed it before hearing, is told what holds now.
+        if self.voided.contains(&gesture) {
+            return false;
+        }
+        if record {
+            self.history.record(
+                &self.visible,
+                &operation,
+                origin,
+                Some(gesture.id),
+                self.now,
+            );
+        }
+        if self.tentative.is_empty() {
+            self.beneath = Some(self.visible.clone());
+        }
+        self.visible.apply(&operation);
+        let unsettled = self.unsettled() + 1;
+        self.journal(
+            Journaled::Edited {
+                operation: operation.clone(),
+                unsettled,
+            },
+            origin,
+        );
+        self.tentative.push(Held {
+            gesture,
+            serial,
+            operation,
+        });
+        true
+    }
+
+    /// Ends the open tentative gesture `gesture` here: its edits could not be kept. It stays
+    /// open, dropping what it edits, until its editor, told, ends it. A gesture that committed
+    /// and waits for the rest only loses its edits.
+    fn void(&mut self, gesture: GestureId) {
+        self.history.void(gesture);
+        self.tentative.retain(|held| held.gesture != gesture);
+        if self.holds.open().contains(&gesture) && self.voided.insert(gesture) {
+            self.gesture_ended(gesture);
+        }
+    }
+
+    /// Drops every undo step: the content was replaced. The open tentative gestures stay open,
+    /// to end as their editors end them, but the layer is gone with what it moved.
+    fn clear_history(&mut self) {
+        self.history.clear();
+        let open = self.holds.open().to_vec();
+        for gesture in &open {
+            self.history.begin(*gesture, GestureKind::Tentative);
+        }
+        let held = !std::mem::take(&mut self.tentative).is_empty();
+        for gesture in open {
+            if self.voided.insert(gesture) {
+                self.gesture_ended(gesture);
+            }
+        }
+        if held {
+            self.rebuild_visible();
+        }
+    }
+
+    /// Tells the editor of `gesture` this replica ended it, keeping none of its edits.
+    fn gesture_ended(&mut self, gesture: GestureId) {
+        let Some(editor) = gesture.editor else {
+            return;
+        };
+        if self.editors.contains_key(&editor) {
+            self.tell_editor(
+                editor,
+                &ToEditor::GestureEnded {
+                    id: gesture.id,
+                    cancelled: true,
+                },
+            );
+        }
+    }
+
+    /// The content without the tentative layer: what is stashed, read or described, and what
+    /// an ordinary edit made beneath the layer is recorded against.
+    fn unheld(&mut self) -> &C {
+        if self.tentative.is_empty() {
+            return &self.visible;
+        }
+        if self.beneath.is_none() {
+            self.beneath = Some(self.layer_free());
+        }
+        self.beneath.as_ref().unwrap_or(&self.visible)
+    }
+
+    /// `confirmed` with this replica's own edits on top, but not the tentative layer.
+    fn layer_free(&self) -> C {
+        let mut content = self.confirmed.clone();
+        for sent in &self.pending {
+            if let Some(operation) = &sent.operation {
+                content.apply(operation);
+            }
+        }
+        for (operation, ..) in &self.unsent {
+            content.apply(operation);
+        }
+        for operation in &self.doubtful {
+            content.apply(operation);
+        }
+        content
+    }
+
+    fn run_job(&mut self, job: Job<C>, local: bool) {
         if self.unreadable.is_some() {
             return self.job_while_unreadable(job);
         }
+        // Given again after a reopening, and the order holds it already: it is not made twice.
+        if local && self.edit_number() <= self.own_through {
+            return self.job_already_ordered(job);
+        }
+        if local && self.edit_number() <= self.stale_through {
+            return self.job_stale(job, STALE_EDIT);
+        }
+        if local && self.edit_number() <= self.uncertain_through {
+            return self.job_stale(job, UNCERTAIN_EDIT);
+        }
+        // What follows a doubtful edit waits behind it: numbered here, it would be sealed before
+        // the edit it was made on, and given again with it once the replica joins.
+        self.doubtful_now =
+            local && (self.edit_number() <= self.doubtful_through || self.first_doubtful.is_some());
         match job {
             Job::Input(input) => self.handle(input),
-            Job::Heard {
-                from,
-                wire,
-                received,
-                ..
-            } => self.heard(from, wire, received),
+            Job::Heard { from, message, .. } => self.heard(from, message),
+            Job::Ordered(op) => self.ordered(op),
             Job::Seal { sealing, reply } => self.seal(sealing, reply),
             Job::Reconcile => self.reconcile(),
-            Job::Replace {
-                content,
-                reply,
-                outright,
-            } => self.replace(content, reply, outright),
-            Job::Keep(keeping) => self.keep(keeping),
-            Job::Unblocked => self.unblocked(),
-            Job::Unput => self.unput(),
-            Job::Restart(head) => self.read(vec![Some(head)], Then::Restarted { head }),
+            Job::Replace { content, reply } => self.replace(content, reply),
+            Job::Unblocked => self.flush(),
             Job::Release => self.release(),
+        }
+        self.doubtful_now = false;
+    }
+
+    /// A local edit kept across a stop and made before a restart of the order since: what it
+    /// was made on is gone, so it is dropped, its editor told it was not sent, and a change
+    /// answered as not made.
+    fn job_stale(&mut self, job: Job<C>, why: &str) {
+        match job {
+            Job::Input(Input::Message {
+                from: Endpoint::Editor(editor),
+                bytes,
+                ..
+            }) => match FromEditor::decode(&bytes) {
+                Some(FromEditor::Operate { operation, .. }) => {
+                    *self.acknowledged.entry(editor).or_default() += 1;
+                    self.lacking.add_dropped(operation);
+                    self.error(why);
+                }
+                Some(FromEditor::Gesture { .. } | FromEditor::Break | FromEditor::Replace(_))
+                | None => {}
+                Some(message) => self.handle_editor(editor, message),
+            },
+            Job::Input(Input::Change { id, .. }) => self.reply(id, Answer::Changed(false)),
+            _ => {}
+        }
+    }
+
+    /// A local edit the order already holds, given again: its editor counts it, a change is
+    /// answered, and nothing is applied.
+    fn job_already_ordered(&mut self, job: Job<C>) {
+        match job {
+            Job::Input(Input::Message {
+                from: Endpoint::Editor(editor),
+                bytes,
+                ..
+            }) => match FromEditor::decode(&bytes) {
+                Some(FromEditor::Operate { .. }) => {
+                    *self.acknowledged.entry(editor).or_default() += 1;
+                }
+                Some(FromEditor::Gesture { .. } | FromEditor::Break | FromEditor::Replace(_))
+                | None => {}
+                Some(message) => self.handle_editor(editor, message),
+            },
+            Job::Input(Input::Change { id, .. }) => self.reply(id, Answer::Changed(true)),
+            _ => {}
         }
     }
 
     fn job_while_unreadable(&mut self, job: Job<C>) {
         match job {
             Job::Input(Input::Close) | Job::Release => self.release(),
+            // Editors still come and go, and each is told the content will not open
+            // (`snapshot_to`).
+            Job::Input(
+                input @ (Input::Attach { .. } | Input::Resent { .. } | Input::Detach { .. }),
+            ) if !self.released => self.handle(input),
             Job::Input(Input::Change { id, .. }) => self.reply(id, Answer::Changed(false)),
             Job::Input(Input::Content { id }) | Job::Input(Input::Seal { id, .. }) => {
                 self.reply(id, Answer::Unknown);
@@ -1523,22 +1826,29 @@ where
         if self.released {
             return;
         }
-        if self.loaded && self.is_owner() && self.alone() && self.is_clean() && self.rebased {
+        if self.loaded && self.is_holder() && self.alone() && self.is_clean() {
             // The last one out restarts the session for free: whoever opens next loads the
-            // commit afresh and numbers from zero.
+            // commit afresh and the order starts over.
+            // It counts as a restart, and keeps how far the order holds each origin's edits.
+            self.restarts += 1;
+            let state = self.base_state(Vec::new(), self.sealed);
             self.out.push(Effect::Rebase {
                 replica: self.id,
-                generation: self.state.generation,
+                restarts: self.restarts,
                 base: JournalBase {
                     commit: self.base,
                     sequence: 0,
-                    state: Vec::new(),
+                    state,
                 },
-                entries: Vec::new(),
             });
         }
         self.out.push(Effect::Release { replica: self.id });
         self.released = true;
+        for sent in std::mem::take(&mut self.pending) {
+            if let Some(id) = sent.reply {
+                self.reply(id, Answer::Changed(false));
+            }
+        }
         for job in std::mem::take(&mut self.jobs) {
             self.take(&job);
             self.job_while_unreadable(job);
@@ -1571,6 +1881,10 @@ where
                 self.editors.remove(&editor);
                 self.acknowledged.remove(&editor);
                 self.holding.remove(&editor);
+                self.snapshots_shown.remove(&editor);
+                self.shown_reloads.remove(&editor);
+                self.fell_behind.remove(&editor);
+                self.prune_shown();
                 self.lacking.unfollow(editor);
             }
             Input::Head(HeadEvent::Moved { head }) => self.moved(head),
@@ -1578,38 +1892,41 @@ where
             | Input::Read { .. }
             | Input::PartRead { .. }
             | Input::PartPut { .. }
-            | Input::Resumed { .. }
             | Input::Appended { .. }
+            | Input::LogRead { .. }
+            | Input::Refused(_)
+            | Input::Logged(_)
+            | Input::Resumed { .. }
+            | Input::Submitted { .. }
+            | Input::Sequenced(_)
             | Input::Drained { .. } => {}
-            Input::Lease {
-                session,
-                resynchronize,
-            } => {
+            Input::Lease { session } => {
                 self.adopt(session);
-                // A new lease is a new chance for a failed seal. Reconnecting always gives one: the
-                // host rejoins every open block's session (`Replicas::reconnect`) and leases it
-                // again.
+                // A new lease is a new chance for a failed seal.
                 self.seal_failures = 0;
                 self.seal_retry_at = None;
-                if resynchronize && let Role::Follower(_) = &self.role {
-                    self.catch_up_failures = 0;
-                    self.catch_up_at = None;
-                    self.regreet();
-                }
                 self.flush();
+            }
+            Input::Sealed {
+                head,
+                through,
+                restarts,
+            } => {
+                // A seal of another run of the order counts its numbers there: they name other
+                // entries here.
+                if !self.is_holder() && restarts == self.restarts {
+                    self.heard_seal = Some((head, through));
+                    self.take_heard_seal();
+                }
             }
             Input::Claim => self.claim(),
             Input::Close => {
-                self.jobs.push_front(Job::Release);
-                self.jobs.push_front(Job::Seal {
-                    sealing: Sealing::Due,
-                    reply: None,
-                });
+                self.closing.get_or_insert(self.now);
             }
             Input::Change { id, change } => self.change(id, change),
             Input::Content { id } => match C::LOADS {
                 be_block_content::Loads::Whole => {
-                    let bytes = self.visible.encode();
+                    let bytes = self.unheld().encode();
                     self.reply(id, Answer::Content(bytes));
                 }
                 be_block_content::Loads::FirstPart => {
@@ -1626,14 +1943,73 @@ where
         }
     }
 
-    fn heard(&mut self, from: ClientId, wire: Option<Wire>, received: Option<i64>) {
-        let Some(wire) = wire else {
-            return self.unreadable_message();
+    fn heard(&mut self, from: ClientId, message: Option<SessionMessage>) {
+        let Some(message) = message else {
+            self.incompatible = true;
+            return;
         };
-        self.receive(from, wire, received);
-        if self.waiting.is_none() {
-            self.flush();
+        match message {
+            SessionMessage::Presence { kind, value } => {
+                if from == self.client {
+                    return;
+                }
+                let changed = match value {
+                    Some(value) => self.presence.insert((from, kind), value.clone()) != Some(value),
+                    None => self.presence.remove(&(from, kind)).is_some(),
+                };
+                self.presence_changed |= changed;
+            }
+            SessionMessage::Channel { channel, payload } => {
+                if from != self.client {
+                    self.channel.push(PeerMessage {
+                        from,
+                        channel,
+                        payload,
+                    });
+                }
+            }
         }
+    }
+
+    /// Takes a seal the holder announced once this replica applied as far as it holds.
+    fn take_heard_seal(&mut self) {
+        let Some((head, sequence)) = self.heard_seal else {
+            return;
+        };
+        if sequence > self.applied || sequence < self.sealed {
+            if sequence < self.sealed {
+                self.heard_seal = None;
+            }
+            return;
+        }
+        self.heard_seal = None;
+        self.settle_at(head, sequence);
+    }
+
+    /// The head holds the order through `sequence`: forgets what it kept to apply on top of a
+    /// reload before it, and counts what of this replica's edits the head holds.
+    fn settle_at(&mut self, head: CommitId, sequence: u64) {
+        self.sealed_taken = self.sealed_taken.max(self.own_through_at(sequence));
+        self.base = Some(head);
+        if sequence == self.applied {
+            self.sealed_state = self.confirmed.session_state();
+        }
+        self.sealed = sequence;
+        while self
+            .log
+            .front()
+            .is_some_and(|logged| logged.sequence <= sequence)
+        {
+            self.log.pop_front();
+        }
+        while self
+            .own_numbered
+            .front()
+            .is_some_and(|(at, _)| *at <= sequence)
+        {
+            self.own_numbered.pop_front();
+        }
+        self.ordered_bytes = 0;
     }
 
     fn reply(&mut self, id: RequestId, reply: Answer) {
@@ -1699,7 +2075,11 @@ where
                     return;
                 };
                 match then {
-                    Then::Load => self.unreadable = Some(error),
+                    Then::Load => {
+                        self.unreadable = Some(error);
+                        // Its editors are told it will not open rather than left loading.
+                        self.resnapshot = true;
+                    }
                     _ => self.error(error),
                 }
             }
@@ -1747,86 +2127,26 @@ where
                 }
                 self.load(loaded)
             }
-            Then::Snapshot {
+            Then::Reload {
+                op,
+                commit,
                 head,
-                sealed,
-                sequence,
-                ops,
-                state,
-                applied,
-            } => {
-                self.confirmed = next();
-                self.base = head;
-                if !state.is_empty() {
-                    if self.confirmed.adopt_session_state(&state).is_err() {
-                        return self.unreadable_message();
-                    }
-                    self.sealed_state = state;
-                }
-                if let Role::Follower(follower) = &mut self.role {
-                    follower.set_applied(sealed);
-                }
-                self.applied_ops.clear();
-                self.rebuild_visible();
-                self.snapshot_ops(sealed, sequence, ops, applied);
-                self.flush();
-            }
-            Then::SealedReload {
-                head,
-                sequence,
-                state,
+                replace,
                 restart,
-            } => {
-                self.catch_up_failures = 0;
-                self.catch_up_at = None;
-                let before = std::mem::replace(&mut self.confirmed, next());
-                match state.is_empty() {
-                    true => self.sealed_state = self.confirmed.session_state(),
-                    false => {
-                        if self.confirmed.adopt_session_state(&state).is_err() {
-                            self.unreadable_message();
-                        }
-                        self.sealed_state = state;
-                    }
-                }
-                if restart {
-                    self.carry_pending(before);
-                    self.history.restart();
-                    self.restarted_at = Some(head);
-                }
-                if let Role::Follower(follower) = &mut self.role {
-                    follower.set_applied(sequence);
-                }
-                self.applied_ops.clear();
-                self.rebuild_visible();
-                self.base = Some(head);
-                self.sealed = sequence;
-                if restart && let Role::Follower(follower) = &mut self.role {
-                    let resubmit = follower.resynchronize(sequence);
-                    let owner = self.state.owner;
-                    for message in resubmit {
-                        self.send(owner, &message);
-                    }
-                }
-                self.flush();
-            }
-            Then::Restarted { head } => self.restarted(head, next()),
-            Then::Replacement => {
-                self.history.clear();
-                self.replace(next(), None, true);
-            }
-            Then::FastForward { to } => {
-                self.reached = Some(to);
-                self.confirmed = next();
-                self.rebuild_visible();
-                self.reload = true;
-                self.settle_at(to);
-            }
+                state,
+                through,
+            } => self.reloaded(op, commit, head, replace, restart, state, through, next()),
             Then::FastForwardMerge { to } => {
                 let ancestor = next();
                 let theirs = next();
                 let ours = self.confirmed.clone();
-                self.merging(MergeThen::FastForward { to }, ancestor, ours, theirs);
+                let through = self.applied;
+                self.merging(
+                    MergeThen::FastForward { to, through },
+                    ancestor,
+                    ours,
+                    theirs,
+                );
             }
             Then::Merge {
                 base,
@@ -1840,6 +2160,7 @@ where
                     false => next(),
                 };
                 let theirs_content = next();
+                let through = self.applied;
                 self.merging(
                     MergeThen::Resume {
                         base,
@@ -1847,6 +2168,7 @@ where
                         theirs,
                         unsealed,
                         ours_content: ours_content.clone(),
+                        through,
                     },
                     ancestor,
                     ours_content,
@@ -1856,8 +2178,6 @@ where
         }
     }
 
-    /// Merges three contents: with the type's merge by parts when it has one, which waits while
-    /// the parts it needs are read (and never resolves without them), otherwise at once.
     fn merging(&mut self, then: MergeThen<C>, base: C, ours: C, theirs: C) {
         let Some(merge) = self.parts_merge else {
             let result = C::merge3(&base, &ours, &theirs);
@@ -1965,11 +2285,13 @@ where
     /// passes, `seal_retry_at` stays set until a seal settles or fails again: `commit_at` makes
     /// the retry due, and `sealing` keeps a second one from starting while it is on its way.
     fn seal_failed(&mut self) {
+        // Its own held for a restart go meanwhile (`restart_short`).
+        if std::mem::take(&mut self.restart_short) {
+            self.jobs.push_back(Job::Unblocked);
+        }
         let wait = (SEAL_RETRY_INTERVAL << self.seal_failures.min(4)).min(SEAL_RETRY_CEILING);
         self.seal_failures = self.seal_failures.saturating_add(1);
         self.seal_retry_at = Some(self.now + wait);
-        // What was sequenced while it was on its way waits on no timer now (`sequenced`).
-        self.append_unappended();
     }
 
     /// A merge that could not have its parts is dropped, so the replica goes on, and tried again
@@ -2026,12 +2348,20 @@ where
     }
 
     /// What a finished merge goes on to do.
+
+    /// What a finished merge goes on to do.
     fn merged(&mut self, then: MergeThen<C>, result: MergeResult<C>) {
         match then {
-            MergeThen::FastForward { to } => match result {
+            MergeThen::FastForward { to, through } => match result {
                 MergeResult::Clean(value) => {
                     let content = self.written(&value);
-                    self.publish(Some(to), None, content, AfterPublish::Merged { value });
+                    let state = value.session_state();
+                    self.publish(
+                        Some(to),
+                        None,
+                        content,
+                        AfterPublish::Merged { through, state },
+                    );
                 }
                 MergeResult::Conflicted { value, conflicts } => {
                     let content = self.written(&self.confirmed);
@@ -2044,6 +2374,7 @@ where
                             expected: to,
                             base,
                             count: conflicts,
+                            through,
                         },
                     );
                 }
@@ -2054,6 +2385,7 @@ where
                 theirs,
                 unsealed,
                 ours_content,
+                through,
             } => {
                 let (value, conflicts) = match result {
                     MergeResult::Clean(value) => (value, None),
@@ -2070,6 +2402,7 @@ where
                                 expected: theirs,
                                 base,
                                 count,
+                                through,
                             },
                         );
                     }
@@ -2078,11 +2411,12 @@ where
                             self.conflict(ours, theirs, count);
                         }
                         let content = self.written(&value);
+                        let state = value.session_state();
                         self.publish(
                             Some(theirs),
                             Some(Merging { base, ours }),
                             content,
-                            AfterPublish::Merged { value },
+                            AfterPublish::Merged { through, state },
                         );
                     }
                 }
@@ -2104,18 +2438,17 @@ where
         expected: Option<CommitId>,
         merging: Option<Merging>,
         content: Written,
-        then: AfterPublish<C>,
+        then: AfterPublish,
     ) {
         let token = self.token();
-        // A seal holds the session through what its owner sequenced when it began.
-        let sealed_through = match (&then, &self.role) {
-            (AfterPublish::Seal { .. }, Role::Owner(_)) => {
-                let generation = self.state.generation;
-                self.sealing_through
-                    .as_ref()
-                    .map(|(sequence, _)| (generation, *sequence))
-            }
-            _ => None,
+        // A seal holds the order through what it applied when it began, and the journal starts
+        // from it with the session state as of then once it wins the head.
+        let (sealed_through, journal_state) = match &then {
+            AfterPublish::Seal { through, state, .. } => (
+                Some(*through),
+                Some(self.base_state(state.clone(), *through)),
+            ),
+            AfterPublish::Merged { .. } => (None, None),
         };
         self.out.push(Effect::Publish {
             replica: self.id,
@@ -2124,6 +2457,8 @@ where
             merging,
             content,
             sealed_through,
+            journal_state,
+            restarts: self.restarts,
         });
         self.waiting = Some(Wait::Publish { token, then });
     }
@@ -2148,6 +2483,13 @@ where
             Ok(resume) => resume,
             Err(error) => return self.error(error),
         };
+        // A seal of another run of the order counts its sequences there: a head to merge.
+        let resume = match resume {
+            Resume::Sealed {
+                commit, restarts, ..
+            } if restarts != self.restarts => Resume::FastForward { to: commit },
+            resume => resume,
+        };
         let unsealed = self.has_unsealed_work();
         // A resume that needs no merge settles any merge that was failing.
         if !matches!(resume, Resume::Merge { .. })
@@ -2158,9 +2500,30 @@ where
         }
         match resume {
             Resume::Empty | Resume::UpToDate | Resume::Publish { .. } => {}
-            Resume::FastForward { to } if !unsealed => {
-                self.read(vec![Some(to)], Then::FastForward { to });
+            Resume::Sealed {
+                commit, through, ..
+            } => {
+                self.heard_seal = Some((commit, through));
+                self.take_heard_seal();
             }
+
+            // Nothing could name what the replica holds (no editor shows it, no edit of its is
+            // on its way, no peer's could be): the order takes the head as it is, which spares
+            // the merge, a pass over the whole content.
+            Resume::FastForward { to }
+                if !unsealed
+                    && self.editors.is_empty()
+                    && self.pending.is_empty()
+                    && self.unsent.is_empty()
+                    && self.tentative.is_empty()
+                    && self.alone() =>
+            {
+                self.submit_reload(to, true, false, Vec::new(), None);
+            }
+            // Otherwise the head is made into what the order holds by a merge into it, unsealed
+            // work or none: loaded as it is, everything in it would be new, and what the order
+            // numbers after the reload (edits on their way here, and peers') would name nothing
+            // in it. The merge costs a pass over the content.
             Resume::FastForward { to } => {
                 self.read(vec![self.base, Some(to)], Then::FastForwardMerge { to });
             }
@@ -2199,37 +2562,14 @@ where
         if !answered {
             return;
         }
-        let sealed = self.sealing_out();
-        self.answer_awaited(event);
-        if sealed {
-            self.sequence_held();
-        }
-    }
-
-    fn answer_awaited(&mut self, event: HeadEvent) {
         self.answer_wait(event);
         self.replace_settled();
     }
 
     fn answer_wait(&mut self, event: HeadEvent) {
-        if !matches!(event, HeadEvent::Published { .. }) {
-            self.sealing_through = None;
-        }
         match (self.waiting.take(), event) {
             (Some(Wait::Publish { then, .. }), HeadEvent::Published { head, held, .. }) => {
-                let sealing = matches!(then, AfterPublish::Seal { .. });
-                if let AfterPublish::Kept { keeping, .. } = &then
-                    && keeping.from == self.client
-                    && !held
-                {
-                    // Kept in this device's outbox: the server holds it once that drains.
-                    self.lacking.kept_here(keeping.commit);
-                }
-                self.published(then, Some(head));
-                self.lacking.sealed(self.sealed, held, head);
-                if !sealing {
-                    self.lacking.replaced(held, head);
-                }
+                self.published(then, head, held);
             }
             (Some(Wait::Publish { then, .. }), HeadEvent::Rejected { head, .. }) => {
                 self.rejected(then, head);
@@ -2247,12 +2587,9 @@ where
                         self.seal_failed();
                         reply.map(|id| (id, Answer::Sealed))
                     }
-                    Some(Wait::Publish {
-                        then: AfterPublish::Replace { reply, .. },
-                        ..
-                    })
-                    | Some(Wait::Stash {
-                        then: AfterStash::Replace { reply, .. },
+                    Some(Wait::Stash {
+                        then:
+                            AfterStash::Unsaved { reply, .. } | AfterStash::Replacement { reply, .. },
                         ..
                     }) => reply.map(|id| (id, Answer::Changed(false))),
                     _ => None,
@@ -2266,166 +2603,78 @@ where
         }
     }
 
-    fn published(&mut self, then: AfterPublish<C>, head: Option<CommitId>) {
+    fn published(&mut self, then: AfterPublish, head: CommitId, held: bool) {
         match then {
-            AfterPublish::Seal { reply, .. } => {
-                if let Some(head) = head {
-                    self.sealed_taken = self.sealed_taken.max(self.sealing_taken);
-                    self.settle_at(head);
-                }
+            AfterPublish::Seal {
+                reply,
+                kept,
+                through,
+                state,
+                ..
+            } => {
                 self.sealing = false;
                 self.seal_failures = 0;
                 self.seal_retry_at = None;
+                if let Some(kept) = kept {
+                    self.keep.retain(|commit| *commit != kept);
+                }
+                self.settle_at(head, through);
+                self.sealed_state = state;
+                self.lacking.sealed(through, held, head);
+                // What came after the seal still owes one, timed from now.
+                self.owes_since = (self.applied > through).then_some(self.now);
+                if self.unsent.is_empty() && self.pending.is_empty() {
+                    self.edited_since = None;
+                }
+                // The journal starts from the seal: the publish carried its base, which the
+                // server took as the head moved and every replica hears (`Input::Sealed`).
                 if let Some(id) = reply {
                     self.reply(id, Answer::Sealed);
                 }
-            }
-            AfterPublish::Replace {
-                content,
-                reply,
-                outright,
-                ..
-            } => {
-                let Some(head) = head else {
-                    return;
-                };
-                match (&mut self.role, outright) {
-                    (Role::Owner(sequencer), true) => {
-                        let sequence = sequencer.sequence() + 1;
-                        self.role = Role::Owner(Sequencer::continuing(Some(head), sequence, 0));
-                        self.replaced_at = sequence;
-                        self.confirmed = content;
-                        self.rebuild_visible();
-                        self.reload = true;
-                        self.broadcast(&SessionMessage::Replaced { head });
-                        self.settle_at(head);
+                // The restart reloads this seal's commit afresh and applies nothing on top of it:
+                // what the order numbered after the seal would be lost, so it waits for a seal
+                // that holds everything numbered.
+                // Nothing of its own may be on its way either: numbered before the restart, it
+                // would be in neither the commit nor what the restart carries.
+                let own_on_its_way = self.pending.iter().any(|sent| sent.operation.is_some());
+                match self.due_restart_state() {
+                    Some(_) if self.applied == through && !own_on_its_way => {
+                        self.restart_short = false;
+                        self.submit_reload(head, true, true, Vec::new(), None);
                     }
-                    (Role::Owner(_), false) => {
-                        self.confirmed = content;
-                        self.rebuild_visible();
-                        self.reload = true;
-                        self.settle_at(head);
+                    // Short. Alone, this holder holds its own edits back and seals again as soon as
+                    // what it submitted is numbered, which holds everything. With others in the
+                    // session the shortfall may be theirs, which holding its own would not end:
+                    // its edits go on, and the restart waits for a seal that holds everything.
+                    Some(state) => {
+                        self.restart_short = self.alone();
+                        self.report_overdue_restart(state);
+                        self.seal_for_restart();
                     }
-                    (Role::Follower(follower), true) => {
-                        follower.take_pending();
-                        self.unsent.clear();
-                        self.in_flight = 0;
-                        self.covered = true;
-                        self.awaiting = Some(head);
-                        self.replacing = true;
-                        self.confirmed = content.clone();
-                        self.replace_visible(content);
-                        let owner = self.state.owner;
-                        self.send(owner, &SessionMessage::Replaced { head });
-                    }
-                    // It lost the session while committing: the owner merges the commit when it
-                    // hears of it.
-                    (Role::Follower(_), false) => {
-                        self.unsent.clear();
-                        self.replace_visible(content);
-                    }
-                }
-                if let Some(id) = reply {
-                    self.reply(id, Answer::Changed(true));
+                    None => self.restart_short = false,
                 }
             }
-            AfterPublish::Merged { value } => self.take_merged(value, head),
-            AfterPublish::Kept { keeping } => {
-                let Some(head) = head else {
-                    return;
-                };
-                if self.saved.len() >= SAVED_KEPT {
-                    self.saved.pop_front();
-                }
-                self.saved.push_back(keeping.commit);
-                self.acknowledge(&keeping);
-                self.settle_at(head);
+            AfterPublish::Merged { through, state } => {
+                self.submit_reload_based(head, true, false, state, None, through);
             }
         }
     }
 
-    fn stashed(&mut self, then: AfterStash<C>, commit: CommitId) {
+    /// The most of this replica's local edits the order holds through `sequence`.
+    fn own_through_at(&self, sequence: u64) -> u64 {
+        self.own_numbered
+            .iter()
+            .filter(|(at, _)| *at <= sequence)
+            .map(|(_, through)| *through)
+            .max()
+            .unwrap_or(0)
+    }
+
+    fn rejected(&mut self, then: AfterPublish, _head: Option<CommitId>) {
         match then {
-            AfterStash::Merge {
-                value,
-                expected,
-                base,
-                count,
-            } => {
-                self.conflict(commit, expected, count);
-                let content = self.written(&value);
-                self.publish(
-                    Some(expected),
-                    Some(Merging { base, ours: commit }),
-                    content,
-                    AfterPublish::Merged { value },
-                );
-            }
-            AfterStash::Replace { content, reply } => {
-                let merging = Merging {
-                    base: self.base,
-                    ours: commit,
-                };
-                self.publish_replacement(content, reply, true, Some(merging), self.base, 0);
-            }
-            AfterStash::Keep => {
-                self.lacking.handed(commit);
-                self.drop_unconfirmed();
-                self.rebuild_visible();
-                self.hand(Handed {
-                    commit,
-                    base: self.base,
-                });
-            }
-        }
-    }
-
-    fn acknowledge(&mut self, keeping: &Keeping) {
-        match keeping.from == self.client {
-            true => {
-                self.handed.retain(|handed| handed.commit != keeping.commit);
-                self.lacking.saved(keeping.commit);
-            }
-            false => self.send(
-                Some(keeping.from),
-                &SessionMessage::Saved {
-                    commit: keeping.commit,
-                },
-            ),
-        }
-    }
-
-    fn drop_unconfirmed(&mut self) {
-        if let Role::Follower(follower) = &mut self.role {
-            follower.take_pending();
-        }
-        self.unsent.clear();
-        self.in_flight = 0;
-        self.covered = true;
-    }
-
-    fn hand(&mut self, handed: Handed) {
-        self.handed.push(handed);
-        let owner = self.state.owner;
-        self.send(owner, &handed.message());
-    }
-
-    fn publish_kept(&mut self, keeping: Keeping) {
-        let content = self.written(&self.confirmed);
-        self.publish(
-            self.base,
-            Some(Merging {
-                base: keeping.base,
-                ours: keeping.commit,
-            }),
-            content,
-            AfterPublish::Kept { keeping },
-        );
-    }
-
-    fn rejected(&mut self, then: AfterPublish<C>, head: Option<CommitId>) {
-        match then {
-            AfterPublish::Seal { retry: true, reply } if self.merge_failures == 0 => {
+            AfterPublish::Seal {
+                retry: true, reply, ..
+            } if self.merge_failures == 0 => {
                 self.jobs.push_front(Job::Seal {
                     sealing: Sealing::Once,
                     reply,
@@ -2440,51 +2689,51 @@ where
                     self.reply(id, Answer::Sealed);
                 }
             }
-            AfterPublish::Replace {
-                content,
-                attempts,
-                reply,
-                outright,
-                merging,
+            // The head moved again under the merge: merge once more.
+            AfterPublish::Merged { .. } => self.jobs.push_front(Job::Reconcile),
+        }
+    }
+
+    fn stashed(&mut self, then: AfterStash<C>, commit: CommitId) {
+        match then {
+            AfterStash::Merge {
+                value,
+                expected,
+                base,
+                count,
+                through,
             } => {
-                if attempts + 1 >= REPLACE_ATTEMPTS {
-                    self.error(
-                        "a replacement could not be saved; the block kept changing under it",
-                    );
-                    if let Some(id) = reply {
-                        self.reply(id, Answer::Changed(false));
-                    }
-                    return;
-                }
-                self.publish_replacement(content, reply, outright, merging, head, attempts + 1);
+                self.conflict(commit, expected, count);
+                let content = self.written(&value);
+                let state = value.session_state();
+                self.publish(
+                    Some(expected),
+                    Some(Merging { base, ours: commit }),
+                    content,
+                    AfterPublish::Merged { through, state },
+                );
             }
-            AfterPublish::Merged { value } => self.take_merged(value, None),
-            AfterPublish::Kept { keeping, .. } => {
-                if keeping.attempts + 1 >= REPLACE_ATTEMPTS {
-                    return self.error("an edit a follower kept could not be saved");
-                }
-                self.jobs.push_front(Job::Keep(Keeping {
-                    attempts: keeping.attempts + 1,
-                    ..keeping
-                }));
-                self.jobs.push_front(Job::Reconcile);
+            AfterStash::Unsaved { content, reply } => {
+                let state = content.session_state();
+                let written = self.written(&content);
+                self.stash(
+                    Some(commit),
+                    written,
+                    AfterStash::Replacement { state, reply },
+                );
+            }
+            AfterStash::Replacement { state, reply } => {
+                self.submit_reload(commit, false, true, state, reply);
+            }
+            AfterStash::Keep => {
+                self.submit_entry(Entry::Keep { commit }, false, None);
             }
         }
     }
 
     /// Takes the content just read once the parts its journal's operations name are read too.
     fn load(&mut self, content: C) {
-        let missing: Vec<PartRef> = self
-            .opened_journal
-            .iter()
-            .filter(|journal| journal.base.commit == self.base)
-            .flat_map(|journal| &journal.entries)
-            .filter_map(|entry| match Wire::decode(&entry.payload) {
-                Some(Wire::Session(SessionMessage::Accepted { op })) => op.payload.part(),
-                _ => None,
-            })
-            .filter(|part| !self.payloads.contains_key(part))
-            .collect();
+        let missing = self.journal_parts();
         if missing.is_empty() {
             return self.loaded(content);
         }
@@ -2492,6 +2741,24 @@ where
             self.read_payload(part);
         }
         self.waiting = Some(Wait::Payloads { loaded: content });
+    }
+
+    /// The parts the journal opened on names that are not read yet.
+    fn journal_parts(&self) -> Vec<PartRef> {
+        self.opened_journal
+            .iter()
+            .filter(|journal| journal.base.commit == self.base)
+            .flat_map(|journal| &journal.entries)
+            .filter(|entry| entry.base >= entry.floor)
+            .filter_map(|entry| match Submitted::decode(&entry.payload) {
+                Some(Submitted {
+                    entry: Entry::Operation(Payload::Part(part)),
+                    ..
+                }) if part.length() <= LARGEST_PART => Some(part),
+                _ => None,
+            })
+            .filter(|part| !self.payloads.contains_key(part) && !self.read_retry.contains_key(part))
+            .collect()
     }
 
     fn loaded(&mut self, content: C) {
@@ -2502,164 +2769,619 @@ where
             .take()
             .filter(|journal| journal.base.commit == self.base);
         let sealed_head = self.sealed_head.take();
-        let mut carried = None;
-        let replayed = match (journal, sealed_head) {
-            (Some(mut journal), Some(sealed)) => {
-                // What the seal holds replays onto the commit it was made on; the session as of
-                // its last sequence is the seal's; what came after replays on top of the seal.
-                let split = journal
-                    .entries
-                    .iter()
-                    .position(|entry| entry.sequence > sealed.through)
-                    .unwrap_or(journal.entries.len());
-                let later = journal.entries.split_off(split);
-                let mut replayed = self.replay_journal(journal);
-                self.base = Some(sealed.commit);
-                self.sealed = sealed.through;
-                self.sealed_state = self.confirmed.session_state();
-                replayed.retain(|op| op.sequence > sealed.through);
-                let after = self.replay_entries(later);
-                carried = Some(after.clone());
-                replayed.extend(after);
-                replayed
+        if let Some(journal) = journal {
+            match self.adopt_base_state(&journal.base.state, journal.base.sequence) {
+                Some(state) if !state.is_empty() => {
+                    if self.confirmed.adopt_session_state(&state).is_err() {
+                        self.incompatible = true;
+                    }
+                    self.sealed_state = state;
+                }
+                Some(_) => {}
+                None => self.incompatible = true,
             }
-            (Some(journal), None) => self.replay_journal(journal),
-            (None, _) => Vec::new(),
-        };
-        for op in &replayed {
-            // An operation sent by its part is too large to keep: it is followed without bytes.
-            let bytes = match &op.payload {
-                Payload::Inline(bytes) => bytes.clone(),
-                Payload::Part(_) => Vec::new(),
-            };
-            match self.journal_kept {
-                true => self.lacking.add_replayed(bytes, op.sequence),
-                false => self.lacking.journaled(&bytes, Some(op.sequence)),
+            self.applied = journal.base.sequence;
+            self.sealed = journal.base.sequence;
+            for entry in journal.entries {
+                if entry.sequence <= self.applied {
+                    self.passed_over(
+                        OpId {
+                            origin: entry.origin,
+                            counter: entry.counter,
+                        },
+                        entry.sequence,
+                    );
+                    continue;
+                }
+                let op = SessionOp {
+                    id: OpId {
+                        origin: entry.origin,
+                        counter: entry.counter,
+                    },
+                    sequence: entry.sequence,
+                    base: entry.base,
+                    floor: entry.floor,
+                    received: entry.received,
+                    payload: entry.payload,
+                };
+                self.replay_entry(op);
+                if let Some(sealed) = sealed_head.as_ref()
+                    && sealed.through == self.applied
+                {
+                    // What the seal holds replayed onto the commit it was made on: the seal is
+                    // the head from here on.
+                    self.settle_at(sealed.commit, sealed.through);
+                }
             }
+        }
+        // Local edits kept across a stop were made before a restart the order had since: what
+        // they were made on is gone.
+        if self.restarts > self.kept_restart {
+            self.stale_through = self.kept_through;
+            // And what earlier openings submitted went into the order before it restarted.
+            self.kept_submissions.clear();
+        }
+        // The order's base names only its most recent origins: one aged out of it may hold what
+        // this origin submitted though no entry says so. Sent again, it could land twice.
+        if self.aged_out && !self.own_in_journal && self.kept_submitted > self.own_through {
+            self.uncertain_through = self.kept_submitted;
         }
         self.visible = self.confirmed.clone();
         self.projected = Settling::new(self.visible.clone(), Vec::new());
-        let last = replayed.last().map_or(self.sealed, |op| op.sequence);
-        self.role = match self.state.is_owner(self.client) {
-            true => {
-                let mut sequencer = Sequencer::continuing(self.base, self.sealed, 0);
-                for op in replayed {
-                    sequencer.replayed(op);
-                }
-                Role::Owner(sequencer)
-            }
-            false => {
-                let mut follower = Follower::new(self.client);
-                follower.set_applied(last);
-                self.applied_ops = replayed;
-                Role::Follower(follower)
-            }
-        };
         self.loaded = true;
         self.described = true;
-        if let Some(after) = carried
-            && self.is_owner()
-        {
-            // The journal is still on the commit the seal was made on: start it over from the
-            // seal, keeping what came after, in one write.
-            self.owes_since = (!after.is_empty()).then_some(self.now);
-            let entries = after
-                .into_iter()
-                .map(|op| JournalEntry {
-                    sequence: op.sequence,
-                    payload: Wire::Session(SessionMessage::Accepted { op }).encode(),
-                })
-                .collect();
-            self.rebase_journal(entries);
+        // A type whose content folds its log reads it, which follows the log from now on.
+        self.read_on();
+        self.check_build();
+        // Edits of another build the journal held were lost: the holder starts the journal over
+        // from its head, so the order takes this build's.
+        if self.lost_edits && self.is_holder() {
+            self.rebase_journal();
         }
-        if let Role::Follower(_) = &self.role {
-            self.regreet();
-        }
-        self.claim_if_abandoned();
     }
 
-    fn is_owner(&self) -> bool {
-        matches!(self.role, Role::Owner(_))
-    }
-
-    /// How many local edits an owner has sequenced, so that its confirmed content holds them:
-    /// every one taken, but for those whose operations wait in `held`.
-    fn sequenced_taken(&self) -> u64 {
-        let held = match self.held.is_empty() {
-            true => self.taken,
-            false => self.held_from.saturating_sub(1),
-        };
-        self.replacing_from
-            .map_or(held, |from| held.min(from.saturating_sub(1)))
-    }
-
-    /// Loads a journal on the base just read: its session state, then every operation in it,
-    /// answered in order. An owner opening with it continues from its numbering without
-    /// rebasing; one that took it over rebases first (`adopt`).
-    fn replay_journal(&mut self, journal: Journal) -> Vec<SessionOp> {
-        if !journal.base.state.is_empty() {
-            if self
-                .confirmed
-                .adopt_session_state(&journal.base.state)
-                .is_err()
-            {
-                return Vec::new();
+    /// Applies an entry of the journal opened on, as the order applies it: an operation, or a
+    /// stash to keep. A reload in it was made of commits this replica would read; it opens on
+    /// the head the journal's holder sealed instead, and the next seal holds it.
+    fn replay_entry(&mut self, op: SessionOp) {
+        let sequence = op.sequence;
+        let mine = op.id.origin == self.origin;
+        self.ordered_bytes += ordered_bytes(&op);
+        match Submitted::decode(&op.payload) {
+            Some(Submitted { through, entry }) => {
+                self.note_origin(op.id.origin, through, sequence);
+                if mine {
+                    self.own_through = self.own_through.max(through);
+                    self.own_numbered.push_back((sequence, through));
+                    self.own_in_journal = true;
+                }
+                match entry {
+                    Entry::Operation(payload) if op.base >= op.floor => {
+                        if let Some(operation) = self.stamped(&payload, op.received) {
+                            let bytes = match &payload {
+                                Payload::Inline(bytes) => bytes.clone(),
+                                Payload::Part(_) => Vec::new(),
+                            };
+                            if mine {
+                                match self.journal_kept {
+                                    true => self.lacking.add_replayed(bytes, sequence),
+                                    false => self.lacking.journaled(&bytes, Some(sequence)),
+                                }
+                                // This replica's own, made before it opened again: undo steps
+                                // back through it, as through one made here.
+                                self.history.record(
+                                    &self.confirmed,
+                                    &operation,
+                                    None,
+                                    None,
+                                    self.now,
+                                );
+                            }
+                            self.confirmed.apply(&operation);
+                            self.log_operation(sequence, operation, mine);
+                        }
+                    }
+                    Entry::Operation(_) => {}
+                    Entry::Reload { restart: true, .. } => self.restarts += 1,
+                    Entry::Keep { commit }
+                    | Entry::Reload {
+                        commit,
+                        head: false,
+                        ..
+                    } => {
+                        if !self.keep.contains(&commit) {
+                            self.keep.push(commit);
+                        }
+                    }
+                    Entry::Reload { .. } => {}
+                }
             }
-            self.sealed_state = journal.base.state;
+            None => self.incompatible = true,
         }
-        self.sealed = journal.base.sequence;
-        self.rebased = self.state.is_owner(self.client);
-        self.replay_entries(journal.entries)
+        self.applied = sequence;
     }
 
-    /// Applies journaled entries in order, as replaying a journal does.
-    fn replay_entries(&mut self, entries: Vec<JournalEntry>) -> Vec<SessionOp> {
-        let mut replayed = Vec::new();
-        for entry in entries {
-            let Some(Wire::Session(SessionMessage::Accepted { op })) = Wire::decode(&entry.payload)
-            else {
-                continue;
-            };
-            let Some(operation) = self.operation(&op.payload) else {
-                continue;
-            };
-            self.confirmed.apply(&operation);
-            self.appended_bytes += entry.payload.len() + parted(&op);
-            replayed.push(op);
+    /// The operation `payload` carries, with its arrival stamped as the order took it: every
+    /// replica stamps alike, whatever the sender wrote there.
+    fn stamped(&self, payload: &Payload, received: Option<i64>) -> Option<C::Op> {
+        let mut operation = self.operation(payload)?;
+        if let Some(slot) = C::arrival(&mut operation) {
+            *slot = received;
         }
-        replayed
+        Some(operation)
+    }
+
+    fn log_operation(&mut self, sequence: u64, operation: C::Op, mine: bool) {
+        if self.log.len() >= LOG_LIMIT {
+            self.log.pop_front();
+        }
+        self.log.push_back(Logged {
+            sequence,
+            operation,
+            mine,
+        });
+    }
+
+    /// Whether the session speaks this build: one that does not refuses to edit or seal, and
+    /// the server refuses its submissions.
+    fn check_build(&mut self) {
+        if self
+            .state
+            .tag()
+            .is_some_and(|tag| *tag.as_bytes() != self.tag.0)
+        {
+            self.incompatible = true;
+            self.diverged = true;
+        }
+    }
+
+    /// An entry numbered at or before what this replica applied, which it passes over: one it
+    /// applied comes again, as a replay does. One of its own edits still waiting to be
+    /// numbered never does: the order that numbered it is behind the replica's, and the edit
+    /// would wait for good, so it says so.
+    fn passed_over(&mut self, id: OpId, sequence: u64) {
+        if id.origin == self.origin && self.pending.iter().any(|sent| sent.id == id) {
+            self.error(format!(
+                "its own submission {} came back numbered {sequence}, behind the {} it applied",
+                id.counter, self.applied
+            ));
+        }
+    }
+
+    /// The order's next entry: applied in order, held when it arrives early.
+    fn ordered(&mut self, op: SessionOp) {
+        if op.sequence <= self.applied {
+            return self.passed_over(op.id, op.sequence);
+        }
+        if op.sequence > self.applied + 1 {
+            self.ahead.insert(op.sequence, op);
+            return;
+        }
+        self.apply_entry(op);
+        while self.waiting.is_none()
+            && let Some(next) = self.ahead.remove(&(self.applied + 1))
+        {
+            self.apply_entry(next);
+        }
+        // The next edit goes while a seal is out too (`passes_a_seal`): left until the seal
+        // lands, it would wait for the next edit to come.
+        if self.waiting.is_none() || self.sealing_out() {
+            self.flush();
+        }
+    }
+
+    fn apply_entry(&mut self, op: SessionOp) {
+        let mine = op.id.origin == self.origin;
+        self.ordered_bytes += ordered_bytes(&op);
+        // Another's edit counts from when it arrived; this replica's own from when it was made.
+        if !mine {
+            self.last_edit = Some(self.now);
+        }
+        let Some(Submitted { through, entry }) = Submitted::decode(&op.payload) else {
+            self.incompatible = true;
+            return self.passed(&op, mine);
+        };
+        self.note_origin(op.id.origin, through, op.sequence);
+        if mine {
+            if !self.pending.iter().any(|sent| sent.id == op.id) {
+                self.heard_own(op.id.counter);
+            }
+            self.own_through = self.own_through.max(through);
+            self.own_numbered.push_back((op.sequence, through));
+            self.lacking.numbered(op.id.counter, op.sequence);
+        }
+        match entry {
+            Entry::Operation(payload) => self.apply_operation(op, mine, payload),
+            Entry::Reload {
+                commit,
+                head,
+                replace,
+                restart,
+                state,
+            } => {
+                if op.base < op.floor && !replace && !restart {
+                    return self.passed(&op, mine);
+                }
+                // Read before the entry was let through (`missing_parts`). One longer than
+                // `LARGEST_PART` (64 MiB) is passed through unread, so every replica reloads it
+                // with no state alike: its identities are new, and what was on its way names
+                // nothing in it.
+                let state = match state {
+                    Payload::Inline(bytes) => bytes,
+                    Payload::Part(part) => self.payloads.get(&part).cloned().unwrap_or_default(),
+                };
+                self.read(
+                    vec![Some(commit)],
+                    Then::Reload {
+                        op,
+                        commit,
+                        head,
+                        replace,
+                        restart,
+                        state,
+                        through,
+                    },
+                );
+            }
+            Entry::Keep { commit } => {
+                if mine {
+                    self.forget_sent(op.id);
+                }
+                if !self.keep.contains(&commit) {
+                    self.keep.push(commit);
+                }
+                self.applied = op.sequence;
+                self.take_heard_seal();
+                self.seal_if_owed();
+            }
+        }
+    }
+
+    /// The order passed over `op`: every replica does alike. One of this replica's own is gone.
+    fn passed(&mut self, op: &SessionOp, mine: bool) {
+        self.applied = op.sequence;
+        if mine && let Some(sent) = self.forget_sent(op.id) {
+            self.lacking.dropped(op.id.counter);
+            if let Some(id) = sent.reply {
+                self.reply(id, Answer::Changed(false));
+            }
+            if self.reloading.contains(&op.id) {
+                // The holder's reload of a merge never landed: it merges again.
+                self.reloading.retain(|id| *id != op.id);
+                self.jobs.push_back(Job::Reconcile);
+            }
+            self.in_flight = 0;
+            self.rebuild_visible();
+            self.cover_if_settled();
+        }
+        self.take_heard_seal();
+    }
+
+    /// Forgets what this replica submitted as `id`, which came back numbered.
+    fn forget_sent(&mut self, id: OpId) -> Option<Sent<C>> {
+        let at = self.pending.iter().position(|sent| sent.id == id)?;
+        self.pending.remove(at)
+    }
+
+    fn apply_operation(&mut self, op: SessionOp, mine: bool, payload: Payload) {
+        let id = op.id;
+        let sequence = op.sequence;
+        let readable = payload
+            .part()
+            .is_none_or(|part| part.length() <= LARGEST_PART);
+        let operation = match op.base >= op.floor && readable {
+            true => self.stamped(&payload, op.received),
+            false => None,
+        };
+        let Some(operation) = operation else {
+            if op.base >= op.floor && readable {
+                // Bytes this build cannot decode: every replica of it passes over them too.
+                self.incompatible = true;
+            }
+            return self.passed(&op, mine);
+        };
+        self.applied = sequence;
+        self.log_operation(sequence, operation.clone(), mine);
+        if mine && let Some(sent) = self.forget_sent(id) {
+            let unchanged = sent.operation.as_ref().is_some_and(|submitted| {
+                C::encode_operation(submitted) == C::encode_operation(&operation)
+            });
+            self.confirmed.apply(&operation);
+            self.in_flight = 0;
+            if !unchanged {
+                self.rebuild_visible();
+            }
+            self.cover_if_settled();
+            self.seal_for_restart();
+            return self.take_heard_seal();
+        }
+        if mine {
+            // Made by an earlier opening of this replica: the order holds it, and now the
+            // content shows it.
+            let bytes = match &payload {
+                Payload::Inline(bytes) => bytes.clone(),
+                Payload::Part(_) => Vec::new(),
+            };
+            self.lacking.journaled(&bytes, Some(sequence));
+        }
+        if self.pending.is_empty() && self.unsent.is_empty() && self.tentative.is_empty() {
+            self.confirmed.apply(&operation);
+            self.visible.apply(&operation);
+            self.journal(Journaled::Applied(operation), None);
+            return self.take_heard_seal();
+        }
+        // Another's edit, numbered before this replica's own: it goes beneath them.
+        let unsettled = self.unsettled();
+        if !self.covered {
+            self.confirmed.apply(&operation);
+            self.rebuild_visible();
+            return self.take_heard_seal();
+        }
+        let mut local: Vec<C::Op> = self
+            .pending
+            .iter()
+            .filter_map(|sent| sent.operation.clone())
+            .collect();
+        self.in_flight = local.len() as u64;
+        for (pending, _, weight, ..) in &mut self.unsent {
+            local.push(pending.clone());
+            *weight = 1;
+        }
+        // The tentative layer stays on top.
+        local.extend(self.tentative.iter().map(|held| held.operation.clone()));
+        self.beneath = None;
+        self.visible
+            .apply_beneath(&mut self.confirmed, &operation, &local, &mut Vec::new());
+        self.journal(
+            Journaled::Beneath {
+                operation,
+                unsettled,
+                local,
+            },
+            None,
+        );
+        self.take_heard_seal();
+    }
+
+    /// A reload landed: the content becomes `content`, with what the order numbered after its
+    /// base applied again on top unless it replaces the content outright.
+    #[allow(clippy::too_many_arguments)]
+    fn reloaded(
+        &mut self,
+        op: SessionOp,
+        commit: CommitId,
+        head: bool,
+        replace: bool,
+        restart: bool,
+        state: Vec<u8>,
+        _through: u64,
+        content: C,
+    ) {
+        let mut content = content;
+        let mine = op.id.origin == self.origin;
+        // What the editors showed, which their edits sent before they were shown the reload
+        // were made on (`carried_over_a_reload`).
+        let shown = (!replace && !self.editors.is_empty()).then(|| self.visible.clone());
+        match self.adopt_base_state(&state, op.sequence) {
+            Some(state) if !state.is_empty() => {
+                if content.adopt_session_state(&state).is_err() {
+                    self.incompatible = true;
+                }
+            }
+            Some(_) => {}
+            None => self.incompatible = true,
+        }
+        if restart {
+            self.restarts += 1;
+            self.restart_overdue = false;
+        }
+        let sent = match mine {
+            true => self.forget_sent(op.id),
+            false => None,
+        };
+        self.reloading.retain(|id| *id != op.id);
+        // Its own reload of a merge landed: one that never reached the order before is settled
+        // (`answer_submitted`).
+        if mine && head {
+            self.merge_failures = 0;
+            self.merge_retry_at = None;
+        }
+        let before = std::mem::replace(&mut self.confirmed, C::default());
+        let mut reapplied = false;
+        if !replace && !restart {
+            for logged in self.log.iter().filter(|logged| logged.sequence > op.base) {
+                content.apply(&logged.operation);
+                reapplied = true;
+            }
+        }
+        self.applied = op.sequence;
+        self.confirmed = content;
+        if replace {
+            self.replaced_at = op.sequence;
+            // What this replica had not had numbered, or had numbered after the replacement's
+            // base, is dropped with what the replacement replaced: kept in history as a stash,
+            // unless it is the replacement's own.
+            let after_base = self
+                .log
+                .iter()
+                .any(|logged| logged.mine && logged.sequence > op.base);
+            let unsaved =
+                !mine && (!self.pending.is_empty() || !self.unsent.is_empty() || after_base);
+            // The tentative layer was never written, so is not kept.
+            let lost = unsaved.then(|| self.unheld().clone());
+            self.clear_history();
+            if !mine {
+                self.replaced_through = self.edit_number();
+            }
+            self.drop_unconfirmed();
+            self.lacking.replaced();
+            self.resnapshot = true;
+            if let Some(lost) = lost {
+                let written = self.written(&lost);
+                self.stash(self.base, written, AfterStash::Keep);
+            }
+        }
+        if restart {
+            self.replaced_at = op.sequence;
+            self.carry_pending(before);
+            self.history.restart();
+            self.restarted_at = Some(commit);
+            self.log.clear();
+        }
+        // A replacement drops what was made on the content it replaced; any other reload
+        // carries the editors' edits made before they were shown it (`carried_over_a_reload`).
+        if replace {
+            self.shown_before.clear();
+        }
+        if let Some(shown) = shown {
+            self.shown_before.insert(self.reloads, shown);
+            self.reloads += 1;
+            self.prune_shown();
+        }
+        match head {
+            true => {
+                self.base = Some(commit);
+                if !reapplied {
+                    self.sealed = op.sequence;
+                    self.sealed_state = self.confirmed.session_state();
+                    self.own_numbered.retain(|(at, _)| *at > op.sequence);
+                    self.log.clear();
+                    // The head holds the order through here: the journal starts from it.
+                    if self.is_holder() {
+                        self.rebase_journal();
+                    }
+                }
+            }
+            false => {
+                if !self.keep.contains(&commit) {
+                    self.keep.push(commit);
+                }
+            }
+        }
+        self.seal_if_owed();
+        if let Some(id) = sent.and_then(|sent| sent.reply) {
+            self.reply(id, Answer::Changed(true));
+        }
+        self.rebuild_visible();
+        self.cover_if_settled();
+        self.take_heard_seal();
+        // The next edit goes while a seal is out too (`passes_a_seal`): left until the seal
+        // lands, it would wait for the next edit to come.
+        if self.waiting.is_none() || self.sealing_out() {
+            self.flush();
+        }
+    }
+
+    /// While a restart waits for a seal holding everything numbered (`restart_short`), seals
+    /// once this holder has nothing of its own on its way: with no other writer, that seal holds
+    /// everything, and the restart follows it. One that is no longer holder, or whose restart is
+    /// no longer due, lets its edits go again.
+    fn seal_for_restart(&mut self) {
+        if !self.restart_short {
+            return;
+        }
+        if !self.is_holder() || !self.alone() || !self.restart_due() {
+            self.restart_short = false;
+            self.jobs.push_back(Job::Unblocked);
+            return;
+        }
+        let queued = self.jobs.iter().any(|job| matches!(job, Job::Seal { .. }));
+        if self.pending.iter().any(|sent| sent.operation.is_some()) || queued || self.sealing {
+            return;
+        }
+        self.sealing = true;
+        self.jobs.push_back(Job::Seal {
+            sealing: Sealing::Once,
+            reply: None,
+        });
+    }
+
+    /// Says once, until a restart lands, that a due restart was put off past `RESTART_CEILING`
+    /// times the limit with the session state `state` bytes: with others in the session, their
+    /// writing keeps every seal short (plans/restart_carries_numbered_entries.md); alone, its own
+    /// seals do not settle (they fail, or edits stay on their way).
+    fn report_overdue_restart(&mut self, state: usize) {
+        if state <= restart_limit().saturating_mul(RESTART_CEILING)
+            || std::mem::replace(&mut self.restart_overdue, true)
+        {
+            return;
+        }
+        let cause = match self.alone() {
+            false => {
+                "others are writing, and a restart waits for a seal holding everything \
+                 (plans/restart_carries_numbered_entries.md)"
+            }
+            true => "this holder's own seals do not settle",
+        };
+        self.error(format!(
+            "a restart is overdue: the session state is {state} bytes, and every seal falls short \
+             of what the order numbered: {cause}"
+        ));
+    }
+
+    /// A stash the order keeps, or a reload, is sealed at once: what it changed reaches the
+    /// head without waiting for a pause.
+    fn seal_if_owed(&mut self) {
+        let queued = self.jobs.iter().any(|job| matches!(job, Job::Seal { .. }));
+        if self.is_holder() && self.owes() && !queued && !self.sealing {
+            self.sealing = true;
+            self.jobs.push_back(Job::Seal {
+                sealing: Sealing::Due,
+                reply: None,
+            });
+        }
+    }
+
+    fn drop_unconfirmed(&mut self) {
+        let reloads: Vec<Sent<C>> = std::mem::take(&mut self.pending)
+            .into_iter()
+            .filter(|sent| sent.operation.is_none())
+            .collect();
+        self.pending = reloads.into();
+        self.unsent.clear();
+        self.kept_submissions.clear();
+        self.in_flight = 0;
+        self.covered = true;
     }
 
     fn is_clean(&self) -> bool {
-        match &self.role {
-            Role::Owner(sequencer) => sequencer.is_clean() && self.held.is_empty(),
-            Role::Follower(follower) => follower.pending() == 0 && self.unsent.is_empty(),
-        }
+        self.pending.is_empty()
+            && self.unsent.is_empty()
+            && self.doubtful.is_empty()
+            && !self.owes()
     }
 
-    /// Whether a seal now would leave this replica owing less: an owner with sequenced work not
-    /// sealed, and no merge waiting for parts it could not read. What it holds back (behind a
-    /// part being put, or edits made during a seal) is not sealed until it is sequenced, and a
-    /// seal on the old base while a merge waits is rejected (as `commit_at`): either way the host,
-    /// which seals what is owed on every hurried frame, would ask again on each one.
+    /// Whether the holder owes a seal: the order went past its last seal, or a stash waits to
+    /// be kept.
+    fn owes(&self) -> bool {
+        self.loaded && self.is_holder() && (self.applied > self.sealed || !self.keep.is_empty())
+    }
+
+    /// Whether a seal now would leave this holder owing less: no merge waiting for parts it
+    /// could not read, no reload of its own on its way, and no retry waiting.
     fn seal_would_settle(&self) -> bool {
-        matches!(&self.role, Role::Owner(sequencer) if !sequencer.is_clean())
+        self.owes()
+            && !self.diverged
             && self.merge_failures == 0
+            && self.reloading.is_empty()
+            && self.reloads_putting.is_empty()
             && self.seal_retry_at.is_none_or(|at| self.now >= at)
     }
 
     fn has_unsealed_work(&self) -> bool {
-        matches!(&self.role, Role::Owner(sequencer) if !sequencer.is_clean())
-            || !self.held.is_empty()
+        self.applied > self.sealed || !self.keep.is_empty()
     }
 
+    /// How many of this replica's own edits show on top of what the order applied: those in
+    /// flight, those unsent, and the tentative layer's.
     fn unsettled(&self) -> u64 {
-        match &self.role {
-            Role::Owner(_) => 0,
-            Role::Follower(_) => {
-                self.in_flight + self.unsent.iter().map(|(.., weight)| weight).sum::<u64>()
-            }
-        }
+        self.in_flight
+            + self.tentative.len() as u64
+            + self
+                .unsent
+                .iter()
+                .map(|(_, _, weight, ..)| weight)
+                .sum::<u64>()
     }
 
     fn cover_if_settled(&mut self) {
@@ -2725,33 +3447,52 @@ where
         self.journal(Journaled::Replaced, None);
     }
 
-    fn unreadable_message(&mut self) {
-        self.incompatible = true;
-        if !self.is_owner() {
-            self.diverged = true;
-        }
-    }
-
     fn edit(&mut self, mut operation: C::Op, origin: Option<EditorId>) -> bool {
-        self.active = true;
+        self.edited_since.get_or_insert(self.now);
+        self.last_edit = Some(self.now);
         if self.diverged {
             self.error(DIVERGED);
             return false;
         }
-        // Only the owner stamps an arrival: taken from the editor and shown as it was, so it
-        // is never sent and never waits to be accepted.
+        // Only the order stamps an arrival: taken from the editor and shown as it was, so it is
+        // never submitted.
         if claims_arrival::<C>(&mut operation) {
             self.error(CLAIMED_ARRIVAL);
             self.reproject();
             return true;
         }
+        // Made while a tentative layer is held: it goes beneath the layer, which stays on top.
+        if !self.tentative.is_empty() {
+            let mut unheld = self.unheld().clone();
+            unheld.apply(&operation);
+            let announcements = unheld.announcements(&operation);
+            match self.doubtful_now {
+                true => {
+                    self.first_doubtful.get_or_insert(self.edit_number());
+                    self.doubtful.push(operation);
+                }
+                false => self.queue(operation, self.edit_number(), announcements),
+            }
+            self.rebuild_visible();
+            self.flush();
+            return true;
+        }
         self.visible.apply(&operation);
+        if self.doubtful_now {
+            self.journal(
+                Journaled::Edited {
+                    operation: operation.clone(),
+                    unsettled: self.unsettled(),
+                },
+                origin,
+            );
+            self.first_doubtful.get_or_insert(self.edit_number());
+            self.doubtful.push(operation);
+            return true;
+        }
         // Asked as the edit is made, so the host keeps it with the edit from here on.
         let announcements = self.visible.announcements(&operation);
-        let unsettled = match self.role {
-            Role::Owner(_) => 0,
-            Role::Follower(_) => self.unsettled() + 1,
-        };
+        let unsettled = self.unsettled() + 1;
         self.journal(
             Journaled::Edited {
                 operation: operation.clone(),
@@ -2759,77 +3500,429 @@ where
             },
             origin,
         );
-        let payload = C::encode_operation(&operation);
-        let size = payload.len();
-        let oversized = size > LARGEST_RELAYED_OPERATION;
-        let sealing = self.sealing_out() && !self.journals_during_seal();
-        if self.is_owner() && (oversized || sealing || !self.held.is_empty()) {
-            self.lacking.add(payload, Until::Waiting, announcements);
-            let first = self.held.is_empty();
-            if first {
-                self.held_from = self.taken;
-            }
-            self.held.push_back(operation);
-            if first && !sealing {
-                self.sequence_held();
-            }
-            return true;
-        }
-        match &mut self.role {
-            Role::Owner(sequencer) => {
-                self.ids += 1;
-                let id = OpId {
-                    client: self.client,
-                    counter: self.ids,
-                };
-                let Some(op) = sequencer.accept(id, Payload::Inline(payload.clone())) else {
-                    return true;
-                };
-                self.lacking
-                    .add(payload, Until::Sequenced(op.sequence), announcements);
-                self.confirmed.apply(&operation);
-                self.sequenced(op);
-            }
-            Role::Follower(follower)
-                if oversized
-                    || follower.pending() > 0
-                    || !self.unsent.is_empty()
-                    || self.awaiting.is_some() =>
-            {
-                self.lacking.add(payload, Until::Unsettled, announcements);
-                let leftover = match self.unsent.back_mut() {
-                    Some((last, bound, weight)) if *bound + size <= LARGEST_RELAYED_OPERATION => {
-                        let leftover = C::absorb_operation(last, operation);
-                        if leftover.is_none() {
-                            *bound += size;
-                            *weight += 1;
-                        }
-                        leftover
-                    }
-                    _ => Some(operation),
-                };
-                self.unsent
-                    .extend(leftover.map(|operation| (operation, size, 1)));
-                if oversized {
-                    self.flush();
-                }
-            }
-            Role::Follower(follower) => {
-                self.lacking
-                    .add(payload.clone(), Until::Unsettled, announcements);
-                self.ids += 1;
-                let message = follower.submit(self.ids, Payload::Inline(payload));
-                self.in_flight = 1;
-                let owner = self.state.owner;
-                self.send(owner, &message);
-            }
-        }
+        self.queue(operation, self.edit_number(), announcements);
+        self.flush();
         true
     }
 
-    fn record_and_edit(&mut self, operation: C::Op, origin: Option<EditorId>) -> bool {
+    /// Queues `operation`, the local edit `through`, to submit, with what it announces.
+    fn queue(
+        &mut self,
+        operation: C::Op,
+        through: u64,
+        announcements: Vec<be_block_content::Announcement>,
+    ) {
+        let payload = C::encode_operation(&operation);
+        let size = payload.len();
+        self.lacking.add(payload, announcements);
+        let kept = self.kept_submission(through);
+        let counter = kept.as_ref().map(|kept| kept.counter);
+        let mut apart = false;
+        let oversized = size > LARGEST_RELAYED_OPERATION;
+        let leftover = match self.unsent.back_mut() {
+            // Edits an earlier opening submitted go together, as that submission held them,
+            // and nothing else goes with them.
+            Some((last, bound, weight, last_through, last_kept))
+                if last_kept.as_ref().map(|kept| kept.counter) == counter
+                    && (counter.is_some()
+                        || (!oversized && *bound + size <= LARGEST_RELAYED_OPERATION)) =>
+            {
+                let leftover = C::absorb_operation(last, operation);
+                match leftover.is_none() {
+                    true => {
+                        // An upper bound: absorbing can shrink `last` (a later put replaces an
+                        // earlier one), so a long burst starts a new operation sooner than its
+                        // real size needs.
+                        *bound += size;
+                        *weight += 1;
+                        *last_through = through;
+                    }
+                    // Not as that submission held them, which absorbing them the same way
+                    // again should never find: a known fallback, they go anew.
+                    false => {
+                        debug_assert!(counter.is_none(), "kept edits absorbed apart");
+                        *last_kept = None;
+                        apart = true;
+                    }
+                }
+                leftover
+            }
+            _ => Some(operation),
+        };
+        let kept = kept.filter(|_| {
+            !apart
+                && !self
+                    .unsent
+                    .iter()
+                    .any(|(.., held)| held.as_ref().map(|held| held.counter) == counter)
+        });
+        self.unsent
+            .extend(leftover.map(|operation| (operation, size, 1, through, kept)));
+    }
+
+    /// The submission of an earlier opening that holds the local edit `through`, letting go of
+    /// those before it.
+    fn kept_submission(&mut self, through: u64) -> Option<KeptSubmission> {
+        while self
+            .kept_submissions
+            .front()
+            .is_some_and(|kept| kept.through < through || kept.through <= self.own_through)
+        {
+            self.kept_submissions.pop_front();
+        }
+        self.kept_submissions.front().cloned()
+    }
+
+    /// The order numbered this replica's own submission `counter`: when an earlier opening
+    /// made it, the edits given again that it holds are in the order now, and are not sent.
+    fn heard_own(&mut self, counter: u64) {
+        self.kept_submissions.retain(|kept| kept.counter != counter);
+        let held = |(.., kept): &(C::Op, usize, u64, u64, Option<KeptSubmission>)| {
+            kept.as_ref().is_some_and(|kept| kept.counter == counter)
+        };
+        if let Some(at) = self.unsent.iter().position(held)
+            && let Some((_, _, weight, ..)) = self.unsent.remove(at)
+        {
+            self.lacking.submitted(counter, weight);
+            self.rebuild_visible();
+        }
+    }
+
+    /// Submits the next operation waiting, once nothing of this replica's is in flight: what is
+    /// typed meanwhile is absorbed into one edit (decisions/a_replica_keeps_one_edit_in_flight.md).
+    fn flush(&mut self) {
+        if !self.released {
+            self.submit_reloads();
+        }
+        // A put that failed goes again on its timer (`tick`), whatever asks meanwhile.
+        // Its own held for a restart (`restart_short`) go again once the restart is no longer
+        // due (a gesture opened) or others joined.
+        if self.restart_short && !(self.restart_due() && self.alone()) {
+            self.restart_short = false;
+        }
+        if self.restart_short
+            || !self.loaded
+            || self.released
+            || self.put_retry_at.is_some()
+            || self.diverged
+            || self.putting()
+            || self.pending.iter().any(|sent| sent.operation.is_some())
+        {
+            return;
+        }
+        let Some((operation, _, _, through, kept)) = self.unsent.front() else {
+            return;
+        };
+        // An earlier opening's submission waits for the rest of the edits it holds, then goes
+        // again as it was, its payload under its id, if they make it again exactly: otherwise
+        // they go anew.
+        if kept
+            .as_ref()
+            .is_some_and(|kept| self.edit_number() < kept.through)
+        {
+            return;
+        }
+        let again = kept
+            .as_ref()
+            .and_then(|kept| match Submitted::decode(&kept.payload) {
+                Some(Submitted {
+                    entry: Entry::Operation(Payload::Inline(bytes)),
+                    ..
+                }) if *through == kept.through && bytes == C::encode_operation(operation) => {
+                    Some((kept.clone(), Payload::Inline(bytes)))
+                }
+                _ => None,
+            });
+        let payload = match &again {
+            Some((_, payload)) => payload.clone(),
+            None => match self.payload_of(C::encode_operation(operation)) {
+                Some(payload) => payload,
+                None => return,
+            },
+        };
+        // The host keeps each operation's identity under the restart it reported last, and drops
+        // those of an earlier one: told of a restart first, it keeps this one. What else
+        // `report` sends is sent at the end of the run all the same, and each once.
+        if self
+            .reported
+            .status
+            .as_ref()
+            .is_some_and(|status| status.restarts != self.restarts)
+        {
+            self.report();
+        }
+        let Some((operation, _, weight, through, _)) = self.unsent.pop_front() else {
+            return;
+        };
+        self.in_flight = weight;
+        let entry = Entry::Operation(payload.clone());
+        let submission = match again {
+            Some((kept, _)) => Submission {
+                id: OpId {
+                    origin: self.origin,
+                    counter: kept.counter,
+                },
+                base: self.applied,
+                barrier: false,
+                payload: kept.payload,
+            },
+            None => self.submission(through, entry.clone(), false),
+        };
+        let announcements = self.lacking.submitted(submission.id.counter, weight);
+        self.pending.push_back(Sent {
+            id: submission.id,
+            operation: Some(operation),
+            payload,
+            entry,
+            reply: None,
+        });
+        self.out.push(Effect::Submit {
+            replica: self.id,
+            submission,
+            announcements,
+        });
+    }
+
+    /// A submission of `entry`, holding the local edits through `through`, based on what this
+    /// replica applied.
+    fn submission(&mut self, through: u64, entry: Entry, barrier: bool) -> Submission {
+        self.counter += 1;
+        Submission {
+            id: OpId {
+                origin: self.origin,
+                counter: self.counter,
+            },
+            base: self.applied,
+            barrier,
+            payload: Submitted { through, entry }.encode(),
+        }
+    }
+
+    /// The local edits a reload or a stash submitted now holds (`Submitted::through`): those
+    /// a replacement on its way counts as in the order, otherwise those the order holds
+    /// already. Never edits still unsent: a replica opened again after a crash would take them
+    /// as ordered and not send them. Edits a replacement from elsewhere dropped count, as they
+    /// are gone.
+    fn entry_through(&self) -> u64 {
+        match self.replacing_from {
+            Some(from) => self.taken_before + from,
+            None => self
+                .own_through
+                .max(self.taken_before)
+                .max(self.replaced_through),
+        }
+    }
+
+    /// Submits a reload or a stash to keep.
+    fn submit_entry(&mut self, entry: Entry, barrier: bool, reply: Option<RequestId>) -> OpId {
+        let through = self.entry_through();
+        let submission = self.submission(through, entry.clone(), barrier);
+        let id = submission.id;
+        self.pending.push_back(Sent {
+            id,
+            operation: None,
+            payload: Payload::Inline(Vec::new()),
+            entry,
+            reply,
+        });
+        self.out.push(Effect::Submit {
+            replica: self.id,
+            submission,
+            announcements: Vec::new(),
+        });
+        id
+    }
+
+    fn submit_reload(
+        &mut self,
+        commit: CommitId,
+        head: bool,
+        replace: bool,
+        state: Vec<u8>,
+        reply: Option<RequestId>,
+    ) {
+        let applied = self.applied;
+        self.submit_reload_based(commit, head, replace, state, reply, applied);
+    }
+
+    /// Submits a reload of `commit`, which holds the order through `through`: replicas apply
+    /// again on top of it what was numbered after that.
+    fn submit_reload_based(
+        &mut self,
+        commit: CommitId,
+        head: bool,
+        replace: bool,
+        state: Vec<u8>,
+        reply: Option<RequestId>,
+        through: u64,
+    ) {
+        let restart = head && replace;
+        let reload = PendingReload {
+            commit,
+            head,
+            replace: replace && !restart,
+            restart,
+            state: self.base_state(state, self.applied),
+            reply,
+            through,
+        };
+        self.reloads_putting.push_back(reload);
+        self.submit_reloads();
+    }
+
+    /// Submits the reloads waiting, in order, each once its state can go: inline, or by the
+    /// part it is put as (`payload_of`), which the replica waits for, sealing nothing, as for a
+    /// reload on its way.
+    fn submit_reloads(&mut self) {
+        while let Some(reload) = self.reloads_putting.front() {
+            if self.put_retry_at.is_some() {
+                return;
+            }
+            let Some(state) = self.payload_of(reload.state.clone()) else {
+                return;
+            };
+            let Some(reload) = self.reloads_putting.pop_front() else {
+                return;
+            };
+            self.submit_reload_entry(reload, state);
+        }
+    }
+
+    fn submit_reload_entry(&mut self, reload: PendingReload, state: Payload) {
+        let PendingReload {
+            commit,
+            head,
+            replace,
+            restart,
+            reply,
+            through,
+            ..
+        } = reload;
+        let entry = Entry::Reload {
+            commit,
+            head,
+            replace,
+            restart,
+            state: state.clone(),
+        };
+        let barrier = replace || restart;
+        let local = self.entry_through();
+        self.counter += 1;
+        let submission = Submission {
+            id: OpId {
+                origin: self.origin,
+                counter: self.counter,
+            },
+            base: through,
+            barrier,
+            payload: Submitted {
+                through: local,
+                entry: entry.clone(),
+            }
+            .encode(),
+        };
+        let id = submission.id;
+        if head {
+            self.reloading.push(id);
+        }
+        self.pending.push_back(Sent {
+            id,
+            operation: None,
+            // The part its state went by, kept until it lands (`prune_payloads`).
+            payload: state,
+            entry,
+            reply,
+        });
+        self.out.push(Effect::Submit {
+            replica: self.id,
+            submission,
+            announcements: Vec::new(),
+        });
+    }
+
+    /// How the host answered the submission `counter`.
+    fn answer_submitted(&mut self, counter: u64, outcome: Outcome) {
+        // A change waiting on what it submitted (a replacement) is answered once the server holds
+        // it: a host that waits for the answer may be what would hand this replica the order.
+        let reply = self
+            .pending
+            .iter_mut()
+            .find(|sent| sent.id.counter == counter)
+            .and_then(|sent| sent.reply.take());
+        if let Some(id) = reply {
+            let made = !matches!(outcome, Outcome::Failed(_) | Outcome::Refused(_));
+            self.reply(id, Answer::Changed(made));
+        }
+        // A reload that never reached the order would hold seals back for good (`reloading`):
+        // it is let go. Should the server have numbered it after all, it lands as any reload
+        // does, `reloading` cleared already, and settles a merge failing meanwhile. A stash to
+        // keep goes the way an edit does, below.
+        if matches!(outcome, Outcome::Failed(_) | Outcome::Refused(_))
+            && let Some(at) = self.pending.iter().position(|sent| {
+                sent.id.counter == counter && matches!(sent.entry, Entry::Reload { .. })
+            })
+            && let Some(sent) = self.pending.remove(at)
+        {
+            let (Outcome::Failed(error) | Outcome::Refused(error)) = outcome else {
+                return;
+            };
+            self.reloading.retain(|id| *id != sent.id);
+            let error = format!("a reload did not reach the session: {error}");
+            match sent.entry {
+                // A head reload's: the reconcile makes it again on the merge's timer, as it
+                // makes a merge that failed again.
+                Entry::Reload { head: true, .. } => self.merge_failed(error),
+                _ => self.error(error),
+            }
+            self.jobs.push_back(Job::Unblocked);
+            return;
+        }
+        match outcome {
+            Outcome::Held => self.lacking.held(counter),
+            Outcome::Kept => {}
+            Outcome::Failed(error) => {
+                // It never reached the order: the host opens the replica again once it is back
+                // in the session, giving it again what this one had not had numbered. (One
+                // refused for a key not on the device yet is not failed: the host holds it and
+                // submits it again once the key arrives.)
+                self.error(format!("an edit did not reach the session: {error}"));
+            }
+            Outcome::Refused(error) => {
+                // This account may not edit the block: sent again, it would be refused again.
+                // It is given up as one the order passed over, shown as failed to its editors
+                // until they let it go, and what is typed after goes on to be refused in turn.
+                self.error(format!("an edit was not sent: {error}"));
+                let at = self
+                    .pending
+                    .iter()
+                    .position(|sent| sent.id.counter == counter);
+                if at.and_then(|at| self.pending.remove(at)).is_some() {
+                    self.lacking.dropped(counter);
+                    self.in_flight = 0;
+                    self.rebuild_visible();
+                    self.cover_if_settled();
+                    self.jobs.push_back(Job::Unblocked);
+                }
+            }
+        }
+    }
+
+    /// Records `operation`, made in its editor's gesture `gesture` or outside any, for undo
+    /// against the content it is applied to, beneath any tentative layer, and makes it.
+    fn record_and_edit(
+        &mut self,
+        operation: C::Op,
+        origin: Option<EditorId>,
+        gesture: Option<u64>,
+    ) -> bool {
+        let at = self.now;
+        self.unheld();
+        let content = match &self.beneath {
+            Some(beneath) if !self.tentative.is_empty() => beneath,
+            _ => &self.visible,
+        };
         self.history
-            .record(&self.visible, &operation, origin, self.now);
+            .record(content, &operation, origin, gesture, at);
         self.edit(operation, origin)
     }
 
@@ -2838,48 +3931,83 @@ where
             return;
         };
         match message {
-            FromEditor::Operate(bytes) => {
+            FromEditor::Operate {
+                gesture,
+                operation: bytes,
+            } => {
                 // Counted taken or refused, as the host counts what it relays (`attach`).
                 *self.acknowledged.entry(editor).or_default() += 1;
+                // The host's own edits are no one's to undo (`HOST_EDITOR`).
                 let took = editable
-                    && C::decode_operation(&bytes)
-                        .is_ok_and(|operation| self.record_and_edit(operation, Some(editor)));
+                    && C::decode_operation(&bytes).is_ok_and(|operation| {
+                        let operation = self.carried_over_a_reload(editor, operation);
+                        match (editor, self.held_now) {
+                            // Made in its editor's open tentative gesture: held in the layer.
+                            (_, Some((gesture, serial))) => self.hold(
+                                gesture,
+                                serial,
+                                operation,
+                                Some(editor),
+                                editor != be_sdk_type_api::HOST_EDITOR,
+                            ),
+                            (be_sdk_type_api::HOST_EDITOR, None) => {
+                                self.edit(operation, Some(editor))
+                            }
+                            _ => self.record_and_edit(operation, Some(editor), gesture),
+                        }
+                    });
                 // A refused operation never lands as the editor's, so it is told what holds
                 // now: otherwise it would take a later one landing as its own for this one.
                 if !took && !self.holding.contains(&editor) {
                     self.snapshot_to(editor);
                 }
             }
+            FromEditor::Shown { reloads } => {
+                self.shown_reloads.insert(editor, reloads);
+                self.fell_behind.remove(&editor);
+                self.prune_shown();
+            }
             FromEditor::FollowLacking => self.lacking.follow(editor),
             FromEditor::DismissLacking(id) => self.lacking.dismiss(id),
-            FromEditor::Gesture(phase) if editable => {
+            FromEditor::Gesture { id, gesture: phase } if editable => {
+                let gesture = GestureId {
+                    editor: Some(editor),
+                    id,
+                };
                 let operations = match phase {
+                    // `follow` opened it, and ends a tentative gesture a message ends.
+                    Gesture::BeginTentative => Vec::new(),
                     Gesture::Begin => {
-                        self.history.begin(Some(editor));
+                        // One already open under this name commits first, as a commit would.
+                        self.history.commit(gesture);
+                        self.history.begin(gesture, GestureKind::Group);
                         Vec::new()
                     }
                     Gesture::Commit => {
-                        self.history.commit(Some(editor));
+                        self.history.commit(gesture);
                         Vec::new()
                     }
-                    Gesture::Cancel => self.history.cancel(&self.visible, Some(editor)),
-                    Gesture::Break => {
-                        self.history.split(Some(editor));
-                        Vec::new()
+                    Gesture::Cancel => {
+                        self.unheld();
+                        let content = match &self.beneath {
+                            Some(beneath) if !self.tentative.is_empty() => beneath,
+                            _ => &self.visible,
+                        };
+                        self.history.cancel(content, gesture)
                     }
                 };
                 for operation in operations {
                     self.edit(operation, None);
                 }
             }
+            FromEditor::Break if editable => self.history.split(Some(editor)),
             FromEditor::Replace(bytes) if editable => {
                 if let Ok(content) = C::decode(&bytes) {
-                    self.history.clear();
+                    self.clear_history();
                     self.replacing_from.get_or_insert(self.taken);
                     self.jobs.push_front(Job::Replace {
                         content,
                         reply: None,
-                        outright: true,
                     });
                 }
             }
@@ -2904,6 +4032,57 @@ where
                 });
                 self.puts.insert(put, Putting::Editor { editor, token });
             }
+            FromEditor::Append {
+                token,
+                bytes,
+                along,
+            } if editable && self.has_log => {
+                let call = self.token();
+                self.out.push(Effect::Append {
+                    replica: self.id,
+                    token: call,
+                    bytes,
+                    along,
+                });
+                self.appends.insert(call, (editor, token));
+            }
+            FromEditor::Append { token, .. } => self.tell_editor(
+                editor,
+                &ToEditor::Appended {
+                    token,
+                    result: Err(be_block_content::LogNotAppended {
+                        id: None,
+                        why: match self.has_log {
+                            true => "the editor is attached read-only".to_owned(),
+                            false => "this type keeps no log".to_owned(),
+                        },
+                    }),
+                },
+            ),
+            FromEditor::LetGoRefused { id } if editable && self.has_log => {
+                self.out.push(Effect::LetGoRefused {
+                    replica: self.id,
+                    id,
+                });
+            }
+            FromEditor::LetGoRefused { .. } => {}
+            FromEditor::ReadLog { token, from, limit } if self.has_log => {
+                let call = self.token();
+                self.out.push(Effect::ReadLog {
+                    replica: self.id,
+                    token: call,
+                    from,
+                    limit,
+                });
+                self.log_reads.insert(call, Some((editor, token)));
+            }
+            FromEditor::ReadLog { token, .. } => self.tell_editor(
+                editor,
+                &ToEditor::LogRead {
+                    token,
+                    result: Err("this type keeps no log".to_owned()),
+                },
+            ),
             FromEditor::PutPart { token, .. } => self.tell_editor(
                 editor,
                 &ToEditor::PartPut {
@@ -2911,8 +4090,107 @@ where
                     result: Err("the editor is attached read-only".to_owned()),
                 },
             ),
-            FromEditor::Gesture(_) | FromEditor::Replace(_) => {}
+            FromEditor::Gesture { .. } | FromEditor::Break | FromEditor::Replace(_) => {}
         }
+    }
+
+    /// Keeps entries of the log heard or read, each id once at its first place, and has the
+    /// description fold them; answers those it had not, or now tells better. A type whose
+    /// content folds nothing of its log keeps none of it: each editor keeps its own.
+    fn take_log(
+        &mut self,
+        items: Vec<be_block_content::LogItem>,
+    ) -> Vec<be_block_content::LogItem> {
+        if self.fold.is_none() {
+            return items;
+        }
+        let mut fresh = Vec::new();
+        for item in items {
+            let seq = item.seq;
+            match self.signed_log.take(item) {
+                crate::editor::Taken::Held => continue,
+                // A repeat's place may be the one the fold waits on.
+                crate::editor::Taken::Skipped => {
+                    self.log_grew = true;
+                    continue;
+                }
+                crate::editor::Taken::New => self.log_grew = true,
+                // Folded already as it was told then, or at a later place: the fold starts over.
+                crate::editor::Taken::Changed | crate::editor::Taken::Moved => {
+                    self.described = true
+                }
+            }
+            fresh.extend(self.signed_log.items.get(&seq).cloned());
+        }
+        fresh
+    }
+
+    /// Entries appended to the log, which every editor hears.
+    fn logged(&mut self, items: Vec<be_block_content::LogItem>) {
+        let fresh = self.take_log(items);
+        self.read_on();
+        if fresh.is_empty() {
+            return;
+        }
+        let editors: Vec<EditorId> = self.editors.keys().copied().collect();
+        for editor in editors {
+            self.tell_editor(editor, &ToEditor::Logged(fresh.clone()));
+        }
+    }
+
+    fn answer_log_read(&mut self, token: Token, result: Result<be_block_content::LogPage, String>) {
+        let reader = self.log_reads.remove(&token).flatten();
+        if let Ok(page) = &result {
+            self.log_size = self.log_size.max(page.size);
+            self.take_log(page.items.clone());
+            // The replica's own read goes on from where it held up to, a page at a time, while
+            // the server answers more; one that failed, or answered nothing, is not tried
+            // again until the replica hears an entry, or opens again.
+            if reader.is_none() && !page.items.is_empty() {
+                self.read_on();
+            }
+        }
+        match (reader, result) {
+            (Some((editor, token)), result) => {
+                self.tell_editor(editor, &ToEditor::LogRead { token, result });
+            }
+            // The replica's own read as it opens fails when the host is stopping, restarting
+            // its module, or offline with nothing kept: it describes the content without the
+            // log until it hears entries, and reads again as it next opens.
+            (None, _) => {}
+        }
+    }
+
+    /// Has a type whose content folds its log read it on from the first place it lacks, a page
+    /// at a time, while the log is longer than what it holds from its start (it heard entries
+    /// past a gap, or has read only the first pages), so its description folds it whole. One
+    /// read at a time.
+    fn read_on(&mut self) {
+        if self.fold.is_none() || !self.loaded || self.log_reads.values().any(Option::is_none) {
+            return;
+        }
+        let mut from = self.folded.as_ref().map_or(0, |(_, through)| *through);
+        while self.signed_log.holds(from) {
+            from += 1;
+        }
+        let heard = self
+            .signed_log
+            .items
+            .last_key_value()
+            .map_or(0, |(seq, _)| seq + 1);
+        // The first read is made whatever the log holds: it is what follows the log.
+        if self.log_read && from >= self.log_size.max(heard) {
+            return;
+        }
+        self.log_read = true;
+        let token = self.token();
+        self.out.push(Effect::ReadLog {
+            replica: self.id,
+            token,
+            from,
+            limit: LOG_OPENED,
+        });
+        self.log_reads.insert(token, None);
     }
 
     fn answer_part_put(&mut self, put: Token, result: Result<be_block_content::PartRef, String>) {
@@ -3055,17 +4333,19 @@ where
     fn change(&mut self, id: RequestId, change: Change) {
         match change {
             Change::Child(change) => {
-                let Some(operations) = self.visible.child_operations(crate::be_child(change))
+                let Some(operations) = self
+                    .visible
+                    .child_operations(crate::be_child(change), self.client)
                 else {
                     return self.reply(id, Answer::Changed(false));
                 };
                 for operation in operations {
-                    self.record_and_edit(operation, None);
+                    self.record_and_edit(operation, None, None);
                 }
                 self.reply(id, Answer::Changed(true));
             }
             Change::FromFile(FileChange { name, bytes }) => {
-                let current = self.visible.encode();
+                let current = self.unheld().encode();
                 let content = self
                     .from_file
                     .and_then(|from_file| from_file(Some(&current), &name, bytes, self.client))
@@ -3076,20 +4356,22 @@ where
                 let content = C::decode(&bytes).ok();
                 self.replace_with(id, content);
             }
+            // The undo cancelled the tentative layer as it was taken (`follow`).
+            Change::Undo if self.undo_spent => self.reply(id, Answer::Changed(true)),
             Change::Undo => {
-                let operations = self.history.undo(&self.visible);
-                self.step_history(id, operations);
+                let stepped = self.history.undo(&self.visible);
+                self.step_history(id, stepped);
             }
             Change::Redo => {
-                let operations = self.history.redo(&self.visible);
-                self.step_history(id, operations);
+                let stepped = self.history.redo(&self.visible);
+                self.step_history(id, stepped);
             }
         }
     }
 
-    fn step_history(&mut self, id: RequestId, operations: Vec<C::Op>) {
-        let changed = !operations.is_empty();
-        for operation in operations {
+    fn step_history(&mut self, id: RequestId, stepped: Stepped<C::Op>) {
+        let changed = stepped.changed();
+        for operation in stepped.operations {
             self.edit(operation, None);
         }
         self.reply(id, Answer::Changed(changed));
@@ -3099,12 +4381,11 @@ where
         let Some(content) = content else {
             return self.reply(id, Answer::Changed(false));
         };
-        self.history.clear();
+        self.clear_history();
         self.replacing_from.get_or_insert(self.taken);
         self.jobs.push_front(Job::Replace {
             content,
             reply: Some(id),
-            outright: true,
         });
     }
 
@@ -3116,15 +4397,16 @@ where
             .any(|job| matches!(job, Job::Replace { .. }));
         let waiting = matches!(
             &self.waiting,
-            Some(Wait::Publish {
-                then: AfterPublish::Replace { .. },
-                ..
-            }) | Some(Wait::Stash {
-                then: AfterStash::Replace { .. },
+            Some(Wait::Stash {
+                then: AfterStash::Unsaved { .. } | AfterStash::Replacement { .. },
                 ..
             })
         );
-        if !queued && !waiting {
+        let landing = self
+            .pending
+            .iter()
+            .any(|sent| matches!(sent.entry, Entry::Reload { replace: true, .. }));
+        if !queued && !waiting && !landing {
             self.replacing_from = None;
         }
     }
@@ -3135,6 +4417,11 @@ where
             return;
         }
         self.acknowledged.insert(editor, acknowledged);
+        // The host's own editor is shown nothing and says nothing: its edits are made on what the
+        // replica holds when it sends them.
+        if editor != be_sdk_type_api::HOST_EDITOR {
+            self.shown_reloads.insert(editor, self.reloads);
+        }
         // Its snapshot waits for `resent`, after what the host gives again of its edits.
         self.holding.insert(editor);
         if first {
@@ -3149,13 +4436,33 @@ where
     /// The host gave this replica again what `editor` sent before it was opened (`resent`):
     /// the editor's snapshot holds all of it now, as `applied` counts.
     fn resent(&mut self, editor: EditorId) {
-        if self.holding.remove(&editor) && self.editors.contains_key(&editor) {
-            self.snapshot_to(editor);
+        if !self.holding.remove(&editor) || !self.editors.contains_key(&editor) {
+            return;
+        }
+        if let Some(reason) = &self.unreadable {
+            let failed = ToEditor::Failed(format!("The content could not be read: {reason}"));
+            return self.tell_editor(editor, &failed);
+        }
+        // Opened again in place of a replica that told the editor this snapshot (its block's
+        // session joined once its creation was sent), it shows it already.
+        let snapshot = ToEditor::Snapshot(self.snapshot_for(editor));
+        let bytes = snapshot.encode();
+        if self.snapshots_shown.get(&editor) != Some(&be_block_store::Hash::of(&bytes)) {
+            self.send_editor(editor, &snapshot, bytes);
         }
     }
 
     fn snapshot_to(&mut self, editor: EditorId) {
         self.holding.remove(&editor);
+        if let Some(reason) = &self.unreadable {
+            let failed = ToEditor::Failed(format!("The content could not be read: {reason}"));
+            return self.tell_editor(editor, &failed);
+        }
+        let snapshot = self.snapshot_for(editor);
+        self.tell_editor(editor, &ToEditor::Snapshot(snapshot));
+    }
+
+    fn snapshot_for(&self, editor: EditorId) -> Snapshot {
         let applied = self.acknowledged.get(&editor).copied().unwrap_or_default();
         let settled = self.projected.settled();
         let bytes = settled.encode();
@@ -3163,7 +4470,7 @@ where
             be_block_content::Loads::Whole => bytes.len() as u64,
             be_block_content::Loads::FirstPart => settled.parts().length(),
         };
-        let snapshot = Snapshot {
+        Snapshot {
             content_type: self.content_type,
             length,
             bytes,
@@ -3175,44 +4482,41 @@ where
                 .map(C::encode_operation)
                 .collect(),
             applied,
-        };
-        self.tell_editor(editor, &ToEditor::Snapshot(snapshot));
+            reloads: self.reloads,
+        }
     }
 
-    /// Tells the editors following `ToEditor::Lacking` what changed: a follower's edits the
-    /// owner accepted since, one that took the session over keeping its unaccepted edits.
+    /// Tells the editors following `ToEditor::Lacking` what changed: edits the order numbered,
+    /// or the server holds, since it last told them.
+
+    /// Tells the editors following `ToEditor::Lacking` what changed.
     fn tell_lacking(&mut self) {
-        match &self.role {
-            Role::Follower(_) => {
-                self.lacking.settled_to(self.unsettled());
-                self.lacking.lost();
-            }
-            Role::Owner(_) => self.lacking.promoted(),
-        }
-        self.announce_held();
         for (editor, message) in self.lacking.messages() {
             self.tell_editor(editor, &message);
         }
     }
 
-    /// Hands the host what the edits the server came to hold announce, which no append carried
-    /// (a follower's, once the owner accepted them).
-    fn announce_held(&mut self) {
-        let announcements = self.lacking.take_held();
-        if !announcements.is_empty() {
-            self.out.push(Effect::Announce {
-                replica: self.id,
-                announcements,
-            });
-        }
+    fn tell_editor(&mut self, editor: EditorId, message: &ToEditor) {
+        let bytes = message.encode();
+        self.send_editor(editor, message, bytes);
     }
 
-    fn tell_editor(&mut self, editor: EditorId, message: &ToEditor) {
+    /// Sends `message`, encoded as `bytes`, to `editor`.
+    fn send_editor(&mut self, editor: EditorId, message: &ToEditor, bytes: Vec<u8>) {
+        match message {
+            ToEditor::Snapshot(_) => {
+                self.snapshots_shown
+                    .insert(editor, be_block_store::Hash::of(&bytes));
+            }
+            ToEditor::Operations(_) => {
+                self.snapshots_shown.remove(&editor);
+            }
+            _ => {}
+        }
         self.out.push(Effect::Send {
             replica: self.id,
             to: Recipients::One(Endpoint::Editor(editor)),
-            kind: RelayKind::Peer,
-            bytes: message.encode(),
+            bytes,
         });
     }
 
@@ -3292,27 +4596,57 @@ where
         }
     }
 
+    /// What keeps edits out of the journal (`Status::unjournaled`), with the timers it waits on.
+    fn unjournaled(&self) -> Unjournaled {
+        let count = |n: usize| u32::try_from(n).unwrap_or(u32::MAX);
+        Unjournaled {
+            loaded: self.loaded,
+            pending: count(self.pending.len()),
+            unsent: count(self.unsent.len()),
+            doubtful: count(self.doubtful.len()),
+            putting: self.putting(),
+            put_retry_at: self.put_retry_at,
+            merge_retry_at: self.merge_retry_at,
+            seal_retry_at: self.seal_retry_at,
+            merge_failures: self.merge_failures,
+            resubmits_through: self
+                .unsent
+                .front()
+                .and_then(|(.., kept)| kept.as_ref())
+                .map(|kept| kept.through)
+                .filter(|through| self.edit_number() < *through),
+        }
+    }
+
     fn report(&mut self) {
         let clean = self.loaded && self.is_clean();
-        if clean {
-            self.clean_taken = self.sequenced_taken();
-        }
-        // What the host need not give it again: once it is clean, every local edit but a
-        // replacement on its way (an owner's head holds them; a follower's owner accepted them,
-        // into the session's journal), otherwise what an owner's head holds, from its last seal
-        // or its last clean status.
-        let sealed_taken = match (&self.role, clean) {
-            (_, true) => self.clean_taken,
-            (Role::Owner(_), false) => self.sealed_taken.max(self.clean_taken),
-            (Role::Follower(_), false) => 0,
+        let unconfirmed =
+            !self.pending.is_empty() || !self.unsent.is_empty() || !self.doubtful.is_empty();
+        // Nothing from the first doubtful edit on is held anywhere but by the host.
+        let doubtful_cap = self
+            .first_doubtful
+            .map(|first| first.saturating_sub(1).saturating_sub(self.taken_before));
+        let ordered = match self.replacing_from {
+            Some(from) => from.saturating_sub(1),
+            None => self.taken,
         };
-        // An owner's journal holds every edit it sequenced once nothing waits to be appended.
-        let journaled_taken = match &self.role {
-            Role::Owner(_) if self.unappended.is_empty() => self.sequenced_taken(),
-            Role::Owner(_) => self.journaled_taken,
-            Role::Follower(_) => 0,
-        }
-        .max(sealed_taken);
+        // What the order holds of the local edits: all of them once nothing waits, otherwise as
+        // far as its own entries came back.
+        let journaled_taken = match unconfirmed {
+            false => ordered,
+            true => self
+                .own_through
+                .saturating_sub(self.taken_before)
+                .min(ordered),
+        };
+        let journaled_taken = doubtful_cap.map_or(journaled_taken, |cap| journaled_taken.min(cap));
+        let sealed_taken = match clean {
+            true => ordered,
+            false => self
+                .sealed_taken
+                .saturating_sub(self.taken_before)
+                .min(journaled_taken),
+        };
         let undo = (self.loaded && !self.released).then(|| UndoState {
             can_undo: self.history.can_undo(),
             can_redo: self.history.can_redo(),
@@ -3321,16 +4655,15 @@ where
         });
         let status = Status {
             head: self.base,
-            owner: self.is_owner(),
+            holder: self.is_holder(),
+            restarts: self.restarts,
             clean: self.is_clean(),
-            journaled: match self.role {
-                Role::Owner(_) => self.unappended.is_empty() && self.held.is_empty(),
-                Role::Follower(_) => self.is_clean(),
-            },
+            journaled: !unconfirmed,
+            unjournaled: unconfirmed.then(|| self.unjournaled()),
             owes_seal: self.loaded && self.seal_would_settle(),
             taken: self.taken,
             sealed_taken,
-            journaled_taken,
+            journaled_taken: journaled_taken.max(sealed_taken),
             epoch: self.epoch,
             incompatible: self.incompatible,
             diverged: self.diverged,
@@ -3339,8 +4672,10 @@ where
         };
         // Since when there is work to seal, whether or not a seal now would settle it: a seal
         // that waits on a merge or a retry is still timed from then.
-        self.owes_since = match self.loaded && self.is_owner() && !self.is_clean() {
-            true => self.owes_since.or(Some(self.now)),
+        self.owes_since = match self.owes() {
+            true => self
+                .owes_since
+                .or(Some(self.edited_since.unwrap_or(self.now).min(self.now))),
             false => None,
         };
         if self.reported.status.as_ref() != Some(&status) {
@@ -3353,10 +4688,40 @@ where
         if !self.loaded || self.released {
             return;
         }
-        if std::mem::take(&mut self.described) {
+        let changed = std::mem::take(&mut self.described);
+        let grew = std::mem::take(&mut self.log_grew);
+        if changed || grew {
+            let organization = self.organization;
+            let description = match self.fold {
+                // What the content shows with its log folded onto it, in the log's order: the
+                // run of entries from its start this replica holds, up to the first it lacks
+                // (stepping over the places of an id served again),
+                // and each signed as nobody's (`Bad`) left out. Content changed folds again from
+                // the start; entries that follow on fold onto what was folded.
+                Some(fold) => {
+                    if changed || self.folded.is_none() {
+                        self.folded = Some((self.unheld().clone(), 0));
+                    }
+                    let (folded, through) = self.folded.as_mut().expect("folded is kept above");
+                    let from = *through;
+                    while self.signed_log.holds(*through) {
+                        if let Some(item) = self.signed_log.items.get(&*through)
+                            && item.signer != be_block_content::LogSigner::Bad
+                        {
+                            fold(folded, item);
+                        }
+                        *through += 1;
+                    }
+                    if !changed && *through == from {
+                        return;
+                    }
+                    crate::describe(folded, organization)
+                }
+                None => crate::describe(self.unheld(), organization),
+            };
             self.out.push(Effect::Described {
                 replica: self.id,
-                description: crate::describe(&self.visible, self.organization),
+                description,
             });
         }
     }
@@ -3398,714 +4763,90 @@ where
     }
 
     fn send(&mut self, to: Option<ClientId>, message: &SessionMessage) {
-        self.send_wire(to, &Wire::Session(message.clone()));
-    }
-
-    fn send_wire(&mut self, to: Option<ClientId>, wire: &Wire) {
         self.out.push(Effect::Send {
             replica: self.id,
             to: match to {
                 Some(client) => Recipients::One(Endpoint::Peer(client)),
                 None => Recipients::Peers,
             },
-            kind: wire.kind(),
-            bytes: wire.encode(),
+            bytes: wire::encode(message),
         });
     }
 
-    fn greet(&mut self) {
-        let Role::Follower(follower) = &self.role else {
-            return;
-        };
-        let message = follower.catchup(self.base, self.sealed);
-        let owner = self.state.owner;
-        self.send_wire(owner, &Wire::Tag(self.tag));
-        self.send_wire(owner, &Wire::Session(message));
-    }
-
-    fn receive(&mut self, from: ClientId, wire: Wire, received: Option<i64>) {
-        let message = match wire {
-            Wire::Session(message) => message,
-            Wire::Tag(tag) => {
-                if !self.is_owner() {
-                    return;
-                }
-                if tag == self.tag {
-                    self.other_builds.remove(&from);
-                    return;
-                }
-                self.other_builds.insert(from);
-                self.commit_now();
-                return self.send_wire(Some(from), &Wire::Incompatible);
-            }
-            Wire::Incompatible => {
-                self.unreadable_message();
-                return;
-            }
-        };
-        if self.other_builds.contains(&from)
-            && matches!(
-                message,
-                SessionMessage::Submit { .. }
-                    | SessionMessage::Catchup { .. }
-                    | SessionMessage::Replaced { .. }
-                    | SessionMessage::Kept { .. }
-            )
-        {
-            return;
-        }
-        match message {
-            SessionMessage::Submit {
-                id,
-                base,
-                mut payload,
-            } => {
-                if !self.is_owner() || base < self.replaced_at {
-                    return;
-                }
-                let mut operation = match self.operation(&payload) {
-                    Some(operation) => operation,
-                    // Its part could not be read, which was reported.
-                    None if payload.part().is_some() => return,
-                    None => return self.unreadable_message(),
-                };
-                // A replica never sends a stamp of its own (`edit`), so one was forged, or the
-                // type pre-stamps: dropped, and reported as an incompatible message.
-                if claims_arrival::<C>(&mut operation) {
-                    return self.unreadable_message();
-                }
-                // An operation that travels as a part keeps no stamp, as one that stamping
-                // would take past what is relayed inline: either would need a new part.
-                if let (Some(received), Payload::Inline(_)) = (received, &payload) {
-                    let mut stamped = operation.clone();
-                    if let Some(slot) = C::arrival(&mut stamped) {
-                        *slot = Some(received);
-                        let bytes = C::encode_operation(&stamped);
-                        if bytes.len() <= LARGEST_RELAYED_OPERATION {
-                            payload = Payload::Inline(bytes);
-                            operation = stamped;
-                        }
-                    }
-                }
-                let Role::Owner(sequencer) = &mut self.role else {
-                    return;
-                };
-                // Taken already: its follower did not hear so (the answer came as it caught up,
-                // or was lost with a connection) and submits it again. It is told again, alone,
-                // with the number it has, rather than left to wait for an answer forever.
-                if let Some(sequence) = sequencer.accepted_as(id) {
-                    let op = SessionOp {
-                        id,
-                        sequence,
-                        payload,
-                    };
-                    return self.send(Some(from), &SessionMessage::Accepted { op });
-                }
-                let Some(op) = sequencer.accept(id, payload) else {
-                    return;
-                };
-                self.confirmed.apply(&operation);
-                self.visible.apply(&operation);
-                self.journal(Journaled::Applied(operation), None);
-                self.sequenced(op);
-            }
-            SessionMessage::Accepted { op } => match self.role {
-                // Only from an earlier owner: any other editor may not sequence.
-                Role::Owner(_) if self.past_owners.contains(&from) => self.inherit_accepted(&op),
-                Role::Owner(_) => {}
-                // One of its own the owner tells it of again, past what it has applied: it was
-                // taken after operations this follower never heard, so it is caught up rather
-                // than applying it out of order.
-                Role::Follower(ref follower)
-                    if !self.catching_up
-                        && follower.is_mine(op.id)
-                        && op.sequence > follower.applied() + 1 =>
-                {
-                    self.catch_up();
-                }
-                Role::Follower(_) if !self.catching_up => self.apply_accepted(&op),
-                Role::Follower(_) => {}
-            },
-            SessionMessage::Catchup {
-                since,
-                base,
-                sealed,
-            } => {
-                let Role::Owner(sequencer) = &self.role else {
-                    return;
-                };
-                let inherited = sequencer.inherited() > 0;
-                if inherited {
-                    self.reload = true;
-                }
-                let holds = base == sequencer.head() && sealed == self.sealed && since >= sealed;
-                let message = SessionMessage::Snapshot {
-                    head: sequencer.head(),
-                    sealed: self.sealed,
-                    sequence: sequencer.sequence(),
-                    ops: sequencer.since(since.min(self.sealed)),
-                    state: match holds {
-                        true => Vec::new(),
-                        false => self.sealed_state.clone(),
-                    },
-                };
-                self.send(Some(from), &message);
-                if inherited {
-                    self.commit_now();
-                }
-            }
-            SessionMessage::Snapshot {
-                head,
-                sealed,
-                sequence,
-                ops,
-                state,
-            } => {
-                let Role::Follower(follower) = &self.role else {
-                    return;
-                };
-                self.catching_up = false;
-                self.catch_up_failures = 0;
-                self.resends = 0;
-                self.catch_up_at = None;
-                let applied = follower.applied();
-                if head != self.base || sealed != self.sealed || applied < sealed {
-                    return self.read(
-                        vec![head],
-                        Then::Snapshot {
-                            head,
-                            sealed,
-                            sequence,
-                            ops,
-                            state,
-                            applied,
-                        },
-                    );
-                }
-                self.snapshot_ops(sealed, sequence, ops, applied);
-            }
-            SessionMessage::Replaced { head } => self.replaced(head),
-            SessionMessage::Kept { commit, base } => {
-                if self.is_owner() {
-                    self.jobs.push_front(Job::Keep(Keeping {
-                        commit,
-                        base,
-                        from,
-                        attempts: 0,
-                    }));
-                }
-            }
-            SessionMessage::Resend => {
-                let Role::Follower(follower) = &mut self.role else {
-                    return;
-                };
-                self.resends += 1;
-                if self.resends > MOST_RESENDS {
-                    if self.resends == MOST_RESENDS + 1 {
-                        self.error("the owner could not read an edit, however often it was sent");
-                    }
-                    return;
-                }
-                let applied = follower.applied();
-                let owner = self.state.owner;
-                for message in follower.resynchronize(applied) {
-                    self.send(owner, &message);
-                }
-            }
-            SessionMessage::Saved { commit } => {
-                self.handed.retain(|handed| handed.commit != commit);
-                self.lacking.saved(commit);
-            }
-            SessionMessage::Presence { kind, value } => {
-                if from == self.client {
-                    return;
-                }
-                let changed = match value {
-                    Some(value) => self.presence.insert((from, kind), value.clone()) != Some(value),
-                    None => self.presence.remove(&(from, kind)).is_some(),
-                };
-                self.presence_changed |= changed;
-            }
-            SessionMessage::Channel { channel, payload } => {
-                if from != self.client {
-                    self.channel.push(PeerMessage {
-                        from,
-                        channel,
-                        payload,
-                    });
-                }
-            }
-            SessionMessage::Sealed {
-                head,
-                sequence,
-                reload,
-                restart,
-            } => {
-                let Role::Follower(follower) = &self.role else {
-                    return;
-                };
-                if let Some(awaiting) = self.awaiting {
-                    if awaiting != head {
-                        return;
-                    }
-                    self.awaiting = None;
-                    self.replacing = false;
-                }
-                if reload.is_none() && follower.applied() != sequence {
-                    return self.greet();
-                }
-                match reload {
-                    Some(state) => {
-                        return self.read(
-                            vec![Some(head)],
-                            Then::SealedReload {
-                                head,
-                                sequence,
-                                state,
-                                restart,
-                            },
-                        );
-                    }
-                    None => self.sealed_state = self.confirmed.session_state(),
-                }
-                self.base = Some(head);
-                self.sealed = sequence;
-                self.applied_ops.retain(|op| op.sequence > sequence);
-            }
-        }
-    }
-
-    fn snapshot_ops(&mut self, sealed: u64, sequence: u64, ops: Vec<SessionOp>, applied: u64) {
-        self.sealed = sealed;
-        for op in &ops {
-            self.apply_accepted(op);
-        }
-        let Role::Follower(follower) = &mut self.role else {
-            return;
-        };
-        if ops.iter().all(|op| op.sequence <= applied) {
-            let resubmit = follower.resynchronize(sequence);
-            let owner = self.state.owner;
-            for message in resubmit {
-                self.send(owner, &message);
-            }
-        }
-    }
-
-    /// Shows what is confirmed with this replica's own edits on top: a follower's pending and
-    /// unsent ones, what an owner holds back.
+    /// Shows what is confirmed with this replica's own edits on top: what it submitted that has
+    /// not come back, then what it has not submitted, then the tentative layer.
     fn rebuild_visible(&mut self) {
         let mut visible = self.confirmed.clone();
-        if let Role::Follower(follower) = &self.role {
-            for payload in follower.payloads() {
-                if let Some(pending) = self.operation(&payload) {
-                    visible.apply(&pending);
-                }
+        for sent in &self.pending {
+            if let Some(operation) = &sent.operation {
+                visible.apply(operation);
             }
         }
         for (operation, ..) in &self.unsent {
             visible.apply(operation);
         }
-        for operation in &self.held {
+        for operation in &self.doubtful {
             visible.apply(operation);
+        }
+        self.beneath = None;
+        if !self.tentative.is_empty() {
+            self.beneath = Some(visible.clone());
+            for held in &self.tentative {
+                visible.apply(&held.operation);
+            }
         }
         self.replace_visible(visible);
     }
 
-    fn flush(&mut self) {
-        let Role::Follower(follower) = &mut self.role else {
-            return;
-        };
-        if follower.pending() > 0 || self.awaiting.is_some() || self.putting() {
-            return;
-        }
-        let Some((operation, _, weight)) = self.unsent.front() else {
-            return;
-        };
-        let weight = *weight;
-        let Some(payload) = self.payload_of(C::encode_operation(operation)) else {
-            return;
-        };
-        self.unsent.pop_front();
-        let Role::Follower(follower) = &mut self.role else {
-            return;
-        };
-        self.ids += 1;
-        let message = follower.submit(self.ids, payload);
-        self.in_flight = weight;
-        let owner = self.state.owner;
-        self.send(owner, &message);
-    }
-
-    fn inherit_accepted(&mut self, op: &SessionOp) {
-        let Role::Owner(sequencer) = &mut self.role else {
-            return;
-        };
-        let inherited = sequencer.inherit(op);
-        if matches!(inherited, Inherited::Renumbered | Inherited::Unnumbered) {
-            sequencer.carry_unsealed();
-            self.reload = true;
-        }
-        if matches!(inherited, Inherited::Duplicate | Inherited::Renumbered) {
-            return;
-        }
-        let Some(operation) = self.operation(&op.payload) else {
-            return self.unreadable_message();
-        };
-        if inherited == Inherited::Continued {
-            self.append_unappended();
-            self.append(vec![op.clone()], false, op.sequence);
-        }
-        self.confirmed.apply(&operation);
-        self.visible.apply(&operation);
-        self.journal(Journaled::Applied(operation), None);
-    }
-
-    fn apply_accepted(&mut self, op: &SessionOp) {
-        let Role::Follower(follower) = &mut self.role else {
-            return;
-        };
-        if self.awaiting.is_some() {
-            return;
-        }
-        // One of its own the owner took again: what it applied already holds it.
-        if op.sequence <= follower.applied() {
-            if follower.is_mine(op.id) && follower.included(op.id) {
-                self.resends = 0;
-                self.in_flight = 0;
-                self.rebuild_visible();
-                self.cover_if_settled();
-            }
-            return;
-        }
-        let Some(operation) = self.operation(&op.payload) else {
-            return self.unreadable_message();
-        };
-        self.applied_ops.push(op.clone());
-        let Role::Follower(follower) = &mut self.role else {
-            return;
-        };
-        if follower.is_mine(op.id) {
-            self.resends = 0;
-        }
-        let unchanged = follower.is_mine(op.id)
-            && follower.front() == Some(op.id)
-            && follower
-                .payloads()
-                .first()
-                .is_some_and(|payload| *payload == op.payload);
-        if unchanged {
-            follower.accepted(op);
-            self.confirmed.apply(&operation);
-            self.in_flight = 0;
-            self.cover_if_settled();
-            return;
-        }
-        if !follower.is_mine(op.id) && follower.pending() == 0 && self.unsent.is_empty() {
-            follower.accepted(op);
-            self.confirmed.apply(&operation);
-            self.visible.apply(&operation);
-            self.journal(Journaled::Applied(operation), None);
-            return;
-        }
-        if follower.is_mine(op.id) {
-            follower.accepted(op);
-            self.confirmed.apply(&operation);
-            self.in_flight = 0;
-            self.rebuild_visible();
-            self.cover_if_settled();
-            return;
-        }
-        let unsettled = self.unsettled();
-        let Role::Follower(follower) = &mut self.role else {
-            return;
-        };
-        follower.accepted(op);
-        if !self.covered {
-            self.confirmed.apply(&operation);
-            self.rebuild_visible();
-            return;
-        }
-        let mut local: Vec<C::Op> = follower
-            .payloads()
-            .iter()
-            .filter_map(|payload| self.operation(payload))
-            .collect();
-        self.in_flight = local.len() as u64;
-        for (pending, _, weight) in &mut self.unsent {
-            local.push(pending.clone());
-            *weight = 1;
-        }
-        self.visible
-            .apply_beneath(&mut self.confirmed, &operation, &local, &mut Vec::new());
-        self.journal(
-            Journaled::Beneath {
-                operation,
-                unsettled,
-                local,
-            },
-            None,
-        );
-    }
-
     fn adopt(&mut self, state: SessionState) {
-        let owner_changed = state.owner != self.state.owner;
-        let known: BTreeSet<ClientId> = self.state.participants.iter().copied().collect();
+        let known: BTreeSet<ClientId> = self.state.clients().into_iter().collect();
         let joined: Vec<ClientId> = state
-            .participants
-            .iter()
-            .copied()
+            .clients()
+            .into_iter()
             .filter(|client| *client != self.client && !known.contains(client))
             .collect();
         let before = self.presence.len();
-        self.presence
-            .retain(|(client, _), _| state.participants.contains(client));
+        self.presence.retain(|(client, _), _| state.has(*client));
         self.presence_changed |= self.presence.len() != before;
-        // The owner it opened with is known before any lease change, so both are kept.
-        for owner in [self.state.owner, state.owner].into_iter().flatten() {
-            if self.past_owners.last() == Some(&owner) {
-                continue;
-            }
-            self.past_owners.retain(|past| *past != owner);
-            if self.past_owners.len() >= 8 {
-                self.past_owners.remove(0);
-            }
-            self.past_owners.push(owner);
-        }
+        let was_holder = self.is_holder();
         self.state = state;
-        if !self.alone() {
-            self.append_unappended();
-        }
+        self.check_build();
         for client in joined {
             self.show_presence_to(client);
         }
-        self.claim_if_abandoned();
-        if !owner_changed {
-            return;
-        }
-        let follower = match &mut self.role {
-            Role::Owner(_) if self.state.is_owner(self.client) => return,
-            Role::Owner(sequencer) => {
-                let sequence = sequencer.sequence();
-                self.role = Role::Follower(Follower::continuing(self.client, sequence));
-                self.applied_ops.clear();
-                self.reload = false;
-                self.catch_up_failures = 0;
-                self.resends = 0;
-                self.catch_up_at = None;
-                // A merge that was failing is the new owner's to do.
-                self.merge_failures = 0;
-                self.merge_retry_at = None;
-                // What it held back while a part was put it now submits.
-                return self.sequence_held();
+        if was_holder && !self.is_holder() {
+            // Its edits held for a restart go again: the restart is the new holder's.
+            if std::mem::take(&mut self.restart_short) {
+                self.jobs.push_back(Job::Unblocked);
             }
-            Role::Follower(follower) => follower,
-        };
-        let replacement = self.awaiting.take().filter(|_| self.replacing);
-        self.replacing = false;
-        let missed = self
-            .state
-            .owner
-            .is_some_and(|owner| self.ignored_owners.contains(&owner));
-        self.ignored_owners.clear();
-        self.catch_up_failures = 0;
-        self.resends = 0;
-        self.catch_up_at = None;
-        if missed {
-            self.catching_up = true;
-        }
-        if !self.state.is_owner(self.client) {
-            let applied = follower.applied();
-            let resubmit = follower.resynchronize(applied);
-            let owner = self.state.owner;
-            for message in resubmit {
-                self.send(owner, &message);
-            }
-            if let Some(head) = replacement {
-                self.awaiting = Some(head);
-                self.replacing = true;
-                self.send(owner, &SessionMessage::Replaced { head });
-            }
-            for handed in self.handed.clone() {
-                self.send(owner, &handed.message());
-            }
-            if self.catching_up {
-                self.regreet();
-            }
-            return;
-        }
-        let applied = follower.applied();
-        let pending = follower.take_pending();
-        let kept = std::mem::take(&mut self.applied_ops);
-        let complete = kept.iter().all(|op| op.sequence > self.sealed)
-            && kept
-                .last()
-                .map_or(applied == self.sealed, |op| op.sequence == applied);
-        let (mut sequencer, kept) = match complete {
-            true => {
-                let mut sequencer = Sequencer::continuing(self.base, self.sealed, 0);
-                for op in &kept {
-                    sequencer.replayed(op.clone());
-                }
-                (sequencer, kept)
-            }
-            false => (
-                Sequencer::continuing(self.base, applied, applied.saturating_sub(self.sealed)),
-                Vec::new(),
-            ),
-        };
-        self.catch_up_failures = 0;
-        self.catch_up_at = None;
-        if std::mem::take(&mut self.catching_up) {
-            sequencer.carry_unsealed();
-            self.reload = true;
-        }
-        let mut accepted = Vec::new();
-        for (id, payload) in pending {
-            let Some(operation) = self.operation(&payload) else {
-                continue;
-            };
-            if let Some(op) = sequencer.accept(id, payload) {
-                self.confirmed.apply(&operation);
-                accepted.push(op);
-            }
-        }
-        self.in_flight = 0;
-        // What it had not sent it sequences as its own, holding back from the first that waits
-        // for its part to be put.
-        let mut unsent = std::mem::take(&mut self.unsent).into_iter();
-        for (operation, bound, _) in unsent.by_ref() {
-            if bound > LARGEST_RELAYED_OPERATION {
-                // Taken as a follower, after it was last clean: which edit it came from is not
-                // known, so none since is counted as sequenced.
-                if self.held.is_empty() {
-                    self.held_from = self.clean_taken + 1;
-                }
-                self.held.push_back(operation);
-                break;
-            }
-            self.ids += 1;
-            let id = OpId {
-                client: self.client,
-                counter: self.ids,
-            };
-            let payload = Payload::Inline(C::encode_operation(&operation));
-            if let Some(op) = sequencer.accept(id, payload) {
-                self.confirmed.apply(&operation);
-                accepted.push(op);
-            }
-        }
-        self.held.extend(unsent.map(|(operation, ..)| operation));
-        let inherited = sequencer.inherited() > 0;
-        self.role = Role::Owner(sequencer);
-        self.rebased = false;
-        self.appended_bytes = 0;
-        let from = kept.first().map_or(0, |op| op.sequence);
-        self.append(kept, false, from);
-        self.rebuild_visible();
-        for handed in self.handed.clone() {
-            self.jobs.push_back(Job::Keep(Keeping {
-                commit: handed.commit,
-                base: handed.base,
-                from: self.client,
-                attempts: 0,
-            }));
-        }
-        if !self.held.is_empty() {
-            self.jobs.push_back(Job::Unblocked);
-        }
-        match replacement {
-            Some(head) => {
-                let content = self.confirmed.clone();
-                self.publish_replacement(content, None, true, None, Some(head), 0);
-            }
-            None => {
-                for op in accepted {
-                    self.sequenced(op);
-                }
-            }
-        }
-        // The journal started over without what this owner holds but could not number: it is
-        // durable once committed.
-        if inherited {
-            self.commit_now();
+            // A merge that was failing is the new holder's to do.
+            self.merge_failures = 0;
+            self.merge_retry_at = None;
+            self.reloading.clear();
         }
     }
 
+    /// Claims the lease, as a terminal host does: the server writes the claim into the order,
+    /// and the lease follows from it.
     fn claim(&mut self) {
-        if !self.loaded || self.catching_up || self.is_owner() {
+        if !self.loaded || self.is_holder() {
             return;
         }
-        self.claimed = Some(self.state.generation);
-        self.out.push(Effect::ClaimLease {
-            replica: self.id,
-            generation: self.state.generation,
-        });
+        self.out.push(Effect::Claim { replica: self.id });
     }
 
-    fn claim_if_abandoned(&mut self) {
-        if !self.loaded {
-            return;
-        }
-        let held = self
-            .state
-            .owner
-            .is_some_and(|owner| self.state.participants.contains(&owner));
-        if held || self.claimed == Some(self.state.generation) {
-            return;
-        }
-        self.claimed = Some(self.state.generation);
-        self.out.push(Effect::ClaimLease {
-            replica: self.id,
-            generation: self.state.generation,
-        });
-    }
-
-    /// A head landed: the owner reconciles with it. A follower leaves that to the owner, which
-    /// hears of every head too.
+    /// A head landed: the holder reconciles with it. Any other replica leaves that to the
+    /// holder, which hears of every head too.
     fn moved(&mut self, head: CommitId) {
-        if self.base != Some(head) && self.is_owner() {
+        if self.base != Some(head) && self.is_holder() {
             self.jobs.push_front(Job::Reconcile);
         }
     }
 
-    fn replaced(&mut self, head: CommitId) {
-        if self.is_owner() {
-            let taken = self.base == Some(head) && self.is_clean();
-            let reached =
-                self.reached == Some(head) && (self.base != Some(head) || self.is_clean());
-            if !taken && !reached {
-                self.read(vec![Some(head)], Then::Replacement);
-            }
-            return;
-        }
-        let awaited = self.awaiting.replace(head).is_some();
-        self.replacing = false;
-        self.history.clear();
-        if !awaited && self.has_unsaved() {
-            let content = self.written(&self.visible);
-            self.stash(self.base, content, AfterStash::Keep);
-        }
-    }
-
-    fn keep(&mut self, keeping: Keeping) {
-        if !self.is_owner() {
-            return;
-        }
-        if self.saved.contains(&keeping.commit) {
-            return self.acknowledge(&keeping);
-        }
-        self.publish_kept(keeping);
-    }
-
-    fn has_unsaved(&self) -> bool {
-        match &self.role {
-            Role::Owner(sequencer) => !sequencer.is_clean() || !self.held.is_empty(),
-            Role::Follower(follower) => !self.is_clean() || follower.applied() > self.sealed,
-        }
-    }
-
     fn reconcile(&mut self) {
+        if !self.is_holder() || !self.loaded || self.diverged {
+            return;
+        }
         let token = self.token();
         self.out.push(Effect::Resume {
             replica: self.id,
@@ -4115,27 +4856,15 @@ where
         self.waiting = Some(Wait::Resume { token });
     }
 
-    fn take_merged(&mut self, value: C, published: Option<CommitId>) {
-        self.confirmed = value;
-        self.rebuild_visible();
-        self.reload = true;
-        match published {
-            Some(head) => self.settle_at(head),
-            None => {
-                if let Role::Owner(sequencer) = &mut self.role {
-                    sequencer.carry_unsealed();
-                }
-            }
-        }
-    }
-
     fn seal(&mut self, sealing: Sealing, reply: Option<RequestId>) {
         let skip = match sealing {
-            Sealing::Due => !self.is_owner() || self.is_clean(),
-            Sealing::Rekey => !self.is_owner() || self.diverged,
-            Sealing::Once => false,
+            Sealing::Due => !self.is_holder() || !self.owes(),
+            Sealing::Rekey => !self.is_holder() || self.diverged,
+            Sealing::Once => !self.is_holder(),
         };
-        if skip {
+        // A reload of its own on its way: the seal waits for it, as it would publish on the head
+        // the reload replaces.
+        if skip || !self.reloading.is_empty() || !self.reloads_putting.is_empty() {
             self.sealing = false;
             if let Some(id) = reply {
                 self.reply(id, Answer::Sealed);
@@ -4150,39 +4879,32 @@ where
             }
             return;
         }
-        if !self.is_owner() {
-            return self.rejected(
-                AfterPublish::Seal {
-                    retry: false,
-                    reply,
-                },
-                self.base,
-            );
-        }
-        // What it sequenced reaches the journal first, with what it announces, which the host
-        // then keeps with this commit (`rebase-journal`).
-        self.append_unappended();
-        self.sealing_taken = self.sequenced_taken();
-        self.restarting = self.restart_due();
-        self.sealing_through = match (&self.role, self.restarting) {
-            (Role::Owner(sequencer), false) => {
-                Some((sequencer.sequence(), self.confirmed.session_state()))
-            }
-            _ => None,
-        };
+        let kept = self.keep.first().copied();
         let content = self.written(&self.confirmed);
+        let merging = kept.map(|ours| Merging {
+            base: self.base,
+            ours,
+        });
+        let state = self.confirmed.session_state();
+        let through = self.applied;
         self.publish(
             self.base,
-            None,
+            merging,
             content,
             AfterPublish::Seal {
                 retry: sealing != Sealing::Once,
                 reply,
+                kept,
+                through,
+                state,
             },
         );
     }
 
-    fn replace(&mut self, content: C, reply: Option<RequestId>, outright: bool) {
+    /// Replaces the content outright: what this replica has not seen sealed is stashed, the
+    /// replacement is stashed on top of it, and the order takes it as a barrier, so it wins over
+    /// whatever was based before it. Every replica then shows it.
+    fn replace(&mut self, content: C, reply: Option<RequestId>) {
         if self.diverged {
             self.error(DIVERGED);
             if let Some(id) = reply {
@@ -4190,206 +4912,153 @@ where
             }
             return self.replace_settled();
         }
-        // An outright replace keeps what it replaces as its merge's second parent, which history
-        // never prunes: unsaved edits, and on a follower also the saved head, which only the
-        // owner can seal as a bookmark (`Replicas::bookmark`).
-        if outright && (self.has_unsaved() || !self.is_owner()) {
-            let kept = match self.role {
-                Role::Owner(_) => self.written(&self.confirmed),
-                Role::Follower(_) => self.written(&self.visible),
-            };
-            return self.stash(self.base, kept, AfterStash::Replace { content, reply });
-        }
-        self.publish_replacement(content, reply, outright, None, self.base, 0);
+        // What it replaces stays in history: its unsaved work, and the head, which only a
+        // holder's seal would otherwise keep (`Replicas::bookmark`).
+        let kept = self.unheld().clone();
+        let kept = self.written(&kept);
+        self.stash(self.base, kept, AfterStash::Unsaved { content, reply });
     }
 
-    fn publish_replacement(
-        &mut self,
-        content: C,
-        reply: Option<RequestId>,
-        outright: bool,
-        merging: Option<Merging>,
-        expected: Option<CommitId>,
-        attempts: u8,
-    ) {
-        let written = self.written(&content);
-        self.publish(
-            expected,
-            merging,
-            written,
-            AfterPublish::Replace {
-                content,
-                attempts,
-                reply,
-                outright,
-                merging,
-            },
-        );
-    }
-
-    fn settle_at(&mut self, head: CommitId) {
-        self.base = Some(head);
-        let Role::Owner(sequencer) = &mut self.role else {
-            return;
-        };
-        let (sequence, state) = match self.sealing_through.take() {
-            Some(through) => through,
-            None => (sequencer.sequence(), self.confirmed.session_state()),
-        };
-        sequencer.sealed_through(head, sequence);
-        // What was sequenced while the seal was on its way: journaled again over the new base.
-        let after = sequencer.since(sequence);
-        self.sealed = sequence;
-        self.sealed_state = state;
-        // What came after the seal still owes one, whatever the host reports.
-        self.owes_since = (!after.is_empty()).then_some(self.now);
-        self.unappended.clear();
-        self.append_at = None;
-        self.appended_bytes = after.iter().map(parted).sum::<usize>();
-        let resent = after.clone();
-        let carried: Vec<JournalEntry> = after
-            .into_iter()
-            .map(|op| JournalEntry {
-                sequence: op.sequence,
-                payload: Wire::Session(SessionMessage::Accepted { op }).encode(),
-            })
-            .collect();
-        self.appended_bytes += carried
-            .iter()
-            .map(|entry| entry.payload.len())
-            .sum::<usize>();
-        let clean = carried.is_empty();
-        let restart = std::mem::take(&mut self.restarting);
-        let reload = match restart {
-            true => {
-                self.reload = false;
-                Some(Vec::new())
-            }
-            false => {
-                // One write: the new base and what came after it, so no crash between them
-                // loses what was typed while the seal was on its way.
-                self.rebase_journal(carried);
-                // Followers applied what came after the seal already: they load the seal with
-                // its session as of `sequence`, and hear what came after again on top of it.
-                (std::mem::take(&mut self.reload) || !clean).then(|| self.sealed_state.clone())
-            }
-        };
-        let reloads = reload.is_some();
-        self.broadcast(&SessionMessage::Sealed {
-            head,
-            sequence,
-            reload,
-            restart,
-        });
-        if reloads && !restart {
-            for op in resent {
-                self.broadcast(&SessionMessage::Accepted { op });
-            }
-        }
-        self.beaten = Some(self.now);
-        self.active = false;
-        // Clean only with nothing past the seal: a takeover reads `clean_at` as nothing unsealed.
-        if clean {
-            self.out.push(Effect::ReportClean {
-                replica: self.id,
-                generation: self.state.generation,
-                clean_at: Some(head),
-            });
-        }
-        if restart {
-            self.replaced_at = sequence;
-            self.jobs.push_front(Job::Restart(head));
-        }
-    }
-
-    /// Whether this commit should restart the session: the session state, which only
-    /// concurrent edits need, has grown past `RESTART_STATE_BYTES` and past the content it
-    /// describes, no gesture is open, and the owner is alone or the state passed the ceiling.
     fn restart_due(&self) -> bool {
-        if self.history.gesture_open() {
-            return false;
+        self.due_restart_state().is_some()
+    }
+
+    /// The session state's size, when it makes a restart due (`restart_due`).
+    fn due_restart_state(&self) -> Option<usize> {
+        if self.history.gesture_open() || self.holds.holding() {
+            return None;
         }
         let state = self.confirmed.session_state().len();
         let limit = restart_limit();
-        state > limit
+        (state > limit
             && state > self.confirmed.encode().len()
-            && (self.alone() || state > limit.saturating_mul(RESTART_CEILING))
+            && (self.alone() || state > limit.saturating_mul(RESTART_CEILING)))
+        .then_some(state)
     }
 
-    /// The owner restarted the session at `head`: it reloads from the commit, so every replica
-    /// holds the same positions, moves what it holds back onto it, and undo stops here.
-    fn restarted(&mut self, head: CommitId, fresh: C) {
-        if self.base != Some(head) {
+    /// An edit `editor` made on what it showed before a reload it has not said it was shown
+    /// (`FromEditor::Shown`), carried onto what the reloads left (`carried_if_lost`).
+    fn carried_over_a_reload(&mut self, editor: EditorId, operation: C::Op) -> C::Op {
+        let Some(before) = self
+            .shown_reloads
+            .get(&editor)
+            .filter(|shown| **shown < self.reloads)
+            .and_then(|shown| self.shown_before.get_mut(shown))
+        else {
+            return operation;
+        };
+        let carried = carried_if_lost(&operation, before, &self.visible, self.client);
+        before.apply(&operation);
+        carried.unwrap_or(operation)
+    }
+
+    /// Lets go of what no editor may still be showing: the content before each reload every
+    /// editor said it was shown since, and past `SHOWN_BEFORE_KEPT` the oldest, for an editor
+    /// that never says (its late edits then go as made).
+    fn prune_shown(&mut self) {
+        let lowest = self
+            .shown_reloads
+            .values()
+            .min()
+            .copied()
+            .unwrap_or(self.reloads);
+        self.shown_before.retain(|reloads, _| *reloads >= lowest);
+        let mut dropped = None;
+        while self.shown_before.len() > SHOWN_BEFORE_KEPT {
+            dropped = self.shown_before.pop_first().map(|(reloads, _)| reloads);
+        }
+        // An editor still showing what was let go for room: its late edits go as made. Said
+        // once.
+        let Some(dropped) = dropped else {
             return;
+        };
+        let behind: Vec<EditorId> = self
+            .shown_reloads
+            .iter()
+            .filter(|(editor, shown)| **shown <= dropped && !self.fell_behind.contains(*editor))
+            .map(|(editor, _)| *editor)
+            .collect();
+        for editor in behind {
+            self.fell_behind.insert(editor);
+            self.error(format!(
+                "editor {editor} has not been shown the last {SHOWN_BEFORE_KEPT} reloads: what \
+                 it sends meanwhile is not carried over them"
+            ));
         }
-        let mut before = self.confirmed.clone();
-        let mut after = fresh.clone();
-        let mut carried = VecDeque::new();
-        for held in std::mem::take(&mut self.held) {
-            let moved = C::carry_over(&held, &before, &after, self.client);
-            before.apply(&held);
-            if let Some(moved) = moved {
-                after.apply(&moved);
-                carried.push_back(moved);
-            }
-        }
-        self.held = carried;
-        self.confirmed = fresh;
-        self.sealed_state = self.confirmed.session_state();
-        self.rebuild_visible();
-        self.history.restart();
-        self.restarted_at = Some(head);
-        self.rebase_journal(Vec::new());
     }
 
-    /// Moves a follower's pending and unsent edits from `before` onto the content it just
-    /// reloaded at a restart.
+    /// Moves this replica's own edits not yet numbered from `before` onto the content it just
+    /// reloaded at a restart: they go again, after it.
     fn carry_pending(&mut self, before: C) {
         let mut before = before;
         let mut after = self.confirmed.clone();
-        let pending = match &mut self.role {
-            Role::Follower(follower) => follower.take_pending(),
-            Role::Owner(_) => Vec::new(),
-        };
-        let mut carried = Vec::with_capacity(pending.len());
-        // From the first carried operation that needs its part put again, the rest go back to
-        // being unsent, in order.
-        let mut unsent = VecDeque::new();
-        for (id, payload) in pending {
-            let Some(operation) = self.operation(&payload) else {
-                continue;
-            };
-            let moved = C::carry_over(&operation, &before, &after, self.client);
-            before.apply(&operation);
-            let Some(moved) = moved else {
-                continue;
-            };
-            after.apply(&moved);
-            let bytes = C::encode_operation(&moved);
-            let size = bytes.len();
-            let payload = match payload {
-                Payload::Part(part) if self.payloads.get(&part) == Some(&bytes) => Some(payload),
-                _ if size <= LARGEST_RELAYED_OPERATION => Some(Payload::Inline(bytes)),
-                _ => None,
-            };
-            match payload {
-                Some(payload) if unsent.is_empty() => carried.push((id, payload)),
-                _ => unsent.push_back((moved, size, 1)),
-            }
-        }
-        if let Role::Follower(follower) = &mut self.role {
-            follower.restore_pending(carried);
-        }
-        let kept = std::mem::replace(&mut self.unsent, unsent);
-        for (operation, bound, weight) in kept {
+        let mut carried = VecDeque::new();
+        let pending: Vec<C::Op> = std::mem::take(&mut self.pending)
+            .into_iter()
+            .filter_map(|sent| sent.operation)
+            .collect();
+        let unsent: Vec<(C::Op, u64)> = std::mem::take(&mut self.unsent)
+            .into_iter()
+            .map(|(operation, _, _, through, _)| (operation, through))
+            .collect();
+        let through = self.edit_number();
+        for (operation, through) in pending
+            .into_iter()
+            .map(|operation| (operation, through))
+            .chain(unsent)
+        {
             let moved = C::carry_over(&operation, &before, &after, self.client);
             before.apply(&operation);
             if let Some(moved) = moved {
                 after.apply(&moved);
-                self.unsent.push_back((moved, bound, weight));
+                let size = C::encode_operation(&moved).len();
+                carried.push_back((moved, size, 1, through, None));
             }
         }
+        self.unsent = carried;
+        self.in_flight = 0;
+        // The tentative layer goes on after them, on the same chain; a gesture with an edit
+        // that does not carry ends, its edits dropped.
+        let mut lost = Vec::new();
+        for held in std::mem::take(&mut self.tentative) {
+            let moved = C::carry_over(&held.operation, &before, &after, self.client);
+            before.apply(&held.operation);
+            match moved {
+                Some(moved) if !lost.contains(&held.gesture) => {
+                    after.apply(&moved);
+                    self.tentative.push(Held {
+                        operation: moved,
+                        ..held
+                    });
+                }
+                _ => lost.push(held.gesture),
+            }
+        }
+        for gesture in lost {
+            self.void(gesture);
+        }
+        // What earlier openings submitted was made before the restart, and is passed over.
+        self.kept_submissions.clear();
+        // They go again as new submissions: the ones on their way are passed over.
+        self.lacking.unsubmitted();
     }
+}
+
+/// The most an entry carries inline (`LARGEST_RELAYED_OPERATION`); past it, it goes by a part.
+#[cfg(not(test))]
+fn largest_inline() -> usize {
+    LARGEST_RELAYED_OPERATION
+}
+
+#[cfg(test)]
+thread_local! {
+    pub(crate) static LARGEST_INLINE: std::cell::Cell<usize> =
+        const { std::cell::Cell::new(LARGEST_RELAYED_OPERATION) };
+}
+
+#[cfg(test)]
+fn largest_inline() -> usize {
+    LARGEST_INLINE.with(std::cell::Cell::get)
 }
 
 #[cfg(not(test))]
@@ -4408,44 +5077,17 @@ fn restart_limit() -> usize {
     RESTART_LIMIT.with(std::cell::Cell::get)
 }
 
-/// Folds consecutive operations into as few as `LiveEdit::absorb_operation` allows, each
-/// numbered as the last it absorbed and kept under the relay limit.
-fn fold<C: LiveEdit>(ops: Vec<SessionOp>) -> Vec<SessionOp> {
-    let mut folded = Vec::new();
-    let mut current: Option<(SessionOp, C::Op, usize)> = None;
-    let finish = |current: (SessionOp, C::Op, usize)| SessionOp {
-        payload: Payload::Inline(C::encode_operation(&current.1)),
-        ..current.0
+/// The bytes an entry adds to what the order holds since the last seal: its own, and those of
+/// the part it names, which no commit holds either.
+fn ordered_bytes(op: &SessionOp) -> usize {
+    let parted = match Submitted::decode(&op.payload) {
+        Some(Submitted {
+            entry: Entry::Operation(Payload::Part(part)),
+            ..
+        }) => usize::try_from(part.length()).unwrap_or(usize::MAX),
+        _ => 0,
     };
-    for op in ops {
-        let decoded = match &op.payload {
-            Payload::Inline(bytes) => C::decode_operation(bytes).ok(),
-            Payload::Part(_) => None,
-        };
-        let Some(operation) = decoded else {
-            folded.extend(current.take().map(finish));
-            folded.push(op);
-            continue;
-        };
-        let size = op.payload.length() as usize;
-        let leftover = match &mut current {
-            Some((last, into, bound)) if *bound + size <= LARGEST_RELAYED_OPERATION => {
-                let leftover = C::absorb_operation(into, operation);
-                if leftover.is_none() {
-                    *bound += size;
-                    last.id = op.id;
-                    last.sequence = op.sequence;
-                }
-                leftover
-            }
-            _ => Some(operation),
-        };
-        if let Some(operation) = leftover {
-            folded.extend(current.replace((op, operation, size)).map(finish));
-        }
-    }
-    folded.extend(current.map(finish));
-    folded
+    op.payload.len().saturating_add(parted)
 }
 
 /// The content of `bytes` (the type's default for none) with `journal` replayed on top, for a
@@ -4458,44 +5100,58 @@ pub(crate) fn replay<C: LiveEdit + Default>(
         Some(bytes) => C::decode(bytes).map_err(|error| error.to_string())?,
         None => C::default(),
     };
-    if !journal.base.state.is_empty() {
+    let state = crate::wire::BaseState::decode(&journal.base.state)
+        .ok_or("the journal's base state does not decode")?
+        .content;
+    if !state.is_empty() {
         content
-            .adopt_session_state(&journal.base.state)
+            .adopt_session_state(&state)
             .map_err(|error| error.to_string())?;
     }
     for entry in &journal.entries {
-        let Some(Wire::Session(SessionMessage::Accepted { op })) = Wire::decode(&entry.payload)
-        else {
+        if entry.sequence <= journal.base.sequence || entry.base < entry.floor {
+            continue;
+        }
+        let Some(Submitted { entry: ordered, .. }) = Submitted::decode(&entry.payload) else {
             return Err("a journal entry this build cannot read".into());
         };
-        let Payload::Inline(bytes) = &op.payload else {
-            // Only a replica reads an operation's part; the owner commits once it sequences one.
-            return Err("a journal entry names an operation by its part".into());
-        };
-        let operation = C::decode_operation(bytes).map_err(|error| error.to_string())?;
-        content.apply(&operation);
+        match ordered {
+            Entry::Operation(Payload::Inline(bytes)) => {
+                let mut operation =
+                    C::decode_operation(&bytes).map_err(|error| error.to_string())?;
+                if let Some(slot) = C::arrival(&mut operation) {
+                    *slot = entry.received;
+                }
+                content.apply(&operation);
+            }
+            // Only a replica reads an operation's part, or a reload's commit.
+            Entry::Operation(Payload::Part(_)) => {
+                return Err("a journal entry names an operation by its part".into());
+            }
+            Entry::Reload { .. } => return Err("a journal entry reloads a commit".into()),
+            Entry::Keep { .. } => {}
+        }
     }
     Ok(content.encode())
 }
 
-/// The parts the operations a message carries are read from.
-fn named_parts(wire: &Wire) -> Vec<PartRef> {
-    let Wire::Session(message) = wire else {
-        return Vec::new();
-    };
-    match message {
-        SessionMessage::Submit { payload, .. } => payload.part().into_iter().collect(),
-        SessionMessage::Accepted { op } => op.payload.part().into_iter().collect(),
-        SessionMessage::Snapshot { ops, .. } => {
-            ops.iter().filter_map(|op| op.payload.part()).collect()
-        }
-        _ => Vec::new(),
+/// `operation`, made on `before`, as it goes on `after`, the content a reload left: unchanged
+/// where it still applies, and otherwise as what it visibly did on `before` (`carry_over`), at
+/// the same place: the carry is positional, so where the content moved meanwhile it lands where
+/// the edit's place is now, not where its meaning went. None when nothing of it is left. One
+/// that changes nothing on `before` either goes unchanged.
+fn carried_if_lost<C: LiveEdit + Clone>(
+    operation: &C::Op,
+    before: &C,
+    after: &C,
+    client: ClientId,
+) -> Option<C::Op> {
+    let (mut made, mut landed) = (before.clone(), after.clone());
+    made.apply(operation);
+    landed.apply(operation);
+    let lost = made.encode() != before.encode() && landed.encode() == after.encode();
+    match lost {
+        true => C::carry_over(operation, before, after, client),
+        false => Some(operation.clone()),
     }
-}
-
-/// The bytes an operation carried by its part adds to what the journal holds.
-fn parted(op: &SessionOp) -> usize {
-    op.payload.part().map_or(0, |part| {
-        usize::try_from(part.length()).unwrap_or(usize::MAX)
-    })
 }

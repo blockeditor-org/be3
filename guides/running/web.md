@@ -7,8 +7,8 @@ shows in the browser, serve the web build, open it in headless Chromium and driv
     source ~/.cache/be3/web-dev/env
 
 This builds the web bundle with every app, starts be-server and Caddy in front of it on
-http://127.0.0.1:8090, opens the page in headless Chromium signed in as `dev@localhost`
-(`dev-password`) with the personal organization on My files, and returns once the host is up.
+http://127.0.0.1:8090, opens the page in headless Chromium signed in as `dev@localhost` (by
+the code the server logs) with the personal organization on My files, and returns once the host is up.
 Data and the browser profile live in `~/.cache/be3/web-dev` and survive restarts; running it
 again reopens the same organization, which is how to pick up a rebuild.
 
@@ -88,41 +88,88 @@ hands workers canvases instead (crates/be-host-runtime/src/web):
   `#layers` too, stacked with the overlays by paint order, so it shows above the view as it does
   natively; every other screen stays in `#apps`, under the host's chrome (`presenter::lifted`).
   Screens and overlays carry `data-kind="screen"` or `"overlay"`.
+- A canvas whose layer leaves the list is handed to a new layer that shows the same surface (a
+  view mounted anew), else kept hidden while the runtime retains its surface (the app's layout,
+  or a hidden view's kept frame: guides/apps/runtime.md, Layout and present commits), else
+  removed: a tab shown again shows its views' last frames until their app draws them anew.
 - Screens and overlays are placed from the host's last frame, so on the web they follow the host
-  by one frame.
+  by one frame. The frame's blits become its layer list first (`layers::frame`, guides/apps/runtime.md,
+  The layer list): the screens below `Surface::Root(0)`, the host's canvas, go in `#apps`, the
+  layers above it in `#layers`, each stacked by its place in the list, and a screen's CSS is its
+  layer's transform and clip (`layers::canvas_style`). An anchored view's pieces are its
+  `Surface::Anchored` layers, kept to the view's bounds.
+
+An app's workers (guides/adding_an_app.md, Workers) are Web Workers too, one each, started by the
+page for the app (be-wasm-sandbox-host's `web`) from `workers/<app id>/` and linked by
+`web/worker.js` with no GPU device; their consoles go to `browser.log` with the page's.
 
 ## Files and offline
 
 The web build keeps the same files as native be-host, under `/be-host` in the origin private file
 system. WASI file calls go from `web/wasi.js` to `web/files.js`, a worker that owns the sync
 access handles; without OPFS (some private windows) it answers from memory and nothing
-survives a reload. Traps that shape this code:
+survives a reload. Only the host's worker (below) and the threads it starts make file calls,
+in its memory, which it names to `files.js` (`filesMemory`, `web/threads.js`). The page binds
+no channel (`refuseFiles`): a file call on it fails at once and says so on the console, naming
+the call (`own-memory-web-host-test`). Traps that shape this code:
 
 - SQLite's WASI build locks with a `NAME.lock` directory, which a reload mid-transaction leaves
   behind, so `be_block_sqlite_schema::open` uses the `unix-none` VFS on WASI; the `block-files`
   Web Lock keeps one tab as owner (a second tab waits for it).
-- The block stack (`be_host_stack::start`) runs in its own worker, `web/be-worker.js`: a second
-  instance of the module on the page's shared memory, with its own sockets and timers. Each
-  stack it starts waits for the previous one's end (a oneshot, `web.rs`), never polls for it.
+- The block stack (`be_host_stack::start`) runs in its own worker, `web/be-worker.js`: the
+  module instantiated again on a memory of the worker's own, which shares nothing with the
+  page's, with its own sockets and timers. A first instance makes that memory and stays idle as
+  its main thread; a second on it runs the work on an 8 MiB stack, since wasm-bindgen's main
+  thread gets the linker's 1 MiB and the stack runs SQLite and deep futures. Each stack it
+  starts waits for the previous one's end (a oneshot, `web.rs`), never polls for it, and takes
+  the app list the page read (`discovery::load`) with its start rather than reading it again
+  (`discovery::adopt`).
+  The same worker keeps the host's own files from start-up (be-host's `host_files`):
+  `host.sqlite3` and the organizations each account last listed. The page starts each work
+  there by a name, the bytes it starts from and a `MessagePort` (`be_host_stack::start_in_worker`,
+  `Port`; be-host's `be_worker_run` names every entry), never a closure: what is data travels
+  encoded (a stack's `Config`, `host_files`' data directory and its report's `Across`, which is
+  its mailbox's number), and everything after goes over the port as bytes (guides/blocks/host.md,
+  "What the page reads"). A port dropped tells the other end (an empty message), so an entry the
+  worker does not know drops its port and the page hears it stopped; a worker that fails (a
+  trap) drops nothing, so `web/threads.js` tells the page's ends itself on the worker's `error`,
+  and the page shows the stack's error (`Handover::gone`). `run_web` waits for
+  what the host's files hold while the page's start-up look (`#status`) stays up, then hides
+  it and shows the first screen; the page reads its copy and sends the worker each change
+  (decisions/web_host_state_in_a_worker.md).
 - Nothing may spin or poll while it waits; a worker waits with `Atomics.wait` (std's locks and
-  `Condvar`, `web/wasi.js`'s file calls, `web/dylink.js`'s lock), woken by the side that
+  `Condvar`, `web/wasi.js`'s file calls), woken by the side that
   changed the state. A browser traps `memory.atomic.wait` on the page's thread, so the page
   may never wait at all. A module's page entry calls `be_wasm_threads::initialize_page` and a
-  worker's `initialize_worker`; `be_wasm_threads::may_wait` tells them apart. Two waits on the
-  page remain until plans/web_page_never_waits.md lands: `be_wasm_threads::Mutex::lock`, for
-  the locks the page shares with the stack's worker, spins on the page (and waits for real
-  everywhere else), and the page's file calls spin until `files.js` answers. Don't add a
-  third: a page that needs something another thread holds asks for it with a message.
+  worker's `initialize_worker`; `be_wasm_threads::may_wait` tells them apart. The page shares
+  its memory with no thread: it starts none (`web/threads.js`, `refuseThreads`, which fails a
+  spawn on the page loudly; `own-memory-web-host-test`), and its host's worker has a memory of
+  its own. So every lock the page takes, std's `Mutex`, its channels' and `malloc`'s, is one no
+  other thread takes, and is always free when the page takes it; std's lock would trap there
+  if it ever found one held. A page that needs something another thread holds asks for it
+  with a message. So code that runs on the page may not spawn a thread on wasm: a dependency
+  that does (a rayon-style pool, say) aborts be-host's page (`std::thread::spawn` panics), and
+  belongs in the host's worker.
+- A letter a worker posts to one of the page's mailboxes (`be_host_base::host::Across::send`,
+  guides/desktop.md) takes no lock the page takes and is bytes: the worker posts a copy of the letter's bytes on a `BroadcastChannel` whose name only the
+  page's workers are given (`web/threads.js`, "be-letter-post"), and the page's handler hands
+  them to `be_letter_arrived`, which puts the letter on the page's own list and wakes the
+  host; the mailbox decodes it as it delivers it. One thread's letters arrive in the order it posted
+  them. Only the page makes mailboxes on the web.
 - A server connection's `Peer` locks a `std::sync::Mutex`, so connections never cross between
   the page and the worker (`be_host_stack::link` keeps them per thread on wasm).
-- An unload cannot wait for the worker, so durability does not depend on it: a replica seals
-  within `APPEND_INTERVAL` of an edit (guides/blocks/client.md, "The journal"), `beforeunload` asks while anything is unsaved
+- An unload cannot wait for the worker, so durability does not depend on it: a replica submits
+  each edit as it is made, and the server's journal holds it from then on (guides/blocks/client.md, "The journal"), `beforeunload` asks while anything is unsaved
   (`be_host_stack::status().unsaved`), and the worker seals while the browser asks.
+  A change to the host's own state (a sign-in, a setting) is kept when the host's worker next
+  yields or finishes a pass, whichever comes first (`be_host_stack::run_first`), so it waits
+  at most for the synchronous stretch it arrived in; one made in that stretch before an unload
+  is lost (decisions/web_host_state_in_a_worker.md).
 - Every context counts the monotonic clock from `performance.timeOrigin`, so an `Instant` means
   the same time in the page and the worker.
 - `web/sw.js`, the service worker, keeps what the page fetched (network first, except `/api` and
   `/auth`; a network silent for 3 s gets the kept answer), so a page opened once opens offline.
-- Push notifications (plans/notifications.md). The browser decrypts a Web Push payload before
+- Push notifications (plans/deferred/notifications_on_a_device.md). The browser decrypts a Web Push payload before
   `sw.js` sees it, so the worker holds a `PushMessage`'s bytes, never a key.
   - *Showing.* The worker asks every open window to open the push (`web/push.js`, bound in
     `host.js` to the module's `push_open`, which runs `Peer::open_notification` and names the
@@ -177,6 +224,17 @@ harness serves and decrypts (RFC 8291) what be-server posts to it (`pushes.next(
 `showNotification` and `getNotifications` keep what it shows (`notifications()`), and
 `deliverPush` dispatches a push in the worker, since DevTools' `deliverPushMessage` carries text,
 not a push's bytes, and needs an open page. buck/program/web-host-test.mjs lists the rest.
+
+A test that reads what a frame drew reads the host's canvas (`#host`; app screens are their
+workers' canvases under it, in `#apps`, seen through holes cut in it). It is blank after the
+frame that drew it unless its WebGL context keeps its drawing buffer, so the test forces
+`preserveDrawingBuffer` in `context.addInitScript`, reopens the page (`openPage()`), and copies
+it with `drawImage` in the frame it wants. After a resize, the window's `resize` animation frame
+draws the host at the new size before a ResizeObserver reports in the same rendering update, so
+the observer's report of the new size holds the first frame of it; a new observer reports its
+starting size first, so pick reports by size. The workspace clears to the theme's background as
+the host does, so to tell them apart the test has the page's opaque WebGL clears clear to a
+colour of its own (`grown-web-host-test`).
 
 Typing offline then reloading is checked by hand: open a text block, `kill -STOP` the
 instance's be-server (or Playwright's `context.setOffline(true)`), type with

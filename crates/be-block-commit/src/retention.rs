@@ -1,11 +1,6 @@
 use std::collections::HashMap;
 
-use crate::commit::CommitId;
-
-pub const MINUTE: i64 = 60 * 1000;
-pub const HOUR: i64 = 60 * MINUTE;
-pub const DAY: i64 = 24 * HOUR;
-pub const WEEK: i64 = 7 * DAY;
+use crate::{DAY, HOUR, MINUTE, WEEK, commit::CommitId};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Bucket {

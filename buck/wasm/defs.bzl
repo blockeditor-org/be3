@@ -9,48 +9,62 @@ load(
     "cargo_wasm_facts",
 )
 load("@root//buck/dev:test.bzl", "be_test")
-load("@root//buck/platforms:cross.bzl", "per_cross_platform")
-load("@root//buck/platforms:profile.bzl", "PROFILE_REFS", "RELEASE_SYMBOL_FLAGS", "RUST_LOCAL", "keep_profile", "opt_flags")
+load("@root//buck/platforms:profile.bzl", "PROFILE_REFS", "RUST_LOCAL", "SYMBOL_FLAGS", "keep_profile", "opt_flags")
 load("@root//buck/program:defs.bzl", "app_data", "app_types", "program")
-load("@root//buck/wasm:libraries.bzl", "WasmLibrariesInfo")
+load("@root//buck/wasm:libraries.bzl", "AppWorkersInfo", "WasmLibrariesInfo")
 
 # rustc links a cdylib with --no-entry, which strips the symbols a host needs to
-# lay out a thread's storage and leaves nothing to run libc's constructors; the
-# host does both itself, so a guest exports them.
+# lay out the memory and leaves nothing to run libc's constructors; the host does
+# both itself, so a guest exports them. A guest is single-threaded wasm32-wasip1
+# (decisions/guests_are_single_threaded.md), which rustc links with a memory of
+# its own, so it asks for one the host makes: the loader places every library
+# of an app's closure in it (guides/app_libraries.md).
 _guest_exports = [
+    "-Clink-arg=--import-memory",
+    "-Clink-arg=--export=__heap_base",
+    "-Clink-arg=--export=__wasm_call_ctors",
+]
+
+# A program in the browser: wasm32-wasip1-threads, which wasm-bindgen prepares
+# for threads with the thread-local exports, and wasi-libc's setjmp and
+# no-exceptions libc++ for the C and C++ it links.
+_program_flags = [
     "-Clink-arg=--export=__heap_base",
     "-Clink-arg=--export=__tls_base",
     "-Clink-arg=--export=__tls_size",
     "-Clink-arg=--export=__tls_align",
     "-Clink-arg=--export=__wasm_init_tls",
     "-Clink-arg=--export=__wasm_call_ctors",
-]
-
-# A program in the browser: the same exports, which wasm-bindgen needs to
-# prepare the module for threads, and wasi-libc's setjmp and no-exceptions
-# libc++ for the C and C++ it links.
-_program_flags = _guest_exports + [
     "-Clink-arg=-L$(location root//third-party/wasi:sysroot)/lib/wasm32-wasip1-threads/noeh",
     "-Clink-arg=$(location root//third-party/wasi:sysroot)/lib/wasm32-wasip1-threads/libsetjmp.a",
 ]
 
+# Where wasi-libc and libc++ for a guest are in the WASI sysroot.
+GUEST_SYSROOT = "$(location root//third-party/wasi:sysroot)/lib/wasm32-wasip1"
+
 # Every role a WebAssembly module has in the build, which is the platform it is
 # built for (buck/platforms/BUCK) and how it is linked. Each has a transition
 # and a module rule below, made from its entry, and nothing else names these
-# platforms: wasm32_module, wasi_module (guest), wasi_program_module and
-# wasi_html_module. `link_flags` are what every module of the role is linked with,
+# platforms: wasm32_module, wasm32_bindgen_module, wasi_module (guest),
+# wasi_program_module and wasi_html_module. `link_flags` are what every module of the role is linked with,
 # which a crate's library takes as rustc flags in that configuration; a guest's
 # also depend on its libraries (app_module).
 #
 # - wasm32, wasm32-unknown-unknown with no WASI: block types, games, the input
-#   remaps and the browser's gpu shim, run in wasmi or by the page.
-# - guest, wasm32-wasip1-threads with the `guest` constraint: an app and its
-#   libraries (guides/app_libraries.md), linked by crates/be-wasm-link. The
-#   same triple as the next two, told apart so that each gets its own wgpu.
-# - program, the same triple: a program in the browser on beui's native core,
-#   run through wasm-bindgen, such as be-host's web bundle.
+#   remaps and root guests, pure guests run in wasmi or V8 that import no
+#   JavaScript.
+# - bindgen, the same triple with the `bindgen` constraint: the browser's gpu
+#   shim, which wasm-bindgen binds to the page, told apart so that its wgpu and
+#   web-sys stay out of the pure guests.
+# - guest, wasm32-wasip1 with the `guest` constraint: an app, its libraries
+#   (guides/app_libraries.md) and its workers, and a root that links beui
+#   (decisions/a_root_links_beui_as_an_app_does.md), linked by
+#   crates/be-wasm-link, single-threaded (decisions/guests_are_single_threaded.md).
+# - program, wasm32-wasip1-threads: a program in the browser on beui's native
+#   core, run through wasm-bindgen, such as be-host's web bundle.
 # - html, the same with the `html` constraint: a program on beui's HTML core.
 WASM_ROLES = {
+    "bindgen": struct(link_flags = [], platform = "root//buck/platforms:wasm32_bindgen", setting = "root//buck/platforms:wasm32_bindgen_setting"),
     "guest": struct(link_flags = _guest_exports, platform = "root//buck/platforms:wasi_guest", setting = "root//buck/platforms:wasi_guest_setting"),
     "html": struct(link_flags = _program_flags, platform = "root//buck/platforms:wasi_html", setting = "root//buck/platforms:wasi_html_setting"),
     "program": struct(link_flags = _program_flags, platform = "root//buck/platforms:wasi", setting = "root//buck/platforms:wasi_setting"),
@@ -68,6 +82,8 @@ def _role_transition(role):
     return transition(impl = _role_transition_impl, refs = {"role": WASM_ROLES[role].platform} | PROFILE_REFS)
 
 wasm32_transition = _role_transition("wasm32")
+
+wasm32_bindgen_transition = _role_transition("bindgen")
 
 wasi_transition = _role_transition("guest")
 
@@ -97,9 +113,16 @@ def _wasm_module_impl(ctx: AnalysisContext) -> list[Provider]:
         for module in library[WasmLibrariesInfo].closure + [library[DefaultInfo].default_outputs[0]]:
             if module not in closure:
                 closure.append(module)
+    workers = []
+    for worker in ctx.attrs.workers:
+        for module in worker[WasmLibrariesInfo].closure:
+            if module not in closure:
+                closure.append(module)
+        workers.append(worker[DefaultInfo].default_outputs[0])
     libraries = WasmLibrariesInfo(closure = closure)
+    staged = AppWorkersInfo(modules = workers)
     if not ctx.attrs.optimize:
-        return [DefaultInfo(default_output = ctx.actions.copy_file(name, shared)), libraries]
+        return [DefaultInfo(default_output = ctx.actions.copy_file(name, shared)), libraries, staged]
     module = ctx.actions.declare_output(name)
     ctx.actions.run(
         cmd_args(
@@ -113,7 +136,7 @@ def _wasm_module_impl(ctx: AnalysisContext) -> list[Provider]:
         ),
         category = "wasm_opt",
     )
-    return [DefaultInfo(default_output = module), libraries]
+    return [DefaultInfo(default_output = module), libraries, staged]
 
 def _module_rule(cfg):
     return rule(
@@ -131,12 +154,18 @@ def _module_rule(cfg):
                     })
                 )
             ),
+            # An app's worker modules (worker), which the program stages
+            # under workers/<app id>/ beside it (AppWorkersInfo), with every
+            # library they need in its closure.
+            "workers": attrs.list(attrs.dep(providers = [WasmLibrariesInfo]), default = []),
             "_wasm_opt": attrs.exec_dep(default = "root//buck/tools:wasm-opt"),
         },
         impl = _wasm_module_impl,
     )
 
 wasm32_module = _module_rule(wasm32_transition)
+
+wasm32_bindgen_module = _module_rule(wasm32_bindgen_transition)
 
 wasi_module = _module_rule(wasi_transition)
 
@@ -226,12 +255,20 @@ BASE_LIBRARY = "root//crates/be-sdk-library-base:module"
 
 DEFAULT_LIBRARIES = [BASE_LIBRARY, "root//crates/be-sdk-library-beui:module"]
 
+# What an app's tests link that the app does not: be-sdk-test and what only
+# it uses, and libtest, above DEFAULT_LIBRARIES (app_tests).
+TEST_LIBRARY = "root//crates/be-sdk-library-test:module"
+
+# The test harness every app test is compiled against in place of the
+# toolchain's, which is not position-independent (third-party/libtest).
+_LIBTEST = "root//third-party/libtest:test"
+
 # What makes a module the root of every closure: wasi-libc's crt1-reactor.o,
 # whose _initialize sets up libc's main thread and runs the constructors. The
 # root and a standalone app are each a WASI reactor linked at fixed
 # addresses, which the host instantiates as it is.
 _reactor = [
-    "-Clink-arg=$(location root//third-party/wasi:sysroot)/lib/wasm32-wasip1-threads/crt1-reactor.o",
+    "-Clink-arg={}/crt1-reactor.o".format(GUEST_SYSROOT),
     "-Clink-arg=--export=_initialize",
 ]
 
@@ -243,58 +280,8 @@ def _needs(libraries):
 # the host links each app that names it to when it loads. libraries names
 # every library under it, the whole closure; with none it is the root, linked
 # at fixed addresses with std and wasi-libc, and with some it is
-# position-independent, leaves out everything they link and reaches their
-# thread-locals through GOT.tls. A package whose crate other crates depend on,
-# such as crates/be-tool-tls-diamond-base, has a library.rs beside its Cargo.toml that only
-# names the crate, and that is what is linked, so the module holds the very rlib
-# its dependents compile against.
+# position-independent and leaves out everything they link.
 def wasm_library(module, libraries = [], rustc_flags = []):
-    facts = cargo_wasm_facts()
-    linker_flags = _needs(libraries) + ["--be3-library=" + module]
-    rustc_flags = _guest_exports + rustc_flags + ([] if libraries else _reactor) + RELEASE_SYMBOL_FLAGS
-    if native.glob(["library.rs"]):
-        cargo_library(rustc_flags = rustc_flags)
-        native.rust_library(
-            name = "wasm",
-            crate = facts.crate + "_library",
-            crate_root = "library.rs",
-            deps = [":" + facts.name],
-            edition = facts.edition,
-            linker_flags = linker_flags,
-            preferred_linkage = "shared",
-            rustc_flags = rustc_flags,
-            srcs = ["library.rs"],
-            target_compatible_with = ["prelude//cpu/constraints:cpu[wasm32]"] + facts.compatible,
-            **RUST_LOCAL,
-        )
-    else:
-        native.rust_library(
-            name = "wasm",
-            crate = facts.crate,
-            crate_root = facts.crate_root,
-            deps = facts.deps,
-            edition = facts.edition,
-            env = facts.env,
-            features = facts.features,
-            linker_flags = linker_flags,
-            mapped_srcs = cargo_manifest_sources(),
-            preferred_linkage = "shared",
-            rustc_flags = rustc_flags,
-            srcs = cargo_library_sources(),
-            target_compatible_with = ["prelude//cpu/constraints:cpu[wasm32]"] + facts.compatible,
-            **RUST_LOCAL,
-        )
-    wasi_module(
-        name = "module",
-        libraries = libraries,
-        library = ":wasm",
-        module = module,
-    )
-
-# A package's crate linked against libraries, every one in its closure, and
-# exporting only what an app does: an app that is not an editor, such as
-# crates/be-tool-tls-diamond-app.
-def linked_app(module, libraries, rustc_flags = []):
     facts = cargo_wasm_facts()
     native.rust_library(
         name = "wasm",
@@ -304,10 +291,10 @@ def linked_app(module, libraries, rustc_flags = []):
         edition = facts.edition,
         env = facts.env,
         features = facts.features,
-        linker_flags = _needs(libraries),
+        linker_flags = _needs(libraries) + ["--be3-library=" + module],
         mapped_srcs = cargo_manifest_sources(),
         preferred_linkage = "shared",
-        rustc_flags = _guest_exports + rustc_flags + RELEASE_SYMBOL_FLAGS,
+        rustc_flags = _guest_exports + rustc_flags + ([] if libraries else _reactor) + SYMBOL_FLAGS,
         srcs = cargo_library_sources(),
         target_compatible_with = ["prelude//cpu/constraints:cpu[wasm32]"] + facts.compatible,
         **RUST_LOCAL,
@@ -325,7 +312,7 @@ def linked_app(module, libraries, rustc_flags = []):
 # against DEFAULT_LIBRARIES; a list names every library in its closure; [] links
 # every crate it uses into it, a standalone app (guides/app_libraries.md, "The
 # raw app interface"), a WASI reactor the host instantiates as it is.
-def app_module(name, module, libraries = None, extra_deps = [], visibility = None):
+def app_module(name, module, libraries = None, extra_deps = [], visibility = None, workers = []):
     kwargs = {"visibility": visibility} if visibility != None else {}
     facts = cargo_wasm_facts()
     if libraries == None:
@@ -344,12 +331,40 @@ def app_module(name, module, libraries = None, extra_deps = [], visibility = Non
         linker_flags = linker_flags,
         mapped_srcs = cargo_manifest_sources(),
         preferred_linkage = "shared",
-        rustc_flags = _guest_exports + rustc_flags + opt_flags("app") + RELEASE_SYMBOL_FLAGS,
-        srcs = cargo_library_sources() + ["manifest.json"],
+        rustc_flags = _guest_exports + rustc_flags + opt_flags("app") + SYMBOL_FLAGS,
+        srcs = cargo_library_sources() + native.glob(["manifest.json"]),
         target_compatible_with = ["prelude//cpu/constraints:cpu[wasm32]"] + facts.compatible,
         **(kwargs | RUST_LOCAL),
     )
-    wasi_module(name = name, libraries = libraries, library = ":" + library, module = module, **kwargs)
+    wasi_module(name = name, libraries = libraries, library = ":" + library, module = module, workers = workers, **kwargs)
+
+# A worker module (be_sdk_worker::worker!; guides/adding_an_app.md, Workers),
+# named module.wasm: worker.rs beside the package's Cargo.toml, which only calls
+# worker! on the crate's Work, linked as :module as app_module links an app.
+# The crate itself exports nothing, so the app that spawns the worker and its
+# tests (which serve it in their own instance) depend on it without linking a
+# second entry point. extra_deps are what cargo cannot name, such as a C
+# library the worker links. An app stages it by naming it in app()'s workers
+# and its manifest's "workers".
+def worker(module, libraries = None, extra_deps = [], visibility = None):
+    kwargs = {"visibility": visibility} if visibility != None else {}
+    facts = cargo_wasm_facts()
+    if libraries == None:
+        libraries = DEFAULT_LIBRARIES
+    native.rust_library(
+        name = "wasm",
+        crate = facts.crate + "_worker",
+        crate_root = "worker.rs",
+        deps = [":" + facts.name, "root//crates/be-sdk-worker:be-sdk-worker"] + extra_deps,
+        edition = facts.edition,
+        linker_flags = _needs(libraries),
+        preferred_linkage = "shared",
+        rustc_flags = _guest_exports + ([] if libraries else _reactor) + opt_flags("app") + SYMBOL_FLAGS,
+        srcs = ["worker.rs"],
+        target_compatible_with = ["prelude//cpu/constraints:cpu[wasm32]"] + facts.compatible,
+        **(kwargs | RUST_LOCAL),
+    )
+    wasi_module(name = "module", libraries = libraries, library = ":wasm", module = module, **kwargs)
 
 # An app: the guest cdylib, :wasm (wasm32 only; an app is all behind
 # cfg(target_arch = "wasm32")), :module named after its manifest's entry point,
@@ -359,7 +374,8 @@ def app_module(name, module, libraries = None, extra_deps = [], visibility = Non
 # An app is linked against DEFAULT_LIBRARIES, or as libraries says
 # (app_module above). types is the app's type module
 # (a wasm32_module, such as checklist's //crates/be-type-checklist:module),
-# which :types names for the app to stage beside :module.
+# which :types names for the app to stage beside :module. workers are its
+# worker modules (worker), which :module carries for the program to stage.
 #
 # The app crate itself, its tests, its workspace dependencies and its
 # third-party ones are each compiled at their own opt level (OPT_LEVELS in
@@ -369,13 +385,14 @@ def app_module(name, module, libraries = None, extra_deps = [], visibility = Non
 # crates/be-tool-buck/src/plan.rs plans it there), as the library named after its package, and each
 # examples/NAME.rs is :example-NAME on the host, such as a benchmark that
 # drives the editor through be-sdk-test.
-def app(module, visibility = None, test_env = {}, data = {}, extra_deps = [], types = None, libraries = None):
+def app(module, visibility = None, test_env = {}, data = {}, extra_deps = [], types = None, libraries = None, workers = []):
     kwargs = {"visibility": visibility} if visibility != None else {}
     app_module(
         name = "module",
         extra_deps = extra_deps,
         libraries = libraries,
         module = module,
+        workers = workers,
         visibility = visibility,
     )
     native.export_file(name = "manifest", src = "manifest.json", **kwargs)
@@ -385,6 +402,7 @@ def app(module, visibility = None, test_env = {}, data = {}, extra_deps = [], ty
         env = test_env,
         exports = _guest_exports,
         extra_deps = extra_deps,
+        libraries = libraries,
     )
     examples = native.glob(["examples/*.rs"])
     if examples:
@@ -393,30 +411,42 @@ def app(module, visibility = None, test_env = {}, data = {}, extra_deps = [], ty
             cargo_example(root.removeprefix("examples/").removesuffix(".rs"))
 
 # A crate's tests compiled to wasm and run by app-test-runner, which gives
-# the module an app's imports; an editor's, be-sdk's and
-# be-sdk-beui's.
+# the module an app's imports; an editor's, be-sdk's and be-sdk-beui's. The
+# module is linked against libraries as the app is (DEFAULT_LIBRARIES unless
+# given), and against TEST_LIBRARY too where those hold both of
+# DEFAULT_LIBRARIES, so it holds
+# only the crate, its tests and the generics they instantiate, and runs
+# against the libraries apps ship with (guides/app_libraries.md, Tests).
+# libraries = [] links a standalone test module. Every test module names
+# third-party/libtest as its `test` crate, which rustc --test then links in
+# place of the toolchain's.
 # The test crate itself is compiled at app_test's opt level, and its
 # dependencies as the app's are.
-def app_tests(exports = [], env = {}, extra_deps = []):
+def app_tests(exports = [], env = {}, extra_deps = [], libraries = None):
     facts = cargo_wasm_facts()
+    if libraries == None:
+        libraries = DEFAULT_LIBRARIES
+    if all([library in libraries for library in DEFAULT_LIBRARIES]):
+        libraries = libraries + [TEST_LIBRARY]
     native.rust_binary(
         name = "test-module",
         crate = facts.crate,
         crate_root = facts.crate_root,
-        deps = facts.test_deps + extra_deps,
+        deps = facts.test_deps + extra_deps + [_LIBTEST],
         edition = facts.edition,
         env = facts.env | env,
         features = facts.test_features,
+        linker_flags = _needs(libraries),
         mapped_srcs = cargo_manifest_sources(),
-        rustc_flags = exports + ["--test"] + opt_flags("app_test"),
+        rustc_flags = exports + ["--test"] + opt_flags("app_test") + SYMBOL_FLAGS,
         srcs = cargo_test_sources() + native.glob(["manifest.json"]),
         target_compatible_with = ["prelude//cpu/constraints:cpu[wasm32]"] + facts.compatible,
         **RUST_LOCAL,
     )
     wasm_test_harness(
         name = "test-harness",
+        libraries = libraries,
         module = ":test-module",
-        precompile = per_cross_platform(True, lambda _: False),
         runner = "//crates/be-sdk-test-runner:bin",
     )
     be_test(
@@ -439,39 +469,26 @@ def app_tests(exports = [], env = {}, extra_deps = []):
 # rather than a staged copy, and app-test-runner opens that directory, and
 # MADE_PAINTINGS' when it is set, to it and nothing else.
 #
-# The module is compiled for wasmtime once, in an action, rather than by every
-# test process - about forty seconds a module. It is compiled for the x86_64
-# baseline, since the compile runs on a worker and the test here, and only for
-# the host: elsewhere the runner compiles it when the test runs. --quick
-# compiles it without Cranelift's optimizations, which took a quarter off the
-# compile and left the tests' running time as it was; Cranelift's single-pass
-# register allocator, which would take off more, ran a deep paint out of stack.
-def _precompiled(ctx: AnalysisContext, module: Artifact) -> cmd_args:
-    if not ctx.attrs.precompile:
-        return cmd_args(module)
-    runner = ctx.attrs.runner[RunInfo]
-    artifact = ctx.actions.declare_output(module.basename.removesuffix(".wasm") + ".cwasm")
-    ctx.actions.run(
-        cmd_args(runner, "--precompile-to", "--target", "x86_64-unknown-linux-gnu", "--quick", artifact.as_output(), module),
-        category = "wasm_precompile",
-        identifier = module.basename,
-    )
-    return cmd_args("--precompiled", artifact, module)
-
-# The app test's command: app-test-runner and the module, which draws through
-# the sysroot's lavapipe, as the renderer's tests do (the env app_tests gives
-# its be_test).
+# The app test's command: app-test-runner, each library in the module's
+# closure in order, and the module, which draws through the sysroot's
+# lavapipe, as the renderer's tests do (the env app_tests gives its be_test).
 def _wasm_test_harness_impl(ctx: AnalysisContext) -> list[Provider]:
     module = ctx.attrs.module[DefaultInfo].default_outputs[0]
+    closure = []
+    for library in ctx.attrs.libraries:
+        for wasm in library[WasmLibrariesInfo].closure + [library[DefaultInfo].default_outputs[0]]:
+            if wasm not in closure:
+                closure.append(wasm)
+    libraries = [cmd_args("--library", wasm) for wasm in closure]
     return [
         DefaultInfo(default_output = module),
-        RunInfo(args = cmd_args(ctx.attrs.runner[RunInfo], _precompiled(ctx, module))),
+        RunInfo(args = cmd_args(ctx.attrs.runner[RunInfo], libraries, module)),
     ]
 
 wasm_test_harness = rule(
     attrs = {
+        "libraries": attrs.list(attrs.dep(providers = [WasmLibrariesInfo]), default = []),
         "module": attrs.transition_dep(cfg = wasi_transition),
-        "precompile": attrs.bool(default = True),
         "runner": attrs.dep(providers = [RunInfo]),
     },
     impl = _wasm_test_harness_impl,

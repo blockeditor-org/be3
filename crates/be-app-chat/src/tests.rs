@@ -1,11 +1,12 @@
-use be_sdk_beui::be_block_content::{BlockContent, Edit, LiveEdit, ObjectId};
+use be_sdk_beui::be_block_content::{BlockContent, LogItem, LogSigner};
 use be_sdk_beui::beui::vec2;
 use be_sdk_beui::{
     BlockCommand, BlockInfo, BlockParent, BlockTypeDescriptor, ChildOperations, EditorHost,
-    OwnedEditor, PickedBlock, Press, Signer,
+    OwnedEditor, PickedBlock, Press,
 };
 use be_sdk_test::BeuiTest;
-use be_type_chat::{ChatContent, ChatOp, Message, Signature};
+use be_sdk_test::prelude::*;
+use be_type_chat::{ChatContent, ChatEntry, ChatLog};
 use uuid::Uuid;
 
 use std::time::Duration;
@@ -13,36 +14,31 @@ use std::time::Duration;
 use crate::root::ChatRoot;
 
 mod a_conversation_shows_each_message_with_its_author_and_time;
+mod a_deletion_or_reaction_the_server_refuses_says_so_on_its_message;
 mod a_discarded_message_does_not_return_as_not_sent_when_the_chat_opens_again;
 mod a_draft_stays_in_the_editor_until_it_is_sent;
 mod a_drafts_made_blocks_come_back_as_chips_when_the_chat_opens_again;
-mod a_forged_deletion_of_a_closed_message_shows_where_it_was;
-mod a_long_chat_closes_its_oldest_messages_into_a_segment_and_reads_them_back_on_request;
 mod a_made_block_moved_out_of_the_chat_survives_the_composer;
 mod a_message_carries_the_blocks_attached_to_it;
-mod a_message_in_a_closed_segment_shows_an_edit_made_since_it_closed;
-mod a_message_kept_offline_is_sent_once_the_drain_publishes_it_while_the_chat_is_closed;
-mod a_message_kept_offline_tells_the_other_members_even_when_the_chat_is_closed_as_it_drains;
+mod a_message_deleted_with_an_old_key_says_so_in_its_place;
 mod a_message_kept_offline_tells_the_other_members_only_once_it_reaches_the_server;
+mod a_message_refused_while_the_chat_is_closed_shows_as_not_sent_when_it_opens_again;
+mod a_message_removed_by_someone_else_says_so_in_its_place;
 mod a_message_sent_after_a_discarded_one_does_not_show_as_not_sent_when_the_chat_opens_again;
-mod a_message_sent_after_a_discarded_one_is_sent_once_its_commit_drains_while_the_chat_is_closed;
-mod a_message_sent_after_a_discarded_one_shows_as_not_sent_when_it_is_refused_while_the_chat_is_closed;
-mod a_message_sent_with_two_editors_of_the_chat_open_tells_once;
+mod a_message_sent_as_its_editor_closed_still_carries_its_blocks;
+mod a_message_sent_offline_shows_when_it_arrived;
 mod a_message_shows_as_sending_until_it_is_delivered;
-mod a_message_shows_whether_its_author_signed_it;
+mod a_message_shows_who_signed_it;
 mod a_message_the_server_refuses_shows_as_not_sent;
-mod a_refused_message_tells_nobody_and_a_reply_mentions_its_author;
-mod a_replayed_edit_a_forged_deletion_and_a_reaction_taken_back_by_someone_else_show_as_forged;
 mod a_reply_or_edit_ends_when_its_message_is_deleted_or_the_other_starts;
 mod a_reply_quotes_the_message_it_answers;
-mod a_revision_preview_verifies_what_the_chat_signed;
 mod a_sent_message_tells_the_chats_other_members_once_the_server_holds_it;
-mod an_edited_message_tells_nobody_again_and_a_sent_again_one_tells_once;
 mod an_image_pasted_into_the_composer_is_made_in_the_chat_and_attached;
+mod earlier_messages_are_read_a_page_at_a_time;
+mod members_show_by_their_names_and_a_name_the_server_gave_is_marked;
 mod messages_are_sent_edited_reacted_to_and_deleted;
 mod reactions_show_under_a_message_with_their_counts;
 mod reading_on_one_device_clears_the_count_on_another;
-mod two_closed_segments_that_overlap_show_each_message_once;
 
 const TEXT: Uuid = Uuid::from_u128(0x7e47);
 
@@ -60,34 +56,18 @@ fn host() -> EditorHost {
     host
 }
 
+/// A message written at `time`.
+fn message(time: i64, body: &str) -> ChatEntry {
+    ChatEntry::Message {
+        time,
+        body: body.to_owned(),
+        reply_to: None,
+        attachments: Vec::new(),
+    }
+}
+
 struct Harness {
     editor: BeuiTest<ChatRoot>,
-}
-
-/// Sends `message` as `signer` signed it: its author, unless the test forges it.
-fn signed_by(content: &ChatContent, signer: Uuid, message: Message) -> Edit {
-    let (id, message) = content.draft(CHAT, message);
-    let signature = be_sdk_test::signature(signer, &message.signed_bytes(CHAT, id));
-    ChatContent::send_as(
-        id,
-        &Message {
-            signature: Signature(signature),
-            ..message
-        },
-    )
-}
-
-/// `message` deleted by `author`, who signed the deletion.
-fn deleted_by(content: &ChatContent, message: ObjectId, author: Uuid, time: i64) -> Edit {
-    let deletion = content.deletion(message, author, time);
-    let signature = be_sdk_test::signature(author, &deletion.signed_bytes(CHAT, message));
-    content.put_deletion(
-        message,
-        &be_type_chat::Deletion {
-            signature: Signature(signature),
-            ..deletion
-        },
-    )
 }
 
 impl Harness {
@@ -95,54 +75,21 @@ impl Harness {
         Self::trusting(messages, &[])
     }
 
-    /// A chat whose members' keys `verify` trusts as `trusted` says, and any other's as a
-    /// contact's.
-    fn trusting(messages: &[(Uuid, &str)], trusted: &[(Uuid, Signer)]) -> Self {
-        Self::shown_as(messages, trusted, CHAT)
-    }
-
-    /// A revision preview of the chat: the editor shows block `shown`, while what its
-    /// messages signed names `CHAT`, which the host says signatures bind to.
-    fn previewing(messages: &[(Uuid, &str)]) -> Self {
-        Self::shown_as(
-            messages,
-            &[],
-            Uuid::from_u128(0x9e51_0000_0000_4000_8000_0000_0000_0009),
-        )
-    }
-
-    fn shown_as(messages: &[(Uuid, &str)], trusted: &[(Uuid, Signer)], shown: Uuid) -> Self {
-        let mut content = ChatContent::default();
+    /// A chat whose messages were each written three minutes after the last, with who signed
+    /// what each member appends as `signers` says, and a contact's key for anyone else.
+    fn trusting(messages: &[(Uuid, &str)], signers: &[(Uuid, LogSigner)]) -> Self {
+        let mut harness = Self {
+            editor: BeuiTest::new(OwnedEditor::new(host(), CHAT)),
+        };
+        let store = harness.editor.store();
+        store.register(be_type_chat::registrations());
+        store.hold(None, ChatContent::default());
+        for (account, signer) in signers {
+            store.set_log_signer(*account, *signer);
+        }
         for (index, (author, body)) in messages.iter().enumerate() {
             let time = MORNING + index as i64 * 3 * MINUTE;
-            let send = signed_by(&content, *author, Message::new(*author, time, *body));
-            content.apply(&send.into());
-        }
-        Self::open(content, trusted, shown, false)
-    }
-
-    /// The editor of a chat whose closed segments are saved as parts, which it reads by range.
-    fn holding_parts(content: ChatContent) -> Self {
-        Self::open(content, &[], CHAT, true)
-    }
-
-    fn open(content: ChatContent, trusted: &[(Uuid, Signer)], shown: Uuid, parts: bool) -> Self {
-        let mut harness = Self {
-            editor: match shown == CHAT {
-                true => BeuiTest::new(OwnedEditor::new(host(), shown)),
-                false => BeuiTest::in_revision_of(OwnedEditor::new(host(), shown), CHAT),
-            },
-        };
-        for (account, signer) in trusted {
-            harness.editor.set_signer(*account, *signer);
-        }
-        harness
-            .editor
-            .store()
-            .register(be_type_chat::registrations());
-        match parts {
-            true => harness.editor.hold_parts(None, content),
-            false => harness.editor.hold(None, content),
+            store.log_entry(None, *author, message(time, body).encode(), Some(time));
         }
         harness.editor.set_size(vec2(480.0, 560.0));
         harness.editor.presence_visible(true);
@@ -166,10 +113,24 @@ impl Harness {
         self.editor.run();
     }
 
-    fn arrive(&mut self, operation: Edit) {
-        self.editor
-            .edit::<ChatContent>(None, &ChatOp::Edit(operation));
+    /// An entry `author` appended on another device, which the server took now.
+    fn arrive(&mut self, author: Uuid, entry: &ChatEntry) -> u64 {
+        let seq = self
+            .editor
+            .store()
+            .log_entry(None, author, entry.encode(), None);
         self.run();
+        seq
+    }
+
+    /// An edit of the chat's content made on another device.
+    fn arrive_edit(&mut self, edit: be_sdk_beui::be_block_content::Edit) {
+        self.editor.edit::<ChatContent>(None, &edit);
+        self.run();
+    }
+
+    fn content(&self) -> ChatContent {
+        self.editor.content(None)
     }
 
     fn click(&mut self, test_id: &str) {
@@ -191,30 +152,60 @@ impl Harness {
     fn send(&mut self, text: &str) {
         self.write(text);
         self.click("chat.send");
-        self.editor.advance(std::time::Duration::from_millis(500));
+        self.editor.advance(Duration::from_millis(500));
+        self.editor.run();
         self.run();
     }
 
-    fn content(&self) -> ChatContent {
-        self.editor.content(None)
-    }
-
-    fn id(&self, index: usize) -> ObjectId {
-        self.content().messages()[index]
-    }
-
-    fn bodies(&self) -> Vec<String> {
-        let content = self.content();
-        content
-            .messages()
+    /// The chat's log as the server holds it, folded.
+    fn log(&self) -> ChatLog {
+        let items: Vec<LogItem> = self
+            .editor
+            .store()
+            .log(None)
             .into_iter()
-            .filter_map(|id| content.body(id))
+            .map(|item| LogItem {
+                seq: item.seq,
+                id: item.id,
+                author: item.author,
+                arrival: item.arrival,
+                signer: match item.payload {
+                    Some(_) => LogSigner::Verified,
+                    None => LogSigner::Redacted,
+                },
+                payload: item.payload,
+            })
+            .collect();
+        ChatLog::of(&items)
+    }
+
+    /// The place of the `index`th message in the log.
+    fn seq(&self, index: usize) -> u64 {
+        self.log()
+            .messages()
+            .nth(index)
+            .expect("the chat has that many messages")
+            .seq
+    }
+
+    /// What each message the chat shows says, deleted ones left out.
+    fn bodies(&self) -> Vec<String> {
+        self.log()
+            .messages()
+            .filter(|shown| shown.deleted.is_none())
+            .filter_map(|shown| shown.body.clone())
             .collect()
     }
 
+    /// The row's key of the `index`th message this device sent that the server holds back.
+    fn kept(&self, index: usize) -> String {
+        let (id, _) = self.editor.store().held_appends(None)[index].clone();
+        format!("kept.{id}")
+    }
+
     /// The text a message's row shows, without its buttons' icons.
-    fn row(&self, message: ObjectId) -> String {
-        let label = self.editor.label(&format!("chat.message.{message}"));
+    fn row(&self, key: impl std::fmt::Display) -> String {
+        let label = self.editor.label(&format!("chat.message.{key}"));
         label
             .split(' ')
             .filter(|word| !word.chars().all(|c| ('\u{e000}'..='\u{f8ff}').contains(&c)))

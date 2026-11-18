@@ -21,7 +21,7 @@ fn modifiers_run_after_props_and_inside_render_slots() {
     assert_eq!(page.html(), "<p id=0>prop:ordinaryfirstsecond</p>");
     let page = view! {
         <Element tag="div">
-            <Show condition=true>
+            <Show value={create_signal(true)}>
                 <Element tag="p" text="shown" @modifiers::wrap="strong" />
             </Show>
         </Element>

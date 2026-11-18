@@ -6,20 +6,48 @@ use uuid::Uuid;
 use crate::stored::{decode, encode};
 use crate::{Change, Field, FieldRef, Object, ObjectId, Shape, Tree, Value};
 
+/// What orders writes to a `Latest` or a `LatestMap` key: its rank first, then its time, then
+/// its origin, and the highest is kept, live or in a merge. A plain write keeps the rank it
+/// replaces (`after`), so the later write wins; a write given a rank (`ranked`) is replaced
+/// only by one ranked as high or higher, so it never goes down, whatever a clock says.
+/// Its fields are read, not set, outside this crate: a stamp is made after the one it
+/// replaces (`after`, `LatestMap::next`), so no write builds one that loses to a ranked value.
+/// `Stamp::default()` is the stamp of nothing held, which every write is made after, not
+/// one to write with.
 #[derive(
     Clone, Copy, Debug, Default, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize,
 )]
 pub struct Stamp {
-    pub time: u64,
-    pub origin: Uuid,
+    pub(crate) rank: u64,
+    pub(crate) time: u64,
+    pub(crate) origin: Uuid,
 }
 
 impl Stamp {
+    pub const fn rank(self) -> u64 {
+        self.rank
+    }
+
+    pub const fn time(self) -> u64 {
+        self.time
+    }
+
+    pub const fn origin(self) -> Uuid {
+        self.origin
+    }
+
+    /// A stamp after this one, at its rank.
     pub fn after(self, time: u64, origin: Uuid) -> Self {
         Self {
+            rank: self.rank,
             time: time.max(self.time.saturating_add(1)),
             origin,
         }
+    }
+
+    /// This stamp at `rank`: below the rank it was made after, it changes nothing.
+    pub const fn ranked(self, rank: u64) -> Self {
+        Self { rank, ..self }
     }
 }
 
@@ -156,6 +184,11 @@ impl<K: Ord, V> LatestMap<K, V> {
         self.stamps.get(key).copied().unwrap_or_default()
     }
 
+    /// The rank of what `key` holds (`Stamp::rank`), 0 for one never written.
+    pub fn rank(&self, key: &K) -> u64 {
+        self.stamp(key).rank
+    }
+
     pub fn next(&self, key: &K, time: u64, origin: Uuid) -> Stamp {
         self.stamp(key).after(time, origin)
     }
@@ -168,6 +201,17 @@ impl<K: Ord, V> LatestMap<K, V> {
     /// Every key ever written, with its value, or none for a key removed since.
     pub fn written_entries(&self) -> impl Iterator<Item = (&K, Option<&V>)> {
         self.stamps.keys().map(|key| (key, self.entries.get(key)))
+    }
+
+    /// The keys in `range` ever written, in order, each with its value or none for one
+    /// removed since.
+    pub fn written_range<R: std::ops::RangeBounds<K>>(
+        &self,
+        range: R,
+    ) -> impl Iterator<Item = (&K, Option<&V>)> {
+        self.stamps
+            .range(range)
+            .map(|(key, _)| (key, self.entries.get(key)))
     }
 }
 

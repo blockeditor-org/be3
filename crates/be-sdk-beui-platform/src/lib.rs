@@ -56,6 +56,12 @@ impl Platform for AppPlatform {
         Box::pin(async move {
             let views = Views::default();
             let mut runner = Runner::new(launch);
+            // An app's async memos run on be-sdk's executor, which its host calls answer on,
+            // not on the runner's; installed before the program's setup makes any.
+            beui_reactive::spawn_with(|future| {
+                be_sdk_api::ops::guest::spawn(future);
+                Ok(())
+            });
             runner.context().set_window_hosting(WindowHosting::Placed);
             runner.context().set_shows_main(false);
             runner.context().set_hosts_scrims(true);

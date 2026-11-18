@@ -170,6 +170,9 @@ pub(crate) struct Drain<'a> {
     pub touch_emulation: bool,
     pub window_size: &'a dyn Fn(WindowId) -> Option<Vec2>,
     pub layer_target: &'a dyn Fn(u64) -> Option<(WindowId, HostTransform)>,
+    /// Whether the program takes an input itself (`Program::input`), in its window's points,
+    /// with when the platform sampled it, if it said.
+    pub take: &'a mut dyn FnMut(WindowId, &Input, Option<Instant>) -> bool,
 }
 
 impl Intake {
@@ -247,23 +250,36 @@ impl Intake {
                     window,
                     input,
                 } => {
-                    if window != self.window && points_into_window(&input) {
-                        self.window = window;
-                        events.push(Event::PointerWindow(window));
-                    }
                     let scale = match units {
                         Units::Physical => drain.pixels_per_point,
                         Units::Logical => drain.pixels_per_point / drain.native_pixels_per_point,
                         Units::Points => 1.0,
                     };
-                    self.input(input, scale, drain, events);
-                }
-                Entry::Layer { window, input, .. } => {
+                    // The intake's own conversion, so taken and kept input are in the same points.
+                    let input = match scale {
+                        1.0 => input,
+                        scale => input.scaled(1.0 / scale),
+                    };
+                    if (drain.take)(window, &input, time) {
+                        self.taken(&input, drain);
+                        continue;
+                    }
                     if window != self.window && points_into_window(&input) {
                         self.window = window;
                         events.push(Event::PointerWindow(window));
                     }
-                    self.input(input, 1.0, drain, events);
+                    self.input(input, drain, events);
+                }
+                Entry::Layer { window, input, .. } => {
+                    if (drain.take)(window, &input, time) {
+                        self.taken(&input, drain);
+                        continue;
+                    }
+                    if window != self.window && points_into_window(&input) {
+                        self.window = window;
+                        events.push(Event::PointerWindow(window));
+                    }
+                    self.input(input, drain, events);
                 }
             }
             if let Some(at) = time
@@ -274,12 +290,39 @@ impl Intake {
         }
     }
 
-    fn input(&mut self, input: Input, scale: f32, drain: &Drain<'_>, events: &mut Vec<Event>) {
-        let points = |pos: Pos2| Pos2::new(pos.x / scale, pos.y / scale);
+    /// Keeps what the intake tracks across inputs (where the pointer is, the buttons held, the
+    /// modifiers) as `input`, which the program took, says, so the input it leaves after it is
+    /// read the same, though the document hears no events of it. The window the document last
+    /// heard the pointer in stays as it was, so the next pointer input it hears from another
+    /// window still comes with a `PointerWindow`.
+    fn taken(&mut self, input: &Input, drain: &Drain<'_>) {
+        let mut unheard = Vec::new();
+        // A press the program took is no emulated finger the document must later see lifted.
+        let mut take = |_: WindowId, _: &Input, _: Option<Instant>| false;
+        let drain = Drain {
+            touch_emulation: false,
+            take: &mut take,
+            ..*drain
+        };
+        let drain = &drain;
+        match input {
+            Input::Modifiers(_)
+            | Input::Focus(false)
+            | Input::PointerMoved(_)
+            | Input::PointerRested(_)
+            | Input::PointerButton { .. }
+            | Input::PointerLeft
+            | Input::PointersCancelled => self.input(input.clone(), drain, &mut unheard),
+            _ => {}
+        }
+    }
+
+    /// Turns `input`, in its window's points, into the document's events.
+    fn input(&mut self, input: Input, drain: &Drain<'_>, events: &mut Vec<Event>) {
         match input {
             Input::Key(stroke) => self.key(stroke, events),
             Input::Scroll(scroll) => {
-                let delta = scrolled(scroll, scale);
+                let delta = scrolled(scroll, 1.0);
                 let notches = match scroll {
                     ScrollDelta::Lines(lines) => Some(lines),
                     ScrollDelta::Pixels(_) | ScrollDelta::Pages(_) => None,
@@ -290,7 +333,7 @@ impl Intake {
             }
             Input::Modifiers(modifiers) => self.set_modifiers(modifiers, events),
             Input::PointerMoved(pos) | Input::PointerRested(pos) => {
-                self.pointer = points(pos);
+                self.pointer = pos;
                 self.back_inside(drain);
                 if !drain.touch_emulation {
                     events.push(match input {
@@ -306,7 +349,7 @@ impl Intake {
                 button,
                 pressed,
             } => {
-                self.pointer = points(pos);
+                self.pointer = pos;
                 let bit = button_bit(button);
                 match pressed {
                     true => self.held |= bit,
@@ -341,7 +384,7 @@ impl Intake {
                 }
                 false => events.push(Event::PointerGone),
             },
-            Input::PointerMotion(delta) => events.push(Event::PointerMotion(delta / scale)),
+            Input::PointerMotion(delta) => events.push(Event::PointerMotion(delta)),
             Input::Touch {
                 id,
                 phase,
@@ -350,15 +393,11 @@ impl Intake {
             } => events.push(Event::Touch {
                 id,
                 phase,
-                pos: points(pos),
+                pos,
                 force,
             }),
-            Input::Pen { phase, pos, pen } => events.push(Event::Pen {
-                phase,
-                pos: points(pos),
-                pen,
-            }),
-            Input::Predicted(pos) => events.push(Event::Predicted(points(pos))),
+            Input::Pen { phase, pos, pen } => events.push(Event::Pen { phase, pos, pen }),
+            Input::Predicted(pos) => events.push(Event::Predicted(pos)),
             Input::PointersCancelled => {
                 self.held = 0;
                 self.left = false;
@@ -398,7 +437,7 @@ impl Intake {
             Input::ScrollStarted => events.push(Event::ScrollStarted),
             Input::ScrollEnded => events.push(Event::ScrollEnded),
             Input::Zoom(factor) => events.push(Event::Zoom(factor)),
-            Input::Touchpad(gesture) => events.push(Event::Touchpad(gesture.scaled(1.0 / scale))),
+            Input::Touchpad(gesture) => events.push(Event::Touchpad(gesture)),
             Input::Back(gesture) => events.push(Event::Back(gesture)),
         }
     }

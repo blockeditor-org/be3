@@ -1,14 +1,17 @@
-# The deployed bundle uses fat LTO, type modules at opt-level s, and keeps symbols and precompiled code
+# The deployed bundle uses type modules at opt-level s and keeps symbols (and once fat LTO and precompiled code)
 
-`./scripts/deploy` builds with fat LTO and one codegen unit (`buck/constraints:lto`, a ten-minute link),
-release builds use legacy symbol mangling and build first-party crates for
+Release builds use legacy symbol mangling and build first-party crates for
 wasm32-unknown-unknown (the type modules) at `opt-level=s` (buck/platforms/profile.bzl), linked modules use
 hashed export names (guides/app_libraries.md), and the bundle ships a `.cwasm` of every
 module with be-host's symbols and the modules' name sections kept.
 
+Dev builds use legacy mangling too, for a reason of their own: symbol names were the largest
+part of a native test binary, and the build server stores every test binary a change relinks
+(the sizes are in buck/platforms/profile.bzl, `SYMBOL_FLAGS`).
+
 ## Why
 
-Fat LTO is limited to the deploy because of its ten-minute link. The symbols and name sections are read by the panic guard's reports and a guest's
+The symbols and name sections are read by the panic guard's reports and a guest's
 backtrace. Shipping the `.cwasm` files keeps compiling off the first start. Type modules build
 at `s`: a quarter to a third smaller and quicker to compile, for a slower seal of a very large
 edit, measured in buck/platforms/profile.bzl.
@@ -26,3 +29,13 @@ edit, measured in buck/platforms/profile.bzl.
 - Shipping without `.cwasm`: it is 595 MB of the 896 MB bundle (October 2026), but shipping
   without it moves 95 seconds of compiling (four cores) to the first start, 42 of them the
   beui library's.
+
+## Since
+
+November 2026: every guest now runs on V8 and precompilation was removed (decisions/guests_run_on_v8.md),
+so the bundle ships no `.cwasm` and V8 compiles each module as it loads. Shipping precompiled code
+is superseded, with the rejection of shipping without it; the mangling, opt-level and
+symbol settings still stand.
+
+November 2026: the deploy's fat LTO over one codegen unit was removed (decisions/no_lto.md), with
+the rejection of thin LTO here.

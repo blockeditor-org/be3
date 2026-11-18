@@ -6,9 +6,10 @@ package be3:block-type@0.1.0;
 /// the parts of the `loaded` content the request was handed.
 interface replicas {
     use types.{
-        account-id, block-id, change, client-id, commit-id, content-type-id, description, editor-id,
-        delivery, endpoint, failure, journal, loaded, merged, merged-parts, organization-id, part-ref, plain-file,
-        search-document, session-state, session-tag, type-info,
+        account-id, block-id, block-place, change, client-id, commit-id, content-type-id, description, editor-id,
+        endpoint, failure, journal, loaded, merged, merged-parts, organization-id, part-ref, plain-file,
+        journal-entry, log-item, refused-entry, search-document, session-state, session-tag,
+        type-info,
     };
 
     record opening {
@@ -20,6 +21,37 @@ interface replicas {
         account: account-id,
         client: client-id,
         tag: session-tag,
+        /// The replica's submissions name it, kept across its reopenings, so a
+        /// reopened replica knows its own in the journal.
+        origin: u64,
+        /// How many local edits the host gave earlier openings of this replica
+        /// and gives this one no more: the first edit it is given is the next.
+        taken-before: u64,
+        /// The last of the local edits it is given again that an earlier
+        /// opening submitted to the server without hearing it ordered, when it
+        /// opens before joining its session (after the host stopped): it shows
+        /// them, but neither numbers nor submits them, since the server may
+        /// hold them already. Once joined, the server's order says which.
+        doubtful-through: u64,
+        /// For local edits the host kept across a stop: the most times the
+        /// session had started over that the host saw of its replicas
+        /// (`status.restarts`), under which they and `kept-submissions` were
+        /// made, and the number of the last of them. Opened on an order
+        /// restarted since, those edits are dropped, each told to its editor
+        /// as not sent, and the kept submissions with them.
+        kept-restart: u64,
+        kept-through: u64,
+        /// The last local edit the host submitted to the server for this
+        /// block's origin, which the server may hold: when the order's base no
+        /// longer names the origin (only the most recent are kept), those not
+        /// seen in the order fail as possibly sent rather than be sent again.
+        kept-submitted: u64,
+        /// The submissions earlier openings made online of the local edits it
+        /// is given again, oldest first. Once joined, the replica submits the
+        /// edits each holds as exactly that submission, under its id, so a
+        /// server that holds it already answers it held rather than number
+        /// those edits a second time.
+        kept-submissions: list<kept-submission>,
         /// The head the host just read; the replica reads it itself.
         head: option<commit-id>,
         session: session-state,
@@ -30,7 +62,7 @@ interface replicas {
         /// on `head` holds some this module cannot replay, or the server
         /// marked them lost since the last commit.
         lost-edits: bool,
-        /// `journal` is this device's, holding entries the server lacks.
+        /// `journal` is this device's, numbered offline: the server lacks it.
         journal-kept: bool,
         /// Whether this device keeps commits of the block the server lacks: an
         /// edit an earlier replica kept for one is sending, failed, or held.
@@ -44,18 +76,26 @@ interface replicas {
         /// aside in the unsent area. They stay there after the edit that sent them is
         /// let go, so a replica applies the refusal of each commit once.
         refused-commits: list<commit-id>,
-        /// The block's head when it is a seal this device made on `head`, which
-        /// the journal is still on: the owner stopped after the server took the
-        /// seal and before it heard so. The replica replays the journal on
+        /// The block's head when it is a seal made on `head`, which the journal
+        /// is still on: its holder stopped after the server took the seal and
+        /// before it trimmed the journal. The replica replays the journal on
         /// `head`, then takes `sealed-head.commit` as its head, holding the
-        /// session through `sealed-head.through`, and keeps journaled what came
-        /// after.
+        /// order through `sealed-head.through`.
         sealed-head: option<sealed-head>,
         /// Which opening of this replica this is: the host counts each
         /// `reopen`, and the replica says it with every `status`, so a status
         /// an earlier opening made that reaches the host after it reopened is
         /// told apart and ignored.
         epoch: u64,
+    }
+
+    /// A submission an earlier opening of a replica made: its counter under
+    /// the replica's origin, the last local edit it holds (`through`), and its
+    /// payload as the module wrote it.
+    record kept-submission {
+        counter: u64,
+        through: u64,
+        payload: list<u8>,
     }
 
     record sealed-head {
@@ -82,9 +122,7 @@ interface replicas {
 
         /// `at` is the module's clock when the host sent it, which the replica
         /// reads the message at even when the clock's stream has yet to say so.
-        /// `delivery` is what the server says of a peer's message; none for
-        /// an editor's or the host's.
-        message: async func(%from: endpoint, bytes: list<u8>, at: u64, delivery: option<delivery>);
+        message: async func(%from: endpoint, bytes: list<u8>, at: u64);
 
         /// An editor instance starts following the block, or its `editable`
         /// changed. The replica drops edits from an editor attached read-only.
@@ -109,14 +147,35 @@ interface replicas {
         /// on opening), and those this device publishes outside the session.
         head-moved: async func(head: commit-id);
 
-        /// The session's state changed, or the host fell behind the broadcast.
-        lease: async func(session: session-state, resynchronize: bool);
+        /// The session's membership changed: the lease follows from it.
+        lease: async func(session: session-state);
 
-        /// Claim a lapsed lease once the replica has caught up, as a terminal host does.
+        /// The server took a seal: `commit` holds the order through
+        /// `through` in the run `restarts` (`status.restarts`), and the
+        /// server's journal starts from it. A replica that does not hold the
+        /// lease takes it as its base once it applied that far in that run; the
+        /// head still reaches it as the block's too (`head-moved`).
+        sealed: async func(commit: commit-id, through: u64, restarts: u64);
+
+        /// The order numbered these submissions, in order, this replica's own
+        /// among them: the host hands on every one it hears, and reopens the
+        /// replica when it missed some.
+        sequenced: async func(entries: list<journal-entry>);
+
+        /// Claim the lease once the replica has loaded, as a terminal host does.
         claim: async func();
 
         /// False when it did not apply.
         change: async func(change: change) -> bool;
+
+        /// Entries appended to the block's signed log since the replica read it,
+        /// in order: those the device heard of from the server, its own too.
+        logged: async func(items: list<log-item>);
+
+        /// Entries this device appended that the server refused as the device's
+        /// outbox drained: every such entry of the block the device keeps until
+        /// it is let go (`host.let-go-refused`), as `log-page.refused` lists them.
+        refused: async func(entries: list<refused-entry>);
 
         /// The visible bytes, for export and duplication; none while unreadable.
         content: async func() -> option<list<u8>>;
@@ -183,6 +242,29 @@ interface replicas {
         keys: option<list<string>>,
         indexed: list<part-ref>,
     ) -> result<list<search-document>, failure>;
+
+    /// Each block's place in the account's reads (`be_block_content::Unread`), for a
+    /// type with `type-info.reads`: `reads` is the account's layers of the `reads`
+    /// kind, each its content's bytes, lowest first. A block left out has the type's
+    /// default place; a block is counted again only when its place's bytes change.
+    places: async func(
+        content-type: content-type-id,
+        reads: list<list<u8>>,
+    ) -> result<list<block-place>, failure>;
+
+    /// How many things in `content` and `log` the account has not read, by its
+    /// `place` from `places` (none: the default place). `content` is a commit of
+    /// the block as `host.load` answers it (only its first part for a type with
+    /// `first-part`), and `log` its signed log's latest entries for a type with
+    /// `type-info.log` (`be_block_content::UNREAD_ENTRIES` at most; who signed
+    /// each is not told, `unknown`).
+    unread: async func(
+        content-type: content-type-id,
+        content: loaded,
+        place: option<list<u8>>,
+        log: list<log-item>,
+        account: account-id,
+    ) -> result<u32, failure>;
 
     /// Which of the module's types takes a file, by name and first bytes, or
     /// with `directory` a new directory.

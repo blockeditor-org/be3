@@ -76,7 +76,7 @@ pub fn DatabaseEditor(editor: Editor) -> NodeId {
                         <Frame @node_ref={&content} padding=PADDING>
                             <List spacing=SECTION_SPACING>
                                 <Text style=TextStyle::HEADING>"Views"</Text>
-                                <Show condition={none_yet}>
+                                <Show value={none_yet}>
                                     <Text style=TextStyle::CAPTION>
                                         "This database has no views yet."
                                     </Text>
@@ -100,7 +100,7 @@ pub fn DatabaseEditor(editor: Editor) -> NodeId {
                         </Frame>
                     </DockTab>
                 </DockPane>
-                <Show condition={chrome}>
+                <Show value={chrome}>
                     <DockPane id="schema" locked=true>
                         <DockTab id=SCHEMA title="Schema">
                             <Frame fill=ColorRole::Surface>
@@ -124,7 +124,7 @@ fn ViewLinks(editor: Editor, rows: Memo<Vec<BlockInfo>>) -> NodeId {
         create_memo(move || rows.with(|rows| rows.iter().map(|row| row.id).collect::<Vec<Uuid>>()));
     view! {
         <List spacing=Space::Xs>
-            <ForEach keys={keys}>|id: Uuid| {
+            <ForEach value={keys}>|id: Uuid| {
                 let target = Some(ChildTarget::new(id, DatabaseViewContent::CONTENT_TYPE));
                 view! {
                     <BlockLink
@@ -145,10 +145,9 @@ fn SchemaPanel(editor: Editor, schema: Memo<Option<Uuid>>) -> NodeId {
             .get()
             .map(|id| ChildTarget::new(id, DatabaseSchemaContent::CONTENT_TYPE))
     });
-    let missing = create_memo(move || schema.get().is_none());
     view! {
         <List spacing=Space::None>
-            <Show condition={missing}>
+            <Show value={move || schema.get().is_none()}>
                 <Text style=TextStyle::CAPTION>"This database has no schema."</Text>
             </Show>
             <ListItem grow=1.0>

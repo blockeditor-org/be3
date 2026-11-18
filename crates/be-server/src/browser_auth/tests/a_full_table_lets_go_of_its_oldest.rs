@@ -4,7 +4,7 @@ use super::*;
 /// let go of.
 #[tokio::test]
 async fn a_full_table_lets_go_of_its_oldest() {
-    let mut table = Bounded::new(4, 2);
+    let mut table = Bounded::new(4, 2, 4);
     for (index, last) in [1u8, 2, 3, 4, 5, 6].into_iter().enumerate() {
         table.insert(index.to_string(), index, IpAddr::from([192, 0, 2, last]));
     }

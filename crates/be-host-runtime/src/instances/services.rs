@@ -9,6 +9,7 @@ use be_sdk_api::{
 use uuid::Uuid;
 
 use super::Instances;
+use crate::InstanceRole;
 use crate::wire::Service;
 use be_host_base::{
     host,
@@ -228,6 +229,47 @@ impl Instances {
         }
     }
 
+    /// Granting or revealing access is only for an app whose manifest sets `sharing`, so an app
+    /// the person opened cannot share what it shows, or read who has it or its links, unasked.
+    /// Any app may open a block it just made to anyone inside (`set-access` of `ANYONE_INSIDE`
+    /// at View or below, on a block it made in this run), as the editor framework does for a
+    /// settings kind every member reads: that names no one, though the app can copy what it reads into such a block.
+    fn refuses_sharing(&self, instance: EditorInstanceId, call: &Call) -> bool {
+        if self.sharing {
+            return false;
+        }
+        match call {
+            Call::SetAccess {
+                block,
+                account,
+                access,
+                ..
+            } => {
+                let opening = Uuid::from_bytes(*account) == be_block_graph::ANYONE_INSIDE
+                    && be_host_stack::app_graph::access_of(*access) > be_block_graph::Access::None
+                    && be_host_stack::app_graph::access_of(*access) <= be_block_graph::Access::View;
+                // Made by this instance, and still held as this app made it: a create the
+                // host dropped, or one the server's own block took the place of, opens nothing.
+                let block = Uuid::from_bytes(*block);
+                let made = self
+                    .entries
+                    .get(&instance)
+                    .is_some_and(|entry| entry.made.contains(&block))
+                    && be_host_stack::node(block).is_some_and(|node| {
+                        node.metadata.get(&be_block_content::CREATED_BY) == self.created_by()
+                    });
+                !(opening && made)
+            }
+            Call::ListAccess { .. }
+            | Call::TransferOwnership { .. }
+            | Call::ListShareLinks { .. }
+            | Call::MakeShareLink { .. }
+            | Call::RevokeShareLink { .. }
+            | Call::MakeContactLink { .. } => true,
+            _ => false,
+        }
+    }
+
     /// The block whose signatures `instance` makes and checks: the one it shows, or for a
     /// revision preview the block the revision is of.
     fn signed_in(&self, instance: EditorInstanceId) -> Option<Uuid> {
@@ -248,11 +290,34 @@ impl Instances {
             .is_some_and(|block| revisions::source(block.id).is_some())
     }
 
+    /// The block a host component runs on, when `instance` is one: what it may reach of the
+    /// graph is that block and the blocks below it.
+    pub(super) fn hosting(&self, instance: EditorInstanceId) -> Option<Uuid> {
+        match self.entries.get(&instance)?.role {
+            InstanceRole::Host(_, block) => Some(block.id),
+            _ => None,
+        }
+    }
+
     pub fn serve(&mut self, service: Service) {
         let Service { instance, mut call } = service;
         self.scoped(instance, true, &mut |visit| {
             call.visit_block_ids(&mut |id| visit(id))
         });
+        // A host component, unattended, signs and checks what it writes and reads its app's
+        // data; everything that would ask a person, or reach past its block, is refused.
+        if self.hosting(instance).is_some()
+            && !matches!(
+                call,
+                Call::ReadData { .. }
+                    | Call::ListData { .. }
+                    | Call::Verify { .. }
+                    | Call::Sign { .. }
+                    | Call::SigningBlock { .. }
+            )
+        {
+            return self.refuse(call, OpError::Denied);
+        }
         if self.previewing(instance)
             && !matches!(
                 call,
@@ -267,7 +332,7 @@ impl Instances {
         if !self.entries.contains_key(&instance) {
             return self.refuse(call, OpError::Canceled);
         }
-        if self.refuses_block_agents(instance, &call) {
+        if self.refuses_block_agents(instance, &call) || self.refuses_sharing(instance, &call) {
             return self.refuse(call, OpError::Denied);
         }
         match call {
@@ -500,7 +565,7 @@ impl Instances {
                             self.editable(*holder)
                                 && be_host_stack::node(*holder).is_some_and(|holder| {
                                     holder.parent != Some(be_block_graph::BlockParent::Detached)
-                                        && holder.references.contains(&block)
+                                        && holder.refers_to(block) == Some(true)
                                 })
                         })
                         .map(|holder| self.local(instance, holder.into_bytes()));
@@ -547,8 +612,12 @@ impl Instances {
             }
             Call::ListAccess { reply, block } => {
                 let answering = self.answering(instance, reply);
-                be_host_stack::list_access(Uuid::from_bytes(block), move |listed| {
-                    answering.listed(be_host_stack::app_graph::grants_of(listed));
+                let block = Uuid::from_bytes(block);
+                let levels = be_host_stack::node(block)
+                    .map(|node| be_host_stack::discovery::offered_levels(node.content_type))
+                    .unwrap_or_default();
+                be_host_stack::list_access(block, move |listed| {
+                    answering.listed(be_host_stack::app_graph::grants_of(listed, levels));
                 });
             }
             Call::SetAccess {
@@ -565,13 +634,36 @@ impl Instances {
                     move |set| answering.send_or_fail(set),
                 );
             }
-            Call::SetNotifyMode { reply, block, mode } => {
+            Call::TransferOwnership {
+                reply,
+                block,
+                account,
+            } => {
                 let answering = self.answering(instance, reply);
-                be_host_stack::set_notify_mode(
+                be_host_stack::transfer_ownership(
                     Uuid::from_bytes(block),
-                    be_host_stack::app_graph::notify_mode_of(mode),
+                    Uuid::from_bytes(account),
                     move |set| answering.send_or_fail(set),
                 );
+            }
+            Call::SetMute { reply, block, mode } => {
+                let answering = self.answering(instance, reply);
+                be_host_stack::set_mute(
+                    Uuid::from_bytes(block),
+                    be_host_stack::app_graph::mute_of(mode),
+                    move |set| answering.send_or_fail(set),
+                );
+            }
+            Call::SetPhoneLayout { reply, on } => {
+                let answering = self.answering(instance, reply);
+                match self.shell == Some(instance) {
+                    true => {
+                        crate::runtime::ask_phone_layout(&self.app_id, instance, on);
+                        answering.send(Ok(()));
+                    }
+                    false => answering
+                        .send_or_fail(Err("Only the shell says how the host lays out.".to_owned())),
+                }
             }
             Call::SetPushDevice { reply, on } => {
                 let answering = self.answering(instance, reply);
@@ -593,6 +685,49 @@ impl Instances {
                 be_host_stack::make_contact_link(Some(offer), move |made| {
                     answering.send_or_fail(made)
                 });
+            }
+            Call::ListShareLinks { reply, block } => {
+                let answering = self.answering(instance, reply);
+                be_host_stack::list_share_links(Uuid::from_bytes(block), move |listed| {
+                    answering.send_or_fail(listed.map(|links| {
+                        links
+                            .into_iter()
+                            .map(|(row, url)| be_sdk_api::ShareLink {
+                                id: row.id.to_string(),
+                                access: be_host_stack::app_graph::level_of(row.access),
+                                admits: be_host_stack::app_graph::admits_of(row.admits),
+                                url,
+                                maker: row.maker.into_bytes(),
+                                maker_name: row.maker_name,
+                            })
+                            .collect::<Vec<_>>()
+                    }))
+                });
+            }
+            Call::MakeShareLink {
+                reply,
+                block,
+                access,
+                admits,
+            } => {
+                let answering = self.answering(instance, reply);
+                be_host_stack::make_share_link(
+                    Uuid::from_bytes(block),
+                    be_host_stack::app_graph::access_of(access),
+                    be_host_stack::app_graph::link_admits(admits),
+                    move |made| answering.send_or_fail(made),
+                );
+            }
+            Call::RevokeShareLink { reply, block, link } => {
+                let answering = self.answering(instance, reply);
+                match Uuid::parse_str(&link) {
+                    Ok(link) => be_host_stack::revoke_share_link(
+                        Uuid::from_bytes(block),
+                        link,
+                        move |revoked| answering.send_or_fail(revoked),
+                    ),
+                    Err(_) => answering.send_or_fail(Err("That is not a share link.".to_owned())),
+                }
             }
             Call::CreateBlockAgent { reply, block, name } => {
                 let answering = self.answering(instance, reply);
@@ -642,7 +777,7 @@ impl Instances {
                 }
                 be_host_stack::authorship::sign(
                     block,
-                    by_app(&self.app_id, &bytes),
+                    be_block_client::by_app(&self.app_id, &bytes),
                     move |signed| answering.send_or_fail(signed),
                 );
             }
@@ -651,6 +786,7 @@ impl Instances {
                 account,
                 bytes,
                 signature,
+                arrived,
             } => {
                 let answering = self.answering(instance, reply);
                 let Some(block) = self.signed_in(instance) else {
@@ -660,10 +796,17 @@ impl Instances {
                     return answering.send(Err(Failure::Denied));
                 }
                 let account = Uuid::from_bytes(account);
-                let bytes = by_app(&self.app_id, &bytes);
-                be_host_stack::authorship::verify(account, block, bytes, signature, move |found| {
-                    answering.send(found.map(signer).map_err(|_| Failure::Unavailable))
-                });
+                let bytes = be_block_client::by_app(&self.app_id, &bytes);
+                be_host_stack::authorship::verify(
+                    account,
+                    block,
+                    bytes,
+                    signature,
+                    arrived,
+                    move |found| {
+                        answering.send(found.map(signer).map_err(|_| Failure::Unavailable))
+                    },
+                );
             }
             Call::ListData { reply } => {
                 let answering = self.answering(instance, reply);
@@ -784,18 +927,10 @@ fn signer(signer: be_host_stack::authorship::Signer) -> Signer {
         Found::Verified => Signer::Verified,
         Found::Unverified => Signer::Unverified,
         Found::Changed => Signer::Changed,
+        Found::Replaced => Signer::Replaced,
         Found::Bad => Signer::Bad,
     }
 }
 
 /// The most an app may ask the host to sign at once (`sign`): a record's bytes, not a file.
 const MAX_SIGNED_BYTES: usize = 64 * 1024;
-
-/// `bytes` as `app_id` signs or checks them: its manifest id, framed, ahead of them, so one app
-/// cannot make a signature another app's `verify` accepts, even in a block both are shown.
-fn by_app(app_id: &str, bytes: &[u8]) -> Vec<u8> {
-    let mut bound = (app_id.len() as u64).to_be_bytes().to_vec();
-    bound.extend_from_slice(app_id.as_bytes());
-    bound.extend_from_slice(bytes);
-    bound
-}

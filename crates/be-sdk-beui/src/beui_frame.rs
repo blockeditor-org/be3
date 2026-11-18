@@ -1,10 +1,12 @@
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
+use be_sdk_api::blocks::HostingHere;
 use be_sdk_api::{MenuCheck, MenuCommand, MenuEntry, MenuPin, MenuSubmenu};
 use beui::NodeId;
 use beui::icons::{
-    ICON_INFO, ICON_PENCIL_LINE, ICON_REDO_2, ICON_SHARE_2, ICON_TERMINAL, ICON_UNDO_2, ICON_X,
+    ICON_INFO, ICON_PENCIL_LINE, ICON_RADIO_TOWER, ICON_REDO_2, ICON_SHARE_2, ICON_TERMINAL,
+    ICON_UNDO_2, ICON_X,
 };
 use beui::native::{Embed, EmbedSlot};
 use beui::reactive::*;
@@ -14,7 +16,7 @@ use beui::{Key, KeyAt, KeyPhase, Pos2, Rect, Vec2, pos2};
 use crate::chrome::ChromeRoot;
 use crate::docked::DockedTabs;
 use crate::picking::Pickers;
-use crate::{BlockInfo, BlockList, BlockQuery, Editor};
+use crate::{BlockInfo, BlockList, BlockQuery, Editor, Pushed};
 
 const PALETTE: Chord = Chord::ctrl(Key::P).shift();
 
@@ -94,12 +96,15 @@ pub(crate) fn FrameChrome(
     let published = Rc::clone(&chrome.menu);
     let listed = chrome.listed.handle();
     let content_slot_writer = chrome.content.clone();
-    provide_context(PhoneLayout(create_memo(move || bar.get().on_phone)));
+    let phone = create_memo(move || bar.get().on_phone);
+    provide_context(PhoneLayout(phone));
+    // The editor's own commands: only what its view adds, not another editor's in the same
+    // document.
+    let items = menu_scope();
     let anchor = editor.frame_anchor();
     beui::unstyled::provide_frame_anchor(create_memo(move || anchor.get()));
     let placed = editor.placed_content();
     beui::dock::provide_dock_shows_through(create_memo(move || placed.get().is_some()));
-    let phone = create_memo(move || bar.get().on_phone);
     provide_density(create_memo(move || match phone.get() {
         true => Density::Comfortable,
         false => Density::Compact,
@@ -132,7 +137,7 @@ pub(crate) fn FrameChrome(
         }
     });
     let shown_in = create_memo(move || {
-        palette.get();
+        palette.track();
         docked.presenting(&host)
     });
     provide_context(crate::popover::PopoverWindow(shown_in));
@@ -164,6 +169,7 @@ pub(crate) fn FrameChrome(
                     editor
                     bar={bar.read_only()}
                     palette={opener}
+                    items
                     published
                     listed
                     notices
@@ -322,20 +328,20 @@ impl Watched {
     }
 
     fn history(&self) -> (bool, bool) {
-        self.editor.histories().get();
+        self.editor.pushed(Pushed::Histories).track();
         let history = self.editor.host().history(self.editor.block_id());
         (history.can_undo, history.can_redo)
     }
 
     /// The commit of the session restart undo stopped at, once nothing after it is left.
     fn stopped_at(&self) -> Option<[u8; 32]> {
-        self.editor.histories().get();
+        self.editor.pushed(Pushed::Histories).track();
         let history = self.editor.host().history(self.editor.block_id());
         history.restarted_at.filter(|_| !history.can_undo)
     }
 
     fn lost_edits(&self) -> bool {
-        self.editor.histories().get();
+        self.editor.pushed(Pushed::Histories).track();
         self.editor
             .host()
             .history(self.editor.block_id())
@@ -401,6 +407,9 @@ struct FrameActions {
     rename: Action,
     share: Action,
     details: Action,
+    /// Only while this device hosts the block (plans/hosted_blocks.md, "Hosting"), so the
+    /// palette lists it only then too.
+    keep_hosting: ReadSignal<Option<Action>>,
     close: Action,
 }
 
@@ -414,6 +423,24 @@ fn frame_actions(
 ) -> FrameActions {
     let id = editor.block_id();
     let can = |read: fn(&BarState) -> bool| create_memo(move || live.get() && state.with(read));
+    let hosting = editor.hosting();
+    let hosted = create_memo(move || hosting.get() != HostingHere::No);
+    let keep_hosting = create_signal(None);
+    // Registered while this device hosts the block and gone with this effect's run when it no
+    // longer does, so neither the menu nor the palette offers it elsewhere.
+    create_effect(move || {
+        let action = hosted.get().then(|| {
+            untrack(|| {
+                Action::new("editor.keep-hosting", "Keep hosting", move || {
+                    editor.keep_hosting(hosting.get_untracked() != HostingHere::Kept);
+                })
+                .glyph(ICON_RADIO_TOWER)
+                .checked(create_memo(move || hosting.get() == HostingHere::Kept))
+                .register()
+            })
+        });
+        keep_hosting.set(action);
+    });
     FrameActions {
         undo: Action::new("editor.undo", "Undo", move || {
             watched.with(|watched| watched.try_step(false));
@@ -452,6 +479,7 @@ fn frame_actions(
         })
         .glyph(ICON_INFO)
         .register(),
+        keep_hosting: keep_hosting.read_only(),
         close: Action::new("editor.close", "Close", move || on_exit.call(()))
             .glyph(ICON_X)
             .enabled(closable)
@@ -464,6 +492,7 @@ pub(crate) fn FrameMenu(
     editor: Editor,
     bar: ReadSignal<FrameBar>,
     palette: Action,
+    items: Memo<Vec<MenuNode>>,
     published: Rc<RefCell<Vec<MenuNode>>>,
     listed: Signal<Vec<MenuNode>>,
     notices: Signal<Vec<Toast>>,
@@ -518,13 +547,13 @@ pub(crate) fn FrameMenu(
             state.set(watched.with(Watched::read));
         }
     });
-    let items = document_menu();
     let FrameActions {
         undo,
         redo,
         rename,
         share,
         details,
+        keep_hosting,
         close,
     } = actions;
     let menu = create_memo(move || {
@@ -539,6 +568,9 @@ pub(crate) fn FrameMenu(
         listed.extend(items.get());
         listed.push(MenuNode::Separator);
         listed.push(MenuNode::action(&details));
+        if let Some(keep_hosting) = keep_hosting.get() {
+            listed.push(MenuNode::action(&keep_hosting));
+        }
         if closable.get() {
             listed.push(MenuNode::action(&close));
         }
@@ -565,7 +597,7 @@ fn PlacedHole(editor: Editor) -> NodeId {
             let strips = create_memo(move || hole_strips(size.get(), placed.get()));
             view! {
                 <Canvas>
-                    <ForEach keys={vec![0usize, 1, 2, 3]}>|strip: usize| {
+                    <ForEach value={vec![0usize, 1, 2, 3]}>|strip: usize| {
                         let rect = create_memo(move || strips.get()[strip]);
                         let x = create_memo(move || rect.get().min.x);
                         let y = create_memo(move || rect.get().min.y);

@@ -26,6 +26,7 @@ async fn an_exported_artifact_imports_pointing_to_its_imported_source() {
         metadata,
         references: Vec::new(),
         content: Some(image("export", 64, 2).encode()),
+        log: Vec::new(),
     };
     let blocks = vec![
         saved(folder, None, BlockMetadata::named("Folder")),

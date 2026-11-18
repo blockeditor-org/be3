@@ -56,7 +56,7 @@ impl<T: 'static> Inbox<T> {
 
 static NEXT_INSTANCE: AtomicU64 = AtomicU64::new(1);
 
-fn next_instance() -> EditorInstanceId {
+pub(crate) fn next_instance() -> EditorInstanceId {
     EditorInstanceId(NEXT_INSTANCE.fetch_add(1, Ordering::Relaxed))
 }
 
@@ -439,37 +439,53 @@ impl AppEditor {
         self.block_type
     }
 
-    pub(crate) fn add_child(&self, child: Uuid) -> Option<bool> {
+    /// Adds `child` to the block's content through its type: none while the type is not known
+    /// yet, otherwise what the type answers (`be_host_stack::ChildChanged`). So do
+    /// `delete_child`, `copy_in_place` and `reorder_child`.
+    pub(crate) fn add_child(&self, child: Uuid) -> Option<be_host_stack::ChildChanged> {
         self.change_child(be_block_content::ChildChange::Add(child))
     }
 
-    pub(crate) fn delete_child(&self, child: Uuid) -> Option<bool> {
+    pub(crate) fn delete_child(&self, child: Uuid) -> Option<be_host_stack::ChildChanged> {
         self.change_child(be_block_content::ChildChange::Delete(child))
     }
 
-    pub(crate) fn replace_child(&self, old: Uuid, new: Uuid) -> Option<bool> {
-        let replace = be_block_content::ChildChange::Replace { old, new };
-        let Some(app) = self.app() else {
-            return self.change_child(replace);
-        };
-        if !be_host_stack::discovery::block_type(self.block_type)
-            .is_some_and(|block_type| block_type.children.replace)
-        {
-            return None;
-        }
-        match be_host_runtime::replace_child(&app.identity.id, self.instance, old, new) {
-            Some(true) => Some(true),
-            Some(false) => self.change_child(replace),
-            None => None,
-        }
+    /// Whether the block's type takes `ChildChange::Replace` (its manifest's `children.replace`),
+    /// or none while the type is not known yet.
+    pub(crate) fn takes_replace(&self) -> Option<bool> {
+        Some(
+            be_host_stack::discovery::block_type(self.block_type)?
+                .children
+                .replace,
+        )
     }
 
-    pub(crate) fn reorder_child(&self, child: Uuid, after: Option<Uuid>) -> Option<bool> {
+    /// Puts a new copy of the child `source` in its place (Unlink), answering the copy's id and
+    /// what the type did (`be_host_stack::replace_with_copy`): refused at once by a type whose
+    /// manifest does not take it, none while the type or the source is not known yet.
+    pub(crate) fn copy_in_place(
+        &self,
+        source: Uuid,
+    ) -> Option<(Uuid, be_host_stack::ChildChanged)> {
+        if !self.takes_replace()? {
+            return Some((Uuid::nil(), be_host_stack::ChildChanged::refused()));
+        }
+        let copy = Uuid::now_v7();
+        be_host_stack::replace_with_copy(self.id, self.block_type, source, copy)
+            .map(|answer| (copy, answer))
+    }
+
+    /// Moves `child` after `after`, refused at once by a type whose manifest keeps no order.
+    pub(crate) fn reorder_child(
+        &self,
+        child: Uuid,
+        after: Option<Uuid>,
+    ) -> Option<be_host_stack::ChildChanged> {
         if !be_host_stack::discovery::block_type(self.block_type)?
             .children
             .reorder
         {
-            return Some(false);
+            return Some(be_host_stack::ChildChanged::refused());
         }
         self.change_child(be_block_content::ChildChange::Reorder {
             block: child,
@@ -477,7 +493,10 @@ impl AppEditor {
         })
     }
 
-    fn change_child(&self, change: be_block_content::ChildChange) -> Option<bool> {
+    fn change_child(
+        &self,
+        change: be_block_content::ChildChange,
+    ) -> Option<be_host_stack::ChildChanged> {
         be_host_stack::change_child(self.id, self.block_type, change)
     }
 

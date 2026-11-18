@@ -1,0 +1,21 @@
+[package]
+name = "be-sdk-app-host"
+description = "The host's half of the app protocol: an app's wire, what host and app say on it, docks across apps, sent states, the session, frame pacing, the layout and present holds, grafting apps' accessibility trees and an app's run across restarts, with no GUI framework or block stack"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+be-lib-geometry = { path = "../be-lib-geometry" }
+be-lib-stable-hash = { path = "../be-lib-stable-hash" }
+be-sdk-api = { path = "../be-sdk-api" }
+be-sdk-manifest = { path = "../be-sdk-manifest" }
+be-wasm-sandbox-api = { path = "../be-wasm-sandbox-api" }
+uuid = "1"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+be-wasm-host = { path = "../be-wasm-host" }
+be-wasm-sandbox-host = { path = "../be-wasm-sandbox-host" }
+
+[lints]
+workspace = true

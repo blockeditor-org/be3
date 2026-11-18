@@ -1,104 +1,130 @@
 use std::cell::RefCell;
-use std::collections::{HashMap, HashSet, VecDeque};
-use std::io::Read;
+use std::collections::{HashMap, VecDeque, hash_map::Entry};
 use std::rc::Rc;
-use std::sync::mpsc::{Receiver, Sender, channel};
-use std::sync::{Arc, Mutex};
 
 use be_sdk_beui::network::{Request, Response};
+use be_sdk_beui::worker::{Answer, Generation, Shared};
 use be_sdk_beui::{EditorHost, Task, Waker};
+pub(crate) use be_worker_map::TileId;
+use be_worker_map::{Job, Rasterized, TileRaster};
+use serde::Deserialize;
 
-use crate::raster::Window;
-use crate::{mvt, raster};
-
-pub(crate) const SOURCE_MAX_ZOOM: u8 = 14;
 pub(crate) const MAX_TILE_ZOOM: u8 = 17;
-const TILE_URL_BASE: &str = "https://vector.openstreetmap.org/shortbread_v1";
-const MAX_TILE_BYTES: u64 = 32 * 1024 * 1024;
+/// OpenFreeMap's TileJSON, which names where its current tiles are and the deepest zoom they go:
+/// their address carries the date they were built and changes every week or so, so the map reads
+/// it rather than keeping one. The tiles follow the OpenMapTiles schema, which
+/// be-worker-map-tiles draws.
+pub(crate) const TILE_JSON: &str = "https://tiles.openfreemap.org/planet";
+/// Where the TileJSON may send the map for tiles.
+const TILE_HOST: &str = "https://tiles.openfreemap.org/";
 const MAX_IN_FLIGHT: usize = 8;
 const MAX_BODIES: usize = 48;
-const MAX_DECODED: usize = 4;
+/// The most jobs the rasterizer holds at once: one it works on and one queued behind it, so it
+/// never waits on the app between tiles, while the app keeps the rest and can still cancel them.
+const MAX_RASTERIZING: usize = 2;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub(crate) struct TileId {
-    pub zoom: u8,
-    pub x: u32,
-    pub y: u32,
+/// The part of a TileJSON the map reads.
+#[derive(Deserialize)]
+struct TileJson {
+    /// Tile URL templates, holding `{z}`, `{x}` and `{y}`; the map uses the first.
+    tiles: Vec<String>,
+    /// The deepest zoom it serves; TileJSON 3.0 makes it optional, defaulting to 30.
+    #[serde(default = "default_max_zoom")]
+    maxzoom: u8,
 }
 
-impl TileId {
-    pub(crate) fn parent(self) -> Option<TileId> {
-        self.zoom.checked_sub(1).map(|zoom| TileId {
-            zoom,
-            x: self.x / 2,
-            y: self.y / 2,
+fn default_max_zoom() -> u8 {
+    30
+}
+
+/// The tile source, as its TileJSON describes it.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct TileSource {
+    /// The tiles' URL template, holding `{z}`, `{x}` and `{y}`.
+    pub template: String,
+    /// The deepest zoom it serves: deeper tiles are cut from one of its tiles.
+    pub max_zoom: u8,
+}
+
+impl TileSource {
+    fn from_tile_json(tile_json: TileJson) -> Result<Self, String> {
+        let template = tile_json
+            .tiles
+            .into_iter()
+            .next()
+            .ok_or_else(|| "the tile source names no tiles".to_owned())?;
+        let complete = ["{z}", "{x}", "{y}"]
+            .iter()
+            .all(|part| template.contains(part));
+        if !template.starts_with(TILE_HOST) || !complete {
+            return Err("the tile source names tiles elsewhere".to_owned());
+        }
+        Ok(Self {
+            template,
+            max_zoom: tile_json.maxzoom,
         })
     }
 
-    pub(crate) fn source(self) -> TileId {
-        let mut source = self;
-        while source.zoom > SOURCE_MAX_ZOOM {
-            source = source
-                .parent()
-                .expect("a tile deeper than the source has a parent");
-        }
-        source
-    }
-
-    fn window(self, source: TileId) -> Window {
-        let factor = 1u32 << (self.zoom - source.zoom);
-        Window {
-            factor: factor as f32,
-            offset: [
-                (self.x - source.x * factor) as f32,
-                (self.y - source.y * factor) as f32,
-            ],
-        }
-    }
-
-    fn url(self) -> String {
-        format!("{TILE_URL_BASE}/{}/{}/{}.mvt", self.zoom, self.x, self.y)
+    fn url(&self, id: TileId) -> String {
+        self.template
+            .replace("{z}", &id.zoom.to_string())
+            .replace("{x}", &id.x.to_string())
+            .replace("{y}", &id.y.to_string())
     }
 }
+
+/// The tile source, as far as the map has read its TileJSON.
+enum Lookup {
+    /// Not asked yet, or the last answer failed: the next tile asks again.
+    Unread,
+    Reading(Task),
+    Read(TileSource),
+}
+
+type LookupAnswer = Rc<RefCell<Option<Result<TileSource, String>>>>;
 
 pub(crate) struct TileResult {
     pub id: TileId,
-    pub result: Result<raster::TileRaster, String>,
-}
-
-struct Work {
-    id: TileId,
-    source: TileId,
-    body: Arc<Vec<u8>>,
+    pub result: Result<TileRaster, String>,
 }
 
 type Fetched = Rc<RefCell<Vec<(TileId, Result<Vec<u8>, String>)>>>;
 
 pub(crate) struct TileWorker {
+    /// Read once per worker: reloading the map starts a new worker, which reads it again.
+    lookup: Lookup,
+    lookup_answer: LookupAnswer,
+    /// Tiles asked for before the tile source was read, which says what each is cut from.
+    unsourced: Vec<TileId>,
     downloads: HashMap<TileId, Task>,
     fetched: Fetched,
     waker: Waker,
     queued: Vec<TileId>,
     waiting: HashMap<TileId, Vec<TileId>>,
-    bodies: HashMap<TileId, Arc<Vec<u8>>>,
+    bodies: HashMap<TileId, Rc<Vec<u8>>>,
     kept: VecDeque<TileId>,
-    sent: HashSet<TileId>,
-    dropped: Arc<Mutex<HashSet<TileId>>>,
-    rasterizing: Sender<Work>,
-    rasterized: Receiver<TileResult>,
+    /// Tiles to rasterize, oldest first, not yet sent to the rasterizer.
+    pending: VecDeque<(TileId, TileId, Rc<Vec<u8>>)>,
+    /// Tiles to rasterize that were not cancelled, pending or sent, and the generation of the
+    /// rasterizer each pending one went to once it went: what it answers for any other tile, one
+    /// cancelled meanwhile, is dropped.
+    sent: HashMap<TileId, Option<Generation>>,
+    /// How many jobs each generation of the rasterizer was sent and has not answered, cancelled
+    /// or not; a generation that stopped answers none of them.
+    by_generation: HashMap<Generation, usize>,
+    /// Their sum: the jobs the rasterizer has in hand.
+    rasterizing: usize,
+    /// This map's way to the rasterizer (be-worker-map-tiles), which every map of the app shares,
+    /// once it sent it a tile.
+    rasterizer: Option<Shared>,
 }
 
 impl TileWorker {
     pub(crate) fn spawn(waker: Waker) -> Self {
-        let (rasterizing, work) = channel();
-        let (results, rasterized) = channel();
-        let dropped = Arc::new(Mutex::new(HashSet::new()));
-        let skipped = Arc::clone(&dropped);
-        let woken = waker.clone();
-        let _ = std::thread::Builder::new()
-            .name("map-tile-rasterizer".into())
-            .spawn(move || rasterize(work, results, skipped, woken));
         Self {
+            lookup: Lookup::Unread,
+            lookup_answer: Rc::default(),
+            unsourced: Vec::new(),
             downloads: HashMap::new(),
             fetched: Rc::default(),
             waker,
@@ -106,15 +132,22 @@ impl TileWorker {
             waiting: HashMap::new(),
             bodies: HashMap::new(),
             kept: VecDeque::new(),
-            sent: HashSet::new(),
-            dropped,
-            rasterizing,
-            rasterized,
+            pending: VecDeque::new(),
+            sent: HashMap::new(),
+            by_generation: HashMap::new(),
+            rasterizing: 0,
+            rasterizer: None,
         }
     }
 
     pub(crate) fn request(&mut self, id: TileId) {
-        let source = id.source();
+        let Lookup::Read(tile_source) = &self.lookup else {
+            if !self.unsourced.contains(&id) {
+                self.unsourced.push(id);
+            }
+            return;
+        };
+        let source = id.source(tile_source.max_zoom);
         if let Some(body) = self.bodies.get(&source).cloned() {
             self.send(id, source, body);
             return;
@@ -130,13 +163,18 @@ impl TileWorker {
     }
 
     pub(crate) fn cancel(&mut self, id: TileId) -> bool {
-        if self.sent.remove(&id) {
-            if let Ok(mut dropped) = self.dropped.lock() {
-                dropped.insert(id);
-            }
+        if self.sent.remove(&id).is_some() {
+            self.pending.retain(|(pending, _, _)| *pending != id);
             return true;
         }
-        let source = id.source();
+        if let Some(index) = self.unsourced.iter().position(|other| *other == id) {
+            self.unsourced.remove(index);
+            return true;
+        }
+        let Lookup::Read(tile_source) = &self.lookup else {
+            return false;
+        };
+        let source = id.source(tile_source.max_zoom);
         let Some(waiting) = self.waiting.get_mut(&source) else {
             return false;
         };
@@ -150,15 +188,22 @@ impl TileWorker {
         cancelled
     }
 
-    fn send(&mut self, id: TileId, source: TileId, body: Arc<Vec<u8>>) {
-        if let Ok(mut dropped) = self.dropped.lock() {
-            dropped.remove(&id);
+    /// Takes the tile source the TileJSON describes, and asks it for the tiles waiting on it.
+    fn read(&mut self, tile_source: TileSource) {
+        self.lookup = Lookup::Read(tile_source);
+        for id in std::mem::take(&mut self.unsourced) {
+            self.request(id);
         }
-        self.sent.insert(id);
-        let _ = self.rasterizing.send(Work { id, source, body });
     }
 
-    fn keep(&mut self, source: TileId, body: Arc<Vec<u8>>) {
+    fn send(&mut self, id: TileId, source: TileId, body: Rc<Vec<u8>>) {
+        if let Entry::Vacant(entry) = self.sent.entry(id) {
+            entry.insert(None);
+            self.pending.push_back((id, source, body));
+        }
+    }
+
+    fn keep(&mut self, source: TileId, body: Rc<Vec<u8>>) {
         if self.bodies.insert(source, body).is_none() {
             self.kept.push_back(source);
         }
@@ -170,14 +215,38 @@ impl TileWorker {
     }
 
     pub(crate) fn dispatch(&mut self, host: &EditorHost) {
-        while self.downloads.len() < MAX_IN_FLIGHT {
+        let tile_source = match &self.lookup {
+            Lookup::Read(tile_source) => Some(tile_source.clone()),
+            Lookup::Reading(_) => None,
+            Lookup::Unread if self.unsourced.is_empty() => None,
+            Lookup::Unread => {
+                let answer = Rc::clone(&self.lookup_answer);
+                let waker = self.waker.clone();
+                let tile_json = host
+                    .fetch(Request::get(TILE_JSON))
+                    .map(|answer| answer.and_then(Response::success))
+                    .and_then(Response::json::<TileJson>);
+                let task = host.then(tile_json, move |result| {
+                    let tile_source = result
+                        .map_err(|failure| format!("the tile source could not be read: {failure}"))
+                        .and_then(TileSource::from_tile_json);
+                    *answer.borrow_mut() = Some(tile_source);
+                    waker.wake();
+                });
+                self.lookup = Lookup::Reading(task);
+                None
+            }
+        };
+        while let Some(tile_source) = &tile_source
+            && self.downloads.len() < MAX_IN_FLIGHT
+        {
             let Some(id) = self.queued.pop() else {
                 break;
             };
             let fetched = Rc::clone(&self.fetched);
             let waker = self.waker.clone();
             let tile = host
-                .fetch(Request::get(id.url()))
+                .fetch(Request::get(tile_source.url(id)))
                 .map(|answer| answer.and_then(Response::success))
                 .and_then(Response::bytes);
             let task = host.then(tile, move |result| {
@@ -188,17 +257,52 @@ impl TileWorker {
             });
             self.downloads.insert(id, task);
         }
+        while self.rasterizing < MAX_RASTERIZING {
+            let Some((id, source, body)) = self.pending.pop_front() else {
+                break;
+            };
+            let job = Job {
+                id,
+                source,
+                body: body.as_ref().clone(),
+            };
+            let waker = self.waker.clone();
+            let generation = self
+                .rasterizer
+                .get_or_insert_with(|| Shared::new(be_worker_map::MODULE, move || waker.wake()))
+                .send(&job.encode());
+            *self.by_generation.entry(generation).or_default() += 1;
+            self.rasterizing += 1;
+            if let Some(sent) = self.sent.get_mut(&id) {
+                *sent = Some(generation);
+            }
+        }
     }
 
-    pub(crate) fn forget(self) {
-        for task in self.downloads.into_values() {
+    pub(crate) fn forget(mut self) {
+        if let Lookup::Reading(task) = std::mem::replace(&mut self.lookup, Lookup::Unread) {
+            task.cancel();
+        }
+        for task in std::mem::take(&mut self.downloads).into_values() {
             task.cancel();
         }
     }
 
     pub(crate) fn poll(&mut self, host: &EditorHost) -> Vec<TileResult> {
-        self.dispatch(host);
-        let mut failures = Vec::new();
+        let mut results = Vec::new();
+        let answer = self.lookup_answer.borrow_mut().take();
+        match answer {
+            Some(Ok(tile_source)) => self.read(tile_source),
+            // Every tile asked for meanwhile fails with it; the next asks again.
+            Some(Err(error)) => {
+                self.lookup = Lookup::Unread;
+                results.extend(self.unsourced.drain(..).map(|id| TileResult {
+                    id,
+                    result: Err(error.clone()),
+                }));
+            }
+            None => {}
+        }
         let fetched = std::mem::take(&mut *self.fetched.borrow_mut());
         for (source, result) in fetched {
             if self.downloads.remove(&source).is_none() {
@@ -207,72 +311,60 @@ impl TileWorker {
             let waiting = self.waiting.remove(&source).unwrap_or_default();
             match result {
                 Ok(body) => {
-                    let body = Arc::new(body);
-                    self.keep(source, Arc::clone(&body));
+                    let body = Rc::new(body);
+                    self.keep(source, Rc::clone(&body));
                     for id in waiting {
-                        self.send(id, source, Arc::clone(&body));
+                        self.send(id, source, Rc::clone(&body));
                     }
                 }
                 Err(error) => {
-                    failures.extend(waiting.into_iter().map(|id| TileResult {
+                    results.extend(waiting.into_iter().map(|id| TileResult {
                         id,
                         result: Err(error.clone()),
                     }));
                 }
             }
         }
-        self.dispatch(host);
-        while let Ok(result) = self.rasterized.try_recv() {
-            self.sent.remove(&result.id);
-            failures.push(result);
-        }
-        failures
-    }
-}
-
-fn rasterize(
-    work: Receiver<Work>,
-    results: Sender<TileResult>,
-    dropped: Arc<Mutex<HashSet<TileId>>>,
-    waker: Waker,
-) {
-    let mut decoded: VecDeque<(TileId, Arc<Result<mvt::Tile, String>>)> = VecDeque::new();
-    while let Ok(Work { id, source, body }) = work.recv() {
-        if dropped.lock().is_ok_and(|mut dropped| dropped.remove(&id)) {
-            continue;
-        }
-        let tile = match decoded.iter().find(|(held, _)| *held == source) {
-            Some((_, tile)) => Arc::clone(tile),
-            None => {
-                let tile = Arc::new(decode(&body));
-                decoded.push_back((source, Arc::clone(&tile)));
-                if decoded.len() > MAX_DECODED {
-                    decoded.pop_front();
+        while let Some(Answer { generation, result }) =
+            self.rasterizer.as_ref().and_then(Shared::try_receive)
+        {
+            match result.and_then(|message| Rasterized::decode(&message)) {
+                Ok(Rasterized { id, result }) => {
+                    if let Some(count) = self.by_generation.get_mut(&generation)
+                        && *count > 0
+                    {
+                        *count -= 1;
+                        self.rasterizing -= 1;
+                    }
+                    if self.sent.remove(&id).is_some() {
+                        results.push(TileResult { id, result });
+                    }
                 }
-                tile
+                // That generation of the rasterizer stopped: what was sent to it fails, and the
+                // next tile starts it anew. A tile still pending, or sent to a later generation
+                // (dispatch can restart it before this hears the stop), waits for that.
+                Err(why) => {
+                    let lost = self.by_generation.remove(&generation).unwrap_or(0);
+                    self.rasterizing -= lost;
+                    let failed: Vec<TileId> = self
+                        .sent
+                        .iter()
+                        .filter(|(_, sent)| **sent == Some(generation))
+                        .map(|(id, _)| *id)
+                        .collect();
+                    for id in failed {
+                        self.sent.remove(&id);
+                        results.push(TileResult {
+                            id,
+                            result: Err(why.clone()),
+                        });
+                    }
+                }
             }
-        };
-        let result = match tile.as_ref() {
-            Ok(tile) => Ok(raster::rasterize(tile, id.zoom, id.window(source))),
-            Err(error) => Err(error.clone()),
-        };
-        if results.send(TileResult { id, result }).is_err() {
-            return;
         }
-        waker.wake();
+        self.dispatch(host);
+        results
     }
-}
-
-fn decode(body: &[u8]) -> Result<mvt::Tile, String> {
-    if body.starts_with(&[0x1f, 0x8b]) {
-        let mut decompressed = Vec::new();
-        flate2::read::GzDecoder::new(body)
-            .take(MAX_TILE_BYTES)
-            .read_to_end(&mut decompressed)
-            .map_err(|error| format!("tile decompression failed: {error}"))?;
-        return mvt::decode(&decompressed);
-    }
-    mvt::decode(body)
 }
 
 #[cfg(test)]

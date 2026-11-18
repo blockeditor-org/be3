@@ -6,28 +6,34 @@ use be_sdk_beui::be_block::{
 use be_sdk_beui::be_block_content::BlockMetadata;
 use be_sdk_beui::be_block_content::{Root, VIEW_EDITOR};
 use be_sdk_beui::beui::native::Document;
-use be_sdk_beui::beui::{Key, KeyChord, Modifiers, NodeId, Pos2, Rect, Vec2};
+use be_sdk_beui::beui::{Key, KeyChord, Modifiers, NodeId, Pos2, Rect, Vec2, pos2};
 use be_sdk_beui::{
     AudioOutput, BlockInfo, BlockParent, ChildContent, ChildId, DisplaysWatch, EditorHost,
     EndingAnswer, EpaperWatch, HostDisplay, HostImage, HostProgram, HostWindow, HostWindowId,
     IncomingNotification, KeyboardLayout, KeyboardLayouts, KeyboardLayoutsWatch, MediaLevel,
     MediaLevels, MediaRequest, MediaWatch, MenuAsk, NotificationInbox, NotificationRequest,
     NotificationSignal, NotificationsWatch, OwnedEditor, Picture, PlayerCommand, PowerAction,
-    PowerAvailability, PowerWatch, ProgramAction, ProgramCatalog, ProgramsWatch, ScreenEdge,
-    ScreenEdgeState, ScreenEdgesWatch, ScreenSide, SessionEnd, WifiLink, WifiNetwork, WifiRequest,
-    WifiSecurity, WifiStatus, WifiWatch, WindowKind, WindowOrigin, WindowsWatch,
+    PowerAvailability, PowerWatch, ProgramAction, ProgramCatalog, ProgramsWatch, ScreenInput,
+    ScreenInputState, ScreenInputWatch, ScreenRegion, ScreenRegionState, ScreenSide, ScreenWall,
+    ScreenWallState, SessionEnd, WifiLink, WifiNetwork, WifiRequest, WifiSecurity, WifiStatus,
+    WifiWatch, WindowKind, WindowOrigin, WindowsWatch,
 };
 
+use be_sdk_beui::be_block_content::ViewStateKind;
 use be_sdk_beui::be_block_content::{EditorView, EditorViewContent};
-use be_sdk_shell::{SHELL_BARS, SavedProgram, saved_programs};
+use be_sdk_shell::{SHELL_BARS, SavedLayout, SavedProgram, saved_programs};
 use be_sdk_test::BeuiTest;
+use be_sdk_test::prelude::*;
 use std::collections::HashMap;
 use uuid::Uuid;
 
 use crate::root::DesktopRoot;
+use crate::root::calendar::KeptCalendar;
 use crate::root::media::{BINDINGS, BRIGHTNESS_STEP, VOLUME_STEP};
 
-mod a_band_over_a_full_screen_window_comes_out_only_for_a_deliberate_push;
+mod a_band_opened_another_way_mid_swipe_goes_all_the_way_once_let_go;
+mod a_band_opened_with_the_pointer_already_away_goes_once_the_host_says_so;
+mod a_band_over_a_full_screen_window_comes_out_only_for_a_long_push;
 mod a_bar_menu_and_its_submenu_fit_the_work_area_of_a_short_window;
 mod a_bar_moved_on_one_display_stays_put_on_the_others;
 mod a_bar_panel_opens_just_past_its_bar_on_any_edge;
@@ -96,6 +102,7 @@ mod a_window_moved_to_another_display_lists_its_chip_on_that_displays_bar;
 mod a_window_on_the_second_display_keeps_its_grip_above_its_bars;
 mod a_window_that_rings_the_bell_flashes_its_chip;
 mod a_window_the_host_focuses_leads_the_window_switcher;
+mod a_window_the_host_opens_hidden_waits_in_its_chip_until_picked;
 mod a_window_with_a_dialog_hides_and_comes_back_with_it;
 mod a_windows_note_shows_in_its_tab_in_place_of_its_title;
 mod a_windows_tab_dragged_onto_a_window_on_another_display_joins_it;
@@ -106,7 +113,8 @@ mod alt_f4_closes_the_focused_window_its_focused_dialog_or_a_block_window;
 mod alt_tab_brings_forward_only_the_window_it_ends_on;
 mod alt_tab_or_a_click_brings_a_fullscreen_window_back_in_front;
 mod alt_tab_switches_to_the_window_two_back_once_alt_is_let_go;
-mod an_auto_hidden_band_comes_out_past_half_a_push_and_goes_once_the_pointer_leaves;
+mod an_auto_hidden_band_comes_out_for_a_long_push_and_goes_as_the_pointer_leaves;
+mod an_auto_hidden_band_stays_out_while_a_menu_from_its_grip_is_open;
 mod arrow_keys_walk_the_status_bar_item_by_item;
 mod bars_docked_down_the_left_lay_their_parts_out_down_it;
 mod bars_of_other_displays_that_cannot_be_read_are_kept_until_reset;
@@ -130,6 +138,7 @@ mod super_d_hides_every_window_and_brings_them_back;
 mod super_f_toggles_fullscreen_on_the_window_with_the_keyboard;
 mod super_opens_apps_on_the_display_the_pointer_is_on_with_its_own_hidden_bars;
 mod super_shift_arrows_move_the_focused_window_to_the_next_display;
+mod super_tab_walks_a_windows_tabs_and_leaves_ctrl_tab_to_the_program;
 mod the_apps_button_is_named_apps;
 mod the_apps_button_opens_a_grid_of_the_programs_the_host_lists;
 mod the_calendar_popup_fits_a_narrow_screen;
@@ -213,6 +222,7 @@ struct TestWindow {
     modal: bool,
     size: Vec2,
     maximized: bool,
+    opens_hidden: bool,
     fullscreen: Option<Rect>,
     focused: bool,
     icon: Option<HostImage>,
@@ -255,6 +265,7 @@ impl TestWindow {
             origin: self.origin.clone(),
             size: (self.size.x >= 1.0 && self.size.y >= 1.0).then_some(self.size),
             maximized: self.maximized,
+            opens_hidden: self.opens_hidden,
         }
     }
 }
@@ -280,11 +291,7 @@ impl Fixture {
     }
 
     fn kept(&self) -> Vec<SavedProgram> {
-        self.saved()
-            .root()
-            .state("layout")
-            .map(saved_programs)
-            .unwrap_or_default()
+        saved_programs(&self.saved().root())
     }
 
     fn block_chips(&self) -> Vec<String> {
@@ -568,6 +575,38 @@ impl Fixture {
         fixture
     }
 
+    /// Drops the tab of window 2 beside window 1's, so one window holds both.
+    fn group_two_windows(&mut self) {
+        let tab = |fixture: &Self, title: &str| {
+            let document = fixture.test.document();
+            let node = document
+                .root()
+                .and_then(|root| text_within(&document, root, title))
+                .unwrap_or_else(|| panic!("{title} has a tab"));
+            document.node_rect(node).expect("the tab is laid out")
+        };
+        let first = tab(self, "todo-1.txt");
+        let second = tab(self, "todo-2.txt");
+        self.test.drag(
+            second.center(),
+            Pos2::new(first.max.x + 60.0, first.center().y),
+        );
+        self.settle();
+    }
+
+    /// The tab the main dock's focused pane shows.
+    fn shown_tab(&self) -> Option<be_sdk_beui::beui::dock::TabId> {
+        let document = self.test.document();
+        let dock = document
+            .find_test_id("desktop.dock")
+            .expect("the desktop has a dock");
+        let state = document
+            .api::<be_sdk_beui::beui::dock_host::styled::DockApi>(dock)
+            .state();
+        let leaf = state.focused_leaf()?;
+        state.active_tab(leaf)
+    }
+
     fn focused_windows(&mut self) -> Vec<HostWindowId> {
         let given = self.test.take_child_focus();
         given
@@ -745,30 +784,42 @@ impl Fixture {
         self.test
             .content::<EditorViewContent>(None)
             .root()
-            .state("desktop.calendar")
-            .and_then(|state| state.refs.first().copied())
+            .view_state::<KeptCalendar>()
+            .and_then(Result::ok)
+            .and_then(|kept| kept.0.block())
     }
 
-    /// Offers the screen edges watch on one 800 by 600 display and auto-hides the bottom band.
+    /// Offers the screen input watch on one 800 by 600 display and auto-hides the bottom band.
     fn auto_hidden(&mut self) -> Rect {
         self.report_screens(vec![monitor("main", SCREEN, 1.0)]);
-        self.edges(&[]);
+        self.screen_input(ScreenInputState {
+            walls: Vec::new(),
+            regions: Vec::new(),
+            touch_downs: 0,
+        });
         let band = self.test.rect_of("dock.bar.band.bottom");
         self.bar_menu(STATUS_BAR, &["auto-hide"]);
-        self.edges(&[bottom_edge(0.0, false)]);
+        self.screen_input(at_foot(0.0, false, false));
         band
     }
 
-    fn edges(&mut self, states: &[ScreenEdgeState]) {
-        self.test.set_watched::<ScreenEdgesWatch>(&states.to_vec());
+    /// Rests the pointer against the foot, having pushed `pushed` in all, long enough for the
+    /// pushes after to count.
+    fn rest_on_foot(&mut self, pushed: f32) {
+        self.screen_input(at_foot(pushed, true, false));
+        self.wait(200);
+    }
+
+    fn screen_input(&mut self, state: ScreenInputState) {
+        self.test.set_watched::<ScreenInputWatch>(&state);
         self.settle();
     }
 
-    fn sent_edges(&mut self) -> Vec<ScreenEdge> {
+    fn sent_input(&mut self) -> ScreenInput {
         self.test
-            .take_host_calls(be_sdk_test::requested::set_edges)
+            .take_host_calls(be_sdk_test::requested::set_screen_input)
             .pop()
-            .expect("the desktop told the host its edges")
+            .expect("the desktop told the host its walls and regions")
     }
 
     /// Paints frame after frame for about `millis` of the frame clock, a frame interval each.
@@ -943,6 +994,7 @@ fn host_window(id: u64, focused: bool) -> TestWindow {
         modal: false,
         size: Vec2::new(320.0, 200.0),
         maximized: false,
+        opens_hidden: false,
         fullscreen: None,
         focused,
         icon: None,
@@ -1201,14 +1253,37 @@ fn tray_click(fixture: &Fixture, id: &str) -> be_sdk_beui::TrayClick {
     }
 }
 
-fn bottom_edge(pushed: f32, near: bool) -> ScreenEdgeState {
-    ScreenEdgeState {
-        id: 1,
-        pushed,
-        near,
-        pull: None,
-        pulls: 0,
-        pulled: 0.0,
-        taps_away: 0,
+/// What the host says of the bottom band of the only display: its wall, pushed `pushed` in all
+/// and with the pointer `against` it, and whether the pointer is `near` the band once it is out.
+fn at_foot(pushed: f32, against: bool, near: bool) -> ScreenInputState {
+    ScreenInputState {
+        walls: vec![ScreenWallState {
+            id: 1,
+            against,
+            pushed,
+        }],
+        regions: vec![
+            foot_region(FOOT_SWIPE),
+            ScreenRegionState {
+                pointer: near,
+                ..foot_region(FOOT_KEEP)
+            },
+        ],
+        touch_downs: 0,
+    }
+}
+
+/// The swipe strip and the band's keep region of the bottom band of the only display.
+const FOOT_SWIPE: u32 = 2;
+const FOOT_KEEP: u32 = 3;
+
+fn foot_region(id: u32) -> ScreenRegionState {
+    ScreenRegionState {
+        id,
+        pointer: false,
+        touch_downs: 0,
+        touch: None,
+        lifts: 0,
+        lifted: None,
     }
 }

@@ -10,15 +10,24 @@ be-block-content = { path = "../be-block-content" }
 be-block-client = { path = "../be-block-client" }
 be-block-commit = { path = "../be-block-commit" }
 be-block-graph = { path = "../be-block-graph" }
-beui = { path = "../beui" }
-beui-host = { path = "../beui-host", default-features = false }
+# The beui facade without its components, under the facade's name, so the runtime spells
+# every item as other crates do (`beui::Pos`, `beui::native::Context`) without depending
+# on the components (decisions/beui_facade_excludes_the_engine.md).
+beui = { path = "../beui-documents", package = "beui-documents" }
+beui-font-freetype = { path = "../beui-font-freetype" }
+beui-layer-drive = { path = "../beui-layer-drive" }
+beui-renderer-wgpu = { path = "../beui-renderer-wgpu" }
 be-host-base = { path = "../be-host-base" }
 be-host-stack = { path = "../be-host-stack" }
+be-lib-layers = { path = "../be-lib-layers" }
 be-wasm-guest-host = { path = "../be-wasm-guest-host" }
 be-sdk-api = { path = "../be-sdk-api" }
+be-sdk-app-host = { path = "../be-sdk-app-host" }
 be-sdk-manifest = { path = "../be-sdk-manifest" }
 be-sdk-type-api = { path = "../be-sdk-type-api" }
 be-sdk-type-guest = { path = "../be-sdk-type-guest" }
+be-wasm-sandbox-api = { path = "../be-wasm-sandbox-api" }
+be-wasm-sandbox-host = { path = "../be-wasm-sandbox-host" }
 image = { version = "0.25", default-features = false, features = ["bmp", "gif", "ico", "jpeg", "png", "pnm", "tga", "tiff", "webp"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -26,7 +35,7 @@ be-lib-stable-hash = { path = "../be-lib-stable-hash" }
 uuid = { version = "1", features = ["serde", "v4", "v7"] }
 wgpu = { version = "29", default-features = false }
 
-# The wasmtime app host, which runs every app on every platform but the
+# The V8 app host, which runs every app on every platform but the
 # browser. The browser runs the same wasm in a worker of its own.
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 be-wasm-host = { path = "../be-wasm-host" }
@@ -78,7 +87,13 @@ be-type-checklist = { path = "../be-type-checklist" }
 be-type-example-counter = { path = "../be-type-example-counter" }
 be-type-database = { path = "../be-type-database" }
 pollster = "0.4"
+be-sdk-worker = { path = "../be-sdk-worker" }
+be-sdk-worker-echo = { path = "../be-sdk-worker-echo" }
+be-wasm-dylink = { path = "../be-wasm-dylink" }
 be-type-text = { path = "../be-type-text" }
+
+[dev-dependencies]
+be-block-repository = { path = "../be-block-repository" }
 
 [lints]
 workspace = true

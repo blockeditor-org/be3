@@ -154,6 +154,20 @@ write_package_value("be3.cargo", {
             "test_deps": [],
             "test_features": [],
         },
+        "wasm32-bindgen": {
+            "binaries": {},
+            "deps": [
+                "//third-party/rust:heck-0.5.0",
+                "//third-party/rust:proc-macro2-1.0.106",
+                "//third-party/rust:quote-1.0.45",
+                "//third-party/rust:syn-2.0.117",
+                "//third-party/rust:wit-parser-0.254.0",
+            ],
+            "examples": {},
+            "features": [],
+            "test_deps": [],
+            "test_features": [],
+        },
         "windows-arm64": {
             "binaries": {},
             "deps": [

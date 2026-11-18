@@ -36,9 +36,9 @@ pub struct StorageLimits {
     pub upload_grace: Duration,
     /// The bytes one commit of a search index may hold (`ServerConfig::max_index_bytes`).
     pub max_index_bytes: u64,
-    /// The bytes of keys one `get-keys` page holds (`ServerConfig::key_page_bytes`).
+    /// The bytes of keys one `query.keys` page holds (`ServerConfig::key_page_bytes`).
     pub key_page_bytes: usize,
-    /// The bytes of summaries one `list-blocks` page holds (`ServerConfig::listing_page_bytes`).
+    /// The bytes of summaries one `query.list` page holds (`ServerConfig::listing_page_bytes`).
     pub listing_page_bytes: usize,
 }
 
@@ -236,7 +236,7 @@ impl ServerStore {
             .ok_or(ServerError::Corrupt)
     }
 
-    /// Reserves room for objects a client is about to upload (`upload-urls`), charging the ones
+    /// Reserves room for objects a client is about to upload (`reserve-uploads`), charging the ones
     /// no block holds to the uploader until a block does. Refuses before reserving anything when
     /// an object is too large, its length is not the one the server already has for it, or the
     /// upload takes the uploader past its quota or the organization past its policy's. A
@@ -594,6 +594,12 @@ impl ServerStore {
                     shift_usage(connection, payer, Column::Held, bytes, true)?;
                 }
             }
+            let logged = crate::log::bytes(connection, organization, below)?;
+            if logged > 0 {
+                shift_usage(connection, old, Column::Held, logged, false)?;
+                shift_usage(connection, payer, Column::Held, logged, true)?;
+                changed.insert(old);
+            }
             connection
                 .prepare_cached(
                     "UPDATE blocks SET payer = ?3 WHERE organization_id = ?1 AND id = ?2",
@@ -613,6 +619,51 @@ impl ServerStore {
         }
         for account in changed {
             self.usage_changed(account);
+        }
+        Ok(())
+    }
+
+    /// Charges `bytes` of a block's signed log to its payer and its organization (or frees them,
+    /// not `adding`), in the block's size and its ancestors' tree sizes too, and refuses a charge
+    /// that takes the payer past its quota or the organization past its policy's. Nothing that
+    /// frees space is refused.
+    pub(crate) fn charge_log(
+        &self,
+        graph: &mut BlockGraph,
+        connection: &Connection,
+        organization: Uuid,
+        block: Uuid,
+        bytes: u64,
+        adding: bool,
+    ) -> Result<(), ServerError> {
+        if bytes == 0 {
+            return Ok(());
+        }
+        let payer = block_payer(connection, organization, block)?;
+        shift_usage(connection, payer, Column::Held, bytes, adding)?;
+        shift_organization(connection, organization, bytes, adding)?;
+        graph.add_size(block, bytes, adding)?;
+        persist_sizes(
+            connection,
+            graph,
+            organization,
+            crate::blocks::chain(graph, block),
+        )?;
+        self.usage_changed(payer);
+        if !adding {
+            return Ok(());
+        }
+        let after = usage_of(connection, payer)?;
+        if let Some(quota) = self.limits.account_quota
+            && after.total() > quota
+        {
+            return Err(over_account_quota(quota, after.total()));
+        }
+        if let Some(quota) = self.policies(graph, connection, organization)?.quota() {
+            let total = organization_bytes(connection, organization)?;
+            if total > quota {
+                return Err(over_organization_quota(quota, total));
+            }
         }
         Ok(())
     }
@@ -678,9 +729,9 @@ impl ServerStore {
             .await
     }
 
-    pub async fn storage_usage(&self, identity: Identity) -> Result<AccountStorage, ServerError> {
+    pub async fn storage_usage(&self, account: Uuid) -> Result<AccountStorage, ServerError> {
         self.with_database(move |store, database| {
-            let usage = usage_of(&database, payer_of(&database, identity.account)?)?;
+            let usage = usage_of(&database, payer_of(&database, account)?)?;
             Ok(AccountStorage {
                 held: usage.held,
                 pending: usage.pending,

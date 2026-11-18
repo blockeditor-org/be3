@@ -18,8 +18,6 @@ pub(crate) enum FolderSort {
 }
 
 impl FolderSort {
-    pub(crate) const ALL: [Self; 3] = [Self::Intrinsic, Self::Name, Self::Type];
-
     pub(crate) fn label(self) -> &'static str {
         match self {
             Self::Intrinsic => "Intrinsic",
@@ -55,7 +53,7 @@ impl Listing {
         }
     }
 
-    fn blocks(self) -> ReadSignal<Vec<Uuid>> {
+    fn blocks(self) -> Memo<Vec<Uuid>> {
         match self {
             Self::Folder(index) => index.project(|index| index.root().blocks()),
             Self::Workspace(index) => index.project(|index| index.root().blocks()),

@@ -10,7 +10,7 @@ use crate::button::{Button, ButtonSize};
 use crate::checkbox::Checkbox;
 use crate::context_menu::menu_style;
 use crate::frame::ColorRole;
-use crate::scroll::scrollbar_style;
+use crate::scroll::scroll_style;
 use crate::text::{Text, TextColor, TextSize};
 use crate::theme::{ThemeTokens, use_theme};
 use beui_components_unstyled as unstyled;
@@ -76,9 +76,9 @@ pub fn text_area_geometry() -> TextAreaGeometry {
             quote_space: QUOTE_SPACE,
             code_space: CODE_SPACE,
             table_space: TABLE_SPACE,
-            rule_gap: RULE_GAP,
             cell_padding: CELL_PADDING,
             delimiter_size: DELIMITER_SIZE,
+            quote_mark: QUOTE_BAR_INSET.px() * 2.0 + QUOTE_BAR_WIDTH,
         },
     }
 }
@@ -120,15 +120,16 @@ pub fn TextArea(
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = false)] read_only: Prop<bool>,
     #[prop(default = false)] focused: Prop<bool>,
-    #[prop(default = true)] line_numbers: bool,
+    #[prop(default = true)] line_numbers: Prop<bool>,
+    #[prop(default = false)] scroll_past_end: bool,
     #[prop(default = true)] find: bool,
     #[prop(default = false)] show_runs: Prop<bool>,
     #[prop(default = Vec::new())] client_colors: Prop<Vec<(u64, Color)>>,
-    block: Option<RenderFn<usize>>,
-    selected_widget: Option<RenderFn<usize>>,
+    block: Option<RenderFn<usize, NodeId>>,
+    selected_widget: Option<RenderFn<usize, NodeId>>,
     leaf: Option<RenderFn<TextLeaf, Span>>,
-    marker: Option<RenderFn<TextMarker>>,
-    line: Option<RenderFn<TextLine>>,
+    marker: Option<RenderFn<TextMarker, NodeId>>,
+    line: Option<RenderFn<TextLine, NodeId>>,
     #[prop(default = true)] emoji: bool,
     on_widget_press: Callback<usize, bool>,
     on_focus_change: Callback<bool>,
@@ -152,8 +153,6 @@ pub fn TextArea(
     });
     let font_size = create_memo(move || size.get().px());
     let padding = padding.map(Padding::px);
-    let disabled = create_memo(move || disabled.get());
-    let read_only = create_memo(move || read_only.get());
     let surface = NodeRef::new();
     api.fill(TextAreaSurfaceApi(surface));
     let block = block.unwrap_or_else(blank_widget);
@@ -167,9 +166,9 @@ pub fn TextArea(
     };
     view! {
         <List spacing=Space::None>
-            <Show condition={find}>||
+            {find.then(|| view! {
                 <FindBar state={state} read_only />
-            </Show>
+            })}
             <ListItem grow=1.0>
                 <unstyled::TextContextMenu
                     state={state}
@@ -191,6 +190,7 @@ pub fn TextArea(
                         read_only
                         focused
                         line_numbers
+                        scroll_past_end
                         find
                         on_content_size
                         remote_cursors
@@ -199,7 +199,7 @@ pub fn TextArea(
                         password
                         show_runs
                         client_colors
-                        scrollbar={scrollbar_style()}
+                        scroll={scroll_style()}
                         on_widget_press={on_widget_press}
                         on_focus_change={on_focus_change}
                         on_image_paste={on_image_paste}
@@ -236,12 +236,14 @@ const HEADING_SPACE: [f32; 3] = [Space::Xl.px(), Space::Lg.px(), Space::Sm.px()]
 const QUOTE_SPACE: f32 = 7.0;
 const CODE_SPACE: f32 = 5.0;
 const TABLE_SPACE: f32 = Space::Xs.px();
-const RULE_GAP: f32 = Space::Md.px();
 const CELL_PADDING: f32 = Space::Lg.px();
 const DELIMITER_SIZE: f32 = 11.0;
 const REMOTE_SELECTION_ALPHA: u8 = 70;
 const RULE_WIDTH: f32 = Stroke::Hairline.px();
 const QUOTE_BAR_WIDTH: f32 = 3.0;
+/// Room each side of a quote's bar, inside the span its `>` owns, so a caret either side of
+/// the `>` is seen beside the bar rather than on it.
+const QUOTE_BAR_INSET: Space = Space::Xs;
 const CODE_INSET: f32 = 3.0;
 const CODE_RADIUS: Radius = Radius::Sm;
 const CODE_BLOCK_RADIUS: Radius = Radius::Md;
@@ -343,14 +345,17 @@ pub fn DocumentLine(line: TextLine) -> NodeId {
     let column = line.column();
     let right = line.right();
     let code_padding = line.code_padding();
+    let (code_start, code_lead) = (line.code_start(), line.code_lead());
+    // The code block's background is drawn apart from the text, from past any quote's gutter
+    // (whose prefix the row lays over it), so a quoted code line's carets have room there.
     let outset = create_memo(move || match code_padding.get() > 0.0 {
         true => 0.0,
-        false => CODE_INSET.min(left.get()),
+        false => CODE_INSET.min(left.get() + code_start.get()),
     });
-    let outer = create_memo(move || {
+    let background = create_memo(move || {
         let outset = outset.get();
         Padding::custom(Sides::new(
-            left.get() - outset,
+            left.get() + code_start.get() - outset,
             0.0,
             (right.get() - outset).max(0.0),
             0.0,
@@ -358,8 +363,12 @@ pub fn DocumentLine(line: TextLine) -> NodeId {
     });
     let inner = create_memo(move || {
         let (above, below) = line.space.get();
-        let side = outset.get() + code_padding.get();
-        Padding::custom(Sides::new(side, above, side, below))
+        Padding::custom(Sides::new(
+            left.get() + code_lead.get(),
+            above,
+            right.get() + code_padding.get(),
+            below,
+        ))
     });
     let code = create_memo(move || match look.get().code_block {
         true => ColorRole::Shade,
@@ -377,11 +386,17 @@ pub fn DocumentLine(line: TextLine) -> NodeId {
     let quotes = line.quotes();
     let quote = line.quote_indent();
     let width = create_memo(move || Size::Custom(quote.get()));
-    let room =
-        create_memo(move || Padding::ZERO.right(Space::Custom(quote.get() - QUOTE_BAR_WIDTH)));
+    let room = create_memo(move || {
+        Padding::ZERO.left(QUOTE_BAR_INSET).right(Space::Custom(
+            quote.get() - QUOTE_BAR_INSET.px() - QUOTE_BAR_WIDTH,
+        ))
+    });
     let bars = create_memo(move || Padding::ZERO.left(Space::Custom(column.get())));
+    let (rule_start, rule_short) = (line.rule_start, line.rule_short);
     let ruled = create_memo(move || {
-        Padding::horizontal(Space::Custom(column.get())).right(Space::Custom(right.get()))
+        Padding::ZERO
+            .left(Space::Custom(left.get() + rule_start.get()))
+            .right(Space::Custom(right.get() + rule_short.get()))
     });
     let rule = create_memo(move || match look.get().rule {
         true => ColorRole::Border,
@@ -405,11 +420,12 @@ pub fn DocumentLine(line: TextLine) -> NodeId {
     view! {
         <Layers>
             <TableFill line fill=header />
-            <Frame padding=outer>
-                <Frame fill=code radius=CODE_BLOCK_RADIUS corners padding=inner>{text}</Frame>
+            <Frame padding=background>
+                <Frame fill=code radius=CODE_BLOCK_RADIUS corners />
             </Frame>
+            <Frame padding=inner>{text}</Frame>
             <TableLines line color=border rule=RULE_WIDTH />
-            <Show condition={opens}>
+            <Show value={opens}>
                 <Frame padding=corner align={Align2::new(Align::End, Align::Start)}>
                     <List direction=Direction::Horizontal spacing=COPY_INSET align=Align::Center>
                         <Text size=TextSize::Xs color=TextColor::Muted>{language}</Text>
@@ -429,7 +445,7 @@ pub fn DocumentLine(line: TextLine) -> NodeId {
             </Show>
             <Frame padding=bars>
                 <List direction=Direction::Horizontal spacing=Space::None>
-                    <ForEach keys={quotes}>|bar: QuoteBar|
+                    <ForEach value={quotes}>|bar: QuoteBar|
                         <Frame width padding=room>
                             <Frame
                                 fill=ColorRole::Accent
@@ -447,7 +463,7 @@ pub fn DocumentLine(line: TextLine) -> NodeId {
     }
 }
 
-fn blank_widget() -> RenderFn<usize> {
+fn blank_widget() -> RenderFn<usize, NodeId> {
     RenderFn::new(|_| {
         view! {
             <Frame />

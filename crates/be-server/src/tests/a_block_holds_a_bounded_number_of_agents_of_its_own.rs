@@ -8,20 +8,7 @@ async fn a_block_holds_a_bounded_number_of_agents_of_its_own() {
     let organization = owner.organization("team").await;
     let terminal = owner.create_block(BlockParent::Root).await;
     for index in 0..MAX_AGENTS_PER_CREATOR {
-        let response = owner
-            .call(|peer| {
-                client::members::create_agent(
-                    peer,
-                    organization,
-                    format!("Agent {index}"),
-                    [7; 32],
-                    [7; 32],
-                    Vec::new(),
-                    Vec::new(),
-                    None,
-                )
-            })
-            .await;
+        let response = owner.agent(organization, &format!("Agent {index}")).await;
         assert!(response.is_ok(), "{response:?}");
     }
 
@@ -41,9 +28,7 @@ async fn a_block_holds_a_bounded_number_of_agents_of_its_own() {
     let other = owner.create_block(BlockParent::Root).await;
     assert!(owner.block_agent(organization, other).await.is_ok());
 
-    let response = owner
-        .call(|peer| client::members::remove_member(peer, bound[0]))
-        .await;
+    let response = owner.remove_member(bound[0]).await;
     assert!(response.is_ok(), "{response:?}");
     assert!(owner.block_agent(organization, terminal).await.is_ok());
 

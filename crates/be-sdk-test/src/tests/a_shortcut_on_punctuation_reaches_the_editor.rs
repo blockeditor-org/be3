@@ -15,10 +15,9 @@ impl BeuiRoot for ShortcutRoot {
         })
         .shortcut(Chord::ctrl(Key::Slash))
         .register();
-        let text = create_memo(move || pressed.get());
         view! {
             <Root>
-                <Text @test_id={"shortcut.pressed"}>{text}</Text>
+                <Text @test_id={"shortcut.pressed"}>{pressed}</Text>
             </Root>
         }
     }
@@ -29,7 +28,8 @@ fn a_shortcut_on_punctuation_reaches_the_editor() {
     let mut test = BeuiTest::<ShortcutRoot>::editing(Uuid::new_v4());
 
     test.key(Key::Slash, Modifiers::CTRL);
-    test.run();
 
     assert_eq!(test.label("shortcut.pressed"), "Slash");
 }
+
+test_editor!(ShortcutRoot);

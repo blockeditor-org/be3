@@ -42,7 +42,13 @@ pub struct FrameNode {
     pub rotate: f32,
     pub opacity: f32,
     pub fade_edges: Sides,
+    /// Laid out at no size, drawing nothing, and given no spacing in a list (`Element::collapsed`).
+    pub collapsed: bool,
+    /// Left out of the accessibility tree, with all it holds.
+    pub accessibility_hidden: bool,
     mask: Option<SpaceId>,
+    /// Holds control flow's one child (`create_host`): focusing it focuses that child.
+    host: bool,
 }
 
 impl FrameNode {
@@ -133,20 +139,26 @@ impl FrameNode {
     ) -> Rect {
         let grid = doc.pixel_grid();
         if self.align == Align2::STRETCH {
-            return inner;
+            return crate::layout::stretched(doc, painter, child, inner, true, true);
         }
+        // One measure at the whole inner size serves both axes: a stretched axis whose
+        // child sizes itself takes its measured length, as `layout::stretched` would,
+        // without measuring again at a shrunk rect the cache has never seen.
         let measured = crate::layout::measure(doc, painter, child, inner.size());
-        let place = |align: Align, room: f32, length: f32| -> (f32, f32) {
+        let own_width = crate::layout::sizes_itself(doc, child, Direction::Horizontal);
+        let own_height = crate::layout::sizes_itself(doc, child, Direction::Vertical);
+        let place = |align: Align, room: f32, length: f32, own: bool| -> (f32, f32) {
             let length = length.min(room);
             match align {
+                Align::Stretch if own => (0.0, length),
                 Align::Stretch => (0.0, room),
                 Align::Start | Align::Baseline => (0.0, length),
                 Align::Center => (grid.snap((room - length) / 2.0), length),
                 Align::End => (room - length, length),
             }
         };
-        let (x, width) = place(self.align.horizontal, inner.width(), measured.x);
-        let (y, height) = place(self.align.vertical, inner.height(), measured.y);
+        let (x, width) = place(self.align.horizontal, inner.width(), measured.x, own_width);
+        let (y, height) = place(self.align.vertical, inner.height(), measured.y, own_height);
         Rect::from_min_size(inner.min + vec2(x, y), vec2(width, height))
     }
 }
@@ -180,7 +192,10 @@ impl Default for FrameNode {
             rotate: 0.0,
             opacity: 1.0,
             fade_edges: Sides::ZERO,
+            collapsed: false,
+            accessibility_hidden: false,
             mask: None,
+            host: false,
         }
     }
 }
@@ -200,7 +215,14 @@ impl Element for FrameNode {
         false
     }
 
+    fn collapsed(&self) -> bool {
+        self.collapsed
+    }
+
     fn measure(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Vec2 {
+        if self.collapsed {
+            return Vec2::ZERO;
+        }
         if self.width.scales_with(available.x) || self.height.scales_with(available.y) {
             doc.note_offer_dependent();
         }
@@ -225,6 +247,9 @@ impl Element for FrameNode {
     }
 
     fn min_width(&self, doc: &mut Document, painter: &Painter) -> f32 {
+        if self.collapsed {
+            return 0.0;
+        }
         let inner = self
             .child
             .map_or(0.0, |child| crate::layout::min_width(doc, painter, child));
@@ -238,6 +263,9 @@ impl Element for FrameNode {
         direction: Direction,
         cross: f32,
     ) -> Option<f32> {
+        if self.collapsed {
+            return Some(0.0);
+        }
         let extent = match direction {
             Direction::Horizontal => self.width,
             Direction::Vertical => self.height,
@@ -256,6 +284,9 @@ impl Element for FrameNode {
     }
 
     fn baseline(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Option<f32> {
+        if self.collapsed {
+            return None;
+        }
         let child = self.child?;
         let grid = doc.pixel_grid();
         let padding = self.padding(grid);
@@ -277,6 +308,9 @@ impl Element for FrameNode {
     }
 
     fn layout(&mut self, doc: &mut Document, painter: &Painter, rect: Rect, out: &Rects) {
+        if self.collapsed {
+            return;
+        }
         if let Some(child) = self.child {
             let grid = doc.pixel_grid();
             let padding = self.padding(grid);
@@ -294,8 +328,16 @@ impl Element for FrameNode {
         self.width.exact.is_some() && self.height.exact.is_some()
     }
 
+    fn sizes_itself(&self, _doc: &Document, axis: Direction) -> bool {
+        let extent = match axis {
+            Direction::Horizontal => self.width,
+            Direction::Vertical => self.height,
+        };
+        extent.exact.is_none() && extent.fraction.is_some()
+    }
+
     fn paint(&self, doc: &Document, painter: &Painter, rects: &Rects, rect: Rect) {
-        if self.opacity <= 0.0 {
+        if self.opacity <= 0.0 || self.collapsed {
             return;
         }
         let grid = doc.pixel_grid();
@@ -487,9 +529,28 @@ impl Document {
         frame
     }
 
-    pub fn set_frame_child(&mut self, frame: NodeOf<FrameNode>, child: NodeId) {
-        if self.arena.get_as::<FrameNode>(frame).child != Some(child) {
-            self.arena.get_mut_as::<FrameNode>(frame).child = Some(child);
+    pub fn create_host_frame(&mut self) -> NodeOf<FrameNode> {
+        let frame = self.create_frame();
+        self.arena.downcast_mut(frame).host = true;
+        frame
+    }
+
+    /// The node that takes focus for `node`: the child a host frame holds, through any hosts
+    /// nested in it, or `node` itself.
+    pub fn hosted(&self, mut node: NodeId) -> NodeId {
+        while let Some(frame) = self.arena.made_as::<FrameNode>(node) {
+            let frame = self.arena.get_as(frame);
+            match (frame.host, frame.child) {
+                (true, Some(child)) => node = child,
+                _ => break,
+            }
+        }
+        node
+    }
+
+    pub fn set_frame_child(&mut self, frame: NodeOf<FrameNode>, child: Option<NodeId>) {
+        if self.contains(frame) && self.arena.get_as::<FrameNode>(frame).child != child {
+            self.arena.get_mut_as::<FrameNode>(frame).child = child;
         }
     }
 
@@ -554,6 +615,29 @@ impl Document {
         };
         if self.arena.get_as::<FrameNode>(frame).opacity != opacity {
             self.arena.paint_mut_as::<FrameNode>(frame).opacity = opacity;
+        }
+    }
+
+    pub fn set_frame_accessibility_hidden(&mut self, frame: NodeOf<FrameNode>, hidden: bool) {
+        if self.arena.get_as::<FrameNode>(frame).accessibility_hidden != hidden {
+            self.arena
+                .get_mut_as::<FrameNode>(frame)
+                .accessibility_hidden = hidden;
+            // Every node within is described again: what the tree kept of them while the
+            // frame was hidden (or shown) no longer holds.
+            let mut within = vec![frame.id()];
+            while let Some(node) = within.pop() {
+                self.accessibility_tree.get_mut().mark(node, &self.arena);
+                self.arena
+                    .get(node)
+                    .for_each_child(&mut |child| within.push(child));
+            }
+        }
+    }
+
+    pub fn set_frame_collapsed(&mut self, frame: NodeOf<FrameNode>, collapsed: bool) {
+        if self.arena.get_as::<FrameNode>(frame).collapsed != collapsed {
+            self.arena.get_mut_as::<FrameNode>(frame).collapsed = collapsed;
         }
     }
 

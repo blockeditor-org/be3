@@ -8,7 +8,7 @@ interface app {
     use shell-types.{drag-over, focus};
     use be3:ui/types@0.1.0.{clip-body, rect, vec2};
     use types.{failure};
-    use blocks.{search-location};
+    use blocks.{channel-event, hosting-here, member-event, search-location};
 
     /// The user picked command `id` of the menu of the editor's view `view`
     /// (`shell-message.menu`), wherever the menu was shown. `anchor`, in host
@@ -49,6 +49,10 @@ interface app {
         child-details(child-id),
         /// The user focused a child the editor placed.
         child-focused(child-id),
+        /// The keyboard the editor gave `child` (`focus-child`) found it no longer
+        /// placed: it asked before it heard of the child placed in its stead, and
+        /// may ask again for that one.
+        gift-missed(child-id),
         /// Whether the user may edit what the editor shows.
         set-editable(bool),
         view-changed(view-frame),
@@ -74,6 +78,15 @@ interface app {
         /// The block the editor shows was opened at a place in it: the editor
         /// selects it and brings it into view, where it supports a location.
         reveal(search-location),
+        /// To a host component only: a member of its block's host channel came,
+        /// spoke or went (plans/hosted_blocks.md, "Hosting").
+        member(member-event),
+        /// To an editor opened as a Join member only: its block's host channel
+        /// opened, closed, or carried what the host said.
+        channel(channel-event),
+        /// Whether this device hosts the editor's block, and keeps hosting it;
+        /// told when it changes, `no` included.
+        hosting(hosting-here),
     }
 
     /// An editor instance. Dropping it closes it.
@@ -89,9 +102,6 @@ interface app {
 
         /// Generates the artifact the settings describe again.
         regenerate-artifact: async func(data: list<u8>) -> result<_, failure>;
-
-        /// Puts a block in place of a child block; false when the editor cannot.
-        replace-child: async func(old: block-id, new: block-id) -> bool;
 
         /// Renders representation `format` of the editor's copy `serial`
         /// (`shell-message.copy`), which a paste asked for; none once the editor

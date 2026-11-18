@@ -9,6 +9,7 @@ fn keys_reach_the_focused_window() {
     client.attach(&mut server, &window, 40, 30);
 
     server.state.key(30, true);
+    server.state.key(30, false);
     client.exchange(&mut server);
     assert!(
         client.received.keys.is_empty(),

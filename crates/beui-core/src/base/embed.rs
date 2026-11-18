@@ -32,6 +32,15 @@ pub struct EmbedState {
     placement: Cell<Option<EmbedPlacement>>,
     concealed: Cell<bool>,
     listener: RefCell<Option<PlaceListener>>,
+    /// What the listener was last told.
+    told: Cell<Option<EmbedPlacement>>,
+    /// While a frame runs (`Document::show_content`, from its input to its layout), going
+    /// unplaced is told only if the frame ends with it so: one moved between parents (a kept
+    /// panel shown in another pane, its old pane removed by the frame's input) is never heard
+    /// unplaced on the way. A placement is told at once.
+    holding: Cell<bool>,
+    /// The layout pass that last placed it.
+    placed_in: Cell<u64>,
     inert: Cell<bool>,
     inert_listener: RefCell<Option<InertListener>>,
 }
@@ -42,9 +51,8 @@ impl EmbedState {
     }
 
     fn place(&self, placement: Option<EmbedPlacement>) {
-        let was = self.shown();
         self.placement.set(placement);
-        self.announce(was);
+        self.announce();
     }
 
     pub(crate) fn rerasterise(&self, raster: f32) {
@@ -68,16 +76,26 @@ impl EmbedState {
     }
 
     pub(crate) fn conceal(&self, concealed: bool) {
-        let was = self.shown();
         self.concealed.set(concealed);
-        self.announce(was);
+        self.announce();
     }
 
-    fn announce(&self, was: Option<EmbedPlacement>) {
+    /// From now until `release`, going unplaced is told only at the release.
+    pub(crate) fn hold(&self) {
+        self.holding.set(true);
+    }
+
+    pub(crate) fn release(&self) {
+        self.holding.set(false);
+        self.announce();
+    }
+
+    fn announce(&self) {
         let shown = self.shown();
-        if shown == was {
+        if shown == self.told.get() || (shown.is_none() && self.holding.get()) {
             return;
         }
+        self.told.set(shown);
         if let Some(listener) = self.listener.borrow().as_ref() {
             listener(shown);
         }
@@ -111,6 +129,8 @@ impl EmbedSlot {
 
     pub fn on_place(&self, listener: impl Fn(Option<EmbedPlacement>) + 'static) {
         let state = self.0.value();
+        // A new listener hears changes from where the embed is now, as the last did.
+        state.told.set(state.shown());
         *state.listener.borrow_mut() = Some(Box::new(listener));
         on_cleanup(move || drop(state.listener.take()));
     }
@@ -152,6 +172,11 @@ impl Element for EmbedNode {
         false
     }
 
+    fn sizes_itself(&self, doc: &Document, axis: beui_types::Direction) -> bool {
+        self.child
+            .is_some_and(|child| crate::layout::sizes_itself(doc, child, axis))
+    }
+
     fn measure(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Vec2 {
         match self.child {
             Some(child) => crate::layout::measure(doc, painter, child, available),
@@ -179,6 +204,7 @@ impl Element for EmbedNode {
     fn layout(&mut self, doc: &mut Document, painter: &Painter, rect: Rect, out: &Rects) {
         let grid = doc.pixel_grid();
         let placed = grid.snap_rect(painter.to_screen(rect));
+        self.state.placed_in.set(doc.layout_pass());
         self.state.place(Some(EmbedPlacement {
             rect: placed,
             clip: grid
@@ -209,7 +235,14 @@ impl Element for EmbedNode {
         self.punch
     }
 
-    fn unplaced(&mut self, _doc: &mut Document) {
+    fn unplaced(&mut self, doc: &mut Document) {
+        // Placed under another parent earlier in this pass, it has moved, not gone. Only this
+        // pass counts: a move changes both parents in one update, so both are laid out in the
+        // same pass, while one placed in an earlier pass of the frame and let go in a later one
+        // has gone (an inspector stacking over its program once measured).
+        if self.state.placed_in.get() == doc.layout_pass() {
+            return;
+        }
         self.forget();
     }
 

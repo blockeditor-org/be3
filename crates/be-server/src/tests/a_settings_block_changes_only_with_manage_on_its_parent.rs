@@ -7,22 +7,27 @@ async fn create_settings(
 ) -> (Uuid, Result<BlockSummary, Error>) {
     let block = Uuid::new_v4();
     let key = Uuid::new_v4();
+    let root = client.root(block);
+    let placement = client.placement(block, BlockParent::Block(parent)).await;
     let response = client
         .call(|peer| {
-            client::blocks::create_block(
-                peer,
-                block,
-                SETTINGS_TYPE,
-                BlockParent::Block(parent),
-                Vec::new(),
-                Vec::new(),
-                key,
-                KeySet {
+            peer.write_all::<be_block_protocol::BlockSummary>(vec![
+                be_block_protocol::Op::CreateBlock {
+                    block: block,
+                    content_type: SETTINGS_TYPE,
+                    parent: BlockParent::Block(parent),
+                    metadata: Vec::new(),
+                    references: Vec::new(),
+                    key: key,
+                    owner_only: false,
+                    root: root.clone(),
+                    placement: placement,
+                },
+                be_block_protocol::Op::PutKeys(be_block_protocol::PutKeys::Rows(KeySet {
                     keys: vec![row(key, block, KeyKind::Data)],
                     wrapped: Vec::new(),
-                },
-                false,
-            )
+                })),
+            ])
         })
         .await;
     (block, response)
@@ -30,18 +35,26 @@ async fn create_settings(
 
 async fn set_metadata(client: &mut TestClient, block: Uuid) -> Result<BlockSummary, Error> {
     client
-        .call(|peer| client::blocks::set_metadata(peer, block, b"changed".to_vec(), Vec::new()))
+        .call(|peer| {
+            peer.write::<be_block_protocol::BlockSummary>(be_block_protocol::Op::Publish {
+                block: block,
+                expected: None,
+                commit: None,
+                references: be_block_protocol::ReferenceChange::between(&[], &Vec::new()),
+                metadata: b"changed".to_vec(),
+                journal: None,
+            })
+        })
         .await
 }
 
 #[tokio::test]
 async fn a_settings_block_changes_only_with_manage_on_its_parent() {
     let harness = Harness::start().await;
-    let mut owner = harness.client().await;
-    owner.register("owner@example.com").await;
+    let mut owner = harness.member("owner@example.com").await;
     owner.personal().await;
-    let mut editor = harness.client().await;
-    let editor_id = editor.register("editor@example.com").await;
+    let mut editor = harness.member("editor@example.com").await;
+    let editor_id = editor.id();
     editor.personal().await;
     let link = owner.link(None).await;
     let _ = editor.accept(link, &[]).await;
@@ -86,9 +99,7 @@ async fn a_settings_block_changes_only_with_manage_on_its_parent() {
     let (planted, created) = create_settings(&mut editor, own).await;
     assert!(matches!(created, Ok(_)), "{created:?}");
     let moved = editor
-        .call(|peer| {
-            client::blocks::set_parent(peer, planted, BlockParent::Block(folder), KeySet::default())
-        })
+        .move_keyed(planted, BlockParent::Block(folder), KeySet::default())
         .await;
     assert!(
         refused_as(&moved, ErrorCode::PermissionDenied),

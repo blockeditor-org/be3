@@ -38,3 +38,5 @@ fn an_editor_opens_a_link_through_its_host() {
         vec!["https://example.test/sign-in".to_owned()]
     );
 }
+
+test_editor!(LinkRoot);

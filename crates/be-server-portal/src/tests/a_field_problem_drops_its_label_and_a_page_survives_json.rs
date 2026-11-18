@@ -2,9 +2,9 @@ use super::*;
 
 #[test]
 fn a_field_problem_drops_its_label_and_a_page_survives_json() {
-    let confirmation = Problem::from_message("Password confirmation: the passwords do not match.");
-    assert_eq!(confirmation.field, Some(Field::Confirmation));
-    assert_eq!(confirmation.message, "The passwords do not match.");
+    let name = Problem::from_message("Display name: enter a name of at most 200 bytes.");
+    assert_eq!(name.field, Some(Field::DisplayName));
+    assert_eq!(name.message, "Enter a name of at most 200 bytes.");
     let general = Problem::from_message("This page expired; reload it and try again");
     assert_eq!(general.field, None);
     assert_eq!(
@@ -16,15 +16,15 @@ fn a_field_problem_drops_its_label_and_a_page_survives_json() {
             title: "</script><script>".into(),
             text: "ok".into(),
         },
-        problem: Some(confirmation),
+        problem: Some(name),
         ..Page::default()
     };
     let json = page.to_json();
     assert!(!json.contains('<'));
     assert_eq!(Page::from_json(&json).unwrap(), page);
     assert_eq!(
-        page.problem_for(Field::Confirmation),
-        "The passwords do not match."
+        page.problem_for(Field::DisplayName),
+        "Enter a name of at most 200 bytes."
     );
     assert_eq!(page.general_problem(), "");
 }

@@ -3,8 +3,9 @@ use std::cell::RefCell;
 use std::fmt;
 use std::rc::Rc;
 
-use beui_types::Direction;
-use beui_types::{Pos2, Rect, Vec2};
+use be_lib_geometry::Direction;
+pub use be_lib_geometry::Side;
+use be_lib_geometry::{Pos2, Rect, Vec2};
 
 mod bars;
 mod compact;
@@ -103,27 +104,6 @@ impl Entry {
 pub enum Tree {
     Surface(SurfaceId),
     Group(GroupId),
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum Side {
-    Left,
-    Right,
-    Above,
-    Below,
-}
-
-impl Side {
-    pub fn direction(self) -> Direction {
-        match self {
-            Side::Left | Side::Right => Direction::Horizontal,
-            Side::Above | Side::Below => Direction::Vertical,
-        }
-    }
-
-    fn leads(self) -> bool {
-        matches!(self, Side::Left | Side::Above)
-    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]

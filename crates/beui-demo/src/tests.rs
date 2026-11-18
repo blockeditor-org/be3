@@ -1,4 +1,5 @@
 use be_sdk_test::DocumentTest;
+use be_sdk_test::prelude::*;
 use beui::datetime::Date;
 use beui::native::Document;
 use beui::{Input, NodeId, Pos2, Vec2, pos2};
@@ -8,6 +9,7 @@ use super::*;
 use crate::{DemoRoot, LoneRoot, PAGES, Page};
 
 mod a_banner_says_what_failed_until_it_is_dismissed;
+mod a_bar_carried_into_a_band_moves_the_bars_beside_its_slot_aside;
 mod a_bar_floating_over_the_dock_stays_above_its_windows_which_keep_off_its_band;
 mod a_bar_hidden_from_its_grip_menu_takes_no_room_until_the_page_shows_it;
 mod a_card_opened_from_a_button_flips_above_it_near_the_bottom;
@@ -24,7 +26,9 @@ mod a_disabled_button_says_why_in_its_tooltip;
 mod a_docked_page_shown_fullscreen_covers_the_dock_until_escape;
 mod a_dragged_task_lifts_parts_its_neighbours_and_settles_where_it_is_dropped;
 mod a_fade_shows_what_it_holds_at_its_opacity;
+mod a_failure_shows_retry_and_retrying_waits_for_the_next_answer;
 mod a_fixed_side_pane_keeps_its_width_when_the_window_resizes;
+mod a_fraction_wide_frame_keeps_its_width_where_its_parent_stretches;
 mod a_frame_moves_turns_and_fades_what_it_holds;
 mod a_joined_docks_bar_moves_to_the_edge_of_another_of_its_panes;
 mod a_list_leaves_no_gap_for_a_hidden_frame;
@@ -36,50 +40,71 @@ mod a_menu_grid_ticks_the_layout_last_picked;
 mod a_menu_page_opens_in_place_of_the_menu_and_its_tree_follows_the_arrow_keys;
 mod a_menu_page_opens_in_place_of_the_menu_in_a_sheet;
 mod a_menu_widens_to_show_a_long_label_and_its_shortcut;
+mod a_middle_press_in_a_text_area_marks_where_its_autoscroll_started;
 mod a_modal_dialog_blocks_its_tab_and_stacks_a_nested_one;
+mod a_narrow_pane_moves_its_labelled_pin_into_its_menu;
+mod a_narrow_panes_clipped_tab_strip_fades_and_lists_every_tab_in_a_menu;
 mod a_nested_dock_page_joins_the_demo_dock_as_a_locked_group;
 mod a_nested_dock_saved_with_a_tab_moved_out_comes_back_once_it_joins_again;
 mod a_page_dropped_on_the_middle_of_a_pane_is_grouped_with_the_page_it_shows;
 mod a_page_tab_dragged_along_its_bar_parts_the_tabs_it_passes;
 mod a_pane_shows_its_tabs_as_icons_across_the_top_or_in_a_narrow_sidebar;
+mod a_popover_with_an_arrow_points_it_at_its_button;
 mod a_read_only_text_area_keeps_its_text_when_typed_into;
+mod a_row_dragged_to_a_place_moves_the_rows_between_and_a_chip_snaps_into_a_slot;
 mod a_sample_carries_the_source_it_was_written_with;
 mod a_sample_shows_its_code_when_asked;
 mod a_scrollbar_shows_over_a_page_as_it_scrolls_and_widens_to_a_track_under_the_pointer;
+mod a_select_in_a_narrow_side_pane_lists_as_wide_as_itself_within_the_pane;
 mod a_selected_row_stays_selected_under_the_pointer;
+mod a_sheet_handle_shows_its_focus_ring_when_tabbed_to;
 mod a_sheet_rises_from_the_bottom_on_a_phone;
+mod a_show_with_a_fallback_swaps_the_one_child_a_frame_holds;
+mod a_slow_diagonal_to_a_submenu_across_the_gaps_between_rows_keeps_it_open;
 mod a_spacer_keeps_each_space_token_between_its_neighbours;
 mod a_stage_gathers_the_panes_beside_it_on_a_phone;
 mod a_status_bar_of_the_whole_dock_runs_under_every_pane;
 mod a_swatch_button_rings_the_colour_picked;
+mod a_tab_carried_to_a_panes_edge_parts_the_dock_while_its_panels_keep_their_size;
 mod a_tab_dropped_in_the_middle_of_the_desk_fills_it_and_one_at_its_edge_splits_it;
+mod a_tab_let_go_on_a_tool_bar_band_goes_home;
 mod a_table_lines_its_cells_up_under_its_columns;
 mod a_tabs_pinned_action_sits_in_its_bar_tiled_and_stacked;
 mod a_tapped_popover_opens_in_a_sheet;
 mod a_tapped_select_opens_its_options_in_a_sheet;
 mod a_task_carried_into_the_other_list_parts_it_where_it_would_land;
 mod a_task_dragged_out_of_its_list_stays_in_it_at_the_end;
+mod a_thumb_lifted_at_the_press_follows_the_mouse_while_a_finger_carries_the_other;
 mod a_toast_shows_over_an_open_dialog_and_takes_a_press;
-mod a_tool_bar_follows_its_grip_grows_into_a_band_and_springs_into_place;
+mod a_tool_bar_follows_its_grip_opens_a_band_and_springs_into_place;
 mod a_tool_bar_moves_to_any_edge_of_its_pane_or_out_into_a_window;
 mod a_tooltip_is_as_wide_as_its_label_up_to_a_cap;
+mod a_tooltip_shows_when_its_control_takes_the_keyboard_focus;
 mod a_tree_row_dragged_between_two_others_parts_them_and_moves_there;
 mod a_tree_row_dropped_on_the_middle_of_a_folder_moves_inside_it;
 mod a_wide_tab_dragged_along_its_strip_passes_a_narrow_one;
+mod an_alert_takes_the_focus_each_time_it_opens;
 mod animations_paint_their_progress_and_instant_targets;
 mod closing_the_rich_text_tab_disposes_its_editors;
+mod control_flow_that_builds_one_node_fills_any_one_child_slot;
+mod double_clicking_either_end_of_a_word_in_a_text_input_selects_it;
 mod dragging_across_the_lines_of_a_long_list_selects_them;
+mod each_movement_draws_its_easing_and_its_spring;
 mod editing_a_tree_row_keeps_a_name_on_enter_or_a_click_away_and_escape_puts_it_back;
 mod every_demo_page_paints_as_accepted;
 mod every_demo_page_paints_as_accepted_on_a_phone;
+mod every_placement_opens_on_its_side_of_the_anchor_lined_up_by_its_alignment;
 mod first_fit_lays_out_the_first_child_that_fits;
+mod heading_for_a_submenu_across_another_row_keeps_it_open;
 mod holding_alt_and_pressing_q_switches_between_recent_tabs;
 mod holding_alt_moves_a_floating_demo_page_by_its_content;
 mod instant_indicators_hold_still_and_resume;
+mod near_the_windows_corner_a_placement_flips_and_shifts_clear_of_its_edges;
 mod overlapping_shapes_in_a_faded_frame_do_not_show_through_each_other;
 mod paused_edits_wait_for_a_send_and_carry_presence;
 mod reordered_tiles_glide_from_their_old_places_to_their_new_ones;
 mod replacing_a_page_closes_the_dialogs_it_opened;
+mod resting_on_another_row_on_the_way_to_a_submenu_opens_that_row_instead;
 mod rich_text_styled_on_both_sides_converges_once_sent_both_ways;
 mod swiping_back_on_a_phone_shows_the_catalog_behind_the_page;
 mod tabbing_through_every_page_shows_each_focus_ring_whole;
@@ -119,6 +144,7 @@ mod toasts_on_the_top_edge_stack_in_the_top_corner;
 mod too_many_toasts_fold_into_a_count_and_a_long_one_is_cut_short;
 mod two_tool_bars_on_one_edge_stack_and_a_bar_dropped_between_takes_that_place;
 mod typing_a_fahrenheit_temperature_moves_the_celsius_one;
+mod typing_in_a_menu_moves_to_the_item_its_letters_start;
 mod waiting_for_data_shows_progress_until_it_arrives;
 
 const TODAY: (i32, u8, u8) = (2026, 1, 15);
@@ -188,12 +214,12 @@ fn drop_bar(test: &mut DocumentTest, from: Pos2, to: Pos2) {
 
 fn open(test: &mut DocumentTest, page: Page) {
     let row = format!("demo.catalog.{}", page.title());
-    if !test.shows(&row) && test.document().find_test_id("dock.back").is_some() {
+    if !test.shown(&row) && test.document().find_test_id("dock.back").is_some() {
         test.click("dock.back");
     }
     for _ in 0..REVEAL_TICKS {
         let bottom = test.size().y;
-        let shown = test.shows(&row) && test.rect_of(&row).bottom() <= bottom;
+        let shown = test.shown(&row) && test.rect_of(&row).bottom() <= bottom;
         if shown {
             test.click(&row);
             test.frame(Vec::new());
@@ -213,7 +239,7 @@ fn open_beside(test: &mut DocumentTest, page: Page) {
 fn reveal(test: &mut DocumentTest, test_id: &str) {
     let page = pos2(test.size().x * 0.75, test.size().y / 2.0);
     for _ in 0..REVEAL_TICKS {
-        if test.shows(test_id) && test.rect_of(test_id).bottom() <= test.size().y {
+        if test.shown(test_id) && test.rect_of(test_id).bottom() <= test.size().y {
             return;
         }
         test.scroll(page, Vec2::new(0.0, REVEAL_STEP));

@@ -2,12 +2,25 @@ use be_block_client::{ClientError, Connection, ask};
 use be_block_protocol::{Authenticated, ErrorCode, Invitation, LinkKind, Organization, client};
 use uuid::Uuid;
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct Session {
     pub account: Uuid,
     pub email: String,
     pub display_name: String,
     pub token: String,
+}
+
+/// Leaves out the token, so no log ever holds it.
+impl std::fmt::Debug for Session {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("Session")
+            .field("account", &self.account)
+            .field("email", &self.email)
+            .field("display_name", &self.display_name)
+            .field("token", &"..")
+            .finish()
+    }
 }
 
 #[derive(Debug)]
@@ -58,6 +71,7 @@ fn session_of(
         email,
         display_name,
         token,
+        ..
     }: Authenticated,
 ) -> Session {
     Session {
@@ -79,33 +93,11 @@ pub enum LoginEvent {
     Finished(Result<Session, String>),
 }
 
-pub async fn create_local_profile(
-    server_url: String,
-    display_name: String,
-) -> Result<Session, AccountError> {
-    let connection = crate::link::connect(&server_url).await?;
-    let session = session_of(
-        ask(client::account::create_local_profile(
-            &connection,
-            display_name,
-        ))
-        .await?,
-    );
-    crate::link::adopt(&server_url, &session.token, session.account, connection).await;
-    Ok(session)
-}
-
 /// Signs in with a token the server issued another way: a test's server hands one to each
-/// device of an account (crates/be-host-tests), since a local profile is a new account each time.
+/// device of an account (crates/be-host-tests).
 pub async fn token_login(server_url: String, token: String) -> Result<Session, AccountError> {
-    let connection = crate::link::connect(&server_url).await?;
-    let mut session = session_of(
-        ask(client::account::authenticate(
-            &connection,
-            Some(token.clone()),
-        ))
-        .await?,
-    );
+    let (connection, authenticated) = crate::link::connect(&server_url, &token).await?;
+    let mut session = session_of(authenticated);
     session.token = token;
     crate::link::adopt(&server_url, &session.token, session.account, connection).await;
     Ok(session)
@@ -131,10 +123,13 @@ pub async fn browser_login(
     use std::time::Duration;
     let login = async {
         let begun = be_block_client::call_once(&server_url, |peer| {
-            client::account::begin_browser_login(peer)
+            client::server::device_login(peer, be_block_protocol::DeviceLoginStep::Begin)
         })
         .await
         .map_err(|error| error.to_string())?;
+        let be_block_protocol::DeviceLoginAnswer::Begun(begun) = begun else {
+            return Err("The server answered a sign-in with something else.".into());
+        };
         notify(BrowserLogin {
             code: begun.code.clone(),
             url: format!("{auth_url}?code={}", begun.code),
@@ -167,9 +162,16 @@ pub async fn browser_login(
             polled = clock.now();
             let (code, secret) = (begun.code.clone(), begun.secret.clone());
             let answer = be_block_client::call_once(&server_url, move |peer| {
-                client::account::poll_browser_login(peer, code, secret)
+                client::server::device_login(
+                    peer,
+                    be_block_protocol::DeviceLoginStep::Poll { code, secret },
+                )
             })
-            .await;
+            .await
+            .and_then(|answer| match answer {
+                be_block_protocol::DeviceLoginAnswer::Polled(state) => Ok(state),
+                be_block_protocol::DeviceLoginAnswer::Begun(_) => Err(ClientError::Unexpected),
+            });
             match answer {
                 Ok(BrowserLoginState::Pending) => {}
                 Ok(BrowserLoginState::Approved(authenticated)) => {
@@ -210,6 +212,46 @@ async fn authenticated(
     )
 }
 
+/// The server's notices in a mailbox, by message id, oldest first.
+pub fn notices(mailbox: Vec<be_block_protocol::Message>) -> Vec<(u64, String)> {
+    mailbox
+        .into_iter()
+        .filter_map(|message| match (message.from, message.letter) {
+            (None, be_block_protocol::Letter::Notice(text)) => Some((message.id, text)),
+            _ => None,
+        })
+        .collect()
+}
+
+/// The server's notices in the account's mailbox (`query.mailbox`), by message id, whether or not
+/// an organization is open.
+pub async fn account_notices(
+    server_url: String,
+    token: String,
+) -> Result<Vec<(u64, String)>, AccountError> {
+    let connection = authenticated(&server_url, token).await?;
+    Ok(notices(
+        be_block_client::contacts::mailbox(&connection).await?,
+    ))
+}
+
+/// Deletes an account notice from the mailbox for the account's every device. The server
+/// refuses it in its first week, when only this device hides it
+/// (`be_host_base::notices::dismiss`).
+pub async fn dismiss_account_notice(
+    server_url: String,
+    token: String,
+    id: u64,
+) -> Result<(), AccountError> {
+    let connection = authenticated(&server_url, token).await?;
+    Ok(ask(be_block_protocol::write::<(), _>(
+        &connection,
+        None,
+        be_block_protocol::Op::DeleteMessage(id),
+    ))
+    .await?)
+}
+
 /// Ends the session `token` names; with `push_address`, this device's push endpoint, the
 /// account forgets it in every organization too.
 pub async fn logout(
@@ -219,7 +261,12 @@ pub async fn logout(
 ) -> Result<(), AccountError> {
     let connection = authenticated(&server_url, token.clone()).await?;
     crate::link::forget(&server_url, &token).await;
-    ask(client::account::logout(&connection, push_address)).await?;
+    ask(be_block_protocol::write::<(), _>(
+        &connection,
+        None,
+        be_block_protocol::Op::RevokeToken(push_address),
+    ))
+    .await?;
     Ok(())
 }
 
@@ -228,20 +275,27 @@ pub async fn organizations(
     token: String,
 ) -> Result<Vec<Organization>, AccountError> {
     let connection = authenticated(&server_url, token).await?;
-    Ok(ask(client::organizations::list_organizations(&connection)).await?)
+    Ok(ask(be_block_protocol::read::<
+        Vec<be_block_protocol::Organization>,
+        _,
+    >(
+        &connection, None, be_block_protocol::Query::Organizations
+    ))
+    .await?)
 }
 
+/// Makes a company organization as `me`, who signs the root of its access log.
 pub async fn create_organization(
     server_url: String,
     token: String,
+    me: Me,
     name: String,
 ) -> Result<Organization, AccountError> {
     let connection = authenticated(&server_url, token).await?;
-    Ok(ask(client::organizations::create_organization(
-        &connection,
-        name,
-    ))
-    .await?)
+    Ok(
+        be_block_client::contacts::create_organization(&connection, &me.secret(), me.account, name)
+            .await?,
+    )
 }
 
 #[derive(Clone, Debug)]
@@ -272,6 +326,16 @@ impl Me {
 pub struct Invited {
     pub organization_name: String,
     pub invitation: Invitation,
+    /// Who invited them: the name and email on the inviter's card, opened with the code.
+    pub inviter: String,
+}
+
+/// How a person is named from their card: their name, and their email when it has one.
+fn named(card: &be_block_keys::ContactCard) -> String {
+    match card.email.is_empty() {
+        true => card.display_name.clone(),
+        false => format!("{} ({})", card.display_name, card.email),
+    }
 }
 
 /// The invitation `code` opens; a contact link's code is refused as not one
@@ -282,7 +346,7 @@ pub async fn invitation(
     code: be_block_keys::InviteCode,
 ) -> Result<Invited, AccountError> {
     let connection = authenticated(&server_url, token).await?;
-    let (link, _) = be_block_client::contacts::open_link(
+    let (link, card) = be_block_client::contacts::open_link(
         &connection,
         &code,
         be_block_client::contacts::Expected::Invitation,
@@ -292,6 +356,29 @@ pub async fn invitation(
     Ok(Invited {
         organization_name,
         invitation: invitation_of(link)?,
+        inviter: named(&card),
+    })
+}
+
+/// An invitation as anyone holding its link reads it before signing in: whose it is, into what,
+/// and where it stands; an ended one names neither, so both are empty.
+#[derive(Clone, Debug, PartialEq)]
+pub struct InvitationPreview {
+    pub organization_name: String,
+    pub inviter: String,
+    pub state: be_block_protocol::InvitationState,
+}
+
+/// Reads the invitation `code` opens at `server_url`, with no sign-in (a one-shot call).
+pub async fn preview_invitation(
+    server_url: String,
+    code: be_block_keys::InviteCode,
+) -> Result<InvitationPreview, AccountError> {
+    let (preview, card) = be_block_client::contacts::preview_invitation(&server_url, &code).await?;
+    Ok(InvitationPreview {
+        organization_name: preview.organization_name,
+        inviter: card.as_ref().map(named).unwrap_or_default(),
+        state: preview.state,
     })
 }
 
@@ -310,6 +397,7 @@ pub async fn accept_invitation(
         &me.card(),
         &code,
         be_block_client::contacts::Expected::Invitation,
+        &crate::contact_pins(),
     )
     .await?;
     Ok(invitation_of(link)?.organization)
@@ -326,13 +414,27 @@ fn invitation_of(link: be_block_protocol::Link) -> Result<Invitation, AccountErr
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct AgentCredentials {
     pub name: String,
     pub server: String,
     pub organization: Uuid,
     pub token: String,
     pub phrase: String,
+}
+
+/// Leaves out the token and the recovery phrase, so no log ever holds them.
+impl std::fmt::Debug for AgentCredentials {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("AgentCredentials")
+            .field("name", &self.name)
+            .field("server", &self.server)
+            .field("organization", &self.organization)
+            .field("token", &"..")
+            .field("phrase", &"..")
+            .finish()
+    }
 }
 
 impl AgentCredentials {
@@ -358,7 +460,7 @@ pub struct Keys {
     pub account: Uuid,
     pub recovery: Option<be_block_keys::RecoveryPublic>,
     pub sealed: Vec<be_block_protocol::SealedKey>,
-    pub own: Vec<be_block_protocol::OwnSealed>,
+    pub logs: Vec<be_block_protocol::SignedLog>,
 }
 
 pub async fn keys(server_url: String, token: String) -> Result<Keys, AccountError> {
@@ -370,34 +472,47 @@ pub async fn keys(server_url: String, token: String) -> Result<Keys, AccountErro
     let be_block_protocol::RecoveryKey {
         public,
         sealed,
-        own,
-    } = ask(client::keys::get_recovery_key(&connection)).await?;
+        logs,
+    } = ask(
+        be_block_protocol::read::<be_block_protocol::RecoveryKey, _>(
+            &connection,
+            None,
+            be_block_protocol::Query::RecoveryKey,
+        ),
+    )
+    .await?;
     Ok(Keys {
         account,
         recovery: public.map(be_block_keys::RecoveryPublic),
         sealed,
-        own,
+        logs,
     })
 }
 
+/// Moves the account to `fresh` (`be_block_client::contacts::set_recovery_key`), resealing with
+/// `old` everything sealed to it or for itself; with no `old`, only an account with nothing
+/// sealed yet. The contacts' waiting key changes are followed first, checked against the
+/// device's `pins`.
 pub async fn set_recovery_key(
     server_url: String,
     token: String,
-    public: be_block_keys::PublicIdentity,
-    resealed: be_block_client::contacts::NewIdentity,
+    account: Uuid,
+    old: Option<be_block_keys::RecoverySecret>,
+    fresh: be_block_keys::RecoverySecret,
+    pins: std::collections::HashMap<Uuid, be_block_client::contacts::OwnContact>,
 ) -> Result<(), AccountError> {
     let connection = authenticated(&server_url, token).await?;
-    ask(client::keys::set_recovery_key(
-        &connection,
-        public.public.0,
-        public.signing.0,
-        resealed.sealed,
-        resealed.own,
-        resealed.changes,
-    ))
-    .await?;
-    Ok(())
+    be_block_client::contacts::set_recovery_key(&connection, account, old.as_ref(), &fresh, &pins)
+        .await?
+        .map_err(|_| AccountError {
+            message: CANNOT_RESEAL.to_owned(),
+            invalid_token: false,
+        })
 }
+
+/// Why a new phrase can't be taken on a device without the old one.
+pub const CANNOT_RESEAL: &str = "This device cannot open what the old phrase sealed. Unlock this \
+     account with the old phrase first, so the new one can seal it.";
 
 pub async fn pair(
     server_url: String,
@@ -408,12 +523,21 @@ pub async fn pair(
     cancelled: futures_util::future::BoxFuture<'static, ()>,
 ) -> Result<[u8; 32], AccountError> {
     let connection = authenticated(&server_url, token).await?;
-    let mut paired = client::account::paired(&connection);
+    let mut paired = client::server::events(&connection);
     let (pairing, message) = be_block_keys::Pairing::start(&code, account.as_bytes());
     let payload = be_block_keys::PairingMessage::Request { message, device }.encode();
-    ask(client::account::pair(&connection, None, payload)).await?;
+    ask(be_block_protocol::client::server::send(
+        &connection,
+        None,
+        be_block_protocol::Target::Devices(None),
+        payload,
+    ))
+    .await?;
     let reply = async {
         while let Some(heard) = paired.recv().await {
+            let be_block_protocol::Event::Paired(heard) = heard else {
+                continue;
+            };
             if let Ok(be_block_keys::PairingMessage::Reply { message, sealed }) =
                 be_block_keys::PairingMessage::decode(&heard.payload)
             {

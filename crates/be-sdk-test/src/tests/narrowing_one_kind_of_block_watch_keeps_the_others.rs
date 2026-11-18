@@ -1,6 +1,6 @@
 use be_sdk_beui::BlockQuery;
 
-use crate::link::Subject;
+use be_sdk_app_host::blocks::Subject;
 
 use super::*;
 
@@ -60,7 +60,7 @@ fn narrowing_one_kind_of_block_watch_keeps_the_others() {
             .map(|(op, _)| *op)
     };
     for subject in [
-        Subject::Blocks(BlockQuery::Children(folder)),
+        Subject::Blocks(BlockQuery::Children(folder).encode()),
         Subject::History(history),
         Subject::Artifact(kept),
         Subject::Artifact(dropped),
@@ -90,7 +90,7 @@ fn narrowing_one_kind_of_block_watch_keeps_the_others() {
     );
     assert_eq!(op_of(&after, Subject::Artifact(dropped)), None);
     for subject in [
-        Subject::Blocks(BlockQuery::Children(folder)),
+        Subject::Blocks(BlockQuery::Children(folder).encode()),
         Subject::History(history),
         Subject::Artifact(kept),
     ] {
@@ -130,3 +130,5 @@ fn narrowing_one_kind_of_block_watch_keeps_the_others() {
         "an artifact state lands only on its own block"
     );
 }
+
+test_editor!(Quiet);

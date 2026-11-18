@@ -18,7 +18,7 @@ fn finds(text: &str, blocks: &[Uuid]) {
     want_searches(Owner::Host, vec![ask.clone()]);
     let mut expected = blocks.to_vec();
     expected.sort();
-    crate::wait_until(|shared| {
+    crate::wait_until(&format!("found {text:?} in what it should"), |shared| {
         let answer = shared.search.answer(&ask)?;
         let mut found: Vec<Uuid> = answer.hits.iter().map(|hit| hit.block).collect();
         found.sort();
@@ -36,14 +36,11 @@ fn note(workspace: Uuid, text: &str) -> Uuid {
         Some(TextBlock::of("").encode()),
         false,
     );
-    assert_eq!(
-        change_child(
-            workspace,
-            WorkspaceContent::CONTENT_TYPE,
-            ChildChange::Add(block)
-        ),
-        Some(true)
-    );
+    assert!(made(change_child(
+        workspace,
+        WorkspaceContent::CONTENT_TYPE,
+        ChildChange::Add(block)
+    )));
     open(block, TextContent::CONTENT_TYPE);
     type_text(block, 0, text);
     flush();
@@ -74,7 +71,7 @@ fn what_is_typed_is_found_through_the_workspaces_search_index() {
     finds("pea", &[apples]);
     // The mirror takes the index's name once its root's metadata is settled, which a search
     // over the index does not wait for.
-    let index = crate::wait_until(|shared| {
+    let index = crate::wait_until("named the workspace's search index", |shared| {
         shared
             .graph
             .get(workspace)?

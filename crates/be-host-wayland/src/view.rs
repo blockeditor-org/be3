@@ -22,8 +22,8 @@ pub fn WindowView(
     windows: Windows,
     id: WindowId,
     #[prop(default = Vec::new())] occluders: Prop<Vec<Rect>>,
-    #[prop(default = None)] carrier: Option<Carrier>,
-    #[prop(default = 0)] focus: Prop<u64>,
+    carrier: Option<Carrier>,
+    focus: Option<Trigger>,
 ) -> NodeId {
     let Some(signals) = windows.signals(id) else {
         return view! {
@@ -35,8 +35,7 @@ pub fn WindowView(
     let (begin, steer) = carrier.map_or((None, None), |carrier| {
         (Some(carrier.begin), Some(carrier.steer))
     });
-    let rect_held = create_signal(Rect::ZERO);
-    let rect = rect_held.read_only();
+    let rect = create_signal(Rect::ZERO);
     let catcher = NodeRef::new();
     let popup_catcher = NodeRef::new();
     let shown_in = use_window().map(WindowHandle::real);
@@ -101,14 +100,6 @@ pub fn WindowView(
     let size = create_memo(move || shown.get().map_or(Vec2::ZERO, |at| at.size()));
     let parent = use_window().map_or(beui::WindowId::MAIN, |window| window.id);
     let hosted = opens_windows();
-    let openings = create_memo(move || match (hosted.get(), open.get()) {
-        (true, true) => {
-            let at = at.get();
-            vec![Some((at.x.to_bits(), at.y.to_bits()))]
-        }
-        (true, false) => Vec::new(),
-        (false, _) => vec![None],
-    });
     let into_window = move |mut input: ForwardedInput| {
         let at = shown.get_untracked().unwrap_or(Rect::ZERO);
         input.rect = input.rect.translate(-at.min.to_vec2());
@@ -149,15 +140,25 @@ pub fn WindowView(
                 inhibits_shortcuts={inhibits}
                 pointer_locked
                 ime={typing}
-                keyboard={create_memo(move || asks.get().map_or(beui::SoftKeyboard::OnFocus, |asks| beui::SoftKeyboard::Shown { asks }))}
+                keyboard={move || asks.get().map_or(beui::SoftKeyboard::OnFocus, |asks| beui::SoftKeyboard::Shown { asks })}
                 hit_area={takes}
             >
                 <Layers>
-                    <Drawing draw={Prop::dynamic(move || draw_gpu(signals.drawing.get()))} />
+                    <Drawing draw={move || draw_gpu(signals.drawing.get())} />
                     <Frame fill={dim} />
                 </Layers>
             </Interactive>
-            <ForEach keys={openings}>|_: Option<(u32, u32)>| {
+            <Dynamic
+                value={move || match (hosted.get(), open.get()) {
+                    (true, true) => {
+                        let at = at.get();
+                        Some(Some((at.x.to_bits(), at.y.to_bits())))
+                    }
+                    (true, false) => None,
+                    (false, _) => Some(None),
+                }}
+                fallback=()
+            >|_: Option<(u32, u32)>| {
                 let placement = WindowPlacement::Over {
                     window: parent,
                     at: at.get_untracked(),
@@ -173,7 +174,7 @@ pub fn WindowView(
                         on_report={|_: WindowReport| {}}
                     >|_: WindowHandle| {
                         create_effect(move || {
-                            rect.get();
+                            rect.track();
                             if let Some(node) = popup_catcher.try_get() {
                                 windows.popups_caught_by(id, node);
                             }
@@ -191,30 +192,31 @@ pub fn WindowView(
                                 hit_area={on_popup}
                             >
                                 <Drawing
-                                    draw={Prop::dynamic(move || {
+                                    draw={move || {
                                         draw_gpu(popups.with(|popups| {
                                             popups.as_ref().map(|popups| popups.drawing.clone())
                                         }))
-                                    })}
+                                    }}
                                 />
                             </Interactive>
                         }
                     }</Window>
                 }
-            }</ForEach>
+            }</Dynamic>
         </Layers>
     };
     let grabs = signals.grabs;
-    let carried = StoredCell::new(grabs.get_untracked().0);
-    create_effect(move || {
-        let (asked, grab) = grabs.get();
-        if carried.replace(asked) == asked {
-            return;
-        }
-        if let (Some(begin), Some(grab)) = (&begin, grab) {
-            begin(grab);
-        }
-    });
+    create_effect_on_change(
+        move || grabs.get(),
+        move |&(asked, grab), &(carried, _)| {
+            if asked == carried {
+                return;
+            }
+            if let (Some(begin), Some(grab)) = (&begin, grab) {
+                begin(grab);
+            }
+        },
+    );
     let asks = signals.asks;
     let answered = signals.answered.clone();
     create_effect(move || {
@@ -228,20 +230,20 @@ pub fn WindowView(
         answered.set(asked);
         untrack(|| node.focus());
     });
-    let focused_asks = StoredCell::new(untrack(|| focus.get()));
-    create_effect(move || {
-        let asked = focus.get();
-        if focused_asks.replace(asked) == asked {
-            return;
-        }
-        if let Some(node) = catcher.try_get() {
-            untrack(|| node.focus());
-        }
-    });
+    if let Some(focus) = focus {
+        create_effect_on_change(
+            move || focus.track(),
+            move |_, _| {
+                if let Some(node) = catcher.try_get() {
+                    node.focus();
+                }
+            },
+        );
+    }
     let rect_measured = measure(built);
     create_effect(move || {
         if let Some(measured) = rect_measured.get() {
-            rect_held.set(measured.rect);
+            rect.set(measured.rect);
         }
     });
     built

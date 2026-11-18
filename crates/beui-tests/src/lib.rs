@@ -9,10 +9,13 @@
 //! itself; a screen checking a layout prints what it `measure`s in a
 //! `Text`. The browser alone also answers `selection none|some`, `role ROLE NAME [STATE...]`
 //! (Playwright's `getByRole`; `modal` and `inert` read Chrome's accessibility tree over CDP) and
-//! `roles ROLE COUNT`, `highlighted TEXT|none` (what the CSS highlights cover) and
+//! `roles ROLE COUNT` and
 //! `elements CSS COUNT`, for scripts that run only there (crates/beui-demo-html's), and
-//! `attribute CSS NAME VALUE|none`, `history LENGTH`, `history-state marker|none`, `loads COUNT` and
-//! `reload`, which a script both cores
+//! `attribute CSS NAME VALUE|none`, `history LENGTH`, `history-state marker|none`, `loads COUNT`,
+//! `reload`, `css TEXT` (adds a stylesheet, to stand in for a browser without a feature),
+//! `share-sheet` (gives the page a `navigator.share` that keeps what it is handed, and reloads)
+//! and `shared TEXT` (waits until it was handed TEXT), which
+//! a script both cores
 //! run gives as `#web COMMAND` lines (comments natively).
 //!
 //! The browser run's `settle` waits until no frame is wanted at once; a frame a timer will ask
@@ -69,8 +72,14 @@ pub fn Fixture(name: String) -> Root {
         "list" => view! {
             <ListFixture />
         },
+        "stretch" => view! {
+            <StretchFixture />
+        },
         "text" => view! {
             <TextFixture />
+        },
+        "blank" => view! {
+            <BlankFixture />
         },
         "focus" => view! {
             <FocusFixture />
@@ -78,14 +87,23 @@ pub fn Fixture(name: String) -> Root {
         "interactive" => view! {
             <InteractiveFixture />
         },
+        "host" => view! {
+            <HostFixture />
+        },
         "offset" => view! {
             <OffsetFixture />
         },
         "virtual_list" => view! {
             <VirtualListFixture />
         },
+        "virtual_handle" => view! {
+            <VirtualHandleFixture />
+        },
         "paste" => view! {
             <PasteFixture />
+        },
+        "share" => view! {
+            <ShareFixture />
         },
         "text_hooks" => view! {
             <TextHooksFixture />
@@ -110,6 +128,12 @@ pub fn Fixture(name: String) -> Root {
         },
         "text_item" => view! {
             <TextItemFixture />
+        },
+        "text_gap" => view! {
+            <TextGapFixture />
+        },
+        "text_rule" => view! {
+            <controls::TextRuleFixture />
         },
         "text_input" => view! {
             <TextInputFixture />
@@ -165,8 +189,14 @@ pub fn Fixture(name: String) -> Root {
         "scroll_chain" => view! {
             <rows::ScrollChainFixture />
         },
+        "virtual_anchor" => view! {
+            <rows::VirtualAnchorFixture />
+        },
         "drag" => view! {
             <rows::DragFixture />
+        },
+        "carry" => view! {
+            <rows::CarryFixture />
         },
         "reorder" => view! {
             <rows::ReorderFixture />
@@ -204,7 +234,7 @@ pub fn Fixture(name: String) -> Root {
         "picture" => view! {
             <surfaces::PictureFixture />
         },
-        "docking" => view! {
+        "docking" | "docking_keys" => view! {
             <docking::DockingFixture />
         },
         other => {
@@ -235,9 +265,12 @@ fn Button(id: &'static str, label: &'static str, on_click: Callback<()>) -> Node
 #[component]
 fn FrameFixture() -> NodeId {
     let wide = create_signal(false);
-    let width = create_memo(move || Extent::px(if wide.get() { 100.0 } else { 50.0 }));
     let inner = view! {
-        <Frame width={width} height=20.0 fill={GREEN} />
+        <Frame
+            width={move || Extent::px(if wide.get() { 100.0 } else { 50.0 })}
+            height=20.0
+            fill={GREEN}
+        />
     };
     let outer = view! {
         <Frame
@@ -276,11 +309,46 @@ fn FrameFixture() -> NodeId {
 }
 
 #[component]
+fn StretchFixture() -> NodeId {
+    let bar = view! {
+        <Frame width={Extent::fraction(0.25)} height=20.0 fill={GREEN} />
+    };
+    let full = view! {
+        <Frame height=20.0 fill={BLUE} />
+    };
+    let column = view! {
+        <Frame width=200.0>
+            <List spacing=10.0>{bar}{full}</List>
+        </Frame>
+    };
+    let bar_rect = measured_rect(bar);
+    let full_rect = measured_rect(full);
+    let column_rect = measured_rect(column);
+    let report = create_memo(
+        move || match (bar_rect.get(), full_rect.get(), column_rect.get()) {
+            (Some(bar), Some(full), Some(column)) => format!(
+                "Bar {} at {:.0} beside {}",
+                size(Some(bar)),
+                bar.min.x - column.min.x,
+                size(Some(full))
+            ),
+            _ => "Bar unmeasured".to_owned(),
+        },
+    );
+    view! {
+        <List spacing=12.0>
+            {column}
+            <Text color={INK}>{report}</Text>
+        </List>
+    }
+}
+
+#[component]
 fn ListFixture() -> NodeId {
     let rows = create_signal(vec![1_u32, 2, 3]);
     let list = view! {
         <List @test_id="list.rows" spacing=10.0>
-            <ForEach keys={rows}>|row: u32|
+            <ForEach value={rows}>|row: u32|
                 <Frame width=160.0 height=20.0 fill={GREEN} @test_id={format!("list.row{row}")} />
             </ForEach>
         </List>
@@ -330,6 +398,117 @@ fn TextFixture() -> NodeId {
             />
         </List>
     }
+}
+
+const BLANK_LINE: &str = "afdjnafndjsk fadsnjknjafkdsl nfjakdjnklafds njafdnjlkafds njkafdsnjlkafds njkafdnjlkfads jnkafldsnlj a";
+
+/// A line in a frame exactly as wide as its words, then a `Blank` with a glyph over it, which
+/// must hang past the line's end rather than wrap the last word: the screen says whether the
+/// wrapped line is as tall as the unwrapped one. In the browser it also says whether the blank's
+/// box, which a mark over it fills, is as tall as its line and as wide as it was asked, and
+/// whether the glyph over it sits on the line.
+#[component]
+fn BlankFixture() -> NodeId {
+    let free = view! {
+        <Text color={INK} overflow={beui::Overflow::Visible}>{BLANK_LINE}</Text>
+    };
+    let free_rect = measured_rect(free);
+    let glyph = vec![TextGlyph::new(
+        BLANK_LINE.len()..BLANK_LINE.len() + 1,
+        "\u{23ce}",
+        FontId::proportional(14.0),
+        BLUE,
+    )];
+    let fitted = view! {
+        <Text color={INK} glyphs={glyph} @test_id="blank.text">
+            {BLANK_LINE}
+            <Blank width=BLANK_WIDTH />
+        </Text>
+    };
+    let fitted_rect = measured_rect(fitted);
+    let narrower = view! {
+        <Text color={INK}>
+            {BLANK_LINE}
+            <Blank width=BLANK_WIDTH />
+        </Text>
+    };
+    let narrower_rect = measured_rect(narrower);
+    let report =
+        create_memo(
+            move || match (free_rect.get(), fitted_rect.get(), narrower_rect.get()) {
+                (Some(free), Some(fitted), Some(narrower)) => {
+                    let hangs = match free.height() == fitted.height() {
+                        true => "Blank hangs",
+                        false => "Blank wraps",
+                    };
+                    let wraps = match narrower.height() > free.height() {
+                        true => "narrower wraps",
+                        false => "narrower fits",
+                    };
+                    format!("{hangs}, {wraps}")
+                }
+                _ => "Blank unmeasured".to_owned(),
+            },
+        );
+    // `free` sits across a row, so it is measured at its own width, not the column's.
+    let width = move |less: f32| {
+        move || Extent::px(free_rect.get().map_or(0.0, |rect| rect.width()) - less)
+    };
+    let boxed = create_memo(move || {
+        let _laid_out = fitted_rect.get();
+        blank_box()
+    });
+    // A blank with no font of its own is the text's width whatever font the text changes to.
+    let large = create_signal(false);
+    let grown_size = move || if large.get() { 24.0 } else { 14.0 };
+    let grown_font = move || FontId::proportional(grown_size());
+    let grown = view! {
+        <Text color={INK} font={grown_font} @test_id="blank.grown">
+            "Grows"
+            <Blank width=BLANK_WIDTH />
+        </Text>
+    };
+    let grown_rect = measured_rect(grown);
+    let grown_box = create_memo(move || {
+        let _laid_out = grown_rect.get();
+        format!("{} in {} pixel text", grown_blank_width(), grown_size())
+    });
+    view! {
+        <List spacing=12.0>
+            <List direction={Direction::Horizontal} spacing=0.0>{free}</List>
+            <Frame width={width(0.0)}>{fitted}</Frame>
+            <Frame width={width(4.0)}>{narrower}</Frame>
+            <Text color={INK}>{report}</Text>
+            <Text color={INK}>{boxed}</Text>
+            {grown}
+            <Button id="blank.grow" label="Grow" on_click={move || large.set(true)} />
+            <Text color={INK}>{grown_box}</Text>
+        </List>
+    }
+}
+
+const BLANK_WIDTH: f32 = 14.0;
+
+/// What the browser drew for the blank in `BlankFixture`.
+#[cfg(target_arch = "wasm32")]
+fn blank_box() -> String {
+    web::blank_box(BLANK_WIDTH)
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn blank_box() -> String {
+    "Blank box drawn natively".to_owned()
+}
+
+/// What the browser drew for the blank in the text whose font `BlankFixture` changes.
+#[cfg(target_arch = "wasm32")]
+fn grown_blank_width() -> String {
+    web::grown_blank_width(BLANK_WIDTH)
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn grown_blank_width() -> String {
+    "Grown blank drawn natively".to_owned()
 }
 
 #[component]
@@ -386,7 +565,7 @@ fn TextHooksFixture() -> NodeId {
             </Frame>
             <Frame width=160.0 height=100.0>
                 <Offset>
-                    <VirtualList @node_ref=&rows keys={keys} item_size=20.0>|row: ReadSignal<u32>|
+                    <VirtualList @node_ref=&rows value={keys} item_size=20.0>|row: ReadSignal<u32>|
                         <Frame height=20.0 fill={BLUE}>
                             <Text color={PAPER}>{format!("Item {}", row.get_untracked())}</Text>
                         </Frame>
@@ -409,7 +588,18 @@ fn TextHooksFixture() -> NodeId {
                 }}
             />
             <Text color={INK}>{read}</Text>
-            <Text @node_ref=&chosen @test_id="text_hooks.chosen" color={INK}>"Hello world"</Text>
+            <Text @node_ref=&chosen @test_id="text_hooks.chosen" color={INK}>
+                "Hello "
+                <Span
+                    background={Some(beui::SpanBackground {
+                        color: PAPER.into(),
+                        radius: 3.0,
+                        outset: Vec2::ZERO,
+                    })}
+                >
+                    "world"
+                </Span>
+            </Text>
             <Button
                 id="text_hooks.select"
                 label="Select world"
@@ -458,6 +648,27 @@ fn PasteFixture() -> NodeId {
 }
 
 #[component]
+fn ShareFixture() -> NodeId {
+    let sheet = use_share_sheet();
+    let report = create_memo(move || match sheet.get() {
+        true => "A share sheet".to_owned(),
+        false => "No share sheet".to_owned(),
+    });
+    view! {
+        <List spacing=12.0>
+            <Text color={INK}>{report}</Text>
+            <Show value={sheet}>||
+                <Button
+                    id="share.button"
+                    label="Share"
+                    on_click={Callback::new(|()| share(beui::Clip::text("https://be3.example/invite")))}
+                />
+            </Show>
+        </List>
+    }
+}
+
+#[component]
 fn BackFixture() -> NodeId {
     let catching = create_signal(false);
     let backs = create_signal(0_u32);
@@ -483,6 +694,11 @@ fn InteractiveFixture() -> NodeId {
     let clicked = create_memo(move || format!("Clicked {}", clicks.get()));
     let keys = create_memo(move || format!("Pressed {}", pressed.get()));
     let text = create_memo(move || format!("Typed {}", typed.get()));
+    // What a press tells its `Interactive`, in order: both cores arm it (`active`) before
+    // `on_press`, so `on_press` reads it active.
+    let heard = create_signal(Vec::<&'static str>::new());
+    let active = create_signal(false);
+    let order = create_memo(move || format!("Heard {}", heard.get().join(" ")));
     view! {
         <List spacing=12.0>
             <Button
@@ -513,6 +729,178 @@ fn InteractiveFixture() -> NodeId {
                 <Frame width=160.0 height=30.0 fill={GREEN} />
             </Interactive>
             <Text color={INK}>{text}</Text>
+            <Interactive
+                @test_id="interactive.order"
+                on_active_change={move |on: bool| {
+                    active.set(on);
+                    heard.update(|heard| heard.push(if on { "armed" } else { "released" }));
+                }}
+                on_press={move |_: beui::PointerPress| {
+                    let word = if active.get_untracked() { "press-active" } else { "press-idle" };
+                    heard.update(|heard| heard.push(word));
+                }}
+            >
+                <Frame width=160.0 height=30.0 fill={BLUE} />
+            </Interactive>
+            <Text color={INK}>{order}</Text>
+        </List>
+    }
+}
+
+/// Control flow in slots that take one node, held by a host node: it is placed as its child
+/// would be (a share of a row, a shrunk share, a grid span), and swaps while its child is
+/// pressed (and so captures the pointer and takes focus), dragged or hovered.
+#[component]
+fn HostFixture() -> NodeId {
+    let swapped = create_signal(false);
+    let swaps = create_signal(0_u32);
+    let swap = move || {
+        swapped.set(!swapped.get_untracked());
+        swaps.set(swaps.get_untracked() + 1);
+    };
+    let hovered = create_signal(false);
+    let plain = view! {
+        <Frame height=20.0 fill={BLUE} />
+    };
+    let hosted: NodeId = into_child(view! {
+        <Show
+            value={swapped}
+            fallback={move || view! {
+                <Interactive
+                    @test_id="host.first"
+                    focusable=true
+                    on_press={move |_: beui::PointerPress| swap()}
+                >
+                    <Frame height=20.0 fill={GREEN} />
+                </Interactive>
+            }}
+        >
+            <Interactive @test_id="host.second" on_drag={move |_: beui::PointerPress| swap()}>
+                <Frame height=20.0 fill={AMBER} />
+            </Interactive>
+        </Show>
+    });
+    let shrunk_plain = view! {
+        <Frame width=200.0 height=20.0 fill={BLUE} />
+    };
+    let shrunk_hosted: NodeId = into_child(view! {
+        <Show
+            value={swapped}
+            fallback={|| view! {
+                <Frame width=200.0 height=20.0 fill={GREEN} />
+            }}
+        >
+            <Frame width=200.0 height=20.0 fill={AMBER} />
+        </Show>
+    });
+    let cell_plain = view! {
+        <Frame height=20.0 fill={BLUE} />
+    };
+    let cell_hosted: NodeId = into_child(view! {
+        <Show
+            value={hovered}
+            fallback={move || view! {
+                <Interactive
+                    @test_id="host.cell"
+                    on_hover_change={move |over: bool| if over { hovered.set(true) }}
+                >
+                    <Frame height=20.0 fill={GREEN} />
+                </Interactive>
+            }}
+        >
+            <Frame @test_id="host.hovered" height=20.0 fill={AMBER} />
+        </Show>
+    });
+    let wrapped = view! {
+        <Interactive
+            @test_id="host.wrapped"
+            focusable=true
+            on_press={move |_: beui::PointerPress| swap()}
+        >
+            <Show
+                value={swapped}
+                fallback={|| view! {
+                    <Frame width=40.0 height=20.0 fill={GREEN} />
+                }}
+            >
+                <Frame width=60.0 height=20.0 fill={AMBER} />
+            </Show>
+        </Interactive>
+    };
+    let wrapped_rect = measured_rect(wrapped);
+    let wrapped_report = create_memo(move || format!("Wrapped {}", size(wrapped_rect.get())));
+    let named = NodeRef::new();
+    let named_focused = create_signal(false);
+    let focus_report = create_memo(move || match named_focused.get() {
+        true => "Named host focused".to_owned(),
+        false => "Named host not focused".to_owned(),
+    });
+    let rects = [
+        plain,
+        hosted,
+        shrunk_plain,
+        shrunk_hosted,
+        cell_plain,
+        cell_hosted,
+    ]
+    .map(measured_rect);
+    let report = create_memo(move || {
+        let [
+            plain,
+            hosted,
+            shrunk_plain,
+            shrunk_hosted,
+            cell_plain,
+            cell_hosted,
+        ] = rects.map(|rect| size(rect.get()));
+        format!(
+            "Row {plain} {hosted} Shrunk {shrunk_plain} {shrunk_hosted} Grid {cell_plain} {cell_hosted} Swaps {}",
+            swaps.get()
+        )
+    });
+    view! {
+        <List spacing=12.0>
+            <Frame width=300.0>
+                <List direction=Direction::Horizontal spacing=10.0>
+                    <ListItem grow=1.0>{plain}</ListItem>
+                    <ListItem grow=2.0>{hosted}</ListItem>
+                </List>
+            </Frame>
+            <Frame width=300.0>
+                <List direction=Direction::Horizontal spacing=10.0>
+                    <ListItem shrink=1.0>{shrunk_plain}</ListItem>
+                    <ListItem shrink=1.0>{shrunk_hosted}</ListItem>
+                </List>
+            </Frame>
+            <Frame width=300.0>
+                <Grid columns={vec![beui::Track::Fraction(1.0); 3]}>
+                    <GridCell>{cell_plain}</GridCell>
+                    <GridCell span=2>{cell_hosted}</GridCell>
+                </Grid>
+            </Frame>
+            <Text color={INK}>{report}</Text>
+            <Show
+                @test_id="host.named"
+                @node_ref=&named
+                value={swapped}
+                fallback={move || view! {
+                    <Interactive focusable=true on_focus_change={named_focused}>
+                        <Frame width=40.0 height=20.0 fill={GREEN} />
+                    </Interactive>
+                }}
+            >
+                <Interactive focusable=true>
+                    <Frame width=40.0 height=20.0 fill={AMBER} />
+                </Interactive>
+            </Show>
+            <Button
+                id="host.focus"
+                label="Focus the named host"
+                on_click={move || set_focus(Some(named.get()))}
+            />
+            <Text color={INK}>{focus_report}</Text>
+            <Frame align={Align2::all(Align::Start)}>{wrapped}</Frame>
+            <Text color={INK}>{wrapped_report}</Text>
         </List>
     }
 }
@@ -539,7 +927,7 @@ fn OffsetFixture() -> NodeId {
                     on_change={move |now: ScrollPosition| position.set(Some(now))}
                 >
                     <List spacing=0.0>
-                        <ForEach keys={keys}>|row: u32|
+                        <ForEach value={keys}>|row: u32|
                             <Frame
                                 height=30.0
                                 fill={if row % 2 == 0 { BLUE } else { GREEN }}
@@ -568,7 +956,7 @@ fn VirtualListFixture() -> NodeId {
         <List spacing=12.0>
             <Frame width=160.0 height=200.0>
                 <Offset offset={offset}>
-                    <VirtualList keys={keys} item_size=20.0>|row: ReadSignal<u32>|
+                    <VirtualList value={keys} item_size=20.0>|row: ReadSignal<u32>|
                         <Frame
                             height=30.0
                             fill={if row.get_untracked() % 2 == 0 { BLUE } else { GREEN }}
@@ -580,6 +968,45 @@ fn VirtualListFixture() -> NodeId {
                 </Offset>
             </Frame>
             <Button id="rows.end" label="To the end" on_click={move || offset.set(29800.0)} />
+        </List>
+    }
+}
+
+/// A virtual list's handle, as both cores fill it: each built row's key and place, a key
+/// shown twice known by its first place, and nothing once the list is gone.
+#[component]
+fn VirtualHandleFixture() -> NodeId {
+    let keys = create_signal(vec![0_u32, 1, 0, 2]);
+    let shown = create_signal(true);
+    let rows = ForEachRef::<u32, NodeId>::new();
+    let report = create_memo(move || {
+        rows.keys();
+        let mut built = Vec::new();
+        rows.for_each_row(|row| built.push(format!("{}@{}", row.key, row.index.get())));
+        match rows.index_of(&0) {
+            Some(first) => format!("Handle: 0 first at {first}, rows {}", built.join(" ")),
+            None => "Handle: empty".to_owned(),
+        }
+    });
+    view! {
+        <List spacing=12.0>
+            <Frame width=160.0 height=200.0>
+                <Show value={shown}>
+                    <VirtualList value={keys} handle={rows} item_size=20.0>|row: ReadSignal<u32>|
+                        <Frame
+                            height=20.0
+                            fill={if row.get_untracked() == 0 { BLUE } else { GREEN }}
+                        />
+                    </VirtualList>
+                </Show>
+            </Frame>
+            <Button
+                id="handle.rotate"
+                label="Rotate"
+                on_click={move || keys.update(|keys| keys.rotate_right(1))}
+            />
+            <Button id="handle.hide" label="Hide" on_click={move || shown.set(false)} />
+            <Text>{report}</Text>
         </List>
     }
 }
@@ -651,7 +1078,7 @@ fn OverlayFixture() -> NodeId {
             {trigger}
             <Overlay
                 anchor={&anchor}
-                placement={Placement::BelowStart}
+                placement={Placement::BELOW_START}
                 open={open}
                 on_dismiss={move |reason: Dismiss| {
                     dismissed.set(format!("{reason:?}"));
@@ -735,7 +1162,7 @@ fn CoveringFixture() -> NodeId {
                 {opener("menu", menu)}
                 {opener("below", below)}
                 {placed(Placement::Menu, menu, "Menu")}
-                {placed(Placement::BelowStart, below, "Below")}
+                {placed(Placement::BELOW_START, below, "Below")}
             </List>
         </List>
     }
@@ -928,7 +1355,7 @@ fn EditingFixture() -> NodeId {
     });
     let round_trip = create_memo(move || {
         let at = caret.get();
-        content.with(|_| ());
+        content.track();
         let Some(geometry) = geometry.get() else {
             return "Round trip unmeasured".to_owned();
         };
@@ -1002,6 +1429,86 @@ fn TextItemFixture() -> NodeId {
                 label="Next"
                 on_click={move || step.set(step.get_untracked() + 1)}
             />
+        </List>
+    }
+}
+
+/// Where an item after a `Gap` sharing half the width lands: halfway across a wrapping `Text`,
+/// and at its start in one that wraps nowhere, where a share has no room.
+#[component]
+fn TextGapFixture() -> NodeId {
+    let placed = |overflow: beui::Overflow, id: &'static str| {
+        let marker = view! {
+            <Frame @test_id={id} width=2.0 height=10.0 fill={BLUE} />
+        };
+        let text = view! {
+            <Text color={INK} overflow={overflow}>
+                <Gap share=0.5 />
+                <TextItem>{marker}</TextItem>
+            </Text>
+        };
+        let text_rect = measured_rect(text);
+        let marker_rect = measured_rect(marker);
+        let offset = create_memo(move || {
+            let (text, marker) = (text_rect.get()?, marker_rect.get()?);
+            Some((marker.left() - text.left(), text.width()))
+        });
+        (text, offset)
+    };
+    let (wrapping, wrapped) = placed(beui::Overflow::default(), "text_gap.wrapping");
+    let (visible, unwrapped) = placed(beui::Overflow::Visible, "text_gap.visible");
+    let report = create_memo(move || match (wrapped.get(), unwrapped.get()) {
+        (Some((half, width)), Some((none, _)))
+            if (half - width / 2.0).abs() < 1.0 && none.abs() < 1.0 =>
+        {
+            "Gap shares half the width".to_owned()
+        }
+        (wrapped, unwrapped) => format!("Gap wrapped {wrapped:?} unwrapped {unwrapped:?}"),
+    });
+    // A caret at the end of a line stands past the gap that ends it, so a selection to there
+    // covers the gap: the end caret of a text ending in a 30 pixel gap stands 30 pixels further
+    // from its start than that of the same text without it.
+    let span = |gapped: bool| {
+        let text = match gapped {
+            true => view! {
+                <Text color={INK} overflow={beui::Overflow::Visible}>
+                    "ab"
+                    <Gap width=20.0 />
+                    "c"
+                    <Gap width=30.0 />
+                </Text>
+            },
+            false => view! {
+                <Text color={INK} overflow={beui::Overflow::Visible}>
+                    "ab"
+                    <Gap width=20.0 />
+                    "c"
+                </Text>
+            },
+        };
+        let geometry = measure_text(text);
+        let span = create_memo(move || {
+            let geometry = geometry.get()?;
+            Some(geometry.caret_rect(3, 2.0)?.left() - geometry.caret_rect(0, 2.0)?.left())
+        });
+        (text, span)
+    };
+    let (ended, with_gap) = span(true);
+    let (bare, without_gap) = span(false);
+    let end = create_memo(move || match (with_gap.get(), without_gap.get()) {
+        (Some(with), Some(without)) if (with - without - 30.0).abs() < 1.0 => {
+            "End caret past the gap".to_owned()
+        }
+        (with, without) => format!("End caret {with:?} without the gap {without:?}"),
+    });
+    view! {
+        <List spacing=12.0>
+            <Frame width=240.0 padding={Sides::all(8.0)} fill={PAPER}>{wrapping}</Frame>
+            <Frame width=240.0 padding={Sides::all(8.0)} fill={PAPER}>{visible}</Frame>
+            <Frame width=240.0 padding={Sides::all(8.0)} fill={PAPER}>{ended}</Frame>
+            <Frame width=240.0 padding={Sides::all(8.0)} fill={PAPER}>{bare}</Frame>
+            <Text color={INK}>{report}</Text>
+            <Text color={INK}>{end}</Text>
         </List>
     }
 }

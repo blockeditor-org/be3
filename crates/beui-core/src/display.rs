@@ -116,6 +116,9 @@ pub struct Display {
     pub parts: Box<[Part]>,
     pub bounds: Rect,
     pub count: usize,
+    /// How many drawings (`Shape::Drawing`) this display and its children hold, so a renderer
+    /// that must visit every drawing each frame skips the subtrees that hold none.
+    pub drawings: usize,
 }
 
 pub enum Part {
@@ -140,6 +143,20 @@ pub fn bounds_of(parts: &[Part]) -> Rect {
         .fold(Rect::NOTHING, |bounds, part| bounds.union(part.bounds()))
 }
 
+fn drawings_of(shapes: &[Shape], parts: &[Part]) -> usize {
+    parts
+        .iter()
+        .map(|part| match part {
+            Part::Shapes { start, end, .. } => shapes[*start as usize..*end as usize]
+                .iter()
+                .filter(|shape| matches!(shape, Shape::Drawing { .. }))
+                .count(),
+            Part::Child(_, _, display) => display.drawings,
+            Part::Group(_, parts) => drawings_of(shapes, parts),
+        })
+        .sum()
+}
+
 fn count_of(parts: &[Part]) -> usize {
     parts
         .iter()
@@ -159,6 +176,7 @@ impl Display {
             document,
             node,
             key: KEYS.fetch_add(1, Ordering::Relaxed),
+            drawings: drawings_of(&shapes, &parts),
             shapes: shapes.into(),
             bounds: bounds_of(&parts),
             count: count_of(&parts),
@@ -175,6 +193,7 @@ impl Display {
             shapes: Rc::clone(&self.shapes),
             bounds: bounds_of(&parts),
             count: count_of(&parts),
+            drawings: drawings_of(&self.shapes, &parts),
             parts,
         })
     }

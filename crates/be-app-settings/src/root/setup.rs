@@ -23,7 +23,7 @@ const SET_UP_CAPTION: &str = "This device starts with settings that suit its kin
 pub(super) struct DeviceSetup {
     editor: Editor,
     profile: ContentProjection<SettingsProfileContent>,
-    class: ReadSignal<Option<DeviceClass>>,
+    class: Memo<Option<DeviceClass>>,
     own_block: Memo<Option<Uuid>>,
     every: ReadSignal<DisplaySettings>,
     own: ReadSignal<DisplaySettings>,
@@ -188,11 +188,6 @@ pub(super) fn DeviceSection(setup: DeviceSetup, blocked: Memo<bool>) -> NodeId {
             .unwrap_or_default()
     });
     let class = setup.class;
-    let selected = create_memo(move || {
-        class
-            .get()
-            .and_then(|class| DeviceClass::ALL.iter().position(|known| *known == class))
-    });
     view! {
         <SettingsSection title="Device">
             <SettingsRow label="Name" locked={blocked}>
@@ -217,13 +212,13 @@ pub(super) fn DeviceSection(setup: DeviceSetup, blocked: Memo<bool>) -> NodeId {
                     <Select
                         width={Extent::fraction(1.0)}
                         options={view! {
-                            <ForEach keys={DeviceClass::ALL.to_vec()}>|class: DeviceClass|
-                                <ChoiceOption label={class.name().to_owned()} />
+                            <ForEach value={DeviceClass::ALL.to_vec()}>|class: DeviceClass|
+                                <ChoiceOption value=class label={class.name().to_owned()} />
                             </ForEach>
                         }}
-                        selected={Binding::new(selected, move |index: Option<usize>| {
-                            if let Some(class) = index.and_then(|index| DeviceClass::ALL.get(index)) {
-                                setup.choose(*class);
+                        selected={Binding::new(class, move |chosen: Option<DeviceClass>| {
+                            if let Some(class) = chosen {
+                                setup.choose(class);
                             }
                         })}
                         label="Kind of device"
@@ -250,7 +245,7 @@ pub(super) fn DifferencesSection(setup: DeviceSetup, blocked: Memo<bool>) -> Nod
                 heading="Setting"
                 columns={vec![TableColumn::new("Your devices"), TableColumn::new("This device")]}
             >
-                <ForEach keys={rows}>|key: String| {
+                <ForEach value={rows}>|key: String| {
                     let name = setup.cell(key.clone(), |cell| cell.default.name().to_owned());
                     let everywhere = setup.cell(key.clone(), |cell| cell.default.every_device(cell.every));
                     let here = setup.cell(key.clone(), |cell| cell.default.kept(cell.own).unwrap_or_default());

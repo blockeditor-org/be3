@@ -17,6 +17,9 @@ write_package_value("be3.cargo", {
         "android-arm64": {
             "binaries": {},
             "deps": [
+                "//crates/be-block-input:be-block-input",
+                "//crates/be-block-repository:be-block-repository",
+                "//crates/be-block-search-index:be-block-search-index",
                 "//crates/be-block:be-block",
                 "//crates/be-sdk-type-guest:be-sdk-type-guest",
             ],
@@ -28,6 +31,9 @@ write_package_value("be3.cargo", {
         "linux-arm64": {
             "binaries": {},
             "deps": [
+                "//crates/be-block-input:be-block-input",
+                "//crates/be-block-repository:be-block-repository",
+                "//crates/be-block-search-index:be-block-search-index",
                 "//crates/be-block:be-block",
                 "//crates/be-sdk-type-guest:be-sdk-type-guest",
             ],
@@ -39,6 +45,9 @@ write_package_value("be3.cargo", {
         "linux-x86_64": {
             "binaries": {},
             "deps": [
+                "//crates/be-block-input:be-block-input",
+                "//crates/be-block-repository:be-block-repository",
+                "//crates/be-block-search-index:be-block-search-index",
                 "//crates/be-block:be-block",
                 "//crates/be-sdk-type-guest:be-sdk-type-guest",
             ],
@@ -50,6 +59,9 @@ write_package_value("be3.cargo", {
         "macos-arm64": {
             "binaries": {},
             "deps": [
+                "//crates/be-block-input:be-block-input",
+                "//crates/be-block-repository:be-block-repository",
+                "//crates/be-block-search-index:be-block-search-index",
                 "//crates/be-block:be-block",
                 "//crates/be-sdk-type-guest:be-sdk-type-guest",
             ],
@@ -61,6 +73,9 @@ write_package_value("be3.cargo", {
         "macos-x86_64": {
             "binaries": {},
             "deps": [
+                "//crates/be-block-input:be-block-input",
+                "//crates/be-block-repository:be-block-repository",
+                "//crates/be-block-search-index:be-block-search-index",
                 "//crates/be-block:be-block",
                 "//crates/be-sdk-type-guest:be-sdk-type-guest",
             ],
@@ -72,6 +87,9 @@ write_package_value("be3.cargo", {
         "wasi": {
             "binaries": {},
             "deps": [
+                "//crates/be-block-input:be-block-input",
+                "//crates/be-block-repository:be-block-repository",
+                "//crates/be-block-search-index:be-block-search-index",
                 "//crates/be-block:be-block",
                 "//crates/be-sdk-type-guest:be-sdk-type-guest",
             ],
@@ -83,6 +101,9 @@ write_package_value("be3.cargo", {
         "wasi-guest": {
             "binaries": {},
             "deps": [
+                "//crates/be-block-input:be-block-input",
+                "//crates/be-block-repository:be-block-repository",
+                "//crates/be-block-search-index:be-block-search-index",
                 "//crates/be-block:be-block",
                 "//crates/be-sdk-type-guest:be-sdk-type-guest",
             ],
@@ -94,6 +115,9 @@ write_package_value("be3.cargo", {
         "windows-arm64": {
             "binaries": {},
             "deps": [
+                "//crates/be-block-input:be-block-input",
+                "//crates/be-block-repository:be-block-repository",
+                "//crates/be-block-search-index:be-block-search-index",
                 "//crates/be-block:be-block",
                 "//crates/be-sdk-type-guest:be-sdk-type-guest",
             ],
@@ -105,6 +129,9 @@ write_package_value("be3.cargo", {
         "windows-x86_64": {
             "binaries": {},
             "deps": [
+                "//crates/be-block-input:be-block-input",
+                "//crates/be-block-repository:be-block-repository",
+                "//crates/be-block-search-index:be-block-search-index",
                 "//crates/be-block:be-block",
                 "//crates/be-sdk-type-guest:be-sdk-type-guest",
             ],

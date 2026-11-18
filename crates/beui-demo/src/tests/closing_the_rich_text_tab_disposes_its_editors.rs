@@ -10,5 +10,5 @@ fn closing_the_rich_text_tab_disposes_its_editors() {
     test.click(format!("dock.tab.{}.close", tab(Page::RichText)));
     test.frame(Vec::new());
     test.frame(Vec::new());
-    assert!(!test.shows("demo.rich.editor"), "the tab closes");
+    assert!(!test.shown("demo.rich.editor"), "the tab closes");
 }

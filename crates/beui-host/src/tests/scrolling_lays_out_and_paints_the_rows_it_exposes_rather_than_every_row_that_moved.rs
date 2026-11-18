@@ -13,11 +13,11 @@ fn scrolling_lays_out_and_paints_the_rows_it_exposes_rather_than_every_row_that_
         view! {
             <List spacing=0.0>
                 <Frame height=200.0>
-                    <Scroll @test_id="scroll">
-                        <ForEach keys={(0..ROWS).collect::<Vec<_>>()}>|row: usize|
+                    <Scroll @test_id="scroll" style={plain_scroll()}>
+                        <ForEach value={(0..ROWS).collect::<Vec<_>>()}>|row: usize|
                             <Frame height=40.0 fill=Color32::WHITE radius=0.0>
                                 <List direction=Direction::Horizontal spacing=4.0>
-                                    <ForEach keys={(0..LABELS).collect::<Vec<_>>()}>|label: usize|
+                                    <ForEach value={(0..LABELS).collect::<Vec<_>>()}>|label: usize|
                                         <Text>{format!("{row}.{label}")}</Text>
                                     </ForEach>
                                 </List>

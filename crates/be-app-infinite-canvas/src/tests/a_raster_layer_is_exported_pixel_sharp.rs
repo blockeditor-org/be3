@@ -23,7 +23,6 @@ fn a_raster_layer_is_exported_pixel_sharp() {
             ..Modifiers::NONE
         },
     );
-    editor.run();
 
     palette_runs(&mut editor, "copy as svg");
     let copied = editor.take_copied_text();

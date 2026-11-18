@@ -20,7 +20,7 @@ use beui_view::types::icons::ICON_ELLIPSIS;
 use beui_view::types::{Align, Direction};
 use beui_view::types::{Dismiss, LayerPolicy};
 use beui_view::types::{Key, KeyPhase};
-use beui_view::types::{Pos2, Rect, Vec2, pos2};
+use beui_view::types::{Pos2, Rect, pos2};
 
 #[derive(Clone, Copy)]
 struct State {
@@ -32,40 +32,39 @@ struct State {
 
 /// Opens a menu of `items` over its child on a secondary click (at the pointer)
 /// or, with the focus inside it or on the control it belongs to, on Shift+F10 or
-/// the Menu key (beneath the child); Ctrl or Alt with either is left alone. The
-/// menu's own keys are `MenuList`'s. Choosing a leaf closes every level; a press
-/// outside closes them all.
+/// the Menu key (beneath the child); Ctrl or Alt with either is left alone. It
+/// writes `at` (the press, or `None` beneath the child) and then `open`; an owner
+/// opens it the same way. The menu's own keys are `MenuList`'s. Choosing a leaf
+/// closes every level; a press outside closes them all.
 #[component]
 pub fn ContextMenu(
     #[prop(default = ComponentRef::new())] api: ComponentRef<ContextMenuApi>,
-    children: Child,
+    children: NodeId,
     items: Children<MenuItem>,
     menu: MenuStyle,
     #[prop(default = 0.0)] child_grow: Prop<f32>,
     #[prop(default = false)] disabled: Prop<bool>,
-    #[prop(default = None)] open_at: Prop<Option<Pos2>>,
-    #[prop(default = true)] open_at_focuses: bool,
-    #[prop(default = false)] selection: bool,
-    #[prop(default = None)] toolbar_at: Prop<Option<Rect>>,
-    #[prop(default = true)] opens_on_hold: bool,
-    #[prop(default = None)] bounds: Prop<Option<Rect>>,
-    /// `Placement::Menu`, or `BelowStart` for a menu that must keep clear of what it opened
+    #[prop(default = false)] open: Binding<bool>,
+    #[prop(default = None)] at: Binding<Option<Pos2>>,
+    /// `Placement::Menu`, or `Placement::BELOW_START` for a menu that must keep clear of what it opened
     /// from, such as a bar.
     #[prop(default = Placement::Menu)]
     placement: Prop<Placement>,
-    on_close: Callback<()>,
+    #[prop(default = None)] bounds: Prop<Option<Rect>>,
+    #[prop(default = false)] keep_alive: bool,
+    #[prop(default = false)] selection: bool,
+    #[prop(default = None)] toolbar_at: Prop<Option<Rect>>,
+    #[prop(default = true)] opens_on_hold: bool,
     on_toolbar_close: Callback<()>,
 ) -> NodeId {
-    let open = create_signal(false);
     let focusing = create_signal(true);
-    let position: Signal<Option<Pos2>> = create_signal(None);
     let holder = NodeRef::new();
-    let anchor = create_memo(move || match position.get() {
-        Some(at) => OverlayAnchor::Pinned {
-            node: holder,
-            rect: Rect::from_min_size(at, Vec2::ZERO),
-        },
-        None => OverlayAnchor::Node(holder),
+    // A menu opened by its owner focuses, as one opened by a press or a key does; only the
+    // toolbar's More leaves the focus where it was.
+    create_effect(move || {
+        if !open.get() {
+            untrack(|| focusing.set(true));
+        }
     });
     on_key(
         KeyAt::Control(holder),
@@ -85,8 +84,7 @@ pub fn ContextMenu(
                 return false;
             }
             if press.pressed {
-                position.set(None);
-                focusing.set(true);
+                at.set(None);
                 open.set(true);
             }
             true
@@ -101,34 +99,24 @@ pub fn ContextMenu(
         more: more_button,
     }));
 
-    let (requested, requested_position, requested_focusing) = (open, position, focusing);
-    create_effect(move || {
-        let Some(at) = open_at.get() else {
-            return;
-        };
-        requested_position.set(Some(at));
-        requested_focusing.set(open_at_focuses);
-        requested.set(true);
-    });
-    let shown = create_memo(move || open.get());
     let sheet = match selection {
         true => SheetWhen::Never,
         false => SheetWhen::Touched,
     };
     let mut ever_open = false;
     let built = create_memo(move || {
-        ever_open |= shown.get();
+        ever_open |= open.get();
         ever_open
     });
     let toolbar_style = menu.toolbar();
     let has_toolbar = toolbar_style.is_some();
     let toolbar_open = create_memo(move || {
-        has_toolbar && toolbar_at.get().is_some() && !open.get() && !disabled.get()
+        has_toolbar && toolbar_at.with(Option::is_some) && !open.get() && !disabled.get()
     });
     let toolbar_anchor =
         create_memo(move || OverlayAnchor::Rect(toolbar_at.get().unwrap_or(Rect::NOTHING)));
-    let more = Callback::new(move |at: Pos2| {
-        position.set(Some(at));
+    let more = Callback::new(move |point: Pos2| {
+        at.set(Some(point));
         focusing.set(false);
         open.set(true);
         on_toolbar_close.call(());
@@ -151,8 +139,7 @@ pub fn ContextMenu(
                 if disabled.get() || (press.touch && !opens_on_hold) {
                     return;
                 }
-                position.set(Some(press.pos));
-                focusing.set(true);
+                at.set(Some(press.pos));
                 open.set(true);
             }}
             on_press_outside={move |pos: Pos2| {
@@ -170,27 +157,24 @@ pub fn ContextMenu(
         >
             <List spacing=0.0>
                 <ListItem grow=child_grow>{children}</ListItem>
-                <Show condition={built}>
+                <Show value={built}>
                     <MenuPopup
                         overlay
                         content
                         items={items.clone()}
                         menu={menu}
-                        anchor
+                        anchor={holder}
+                        open
+                        at
                         placement
                         bounds
-                        open={shown}
+                        keep_alive
                         sheet
                         focusing
-                        on_dismiss={move || {
-                            open.set(false);
-                            on_close.call(());
-                        }}
                     />
                 </Show>
-                <Show condition={toolbar_open}>|| {
-                    let (button, panel) = toolbar_style.unwrap_or_else(|| unreachable!());
-                    view! {
+                {toolbar_style.map(|(button, panel)| view! {
+                    <Show value={toolbar_open}>
                         <Toolbar
                             @node_ref=&toolbar
                             items={toolbar_items.clone()}
@@ -203,8 +187,8 @@ pub fn ContextMenu(
                             on_more={more}
                             on_dismiss={move || on_toolbar_close.call(())}
                         />
-                    }
-                }</Show>
+                    </Show>
+                })}
             </List>
         </Interactive>
     }
@@ -213,8 +197,8 @@ pub fn ContextMenu(
 #[component]
 fn Toolbar(
     items: Run<MenuItem>,
-    button: RenderFn<ButtonHandle>,
-    panel: RenderFn<Child>,
+    button: RenderFn<ButtonHandle, NodeId>,
+    panel: RenderFn<NodeId, NodeId>,
     anchor: Memo<OverlayAnchor>,
     bar: NodeRef,
     more: NodeRef,
@@ -243,7 +227,7 @@ fn Toolbar(
     view! {
         <Overlay
             anchor
-            placement=Placement::Above
+            placement=Placement::ABOVE_CENTER
             policy=LayerPolicy::Pass
             traps_focus=false
             open=true
@@ -282,7 +266,7 @@ fn Toolbar(
 fn ToolbarButton(
     item: Rc<MenuItem>,
     index: usize,
-    button: RenderFn<ButtonHandle>,
+    button: RenderFn<ButtonHandle, NodeId>,
     on_choose: Callback<usize>,
 ) -> NodeId {
     let disabled = item.disabled;

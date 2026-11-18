@@ -13,17 +13,82 @@ types are all `Placed<P>`: a node plus the data its parent `P` keeps beside it
 the wrong kind is a compile error. A plain node converts into whatever a slot
 asks for. A new parent implements `ParentKind` (and `BareChild` if a bare
 `NodeId` should fit). A slot holds runs, not a flat list, which is how a
-fragment, `Show` or `ForEach` fills places among siblings it does not own. So
-control flow has no spacing, takes no `@test_id` or `@node_ref`, and does not
-compile in a single-child slot until a `List` goes around it. A `Vec` of nodes
-does not fill a slot; write a `ForEach` over the keys inside the same `view!`.
-A component whose whole view is a `Show` returns `DynamicSegment<ListItem>`.
+fragment, `Show` or `ForEach` fills places among siblings it does not own. A
+`Vec` of nodes does not fill a slot; write a `ForEach` over the keys inside the
+same `view!`. A slot may also be a render prop (`Render`, `RenderFn`, `Build`,
+`BuildFn`, or an `Option` of one). `view!` hands the children to the slot's one
+setter wrapped by how they are written (tags, `|| {..}`, `|value| {..}`,
+`|value| <Tag />`), and the slot type says which it takes (`TakesBlock`,
+`TakesUnitClosure`, `TakesClosure`, `TakesWith`): a child type takes tags that
+build one, `Children` takes a run, and only a render handed a value takes
+`|value|`. A new child type gets its impls from `child_type!`.
+
+**Control flow.** Every control-flow component reads its value from `value`,
+takes its children as its body, and takes a `fallback` for when there is
+nothing to show:
+
+- `Show` shows its body while `value` is `true` or `Some`. Over an `Option` the
+  body is handed a `ReadSignal` of what is in it: `<Show value={picked}>|item:
+  ReadSignal<Item>| ..</Show>`. That signal is set each time the value is read
+  again, equal or not, so pass a memo when what is in it changes less often than
+  what it is read from.
+- `Match` shows the first `Case` that holds for `value`: `<Case is={Shape::Circle}>`,
+  `<Case when={|shape: &Shape| shape.round()}>`, or both. A case is built when it
+  becomes the one that holds and kept while it stays so, however the value
+  changes.
+- `Dynamic` builds its body from `value`, again when it changes to one that
+  differs (`PartialEq`).
+- `Keyed` builds once per `key={|value: &V| ..}` and hands its body a signal.
+- `ForEach` builds a row per item of `value`, in order, and keeps a row while
+  its item stays. Without a `key` an item is its own key; with
+  `key={|item: &T| item.id}` a row stays while its item changes. A row may also
+  take its place, `|item: T, index: ReadSignal<usize>|`, and builds any number
+  of children, moved together when the rows reorder. The `fallback` shows while
+  the list is empty.
+- `Loading` shows its `fallback` until what its body made has arrived.
+
+What a body is handed follows one rule: a body built again on every change gets
+the value (`Dynamic`, a `ForEach` row without a `key`); a body kept while the
+value changes gets a signal of it (`Show` over an `Option`, a `Case`, `Keyed`, a
+`ForEach` row with a `key`). A `||` body ignores what it is handed. A value
+whose type comes only from what is passed (`Show`'s, `Dynamic`'s, `Keyed`'s)
+takes a signal, memo or closure, never a plain value: a condition fixed when
+the view is built is plain Rust, `cond.then(|| view! {..})`, since a plain
+`Option` of a child (or of `Children`) fills a run but is built once. With a
+`fallback`, a `Dynamic` or `Keyed` `value` must already be an `Option`.
+
+**Their forms.** `Show`, `Dynamic`, `Keyed` and `Loading` return a lazy form
+whose type says how many children it builds, read from what the branches build:
+`OneOf<C>` (exactly one: a `Show` with a `fallback` whose branches each build
+one, a `Dynamic` or `Keyed` building one), `ZeroOrOne<C>` (a `Show` without a
+`fallback`, or a `Dynamic` or `Keyed` over an `Option` given `fallback=()`,
+which builds nothing on `None`), or a run, `DynamicSegment<C>` (several
+children; `ForEach` and `Match` always). Among a parent's run every form fills
+its place with no node of its own, so a hidden `Show` takes no room and no
+spacing. In a slot that takes one node, `OneOf` (and `ZeroOrOne` where the slot
+is `Option<Child>`) becomes a host node holding the child it swaps: natively a
+bare `Frame` that sizes to its child, on HTML a `display: contents` element
+that passes its placed styles on to its child. `@test_id` and `@node_ref` on
+`OneOf` or `ZeroOrOne` name that host, which it then becomes even among a run;
+focusing a host focuses the child it holds. A run where one node goes, and a
+`Show` without a `fallback` where a node must always be, are compile errors
+saying what to add. An either/or is one `Show` with a `fallback`, never two
+`Show`s on a condition and its negation, and a choice among several is a
+`Match`, never a `Show` per case
+([decision](../../decisions/control_flow_in_single_child_slots_is_held_by_a_host_node.md)).
+A component whose whole view is control flow returns `DynamicSegment<ListItem>`
+(for a run) or `NodeId` (a host), which `#[component]` turns it into
+(`ComponentOutput`). That conversion hides the body's type from inference, so a
+body ending in `x.into()` or `Default::default()` names its type
+(`NodeId::from(x)`).
 
 **Modifiers.** `@test_id` (a one-word `Prop<String>`, carried on the node's
 accessibility node as AccessKit's `author_id`, so it reaches `drive` and tests
-only where the tree shows the node) and `@node_ref`. Any `@path=value` expands to
+only where the tree shows the node) and `@node_ref`. `@test_id` also names a
+value child that implements `TakesTestId` (`ChoiceOption`, `MenuItem`): its
+parent binds the id on the row it builds for it. Any `@path=value` expands to
 `path(built, value)` after the component is built, in source order, and may
-change the output type. A modifier works on the node itself; how a parent places
+change the output type. A modifier works on the node itself (`NamesNode`); how a parent places
 a child is a tag around it that builds the child that parent takes:
 `<ListItem grow=1.0>` (a list or stack child's length: `grow`, `length`, `min`,
 `max`, `shrink`, `align`, `gap`) and `<GridCell span=2>`. So
@@ -49,11 +114,60 @@ them, as they do outside any component.
 `#[component]` as well as each method; props go on the trait's declaration.
 Use them as `<A::View editor />`. A component method takes no `self`.
 
-**Props.** Pass a memo to a prop as it is, not as `move || memo.get()`, which
-boxes a closure. A tag's children are built in a `move` closure, so inside a render closure that runs more than once,
-clone a non-`Copy` prop in a block head:
-`<Show condition>|| { let v = v.clone(); view! { <Text>{v}</Text> } }</Show>`.
-A `Callback<T>` also takes a `Signal<T>`, which it sets. A `Callback<()>` prop takes a closure without arguments (`on_click={move || ..}`) and is called with `.call(())`.
+**Props.** Every setter `#[component]` writes takes `impl IntoPropValue<P, M>`
+for the prop's declared type `P`, and each prop type says in `beui-tree`
+(`prop_value.rs`) what it takes; the macro reads no type names but `Option`'s
+(below). Every type takes
+itself. A `Prop<T>` prop also takes a `T`, a signal or memo of one, or a closure
+returning one, which it reads as a getter: `value={move || !hex.get()}`.
+Pass a derived value as a closure. Make a memo instead when its output changes
+less often than its inputs (a boolean from a scroll offset or a long list), so
+what reads it is not woken for nothing, or when it is costly and read in
+several places. Pass a signal or memo as it is, not as `move || memo.get()`. A closure
+returns the prop's own type: the conversions a prop type adds with
+`into_prop_via!` (a `Space` for a `Padding`) apply to values, signals and memos,
+not to closures. An `Option<X>` takes what an `X` takes, or an `Option<X>` passed
+on as it is; a `String` takes a `&str`; a `Callback<T>` takes an `FnMut(T)`, a
+`Signal<T>` (which it sets) or a `Binding<T>`, and a `Callback<()>` also a
+closure without arguments (`on_click={move || ..}`), called with `.call(())`; a
+render prop takes a closure taking its handle (`|_| ..` when it ignores it), and a
+`Build<C>` or `BuildFn<C>` one taking nothing. A plain type takes only itself, so
+a `From` conversion a caller wants into a prop type of its own crate is an
+`IntoPropValue<ThatType, M>` impl for the value's type, with a marker of its own
+as `M`; for an `Option<ThatType>` prop to take that value too, add an
+`OptionalTakes<Value, M>` impl on `ThatType` (`reactive::macro_support`). `beui-tree`'s own prop types instead have one `IntoPropValue` impl each,
+keyed on the type and asking the type what it takes (`Takes`, implemented on the
+prop's type), so a value a prop does not take is reported against the prop
+rather than with a list of every type `IntoPropValue` knows. Every builder
+method and function that takes a prop takes `impl IntoPropValue<Prop<T>, M>`
+(or `<Callback<T>, M>`), never `impl IntoProp<T>`, so it takes what a tag would.
+
+A setter is generic over what it is passed, so it is no coercion site, and three
+things that coerce into a plain parameter need writing out:
+- a function item for a `fn(..)` prop: cast it, `name={ThemeKind::name as fn(_) -> _}`;
+- a closure for a `Box<dyn Fn(..)>` or `Rc<dyn Fn(..)>` prop: build the box,
+  `{Box::new(f) as Box<dyn Fn(u32)>}`;
+- an un-annotated parameter of a callback or named render closure whose body
+  calls a method on it: annotate it, `on_change={|v: u32| v.max(1)}`.
+A closure written between tags is typed by its slot, so
+`<Show value={picked}>|item| { item.get(); .. }</Show>` needs none.
+
+A prop whose last type argument is one of the component's own type parameters,
+named by no other prop (`Show`'s `value: Prop<V>`, its `then: RenderFn<V::Handed,
+B>`), takes what is passed without converting it (`Exact`), so that parameter
+follows what is passed: a `Prop`, signal, memo or closure for the `Prop`, the
+very value a closure builds for a render, a value as `Some` for an `Option<T>`,
+a signal for a `Binding<T>`, and for a `Callback`, `Func` or `Children` what
+they always take. The rule looks through `Option`, so an `Option<RenderFn<H, C>>`
+takes what an exact `RenderFn<H, C>` does, as `Some`. A prop typed by a bare
+type parameter takes its value as it is, and cannot be the children slot. Write
+every type argument of a render (`Render<H, C>`,
+`RenderFn<H, C>`); one handed nothing is a `Build<C>` or `BuildFn<C>`, and the
+macro rejects `Render<(), C>`.
+
+A tag's children are built in a `move` closure, so inside a render closure that runs
+more than once, clone a non-`Copy` prop in a block head:
+`<Show value={shown}>|| { let v = v.clone(); view! { <Text>{v}</Text> } }</Show>`.
 
 **Ownership.** A node belongs to the scope it was built in and leaves the tree
 when that scope is disposed, so a subtree that outlives its builder (one shown
@@ -65,6 +179,39 @@ document's effects wait for its next frame and the write wakes the window
 ([reactive.md, Zones](../reactive.md#zones)). `with_reactive_scope(document, f)`
 is only for work that needs the document itself: `with_document`, creating
 nodes or effects in its scope.
+
+### Keeping a subtree
+
+Three ways to take a subtree out of view. A `Frame` given `collapsed` stays built and
+running in place, but is laid out at no size, draws nothing and takes no spacing in a
+`List` (the HTML core gives it `display: none`): for something hidden for a moment that
+must keep running where it is, as a `Reorder` row carried off its list keeps its carry. A
+`Show` removes it. A `Kept` keeps it elsewhere, paused, to show again or move.
+
+A `Show`, `Match` or `Dynamic` disposes the branch it hides. To keep one, with
+its state, build it in a `Kept` under a `KeepAlive`:
+`<KeepAlive><Show value={open}><Kept>{panel}</Kept></Show></KeepAlive>`. A
+`Kept` builds its children the first time, shows them through a portal, and
+pauses them (no effect runs) once it goes; the next `Kept` with that `key`
+anywhere under the same `KeepAlive` resumes them and shows the same node, so a
+subtree can move between parents. Without `key`, a `Kept` is the one unkeyed
+subtree of its `KeepAlive`. `keep` (a `Vec`, or a memo of one) lists the keys
+to hold: a key it drops is disposed once nothing shows it, and everything is
+disposed when the `KeepAlive` goes. Keys of any `Hash + Eq` type share one
+`KeepAlive`. Two `Kept`s with one key shown at once show it where the one
+built last is. A `Kept` inside another one's subtree pauses and resumes with
+it. A key in `awake` keeps running while hidden and reads as shown, for a
+subtree whose purpose is shown elsewhere (a dock tab whose own dock joined);
+it is still dropped once `keep` no longer lists it.
+
+A kept subtree belongs to the `KeepAlive`, not the `Kept` that first built it,
+so it reads the context provided around the `KeepAlive`, not what is provided
+between it and the `Kept`. Content that needs a value from in between reads it
+outside the `Kept` and provides it again inside, as overlay content does with
+`use_overlay_presence()` and `presence.provide()`. Inside, `kept_shown()` is a
+memo of whether the subtree (and every one kept around it) is shown, for what
+it holds outside itself and must let go while hidden. Each `Kept` adds a portal
+node between its slot and what it keeps.
 
 ## One layout per frame
 
@@ -100,7 +247,8 @@ on HTML the first time; anchor an overlay to the node instead.
 
 A component that builds from its own size measures its root after building it
 and writes a signal its content reads. Keep the last answer when it turns
-`None` (a hidden panel then does not rebuild at zero), and build content
+`None` (a hidden panel then does not rebuild at zero; a memo given its
+previous value does this), and build content
 placed by the size only once the first answer is in. It may query the space it
 was given, but if it also decides that space on the same axis it never
 settles: give it its room from the parent on that axis. Children whose rects
@@ -221,12 +369,22 @@ modules of `beui-core-html`, each registering a pass with `frame::on_layout`
 that runs before paint; `ResizeObserver`s call `frame::relayout()` so a resize
 is corrected in the same frame.
 
+An `Interactive` that drags captures the pointer on press, so the drag goes on outside it,
+unless a node inside it takes that press's click (a button in a `Reorder` row, a dock tab):
+a captured pointer's click goes to the capturing element, so it captures only once the press
+moves a drag's threshold, following the press on the window until then
+(`beui-core-html/src/interactive.rs`).
+
 Back is the browser's back, reaching what `Dismiss::Back` reaches natively
 (guides/beui/overlays.md, Back and `BackSlide`).
 
 A component's accessibility node becomes ARIA through the one table in
 `beui-core-html`'s `aria.rs`. Drive lines come from the accessibility nodes,
-not the ARIA, so they read the same on both cores.
+not the ARIA, so they read the same on both cores. A `Frame` given
+`accessibility_hidden` leaves the tree with all it holds (natively it is skipped
+and its subtree described again when the flag changes; on HTML it is
+`aria-hidden`), for what is drawn twice: a fixed list's empty slot while the
+row's preview floats.
 
 **Running and server rendering.** `beui::html::run(element_id, build)` starts a
 program; `render_to_string` on the host and `hydrate` in the browser serve a
@@ -269,18 +427,24 @@ Every test that runs a document runs it through
 `Screen`, the clock stopped and one frame interval per frame.
 `testing::Showing(document)` is a `Document` as a program.
 
-- Its gestures (`click`, `drag`, `scroll`, `type_text`, `key`, `settle`, ...)
-  are `drive`'s commands, and each settles as `drive` does. A failure prints the
-  steps as `drive` commands, which replay against a `:dev` program.
+- It is a `testing::Gui`, the one test surface it shares with an editor's
+  `BeuiTest`: gestures (`click`, `drag`, `scroll`, `type_text`, `key`, ...),
+  reading by test id (`shown`, `rect_of`, `label`, `reveal`) and `settle` are
+  written once on the trait, and `testing::Snapshots` has `record` and
+  `snapshot`. Gestures are `drive`'s commands, sent through the drive layer, and
+  each paints its frames and settles as `drive` does before it returns; a
+  failure prints the steps as `drive` commands, which replay against a `:dev`
+  program. `drive(words)` sends any other command (`wait`, `pause`, `tree`).
 - `frame(inputs)` pushes raw `Input`s in points through the runner's intake
   and paints one frame, so send what a platform would (`Input::Modifiers`
   before a chord); a `Context` takes no `Event` directly.
-- `snapshot(name)`, `snapshot_layers(name)` and `snapshot_window(name, id)`
-  compare paintings ([testing_a_gui.md](../testing_a_gui.md)); any other
+- `snapshot(name)` (the frames `record` kept, or the current one),
+  `snapshot_layers(name)` and `snapshot_window(name, id)` compare paintings ([testing_a_gui.md](../testing_a_gui.md)); any other
   painting goes through `beui_paint_snapshot::assert_painting`.
 
 beui's own tests use `Harness` (`crates/beui-host/src/tests.rs`), a `Stepped`
-with settling off; a block editor uses `be_sdk_test::BeuiTest`.
+with settling off that is a `Gui` through `testing::Wraps`; a block editor uses
+`be_sdk_test::BeuiTest`.
 
 **Both cores.** Behaviour that must match goes in a shared screen and script in
 crates/beui-tests, run natively, natively with late measurement, and in

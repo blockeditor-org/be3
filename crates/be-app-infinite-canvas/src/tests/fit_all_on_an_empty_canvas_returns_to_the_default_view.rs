@@ -8,9 +8,7 @@ fn fit_all_on_an_empty_canvas_returns_to_the_default_view() {
     let canvas = editor.rect_of("infinite-canvas.canvas");
 
     editor.click("infinite-canvas.pill.fit");
-    editor.run();
     editor.click("infinite-canvas.pill.zoom-in");
-    editor.run();
     assert_ne!(editor.label("infinite-canvas.pill.zoom"), "100%");
     apply(
         &mut editor,
@@ -20,7 +18,6 @@ fn fit_all_on_an_empty_canvas_returns_to_the_default_view() {
     assert!(entities(&editor).is_empty());
 
     editor.click("infinite-canvas.pill.fit");
-    editor.run();
 
     assert_eq!(editor.label("infinite-canvas.pill.zoom"), "100%");
     let mut home = card();

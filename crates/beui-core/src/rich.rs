@@ -2,6 +2,7 @@ use std::ops::Range;
 
 use crate::font::{Galley, Wraps};
 use crate::painter::Painter;
+use be_lib_graphemes::grapheme_boundaries;
 use beui_types::Color32;
 use beui_types::{FontId, TextAlign};
 use beui_types::{Rect, Vec2, pos2, vec2};
@@ -11,8 +12,30 @@ const SPAN_STRIKE_OFFSET: f32 = 0.32;
 const SPAN_LINE_THICKNESS: f32 = 1.0 / 16.0;
 pub const TAB_COLUMNS: f32 = 4.0;
 const WRAP_SLACK: f32 = 1.0 / 1024.0;
+/// How wide the break zone at the end of a wrapped line is, in ems of the text's font.
+pub const BREAK_ZONE_EMS: f32 = 6.0;
 
-use beui_types::{Piece, RichOptions, SpanStyle};
+/// A place a line could end: its byte, its x, the x it must fit by (before any spaces it
+/// follows, which hang) and how good a break it is, if the line can break there at all.
+struct Stop {
+    byte: usize,
+    x: f32,
+    fit: f32,
+    tier: Option<Tier>,
+}
+
+/// How good a place to break a line is, best first (guides/beui/text.md, "Wrapping").
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
+enum Tier {
+    /// A Unicode line break opportunity (UAX #14), or the end of a piece that breaks after it.
+    Good,
+    /// After `/ . _ : , ; ) ] } -` or before `( [ {` inside a word, as in code, paths and URLs.
+    LessGood,
+    /// Any other grapheme cluster boundary.
+    LastResort,
+}
+
+use beui_types::{GapWidth, Piece, RichOptions, SpanStyle};
 
 pub const OBJECT: &str = "\u{fffc}";
 
@@ -20,7 +43,8 @@ pub const OBJECT: &str = "\u{fffc}";
 pub enum SpanKind {
     Text,
     Inline(usize, Vec2),
-    Gap(f32),
+    Gap(GapWidth),
+    Blank(f32),
     Break,
     Icon(f32),
     Tab,
@@ -111,7 +135,10 @@ pub struct RichLine {
     pub range: Range<usize>,
     reach: f32,
     limit: f32,
-    least: f32,
+    /// Where the spaces that end the line begin, and the width they hang past: a caret or
+    /// selection among them stops at `edge` rather than running on past the text.
+    hung: usize,
+    edge: f32,
     pub top: f32,
     pub left: f32,
     pub height: f32,
@@ -122,16 +149,52 @@ pub struct RichLine {
 }
 
 impl RichLine {
+    /// Where a caret at `index` stands: before the character there, past any gap, icon or
+    /// break that holds no bytes before it; at the line's end, after its last character and the
+    /// gaps right after that (room the text keeps), but before an icon that ends the line. A
+    /// selection runs between the places of its ends, so it is drawn where its carets are.
     pub fn x_of(&self, index: usize) -> f32 {
         if index >= self.range.end {
-            return self.left + self.width;
+            return self.hang(index, self.left + self.end_x());
         }
-        self.left
+        let x = self.left
             + self
                 .runs
                 .iter()
                 .find(|run| run.range.contains(&index))
-                .map_or(0.0, |run| run.x_of(index))
+                .map_or(0.0, |run| run.x_of(index));
+        self.hang(index, x)
+    }
+
+    fn end_x(&self) -> f32 {
+        let last = self.runs.iter().rposition(|run| !run.range.is_empty());
+        let mut end = last.map_or(0.0, |at| self.runs[at].x + self.runs[at].width);
+        for run in &self.runs[last.map_or(0, |at| at + 1)..] {
+            match run.kind {
+                SpanKind::Gap(_) => end = run.x + run.width,
+                _ => break,
+            }
+        }
+        end
+    }
+
+    /// `x` for a byte among the spaces that hang past the line's end, kept at the edge, but
+    /// for the width of each `Piece::Blank` among them before it, which stays its own past the
+    /// edge so a mark or glyph over a blank has room.
+    fn hang(&self, index: usize, x: f32) -> f32 {
+        if index <= self.hung {
+            return x;
+        }
+        let blanks: f32 = self
+            .runs
+            .iter()
+            .filter(|run| run.range.start >= self.hung && run.range.end <= index)
+            .filter_map(|run| match run.kind {
+                SpanKind::Blank(width) => Some(width),
+                _ => None,
+            })
+            .sum();
+        x.min(self.edge + blanks)
     }
 
     pub fn x_after(&self, index: usize) -> f32 {
@@ -141,7 +204,7 @@ impl RichLine {
             .find(|run| run.range.start < index)
             .map_or_else(
                 || self.x_of(index),
-                |run| self.left + run.x_of(index.min(run.range.end)),
+                |run| self.hang(index, self.left + run.x_of(index.min(run.range.end))),
             )
     }
 
@@ -261,10 +324,6 @@ pub struct RichLayout {
 
 pub trait Shaper {
     fn galley(&mut self, text: &str, font: FontId) -> Galley;
-
-    fn slice(&mut self, galley: &Galley, range: Range<usize>, font: FontId) -> Galley {
-        self.galley(galley.text().get(range).unwrap_or_default(), font)
-    }
 }
 
 impl<F: FnMut(&str, FontId) -> Galley> Shaper for F {
@@ -281,6 +340,8 @@ struct Builder<'a> {
     paragraph: Range<usize>,
     segment: Range<usize>,
     anywhere: bool,
+    /// What a gap's share of the width is a share of.
+    wrap_width: f32,
     whole: Vec<Option<(Range<usize>, Galley)>>,
 }
 
@@ -393,12 +454,16 @@ impl Builder<'_> {
                         shaped
                     }
                 };
+                // The part of a span on one wrapped line is shaped on its own
+                // rather than cut from the paragraph's shaping: its glyphs'
+                // subpixel phases then start afresh at the line's start, so an
+                // edit earlier in the paragraph leaves a line whose text did
+                // not change drawn exactly as it was.
                 let galley = match whole == range {
                     true => shaped,
-                    false => {
-                        let within = range.start - whole.start..range.end - whole.start;
-                        self.shaper.slice(&shaped, within, style.font)
-                    }
+                    false => self
+                        .shaper
+                        .galley(self.text.get(range.clone()).unwrap_or(""), style.font),
                 };
                 RichRun {
                     piece,
@@ -430,6 +495,19 @@ impl Builder<'_> {
                 height: size.y,
                 galley: None,
             },
+            // A blank's galley is empty: it measures the line as text in its font would, and
+            // draws nothing.
+            SpanKind::Blank(width) => RichRun {
+                piece,
+                range,
+                style,
+                kind,
+                x,
+                width,
+                height: 0.0,
+                galley: Some(self.shaper.galley("", style.font)),
+                inner: Vec::new(),
+            },
             SpanKind::Gap(_) | SpanKind::Break => RichRun {
                 piece,
                 range,
@@ -437,7 +515,7 @@ impl Builder<'_> {
                 kind,
                 x,
                 width: match kind {
-                    SpanKind::Gap(width) => width,
+                    SpanKind::Gap(width) => width.of(self.wrap_width),
                     _ => 0.0,
                 },
                 height: 0.0,
@@ -507,69 +585,163 @@ impl Builder<'_> {
         stops
     }
 
+    /// Classifies each stop of the paragraph as a place to break (guides/beui/text.md,
+    /// "Wrapping"), in one pass: its tier, and the x it must fit by, which for a stop after
+    /// spaces is where the spaces begin, so trailing spaces hang past the edge.
+    fn classify(&self, stops: Vec<(usize, f32)>) -> Vec<Stop> {
+        let Range { start, end } = self.paragraph.clone();
+        let paragraph = self.text.get(start..end).unwrap_or_default();
+        const GOOD: u8 = 1;
+        const BOUNDARY: u8 = 2;
+        let mut flags = vec![0u8; paragraph.len() + 1];
+        for (at, _) in unicode_linebreak::linebreaks(paragraph) {
+            flags[at] |= GOOD;
+        }
+        for at in grapheme_boundaries(paragraph.as_bytes()) {
+            flags[at] |= BOUNDARY;
+        }
+        let bytes = self.text.as_bytes();
+        let mut span = self.spans.partition_point(|span| span.range.end < start);
+        let mut ink = f32::NEG_INFINITY;
+        stops
+            .into_iter()
+            .map(|(byte, x)| {
+                while self.spans.get(span).is_some_and(|it| it.range.end < byte) {
+                    span += 1;
+                }
+                let gap_or_break_after = self.spans[span.min(self.spans.len())..]
+                    .iter()
+                    .take_while(|it| it.range.end == byte)
+                    .any(|it| it.break_after || matches!(it.kind, SpanKind::Gap(_)));
+                let at = byte.saturating_sub(start).min(paragraph.len());
+                let tier = match () {
+                    _ if gap_or_break_after || flags[at] & GOOD != 0 => Some(Tier::Good),
+                    _ if flags[at] & BOUNDARY == 0 => None,
+                    _ if self.anywhere => Some(Tier::Good),
+                    _ if matches!(
+                        bytes.get(byte.wrapping_sub(1)),
+                        Some(b'/' | b'.' | b'_' | b':' | b',' | b';' | b')' | b']' | b'}' | b'-')
+                    ) || matches!(bytes.get(byte), Some(b'(' | b'[' | b'{')) =>
+                    {
+                        Some(Tier::LessGood)
+                    }
+                    _ => Some(Tier::LastResort),
+                };
+                let spaced = byte > start
+                    && self.text[start..byte]
+                        .chars()
+                        .next_back()
+                        .is_some_and(char::is_whitespace);
+                if !spaced || self.anywhere || ink == f32::NEG_INFINITY {
+                    ink = x;
+                }
+                Stop {
+                    byte,
+                    x,
+                    fit: ink,
+                    tier,
+                }
+            })
+            .collect()
+    }
+
+    /// Where the line from `from` breaks when the rest of the paragraph does not fit in
+    /// `wrap` (guides/beui/text.md, "Wrapping"): the rightmost break point of the best tier
+    /// inside the break zone, the last `zone` before `wrap`, else the rightmost grapheme
+    /// boundary that fits. Returns the byte, the least wrap that breaks there the same way,
+    /// the least wrap that does not, and how wide the line is without the spaces that hang
+    /// past its end. One pass forward from `from`, and on past the line at most `zone`.
     fn breakpoint(
         &self,
-        stops: &[(usize, f32)],
+        stops: &[Stop],
         from: usize,
         to: usize,
         origin: f32,
         wrap: f32,
-    ) -> Option<(usize, f32, f32)> {
-        let first = stops.partition_point(|(byte, _)| *byte <= from);
-        let candidates = stops[first..]
-            .iter()
-            .take_while(|(byte, x)| *byte < to && x - origin <= wrap);
-        let count = candidates.clone().count();
-        let fits = &stops[first..first + count];
-        let good = fits.iter().rposition(|(byte, _)| self.good(*byte));
-        let Some(chosen) = good.or(fits.len().checked_sub(1)) else {
-            let (byte, x) = stops[first..]
-                .iter()
-                .find(|(byte, x)| *byte < to && *x > origin)?;
-            return Some((*byte, 0.0, x - origin));
-        };
-        let (byte, x) = fits[chosen];
-        let reach = x - origin;
-        let limit = stops[first + chosen + 1..]
-            .iter()
-            .take_while(|(next, _)| *next <= to)
-            .find(|(next, _)| *next > byte && (good.is_none() || *next == to || self.good(*next)))
-            .map_or(f32::INFINITY, |(next, x)| match *next == to {
-                true => stops[stops.partition_point(|(byte, _)| *byte <= to) - 1].1 - origin,
-                false => x - origin,
-            });
-        Some((byte, reach, limit))
-    }
-
-    fn least(&self, stops: &[(usize, f32)], start: usize, end: usize) -> f32 {
-        let (mut longest, mut from) = (0.0f32, 0.0f32);
-        for &(byte, x) in stops {
-            if byte > start && (byte >= end || self.good(byte)) {
-                longest = longest.max(x - from);
-                from = x;
+        zone: f32,
+    ) -> Option<(usize, f32, f32, f32)> {
+        let first = stops.partition_point(|stop| stop.byte <= from);
+        let edge = wrap - zone;
+        let mut best = [None::<(usize, f32)>; 3];
+        let mut fitting = None::<(usize, f32)>;
+        let mut before = [f32::NEG_INFINITY; 2];
+        let mut index = first;
+        while let Some(stop) = stops.get(index) {
+            let x = stop.fit - origin;
+            if stop.byte >= to || x > wrap {
+                break;
+            }
+            index += 1;
+            let Some(tier) = stop.tier else {
+                continue;
+            };
+            fitting = Some((stop.byte, x));
+            match x >= edge {
+                true => best[tier as usize] = Some((stop.byte, x)),
+                false => {
+                    for (better, rightmost) in before.iter_mut().enumerate() {
+                        if tier as usize <= better {
+                            *rightmost = x;
+                        }
+                    }
+                }
             }
         }
-        longest
-    }
-
-    fn good(&self, byte: usize) -> bool {
-        self.anywhere
-            || self.breaks_after(byte)
-            || self
-                .text
-                .as_bytes()
-                .get(byte.wrapping_sub(1))
-                .is_some_and(|before| {
-                    before.is_ascii_whitespace() || matches!(*before, b'-' | b'/' | b'\\')
-                })
-    }
-
-    fn breaks_after(&self, byte: usize) -> bool {
-        let index = self.spans.partition_point(|span| span.range.end < byte);
-        self.spans[index..]
-            .iter()
-            .take_while(|span| span.range.end == byte)
-            .any(|span| span.break_after)
+        let chosen = match best {
+            [Some(good), ..] => Some((good, Tier::Good)),
+            [None, Some(less), _] => Some((less, Tier::LessGood)),
+            _ => fitting.map(|fitting| (fitting, Tier::LastResort)),
+        };
+        let Some(((byte, x), tier)) = chosen else {
+            let stop = stops[first..]
+                .iter()
+                .find(|stop| stop.byte < to && stop.x > origin && stop.tier.is_some())?;
+            let x = stop.fit.max(origin) - origin;
+            return Some((stop.byte, 0.0, x, x));
+        };
+        let mut reach = x;
+        if let Some(better) = (tier as usize).checked_sub(1) {
+            reach = reach.max(before[better] + zone + WRAP_SLACK);
+        }
+        // Wider, the line breaks elsewhere once a break point as good as this one fits, or once
+        // this one leaves the zone and something breakable after it fits.
+        let mut alone = fitting.is_some_and(|(last, _)| last == byte);
+        let mut limit = match tier {
+            Tier::LastResort => f32::INFINITY,
+            _ => x + zone,
+        };
+        for stop in &stops[index..] {
+            let at = stop.fit - origin;
+            if stop.byte >= to {
+                break;
+            }
+            let Some(found) = stop.tier.filter(|_| stop.byte > byte) else {
+                if at >= limit && !alone {
+                    break;
+                }
+                continue;
+            };
+            if alone {
+                limit = limit.max(at);
+                alone = false;
+            }
+            if found <= tier {
+                limit = limit.min(at);
+                break;
+            }
+            if at >= limit {
+                break;
+            }
+        }
+        let rest = stops[stops.partition_point(|stop| stop.byte <= to) - 1].fit - origin;
+        let limit = match alone {
+            true => rest,
+            false => limit.min(rest),
+        };
+        match reach <= wrap && wrap < limit {
+            true => Some((byte, reach, limit, x)),
+            false => Some((byte, wrap, wrap + WRAP_SLACK, x)),
+        }
     }
 }
 
@@ -637,6 +809,10 @@ fn spans_of(pieces: &[Piece], fallback: SpanStyle) -> (String, Vec<TextSpan>) {
                 (fallback, SpanKind::Inline(inline, size), false)
             }
             Piece::Gap(width) => (fallback, SpanKind::Gap(width), false),
+            Piece::Blank { width, style } => {
+                text.push_str(beui_types::text::BLANK);
+                (style, SpanKind::Blank(width), false)
+            }
             Piece::Break => (fallback, SpanKind::Break, false),
             Piece::Icon { style, spacing, .. } => (style, SpanKind::Icon(spacing), false),
         };
@@ -691,6 +867,7 @@ impl RichLayout {
             paragraph: 0..0,
             segment: 0..0,
             anywhere: options.anywhere,
+            wrap_width: options.wrap_width,
             whole: vec![None; spans.len()],
         };
         let segments = segments(text, &spans);
@@ -728,35 +905,34 @@ impl RichLayout {
             builder.paragraph = start..end;
             builder.segment = segment.spans.clone();
             let whole = builder.runs(start, end);
-            let least = match options.least {
-                true => builder.least(&builder.stops(&whole), start, end),
-                false => 0.0,
-            };
-            let first_line = lines.len();
             let total = whole.last().map_or(0.0, |run| run.x + run.width);
-            let stops = match total > options.wrap_width + WRAP_SLACK || from != start {
-                true => builder.stops(&whole),
+            let hangs = text[start..end].ends_with(char::is_whitespace);
+            let breaks = total > options.wrap_width + WRAP_SLACK || from != start || hangs;
+            let stops = match breaks {
+                true => builder.classify(builder.stops(&whole)),
                 false => Vec::new(),
             };
             let hang = hang_indent(&whole, start..end, options.hang, options.wrap_width);
+            let zone = options.style.font.size * BREAK_ZONE_EMS;
+            let inked = stops.last().map_or(total, |stop| stop.fit);
             let mut whole = Some(whole);
             loop {
                 let (origin, indent) = match from == start {
                     true => (0.0, 0.0),
                     false => (
                         stops
-                            .get(stops.partition_point(|(byte, _)| *byte < from))
-                            .map_or(0.0, |(_, x)| *x),
+                            .get(stops.partition_point(|stop| stop.byte < from))
+                            .map_or(0.0, |stop| stop.x),
                         hang,
                     ),
                 };
                 let wrap = options.wrap_width - indent + WRAP_SLACK;
-                let broke = match total - origin > wrap {
-                    true => builder.breakpoint(&stops, from, end, origin, wrap),
+                let broke = match inked - origin > wrap {
+                    true => builder.breakpoint(&stops, from, end, origin, wrap, zone),
                     false => None,
                 };
                 let (to, mut runs) = match (broke, from == start) {
-                    (Some((to, _, _)), _) => (to, builder.runs(from, to)),
+                    (Some((to, ..)), _) => (to, builder.runs(from, to)),
                     (None, true) => (end, whole.take().unwrap_or_default()),
                     (None, false) => (end, builder.runs(from, end)),
                 };
@@ -764,27 +940,44 @@ impl RichLayout {
                     run.x += indent;
                 }
                 let mut line = line(from..to, runs, top, strut, options.padding);
+                line.hung = from + text[from..to].trim_end().len();
+                line.edge = options.wrap_width;
                 top += line.height;
-                let Some((_, reach, limit)) = broke else {
-                    line.reach = total - origin + indent - WRAP_SLACK;
+                let Some((_, reach, limit, ink)) = broke else {
+                    if line.width > options.wrap_width {
+                        line.width = line.width.min(inked - origin + indent);
+                    }
+                    line.reach = inked - origin + indent - WRAP_SLACK;
                     lines.push(line);
                     break;
                 };
+                if line.width > options.wrap_width {
+                    line.width = line.width.min(ink + indent);
+                }
                 line.reach = reach + indent - WRAP_SLACK;
                 line.limit = limit + indent - WRAP_SLACK;
                 lines.push(line);
                 from = to;
             }
-            if let Some(line) = lines.get_mut(first_line) {
-                line.least = least;
-            }
         }
-        let width = lines.iter().map(|line| line.width).fold(0.0, f32::max);
+        let width = lines
+            .iter()
+            .map(|line| line.width.min(options.wrap_width))
+            .fold(0.0, f32::max);
         let reach = lines.iter().map(|line| line.reach).fold(0.0, f32::max);
         let limit = lines
             .iter()
             .map(|line| line.limit)
             .fold(f32::INFINITY, f32::min);
+        // A gap with a share of the width is as wide as the width it was laid out at, so the
+        // layout holds at that width alone.
+        let shared = spans
+            .iter()
+            .any(|span| matches!(span.kind, SpanKind::Gap(gap) if gap.share != 0.0));
+        let (reach, limit) = match shared {
+            true => (options.wrap_width, options.wrap_width + WRAP_SLACK),
+            false => (reach, limit),
+        };
         Self {
             lines,
             size: vec2(width, top),
@@ -802,7 +995,11 @@ impl RichLayout {
     ) {
         for line in &self.lines {
             for run in &line.runs {
-                let Some(galley) = &run.galley else {
+                let Some(galley) = run
+                    .galley
+                    .as_ref()
+                    .filter(|_| !matches!(run.kind, SpanKind::Blank(_)))
+                else {
                     continue;
                 };
                 let left = origin.x + line.run_left(run);
@@ -839,10 +1036,6 @@ impl RichLayout {
 
     pub fn fits(&self, wrap_width: f32) -> bool {
         wrap_width >= self.reach && wrap_width < self.limit
-    }
-
-    pub fn least_width(&self) -> f32 {
-        self.lines.iter().map(|line| line.least).fold(0.0, f32::max)
     }
 
     pub fn truncate(&mut self, width: f32, shaper: &mut dyn Shaper) {
@@ -891,7 +1084,8 @@ impl RichLayout {
         let Some(line) = self.lines.get(self.line_of(index)) else {
             return Rect::ZERO;
         };
-        Rect::from_min_size(pos2(line.x_of(index), line.top), vec2(width, line.height))
+        let x = line.x_of(index).min(line.edge - width);
+        Rect::from_min_size(pos2(x, line.top), vec2(width, line.height))
     }
 
     pub fn index_at(&self, point: beui_types::Pos2) -> usize {
@@ -918,7 +1112,31 @@ impl RichLayout {
             .map_or(line.range.start, |(index, _)| index)
     }
 
+    /// The rectangles a selection or mark over `range` fills, a line at a time: from where a
+    /// caret at its start stands to where one at its end does (`RichLine::x_of`), so it covers a
+    /// gap between its characters, and one its end caret is drawn past, as the carets show.
     pub fn selection_rects(&self, range: Range<usize>) -> Vec<Rect> {
+        self.lines
+            .iter()
+            .filter_map(|line| {
+                let start = range.start.max(line.range.start);
+                let end = range.end.min(line.range.end);
+                if start >= end {
+                    return None;
+                }
+                let left = line.x_of(start);
+                let right = line.x_of(end).max(left + 1.0);
+                Some(Rect::from_min_max(
+                    pos2(left, line.top),
+                    pos2(right, line.top + line.height),
+                ))
+            })
+            .collect()
+    }
+
+    /// The rectangles a span's background fills: its own characters, not a gap or icon beside
+    /// them.
+    pub fn span_rects(&self, range: Range<usize>) -> Vec<Rect> {
         self.range_boxes(range)
             .into_iter()
             .map(|(rect, _)| {
@@ -995,8 +1213,9 @@ fn line(
     let (mut ascent, mut descent) = (strut.0, strut.1 - strut.0);
     let mut tallest = strut.1;
     let mut middle = strut.1 / 2.0 - strut.0;
+    let metric = |run: &RichRun| run.text() || matches!(run.kind, SpanKind::Blank(_));
     for run in &runs {
-        if let Some(galley) = run.galley.as_ref().filter(|_| run.text()) {
+        if let Some(galley) = run.galley.as_ref().filter(|_| metric(run)) {
             ascent = ascent.max(galley.baseline());
             descent = descent.max(galley.line_height() - galley.baseline());
             if galley.line_height() > tallest {
@@ -1005,17 +1224,18 @@ fn line(
             }
         }
     }
-    for run in runs.iter().filter(|run| !run.text()) {
+    for run in runs.iter().filter(|run| !metric(run)) {
         let half = run.height / 2.0;
         ascent = ascent.max(half - middle);
         descent = descent.max(half + middle);
     }
     let width = runs.last().map_or(0.0, |run| run.x + run.width);
     RichLine {
-        range,
+        range: range.clone(),
         reach: 0.0,
         limit: f32::INFINITY,
-        least: 0.0,
+        hung: range.end,
+        edge: f32::INFINITY,
         top,
         left: 0.0,
         height: ascent + descent + padding.0 + padding.1,

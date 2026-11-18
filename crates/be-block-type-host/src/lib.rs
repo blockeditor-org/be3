@@ -1,9 +1,10 @@
 use std::sync::Arc;
 
-use be_wasm_threads::Mutex;
+use std::sync::Mutex;
 
 use be_block_client::ClientError;
 use be_block_commit::CommitId;
+use be_block_graph::BlockParent;
 use be_block_store::ObjectStore;
 use be_sdk_type_api::{Description, EditorId, Status};
 use uuid::Uuid;
@@ -14,11 +15,11 @@ pub mod replicas;
 pub use be_sdk_type_api::{Plain, PlainFile};
 pub use modules::{
     Kind, Modules, OUTSIDE_REQUEST, PartRead, Scope, Source, Under, in_process, is_known, kind_of,
-    plain_of, started, tag_of,
+    known, known_revision, plain_of, started, tag_of,
 };
 pub use replicas::{Ctx, EARLY_OPEN, HOST_EDITOR, Merged, NotSearched, Owing, Replicas, Searched};
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct Conflict {
     pub ours: CommitId,
     pub theirs: CommitId,
@@ -43,6 +44,12 @@ pub trait Host: Sized + 'static {
     /// Whether `block` waits for a key this device does not hold: set as a read meets one,
     /// cleared by `Replicas::unlock` as keys arrive.
     fn set_locked(shared: &Arc<Mutex<Self>>, block: Uuid, locked: bool);
+
+    /// Whether `block`'s editors are attached read-only because its local edits were discarded
+    /// and no join has said since that this account may edit it (`Peer::discarded`): told as a
+    /// replica opens, and as each join answers once the replica it opens has its editors
+    /// attached, so a `false` means its editors' edits are taken.
+    fn set_marked(shared: &Arc<Mutex<Self>>, block: Uuid, marked: bool);
 
     fn owned(shared: &Arc<Mutex<Self>>, block: Uuid) -> bool;
 
@@ -74,7 +81,7 @@ pub trait Host: Sized + 'static {
     /// many hold edits not yet durable (`Replicas::counts`).
     fn counted(
         shared: &Arc<Mutex<Self>>,
-        unsealed: usize,
+        unsealed: Vec<Owing>,
         owing: Vec<Owing>,
         undurable: Vec<Owing>,
     );
@@ -85,6 +92,11 @@ pub trait Host: Sized + 'static {
     /// each as "<block>: <what was asked>", empty once answered: for a host to name when it stays
     /// busy.
     fn asking(_shared: &Arc<Mutex<Self>>, _asking: Vec<String>) {}
+
+    /// A replica made `block` on the server under `parent` itself (`Peer::ensure_type`), not
+    /// through the outbox: what the host lists of its place reads it again, as after a drain
+    /// sends a creation.
+    fn created(_shared: &Arc<Mutex<Self>>, _block: Uuid, _parent: BlockParent) {}
 }
 
 #[cfg(test)]

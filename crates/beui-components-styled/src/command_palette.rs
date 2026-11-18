@@ -3,7 +3,7 @@ use beui_macros::{component, view};
 
 use crate::list::List;
 use crate::row::{RowFace, RowSize, RowTrailing};
-use crate::scroll::scrollbar_style;
+use crate::scroll::scroll_style;
 use crate::text::{Icon, Text, TextColor};
 use crate::text_input::text_input_style;
 use crate::theme::use_theme;
@@ -61,7 +61,7 @@ pub fn CommandPalette(
                 <PaletteSearch @test_id={search_id.clone()} handle />
             }}
             search_style={text_input_style()}
-            scrollbar={scrollbar_style()}
+            scroll={scroll_style()}
             row={move |handle: CommandRowHandle| {
                 let row_test_id = format!("{row_id}.item.{}", handle.key);
                 view! {

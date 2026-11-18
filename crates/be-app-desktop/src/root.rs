@@ -1,5 +1,5 @@
-mod bar;
-mod calendar;
+pub(crate) mod bar;
+pub(crate) mod calendar;
 mod clock;
 mod edges;
 mod ending;
@@ -29,8 +29,7 @@ use be_sdk_beui::beui::{Modifiers, NodeId, Pos2, Rect, Vec2, pos2, vec2};
 use be_sdk_beui::{Editor, Loaded};
 use be_sdk_beui::{HostPanel, HostWindowId};
 use be_sdk_shell::{
-    BlockTab, Failure, PanelWindow, ProgramWindow, UnshownWindows, WindowDialog, Workspace,
-    WorkspaceDialogs,
+    BlockTab, PanelWindow, ProgramWindow, UnshownWindows, WindowDialog, Workspace, WorkspaceDialogs,
 };
 use uuid::Uuid;
 
@@ -64,22 +63,15 @@ impl be_sdk_beui::BeuiRoot for DesktopRoot {
     #[component]
     fn Display(editor: Editor, display: u32) -> NodeId {
         let shared = shared(editor.block_id());
-        let ready = create_memo(move || shared.with(Option::is_some));
         view! {
-            <Layers>
-                <Show condition={ready}>|| {
-                    let Some(desktop) = shared.get_untracked() else {
-                        return view! {
-                            <Frame />
-                        };
-                    };
-                    view! {
-                        <Container>|_|
-                            <DisplayBody desktop display />
-                        </Container>
-                    }
-                }</Show>
-            </Layers>
+            <Show value={shared}>|desktop: ReadSignal<Desktop>| {
+                let desktop = desktop.get_untracked();
+                view! {
+                    <Container>|_|
+                        <DisplayBody desktop display />
+                    </Container>
+                }
+            }</Show>
         }
     }
 }
@@ -142,6 +134,7 @@ fn DisplayBody(desktop: Desktop, display: u32) -> NodeId {
                         @test_id={format!("desktop.dock.{display}")}
                         layout=host
                         drag_modifier={Some(Modifiers::LOGO)}
+                        tab_keys={window_keys::tab_keys(editor)}
                     >
                         <Docking layout>
                             <DockPane id={"desktop".to_owned()} bare=true></DockPane>
@@ -159,7 +152,7 @@ fn DisplayBody(desktop: Desktop, display: u32) -> NodeId {
                 </ListItem>
                 <edges::HiddenBands edges={shell.edges} layout=host display />
                 <media::LevelDisplay osd={desktop.osd} area display />
-                <Show condition={launches}>
+                <Show value={launches}>
                     <ProgramsPanelKey
                         programs_panel={shell.programs_panel}
                         windows={shell.windows}
@@ -177,7 +170,7 @@ fn DesktopShell(editor: Editor) -> NodeId {
     let workspace = Workspace::new(editor);
     view! {
         <Loaded label="Loading the desktop">|| {
-            let _layout = editor.view_content();
+            workspace.hold_for_saved_layout();
             view! {
                 <Container>|_|
                     <DesktopBody workspace />
@@ -193,9 +186,6 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
     workspace.editor().content(&surface);
     let layout = workspace.layout();
     let host = workspace.dock_host();
-    let failure = workspace.error();
-    let failed = create_memo(move || failure.get().is_some());
-    let reason = create_memo(move || failure.get().unwrap_or_default());
     let program_windows = workspace.program_tabs();
     let windows = DeskWindows::new(workspace);
     let block_windows = workspace.block_tabs();
@@ -225,12 +215,12 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
     view! {
         <Frame @node_ref={&surface}>
             <List spacing=Space::None>
-                <Failure failed={failed} reason={reason} />
                 <ListItem grow=1.0>
                     <DockHost
                         @test_id={"desktop.dock"}
                         layout=host
                         drag_modifier={Some(Modifiers::LOGO)}
+                        tab_keys={window_keys::tab_keys(editor)}
                     >
                         <Docking layout>
                             <DockPane
@@ -240,18 +230,18 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
                                     <Frame />
                                 }}
                             ></DockPane>
-                            <ForEach keys={block_windows}>|tab: TabId|
+                            <ForEach value={block_windows}>|tab: TabId|
                                 <BlockWindow workspace tab />
                             </ForEach>
-                            <ForEach keys={program_windows}>|tab: TabId|
+                            <ForEach value={program_windows}>|tab: TabId|
                                 <ProgramWindow workspace tab />
                             </ForEach>
                             <ForEach
-                                keys={dialog_windows}
+                                value={dialog_windows}
                             >|(window, parent): (HostWindowId, HostWindowId)|
                                 <WindowDialog workspace window parent />
                             </ForEach>
-                            <ForEach keys={panels}>|panel: HostPanel|
+                            <ForEach value={panels}>|panel: HostPanel|
                                 <PanelWindow workspace panel />
                             </ForEach>
                             <DockBar id={bars.programs} placement=PROGRAMS_PLACE>
@@ -269,16 +259,16 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
                 <WorkspaceDialogs workspace />
                 <UnshownWindows workspace />
                 <bar::UnreadableBarsDialog editor />
-                <Show condition={keyed}>
+                <Show value={keyed}>
                     <MediaKeys editor osd />
                 </Show>
-                <Show condition={several_layouts}>
+                <Show value={several_layouts}>
                     <layouts::LayoutKey layouts />
                 </Show>
                 <WindowShortcuts editor host />
                 <edges::HiddenBands edges={shell.edges} layout=host display=0 />
                 <media::LevelDisplay osd area display=0 />
-                <Show condition={launches}>
+                <Show value={launches}>
                     <ProgramsPanelKey programs_panel windows host />
                 </Show>
                 <ProgramsPanelOverlay programs_panel display=0 layout area />

@@ -4,71 +4,65 @@ load("@root//buck/tools:defs.bzl", "configured_once")
 
 cargo_package()
 
-# Zig 0.16.0, the release Ghostty's build.zig.zon asks for: Zig breaks its
+# Zig 0.17.1, the release Ghostty's build.zig.zon asks for: Zig breaks its
 # build API between releases.
 configured_once(
     http_archive,
     name = "zig",
-    sha256 = "70e49664a74374b48b51e6f3fdfbf437f6395d42509050588bd49abe52ba3d00",
-    size_bytes = 55478392,
-    strip_prefix = "zig-x86_64-linux-0.16.0",
-    urls = ["https://ziglang.org/download/0.16.0/zig-x86_64-linux-0.16.0.tar.xz"],
+    sha256 = "3581863e3cbcfd0fce0efc682ce7e9e93da96668a977791d356a26d2a7e9b17a",
+    size_bytes = 57411036,
+    strip_prefix = "zig-x86_64-linux-0.17.1",
+    urls = ["https://ziglang.org/download/0.17.1/zig-x86_64-linux-0.17.1.tar.xz"],
 )
 
 # Ghostty's source, at the commit libghostty-vt is built from: GitHub's
-# archive of it. Bump this to pick up a newer terminal emulator.
-ghostty_commit = "0c2a290d3a3e2a599be3a43435d778a5896667ee"
+# archive of it (github.com/ghostty-org/ghostty/archive/COMMIT.tar.gz),
+# mirrored to lfs.pfg.pw because cloud sessions cannot fetch GitHub archives,
+# and http_file takes a single URL. To pick up a newer terminal emulator, ask
+# the maintainer to upload the new commit's GitHub archive to
+# lfs.pfg.pw/by-name/be3/zig/ first (agents cannot upload there), then bump
+# this and the hash and size below.
+ghostty_commit = "7a8ff4d992edd2aad7537e5bef73ec911aa126bf"
 
 configured_once(
     http_file,
     name = "ghostty.tar.gz",
     out = "ghostty.tar.gz",
-    sha256 = "abeadd08aa8ceae1604d8af535b6f04b84dcd9ef83018f0c67dfabf9bfd64bbf",
-    size_bytes = 39554991,
-    urls = ["https://github.com/ghostty-org/ghostty/archive/{}.tar.gz".format(ghostty_commit)],
+    sha256 = "45fa2695920d1e513d4c070b7424c3de7e28e9d0d257d1ebb824c431866011ce",
+    size_bytes = 40275030,
+    urls = ["https://lfs.pfg.pw/by-name/be3/zig/ghostty-{}.tar.gz".format(ghostty_commit)],
 )
 
 # The Zig packages that build asks for, for every platform here, each pinned by
 # the hash of the bytes at its URL (its .zon manifest pins it again by its
-# contents): Ghostty's build.zig.zon names them, and translate-c's names aro.
-# A newer Ghostty that asks for another fails its build naming the URL.
-zig_packages = {
-    "aro.tar.gz": (
-        "https://github.com/vancluever/arocc/archive/f97cdfc3779aec4b242299e2fc9a1c828c3547c6.tar.gz",
-        "42c8cab9135b12518e6af7dc5e461f055c78b863adca8ed7774f2fb7fe9a7784",
-        951232,
+# contents): Ghostty's deps/libghostty-vt.txt lists them, less highway, which
+# only the SIMD build this one turns off reads. Each is named after its URL's
+# basename, which is how the build finds its Zig hash in deps/packages.json. A
+# newer Ghostty that asks for another fails its build naming the package.
+zig_packages = [
+    (
+        "https://deps.files.ghostty.org/aro-d0c8c4d9c55daa7ef6e40cf0f630a5b5e900989b.tar.gz",
+        "cbe70387fdec7ba9bdaea4c28f1ea4a09a771eec03fd8165bff1f9ae9f604daa",
+        459925,
     ),
-    "ghostty-themes.tgz": (
-        "https://deps.files.ghostty.org/ghostty-themes-release-20260831-151010-752a9c0.tgz",
-        "83653eb837baeb5bfc7d50c91b7d44772796e08c1c243134e11c5edf6c8d15c5",
-        78972,
+    (
+        "https://deps.files.ghostty.org/translate_c-02ff0c523fb92a38939b04d0145c4a9602a74d56.tar.gz",
+        "e344433bcce14759529e58ea600e67d7c39846b1775b122f88db7cb4dad58591",
+        155199,
     ),
-    "pixels.tar.gz": (
-        "https://deps.files.ghostty.org/pixels-12207ff340169c7d40c570b4b6a97db614fe47e0d83b5801a932dcd44917424c8806.tar.gz",
-        "55e83b16d091082502bf149bf457f31f42092c5982650e3ffbae7b48871bf11a",
-        3644,
+    (
+        "https://deps.files.ghostty.org/uucode-1fb73433bba5d93366c57f23ff2e9d7939746500.tar.gz",
+        "9e574f5b72c07f426eb31e2604860f22ba0fc5f9ccb44ef44e3212a5e9001828",
+        2237452,
     ),
-    "translate-c.tar.gz": (
-        "https://codeberg.org/vancluever/translate-c/archive/4e879eb8aba615de112eabd1231ea6e01920cead.tar.gz",
-        "8fb0f5c6a3e8b3bf0e35225d3abc1230bcf6f1fdf162467f1f747ec2fa5eda07",
-        154976,
-    ),
-    "uucode.tar.gz": (
-        "https://deps.files.ghostty.org/uucode-2826a37a4562284fdacd8fa029d49509cc9bffcd.tar.gz",
-        "7e76fc7fab1e7ac728c52b35bbb3e5b8c639841abfc7fe1a4bcb13050594bc9e",
-        2214904,
-    ),
-    "wuffs.tar.gz": (
+    (
         "https://deps.files.ghostty.org/wuffs-7411f488fe2e2c205c3d3b3d28638b7356522930.tar.gz",
         "17877d346f7988651d6c62e45b2e3b05c86809a6442c5e34612374b2a9719a1c",
         771698,
     ),
-    "zlib.tar.gz": (
-        "https://deps.files.ghostty.org/zlib-1220fed0c74e1019b3ee29edae2051788b080cd96e90d56836eea857b0b966742efb.tar.gz",
-        "17e88863f3600672ab49182f217281b6fc4d3c762bde361935e436a95214d05c",
-        1572744,
-    ),
-}
+]
+
+zig_package_names = [url.split("/")[-1] for url, _, _ in zig_packages]
 
 [
     configured_once(
@@ -79,7 +73,7 @@ zig_packages = {
         size_bytes = size_bytes,
         urls = [url],
     )
-    for name, (url, sha256, size_bytes) in zig_packages.items()
+    for name, (url, sha256, size_bytes) in zip(zig_package_names, zig_packages)
 ]
 
 # libghostty-vt, be-launcher's terminal emulator: Zig, built by
@@ -93,7 +87,7 @@ genrule(
     + per_cross_platform(
         "x86_64-unknown-linux-gnu",
         cross_triple,
-        {"root//buck/platforms:wasi_setting": "wasm32-wasip1-threads"},
+        {"root//buck/platforms:wasi_guest_setting": "wasm32-wasip1"},
     )
     + "\nwindows_sdk="
     + per_cross_platform(
@@ -125,7 +119,12 @@ genrule(
                 echo "crt_dir=$sdk/sdk/lib/ucrt/$arch"
                 echo "msvc_lib_dir=$sdk/crt/lib/$arch"
                 echo "kernel32_lib_dir=$sdk/sdk/lib/um/$arch"
-                echo "gcc_dir="
+                # Zig 0.17 also checks the file against the host, Linux,
+                # which must name a cc_dir. Nothing in this build reads it:
+                # the build runner and the tools it runs on Linux link no
+                # libc, so any existing directory serves as a placeholder.
+                echo "cc_dir=$sdk/crt/lib/$arch"
+                echo "darwin_sdk_dir="
             } > "$GHOSTTY_ZIG_LIBC"
         fi
         bash $(location //scripts/internal:build-ghostty-vt.sh) --triple "$triple" \\
@@ -133,8 +132,15 @@ genrule(
             --patch $(location //scripts/internal:ghostty-vt.patch) \\
             --out "$OUT" \\
     """
-    + " ".join(["$(location :zig-package-{})".format(name) for name in zig_packages]),
+    + " ".join(["$(location :zig-package-{})".format(name) for name in zig_package_names]),
     out = "libghostty-vt.a",
+    # On wasm only a guest may link it, single-threaded wasm32-wasip1
+    # (decisions/guests_are_single_threaded.md): the archive is built for no
+    # other wasm platform, so the rest are refused rather than handed a host one.
+    target_compatible_with = select({
+        "DEFAULT": [],
+        "prelude//cpu:wasm32": ["root//buck/constraints:guest"],
+    }),
 )
 
 prebuilt_cxx_library(

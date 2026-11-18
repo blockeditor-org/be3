@@ -7,6 +7,7 @@ use crate::focus_ring::FocusRing;
 use crate::text::{Text, TextColor};
 use crate::text_input::TextInput;
 use beui_components_unstyled as unstyled;
+use beui_components_unstyled::ValueDrag;
 use beui_components_unstyled::{NumberDrag, NumberFaceHandle, NumberFieldHandle};
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
@@ -29,7 +30,7 @@ pub fn NumberInput(
     #[prop(default = NumberDrag::Linear { speed: 1.0 })] drag: NumberDrag,
     #[prop(default = None)] decimals: Prop<Option<u32>>,
     on_preview: Callback<Option<f64>>,
-    on_scrub: Callback<bool>,
+    on_scrub: Callback<ValueDrag>,
 ) -> NodeId {
     let shown = NodeRef::new();
     let inner = ComponentRef::new();
@@ -92,7 +93,7 @@ fn NumberFace(handle: NumberFaceHandle, shown: NodeRef, placeholder: Prop<String
             false => text,
         }
     });
-    let color = create_memo(move || match text.get().is_empty() {
+    let color = create_memo(move || match text.with(String::is_empty) {
         true => TextColor::Muted,
         false => ButtonVariant::Secondary.label(disabled.get()),
     });

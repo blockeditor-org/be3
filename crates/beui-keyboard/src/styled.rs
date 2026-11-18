@@ -266,7 +266,7 @@ fn EmojiPanel(keyboard: KeyboardHandle) -> NodeId {
                     spacing=Space::None
                     justify=Justify::SpaceEvenly
                 >
-                    <ForEach keys={groups}>|index: usize| {
+                    <ForEach value={groups}>|index: usize| {
                         {
                             let (_, emoji, label) = EMOJI_GROUPS[index];
                             let selected = create_memo(move || group.get() == index);
@@ -285,7 +285,7 @@ fn EmojiPanel(keyboard: KeyboardHandle) -> NodeId {
             <ListItem grow=1.0>
                 <Scroll>
                     <List direction=Direction::Horizontal wrap=true spacing=Space::None>
-                        <ForEach keys={shown}>|emoji: &'static str|
+                        <ForEach value={shown}>|emoji: &'static str|
                             <EmojiKey emoji keyboard />
                         </ForEach>
                     </List>
@@ -331,13 +331,16 @@ fn EmojiTab(
             tab_stop=false
             on_click={on_click}
             content={move |button: unstyled::ButtonHandle| {
-                let fill = create_memo(move || match (selected.get(), button.hovered.get()) {
-                    (true, _) => ColorRole::AccentSoft,
-                    (false, true) => ColorRole::Hover,
-                    (false, false) => ColorRole::None,
-                });
                 view! {
-                    <Frame fill radius=Radius::Sm padding=Space::Sm>
+                    <Frame
+                        fill={move || match (selected.get(), button.hovered.get()) {
+                            (true, _) => ColorRole::AccentSoft,
+                            (false, true) => ColorRole::Hover,
+                            (false, false) => ColorRole::None,
+                        }}
+                        radius=Radius::Sm
+                        padding=Space::Sm
+                    >
                         <Text size=TextSize::Lg>{emoji}</Text>
                     </Frame>
                 }
@@ -355,16 +358,15 @@ fn EmojiKey(emoji: &'static str, keyboard: KeyboardHandle) -> NodeId {
             tab_stop=false
             on_click={move || keyboard.type_text(emoji)}
             content={move |button: unstyled::ButtonHandle| {
-                let fill = create_memo(move || match button.active.get() {
-                    true => ColorRole::Pressed,
-                    false => ColorRole::None,
-                });
                 view! {
                     <Frame
                         width={Size::Custom(EMOJI_SIZE)}
                         height={Size::Custom(EMOJI_SIZE)}
                         align=Align2::CENTER
-                        fill
+                        fill={move || match button.active.get() {
+                            true => ColorRole::Pressed,
+                            false => ColorRole::None,
+                        }}
                         radius=Radius::Sm
                     >
                         <Text size=TextSize::Xl>{emoji}</Text>
@@ -385,14 +387,17 @@ fn PanelKey(keyboard: KeyboardHandle, value: Value) -> NodeId {
             tab_stop=false
             on_click={move || keyboard.tap(value)}
             content={move |button: unstyled::ButtonHandle| {
-                let fill = create_memo(move || match button.active.get() {
-                    true => ColorRole::Pressed,
-                    false => ColorRole::Surface,
-                });
                 let Face { glyph, text, .. } = shown.clone();
                 view! {
                     <Frame padding=GAP>
-                        <Frame fill radius=Radius::Sm align=Align2::CENTER>
+                        <Frame
+                            fill={move || match button.active.get() {
+                                true => ColorRole::Pressed,
+                                false => ColorRole::Surface,
+                            }}
+                            radius=Radius::Sm
+                            align=Align2::CENTER
+                        >
                             <Text size=TextSize::Lg>
                                 {text}
                                 <Icon glyph size=TextSize::Lg />

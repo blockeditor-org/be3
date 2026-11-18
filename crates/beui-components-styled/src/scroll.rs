@@ -8,9 +8,9 @@ use crate::list::List;
 use crate::popover::PANEL_PADDING;
 use crate::text::{Icon, Text};
 use crate::theme::{SCROLL_FADE, SCROLLBAR_WIDTH, use_theme};
-use crate::tokens::{Padding, Size, Space, Stroke};
+use crate::tokens::{Movement, Padding, Size, Space, Stroke};
 use beui_components_unstyled as unstyled;
-use beui_components_unstyled::{ScrollHandle, ScrollbarStyle};
+use beui_components_unstyled::{ScrollHandle, ScrollStyle};
 use beui_view::primitives::Spacer;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
@@ -118,11 +118,8 @@ pub fn Scroll(
             fit={fit || bounded}
             follow_end
             bleed={bleed.map(|bleed| bleed.reach)}
-            focus_ring={create_memo(move || Some(Outline::new(theme.accent.get(), FOCUS_RING_WIDTH.px()).offset(FOCUS_RING_OFFSET.px())))}
-            scrollbar={scrollbar_style()}
-            marker={|axis: Memo<Direction>| view! {
-                <AutoscrollMarker axis />
-            }}
+            focus_ring={move || Some(Outline::new(theme.accent.get(), FOCUS_RING_WIDTH.px()).offset(FOCUS_RING_OFFSET.px()))}
+            style={scroll_style()}
             on_change={on_change}
         >
             {children}
@@ -139,31 +136,46 @@ pub fn Scroll(
     }
 }
 
-pub fn scrollbar_style() -> ScrollbarStyle {
+pub fn scroll_style() -> ScrollStyle {
     let theme = use_theme();
-    ScrollbarStyle::new(SCROLLBAR_WIDTH, |handle: ScrollHandle| {
-        let ScrollHandle {
-            position,
-            direction,
-            scroll_to,
-            visibility,
-            on_engage,
-        } = handle;
+    ScrollStyle::new(Movement::Rubber.spring())
+        .bar(
+            SCROLLBAR_WIDTH,
+            RenderFn::new(|handle: ScrollHandle| {
+                let ScrollHandle {
+                    position,
+                    direction,
+                    scroll_to,
+                    visibility,
+                    on_engage,
+                } = handle;
+                view! {
+                    <Scrollbar
+                        position
+                        direction
+                        visibility
+                        on_scroll_to={move |offset: f32| scroll_to.call(offset)}
+                        on_engage={move |engaged: bool| on_engage.call(engaged)}
+                    />
+                }
+            }),
+        )
+        .fading(SCROLL_FADE)
+        .marker(autoscroll_marker())
+        .browser_colors(
+            Prop::dynamic(move || theme.scroll_thumb.get()),
+            Color::TRANSPARENT,
+        )
+}
+
+/// The marker a middle-button autoscroll shows where it started, for a
+/// `ScrollStyle` built by hand rather than by `scroll_style()`.
+pub fn autoscroll_marker() -> RenderFn<Memo<Direction>, NodeId> {
+    RenderFn::new(|axis: Memo<Direction>| {
         view! {
-            <Scrollbar
-                position
-                direction
-                visibility
-                on_scroll_to={move |offset: f32| scroll_to.call(offset)}
-                on_engage={move |engaged: bool| on_engage.call(engaged)}
-            />
+            <AutoscrollMarker axis />
         }
     })
-    .fading(SCROLL_FADE)
-    .browser_colors(
-        Prop::dynamic(move || theme.scroll_thumb.get()),
-        Color::TRANSPARENT,
-    )
 }
 
 #[component]
@@ -174,6 +186,7 @@ fn AutoscrollMarker(axis: Prop<Direction>) -> NodeId {
     });
     view! {
         <Frame
+            @test_id="scroll.autoscroll-marker"
             width=MARKER_SIZE
             height=MARKER_SIZE
             radius=Radius::Full

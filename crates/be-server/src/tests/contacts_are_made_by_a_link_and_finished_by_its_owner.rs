@@ -4,10 +4,10 @@ use be_block_keys::{CardRole, ContactCard, InviteCode, RecoveryPhrase};
 #[tokio::test]
 async fn contacts_are_made_by_a_link_and_finished_by_its_owner() {
     let harness = Harness::start().await;
-    let mut owner = harness.client().await;
-    let owner_id = owner.register("owner@example.com").await;
-    let mut other = harness.client().await;
-    let other_id = other.register("other@example.com").await;
+    let mut owner = harness.member("owner@example.com").await;
+    let owner_id = owner.id();
+    let mut other = harness.member("other@example.com").await;
+    let other_id = other.id();
     let personal = owner.personal().await;
     let mut owners_device = harness.second_connection(&owner.token, personal).await;
 
@@ -28,26 +28,25 @@ async fn contacts_are_made_by_a_link_and_finished_by_its_owner() {
     let link = Uuid::from_bytes(code.lookup());
     let response = owner
         .call(|peer| {
-            client::contacts::create_link(
-                peer,
-                link,
-                owner_card.seal(&code, CardRole::Owner),
-                owner_secret.seal_own(&code.to_bytes()),
-                be_block_protocol::LinkKind::Contact(None),
-            )
+            peer.write::<()>(be_block_protocol::Op::CreateLink {
+                link: link,
+                card: owner_card.seal(&code, CardRole::Owner),
+                kind: be_block_protocol::LinkKind::Contact(None),
+                signed: None,
+            })
         })
         .await;
     assert!(matches!(response, Ok(())), "{response:?}");
 
     let own = owner
-        .call(|peer| client::contacts::get_link(peer, link))
+        .call(|peer| peer.read::<be_block_protocol::Link>(be_block_protocol::Query::Link(link)))
         .await;
     assert!(
         matches!(own, Err(_)),
         "the owner opened its own link: {own:?}"
     );
     let Ok(found) = other
-        .call(|peer| client::contacts::get_link(peer, link))
+        .call(|peer| peer.read::<be_block_protocol::Link>(be_block_protocol::Query::Link(link)))
         .await
     else {
         panic!("the other account could not read the link");
@@ -58,20 +57,20 @@ async fn contacts_are_made_by_a_link_and_finished_by_its_owner() {
 
     let response = other
         .call(|peer| {
-            client::contacts::accept_link(
-                peer,
-                link,
-                other_card.seal(&code, CardRole::Accepter),
-                opened.seal_own(&other_secret),
-                Vec::new(),
-            )
+            peer.write::<()>(be_block_protocol::Op::AcceptLink {
+                link: link,
+                card: other_card.seal(&code, CardRole::Accepter),
+                contact: other_secret.seal_own(be_block_keys::Own::Contact, &opened.encode()),
+                key: Vec::new(),
+                member: None,
+            })
         })
         .await;
     assert!(matches!(response, Ok(())), "{response:?}");
     assert!(
         matches!(
             owners_device.next_notification().await,
-            Notice::ContactsChanged
+            Notice::MailboxChanged
         ),
         "the owner's other device was not told"
     );
@@ -82,49 +81,76 @@ async fn contacts_are_made_by_a_link_and_finished_by_its_owner() {
         .await;
     assert!(refused_as(&again, ErrorCode::LinkNotFound), "{again:?}");
 
-    let theirs = other.contacts().await;
-    assert_eq!(theirs.len(), 1);
-    assert_eq!(theirs[0].account, owner_id);
-    assert_eq!(
-        ContactCard::open_own(&other_secret, &theirs[0].sealed).unwrap(),
-        owner_card
-    );
-    let mine = owners_device.contacts().await;
-    assert_eq!(mine.len(), 1);
-    assert!(
-        mine[0].sealed.is_empty(),
-        "the owner's row was written for it"
-    );
-
-    let Ok(links) = owners_device
-        .call(|peer| client::contacts::list_links(peer))
+    // The server keeps only that the two are contacts; the accepter's record of the owner waits
+    // in its own mailbox, for a device to keep in its block.
+    assert_eq!(other.contacts().await, vec![owner_id]);
+    assert_eq!(owners_device.contacts().await, vec![other_id]);
+    let Ok(theirs) = other
+        .call(|peer| {
+            peer.read::<Vec<be_block_protocol::Message>>(be_block_protocol::Query::Mailbox)
+        })
         .await
     else {
-        panic!("listing links failed");
+        panic!("reading the mailbox failed");
     };
+    let [
+        be_block_protocol::Message {
+            from: Some(from),
+            letter: be_block_protocol::Letter::Contact(record),
+            ..
+        },
+    ] = &theirs[..]
+    else {
+        panic!("the accepter's mailbox holds no record alone: {theirs:?}");
+    };
+    assert_eq!(*from, owner_id);
+    assert_eq!(
+        ContactCard::decode(
+            &other_secret
+                .open_own(be_block_keys::Own::Contact, record)
+                .unwrap()
+        )
+        .unwrap(),
+        owner_card
+    );
+
+    let links = owners_device.links().await;
     assert_eq!(links.len(), 1);
     assert_eq!(links[0].accepter, Some(other_id));
-    let code = InviteCode::from_bytes(&owner_secret.open_own(&links[0].code).unwrap()).unwrap();
-    let accepted = ContactCard::open(&code, CardRole::Accepter, &links[0].card).unwrap();
-    assert_eq!(accepted, other_card);
-    let response = owners_device
+    // The accepter's card waits in the owner's mailbox, from the accepter.
+    let Ok(mailbox) = owners_device
         .call(|peer| {
-            client::contacts::put_contact(peer, other_id, accepted.seal_own(&owner_secret))
+            peer.read::<Vec<be_block_protocol::Message>>(be_block_protocol::Query::Mailbox)
+        })
+        .await
+    else {
+        panic!("reading the mailbox failed");
+    };
+    let [
+        be_block_protocol::Message {
+            id: letter,
+            from: Some(from),
+            letter: be_block_protocol::Letter::Accepted { link: of, card },
+            ..
+        },
+    ] = &mailbox[..]
+    else {
+        panic!("the mailbox holds no accepted card alone: {mailbox:?}");
+    };
+    assert_eq!((*from, *of), (other_id, link));
+    let accepted = ContactCard::open(&code, CardRole::Accepter, card).unwrap();
+    let letter = *letter;
+    assert_eq!(accepted, other_card);
+    let _ = owners_device
+        .call(|peer| {
+            peer.write_all::<()>(vec![
+                be_block_protocol::Op::DeleteLink { link, signed: None },
+                be_block_protocol::Op::DeleteMessage(letter),
+            ])
         })
         .await;
-    assert!(matches!(response, Ok(())), "{response:?}");
-    let _ = owners_device
-        .call(|peer| client::contacts::delete_link(peer, link))
-        .await;
-    let Ok(links) = owner.call(|peer| client::contacts::list_links(peer)).await else {
-        panic!("listing links failed");
-    };
-    assert!(links.is_empty());
-    let mine = owner.contacts().await;
-    assert_eq!(
-        ContactCard::open_own(&owner_secret, &mine[0].sealed).unwrap(),
-        other_card
-    );
+    assert!(owner.links().await.is_empty());
+    assert_eq!(owner.contacts().await, vec![other_id]);
 
     harness.stop().await;
 }

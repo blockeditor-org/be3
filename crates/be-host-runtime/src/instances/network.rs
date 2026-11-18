@@ -121,7 +121,9 @@ impl Instances {
             return;
         }
         match call {
-            Call::OpenUrl { reply, .. } if self.previewing(instance) => {
+            Call::OpenUrl { reply, .. }
+                if self.previewing(instance) || self.hosting(instance).is_some() =>
+            {
                 self.services
                     .answers
                     .push(reply.answer(&Err(Failure::Denied)));

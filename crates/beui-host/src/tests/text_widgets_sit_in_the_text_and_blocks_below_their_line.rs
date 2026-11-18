@@ -47,6 +47,7 @@ fn text_widgets_sit_in_the_text_and_blocks_below_their_line() {
                     selected_widget={move |_: usize| view! {
                         <Frame @node_ref=&popup width=40.0 height=20.0 />
                     }}
+                    scroll={plain_scroll()}
                 />
             </Frame>
         }

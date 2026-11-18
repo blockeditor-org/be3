@@ -12,16 +12,12 @@ async fn a_server_without_a_portal_answers_its_pages_as_json() {
     let (status, response) = browser
         .submit(
             &harness,
-            "/auth/login",
-            "/auth/login",
-            &[
-                ("email", "nobody@example.com"),
-                ("password", "a password that is wrong"),
-            ],
+            "/auth/enter",
+            "/auth/enter",
+            &[("email_code", "a code that is wrong")],
         )
         .await;
     assert_eq!(status, 400);
     let page = page_of(&response);
     assert!(page.problem.is_some());
-    assert!(!response.contains("a password that is wrong"));
 }

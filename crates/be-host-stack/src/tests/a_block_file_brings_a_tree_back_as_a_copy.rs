@@ -103,7 +103,9 @@ fn a_block_file_brings_a_tree_back_as_a_copy() {
             .into_iter()
             .map(|node| {
                 open(node.id, CounterContent::CONTENT_TYPE);
-                crate::wait_until(|shared| counted(shared, node.id).filter(|count| *count > 0))
+                crate::wait_until("opened the copied counter", |shared| {
+                    counted(shared, node.id).filter(|count| *count > 0)
+                })
             })
             .collect();
         counts.sort_unstable();
@@ -119,7 +121,9 @@ fn a_block_file_brings_a_tree_back_as_a_copy() {
     }
     open(counter, CounterContent::CONTENT_TYPE);
     assert_eq!(
-        crate::wait_until(|shared| counted(shared, counter)),
+        crate::wait_until("opened the original counter", |shared| counted(
+            shared, counter
+        )),
         5,
         "editing a copy leaves the original as it was"
     );

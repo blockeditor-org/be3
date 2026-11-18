@@ -230,6 +230,15 @@ impl<M, F: Register> FieldRef<M, F> {
             value: encode(value),
         }
     }
+
+    /// Writes `value` into this field of `object` before it is inserted, for content that
+    /// settles a field as part of the insert, so the value lands exactly when the insert does.
+    /// An object without the field is left as it is.
+    pub fn set_in(self, object: &mut Object, value: &F) {
+        if let Some(field) = object.fields.get_mut(usize::from(self.index)) {
+            *field = Value::Register(encode(value));
+        }
+    }
 }
 
 impl<M> FieldRef<M, Count> {

@@ -10,7 +10,7 @@ fn a_menu_from_a_zoomed_out_window_escapes_at_full_size() {
     let chosen = create_signal(Vec::<usize>::new());
     let (document, [menu]) = toolbar_of(move || {
         let items = view! {
-            <ForEach keys={(0..4).collect::<Vec<usize>>()}>|index: usize| {
+            <ForEach value={(0..4).collect::<Vec<usize>>()}>|index: usize| {
                 let label = format!("Item {index}");
                 view! {
                     <unstyled::MenuItem

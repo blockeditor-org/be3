@@ -4,21 +4,51 @@ package be3:server@0.1.0;
 /// own recovery key.
 interface keys {
     use types.{
-        account-id, block-id, error, escrow-key, key-change, key-id, key-set, own-sealed,
+        account-id, block-id, error, escrow-key, key-change, key-id, key-set, organization-id,
         public-key, sealed-key,
     };
+
+    /// What an access log is the log of (guides/blocks/keys.md).
+    enum log-kind {
+        block,
+        organization,
+    }
+
+    /// An access log the account holds a signed record in, at its head now.
+    record signed-log {
+        organization: organization-id,
+        kind: log-kind,
+        /// The block, or for an organization's own log the organization.
+        log: block-id,
+        head: list<u8>,
+    }
+
+    /// An entry retiring the account's old keys, for one of its signed logs.
+    record retirement {
+        organization: organization-id,
+        kind: log-kind,
+        log: block-id,
+        entry: list<u8>,
+    }
 
     /// An account's signing key as the server has it, which nothing verified
     /// (plans/authorship.md).
     record signing-key {
         account: account-id,
         key: public-key,
+        /// The newest name card the account's devices published
+        /// (`be_block_keys::NameCard`, signed with that account's signing
+        /// key, `publish-name`), which a contact shows over the name on the
+        /// card it verified; empty when none.
+        name: list<u8>,
     }
 
     record recovery-key {
         public: option<public-key>,
         sealed: list<sealed-key>,
-        %own: list<own-sealed>,
+        /// Every access log the account signed a record in, which a new key
+        /// must retire the old one in (`set-recovery-key`).
+        logs: list<signed-log>,
     }
 
     /// A scope or escrow key not yet sealed to an account that should hold
@@ -28,92 +58,38 @@ interface keys {
         account: account-id,
     }
 
-    /// A page of `get-keys`, and the last key it holds when more follow.
+    /// A page of `query.keys`, and the last key it holds when more follow.
     record key-page {
         keys: key-set,
         next: option<key-id>,
     }
 
+    /// A grant a block's log names that the server revoked on its own
+    /// (remove-contact, delete-agent), until a device signs the revocation.
+    record revocation {
+        block: block-id,
+        account: account-id,
+    }
+
     /// What an organization's keys wait for that the caller may do: blocks
     /// whose keys to rotate, whether to rotate the escrow key, keys to seal
-    /// to accounts, scope keys not yet wrapped under the escrow key, and the
-    /// escrow chain.
+    /// to accounts, scope keys not yet wrapped under the escrow key, the
+    /// escrow chain, and the members no record in the organization's log
+    /// signed in (every such member, to an administrator; the caller alone,
+    /// to a member it names): a person signs in as they accept an invitation
+    /// and an agent as it is made, so such a member is one the server added
+    /// on its own, or an agent its maker's device has yet to sign in, and
+    /// administrators open none of their escrow wraps.
     record key-work {
         rotations: list<block-id>,
         escrow-rotation: bool,
         unsealed: list<unsealed>,
         unescrowed: list<key-id>,
         escrows: list<escrow-key>,
+        unsigned-members: list<account-id>,
+        /// Revocations the server made on its own in blocks the caller
+        /// manages, for it to sign into their logs.
+        unsigned-revocations: list<revocation>,
     }
 
-    /// One page of the keys of `blocks`, or of every key the caller holds
-    /// with none: the keys after `after` in the order of their ids, as many
-    /// as fit in half a frame with the wraps of each, and at least one. A
-    /// client asks again from `next` until it is none.
-    get-keys: async func(blocks: option<list<block-id>>, after: option<key-id>) -> result<key-page, error>;
-
-    /// Stores rows, and tells `keys-changed` to every other connection of an
-    /// account a key in them is sealed to or that may view a block they are
-    /// of.
-    put-keys: async func(keys: key-set) -> result<_, error>;
-
-    get-recovery-key: async func() -> result<recovery-key, error>;
-
-    /// Moves the account to a new recovery key and the signing key derived
-    /// with it, with everything sealed to the old one sealed again and a key
-    /// change for each contact.
-    set-recovery-key: async func(
-        public: public-key,
-        signing: public-key,
-        sealed: list<sealed-key>,
-        %own: list<own-sealed>,
-        changes: list<key-change>,
-    ) -> result<_, error>;
-
-    /// The signing keys of those of `accounts` that are the caller, its
-    /// contacts or members of the organization open (in the personal
-    /// organization, every account), leaving out any other and any account
-    /// with none.
-    get-signing-keys: async func(accounts: list<account-id>) -> result<list<signing-key>, error>;
-
-    reseal-keys: async func(keys: list<sealed-key>) -> result<_, error>;
-
-    /// The organization's key work for the caller: its value as the stream
-    /// opens, then each new value as it may have changed through another
-    /// connection, or as the connection opens an organization. Opened before
-    /// any is, it waits for one to open, unlike `storage-changed`, which ends
-    /// denied. A latest-value stream, so values the client has not taken yet
-    /// are one item; a connection may hold several, each starting with the
-    /// current value, and one whose first value cannot be read ends with the
-    /// failure.
-    key-work-changed: func() -> stream<key-work>;
-
-    /// An item whenever `put-keys` stored rows the account may open through
-    /// another connection, so the client asks again for keys it found
-    /// missing; a latest-value stream, so changes the client has not taken
-    /// yet are one item.
-    keys-changed: func() -> stream;
-
-    /// Gives every block below `roots` a new key.
-    rotate: async func(roots: list<block-id>, keys: key-set) -> result<_, error>;
-
-    /// Adds the next epoch of the escrow chain.
-    create-escrow: async func(escrow: escrow-key, keys: key-set) -> result<_, error>;
-
-    /// Keeps the escrow key the caller pinned, sealed to itself.
-    pin-escrow: async func(sealed: list<u8>) -> result<_, error>;
-}
-
-/// What a client imports from the server.
-world client {
-    import connection;
-    import account;
-    import organizations;
-    import members;
-    import contacts;
-    import objects;
-    import blocks;
-    import sessions;
-    import keys;
-    import notifications;
 }

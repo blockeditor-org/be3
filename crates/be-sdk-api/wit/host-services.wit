@@ -35,6 +35,32 @@ interface host-services {
         /// The block whose grant or authorship gave `effective`.
         source: option<block-id>,
         waiting: bool,
+        /// Their grant came through a share link they opened.
+        through-link: bool,
+        /// A guest of the organization, there only through share links.
+        guest: bool,
+    }
+
+    /// Who a share link admits.
+    enum link-admits {
+        /// Members of the block's organization.
+        members,
+        /// Any account on the server, which joins the organization as a
+        /// guest.
+        anyone,
+    }
+
+    /// A share link open on a block, as its managers see it.
+    record share-link {
+        /// The link's id, which revoking it names.
+        id: string,
+        access: access-level,
+        admits: link-admits,
+        /// The link to send, when the signed-in account made it and keeps
+        /// its code; empty otherwise.
+        url: string,
+        maker: account-id,
+        maker-name: string,
     }
 
     /// Who has access to a block, whether its organization is a company, and
@@ -43,6 +69,25 @@ interface host-services {
         grants: list<access-grant>,
         company: bool,
         set-inside: u32,
+        /// The levels the block's type offers, in the order to list them, when
+        /// it is hosted (an app runs a host component on its type): each named
+        /// for what it adds for the stored block. Its share links grant Join by
+        /// default, and only its links offer Join. Empty for any other block,
+        /// which offers the core levels by their own names.
+        levels: list<offered-level>,
+        /// The account hosting the block now: the one whose device holds its
+        /// live session's lease. Always filled; meaningful only on a hosted
+        /// block (`levels` not empty). None when no one with edit access is in
+        /// a session of it.
+        host: option<account-id>,
+    }
+
+    /// A level a hosted type offers in the share dialog, with its name and
+    /// one line saying what it means.
+    record offered-level {
+        access: access-level,
+        name: string,
+        line: string,
     }
 
     /// A block a file was imported into.
@@ -119,6 +164,23 @@ interface host-services {
     /// shared, when the server could not take it (offline, it needs the server).
     set-access: async func(block: block-id, account: account-id, access: access-level) -> result<_, failure>;
 
+    /// Gives ownership of the block, which the signed-in account owns, to `account`, a contact
+    /// with access to it listed: they manage it as its owner from then on, and the account keeps
+    /// Edit. Fails, with the message to show, as `set-access` does.
+    transfer-ownership: async func(block: block-id, account: account-id) -> result<_, failure>;
+
+    /// The share links open on the block ("anyone with the link"), for its
+    /// managers.
+    list-share-links: async func(block: block-id) -> result<list<share-link>, failure>;
+
+    /// Makes a share link granting `access` (view or edit) to the block to
+    /// whoever `admits` lets open it, and answers the link to send.
+    make-share-link: async func(block: block-id, access: access-level, admits: link-admits) -> result<string, failure>;
+
+    /// Revokes the share link `link` on the block: everyone it granted loses
+    /// that access.
+    revoke-share-link: async func(block: block-id, link: string) -> result<_, failure>;
+
     /// A contact link whose taker is granted `access` to the block.
     make-contact-link: async func(block: block-id, access: access-level) -> result<string, failure>;
 
@@ -153,11 +215,20 @@ interface host-services {
         sha256: string,
     }
 
-    /// A deployed build's `be` is downloaded; a development build's is its
-    /// bytes, built on this machine.
+    /// One file of a development build's `be`, built on this machine.
+    record terminal-host-file {
+        /// Its name beside `be`, a plain file name: `be` itself, or the
+        /// apps' manifests and type modules it reads blocks through.
+        name: string,
+        bytes: list<u8>,
+    }
+
+    /// A deployed build's `be` is downloaded, and reads its apps from its
+    /// release; a development build's is its files, built on this machine:
+    /// `be` and the apps' manifests and type modules to put beside it.
     variant terminal-host-source {
         download(terminal-host-download),
-        bytes(list<u8>),
+        files(list<terminal-host-file>),
     }
 
     /// The `be` of the host's own build for one architecture, and the
@@ -182,13 +253,18 @@ interface host-services {
     terminal-host-build: async func() -> result<string, failure>;
 
     /// Sets how the signed-in account is notified about the block
-    /// (`account.notify-modes-watch` follows every block's).
-    set-notify-mode: async func(block: block-id, mode: notify-mode) -> result<_, failure>;
+    /// (`account.mutes-watch` follows every block's).
+    set-mute: async func(block: block-id, mode: notify-mode) -> result<_, failure>;
 
     /// Turns pushes to this device on or off (`account.push-device-watch`
     /// follows them). Turning them on asks the person's permission, so it must
     /// follow their press; a refusal answers a failure.
     set-push-device: async func(on: bool) -> result<_, failure>;
+
+    /// The shell lays out as on a phone, or no longer does. The host sets `frame-spec.phone` on
+    /// every frame from it, and back to false when the shell changes. Any other app is answered
+    /// with a failure, and changes nothing.
+    set-phone-layout: async func(on: bool) -> result<_, failure>;
 
     /// Who signed bytes, as far as this device can tell
     /// (plans/authorship.md).
@@ -201,6 +277,11 @@ interface host-services {
         /// A key the server names now in place of the one this device first
         /// took: the account took a new recovery phrase, or the server lies.
         changed,
+        /// A contact's key it had replaced before the server took the record
+        /// (`verify`'s `arrived`), after this device learned of the new key:
+        /// one of the account's devices not yet told of its new phrase, a send
+        /// held offline, or someone holding the old phrase.
+        replaced,
         /// Not the account's signature: forged, or the bytes changed since.
         bad,
     }
@@ -219,12 +300,18 @@ interface host-services {
     /// Whether `account` signed `bytes` in the block the editor shows, through
     /// the same app (the host binds the asking app, so a signature another app
     /// made answers `bad`, which is not a verdict that it was forged), and
-    /// how far its key is trusted. `unavailable` while the answer needs the
-    /// server and it cannot be reached.
+    /// how far its key is trusted. `arrived` is when the server took the
+    /// record, by its clock in milliseconds, for a record that keeps that
+    /// stamp: one signed with a key the account has replaced answers
+    /// `replaced`, not `changed`, if it arrived after this device learned of
+    /// the new key.
+    /// `unavailable` while the answer needs the server and it cannot be
+    /// reached.
     verify: async func(
         account: account-id,
         bytes: list<u8>,
         signature: list<u8>,
+        arrived: option<s64>,
     ) -> result<signer, failure>;
 
     /// The files the app ships in its data directory.

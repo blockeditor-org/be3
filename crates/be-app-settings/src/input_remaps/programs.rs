@@ -244,7 +244,7 @@ pub(super) fn ProgramDialog(
             ));
         }
     };
-    let summary = create_memo(move || {
+    let summary = move || {
         let named: Vec<String> = [
             ("program", exe.get()),
             ("program id", program.get()),
@@ -258,7 +258,7 @@ pub(super) fn ProgramDialog(
             true => "Every program".to_owned(),
             false => named.join(", "),
         }
-    });
+    };
     view! {
         <Dialog
             open={open}
@@ -274,7 +274,7 @@ pub(super) fn ProgramDialog(
                 <Text style=TextStyle::PARAGRAPH>
                     "They apply only while that program's window has the keyboard."
                 </Text>
-                <Show condition={listing}>
+                <Show value={listing}>
                     <List spacing=SPACING>
                         <TextInput
                             value={query}
@@ -284,7 +284,7 @@ pub(super) fn ProgramDialog(
                             clearable=true
                             @test_id={"input-remaps.programs.search"}
                         />
-                        <Show condition={any_running}>
+                        <Show value={any_running}>
                             <ProgramList
                                 title="Open now"
                                 kind="open"
@@ -293,7 +293,7 @@ pub(super) fn ProgramDialog(
                                 choose={choose}
                             />
                         </Show>
-                        <Show condition={any_installed}>
+                        <Show value={any_installed}>
                             <ProgramList
                                 title="Installed"
                                 kind="installed"
@@ -302,10 +302,10 @@ pub(super) fn ProgramDialog(
                                 choose={choose}
                             />
                         </Show>
-                        <Show condition={more}>
+                        <Show value={more}>
                             <Text style=TextStyle::CAPTION>"Search to find more programs."</Text>
                         </Show>
-                        <Show condition={none}>
+                        <Show value={none}>
                             <Text style=TextStyle::CAPTION>"No program matches."</Text>
                         </Show>
                     </List>
@@ -382,13 +382,13 @@ fn ProgramList(
         <List spacing=FIELD_SPACING>
             <Text style=TextStyle::CAPTION>{title}</Text>
             <List spacing=Space::None>
-                <ForEach keys={indices}>|index: usize| {
+                <ForEach value={indices}>|index: usize| {
                     let item = create_memo(move || listed.with(|listed| listed.get(index).cloned()));
-                    let name = create_memo(move || item.get().map(|item| item.name).unwrap_or_default());
-                    let detail = create_memo(move || item.get().map(|item| item.detail).unwrap_or_default());
-                    let selected = create_memo(move || {
+                    let name = move || item.get().map(|item| item.name).unwrap_or_default();
+                    let detail = move || item.get().map(|item| item.detail).unwrap_or_default();
+                    let selected = move || {
                         item.get().is_some_and(|item| chosen.get().as_deref() == Some(item.key.as_str()))
-                    });
+                    };
                     view! {
                         <ListItem grow=1.0>
                             <ListRow

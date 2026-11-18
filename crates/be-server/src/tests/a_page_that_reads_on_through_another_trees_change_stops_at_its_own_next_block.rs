@@ -8,8 +8,7 @@ use super::*;
 #[tokio::test]
 async fn a_page_that_reads_on_through_another_trees_change_stops_at_its_own_next_block() {
     let harness = Harness::start().await;
-    let mut owner = harness.client().await;
-    owner.register("owner@example.com").await;
+    let mut owner = harness.member("owner@example.com").await;
     owner.organization("notes").await;
 
     let work = owner.create_block(BlockParent::Root).await;
@@ -21,14 +20,16 @@ async fn a_page_that_reads_on_through_another_trees_change_stops_at_its_own_next
     }
     let start = owner
         .call(|peer| {
-            client::blocks::changed_since(
-                peer,
-                work,
-                ChangeCursor {
-                    changed: 0,
-                    block: Uuid::max(),
+            peer.ask::<be_block_protocol::ChangedPage>(
+                be_block_protocol::Query::Tree {
+                    entry: work,
+                    after: ChangeCursor {
+                        changed: 0,
+                        block: Uuid::max(),
+                    },
+                    limit: 1000,
                 },
-                1000,
+                false,
             )
         })
         .await
@@ -47,7 +48,16 @@ async fn a_page_that_reads_on_through_another_trees_change_stops_at_its_own_next
     let mut pages = 0;
     loop {
         let page = owner
-            .call(|peer| client::blocks::changed_since(peer, work, after.clone(), 1000))
+            .call(|peer| {
+                peer.ask::<be_block_protocol::ChangedPage>(
+                    be_block_protocol::Query::Tree {
+                        entry: work,
+                        after: after.clone(),
+                        limit: 1000,
+                    },
+                    false,
+                )
+            })
             .await
             .expect("changed-since failed");
         pages += 1;

@@ -9,8 +9,8 @@ fn an_overflowing_scroll_of_plain_text_is_a_tab_stop() {
     let scroll = NodeRef::new();
     let document = build_node(move || {
         view! {
-            <Scroll @node_ref=&scroll>
-                <ForEach keys={indices(20)}>|_: usize|
+            <Scroll @node_ref=&scroll style={plain_scroll()}>
+                <ForEach value={indices(20)}>|_: usize|
                     <Text color=Color32::WHITE>"Content"</Text>
                 </ForEach>
             </Scroll>

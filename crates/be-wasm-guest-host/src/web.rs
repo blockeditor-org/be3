@@ -44,22 +44,54 @@ pub struct WebGuest<P> {
 }
 
 impl<P: Pictures> WebGuest<P> {
+    /// Starts the guest at `url` in a worker of its own. `extension` names the script that
+    /// instantiates it, if the worker's own instantiation (a type module's) is not enough, such
+    /// as be-host's `./app.js`; both are resolved against the page, wherever the guest lies.
     pub fn start(
         url: &str,
         extension: Option<&str>,
         wake: Wake,
         waiting: Arc<AtomicBool>,
     ) -> Result<Self, String> {
-        let worker = spawn()?;
-        let inbox = Rc::new(RefCell::new(Inbox::default()));
-        let onmessage = listen(&worker, Rc::clone(&inbox), wake, waiting);
         let message = message("start");
         set(&message, "url", &absolute(url).into());
         if let Some(extension) = extension {
-            set(&message, "extension", &extension.into());
+            set(&message, "extension", &absolute(extension).into());
         }
+        Self::starting(&message, wake, waiting)
+    }
+
+    /// Starts a pure guest (guides/app_libraries.md, Pure guests) of `module`, which the page
+    /// compiled, in a worker of its own: the worker instantiates it as it is, answering only its
+    /// transport and, if it imports one, a memory it makes of `memory`'s pages, initial and
+    /// maximum, so it needs no extension and fetches nothing.
+    pub fn start_module(
+        module: &js_sys::WebAssembly::Module,
+        memory: Option<(u64, u64)>,
+        wake: Wake,
+        waiting: Arc<AtomicBool>,
+    ) -> Result<Self, String> {
+        let message = message("start");
+        set(&message, "module", module);
+        if let Some((initial, maximum)) = memory {
+            let pages = js_sys::Object::new();
+            set(&pages, "initial", &(initial as f64).into());
+            set(&pages, "maximum", &(maximum as f64).into());
+            set(&message, "memory", &pages);
+        }
+        Self::starting(&message, wake, waiting)
+    }
+
+    fn starting(
+        message: &js_sys::Object,
+        wake: Wake,
+        waiting: Arc<AtomicBool>,
+    ) -> Result<Self, String> {
+        let worker = spawn()?;
+        let inbox = Rc::new(RefCell::new(Inbox::default()));
+        let onmessage = listen(&worker, Rc::clone(&inbox), wake, waiting);
         worker
-            .post_message(&message)
+            .post_message(message)
             .map_err(|_| "the guest's worker could not be started".to_owned())?;
         Ok(Self {
             worker,
@@ -124,6 +156,7 @@ fn produced<P: Pictures>(data: &JsValue) -> Produced<P> {
             .map(|frame| js_sys::Uint8Array::new(&frame).to_vec())
             .collect(),
         presented: P::read(data),
+        released: Vec::new(),
         painted: get(data, "painted").is_truthy(),
         took: StepTime {
             step: milliseconds(data, "step"),

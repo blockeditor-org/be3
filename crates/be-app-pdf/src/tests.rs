@@ -1,4 +1,5 @@
 use be_sdk_test::BeuiTest;
+use be_sdk_test::prelude::*;
 use uuid::Uuid;
 
 use crate::root::PdfRoot;
@@ -10,6 +11,7 @@ mod a_pdf_on_a_phone_shows_its_sidebar_below_the_page;
 
 fn editor(content: PdfContent) -> BeuiTest<PdfRoot> {
     let mut editor = BeuiTest::editing(Uuid::new_v4()).in_viewport();
+    editor.serve_worker::<be_worker_pdf_render::Renderer>(be_worker_pdf::MODULE);
     editor.hold(None, content);
     editor
 }

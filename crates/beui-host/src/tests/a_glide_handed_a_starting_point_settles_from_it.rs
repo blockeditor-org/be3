@@ -10,10 +10,10 @@ fn a_glide_handed_a_starting_point_settles_from_it() {
         view! {
             <List spacing=0.0>
                 <Frame height=100.0 />
-                <Show condition={shown}>
-                    <unstyled::Glide @test_id="slot" from={Some(pos2(200.0, 300.0))}>
+                <Show value={shown}>
+                    <styled::Glide @test_id="slot" from={Some(pos2(200.0, 300.0))}>
                         <Frame @test_id="row" width=50.0 height=GLIDE_ROW fill=Color32::WHITE />
-                    </unstyled::Glide>
+                    </styled::Glide>
                 </Show>
             </List>
         }

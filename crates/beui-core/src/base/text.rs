@@ -22,6 +22,7 @@ use beui_tree::child_list::ChildList;
 use beui_types::Direction;
 use beui_types::LineBox;
 use beui_types::NodeId;
+use beui_types::text::BLANK;
 use beui_types::{
     CaretHandle, Piece, RichOptions, SpanBackground, SpanStyle, TextCaret, TextGlyph, TextMark,
     text::handle_shape,
@@ -34,6 +35,7 @@ pub const CARET_BLINK: Duration = Duration::from_millis(530);
 pub const CARET_BLINKS_FOR: Duration = Duration::from_millis(530 * 2 * 10);
 const CARET_FLAG: Vec2 = Vec2::new(6.0, 4.0);
 
+use beui_types::GapWidth;
 use beui_types::text::{FontPatch, IconSpan};
 
 #[derive(Clone, PartialEq, Debug, Default)]
@@ -102,14 +104,16 @@ pub enum TextPart {
     Span(SpanHandle),
     Inline(NodeId),
     Anchored(NodeId),
-    Gap(f32),
+    Gap(GapWidth),
+    /// A blank `width` wide, in a font of its own or the text's.
+    Blank(f32, Option<FontId>),
     Break,
 }
 
 impl ChildItem for TextPart {
     fn node(&self) -> Option<NodeId> {
         match self {
-            TextPart::Span(_) | TextPart::Gap(_) | TextPart::Break => None,
+            TextPart::Span(_) | TextPart::Gap(_) | TextPart::Blank(..) | TextPart::Break => None,
             TextPart::Inline(node) | TextPart::Anchored(node) => Some(*node),
         }
     }
@@ -128,7 +132,8 @@ struct Placed {
 enum Entry {
     Span(SpanHandle, u64),
     Inline(Vec2, Option<Rc<str>>),
-    Gap(f32),
+    Gap(GapWidth),
+    Blank(f32, Option<FontId>),
     Break,
 }
 
@@ -142,6 +147,9 @@ impl PartialEq for Entry {
                 left == right && stands == other
             }
             (Entry::Gap(left), Entry::Gap(right)) => left == right,
+            (Entry::Blank(left, font), Entry::Blank(right, other)) => {
+                left == right && font == other
+            }
             (Entry::Break, Entry::Break) => true,
             _ => false,
         }
@@ -166,11 +174,9 @@ impl Shaped {
     fn reusable(&self, key: &ShapeKey, entries: &[Entry]) -> bool {
         let wrap = key.options.wrap_width;
         let laid = self.key.options.wrap_width;
-        let serves = self.key.options.least || !key.options.least;
         let rewrapped = ShapeKey {
             options: RichOptions {
                 wrap_width: wrap,
-                least: key.options.least == serves,
                 ..self.key.options
             },
             ..self.key
@@ -246,10 +252,6 @@ impl Shaper for CachedShaper<'_> {
         self.fresh.insert(key, galley.clone());
         galley
     }
-
-    fn slice(&mut self, galley: &Galley, range: Range<usize>, _font: FontId) -> Galley {
-        galley.slice(range, self.painter.ctx().pixels_per_point())
-    }
 }
 
 pub struct TextItemNode {
@@ -314,7 +316,8 @@ impl ChildHost for TextNode {
 enum Flow<'a> {
     Span(Ref<'a, SpanContent>),
     Inline(usize, Vec2, &'a str),
-    Gap(f32),
+    Gap(GapWidth),
+    Blank(f32, Option<FontId>),
     Break,
 }
 
@@ -333,9 +336,11 @@ impl TextNode {
                     && !content.text.is_empty()
                     && seen(content.color.unwrap_or(self.color))
             }
-            TextPart::Inline(_) | TextPart::Anchored(_) | TextPart::Gap(_) | TextPart::Break => {
-                false
-            }
+            TextPart::Inline(_)
+            | TextPart::Anchored(_)
+            | TextPart::Gap(_)
+            | TextPart::Blank(..)
+            | TextPart::Break => false,
         };
         let string_spoken = !string.text.is_empty() && seen(self.color);
         if !string_spoken && !self.parts.iter().any(spoken) {
@@ -344,6 +349,7 @@ impl TextNode {
         let silent = |part: &TextPart| match part {
             TextPart::Span(span) => span.content().icon.is_none() && !spoken(part),
             TextPart::Inline(_) => true,
+            TextPart::Blank(..) => true,
             TextPart::Anchored(_) | TextPart::Gap(_) | TextPart::Break => false,
         };
         if (string_spoken || string.text.is_empty()) && !self.parts.iter().any(silent) {
@@ -370,7 +376,11 @@ impl TextNode {
                     apart = false;
                     text.push_str(&content.text);
                 }
-                TextPart::Span(_) | TextPart::Anchored(_) | TextPart::Gap(_) | TextPart::Break => {}
+                TextPart::Span(_)
+                | TextPart::Anchored(_)
+                | TextPart::Gap(_)
+                | TextPart::Blank(..)
+                | TextPart::Break => {}
             }
         }
         Some(Cow::Owned(text))
@@ -383,6 +393,7 @@ impl TextNode {
                 TextPart::Span(span) if span.content().icon.is_some() => {}
                 TextPart::Span(span) => content.push_str(&span.content().text),
                 TextPart::Inline(_) => content.push_str(OBJECT),
+                TextPart::Blank(..) => content.push_str(BLANK),
                 TextPart::Anchored(_) | TextPart::Gap(_) | TextPart::Break => {}
             }
         }
@@ -431,6 +442,7 @@ impl TextNode {
                         .clone(),
                 )),
                 TextPart::Gap(width) => entries.push(Entry::Gap(*width)),
+                TextPart::Blank(width, font) => entries.push(Entry::Blank(*width, *font)),
                 TextPart::Break => entries.push(Entry::Break),
                 TextPart::Anchored(_) => {}
             }
@@ -497,7 +509,6 @@ impl TextNode {
                         ..
                     }
                 ),
-                least: self.overflow.wraps() && !wrap_width.is_finite(),
             },
             line_height: self.line_height,
             scale: ctx.pixels_per_point(),
@@ -535,6 +546,7 @@ impl TextNode {
                         Flow::Inline(inline - 1, *size, text.as_deref().unwrap_or(OBJECT))
                     }
                     Entry::Gap(width) => Flow::Gap(*width),
+                    Entry::Blank(width, font) => Flow::Blank(*width, *font),
                     Entry::Break => Flow::Break,
                 })
                 .collect()
@@ -565,6 +577,13 @@ impl TextNode {
                     text,
                 },
                 Flow::Gap(width) => Piece::Gap(*width),
+                Flow::Blank(width, font) => Piece::Blank {
+                    width: *width,
+                    style: SpanStyle {
+                        font: font.unwrap_or(style.font),
+                        ..style
+                    },
+                },
                 Flow::Break => Piece::Break,
             })
             .collect();
@@ -681,7 +700,7 @@ impl TextNode {
             .flat_map(|shaped| &shaped.entries)
             .map(|entry| match entry {
                 Entry::Span(span, _) => Some(span.clone()),
-                Entry::Inline(..) | Entry::Gap(_) | Entry::Break => None,
+                Entry::Inline(..) | Entry::Gap(_) | Entry::Blank(..) | Entry::Break => None,
             })
             .collect();
         let mut at = 0;
@@ -695,6 +714,7 @@ impl TextNode {
                     Entry::Span(span, _) if span.content().icon.is_some() => 0,
                     Entry::Span(span, _) => span.content().text.len(),
                     Entry::Inline(_, text) => text.as_deref().unwrap_or(OBJECT).len(),
+                    Entry::Blank(..) => BLANK.len(),
                     Entry::Gap(_) | Entry::Break => 0,
                 };
                 at += len;
@@ -741,8 +761,8 @@ impl TextNode {
             }
             None => (doc.resolve_color(self.color), self.underline, false),
         };
-        let fill = |range: Range<usize>, background: SpanBackground| {
-            for area in layout.selection_rects(range) {
+        let fill = |areas: Vec<Rect>, background: SpanBackground| {
+            for area in areas {
                 painter.rect_filled(
                     area.expand2(background.outset).translate(origin),
                     background.radius,
@@ -764,12 +784,12 @@ impl TextNode {
                 continue;
             }
             if let Some((held, background)) = run.take() {
-                fill(held, background);
+                fill(layout.span_rects(held), background);
             }
             run = background.map(|background| (range.clone(), background));
         }
         if let Some((held, background)) = run {
-            fill(held, background);
+            fill(layout.span_rects(held), background);
         }
         let plain = |color: Color| SpanBackground {
             color,
@@ -777,10 +797,13 @@ impl TextNode {
             outset: Vec2::ZERO,
         };
         for mark in &self.marks {
-            fill(mark.range.clone(), plain(mark.color));
+            fill(
+                layout.selection_rects(mark.range.clone()),
+                plain(mark.color),
+            );
         }
         if let Some((range, color)) = &self.selection {
-            fill(range.clone(), plain(*color));
+            fill(layout.selection_rects(range.clone()), plain(*color));
         }
         layout.paint_runs(painter, origin, |run| paint_of(run.piece));
         for glyph in &self.glyphs {
@@ -869,24 +892,15 @@ impl Element for TextNode {
         }
     }
 
-    fn min_width(&self, doc: &mut Document, painter: &Painter) -> f32 {
-        match self.overflow {
-            Overflow::Wrap { .. } => self.rich_layout(doc, painter, f32::INFINITY).least_width(),
-            Overflow::Ellipsis | Overflow::Visible => 0.0,
-        }
-    }
-
     fn least_length(
         &self,
-        doc: &mut Document,
-        painter: &Painter,
+        _doc: &mut Document,
+        _painter: &Painter,
         direction: Direction,
         _cross: f32,
     ) -> Option<f32> {
         match (direction, self.overflow) {
-            (Direction::Horizontal, Overflow::Wrap { .. } | Overflow::Ellipsis) => {
-                Some(self.min_width(doc, painter))
-            }
+            (Direction::Horizontal, Overflow::Wrap { .. } | Overflow::Ellipsis) => Some(0.0),
             _ => None,
         }
     }

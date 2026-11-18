@@ -80,7 +80,7 @@ pub(crate) enum Tone {
     ChangesRequested,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub(crate) struct InlineComment {
     pub(crate) author: String,
     pub(crate) location: String,

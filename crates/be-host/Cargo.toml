@@ -39,6 +39,8 @@ config_changes = "orientation|keyboardHidden|screenSize|screenLayout"
 exported = true
 
 [dependencies]
+be-lib-quoted-name = { path = "../be-lib-quoted-name" }
+be-block-input = { path = "../be-block-input" }
 # The block stack. The app is a peer of it on every platform: be-block-client's socket
 # and executor come from its own transport/.
 be-block = { path = "../be-block" }
@@ -53,33 +55,49 @@ be-host-base = { path = "../be-host-base" }
 be-host-desktop = { path = "../be-host-desktop" }
 be-host-runtime = { path = "../be-host-runtime" }
 be-host-stack = { path = "../be-host-stack" }
-be-host-accounts-ui = { path = "../be-host-accounts-ui" }
+be-root-accounts-ui = { path = "../be-root-accounts-ui" }
 be-sdk-api = { path = "../be-sdk-api" }
 be-sdk-manifest = { path = "../be-sdk-manifest" }
 be-block-type-host = { path = "../be-block-type-host" }
 be-lib-build-id = { path = "../be-lib-build-id" }
 futures-util = { version = "0.3", features = ["io"] }
 beui-reactive = { path = "../beui-reactive" }
+postcard = { version = "1", features = ["use-std"] }
+serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 # Only the synchronisation primitives are shared with the browser build; the
 # new block stack's worker gets its executor and its timer from be/ instead.
 tokio = { version = "1", features = ["sync"] }
 uuid = { version = "1", features = ["serde", "v4", "v7"] }
+be-wasm-password = { path = "../be-wasm-password" }
 be-wasm-threads = { path = "../be-wasm-threads" }
 be-sdk-window-stack = { path = "../be-sdk-window-stack" }
+qrcodegen = "1.8"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 beui-host = { path = "../beui-host" }
+beui-host-window = { path = "../beui-host-window" }
 directories-next = "2"
 tokio = { version = "1", features = ["net", "rt", "rt-multi-thread", "sync", "time"] }
 # Desktop only: Android has no embedded browser, and the browser sandbox has
 # none either.
 [target.'cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))'.dependencies]
+# `--root=APP` (src/root.rs): a root guest in place of the host's own UI.
+be-lib-layers = { path = "../be-lib-layers" }
+be-lib-ui-types = { path = "../be-lib-ui-types" }
+be-sdk-app-host = { path = "../be-sdk-app-host" }
+be-wasm-host = { path = "../be-wasm-host" }
+be-wasm-root-api = { path = "../be-wasm-root-api" }
+be-wasm-root-host = { path = "../be-wasm-root-host" }
+beui-renderer-wgpu = { path = "../beui-renderer-wgpu" }
+wgpu = { version = "29", default-features = false }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 # The block stack with the apps' type modules in process.
 be-host-testing = { path = "../be-host-testing" }
 be-sdk-test = { path = "../be-sdk-test" }
+be-type-text = { path = "../be-type-text" }
+be-type-workspace = { path = "../be-type-workspace" }
 
 # Linux runs the app as a Wayland compositor, and BEUI_PLATFORM=drm runs it on the
 # displays and input devices themselves rather than in a window.
@@ -98,11 +116,13 @@ be-host-win32-capture = { path = "../be-host-win32-capture" }
 libc = "0.2"
 
 [target.'cfg(target_os = "android")'.dependencies]
+jni = "0.22"
+ndk-context = "0.1"
 libc = "0.2"
 zip = { version = "8", default-features = false, features = ["deflate"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-beui-host = { path = "../beui-host", default-features = false, features = ["web"] }
+beui-host = { path = "../beui-host", features = ["web"] }
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
 web-sys = { version = "0.3", features = [
@@ -125,6 +145,7 @@ web-sys = { version = "0.3", features = [
     "ImageBitmap",
     "Location",
     "MessageEvent",
+    "MessagePort",
     "Node",
     "OffscreenCanvas",
     "Performance",

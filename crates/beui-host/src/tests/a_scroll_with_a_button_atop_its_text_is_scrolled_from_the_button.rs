@@ -9,9 +9,9 @@ fn a_scroll_with_a_button_atop_its_text_is_scrolled_from_the_button() {
     let (scroll, button) = (NodeRef::new(), NodeRef::new());
     let document = build_node(move || {
         view! {
-            <Scroll @node_ref=&scroll>
+            <Scroll @node_ref=&scroll style={plain_scroll()}>
                 <LabelledButton @node_ref=&button label="Top" on_click={move || {}} />
-                <ForEach keys={indices(20)}>|_: usize|
+                <ForEach value={indices(20)}>|_: usize|
                     <Text color=Color32::WHITE>"Content"</Text>
                 </ForEach>
             </Scroll>

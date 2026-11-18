@@ -17,7 +17,8 @@ fn a_block_whose_creation_waits_joins_once_it_is_sent_not_on_reconnecting() {
         .expect("the block is kept here");
         replicas
             .open((&peer, &shared), block, Sections::CONTENT_TYPE, true)
-            .await;
+            .await
+            .expect("the block opens");
         replicas.pump((&peer, &shared)).await;
         assert!(
             !replicas.joining(),

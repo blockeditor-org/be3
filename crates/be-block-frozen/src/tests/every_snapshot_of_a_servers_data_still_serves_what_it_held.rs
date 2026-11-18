@@ -6,6 +6,7 @@ use be_block_content::{MY_FILES, NAME, ROW_PREFIX};
 use be_block_keys::{InviteCode, RecoveryPhrase};
 use be_block_protocol::{KeyKind, OrganizationKind, OrganizationRole, client};
 use be_server::backup::{self, BackupKey, Directory};
+use be_server::store::codes::{CodePurpose, CodeRequest};
 use be_tool_cli::{cli, session};
 use be_type_database::{
     database::DatabaseContent,
@@ -51,38 +52,25 @@ fn csrf(page: &str) -> &str {
         .next()
         .unwrap()
 }
-fn form_value(value: &str) -> String {
-    value.bytes().map(|byte| format!("%{byte:02X}")).collect()
-}
-async fn sign_in(server: &Running, email: &str, password: &str) -> (Arc<Connection>, String) {
-    let be_block_protocol::BrowserLogin { code, secret, .. } =
-        be_block_client::call_once(&server.url, |peer| {
-            client::account::begin_browser_login(peer)
-        })
+async fn sign_in(server: &Running, email: &str) -> (Arc<Connection>, String) {
+    let Ok(be_block_protocol::DeviceLoginAnswer::Begun(be_block_protocol::BrowserLogin {
+        code,
+        secret,
+        ..
+    })) = be_block_client::call_once(&server.url, |peer| {
+        client::server::device_login(peer, be_block_protocol::DeviceLoginStep::Begin)
+    })
+    .await
+    else {
+        panic!("browser sign-in does not start")
+    };
+    let store = be_server::ServerStore::open(&server.directory).unwrap();
+    let entered = store
+        .ask_and_enter_code(request(CodePurpose::SignIn, email, "", ""), config())
         .await
-        .expect("browser sign-in starts");
-    let page = portal_http(server, "GET", "/auth/login", "", "").await;
-    let signed_in = portal_http(
-        server,
-        "POST",
-        "/auth/login",
-        "",
-        &format!(
-            "csrf={}&email={}&password={}",
-            csrf(&page),
-            form_value(email),
-            form_value(password)
-        ),
-    )
-    .await;
-    assert!(signed_in.starts_with("HTTP/1.1 303"), "{signed_in}");
-    let cookie = signed_in
-        .split("Set-Cookie: be3-account=")
-        .nth(1)
-        .unwrap()
-        .split(';')
-        .next()
-        .unwrap();
+        .unwrap_or_else(|error| panic!("{email} no longer signs in by code: {error}"));
+    let cookie = entered.session.unwrap();
+    let cookie = cookie.as_str();
     let page = portal_http(server, "GET", &format!("/auth?code={code}"), cookie, "").await;
     let approved = portal_http(
         server,
@@ -93,26 +81,48 @@ async fn sign_in(server: &Running, email: &str, password: &str) -> (Arc<Connecti
     )
     .await;
     assert!(approved.starts_with("HTTP/1.1 303"), "{approved}");
-    let Ok(be_block_protocol::BrowserLoginState::Approved(be_block_protocol::Authenticated {
-        token,
-        ..
-    })) = be_block_client::call_once(&server.url, |peer| {
-        client::account::poll_browser_login(peer, code, secret)
+    let Ok(be_block_protocol::DeviceLoginAnswer::Polled(
+        be_block_protocol::BrowserLoginState::Approved(be_block_protocol::Authenticated {
+            token,
+            ..
+        }),
+    )) = be_block_client::call_once(&server.url, |peer| {
+        client::server::device_login(
+            peer,
+            be_block_protocol::DeviceLoginStep::Poll { code, secret },
+        )
     })
     .await
     else {
-        panic!("{email}'s password no longer signs in")
+        panic!("{email}'s browser sign-in was not approved")
     };
-    let connection = Connection::connect(&socket(server), &be_block_client::Clock::real())
-        .await
-        .unwrap();
-    ask(client::account::authenticate(
-        &connection,
-        Some(token.clone()),
-    ))
+    let (connection, _) = Connection::connect(
+        &socket(server),
+        &be_block_client::Clock::real(),
+        &Credentials::Token(token.clone()),
+    )
     .await
     .expect("the token signs in");
     (connection, token)
+}
+
+/// A code request from the test's browser.
+fn request<'a>(
+    purpose: CodePurpose,
+    email: &'a str,
+    name: &'a str,
+    invite: &'a str,
+) -> CodeRequest<'a> {
+    CodeRequest {
+        purpose,
+        email,
+        account: None,
+        display_name: name,
+        invite,
+        device_code: "",
+        attempt: "",
+        address: "192.0.2.7",
+    }
 }
 
 async fn peer(
@@ -160,8 +170,7 @@ async fn check(snapshot: &Snapshot) {
     let organization = id(snapshot.organization);
     let personal = id(snapshot.personal);
 
-    let (by_password, owner_token) =
-        sign_in(&server, scene::OWNER_EMAIL, scene::OWNER_PASSWORD).await;
+    let (by_code, owner_token) = sign_in(&server, scene::OWNER_EMAIL).await;
     let store = be_server::ServerStore::open(&server.directory).unwrap();
     assert!(
         store.resolve_token(snapshot.owner_token).await.is_ok(),
@@ -171,8 +180,15 @@ async fn check(snapshot: &Snapshot) {
         store.resolve_token(snapshot.friend_token).await.is_ok(),
         "{name}: the friend's session was not kept"
     );
-    let Ok(be_block_protocol::RecoveryKey { public, .. }) =
-        ask(client::keys::get_recovery_key(&by_password)).await
+    let Ok(be_block_protocol::RecoveryKey { public, .. }) = ask(be_block_protocol::read::<
+        be_block_protocol::RecoveryKey,
+        _,
+    >(
+        &by_code,
+        None,
+        be_block_protocol::Query::RecoveryKey,
+    ))
+    .await
     else {
         panic!("{name}: the owner's recovery key was not sent");
     };
@@ -187,7 +203,13 @@ async fn check(snapshot: &Snapshot) {
         ),
         "{name}: the owner's phrase no longer matches its recovery key"
     );
-    let Ok(organizations) = ask(client::organizations::list_organizations(&by_password)).await
+    let Ok(organizations) = ask(be_block_protocol::read::<
+        Vec<be_block_protocol::Organization>,
+        _,
+    >(
+        &by_code, None, be_block_protocol::Query::Organizations
+    ))
+    .await
     else {
         panic!("{name}: the owner's organizations were not listed");
     };
@@ -281,7 +303,10 @@ async fn check(snapshot: &Snapshot) {
     assert_eq!(history.len(), 3);
     assert!(history[0].pinned);
     assert_eq!(history[0].parents, [history[1].commit]);
-    let first: TextContent = owner.open_commit(history[2].commit).await.unwrap();
+    let first: TextContent = owner
+        .open_commit(id(snapshot.shopping), history[2].commit)
+        .await
+        .unwrap();
     assert_eq!(TextBlock::text(&first), scene::SHOPPING[0]);
 
     let program: TextContent = owner.open(id(snapshot.program)).await.unwrap().unwrap();
@@ -329,7 +354,10 @@ async fn check(snapshot: &Snapshot) {
     assert_eq!(text(&owner, snapshot.plan).await, scene::PLAN[1]);
     let plan_history = owner.history(id(snapshot.plan)).await.unwrap();
     assert_eq!(plan_history.len(), 2);
-    let before: TextContent = owner.open_commit(plan_history[1].commit).await.unwrap();
+    let before: TextContent = owner
+        .open_commit(id(snapshot.plan), plan_history[1].commit)
+        .await
+        .unwrap();
     assert_eq!(
         TextBlock::text(&before),
         scene::PLAN[0],
@@ -433,7 +461,7 @@ async fn check(snapshot: &Snapshot) {
             .is_ok_and(|summary| summary.access.can_view())
     );
 
-    let (_, editor_token) = sign_in(&server, scene::EDITOR_EMAIL, scene::EDITOR_PASSWORD).await;
+    let (_, editor_token) = sign_in(&server, scene::EDITOR_EMAIL).await;
     let editor = peer(&server, snapshot.editor_phrase, &editor_token, organization).await;
     assert_eq!(editor.role(), OrganizationRole::Editor);
     assert!(
@@ -442,7 +470,7 @@ async fn check(snapshot: &Snapshot) {
     );
     assert_eq!(editor.keys().escrow(), latest);
 
-    let (_, friend_token) = sign_in(&server, scene::FRIEND_EMAIL, scene::FRIEND_PASSWORD).await;
+    let (_, friend_token) = sign_in(&server, scene::FRIEND_EMAIL).await;
     let friend = peer(&server, snapshot.friend_phrase, &friend_token, personal).await;
     assert_eq!(
         text(&friend, snapshot.holiday_note).await,
@@ -469,10 +497,16 @@ async fn check(snapshot: &Snapshot) {
         holiday.size + holiday_note.tree_size + friend_note.tree_size,
         "{name}: what the friend made in the owner's folder is not in its tree"
     );
-    let friend_storage = client::account::storage_changed(&friend.connection())
-        .recv()
-        .await
-        .unwrap();
+    let friend_storage = ask(be_block_protocol::read::<
+        be_block_protocol::AccountStorage,
+        _,
+    >(
+        &friend.connection(),
+        None,
+        be_block_protocol::Query::Storage,
+    ))
+    .await
+    .unwrap();
     assert_eq!(
         (friend_storage.held, snapshot.usage.friend_held),
         (0, 0),
@@ -510,6 +544,7 @@ async fn check(snapshot: &Snapshot) {
         &me,
         &code,
         be_block_client::contacts::Expected::Contact,
+        &Default::default(),
     )
     .await
     .unwrap_or_else(|error| panic!("{name}: the pending link no longer opens: {error}"));
@@ -541,6 +576,7 @@ async fn check(snapshot: &Snapshot) {
         &me,
         &code,
         be_block_client::contacts::Expected::Invitation,
+        &Default::default(),
     )
     .await
     .unwrap_or_else(|error| panic!("{name}: the invitation no longer opens: {error}"));
@@ -596,7 +632,7 @@ async fn check(snapshot: &Snapshot) {
     assert!(report.objects > 0);
     assert!(backup::verify(&restored, None).unwrap().missing.is_empty());
     let server = start(Some(restored)).await;
-    let (_, owner_token) = sign_in(&server, scene::OWNER_EMAIL, scene::OWNER_PASSWORD).await;
+    let (_, owner_token) = sign_in(&server, scene::OWNER_EMAIL).await;
     let owner = peer(&server, snapshot.owner_phrase, &owner_token, organization).await;
     assert_eq!(text(&owner, snapshot.shopping).await, scene::SHOPPING[2]);
     assert_eq!(text(&owner, snapshot.plan).await, scene::PLAN[1]);
@@ -643,10 +679,16 @@ async fn check_storage(
         my_files.size + notes.tree_size,
         "{name}"
     );
-    let storage = client::account::storage_changed(&owner.connection())
-        .recv()
-        .await
-        .unwrap();
+    let storage = ask(be_block_protocol::read::<
+        be_block_protocol::AccountStorage,
+        _,
+    >(
+        &owner.connection(),
+        None,
+        be_block_protocol::Query::Storage,
+    ))
+    .await
+    .unwrap();
     assert!(
         storage.held >= long.size,
         "{name}: the owner is charged less than one of its blocks holds"
@@ -675,56 +717,40 @@ async fn check_storage(
         Some(scene::STORAGE_QUOTA),
         "{name}: the storage quota no longer reads in bytes"
     );
-    let agent = Connection::connect(&socket(server), &be_block_client::Clock::real())
-        .await
-        .unwrap();
-    ask(client::account::authenticate(
-        &agent,
-        Some(snapshot.agent_token.to_owned()),
-    ))
+    let (agent, _) = Connection::connect(
+        &socket(server),
+        &be_block_client::Clock::real(),
+        &Credentials::Token(snapshot.agent_token.to_owned()),
+    )
     .await
     .unwrap();
-    ask(client::organizations::open_organization(
-        &agent,
-        id(snapshot.organization),
-    ))
+    let charged = ask(be_block_protocol::read::<
+        be_block_protocol::AccountStorage,
+        _,
+    >(&agent, None, be_block_protocol::Query::Storage))
     .await
     .unwrap();
-    let charged = client::account::storage_changed(&agent)
-        .recv()
-        .await
-        .unwrap();
     assert_eq!(
         (charged.held, charged.pending),
         (storage.held, storage.pending),
         "{name}: the agent is no longer charged to the account that created it"
     );
 
-    let register = |email: &'static str, invite: &'static str| async move {
+    let enter = |purpose, email: &'static str, invite: &'static str| async move {
         store
-            .registration_link(
-                email,
-                email,
-                scene::REGISTERED_PASSWORD,
-                invite,
-                "",
-                "192.0.2.7",
-            )
+            .ask_and_enter_code(request(purpose, email, email, invite), config())
             .await
     };
+    let register = |email, invite| enter(CodePurpose::Register, email, invite);
     assert!(
         register("again@example.com", usage.used_invite)
             .await
             .is_err(),
         "{name}: a used-up invite code registered another account"
     );
-    let link = register("unused@example.com", usage.unused_invite)
+    register("unused@example.com", usage.unused_invite)
         .await
         .unwrap_or_else(|error| panic!("{name}: the unused invite code was refused: {error}"));
-    store
-        .confirm_mail(&link.token, None, "192.0.2.7")
-        .await
-        .unwrap();
     assert!(
         register("third@example.com", usage.unused_invite)
             .await
@@ -732,12 +758,7 @@ async fn check_storage(
         "{name}: an invite code registered more accounts than it allows"
     );
     assert!(
-        store
-            .login_browser(
-                scene::REGISTERED_EMAIL,
-                scene::REGISTERED_PASSWORD,
-                "192.0.2.7"
-            )
+        enter(CodePurpose::SignIn, scene::REGISTERED_EMAIL, "")
             .await
             .is_ok(),
         "{name}: the account the used code made no longer signs in"

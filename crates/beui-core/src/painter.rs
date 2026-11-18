@@ -690,8 +690,4 @@ impl Shaper for PainterShaper<'_> {
     fn galley(&mut self, text: &str, font: FontId) -> Galley {
         self.0.layout_text(text, font, TextLayout::DEFAULT)
     }
-
-    fn slice(&mut self, galley: &Galley, range: std::ops::Range<usize>, _font: FontId) -> Galley {
-        galley.slice(range, self.0.ctx().pixels_per_point())
-    }
 }

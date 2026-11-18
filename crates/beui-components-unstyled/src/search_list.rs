@@ -12,7 +12,7 @@ use beui_view::types::KeyPhase;
 use beui_view::types::{Key, KeyPress};
 
 use crate::button::{Button, ButtonHandle};
-use crate::scroll::{Scroll, ScrollbarStyle};
+use crate::scroll::{Scroll, ScrollStyle};
 use crate::text_input::{TextInput, TextInputHandle, TextInputStyle};
 use beui_view::types::Track;
 
@@ -136,7 +136,7 @@ pub fn SearchList<K>(
     query: Signal<String>,
     highlighted: Signal<Option<K>>,
     rank: Func<String, Vec<K>>,
-    #[prop(default = None)] enabled: Option<Func<K, bool>>,
+    enabled: Option<Func<K, bool>>,
     #[prop(default = true)] highlight_first: bool,
     #[prop(default = 8)] page: usize,
     #[prop(default = 1)] columns: Prop<usize>,
@@ -147,13 +147,13 @@ pub fn SearchList<K>(
     placeholder: Prop<String>,
     style: TextInputStyle,
     search_accessibility: Option<Prop<Node>>,
-    field: RenderFn<TextInputHandle>,
+    field: RenderFn<TextInputHandle, NodeId>,
     list_height: Prop<f32>,
     #[prop(default = false)] fill_height: Prop<bool>,
     spacing: f32,
-    #[prop(default = ScrollbarStyle::default())] scrollbar: ScrollbarStyle,
+    scroll: ScrollStyle,
     accessibility: Func<K, Node>,
-    row: RenderFn<SearchRowHandle<K>>,
+    row: RenderFn<SearchRowHandle<K>, NodeId>,
 ) -> NodeId
 where
     K: Clone + Eq + Hash + 'static,
@@ -165,7 +165,6 @@ where
     });
     let columns = create_memo(move || columns.get().max(1));
     let gridded = create_memo(move || columns.get() > 1);
-    let listed = create_memo(move || !gridded.get());
     let state = State {
         search: NodeRef::new(),
         shown,
@@ -203,7 +202,6 @@ where
     });
 
     let highlight = create_selector(move || highlighted.get());
-    let tracks = create_memo(move || vec![Track::Fraction(1.0); columns.get()]);
     on_key(
         KeyAt::Node(state.search),
         KeyPhase::Capture,
@@ -243,19 +241,25 @@ where
                 on_submit={move |_: String| state.submit()}
             />
             <ListItem
-                length={create_memo(move || fill_height.get().then(|| list_height.get()))}
+                length={move || fill_height.get().then(|| list_height.get())}
                 max=list_height
                 shrink=1.0
             >
-                <Scroll fit=true scrollbar>
-                    <Show condition={listed}>
-                        <ForEach keys={shown}>|key: K|
-                            <SearchRow state key accessibility row highlight />
-                        </ForEach>
-                    </Show>
-                    <Show condition={gridded}>
-                        <Grid columns={tracks} column_spacing=spacing row_spacing=spacing>
-                            <ForEach keys={shown}>|key: K|
+                <Scroll fit=true style={scroll}>
+                    <Show
+                        value={gridded}
+                        fallback={move || view! {
+                            <ForEach value={shown}>|key: K|
+                                <SearchRow state key accessibility row highlight />
+                            </ForEach>
+                        }}
+                    >
+                        <Grid
+                            columns={move || vec![Track::Fraction(1.0); columns.get()]}
+                            column_spacing=spacing
+                            row_spacing=spacing
+                        >
+                            <ForEach value={shown}>|key: K|
                                 <SearchRow state key accessibility row highlight />
                             </ForEach>
                         </Grid>
@@ -281,7 +285,7 @@ fn SearchRow<K>(
     state: State<K>,
     key: K,
     accessibility: Func<K, Node>,
-    row: RenderFn<SearchRowHandle<K>>,
+    row: RenderFn<SearchRowHandle<K>, NodeId>,
     highlight: Selector<Option<K>>,
 ) -> NodeId
 where

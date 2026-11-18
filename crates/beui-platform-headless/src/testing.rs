@@ -4,6 +4,7 @@ use std::future::Future;
 use std::marker::PhantomData;
 use std::pin::pin;
 use std::rc::Rc;
+use std::sync::Arc;
 use std::task::{Context as TaskContext, Poll, Waker as TaskWaker};
 use std::time::Duration;
 
@@ -19,12 +20,16 @@ use beui_runner::{
     Incoming, Launch, Layer, LayerFrame, PlatformServices, RunOptions, Runner, Shown,
 };
 use beui_types::Color32;
-use beui_types::input::typing;
 use beui_types::{HostPlacement, WindowId, WindowPlacement, WindowReport, WindowRequest};
-use beui_types::{Input, Key, Modifiers, PointerButton, TouchPhase};
+use beui_types::{Input, PointerButton};
 use beui_types::{Pos2, Rect, Vec2};
 
 use crate::Simulation;
+use beui_core::program::accessibility_dump::Rendered;
+
+mod gui;
+
+pub use gui::{Gui, Recording, Snapshots, Wakes, Wraps};
 
 pub const FRAME_INTERVAL: Duration = Duration::from_micros(16_667);
 const ANSWER_FRAMES: usize = 600;
@@ -265,7 +270,18 @@ pub struct Stepped<A: Program = Showing> {
     steps: Vec<String>,
     closed: bool,
     latest: Option<Latest>,
-    recording: Option<beui_paint_snapshot::Snapshot>,
+    seen: Seen,
+    wakes: Arc<Wakes>,
+    recording: Recording,
+}
+
+/// What the last frame painted said, kept from every frame however it was painted.
+#[derive(Default)]
+struct Seen {
+    tree: Rc<Rendered>,
+    changed: bool,
+    repaint: bool,
+    repaint_after: Duration,
 }
 
 struct Latest {
@@ -345,14 +361,27 @@ impl<A: Program + 'static> Stepped<A> {
         window: impl FnOnce(&Runner) -> Window,
     ) -> Self {
         let inbox = Inbox::default();
+        let wakes = Arc::new(Wakes::default());
+        let woken = Arc::clone(&wakes);
+        let waker = move |chained: Option<Waker>| {
+            Waker::new(move || {
+                if let Some(chained) = &chained {
+                    chained.wake();
+                }
+                woken.wake();
+            })
+        };
         let (windows, host, setup) = match hosting {
-            Hosting::Alone => (None, None, Setup::new(Waker::new(|| {}))),
+            Hosting::Alone => (None, None, Setup::new(waker(None))),
             Hosting::Tested(windows) => (
                 Some(windows.clone()),
                 Some(Box::new(TestHost(windows)) as Box<dyn Layer>),
-                Setup::new(Waker::new(|| {})),
+                Setup::new(waker(None)),
             ),
-            Hosting::By(host, setup) => (None, Some(host), setup),
+            Hosting::By(host, mut setup) => {
+                setup.waker = waker(Some(setup.waker.clone()));
+                (None, Some(host), setup)
+            }
         };
         let layers = std::iter::once(Box::new(Drive::new(inbox.clone())) as Box<dyn Layer>)
             .chain(host)
@@ -386,7 +415,9 @@ impl<A: Program + 'static> Stepped<A> {
             steps: Vec::new(),
             closed: false,
             latest: None,
-            recording: None,
+            seen: Seen::default(),
+            wakes,
+            recording: Recording::default(),
         }
     }
 
@@ -425,10 +456,6 @@ impl<A: Program + 'static> Stepped<A> {
 
     pub fn closed(&self) -> bool {
         self.closed
-    }
-
-    pub fn steps(&self) -> &[String] {
-        &self.steps
     }
 
     pub fn frame(&mut self, inputs: Vec<Input>) -> FrameOutput {
@@ -503,11 +530,8 @@ impl<A: Program + 'static> Stepped<A> {
         windows.reports.push(report);
     }
 
-    pub fn advance(&mut self, by: Duration) {
-        self.runner.context().advance_clock(by);
-    }
-
-    pub fn size(&self) -> Vec2 {
+    /// The window's size in points, which `Gui::size` answers for a document.
+    fn shown_size(&self) -> Vec2 {
         match &self.window {
             Window::Simulated(simulation) => simulation.shown(),
             Window::Other(_) => self.size,
@@ -529,7 +553,7 @@ impl<A: Program + 'static> Stepped<A> {
     }
 
     pub fn rescale(&mut self, scale: f32) {
-        let size = self.size();
+        let size = self.shown_size();
         self.resize_window(WindowSize { size, scale });
     }
 
@@ -556,9 +580,20 @@ impl<A: Program + 'static> Stepped<A> {
             Window::Other(platform) => &mut **platform,
         };
         self.runner.frame(platform, SafeArea::default());
+        if let Some(output) = self.runner.output() {
+            self.seen = Seen {
+                tree: output.tree(),
+                changed: output.main().changed,
+                repaint: output.repaint,
+                repaint_after: output.repaint_after,
+            };
+        }
         self.closed |= self.runner.exited();
         if let Some(failure) = self.runner.failure() {
-            panic!("the program panicked: {failure}\n{}", self.replay());
+            panic!(
+                "the program panicked: {failure}\n{}",
+                gui::replay(&self.steps)
+            );
         }
     }
 
@@ -585,7 +620,7 @@ impl<A: Program + 'static> Stepped<A> {
             Reply::Error(error) => Err(error),
             Reply::Text(_) | Reply::Image { .. } => Err("the answer is not a painting".to_owned()),
         };
-        painted.unwrap_or_else(|error| panic!("{error}\n{}", self.replay()))
+        painted.unwrap_or_else(|error| panic!("{error}\n{}", gui::replay(&self.steps)))
     }
 
     fn reply(&mut self, words: &[&str]) -> Reply {
@@ -610,223 +645,130 @@ impl<A: Program + 'static> Stepped<A> {
         }
         panic!(
             "the program never answered {words:?} in {ANSWER_FRAMES} frames\n{}",
-            self.replay()
+            gui::replay(&self.steps)
         );
     }
 
+    /// Whether a gesture waits for the program to settle, as `drive` does, or answers after
+    /// the frame that took it (`--no-settle`).
     pub fn settle_after_gestures(&mut self, settling: bool) {
         self.settling = settling;
     }
 
-    pub fn run(&mut self, words: &[&str]) -> String {
+    /// Runs one `drive` command and answers what it answered.
+    pub fn drive(&mut self, words: &[&str]) -> String {
         self.ask(words)
-            .unwrap_or_else(|error| panic!("{error}\n{}", self.replay()))
+            .unwrap_or_else(|error| panic!("{error}\n{}", gui::replay(&self.steps)))
     }
 
-    pub fn click(&mut self, target: impl Into<Target>) -> String {
-        self.gesture(&["click"], &[target.into()], &[])
-    }
-
-    pub fn click_with(&mut self, target: impl Into<Target>, button: PointerButton) -> String {
-        let button = match button {
-            PointerButton::Primary => None,
-            PointerButton::Secondary => Some("right"),
-            PointerButton::Middle => Some("middle"),
-            other => panic!("drive clicks the primary, right and middle buttons, not {other:?}"),
-        };
-        self.gesture(&["click"], &[target.into()], button.as_slice())
-    }
-
-    pub fn double_click(&mut self, target: impl Into<Target>) -> String {
-        self.gesture(&["click"], &[target.into()], &["double"])
-    }
-
-    pub fn hover(&mut self, target: impl Into<Target>) -> String {
-        self.gesture(&["move"], &[target.into()], &[])
-    }
-
-    pub fn leave(&mut self) -> String {
-        self.gesture(&["leave"], &[], &[])
-    }
-
-    pub fn down(&mut self, target: impl Into<Target>, button: PointerButton) -> String {
-        let button = button_name(button);
-        self.gesture(&["down"], &[target.into()], &[&button])
-    }
-
-    pub fn up(&mut self, target: impl Into<Target>, button: PointerButton) -> String {
-        let button = button_name(button);
-        self.gesture(&["up"], &[target.into()], &[&button])
-    }
-
-    pub fn drag(&mut self, from: impl Into<Target>, to: impl Into<Target>) -> String {
-        self.gesture(&["drag"], &[from.into(), to.into()], &[])
-    }
-
-    pub fn drag_in(
-        &mut self,
-        from: impl Into<Target>,
-        to: impl Into<Target>,
-        steps: usize,
-    ) -> String {
-        let steps = steps.to_string();
-        self.gesture(&["drag"], &[from.into(), to.into()], &[&steps])
-    }
-
-    pub fn scroll(&mut self, target: impl Into<Target>, by: Vec2) -> String {
-        let scale = self.runner.context().pixels_per_point();
-        let (down, right) = ((by.y * scale).to_string(), (by.x * scale).to_string());
-        self.gesture(&["scroll"], &[target.into()], &[&down, &right])
-    }
-
-    pub fn motion(&mut self, by: Vec2) -> String {
-        let scale = self.runner.context().pixels_per_point();
-        let (right, down) = ((by.x * scale).to_string(), (by.y * scale).to_string());
-        self.gesture(&["motion"], &[], &[&right, &down])
-    }
-
-    pub fn wheel(&mut self, target: impl Into<Target>, down: i32, right: i32) -> String {
-        let (down, right) = (down.to_string(), right.to_string());
-        self.gesture(&["wheel"], &[target.into()], &[&down, &right])
-    }
-
-    pub fn zoom(&mut self, target: impl Into<Target>, factor: f32) -> String {
-        let factor = factor.to_string();
-        self.gesture(&["zoom"], &[target.into()], &[&factor])
-    }
-
-    pub fn pinch(&mut self, target: impl Into<Target>, factor: f32) -> String {
-        let factor = factor.to_string();
-        self.gesture(&["pinch"], &[target.into()], &[&factor])
-    }
-
-    pub fn tap(&mut self, target: impl Into<Target>) -> String {
-        self.gesture(&["tap"], &[target.into()], &[])
-    }
-
-    pub fn swipe(&mut self, from: impl Into<Target>, to: impl Into<Target>) -> String {
-        self.gesture(&["swipe"], &[from.into(), to.into()], &[])
-    }
-
-    pub fn fingers<T: Into<Target> + Clone>(
-        &mut self,
-        phase: TouchPhase,
-        fingers: &[(u64, T)],
-    ) -> String {
-        let phase = match phase {
-            TouchPhase::Start => "down",
-            TouchPhase::Move => "move",
-            TouchPhase::End => "up",
-            TouchPhase::Cancel => "cancel",
-        };
-        let fingers: Vec<String> = fingers
-            .iter()
-            .map(|(finger, target)| format!("{finger}={}", self.word(target.clone().into())))
-            .collect();
-        let fingers: Vec<&str> = fingers.iter().map(String::as_str).collect();
-        self.gesture(&["touch", phase], &[], &fingers)
-    }
-
-    pub fn type_text(&mut self, text: &str) -> String {
-        self.gesture(&["type"], &[], &[text])
-    }
-
-    pub fn key(&mut self, key: Key, modifiers: Modifiers) -> String {
-        let chord = typing::chord_name(key, modifiers)
-            .unwrap_or_else(|| panic!("drive has no name for {key:?}"));
-        self.gesture(&["key"], &[], &[&chord])
-    }
-
-    pub fn key_down(&mut self, key: Key) -> String {
-        let name = key
-            .name()
-            .unwrap_or_else(|| panic!("drive has no name for {key:?}"));
-        self.gesture(&["keydown"], &[], &[&name])
-    }
-
-    pub fn key_up(&mut self, key: Key) -> String {
-        let name = key
-            .name()
-            .unwrap_or_else(|| panic!("drive has no name for {key:?}"));
-        self.gesture(&["keyup"], &[], &[&name])
-    }
-
+    /// Waits until the tree shows `target` (`drive wait`).
     pub fn wait(&mut self, target: impl Into<Target>) -> String {
-        self.gesture(&["wait"], &[target.into()], &[])
+        let target = self.word(target.into());
+        self.drive(&["wait", &target])
     }
 
+    /// Waits until the tree no longer shows `target` (`drive wait not`).
     pub fn gone(&mut self, target: impl Into<Target>) -> String {
-        self.gesture(&["wait", "not"], &[target.into()], &[])
-    }
-
-    pub fn pause(&mut self, by: Duration) -> String {
-        self.run(&["pause", &by.as_millis().to_string()])
-    }
-
-    pub fn settle(&mut self) -> String {
-        self.run(&["settle"])
-    }
-
-    fn gesture(&mut self, command: &[&str], targets: &[Target], rest: &[&str]) -> String {
-        let targets: Vec<String> = targets
-            .iter()
-            .map(|target| self.word(target.clone()))
-            .collect();
-        let mut words = match self.settling {
-            true => Vec::new(),
-            false => vec!["--no-settle"],
-        };
-        words.extend(command);
-        words.extend(targets.iter().map(String::as_str));
-        words.extend(rest);
-        self.run(&words)
+        let target = self.word(target.into());
+        self.drive(&["wait", "not", &target])
     }
 
     fn word(&self, target: Target) -> String {
         target.word(self.runner.context().pixels_per_point())
     }
+}
 
-    fn replay(&self) -> String {
-        let mut replay = String::from("the steps so far, as drive commands:\n");
-        for step in &self.steps {
-            replay.push_str("  ");
-            replay.push_str(step);
-            replay.push('\n');
-        }
-        replay
+impl Gui for Stepped<Showing> {
+    type DocumentRef<'a> = &'a Document;
+    type DocumentMut<'a> = &'a mut Document;
+
+    fn document(&self) -> &Document {
+        &self.program().0
+    }
+
+    fn document_mut(&mut self) -> &mut Document {
+        &mut self.program_mut().0
+    }
+
+    fn tree(&self) -> Rc<Rendered> {
+        Rc::clone(&self.seen.tree)
+    }
+
+    fn size(&self) -> Vec2 {
+        self.shown_size()
+    }
+
+    fn pixels_per_point(&self) -> f32 {
+        self.runner.context().pixels_per_point()
+    }
+
+    /// Sends the gesture to the drive layer, which finds and reveals its targets.
+    fn gesture(&mut self, command: &str, words: &[String], _targets: &[Target]) {
+        let mut all = match self.settling {
+            true => Vec::new(),
+            false => vec!["--no-settle"],
+        };
+        all.push(command);
+        all.extend(words.iter().map(String::as_str));
+        self.drive(&all);
+    }
+
+    fn run(&mut self) {
+        self.paint();
+    }
+
+    fn settled(&self) -> bool {
+        !self.seen.repaint && self.seen.repaint_after > Duration::ZERO
+    }
+
+    fn last_frame(&self) -> (bool, Duration) {
+        (self.seen.changed, self.seen.repaint_after)
+    }
+
+    fn advance(&mut self, by: Duration) {
+        self.runner.context().advance_clock(by);
+    }
+
+    /// As `drive pause`: a frame at a time, each only once the program has nothing to
+    /// wait for.
+    fn pause(&mut self, by: Duration) {
+        self.drive(&["pause", &by.as_millis().to_string()]);
+    }
+
+    fn wakes(&self) -> &Wakes {
+        &self.wakes
+    }
+
+    fn steps(&self) -> &[String] {
+        &self.steps
+    }
+
+    /// Waits as `drive settle` does: with the clock stopped, until no input waits to be
+    /// handled. Time passes only with `advance` or `pause`.
+    fn settle(&mut self) {
+        self.drive(&["settle"]);
+    }
+}
+
+impl Snapshots for Stepped<Showing> {
+    fn capture(&mut self) -> beui_paint_snapshot::Snapshot {
+        self.painted_snapshot()
+    }
+
+    fn out_of_bounds(&self) -> Vec<String> {
+        self.document()
+            .overflows()
+            .iter()
+            .map(ToString::to_string)
+            .collect()
+    }
+
+    fn recording(&mut self) -> &mut Recording {
+        &mut self.recording
     }
 }
 
 impl Stepped<Showing> {
-    pub fn document(&self) -> &Document {
-        &self.program().0
-    }
-
-    pub fn document_mut(&mut self) -> &mut Document {
-        &mut self.program_mut().0
-    }
-
-    pub fn record(&mut self) {
-        let frame = self.painted_snapshot();
-        match &mut self.recording {
-            Some(recording) => recording.append(frame),
-            None => self.recording = Some(frame),
-        }
-    }
-
-    pub fn snapshot(&mut self, name: &str) {
-        self.record();
-        let recording = self.recording.take().expect("a frame was just recorded");
-        beui_paint_snapshot::assert_accepted(name, &recording, beui_paint_snapshot::HOW_TO_ACCEPT);
-        let found = self
-            .document()
-            .overflows()
-            .iter()
-            .map(ToString::to_string)
-            .collect();
-        assert_fits(name, found);
-    }
-
     fn painted_snapshot(&mut self) -> beui_paint_snapshot::Snapshot {
         let size = self.size();
         let latest = self.latest();

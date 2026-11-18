@@ -1,4 +1,5 @@
 use super::editor;
+use be_sdk_test::prelude::*;
 
 #[test]
 fn switching_to_hex_view_shows_the_bytes() {

@@ -25,6 +25,11 @@ it: a block URL names its organization, and a URL pasted from another
 organization is a link, not a reference. The URL format (`be_block_content::block_url`,
 `<base>#block/<organization>/<block>`) is stored in text and so is read
 forever: a reference is found by its fragment alone, whatever host precedes it.
+A type whose references live in its content (block URLs in text, entities on a
+canvas) takes `ChildChange::Replace` and rewrites them, so unlinking a reference
+works whether an editor has the block open or not; no editor answers it
+(guides/adding_a_block.md, 6). `block_url::block_id_ranges` finds the ids to
+rewrite.
 
 ### Parts
 
@@ -58,19 +63,18 @@ A type whose `BlockContent::LOADS` is `Loads::FirstPart` loads only the root's
 first part (a file's header): `from_stored` gets a `Stored` whose `bytes` hold
 that part (`Stored::holds` says which parts it has), `parts` hands the others
 back as `Reused`, and `encode` gives only the loaded bytes, which is what its
-replica's followers and editors are sent. Most such types (a file, an index) have an `encode` that is the whole
+replica's editors are sent. Most such types (a file, an index) have an `encode` that is the whole
 content anyway, so a copy through bytes loses nothing. A type whose `encode` leaves parts out
-sets `BlockContent::WHOLE_BYTES` to false (`type-info.whole-bytes`): chat's `decode(encode())`
-is a view, the header's index entries with no part behind them, and saving it writes the
-header alone. Whole-bytes paths (Replace, import) therefore cannot carry its parts (`be sync` has no file form for chat),
+sets `BlockContent::WHOLE_BYTES` to false (`type-info.whole-bytes`; no type does
+now, plans/signed_logs.md step 6): its `decode(encode())` is a view with no part
+behind it, and saving it writes the first part alone. Whole-bytes paths (Replace, import) therefore cannot carry its parts ,
 and Duplicate, export, `be` transfer, version control's re-listing and revision preview or
 restore refuse such a block when it has parts after its first; only `from_stored`, `parts` and
 `MergeParts` carry them. Its editors read the rest by range
 (guides/blocks/apps.md, "Reading a range"), except a reused part the content
 holds anyway (`reused_bytes`, guides/type_modules.md, "Parts named by hash"). Such
 a type merges outside a session by parts if it implements `MergeParts`
-(guides/type_modules.md, "Merging by parts"), and otherwise as whole bytes. Chat's merge by parts reads the segments it
-settles and never conflicts (guides/chat.md, "Merging").
+(guides/type_modules.md, "Merging by parts"), and otherwise as whole bytes.
 
 ## Documents: `be_block_model`
 
@@ -79,18 +83,25 @@ with a `Root` naming the content type. The derive supplies merge, rebase and
 undo; `Document<R>` implements the traits in `be-block-content` (`model.rs`), so it is
 registered with `undo` in `be_block_types!`. Content that does not fit can
 implement the traits by hand (blobs, below); content that is a document but
-must not load whole wraps one and forwards them to it (`ChatContent` in
-`crates/be-type-chat`).
+needs traits of its own (a signed log's `LogFold`, `Unread`) wraps one and
+forwards them to it (`ChatContent` in `crates/be-type-chat`).
 
 A field is a **register** (any serde value, set whole; setting it on both
 sides offline conflicts), `Count`, `Grid<T>` (dense cells for pixels; bounds
 are part of the value), `List<T>` of `Model` objects, `Map<K, V>` (each key a
-register), `Latest<T>`/`LatestMap<K, V>` (last-write-wins by `Stamp`: never
+register), `Latest<T>`/`LatestMap<K, V>` (the highest `Stamp` wins: never
 conflict, never undo; `next(time, origin)` stamps past what it replaces, so a
 slow clock still overwrites what it read; view state uses them), `Text`,
 `RichText` (text plus marks, `be_lib_sequence::marks`) or `Series<T>` (an
 append-friendly list of registers stored like a `Vec<T>`, so a register can
-become a series without losing data).
+become a series without losing data). A `Stamp` orders by rank, then time,
+then origin. A plain write keeps the rank it was stamped after, so the last
+write wins; one stamped `ranked(n)` is replaced only by one ranked as high or
+higher, live or in a merge, so a lower-ranked write is a no-op whatever its
+clock says (a key holding `()` at a rank is a number that only rises; no type
+ranks writes now, plans/signed_logs.md step 6). For a number, `Count` adds what each
+side adds; for a value, `LatestMap`, ranked when an older write must never
+replace a newer one.
 
 How the model works:
 
@@ -111,13 +122,13 @@ How the model works:
   slot; an insert takes the next offset of the client that made it
   (`local_client`), so every replica gives it the same slot. A removed object
   leaves a tombstone and reuses its slot if it comes back.
-- **Session state.** Tombstones and text positions are never saved. The owner
-  hands them over in `Snapshot` (as of its last seal) and `Sealed`
-  (`LiveEdit::session_state`), and they go when the session ends. Loading
-  needs none to agree: every replica gives loaded content the same positions
-  (all from client `LOADED` at offsets `0..len`, list slots in stored order)
-  and ids, so replicas that load the same commit exchange edits without a
-  `Snapshot`.
+- **Session state.** Tombstones and text positions are never saved. The lease
+  holder keeps them in the journal's base with each seal
+  (`LiveEdit::session_state`), so a replica opening on the journal adopts them,
+  and they go when the session ends. Loading needs none to agree: every replica
+  gives loaded content the same positions (all from client `LOADED` at offsets
+  `0..len`, list slots in stored order) and ids, so replicas that load the same
+  commit apply the same order without them.
 - **Derived ids.** Anything two peers may create at once for the same purpose
   (a database row past the end, a canvas component for a schema) takes an id
   derived from what it is for, so the second insert is refused and its edits
@@ -125,13 +136,19 @@ How the model works:
 - **Offline merge** (`Document::merge`) matches objects by id across the three
   versions and merges each field on its own; list order merges like
   `merge_slices` once moved items are taken out and put back after their
-  sibling. A `List` field marked `#[model(merge_appends)]` (chat's messages)
+  sibling. A `List` field marked `#[model(merge_appends)]`
   instead merges published first: theirs (the published head, in every merge
   a replica or `be sync` makes) keeps its order, and the items only ours added
   go after all of it in our order, so what others have seen stays put and two
   runs written offline never interleave. You delete what you saw: deleting what the other side edited deletes
   it and counts a conflict; what the other side moved or inserted into a
   removed container survives (back where it came from) and counts a conflict.
+  Texts, rich texts and series merge into ours: ours is spliced where the
+  merge differs from it (be-block-model's `spliced`), so what both share keeps
+  its identities in ours and an edit made on ours still lands on the merge,
+  which a replica's reload of a merge relies on (guides/type_modules.md). What
+  the merge inserts it names under a client derived from its sides, so two
+  merges made apart name theirs apart.
 - **Undo** (`Document::step`) records an undo and redo change per change, taken
   before the edit. Register undo is conditional (`Change::SetIf`,
   `Change::PutIf`), which is how undo leaves other people's edits alone; a
@@ -262,8 +279,8 @@ Helpers in `crates/be-block-content/src/tests/` and `crates/be-block/src/tests/`
 `crates/be-block-model/src/tests/`. An editor's tests use
 `be_sdk_test::BeuiTest`, whose `ContentStore` hosts every block through one
 in-process `be_sdk_type_guest::Module` (`hold::<C>` registers a type it does
-not know), plays the host's side of `be3:app/blocks` over be-wasm-ops
-(`be-sdk-test/src/link.rs`), and uses the test's frame clock. `edit` and
+not know), plays the host's side of `be3:app/blocks` over be-wasm-ops as a
+`BlockStore` for be-sdk-app-host's dispatcher (`be-sdk-test/src/link.rs`), and uses the test's frame clock. `edit` and
 `apply_elsewhere` are another participant's edits, `set_peers` and
 `receive_from_peer` its presence and messages, `keep_history::<C>` turns on
 undo, and `store()` hands a fixture the same store.

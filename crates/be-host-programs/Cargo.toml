@@ -1,0 +1,14 @@
+[package]
+name = "be-host-programs"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+beui-fonts = { path = "../beui-fonts" }
+beui-types = { path = "../beui-types" }
+image = { version = "0.25", default-features = false, features = ["png"] }
+resvg = { version = "0.48", default-features = false, features = ["system-fonts", "text"] }
+
+[lints]
+workspace = true

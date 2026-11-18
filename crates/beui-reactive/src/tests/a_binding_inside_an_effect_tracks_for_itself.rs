@@ -12,11 +12,11 @@ fn a_binding_inside_an_effect_tracks_for_itself() {
     create_effect({
         let (outer_runs, inner_runs) = (outer_runs.clone(), inner_runs.clone());
         move || {
-            outer.get();
+            outer.track();
             outer_runs.set(outer_runs.get() + 1);
             let inner_runs = inner_runs.clone();
             create_binding(move || {
-                inner.get();
+                inner.track();
                 inner_runs.set(inner_runs.get() + 1);
             });
         }

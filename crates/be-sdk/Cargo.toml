@@ -11,6 +11,7 @@ be-sdk-api = { path = "../be-sdk-api" }
 be-sdk-manifest = { path = "../be-sdk-manifest" }
 be-sdk-type-guest = { path = "../be-sdk-type-guest" }
 be-sdk-ui = { path = "../be-sdk-ui" }
+be-sdk-worker = { path = "../be-sdk-worker" }
 beui-lucide = { path = "../beui-lucide" }
 be-lib-geometry = { path = "../be-lib-geometry" }
 beui-paint-format = { path = "../beui-paint-format" }
@@ -22,7 +23,7 @@ uuid = { version = "1", features = ["v7"] }
 
 # An app is a wasm guest wherever it runs, so it links wgpu with only the
 # custom backend and reaches the host's device through the gpu abi, whether
-# wasmtime or the browser is holding it. Everything under here is the guest,
+# be-host's V8 or the browser is holding it. Everything under here is the guest,
 # which is why a native build of this crate is only the host types an editor's
 # own tests drive it through. The device reaches an app's ui framework through
 # the Instance trait; this crate draws nothing itself.

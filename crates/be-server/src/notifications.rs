@@ -3,7 +3,7 @@
 
 use std::collections::{BTreeSet, HashMap};
 
-use be_block_protocol::{BlockNotifyMode, ErrorCode, NotifyMode, PushEndpoint, PushService};
+use be_block_protocol::{BlockMute, ErrorCode, NotifyMode, PushEndpoint, PushService};
 use rusqlite::{Connection, params};
 use uuid::Uuid;
 
@@ -33,7 +33,7 @@ fn service_of(name: &str) -> Result<PushService, ServerError> {
     }
 }
 
-fn mode_name(mode: NotifyMode) -> &'static str {
+fn mute_name(mode: NotifyMode) -> &'static str {
     match mode {
         NotifyMode::All => "all",
         NotifyMode::Mentions => "mentions",
@@ -41,7 +41,7 @@ fn mode_name(mode: NotifyMode) -> &'static str {
     }
 }
 
-fn mode_of(name: &str) -> Result<NotifyMode, ServerError> {
+fn mute_of(name: &str) -> Result<NotifyMode, ServerError> {
     match name {
         "all" => Ok(NotifyMode::All),
         "mentions" => Ok(NotifyMode::Mentions),
@@ -50,25 +50,7 @@ fn mode_of(name: &str) -> Result<NotifyMode, ServerError> {
     }
 }
 
-/// Forgets a deleted block's modes and what was told about it.
-pub(crate) fn forget(
-    database: &Connection,
-    organization: Uuid,
-    block: Uuid,
-) -> Result<(), ServerError> {
-    let (organization, block) = (organization.to_string(), block.to_string());
-    database.execute(
-        "DELETE FROM notify_modes WHERE organization_id = ?1 AND block_id = ?2",
-        params![organization, block],
-    )?;
-    database.execute(
-        "DELETE FROM told_keys WHERE organization_id = ?1 AND block_id = ?2",
-        params![organization, block],
-    )?;
-    Ok(())
-}
-
-/// Forgets what a member removed from `organization` kept there: their endpoints, modes and
+/// Forgets what a member removed from `organization` kept there: their endpoints, mutes and
 /// what they told.
 pub(crate) fn forget_member(
     database: &Connection,
@@ -81,7 +63,7 @@ pub(crate) fn forget_member(
         params![organization, account],
     )?;
     database.execute(
-        "DELETE FROM notify_modes WHERE organization_id = ?1 AND account_id = ?2",
+        "DELETE FROM mutes WHERE organization_id = ?1 AND account_id = ?2",
         params![organization, account],
     )?;
     database.execute(
@@ -306,13 +288,10 @@ impl ServerStore {
     }
 
     /// Every block in `identity`'s organization whose mode its account set to other than `all`.
-    pub(crate) async fn notify_modes(
-        &self,
-        identity: Identity,
-    ) -> Result<Vec<BlockNotifyMode>, ServerError> {
+    pub(crate) async fn mutes(&self, identity: Identity) -> Result<Vec<BlockMute>, ServerError> {
         self.with_database(move |_, database| {
             let mut statement = database.prepare_cached(
-                "SELECT block_id, mode FROM notify_modes
+                "SELECT block_id, mode FROM mutes
                  WHERE organization_id = ?1 AND account_id = ?2",
             )?;
             let rows = statement.query_map(
@@ -322,22 +301,22 @@ impl ServerStore {
                 ],
                 |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
             )?;
-            let mut modes = Vec::new();
+            let mut mutes = Vec::new();
             for row in rows {
                 let (block, mode) = row?;
-                modes.push(BlockNotifyMode {
+                mutes.push(BlockMute {
                     block: crate::store::parse_uuid(&block)?,
-                    mode: mode_of(&mode)?,
+                    mode: mute_of(&mode)?,
                 });
             }
-            Ok(modes)
+            Ok(mutes)
         })
         .await
     }
 
     /// Sets how `identity`'s account is notified about `block`; `all`, the default, keeps no
     /// row.
-    pub(crate) async fn set_notify_mode(
+    pub(crate) async fn set_mute(
         &self,
         identity: Identity,
         block: Uuid,
@@ -351,16 +330,16 @@ impl ServerStore {
             );
             match mode {
                 NotifyMode::All => database.execute(
-                    "DELETE FROM notify_modes
+                    "DELETE FROM mutes
                      WHERE organization_id = ?1 AND block_id = ?2 AND account_id = ?3",
                     params![organization, block, account],
                 )?,
                 mode => database.execute(
-                    "INSERT INTO notify_modes (organization_id, block_id, account_id, mode)
+                    "INSERT INTO mutes (organization_id, block_id, account_id, mode)
                      VALUES (?1, ?2, ?3, ?4)
                      ON CONFLICT (organization_id, block_id, account_id)
                      DO UPDATE SET mode = excluded.mode",
-                    params![organization, block, account, mode_name(mode)],
+                    params![organization, block, account, mute_name(mode)],
                 )?,
             };
             Ok(())
@@ -384,12 +363,12 @@ impl ServerStore {
             }
             let mut viewers: BTreeSet<Uuid> = graph.viewers(block);
             viewers.remove(&identity.account);
-            let modes = modes_of(database, identity.organization, block)?;
+            let mutes = mutes_of(database, identity.organization, block)?;
             let mentioned: BTreeSet<Uuid> = mentions.into_iter().collect();
             let mut wanted: HashMap<Uuid, bool> = HashMap::new();
             for account in viewers {
                 let mentions = mentioned.contains(&account);
-                let wants = match modes.get(&account).copied().unwrap_or(NotifyMode::All) {
+                let wants = match mutes.get(&account).copied().unwrap_or(NotifyMode::All) {
                     NotifyMode::All => true,
                     NotifyMode::Mentions => mentions,
                     NotifyMode::Off => false,
@@ -422,24 +401,24 @@ impl ServerStore {
     }
 }
 
-fn modes_of(
+fn mutes_of(
     database: &Connection,
     organization: Uuid,
     block: Uuid,
 ) -> Result<HashMap<Uuid, NotifyMode>, ServerError> {
     let mut statement = database.prepare_cached(
-        "SELECT account_id, mode FROM notify_modes WHERE organization_id = ?1 AND block_id = ?2",
+        "SELECT account_id, mode FROM mutes WHERE organization_id = ?1 AND block_id = ?2",
     )?;
     let rows = statement.query_map(
         params![organization.to_string(), block.to_string()],
         |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
     )?;
-    let mut modes = HashMap::new();
+    let mut mutes = HashMap::new();
     for row in rows {
         let (account, mode) = row?;
-        modes.insert(crate::store::parse_uuid(&account)?, mode_of(&mode)?);
+        mutes.insert(crate::store::parse_uuid(&account)?, mute_of(&mode)?);
     }
-    Ok(modes)
+    Ok(mutes)
 }
 
 /// Every endpoint registered in `organization`, with its account, oldest first: one query for a

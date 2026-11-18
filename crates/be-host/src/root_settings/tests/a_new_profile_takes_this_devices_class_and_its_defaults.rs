@@ -1,7 +1,9 @@
 use super::*;
 
 fn arrived(block: Uuid) {
-    be_host_stack::wait_until(|shared| shared.blocks.contains_key(&block).then_some(()));
+    be_host_stack::wait_until("held the block", |shared| {
+        shared.blocks.contains_key(&block).then_some(())
+    });
 }
 
 fn new_profile(class: DeviceClass) -> (RootSettings, Uuid) {
@@ -21,7 +23,7 @@ fn new_profile(class: DeviceClass) -> (RootSettings, Uuid) {
 fn a_new_profile_takes_this_devices_class_and_its_defaults() {
     let harness = be_host_testing::Harness::start();
     harness.connect();
-    be_host_stack::wait_until(|shared| {
+    be_host_stack::wait_until("listed the roots", |shared| {
         shared
             .graph
             .ready(be_host_stack::Query::Roots)

@@ -38,5 +38,6 @@ fn a_tree_row_dragged_between_two_others_parts_them_and_moves_there() {
         tops[0] < tops[1] && tops[1] < tops[2],
         "Cargo.toml lands after src's last file and before assets: {tops:?}"
     );
+    test.record();
     test.snapshot("a_tree_row_dragged_between_two_others_parts_them_and_moves_there");
 }

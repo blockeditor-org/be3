@@ -27,7 +27,7 @@ fn children_written_between_show_tags_are_not_built_until_it_is_shown() {
                 >
                     <Text>"toggle"</Text>
                 </Button>
-                <Show condition=visible>
+                <Show value=visible>
                     <CountedPanel builds={builds} />
                 </Show>
             </List>

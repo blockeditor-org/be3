@@ -72,19 +72,65 @@ pub enum Dismiss {
     WithParent,
 }
 
+/// The side of its anchor a `Placement::Beside` overlay opens on.
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+pub enum AnchorSide {
+    Above,
+    Below,
+    Left,
+    Right,
+}
+
+impl AnchorSide {
+    /// Whether it opens along the vertical axis (`Above`, `Below`).
+    pub fn vertical(self) -> bool {
+        matches!(self, AnchorSide::Above | AnchorSide::Below)
+    }
+
+    /// The side across the anchor from this one, where it flips to.
+    pub fn opposite(self) -> AnchorSide {
+        match self {
+            AnchorSide::Above => AnchorSide::Below,
+            AnchorSide::Below => AnchorSide::Above,
+            AnchorSide::Left => AnchorSide::Right,
+            AnchorSide::Right => AnchorSide::Left,
+        }
+    }
+}
+
+/// Where a `Placement::Beside` overlay lines up along its side: `Start` with the anchor's
+/// left (or top, beside it) edge, `Center` on its centre, `End` with its right (or bottom).
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+pub enum AnchorAlign {
+    Start,
+    Center,
+    End,
+}
+
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Placement {
     At,
-    Above,
     Over(u16),
     Around,
-    BelowStart,
-    /// A menu or a select's list: below its anchor, else above it, and where it fits on
+    /// Opens on `side` of its anchor, `gap` points away from it, lined up by `align`, and
+    /// keeps `margin` points inside its window's edges. It flips to the other side when only
+    /// that side has room. Above or below, when neither has, it takes the roomier one and
+    /// shrinks (scrolling what it holds), so it never covers its anchor: completions, tooltips
+    /// and popovers keep their input or button in view. Left or right, it keeps its width
+    /// instead and shifts into the window over its anchor (a submenu in a narrow window).
+    /// Along its side it shifts to stay in the window.
+    /// `layer::room` is the room it gets. The constants (`BELOW_START`, `LEFT_END`, ...) name
+    /// every side and alignment with no gap; `gap` and `margin` set the rest.
+    Beside {
+        side: AnchorSide,
+        align: AnchorAlign,
+        gap: u16,
+        margin: u16,
+    },
+    /// A menu: below its anchor, else above it, and where it fits on
     /// neither side, over the anchor and as low as the window allows rather than cut short
-    /// to scroll. Only menus cover what opened them; everything else anchored below
-    /// (`BelowStart`: completions, tooltips, popovers) keeps clear of its anchor and shrinks.
+    /// to scroll. Only menus cover what opened them; everything else opens `Beside`.
     Menu,
-    RightStart,
     Center,
     Fill,
     InsideTop,
@@ -94,29 +140,87 @@ pub enum Placement {
     InsideBottomStart,
     InsideBottomEnd,
     CenterOn,
-    Popover {
-        gap: u16,
-        margin: u16,
-    },
     Edge(LayerEdge),
 }
 
 impl Placement {
+    pub const ABOVE_START: Placement = Placement::beside(AnchorSide::Above, AnchorAlign::Start);
+    pub const ABOVE_CENTER: Placement = Placement::beside(AnchorSide::Above, AnchorAlign::Center);
+    pub const ABOVE_END: Placement = Placement::beside(AnchorSide::Above, AnchorAlign::End);
+    pub const BELOW_START: Placement = Placement::beside(AnchorSide::Below, AnchorAlign::Start);
+    pub const BELOW_CENTER: Placement = Placement::beside(AnchorSide::Below, AnchorAlign::Center);
+    pub const BELOW_END: Placement = Placement::beside(AnchorSide::Below, AnchorAlign::End);
+    pub const LEFT_START: Placement = Placement::beside(AnchorSide::Left, AnchorAlign::Start);
+    pub const LEFT_CENTER: Placement = Placement::beside(AnchorSide::Left, AnchorAlign::Center);
+    pub const LEFT_END: Placement = Placement::beside(AnchorSide::Left, AnchorAlign::End);
+    pub const RIGHT_START: Placement = Placement::beside(AnchorSide::Right, AnchorAlign::Start);
+    pub const RIGHT_CENTER: Placement = Placement::beside(AnchorSide::Right, AnchorAlign::Center);
+    pub const RIGHT_END: Placement = Placement::beside(AnchorSide::Right, AnchorAlign::End);
+
+    const fn beside(side: AnchorSide, align: AnchorAlign) -> Placement {
+        Placement::Beside {
+            side,
+            align,
+            gap: 0,
+            margin: 0,
+        }
+    }
+
+    /// This `Beside` placement `gap` points away from its anchor; any other unchanged.
+    pub const fn gap(self, gap: u16) -> Placement {
+        match self {
+            Placement::Beside {
+                side,
+                align,
+                margin,
+                ..
+            } => Placement::Beside {
+                side,
+                align,
+                gap,
+                margin,
+            },
+            other => other,
+        }
+    }
+
+    /// This `Beside` placement kept `margin` points inside its window's edges; any other
+    /// unchanged.
+    pub const fn margin(self, margin: u16) -> Placement {
+        match self {
+            Placement::Beside {
+                side, align, gap, ..
+            } => Placement::Beside {
+                side,
+                align,
+                gap,
+                margin,
+            },
+            other => other,
+        }
+    }
+
+    /// The side a `Beside` placement opens on, and `Below` for a `Menu`.
+    pub fn side(self) -> Option<AnchorSide> {
+        match self {
+            Placement::Beside { side, .. } => Some(side),
+            Placement::Menu => Some(AnchorSide::Below),
+            _ => None,
+        }
+    }
+
     /// Whether an overlay with this placement leaves its window when the window has a
     /// `LayerSpace`: anchored placements, `Center` and `Edge` sheets do; `At` (windows),
     /// `Fill` and the `Inside*` placements (toasts, `Floating`) stay. An escaping `Center`
     /// is laid out in host space and centred on its window.
     pub fn escapes(self) -> bool {
         match self {
-            Placement::Above
-            | Placement::Over(_)
+            Placement::Over(_)
             | Placement::Around
-            | Placement::BelowStart
+            | Placement::Beside { .. }
             | Placement::Menu
-            | Placement::RightStart
             | Placement::Center
             | Placement::CenterOn
-            | Placement::Popover { .. }
             | Placement::Edge(_) => true,
             Placement::At
             | Placement::Fill
@@ -233,6 +337,8 @@ pub struct EscapedLayer {
     pub blocks_owner: bool,
 }
 
+/// Where an overlay of `content_size` at `placement` against `anchor_rect` goes in
+/// `viewport`.
 pub fn resolve_rect(
     viewport: Rect,
     anchor_rect: Rect,
@@ -255,21 +361,6 @@ pub fn resolve_rect(
     if placement == Placement::Around {
         return Rect::from_center_size(anchor_rect.center(), content_size);
     }
-    if placement == Placement::Above {
-        let right = (viewport.right() - content_size.x).max(viewport.left());
-        let bottom = (viewport.bottom() - content_size.y).max(viewport.top());
-        let y = match anchor_rect.top() - content_size.y >= viewport.top() {
-            true => anchor_rect.top() - content_size.y,
-            false => anchor_rect.bottom(),
-        };
-        let origin = pos2(
-            (anchor_rect.center().x - content_size.x / 2.0)
-                .min(right)
-                .max(viewport.left()),
-            y.min(bottom).max(viewport.top()),
-        );
-        return Rect::from_min_size(origin, content_size);
-    }
     if placement == Placement::CenterOn {
         let size = content_size.min(viewport.size()).max(Vec2::ZERO);
         let centred = Rect::from_center_size(anchor_rect.center(), size);
@@ -283,15 +374,22 @@ pub fn resolve_rect(
             .max(viewport.top());
         return Rect::from_min_size(pos2(x, y), size);
     }
-    if let Placement::Popover { gap, margin } = placement {
-        let gap = f32::from(gap);
-        let centre = anchor_rect.center().x;
-        let reach = Rect::from_min_max(
-            pos2(centre - content_size.x / 2.0, anchor_rect.top() - gap),
-            pos2(centre + content_size.x / 2.0, anchor_rect.bottom() + gap),
+    if let Placement::Beside {
+        side,
+        align,
+        gap,
+        margin,
+    } = placement
+    {
+        return beside(
+            viewport,
+            anchor_rect,
+            side,
+            align,
+            gap,
+            margin,
+            content_size,
         );
-        let room = viewport.shrink(f32::from(margin));
-        return resolve_rect(room, reach, Placement::BelowStart, content_size);
     }
     if let Placement::Fill | Placement::Edge(_) = placement {
         return viewport;
@@ -343,96 +441,157 @@ pub fn resolve_rect(
             content_size,
         );
     }
-    let mut content_size = content_size.min(viewport.size());
-    if placement == Placement::Menu {
-        let below = viewport.bottom() - anchor_rect.bottom();
-        let above = anchor_rect.top() - viewport.top();
-        let left = anchor_rect
-            .left()
-            .min(viewport.right() - content_size.x)
-            .max(viewport.left());
-        let top = match (content_size.y <= below, content_size.y <= above) {
-            (true, _) => anchor_rect.bottom(),
-            (false, true) => anchor_rect.top() - content_size.y,
-            (false, false) => (viewport.bottom() - content_size.y).max(viewport.top()),
-        };
-        return Rect::from_min_size(pos2(left, top), content_size);
+    // A `Menu`, the only placement left.
+    let content_size = content_size.min(viewport.size());
+    let below = viewport.bottom() - anchor_rect.bottom();
+    let above = anchor_rect.top() - viewport.top();
+    let left = anchor_rect
+        .left()
+        .min(viewport.right() - content_size.x)
+        .max(viewport.left());
+    let top = match (content_size.y <= below, content_size.y <= above) {
+        (true, _) => anchor_rect.bottom(),
+        (false, true) => anchor_rect.top() - content_size.y,
+        (false, false) => (viewport.bottom() - content_size.y).max(viewport.top()),
+    };
+    Rect::from_min_size(pos2(left, top), content_size)
+}
+
+/// The window less `margin` on every side, or its centre where it is too small for that.
+fn inside_margin(viewport: Rect, margin: u16) -> Rect {
+    let margin = f32::from(margin)
+        .min(viewport.width().max(0.0) / 2.0)
+        .min(viewport.height().max(0.0) / 2.0);
+    viewport.shrink(margin)
+}
+
+/// A vector's length along the axis a side opens on (`main`) or across it.
+fn along(by: Vec2, vertical: bool) -> f32 {
+    match vertical {
+        true => by.y,
+        false => by.x,
     }
-    if placement == Placement::BelowStart {
-        let below = viewport.bottom() - anchor_rect.bottom();
-        let above = anchor_rect.top() - viewport.top();
-        if content_size.y > below && content_size.y > above && below.max(above) > 0.0 {
-            content_size.y = below.max(above);
-            let top = match below >= above {
-                true => anchor_rect.bottom(),
-                false => anchor_rect.top() - content_size.y,
-            };
-            let left = anchor_rect
-                .left()
-                .min(viewport.right() - content_size.x)
-                .max(viewport.left());
-            return Rect::from_min_size(pos2(left, top), content_size);
+}
+
+fn across(by: Vec2, vertical: bool) -> f32 {
+    along(by, !vertical)
+}
+
+/// The room before (above or left of) and after (below or right of) an anchor along the axis
+/// `side` opens on, less `gap`.
+fn room_around(area: Rect, anchor: Rect, side: AnchorSide, gap: f32) -> (f32, f32) {
+    match side.vertical() {
+        true => (
+            anchor.top() - gap - area.top(),
+            area.bottom() - anchor.bottom() - gap,
+        ),
+        false => (
+            anchor.left() - gap - area.left(),
+            area.right() - anchor.right() - gap,
+        ),
+    }
+}
+
+fn beside(
+    viewport: Rect,
+    anchor: Rect,
+    side: AnchorSide,
+    align: AnchorAlign,
+    gap: u16,
+    margin: u16,
+    content_size: Vec2,
+) -> Rect {
+    let area = inside_margin(viewport, margin);
+    let gap = f32::from(gap);
+    let vertical = side.vertical();
+    let mut size = content_size.min(area.size()).max(Vec2::ZERO);
+    let (before, after) = room_around(area, anchor, side, gap);
+    let first = matches!(side, AnchorSide::Above | AnchorSide::Left);
+    let (wanted, other) = match first {
+        true => (before, after),
+        false => (after, before),
+    };
+    let length = along(size, vertical);
+    let opens_before = match (length <= wanted, length <= other) {
+        (true, _) => first,
+        (false, true) => !first,
+        // Neither side has room: above or below, the roomier one, shrunk to it (what it holds
+        // scrolls). Beside, rows do not scroll sideways, so it keeps its width on the roomier
+        // side and shifts into the window over its anchor, as an anchor that leaves no room on
+        // either side is covered rather than the overlay shrunk away.
+        (false, false) => {
+            let roomier = wanted.max(other);
+            if vertical && roomier > 0.0 {
+                size.y = roomier;
+            }
+            match wanted >= other {
+                true => first,
+                false => !first,
+            }
         }
-    }
-    let mut origin = match placement {
-        Placement::BelowStart => pos2(anchor_rect.left(), anchor_rect.bottom()),
-        Placement::RightStart => pos2(anchor_rect.right(), anchor_rect.top()),
-        Placement::At
-        | Placement::Above
-        | Placement::Over(_)
-        | Placement::Around
-        | Placement::Center
-        | Placement::Fill
-        | Placement::InsideTop
+    };
+    let length = along(size, vertical);
+    let main = match opens_before {
+        true => along(anchor.min.to_vec2(), vertical) - gap - length,
+        false => along(anchor.max.to_vec2(), vertical) + gap,
+    };
+    let main = main
+        .min(along(area.max.to_vec2(), vertical) - length)
+        .max(along(area.min.to_vec2(), vertical));
+    let width = across(size, vertical);
+    let (low, high) = (
+        across(anchor.min.to_vec2(), vertical),
+        across(anchor.max.to_vec2(), vertical),
+    );
+    let cross = match align {
+        AnchorAlign::Start => low,
+        AnchorAlign::Center => (low + high - width) / 2.0,
+        AnchorAlign::End => high - width,
+    };
+    let cross = cross
+        .min(across(area.max.to_vec2(), vertical) - width)
+        .max(across(area.min.to_vec2(), vertical));
+    let origin = match vertical {
+        true => pos2(cross, main),
+        false => pos2(main, cross),
+    };
+    Rect::from_min_size(origin, size)
+}
+
+/// The room an overlay at `placement` gets beside `anchor_rect` in `viewport`, like Floating
+/// UI's `size`: what `resolve_rect` shrinks it to at most. `Beside`, above or below: the
+/// window's width, and the roomier side's height less the gap. Left or right, which never
+/// shrinks: the window. Either way less the margin. A menu: the window. An `Inside*` overlay:
+/// the anchor's part of the window. Anything else: the window.
+pub fn room(viewport: Rect, anchor_rect: Rect, placement: Placement) -> Vec2 {
+    let room = match placement {
+        Placement::Beside {
+            side, gap, margin, ..
+        } => {
+            let area = inside_margin(viewport, margin);
+            let (before, after) = room_around(area, anchor_rect, side, f32::from(gap));
+            let roomiest = before.max(after);
+            match side.vertical() {
+                true if roomiest > 0.0 => Vec2::new(area.width(), roomiest),
+                _ => area.size(),
+            }
+        }
+        Placement::InsideTop
         | Placement::InsideTopStart
         | Placement::InsideTopEnd
         | Placement::InsideBottom
         | Placement::InsideBottomStart
-        | Placement::InsideBottomEnd
-        | Placement::CenterOn
+        | Placement::InsideBottomEnd => anchor_rect.intersect(viewport).size(),
+        Placement::At
+        | Placement::Over(_)
+        | Placement::Around
         | Placement::Menu
-        | Placement::Popover { .. }
-        | Placement::Edge(_) => {
-            unreachable!("a centred or pinned overlay is placed above")
-        }
+        | Placement::Center
+        | Placement::Fill
+        | Placement::CenterOn
+        | Placement::Edge(_) => viewport.size(),
     };
-    if origin.x + content_size.x > viewport.right() {
-        origin.x = match placement {
-            Placement::RightStart => anchor_rect.left() - content_size.x,
-            _ => (viewport.right() - content_size.x).max(viewport.left()),
-        };
-    }
-    if origin.y + content_size.y > viewport.bottom() {
-        origin.y = match placement {
-            Placement::BelowStart => anchor_rect.top() - content_size.y,
-            _ => (viewport.bottom() - content_size.y).max(viewport.top()),
-        };
-    }
-    origin.x = origin
-        .x
-        .min(viewport.right() - content_size.x)
-        .max(viewport.left());
-    origin.y = origin
-        .y
-        .min(viewport.bottom() - content_size.y)
-        .max(viewport.top());
-    Rect::from_min_size(origin, content_size)
-}
-
-pub fn room_beside(viewport: Rect, anchor_rect: Rect, placement: Placement) -> Option<f32> {
-    let room = match placement {
-        Placement::BelowStart => {
-            (viewport.bottom() - anchor_rect.bottom()).max(anchor_rect.top() - viewport.top())
-        }
-        // A menu that fits on neither side covers its anchor (`resolve_rect`), so it has the
-        // window's height.
-        Placement::Menu => viewport.height(),
-        Placement::RightStart => {
-            (viewport.bottom() - anchor_rect.top()).max(anchor_rect.bottom() - viewport.top())
-        }
-        _ => return None,
-    };
-    Some(room.clamp(0.0, viewport.height().max(0.0)))
+    room.max(Vec2::ZERO).min(viewport.size().max(Vec2::ZERO))
 }
 
 #[derive(Clone, PartialEq)]
@@ -461,27 +620,17 @@ impl OverlayAnchor {
     }
 }
 
+/// The anchor a `Band` gives: `node` pushed out to `band`'s edges along the axis `placement`
+/// opens on, so it opens just past the band while lining up with the node.
 pub fn banded(node: Rect, band: Rect, placement: Placement) -> Rect {
-    match placement {
-        Placement::BelowStart | Placement::Menu | Placement::Above | Placement::Popover { .. } => {
+    match placement.side().map(AnchorSide::vertical) {
+        Some(true) => {
             Rect::from_min_max(pos2(node.min.x, band.min.y), pos2(node.max.x, band.max.y))
         }
-        Placement::RightStart => {
+        Some(false) => {
             Rect::from_min_max(pos2(band.min.x, node.min.y), pos2(band.max.x, node.max.y))
         }
-        Placement::At
-        | Placement::Over(_)
-        | Placement::Around
-        | Placement::Center
-        | Placement::Fill
-        | Placement::InsideTop
-        | Placement::InsideTopStart
-        | Placement::InsideTopEnd
-        | Placement::InsideBottom
-        | Placement::InsideBottomStart
-        | Placement::InsideBottomEnd
-        | Placement::CenterOn
-        | Placement::Edge(_) => node,
+        None => node,
     }
 }
 
@@ -502,3 +651,6 @@ impl Default for OverlayAnchor {
         OverlayAnchor::Point(be_lib_geometry::Pos2::ZERO)
     }
 }
+
+#[cfg(test)]
+mod tests;

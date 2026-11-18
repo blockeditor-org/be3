@@ -31,7 +31,7 @@ fn a_driver_closes_the_window_once_the_program_lets_it() {
         view! {
             <List spacing=0.0>
                 <Text>"Editing"</Text>
-                <Show condition={asked}>
+                <Show value={asked}>
                     <Text>"Save changes?"</Text>
                 </Show>
             </List>

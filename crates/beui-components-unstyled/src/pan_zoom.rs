@@ -150,15 +150,14 @@ pub fn PanZoom(
     #[prop(default = MIN_SCALE)] min_scale: Prop<f32>,
     #[prop(default = MAX_SCALE)] max_scale: Prop<f32>,
     accessibility: Option<Prop<Node>>,
-    #[prop(children)] content: Render<PanZoomHandle>,
+    #[prop(children)] content: Render<PanZoomHandle, NodeId>,
 ) -> NodeId {
-    let rect_held = create_signal(Rect::ZERO);
-    let rect = rect_held.read_only();
+    let rect = create_signal(Rect::ZERO);
     let current = view;
 
     let camera = Camera {
         view: current,
-        rect,
+        rect: rect.read_only(),
         min_scale: create_memo(move || min_scale.get()),
         max_scale: create_memo(move || max_scale.get()),
     };
@@ -212,7 +211,7 @@ pub fn PanZoom(
     let rect_measured = measure(built);
     create_effect(move || {
         if let Some(measured) = rect_measured.get() {
-            rect_held.set(measured.rect);
+            rect.set(measured.rect);
         }
     });
     built

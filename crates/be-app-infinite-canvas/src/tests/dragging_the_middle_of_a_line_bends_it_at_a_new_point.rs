@@ -46,12 +46,10 @@ fn dragging_the_middle_of_a_line_bends_it_at_a_new_point() {
     let at = |x: f32, y: f32| -> Pos2 { anchor.center() + Vec2::new(x + 150.0, y) * scale };
 
     editor.click(at(40.0, 0.0));
-    editor.run();
     assert_eq!(editor.label("infinite-canvas.selection"), "Arrow selected");
     editor.snapshot("a_selected_arrow_shows_a_handle_at_its_middle");
 
     editor.drag(at(0.0, 0.0), at(0.0, 80.0));
-    editor.run();
     let bent = arrow_of(&editor);
     let world = bent.world_points();
     assert_eq!(world.len(), 3, "the drag put a new point in the middle");
@@ -69,7 +67,6 @@ fn dragging_the_middle_of_a_line_bends_it_at_a_new_point() {
     editor.snapshot("dragging_the_middle_of_a_line_bends_it_at_a_new_point");
 
     editor.drag(at(0.0, 80.0), at(0.0, -80.0));
-    editor.run();
     let corner = arrow_of(&editor).world_points()[1].at();
     assert!(
         (corner.y + 80.0).abs() < 0.5 && arrow_of(&editor).points.len() == 3,

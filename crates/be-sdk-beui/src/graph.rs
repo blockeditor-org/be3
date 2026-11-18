@@ -14,7 +14,7 @@ use crate::content::ready;
 
 #[derive(Default)]
 struct Known {
-    changes: RefCell<HashMap<Uuid, (Subscription, OwnedSignal<u64>)>>,
+    changes: RefCell<HashMap<Uuid, (Subscription, OwnedTrigger)>>,
 }
 
 #[derive(Clone)]
@@ -102,22 +102,23 @@ impl Blocks {
         self.graph.define(id, definition);
     }
 
+    /// The blocks `query` finds, loading until the graph answers it.
     pub fn watch(&self, query: BlockQuery) -> BlockList {
         let watch = Rc::new(self.graph.watch(query));
-        let changed = OwnedSignal::new(0_u64);
-        let bumped = changed.handle();
-        let changes = watch.on_change(move || bumped.update(|count| *count += 1));
+        let changed = OwnedTrigger::new();
+        let answered = OwnedSource::from(ready(watch.read()).map(drop));
+        let (change, answer) = (changed.handle(), answered.handle());
         let held = Rc::downgrade(&watch);
-        wait_while(Rc::downgrade(&watch), move || match held.upgrade() {
-            Some(watch) => {
-                bumped.get();
-                ready(watch.read()).map(drop)
+        let changes = watch.on_change(move || {
+            if let Some(watch) = held.upgrade() {
+                answer.set(ready(watch.read()).map(drop));
             }
-            None => Ok(()),
+            change.notify();
         });
         BlockList {
             _changes: changes,
             changed,
+            answered,
             watch,
         }
     }
@@ -138,28 +139,31 @@ impl Blocks {
             .borrow_mut()
             .entry(id)
             .or_insert_with(|| {
-                let changed = OwnedSignal::new(0_u64);
-                let bumped = changed.handle();
-                let changes = self
-                    .graph
-                    .on_info(id, move || bumped.update(|count| *count += 1));
+                let changed = OwnedTrigger::new();
+                let change = changed.handle();
+                let changes = self.graph.on_info(id, move || change.notify());
                 (changes, changed)
             })
             .1
             .handle();
-        changed.get();
+        changed.track();
     }
 }
 
 pub struct BlockList {
     _changes: Subscription,
-    changed: OwnedSignal<u64>,
+    changed: OwnedTrigger,
+    /// Whether the graph answered: what a read waits on.
+    answered: OwnedSource<()>,
     watch: Rc<BlockWatch>,
 }
 
 impl BlockList {
+    /// The blocks found, waiting until the graph answers (at the nearest `Loading`, when read
+    /// outside a memo; a memo that reads it is pending until then).
     pub fn read(&self) -> Ready<Vec<BlockInfo>> {
-        self.changed.get();
+        self.changed.track();
+        self.answered.get()?;
         ready(self.watch.read())
     }
 

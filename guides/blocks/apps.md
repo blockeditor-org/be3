@@ -9,7 +9,7 @@ follows is guides/type_modules.md.
 
 ## Content on the app protocol
 
-An editor is a follower of the block's replica ("Editors are endpoints" in
+An editor is an endpoint of the block's replica ("Editors are endpoints" in
 guides/type_modules.md). Everything about a block's content crosses through a
 `replica` resource the editor opens per block: its own (on its first frame) and
 each block it watches. `replica.frames()` streams host-to-editor frames,
@@ -19,11 +19,15 @@ rest wait in `EditorHost`). A frame is an encoded
 `be_sdk_type_guest::editor::ToEditor` or `FromEditor`, relayed unread between
 the instance and the replica.
 
-- App to host: `Operate`, `Gesture`, `ShowPresence`, `SendToPeers`, `Resend`,
-  `Read` (below).
+- App to host: `Operate { gesture, operation }`, `Gesture { id, gesture }`,
+  `Break`, `ShowPresence`, `SendToPeers`, `Resend`, `Read` (below). Gestures
+  are named by ids the instance picks, and an edit names the gesture it was made
+  in, or none (guides/blocks/host.md, Undo).
   An instance asks for content by sending `Resend` when it first follows a
-  block; the host attaches it then, with `editable` from the account's access
-  (sent again when that changes).
+  block; the host attaches it then, with `editable` from `be_host_stack::access`
+  (attached again when that changes, and the app is sent `SetEditable`): the
+  account's access, read-only too while a discard's mark holds
+  (guides/blocks/host.md).
 - Host to app: `Snapshot { content_type, bytes, length, session, unsettled,
   applied }`, where `length` is the whole stored form's,
   where `applied` counts operations *this instance* sent that the snapshot
@@ -34,7 +38,8 @@ the instance and the replica.
   `Operations` (each marked `mine`, with `unsettled` and, for a peer's
   operation that goes beneath them, the rebased `beneath`); `Lacking` (below,
   "Sending"); `Presence`;
-  `PeerMessages`; `Range`.
+  `PeerMessages`; `Range`; `GestureEnded { id, cancelled }`, the replica ending
+  one of the instance's gestures, which `EditorMirror` answers with a cancel.
 - `write-content` writes content outright, since it may name a block nothing
   follows (guides/blocks/host.md, "Creating, seeding and replacing").
 
@@ -42,7 +47,7 @@ On the app side, `editor.block_content::<C>()` is a `ContentProjection` built
 on `be_sdk_type_guest::editor::EditorMirror<C>`. `operate` applies to what the
 view sees and queues for the host. A `mine` operation coming back only
 confirms, and only that this device's replica took the edit: it confirms at
-once, before any owner accepted it (on a follower it is still `unsettled`), so
+once, before the order numbered it (it is still `unsettled` until then), so
 it says nothing of whether the server holds it (below, "Sending"); another's
 is applied on top, or beneath this instance's in-flight edit
 (`LiveEdit::apply_beneath`). Only another instance's unsettled operation
@@ -65,7 +70,7 @@ state. Dynamic artifacts use `EditorHost::content_of` and
 
 A type that loads only its first part (`be_block_content::Loads::FirstPart`, such as
 `Blob`) leaves the rest of its stored form
-in the store: the replica, its followers and every editor's `Snapshot` hold
+in the store: every replica and every editor's `Snapshot` hold
 only that part's bytes, and `Snapshot::length` says how long the whole is. An
 editor reads the rest with `LiveContent::read_range(offset, length, done)`,
 which sends `FromEditor::Read { token, offset, length }`; the replica answers
@@ -77,10 +82,28 @@ answers `ToEditor::PartPut { token, result }` with its ref, for an operation
 to name (guides/type_modules.md, "Parts named by hash"). Offsets are into the whole stored form.
 A blob editor uses `ContentProjection::payload()` instead, a signal of the
 payload that reads it once per snapshot (so a header edit reads nothing) and
-holds what a host-made snapshot already carried. Chat's editor reads a closed
-segment by the range its index gives (`ChatContent::segment_ranges`, from the
-header it holds: a snapshot's `length` goes stale as segments close) and checks
-the bytes against the index (`read_segment`).
+holds what a host-made snapshot already carried.
+
+### Signed logs
+
+A type with a signed log (guides/type_modules.md, "Signed logs") is appended
+to and read through the same projection: `ContentProjection::append(bytes,
+along)`, which the host signs as the app's (only the type's own app may
+append; another app's append is answered with an error), with what goes along
+with it (`be_block_content::Along`: the push it announces, the entry it takes
+back), `take_appended` for where each went (its entry's id, and its place once
+the server took it), `read_log(from, limit)`, `log_size`, and `with_log`, which
+reads the latest entries heard or read (up to `editor::LOG_HELD`, and all from
+where it paged back to) in the log's
+order, each with who signed it. What is sending is `with_kept`: the entries
+this device appended that the server has not taken, from its own appends and
+from what each read tells (`LogPage::kept`, which the host reads from the
+device's outbox), so it survives the editor and the host opening again; what
+is not appended is `with_refused`, until `dismiss_refused`: the device keeps
+what the server refused (`LogPage::refused`, and pushed as a drain refuses
+one), so it survives the editor and the host opening again too, and
+dismissing one lets the device let go of it. Each moves the
+revision. In be-sdk-beui the projection's wrappers track the revision.
 
 ### Sending
 
@@ -88,20 +111,24 @@ An editor that shows what is still sending sends `FromEditor::FollowLacking`
 (`ContentProjection::lacking`), again with each snapshot; the replica then
 sends `ToEditor::Lacking`: the edits made on this device that the server lacks,
 each as its operation's bytes (none past 1 MiB), so the editor maps them to
-what they made (chat's messages), whichever editor made them. The first answer
+what they made, whichever editor made them. (A type with a signed log shows
+what is sending from its log instead: "Signed logs", above.) The first answer
 has them all (`reset`), later ones what was added or failed and the ids the
 server now holds. The replica records every edit made on this device, followed
 or not, and keeps each until the server holds it (`be-sdk-type-guest/src/lacking.rs`):
-- as owner, until the host answers the journal append holding it (`append`
-  answers whether the server took the entries; a folded entry holds the run it
-  absorbed) or a commit holding it is published to the server;
-- as follower, until the owner accepts it, which it does only through an append
-  the server relays once it took it; a stash the follower handed the owner,
-  until the owner says `Saved`;
-- an edit too large to relay goes by its part, so it is followed as the others: it
-  waits while its part is put, then as owner until the append holding it is
-  answered, as follower until the owner accepts it (its bytes are not kept past
-  1 MiB: the editor sees only that something is sending);
+- until the host answers the submission holding it as `held` (an edit absorbed
+  into another goes with it);
+- numbered offline (`kept`), until a commit holding it is published to the
+  server;
+- an edit too large to submit inline goes by its part, so it is followed as the
+  others: it waits while its part is put, then until the submission holding it
+  is answered (its bytes are not kept past 1 MiB: the editor sees only that
+  something is sending);
+- one the order passed over (based before a barrier) fails, until the editor
+  lets it go, and so does one the server refused as this account may not edit
+  the block (`submitted.refused`): the replica stops showing it, what it
+  announces is never sent, and what is typed after goes on to be refused in
+  turn;
 - in a commit kept in this device's outbox (`publish-outcome.kept`), until the
   host says it `drained`, naming the head a drain published (the outbox
   publishes in order, so every commit kept up to it drained, and one kept after
@@ -118,14 +145,13 @@ after its edit is dismissed, so a replica applies the refusal of each commit id
 once (a live `drained` with `refused` always applies, and a replica carries the
 ids it applied; it fails every kept or carried edit, not only those of the
 refused commits); a commit it did not apply before fails what was kept, and
-one it did leaves what is sent after alone. One opened on this device's
-own journal (`opening.journal-kept`) adds the edits it replays; a carried edit
-is settled by its journal sequence when the journal holds it (by its bytes only
-if it has any), so a journal the owner folded still settles it.
+one it did leaves what is sent after alone. One opened on what this device
+numbered offline (`opening.journal-kept`) adds its own edits it replays; a
+carried edit is settled by its journal sequence when the journal holds it (by
+its bytes only if it has any).
 
 The same list carries what each edit announces (`LiveEdit::announcements`, guides/type_modules.md,
-"Announcements"): an owner's go to the host with the append holding the edit, a follower's once
-the owner accepts it.
+"Announcements"): they go to the host with the submission holding the edit.
 
 What is not kept:
 - A host or type module that restarts loses its list of edits. The host opens
@@ -134,18 +160,14 @@ What is not kept:
   and follows what the content adds over it as kept until they drain
   (`LiveEdit::unsent_over`, a type's own answer; none by default), when it carried
   nothing from an earlier replica. An edit the server refused no longer shows
-  "Not sent", and one journaled on this device alone, past the server's journal,
-  is followed only as the replayed journal says.
+  "Not sent", and one numbered on this device alone is followed only as the
+  replayed journal says.
 - A block carried over the module's 64-block limit loses its edits' status: a
   refused message in it shows as sent.
 - A replica reopened after a rejoin lists only what the module carried.
-- An owner that loses the session with an append the server never took shows that
-  edit as failed, since the new owner never had it; it is not carried to a replica
-  opened after, whose content lacks it.
 
-In chat, Discard deletes the message with a delete edit, like any other, and
-lets the failed edit go. be-sdk-test's `ContentStore::set_online`,
-`refuse_kept` and `close_replica` drive this in an editor test.
+be-sdk-test's `ContentStore::set_online`, `refuse_kept` and `close_replica`
+drive this in an editor test.
 
 ## State and change callbacks
 
@@ -166,7 +188,8 @@ callbacks run inside `pump` and `operate`. A read between frames (`ready`,
 (`on_due`) when it took anything a callback announces. Pushed and watched values change
 while host frames are delivered, so an adapter queues them and applies them in
 its next frame (`on_pumped`). A framework adapts these and nothing else:
-be-sdk-beui turns each into a signal, so beui editors never see callbacks.
+be-sdk-beui turns each into a signal, or a pushed or watched value's announcement into a
+`Trigger` (`Editor::pushed`), so beui editors never see callbacks.
 
 The editor state over `EditorHost` is plain too (`be-sdk/src/editor_state.rs`):
 `EditorCore` (content cache, view state, peers, pan and zoom, reported sizes,
@@ -196,11 +219,35 @@ scrims stay the framework's.
 An app follows what the host knows of blocks with one resource, `block-watch`,
 opened on a `block-subject`: the blocks a `BlockQuery` lists, a block's undo
 history, the content at its head, an artifact's state, or its own block's
-version status. `next` answers the `block-value` of the same name once it
+version status or members (guides/apps/host_services.md, "Naming a block's
+members"). `next` answers the `block-value` of the same name once it
 changes; listings come from the host's mirror (`be-host-stack/src/app_graph.rs`).
 On the app side `editor.watch_blocks(query)` and `editor.blocks()`, held while
 anything holds the `BlockList`; be-sdk's `link.rs` keeps one watch per subject
 the editor asks for and drops a value that is not of its subject.
+
+On the host side every `be3:blocks` call goes through one dispatcher,
+`be-sdk-app-host/src/blocks.rs` (`call`, `ended`, `answers`), over a `BlockStore`:
+be-host-runtime's `Instances` (`instances/blocks.rs`, over be-host-stack) and
+be-sdk-test's `link.rs` (over its `ContentStore`). The dispatcher keeps each
+editor's watches and replicas (`EditorBlocks`): a store offers a `Subject` its
+latest value (`EditorBlocks::offer`), and a waiting watch is answered it only when
+it differs from what that watch was last answered. A host holds one participant
+per editor and block, so of two replicas an editor opens on one block, frames go
+only to the latest; when it ends while an earlier one remains, the store drops what
+it queued for it and starts the earlier afresh with a snapshot
+(`BlockStore::replica_resumed`; be-host sends the replica a resend on its behalf,
+and relinks it first if it holds another content type). The store hears a replica
+end (`replica_ended`) once no replica holds the block. The two live replicas share
+that one participant, so an editor edits through its latest replica: the dispatcher
+refuses a `send` through an earlier one (`Denied`), and be-host relays a resumed
+replica nothing but a snapshot until one reaches it. An earlier replica of a
+content type the host does not link resumes with no link. be-sdk holds one replica
+per block, and opens the new one before dropping the old when the content type
+changes, so the new one is the latest. The shows watch is a queue the store hands over (`take_shows`). The host's policy stays
+in its store: `admit` translates a call's ids through the checkout's scope and
+refuses what a preview or a host component may not do, and each method checks and
+does the call or answers the error.
 
 Full-text search is a query of its own, not a `BlockQuery`: a `search-watch`
 (text and an optional `within` block) answers hits of block, document key,
@@ -209,9 +256,11 @@ snippet and match ranges, again whenever an index it read changes
 
 A `BlockInfo` carries type, author, parent (`BlockLocation`), name, references,
 access, artifact source, `locked` (viewable but no key yet, so metadata is
-empty), `deleted`, and the server's `size` and `tree_size` in bytes (the
+empty), `deleted`, the server's `size` and `tree_size` in bytes (the
 block alone, and with everything below it; zero where the reader only knows
-it exists). A size comes from that field, never from walking the children.
+it exists), and `unread`, how many things in it the account has not read for
+a type that counts them (guides/blocks/host.md, "Unread counts"), which a row
+shows as a badge (`CountBadge`). A size comes from that field, never from walking the children.
 `out_of_reach` says the host is offline and holds no version of the block's
 content whole (`Peer::held_head`), so it can be neither opened nor changed, nor have a block
 added to it, until the host reconnects; the block picker refuses to make a
@@ -221,7 +270,7 @@ a referenced block one way to show these states.
 
 **Deleted blocks.** `deleted` is set when the mirror's walk up the parent
 chain meets a link that does not hold (`Graph::deleted_root`; where it cannot
-read a parent's references it takes `BlockSummary::held`, and a chain into an
+read a parent's references, not read yet or locked, it takes `BlockSummary::held`, and a chain into an
 invisible block counts as live). Links to it still resolve; places that list
 references mute it or list it last, and pickers never offer it.
 `EditorHost::restore_block` (`block-command::restore`) lists it in its parent
@@ -232,7 +281,7 @@ again, or for a detached block puts it back where `DELETED_FROM` metadata says
 block is one call, `blocks.act(block, block-command)`: undo and redo, history,
 artifact, unlink, delete, move, reorder, place, restore, version control
 (`version`, for the editor's own block), `share`, `leave`, `close-editor`,
-`set-parent` and `define`. be-host-runtime's `Instances::act` matches on the
+`set-parent` and `define`. be-host-runtime's `BlockStore::act` matches on the
 command: it checks and does `version`, `set-parent` and `define` itself and
 hands the rest to be-host (`EditorAction::Command`). `move` takes a block out of
 one container's content and into another's through their editors, and sets its

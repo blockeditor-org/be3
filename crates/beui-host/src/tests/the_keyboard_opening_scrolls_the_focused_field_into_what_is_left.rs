@@ -14,7 +14,7 @@ fn the_keyboard_opening_scrolls_the_focused_field_into_what_is_left() {
                 <ListItem grow=1.0>
                     <Scroll>
                         <List spacing=0.0>
-                            <ForEach keys={indices(12)}>|index: usize|
+                            <ForEach value={indices(12)}>|index: usize|
                                 <LabelledButton label={format!("Row {index}")} />
                             </ForEach>
                             <TextInput value="" @node_ref=&input />

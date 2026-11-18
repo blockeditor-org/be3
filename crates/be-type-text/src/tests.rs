@@ -4,6 +4,7 @@ use be_block_content::{BlockContent, LiveEdit, Merge};
 use crate::{TextBlock, TextContent, TextLanguage};
 
 mod a_language_changed_on_both_sides_counts_a_conflict;
+mod a_replaced_child_repoints_every_block_url_naming_it;
 mod a_text_file_becomes_a_text_block_and_back;
 mod content_is_stamped_with_the_shape_it_was_saved_in;
 mod inserts_at_one_place_from_two_peers_keep_each_peers_text_whole;

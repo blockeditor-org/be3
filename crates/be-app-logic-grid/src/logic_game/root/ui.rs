@@ -48,14 +48,9 @@ pub fn LogicGameEditor(editor: Editor) -> NodeId {
         )));
     });
 
-    let has_hotbar = create_memo(move || hotbar.get().is_some());
     let open_hotbar = move || game.open_hotbar();
     let manages = game.can_manage();
     let world_hotbar = game.world_hotbar();
-    let world_label = create_memo(move || match world_hotbar.get() {
-        Some(_) => "This world's hotbar".to_owned(),
-        None => "Give this world a hotbar".to_owned(),
-    });
     let open_world_hotbar = move || game.open_world_hotbar();
     let keys = create_memo(move || {
         levels.with(|levels| {
@@ -74,7 +69,7 @@ pub fn LogicGameEditor(editor: Editor) -> NodeId {
             <List spacing=ROW_SPACING>
                 <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
                     <Text style=TextStyle::HEADING>"Levels"</Text>
-                    <Show condition={has_hotbar}>
+                    <Show value={move || hotbar.with(Option::is_some)}>
                         <Button
                             icon_only=true
                             glyph=ICON_BLOCKS
@@ -83,11 +78,14 @@ pub fn LogicGameEditor(editor: Editor) -> NodeId {
                             on_click={open_hotbar}
                         />
                     </Show>
-                    <Show condition={manages}>
+                    <Show value={manages}>
                         <Button
                             icon_only=true
                             glyph=ICON_EARTH
-                            label={world_label}
+                            label={move || match world_hotbar.with(Option::is_some) {
+                                true => "This world's hotbar".to_owned(),
+                                false => "Give this world a hotbar".to_owned(),
+                            }}
                             @test_id={"logic-game.world-hotbar"}
                             on_click={open_world_hotbar}
                         />
@@ -97,7 +95,7 @@ pub fn LogicGameEditor(editor: Editor) -> NodeId {
                 <ListItem grow=1.0>
                     <Scroll>
                         <List spacing=Space::Xs>
-                            <ForEach keys={keys}>|challenge: ChallengeId| {
+                            <ForEach value={keys}>|challenge: ChallengeId| {
                                 let level = level_of(levels, challenge);
                                 let here = open.memo(Some(challenge));
                                 let toggle = move || {
@@ -140,8 +138,6 @@ fn LevelRow(
         format!("{count} attempts")
     });
     let quiz = challenge == ChallengeId::BinaryAddition;
-    let shows_quiz = create_memo(move || expanded.get() && quiz);
-    let shows_solutions = create_memo(move || expanded.get() && !quiz);
     let goal = generate_challenge(challenge).goal;
     view! {
         <List spacing=Space::Xs>
@@ -153,7 +149,7 @@ fn LevelRow(
             >
                 <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
                     <Text>{challenge.name()}</Text>
-                    <Show condition={completed}>
+                    <Show value={completed}>
                         <Text color=TextColor::Success align=TextAlign::Center>
                             <Icon glyph=ICON_CIRCLE_CHECK />
                         </Text>
@@ -162,22 +158,26 @@ fn LevelRow(
                     <Text style=TextStyle::CAPTION>{attempts}</Text>
                 </List>
             </ListRow>
-            <Show condition={expanded}>|| {
-                let goal = goal.clone(); view! {
+            <Show value={expanded}>|| {
+                let goal = goal.clone();
+                let detail = match quiz {
+                    true => view! {
+                        <BinaryAddition editor={editor} block={block} />
+                    },
+                    false => view! {
+                        <Solutions
+                            editor={editor}
+                            game={game}
+                            challenge={challenge}
+                            level={level}
+                        />
+                    },
+                };
+                view! {
                     <Frame padding={Padding::ZERO.left(Space::Xl2)}>
                         <List spacing=ROW_SPACING>
                             <Text style=TextStyle::CAPTION>{goal}</Text>
-                            <Show condition={shows_quiz}>
-                                <BinaryAddition editor={editor} block={block} />
-                            </Show>
-                            <Show condition={shows_solutions}>
-                                <Solutions
-                                    editor={editor}
-                                    game={game}
-                                    challenge={challenge}
-                                    level={level}
-                                />
-                            </Show>
+                            {detail}
                         </List>
                     </Frame>
                 }
@@ -211,7 +211,7 @@ fn Solutions(
     };
     view! {
         <List spacing=Space::Xs>
-            <ForEach keys={keys}>|reference: Uuid| {
+            <ForEach value={keys}>|reference: Uuid| {
                 let solution = solution_of(level, reference);
                 view! {
                     <SolutionRow
@@ -261,7 +261,7 @@ fn SolutionRow(
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
             <Link label={name} disabled={missing} on_click={open} />
-            <Show condition={passed}>
+            <Show value={passed}>
                 <Text color=TextColor::Success align=TextAlign::Center>
                     <Icon glyph=ICON_CIRCLE_CHECK />
                 </Text>

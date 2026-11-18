@@ -1,6 +1,7 @@
 use std::sync::mpsc::channel;
 
 use be_sdk_test::DocumentTest;
+use be_sdk_test::prelude::*;
 use beui::dock::DockKey;
 use beui::reactive::untrack;
 use beui::{Input, Modifiers, Vec2};
@@ -74,7 +75,7 @@ fn pull_requests_open_in_place_of_the_one_shown_unless_ctrl_is_held() {
     ));
     let mut test = DocumentTest::new(document, WIDE);
     let is_open = |test: &DocumentTest, number: u64| {
-        tab(model, number).is_some_and(|tab| test.shows(&format!("dock.tab.{}.close", tab.key())))
+        tab(model, number).is_some_and(|tab| test.shown(&format!("dock.tab.{}.close", tab.key())))
     };
 
     click(&mut test, 1, Modifiers::NONE);

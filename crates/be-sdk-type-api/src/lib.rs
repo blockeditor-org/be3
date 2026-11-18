@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 pub use be_block_commit::CommitId;
-pub use be_block_protocol::{ClientId, RelayKind, SessionState};
+pub use be_block_protocol::{ClientId, Participant, SessionState};
 pub use be_block_session::Resume;
 pub use be_wasm_ops::{self as ops, FrameError, OpError, OpId, decode_frame, encode_frame};
 use serde::{Deserialize, Serialize};
@@ -16,23 +16,27 @@ be_wasm_ops_bindgen::generate!({
         "hash": [u8; 32],
         "commit-id": be_block_commit::CommitId,
         "session-tag": crate::SessionTag,
+        "participant": be_block_protocol::Participant,
         "session-state": be_block_protocol::SessionState,
-        "relay-kind": be_block_protocol::RelayKind,
         "resume": be_block_session::Resume,
         "entries": crate::Entries,
     },
     encodings: {
         "entries": ::be_wasm_ops::wire::Map<::be_wasm_ops::wire::Plain, ::be_wasm_ops::wire::Bytes>,
     },
-    copy: ["uuid", "hash", "commit-id", "session-tag", "relay-kind"],
+    copy: ["uuid", "hash", "commit-id", "session-tag"],
     default: ["plain", "description", "plain-file", "status"],
 });
 
 pub use host::PublishOutcome;
-pub use replicas::{KeptCommits, Opening, SealedHead};
+pub use replicas::{KeptCommits, KeptSubmission, Opening, SealedHead};
 pub use types::*;
 
 pub type ReplicaId = OpId;
+
+/// The editor the host acts as for edits of its own (setting up a new organization's settings,
+/// say): not a person's editing, so a replica keeps none of them in its undo history.
+pub const HOST_EDITOR: EditorId = u64::MAX;
 
 impl From<be_block_store::PartRef> for PartRef {
     fn from(part: be_block_store::PartRef) -> Self {

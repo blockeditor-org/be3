@@ -3,8 +3,8 @@ use super::*;
 #[tokio::test]
 async fn blocks_publish_and_read_back_through_the_server() {
     let harness = Harness::start().await;
-    let mut client = harness.client().await;
-    let account = client.register("writer@example.com").await;
+    let mut client = harness.member("writer@example.com").await;
+    let account = client.id();
     client.organization("notes").await;
     let author = Author::new(account);
 
@@ -17,19 +17,22 @@ async fn blocks_publish_and_read_back_through_the_server() {
         .await;
     let response = client
         .call(|peer| {
-            client::blocks::publish(
-                peer,
-                block,
-                first,
-                None,
-                Vec::new(),
-                objects_change(&[], chunks.clone()),
-                minutes_ago(2),
-                false,
-                listing(&[], Vec::new()),
-                Vec::new(),
-                Vec::new(),
-            )
+            peer.write::<be_block_protocol::PublishOutcome>(be_block_protocol::Op::Publish {
+                block: block,
+                expected: None,
+                commit: Some(be_block_protocol::NewCommit {
+                    id: first,
+                    parents: Vec::new(),
+                    held: objects_change(&[], chunks.clone()),
+                    time: minutes_ago(2),
+                    pinned: false,
+                    objects: Vec::new(),
+                    log_through: None,
+                }),
+                references: listing(&[], Vec::new()),
+                metadata: Vec::new(),
+                journal: None,
+            })
         })
         .await;
     assert!(
@@ -51,19 +54,22 @@ async fn blocks_publish_and_read_back_through_the_server() {
         .collect();
     let response = client
         .call(|peer| {
-            client::blocks::publish(
-                peer,
-                block,
-                second,
-                Some(first),
-                Some(first).into_iter().collect(),
-                objects_change(&chunks, next_chunks),
-                minutes_ago(1),
-                false,
-                listing(&[], Vec::new()),
-                Vec::new(),
-                carried,
-            )
+            peer.write::<be_block_protocol::PublishOutcome>(be_block_protocol::Op::Publish {
+                block: block,
+                expected: Some(first),
+                commit: Some(be_block_protocol::NewCommit {
+                    id: second,
+                    parents: Some(first).into_iter().collect(),
+                    held: objects_change(&chunks, next_chunks),
+                    time: minutes_ago(1),
+                    pinned: false,
+                    objects: carried,
+                    log_through: None,
+                }),
+                references: listing(&[], Vec::new()),
+                metadata: Vec::new(),
+                journal: None,
+            })
         })
         .await;
     assert!(

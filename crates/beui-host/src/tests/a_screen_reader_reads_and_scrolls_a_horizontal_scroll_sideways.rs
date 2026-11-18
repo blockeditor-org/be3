@@ -12,8 +12,8 @@ fn a_screen_reader_reads_and_scrolls_a_horizontal_scroll_sideways() {
     let document = build_node(move || {
         view! {
             <List spacing=0.0>
-                <Scroll @test_id="strip" direction=Direction::Horizontal>
-                    <ForEach keys={indices(40)}>|_: usize|
+                <Scroll @test_id="strip" direction=Direction::Horizontal style={plain_scroll()}>
+                    <ForEach value={indices(40)}>|_: usize|
                         <Frame width=120.0 height=40.0 />
                     </ForEach>
                 </Scroll>

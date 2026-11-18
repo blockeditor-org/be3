@@ -145,11 +145,12 @@ pub fn main(arguments: Vec<String>) -> Result<ExitCode> {
     println!("buck2 is installed at {}", buck2.display());
 
     steps.step("Installing be");
-    if pins.get("be_release").is_ok() {
-        let be = be::ensure(&pins)?;
-        println!("be is installed at {}", be.display());
-    } else {
-        println!("No be release is pinned yet, so ./scripts/be is not installed.");
+    // be comes from the deployed build, so a mirror without one is no reason to stop setting up.
+    match be::ensure() {
+        Ok(be) => println!("be is installed at {}", be.display()),
+        Err(error) => eprintln!(
+            "Warning: be is not installed. {error} ./scripts/be tries again each time it runs."
+        ),
     }
 
     steps.end();

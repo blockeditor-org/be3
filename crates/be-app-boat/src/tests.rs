@@ -8,13 +8,14 @@ use be_sdk_beui::be_block_content::{EditorView, EditorViewContent};
 use be_sdk_beui::network::ResponseHead;
 use be_sdk_beui::{
     BlockAgent, EditorHost, Failure, OwnedEditor, TerminalHostBe, TerminalHostDownload,
-    TerminalHostSource,
+    TerminalHostFile, TerminalHostSource,
 };
+use be_sdk_test::prelude::*;
 use be_sdk_test::{BeuiTest, Fetch, HostCall};
 use be_type_boat::{BoatContent, BoatSettings, BoatSettingsContent};
 use uuid::Uuid;
 
-use crate::root::{BoatRoot, CACHE, Listed};
+use crate::root::{BoatRoot, Listed};
 
 mod a_block_without_a_key_shows_how_to_make_one;
 mod a_development_build_already_in_the_sandbox_is_not_uploaded_again;
@@ -25,7 +26,7 @@ mod a_key_near_its_expiry_warns_two_weeks_before;
 mod a_key_past_its_expiry_asks_nothing_and_offers_reconnect;
 mod a_key_without_exec_offers_reconnect_when_connecting;
 mod a_long_list_is_read_page_by_page;
-mod a_refused_start_says_why_until_dismissed;
+mod a_refused_start_has_the_host_say_why;
 mod a_resumed_sandbox_gets_its_terminal_back_with_a_rotated_token;
 mod a_running_terminal_is_left_alone_and_a_failing_one_is_put_right;
 mod a_terminal_of_a_sandbox_no_longer_listed_can_be_removed;
@@ -181,9 +182,7 @@ impl Boat {
     fn connect(&mut self) {
         self.test.click("boat.sign-in.key");
         self.test.type_text(self.secret);
-        self.test.run();
         self.test.click("boat.sign-in.connect");
-        self.test.run();
     }
 
     /// The one fetch the editor sent.
@@ -222,6 +221,7 @@ impl Boat {
     /// Lets `by` pass, as the editor's poll sees it.
     fn wait(&mut self, by: Duration) {
         self.test.advance(by);
+        self.test.run();
     }
 
     fn label(&self, test_id: &str) -> String {
@@ -232,8 +232,8 @@ impl Boat {
         self.test
             .content::<EditorViewContent>(Some(self.view))
             .root()
-            .state(CACHE)
-            .and_then(|state| state.value())
+            .view_state::<Listed>()
+            .and_then(Result::ok)
     }
 
     fn settings_blocks(&self) -> Vec<Uuid> {
@@ -351,7 +351,6 @@ impl Boat {
     fn connect_terminal(&mut self, agent: Uuid) -> Uuid {
         self.test
             .click(&format!("boat.sandbox.{RUNNING}.terminal.connect"));
-        self.test.run();
         let (reply, block, name) = self.host_call("the agent", |call| match call {
             HostCall::CreateBlockAgent { reply, block, name } => Ok((reply, block, name)),
             call => Err(call),
@@ -367,6 +366,20 @@ impl Boat {
         );
         self.test.run();
         block
+    }
+
+    /// A development build's files: `be`, and a type module to put beside it.
+    fn built_files() -> TerminalHostSource {
+        TerminalHostSource::Files(vec![
+            TerminalHostFile {
+                name: "be".to_owned(),
+                bytes: b"\x7fELF be".to_vec(),
+            },
+            TerminalHostFile {
+                name: "terminal_types.wasm".to_owned(),
+                bytes: b"\0asm terminal".to_vec(),
+            },
+        ])
     }
 
     /// Answers `terminal-host-binary` with `source`.

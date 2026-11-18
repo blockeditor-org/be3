@@ -1,5 +1,5 @@
 use be_block_graph::Access;
-use be_block_protocol::{CreatedAgent, client};
+use be_block_protocol::CreatedAgent;
 
 use super::*;
 use crate::session::{Settings, connect};
@@ -18,41 +18,59 @@ async fn an_agent_reads_and_writes_the_rows_shared_with_it() {
     .await;
 
     let phrase = be_block_keys::RecoveryPhrase::generate();
-    let public = phrase.secret().public();
+    let identity = phrase.secret().identity();
+    let public = identity.public;
     let organization = owner.peer().organization();
-    let CreatedAgent { agent, token } = be_block_client::ask(client::members::create_agent(
+    let account = Uuid::from_bytes(be_block_keys::agent_account(
+        owner.peer().account().into_bytes(),
+        &identity,
+    ));
+    let CreatedAgent { agent, token } = be_block_client::ask(be_block_protocol::write::<
+        be_block_protocol::CreatedAgent,
+        _,
+    >(
         &owner.peer().connection(),
-        organization,
-        "Claude".into(),
-        public.0,
-        phrase.secret().signing().0,
-        be_block_client::contacts::card(
-            owner.peer().account(),
-            owner.peer().keys().identity(),
-            "Owner",
-            "owner@example.com",
-        )
-        .seal_own(&phrase.secret()),
-        owner
-            .peer()
-            .keys()
-            .escrow()
-            .map_or_else(Vec::new, |escrow| {
-                be_block_client::contacts::seal_pin(&phrase.secret(), organization, &escrow)
-            }),
-        None,
+        Some(organization),
+        be_block_protocol::Op::CreateAgent {
+            account: account,
+            name: "Claude".into(),
+            recovery: public.0,
+            signing: phrase.secret().signing().0,
+            contact: be_block_client::contacts::OwnContact::new(
+                be_block_client::contacts::card(
+                    owner.peer().account(),
+                    owner.peer().keys().identity(),
+                    "Owner",
+                    "owner@example.com",
+                ),
+                0,
+            )
+            .seal(&phrase.secret()),
+            record: Vec::new(),
+            escrow: be_block_client::contacts::seal_pin(
+                &phrase.secret(),
+                organization,
+                &owner.peer().keys().pins(),
+            ),
+            bound_to: None,
+            member: owner
+                .peer()
+                .agent_record(account, identity)
+                .await
+                .expect("signing the agent in failed"),
+        },
     ))
     .await
     .expect("creating the agent failed");
     owner
         .peer()
-        .share(board.database, agent.account, Access::Edit, &public)
+        .share(board.database, agent.account, Access::Edit, &identity)
         .await
         .unwrap();
     let agents = workspace(owner.peer(), "Agents").await;
     owner
         .peer()
-        .share(agents, agent.account, Access::Edit, &public)
+        .share(agents, agent.account, Access::Edit, &identity)
         .await
         .unwrap();
 

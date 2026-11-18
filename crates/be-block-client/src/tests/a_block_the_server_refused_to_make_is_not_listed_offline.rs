@@ -36,7 +36,9 @@ async fn a_block_the_server_refused_to_make_is_not_listed_offline() {
     laptop.drain(|_| false).await.unwrap();
     assert_eq!(
         laptop.refusal(refused),
-        Some(be_block_protocol::ErrorCode::InvalidRequest)
+        Some(crate::Aside::Refused(
+            be_block_protocol::ErrorCode::InvalidRequest
+        ))
     );
     assert_eq!(laptop.pending().operations, 0);
     drop(laptop);

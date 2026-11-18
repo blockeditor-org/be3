@@ -16,6 +16,7 @@ mod a_card_moved_to_different_columns_on_each_side_conflicts_and_goes_where_ours
 mod a_card_moved_to_the_same_place_on_both_sides_merges_cleanly;
 mod a_card_removed_on_both_sides_merges_without_a_conflict;
 mod a_card_saved_among_columns_by_an_older_build_reads_as_a_column;
+mod a_change_to_an_object_gone_from_content_loaded_afresh_does_not_carry_over;
 mod a_column_removed_on_one_side_stays_removed_when_the_other_edits_a_card_in_it;
 mod a_column_removed_on_one_side_stays_removed_when_the_other_moves_a_card_into_it;
 mod a_document_reads_back_what_it_was_built_from;
@@ -39,6 +40,7 @@ mod a_peer_edit_under_local_edits_touches_only_what_either_changed;
 mod a_pending_edit_of_any_kind_carries_over_onto_content_loaded_afresh;
 mod a_property_only_a_newer_build_knows_survives_an_older_build_saving;
 mod a_range_someone_split_meanwhile_does_not_move;
+mod a_ranked_write_is_replaced_only_by_one_ranked_as_high_live_and_in_a_merge;
 mod a_register_that_cannot_read_without_one_of_its_fields_is_reported;
 mod a_reloaded_document_that_adopts_removals_places_an_insert_after_a_removed_card;
 mod a_renamed_property_still_reads_its_old_name;
@@ -48,6 +50,7 @@ mod a_series_appended_on_both_sides_merges_to_both;
 mod a_series_grows_by_sending_only_what_was_appended;
 mod a_series_saves_as_an_array_and_reads_a_list_saved_as_a_register;
 mod a_stored_grid_whose_size_overflows_reads_as_blank;
+mod a_stored_value_with_bytes_after_it_is_not_read;
 mod a_stream_that_repeats_its_parts_without_end_is_refused;
 mod a_text_field_keeps_bytes_that_are_not_utf8;
 mod a_text_field_saves_its_bytes_and_reloads_with_fresh_positions;
@@ -56,6 +59,10 @@ mod adopting_session_state_carries_marks_to_a_reloaded_document;
 mod adopting_session_state_carries_series_positions_to_a_reloaded_document;
 mod adopting_session_state_carries_text_positions_to_a_reloaded_document;
 mod adopting_session_state_for_different_text_is_refused;
+mod an_edit_made_on_one_merge_lands_on_no_item_another_merge_inserted;
+mod an_edit_made_on_our_rich_text_before_a_clean_merge_lands_on_the_merge;
+mod an_edit_made_on_our_series_before_a_clean_merge_lands_on_the_merge;
+mod an_edit_made_on_our_text_before_a_clean_merge_lands_on_the_merge;
 mod an_edit_that_changes_nothing_has_no_step;
 mod an_edit_touches_its_field_and_what_holds_it;
 mod an_insert_into_a_removed_column_changes_nothing;
@@ -306,6 +313,7 @@ struct View {
 
 fn stamp(time: u64, origin: u128) -> Stamp {
     Stamp {
+        rank: 0,
         time,
         origin: uuid::Uuid::from_u128(origin),
     }

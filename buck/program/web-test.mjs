@@ -19,9 +19,12 @@
 // `#web` lines. `loads COUNT` fails unless the page has loaded exactly COUNT times.
 // `selection none` and `selection some` (browser only) fail unless the page's
 // text selection is empty, or holds some text.
-// `highlighted TEXT|none` (browser only) waits until the page's CSS highlights cover
-// exactly TEXT (their ranges' text joined by spaces), or nothing.
 // `elements CSS COUNT` (browser only) waits until exactly COUNT elements match CSS.
+// `share-sheet` (browser only) gives the page a `navigator.share` that keeps what each share hands
+// it, and reloads; `shared TEXT` waits until a share handed it TEXT.
+// `css TEXT` (browser only) adds TEXT to the page as a stylesheet, to stand in for a browser
+// that lacks a feature the page uses (`* { overflow-anchor: none !important; }` for Safari's
+// missing scroll anchoring).
 // `role ROLE NAME [STATE...]` (browser only) waits until Playwright's getByRole finds exactly one
 // visible element with that ARIA role and exact accessible name, in each STATE given (checked,
 // disabled, expanded, inert, modal, pressed, selected, each also as not-STATE, or level=N; inert
@@ -211,6 +214,20 @@ async function step(page, words) {
     const { timeout, options, rest } = leadingOptions(words);
     const [command, ...args] = rest;
     const settle = () => answer(page, [`--timeout=${timeout}`, "settle"]);
+    const reload = async () => {
+        await page.reload();
+        await page.waitForFunction(() => globalThis.beuiStarted !== undefined);
+        const started = await page.evaluate(async () => {
+            try {
+                await globalThis.beuiStarted;
+                return null;
+            } catch (error) {
+                return String(error?.stack ?? error);
+            }
+        });
+        if (started) throw new Failure(`the page did not start after the reload: ${started}`);
+        return settle();
+    };
     switch (command) {
         case "click": {
             const buttons = { right: ["right", 1], middle: ["middle", 1], double: ["left", 2] };
@@ -308,20 +325,42 @@ async function step(page, words) {
             }
             return "";
         }
-        case "reload": {
-            // reload: reloads the page, and waits for it to start and settle again.
-            await page.reload();
-            await page.waitForFunction(() => globalThis.beuiStarted !== undefined);
-            const started = await page.evaluate(async () => {
-                try {
-                    await globalThis.beuiStarted;
-                    return null;
-                } catch (error) {
-                    return String(error?.stack ?? error);
-                }
-            });
-            if (started) throw new Failure(`the page did not start after the reload: ${started}`);
+        case "css": {
+            // css TEXT (browser only): adds TEXT to the page as a stylesheet, so a script can
+            // stand in for a browser without a feature (`overflow-anchor: none` for Safari).
+            if (args.length === 0) throw new Failure("css takes the stylesheet's TEXT");
+            await page.addStyleTag({ content: args.join(" ") });
             return settle();
+        }
+        case "reload":
+            // reload: reloads the page, and waits for it to start and settle again.
+            return reload();
+        case "share-sheet":
+            // share-sheet: gives the page a navigator.share that keeps what each share hands it
+            // (its url, else its text) in beuiShared, as a browser with a share sheet would
+            // (Chromium on Linux has none), and reloads, since the page reads it as it starts.
+            if (args.length > 0) throw new Failure("share-sheet takes nothing");
+            await page.addInitScript(() => {
+                globalThis.beuiShared = [];
+                Object.defineProperty(Navigator.prototype, "share", {
+                    configurable: true,
+                    value: async (data) => {
+                        globalThis.beuiShared.push(data.url ?? data.text);
+                    },
+                });
+            });
+            return reload();
+        case "shared": {
+            // shared TEXT: waits until the page's share sheet (share-sheet) was handed TEXT.
+            const wanted = args.join(" ");
+            if (!wanted) throw new Failure("shared takes the TEXT a share hands the sheet");
+            try {
+                await page.waitForFunction((wanted) => globalThis.beuiShared?.includes(wanted), wanted, { timeout: timeout * 1000 });
+            } catch {
+                const shared = await page.evaluate(() => globalThis.beuiShared ?? null);
+                throw new Failure(`the share sheet was handed ${JSON.stringify(shared)}, not ${JSON.stringify(wanted)}`);
+            }
+            return "";
         }
         case "history": {
             // history LENGTH: waits until the page's history holds LENGTH entries.
@@ -353,24 +392,6 @@ async function step(page, words) {
                 await page.waitForFunction((wanted) => (history.state?.beuiBack === true) === wanted, wanted, { timeout: timeout * 1000 });
             } catch {
                 throw new Failure(`the history entry's state is ${JSON.stringify(await page.evaluate(() => history.state))}, not ${args[0]}`);
-            }
-            return "";
-        }
-        case "highlighted": {
-            const wanted = args.length === 1 && args[0] === "none" ? "" : args.join(" ");
-            if (args.length === 0) throw new Failure("highlighted takes the TEXT the highlights cover, or none");
-            const covered = () => {
-                const found = [];
-                for (const [, highlight] of CSS.highlights ?? new Map()) {
-                    for (const range of highlight) found.push(range.toString());
-                }
-                return found.join(" ");
-            };
-            try {
-                await page.waitForFunction(`(${covered})() === ${JSON.stringify(wanted)}`, null, { timeout: timeout * 1000 });
-            } catch {
-                const shown = await page.evaluate(`(${covered})()`);
-                throw new Failure(`the highlights cover ${JSON.stringify(shown)}, not ${JSON.stringify(wanted)}`);
             }
             return "";
         }

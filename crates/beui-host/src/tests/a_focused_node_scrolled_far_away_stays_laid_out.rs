@@ -18,7 +18,7 @@ fn a_focused_node_scrolled_far_away_stays_laid_out() {
                     <ListItem grow=1.0>
                         <Offset @node_ref=&scroll>
                             <List spacing=0.0>
-                                <ForEach keys={indices(ROWS)}>|index: usize|
+                                <ForEach value={indices(ROWS)}>|index: usize|
                                     <Frame @node_ref={&rows[index]} height=ROW_HEIGHT>
                                         <LabelledButton label={format!("Row {index}")} />
                                     </Frame>

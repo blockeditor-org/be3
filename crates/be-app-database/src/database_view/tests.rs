@@ -9,6 +9,7 @@ use be_sdk_beui::beui::{Key, PointerButton, Pos2, Vec2};
 use be_sdk_beui::{BeuiRoot, Creation, EditorHost, OwnedEditor, be_sdk_ui::BlockLabel};
 use be_sdk_database::DatabaseBlockPickRequest;
 use be_sdk_test::BeuiTest;
+use be_sdk_test::prelude::*;
 use be_type_database::database::{Database, DatabaseColor, DatabaseContent, DatabaseValue};
 use be_type_database::database_schema::{
     DatabaseField, DatabaseFieldType, DatabaseSchema, DatabaseSchemaContent,
@@ -126,14 +127,11 @@ impl Fixture {
 
     fn lift(&mut self, from: Pos2, to: Pos2) {
         self.harness.down(from, PointerButton::Primary);
-        self.harness.next_frame();
         self.harness.hover(from + Vec2::new(0.0, 8.0));
-        self.harness.next_frame();
         self.harness.hover(to);
     }
 
     fn put(&mut self, at: Pos2) {
-        self.harness.next_frame();
         self.harness.up(at, PointerButton::Primary);
         self.settle();
     }

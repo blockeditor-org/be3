@@ -11,8 +11,8 @@ fn scrolling_moves_what_the_scroll_showed_and_damages_only_the_rows_it_exposes()
             <Frame fill=Color32::BLACK radius=0.0>
                 <List spacing=0.0>
                     <Frame height=200.0>
-                        <Scroll @test_id="scroll">
-                            <ForEach keys={(0..30).collect::<Vec<usize>>()}>|row: usize|
+                        <Scroll @test_id="scroll" style={plain_scroll()}>
+                            <ForEach value={(0..30).collect::<Vec<usize>>()}>|row: usize|
                                 <Frame height=40.0>
                                     <Text>{format!("row {row}")}</Text>
                                 </Frame>

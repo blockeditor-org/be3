@@ -24,9 +24,11 @@ pub fn BrowserTab(editor: Editor) -> NodeId {
 
     let no_back = create_memo(move || back.get().is_none());
     let no_forward = create_memo(move || forward.get().is_none());
-    let failed = create_memo(move || error.get().is_some());
-    let reason = create_memo(move || error.get().unwrap_or_default());
-    let page = create_memo(move || (!failed.get()).then_some(SubregionContent::WebView(PAGE)));
+    let page = create_memo(move || {
+        error
+            .with(Option::is_none)
+            .then_some(SubregionContent::WebView(PAGE))
+    });
 
     let go_back = move || {
         if let Some(index) = back.get_untracked() {
@@ -65,16 +67,16 @@ pub fn BrowserTab(editor: Editor) -> NodeId {
     };
     view! {
         <List spacing=Space::None>
-            <Keyed value={chrome} key={|shown: bool| shown}>|chrome: ReadSignal<bool>| {
+            <Keyed value={chrome} key={|shown: &bool| *shown}>|chrome: ReadSignal<bool>| {
                 match chrome.get_untracked() {
                     true => view! {
                         <ListItem grow=1.0>
-                            <TabDock editor content page failed reason bar />
+                            <TabDock editor content page error bar />
                         </ListItem>
                     },
                     false => view! {
                         <ListItem grow=1.0>
-                            <Page editor content page failed reason />
+                            <Page editor content page error />
                         </ListItem>
                     },
                 }
@@ -102,8 +104,7 @@ fn TabDock(
     editor: Editor,
     content: NodeRef,
     page: Memo<Option<SubregionContent>>,
-    failed: Memo<bool>,
-    reason: Memo<String>,
+    error: ReadSignal<Option<String>>,
     bar: Bar,
 ) -> NodeId {
     let layout = DockingLayout::<&'static str>::new();
@@ -111,7 +112,7 @@ fn TabDock(
         <Docking layout focus={Some(STAGE)}>
             <DockPane id="stage" locked=true bare=true>
                 <DockTab id=STAGE title="Page">
-                    <Page editor content page failed reason />
+                    <Page editor content page error />
                 </DockTab>
             </DockPane>
             <DockBar
@@ -192,15 +193,14 @@ fn Page(
     editor: Editor,
     content: NodeRef,
     page: Memo<Option<SubregionContent>>,
-    failed: Memo<bool>,
-    reason: Memo<String>,
+    error: ReadSignal<Option<String>>,
 ) -> NodeId {
     view! {
         <Frame @node_ref={&content}>
             <Layers>
                 <Subregion editor={editor} placed={page} punch=false />
                 <List align=Align::Center justify=Justify::Center spacing=Space::None>
-                    <Show condition={failed}>
+                    <Show value={error}>|reason: ReadSignal<String>|
                         <Text
                             style=TextStyle::CAPTION
                             color=TextColor::Danger

@@ -172,43 +172,39 @@ pub(crate) fn HostPanelSurface(panel: HostPanel) -> NodeId {
             .map(|DebugPanels(debug)| debug.get())
             .unwrap_or_default()
     });
-    let shown = create_memo(move || panel);
+    let content = match panel {
+        HostPanel::BlockStack => {
+            let client = create_memo(move || debug.get().client);
+            view! {
+                <ListItem grow=1.0>
+                    <ClientPanel client />
+                </ListItem>
+            }
+        }
+        HostPanel::Performance => {
+            let performance = create_memo(move || debug.get().performance);
+            let memory = create_memo(move || debug.get().memory);
+            view! {
+                <ListItem grow=1.0>
+                    <PerformancePanel performance memory />
+                </ListItem>
+            }
+        }
+        HostPanel::Apps => {
+            let apps = create_memo(move || debug.get().apps);
+            view! {
+                <ListItem grow=1.0>
+                    <AppsPanel apps />
+                </ListItem>
+            }
+        }
+        HostPanel::Menu => view! {
+            <Spacer />
+        },
+    };
     view! {
         <Frame fill=ColorRole::Background>
-            <List spacing=Space::None>
-                <Dynamic value={shown}>|panel: HostPanel| {
-                    match panel {
-                        HostPanel::BlockStack => {
-                            let client = create_memo(move || debug.get().client);
-                            view! {
-                                <ListItem grow=1.0>
-                                    <ClientPanel client />
-                                </ListItem>
-                            }
-                        }
-                        HostPanel::Performance => {
-                            let performance = create_memo(move || debug.get().performance);
-                            let memory = create_memo(move || debug.get().memory);
-                            view! {
-                                <ListItem grow=1.0>
-                                    <PerformancePanel performance memory />
-                                </ListItem>
-                            }
-                        }
-                        HostPanel::Apps => {
-                            let apps = create_memo(move || debug.get().apps);
-                            view! {
-                                <ListItem grow=1.0>
-                                    <AppsPanel apps />
-                                </ListItem>
-                            }
-                        }
-                        HostPanel::Menu => view! {
-                            <Spacer />
-                        },
-                    }
-                }</Dynamic>
-            </List>
+            <List spacing=Space::None>{content}</List>
         </Frame>
     }
 }
@@ -226,7 +222,7 @@ fn LinesView(lines: Memo<Vec<Line>>) -> NodeId {
     let keys = create_memo(move || (0..lines.get().len()).collect::<Vec<_>>());
     view! {
         <Scroll>
-            <VirtualList keys={keys} item_size=LINE_HEIGHT>|index: ReadSignal<usize>| {
+            <VirtualList value={keys} item_size=LINE_HEIGHT>|index: ReadSignal<usize>| {
                 let line = create_memo(move || lines.with(|lines| lines.get(index.get()).cloned()));
                 view! {
                     <LineView line />
@@ -287,11 +283,11 @@ pub(crate) fn PerformancePanel(
 ) -> NodeId {
     let rows = create_memo(move || performance.get().unwrap_or_default());
     let keys = create_memo(move || (0..rows.get().len()).collect::<Vec<_>>());
-    let measured = create_memo(move || memory.get().is_some());
+    let measured = create_memo(move || memory.with(Option::is_some));
     view! {
         <Frame padding=PANEL_PADDING>
             <Scroll>
-                <Show condition={measured}>
+                <Show value={measured}>
                     <MemoryGraph memory />
                 </Show>
                 <PerformanceLine
@@ -303,10 +299,10 @@ pub(crate) fn PerformancePanel(
                         peak: "Peak".to_owned(),
                     }))}
                 />
-                <Show condition={measured}>
+                <Show value={measured}>
                     <MemoryRows memory />
                 </Show>
-                <ForEach keys={keys}>|index: usize| {
+                <ForEach value={keys}>|index: usize| {
                     let row = create_memo(move || rows.get().get(index).cloned());
                     view! {
                         <PerformanceLine row />
@@ -360,7 +356,7 @@ fn MemoryRows(memory: Memo<Option<MemoryView>>) -> NodeId {
     view! {
         <Frame padding={Padding::ZERO.bottom(Space::Lg)}>
             <List spacing=Space::None>
-                <ForEach keys={keys}>|index: usize| {
+                <ForEach value={keys}>|index: usize| {
                     let row = create_memo(move || rows.get().get(index).cloned());
                     let color = create_memo(move || {
                         row.get()
@@ -504,22 +500,23 @@ fn AppsPanel(apps: Memo<Option<AppsView>>) -> NodeId {
             .map(|runtime| runtime.id)
             .collect::<Vec<_>>()
     });
-    let idle = create_memo(move || runtime_keys.get().is_empty());
     let running = create_memo(move || format!("Running ({})", runtime_keys.get().len()));
     view! {
         <Frame padding=PANEL_PADDING>
             <Scroll>
-                <ForEach keys={line_keys}>|index: usize| {
+                <ForEach value={line_keys}>|index: usize| {
                     let line = create_memo(move || lines.get().get(index).cloned());
                     view! {
                         <LineView line />
                     }
                 }</ForEach>
                 <Text style=TextStyle::HEADING>{running}</Text>
-                <Show condition={idle}>
-                    <Text style=TextStyle::CAPTION>"no apps are running"</Text>
-                </Show>
-                <ForEach keys={runtime_keys}>|id: String| {
+                <ForEach
+                    value={runtime_keys}
+                    fallback={|| view! {
+                        <Text style=TextStyle::CAPTION>"no apps are running"</Text>
+                    }}
+                >|id: String| {
                     let key = id.clone();
                     let runtime = create_memo(move || {
                         runtimes.get().into_iter().find(|runtime| runtime.id == key)
@@ -573,7 +570,7 @@ fn RuntimeBlock(id: String, runtime: Memo<Option<RuntimeView>>) -> NodeId {
                         on_click={move || debug(DebugCommand::CrashApp(crash.clone()))}
                     />
                 </List>
-                <ForEach keys={keys}>|index: usize| {
+                <ForEach value={keys}>|index: usize| {
                     let line = create_memo(move || lines.get().get(index).cloned());
                     view! {
                         <LineView line />

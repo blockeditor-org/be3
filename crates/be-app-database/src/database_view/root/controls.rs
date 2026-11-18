@@ -53,13 +53,13 @@ pub fn ChoicePicker(
                 variant=ButtonVariant::Ghost
                 size=ButtonSize::Compact
                 arrow=false
-                placeholder={create_memo(move || option.with(Option::is_none))}
+                placeholder={move || option.with(Option::is_none)}
                 leading={view! {
                     <ChoiceMark option={option} size=MARK />
                 }}
                 @test_id={picker_id.clone()}
                 items={view! {
-                    <ForEach keys={keys}>|id: Uuid| {
+                    <ForEach value={keys}>|id: Uuid| {
                         let shown = create_memo(move || {
                             field.with(|field| field.as_ref()?.option(id).cloned())
                         });
@@ -73,7 +73,7 @@ pub fn ChoicePicker(
                             <MenuItem
                                 label={name}
                                 glyph={glyph}
-                                row_test_id={format!("{option_id}.option.{id}")}
+                                @test_id={format!("{option_id}.option.{id}")}
                                 on_click={move || on_pick.call(Some(id))}
                             />
                         }
@@ -81,7 +81,7 @@ pub fn ChoicePicker(
                     <MenuItem
                         label="Clear"
                         separated=true
-                        row_test_id={clear_id.clone()}
+                        @test_id={clear_id.clone()}
                         on_click={move || on_pick.call(None)}
                     />
                 }}

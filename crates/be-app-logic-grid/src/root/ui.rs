@@ -28,19 +28,20 @@ const PANELS_WIDTH: f32 = SIDE_PANEL_WIDTH;
 pub(super) fn LogicGridView(editor: Editor) -> NodeId {
     let session = Session::new(editor);
     let loaded = create_memo(move || session.read(LogicGridEditor::loaded));
-    let waiting = create_memo(move || !loaded.get());
     let scope = NodeRef::new();
     action_scope(&scope);
     register_keys(session);
     let chrome = editor.chrome_shown();
     view! {
         <List @node_ref=&scope spacing=Space::None>
-            <Show condition={waiting}>
-                <ListItem grow=1.0>
-                    <LoadingPane label="Loading the grid" />
-                </ListItem>
-            </Show>
-            <Show condition={loaded}>
+            <Show
+                value={loaded}
+                fallback={|| view! {
+                    <ListItem grow=1.0>
+                        <LoadingPane label="Loading the grid" />
+                    </ListItem>
+                }}
+            >
                 <ListItem grow=1.0>
                     <List spacing=Space::None>
                         <ListItem grow=1.0>
@@ -60,7 +61,7 @@ fn GridDock(session: Session, chrome: ReadSignal<bool>) -> NodeId {
     view! {
         <Docking layout focus={Some(STAGE)}>
             <DockSplit id="grid" size={SplitSize::First(HOTBAR_WIDTH)}>
-                <Show condition={chrome}>
+                <Show value={chrome}>
                     <DockPane id="hotbar" locked=true>
                         <DockTab id=HOTBAR title="Components">
                             <HotbarPane session={session} />
@@ -73,7 +74,7 @@ fn GridDock(session: Session, chrome: ReadSignal<bool>) -> NodeId {
                             <GridCanvas session={session} />
                         </DockTab>
                     </DockPane>
-                    <Show condition={chrome}>
+                    <Show value={chrome}>
                         <DockPane id="panels" locked=true>
                             <DockTab id=PANELS title="Simulation">
                                 <PanelsPane session={session} />
@@ -82,7 +83,7 @@ fn GridDock(session: Session, chrome: ReadSignal<bool>) -> NodeId {
                     </Show>
                 </DockSplit>
             </DockSplit>
-            <Show condition={chrome}>
+            <Show value={chrome}>
                 <DockBar
                     id=TOOLS
                     parent=STAGE
@@ -218,13 +219,11 @@ fn GridTools(session: Session) -> NodeId {
                 .unwrap_or_default()
         })
     });
-    let challenged = create_memo(move || !challenge.get().is_empty());
     let problems = create_memo(move || session.read(|model| model.grid.validate().len()));
     let misplaced = create_memo(move || problems.get() > 0);
     let problem_text = create_memo(move || format!("{} placement problems", problems.get()));
     let compile_error =
         create_memo(move || session.read(|model| model.compile_error.clone().unwrap_or_default()));
-    let failed = create_memo(move || !compile_error.get().is_empty());
     view! {
         <DockBarSurface spacing=Space::Md @test_id={"logic-grid.toolbar"}>
             <Frame @test_id={"logic-grid.toolbar.grip"}>
@@ -238,13 +237,13 @@ fn GridTools(session: Session) -> NodeId {
                 @test_id={"logic-grid.compile"}
                 on_click={compile}
             />
-            <Show condition={challenged}>
+            <Show value={move || challenge.with(|challenge| !challenge.is_empty())}>
                 <Text>{challenge}</Text>
             </Show>
-            <Show condition={misplaced}>
+            <Show value={misplaced}>
                 <Text style=TextStyle::CAPTION color=TextColor::Danger>{problem_text}</Text>
             </Show>
-            <Show condition={failed}>
+            <Show value={move || compile_error.with(|error| !error.is_empty())}>
                 <Text
                     style=TextStyle::CAPTION
                     color=TextColor::Danger
@@ -293,8 +292,7 @@ fn GridZoom(session: Session) -> NodeId {
 #[component]
 fn GridCanvas(session: Session) -> NodeId {
     let editor = session.editor();
-    let placed_held = create_signal(Rect::ZERO);
-    let placed = placed_held.read_only();
+    let placed = create_signal(Rect::ZERO);
     let view = editor.canvas();
     let world = editor.world();
     let camera = create_memo(move || grid_view(view.get(), world.get(), placed.get()));
@@ -322,9 +320,6 @@ fn GridCanvas(session: Session) -> NodeId {
     });
 
     let labels = create_memo(move || session.read(LogicGridEditor::component_labels));
-    let label_keys = create_memo(move || {
-        labels.with(|labels| labels.iter().map(|label| label.key).collect::<Vec<_>>())
-    });
     let zoom = create_memo(move || camera.get().scale);
 
     let last = StoredCell::new(None::<[f32; 2]>);
@@ -384,20 +379,16 @@ fn GridCanvas(session: Session) -> NodeId {
             >
                 <Canvas>
                     <CanvasItem x=0.0 y=0.0 width={width} height={height}>
-                        <Drawing draw={Prop::dynamic(move || draw_gpu(drawing.get()))} />
+                        <Drawing draw={move || draw_gpu(drawing.get())} />
                     </CanvasItem>
                     <CanvasItem x=0.0 y=0.0 width={width} height={height}>
                         <Canvas view={shown}>
-                            <ForEach keys={label_keys}>|key: LabelKey| {
-                                let label = create_memo(move || {
-                                    labels.with(|labels| {
-                                        labels.iter().find(|label| label.key == key).cloned()
-                                    })
-                                });
-                                view! {
-                                    <GridLabel label={label} zoom={zoom} />
-                                }
-                            }</ForEach>
+                            <ForEach
+                                value={labels}
+                                key={|label: &ComponentLabel| label.key}
+                            >|label: ReadSignal<ComponentLabel>|
+                                <GridLabel label={label} zoom={zoom} />
+                            </ForEach>
                             <ConfiguredStorage session={session} />
                         </Canvas>
                     </CanvasItem>
@@ -408,7 +399,7 @@ fn GridCanvas(session: Session) -> NodeId {
     let placed_measured = measure(built);
     create_effect(move || {
         if let Some(measured) = placed_measured.get() {
-            placed_held.set(measured.rect);
+            placed.set(measured.rect);
         }
     });
     built
@@ -437,31 +428,19 @@ fn ConfiguredStorage(session: Session) -> CanvasItem {
 }
 
 #[component]
-fn GridLabel(label: Memo<Option<ComponentLabel>>, zoom: Memo<f32>) -> CanvasItem {
-    let rect = create_memo(move || label.get().map_or([0.0; 4], |label| label.rect));
+fn GridLabel(label: ReadSignal<ComponentLabel>, zoom: Memo<f32>) -> CanvasItem {
+    let rect = create_memo(move || label.with(|label| label.rect));
     let x = create_memo(move || rect.get()[0]);
     let y = create_memo(move || rect.get()[1]);
     let width = create_memo(move || rect.get()[2] - rect.get()[0]);
     let height = create_memo(move || rect.get()[3] - rect.get()[1]);
-    let text = create_memo(move || label.get().map(|label| label.text).unwrap_or_default());
-    let size = create_memo(move || {
-        TextSize::Custom(
-            label
-                .get()
-                .map_or(LabelKind::Port.font_size(zoom.get()), |label| {
-                    label.kind.font_size(zoom.get())
-                }),
-        )
-    });
-    let color = create_memo(move || {
-        TextColor::Custom((label.get().map_or(LABEL_COLOR, |label| label.kind.color())).into())
-    });
-    let align = create_memo(move || label.get().map_or(TextAlign::Center, |label| label.align));
-    let vertical_align = create_memo(move || {
-        label
-            .get()
-            .map_or(TextAlign::Center, |label| label.vertical_align)
-    });
+    let text = create_memo(move || label.with(|label| label.text.clone()));
+    let size =
+        create_memo(move || TextSize::Custom(label.with(|label| label.kind).font_size(zoom.get())));
+    let color =
+        create_memo(move || TextColor::Custom(label.with(|label| label.kind.color()).into()));
+    let align = create_memo(move || label.with(|label| label.align));
+    let vertical_align = create_memo(move || label.with(|label| label.vertical_align));
     view! {
         <CanvasItem x={x} y={y} width={width} height={height}>
             <Text size color={color} align={align} vertical_align={vertical_align}>{text}</Text>

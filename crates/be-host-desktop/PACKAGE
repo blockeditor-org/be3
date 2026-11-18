@@ -18,6 +18,7 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-block-content:be-block-content",
+                "//crates/be-block-input:be-block-input",
                 "//crates/be-block-type-host:be-block-type-host",
                 "//crates/be-block:be-block",
                 "//crates/be-host-base:be-host-base",
@@ -41,9 +42,11 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-block-content:be-block-content",
+                "//crates/be-block-input:be-block-input",
                 "//crates/be-block-type-host:be-block-type-host",
                 "//crates/be-block:be-block",
                 "//crates/be-host-base:be-host-base",
+                "//crates/be-host-programs:be-host-programs",
                 "//crates/be-host-remap-host:be-host-remap-host",
                 "//crates/be-host-stack:be-host-stack",
                 "//crates/be-host-wayland:be-host-wayland",
@@ -68,9 +71,11 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-block-content:be-block-content",
+                "//crates/be-block-input:be-block-input",
                 "//crates/be-block-type-host:be-block-type-host",
                 "//crates/be-block:be-block",
                 "//crates/be-host-base:be-host-base",
+                "//crates/be-host-programs:be-host-programs",
                 "//crates/be-host-remap-host:be-host-remap-host",
                 "//crates/be-host-stack:be-host-stack",
                 "//crates/be-host-wayland:be-host-wayland",
@@ -95,6 +100,7 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-block-content:be-block-content",
+                "//crates/be-block-input:be-block-input",
                 "//crates/be-block-type-host:be-block-type-host",
                 "//crates/be-block:be-block",
                 "//crates/be-host-base:be-host-base",
@@ -118,6 +124,7 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-block-content:be-block-content",
+                "//crates/be-block-input:be-block-input",
                 "//crates/be-block-type-host:be-block-type-host",
                 "//crates/be-block:be-block",
                 "//crates/be-host-base:be-host-base",
@@ -141,6 +148,7 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-block-content:be-block-content",
+                "//crates/be-block-input:be-block-input",
                 "//crates/be-block-type-host:be-block-type-host",
                 "//crates/be-block:be-block",
                 "//crates/be-host-base:be-host-base",
@@ -161,6 +169,7 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-block-content:be-block-content",
+                "//crates/be-block-input:be-block-input",
                 "//crates/be-block-type-host:be-block-type-host",
                 "//crates/be-block:be-block",
                 "//crates/be-host-base:be-host-base",
@@ -186,6 +195,7 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-block-content:be-block-content",
+                "//crates/be-block-input:be-block-input",
                 "//crates/be-block-type-host:be-block-type-host",
                 "//crates/be-block:be-block",
                 "//crates/be-host-base:be-host-base",

@@ -113,7 +113,7 @@ fn paste_from(data: &web_sys::DataTransfer) {
     }
     let get = |kind: &str| data.get_data(kind).ok().filter(|text| !text.is_empty());
     let transferred = Transferred {
-        text: get("text"),
+        text: get("text").map(beui_types::clip::text_from_system),
         html: get("text/html"),
         files: data
             .files()
@@ -315,6 +315,18 @@ fn schedule_after(delay: Duration) {
     });
 }
 
+/// The surface's box changed: draws at the new size before the page paints.
+fn resized() {
+    let runner = RUNNER.with(|runner| runner.borrow().clone());
+    match runner {
+        Some(runner) => match runner.try_borrow_mut() {
+            Ok(mut runner) => runner.frame(),
+            Err(_) => schedule(),
+        },
+        None => schedule(),
+    }
+}
+
 fn run_frame() {
     INPUT.with(|input| input.scheduled.set(false));
     let runner = RUNNER.with(|runner| runner.borrow().clone());
@@ -379,6 +391,14 @@ impl PlatformServices for WebPlatform {
         HELD.with(|held| held.borrow_mut().copy(clip));
     }
 
+    fn share(&mut self, clip: Clip) {
+        beui_web_input::share::share(&clip);
+    }
+
+    fn has_share_sheet(&self) -> bool {
+        beui_web_input::share::has_share_sheet()
+    }
+
     fn paste(&mut self, wanted: &[String], answer: PasteAnswer) {
         let Some(window) = web_sys::window() else {
             return answer.send(None);
@@ -390,7 +410,8 @@ impl PlatformServices for WebPlatform {
                 .await
                 .ok()
                 .and_then(|text| text.as_string())
-                .filter(|text| !text.is_empty());
+                .filter(|text| !text.is_empty())
+                .map(beui_types::clip::text_from_system);
             let held = HELD.with(|held| {
                 let mut held = held.borrow_mut();
                 let ours = held.wrote(text.as_deref());
@@ -433,8 +454,8 @@ impl PlatformServices for WebPlatform {
         }
         if window.requests.cursor != shown.requests.cursor {
             let cursor = match window.requests.cursor {
-                CursorIcon::Touch => beui_core::touch_cursor::css(CursorIcon::Touch.name()),
-                cursor => cursor.name().to_owned(),
+                CursorIcon::Touch => beui_core::touch_cursor::css(CursorIcon::Touch.css()),
+                cursor => cursor.css().to_owned(),
             };
             let _ = self.surface.style().set_property("cursor", &cursor);
         }
@@ -1209,8 +1230,11 @@ fn listen(
     on(window_target, "beforeunload", |event: web_sys::Event| {
         close_requested(&event);
     })?;
+    // A resize observer runs after the page's layout and before it paints, so the frame runs
+    // here rather than at the next animation frame: the canvas's box has already changed, and
+    // waiting would show a frame of its backing store cleared or scaled into the new box.
     let observer = web_sys::ResizeObserver::new(
-        Closure::<dyn FnMut()>::new(schedule)
+        Closure::<dyn FnMut()>::new(resized)
             .into_js_value()
             .unchecked_ref(),
     )

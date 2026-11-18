@@ -1,0 +1,30 @@
+[package]
+name = "be-wasm-sandbox-host"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+be-wasm-dylink = { path = "../be-wasm-dylink" }
+be-wasm-guest-host = { path = "../be-wasm-guest-host" }
+be-wasm-ops = { path = "../be-wasm-ops" }
+be-wasm-sandbox-api = { path = "../be-wasm-sandbox-api" }
+
+# V8, which runs each instance natively. The browser runs each in a web worker
+# of its own instead, and compiles modules from bytes on the page (src/web.rs).
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+be-wasm-host = { path = "../be-wasm-host" }
+wgpu = { version = "29", default-features = false }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+js-sys = "0.3"
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+
+[dev-dependencies]
+be-sdk-worker = { path = "../be-sdk-worker" }
+be-sdk-worker-echo = { path = "../be-sdk-worker-echo" }
+be-wasm-guest-echo = { path = "../be-wasm-guest-echo" }
+
+[lints]
+workspace = true

@@ -21,7 +21,9 @@ fn put(
                 return result;
             }
         }
-        crate::wait_until(|shared| shared.editor_frames.contains_key(&id).then_some(()));
+        crate::wait_until("answered the part put", |shared| {
+            shared.editor_frames.contains_key(&id).then_some(())
+        });
     }
 }
 

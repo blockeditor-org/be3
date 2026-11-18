@@ -1,8 +1,9 @@
 use beui_macros::{component, view};
 use beui_view::types::{Dismiss, LayerLevel, LayerPolicy};
 
-use super::back_slide::BackSlide;
+use super::back_slide::{BackSlide, SlideCurves};
 use beui_view::components::overlay::{Overlay, use_overlay_presence};
+use beui_view::primitives::{KeepAlive, Kept};
 use beui_view::reactive::NodeId;
 use beui_view::reactive::OverlayAnchor;
 use beui_view::reactive::*;
@@ -21,8 +22,9 @@ pub enum ModalPlacement {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ModalMotion {
-    /// The content sits in a [`BackSlide`], which carries it away on back.
-    Slides,
+    /// The content sits in a [`BackSlide`] moving on these curves, which
+    /// carries it away on back.
+    Slides(SlideCurves),
     Still,
     /// The content reports its own presence through [`ModalHandle::presence`]
     /// (as `ModalSheet`'s sheet does), and the scrim fades with it.
@@ -47,37 +49,36 @@ pub fn Modal(
     scrim: Prop<Color>,
     #[prop(default = ModalPlacement::Center)] placement: ModalPlacement,
     #[prop(default = LayerLevel::Normal)] level: Prop<LayerLevel>,
-    #[prop(default = ModalMotion::Slides)] motion: ModalMotion,
+    motion: ModalMotion,
     #[prop(default = None)] shown_in: Prop<Option<WindowId>>,
     on_dismiss: Callback<()>,
-    #[prop(children)] content: Render<ModalHandle>,
+    #[prop(children)] content: Render<ModalHandle, NodeId>,
 ) -> NodeId {
     let presence = create_signal(match motion {
-        ModalMotion::Slides | ModalMotion::Still => 1.0_f32,
+        ModalMotion::Slides(_) | ModalMotion::Still => 1.0_f32,
         ModalMotion::Reported => 0.0,
     });
-    let faded = create_memo(move || scrim.get().scale_alpha(presence.get()));
     let asked = create_signal(false);
     create_effect(move || {
         if open.get() {
             untrack(|| asked.set(false));
         }
     });
-    let stays = create_memo(move || open.get() || !asked.get());
     let handle = ModalHandle {
         presence: presence.into(),
     };
     let body = Render::new(move |()| {
         let content = content.call(handle);
         match motion {
-            ModalMotion::Slides => {
+            ModalMotion::Slides(curves) => {
                 if let Some(overlay) = use_overlay_presence() {
                     overlay.linger_while(create_memo(move || asked.get() && !open.get()));
                 }
                 view! {
                     <BackSlide
+                        curves
                         enters=false
-                        open={stays}
+                        open={move || open.get() || !asked.get()}
                         on_back={move || {
                             asked.set(true);
                             on_dismiss.call(());
@@ -98,21 +99,35 @@ pub fn Modal(
         ModalPlacement::Fill => Placement::Fill,
         ModalPlacement::Sheet => Placement::Edge(LayerEdge::Bottom),
     };
+    // The body is built the first time the modal opens and kept, paused, while it is closed.
+    // It reads the overlay's presence, which a kept subtree does not see unless it carries it.
+    let content = move || {
+        let overlay = use_overlay_presence();
+        view! {
+            <Kept>|| {
+                if let Some(overlay) = overlay {
+                    overlay.provide();
+                }
+                body.call(())
+            }</Kept>
+        }
+    };
     view! {
-        <Overlay
-            anchor=OverlayAnchor::Point(Pos2::ZERO)
-            open={open}
-            keep_alive=true
-            placement=placed
-            scrim={faded}
-            level={level}
-            shown_in={shown_in}
-            policy={create_memo(move || match asked.get() && !open.get() {
-                true => LayerPolicy::Inert,
-                false => LayerPolicy::BlocksAll,
-            })}
-            on_dismiss={move |_: Dismiss| on_dismiss.call(())}
-            content={move || body.call(())}
-        />
+        <KeepAlive>
+            <Overlay
+                anchor=OverlayAnchor::Point(Pos2::ZERO)
+                open={open}
+                placement=placed
+                scrim={move || scrim.get().scale_alpha(presence.get())}
+                level={level}
+                shown_in={shown_in}
+                policy={move || match asked.get() && !open.get() {
+                    true => LayerPolicy::Inert,
+                    false => LayerPolicy::BlocksAll,
+                }}
+                on_dismiss={move |_: Dismiss| on_dismiss.call(())}
+                content={content}
+            />
+        </KeepAlive>
     }
 }

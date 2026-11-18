@@ -10,7 +10,7 @@ fn an_unlocked_tab_moved_into_the_sidebar_is_still_there_when_the_workspace_reop
     assert_eq!(placed_in_sidebar(&fixture, places.minutes), Some(true));
 
     let layout = profile(&fixture)
-        .state("layout")
+        .stored(SavedLayout::ID)
         .cloned()
         .expect("the layout is saved in the profile");
     let (mut reopened, _) = profiled_sized(Some(WIDE), Some(layout));

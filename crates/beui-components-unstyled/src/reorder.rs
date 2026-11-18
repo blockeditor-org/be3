@@ -1,22 +1,33 @@
+//! A list whose rows are carried to new places in it, or into another `Reorder` that accepts
+//! them: a drop site over `slots_in` whose rows are drag sources. While a row is carried the
+//! list shows it at the place chosen and the rows between glide aside; a carry from another
+//! list opens a gap where it would land. Only the release writes anything: `on_move` hears
+//! the payload and where it goes, and the app makes the move
+//! (decisions/beui_a_move_between_drop_sites_is_the_apps.md).
+
 use std::cell::{Cell, RefCell};
 use std::hash::Hash;
 use std::rc::Rc;
 
-use crate::drag_board::{Board, drag_board};
+use be_lib_stable_hash::HashMap;
+
+use crate::drag_board::drag_board;
+use crate::drop_site::{slots_in, use_drop_site};
 use accesskit::{Live, Node, Role};
 use beui_macros::{component, view};
 use beui_view::components::overlay::Overlay;
-use beui_view::drag::{DragPoint, DragSource, Pending, Take};
+use beui_view::drag::{
+    After, Carry, DragPoint, DragSpec, closest, fixed, floating, into, move_after,
+};
 use beui_view::primitives::*;
 use beui_view::reactive::*;
 use beui_view::reactive::{KeyAt, NodeId, OverlayAnchor};
 use beui_view::types::{
-    CursorIcon, Direction, Key, KeyPhase, LayerLevel, LayerPolicy, Placement, PointerPress, Pos2,
-    Rect, Sides, TOUCH_DRAG_THRESHOLD, TouchDrags,
+    CursorIcon, Direction, Extent, Key, KeyPhase, LayerLevel, LayerPolicy, Placement, PointerPress,
+    Pos2, Rect, Sides, TouchDrags, input::PointerId,
 };
 
-use crate::drag::{DRAG_THRESHOLD, DropHandle, DropTarget};
-use crate::glide::{GLIDE_SPRING, Glide, GlideApi, GlideHold};
+use crate::glide::{Glide, GlideApi, GlideHold};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ReorderMove<K, P> {
@@ -34,71 +45,71 @@ pub struct ReorderGap<K> {
 
 #[derive(Clone, Copy)]
 pub struct ReorderItemHandle {
+    /// Whether this row is carried: it stays in the list, at the place chosen, and the
+    /// `preview` floats while it is over none.
     pub lifted: Memo<bool>,
     pub raised: Memo<bool>,
     pub draggable: Memo<bool>,
 }
 
-#[derive(Clone, PartialEq)]
-struct Lifted<K, P> {
-    key: K,
-    payload: P,
-    item: Rect,
-    home: bool,
-    slot: usize,
-    size: f32,
-}
-
-#[derive(Clone)]
-struct Press<K> {
-    key: K,
-    origin: Pos2,
-    touched: bool,
-    item: Rect,
-}
-
 enum Arrival<K> {
-    Back(K, Pos2),
     New(Vec<K>, Pos2),
 }
 
 struct State<K: 'static, P: 'static> {
+    spring: Spring,
     keys: Memo<Vec<K>>,
     direction: Prop<Direction>,
     payload: Func<K, Option<P>>,
-    accepts: Option<Func<P, bool>>,
     disabled: Prop<bool>,
     fixed: Prop<bool>,
     slot: Option<Func<P, Option<usize>>>,
-    long_press: Prop<bool>,
+    lifts_on_long_press: bool,
     text: Callback<K, String>,
     on_move: Callback<ReorderMove<K, P>>,
     on_drag_change: Callback<Option<K>>,
-    on_drop_outside: Callback<(K, DragPoint)>,
-    lifted: Signal<Option<Lifted<K, P>>>,
+    on_outside: Callback<(P, DragPoint)>,
+    /// The row of this list that is carried.
+    carried: Signal<Option<K>>,
+    /// The payload of that row's carry, which names it on the board.
+    own: Signal<Option<P>>,
+    /// Whether the carry is on a place in this list.
+    over_here: Signal<bool>,
+    /// This list's row carried off it, collapsed while its slot closes, or while the slot
+    /// opens again for it to come back.
+    folded: Signal<Option<K>>,
+    /// Whether the folded row's slot is opening for it to come back.
+    returning: Cell<bool>,
+    /// The folded row's slot as it was laid out before it collapsed: its length and spacing.
+    folded_length: Cell<f32>,
     gap: Signal<Option<ReorderGap<K>>>,
     aim: Cell<f32>,
     speed: Cell<f32>,
     frames: Cell<Option<Animation>>,
     visited: Signal<bool>,
-    arm: Signal<u64>,
     raised: Signal<Option<K>>,
-    floating_at: Signal<Option<DragPoint>>,
     announcement: Signal<String>,
-    point: RefCell<Option<DragPoint>>,
-    pressed: RefCell<Option<Press<K>>>,
     arrival: RefCell<Option<Arrival<K>>>,
-    glides: RefCell<Vec<(K, NodeId, NodeId, GlideApi)>>,
-    board: Rc<Board>,
-    gone: Cell<bool>,
-    returning: Cell<bool>,
-    settling: Cell<bool>,
-    area: Cell<Option<NodeId>>,
+    /// Each shown row's glide, by the glide's node: its inner glide's node and its api.
+    glides: RefCell<HashMap<NodeId, (NodeId, GlideApi)>>,
+    /// The rows shown, as the `ForEach` or `VirtualList` that shows them reports them.
+    rows: ForEachRef<K, NodeId>,
+    /// Counts the moves the `Reorder` makes (a carry to another place, a drop, a step): rows
+    /// glide only for an order or gap changed by one, so an order changed for any other
+    /// reason snaps, as any list does.
+    moves: Signal<u64>,
+    /// The node the rows sit in, which their places are relative to.
+    area: NodeRef,
 }
 
 pub struct ReorderHandle<K: 'static, P: 'static> {
     state: Stored<State<K, P>>,
+    /// Each key's place in `order`.
+    places: Memo<Rc<HashMap<K, usize>>>,
     pub order: Memo<Vec<K>>,
+    /// Hand this to the `ForEach` or `VirtualList` that shows `order`, as its `handle`: it is
+    /// how the list finds its rows.
+    pub rows: ForEachRef<K, NodeId>,
     pub dragging: Memo<Option<K>>,
     pub gap: Memo<Option<ReorderGap<K>>>,
     pub visited: Memo<bool>,
@@ -122,8 +133,10 @@ where
         step(self.state, key, by)
     }
 
+    /// Opens a gap where an item at `point` would land, or closes it with `None`: for a
+    /// caller that tracks a drag of its own over the list (a tree dropping into a folder).
     pub fn hover(&self, point: Option<DragPoint>) {
-        visit(self.state, None, point);
+        visit(self.state, point);
     }
 
     pub(crate) fn part(&self, gap: Option<ReorderGap<K>>) {
@@ -137,19 +150,14 @@ where
         });
     }
 
-    pub fn drop_at(&self, payload: P, point: DragPoint) {
-        dropped_in(self.state, payload, point);
-    }
-
     pub fn draggable(&self, key: K) -> bool {
         self.state.with(|state| can_drag(state, &key))
     }
 
     pub fn resting(&self, key: &K) -> Option<Rect> {
         self.state.with(|state| {
-            let glides = state.glides.borrow();
-            let (_, _, inner, glide) = glides.iter().find(|(shown, ..)| shown == key)?;
-            resting(*glide, *inner)
+            let (_, _, inner, glide) = glide_of(state, key)?;
+            resting(glide, inner)
         })
     }
 }
@@ -162,17 +170,37 @@ fn can_drag<K: Clone, P>(state: &State<K, P>, key: &K) -> bool {
     !state.disabled.get_untracked() && state.payload.call(key.clone()).is_some()
 }
 
-fn bump<K, P>(state: &State<K, P>) {
-    state.arm.update(|arm| *arm += 1);
+/// Marks a move the `Reorder` makes, so the rows it moves glide.
+fn mark_move<K, P>(state: &State<K, P>) {
+    state.moves.update(|moves| *moves += 1);
 }
 
-fn glide_of<K: PartialEq, P>(state: &State<K, P>, key: &K) -> Option<(NodeId, GlideApi)> {
-    state
-        .glides
-        .borrow()
-        .iter()
-        .find(|(shown, ..)| shown == key)
-        .map(|(_, node, _, glide)| (*node, *glide))
+/// Each shown row's key, glide node, inner glide node and glide api, in the order shown.
+/// Walks the rows the list built, not every key it has.
+fn shown_glides<K: Clone + PartialEq, P>(
+    state: &State<K, P>,
+) -> Vec<(K, NodeId, NodeId, GlideApi)> {
+    let glides = state.glides.borrow();
+    let mut shown = Vec::new();
+    state.rows.for_each_row(|row| {
+        for node in &row.nodes {
+            if let Some((inner, glide)) = glides.get(node) {
+                shown.push((row.key.clone(), *node, *inner, *glide));
+            }
+        }
+    });
+    shown
+}
+
+fn glide_of<K: Clone + PartialEq, P>(
+    state: &State<K, P>,
+    key: &K,
+) -> Option<(K, NodeId, NodeId, GlideApi)> {
+    let glides = state.glides.borrow();
+    state.rows.nodes_of(key).into_iter().find_map(|node| {
+        let (inner, glide) = glides.get(&node)?;
+        Some((key.clone(), node, *inner, *glide))
+    })
 }
 
 fn resting(glide: GlideApi, inner: NodeId) -> Option<Rect> {
@@ -180,34 +208,10 @@ fn resting(glide: GlideApi, inner: NodeId) -> Option<Rect> {
     Some(rect.translate(-glide.displacement()))
 }
 
-fn hold<K: Clone + PartialEq, P: Clone>(state: &State<K, P>, held: bool) {
-    let Some(lifted) = state.lifted.get_untracked() else {
-        return;
-    };
-    let Some((_, glide)) = glide_of(state, &lifted.key) else {
-        return;
-    };
-    let point = *state.point.borrow();
+fn spans<K: Clone + PartialEq, P>(state: &State<K, P>) -> Vec<(f32, f32)> {
     let direction = state.direction.get_untracked();
-    let hold = point
-        .filter(|_| held && lifted.home)
-        .map(|point| GlideHold {
-            at: clamped(state, point.pos + lifted.item.min.to_vec2(), lifted.item),
-            along: Some(direction),
-        });
-    glide.hold(hold);
-}
-
-fn spans<K, P>(state: &State<K, P>, except: Option<&K>) -> Vec<(f32, f32)>
-where
-    K: PartialEq,
-{
-    let direction = state.direction.get_untracked();
-    let mut spans: Vec<(f32, f32)> = state
-        .glides
-        .borrow()
+    let mut spans: Vec<(f32, f32)> = shown_glides(state)
         .iter()
-        .filter(|(key, ..)| except != Some(key))
         .filter_map(|(_, outer, ..)| {
             measure(*outer)
                 .get_untracked()
@@ -219,26 +223,29 @@ where
     spans
 }
 
-fn clamped<K, P>(state: &State<K, P>, at: Pos2, item: Rect) -> Pos2 {
+/// Where a row held at `item` is drawn: along the list no further than its ends, as a row
+/// that has nowhere else to go never leaves its list.
+fn clamped<K, P>(state: &State<K, P>, item: Rect) -> Pos2 {
     let Some(area) = state
         .area
-        .get()
+        .try_get()
         .and_then(|area| measure(area).get_untracked())
         .map(|measured| measured.rect)
     else {
-        return at;
+        return item.min;
     };
     let direction = state.direction.get_untracked();
     let low = along(direction, area.min);
     let high = (along(direction, area.max) - direction.main(item.size())).max(low);
     match direction {
-        Direction::Horizontal => Pos2::new(at.x.clamp(low, high), at.y),
-        Direction::Vertical => Pos2::new(at.x, at.y.clamp(low, high)),
+        Direction::Horizontal => Pos2::new(item.min.x.clamp(low, high), item.min.y),
+        Direction::Vertical => Pos2::new(item.min.x, item.min.y.clamp(low, high)),
     }
 }
 
-fn spacing<K: PartialEq, P>(state: &State<K, P>) -> f32 {
-    spans(state, None)
+/// The space between two rows, the least of any pair shown.
+fn spacing<K: Clone + PartialEq, P>(state: &State<K, P>) -> f32 {
+    spans(state)
         .windows(2)
         .map(|pair| pair[1].0 - pair[0].1)
         .filter(|between| *between >= 0.0)
@@ -246,122 +253,29 @@ fn spacing<K: PartialEq, P>(state: &State<K, P>) -> f32 {
         .unwrap_or(0.0)
 }
 
-fn slot_size<K: PartialEq, P>(state: &State<K, P>, key: &K) -> f32 {
+/// How far the rows part for an item of `item`'s size: its length and the spacing.
+fn gap_for<K: Clone + PartialEq, P>(state: &State<K, P>, item: Rect) -> f32 {
+    state.direction.get_untracked().main(item.size()) + spacing(state)
+}
+
+/// The index among `keys` an item spanning `span` along the list lands at: before the first
+/// row whose middle it has not passed.
+fn slot_at<K: Clone + Eq + Hash, P>(state: &State<K, P>, keys: &[K], span: (f32, f32)) -> usize {
     let direction = state.direction.get_untracked();
-    let Some((start, end)) = state
-        .glides
-        .borrow()
+    let places: HashMap<&K, usize> = keys.iter().enumerate().map(|(at, key)| (key, at)).collect();
+    let mut middles: Vec<(f32, usize)> = shown_glides(state)
         .iter()
-        .find(|(shown, ..)| shown == key)
-        .and_then(|(_, outer, ..)| {
-            measure(*outer)
-                .get_untracked()
-                .map(|measured| measured.rect)
+        .filter_map(|(key, _, inner, glide)| {
+            let index = *places.get(key)?;
+            let rect = resting(*glide, *inner)?;
+            Some((along(direction, rect.center()), index))
         })
-        .map(|rect| (along(direction, rect.min), along(direction, rect.max)))
-    else {
-        return 0.0;
-    };
-    let others = spans(state, Some(key));
-    match others.iter().find(|span| span.0 >= end) {
-        Some(next) => next.0 - start,
-        None => {
-            let previous = others
-                .iter()
-                .filter(|span| span.1 <= start)
-                .map(|span| span.1)
-                .reduce(f32::max);
-            end - previous.unwrap_or(start)
-        }
+        .collect();
+    middles.sort_by(|left, right| left.0.total_cmp(&right.0));
+    match middles.iter().find(|(middle, _)| span.0 < *middle) {
+        Some((_, index)) => *index,
+        None => middles.last().map_or(keys.len(), |(_, index)| index + 1),
     }
-}
-
-fn carried_size<K: PartialEq, P>(state: &State<K, P>, point: DragPoint) -> f32 {
-    state.direction.get_untracked().main(point.item.size()) + spacing(state)
-}
-
-fn shown_keys<K: Clone + PartialEq, P: Clone>(state: &State<K, P>) -> Vec<K> {
-    let keys = state.keys.get_untracked();
-    match state.lifted.get_untracked() {
-        Some(lifted) => rest_of(&keys, &lifted.key),
-        None => keys,
-    }
-}
-
-fn shown_at<K: Clone + PartialEq, P: Clone>(state: &State<K, P>) -> Option<Pos2> {
-    let lifted = state.lifted.get_untracked()?;
-    let point = (*state.point.borrow())?;
-    let at = point.pos + lifted.item.min.to_vec2();
-    let resting = glide_of(state, &lifted.key)
-        .and_then(|(glide, _)| measure(glide).get_untracked().map(|measured| measured.rect));
-    Some(match (lifted.home, resting) {
-        (true, Some(resting)) => match state.direction.get_untracked() {
-            Direction::Horizontal => Pos2::new(at.x, resting.min.y),
-            Direction::Vertical => Pos2::new(resting.min.x, at.y),
-        },
-        _ => at,
-    })
-}
-
-fn slot_at<K: Clone + PartialEq, P>(
-    state: &State<K, P>,
-    rest: &[K],
-    own: Option<&K>,
-    span: (f32, f32),
-    fallback: usize,
-    full: f32,
-) -> usize {
-    let direction = state.direction.get_untracked();
-    let glides = state.glides.borrow();
-    let mut mounted: Vec<(f32, usize)> = Vec::new();
-    let mut split = f32::INFINITY;
-    let mut opened = 0.0;
-    for (key, outer, inner, glide) in glides.iter() {
-        let Some(rect) = resting(*glide, *inner) else {
-            continue;
-        };
-        if own == Some(key) {
-            split = split.min(along(direction, rect.center()));
-            continue;
-        }
-        let Some(index) = rest.iter().position(|shown| shown == key) else {
-            continue;
-        };
-        let start = along(direction, rect.min);
-        let lead = measure(*outer)
-            .get_untracked()
-            .map(|measured| measured.rect)
-            .map_or(start, |row| along(direction, row.min));
-        if lead < start {
-            split = split.min(lead);
-            opened = start - lead;
-        }
-        mounted.push((along(direction, rect.center()), index));
-    }
-    drop(glides);
-    mounted.sort_by(|left, right| left.0.total_cmp(&right.0));
-    let (low, high) = span;
-    let passed = |(middle, _): &(f32, usize)| match *middle < split {
-        true => low >= *middle,
-        false => high >= *middle - opened + full,
-    };
-    if let Some((_, index)) = mounted.iter().find(|entry| !passed(entry)) {
-        return *index;
-    }
-    match mounted.last() {
-        Some((_, index)) => index + 1,
-        None if rest.is_empty() => 0,
-        None => fallback.min(rest.len()),
-    }
-}
-
-fn span_of(direction: Direction, point: DragPoint) -> (f32, f32) {
-    let rect = point.item.translate(point.pos.to_vec2());
-    (along(direction, rect.min), along(direction, rect.max))
-}
-
-fn rest_of<K: Clone + PartialEq>(keys: &[K], key: &K) -> Vec<K> {
-    keys.iter().filter(|shown| *shown != key).cloned().collect()
 }
 
 fn announce<K: Clone, P>(state: &State<K, P>, key: &K, index: usize, count: usize) {
@@ -374,71 +288,29 @@ fn announce<K: Clone, P>(state: &State<K, P>, key: &K, index: usize, count: usiz
         .set(format!("{name} moved to position {} of {count}", index + 1));
 }
 
-fn place<K, P>(stored: Stored<State<K, P>>, point: DragPoint)
+/// A drag the `Reorder` does not carry, at `point` over the list or gone with `None`: the
+/// rows part where it would land.
+fn visit<K, P>(stored: Stored<State<K, P>>, point: Option<DragPoint>)
 where
     K: Clone + Eq + Hash + 'static,
     P: Clone + PartialEq + 'static,
 {
-    stored.with(|state| {
-        *state.point.borrow_mut() = Some(point);
-        let Some(mut lifted) = state.lifted.get_untracked().filter(|lifted| lifted.home) else {
-            return;
-        };
-        if !state.fixed.get_untracked() {
-            let rest = rest_of(&state.keys.get_untracked(), &lifted.key);
-            let direction = state.direction.get_untracked();
-            let span = span_of(direction, point);
-            let slot = slot_at(state, &rest, Some(&lifted.key), span, lifted.slot, 0.0);
-            if lifted.slot != slot {
-                lifted.slot = slot;
-                bump(state);
-                state.lifted.set(Some(lifted));
-            }
-        }
-        hold(state, true);
+    let gap = stored.with(|state| {
+        let point = point?;
+        let keys = state.keys.get_untracked();
+        let item = point.item.translate(point.pos.to_vec2());
+        let direction = state.direction.get_untracked();
+        let index = slot_at(
+            state,
+            &keys,
+            (along(direction, item.min), along(direction, item.max)),
+        );
+        Some(ReorderGap {
+            before: keys.get(index).cloned(),
+            size: gap_for(state, point.item),
+        })
     });
-}
-
-fn visit<K, P>(stored: Stored<State<K, P>>, payload: Option<P>, point: Option<DragPoint>)
-where
-    K: Clone + Eq + Hash + 'static,
-    P: Clone + PartialEq + 'static,
-{
-    let (own, gap) = stored.with(|state| {
-        state.settling.set(false);
-        let own = state.lifted.with_untracked(Option::is_some);
-        let gap = point.and_then(|point| {
-            let keys = shown_keys(state);
-            let size = carried_size(state, point);
-            let index = match state.fixed.get_untracked() {
-                true => sorted_slot(state, payload)?,
-                false => {
-                    let span = span_of(state.direction.get_untracked(), point);
-                    slot_at(state, &keys, None, span, keys.len(), size)
-                }
-            };
-            Some(ReorderGap {
-                before: keys.get(index).cloned(),
-                size,
-            })
-        });
-        (own, gap)
-    });
-    open_gap(stored, point.is_some() && !own, gap);
-}
-
-fn sorted_slot<K: Clone + PartialEq, P: Clone + PartialEq>(
-    state: &State<K, P>,
-    payload: Option<P>,
-) -> Option<usize> {
-    let lifted = state.lifted.get_untracked();
-    if let Some(lifted) =
-        lifted.filter(|lifted| payload.as_ref().is_none_or(|p| *p == lifted.payload))
-    {
-        return Some(lifted.slot);
-    }
-    let index = state.slot?.call(payload?)?;
-    Some(index.min(shown_keys(state).len()))
+    open_gap(stored, point.is_some(), gap);
 }
 
 fn open_gap<K, P>(stored: Stored<State<K, P>>, visited: bool, gap: Option<ReorderGap<K>>)
@@ -447,13 +319,11 @@ where
     P: Clone + PartialEq + 'static,
 {
     let frames = stored.with(|state| {
-        if state.visited.get_untracked() != visited {
-            state.visited.set(visited);
-        }
+        state.visited.set(visited);
         let aim = gap.as_ref().map_or(0.0, |gap| gap.size);
         match (gap, state.gap.get_untracked()) {
             (Some(gap), Some(shown)) if gap.before != shown.before => {
-                bump(state);
+                mark_move(state);
                 state.gap.set(Some(ReorderGap {
                     before: gap.before,
                     size: shown.size,
@@ -497,7 +367,7 @@ where
             let aim = state.aim.get();
             let mut offset = shown.size - aim;
             let mut speed = state.speed.get();
-            GLIDE_SPRING.advance(&mut offset, &mut speed, seconds);
+            state.spring.advance(&mut offset, &mut speed, seconds);
             state.speed.set(speed);
             shown.size = (aim + offset).max(0.0);
             let moving = offset != 0.0 || speed != 0.0;
@@ -509,10 +379,10 @@ where
 
 fn settle_gap<K, P>(stored: Stored<State<K, P>>)
 where
-    K: Clone + Eq + Hash + 'static,
-    P: Clone + PartialEq + 'static,
+    K: Clone + PartialEq + 'static,
+    P: 'static,
 {
-    let back = stored.try_with(|state| {
+    stored.try_with(|state| {
         state.speed.set(0.0);
         let aim = state.aim.get();
         if let Some(mut shown) = state.gap.get_untracked()
@@ -521,76 +391,65 @@ where
             shown.size = aim;
             state.gap.set((aim > 0.0).then_some(shown));
         }
-        state.returning.replace(false)
+        // The slot is open again: the row it was opened for takes it.
+        if state.returning.replace(false) {
+            state.folded.set(None);
+            shut(state);
+        }
     });
-    if back == Some(true) {
-        come_back(stored);
-    }
 }
 
-fn come_back<K, P>(stored: Stored<State<K, P>>)
-where
-    K: Clone + Eq + Hash + 'static,
-    P: Clone + PartialEq + 'static,
-{
-    stored.with(|state| shut(state));
-    finish(stored);
-}
-
-fn cancel<K, P>(stored: Stored<State<K, P>>)
-where
-    K: Clone + Eq + Hash + 'static,
-    P: Clone + PartialEq + 'static,
-{
-    let home = stored.with(|state| {
-        state.pressed.borrow_mut().take();
-        state.board.release();
-        let lifted = state
-            .lifted
-            .get_untracked()
-            .filter(|lifted| !lifted.home && lifted.size > 0.0)?;
-        let keys = state.keys.get_untracked();
-        let at = keys.iter().position(|key| *key == lifted.key)?;
-        let rest = rest_of(&keys, &lifted.key);
-        state.returning.set(true);
-        Some(ReorderGap {
-            before: rest.get(at).cloned(),
-            size: lifted.size,
-        })
-    });
-    let Some(home) = home else {
-        come_back(stored);
-        return;
-    };
-    open_gap(stored, false, Some(home));
-    let waiting = stored.with(|state| {
-        state.returning.get() && state.frames.get().is_some_and(|frames| frames.running())
-    });
-    if !waiting && stored.with(|state| state.returning.replace(false)) {
-        come_back(stored);
-    }
-}
-
-fn detach<K, P>(stored: Stored<State<K, P>>)
+/// This list's row `key` is carried off it (`away`) or comes back: it collapses (or, carried
+/// by the keyboard, shrinks to nothing but keeps its spacing, `spaced`) and the slot it leaves
+/// closes on the spring, or, let go where nothing takes it, the slot opens again before it
+/// grows back into it; carried back onto the list, it is shown at once.
+fn fold<K, P>(stored: Stored<State<K, P>>, key: K, away: bool, length: f32, spaced: bool)
 where
     K: Clone + Eq + Hash + 'static,
     P: Clone + PartialEq + 'static,
 {
     let frames = stored.with(|state| {
-        let mut lifted = state.lifted.get_untracked().filter(|lifted| lifted.home)?;
-        let rest = rest_of(&state.keys.get_untracked(), &lifted.key);
-        let size = slot_size(state, &lifted.key);
-        hold(state, false);
-        lifted.home = false;
-        lifted.size = size;
-        state.floating_at.set(*state.point.borrow());
-        let before = rest.get(lifted.slot).cloned();
-        state.lifted.set(Some(lifted));
-        state.aim.set(0.0);
+        let keys = state.keys.get_untracked();
+        let at = keys.iter().position(|shown| *shown == key);
+        let before = at.and_then(|at| keys.get(at + 1).cloned());
+        // Measured as it leaves; collapsed, it measures nothing on its way back.
+        if away {
+            let spacing = match spaced {
+                true => 0.0,
+                false => spacing(state),
+            };
+            state.folded_length.set(length + spacing);
+        }
+        let size = state.folded_length.get();
+        let carried = state
+            .carried
+            .with_untracked(|carried| carried.as_ref() == Some(&key));
+        match (away, at.is_some() && !carried) {
+            (true, _) => {
+                state.returning.set(false);
+                state.folded.set(Some(key));
+                state.gap.set(Some(ReorderGap { before, size }));
+                state.aim.set(0.0);
+            }
+            (false, true) => {
+                state.returning.set(true);
+                let shown = state
+                    .gap
+                    .with_untracked(|gap| gap.as_ref().map_or(0.0, |gap| gap.size));
+                state.gap.set(Some(ReorderGap {
+                    before,
+                    size: shown,
+                }));
+                state.aim.set(size);
+            }
+            (false, false) => {
+                state.returning.set(false);
+                state.folded.set(None);
+                shut(state);
+                return None;
+            }
+        }
         state.speed.set(0.0);
-        state
-            .gap
-            .set((size > 0.0).then_some(ReorderGap { before, size }));
         state.frames.get()
     });
     if let Some(frames) = frames {
@@ -598,118 +457,116 @@ where
     }
 }
 
-fn finish<K, P>(stored: Stored<State<K, P>>)
+/// The places a carried `payload` can land in this list: its own row's among the rows,
+/// or, from elsewhere, one at each gap; a `fixed` list offers only where it sorts the item
+/// (its own row's home, or the place `slot` names).
+fn spec<K, P>(stored: Stored<State<K, P>>, payload: P) -> DragSpec<After<K>>
 where
     K: Clone + Eq + Hash + 'static,
     P: Clone + PartialEq + 'static,
 {
     stored.with(|state| {
-        let Some(lifted) = state.lifted.get_untracked() else {
-            return;
+        let own = state.carried.get_untracked();
+        let keys = state.keys.get_untracked();
+        let slots = slots_in(
+            state.area,
+            state.rows,
+            own.as_ref(),
+            state.direction.get_untracked(),
+        );
+        let direction = state.direction.get_untracked();
+        // A row of this list that no other site takes stays on this list's places however
+        // far it is carried, as it has nowhere else to go; anything else floats when far.
+        let far = match own.is_some() && drag_board().takers(&payload) <= 1 {
+            true => None,
+            false => Some(floating()),
         };
-        hold(state, false);
-        if !lifted.home
-            && let Some(at) = shown_at(state)
+        let reach = move |spec: DragSpec<After<K>>| match far.clone() {
+            Some(far) => spec.when_far(far),
+            None => spec,
+        };
+        if !state.fixed.get_untracked() {
+            // Sticky by the spacing between rows: a row trades places with its neighbour once
+            // its leading edge passes the neighbour's middle, having covered half of it,
+            // whatever their lengths.
+            return reach(
+                closest(slots)
+                    .with_distance(spacing(state))
+                    .following(direction),
+            );
+        }
+        // A fixed list sorts its rows itself: its own row floats at once, its slot kept
+        // open, and let go over this list it lands home.
+        if let Some(own) = &own {
+            let home = keys.iter().position(|key| key == own).unwrap_or(0);
+            return into(
+                state.area,
+                After(home.checked_sub(1).map(|at| keys[at].clone())),
+            );
+        }
+        let index = match &own {
+            Some(_) => None,
+            None => state
+                .slot
+                .and_then(|slot| slot.call(payload))
+                .map(|index| index.min(keys.len())),
+        };
+        let after = index.map(|index| After(index.checked_sub(1).map(|at| keys[at].clone())));
+        match slots
+            .into_iter()
+            .find(|slot| Some(&slot.drop) == after.as_ref())
         {
-            *state.arrival.borrow_mut() = Some(Arrival::Back(lifted.key.clone(), at));
+            Some(slot) => reach(fixed(slot).following(direction)),
+            None => floating(),
         }
-        bump(state);
-        if state.pressed.borrow_mut().take().is_some() {
-            state.board.release();
-        }
-        state.floating_at.set(None);
-        state.lifted.set(None);
-        state.on_drag_change.call(None);
-    });
+    })
 }
 
-fn dropped_home<K, P>(stored: Stored<State<K, P>>, point: DragPoint)
+/// A carried `payload` let go on the place after `after`: the app hears the move, and a row
+/// from elsewhere glides in from where it was let go.
+fn commit<K, P>(stored: Stored<State<K, P>>, payload: P, after: Option<K>)
 where
     K: Clone + Eq + Hash + 'static,
     P: Clone + PartialEq + 'static,
 {
-    place(stored, point);
-    let commit = stored.with(|state| {
-        let lifted = state.lifted.get_untracked()?;
+    let moved = stored.with(|state| {
         let keys = state.keys.get_untracked();
-        let rest = rest_of(&keys, &lifted.key);
-        let slot = lifted.slot.min(rest.len());
-        let from = keys.iter().position(|key| *key == lifted.key);
-        announce(state, &lifted.key, slot, keys.len());
-        (from != Some(slot)).then(|| ReorderMove {
-            payload: lifted.payload.clone(),
-            key: Some(lifted.key.clone()),
-            after: slot.checked_sub(1).and_then(|at| rest.get(at).cloned()),
-            index: slot,
-        })
-    });
-    if let Some(commit) = commit {
-        stored.with(|state| state.on_move.call(commit));
-    }
-    finish(stored);
-}
-
-fn dropped_in<K, P>(stored: Stored<State<K, P>>, payload: P, point: DragPoint)
-where
-    K: Clone + Eq + Hash + 'static,
-    P: Clone + PartialEq + 'static,
-{
-    let commit = stored.with(|state| {
-        let keys = state.keys.get_untracked();
-        let own = state.lifted.get_untracked().map(|lifted| lifted.key);
-        let rest = match &own {
-            Some(own) => rest_of(&keys, own),
-            None => keys.clone(),
+        let own = state.carried.get_untracked();
+        let rest: Vec<K> = keys
+            .iter()
+            .filter(|key| Some(*key) != own.as_ref())
+            .cloned()
+            .collect();
+        let index = match &after {
+            Some(after) => rest
+                .iter()
+                .position(|key| key == after)
+                .map_or(0, |at| at + 1),
+            None => 0,
         };
         let from = own
             .as_ref()
             .and_then(|own| keys.iter().position(|key| key == own));
-        let direction = state.direction.get_untracked();
-        let fixed = state.fixed.get_untracked();
-        let sorted = fixed
-            .then(|| sorted_slot(state, Some(payload.clone())))
-            .flatten();
-        let index = match (fixed, sorted) {
-            (true, Some(index)) => index,
-            (true, None) => from.unwrap_or(0),
-            (false, _) => {
-                let size = carried_size(state, point);
-                let span = span_of(direction, point);
-                slot_at(state, &rest, None, span, rest.len(), size)
-            }
-        };
-        let at = point.pos + point.item.min.to_vec2();
-        *state.arrival.borrow_mut() = Some(match &own {
-            Some(own) => Arrival::Back(own.clone(), at),
-            None => Arrival::New(keys.clone(), at),
-        });
-        let held = (own.is_none() && sorted.is_some()).then(|| ReorderGap {
-            before: rest.get(index).cloned(),
-            size: carried_size(state, point),
-        });
-        if held.is_none() {
-            shut(state);
+        if own.is_none()
+            && let Some(frame) = untrack(|| drag_board().frame_of(&payload))
+        {
+            *state.arrival.borrow_mut() = Some(Arrival::New(keys.clone(), frame.item.min));
         }
+        shut(state);
         state.visited.set(false);
-        bump(state);
+        mark_move(state);
         if let Some(own) = &own {
             announce(state, own, index, keys.len());
         }
-        let commit = (from != Some(index)).then(|| ReorderMove {
+        (from != Some(index)).then(|| ReorderMove {
             payload,
             key: own,
-            after: index.checked_sub(1).and_then(|at| rest.get(at).cloned()),
+            after,
             index,
-        });
-        (commit, held)
+        })
     });
-    let (commit, held) = commit;
-    if let Some(held) = held {
-        open_gap(stored, false, Some(held));
-        stored.with(|state| state.settling.set(true));
-    }
-    if let Some(commit) = commit {
-        stored.with(|state| state.on_move.call(commit));
+    if let Some(moved) = moved {
+        stored.with(|state| state.on_move.call(moved));
     }
 }
 
@@ -718,10 +575,10 @@ where
     K: Clone + Eq + Hash + 'static,
     P: Clone + PartialEq + 'static,
 {
-    let commit = stored.with(|state| {
+    let moved = stored.with(|state| {
         if !can_drag(state, &key)
             || state.fixed.get_untracked()
-            || state.lifted.with_untracked(Option::is_some)
+            || state.carried.with_untracked(Option::is_some)
         {
             return None;
         }
@@ -731,8 +588,12 @@ where
         if to == from {
             return None;
         }
-        let rest = rest_of(&keys, &key);
-        bump(state);
+        let rest: Vec<K> = keys
+            .iter()
+            .filter(|shown| **shown != key)
+            .cloned()
+            .collect();
+        mark_move(state);
         state.raised.set(Some(key.clone()));
         announce(state, &key, to, keys.len());
         Some(ReorderMove {
@@ -742,357 +603,264 @@ where
             index: to,
         })
     });
-    let Some(commit) = commit else {
+    let Some(moved) = moved else {
         return false;
     };
-    stored.with(|state| state.on_move.call(commit));
+    stored.with(|state| state.on_move.call(moved));
     true
 }
 
-fn lift<K, P>(stored: Stored<State<K, P>>, press: Press<K>, point: DragPoint)
+/// The carry a row of this list lifts, if it can be carried.
+fn lift<K, P>(stored: Stored<State<K, P>>, key: K) -> Option<Carry>
 where
     K: Clone + Eq + Hash + 'static,
     P: Clone + PartialEq + 'static,
 {
-    if stored.with(|state| state.returning.replace(false)) {
-        come_back(stored);
-    }
-    let Some((payload, board)) = stored.with(|state| {
-        if !can_drag(state, &press.key) || state.board.carrying() {
+    stored.with(|state| {
+        if !can_drag(state, &key) {
             return None;
         }
-        let payload = state.payload.call(press.key.clone())?;
-        let keys = state.keys.get_untracked();
-        let slot = keys.iter().position(|key| *key == press.key)?;
-        state.arrival.borrow_mut().take();
-        *state.point.borrow_mut() = Some(point);
-        state.raised.set(Some(press.key.clone()));
-        state.lifted.set(Some(Lifted {
-            key: press.key.clone(),
-            payload: payload.clone(),
-            item: press.item,
-            home: true,
-            slot,
-            size: 0.0,
-        }));
-        state.on_drag_change.call(Some(press.key.clone()));
-        Some((payload, state.board.clone()))
-    }) else {
-        return;
-    };
-    if stored.with(|state| state.fixed.get_untracked()) {
-        detach(stored);
-    }
-    board.begin(
-        DragSource {
-            item: press.item,
-            follow: Rc::new(move |point: DragPoint| {
-                stored.with(|state| {
-                    *state.point.borrow_mut() = Some(point);
-                    let home = state
-                        .lifted
-                        .with_untracked(|lifted| lifted.as_ref().is_some_and(|lifted| lifted.home));
-                    if !home {
-                        state.floating_at.set(Some(point));
-                    }
-                });
-            }),
-            floating: Rc::new(move |floating: bool| {
-                if floating {
-                    detach(stored);
-                }
-            }),
-            outside: Rc::new(move |point: DragPoint| {
-                let key =
-                    stored.with(|state| state.lifted.get_untracked().map(|lifted| lifted.key));
-                finish(stored);
-                if let Some(key) = key {
-                    stored.with(|state| state.on_drop_outside.call((key, point)));
-                }
-            }),
-            cancelled: Rc::new(move || {
-                if stored.try_with(|state| state.gone.get()) != Some(false) {
-                    return;
-                }
-                cancel(stored);
-            }),
-            dropped: Rc::new(move || {
-                if stored.try_with(|state| state.gone.get()) == Some(false) {
-                    finish(stored);
-                }
-            }),
-            ..DragSource::new(Rc::new(payload))
-        },
-        point,
-    );
-}
-
-fn moved<K, P>(stored: Stored<State<K, P>>, point: DragPoint)
-where
-    K: Clone + Eq + Hash + 'static,
-    P: Clone + PartialEq + 'static,
-{
-    let (lifted, press) = stored.with(|state| {
-        (
-            state.lifted.with_untracked(Option::is_some),
-            state.pressed.borrow().clone(),
+        let payload = state.payload.call(key.clone())?;
+        state.carried.set(Some(key.clone()));
+        state.own.set(Some(payload.clone()));
+        state.raised.set(Some(key.clone()));
+        state.on_drag_change.call(Some(key.clone()));
+        // The list draws the row's preview itself, at its root, while it floats: the row is
+        // collapsed by then.
+        let on_outside = state.on_outside;
+        let outside = payload.clone();
+        Some(
+            Carry::new(payload)
+                .drawn_by_site()
+                .outside(move |point| on_outside.call((outside.clone(), point))),
         )
-    });
-    if lifted {
-        stored.with(|state| state.board.track(point));
-        return;
-    }
-    let Some(press) = press else {
-        return;
-    };
-    let threshold = match press.touched {
-        true => TOUCH_DRAG_THRESHOLD,
-        false => DRAG_THRESHOLD,
-    };
-    if (point.pos - press.origin).length() < threshold {
-        return;
-    }
-    lift(stored, press, point);
-}
-
-fn released<K, P>(stored: Stored<State<K, P>>)
-where
-    K: Clone + Eq + Hash + 'static,
-    P: Clone + PartialEq + 'static,
-{
-    let board = stored.with(|state| {
-        state.pressed.borrow_mut().take();
-        state.board.release();
-        state
-            .lifted
-            .with_untracked(Option::is_some)
-            .then(|| state.board.clone())
-    });
-    if let Some(board) = board {
-        board.finish();
-    }
-    if stored.with(|state| state.lifted.with_untracked(Option::is_some)) {
-        finish(stored);
-    }
-}
-
-fn pointer_cancelled<K, P>(stored: Stored<State<K, P>>)
-where
-    K: Clone + Eq + Hash + 'static,
-    P: Clone + PartialEq + 'static,
-{
-    let board = stored.with(|state| {
-        state.pressed.borrow_mut().take();
-        state.board.release();
-        state
-            .lifted
-            .with_untracked(Option::is_some)
-            .then(|| state.board.clone())
-    });
-    if let Some(board) = board {
-        board.cancel();
-    }
+    })
 }
 
 #[component]
 pub fn Reorder<K, P>(
-    keys: Prop<Vec<K>>,
+    value: Prop<Vec<K>>,
+    spring: Spring,
     #[prop(default = Direction::Vertical)] direction: Prop<Direction>,
     payload: Func<K, Option<P>>,
-    #[prop(default = None)] accepts: Option<Func<P, bool>>,
-    #[prop(default = None)] takes: Option<Func<DragPoint, Take>>,
+    accepts: Option<Func<P, bool>>,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = false)] fixed: Prop<bool>,
-    #[prop(default = None)] slot: Option<Func<P, Option<usize>>>,
-    #[prop(default = false)] long_press: Prop<bool>,
+    slot: Option<Func<P, Option<usize>>>,
+    /// Whether a finger's long press lifts a row; off, the long press is the row's menu, and
+    /// a finger lifts a row by dragging it across the list.
+    #[prop(default = false)]
+    lifts_on_long_press: bool,
     text: Callback<K, String>,
     on_move: Callback<ReorderMove<K, P>>,
     on_drag_change: Callback<Option<K>>,
-    on_drop_outside: Callback<(K, DragPoint)>,
-    preview: RenderFn<P>,
-    #[prop(children)] content: Render<ReorderHandle<K, P>>,
+    /// Heard when a carried row is let go outside every window (a dock floats a tab there).
+    on_outside: Callback<(P, DragPoint)>,
+    preview: RenderFn<P, NodeId>,
+    #[prop(children)] content: Render<ReorderHandle<K, P>, NodeId>,
 ) -> NodeId
 where
     K: Clone + Eq + Hash + 'static,
     P: Clone + PartialEq + 'static,
 {
-    let keys = create_memo(move || keys.get());
-    let lifted = create_signal(None::<Lifted<K, P>>);
+    let keys = create_memo(move || value.get());
+    let carried = create_signal(None::<K>);
+    let own = create_signal(None::<P>);
+    // The payload of the carry this list's site gives places to (its own row's, or one from
+    // elsewhere): a site serves one carry at a time.
+    let serving = create_signal(None::<P>);
+    let over_here = create_signal(false);
     let gap = create_signal(None::<ReorderGap<K>>);
     let visited = create_signal(false);
-    let floating_at = create_signal(None::<DragPoint>);
     let announcement = create_signal(String::new());
+    let area = NodeRef::new();
     let state = store(State {
+        spring,
         keys,
         direction,
         payload,
-        accepts,
         disabled,
         fixed,
         slot,
-        long_press,
+        lifts_on_long_press,
         text,
         on_move,
         on_drag_change,
-        on_drop_outside,
-        lifted,
+        on_outside,
+        carried,
+        own,
+        over_here,
+        folded: create_signal(None),
+        returning: Cell::new(false),
+        folded_length: Cell::new(0.0),
         gap,
         aim: Cell::new(0.0),
         speed: Cell::new(0.0),
         frames: Cell::new(None),
         visited,
-        arm: create_signal(0),
         raised: create_signal(None),
-        floating_at,
         announcement,
-        point: RefCell::new(None),
-        pressed: RefCell::new(None),
         arrival: RefCell::new(None),
-        glides: RefCell::new(Vec::new()),
-        board: drag_board(),
-        gone: Cell::new(false),
-        returning: Cell::new(false),
-        settling: Cell::new(false),
-        area: Cell::new(None),
+        glides: RefCell::new(HashMap::default()),
+        rows: ForEachRef::new(),
+        moves: create_signal(0),
+        area,
     });
-    let placed = create_memo(move || {
-        lifted.with(|lifted| {
-            lifted
-                .as_ref()
-                .map(|lifted| (lifted.key.clone(), lifted.home, lifted.slot))
-        })
-    });
-    let order = create_memo(move || {
-        let keys = keys.get();
-        match placed.get() {
-            Some((key, home, slot)) if keys.contains(&key) => {
-                let mut rest = rest_of(&keys, &key);
-                if home {
-                    rest.insert(slot.min(rest.len()), key);
-                }
-                rest
+    let site = use_drop_site(
+        Func::new(move |payload: P| {
+            carried.with_untracked(Option::is_some)
+                || (!disabled.get_untracked()
+                    && accepts.is_some_and(|accepts| accepts.call(payload)))
+        }),
+        Func::new(move |payload: P| {
+            serving.set(Some(payload.clone()));
+            spec(state, payload)
+        }),
+        Callback::new(move |(payload, After(after)): (P, After<K>)| {
+            commit(state, payload, after);
+        }),
+    );
+    // This list's row's carry ends when the board no longer carries its payload: whatever
+    // it was dropped on has heard.
+    create_effect(move || {
+        let ended = own.with(|own| own.as_ref().is_some_and(|own| !drag_board().carries(own)));
+        if ended {
+            own.set(None);
+            if carried.with_untracked(Option::is_some) {
+                carried.set(None);
+                state.with(mark_move);
+                on_drag_change.call(None);
             }
-            _ => keys,
         }
     });
-    let dragging = create_memo(move || placed.get().map(|(key, ..)| key));
+    // The site serves no carry once the one it served ends.
+    create_effect(move || {
+        let ended = serving.with(|served| {
+            served
+                .as_ref()
+                .is_some_and(|served| !drag_board().carries(served))
+        });
+        if ended {
+            serving.set(None);
+        }
+    });
+    // A carry from elsewhere parts the rows where it would land; this list's own row is
+    // shown there instead.
+    create_effect_on_change(
+        move || site.over.get(),
+        move |over, _| {
+            let own = carried.with_untracked(Option::is_some);
+            over_here.set(over.is_some());
+            state.with(mark_move);
+            if own {
+                return;
+            }
+            let gap = over.clone().map(|After(after)| {
+                state.with(|state| {
+                    let keys = state.keys.get_untracked();
+                    let index = after
+                        .and_then(|after| keys.iter().position(|key| *key == after))
+                        .map_or(0, |at| at + 1);
+                    let item = drag_board().carried_item().unwrap_or(Rect::ZERO);
+                    ReorderGap {
+                        before: keys.get(index).cloned(),
+                        size: gap_for(state, item),
+                    }
+                })
+            });
+            open_gap(state, gap.is_some(), gap);
+        },
+    );
+    let order = create_memo(move || {
+        let mut order = keys.get();
+        if let (Some(own), Some(After(after))) = (carried.get(), site.over.get())
+            && order.contains(&own)
+        {
+            move_after(&mut order, own, after);
+        }
+        order
+    });
     let frames = create_animation(
         move |frame| step_gap(state, frame.delta.as_secs_f32()),
         move || settle_gap(state),
     );
     state.with(|state| state.frames.set(Some(frames)));
-    create_effect(move || {
-        keys.with(|_| ());
-        state.with(|state| {
-            if state.settling.replace(false) {
-                shut(state);
+    // Each key's place in `order`, made once per order rather than by each row.
+    let places = create_memo(move || {
+        order.with(|order| {
+            let mut places = HashMap::<K, usize>::default();
+            for (at, key) in order.iter().enumerate() {
+                places.entry(key.clone()).or_insert(at);
             }
-        });
+            Rc::new(places)
+        })
     });
     let handle = ReorderHandle {
         state,
+        places,
         order,
-        dragging,
+        rows: state.with(|state| state.rows),
+        dragging: create_memo(move || carried.get()),
         gap: create_memo(move || gap.get()),
         visited: create_memo(move || visited.get()),
         direction,
     };
-    on_cleanup(move || {
-        let carried = state.try_with(|state| {
-            state.gone.set(true);
-            if state.pressed.borrow_mut().take().is_some() {
-                state.board.release();
-            }
-            state
-                .lifted
-                .with_untracked(Option::is_some)
-                .then(|| state.board.clone())
-        });
-        if let Some(Some(board)) = carried {
-            board.end(None);
-        }
-    });
-
     let face = content.call(handle);
-    let floating = create_memo(move || floating_at.with(Option::is_some));
+    // A carry from elsewhere is drawn in the gap it opens, from this list's own `preview`;
+    // this list's own row, floating off it, is drawn here too, under the pointer: the row
+    // itself is collapsed then, and what a collapsed row holds is not shown.
+    let floating = create_memo(move || {
+        carried.with(Option::is_some)
+            && own.with(|own| {
+                own.as_ref()
+                    .and_then(|own| drag_board().frame_of(own))
+                    .is_some_and(|frame| frame.floating)
+            })
+    });
+    // What the overlay draws: this list's own row while it floats, else the carry from
+    // elsewhere that visits it.
+    let previewing = create_memo(move || match floating.get() {
+        true => own.get(),
+        false => visited.get().then(|| serving.get()).flatten(),
+    });
+    let visiting = create_memo(move || previewing.with(Option::is_some));
     let anchor = create_memo(move || {
-        let item = lifted.with(|lifted| lifted.as_ref().map_or(Rect::ZERO, |lifted| lifted.item));
-        floating_at
-            .get()
-            .map_or(Pos2::ZERO, |point| point.pos + item.min.to_vec2())
-    })
-    .into_prop()
-    .map(OverlayAnchor::Point);
-    let shown_in = create_memo(move || floating_at.get().map(|point| point.window));
-    let carried = create_memo(move || {
-        lifted.with(|lifted| lifted.as_ref().map(|lifted| lifted.payload.clone()))
+        OverlayAnchor::Point(
+            previewing
+                .with(|shown| {
+                    shown
+                        .as_ref()
+                        .and_then(|shown| drag_board().frame_of(shown))
+                })
+                .map_or(Pos2::ZERO, |frame| frame.item.min),
+        )
     });
-    let accepting = Func::new(move |payload: P| {
-        state.with(|state| {
-            state.lifted.with_untracked(Option::is_some)
-                || (!state.disabled.get_untracked()
-                    && state.accepts.is_some_and(|accepts| accepts.call(payload)))
-        })
-    });
-    let taking =
-        Func::new(move |point: DragPoint| takes.map_or(Take::Drop, |takes| takes.call(point)));
-    let home =
-        move || lifted.with_untracked(|lifted| lifted.as_ref().is_some_and(|lifted| lifted.home));
-    let hides = create_memo(move || {
-        lifted.with(|lifted| lifted.as_ref().is_some_and(|lifted| lifted.home))
-    });
-    let holding =
-        Func::new(move |_: P| home() && state.with(|state| state.on_drop_outside.is_empty()));
-    let area = view! {
-        <DropTarget
-            accepts={accepting}
-            takes={taking}
-            hides_preview={hides}
-            holds={holding}
-            on_over={move |over: Option<(P, DragPoint)>| {
-                match (over, home()) {
-                    (Some((_, point)), true) => place(state, point),
-                    (Some((payload, point)), false) => visit(state, Some(payload), Some(point)),
-                    (None, false) => visit(state, None, None),
-                    (None, true) => {}
-                }
-            }}
-            on_drop={move |(payload, point): (P, DragPoint)| {
-                match home() {
-                    true => dropped_home(state, point),
-                    false => dropped_in(state, payload, point),
-                }
-            }}
-        >|_: DropHandle|
-            <Layers>
-                {face}
-                <ReorderStatus announcement={announcement.read_only()} />
-                <Overlay
-                    anchor={anchor}
-                    placement=Placement::BelowStart
-                    policy=LayerPolicy::Inert
-                    level=LayerLevel::Top
-                    traps_focus=false
-                    shown_in={shown_in}
-                    open={floating}
-                >
-                    <List spacing=0.0>
-                        <Dynamic value={carried}>|carried: Option<P>| {
-                            match carried {
-                                Some(carried) => preview.call(carried),
-                                None => view! {
-                                    <Frame />
-                                },
-                            }
-                        }</Dynamic>
-                    </List>
-                </Overlay>
-            </Layers>
-        </DropTarget>
+    let shown = view! {
+        <Layers @node_ref=&area>
+            {face}
+            <ReorderStatus announcement={announcement.read_only()} />
+            <Overlay
+                anchor={anchor}
+                placement=Placement::At
+                policy=LayerPolicy::Inert
+                level=LayerLevel::Top
+                traps_focus=false
+                open={visiting}
+            >
+                <Dynamic
+                    value={move || previewing.get()}
+                    fallback={|| view! {
+                        <Frame />
+                    }}
+                >|carried: P| {
+                    preview.call(carried)
+                }</Dynamic>
+            </Overlay>
+        </Layers>
     };
-    measure(area);
-    state.with(|state| state.area.set(Some(area)));
-    area
+    // Measured from the start, so a held row is kept within the list from its first frame.
+    measure(shown);
+    shown
 }
 
 #[component]
@@ -1118,7 +886,7 @@ pub fn ReorderItem<K, P>(
     #[prop(default = false)] capture_presses: Prop<bool>,
     #[prop(default = CursorIcon::Default)] cursor: Prop<CursorIcon>,
     on_click: Callback<()>,
-    #[prop(children)] content: Render<ReorderItemHandle>,
+    #[prop(children)] content: Render<ReorderItemHandle, NodeId>,
 ) -> NodeId
 where
     K: Clone + Eq + Hash + 'static,
@@ -1127,15 +895,19 @@ where
     let state = reorder.state;
     let direction = reorder.direction;
     let key = create_memo(move || item.get());
-    let (lifted_key, raised_key, gap, arm) =
-        state.with(|state| (state.lifted, state.raised, state.gap, state.arm));
-    let lifted = create_memo(move || {
-        lifted_key.with(|lifted| {
-            lifted
-                .as_ref()
-                .is_some_and(|lifted| lifted.home && key.with(|key| *key == lifted.key))
-        })
-    });
+    let (carried, over_here, raised_key, gap) =
+        state.with(|state| (state.carried, state.over_here, state.raised, state.gap));
+    let own = state.with(|state| state.own);
+    let mine =
+        create_memo(move || carried.with(|carried| key.with(|key| carried.as_ref() == Some(key))));
+    let fixed = state.with(|state| state.fixed);
+    // Carried and on a place in this list: shown there, following the pointer along it; a
+    // fixed list keeps the row's slot open instead, empty, while its preview floats.
+    let lifted = create_memo(move || mine.get() && over_here.get());
+    let held = create_memo(move || lifted.get() && !fixed.get());
+    // Carried off this list (floating, or over another): the row folds away, and comes back
+    // from where it was let go if it is not taken.
+    let away = create_memo(move || mine.get() && !over_here.get());
     let raised =
         create_memo(move || raised_key.with(|raised| key.with(|key| raised.as_ref() == Some(key))));
     let draggable = create_memo(move || {
@@ -1151,12 +923,62 @@ where
         })
     });
     let order = reorder.order;
+    let places = reorder.places;
+    // A row's glides arm when a move the `Reorder` makes moves its key in the order, or moves
+    // the gap it holds open past it: rows a gap passes shift with no change of place. A row a
+    // `VirtualList` hands another key has not moved: it shows another row now.
+    let place = create_memo(move || places.with(|places| key.with(|key| places.get(key).copied())));
+    let below_gap = create_memo(move || {
+        gap.with(|gap| match gap {
+            Some(ReorderGap {
+                before: Some(before),
+                ..
+            }) => {
+                let at = places.with(|places| places.get(before).copied());
+                at.zip(place.get()).is_some_and(|(at, place)| at <= place)
+            }
+            _ => false,
+        })
+    });
+    // The count of moves rides with the place, so a row arms only for a place changed in the
+    // same flush as a move the `Reorder` made.
+    let shifted = create_trigger();
+    let moves = state.with(|state| state.moves);
+    create_effect_on_change(
+        move || (key.get(), place.get(), below_gap.get(), moves.get()),
+        move |(key, place, gap, moved), (was_key, was_place, was_gap, was_moved)| {
+            if moved != was_moved && key == was_key && (place != was_place || gap != was_gap) {
+                shifted.notify();
+            }
+        },
+    );
+    let arm = Trackable::from(shifted);
+    let folded = state.with(|state| state.folded);
+    // Whether the row was carried off by the keyboard: it keeps the focus, so it is not
+    // collapsed (which blurs it on HTML, `display: none`, and leaves it unplaced natively)
+    // but drawn at no size and opacity 0, its slot closing with the gap all the same.
+    let by_keys = create_signal(false);
+    let folded_here =
+        create_memo(move || folded.with(|folded| key.with(|key| folded.as_ref() == Some(key))));
+    let collapsed = create_memo(move || folded_here.get() && !by_keys.get());
+    let shrunk = create_memo(move || folded_here.get() && by_keys.get());
+    // A gap at the end opens after the last row shown, not a collapsed one.
     let trail = create_memo(move || {
         gap.with(|gap| match gap {
-            Some(ReorderGap { before: None, size })
-                if order.with(|order| order.last() == Some(&key.get())) =>
-            {
-                *size
+            Some(ReorderGap { before: None, size }) => {
+                let last = folded.with(|folded| {
+                    order.with(|order| {
+                        order
+                            .iter()
+                            .rev()
+                            .find(|shown| Some(*shown) != folded.as_ref())
+                            .cloned()
+                    })
+                });
+                match last == Some(key.get()) {
+                    true => *size,
+                    false => 0.0,
+                }
             }
             _ => 0.0,
         })
@@ -1173,13 +995,13 @@ where
             ..Sides::ZERO
         },
     });
+    // A row dropped in from elsewhere glides in from where it was let go.
     let from = create_signal(None::<Pos2>);
     create_effect(move || {
         let key = key.get();
         let arrived = state.with(|state| {
             let mut arrival = state.arrival.borrow_mut();
             let at = match arrival.as_ref() {
-                Some(Arrival::Back(back, at)) if *back == key => Some(*at),
                 Some(Arrival::New(known, at)) if !known.contains(&key) => Some(*at),
                 _ => None,
             };
@@ -1198,96 +1020,167 @@ where
         raised,
         draggable,
     });
-    let pending: Pending = Rc::new(move |point: DragPoint| moved(state, point));
-    let pressed = move |press: PointerPress| {
-        let key = key.get_untracked();
-        state.with(|state| {
-            if !can_drag(state, &key) {
-                return;
-            }
-            let shown = measure(face).get_untracked().map(|measured| measured.rect);
-            *state.pressed.borrow_mut() = Some(Press {
-                key,
-                origin: press.pos,
-                touched: press.touch,
-                item: shown.map_or(Rect::ZERO, |rect| rect.translate(Pos2::ZERO - press.pos)),
-            });
-            if !press.touch {
-                state.board.press(Rc::clone(&pending));
+    let api = ComponentRef::<GlideApi>::new();
+    // While on a place here the row is held where the carry draws it; let go, it springs
+    // to its slot.
+    let holding = Cell::new(false);
+    create_effect(move || {
+        let frame = held
+            .get()
+            .then(|| own.with(|own| own.as_ref().and_then(|own| drag_board().frame_of(own))))
+            .flatten();
+        if frame.is_none() && !holding.get() {
+            return;
+        }
+        holding.set(frame.is_some());
+        let along = Some(direction.get_untracked());
+        untrack(|| {
+            let at = frame.map(|frame| state.with(|state| clamped(state, frame.item)));
+            api.get().hold(at.map(|at| GlideHold { at, along }))
+        });
+    });
+    // A fixed list keeps its own row's slot open, empty, while the row's preview floats.
+    let hidden = create_memo(move || lifted.get() && fixed.get());
+    // The preview, at the list's root, is the row a screen reader finds then: the empty slot
+    // leaves the accessibility tree, unless the keyboard carries the row or the focus is
+    // within it, which a screen reader keeps reading where it is.
+    let row = NodeRef::new();
+    let focus_within = holds_focus(row);
+    let unread = create_memo(move || {
+        hidden.get()
+            && !focus_within.get()
+            && !untrack(|| drag_board().carried_by(PointerId::Keyboard))
+    });
+    let root = NodeRef::new();
+    // Where the carry was last drawn while the row was away, to glide back in from.
+    let last = Rc::new(Cell::new(None::<Pos2>));
+    {
+        let last = Rc::clone(&last);
+        create_effect(move || {
+            if away.get()
+                && let Some(frame) =
+                    own.with(|own| own.as_ref().and_then(|own| drag_board().frame_of(own)))
+            {
+                last.set(Some(frame.item.min));
             }
         });
-    };
-    let long_pressed = move |press: PointerPress| {
-        let held = state.with(|state| state.long_press.get_untracked());
-        let Some(pressing) = state.with(|state| state.pressed.borrow().clone()) else {
-            return;
-        };
-        if held {
-            lift(state, pressing, DragPoint::of(press));
-        }
-    };
+    }
+    create_effect_on_change(
+        move || away.get(),
+        move |away, was| {
+            if away == was {
+                return;
+            }
+            let main = direction.get_untracked();
+            let length = root
+                .try_get()
+                .and_then(|root| measure(root).get_untracked())
+                .map_or(0.0, |measured| main.main(measured.rect.size()));
+            if *away {
+                by_keys.set(drag_board().carried_by(PointerId::Keyboard));
+            }
+            fold(
+                state,
+                key.get_untracked(),
+                *away,
+                length,
+                by_keys.get_untracked(),
+            );
+        },
+    );
+    // Uncollapsed after coming back, the row glides in from where it was let go.
+    create_effect_on_change(
+        move || folded_here.get(),
+        move |collapsed, was| {
+            if *was
+                && !*collapsed
+                && let Some(at) = last.take()
+            {
+                from.set(Some(at));
+            }
+        },
+    );
     let clicked = move |_: PointerPress| {
-        if state.with(|state| state.lifted.with_untracked(Option::is_none)) {
-            on_click.call(());
+        if lifted.get_untracked() {
+            return;
         }
+        on_click.call(());
     };
-    let across = create_memo(move || match draggable.get() {
-        true => TouchDrags::Along(match direction.get() {
-            Direction::Horizontal => Direction::Vertical,
-            Direction::Vertical => Direction::Horizontal,
-        }),
-        false => TouchDrags::None,
-    });
-    let long_press = state.with(|state| state.long_press);
-    let on_long_press = match long_press {
-        Prop::Static(false) => Callback::empty(),
-        _ => Callback::new(long_pressed),
-    };
-    let api = ComponentRef::<GlideApi>::new();
+    let drag = Func::new(move |_: PointerPress| lift(state, key.get_untracked()));
+    let (spring, lifts_on_long_press) =
+        state.with(|state| (state.spring, state.lifts_on_long_press));
     let inner = view! {
-        <Glide arm={arm} within={Some(api)}>
+        <Glide spring on={arm} within={Some(api)}>
             <Interactive
                 cursor
                 capture_presses
-                touch_drags={across}
-                on_press={pressed}
-                on_drag={move |press: PointerPress| moved(state, DragPoint::of(press))}
-                on_long_press_drag={on_long_press}
+                touch_drags={move || match draggable.get() {
+                    true => TouchDrags::Along(match direction.get() {
+                        Direction::Horizontal => Direction::Vertical,
+                        Direction::Vertical => Direction::Horizontal,
+                    }),
+                    false => TouchDrags::None,
+                }}
+                drag={Some(drag)}
+                lifts_on_long_press
                 on_click_at={clicked}
-                on_cancel={move || pointer_cancelled(state)}
-                on_active_change={move |active: bool| if !active { released(state) }}
             >
                 {face}
             </Interactive>
         </Glide>
     };
-    let row = NodeRef::new();
     let glide = view! {
-        <Glide @node_ref=&row api arm={arm} from={from} raised={raised}>
-            <Frame padding={padding}>{inner}</Frame>
-        </Glide>
+        <Frame
+            @node_ref=&row
+            collapsed={collapsed}
+            raised={raised}
+            width={move || match shrunk.get() {
+                true => Extent::px(0.0),
+                false => Extent::INTRINSIC,
+            }}
+            height={move || match shrunk.get() {
+                true => Extent::px(0.0),
+                false => Extent::INTRINSIC,
+            }}
+        >
+            <Glide api spring on={arm} from={from}>
+                <Frame padding={padding}>
+                    <Frame
+                        opacity={move || match hidden.get() || shrunk.get() {
+                            true => 0.0,
+                            false => 1.0,
+                        }}
+                        accessibility_hidden={unread}
+                    >
+                        {inner}
+                    </Frame>
+                </Frame>
+            </Glide>
+        </Frame>
     };
+    root.fill(glide);
     for node in [glide, inner, face] {
         measure(node);
     }
-    create_effect(move || {
-        let key = key.get();
-        state.with(|state| {
-            let mut glides = state.glides.borrow_mut();
-            glides.retain(|(_, node, ..)| *node != glide);
-            glides.push((key, glide, inner, api.get()));
+    state.with(|state| state.glides.borrow_mut().insert(glide, (inner, api.get())));
+    // A row the list reports with other nodes than this glide is wired wrong: the `Reorder`
+    // could not find it to measure or glide it.
+    #[cfg(debug_assertions)]
+    {
+        let rows = reorder.rows;
+        create_effect(move || {
+            rows.keys();
+            let key = key.get_untracked();
+            let nodes = rows.nodes_of(&key);
+            debug_assert!(
+                nodes.is_empty() || nodes.contains(&glide),
+                "a ReorderItem's glide is not among the nodes its list reports for its key; hand \
+                 the list the ReorderItem as its row"
+            );
         });
-        if untrack(|| lifted.get()) {
-            state.with(|state| hold(state, true));
-        }
-    });
+    }
     on_cleanup(move || {
-        state.try_with(|state| {
-            state
-                .glides
-                .borrow_mut()
-                .retain(|(_, node, ..)| *node != glide)
-        });
+        state.try_with(|state| state.glides.borrow_mut().remove(&glide));
     });
     on_key(
         KeyAt::Node(row),

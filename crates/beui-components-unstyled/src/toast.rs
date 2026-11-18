@@ -13,7 +13,7 @@ use beui_view::types::Placement;
 use beui_view::types::{LayerLevel, LayerPolicy};
 
 use crate::floating::Edge;
-use crate::scroll::{Scroll, ScrollbarStyle};
+use crate::scroll::{Scroll, ScrollStyle};
 use beui_view::types::{Extent, Sides};
 
 pub const TOAST_DURATION: Duration = Duration::from_secs(8);
@@ -84,12 +84,12 @@ pub fn Toasts(
     spacing: Prop<f32>,
     #[prop(default = String::from("Notifications"))] label: Prop<String>,
     #[prop(default = TOAST_LIMIT)] limit: Prop<usize>,
-    #[prop(default = ScrollbarStyle::default())] scrollbar: ScrollbarStyle,
+    scroll: ScrollStyle,
     on_dismiss: Callback<u64>,
     on_action: Callback<(u64, String)>,
     on_activate: Callback<u64>,
-    more: RenderFn<Memo<usize>>,
-    #[prop(children)] card: RenderFn<ToastHandle>,
+    more: RenderFn<Memo<usize>, NodeId>,
+    #[prop(children)] card: RenderFn<ToastHandle, NodeId>,
 ) -> NodeId {
     let all = create_memo(move || toasts.get());
     let open = create_memo(move || all.with(|toasts| !toasts.is_empty()));
@@ -107,7 +107,6 @@ pub fn Toasts(
     });
     let label = create_memo(move || label.get());
     let padding = create_memo(move || Sides::all(margin.get()));
-    let outer = create_memo(move || Extent::at_most(width.get() + 2.0 * margin.get()));
     view! {
         <Overlay
             anchor
@@ -117,8 +116,8 @@ pub fn Toasts(
             traps_focus=false
             open={open}
         >
-            <Frame width={outer}>
-                <Scroll fit=true follow_end={bottom} scrollbar>
+            <Frame width={move || Extent::at_most(width.get() + 2.0 * margin.get())}>
+                <Scroll fit=true follow_end={bottom} style={scroll}>
                     <Frame padding={padding}>
                         <ToastStack
                             toasts={toasts}
@@ -149,10 +148,9 @@ fn ToastStack(
     on_dismiss: Callback<u64>,
     on_action: Callback<(u64, String)>,
     on_activate: Callback<u64>,
-    more: RenderFn<Memo<usize>>,
-    card: RenderFn<ToastHandle>,
+    more: RenderFn<Memo<usize>, NodeId>,
+    card: RenderFn<ToastHandle, NodeId>,
 ) -> NodeId {
-    let hiding = create_memo(move || hidden.get() > 0);
     component_accessibility(create_memo(move || {
         let mut node = Node::new(Role::Log);
         node.set_label(label.get());
@@ -161,8 +159,8 @@ fn ToastStack(
     }));
     view! {
         <List spacing>
-            <Show condition={hiding}>|| { more.call(hidden) }</Show>
-            <ForEach keys={toasts}>|toast: Toast| {
+            <Show value={move || hidden.get() > 0}>|| { more.call(hidden) }</Show>
+            <ForEach value={toasts}>|toast: Toast| {
                 let lasts = match toast.expires() {
                     true => duration.get_untracked(),
                     false => None,
@@ -182,7 +180,7 @@ fn ToastItem(
     on_dismiss: Callback<u64>,
     on_action: Callback<(u64, String)>,
     on_activate: Callback<u64>,
-    card: RenderFn<ToastHandle>,
+    card: RenderFn<ToastHandle, NodeId>,
 ) -> NodeId {
     let id = toast.id;
     let expiry = create_timer(move || {

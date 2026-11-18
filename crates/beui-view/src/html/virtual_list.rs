@@ -4,6 +4,8 @@ use std::hash::Hash;
 use std::rc::Rc;
 
 use crate::reactive::Callback;
+use crate::reactive::ForEachFill;
+use crate::reactive::ForEachRef;
 use crate::reactive::Get;
 use crate::reactive::KeyedItems;
 use crate::reactive::NodeId;
@@ -11,6 +13,9 @@ use crate::reactive::Prop;
 use crate::reactive::ReadSignal;
 use crate::reactive::RenderFn;
 use crate::reactive::ScopeContext;
+use crate::reactive::Set;
+use crate::reactive::ShownRow;
+use crate::reactive::Signal;
 use crate::reactive::SlotHost;
 use crate::reactive::SlotId;
 use crate::reactive::create_binding;
@@ -22,7 +27,7 @@ use crate::types::Direction;
 use crate::types::rows::RowMetrics;
 use beui_core_html::css;
 use beui_core_html::document::{create, set_style};
-use beui_core_html::rows::{Watch, main_length, spacer, visible_span};
+use beui_core_html::rows::{Watch, follow_row, main_length, spacer, start_within, visible_span};
 use beui_reactive::numbered;
 
 const ROW_LIMIT: usize = 4096;
@@ -46,7 +51,17 @@ struct Rows<K: Clone + Hash + Eq + 'static> {
     overscan: Cell<f32>,
     first: Cell<Option<f32>>,
     stale: Cell<bool>,
+    /// The row its owner keeps in place (the `anchor` prop), by its numbered key.
+    anchor: RefCell<Option<(K, usize)>>,
+    /// The row kept in place, its node and where it started along the list when last seen:
+    /// the one named `anchor` while built, else the first in view.
+    kept: RefCell<Option<((K, usize), NodeId, f32)>>,
     watch: Watch,
+    /// The place each built row was handed, by its numbered key.
+    places: Rc<RefCell<HashMap<(K, usize), Signal<usize>>>>,
+    /// The handle this list fills, if given one: the keys as they change, the rows each
+    /// time the rows built change, at a layout pass, as natively.
+    fill: Option<ForEachFill<K, NodeId>>,
 }
 
 impl<K: Clone + Hash + Eq + 'static> Rows<K> {
@@ -67,6 +82,9 @@ impl<K: Clone + Hash + Eq + 'static> Rows<K> {
             entries.sort_unstable_by_key(|(at, _)| *at);
             entries
         };
+        if let Some(fill) = self.fill {
+            fill.keys(keys.iter().map(|(key, _)| key.clone()).collect());
+        }
         let estimated = self.metrics.borrow().estimated();
         *self.metrics.borrow_mut() = RowMetrics::measured(keys.len(), estimated, entries);
         *self.keys.borrow_mut() = keys;
@@ -134,6 +152,42 @@ impl<K: Clone + Hash + Eq + 'static> Rows<K> {
         }
         *self.nodes.borrow_mut() = nodes;
         self.shown.set(range);
+        self.place(range);
+    }
+
+    /// Hands each built row its place, forgets the rows no longer built, and tells the
+    /// handle, if any.
+    fn place(&self, (start, end): (usize, usize)) {
+        let keys = self.keys.borrow();
+        let built = &keys[start.min(keys.len())..end.min(keys.len())];
+        let mut places = self.places.borrow_mut();
+        let kept: be_lib_stable_hash::HashSet<&(K, usize)> = built.iter().collect();
+        places.retain(|key, _| kept.contains(key));
+        for (at, key) in built.iter().enumerate() {
+            if let Some(place) = places.get(key)
+                && place.get_untracked() != start + at
+            {
+                place.set(start + at);
+            }
+        }
+        let Some(fill) = self.fill else {
+            return;
+        };
+        let nodes = self.nodes.borrow();
+        let rows = built
+            .iter()
+            .zip(nodes.iter())
+            .filter_map(|(key, node)| {
+                let place = places.get(key)?;
+                Some(ShownRow {
+                    key: key.0.clone(),
+                    index: place.read_only(),
+                    nodes: vec![*node],
+                })
+            })
+            .collect();
+        drop((places, nodes, keys));
+        fill.rows(rows);
     }
 
     fn place_spacers(&self) {
@@ -168,8 +222,48 @@ impl<K: Clone + Hash + Eq + 'static> Rows<K> {
         changed
     }
 
+    /// Scrolls on with the kept row wherever rows measured anew above it moved it, where the
+    /// browser does not (`follow_row`).
+    fn hold(&self) {
+        let Some((key, node, start)) = self.kept.borrow_mut().take() else {
+            return;
+        };
+        let (from, _) = self.shown.get();
+        let built = self.nodes.borrow().iter().position(|built| *built == node);
+        let same = built.is_some_and(|at| self.keys.borrow().get(from + at) == Some(&key));
+        let direction = self.direction.get();
+        let Some(now) = start_within(self.list, node, direction).filter(|_| same) else {
+            return;
+        };
+        if (now - start).abs() >= 0.5 {
+            follow_row(self.list, direction, now - start);
+        }
+        *self.kept.borrow_mut() = Some((key, node, now));
+    }
+
+    fn keep(&self, window: Option<(f32, f32)>) {
+        let (from, to) = self.shown.get();
+        let keys = self.keys.borrow();
+        let named = self.anchor.borrow().as_ref().and_then(|anchor| {
+            let at = keys.get(from..to)?.iter().position(|key| key == anchor)?;
+            Some(from + at)
+        });
+        let at = named.or_else(|| {
+            let (first, _) = window?;
+            let index = self.metrics.borrow().index_at(first);
+            (from..to).contains(&index).then_some(index)
+        });
+        let kept = at.and_then(|at| {
+            let node = *self.nodes.borrow().get(at - from)?;
+            let start = start_within(self.list, node, self.direction.get())?;
+            Some((keys.get(at)?.clone(), node, start))
+        });
+        *self.kept.borrow_mut() = kept;
+    }
+
     fn lay_out(&self) -> bool {
         let mut changed = self.measure();
+        self.hold();
         let window = visible_span(self.list, self.direction.get());
         let range = match window {
             Some((first, last)) => {
@@ -195,7 +289,9 @@ impl<K: Clone + Hash + Eq + 'static> Rows<K> {
         }
         if changed {
             self.place_spacers();
+            self.hold();
         }
+        self.keep(visible_span(self.list, self.direction.get()));
         changed
     }
 }
@@ -205,12 +301,16 @@ pub(crate) fn virtual_list<K>(
     item_size: Prop<f32>,
     direction: Prop<Direction>,
     overscan: Prop<f32>,
+    anchor: Prop<Option<K>>,
     text: Callback<K, String>,
-    item: RenderFn<ReadSignal<K>>,
+    handle: Option<ForEachRef<K, NodeId>>,
+    item: RenderFn<(ReadSignal<K>, ReadSignal<usize>), NodeId>,
 ) -> NodeId
 where
     K: Clone + Hash + Eq + 'static,
 {
+    let places = Rc::new(RefCell::new(HashMap::<(K, usize), Signal<usize>>::default()));
+    let placing = Rc::clone(&places);
     let _ = text;
     let list = create("VirtualList", "div");
     set_style(list, "display", Some("flex".to_owned()));
@@ -231,15 +331,21 @@ where
         keys: RefCell::default(),
         sizes: RefCell::default(),
         metrics: RefCell::new(RowMetrics::new(0, 0.0)),
-        items: KeyedItems::new(move |(key, _): (K, usize)| {
-            item.call(create_signal(key).read_only())
+        items: KeyedItems::new(move |numbered: (K, usize)| {
+            let place = create_signal(0);
+            placing.borrow_mut().insert(numbered.clone(), place);
+            item.call((create_signal(numbered.0).read_only(), place.read_only()))
         }),
         shown: Cell::new((0, 0)),
         nodes: RefCell::default(),
         overscan: Cell::new(0.0),
         first: Cell::new(None),
         stale: Cell::new(true),
+        anchor: RefCell::default(),
+        kept: RefCell::default(),
         watch: Watch::new(),
+        places,
+        fill: handle.map(|handle| handle.claim()),
     });
     let held = Rc::clone(&rows);
     create_binding(move || held.set_direction(direction.get()));
@@ -247,6 +353,8 @@ where
     create_binding(move || held.set_estimate(item_size.get()));
     let held = Rc::clone(&rows);
     create_binding(move || held.overscan.set(overscan.get().max(0.0)));
+    let held = Rc::clone(&rows);
+    create_binding(move || *held.anchor.borrow_mut() = anchor.get().map(|key| (key, 0)));
     let held = Rc::clone(&rows);
     create_binding(move || {
         let keys = keys.get();

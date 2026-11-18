@@ -27,7 +27,11 @@ fn a_selection_in_a_virtual_list_clamps_when_its_rows_are_removed() {
                 <ListItem length=100.0>
                     <Scroll>
                         <SelectableText @node_ref=&region>
-                            <VirtualList keys item_size=20.0 text={label}>|index: ReadSignal<usize>|
+                            <VirtualList
+                                value={keys}
+                                item_size=20.0
+                                text={label}
+                            >|index: ReadSignal<usize>|
                                 <Line index />
                             </VirtualList>
                         </SelectableText>

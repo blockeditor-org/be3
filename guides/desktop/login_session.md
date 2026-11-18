@@ -69,7 +69,11 @@ Whatever runs on the other terminal reprograms CRTCs, connectors and planes, so 
 platform cached survives. `recovery.rs` drops every output while the device is paused, resets the
 device to everything off on return, and builds outputs again for what is connected, so the first
 frame is a full modeset. A frame that cannot be shown rebuilds its output once; a second failure
-stops that output and is reported once through `Problems`.
+stops that output and is reported once through `Problems`. Keys held when the session left are
+released on return, since their releases went to the other terminal, except the key that
+switched, whose press the session kept; a new keymap likewise takes over the keys held under the
+old one. A key goes into the session only on its first press and last release across the seat
+(libinput's `seat_key_count`), so with two keyboards holding it, letting go on one keeps it held.
 
 ## Power and logging out
 
@@ -126,7 +130,7 @@ touchscreen; a tablet with no screen spans every display. The host reports its o
 In a login session keys, mouse buttons and wheel notches can be remapped before anything sees them,
 by a *remapper*: a WebAssembly module an app ships as data, given a config the app's editor writes.
 
-- **Settings.** A remapper is a block of the `InputRemapper` type (`be_block::InputRemapper`),
+- **Settings.** A remapper is a block of the `InputRemapper` type (`be_block_input::InputRemapper`),
   whose content is an envelope the host reads without the app: app id, module path in the app's
   data, and opaque config bytes. The input settings' `remapper` (`RemapperChoice`) picks one, shared
   or per profile. Any app can offer a remapper by declaring an editor for that type.
@@ -142,16 +146,30 @@ by a *remapper*: a WebAssembly module an app ships as data, given a config the a
   what is pressed (`Action::NOTHING`). Its module is `crates/be-lib-remap-module` (staged as `remapper.wasm`), which
   runs `be-lib-remap`'s engine and text reader (`be_lib_remap::text`, key names in
   `be_lib_remap::names`). Rules can be scoped to a window by executable, program id or title.
-- **The protocol.** A module exports `memory`, `be_remap_buffer` and `be_remap_handle` and trades
-  bincode `be_lib_remap::protocol` messages. `be-host-remap-host` runs it on wasmi with fuel and a
-  memory cap.
+- **The protocol.** A module is a pure guest (guides/app_libraries.md, Pure guests): each frame it
+  is sent is a bincode `be_lib_remap::protocol` request, answered with one frame.
+  `be-host-remap-host` runs it in the sandbox (`be_wasm_host::sandbox`), on a thread and isolate
+  of its own with a memory cap. It sends `Start` when the remaps should run and never waits for
+  its answer: input passes through as it is until it comes (`Remapper::poll`, which the instance's
+  wake reaches through the host's frame). Should the keys held or the window have changed by then,
+  it starts them again with what is true now, as a call, so keys pressed meanwhile reach them; a
+  failed start leaves those keys to be let go as they are. Input waits only for a call's answer,
+  up to `Limits::call` (100 ms). A start must be answered within `Limits::start` (5 s) on the input
+  clock, which the session's input timer comes for (`Remapper::deadline`). An answer not given in
+  time is a failure, and dropping the instance terminates it; a module that hangs in `Start` so
+  spins for up to three times 5 s before it stops.
 - **Failing open.** On any failure the host releases everything the module held, passes the input
-  through, toasts, and restarts the module on the next input; after three failures in a minute, or
+  through, toasts, and starts the module again with the next frame or input; after three failures in a minute, or
   an unreadable config, it stays off until the remapper changes. Ctrl+Alt+Backspace, Ctrl+Alt+F<n>,
   Super+L and Super+Escape never reach the module, and nothing does while the screen is locked, so a
-  module can neither trap the session nor read the password.
+  module can neither trap the session nor read the password. Those keys go out with the modifiers
+  physically held, and a modifier so pressed is released with its own release, whatever the rules
+  make of it. The release of a key the remapper never saw go down (it was installed, or the session
+  came back to its terminal, while the key was held) passes through as it is.
 - **In the host.** be-host-desktop's `remap/linux.rs` fetches the module (only from an app with an
-  `InputRemapper` editor), reconfigures it when only the config changes (the next input runs
+  `InputRemapper` editor), compiles it off the session's thread and installs it in the frame the
+  compile wakes (the loader keeps it on its way until then, so a config or module change meanwhile
+  waits for it or drops it), reconfigures it when only the config changes (the next input runs
   the new rules), fetches it again with the next change if it could not be fetched or loaded, and caches the last module
   and config in its database so remapping works from the first input. The DRM platform passes input
   through the `InputFilter` on `InputControl` after the `WakeGate`, delivers its output as if

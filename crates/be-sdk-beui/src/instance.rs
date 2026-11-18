@@ -11,7 +11,7 @@ use be_sdk::{
 use be_sdk_beui_platform_api::{Report, View};
 use beui::WindowId;
 use beui::native::Document;
-use beui::reactive::RenderFn;
+use beui::reactive::{NodeId, RenderFn};
 use beui::styled::WindowHandle;
 use uuid::Uuid;
 
@@ -35,6 +35,8 @@ pub(crate) struct BeuiInstance<A: BeuiRoot> {
     parts: Rc<Parts<A>>,
     keeps_accessibility: bool,
     shown: Option<(Rc<Module>, EditorInstanceId)>,
+    /// A host component's run (`BeuiRoot::host`), kept for as long as it is open.
+    hosting: Option<beui::reactive::Scope>,
 }
 
 struct Parts<A: BeuiRoot> {
@@ -82,7 +84,7 @@ impl<A: BeuiRoot> Parts<A> {
             .update(|generation| *generation += 1);
     }
 
-    fn frame_content(&self, docked: bool) -> RenderFn<WindowHandle> {
+    fn frame_content(&self, docked: bool) -> RenderFn<WindowHandle, NodeId> {
         let mut views = self.views.borrow_mut();
         if views.creating {
             let Some(creation) = views.creation.clone() else {
@@ -140,7 +142,7 @@ impl<A: BeuiRoot> Parts<A> {
         })
     }
 
-    fn preview_content(&self) -> RenderFn<WindowHandle> {
+    fn preview_content(&self) -> RenderFn<WindowHandle, NodeId> {
         let Some(editor) = self.views.borrow().preview.as_deref().copied() else {
             return empty();
         };
@@ -154,7 +156,7 @@ impl<A: BeuiRoot> Parts<A> {
         })
     }
 
-    fn tab_content(&self, tab: u64) -> RenderFn<WindowHandle> {
+    fn tab_content(&self, tab: u64) -> RenderFn<WindowHandle, NodeId> {
         let tabs = Rc::clone(&self.docked);
         RenderFn::new(move |_: WindowHandle| {
             let tabs = Rc::clone(&tabs);
@@ -171,7 +173,7 @@ impl<A: BeuiRoot> Parts<A> {
         })
     }
 
-    fn display_content(&self, display: u32) -> RenderFn<WindowHandle> {
+    fn display_content(&self, display: u32) -> RenderFn<WindowHandle, NodeId> {
         let Some(editor) = self.views.borrow().editor.as_deref().copied() else {
             return empty();
         };
@@ -206,7 +208,7 @@ impl<A: BeuiRoot> Parts<A> {
         }
     }
 
-    fn settings_content(&self) -> RenderFn<WindowHandle> {
+    fn settings_content(&self) -> RenderFn<WindowHandle, NodeId> {
         let Some(artifacts) = self.views.borrow().artifacts.clone() else {
             return empty();
         };
@@ -309,11 +311,17 @@ fn measured(
         .map(|measured| beui::Rect::from_min_size(beui::Pos2::ZERO, beui::vec2(width, measured.y)))
 }
 
-fn empty() -> RenderFn<WindowHandle> {
+/// A view with nothing to show yet. Its `Root` clears to nothing, so it reports no backdrop and
+/// the host backs it as it backs a view not yet drawn (its placer's), never with beui's default
+/// black.
+fn empty() -> RenderFn<WindowHandle, NodeId> {
     RenderFn::new(|_: WindowHandle| {
         beui::reactive::view! {
-            <beui::styled::Frame />
+            <beui::styled::Root clear_color=beui::styled::ColorRole::None>
+                <beui::styled::Frame />
+            </beui::styled::Root>
         }
+        .child()
     })
 }
 
@@ -330,7 +338,7 @@ impl<A: BeuiRoot> Shown for Parts<A> {
         self.docked.key(docked)
     }
 
-    fn content(&self, view: ShownView, docked: bool) -> RenderFn<WindowHandle> {
+    fn content(&self, view: ShownView, docked: bool) -> RenderFn<WindowHandle, NodeId> {
         match view.placement {
             ViewPlacement::Parent(ParentView::Main) => self.frame_content(docked),
             ViewPlacement::Parent(ParentView::Preview) => self.preview_content(),
@@ -390,7 +398,7 @@ impl<A: BeuiRoot> Shown for Parts<A> {
                     shown: view.chrome_drawn() && (spec.top_bar.shown() || spec.content.is_some()),
                     framed: view.chrome_drawn(),
                     closable: spec.content.is_some(),
-                    on_phone: spec.top_bar.phone(),
+                    on_phone: spec.phone,
                     docked: view.docked,
                 });
                 let picks = self.host.take_menu_picks(be_sdk::ViewId::MAIN);
@@ -412,6 +420,14 @@ impl<A: BeuiRoot> Shown for Parts<A> {
                 }
             }
             ViewPlacement::Dock => {
+                // A joined editor may show no main view: the dock tab view holding its content,
+                // the one given a frame (with its chrome), carries the phone flag.
+                let phone = view.spec.phone;
+                if view.chrome_drawn()
+                    && views.chrome.bar().with_untracked(|bar| bar.on_phone) != phone
+                {
+                    views.chrome.bar().update(|bar| bar.on_phone = phone);
+                }
                 if let Some(editor) = views.editor.as_deref() {
                     editor.begin_frame();
                 }
@@ -533,6 +549,7 @@ impl<A: BeuiRoot> BeuiInstance<A> {
             host,
             keeps_accessibility: false,
             shown: None,
+            hosting: None,
         }
     }
 }
@@ -582,6 +599,27 @@ impl<A: BeuiRoot> Instance for BeuiInstance<A> {
         if rebuilt {
             self.parts.rebuild();
         }
+    }
+
+    fn connect_host(&mut self, block_id: Uuid) {
+        self.connect(block_id);
+        let Some(editor) = self.parts.views.borrow().editor.as_deref().copied() else {
+            return;
+        };
+        let scope = beui::reactive::Scope::root();
+        scope.run(|| A::host(editor));
+        self.hosting = Some(scope);
+    }
+
+    fn pass(&mut self) {
+        let Some(scope) = &self.hosting else {
+            return;
+        };
+        let Some(editor) = self.parts.views.borrow().editor.as_deref().copied() else {
+            return;
+        };
+        // Inside an entry, so the effects woken by what arrived run as it ends, as in a frame.
+        scope.run(|| editor.begin_frame());
     }
 
     fn connect_creation(&mut self, template: String) {
@@ -649,13 +687,6 @@ impl<A: BeuiRoot> Instance for BeuiInstance<A> {
         if let Some(editor) = &self.parts.views.borrow().editor {
             editor.report_presence_visible(visible);
         }
-    }
-
-    fn replace_child(&mut self, old: Uuid, new: Uuid) -> bool {
-        let Some(editor) = self.editor() else {
-            return false;
-        };
-        editor.replace_child(old, new)
     }
 
     fn open_view(&mut self, _view: ShownView) {

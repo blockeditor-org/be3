@@ -188,6 +188,7 @@ impl Contacts {
                     name: contact.display_name,
                     email: contact.email,
                     verified: contact.public.is_some(),
+                    mismatch: contact.mismatch,
                 })
                 .collect(),
             link: self.link.clone(),

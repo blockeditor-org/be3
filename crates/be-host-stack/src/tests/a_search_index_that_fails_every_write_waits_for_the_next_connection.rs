@@ -34,7 +34,7 @@ fn a_search_index_that_fails_every_write_waits_for_the_next_connection() {
 
     // A batch written starts the count over.
     assert!(!search.write_failed(index, vec![block], Vec::new(), now));
-    search.wrote(index);
+    search.wrote(index, None);
     assert!(!search.write_failed(index, vec![block], Vec::new(), now));
     assert!(!search.write_failed(index, vec![block], Vec::new(), now));
     search.take_queued();

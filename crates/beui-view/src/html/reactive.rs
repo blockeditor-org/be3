@@ -12,7 +12,7 @@ pub(crate) use beui_core_html::frame::{
 };
 pub(crate) use beui_core_html::keys::held_modifiers;
 pub(crate) use beui_core_html::page::{
-    pixels_per_point, use_font_revision, use_preference_layers, use_preferences, use_viewport_size,
+    pixels_per_point, use_font_changes, use_preference_layers, use_preferences, use_viewport_size,
 };
 
 pub(crate) fn use_preference_layer(
@@ -29,6 +29,14 @@ pub(crate) fn use_preference_layer(
 
 pub(crate) fn copy(clip: crate::types::Clip) {
     beui_core_html::page::copy(&clip);
+}
+
+pub(crate) fn share(clip: crate::types::Clip) {
+    beui_core_html::page::share(&clip);
+}
+
+pub(crate) fn use_share_sheet() -> ReadSignal<bool> {
+    beui_core_html::page::use_share_sheet()
 }
 
 pub(crate) fn focus_takes_text() -> bool {
@@ -74,6 +82,10 @@ pub(crate) fn holds_focus(node: NodeRef) -> Memo<bool> {
     beui_core_html::focus::holds_focus(node)
 }
 
+pub(crate) fn focus_held() -> Memo<bool> {
+    beui_core_html::focus::focus_held()
+}
+
 pub(crate) fn on_key(
     at: KeyAt,
     phase: KeyPhase,
@@ -111,6 +123,13 @@ pub(crate) fn bind_test_id(node: NodeId, test_id: Prop<String>) {
     });
 }
 
+pub(crate) fn bind_description(node: NodeId, description: Prop<String>) {
+    bind(node, move || {
+        let description = Some(description.get()).filter(|description| !description.is_empty());
+        beui_core_html::document::set_description(node, description);
+    });
+}
+
 pub(crate) fn tree_local<T: Clone + 'static>(make: impl FnOnce() -> T) -> T {
     beui_core_html::document::extension_or_insert_with(make)
 }
@@ -125,7 +144,7 @@ pub(crate) fn on_back(enabled: Prop<bool>, handler: impl Fn(crate::types::BackGe
     on_cleanup(move || beui_core_html::back::remove(id));
 }
 
-pub(crate) fn use_keyboard() -> ReadSignal<bool> {
+pub(crate) fn use_document_keyboard() -> ReadSignal<bool> {
     create_signal(true).read_only()
 }
 

@@ -1,4 +1,4 @@
-use be_sdk_beui::be_block::{Repository, RepositoryContent};
+use be_block_repository::{Repository, RepositoryContent};
 use be_sdk_beui::be_block_content::Root as _;
 use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::reactive::*;
@@ -17,7 +17,7 @@ const SECTION_SPACING: Space = Space::Xl2;
 pub fn RepositoryView(editor: Editor) -> NodeId {
     let content = editor.block_content::<RepositoryContent>();
     let upstream = content.project(|content| content.root().upstream);
-    let status = editor.version_status();
+    let status = hold(editor.version_status());
     let editable = editor.editable();
     let branches = create_memo(move || {
         status.with(|status| {
@@ -31,9 +31,7 @@ pub fn RepositoryView(editor: Editor) -> NodeId {
     let log = create_memo(move || status.with(|status| status.log.clone()));
     let operations = create_memo(move || status.with(|status| status.operations.clone()));
     let unversioned = create_memo(move || branches.with(Vec::is_empty));
-    let versioned = create_memo(move || !unversioned.get());
-    let idle = create_memo(move || editable.get() && !status.with(|status| status.busy));
-    let blocked = create_memo(move || !idle.get());
+    let blocked = create_memo(move || !editable.get() || status.with(|status| status.busy));
     let note = create_memo(move || {
         status.with(|status| match (status.busy, &status.error) {
             (true, _) => "Working…".to_owned(),
@@ -41,15 +39,8 @@ pub fn RepositoryView(editor: Editor) -> NodeId {
             (false, None) => String::new(),
         })
     });
-    let has_note = create_memo(move || !note.with(String::is_empty));
-    let upstream_target = create_memo(move || {
-        upstream
-            .get()
-            .map(|upstream| ChildTarget::new(upstream, Repository::CONTENT_TYPE))
-    });
     let has_upstream = create_memo(move || upstream.get().is_some());
-    let no_upstream = create_memo(move || !has_upstream.get());
-    let pull_blocked = create_memo(move || blocked.get() || no_upstream.get());
+    let pull_blocked = create_memo(move || blocked.get() || !has_upstream.get());
 
     let adopt = NodeRef::new();
     let choose = move || {
@@ -60,11 +51,9 @@ pub fn RepositoryView(editor: Editor) -> NodeId {
             },
             &adopt,
             move |picked| {
-                if let Ok(picked) = picked {
-                    editor.version(VersionCommand::Adopt {
-                        block_id: picked.id().into_bytes(),
-                    });
-                }
+                editor.version(VersionCommand::Adopt {
+                    block_id: picked.id().into_bytes(),
+                });
             },
         );
     };
@@ -82,13 +71,23 @@ pub fn RepositoryView(editor: Editor) -> NodeId {
                         <List spacing=SECTION_SPACING>
                             <List spacing=Space::Sm>
                                 <Text style=TextStyle::HEADING>"Repository"</Text>
-                                <Show condition={has_note}>
+                                <Show value={move || !note.with(String::is_empty)}>
                                     <Text style=TextStyle::CAPTION @test_id={"repository.note"}>
                                         {note}
                                     </Text>
                                 </Show>
                             </List>
-                            <Show condition={unversioned}>
+                            <Show
+                                value={unversioned}
+                                fallback={move || view! {
+                                    <Card>
+                                        <List spacing=Space::Md>
+                                            <Text style=TextStyle::HEADING>"Branches"</Text>
+                                            <ForEach value={branches} view={rows} />
+                                        </List>
+                                    </Card>
+                                }}
+                            >
                                 <Card>
                                     <List spacing=Space::Md>
                                         <Text>"Nothing is versioned here yet."</Text>
@@ -106,28 +105,26 @@ pub fn RepositoryView(editor: Editor) -> NodeId {
                                     </List>
                                 </Card>
                             </Show>
-                            <Show condition={versioned}>
-                                <Card>
-                                    <List spacing=Space::Md>
-                                        <Text style=TextStyle::HEADING>"Branches"</Text>
-                                        <ForEach keys={branches} view={rows} />
-                                    </List>
-                                </Card>
-                            </Show>
                             <Card>
                                 <List spacing=Space::Md>
                                     <Text style=TextStyle::HEADING>"Original"</Text>
-                                    <Show condition={has_upstream}>
+                                    <Show
+                                        value={has_upstream}
+                                        fallback={|| view! {
+                                            <Text style=TextStyle::CAPTION>
+                                                "A copy of a repository follows the one it was made from: it can bring in its changes and send its own back."
+                                            </Text>
+                                        }}
+                                    >
                                         <BlockLink
                                             editor={editor}
-                                            block={upstream_target}
+                                            block={move || {
+                                                upstream
+                                                    .get()
+                                                    .map(|upstream| ChildTarget::new(upstream, Repository::CONTENT_TYPE))
+                                            }}
                                             @test_id={"repository.upstream"}
                                         />
-                                    </Show>
-                                    <Show condition={no_upstream}>
-                                        <Text style=TextStyle::CAPTION>
-                                            "A copy of a repository follows the one it was made from: it can bring in its changes and send its own back."
-                                        </Text>
                                     </Show>
                                     <List
                                         direction=Direction::Horizontal

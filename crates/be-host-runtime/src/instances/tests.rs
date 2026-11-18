@@ -222,8 +222,9 @@ fn saved_counter() -> (Uuid, [u8; 32]) {
         ),
     );
     be_host_stack::flush_and_send();
-    let head =
-        be_host_stack::wait_until(|shared| shared.graph.get(block).and_then(|node| node.head));
+    let head = be_host_stack::wait_until("saved the block", |shared| {
+        shared.graph.get(block).and_then(|node| node.head)
+    });
     (block, *head.hash().as_bytes())
 }
 
@@ -259,23 +260,22 @@ fn preview_revision(
 /// The previews the stack opened of `block`, each with whether it was let go (1) or not (0):
 /// the stack records only a preview's first release.
 fn previews_of(block: Uuid) -> Vec<(Uuid, usize)> {
-    be_host_stack::wait_until(|shared| {
-        Some(
-            shared
-                .revision_previews
-                .iter()
-                .filter(|(id, preview)| preview.source == block && preview.root == **id)
-                .map(|(id, _)| {
-                    let released = shared
-                        .released_previews
-                        .iter()
-                        .filter(|gone| *gone == id)
-                        .count();
-                    (*id, released)
-                })
-                .collect(),
-        )
+    be_host_stack::read_seen(|shared| {
+        shared
+            .revision_previews
+            .iter()
+            .filter(|(id, preview)| preview.source == block && preview.root == **id)
+            .map(|(id, _)| {
+                let released = shared
+                    .released_previews
+                    .iter()
+                    .filter(|gone| *gone == id)
+                    .count();
+                (*id, released)
+            })
+            .collect::<Vec<_>>()
     })
+    .unwrap_or_default()
 }
 
 /// What the instance answers until `done` holds of everything it answered and the previews of
@@ -337,8 +337,8 @@ fn answered<T: be_sdk_api::ops::DeserializeOwned>(
 
 fn replica_of(instances: &mut Instances, block: Uuid) -> Option<OpId> {
     let entry = instances.entries.get(&INSTANCE)?;
-    if let Some(op) = entry.replicas.get(&block) {
-        return Some(*op);
+    if let Some(op) = entry.held.replica(block) {
+        return Some(op);
     }
     let own = entry.role.block().filter(|own| own.id == block)?;
     let content_type = entry
@@ -366,7 +366,7 @@ fn from_replica(instances: &mut Instances, block: Uuid) -> Vec<ToEditor> {
     let replica = instances
         .entries
         .get(&INSTANCE)
-        .and_then(|entry| entry.replicas.get(&block).copied());
+        .and_then(|entry| entry.held.replica(block));
     let mut frames = Vec::new();
     instances.relay(|op, frame| {
         if Some(op) == replica {
@@ -393,9 +393,7 @@ fn replica_sent_until(
         if done(&sent) {
             return sent;
         }
-        be_host_stack::wait_until(|shared| {
-            shared.editor_frames.contains_key(&INSTANCE.0).then_some(())
-        });
+        be_host_stack::wait_for_frames("another frame for the editor", INSTANCE.0);
     }
 }
 
@@ -465,6 +463,27 @@ fn anchored_screen(id: u64) -> ScreenId {
     ScreenId::opened(id)
 }
 
+/// A frame report of `screen` that says nothing but that it was drawn.
+fn frame_report(screen: ScreenId) -> be_sdk_api::FrameReport {
+    be_sdk_api::FrameReport {
+        screen,
+        content: None,
+        painted: Vec::new(),
+        floating: Vec::new(),
+        floating_painted: Vec::new(),
+        marks: Vec::new(),
+        marks_painted: Vec::new(),
+        scrims: Vec::new(),
+        drawing: Vec::new(),
+        claims: Vec::new(),
+        description: None,
+        actions: None,
+        anchored: None,
+        work_area: None,
+        backdrop: None,
+    }
+}
+
 fn report_anchored(instances: &mut Instances, layers: Vec<Layer>) {
     let layout = be_sdk_api::ScreenLayout {
         screens: layers
@@ -486,21 +505,10 @@ fn report_anchored(instances: &mut Instances, layers: Vec<Layer>) {
         .map(|layer| {
             let own = Rect::from_min_size(Pos2::ZERO, layer.placement.rect.size());
             be_sdk_api::FrameReport {
-                screen: anchored_screen(layer.id),
-                content: None,
                 painted: vec![own],
                 floating: vec![own],
-                floating_painted: Vec::new(),
-                marks: Vec::new(),
-                marks_painted: Vec::new(),
-                scrims: Vec::new(),
-                drawing: Vec::new(),
-                claims: Vec::new(),
-                description: None,
-                actions: None,
                 anchored: Some(layer.placement),
-                work_area: None,
-                backdrop: None,
+                ..frame_report(anchored_screen(layer.id))
             }
         })
         .collect();
@@ -553,7 +561,7 @@ fn press() -> beui::Forwarded {
 fn progress(frames: (u64, u64), content: bool, typing: bool) -> gift::KeyProgress {
     gift::KeyProgress {
         frames,
-        content,
+        content: content.then_some(1),
         typing,
     }
 }
@@ -619,12 +627,17 @@ mod a_child_placed_in_an_anchored_view_is_shown_in_host_coordinates_inside_it;
 mod a_child_that_never_takes_the_keyboard_ends_the_gift;
 mod a_click_outside_a_frame_child_hands_the_frame_back;
 mod a_database_view_given_content_references_its_database;
+mod a_failure_an_editor_reports_is_shown_as_a_notice;
 mod a_focused_screen_hears_it_has_the_keyboard_again_after_its_app_restarts;
 mod a_frame_takeover_keeps_the_last_painting_where_it_was;
+mod a_gift_and_its_keys_follow_the_content_from_a_main_view_into_its_dock_tab_view;
+mod a_gift_asked_for_a_child_already_replaced_is_answered_that_it_missed;
 mod a_gift_counts_only_its_own_instances_commits;
 mod a_gift_ends_on_the_frame_clock_when_its_editor_commits_no_layout;
 mod a_gift_ends_when_the_child_showing_its_block_goes;
 mod a_hidden_window_child_takes_no_room_and_is_kept;
+mod a_host_component_opens_with_no_view_and_tells_the_shell_nothing;
+mod a_host_component_reaches_only_its_own_block_and_asks_no_one;
 mod a_key_intercepted_for_an_app_reaches_it_unless_it_has_the_keyboard;
 mod a_key_intercepted_for_an_app_reaches_it_with_its_modifiers;
 mod a_listing_the_host_could_not_load_reaches_the_app_as_failed;
@@ -643,13 +656,17 @@ mod a_restarted_app_hears_its_childrens_statuses_again;
 mod a_restarted_app_is_sent_its_content_and_blocks_again;
 mod a_restarted_app_lets_go_of_its_revision_previews_and_numbers_them_afresh;
 mod a_restarted_app_no_longer_shows_its_views_stopped;
+mod a_restarted_app_s_views_describe_nothing_until_it_describes_them_again;
 mod a_revision_preview_dropped_before_it_opens_is_let_go_once_it_opens;
 mod a_revision_preview_dropped_once_open_is_let_go;
 mod a_screen_asked_to_take_the_keyboard_reaches_its_view;
 mod a_stale_input_method_does_not_release_owed_keys;
 mod a_tap_intercepted_for_an_app_reaches_it_unless_it_has_the_keyboard;
+mod a_tentative_gesture_is_written_when_it_commits;
 mod a_view_attached_to_an_edge_stays_on_it_when_the_view_it_hangs_from_moves;
+mod a_view_given_the_keyboard_hears_an_input_from_before_it_had_it_and_keeps_the_gift;
 mod a_view_not_reported_yet_is_backed_by_what_its_instance_last_reported;
+mod a_view_that_goes_with_nowhere_for_its_content_to_go_ends_its_gift;
 mod a_watched_value_reaches_an_instance_watching_it_again_after_a_restart;
 mod a_window_the_app_opened_is_shown_and_asked_for_by_its_own_screen;
 mod a_windows_actions_are_offered_while_it_is_shown_and_again_when_shown_again;
@@ -657,15 +674,21 @@ mod a_zoomed_view_is_shown_at_the_zoom_its_frame_was_painted_at;
 mod after_the_first_snapshot_an_editor_is_sent_operations;
 mod an_active_child_takes_the_frame_of_the_dock_view_holding_the_content;
 mod an_anchored_view_is_shown_from_the_report_that_opens_it_clipped_to_its_bounds;
+mod an_app_grants_or_reveals_access_only_if_its_manifest_allows;
 mod an_app_hears_every_sample_only_while_it_asks;
 mod an_app_is_told_when_the_pointer_leaves_it;
 mod an_app_makes_a_blocks_agent_only_if_its_manifest_allows_and_only_for_its_own_block;
 mod an_app_makes_an_agent_for_a_block_it_made_only_while_it_sits_alone_in_unfiled;
 mod an_app_reaches_only_the_hosts_its_manifest_names;
 mod an_app_seeds_only_blocks_it_holds;
+mod an_earlier_replica_of_a_block_resumes_from_a_snapshot;
+mod an_earlier_replica_of_a_type_the_host_does_not_link_hears_nothing_of_the_later_ones;
 mod an_editor_can_read_and_edit_a_block_it_watches;
 mod an_editor_closing_lets_go_of_its_revision_previews;
+mod an_editor_hears_a_member_go_when_their_access_is_revoked_with_a_publish;
 mod an_editor_is_only_sent_messages_its_app_session_accepts;
+mod an_editor_watching_its_blocks_members_is_told_their_names;
+mod an_editor_whose_access_crosses_join_opens_again_as_the_other_kind;
 mod an_input_capture_opened_again_is_not_told_the_earlier_chord;
 mod an_instance_inside_a_checkout_speaks_in_its_local_ids;
 mod an_instance_the_app_never_opened_is_not_closed;
@@ -677,10 +700,12 @@ mod children_laid_out_against_an_older_view_are_moved_to_the_current_one;
 mod children_of_a_dock_view_holding_the_content_follow_its_camera;
 mod clearing_a_name_names_the_block_after_its_content_at_once;
 mod closing_an_editor_calls_off_the_gesture_it_left_open;
+mod closing_an_editor_drops_the_tentative_gesture_it_left_open;
 mod host_calls_are_taken_by_kind_in_the_order_they_came;
 mod input_for_a_screen_the_app_does_not_have_yet_reaches_it_once_announced;
 mod input_is_withheld_from_screens_the_app_no_longer_has;
 mod input_on_an_anchored_view_reaches_its_own_screen_in_its_own_points;
+mod keys_owed_to_a_child_wait_again_when_it_asks_for_its_content_again;
 mod keys_owed_to_a_child_wait_again_when_its_content_is_replaced;
 mod keys_owed_to_a_view_that_lost_the_keyboard_before_seeing_it_are_not_replayed;
 mod keys_reach_a_child_whose_app_takes_longer_than_the_wait_to_start;
@@ -695,3 +720,18 @@ mod the_latest_block_gift_replaces_the_one_before;
 mod the_placer_hears_whom_it_gives_the_keyboard_to;
 mod the_program_windows_reach_only_the_shell;
 mod the_view_a_screen_is_given_carries_its_scale;
+
+/// Restarts the instances' app as `Runtime::restart` does.
+fn restart(instances: &mut Instances) {
+    use be_sdk_app_host::{docks::Docks, run::Run, session::Session};
+    let session = || Session::new("Test", None);
+    let preferences = be_sdk_api::Preferences::default();
+    Run::<()>::new(session(), true, preferences).restart(
+        session(),
+        preferences,
+        "app",
+        &mut Docks::default(),
+        instances,
+    );
+    instances.reopen();
+}

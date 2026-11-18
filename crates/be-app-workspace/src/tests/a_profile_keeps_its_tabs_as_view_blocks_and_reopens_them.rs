@@ -8,14 +8,14 @@ fn a_profile_keeps_its_tabs_as_view_blocks_and_reopens_them() {
     show(&mut fixture, second, None);
 
     let layout = profile(&fixture)
-        .state("layout")
+        .stored(SavedLayout::ID)
         .cloned()
         .expect("the layout is saved in the profile");
     let [first_view, second_view] = layout.refs[..] else {
         panic!("the layout references one view per tab");
     };
     let files_state = profile(&fixture)
-        .state("files")
+        .stored(FilesView::ID)
         .cloned()
         .expect("the files view is saved in the profile");
     let files = files_state.refs[0];
@@ -44,8 +44,8 @@ fn a_profile_keeps_its_tabs_as_view_blocks_and_reopens_them() {
     assert_eq!(view_block, Some(second_view.into_bytes()));
 
     let mut saved = EditorView::document(None);
-    for (key, state) in [("layout", layout), ("files", files_state)] {
-        let edit = saved.root().set_state(key, Some(&state), 1, Uuid::nil());
+    for (id, state) in [(SavedLayout::ID, layout), (FilesView::ID, files_state)] {
+        let edit = saved.root().put_stored(id, Some(&state), 1, Uuid::nil());
         saved.apply(&edit);
     }
     let (mut reopened, _) = open_editor(None, Some(saved));

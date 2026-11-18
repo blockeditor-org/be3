@@ -3,8 +3,8 @@ use super::*;
 #[tokio::test]
 async fn a_reserved_object_counts_only_once_its_bytes_arrive() {
     let harness = Harness::start().await;
-    let mut client = harness.client().await;
-    let account = client.register("uploader@example.com").await;
+    let mut client = harness.member("uploader@example.com").await;
+    let account = client.id();
     client.organization("uploads").await;
     let author = Author::new(account);
     let block = client.create_block(BlockParent::Root).await;
@@ -37,24 +37,33 @@ async fn a_reserved_object_counts_only_once_its_bytes_arrive() {
     let missing = client.missing(&objects).await;
     assert_eq!(missing.as_ref().ok(), Some(&hashes), "{missing:?}");
     let held = client
-        .call(|peer| client::objects::hold_objects(peer, block, hashes.clone(), Hold::Lasting))
+        .call(|peer| {
+            peer.write::<()>(be_block_protocol::Op::HoldObjects {
+                block: block,
+                objects: hashes.clone(),
+                hold: Hold::Lasting,
+            })
+        })
         .await;
     assert!(refused_as(&held, ErrorCode::ObjectNotFound), "{held:?}");
     let published = client
         .call(|peer| {
-            client::blocks::publish(
-                peer,
-                block,
-                commit,
-                None,
-                Vec::new(),
-                objects_change(&[], chunks.clone()),
-                1_000,
-                false,
-                listing(&[], Vec::new()),
-                Vec::new(),
-                Vec::new(),
-            )
+            peer.write::<be_block_protocol::PublishOutcome>(be_block_protocol::Op::Publish {
+                block: block,
+                expected: None,
+                commit: Some(be_block_protocol::NewCommit {
+                    id: commit,
+                    parents: Vec::new(),
+                    held: objects_change(&[], chunks.clone()),
+                    time: 1_000,
+                    pinned: false,
+                    objects: Vec::new(),
+                    log_through: None,
+                }),
+                references: listing(&[], Vec::new()),
+                metadata: Vec::new(),
+                journal: None,
+            })
         })
         .await;
     assert!(
@@ -71,19 +80,22 @@ async fn a_reserved_object_counts_only_once_its_bytes_arrive() {
     assert_eq!(missing, Ok(Vec::new()));
     let published = client
         .call(|peer| {
-            client::blocks::publish(
-                peer,
-                block,
-                commit,
-                None,
-                Vec::new(),
-                objects_change(&[], chunks.clone()),
-                1_000,
-                false,
-                listing(&[], Vec::new()),
-                Vec::new(),
-                Vec::new(),
-            )
+            peer.write::<be_block_protocol::PublishOutcome>(be_block_protocol::Op::Publish {
+                block: block,
+                expected: None,
+                commit: Some(be_block_protocol::NewCommit {
+                    id: commit,
+                    parents: Vec::new(),
+                    held: objects_change(&[], chunks.clone()),
+                    time: 1_000,
+                    pinned: false,
+                    objects: Vec::new(),
+                    log_through: None,
+                }),
+                references: listing(&[], Vec::new()),
+                metadata: Vec::new(),
+                journal: None,
+            })
         })
         .await;
     assert!(

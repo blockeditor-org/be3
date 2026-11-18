@@ -1,19 +1,21 @@
 use crate::frame::{Border, ColorRole, Frame, Radius};
 use beui_macros::{component, view};
 use beui_view::types::Overflow;
+use beui_view::types::ScrollPosition;
 use beui_view::types::icons::Glyph;
 
 use crate::border::Separator;
 use crate::button::{ButtonFace, ButtonVariant};
 use crate::list::List;
 use crate::row::{RowFace, RowSize, RowTrailing};
+use crate::scroll::autoscroll_marker;
 use crate::sheet::AnchoredSheet;
 use crate::text::{Icon, Text, TextColor, TextSize, Weight};
 use crate::theme::SCROLL_FADE;
-use crate::tokens::{Padding, Size, Space};
+use crate::tokens::{Length, Movement, Padding, Size, Space};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
-    ButtonHandle, MenuItem, MenuRowHandle, MenuRowKind, MenuStyle, ScrollbarStyle, SheetWhen,
+    ButtonHandle, MenuItem, MenuRowHandle, MenuRowKind, MenuStyle, ScrollStyle, SheetWhen,
 };
 use beui_view::reactive::NodeId;
 use beui_view::reactive::OverlayAnchor;
@@ -45,18 +47,18 @@ const TREE_CHEVRON: Size = Size::Xs;
 
 #[component]
 pub fn ContextMenu(
-    children: Child,
+    children: NodeId,
     items: Children<MenuItem>,
     #[prop(default = 0.0)] child_grow: Prop<f32>,
     #[prop(default = false)] disabled: Prop<bool>,
-    #[prop(default = None)] open_at: Prop<Option<Pos2>>,
-    #[prop(default = true)] open_at_focuses: bool,
+    #[prop(default = false)] open: Binding<bool>,
+    #[prop(default = None)] at: Binding<Option<Pos2>>,
+    #[prop(default = Placement::Menu)] placement: Prop<Placement>,
+    #[prop(default = None)] bounds: Prop<Option<Rect>>,
+    #[prop(default = false)] keep_alive: bool,
     #[prop(default = false)] selection: bool,
     #[prop(default = None)] toolbar_at: Prop<Option<Rect>>,
     #[prop(default = true)] opens_on_hold: bool,
-    #[prop(default = None)] bounds: Prop<Option<Rect>>,
-    #[prop(default = Placement::Menu)] placement: Prop<Placement>,
-    on_close: Callback<()>,
     on_toolbar_close: Callback<()>,
 ) -> NodeId {
     view! {
@@ -65,14 +67,14 @@ pub fn ContextMenu(
             menu={menu_style()}
             child_grow={child_grow}
             disabled={disabled}
-            open_at={open_at}
-            open_at_focuses
+            open
+            at
+            placement
+            bounds
+            keep_alive
             selection
             toolbar_at
             opens_on_hold
-            bounds
-            placement
-            on_close={on_close}
             on_toolbar_close={on_toolbar_close}
         >
             {children}
@@ -84,15 +86,15 @@ pub fn ContextMenu(
 pub fn MenuPopup(
     items: Children<MenuItem>,
     anchor: Prop<OverlayAnchor>,
+    #[prop(default = false)] open: Binding<bool>,
+    #[prop(default = None)] at: Binding<Option<Pos2>>,
     #[prop(default = Placement::Menu)] placement: Prop<Placement>,
     #[prop(default = None)] bounds: Prop<Option<Rect>>,
-    open: Prop<bool>,
+    #[prop(default = false)] keep_alive: bool,
     #[prop(default = false)] sheet: Prop<bool>,
     #[prop(default = Size::Menu)] min_width: Prop<Size>,
     #[prop(default = NodeRef::new())] overlay: NodeRef,
-    on_dismiss: Callback<()>,
 ) -> NodeId {
-    let open = create_memo(move || open.get());
     let sheet = create_memo(move || match sheet.get() {
         true => SheetWhen::Always,
         false => SheetWhen::Touched,
@@ -100,38 +102,43 @@ pub fn MenuPopup(
     view! {
         <unstyled::MenuPopup
             items={items.into_run()}
-            menu={sized_menu_style(min_width.get_untracked())}
+            menu={sized_menu_style(min_width.get_untracked(), Callback::empty())}
             anchor
+            open
+            at
             placement
             bounds
-            open={open}
+            keep_alive
             sheet={sheet}
             overlay
-            on_dismiss={on_dismiss}
         />
     }
 }
 
+/// The rows of a menu, laid out in place. `on_scroll` hears where its rows scroll, so a host
+/// that sizes the menu to them can tell what they need beyond what they were given
+/// (`content - viewport`): what they measure is only what their place lets them have.
 #[component]
 pub fn MenuRows(
     items: Children<MenuItem>,
     #[prop(default = Size::Menu)] min_width: Prop<Size>,
     #[prop(default = false)] active: Prop<bool>,
+    on_scroll: Callback<ScrollPosition>,
 ) -> NodeId {
     view! {
         <unstyled::MenuRows
             items={items.into_run()}
-            menu={sized_menu_style(min_width.get_untracked())}
+            menu={sized_menu_style(min_width.get_untracked(), on_scroll)}
             active
         />
     }
 }
 
 pub fn menu_style() -> MenuStyle {
-    sized_menu_style(Size::Menu)
+    sized_menu_style(Size::Menu, Callback::empty())
 }
 
-fn sized_menu_style(min_width: Size) -> MenuStyle {
+fn sized_menu_style(min_width: Size, on_scroll: Callback<ScrollPosition>) -> MenuStyle {
     MenuStyle::new(
         MENU_ROW_SPACING.px(),
         |handle| {
@@ -141,7 +148,7 @@ fn sized_menu_style(min_width: Size) -> MenuStyle {
         },
         move |content| {
             view! {
-                <MenuPanel min_width>{content}</MenuPanel>
+                <MenuPanel min_width on_scroll={on_scroll}>{content}</MenuPanel>
             }
         },
     )
@@ -234,9 +241,7 @@ fn MenuRowFace(handle: MenuRowHandle) -> NodeId {
         focused,
         ..
     } = handle;
-    let has_submenu = create_memo(move || has_submenu.get());
     let shortcut = create_memo(move || shortcut.get());
-    let has_shortcut = create_memo(move || !shortcut.get().is_empty());
     let disabled = create_memo(move || disabled.get());
     let danger = create_memo(move || danger.get());
     let color = create_memo(move || match (disabled.get(), danger.get()) {
@@ -244,7 +249,11 @@ fn MenuRowFace(handle: MenuRowHandle) -> NodeId {
         (false, true) => TextColor::Danger,
         (false, false) => TextColor::Default,
     });
-    let glyph = leading_mark(kind, glyph, checked, radio);
+    let (glyph, mark) = row_marks(kind, glyph, checked, radio);
+    let mark_color = create_memo(move || match disabled.get() {
+        true => TextColor::Muted,
+        false => TextColor::Accent,
+    });
     let icon_color = create_memo(move || match (disabled.get(), danger.get(), glyph.get()) {
         (true, _, _) => TextColor::Muted,
         (false, true, _) => TextColor::Danger,
@@ -256,14 +265,12 @@ fn MenuRowFace(handle: MenuRowHandle) -> NodeId {
     let has_glyph = create_memo(move || glyph.get() != LeadingMark::None || glyphs.get());
     let glyph = create_memo(move || glyph.get().glyph());
     let lead = create_memo(move || lead.get());
-    let has_lead = create_memo(move || !lead.get().is_empty());
     let detail = create_memo(move || detail.get());
-    let has_detail = create_memo(move || !detail.get().is_empty());
     let chevron_color = TextColor::Muted;
     let fill_color = create_memo(move || row_background(focused.get(), pointed.get()));
     view! {
         <List spacing=MENU_PADDING>
-            <Show condition={separated}>
+            <Show value={separated}>
                 <Separator />
             </Show>
             <Frame
@@ -273,10 +280,10 @@ fn MenuRowFace(handle: MenuRowHandle) -> NodeId {
             >
                 <List direction=Direction::Horizontal align=Align::Center spacing=SUBMENU_SPACING>
                     <MenuTreeLead depth expanded toggle indent=TREE_INDENT chevron=TREE_CHEVRON />
-                    <Show condition={has_lead}>
+                    <Show value={move || !lead.with(String::is_empty)}>
                         <Text size=TextSize::Sm color=TextColor::Muted>{lead}</Text>
                     </Show>
-                    <Show condition={has_glyph}>
+                    <Show value={has_glyph}>
                         <GlyphSlot glyph color={icon_color} />
                     </Show>
                     <ListItem grow=1.0>
@@ -284,7 +291,7 @@ fn MenuRowFace(handle: MenuRowHandle) -> NodeId {
                             <Text color align=TextAlign::Start overflow=Overflow::Ellipsis>
                                 {label}
                             </Text>
-                            <Show condition={has_detail}>
+                            <Show value={move || !detail.with(String::is_empty)}>
                                 <Text
                                     size=TextSize::Sm
                                     color=TextColor::Muted
@@ -296,14 +303,17 @@ fn MenuRowFace(handle: MenuRowHandle) -> NodeId {
                             </Show>
                         </List>
                     </ListItem>
-                    <Show condition={has_shortcut}>
+                    <Show value={move || !shortcut.with(String::is_empty)}>
                         <ListItem gap={SHORTCUT_SPACING.px()}>
                             <Text size=TextSize::Sm color=TextColor::Muted align=TextAlign::End>
                                 {shortcut}
                             </Text>
                         </ListItem>
                     </Show>
-                    <Show condition={has_submenu}>
+                    <Show value={move || mark.get().is_some()}>
+                        <GlyphSlot glyph={mark} color={mark_color} />
+                    </Show>
+                    <Show value={has_submenu}>
                         <Text size=TextSize::Sm color={chevron_color} align=TextAlign::Center>
                             <Icon glyph=ICON_CHEVRON_RIGHT />
                         </Text>
@@ -342,23 +352,32 @@ impl LeadingMark {
     }
 }
 
-fn leading_mark(
+/// What a row shows before its label, and the mark it shows at its end. A checked row with
+/// no icon of its own shows its mark in the icon's place; one with an icon keeps the icon
+/// and shows the mark at its end, as a palette row does.
+fn row_marks(
     kind: MenuRowKind,
     glyph: Prop<Option<Glyph>>,
     checked: Prop<Option<bool>>,
     radio: bool,
-) -> Memo<LeadingMark> {
+) -> (Memo<LeadingMark>, Memo<Option<Glyph>>) {
     let tick = match radio {
         true => ICON_DOT,
         false => ICON_CHECK,
     };
-    create_memo(move || match (kind, checked.get(), glyph.get()) {
+    let leading = create_memo(move || match (kind, checked.get(), glyph.get()) {
         (MenuRowKind::Back, _, _) => LeadingMark::Icon(ICON_CHEVRON_LEFT),
-        (_, Some(true), _) => LeadingMark::Mark(tick),
-        (_, Some(false), _) => LeadingMark::Unmarked,
-        (_, None, Some(glyph)) => LeadingMark::Icon(glyph),
+        (_, _, Some(glyph)) => LeadingMark::Icon(glyph),
+        (_, Some(true), None) => LeadingMark::Mark(tick),
+        (_, Some(false), None) => LeadingMark::Unmarked,
         (_, None, None) => LeadingMark::None,
-    })
+    });
+    let trailing = create_memo(move || match (kind, checked.get(), glyph.get()) {
+        (MenuRowKind::Back, _, _) => None,
+        (_, Some(true), Some(_)) => Some(tick),
+        _ => None,
+    });
+    (leading, trailing)
 }
 
 #[component]
@@ -370,12 +389,7 @@ pub(crate) fn MenuTreeLead(
     chevron: Size,
 ) -> DynamicSegment<ListItem> {
     let indent = indent.px();
-    let depth = create_memo(move || depth.get());
-    let in_tree = create_memo(move || depth.get().is_some());
     let expanded = create_memo(move || expanded.get());
-    let width = create_memo(move || Size::Custom(depth.get().unwrap_or_default() as f32 * indent));
-    let expandable = create_memo(move || expanded.get().is_some());
-    let leaf = create_memo(move || !expandable.get());
     let glyph = create_memo(move || match expanded.get() {
         Some(true) => Some(ICON_CHEVRON_DOWN),
         Some(false) => Some(ICON_CHEVRON_RIGHT),
@@ -386,12 +400,12 @@ pub(crate) fn MenuTreeLead(
         _ => "Expand".to_owned(),
     });
     view! {
-        <Show condition={in_tree}>
+        <Show value={depth}>|depth: ReadSignal<usize>|
             <List direction=Direction::Horizontal align=Align::Center spacing=Space::None>
-                <Frame width />
+                <Frame width={move || Length::Size(Size::Custom(depth.get() as f32 * indent))} />
                 <unstyled::Button
                     label
-                    disabled={leaf}
+                    disabled={move || expanded.with(Option::is_none)}
                     tab_stop=false
                     press_focus=false
                     on_click={toggle}
@@ -414,7 +428,7 @@ fn MenuCaptionFace(handle: MenuRowHandle, padding: Space, spacing: Space) -> Nod
     } = handle;
     view! {
         <List spacing>
-            <Show condition={separated}>
+            <Show value={separated}>
                 <Separator />
             </Show>
             <Frame padding={Padding::symmetric(padding, CAPTION_PADDING_VERTICAL)}>
@@ -516,20 +530,22 @@ fn MenuSheetRowFace(handle: MenuRowHandle) -> NodeId {
         focused,
         ..
     } = handle;
-    let mark = leading_mark(kind, glyph, checked, radio);
+    let (mark, end_mark) = row_marks(kind, glyph, checked, radio);
     let leading = create_memo(move || glyphs.get() || mark.get() != LeadingMark::None);
     let glyph_color = create_memo(move || match mark.get() {
         LeadingMark::Mark(_) => Some(TextColor::Accent),
         _ => glyph_color.get().map(TextColor::Custom),
     });
     let glyph = create_memo(move || mark.get().glyph());
-    let trailing = create_memo(move || match has_submenu.get() {
-        true => RowTrailing::Chevron,
-        false => RowTrailing::None,
+    let trailing = create_memo(move || match (has_submenu.get(), end_mark.get()) {
+        (true, _) => RowTrailing::Chevron,
+        (false, Some(_)) if radio => RowTrailing::Radio,
+        (false, Some(_)) => RowTrailing::Check,
+        (false, None) => RowTrailing::None,
     });
     view! {
         <List spacing=SHEET_SEPARATOR_SPACING>
-            <Show condition={separated}>
+            <Show value={separated}>
                 <Separator />
             </Show>
             <RowFace
@@ -555,7 +571,7 @@ fn MenuSheetRowFace(handle: MenuRowHandle) -> NodeId {
 }
 
 #[component]
-fn MenuPanel(min_width: Size, children: Child) -> NodeId {
+fn MenuPanel(min_width: Size, on_scroll: Callback<ScrollPosition>, children: Child) -> NodeId {
     let min_width = min_width.px();
     view! {
         <List direction=Direction::Horizontal spacing=Space::None>
@@ -565,7 +581,8 @@ fn MenuPanel(min_width: Size, children: Child) -> NodeId {
                         <ListItem shrink=1.0>
                             <unstyled::Scroll
                                 fit=true
-                                scrollbar={ScrollbarStyle::default().fading(SCROLL_FADE)}
+                                on_change={on_scroll}
+                                style={ScrollStyle::new(Movement::Rubber.spring()).fading(SCROLL_FADE).marker(autoscroll_marker())}
                             >
                                 <Frame padding=MENU_PADDING>{children}</Frame>
                             </unstyled::Scroll>

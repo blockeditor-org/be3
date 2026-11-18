@@ -3,6 +3,7 @@ extern crate beui_view as beui;
 pub mod accordion;
 pub mod action_bar;
 pub mod action_row;
+pub mod back_slide;
 pub mod banner;
 pub mod border;
 pub mod button;
@@ -15,11 +16,13 @@ pub mod color_picker;
 pub mod color_wheel;
 pub mod command_palette;
 pub mod context_menu;
+pub mod count_badge;
 pub mod date_time_field;
 pub mod dialog;
 pub mod focus_ring;
 pub mod frame;
 pub mod fullscreen;
+pub mod glide;
 pub mod key_cap;
 pub mod link;
 pub mod list;
@@ -63,30 +66,34 @@ pub mod treemap;
 pub use accordion::Accordion;
 pub use action_bar::{ActionBar, ActionLabels};
 pub use action_row::ActionRow;
+pub use back_slide::BackSlide;
 pub use banner::Banner;
 pub use beui_components_unstyled::NumberDrag;
 pub use beui_components_unstyled::{
-    ActionRole, DialogAction, DialogAnchor, DialogKind, DialogSize, ModalMotion, ModalPlacement,
+    ActionRole, DialogAction, DialogAnchor, DialogKind, DialogSize, ModalPlacement,
     provide_frame_anchor, use_frame_anchor,
 };
 pub use beui_components_unstyled::{
-    BackSlide, ChoiceOption, Container, DragHandle, DragPoint, DragSource, Draggable, DropHandle,
-    DropTarget, Edge, Floating, MenuCaption, MenuGrid, MenuItem, MenuNodes, MenuThen, PanZoom,
-    PanZoomHandle, PanZoomView, PointerLock, PointerLockHandle, PopoverHandle, PopoverPlacement,
+    ChoiceOption, Container, DragPoint, Edge, Floating, MenuCaption, MenuGrid, MenuItem, MenuNodes,
+    MenuThen, PanZoom, PanZoomHandle, PanZoomView, PointerLock, PointerLockHandle, PopoverHandle,
     Pressable, Prose, ProseLine, RemoteTextCursor, ScrollAnchor, SliderScale, SyntaxColors,
     TextAreaColors, TextAreaState, TextWidget, TreeDragOver, TreeDrop, TreeItem, container_size,
     narrower_than,
 };
 pub use beui_components_unstyled::{DialogDismissal, DialogLayout};
-pub use beui_components_unstyled::{PaletteItem, PaletteItems, PaletteScore};
 pub use beui_components_unstyled::{
-    Reorder, ReorderGap, ReorderHandle, ReorderItemHandle, ReorderMove,
+    DropSiteHandle, carrying, is_carried, place_on, slots_in, use_drop_site,
 };
+pub use beui_components_unstyled::{GlideApi, GlideHold};
+pub use beui_components_unstyled::{HeldValue, ValueDrag};
+pub use beui_components_unstyled::{PaletteItem, PaletteItems, PaletteScore};
+pub use beui_components_unstyled::{ReorderGap, ReorderHandle, ReorderItemHandle, ReorderMove};
 pub use beui_components_unstyled::{TREEMAP_MOST_TILES, TreemapItem, TreemapTile, TreemapTileKey};
 pub use beui_components_unstyled::{emoji_completer, search_emoji};
 pub use beui_view::primitives::{
-    Break, Canvas, CanvasItem, Drawing, GridCell, Interactive, Layer, Layers, ListItem, Modality,
-    Offset, Overlay, Portal, SystemBars, TextChild, TextItem, VirtualList, use_modal,
+    Break, Canvas, CanvasItem, Drawing, GridCell, Interactive, KeepAlive, Kept, Layer, Layers,
+    ListItem, Modality, Offset, Overlay, Portal, SystemBars, TextChild, TextItem, VirtualList,
+    use_modal,
 };
 pub use beui_view::window::{Window, WindowHandle, opens_windows, use_window};
 pub use border::Separator;
@@ -100,13 +107,16 @@ pub use color_picker::{ColorPicker, DEFAULT_SWATCHES, PICKER_WIDTH};
 pub use color_wheel::{ColorWheel, WHEEL_SIZE, WheelModel};
 pub use command_palette::CommandPalette;
 pub use context_menu::{ContextMenu, MenuPopup, MenuRows};
+pub use count_badge::{COUNT_BADGE_MOST, CountBadge, count_badge_text};
 pub use date_time_field::DateTimeField;
 pub use dialog::{
-    DIALOG_WIDTH, Dialog, DialogBody, DialogCard, DialogFrame, Modal, SHEET_BELOW, Scrim,
+    DIALOG_WIDTH, Dialog, DialogBody, DialogCard, DialogFrame, Modal, ModalMotion, SHEET_BELOW,
+    Scrim,
 };
 pub use focus_ring::FocusRing;
 pub use frame::{Border, ColorRole, Frame, Radius};
 pub use fullscreen::Fullscreen;
+pub use glide::Glide;
 pub use key_cap::KeyCap;
 pub use link::Link;
 pub use list::{Grid, List, Spacer};
@@ -116,7 +126,7 @@ pub use number_input::{NumberInput, NumberInputTextApi};
 pub use picture::Picture;
 pub use popover::{Popover, popover_surface};
 pub use progress::{INLINE_PROGRESS_WIDTH, Progress};
-pub use reorder::{LIFT_DROP, ReorderItem};
+pub use reorder::{LIFT_DROP, Reorder, ReorderItem};
 pub use root::Root;
 pub use row::{RowFace, RowSize, RowTrailing};
 pub use scroll::{Bleed, Scroll};
@@ -152,9 +162,9 @@ pub use theme::{
 };
 pub use tile_button::TileButton;
 pub use toast::Toasts;
-pub use tokens::{CornerSet, Length, Padding, Size, Space, Stroke};
+pub use tokens::{CornerSet, Length, Movement, Padding, Size, Space, Stroke};
 pub use tool_pill::ToolPill;
-pub use tooltip::Tooltip;
+pub use tooltip::{TOOLTIP_PLACEMENT, Tooltip};
 pub use tree::{Tree, TreeRowFace};
 pub use treemap::Treemap;
 

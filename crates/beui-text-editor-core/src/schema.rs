@@ -51,7 +51,9 @@ pub struct TableLine {
 /// What is on a line, which markdown and rich text both describe and a text
 /// area's render hooks are keyed by; never how big anything is. `marker` covers
 /// the bytes the marker item draws (indentation, `>`, the list marker), which the
-/// caret still steps through. `continues` is a line continuing a list item.
+/// caret still steps through. `continues` is a line continuing a list item. `depth` is how
+/// many lists hold a list line's or continuation's item, past its own, and how many hold a
+/// code line's block.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct LineLook {
     pub marker: std::ops::Range<usize>,
@@ -59,6 +61,9 @@ pub struct LineLook {
     pub depth: usize,
     pub continues: bool,
     pub quote: usize,
+    /// How many of the quote's levels have their `>` on this line (a lazy continuation line
+    /// has fewer, rich text none).
+    pub quote_marks: usize,
     pub code_block: bool,
     pub heading: u8,
     pub rule: bool,

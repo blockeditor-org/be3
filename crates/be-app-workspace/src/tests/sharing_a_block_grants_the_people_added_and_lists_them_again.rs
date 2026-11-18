@@ -36,6 +36,8 @@ fn sharing_a_block_grants_the_people_added_and_lists_them_again() {
         effective: granted.unwrap_or(AccessLevel::None),
         source: granted.map(|_| block.into_bytes()),
         waiting: false,
+        through_link: false,
+        guest: false,
     };
     fixture.test.answer(
         listing,
@@ -52,13 +54,15 @@ fn sharing_a_block_grants_the_people_added_and_lists_them_again() {
             ],
             company: false,
             set_inside: 0,
+            levels: Vec::new(),
+            host: None,
         }),
     );
     fixture.settle();
     assert!(fixture.says("This is you"));
     assert!(
-        fixture.says("Made this block") && !fixture.says("Can manage, set here"),
-        "the block's author is listed as its author, not as inheriting access"
+        fixture.says("Owns this block") && !fixture.says("Can manage, set here"),
+        "the block's owner is listed as its owner, not as inheriting access"
     );
     assert!(
         !fixture.says("Friend"),

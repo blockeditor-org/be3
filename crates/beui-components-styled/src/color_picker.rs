@@ -9,6 +9,7 @@ use crate::number_input::NumberInput;
 use crate::text::{Text, TextStyle};
 use crate::text_input::TextInput;
 use crate::tokens::{Size, Space, Stroke};
+use beui_components_unstyled::ValueDrag;
 use beui_components_unstyled::{
     AlphaSlider, ChoiceOptionHandle, ColorAreaHandle, ColorPickerArea, ColorPickerState, HexText,
     HueSlider, SliderHandle, SwatchHandle, Swatches, alpha_image, hue_image, plane_image,
@@ -60,9 +61,9 @@ pub fn ColorPicker(
     #[prop(default = DEFAULT_SWATCHES.to_vec())] swatches: Vec<Color32>,
     #[prop(default = false)] focused: Prop<bool>,
     #[prop(default = false)] disabled: Prop<bool>,
-    on_preview: Callback<Option<Color32>>,
+    on_drag_change: Callback<ValueDrag>,
 ) -> NodeId {
-    let picker: ColorPickerState = ColorPickerState::new(value, disabled, on_preview);
+    let picker: ColorPickerState = ColorPickerState::new(value, disabled, on_drag_change);
     let color = picker.color();
     let has_swatches = !swatches.is_empty();
     let shown = picker.shown();
@@ -87,30 +88,28 @@ pub fn ColorPicker(
                             >|handle: SliderHandle|
                                 <StripFace handle strip=Strip::Hue />
                             </HueSlider>
-                            <Show condition=alpha>
+                            {alpha.then(|| view! {
                                 <AlphaSlider
                                     picker={picker}
                                     thumb={SLIDER_HEIGHT.px()}
                                 >|handle: SliderHandle|
                                     <StripFace handle strip={Strip::Alpha(color)} />
                                 </AlphaSlider>
-                            </Show>
+                            })}
                         </List>
                     </ListItem>
                     <ColorSwatch color={shown} width=PREVIEW_SIZE height=PREVIEW_SIZE />
                 </List>
                 <ColorFields picker={picker} alpha />
-                <Show condition=has_swatches>|| {
-                    let swatches = swatches.clone(); view! {
-                        <Swatches
-                            picker={picker}
-                            swatches
-                            spacing={crate::choice::OPTION_SPACING.px()}
-                        >|handle: SwatchHandle|
-                            <SwatchFace handle />
-                        </Swatches>
-                    }
-                }</Show>
+                {has_swatches.then(|| view! {
+                    <Swatches
+                        picker={picker}
+                        swatches
+                        spacing={crate::choice::OPTION_SPACING.px()}
+                    >|handle: SwatchHandle|
+                        <SwatchFace handle />
+                    </Swatches>
+                })}
             </List>
         </Frame>
     }
@@ -144,7 +143,7 @@ fn ColorFields(picker: ColorPickerState, alpha: bool) -> NodeId {
                         on_submit={move |typed: String| hex.submit(typed)}
                     />
                 </ListItem>
-                <Show condition=alpha>
+                {alpha.then(|| view! {
                     <ListItem length=ALPHA_WIDTH>
                         <NumberInput
                             value={Binding::new(opacity, set_opacity)}
@@ -153,7 +152,7 @@ fn ColorFields(picker: ColorPickerState, alpha: bool) -> NodeId {
                             label="Opacity percent"
                         />
                     </ListItem>
-                </Show>
+                })}
             </List>
             <Grid
                 columns={[Track::Intrinsic, Track::Fraction(1.0)].repeat(3)}

@@ -45,7 +45,6 @@ fn a_watch_open_while_asked_starts_anew_each_time_it_opens() {
     assert!(!test.watches::<InputCaptureWatch>(), "closed until asked");
 
     test.click("capture.toggle");
-    test.run();
     assert!(test.watches::<InputCaptureWatch>());
     test.set_watched::<InputCaptureWatch>(&InputCapture {
         held: vec![29],
@@ -58,7 +57,6 @@ fn a_watch_open_while_asked_starts_anew_each_time_it_opens() {
     assert_eq!(test.label("capture.seen"), "[29] true");
 
     test.click("capture.toggle");
-    test.run();
     assert!(
         !test.watches::<InputCaptureWatch>(),
         "closed once not asked"
@@ -66,7 +64,6 @@ fn a_watch_open_while_asked_starts_anew_each_time_it_opens() {
     assert_eq!(test.label("capture.seen"), "[29] true", "kept once closed");
 
     test.click("capture.toggle");
-    test.run();
     assert!(test.watches::<InputCaptureWatch>(), "a new watch opens");
     assert_eq!(
         test.label("capture.seen"),
@@ -74,3 +71,5 @@ fn a_watch_open_while_asked_starts_anew_each_time_it_opens() {
         "a new watch hears nothing of the one before"
     );
 }
+
+test_editor!(CaptureRoot);

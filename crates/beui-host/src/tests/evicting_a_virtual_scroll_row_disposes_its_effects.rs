@@ -12,14 +12,14 @@ fn evicting_a_virtual_scroll_row_disposes_its_effects() {
         view! {
             <List spacing=0.0>
                 <ListItem grow=1.0>
-                    <Scroll @node_ref=&scroll>
+                    <Scroll @node_ref=&scroll style={plain_scroll()}>
                         <VirtualList
                             @node_ref=&list
-                            keys={indices(100)}
+                            value={indices(100)}
                             item_size=20.0
                         >|index: ReadSignal<usize>|
                             <List spacing=0.0>
-                                <Show condition={shown}>
+                                <Show value={shown}>
                                     <Text>
                                         {create_memo(move || format!("Row {}", index.get()))}
                                     </Text>

@@ -1,0 +1,939 @@
+package be3:server@0.1.0;
+
+/// What a client asks of the server and what it hears back, over one
+/// websocket (guides/blocks/server.md, "Protocol"). A connection starts with
+/// the raw `be3 hello` frame (`be_block_protocol::hello`) each way, which
+/// signs it in: what the greeting says, `Greeting` from the client and
+/// `Welcome` from the server, is defined in crates/be-block-protocol/src/lib.rs,
+/// not here. After that every frame is a be-wasm-ops frame, and each function
+/// below is an op whose id is the only correlation.
+///
+/// Five calls and one stream carry everything: `read`, `unfollow`, `write`,
+/// `send` and `events`, beside `ping` and the one-shot browser sign-in. Each names its organization: none for what is the account's own
+/// (its links, mailbox, recovery key and storage), else one the
+/// account is a member of. No organization is open on a connection: one
+/// connection works in any of its account's organizations at once.
+///
+/// Each query, op and target states once who may make it (`client::rule` in
+/// be-server), and the server applies that before handling it. Calls on one
+/// connection are taken in the order they were sent, so what a call follows
+/// is in place before any call sent after it is answered.
+interface server {
+    use types.{
+        access-level, account-id, block-id, block-parent, client-id, commit-id,
+        content-type-id, entry-hash, error, escrow-key, hash, journal, journal-seal, key-id, key-set,
+        link-id, listing, organization-id, organization-role, public-key, sealed-key,
+        key-change, block-summary, member-kind, session-host, session-state,
+    };
+    use account.{account-storage, message, authenticated, browser-login, browser-login-state, pairing-message};
+    use objects.{hold, object-length, upload-url};
+    use blocks.{
+        access-list, account-name, change-cursor, changed-page, contents, history-entry, listed, object-change,
+        publish-outcome, reference-change,
+    };
+    use sessions.{session-event};
+    use logs.{entry-id, log-head, log-entry, log-page, logged, new-entry};
+    use contacts.{invitation-preview, invitation-row, link, link-kind, share-link, share-link-row};
+    use keys.{key-page, key-work, recovery-key, retirement, revocation, signing-key};
+    use members.{bound-agent, created-agent, member};
+    use organizations.{organization, server-info};
+    use notifications.{block-mute, notify-mode, push-endpoint};
+
+    /// A browser sign-in's step, made as a one-shot call (`POST .../call`)
+    /// alone; a signed-in connection is refused it.
+    variant device-login-step {
+        /// Starts one.
+        begin,
+        /// Where the sign-in begun with this code and secret stands. Polled
+        /// again sooner than its interval, it fails with `slow-down`, and the
+        /// interval grows by five seconds (RFC 8628).
+        poll(device-poll),
+    }
+
+    record device-poll {
+        code: string,
+        secret: string,
+    }
+
+    variant device-login-answer {
+        begun(browser-login),
+        polled(browser-login-state),
+    }
+
+    /// What a read asks for, and what it follows with `follow`.
+    variant query {
+        /// The summaries of the first of `blocks` (at most
+        /// `be_block_protocol::MAX_SUMMARIES_ASKED`), as many as fit in a
+        /// sixteenth of a frame and at least one, in order: none for a block
+        /// the caller may not know of, or that no longer exists. With
+        /// `contents`, its journals and the objects of their heads the caller
+        /// does not hold, those of the commits in `held` left out, answered
+        /// as `contents` and needing View on each. A client asks again for
+        /// the blocks left out.
+        blocks(blocks-query),
+        /// A page of the blocks of a listing, in the order of their ids: from
+        /// the first, or from the first id past `after` (a `listed.next`) as
+        /// the listing is now. A block that stays in the listing is on
+        /// exactly one page; one that joins or leaves between pages has a
+        /// `changed` past the first page's `sequence`. Following one of the
+        /// account's roots (`children(root)`, `deleted`, `shared`) follows
+        /// the `roots` topic.
+        %list(list-query),
+        /// What changed in the tree of `entry`, a page at a time from the
+        /// cursor `after` (first `{ changed: watermark, block: ff..ff }`), at
+        /// most `limit` blocks of each kind (guides/blocks/server.md, "Changes
+        /// since"). `entry` is an entry point of the caller's
+        /// (`block-summary.entry`). Needs View on `entry`. Followed, the
+        /// connection hears `tree-advanced` as the tree advances.
+        tree(tree-query),
+        history(block-id),
+        /// The block's access log, or with none the organization's, root first,
+        /// each entry as `be_block_keys::Step::encode` writes it: a block's,
+        /// every entry whole to a caller with Edit or above on the block or a
+        /// block below it, else a proof path (`be_block_keys::proof_path`)
+        /// whole only where it proves the caller's right or a sealer's
+        /// (guides/blocks/keys.md, "Who is served what"), and every parent
+        /// record, needing View on the block or a block below it; the
+        /// organization's, whole to an administrator or a member with Edit or
+        /// above on any block, else a proof path, empty for the personal
+        /// organization. Served whole, a caller that names the entry it holds
+        /// the log up to (`held`) is sent only the entries after it, when the
+        /// log as stored chains from its root to that entry at that place
+        /// (`access-log-page.from`).
+        log(access-log-query),
+        /// A page of a block's signed log: at most `limit` entries (and
+        /// `be_server::log::MAX_PAGE_ENTRIES`, and what fits half a frame)
+        /// from `from`, with the hashes that tie them to the log's head, and
+        /// with `known`, a head size the caller holds, those that show the
+        /// head extends it. Needs View. Followed, the connection hears
+        /// `appended` as entries are appended.
+        block-log(block-log-query),
+        /// Who may do what to a block, for its managers.
+        access(block-id),
+        /// The accounts that may view a block, and its author, each with the
+        /// name it gave the server, for anyone who may view it: what an editor
+        /// names a block's members by when they are not the caller's contacts
+        /// (be-host's `block-subject.members`). Nothing else of them: no
+        /// email, role or grant, which only `access` tells, a manager.
+        names(block-id),
+        /// One page of the keys of `blocks`, or of every key the caller holds
+        /// with none: the keys after `after` in the order of their ids, as
+        /// many as fit in half a frame with the wraps of each, and at least
+        /// one. Followed, the connection hears `keys` when keys it may open
+        /// are stored through another connection.
+        keys(keys-query),
+        /// The organization's key work for the caller (`key-work`). Followed,
+        /// the connection hears `key-work` as it may have changed.
+        key-work,
+        /// The grants named in their blocks' logs that removing `account`
+        /// would revoke: as a member (`append-log(member)`, `delete-agent`), or with `contact`, as
+        /// the caller's contact (`remove-contact`: each one's grants on
+        /// blocks the other manages). The caller signs each revocation and
+        /// sends them with the removal.
+        revocations(revocations-query),
+        /// The account's recovery key, what is sealed to it and the logs it
+        /// signed in. The account's own. What it keeps for itself (its
+        /// contacts' records, link codes, what it pins per organization) is in
+        /// its block in the personal organization (`be_block::account_block`),
+        /// whose key is sealed to it.
+        recovery-key,
+        /// The signing keys of those of `accounts` that are the caller, its
+        /// contacts or members of the organization (in the personal
+        /// organization, every account), leaving out any other and any
+        /// account with none.
+        signing-keys(list<account-id>),
+        /// The organization's members: every one, to an administrator; to
+        /// anyone else, the agents it made.
+        members,
+        /// The account's organizations, with its role and each one's escrow
+        /// chain. The account's own.
+        organizations,
+        /// The organization's invitations, outstanding and ended, newest
+        /// first, for its administrators. Ended ones are kept for a while,
+        /// then go.
+        invitations,
+        /// The account's storage usage and quota. The account's own; followed,
+        /// the connection hears `storage` as the bytes it pays for change.
+        storage,
+        /// The account's mailbox, oldest first: the server's notices, its
+        /// accepted links' cards, its contacts' key changes, and its records of
+        /// contacts made or removed, each kept until a device deletes it. The
+        /// account's own; followed, the connection hears `mailbox` when a
+        /// message arrives or is deleted through another connection.
+        mailbox,
+        /// A link not yet accepted; an invitation only while it is neither
+        /// expired nor revoked, and not for an account already a member.
+        /// Reading an invitation marks it opened. The account's own.
+        link(link-id),
+        /// An invitation as anyone holding its link reads it before signing
+        /// in: the one query a one-shot call makes, rate-limited per address,
+        /// and refused a signed-in connection (which reads `link`).
+        /// Marks it opened while it waits. Any other link reads as no link.
+        invitation(link-id),
+        /// A presigned S3 GET for each object the caller may read, in order,
+        /// and none for the rest. At most `be_block_protocol::MAX_OBJECT_URLS`
+        /// hashes a read.
+        download-urls(list<hash>),
+        /// The server's own account, push key, whether it offers FCM, and its
+        /// clock. Of no organization.
+        server-info,
+        /// Every block in the organization the account muted (its mode set
+        /// to other than `all`, which every other block is). The server reads
+        /// them to leave muted blocks out of pushes. Followed, the connection
+        /// hears `mutes` when they changed through another connection.
+        mutes,
+        /// Joins a block's live session, running the build `tag` of its type:
+        /// always followed, so its entries arrive as `session` events until
+        /// `unfollow` leaves it. Joining a session the connection is in leaves
+        /// it and joins again.
+        session(session-query),
+        /// A share link, by the id its code derives, as an account about to
+        /// open it reads it: refused once revoked, or to an account it does
+        /// not admit, or where the organization's policy no longer allows it.
+        /// The account's own: the read names no organization.
+        share-link(link-id),
+        /// The share links open on a block, for its managers.
+        share-links(block-id),
+    }
+
+    record blocks-query {
+        blocks: list<block-id>,
+        contents: bool,
+        held: list<commit-id>,
+    }
+
+    record list-query {
+        listing: listing,
+        after: option<block-id>,
+    }
+
+    record tree-query {
+        entry: block-id,
+        after: change-cursor,
+        limit: u32,
+    }
+
+    record keys-query {
+        blocks: option<list<block-id>>,
+        after: option<key-id>,
+    }
+
+    record revocations-query {
+        account: account-id,
+        contact: bool,
+    }
+
+    record session-query {
+        block: block-id,
+        tag: hash,
+    }
+
+    record access-log-query {
+        /// The block, or with none the organization.
+        log: option<block-id>,
+        held: option<held-entry>,
+    }
+
+    /// The entry a caller holds an access log up to: its place, root 0, and
+    /// its hash.
+    record held-entry {
+        place: u64,
+        hash: entry-hash,
+    }
+
+    /// An access log as served: its entries from place `from`, which is one
+    /// past the held entry when only those after it are sent, else 0.
+    record access-log-page {
+        %from: u64,
+        entries: list<list<u8>>,
+    }
+
+    record block-log-query {
+        block: block-id,
+        %from: u64,
+        limit: u32,
+        known: option<u64>,
+    }
+
+    /// A read's answer: the case its query asks for.
+    variant page {
+        summaries(list<option<block-summary>>),
+        contents(contents),
+        listed(listed),
+        tree(changed-page),
+        history(list<history-entry>),
+        log(access-log-page),
+        block-log(log-page),
+        access(access-list),
+        names(list<account-name>),
+        keys(key-page),
+        key-work(key-work),
+        revocations(list<revocation>),
+        recovery-key(recovery-key),
+        signing-keys(list<signing-key>),
+        members(list<member>),
+        organizations(list<organization>),
+        invitations(list<invitation-row>),
+        storage(account-storage),
+        mailbox(list<message>),
+        link(link),
+        invitation(invitation-preview),
+        share-link(share-link),
+        share-links(list<share-link-row>),
+        download-urls(list<option<string>>),
+        server-info(server-info),
+        mutes(list<block-mute>),
+        session(joined-session),
+    }
+
+    record joined-session {
+        /// This connection, as the session's participants name it.
+        client: client-id,
+        /// Empty to a Join member (`joined-as.join`), which hears only the
+        /// host channel and whether a host is online.
+        state: session-state,
+        /// The block's journal as of joining; what the order numbers after
+        /// reaches this connection as `sequenced`.
+        journal: option<journal>,
+        /// Whether this account may edit the block as it joined: the
+        /// server's word, which a device trusts over a listing it holds.
+        may-edit: bool,
+        /// How the connection joined: as a participant (View or above), or
+        /// as a Join member.
+        joined-as: member-kind,
+        /// Who holds the lease as of joining: told again as
+        /// `session-event.host` whenever it changes.
+        host: option<session-host>,
+    }
+
+    /// What a connection follows: a read with `follow` starts it, and
+    /// `unfollow` stops it.
+    variant topic {
+        tree(block-id),
+        session(block-id),
+        block-log(block-id),
+        keys,
+        key-work,
+        roots,
+        storage,
+        mailbox,
+        mutes,
+    }
+
+    /// One change a `write` makes. A write's ops apply in order, in one
+    /// transaction: one refused refuses the write, and none of it is kept.
+    variant op {
+        /// Makes a block. Its data key `key` is a key row the same write
+        /// stores (`put-keys(rows)` after it), checked at the write's end.
+        create-block(create-block),
+        /// Moves the head to `commit` if it is `expected`, or with no commit
+        /// sets the metadata and the references alone while the head is
+        /// `expected`, which stays the head, answered as `block`; either is
+        /// `published(rejected)` with the head when it is not `expected`.
+        /// `references` is a change from what `expected` holds (with none,
+        /// the whole list), so a commit that changes little sends little.
+        /// With `journal`, a seal of the block's live session, which needs a
+        /// commit: its base names `commit`, and the journal starts from it
+        /// only if this publish moves the head, which every participant hears
+        /// as `session-event.sealed`. A trim with no new commit (a commit that
+        /// is `expected` and the head) needs the caller to be in the session
+        /// and its lease holder at the order's tip.
+        publish(publish),
+        /// Moves a block by `placement`: the caller's parent record placing
+        /// it at `parent`, the next entry of its access log
+        /// (guides/blocks/keys.md, "Parent records"). A move into another
+        /// scope carries the keys it needs under its new parent in a
+        /// `put-keys(rows)` of the same write: at the write's end every key
+        /// the move took into the new scope (the moved block's, or its own
+        /// scope key's, and each one's below it the caller may view) opens
+        /// from the new scope's key.
+        move(move),
+        /// Appends a signed record to an access log once the server checks it
+        /// there (guides/blocks/keys.md).
+        append-log(log-record),
+        /// Appends entries to a block's signed log, in order, each numbered
+        /// and stamped by the server, answered as `logged` with where each
+        /// went. An entry whose id the log holds is answered where it went
+        /// before. Needs Edit. Charged to the block's payer; at most
+        /// `be_server::log::MAX_ENTRIES_PER_APPEND` entries, and
+        /// `be_server::log::MAX_ENTRIES_PER_MINUTE` a minute from one account.
+        append(append),
+        /// Drops an entry's payload, keeping its hash, so the tree still
+        /// verifies and the log still shows the entry and who wrote it. By the
+        /// entry's author, or with Manage on the block. Redacting one redacted
+        /// is no refusal.
+        redact(redact),
+        /// Deletes an agent: by the account that made it (a block's agent, only
+        /// while it manages the block), or by an administrator. It goes with
+        /// what it was granted and what was sealed to it. In a company
+        /// organization, `signed` is the member record (be_block_keys::Member)
+        /// signing it out, needed when its log names it; `revocations` are the
+        /// signed revocations of its grants that blocks' logs name
+        /// (`revocations`), each needed. Not an `append-log`: the personal
+        /// organization has no log. A person is removed by `append-log(member)`.
+        delete-agent(delete-agent),
+        put-keys(put-keys),
+        /// Keeps stored objects alive for `block`. Holding one again extends
+        /// it, and a lasting hold outlasts any other.
+        hold-objects(hold-objects),
+        /// A URL to upload each of the objects to, in order, and none for one
+        /// the caller holds already (it uploaded it, or may read it): room is
+        /// reserved only for the rest, charged to the uploader until a block
+        /// takes them. An object counts as stored only once its bytes
+        /// arrived. An object with no length the caller does not hold refuses
+        /// the op with `object-not-found`, alike whether or not anyone stored
+        /// it. At most `be_block_protocol::MAX_OBJECT_URLS` objects an op.
+        reserve-uploads(list<object-length>),
+        /// Makes company organization `id`, chosen by the caller, with the
+        /// caller as its administrator. `root` is the root of its access log
+        /// (`be_block_keys::Entry::root`), signed by the caller with its
+        /// current keys; `pinned` is what the caller pins for it, sealed to
+        /// itself, left in its mailbox (`letter.pinned`) for a device to keep
+        /// in the account's block. The account's own.
+        create-organization(create-organization),
+        /// Makes the agent account `account` in the organization (the id
+        /// derived from the caller and the agent's keys,
+        /// be_block_keys::agent_account), with the recovery key `recovery` and
+        /// the signing key `signing` derived with it, its record of the caller as
+        /// a contact (`contact`, left in its mailbox as `letter.contact`), the
+        /// caller's record of it (`record`, left in the caller's), and what it
+        /// pins for the organization sealed for it (`escrow`, left in its
+        /// mailbox as `letter.pinned`). With `bound-to`, which
+        /// needs Manage on that block, the agent is granted Edit on it by the
+        /// signed grant and reaches nothing else.
+        create-agent(create-agent),
+        /// A new token for an agent the caller made in the organization; every
+        /// older one stops signing it in, and its connections close.
+        rotate-agent-token(account-id),
+        /// Makes a link: `card` is sealed with the code, which the caller keeps
+        /// in its block (guides/blocks/keys.md, "Contacts"). A
+        /// contact link any account makes, as its own; an invitation needs an
+        /// administrator of the organization the write names, which has a
+        /// bounded number outstanding, and `signed`, the invitation record
+        /// (be_block_keys::Invitation) the caller signed opening it in the
+        /// organization's log, naming the key the code derives.
+        create-link(create-link),
+        /// Accepts a link, leaving the caller's `card` in its owner's mailbox
+        /// (`letter.accepted`) and its record of the owner, sealed to itself,
+        /// in its own (`contact`, as `letter.contact`). `key` is,
+        /// for a contact link with a grant, the granted key sealed to the
+        /// caller; for an invitation, what it pins for the organization sealed
+        /// to itself, left in its mailbox (`letter.pinned`); otherwise empty.
+        /// An invitation also takes `member`, the member record signing the
+        /// caller in with the keys the server holds for it, signed with the key
+        /// the code derives after the head of the organization's log
+        /// (`link.head`; be_block_keys::Entry::accepted), which the server
+        /// appends. The account's own.
+        accept-link(accept-link),
+        /// Ends a link: revokes one outstanding, or finishes one accepted. A
+        /// contact link goes; an invitation's row stays in its organization's
+        /// list. The caller's own, or with an organization, an invitation into
+        /// it, which the caller administers. Revoking an invitation takes
+        /// `signed`, the invitation record ending it, signed by an
+        /// administrator; an inviter who no longer administers revokes theirs
+        /// without, since the log ended it with their role.
+        delete-link(delete-link),
+        /// Makes a share link on `block`, which needs Manage there and a
+        /// policy that admits whom it admits (guides/blocks/keys.md, "Share
+        /// links"): `signed` is the share link record
+        /// (be_block_keys::ShareLink) opening it in the block's log, naming
+        /// the key its code derives; `sealed`, what it hands its opener,
+        /// sealed with the code.
+        create-share-link(create-share-link),
+        /// Opens a share link: `signed` is the record
+        /// (be_block_keys::Opened) granting the caller the link's level,
+        /// signed with the key the code derives after the head
+        /// `share-link` named, which the server appends; `sealed` is the
+        /// block's scope key `key` sealed by the caller to itself. A caller from
+        /// outside the organization joins it as a guest. The account's own.
+        open-share-link(open-share-link),
+        /// Revokes a share link, by a manager of its block: `signed` is the
+        /// share link record closing it. Every grant made through it falls,
+        /// and a guest with none left leaves the organization.
+        revoke-share-link(revoke-share-link),
+        /// Removes a contact, revoking each one's grants on blocks the other
+        /// manages, and leaving each a `letter.removed` from the other.
+        /// `revocations` are the signed revocations of those grants
+        /// in the organization the write names (`revocations` with
+        /// `contact`), each needed; those in other organizations wait in key
+        /// work's unsigned revocations.
+        remove-contact(remove-contact),
+        /// Moves the account to a new recovery key and the signing key derived
+        /// with it, with everything sealed to the old one sealed again, a key
+        /// change for each contact, left in its mailbox (`letter.key-change`), and an entry retiring the old keys in
+        /// every access log the account signed in
+        /// (`be_block_keys::Entry::retirement`). The account's own; a write
+        /// naming the personal organization carries beside it the new key
+        /// epoch of the account's block (`be_block::account_block`), sealed to
+        /// the new key alone, as a `put-keys` rotation.
+        set-recovery-key(set-recovery-key),
+        /// Holds part of what a `set-recovery-key` to the same keys carries
+        /// (the keys sealed again and the retirements), for an account whose
+        /// move is more than one frame holds: that write takes the parts
+        /// staged for its keys beside its own, checks them all as one, and
+        /// drops them. Parts for other keys go; a part names only keys sealed
+        /// to the account and logs it signed in, and staging one again
+        /// replaces it. The account's own.
+        stage-recovery-key(recovery-key-part),
+        /// Publishes the account's name card (`be_block_keys::NameCard`,
+        /// signed with its signing key), which `signing-keys` serves its
+        /// contacts. The server refuses one that does not name the caller or
+        /// that its current signing key did not sign, and keeps it only when
+        /// it is dated after the one it holds; an older one is taken and
+        /// ignored. A new recovery key drops it. The account's own.
+        publish-name(list<u8>),
+        /// Registers or forgets this device's push endpoint for the account in
+        /// the organization. An account keeps at most
+        /// `limits::MAX_PUSH_ENDPOINTS` per organization, the oldest going
+        /// first.
+        set-push-endpoint(push-endpoint-change),
+        /// Sets how the account is notified about a block it may view; `all`
+        /// unmutes it. Told to the account's other connections as `mutes`.
+        set-mute(set-mute),
+        /// Deletes a message from the account's mailbox, for every device. A
+        /// notice is refused in its first `NOTICE_HOLD` (a week), since
+        /// whoever it warns about may hold a session too; a device hides it for
+        /// itself meanwhile. One already gone is no refusal. The account's own.
+        delete-message(u64),
+        /// Ends the session the connection's token named and signs it out.
+        /// With a push address, the device's push endpoint, the account
+        /// forgets that endpoint in every organization too, as the device
+        /// stops taking its pushes. The account's own, and alone in its write.
+        revoke-token(option<string>),
+    }
+
+    record create-block {
+        block: block-id,
+        content-type: content-type-id,
+        parent: block-parent,
+        metadata: list<u8>,
+        references: list<block-id>,
+        key: key-id,
+        /// Readable by its author alone, for its whole life: a scope root
+        /// whose key is sealed only to the author and never escrowed, which
+        /// no one else may open, move or grant, administrators included.
+        owner-only: bool,
+        /// The root of the block's access log (`be_block_keys::Entry::root`),
+        /// signed by the caller with its current keys.
+        root: list<u8>,
+        /// The log's next entry, the caller's parent record placing the
+        /// block at `parent` (`be_block_keys::Record::Parent`), naming the
+        /// root of the parent's log (guides/blocks/keys.md, "Parent records").
+        placement: list<u8>,
+    }
+
+    record publish {
+        block: block-id,
+        expected: option<commit-id>,
+        commit: option<new-commit>,
+        references: reference-change,
+        metadata: list<u8>,
+        journal: option<journal-seal>,
+    }
+
+    /// The commit a publish moves the head to.
+    record new-commit {
+        id: commit-id,
+        parents: list<commit-id>,
+        /// A change from what `expected` holds.
+        held: object-change,
+        time: s64,
+        pinned: bool,
+        objects: list<list<u8>>,
+        /// The head of the block's signed log this commit was made on, which
+        /// the server refuses unless it is a head the log had: a prefix of
+        /// the log as it is.
+        log-through: option<log-head>,
+    }
+
+    record move {
+        block: block-id,
+        parent: block-parent,
+        placement: list<u8>,
+    }
+
+    record append {
+        block: block-id,
+        entries: list<new-entry>,
+    }
+
+    record redact {
+        block: block-id,
+        seq: u64,
+    }
+
+    /// A signed record for an access log, by the kind of log entry it is.
+    variant log-record {
+        /// Sets `account`'s access to `block`. `signed` is the signed grant
+        /// (be_block_keys::Grant) appended to the block's access log: needed
+        /// for any access above none, and to revoke a grant the log names.
+        /// Grants to anyone inside and to the server's own account are
+        /// standing exceptions that no device seals to by grant, and take
+        /// none.
+        grant(grant-record),
+        /// Sets a member's role, by an administrator. Making or unmaking an
+        /// administrator of a company organization takes `signed`, the
+        /// administrator record (be_block_keys::Administrator) the caller
+        /// signed, appended to the organization's log.
+        role(role-record),
+        /// A member record (be_block_keys::Member): signing in an agent, by
+        /// its maker; signing out an agent the server removed on its own, by
+        /// its maker; or removing a person, by an administrator, with the
+        /// signed revocations of their grants that blocks' logs name
+        /// (`revocations`), each needed. A person is signed in only by
+        /// accepting an invitation (`accept-link`), and an agent removed by
+        /// `delete-agent`.
+        member(member-record),
+        /// Bars `account` from joining the block's host (plans/hosted_blocks.md,
+        /// "Hosting"): `signed` is the ban record (be_block_keys::Ban) the
+        /// caller signed, appended to the block's access log. Needs Edit. Until
+        /// a grant to it lifts the ban, the server refuses the account joining
+        /// the block's session, and takes it out of one it is in, unless it
+        /// holds Edit: a ban binds no editor, as a Join member or a viewer.
+        ban(ban-record),
+    }
+
+    record ban-record {
+        block: block-id,
+        account: account-id,
+        signed: list<u8>,
+    }
+
+    record grant-record {
+        block: block-id,
+        account: account-id,
+        access: access-level,
+        signed: option<list<u8>>,
+    }
+
+    record role-record {
+        account: account-id,
+        role: organization-role,
+        signed: option<list<u8>>,
+    }
+
+    record member-record {
+        signed: list<u8>,
+        revocations: list<list<u8>>,
+    }
+
+    record delete-agent {
+        account: account-id,
+        signed: option<list<u8>>,
+        revocations: list<list<u8>>,
+    }
+
+    /// Keys stored in the organization, by what storing them means.
+    variant put-keys {
+        /// Stores rows, and tells `keys` to every other connection of an
+        /// account a key in them is sealed to or that may view a block they
+        /// are of.
+        rows(key-set),
+        /// Gives every block below `roots` a new key, whole or not at all:
+        /// needs Edit on each root.
+        rotate(rotation),
+        /// Adds the next epoch of the escrow chain, by an administrator.
+        escrow(new-escrow),
+        /// Seals keys the account holds to its own new recovery key again. The
+        /// account's own: each key names its organization.
+        reseal(list<sealed-key>),
+    }
+
+    record rotation {
+        roots: list<block-id>,
+        keys: key-set,
+    }
+
+    record new-escrow {
+        escrow: escrow-key,
+        keys: key-set,
+    }
+
+    record hold-objects {
+        block: block-id,
+        objects: list<hash>,
+        hold: hold,
+    }
+
+    record create-organization {
+        id: organization-id,
+        name: string,
+        root: list<u8>,
+        pinned: list<u8>,
+    }
+
+    record create-agent {
+        account: account-id,
+        name: string,
+        recovery: public-key,
+        signing: public-key,
+        contact: list<u8>,
+        %record: list<u8>,
+        escrow: list<u8>,
+        bound-to: option<bound-agent>,
+        /// In a company organization, the member record signing the agent
+        /// in, by the caller, its maker.
+        member: option<list<u8>>,
+    }
+
+    record create-link {
+        link: link-id,
+        card: list<u8>,
+        kind: link-kind,
+        signed: option<list<u8>>,
+    }
+
+    record accept-link {
+        link: link-id,
+        card: list<u8>,
+        contact: list<u8>,
+        key: list<u8>,
+        member: option<list<u8>>,
+    }
+
+    record delete-link {
+        link: link-id,
+        signed: option<list<u8>>,
+    }
+
+    record create-share-link {
+        link: link-id,
+        block: block-id,
+        sealed: list<u8>,
+        signed: list<u8>,
+    }
+
+    record open-share-link {
+        link: link-id,
+        signed: list<u8>,
+        /// The block's scope key the link carries, and its seal by the caller
+        /// to itself; none for a Join link, which carries no key.
+        key: option<key-id>,
+        sealed: list<u8>,
+    }
+
+    record revoke-share-link {
+        link: link-id,
+        signed: list<u8>,
+    }
+
+    record remove-contact {
+        account: account-id,
+        revocations: list<list<u8>>,
+    }
+
+    record recovery-key-part {
+        public: public-key,
+        signing: public-key,
+        sealed: list<sealed-key>,
+        retirements: list<retirement>,
+    }
+
+    record set-recovery-key {
+        public: public-key,
+        signing: public-key,
+        sealed: list<sealed-key>,
+        changes: list<key-change>,
+        retirements: list<retirement>,
+    }
+
+    variant push-endpoint-change {
+        /// Registers the endpoint, replacing one with the same address.
+        register(push-endpoint),
+        /// Forgets the endpoint at this address, as the device stops taking
+        /// pushes.
+        forget(string),
+    }
+
+    record set-mute {
+        block: block-id,
+        mode: notify-mode,
+    }
+
+    /// What an op made, in the order of a write's ops.
+    variant done {
+        /// The op answers nothing.
+        nothing,
+        /// `create-block`, and `publish` with no commit: the block as it is
+        /// now.
+        block(block-summary),
+        published(publish-outcome),
+        uploads(list<option<upload-url>>),
+        organization(organization),
+        agent(created-agent),
+        /// `rotate-agent-token`: the agent's new token.
+        token(string),
+        /// `append`: where each entry went, in order.
+        logged(list<logged>),
+    }
+
+    /// Why a write was refused: the index of the op refused, and why. None of
+    /// the write is kept.
+    record write-error {
+        index: u32,
+        error: error,
+    }
+
+    /// Where a send goes. A send is answered once it was handed on.
+    variant target {
+        /// To a block's live session, which the connection is in.
+        session(session-target),
+        /// To one of the account's other connections, or to all of them with
+        /// none, as `paired`. Fails when the one named is no longer
+        /// connected. Of no organization.
+        devices(option<client-id>),
+        /// Pushes the payload, a notification sealed under the block's data
+        /// key (at most `be_block_protocol::MAX_NOTIFICATION_BYTES`), to every
+        /// member who may view `block` and has no connection to the
+        /// organization, but the caller, skipping those whose mode is `off`,
+        /// and those whose mode is `mentions` unless `mentions` names them.
+        /// Each push names the caller's account (`PushMessage::sender`),
+        /// which the server vouches for. At most
+        /// `limits::MAX_NOTIFICATIONS_PER_MINUTE` a minute from one account
+        /// and `limits::MAX_NOTIFICATIONS_PER_BLOCK` about one block. Answered
+        /// once the pushes are queued; a push service's refusal is never the
+        /// caller's. `keys` name what it tells (an edit's announcements as
+        /// `be_block_protocol::told_key` digests, at most
+        /// `be_block_protocol::MAX_TOLD_KEYS`): one whose keys were all told
+        /// about this block from this account before is answered without a
+        /// push, so a device that never heard the answer may send it again.
+        /// Without keys, every send pushes. Needs Edit on the block.
+        push(push-target),
+    }
+
+    record session-target {
+        block: block-id,
+        kind: session-send,
+    }
+
+    variant session-send {
+        /// Hands the order a submission, the payload: the server numbers it,
+        /// keeps it in the block's journal and sends it to every participant
+        /// as `sequenced`, then answers. A submission whose id the journal
+        /// holds already is answered and not numbered again. Refused to a
+        /// viewer, and to a connection whose build is not the session's, or
+        /// not the journal's while it holds entries.
+        ordered(submission),
+        /// Relays the payload, sealed (presence, a channel's), to one
+        /// participant, or to every other one with none. Any participant may.
+        ephemeral(option<client-id>),
+        /// Claims the lease, with an empty payload: the server writes a claim
+        /// into the session's order, and the caller holds the lease from it
+        /// while it stays with edit access. Refused to a viewer.
+        claim,
+        /// A message on the host channel (plans/hosted_blocks.md), sealed
+        /// end to end: from the lease holder, to the member it names (a Join
+        /// member or a participant); from any other member, naming none, to
+        /// the lease holder. Refused otherwise, and to a member that sends
+        /// more than `limits::HOST_MESSAGES_PER_SECOND` a second over a
+        /// burst of `limits::HOST_MESSAGE_BURST`; the one send a Join member
+        /// may make. Heard as `session-event.hosted`.
+        host(option<client-id>),
+    }
+
+    record submission {
+        origin: u64,
+        counter: u64,
+        base: u64,
+        barrier: bool,
+    }
+
+    record push-target {
+        block: block-id,
+        mentions: list<account-id>,
+        keys: list<hash>,
+    }
+
+    /// What `events` tells.
+    variant event {
+        /// A tree the connection follows advanced: its changes up to
+        /// `sequence` are there to read with `tree`. Only the latest is sent,
+        /// and none again for the entry until the connection reads its changes
+        /// to their end, so a burst of changes is one event.
+        tree-advanced(tree-advanced),
+        /// Something happened in a session the connection is in.
+        session(session-happened),
+        /// A topic the connection follows changed: it reads it again.
+        topic-changed(followed),
+        /// Another connection of the account sent this one a message
+        /// (`target.devices`).
+        paired(pairing-message),
+        /// Entries were appended to a block's log the connection follows.
+        appended(appended),
+    }
+
+    record tree-advanced {
+        organization: organization-id,
+        entry: block-id,
+        sequence: u64,
+    }
+
+    record session-happened {
+        organization: organization-id,
+        block: block-id,
+        event: session-event,
+    }
+
+    record followed {
+        organization: option<organization-id>,
+        topic: topic,
+    }
+
+    /// One append's entries, from `previous` (the log's size before them) to
+    /// `head`: `proof` ties them to `head`, and `consistency` shows `head`
+    /// extends the head of size `previous`. A follower that holds that head
+    /// takes them as they are; one that holds an older one reads what it
+    /// missed with `block-log`.
+    record appended {
+        organization: organization-id,
+        block: block-id,
+        previous: u64,
+        head: log-head,
+        entries: list<log-entry>,
+        proof: list<hash>,
+        consistency: list<hash>,
+    }
+
+    /// Answers at once, so a client learns its socket is alive; the server
+    /// answers it ahead of anything else it is doing.
+    ping: async func();
+
+    /// A browser sign-in's step. Made as a one-shot call, like the read of an
+    /// invitation: a connection signs in with its greeting (`Greeting`, in
+    /// crates/be-block-protocol/src/lib.rs), before any call.
+    device-login: async func(step: device-login-step) -> result<device-login-answer, error>;
+
+    /// Answers `query` in `organization`, and with `follow` follows its topic
+    /// first, so nothing that changes during the read is missed.
+    read: async func(organization: option<organization-id>, query: query, follow: bool) -> result<page, error>;
+
+    /// Stops following `topic`; for a session, leaves it.
+    unfollow: async func(organization: option<organization-id>, topic: topic) -> result<_, error>;
+
+    /// Applies `ops` in order, in one transaction, and answers what each made.
+    write: async func(organization: option<organization-id>, ops: list<op>) -> result<list<done>, write-error>;
+
+    /// Sends `payload` to `target`.
+    send: async func(organization: option<organization-id>, target: target, payload: list<u8>) -> result<_, error>;
+
+    /// Everything the server tells this connection: the trees, sessions and
+    /// topics it follows, and its account's other connections' messages. A
+    /// connection holds one; another replaces it.
+    events: func() -> stream<event>;
+}
+
+/// What a client imports from the server.
+world client {
+    import types;
+    import account;
+    import organizations;
+    import members;
+    import contacts;
+    import objects;
+    import blocks;
+    import sessions;
+    import logs;
+    import keys;
+    import notifications;
+    import server;
+}

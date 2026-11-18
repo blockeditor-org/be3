@@ -154,6 +154,11 @@ impl Node {
         let _ = method;
     }
 
+    /// A key no other live node shares, for indexing nodes by identity (as `is` compares them).
+    pub fn key(&self) -> usize {
+        Rc::as_ptr(&self.0) as usize
+    }
+
     pub fn is(&self, other: &Node) -> bool {
         Rc::ptr_eq(&self.0, &other.0)
     }
@@ -326,8 +331,12 @@ impl ChildValue for Node {}
 beui_tree::child_type!(Node);
 impl SlotChild for Node {
     type Stored = Node;
+    type Node = Node;
     fn store(self) -> Node {
         self
+    }
+    fn node(stored: &Node) -> Node {
+        stored.clone()
     }
 }
 impl IntoChild<Node> for String {
@@ -475,20 +484,29 @@ fn bind_flag(node: &Node, name: &'static str, value: Prop<bool>) {
     }
 }
 
-pub fn attr(node: Node, (name, value): (&'static str, impl IntoProp<Option<String>>)) -> Node {
-    bind_attribute(&node, name, value.into_prop());
+pub fn attr<M>(
+    node: Node,
+    (name, value): (&'static str, impl IntoPropValue<Prop<Option<String>>, M>),
+) -> Node {
+    bind_attribute(&node, name, value.into_prop_value());
     node
 }
 
-pub fn data(node: Node, (name, value): (&'static str, impl IntoProp<Option<String>>)) -> Node {
+pub fn data<M>(
+    node: Node,
+    (name, value): (&'static str, impl IntoPropValue<Prop<Option<String>>, M>),
+) -> Node {
     assert!(valid_name(name), "invalid data attribute name");
-    bind_attribute(&node, format!("data-{name}"), value.into_prop());
+    bind_attribute(&node, format!("data-{name}"), value.into_prop_value());
     node
 }
 
-pub fn aria(node: Node, (name, value): (&'static str, impl IntoProp<Option<String>>)) -> Node {
+pub fn aria<M>(
+    node: Node,
+    (name, value): (&'static str, impl IntoPropValue<Prop<Option<String>>, M>),
+) -> Node {
     assert!(valid_name(name), "invalid ARIA attribute name");
-    bind_attribute(&node, format!("aria-{name}"), value.into_prop());
+    bind_attribute(&node, format!("aria-{name}"), value.into_prop_value());
     node
 }
 
@@ -519,14 +537,20 @@ pub fn Script(kind: &'static str, source: String) -> Node {
     }
 }
 
-pub fn flag(node: Node, (name, value): (&'static str, impl IntoProp<bool>)) -> Node {
-    bind_flag(&node, name, value.into_prop());
+pub fn flag<M>(
+    node: Node,
+    (name, value): (&'static str, impl IntoPropValue<Prop<bool>, M>),
+) -> Node {
+    bind_flag(&node, name, value.into_prop_value());
     node
 }
 
-pub fn on(node: Node, (name, handler): (&'static str, impl IntoCallback<Event, ()>)) -> Node {
+pub fn on<M>(
+    node: Node,
+    (name, handler): (&'static str, impl IntoPropValue<Callback<Event>, M>),
+) -> Node {
     assert!(valid_name(name), "invalid event name");
-    listen(&node, name, handler.into_callback());
+    listen(&node, name, handler.into_prop_value());
     node
 }
 

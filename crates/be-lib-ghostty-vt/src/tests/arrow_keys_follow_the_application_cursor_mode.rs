@@ -12,9 +12,9 @@ fn arrow_keys_follow_the_application_cursor_mode() {
         pressed: true,
     };
 
-    assert_eq!(encoder.encode(&terminal, &up), b"\x1b[A");
+    assert_eq!(encoder.encode(&terminal, &up).unwrap(), b"\x1b[A");
     terminal.write(b"\x1b[?1h");
-    assert_eq!(encoder.encode(&terminal, &up), b"\x1bOA");
+    assert_eq!(encoder.encode(&terminal, &up).unwrap(), b"\x1bOA");
 
     let control_c = KeyInput {
         key: Key::C,
@@ -26,7 +26,7 @@ fn arrow_keys_follow_the_application_cursor_mode() {
         unshifted: Some('c'),
         pressed: true,
     };
-    assert_eq!(encoder.encode(&terminal, &control_c), [3]);
+    assert_eq!(encoder.encode(&terminal, &control_c).unwrap(), [3]);
 
     let letter = KeyInput {
         key: Key::UNIDENTIFIED,
@@ -35,5 +35,5 @@ fn arrow_keys_follow_the_application_cursor_mode() {
         unshifted: None,
         pressed: true,
     };
-    assert_eq!(encoder.encode(&terminal, &letter), "é".as_bytes());
+    assert_eq!(encoder.encode(&terminal, &letter).unwrap(), "é".as_bytes());
 }

@@ -1,7 +1,4 @@
-use chacha20poly1305::{
-    ChaCha20Poly1305, Key, Nonce,
-    aead::{Aead, KeyInit},
-};
+use be_block_keys::aead;
 use rand::TryRngCore;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use std::{
@@ -22,7 +19,7 @@ use crate::{
     store::ObjectStore,
 };
 
-pub const NONCE_LEN: usize = 12;
+pub const NONCE_LEN: usize = aead::NONCE_LEN;
 pub const TAG: &[u8; 4] = b"be3K";
 const HEADER_LEN: usize = TAG.len() + 16;
 const GROUP_MINIMUM: usize = 4;
@@ -49,28 +46,35 @@ impl ContentKey {
         &self.0
     }
 
-    pub fn seal(&self, id: Uuid, plain: &[u8]) -> Vec<u8> {
-        let nonce_source = Hash::of_parts(&[self.as_bytes(), plain]);
-        let nonce_bytes = &nonce_source.as_bytes()[..NONCE_LEN];
-        let cipher = ChaCha20Poly1305::new(Key::from_slice(self.as_bytes()));
-        let ciphertext = cipher
-            .encrypt(Nonce::from_slice(nonce_bytes), plain)
-            .expect("chacha20poly1305 never fails on a valid key and nonce");
-        let mut sealed = Vec::with_capacity(HEADER_LEN + NONCE_LEN + ciphertext.len());
+    /// `plain` sealed as key `id` of `block` (`be_block_keys::aead`): the header (`TAG` and
+    /// `id`), the nonce, then the ciphertext, which authenticates the header and `block` too,
+    /// so a header relabelled to another key, or a key placed in another block, opens nothing.
+    /// Content, which deduplicates, derives its nonce from `block` and `plain` (`derived`);
+    /// anything else draws it (decisions/deterministic_seal_nonce.md).
+    fn seal(&self, id: Uuid, block: Uuid, plain: &[u8], derived: bool) -> Vec<u8> {
+        let nonce = match derived {
+            true => aead::derived_nonce(self.as_bytes(), block.as_bytes(), plain),
+            false => aead::random_nonce(),
+        };
+        let mut sealed = Vec::with_capacity(HEADER_LEN + NONCE_LEN + plain.len() + 16);
         sealed.extend_from_slice(TAG);
         sealed.extend_from_slice(id.as_bytes());
-        sealed.extend_from_slice(nonce_bytes);
-        sealed.extend_from_slice(&ciphertext);
+        sealed.extend_from_slice(&nonce);
+        sealed.extend_from_slice(&aead::seal(
+            self.as_bytes(),
+            &nonce,
+            &associated(id, block),
+            plain,
+        ));
         sealed
     }
 
-    fn open_body(&self, body: &[u8]) -> Result<Vec<u8>, StoreError> {
-        let (nonce_bytes, ciphertext) = body
+    fn open_body(&self, id: Uuid, block: Uuid, body: &[u8]) -> Result<Vec<u8>, StoreError> {
+        let (nonce, ciphertext) = body
             .split_at_checked(NONCE_LEN)
             .ok_or(StoreError::Corrupt)?;
-        let cipher = ChaCha20Poly1305::new(Key::from_slice(self.as_bytes()));
-        cipher
-            .decrypt(Nonce::from_slice(nonce_bytes), ciphertext)
+        let nonce: aead::Nonce = nonce.try_into().map_err(|_| StoreError::Corrupt)?;
+        aead::open(self.as_bytes(), &nonce, &associated(id, block), ciphertext)
             .map_err(|_| StoreError::Corrupt)
     }
 }
@@ -79,6 +83,15 @@ impl std::fmt::Debug for ContentKey {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter.write_str("ContentKey(..)")
     }
+}
+
+/// What a seal authenticates beside its plaintext: its header and the block its key is of.
+fn associated(id: Uuid, block: Uuid) -> [u8; HEADER_LEN + 16] {
+    let mut associated = [0u8; HEADER_LEN + 16];
+    associated[..TAG.len()].copy_from_slice(TAG);
+    associated[TAG.len()..HEADER_LEN].copy_from_slice(id.as_bytes());
+    associated[HEADER_LEN..].copy_from_slice(block.as_bytes());
+    associated
 }
 
 pub fn sealed_key(sealed: &[u8]) -> Result<Uuid, StoreError> {
@@ -91,8 +104,9 @@ pub fn sealed_key(sealed: &[u8]) -> Result<Uuid, StoreError> {
 }
 
 #[derive(Clone, Default)]
+/// Content keys by id, each with the block it is a key of, which every seal under it binds.
 pub struct Keyring {
-    keys: Arc<RwLock<HashMap<Uuid, ContentKey>>>,
+    keys: Arc<RwLock<HashMap<Uuid, (ContentKey, Uuid)>>>,
 }
 
 impl Keyring {
@@ -100,14 +114,20 @@ impl Keyring {
         Self::default()
     }
 
-    pub fn insert(&self, id: Uuid, key: ContentKey) {
+    /// Keeps `key` as key `id` of `block`.
+    pub fn insert(&self, id: Uuid, key: ContentKey, block: Uuid) {
         self.keys
             .write()
             .expect("the keyring is never poisoned")
-            .insert(id, key);
+            .insert(id, (key, block));
     }
 
     pub fn get(&self, id: Uuid) -> Option<ContentKey> {
+        self.held(id).map(|(key, _)| key)
+    }
+
+    /// Key `id` and the block it is a key of.
+    fn held(&self, id: Uuid) -> Option<(ContentKey, Uuid)> {
         self.keys
             .read()
             .expect("the keyring is never poisoned")
@@ -130,17 +150,23 @@ impl Keyring {
         self.len() == 0
     }
 
+    /// `plain` sealed under `key` with a nonce drawn at random, for what never deduplicates.
     pub fn seal(&self, key: Uuid, plain: &[u8]) -> Result<Vec<u8>, StoreError> {
-        Ok(self
-            .get(key)
-            .ok_or(StoreError::MissingKey(key))?
-            .seal(key, plain))
+        let (sealing, block) = self.held(key).ok_or(StoreError::MissingKey(key))?;
+        Ok(sealing.seal(key, block, plain, false))
+    }
+
+    /// `plain` sealed under `key` with a nonce derived from it, so equal content under one key
+    /// seals to one object.
+    fn seal_content(&self, key: Uuid, plain: &[u8]) -> Result<Vec<u8>, StoreError> {
+        let (sealing, block) = self.held(key).ok_or(StoreError::MissingKey(key))?;
+        Ok(sealing.seal(key, block, plain, true))
     }
 
     pub fn open(&self, sealed: &[u8]) -> Result<Vec<u8>, StoreError> {
         let id = sealed_key(sealed)?;
-        let key = self.get(id).ok_or(StoreError::MissingKey(id))?;
-        key.open_body(&sealed[HEADER_LEN..])
+        let (key, block) = self.held(id).ok_or(StoreError::MissingKey(id))?;
+        key.open_body(id, block, &sealed[HEADER_LEN..])
     }
 }
 
@@ -200,7 +226,7 @@ impl<S: ObjectStore> Vault<S> {
         content_type: Uuid,
         parts: impl Into<Part<'a>>,
     ) -> Result<Manifest, StoreError> {
-        let sealing = self.keys.get(key).ok_or(StoreError::MissingKey(key))?;
+        let sealing = self.keys.held(key).ok_or(StoreError::MissingKey(key))?;
         let root = self.write_part(key, &sealing, &parts.into())?;
         Ok(Manifest { content_type, root })
     }
@@ -208,7 +234,7 @@ impl<S: ObjectStore> Vault<S> {
     fn write_part(
         &self,
         key: Uuid,
-        sealing: &ContentKey,
+        sealing: &(ContentKey, Uuid),
         part: &Part<'_>,
     ) -> Result<Option<PartRef>, StoreError> {
         match part {
@@ -217,7 +243,8 @@ impl<S: ObjectStore> Vault<S> {
                 for range in split(bytes, self.chunker) {
                     let length =
                         u32::try_from(range.len()).map_err(|_| StoreError::ChunkTooLarge)?;
-                    let hash = self.put_sealed(key, &sealing.seal(key, &bytes[range]))?;
+                    let hash =
+                        self.put_sealed(key, &sealing.0.seal(key, sealing.1, &bytes[range], true))?;
                     chunks.push(PartRef::Chunk(ChunkRef { hash, length }));
                 }
                 self.group(key, sealing, chunks)
@@ -251,7 +278,7 @@ impl<S: ObjectStore> Vault<S> {
     fn group(
         &self,
         key: Uuid,
-        sealing: &ContentKey,
+        sealing: &(ContentKey, Uuid),
         mut parts: Vec<PartRef>,
     ) -> Result<Option<PartRef>, StoreError> {
         loop {
@@ -353,7 +380,7 @@ impl<S: ObjectStore> Vault<S> {
     fn reseal(
         &self,
         key: Uuid,
-        sealing: &ContentKey,
+        sealing: &(ContentKey, Uuid),
         part: PartRef,
     ) -> Result<PartRef, StoreError> {
         match part {
@@ -366,7 +393,7 @@ impl<S: ObjectStore> Vault<S> {
                 if plain.len() != chunk.length as usize {
                     return Err(StoreError::Corrupt);
                 }
-                let hash = self.put_sealed(key, &sealing.seal(key, &plain))?;
+                let hash = self.put_sealed(key, &sealing.0.seal(key, sealing.1, &plain, true))?;
                 Ok(PartRef::Chunk(ChunkRef {
                     hash,
                     length: chunk.length,
@@ -394,9 +421,17 @@ impl<S: ObjectStore> Vault<S> {
         }
     }
 
-    fn put_node(&self, key: Uuid, sealing: &ContentKey, node: Node) -> Result<NodeRef, StoreError> {
+    fn put_node(
+        &self,
+        key: Uuid,
+        sealing: &(ContentKey, Uuid),
+        node: Node,
+    ) -> Result<NodeRef, StoreError> {
         let length = node.parts.iter().map(|part| part.length()).sum();
-        let hash = self.put_sealed(key, &sealing.seal(key, &encode_value(&node)?))?;
+        let hash = self.put_sealed(
+            key,
+            &sealing.0.seal(key, sealing.1, &encode_value(&node)?, true),
+        )?;
         Ok(NodeRef { hash, length })
     }
 
@@ -662,7 +697,8 @@ impl<S: ObjectStore> Vault<S> {
     /// are encrypted, so only a client could rewrite one, and that would change its hash and
     /// every id naming it: read them as they were written, forever.
     pub fn put_value<T: Serialize>(&self, key: Uuid, value: &T) -> Result<Hash, StoreError> {
-        self.store.put(&self.seal(key, &encode_value(value)?)?)
+        self.store
+            .put(&self.keys.seal_content(key, &encode_value(value)?)?)
     }
 
     pub fn get_value<T: DeserializeOwned>(&self, hash: Hash) -> Result<T, StoreError> {

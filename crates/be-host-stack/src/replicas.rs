@@ -1,6 +1,6 @@
 use std::sync::{Arc, PoisonError};
 
-use be_wasm_threads::Mutex;
+use std::sync::Mutex;
 
 use be_block_client::ClientError;
 use be_block_commit::CommitId;
@@ -26,7 +26,7 @@ impl be_block_type_host::Host for Shared {
     }
 
     fn wake() {
-        be_host_base::host::wake();
+        crate::changes::wake();
     }
 
     fn record(shared: &Arc<Mutex<Self>>, error: ClientError) {
@@ -48,6 +48,18 @@ impl be_block_type_host::Host for Shared {
         super::worker::set_locked(shared, block, locked);
     }
 
+    fn created(shared: &Arc<Mutex<Self>>, block: Uuid, parent: be_block_graph::BlockParent) {
+        shared
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .graph
+            .relist_around(block, Some(parent));
+    }
+
+    fn set_marked(shared: &Arc<Mutex<Self>>, block: Uuid, marked: bool) {
+        super::worker::set_marked(shared, block, marked);
+    }
+
     fn owned(shared: &Arc<Mutex<Self>>, block: Uuid) -> bool {
         shared
             .lock()
@@ -67,10 +79,10 @@ impl be_block_type_host::Host for Shared {
     }
 
     fn reset_notice() {
-        be_host_base::notices::report(
+        crate::seen::notice(crate::seen::Notice::Report(
             "Some of this device's settings were saved by another build of be-host, so they were reset."
                 .to_owned(),
-        );
+        ));
     }
 
     fn known_head(shared: &Arc<Mutex<Self>>, block: Uuid) -> Option<CommitId> {
@@ -85,6 +97,8 @@ impl be_block_type_host::Host for Shared {
 
     fn content(shared: &Arc<Mutex<Self>>, block: Uuid, content_type: Uuid, bytes: Vec<u8>) {
         let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+        // A replica that opened the block may hold a version of it the device did not count.
+        held.reach_dirty.insert(block);
         let revision = held
             .blocks
             .get(&block)
@@ -108,6 +122,8 @@ impl be_block_type_host::Host for Shared {
         held.presence.remove(&block);
         held.peer_messages.remove(&block);
         held.touch(block);
+        drop(held);
+        crate::hosting::holding(shared, block, false);
     }
 
     fn status(shared: &Arc<Mutex<Self>>, block: Uuid, status: &Status) {
@@ -116,7 +132,7 @@ impl be_block_type_host::Host for Shared {
             let before = held.graph.get(block).and_then(|node| node.head);
             if before != status.head {
                 held.saves += 1;
-                if status.owner {
+                if status.holder {
                     held.search.sealed(block);
                 }
                 held.touch(block);
@@ -127,7 +143,11 @@ impl be_block_type_host::Host for Shared {
                     }
                 }
             }
-            held.graph.report_head(block, status.head);
+            // Read first: a write through `Part` copies what a `Seen` handed over shares, and
+            // a replica reports its status on every edit, mostly with the head unchanged.
+            if !held.graph.reports(block, status.head) {
+                held.graph.report_head(block, status.head);
+            }
             if let Some(undo) = &status.undo {
                 let history = super::History {
                     can_undo: undo.can_undo,
@@ -145,6 +165,7 @@ impl be_block_type_host::Host for Shared {
         if !locked || status.unreadable.is_none() {
             super::worker::set_unreadable(shared, block, status.unreadable.clone());
         }
+        crate::hosting::holding(shared, block, status.holder);
     }
 
     fn described(
@@ -154,9 +175,13 @@ impl be_block_type_host::Host for Shared {
         description: Description,
     ) {
         let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
-        held.graph.refer(block, references);
-        held.described.insert(block, description);
-        held.touch(block);
+        if !held.graph.refers(block, &references) {
+            held.graph.refer(block, references);
+        }
+        if held.described.get(&block) != Some(&description) {
+            held.described.insert(block, description);
+            held.touch(block);
+        }
     }
 
     fn conflict(shared: &Arc<Mutex<Self>>, block: Uuid, conflict: Conflict) {
@@ -169,21 +194,22 @@ impl be_block_type_host::Host for Shared {
 
     fn counted(
         shared: &Arc<Mutex<Self>>,
-        unsealed: usize,
+        unsealed_blocks: Vec<be_block_type_host::Owing>,
         owing_blocks: Vec<be_block_type_host::Owing>,
         undurable_blocks: Vec<be_block_type_host::Owing>,
     ) {
+        let unsealed = unsealed_blocks.len();
         let owing = owing_blocks.len();
         let undurable = undurable_blocks.len();
         let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
-        held.owing_blocks = owing_blocks;
-        held.undurable_blocks = undurable_blocks;
         // A seal moved edits into the outbox, which `waiting` counts only at the next `report`.
-        held.recounting |= unsealed < held.unsealed;
-        if (held.unsealed, held.owing, held.undurable) != (unsealed, owing, undurable) {
+        held.recounting |= unsealed < held.unsealed();
+        if (held.unsealed(), held.owing, held.undurable) != (unsealed, owing, undurable) {
             held.progressed += 1;
         }
-        held.unsealed = unsealed;
+        held.owing_blocks = owing_blocks;
+        held.unsealed_blocks = unsealed_blocks;
+        held.undurable_blocks = undurable_blocks;
         held.owing = owing;
         held.undurable = undurable;
     }
@@ -246,12 +272,18 @@ fn to_editor(shared: &Arc<Mutex<Shared>>, block: Uuid, editor: EditorId, bytes: 
         }
         return;
     }
+    let number = held.frames_queued;
+    held.frames_queued += 1;
     held.editor_frames
         .entry(editor)
         .or_default()
-        .push((block, frame(bytes)));
+        .push(crate::seen::Frame {
+            number,
+            block,
+            bytes: Arc::new(frame(bytes)),
+        });
     drop(held);
-    be_host_base::host::wake();
+    crate::changes::wake();
 }
 
 fn frame(mut bytes: Vec<u8>) -> Vec<u8> {
@@ -274,6 +306,7 @@ pub fn snapshot_frame(content_type: Uuid, bytes: Vec<u8>) -> Vec<u8> {
             session: Vec::new(),
             unsettled: Vec::new(),
             applied: 0,
+            reloads: 0,
         })
         .encode(),
     )

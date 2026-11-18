@@ -17,7 +17,7 @@ fn painted_on_redraw(count: usize) -> (usize, usize) {
         });
         view! {
             <Canvas view={view}>
-                <ForEach keys={ids.clone()}>|index: usize|
+                <ForEach value={ids.clone()}>|index: usize|
                     <CanvasItem
                         x={(index % 10) as f32 * 30.0}
                         y={(index / 10) as f32 * 30.0}

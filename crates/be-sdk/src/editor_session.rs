@@ -40,6 +40,8 @@ pub struct EditorSession {
     views: HashMap<ViewId, ViewState>,
     host: EditorHost,
     own_block: Option<Uuid>,
+    /// Opened as a host component: given no frames, so `outbound` passes it instead.
+    hosting: bool,
     dragged: Option<(ViewId, Dragged)>,
     intrinsic: Option<Vec2>,
     artifact: Option<ArtifactState>,
@@ -158,6 +160,7 @@ impl EditorSession {
             views: HashMap::default(),
             host,
             own_block: None,
+            hosting: false,
             dragged: None,
             intrinsic: None,
             artifact: None,
@@ -303,6 +306,18 @@ impl EditorSession {
         self.host.reveal(at);
     }
 
+    pub(crate) fn member(&self, event: be_sdk_api::blocks::MemberEvent) {
+        self.host.member(event);
+    }
+
+    pub(crate) fn channel(&self, event: be_sdk_api::blocks::ChannelEvent) {
+        self.host.channel(event);
+    }
+
+    pub(crate) fn set_hosting(&self, hosting: be_sdk_api::blocks::HostingHere) {
+        self.host.set_hosting(hosting);
+    }
+
     pub(crate) fn show_dialog(&self, block_id: Uuid, dialog: be_sdk_api::ShellDialog) {
         self.host.show_dialog(block_id, dialog);
     }
@@ -346,10 +361,6 @@ impl EditorSession {
             .render_clip(serial, format, Box::new(move |data| rendered.send(data)));
     }
 
-    pub(crate) fn replace_child(&mut self, old: Uuid, new: Uuid) -> bool {
-        self.editor.replace_child(old, new)
-    }
-
     pub(crate) fn set_presenting(&self, presenting: bool) {
         self.host.set_presenting(presenting);
     }
@@ -363,6 +374,28 @@ impl EditorSession {
         self.own_block = Some(block_id);
         self.link.connect(block_id, block_type);
         self.editor.connect(block_id);
+    }
+
+    /// A Join member's session: its block, given no content, only the host channel.
+    pub(crate) fn connect_join(&mut self, block_id: Uuid, block_type: Uuid) {
+        self.host.set_block_type(block_type);
+        self.host.set_joined(true);
+        self.own_block = Some(block_id);
+        self.link.connect(block_id, block_type);
+        self.editor.connect_join(block_id);
+    }
+
+    /// A host component's session: its block, with no screen ever given it.
+    pub(crate) fn connect_host(&mut self, block_id: Uuid, block_type: Uuid) {
+        self.host.set_block_type(block_type);
+        self.own_block = Some(block_id);
+        self.hosting = true;
+        self.link.connect(block_id, block_type);
+        self.editor.connect_host(block_id);
+    }
+
+    pub(crate) fn hosting(&self) -> bool {
+        self.hosting
     }
 
     pub(crate) fn connect_picker(&mut self, picker: crate::host::PickerRequest) {
@@ -461,6 +494,9 @@ impl EditorSession {
 
     pub fn outbound(&mut self) {
         let instance = self.instance;
+        if self.hosting {
+            self.editor.pass();
+        }
         self.link.exchange(instance, &self.host);
         self.watch_docks();
         crate::asked::asking(Some(instance), || {
@@ -723,6 +759,10 @@ impl EditorSession {
 
     pub fn child_focused(&self, child: ChildId) {
         self.host.push_child_focus(child);
+    }
+
+    pub fn gift_missed(&self, child: ChildId) {
+        self.host.push_gift_missed(child);
     }
 
     pub(crate) fn set_child_statuses(&self, statuses: Vec<ChildStatus>) {

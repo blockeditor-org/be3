@@ -5,7 +5,7 @@ async fn uploads_no_block_takes_are_collected_after_their_grace() {
     let directory = std::env::temp_dir().join(format!("be-server-test-{}", Uuid::new_v4()));
     let (profile, _) = ServerStore::open(&directory)
         .unwrap()
-        .register("uploader@example.com", "Uploader", "correct horse battery")
+        .register("uploader@example.com", "Uploader")
         .await
         .unwrap();
     let lasting = ServerStore::open(&directory).unwrap();
@@ -22,7 +22,11 @@ async fn uploads_no_block_takes_are_collected_after_their_grace() {
         .unwrap();
     assert_eq!(lasting.collect_uploads().await.unwrap(), 0);
     assert_eq!(
-        lasting.storage_usage(identity).await.unwrap().pending,
+        lasting
+            .storage_usage(identity.account)
+            .await
+            .unwrap()
+            .pending,
         kept.len() as u64,
         "an upload no block holds is charged to its uploader"
     );
@@ -44,7 +48,14 @@ async fn uploads_no_block_takes_are_collected_after_their_grace() {
         "an upload past its grace is deleted"
     );
     assert!(!impatient.objects().has(hashes[0]).unwrap());
-    assert_eq!(impatient.storage_usage(identity).await.unwrap().pending, 0);
+    assert_eq!(
+        impatient
+            .storage_usage(identity.account)
+            .await
+            .unwrap()
+            .pending,
+        0
+    );
 
     drop(impatient);
     let _ = std::fs::remove_dir_all(&directory);

@@ -36,6 +36,11 @@ pub struct Account {
 
 impl Server {
     pub fn start() -> Self {
+        // The devices' clocks start at the test's moment, so the server's does too: it stamps
+        // when it took each edit, which a device reads against when the edit was made.
+        be_block_commit::start_now_at(
+            i64::try_from(beui_core::timer::TEST_WALL_CLOCK.as_millis()).unwrap_or(i64::MAX),
+        );
         let runtime = tokio::runtime::Builder::new_multi_thread()
             .worker_threads(2)
             .thread_name("test-server")
@@ -70,11 +75,7 @@ impl Server {
         let (profile, _) = self
             .inner
             .runtime
-            .block_on(
-                self.inner
-                    .store
-                    .register(&email, name, be_server::Running::PASSWORD),
-            )
+            .block_on(self.inner.store.register(&email, name))
             .unwrap_or_else(|error| {
                 panic!("the test server could not make the account {name}: {error}")
             });
@@ -100,6 +101,55 @@ impl Server {
         for relay in self.relays() {
             relay.offline(offline);
         }
+    }
+
+    /// Has the server serve `of` its account's block, which holds its contacts' records, with
+    /// keys that do not open, as a server tampering with them would: a device that saw the
+    /// records keeps the ones it pinned, and says it cannot read the server's copy
+    /// (guides/blocks/keys.md, "Contacts"). Every contact's record is spoiled alike, `contact`'s with them.
+    pub fn spoil_contact(&self, of: &Account, _contact: &Account) {
+        let database =
+            be_block_sqlite_schema::open(self.inner.running.directory.join("metadata.sqlite"))
+                .unwrap_or_else(|error| panic!("the test server's database did not open: {error}"));
+        let of = of.id.to_string();
+        database
+            .execute(
+                "UPDATE wrapped_keys SET sealed = x'07070707070707070707070707070707'
+                 WHERE wrapped_by = 'account:' || ?1 AND key_id IN (
+                    SELECT keys.id FROM keys JOIN blocks
+                        ON blocks.organization_id = keys.organization_id
+                        AND blocks.id = keys.block_id
+                    WHERE blocks.author = ?1 AND blocks.owner_only = 1
+                        AND blocks.parent_kind = 1)",
+                [of.as_str()],
+            )
+            .unwrap_or_else(|error| panic!("the test server could not spoil the keys: {error}"));
+    }
+
+    /// Adds `joiner` to the organization named `name` that `of` belongs to, as an editor,
+    /// straight into the server's data, as a server adding a member on its own would: no
+    /// invitation signed them into the organization's log.
+    pub fn add_member(&self, of: &Account, name: &str, joiner: &Account) {
+        let database =
+            be_block_sqlite_schema::open(self.inner.running.directory.join("metadata.sqlite"))
+                .unwrap_or_else(|error| panic!("the test server's database did not open: {error}"));
+        let added = database
+            .execute(
+                "INSERT INTO memberships (organization_id, account_id, role)
+                 SELECT organizations.id, ?3, 'editor' FROM organizations
+                 JOIN memberships ON memberships.organization_id = organizations.id
+                 WHERE organizations.name = ?1 AND memberships.account_id = ?2",
+                [
+                    name,
+                    of.id.to_string().as_str(),
+                    joiner.id.to_string().as_str(),
+                ],
+            )
+            .unwrap_or_else(|error| panic!("the test server could not add the member: {error}"));
+        assert_eq!(
+            added, 1,
+            "the account belongs to one organization of that name"
+        );
     }
 
     /// A network of its own for one device, carrying its connections to the server.

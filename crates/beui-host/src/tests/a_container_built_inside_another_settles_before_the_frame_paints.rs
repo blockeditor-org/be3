@@ -10,23 +10,20 @@ fn a_container_built_inside_another_settles_before_the_frame_paints() {
     let document = build_node(move || {
         view! {
             <Frame width=300.0 height=200.0>
-                <Container>|size: ReadSignal<Vec2>| {
-                    let wide = create_memo(move || size.get().x > 100.0);
-                    view! {
-                        <Frame height=40.0>
-                            <List spacing=0.0>
-                                <Show condition={wide}>
-                                    <Container>|inner: ReadSignal<Vec2>| {
-                                        create_effect(move || seen.update(|seen| seen.push(inner.get().x)));
-                                        view! {
-                                            <Frame height=20.0 />
-                                        }
-                                    }</Container>
-                                </Show>
-                            </List>
-                        </Frame>
-                    }
-                }</Container>
+                <Container>|size: ReadSignal<Vec2>|
+                    <Frame height=40.0>
+                        <List spacing=0.0>
+                            <Show value={move || size.get().x > 100.0}>
+                                <Container>|inner: ReadSignal<Vec2>| {
+                                    create_effect(move || seen.update(|seen| seen.push(inner.get().x)));
+                                    view! {
+                                        <Frame height=20.0 />
+                                    }
+                                }</Container>
+                            </Show>
+                        </List>
+                    </Frame>
+                </Container>
             </Frame>
         }
     });

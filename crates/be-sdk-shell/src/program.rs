@@ -379,9 +379,7 @@ impl Workspace {
             if stale || !gone.is_empty() || !rebound.is_empty() {
                 self.heard.update(|heard| heard.retain(|tab, _| kept(tab)));
             }
-            if programs != self.programs.get_untracked() {
-                self.programs.set(programs);
-            }
+            self.programs.set(programs);
         });
     }
 
@@ -633,9 +631,7 @@ impl Workspace {
     /// Set from the host's `PowerAvailability::ending`. The programs are asked to close only after
     /// that is published, so every window that closes during the ending is kept as a placeholder.
     pub fn keep_through_ending(&self, ending: bool) {
-        if self.ending.get_untracked() != ending {
-            self.ending.set(ending);
-        }
+        self.ending.set(ending);
     }
 
     pub fn placeholder_openable(&self, tab: TabId) -> Memo<bool> {
@@ -730,6 +726,22 @@ impl Workspace {
         });
     }
 
+    /// Whether a new tab's window opens hidden, for the person to show from the window chips
+    /// (`HostWindow::opens_hidden`); a restored tab opens as it was.
+    pub(crate) fn opens_hidden(&self, tab: TabId) -> bool {
+        if !self.needs_size(tab) {
+            return false;
+        }
+        let Some(window) = self.program_window(tab) else {
+            return false;
+        };
+        self.windows.with(|windows| {
+            windows
+                .iter()
+                .any(|listed| listed.id == window && listed.opens_hidden)
+        })
+    }
+
     /// The listing of a new tab's window, whose size it opens at; none for a tab that was
     /// restored or already sized.
     pub(crate) fn opening_window(&self, tab: TabId) -> Option<HostWindow> {
@@ -790,18 +802,14 @@ pub fn ProgramTab(
             on_close={move || workspace.close(tab)}
             back_closes=false
         >
-            <Layers>
-                <Dynamic value={window}>|window: Option<HostWindowId>| {
-                    match window {
-                        Some(window) => view! {
-                            <WindowBody workspace tab window floating />
-                        },
-                        None => view! {
-                            <Placeholder workspace tab />
-                        },
-                    }
-                }</Dynamic>
-            </Layers>
+            <Dynamic
+                value={window}
+                fallback={move || view! {
+                    <Placeholder workspace tab />
+                }}
+            >|window: HostWindowId|
+                <WindowBody workspace tab window floating />
+            </Dynamic>
         </DockTab>
     }
 }
@@ -832,24 +840,11 @@ pub fn ProgramWindow(workspace: Workspace, tab: TabId) -> DockNode<TabId> {
             }
         });
     }
-    if !untrack(|| workspace.is_display(tab)) {
-        create_effect(move || untrack(|| workspace.sized(tab)));
-    } else if workspace.needs_size(tab) {
-        let heard = workspace.heard_of(tab);
-        let named = create_memo(move || heard.with(|heard| heard.title.is_some()));
-        create_effect(move || {
-            let placed = workspace.on_dock_host(tab, |host, tab| host.window_rect(tab));
-            if named.get() && placed.flatten().is_some() {
-                untrack(|| {
-                    workspace.sized(tab);
-                    workspace.hide(tab);
-                });
-            }
-        });
-    }
+    let hidden = untrack(|| workspace.opens_hidden(tab));
+    create_effect(move || untrack(|| workspace.sized(tab)));
     let pane = format!("window.{}", tab.value());
     view! {
-        <DockWindow id={pane.clone()} rect>
+        <DockWindow id={pane.clone()} rect hidden>
             <DockPane id={pane}>
                 <ProgramTab workspace tab floating=true />
             </DockPane>
@@ -897,7 +892,7 @@ pub fn WindowDialog(
     view! {
         <DockDialog
             id={tab}
-            parent={create_memo(move || workspace.window_tab_of(parent))}
+            parent={move || workspace.window_tab_of(parent)}
             title={title}
             size
             modal
@@ -924,37 +919,39 @@ fn WindowBody(workspace: Workspace, tab: TabId, window: HostWindowId, floating: 
     }
     on_cleanup(move || workspace.forget_child(tab));
     let minimized = create_memo(move || heard.with(|heard| heard.minimized));
-    let seen_minimize = StoredCell::new(minimized.get_untracked());
-    create_effect(move || {
-        let now = minimized.get();
-        if now > seen_minimize.replace(now) {
-            untrack(|| workspace.hide(workspace.root_tab(tab)));
-        }
-    });
+    create_effect_on_change(
+        move || minimized.get(),
+        move |now, before| {
+            if now > before {
+                workspace.hide(workspace.root_tab(tab));
+            }
+        },
+    );
     let raised = create_memo(move || heard.with(|heard| heard.raised));
-    let seen_raise = StoredCell::new(raised.get_untracked());
-    create_effect(move || {
-        let now = raised.get();
-        if now <= seen_raise.replace(now) {
-            return;
-        }
-        // A raise asks for the window to be shown, not proof that its keyboard went there, so
-        // `show` rather than `content_focused`: the window's focus reaches the dock through its
-        // child view, whose `ChildBlock` reports it.
-        untrack(|| match control {
-            Some(control) => control.show(),
-            None => {
-                layout.show(&tab);
-                if let Some(child) = heard.with(|heard| heard.child) {
-                    workspace.host().focus_child(child);
+    create_effect_on_change(
+        move || raised.get(),
+        move |now, before| {
+            if now <= before {
+                return;
+            }
+            // A raise asks for the window to be shown, not proof that its keyboard went there,
+            // so `show` rather than `content_focused`: the window's focus reaches the dock
+            // through its child view, whose `ChildBlock` reports it.
+            match control {
+                Some(control) => control.show(),
+                None => {
+                    layout.show(&tab);
+                    if let Some(child) = heard.with(|heard| heard.child) {
+                        workspace.host().focus_child(child);
+                    }
                 }
             }
-        });
-    });
+        },
+    );
     if let Some(control) = control {
         let called = create_memo(move || control.attention());
         create_effect(move || {
-            if called.get().is_some()
+            if called.with(Option::is_some)
                 && let Some(child) = untrack(|| heard.with(|heard| heard.child))
             {
                 untrack(|| workspace.host().focus_child(child));
@@ -962,63 +959,68 @@ fn WindowBody(workspace: Workspace, tab: TabId, window: HostWindowId, floating: 
         });
     }
     let panel = NodeRef::new();
+    let menu_open = create_signal(false);
     let menu_at = create_signal(None::<Pos2>);
     let asked = create_memo(move || heard.with(|heard| heard.menu));
-    let seen = StoredCell::new(asked.get_untracked().map(|menu| menu.asked));
-    create_effect(move || {
-        let Some(asked) = asked.get() else {
-            return;
-        };
-        if seen.replace(Some(asked.asked)) == Some(asked.asked) {
-            return;
-        }
-        let shown = untrack(|| {
-            let node = panel.try_get()?;
-            measure(node).get_untracked()
-        });
-        if let Some(shown) = shown {
-            menu_at.set(Some(shown.rect.min + asked.at.to_vec2()));
-        }
+    // The last ask heard, kept while the report says nothing, so only a new one opens it.
+    let last_asked = create_memo(move |previous: Option<&Option<_>>| {
+        asked
+            .get()
+            .map(|menu| menu.asked)
+            .or(previous.copied().flatten())
     });
-    let fullscreen_label = create_memo(move || match fullscreen.get() {
+    create_effect_on_change(
+        move || last_asked.get(),
+        move |_, _| {
+            let Some(asked) = asked.get_untracked() else {
+                return;
+            };
+            let shown = panel
+                .try_get()
+                .and_then(|node| measure(node).get_untracked());
+            if let Some(shown) = shown {
+                menu_at.set(Some(shown.rect.min + asked.at.to_vec2()));
+                menu_open.set(true);
+            }
+        },
+    );
+    let fullscreen_label = move || match fullscreen.get() {
         true => "Leave full screen".to_owned(),
         false => "Full screen".to_owned(),
-    });
+    };
     view! {
         <Layers>
-            <ContextMenu
-                disabled=true
-                open_at={menu_at}
-                on_close={move || menu_at.set(None)}
+            <MenuPopup
+                anchor=panel
+                open=menu_open
+                at=menu_at
                 items={view! {
-                    <Show condition={floating}>
+                    {floating.then(|| view! {
                         <MenuItem
                             label="Hide"
                             glyph=ICON_EYE_OFF
-                            row_test_id="workspace.window.menu.hide"
+                            @test_id="workspace.window.menu.hide"
                             on_click={move || workspace.hide(tab)}
                         />
                         <MenuItem
                             label={fullscreen_label}
                             glyph=ICON_FULLSCREEN
-                            row_test_id="workspace.window.menu.fullscreen"
+                            @test_id="workspace.window.menu.fullscreen"
                             on_click={move || {
                                 workspace.on_dock_host(tab, |host, tab| {
                                     host.toggle_window_fullscreen(tab);
                                 });
                             }}
                         />
-                    </Show>
+                    })}
                     <MenuItem
                         label="Close"
                         glyph=ICON_X
-                        row_test_id="workspace.window.menu.close"
+                        @test_id="workspace.window.menu.close"
                         on_click={move || workspace.close(tab)}
                     />
                 }}
-            >
-                <Frame />
-            </ContextMenu>
+            />
             <Subregion
                 editor={editor}
                 placed={Some(SubregionContent::Window(window))}
@@ -1038,7 +1040,7 @@ pub fn UnshownWindows(workspace: Workspace) -> NodeId {
     view! {
         <Frame width={Size::Custom(0.0)} height={Size::Custom(0.0)}>
             <Layers>
-                <ForEach keys={unshown}>|(window, tab): (HostWindowId, TabId)|
+                <ForEach value={unshown}>|(window, tab): (HostWindowId, TabId)|
                     <UnshownWindow workspace window tab />
                 </ForEach>
             </Layers>
@@ -1053,23 +1055,23 @@ fn UnshownWindow(workspace: Workspace, window: HostWindowId, tab: TabId) -> Node
     let heard = workspace.heard_of(tab);
     on_cleanup(move || workspace.forget_child(tab));
     let raised = create_memo(move || heard.with(|heard| heard.reported.then_some(heard.raised)));
-    let seen = StoredCell::new(raised.get_untracked());
-    create_effect(move || {
-        let Some(now) = raised.get() else {
-            return;
-        };
-        let before = seen.replace(Some(now));
-        if before.is_none_or(|before| now <= before) {
-            return;
-        }
-        untrack(|| {
+    // The last raise reported, kept while the child reports nothing.
+    let last_raised = create_memo(move |previous: Option<&Option<_>>| {
+        raised.get().or(previous.copied().flatten())
+    });
+    create_effect_on_change(
+        move || last_raised.get(),
+        move |now, before| {
+            if now.is_none_or(|now| before.is_none_or(|before| now <= before)) {
+                return;
+            }
             let root = workspace.root_tab(tab);
             layout.show(&root);
             if root != tab {
                 layout.show(&tab);
             }
-        });
-    });
+        },
+    );
     view! {
         <Subregion
             editor={editor}
@@ -1098,10 +1100,7 @@ fn Placeholder(workspace: Workspace, tab: TabId) -> NodeId {
         record.with(|record| record.as_ref().map(window_title).unwrap_or_default())
     });
     let picture = create_memo(move || workspace.placeholder_picture(tab));
-    let pictured = create_memo(move || picture.with(Option::is_some));
-    let plain = create_memo(move || !pictured.get());
     let openable = workspace.placeholder_openable(tab);
-    let unopenable = create_memo(move || !openable.get());
     view! {
         <Frame
             fill=ColorRole::Background
@@ -1109,15 +1108,17 @@ fn Placeholder(workspace: Workspace, tab: TabId) -> NodeId {
             @test_id={format!("workspace.placeholder.{}", tab.value())}
         >
             <List spacing=BODY_SPACING align=Align::Center justify=Justify::Center>
-                <Show condition={pictured}>
+                <Show
+                    value={move || picture.with(Option::is_some)}
+                    fallback={|| view! {
+                        <Text size=TextSize::Xl5 color=TextColor::Muted>
+                            <Icon glyph=ICON_APP_WINDOW />
+                        </Text>
+                    }}
+                >
                     <Frame width=PICTURE_SIZE height=PICTURE_SIZE>
                         <Picture image={picture} />
                     </Frame>
-                </Show>
-                <Show condition={plain}>
-                    <Text size=TextSize::Xl5 color=TextColor::Muted>
-                        <Icon glyph=ICON_APP_WINDOW />
-                    </Text>
                 </Show>
                 <Text style=TextStyle::HEADING>{heading}</Text>
                 <Text style=TextStyle::CAPTION>{title}</Text>
@@ -1126,7 +1127,7 @@ fn Placeholder(workspace: Workspace, tab: TabId) -> NodeId {
                         label="Open"
                         glyph=ICON_EXTERNAL_LINK
                         variant=ButtonVariant::Primary
-                        disabled={unopenable}
+                        disabled={move || !openable.get()}
                         @test_id={format!("workspace.placeholder.{}.open", tab.value())}
                         on_click={move || workspace.open_placeholder(tab)}
                     />

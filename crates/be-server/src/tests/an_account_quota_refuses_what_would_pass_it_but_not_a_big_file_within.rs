@@ -9,8 +9,7 @@ async fn an_account_quota_refuses_what_would_pass_it_but_not_a_big_file_within()
         ..ServerConfig::OPEN
     })
     .await;
-    let mut client = harness.client().await;
-    client.register("hoarder@example.com").await;
+    let mut client = harness.member("hoarder@example.com").await;
     client.organization("quota").await;
     let object = |seed: u8| -> Vec<u8> {
         (0..OBJECT)
@@ -47,7 +46,13 @@ async fn an_account_quota_refuses_what_would_pass_it_but_not_a_big_file_within()
     let block = client.create_block(BlockParent::Root).await;
     let hashes: Vec<Hash> = big.iter().map(|bytes| Hash::of(bytes)).collect();
     let taken = client
-        .call(|peer| client::objects::hold_objects(peer, block, hashes, Hold::Lasting))
+        .call(|peer| {
+            peer.write::<()>(be_block_protocol::Op::HoldObjects {
+                block: block,
+                objects: hashes,
+                hold: Hold::Lasting,
+            })
+        })
         .await;
     assert!(taken.is_ok(), "{taken:?}");
     let after = client.storage().await.unwrap();

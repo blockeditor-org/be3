@@ -2,6 +2,7 @@ use super::*;
 use beui::KeyPress;
 use beui::Sides;
 use beui::Vec2;
+use beui::primitives::Blank;
 use beui::primitives::Drawing;
 use beui::primitives::Frame;
 use beui::primitives::Gap;
@@ -10,9 +11,11 @@ use beui::primitives::Span;
 use beui::primitives::Text;
 use beui::primitives::{Grid, List};
 use beui::reactive::Painter;
+use beui::styled::Glide;
 use beui::unstyled::FirstFit;
-use beui::unstyled::Glide;
-use beui::{Align, Align2, Corners, Dismiss, Extent, Justify, Outline, Placement, Track};
+use beui::{
+    Align, Align2, Corners, Dismiss, Extent, Justify, LayerPolicy, Outline, Placement, Track,
+};
 use beui::{Color, Pos2, vec2};
 use beui::{FillRule, LineCap, LineJoin, Path, Stroke};
 use beui::{Overflow, TextLayout, WrapAt};
@@ -64,14 +67,14 @@ fn FrameSwatches() -> NodeId {
             <Frame
                 width=SWATCH
                 height=SWATCH
-                outline={create_memo(move || Some(Outline::new(theme.text.get(), 2.0)))}
+                outline={move || Some(Outline::new(theme.text.get(), 2.0))}
                 radius=8.0
             />
             <Frame
                 width=SWATCH
                 height=SWATCH
                 fill={theme.control}
-                outline={create_memo(move || Some(Outline::new(theme.accent.get(), 2.0).offset(4.0)))}
+                outline={move || Some(Outline::new(theme.accent.get(), 2.0).offset(4.0))}
                 radius=8.0
             />
             <Frame
@@ -152,6 +155,9 @@ pub(crate) fn TextNodesPage() -> NodeId {
             </Sample>
             <Sample title="Line breaks" code={vec![TextBreaks::SOURCE]}>
                 <TextBreaks />
+            </Sample>
+            <Sample title="Blanks" code={vec![TextBlanks::SOURCE]}>
+                <TextBlanks />
             </Sample>
             <Sample title="Icons" code={vec![TextIcons::SOURCE]}>
                 <TextIcons />
@@ -333,6 +339,37 @@ fn TextBreaks() -> NodeId {
     }
 }
 
+const BLANKED: &str = "A blank after the last word hangs past the edge";
+
+#[sample]
+#[component]
+fn TextBlanks() -> NodeId {
+    let theme = use_theme();
+    // The line laid out alone, so the frame below can be exactly as wide as its words.
+    let alone = view! {
+        <Text color={theme.text} overflow={Overflow::Visible}>{BLANKED}</Text>
+    };
+    let measured = measure(alone);
+    let width = move || Extent::px(measured.get().map_or(0.0, |measured| measured.rect.width()));
+    let mark = move || {
+        vec![beui::TextMark::new(
+            BLANKED.len()..BLANKED.len() + 1,
+            theme.accent.get(),
+        )]
+    };
+    view! {
+        <List spacing={SECTION_SPACING.px()}>
+            <List direction={Direction::Horizontal} spacing={ROW_SPACING.px()}>{alone}</List>
+            <Frame width={width} fill={theme.control}>
+                <Text color={theme.text} marks={mark}>
+                    {BLANKED}
+                    <Blank width=16.0 />
+                </Text>
+            </Frame>
+        </List>
+    }
+}
+
 #[component]
 pub(crate) fn ListsPage() -> NodeId {
     view! {
@@ -475,7 +512,7 @@ fn ListJustify() -> NodeId {
                 <Tile label="B" />
             </List>
             <List direction=Direction::Horizontal spacing=8.0 wrap=true>
-                <ForEach keys={PLANETS.to_vec()}>|planet: &'static str|
+                <ForEach value={PLANETS.to_vec()}>|planet: &'static str|
                     <Tile label={planet.to_owned()} />
                 </ForEach>
             </List>
@@ -510,11 +547,26 @@ pub(crate) fn ControlFlowPage() -> NodeId {
             <Sample title="Show" code={vec![ShowToggle::SOURCE, Tile::SOURCE]}>
                 <ShowToggle />
             </Sample>
+            <Sample title="Show with a fallback" code={vec![ShowFallback::SOURCE, Tile::SOURCE]}>
+                <ShowFallback />
+            </Sample>
+            <Sample title="Show over an Option" code={vec![ShowPicked::SOURCE, Tile::SOURCE]}>
+                <ShowPicked />
+            </Sample>
             <Sample title="ForEach" code={vec![PlanetList::SOURCE, Tile::SOURCE]}>
                 <PlanetList />
             </Sample>
-            <Sample title="Dynamic" code={vec![DynamicShape::SOURCE]}>
-                <DynamicShape />
+            <Sample title="ForEach with a key" code={vec![CounterList::SOURCE, Tile::SOURCE]}>
+                <CounterList />
+            </Sample>
+            <Sample title="Match" code={vec![MatchShape::SOURCE]}>
+                <MatchShape />
+            </Sample>
+            <Sample title="Dynamic" code={vec![DynamicCount::SOURCE, Tile::SOURCE]}>
+                <DynamicCount />
+            </Sample>
+            <Sample title="KeepAlive and Kept" code={vec![KeptCounter::SOURCE]}>
+                <KeptCounter />
             </Sample>
         </ScrollPage>
     }
@@ -527,9 +579,49 @@ fn ShowToggle() -> NodeId {
     view! {
         <List spacing={SECTION_SPACING.px()}>
             <LabelledSwitch label="Shown" on={shown} />
-            <Show condition={shown}>
-                <Tile label="Built the first time it is shown, and kept while hidden" />
+            <Show value={shown}>
+                <Tile label="Built each time it is shown, and dropped while hidden" />
             </Show>
+        </List>
+    }
+}
+
+#[sample]
+#[component]
+fn ShowFallback() -> NodeId {
+    let editing = create_signal(false);
+    view! {
+        <List spacing={SECTION_SPACING.px()}>
+            <LabelledSwitch label="Editing" on={editing} />
+            <Frame padding={Sides::all(8.0)}>
+                <Show
+                    value={editing}
+                    fallback={|| view! {
+                        <Tile label="Reading" />
+                    }}
+                >||
+                    <Tile label="Editing: one child either way, so a frame can hold it" />
+                </Show>
+            </Frame>
+            <List spacing=8.0>
+                <Show
+                    value={editing}
+                    fallback={|| view! {
+                        <Tile label="A run of three" />
+                        <Tile label="while reading" />
+                        <Tile label="in a list" />
+                    }}
+                >||
+                    <Tile label="A run of two" />
+                    <Tile label="while editing" />
+                </Show>
+            </List>
+            <Tile
+                label={move || match editing.get() {
+                    true => "A closure is a prop: editing".to_owned(),
+                    false => "A closure is a prop: reading".to_owned(),
+                }}
+            />
         </List>
     }
 }
@@ -553,8 +645,13 @@ fn PlanetList() -> NodeId {
                     on_click={move || count.update(|count| *count = (*count + 1).min(PLANETS.len()))}
                 />
             </List>
-            <ForEach keys={planets}>|planet: &'static str|
-                <Tile label={planet.to_owned()} />
+            <ForEach
+                value={planets}
+                fallback={|| view! {
+                    <Tile label="No planets: the fallback shows while the list is empty" />
+                }}
+            >|planet: &'static str, index: ReadSignal<usize>|
+                <Tile label={move || format!("{}. {planet}", index.get() + 1)} />
             </ForEach>
         </List>
     }
@@ -562,23 +659,192 @@ fn PlanetList() -> NodeId {
 
 #[sample]
 #[component]
-fn DynamicShape() -> NodeId {
-    let theme = use_theme();
-    let round = create_signal(false);
+fn ShowPicked() -> NodeId {
+    let picked = create_signal(None::<&'static str>);
     view! {
         <List spacing={SECTION_SPACING.px()}>
-            <LabelledSwitch label="Round" on={round} />
-            <Dynamic value={round}>|round: bool| {
-                match round {
-                    true => view! {
-                        <Frame width=SWATCH height=SWATCH radius=36.0 fill={theme.accent} />
-                    },
-                    false => view! {
-                        <Text color={theme.text}>"Rebuilt whenever its value changes"</Text>
-                    },
-                }
-            }</Dynamic>
+            <List direction=Direction::Horizontal spacing=8.0>
+                <ForEach value={PLANETS[..3].to_vec()}>|planet: &'static str|
+                    <Button
+                        label={planet.to_owned()}
+                        variant=ButtonVariant::Secondary
+                        on_click={move || picked.set(Some(planet))}
+                    />
+                </ForEach>
+                <Button
+                    label="None"
+                    variant=ButtonVariant::Secondary
+                    on_click={move || picked.set(None)}
+                />
+            </List>
+            <Show
+                value={picked}
+                fallback={|| view! {
+                    <Tile label="Nothing picked" />
+                }}
+            >|planet: ReadSignal<&'static str>|
+                <Tile label={move || format!("Picked {}: changed in place", planet.get())} />
+            </Show>
         </List>
+    }
+}
+
+#[sample]
+#[component]
+fn CounterList() -> NodeId {
+    #[derive(Clone, PartialEq)]
+    struct Counter {
+        id: u32,
+        name: &'static str,
+        count: u32,
+    }
+    let counters = create_signal(vec![
+        Counter {
+            id: 1,
+            name: "Apples",
+            count: 0,
+        },
+        Counter {
+            id: 2,
+            name: "Pears",
+            count: 0,
+        },
+    ]);
+    view! {
+        <List spacing={SECTION_SPACING.px()}>
+            <List direction=Direction::Horizontal spacing=8.0>
+                <Button
+                    label="Count an apple"
+                    variant=ButtonVariant::Secondary
+                    on_click={move || counters.update(|counters| counters[0].count += 1)}
+                />
+                <Button
+                    label="Swap"
+                    variant=ButtonVariant::Secondary
+                    on_click={move || counters.update(|counters| counters.swap(0, 1))}
+                />
+            </List>
+            <ForEach
+                value={counters}
+                key={|counter: &Counter| counter.id}
+            >|counter: ReadSignal<Counter>|
+                <Tile
+                    label={move || counter.with(|counter| format!("{}: {}", counter.name, counter.count))}
+                />
+            </ForEach>
+        </List>
+    }
+}
+
+#[sample]
+#[component]
+fn MatchShape() -> NodeId {
+    #[derive(Clone, Copy, PartialEq)]
+    enum Shape {
+        Caption,
+        Square,
+        Circle,
+        Wide(u8),
+    }
+    let theme = use_theme();
+    let shape = create_signal(Shape::Caption);
+    view! {
+        <List spacing={SECTION_SPACING.px()}>
+            <Button
+                label="Next shape"
+                variant=ButtonVariant::Secondary
+                on_click={move || shape.update(|shape| {
+                    *shape = match shape {
+                        Shape::Caption => Shape::Square,
+                        Shape::Square => Shape::Circle,
+                        Shape::Circle => Shape::Wide(2),
+                        Shape::Wide(3) => Shape::Caption,
+                        Shape::Wide(wide) => Shape::Wide(*wide + 1),
+                    }
+                })}
+            />
+            <Match value={shape}>
+                <Case is={Shape::Caption}>
+                    <Text color={theme.text}>"The first case that holds shows"</Text>
+                </Case>
+                <Case is={Shape::Square}>
+                    <Frame width=SWATCH height=SWATCH fill={theme.accent} />
+                </Case>
+                <Case is={Shape::Circle}>
+                    <Frame width=SWATCH height=SWATCH radius=36.0 fill={theme.accent} />
+                </Case>
+                <Case
+                    when={|shape: &Shape| matches!(shape, Shape::Wide(_))}
+                >|shape: ReadSignal<Shape>|
+                    <Frame
+                        width={move || match shape.get() {
+                            Shape::Wide(wide) => Extent::px(SWATCH * f32::from(wide)),
+                            _ => Extent::px(SWATCH),
+                        }}
+                        height=SWATCH
+                        fill={theme.accent}
+                    />
+                </Case>
+            </Match>
+        </List>
+    }
+}
+
+#[sample]
+#[component]
+fn DynamicCount() -> NodeId {
+    let count = create_signal(1u32);
+    view! {
+        <List spacing={SECTION_SPACING.px()}>
+            <Button
+                label="Add one"
+                variant=ButtonVariant::Secondary
+                on_click={move || count.update(|count| *count += 1)}
+            />
+            <Dynamic value={count}>|count: u32|
+                <Tile label={format!("Built again for {count}")} />
+            </Dynamic>
+        </List>
+    }
+}
+
+#[sample]
+#[component]
+fn KeptCounter() -> NodeId {
+    let shown = create_signal(true);
+    let right = create_signal(false);
+    let left_shown = create_memo(move || shown.get() && !right.get());
+    let right_shown = create_memo(move || shown.get() && right.get());
+    // Built once, then kept, paused, while hidden, and shown in whichever column holds it.
+    let counter = move || {
+        let count = create_signal(0u32);
+        view! {
+            <Button
+                label={move || format!("Clicked {} times", count.get())}
+                variant=ButtonVariant::Secondary
+                on_click={move || count.update(|count| *count += 1)}
+            />
+        }
+    };
+    view! {
+        <KeepAlive>
+            <List spacing={SECTION_SPACING.px()}>
+                <LabelledSwitch label="Shown" on={shown} />
+                <LabelledSwitch label="In the right column" on={right} />
+                <List direction=Direction::Horizontal spacing={SECTION_SPACING.px()}>
+                    <Frame width=180.0>
+                        <Show value={left_shown}>
+                            <Kept>{counter()}</Kept>
+                        </Show>
+                    </Frame>
+                    <Frame width=180.0>
+                        <Show value={right_shown}>
+                            <Kept>{counter()}</Kept>
+                        </Show>
+                    </Frame>
+                </List>
+            </List>
+        </KeepAlive>
     }
 }
 
@@ -687,6 +953,9 @@ pub(crate) fn LayeringPage() -> NodeId {
             <Sample title="Group opacity" code={vec![FadedOverlap::SOURCE]}>
                 <FadedOverlap />
             </Sample>
+            <Sample title="Placements" code={vec![PlacementSet::SOURCE]}>
+                <PlacementSet />
+            </Sample>
         </ScrollPage>
     }
 }
@@ -780,10 +1049,10 @@ fn TiltedLabel() -> NodeId {
 #[component]
 fn GlidingPlanets() -> NodeId {
     let order = create_signal((0..5).collect::<Vec<usize>>());
-    let moved = create_signal(0_u64);
+    let moved = create_trigger();
     let reorder = move |change: fn(&mut Vec<usize>)| {
         order.update(change);
-        moved.update(|moved| *moved += 1);
+        moved.notify();
     };
     view! {
         <List @test_id="demo.layering.glide" spacing=12.0>
@@ -802,8 +1071,8 @@ fn GlidingPlanets() -> NodeId {
                 />
             </List>
             <List direction=Direction::Horizontal spacing=8.0>
-                <ForEach keys={order}>|planet: usize|
-                    <Glide arm={moved}>
+                <ForEach value={order}>|planet: usize|
+                    <Glide on={moved}>
                         <Tile label={PLANETS[planet].to_owned()} />
                     </Glide>
                 </ForEach>
@@ -852,7 +1121,7 @@ fn FadedStrip() -> NodeId {
         <Frame fade_edges={edges}>
             <Scroll direction=Direction::Horizontal>
                 <List direction=Direction::Horizontal spacing=8.0>
-                    <ForEach keys={PLANETS.to_vec()}>|planet: &'static str|
+                    <ForEach value={PLANETS.to_vec()}>|planet: &'static str|
                         <Tile label={planet.to_owned()} />
                     </ForEach>
                 </List>
@@ -866,7 +1135,7 @@ fn FadedStrip() -> NodeId {
 fn FadedTiles() -> NodeId {
     view! {
         <List @test_id="demo.layering.opacity" direction=Direction::Horizontal spacing=8.0>
-            <ForEach keys={vec![100_u32, 60, 30]}>|percent: u32|
+            <ForEach value={vec![100_u32, 60, 30]}>|percent: u32|
                 <Frame opacity={percent as f32 / 100.0}>
                     <Tile label={format!("{percent}%")} />
                 </Frame>
@@ -884,7 +1153,7 @@ fn FadedOverlap() -> NodeId {
     let offset = Sides::new(SWATCH / 2.0, SWATCH / 2.0, 0.0, 0.0);
     view! {
         <List @test_id="demo.layering.faded_overlap" direction=Direction::Horizontal spacing=24.0>
-            <ForEach keys={vec![100_u32, 50]}>|percent: u32|
+            <ForEach value={vec![100_u32, 50]}>|percent: u32|
                 <Frame opacity={percent as f32 / 100.0}>
                     <Layers>
                         <Frame
@@ -960,7 +1229,7 @@ fn AnchoredOverlay() -> NodeId {
             </Interactive>
             <Overlay
                 anchor=anchor
-                placement=Placement::BelowStart
+                placement=Placement::BELOW_START
                 open={open}
                 on_dismiss={move |_: Dismiss| open.set(false)}
             >
@@ -969,7 +1238,7 @@ fn AnchoredOverlay() -> NodeId {
                         @test_id="demo.overlay.panel"
                         width=PANEL_WIDTH
                         fill={theme.surface}
-                        outline={create_memo(move || Some(Outline::new(theme.border.get(), 1.0)))}
+                        outline={move || Some(Outline::new(theme.border.get(), 1.0))}
                         radius={Radius::Lg.px()}
                         padding=12.0
                     >
@@ -980,6 +1249,152 @@ fn AnchoredOverlay() -> NodeId {
                 </Frame>
             </Overlay>
         </List>
+    }
+}
+
+const PLACEMENTS: [(Placement, &str); 12] = [
+    (Placement::ABOVE_START, "above start"),
+    (Placement::ABOVE_CENTER, "above center"),
+    (Placement::ABOVE_END, "above end"),
+    (Placement::BELOW_START, "below start"),
+    (Placement::BELOW_CENTER, "below center"),
+    (Placement::BELOW_END, "below end"),
+    (Placement::LEFT_START, "left start"),
+    (Placement::LEFT_CENTER, "left center"),
+    (Placement::LEFT_END, "left end"),
+    (Placement::RIGHT_START, "right start"),
+    (Placement::RIGHT_CENTER, "right center"),
+    (Placement::RIGHT_END, "right end"),
+];
+
+/// Where the corner sample's marker stands, from the window's bottom right corner.
+const CORNER_MARKER: Rect = Rect {
+    min: Pos2::new(-80.0, -40.0),
+    max: Pos2::new(-40.0, -20.0),
+};
+
+/// Every side and alignment an overlay can open at beside its anchor, all at once; and near
+/// the window's corner, where they flip and shift to stay in it, clear of its edges.
+#[sample]
+#[component]
+fn PlacementSet() -> NodeId {
+    let theme = use_theme();
+    let anchor = NodeRef::new();
+    let open = create_signal(false);
+    let corner = create_signal(false);
+    let marker = NodeRef::new();
+    let viewport = use_viewport_size();
+    let marked = create_memo(move || OverlayAnchor::Point(CORNER_MARKER.min + viewport.get()));
+    let near_corner = [
+        (
+            Placement::BELOW_START.gap(4).margin(8),
+            "below start",
+            "demo.corner.below",
+        ),
+        (
+            Placement::RIGHT_START.gap(4).margin(8),
+            "right start",
+            "demo.corner.right",
+        ),
+    ];
+    let face = theme.control;
+    let ink = theme.text;
+    view! {
+        <Frame padding={Sides::symmetric(120.0, 40.0)}>
+            <List direction=Direction::Horizontal spacing=0.0>
+                <Interactive
+                    @test_id="demo.placements.trigger"
+                    on_click={move || open.update(|open| *open = !*open)}
+                >
+                    <Frame
+                        @node_ref=&anchor
+                        @test_id="demo.placements.anchor"
+                        width=320.0
+                        height=110.0
+                        fill=face
+                        radius={Radius::Md.px()}
+                        padding=12.0
+                    >
+                        <Text color={ink}>"Show every placement"</Text>
+                    </Frame>
+                </Interactive>
+                <Frame padding={Sides { left: 130.0, top: 0.0, right: 0.0, bottom: 0.0 }}>
+                    <Interactive
+                        @test_id="demo.placements.corner.trigger"
+                        on_click={move || corner.update(|corner| *corner = !*corner)}
+                    >
+                        <Frame
+                            fill=face
+                            radius={Radius::Md.px()}
+                            padding={Sides::symmetric(16.0, 10.0)}
+                        >
+                            <Text color={ink}>"Near the corner"</Text>
+                        </Frame>
+                    </Interactive>
+                </Frame>
+                <Overlay
+                    anchor={marked}
+                    placement=Placement::At
+                    policy=LayerPolicy::Inert
+                    traps_focus=false
+                    dismissable=false
+                    open={corner}
+                    on_dismiss={|_: Dismiss| {}}
+                >
+                    <Frame
+                        @node_ref=&marker
+                        @test_id="demo.placements.corner"
+                        width={CORNER_MARKER.width()}
+                        height={CORNER_MARKER.height()}
+                        fill={theme.control}
+                        radius={Radius::Sm.px()}
+                    />
+                </Overlay>
+                <ForEach value={(0..near_corner.len()).collect::<Vec<usize>>()}>|index: usize|
+                    <Overlay
+                        anchor=marker
+                        placement={near_corner[index].0}
+                        policy=LayerPolicy::Inert
+                        traps_focus=false
+                        dismissable=false
+                        open={corner}
+                        on_dismiss={|_: Dismiss| {}}
+                    >
+                        <Frame
+                            @test_id={near_corner[index].2}
+                            width=100.0
+                            fill={theme.surface}
+                            outline={move || Some(Outline::new(theme.border.get(), 1.0))}
+                            radius={Radius::Sm.px()}
+                            padding={Sides::symmetric(6.0, 2.0)}
+                        >
+                            <Text color={theme.text}>{near_corner[index].1}</Text>
+                        </Frame>
+                    </Overlay>
+                </ForEach>
+                <ForEach value={(0..PLACEMENTS.len()).collect::<Vec<usize>>()}>|index: usize|
+                    <Overlay
+                        anchor=anchor
+                        placement={PLACEMENTS[index].0.gap(4)}
+                        policy=LayerPolicy::Inert
+                        traps_focus=false
+                        dismissable=false
+                        open={open}
+                        on_dismiss={|_: Dismiss| {}}
+                    >
+                        <Frame
+                            @test_id={format!("demo.placement.{index}")}
+                            fill={theme.surface}
+                            outline={move || Some(Outline::new(theme.border.get(), 1.0))}
+                            radius={Radius::Sm.px()}
+                            padding={Sides::symmetric(6.0, 2.0)}
+                        >
+                            <Text color={theme.text}>{PLACEMENTS[index].1}</Text>
+                        </Frame>
+                    </Overlay>
+                </ForEach>
+            </List>
+        </Frame>
     }
 }
 
@@ -1018,7 +1433,7 @@ fn FloatingWindow() -> NodeId {
                 <Frame
                     @test_id="demo.window.panel"
                     fill={theme.surface}
-                    outline={create_memo(move || Some(Outline::new(theme.border.get(), 1.0)))}
+                    outline={move || Some(Outline::new(theme.border.get(), 1.0))}
                     radius={Radius::Lg.px()}
                     padding=12.0
                 >
@@ -1083,7 +1498,7 @@ fn PopupWindow() -> NodeId {
                     <Frame
                         @test_id="demo.popup.panel"
                         fill={theme.surface}
-                        outline={create_memo(move || Some(Outline::new(theme.border.get(), 1.0)))}
+                        outline={move || Some(Outline::new(theme.border.get(), 1.0))}
                         radius={Radius::Lg.px()}
                         padding=12.0
                     >
@@ -1110,7 +1525,7 @@ fn PopupWindow() -> NodeId {
                                 <Frame
                                     @test_id="demo.popup.inner"
                                     fill={theme.control}
-                                    outline={create_memo(move || Some(Outline::new(theme.border.get(), 1.0)))}
+                                    outline={move || Some(Outline::new(theme.border.get(), 1.0))}
                                     radius={Radius::Md.px()}
                                     padding=12.0
                                 >
@@ -1192,13 +1607,13 @@ fn AnimationSample() -> NodeId {
             />
             <Text color={theme.text}>"Tween"</Text>
             <Frame
-                width={create_memo(move || position.get() + 20.0)}
+                width={move || Extent::px(position.get() + 20.0)}
                 height=12.0
                 fill={theme.accent}
             />
             <Text color={theme.text}>"Spring"</Text>
             <Frame
-                width={create_memo(move || spring_position.get() + 20.0)}
+                width={move || Extent::px(spring_position.get() + 20.0)}
                 height=12.0
                 fill={theme.success}
             />
@@ -1251,7 +1666,7 @@ fn PathTiles(tiles: Vec<PaintTile>) -> NodeId {
     let keys = create_memo(move || (0..count).collect::<Vec<usize>>());
     view! {
         <List direction=Direction::Horizontal spacing={ROW_SPACING.px()} wrap=true>
-            <ForEach keys={keys}>|index: usize| {
+            <ForEach value={keys}>|index: usize| {
                 let paint = tiles[index];
                 let draw: Prop<Draw> = Prop::dynamic(move || {
                     let colors = colors.get();

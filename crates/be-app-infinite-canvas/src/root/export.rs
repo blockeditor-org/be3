@@ -35,7 +35,6 @@ use be_type_image::ImageContent;
 use beui::{Align, Direction};
 
 pub(crate) const PADDING: f32 = 16.0;
-pub(crate) const SCALES: [f32; 3] = [1.0, 2.0, 3.0];
 const MAX_SIDE: f32 = 16_384.0;
 const MAX_PIXELS: f32 = 64.0 * 1024.0 * 1024.0;
 
@@ -319,9 +318,9 @@ impl Exporter {
                     }
                     (Ok(data), _) => data,
                     (Err(error), _) => {
-                        state
-                            .import_error
-                            .set(Some(format!("Could not export: {error}")));
+                        editor
+                            .host()
+                            .report_failure(format!("The canvas could not be exported. {error}"));
                         return;
                     }
                 };
@@ -344,9 +343,9 @@ impl Exporter {
                         });
                         editor.then(asked, move |saved| {
                             if let FileSave::Failed(failure) = saved {
-                                state
-                                    .import_error
-                                    .set(Some(format!("Could not export: {failure}")));
+                                editor.host().report_failure(format!(
+                                    "The canvas could not be exported. {failure}"
+                                ));
                             }
                         });
                     }
@@ -365,7 +364,6 @@ impl Exporter {
         let Some(scene) = scene else {
             return;
         };
-        self.state.import_error.set(None);
         self.job.set(Some(Job {
             scene,
             format,
@@ -1069,18 +1067,14 @@ pub(crate) fn ExportDialog(exporter: Exporter) -> NodeId {
     let dialog = exporter.dialog;
     let options = exporter.options;
     let open = create_memo(move || dialog.get().is_some());
-    let raster = create_memo(move || dialog.get() == Some(ExportFormat::Png));
     let title = create_memo(move || {
         let format = dialog.get().unwrap_or(ExportFormat::Png);
         format!("Export as {}", format.name())
     });
-    let scale = create_memo(move || {
-        let scale = options.get().scale;
-        SCALES.iter().position(|chosen| *chosen == scale)
-    });
-    let choose_scale = move |chosen: Option<usize>| {
-        if let Some(scale) = chosen.and_then(|index| SCALES.get(index)) {
-            options.update(|options| options.scale = *scale);
+    let scale = create_memo(move || Some(options.get().scale));
+    let choose_scale = move |chosen: Option<f32>| {
+        if let Some(scale) = chosen {
+            options.update(|options| options.scale = scale);
         }
     };
     let background = create_memo(move || options.get().background);
@@ -1096,7 +1090,7 @@ pub(crate) fn ExportDialog(exporter: Exporter) -> NodeId {
             open={open}
             title={title}
             id="infinite-canvas.export"
-            anchor={create_memo(move || DialogAnchor::Rect(tab.get()))}
+            anchor={move || DialogAnchor::Rect(tab.get())}
             actions={vec![
                 DialogAction::secondary("Copy", move || finish(ExportTo::Clipboard)).named("copy"),
                 DialogAction::cancel("Cancel"),
@@ -1105,7 +1099,7 @@ pub(crate) fn ExportDialog(exporter: Exporter) -> NodeId {
             on_dismiss={move || dialog.set(None)}
         >
             <List spacing=DIALOG_SPACING>
-                <Show condition={raster}>
+                <Show value={move || dialog.get() == Some(ExportFormat::Png)}>
                     <List
                         direction=Direction::Horizontal
                         align=Align::Center
@@ -1116,9 +1110,9 @@ pub(crate) fn ExportDialog(exporter: Exporter) -> NodeId {
                         </ListItem>
                         <Select
                             options={view! {
-                                <ChoiceOption label="1x" />
-                                <ChoiceOption label="2x" />
-                                <ChoiceOption label="3x" />
+                                <ChoiceOption value=1.0f32 label="1x" />
+                                <ChoiceOption value=2.0f32 label="2x" />
+                                <ChoiceOption value=3.0f32 label="3x" />
                             }}
                             selected={Binding::new(scale, choose_scale)}
                             label="Scale"

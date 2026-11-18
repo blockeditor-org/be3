@@ -108,11 +108,18 @@ pub trait Element: Any {
         None
     }
 
-    /// The least width the node can be laid out at without breaking what must not
-    /// break (a `Text`'s longest unbreakable run). Read by a row only for its growing
-    /// and shrinking children; memoised beside the measurements.
+    /// The least width the node can be laid out at (a `Frame`'s `min_width`; a `Text` claims
+    /// none, since it can wrap at any width). Read by a row only for its growing and shrinking
+    /// children; memoised beside the measurements.
     fn min_width(&self, _doc: &mut Document, _painter: &Painter) -> f32 {
         0.0
+    }
+
+    /// Whether the node has a length of its own along `axis` that a stretching parent
+    /// keeps (a `Frame` with a fraction width), so the parent places it at its measured
+    /// length through `layout::stretched` instead of stretching it.
+    fn sizes_itself(&self, _doc: &Document, _axis: Direction) -> bool {
+        false
     }
 
     /// How short the node can be along `direction` without overflowing, for content
@@ -162,6 +169,12 @@ pub trait Element: Any {
     /// repainting.
     fn paints_from_layout(&self) -> bool {
         true
+    }
+
+    /// Whether the node is collapsed: laid out at no size and drawing nothing, it takes no
+    /// spacing in a list either, as if it were not there.
+    fn collapsed(&self) -> bool {
+        false
     }
 
     /// Whether a scroll looking for its anchor (the node at the top of its viewport,
@@ -867,7 +880,7 @@ impl Arena {
         self.element_mut(id)
     }
 
-    fn downcast_mut<T: Element>(&mut self, node: NodeOf<T>) -> &mut T {
+    pub(crate) fn downcast_mut<T: Element>(&mut self, node: NodeOf<T>) -> &mut T {
         self.element_mut(node.id)
             .as_any_mut()
             .downcast_mut::<T>()

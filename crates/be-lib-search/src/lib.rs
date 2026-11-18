@@ -1,6 +1,6 @@
 /*
 A full-text index kept as bytes: the library the search index block type
-(plans/search.md) writes and merges, and the host queries. It does no IO: every
+(guides/blocks/host.md, "Search") writes and merges, and the host queries. It does no IO: every
 part it reads comes through `Parts::read`, by part name and byte range, and
 every part it writes comes back in `Written`, so the block type keeps them as
 the block's parts and the host reads them with `read-part`.
@@ -254,7 +254,7 @@ pub struct Batch {
     pub removed: Vec<(DocId, Commit)>,
     /// Blocks that left the tree, every document of each.
     pub removed_blocks: Vec<(Vec<u8>, Commit)>,
-    /// The sequence of changes (`changed-since`) the index has now seen every change up to.
+    /// The sequence of changes (`query.tree`) the index has now seen every change up to.
     pub watermark: Option<u64>,
     /// When the writing device applies it, on its own clock (milliseconds): a block it removes
     /// is remembered from then (`Index::forget_before`), whatever its commit's author's clock

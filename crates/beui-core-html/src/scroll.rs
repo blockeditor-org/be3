@@ -3,7 +3,7 @@ use std::cell::{Cell, RefCell};
 use std::rc::{Rc, Weak};
 
 use beui_tree::reactive::Callback;
-use beui_types::{Direction, ScrollPosition};
+use beui_types::{Direction, Rect, ScrollPosition};
 
 use crate::node::NodeId;
 
@@ -22,7 +22,8 @@ pub struct Scroller {
     pinned: Cell<bool>,
     to_end: Cell<bool>,
     anchored: Cell<bool>,
-    reveal: Cell<Option<NodeId>>,
+    /// The node to reveal, and the part of it (fractions of its size), if not the whole.
+    reveal: Cell<Option<(NodeId, Option<Rect>)>>,
     position: Cell<Option<ScrollPosition>>,
     reported: Cell<Option<ScrollPosition>>,
     on_change: Callback<ScrollPosition>,
@@ -63,6 +64,17 @@ pub fn find(node: NodeId) -> Option<Rc<Scroller>> {
     SCROLLERS.with(|held| held.borrow().get(&node).and_then(Weak::upgrade))
 }
 
+/// Whether `element` is an `Offset`'s, which keeps what it shows in place itself.
+#[cfg(target_arch = "wasm32")]
+pub(crate) fn anchors(element: &web_sys::Element) -> bool {
+    SCROLLERS.with(|held| {
+        held.borrow().iter().any(|(node, scroller)| {
+            scroller.strong_count() > 0
+                && crate::dom::element(*node).is_some_and(|held| held == *element)
+        })
+    })
+}
+
 pub fn first_within(node: NodeId) -> Option<NodeId> {
     if find(node).is_some() {
         return Some(node);
@@ -84,6 +96,12 @@ pub fn first_within(node: NodeId) -> Option<NodeId> {
 }
 
 pub fn reveal(node: NodeId) {
+    reveal_part(node, None);
+}
+
+/// Brings the part of `node` that `part` takes (fractions of its size) into view in the
+/// scrolls around it, or the whole node where `part` is `None`; a canvas reveals the node.
+pub fn reveal_part(node: NodeId, part: Option<Rect>) {
     #[cfg(target_arch = "wasm32")]
     {
         let mut held = false;
@@ -92,7 +110,7 @@ pub fn reveal(node: NodeId) {
                 continue;
             }
             if let Some(scroller) = find(viewer) {
-                scroller.reveal.set(Some(node));
+                scroller.reveal.set(Some((node, part)));
                 held = true;
             }
             crate::canvas::reveal_in(viewer, node);
@@ -102,14 +120,14 @@ pub fn reveal(node: NodeId) {
         }
     }
     #[cfg(not(target_arch = "wasm32"))]
-    let _ = node;
+    let _ = (node, part);
     crate::frame::request_frame();
 }
 
 #[cfg(target_arch = "wasm32")]
 fn reveal_in_page(node: NodeId) {
     use wasm_bindgen::JsCast;
-    let Some(element) = crate::dom::element(node) else {
+    let Some(element) = crate::document::boxed(node).and_then(crate::dom::element) else {
         return;
     };
     let options = js_sys::Object::new();
@@ -280,6 +298,20 @@ mod web {
             }
         }
 
+        /// The part of a span `part` takes, in fractions along this axis; the whole span
+        /// with none.
+        fn part(&self, (start, end): (f32, f32), part: Option<Rect>) -> (f32, f32) {
+            let Some(part) = part else {
+                return (start, end);
+            };
+            let (from, to) = match self.horizontal {
+                true => (part.min.x, part.max.x),
+                false => (part.min.y, part.max.y),
+            };
+            let length = end - start;
+            (start + length * from, start + length * to)
+        }
+
         fn span(&self, element: &web_sys::Element) -> (f32, f32) {
             let rect = crate::dom::client_rect(element);
             let (start, origin, length) = match self.horizontal {
@@ -396,11 +428,11 @@ mod web {
                 scroller.offset.set(scroller.offset.get() + drift);
             }
         }
-        if let Some(target) = scroller.reveal.take()
+        if let Some((target, part)) = scroller.reveal.take()
             && let Some(target) = crate::dom::element(target)
             && element.contains(Some(target.as_ref()))
         {
-            let (start, end) = axis.span(&target);
+            let (start, end) = axis.part(axis.span(&target), part);
             if let Some(revealed) = revealed_offset(start, end, scroller.offset.get(), viewport) {
                 scroller.offset.set(revealed);
                 if snapping {

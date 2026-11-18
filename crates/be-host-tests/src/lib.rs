@@ -14,9 +14,14 @@ pub use server::{Account, Server};
 const SIZE: &str = "1100x720";
 const MISSING_EDITOR: [&str; 2] = ["Unsupported block type", "No block types match."];
 const SLOW_WAIT: Duration = Duration::from_secs(5);
+/// How long a failed test's report waits for the host to say what it is out of step with.
+const OUT_OF_STEP_WAIT: Duration = Duration::from_secs(5);
 const FILES: &str = "Pane \"Files\"";
 const SHOW_A_CODE: &str = "Button \"Show a code\"";
 const FILE_TREE: &str = "#file-tree.filter";
+/// What a host running a root shows once it runs: the drawing of what the root shows
+/// (crates/be-host/src/root.rs).
+const ROOT_SHOWN: &str = "#root";
 
 /// be-host started headless with the dev workspace open, driven as `drive` drives it, for a test
 /// of what happens between editors (guides/testing_a_gui.md, 6).
@@ -78,12 +83,28 @@ impl HostTest {
         Self::begin(start, ready, options.space, None)
     }
 
+    /// Starts the host with the staged app `app`'s entry point as the root guest in place of
+    /// its own UI (`--root=APP`), with no workspace. It draws through lavapipe, since the root's
+    /// apps draw on the window's device, and shows only what the root draws, so look at it with
+    /// [`HostTest::shot`]: the window has no painting of it yet.
+    pub fn root(app: &str) -> Self {
+        let mut start = Self::program(false, true);
+        start.arguments = vec![format!("--root={app}")];
+        Self::begin(start, ROOT_SHOWN, false, None)
+    }
+
     /// Starts a device of `account` on its test [`Server`], in a data directory of its own,
     /// and opens its My files as `start` does: the account's first device, which sets its key.
     /// Start its other devices with [`HostTest::another_device`], which unlocks them with that
     /// key.
     pub fn device(account: &Account) -> Self {
         Self::join(account, FILES)
+    }
+
+    /// The address this device reaches its test [`Server`] at: a link made on another device
+    /// names that one's, which this device rewrites to its own to open it.
+    pub fn server_url(&self) -> String {
+        format!("http://{}", self.joined("server_url").relay.address())
     }
 
     /// Starts another device of this one's account, as [`HostTest::device`] does, and pairs it
@@ -215,8 +236,8 @@ impl HostTest {
         device: Option<Device>,
     ) -> Self {
         let started = Instant::now();
-        let host =
-            Driven::start(start).unwrap_or_else(|error| panic!("be-host did not start: {error}"));
+        let host = Driven::start(start)
+            .unwrap_or_else(|error| panic!("be-host did not start: {error}{}", log_named(&error)));
         let mut test = Self {
             host: Some(host),
             steps: Vec::new(),
@@ -257,7 +278,24 @@ impl HostTest {
             return;
         }
         self.check_editors();
+        self.check_stopped();
         self.run(&["wait", target]);
+    }
+
+    /// Fails at once, naming the app, when one has stopped (it panicked, trapped or stopped
+    /// responding, guides/apps/runtime.md, When an app stops), rather than when a wait for what
+    /// it would have shown runs out: the host says so in a toast, `NAME stopped: REASON`.
+    fn check_stopped(&mut self) {
+        let tree = self.tree();
+        let Some(toast) = tree.lines().find_map(|line| {
+            let said = line.trim().strip_prefix("Alert \"")?.split('"').next()?;
+            said.contains(" stopped: ").then_some(said)
+        }) else {
+            return;
+        };
+        self.fail(&format!(
+            "an app stopped while this test waited: {toast}. \"The app stopped responding\" is a step that ran past STEP_TIMEOUT, which a crowded build server can cause."
+        ));
     }
 
     fn within(&mut self, timeout: Duration, words: &[&str]) -> Result<Reply, String> {
@@ -369,6 +407,23 @@ impl HostTest {
         self.tree().contains(text)
     }
 
+    /// What the window shows, as the GPU drew it (`drive shot`): its width and height in
+    /// pixels and its RGBA, row by row. Only a host drawing through lavapipe has one
+    /// ([`Options::previews`], [`HostTest::root`]).
+    pub fn shot(&mut self) -> (u32, u32, Vec<u8>) {
+        let words = ["shot"];
+        self.steps.push(line(&words));
+        match self.driven().request(&words) {
+            Ok(Reply::Image {
+                width,
+                height,
+                rgba,
+            }) => (width, height, rgba),
+            Ok(_) => self.fail("shot answered with something other than an image"),
+            Err(error) => self.fail(&error),
+        }
+    }
+
     /// Paints only that target's area from here on. Block ids are random, so a painting that
     /// shows one, or the file tree's order by id, differs every run: crop to `#workspace.block`.
     pub fn crop(&mut self, target: &str) {
@@ -470,7 +525,16 @@ impl HostTest {
                     Ok(Reply::Text(tree)) => tree,
                     _ => "(the host did not answer)".to_owned(),
                 };
-                format!("\n\nWhat the host shows:\n{tree}\n\n{}", host.log_report())
+                // What it is out of step with, which a wait for something another device did
+                // may be waiting on, though a wait's own timeout names only what keeps it busy.
+                let synced = match host.request_within(&["synced"], OUT_OF_STEP_WAIT) {
+                    Ok(_) => "in step".to_owned(),
+                    Err(error) => error,
+                };
+                format!(
+                    "\n\nWhat the host shows:\n{tree}\n\nWhether it is in step with the server: {synced}\n\n{}",
+                    host.log_report()
+                )
             })
             .unwrap_or_default();
         let editors = self.editors.as_ref().map_or_else(String::new, |editors| {
@@ -522,6 +586,22 @@ fn pairing_code(word: &str) -> bool {
 fn missing(error: &str) -> bool {
     error.starts_with("no line of the tree contains")
         || error.starts_with("no node on screen has the test id")
+}
+
+/// The end of the log an error from `Driven::start` names (`see PATH`), which says why the host
+/// stopped before it answered.
+fn log_named(error: &str) -> String {
+    let Some((_, path)) = error.rsplit_once("see ") else {
+        return String::new();
+    };
+    match std::fs::read_to_string(path.trim()) {
+        Ok(log) => {
+            let lines: Vec<&str> = log.lines().collect();
+            let tail = &lines[lines.len().saturating_sub(40)..];
+            format!("\n\nThe end of its log:\n{}", tail.join("\n"))
+        }
+        Err(_) => String::new(),
+    }
 }
 
 fn line(words: &[&str]) -> String {

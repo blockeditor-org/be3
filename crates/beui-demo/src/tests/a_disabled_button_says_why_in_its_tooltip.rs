@@ -10,7 +10,7 @@ fn a_disabled_button_says_why_in_its_tooltip() {
     test.frame(Vec::new());
     test.settle();
     assert!(
-        test.shows("tooltip"),
+        test.shown("tooltip"),
         "a disabled button still shows its tooltip"
     );
     let save = test.document().find_test_id("demo.locked.save").unwrap();

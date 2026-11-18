@@ -46,7 +46,7 @@ async fn a_block_a_shared_one_links_to_shows_only_that_it_exists() {
         )
         .await
         .unwrap();
-    let public = owner.keys().contact(guest.account()).unwrap();
+    let public = owner.verified_identity(guest.account()).unwrap();
     owner
         .share(shared, guest.account(), Access::View, &public)
         .await
@@ -67,7 +67,7 @@ async fn a_block_a_shared_one_links_to_shows_only_that_it_exists() {
             .await
             .ok()
             .map(|summary| BlockSummary {
-                revision: 0,
+                changed: 0,
                 ..summary
             }),
         Some(BlockSummary::no_access(
@@ -88,7 +88,7 @@ async fn a_block_a_shared_one_links_to_shows_only_that_it_exists() {
     assert!(guest.keys().keys_of(linked, KeyKind::Scope).is_empty());
     assert!(guest.open::<TextContent>(linked).await.is_err());
     assert!(
-        guest.load_commit(linked_head).await.is_err(),
+        guest.load_reached(linked_head).await.is_err(),
         "the guest fetched an object of a block it may only know exists"
     );
     assert_eq!(

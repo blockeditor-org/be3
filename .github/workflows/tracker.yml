@@ -9,8 +9,8 @@ name: Tracker
 # gateway in front of the server that wants a Be3-Gateway-Authorization header gets the
 # BE3_TRACKER_AUTHORIZATION secret.
 #
-# be is the release ./scripts/be pins on the default branch, built from the
-# same commit as the server, rather than anything the pull request brings: this
+# be is the release ./scripts/be downloads, the one the deployed server was
+# built with, run from the default branch rather than anything the pull request brings: this
 # workflow holds the agent's credentials, so it runs no code a pull request
 # brings, and a pull request opened before be existed is still moved.
 on:

@@ -4,7 +4,7 @@
 
 use std::collections::HashSet;
 
-use be_block_protocol::{ErrorCode, MAX_OBJECT_BYTES, MAX_OBJECT_URLS, ObjectLength, client};
+use be_block_protocol::{ErrorCode, MAX_OBJECT_BYTES, MAX_OBJECT_URLS, ObjectLength};
 use be_block_store::{Hash, ObjectStore};
 use futures_util::StreamExt;
 
@@ -20,6 +20,22 @@ impl<S: ObjectStore> Peer<S> {
     /// the hash asked for: the server is not trusted with content, and this is what stops it
     /// substituting any.
     pub async fn fetch(&self, hashes: &[Hash]) -> Result<(), ClientError> {
+        self.fetch_lacking(hashes, true).await
+    }
+
+    /// Fetches what it can of the objects among `hashes` this device lacks, in one round of
+    /// requests, leaving out those the server or the store does not have.
+    pub async fn try_fetch_all(&self, hashes: &[Hash]) -> Result<(), ClientError> {
+        self.fetch_lacking(hashes, false).await
+    }
+
+    /// Fetches one object unless this device has it; answers whether it has it now.
+    pub async fn try_fetch(&self, hash: Hash) -> Result<bool, ClientError> {
+        self.try_fetch_all(&[hash]).await?;
+        Ok(self.commits.vault().store().has(hash)?)
+    }
+
+    async fn fetch_lacking(&self, hashes: &[Hash], all: bool) -> Result<(), ClientError> {
         let store = self.commits.vault().store();
         let mut seen = HashSet::new();
         let mut missing = Vec::new();
@@ -31,34 +47,26 @@ impl<S: ObjectStore> Peer<S> {
         for batch in missing.chunks(MAX_OBJECT_URLS) {
             let urls = self.download_urls(batch).await?;
             let mut downloads =
-                futures_util::stream::iter(batch.iter().zip(urls).map(|(hash, url)| async move {
-                    let url = url.ok_or(ClientError::MissingObject(*hash))?;
-                    download(*hash, &url)
-                        .await?
-                        .ok_or(ClientError::MissingObject(*hash))
-                }))
+                // Owned hashes, so the stream's future is sent between threads whatever lifetimes
+                // its callers hold it with.
+                futures_util::stream::iter(batch.iter().copied().zip(urls).map(
+                    |(hash, url)| async move {
+                        match url {
+                            Some(url) => download(hash, &url).await.map(|bytes| (hash, bytes)),
+                            None => Ok((hash, None)),
+                        }
+                    },
+                ))
                 .buffer_unordered(TRANSFERS);
-            while let Some(bytes) = downloads.next().await {
-                store.put(&bytes?)?;
+            while let Some(downloaded) = downloads.next().await {
+                match downloaded? {
+                    (_, Some(bytes)) => store.put(&bytes)?,
+                    (hash, None) if all => return Err(ClientError::MissingObject(hash)),
+                    (_, None) => continue,
+                };
             }
         }
         Ok(())
-    }
-
-    /// Fetches one object unless this device has it; answers whether it has it now.
-    pub async fn try_fetch(&self, hash: Hash) -> Result<bool, ClientError> {
-        let store = self.commits.vault().store();
-        if store.has(hash)? {
-            return Ok(true);
-        }
-        let Some(Some(url)) = self.download_urls(&[hash]).await?.pop() else {
-            return Ok(false);
-        };
-        let Some(bytes) = download(hash, &url).await? else {
-            return Ok(false);
-        };
-        store.put(&bytes)?;
-        Ok(true)
     }
 
     /// Uploads the objects among `hashes` the server lacks.
@@ -68,7 +76,7 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     /// Uploads `hashes` from this device's store, those the server answers it holds already
-    /// left out (`upload-urls`). An object this device does not hold (a part it reuses by its
+    /// left out (`reserve-uploads`). An object this device does not hold (a part it reuses by its
     /// ref alone) is asked for with no length: the server must hold it for this account, and
     /// refuses it as not found otherwise, which is `MissingObject`.
     pub(super) async fn upload(&self, hashes: &[Hash]) -> Result<(), ClientError> {
@@ -87,7 +95,15 @@ impl<S: ObjectStore> Peer<S> {
                 .iter()
                 .find(|object| object.length.is_none())
                 .map(|object| object.hash);
-            let asked = crate::ask(client::objects::upload_urls(&self.connection(), lengths)).await;
+            let asked = crate::ask(be_block_protocol::write::<
+                Vec<Option<be_block_protocol::UploadUrl>>,
+                _,
+            >(
+                &self.connection(),
+                Some(self.organization),
+                be_block_protocol::Op::ReserveUploads(lengths),
+            ))
+            .await;
             let urls = match (asked, absent) {
                 (Err(ClientError::Refused(ErrorCode::ObjectNotFound, _)), Some(hash)) => {
                     return Err(ClientError::MissingObject(hash));
@@ -97,22 +113,32 @@ impl<S: ObjectStore> Peer<S> {
             if urls.len() != batch.len() {
                 return Err(ClientError::Unexpected);
             }
-            let wanted = batch
+            let wanted: Vec<_> = batch
                 .iter()
                 .zip(urls)
-                .filter_map(|(hash, url)| Some((hash, url?)));
-            let mut uploads = futures_util::stream::iter(wanted.map(|(hash, url)| async move {
-                let bytes = store.get(*hash)?.ok_or(ClientError::MissingObject(*hash))?;
-                let headers: Vec<(String, String)> = url
-                    .headers
-                    .into_iter()
-                    .map(|header| (header.name, header.value))
-                    .collect();
-                http::put(&url.url, &headers, bytes)
-                    .await
-                    .map_err(transfer_failed)
-            }))
-            .buffer_unordered(TRANSFERS);
+                .filter_map(|(hash, url)| Some((*hash, url?)))
+                .collect();
+            // What the server lacks goes up only if no log this device holds shows its key
+            // outdated: whatever path asks (an outbox commit, a snapshot, a fork), what was
+            // sealed offline under such a key never leaves it.
+            for (hash, _) in &wanted {
+                if let Some(block) = Box::pin(self.sealed_outdated(*hash)).await {
+                    return Err(ClientError::Outdated(block));
+                }
+            }
+            let mut uploads =
+                futures_util::stream::iter(wanted.into_iter().map(|(hash, url)| async move {
+                    let bytes = store.get(hash)?.ok_or(ClientError::MissingObject(hash))?;
+                    let headers: Vec<(String, String)> = url
+                        .headers
+                        .into_iter()
+                        .map(|header| (header.name, header.value))
+                        .collect();
+                    http::put(&url.url, &headers, bytes)
+                        .await
+                        .map_err(transfer_failed)
+                }))
+                .buffer_unordered(TRANSFERS);
             while let Some(sent) = uploads.next().await {
                 sent?;
             }
@@ -121,9 +147,10 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     async fn download_urls(&self, hashes: &[Hash]) -> Result<Vec<Option<String>>, ClientError> {
-        let urls = crate::ask(client::objects::download_urls(
+        let urls = crate::ask(be_block_protocol::read::<Vec<Option<String>>, _>(
             &self.connection(),
-            hashes.to_vec(),
+            Some(self.organization),
+            be_block_protocol::Query::DownloadUrls(hashes.to_vec()),
         ))
         .await?;
         match urls.len() == hashes.len() {

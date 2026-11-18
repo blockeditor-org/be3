@@ -12,7 +12,7 @@ fn an_unstyled_scroll_keeps_the_whole_width_for_its_content() {
         view! {
             <List spacing=0.0>
                 <ListItem grow=1.0>
-                    <unstyled::Scroll @node_ref=&scroll>
+                    <unstyled::Scroll @node_ref=&scroll style={plain_scroll()}>
                         <Frame height=CONTENT_HEIGHT />
                     </unstyled::Scroll>
                 </ListItem>

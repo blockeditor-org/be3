@@ -1,0 +1,19 @@
+[package]
+name = "be-block-search-index"
+description = "The search index block: a be-lib-search index kept as a block's parts, which only hosts and the server hold"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+be-block-commit = { path = "../be-block-commit", default-features = false }
+be-block-content = { path = "../be-block-content" }
+be-block-graph = { path = "../be-block-graph" }
+be-block-store = { path = "../be-block-store", default-features = false }
+be-lib-search = { path = "../be-lib-search" }
+postcard = { version = "1", features = ["use-std"] }
+serde = { version = "1", features = ["derive"] }
+uuid = { version = "1", features = ["serde", "v4"] }
+
+[lints]
+workspace = true

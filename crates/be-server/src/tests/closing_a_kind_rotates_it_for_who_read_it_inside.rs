@@ -4,22 +4,27 @@ use be_block_graph::{ANYONE_INSIDE, Access, SETTINGS_TYPE};
 async fn create_under(client: &mut TestClient, content_type: Uuid, parent: Uuid) -> Uuid {
     let block = Uuid::new_v4();
     let key = Uuid::new_v4();
+    let root = client.root(block);
+    let placement = client.placement(block, BlockParent::Block(parent)).await;
     let response = client
         .call(|peer| {
-            client::blocks::create_block(
-                peer,
-                block,
-                content_type,
-                BlockParent::Block(parent),
-                Vec::new(),
-                Vec::new(),
-                key,
-                KeySet {
+            peer.write_all::<be_block_protocol::BlockSummary>(vec![
+                be_block_protocol::Op::CreateBlock {
+                    block: block,
+                    content_type: content_type,
+                    parent: BlockParent::Block(parent),
+                    metadata: Vec::new(),
+                    references: Vec::new(),
+                    key: key,
+                    owner_only: false,
+                    root: root,
+                    placement: placement,
+                },
+                be_block_protocol::Op::PutKeys(be_block_protocol::PutKeys::Rows(KeySet {
                     keys: vec![row(key, block, KeyKind::Data)],
                     wrapped: Vec::new(),
-                },
-                false,
-            )
+                })),
+            ])
         })
         .await;
     assert!(matches!(response, Ok(_)), "{response:?}");
@@ -37,11 +42,10 @@ async fn rotations(client: &mut TestClient) -> Vec<Uuid> {
 #[tokio::test]
 async fn closing_a_kind_rotates_it_for_who_read_it_inside() {
     let harness = Harness::start().await;
-    let mut owner = harness.client().await;
-    owner.register("owner@example.com").await;
+    let mut owner = harness.member("owner@example.com").await;
     owner.personal().await;
-    let mut guest = harness.client().await;
-    let guest_id = guest.register("guest@example.com").await;
+    let mut guest = harness.member("guest@example.com").await;
+    let guest_id = guest.id();
     guest.personal().await;
     let link = owner.link(None).await;
     let _ = guest.accept(link, &[]).await;

@@ -7,13 +7,13 @@ renderers, Android, the web, DRM displays) is in guides/beui/platforms.md.
 
 ## A standalone program
 
-A standalone program depends on beui-host as well as beui. It builds its
-document once and implements `beui::Program`, whose only required method shows
-the document each frame:
+A standalone program depends on beui-host and beui-host-window as well as beui.
+It builds its document once and implements `beui::Program`, whose only required
+method shows the document each frame:
 
 ```rust
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    beui_host::native::run(CounterProgram {
+    beui_host_window::run(CounterProgram {
         document: build(|| view! { <Root title="Counter"><Counter /></Root> }),
     })
 }
@@ -47,23 +47,26 @@ editor punches its rectangle. Documents drawn over another (the inspector, the
 software keyboard) are made with `Document::new`, `enter` and `set_root`, have
 no `Root`, and leave the window's appearance alone.
 
-### Features
+### Windows and the web
 
-beui-host's features pick how much is linked: none gives the document,
-components, layout, input and paint output (enough for headless logic tests);
-`render` adds the wgpu renderer without a window (embedded hosts); `window`
-(the default) adds the native runner (winit on the desktop, beui's own on
-Android); `web` adds the browser runner, `beui_host::native::run_web`.
+beui-host is the engine without a window: the document, the renderer, fonts,
+the inspector, drive and the headless platform, enough for tests and embedded
+hosts. The native runner (winit on the desktop, beui's own on Android), with the
+space and XR layers, is beui-host-window's, which also stacks the drive layer
+from beui-host; so an edit to winit, the space layer or XR rebuilds none of
+beui-host's tests, nor those of the crates that reach the engine only through
+beui-host. beui-host's
+one feature, `web`, adds the browser runner, `beui_host::native::run_web`.
 
 ### RunOptions and the rest of Program
 
-`run` uses default `RunOptions`; `run_with` takes them: the program id and
+`beui_host_window::run` uses default `RunOptions`; `run_with` takes them: the program id and
 starting size, `device_extensions` for wgpu's Vulkan device (be-host imports
 Wayland clients' buffers with them), and `platforms` the program offers beside
 the native one (such as `beui_platform_drm::Drm`) for `BEUI_PLATFORM` to pick
 by name (`beui_runner::environment::choose`). `BEUI_RENDERER` and
 `BEUI_LAYERS` pick the renderer and the layer stack the same way; the stacking
-is `choose_platform` and `stack` in crates/beui-host/src/runner.rs.
+is `choose_platform` and `stack` in crates/beui-host-window/src/runner.rs.
 
 `Program`'s other methods are optional. The ones with traps:
 
@@ -71,6 +74,11 @@ is `choose_platform` and `stack` in crates/beui-host/src/runner.rs.
   the wgpu device, queue and format for a program that paints with the gpu
   itself (`draw_gpu`). `Setup`'s `Waker` can be woken from any thread and is how
   work finishing elsewhere asks for a frame; beui never polls.
+- Async memos (`create_async_memo`) run on the runner's executor, which polls a
+  woken future at the start of the next frame. `Runner::new` installs it as the
+  thread's spawner, replacing any earlier runner's: with several runners on one
+  thread the newest wins, and once it drops, futures queue until another is
+  installed. An app's platform installs be-sdk's executor over it instead.
 - `close_requested` may refuse a close (to ask about unsaved work, then call
   `Context::close_window`).
 - `exiting` runs once, while the GPU device and displays still exist; the
@@ -83,6 +91,14 @@ is `choose_platform` and `stack` in crates/beui-host/src/runner.rs.
   `Foreground`, `Focused` and `NetworkChanged`. The process may be killed
   without another frame after `Background`, so that is where unsaved work is
   put somewhere durable, without blocking.
+- `input(window, &Input)` takes the platform's input before beui makes the
+  document's events of it: each `Input` in order, once, in its window's
+  points, after the layers' (`Layer::input`) and drive's. What it takes (it
+  answers true) no document hears, not even beui's own chords (the
+  inspector's). It is for a program that routes its windows' input itself:
+  be-host's root (`--root`) takes all of it, IME composition, raw touches and
+  pens included. A layer rewrites input for whatever is above it; this hook
+  only takes it for the program.
 - `busy`, `drawing` and `environment` are read only by a driver (below).
 
 From inside a frame the program asks the window for things through `Context`:
@@ -157,7 +173,7 @@ left to draw (guides/beui/platforms.md, Unseen windows).
 
 Ctrl+Shift+I in a standalone window opens the inspector (crates/beui-inspector).
 Its document is a `Docking` (guides/beui/docking.md) whose tabs are the tools
-(Beui, Comp, A11y, Perf, Sim) and the inspected program, an `Embed` the
+(Beui, Comp, A11y, Perf, Sim, Drag) and the inspected program, an `Embed` the
 program's document is laid out in, so tools can be docked beside, under or
 floating, and on a narrow window the dock stacks
 ([decision](../../decisions/beui_inspector_tools_are_dock_tabs.md)). The tree
@@ -175,6 +191,10 @@ tools pin a Pick toggle and every tool pins Close to the dock's bar.
   window (`Context::shows_main` false: an app, the DRM session) gets an
   inspector with no Program tab, drawn over the right edge of the window that
   has the keyboard.
+- **Drag** lists what the program's drag board carries and every fixed place it
+  can land in (each `Rest`, from `Board::inspect`), the chosen one marked, and
+  while it shows draws them over the program: each rest outlined, each zone
+  shaded, the chosen place filled and where the item draws.
 - **Comp** lists the `#[component]`s that built the tree: each records its name
   against the node it returns, so components returning the same node nest.
 - **Keys.** Ctrl+Shift+C picks a node; Ctrl+Shift+F moves the keyboard into the
@@ -242,8 +262,8 @@ the host's, is rooted in a transparent `Root`; an app dialog in `Surface`, like 
 - What the host sends unasked (drags, file drops, audio, history, focus,
   placement, peers) arrives at the top of the next frame as signals on
   `Editor`.
-- Work on another thread takes its `Waker` from `editor.woken()`, whose signal
-  ticks once the work has woken the editor.
+- Work on another thread takes its `Waker` from `editor.woken()`, whose `Trigger`
+  notifies once the work has woken the editor.
 
 A template the manifest marks `"dialog": true` shows `BeuiRoot::Creation` in
 the picker's creation dialog, and `BeuiRoot::create_block` makes the block.
