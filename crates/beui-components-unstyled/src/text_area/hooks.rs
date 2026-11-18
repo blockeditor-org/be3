@@ -11,7 +11,7 @@ use beui_view::types::Color;
 use beui_view::types::Corners;
 use beui_view::types::{SpanBackground, SpanStyle};
 
-use super::rows::{RowTable, quote_in_text};
+use super::rows::{RowTable, quote_in_text, quoted_nesting_em};
 use super::state::TextAreaState;
 use beui_view::types::{Align2, Extent, Sides};
 
@@ -243,14 +243,16 @@ impl TextLine {
         })
     }
 
-    /// How far past `left` a code line's background starts: past its quote's gutter, which its
-    /// row lays out before the text (`quote_in_text`).
+    /// How far past `left` a code line's background starts: past its quote's gutter and any
+    /// list nesting after it, which its row lays out before the text (`quote_in_text`).
     pub fn code_start(&self) -> Memo<f32> {
         let (look, size) = (self.look, self.size);
         create_memo(move || {
             let look = look.get();
             match look.code_block && quote_in_text(&look) {
-                true => look.quote as f32 * QUOTE_INDENT_EM * size.get(),
+                true => {
+                    (look.quote as f32 * QUOTE_INDENT_EM + quoted_nesting_em(&look)) * size.get()
+                }
                 false => 0.0,
             }
         })
