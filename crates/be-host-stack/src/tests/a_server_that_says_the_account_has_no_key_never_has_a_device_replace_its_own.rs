@@ -11,7 +11,9 @@ fn a_server_that_says_the_account_has_no_key_never_has_a_device_replace_its_own(
         sealed: Vec::new(),
         logs: Vec::new(),
     };
-    let held = be_block_keys::RecoveryPhrase::generate().secret().to_bytes();
+    let held = be_block_keys::RecoveryPhrase::generate()
+        .secret()
+        .to_bytes();
 
     let mut holding = crate::keys::KeyState::default();
     holding.loaded(keys(), Some(held));
