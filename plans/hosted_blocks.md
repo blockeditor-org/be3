@@ -1,7 +1,7 @@
 # Hosted blocks
 
-Depends on: plans/headless_apps.md for step 4's headless host only. Join links are plans/share_links.md's step 3, which waits on
-step 3 here.
+Depends on: plans/headless_apps.md for step 4's headless host only. Join links are built
+(guides/blocks/keys.md, "Share links").
 
 A hosted block is run by a host: one member with Edit, online, holding the
 block's live session, that others talk to instead of reading the block. A game
@@ -166,8 +166,9 @@ a role inside the app, since the share dialog grants no roles. A game:
    so nothing carries it the log's root; it takes the root of the log as
    served once a grant to it there is signed by a contact it verified, whose
    hash chain fixes the root (guides/blocks/keys.md, "Accepted limits"), and
-   pins it weakly, in memory only. A share link (plans/share_links.md, step 3)
-   carries the root instead. Access from above counts: an editor whose Edit
+   pins it weakly, in memory only. A Join member through a share link takes
+   it by the grant it signed itself instead (guides/blocks/keys.md, "Share
+   links"). Access from above counts: an editor whose Edit
    comes from a block above may host, and a member with View or above from
    anywhere up the path is admitted, but Join itself never passes down. The
    host counts a member as admitted once its first channel message opens (key

@@ -1,6 +1,6 @@
 # A share link is an out-of-band start
 
-A share link (plans/share_links.md) passed outside the app is an out-of-band
+A share link (guides/blocks/keys.md, "Share links") passed outside the app is an out-of-band
 start, as a contact link is, so "no in-app reach to strangers" holds for it.
 That holds whoever the link admits: members of the block's organization or
 any account on the server (anyone at all, with no account, is deferred:

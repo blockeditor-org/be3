@@ -11,7 +11,7 @@ kept in the content and checked by the host.
 
 - It stays generic: share a world with one editor and two players, and either
   editor hosts while the players join, with no account or machine of its own.
-- "Anyone with the link" (plans/share_links.md) can grant Join like any other
+- "Anyone with the link" (guides/blocks/keys.md, "Share links") can grant Join like any other
   level, to people nobody prepared anything for.
 - A bound agent on a server machine is just an editor that stays online.
 
