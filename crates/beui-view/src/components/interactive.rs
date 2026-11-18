@@ -88,7 +88,8 @@ pub fn Interactive(
     /// Whether the keyboard lifts `drag`'s carry at all (Space, Ctrl+Shift and an arrow, Move
     /// in the palette), and a live region says what the carry does. Off for a control whose
     /// own keys move what it carries and whose value says where it is: a slider's thumb, a
-    /// scrollbar's.
+    /// scrollbar's. Such a source is not measured, so its carry is drawn by its site or a
+    /// preview, never as the source displaced.
     #[prop(default = true)]
     lifts_by_keys: bool,
     on_pointer: Callback<PointerInput, bool>,
@@ -127,11 +128,11 @@ pub fn Interactive(
                     said,
                     anchor,
                     open,
+                    floats,
                     preview,
                 } = carry.face.clone();
-                let speaks = lifts_by_keys;
                 let face = view! {
-                    <CarriedFace raised offset speaks said anchor open preview children />
+                    <CarriedFace raised offset said anchor open floats preview children />
                 };
                 let on_key = (carry.finish)(face, on_key);
                 (
@@ -220,9 +221,10 @@ type Preview = std::rc::Rc<dyn Fn() -> NodeId>;
 struct Face {
     raised: crate::reactive::Memo<bool>,
     offset: crate::reactive::Memo<Vec2>,
-    said: crate::reactive::Memo<Option<String>>,
+    said: Option<crate::reactive::Memo<Option<String>>>,
     anchor: crate::reactive::Memo<crate::reactive::OverlayAnchor>,
     open: crate::reactive::Memo<bool>,
+    floats: crate::reactive::ReadSignal<bool>,
     preview: std::rc::Rc<std::cell::RefCell<Option<Preview>>>,
 }
 
@@ -331,6 +333,10 @@ fn carrying(
                 ));
             }
             let face = carry.face().clone();
+            debug_assert!(
+                lifts_by_keys || !matches!(face, crate::drag::CarryFace::Source),
+                "a source that lifts by no keys is not measured: its site or a preview draws it"
+            );
             if let Some(id) = driver.lift(carry, crate::drag::DragPoint::of(press)) {
                 lifted.set(true);
                 show_face(face);
@@ -480,10 +486,12 @@ fn carrying(
     });
     let open = create_memo(move || floating.get() && floats_here.get());
     // What this node's carry last said, for a screen reader.
-    let said = create_memo(move || {
-        let id = mine.get()?;
-        let (said_by, said) = crate::drag::driver()?.said()?;
-        (said_by == id).then_some(said)
+    let said = lifts_by_keys.then(|| {
+        create_memo(move || {
+            let id = mine.get()?;
+            let (said_by, said) = crate::drag::driver()?.said()?;
+            (said_by == id).then_some(said)
+        })
     });
     let keyboard_lift = {
         let show_face = Rc::clone(&show_face);
@@ -501,16 +509,17 @@ fn carrying(
         said,
         anchor,
         open,
+        floats: floats_here.read_only(),
         preview: Rc::clone(&preview),
     };
     let finish = Box::new(move |wrapped: NodeId, on_key: Callback<KeyPress, bool>| {
         use crate::reactive::{KeyAt, KeyReveal};
         use crate::types::KeyPhase;
-        let laid_out = crate::measure::measure(wrapped);
-        measured.set(Some(laid_out));
         if !lifts_by_keys {
             return on_key;
         }
+        let laid_out = crate::measure::measure(wrapped);
+        measured.set(Some(laid_out));
         let at = (wrapped, laid_out);
         // The source hears the carry keys while it or a node within it has the focus (a tab
         // bar's row, whose tab is the focusable button inside it), and offers "Move" in the
@@ -743,15 +752,16 @@ fn lift_by_keys(
 
 /// What an `Interactive` given `drag` wraps its children in: drawn raised and offset by
 /// `offset` while carried, a live region saying what the carry does (unless it says
-/// nothing: `lifts_by_keys` off), and the overlay its `preview` floats in.
+/// nothing: `lifts_by_keys` off), and, built only once a carry `floats` a preview here, the
+/// overlay it floats in.
 #[component]
 fn CarriedFace(
     raised: crate::reactive::Memo<bool>,
     offset: crate::reactive::Memo<Vec2>,
-    speaks: bool,
-    said: crate::reactive::Memo<Option<String>>,
+    said: Option<crate::reactive::Memo<Option<String>>>,
     anchor: crate::reactive::Memo<crate::reactive::OverlayAnchor>,
     open: crate::reactive::Memo<bool>,
+    floats: crate::reactive::ReadSignal<bool>,
     preview: std::rc::Rc<std::cell::RefCell<Option<Preview>>>,
     children: Option<Child>,
 ) -> NodeId {
@@ -761,31 +771,39 @@ fn CarriedFace(
     // Stacked over one box, the face lays its child out as a plain `Interactive` does: a
     // child that fills what it is given (a canvas) fills it here too. The status and the
     // overlay's anchor take no room and catch no pointer.
-    let status = speaks.then(|| {
+    use crate::reactive::Show;
+    let status = said.map(|said| {
         view! {
             <CarryStatus said={said} />
         }
     });
+    // Built only while a carry floats a preview here: most sources never do.
+    let overlay = move || {
+        let preview = std::rc::Rc::clone(&preview);
+        view! {
+            <Overlay
+                anchor={anchor}
+                placement=Placement::At
+                policy=LayerPolicy::Inert
+                level=LayerLevel::Top
+                traps_focus=false
+                open={open}
+            >|| {
+                let shown = preview.borrow().clone();
+                match shown {
+                    Some(preview) => preview(),
+                    None => view! {
+                        <Frame />
+                    },
+                }
+            }</Overlay>
+        }
+    };
     view! {
         <Frame raised={raised}>
             <Layers>
                 {status}
-                <Overlay
-                    anchor={anchor}
-                    placement=Placement::At
-                    policy=LayerPolicy::Inert
-                    level=LayerLevel::Top
-                    traps_focus=false
-                    open={open}
-                >|| {
-                    let shown = preview.borrow().clone();
-                    match shown {
-                        Some(preview) => preview(),
-                        None => view! {
-                            <Frame />
-                        },
-                    }
-                }</Overlay>
+                <Show value={floats}>{overlay()}</Show>
                 <Frame translate={offset} children={children} />
             </Layers>
         </Frame>
