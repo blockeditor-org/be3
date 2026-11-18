@@ -487,6 +487,14 @@ Depends on #686 (session catch-ups replaced by server ordering).
   one, so a game cannot be played from the keyboard alone. Done: the arrows
   move a selection between the movable pieces while nothing is carried, shown
   by a test that plays a chess move with keys only.
+- **A block dragged from the files onto a canvas, in a host test.** Nothing
+  tests the host's block drag end to end: a host test that drags a files row
+  (down, moves past the threshold with pauses, up) onto an open canvas never
+  lands the block, before and after the drag moved onto the board, so the
+  files app's `drag_block` and the host's lift do not meet under `drive`. Done:
+  find where they miss (the row's drag start, the host's lift at the pressing
+  pointer, or the canvas's `accept_drag`), and a host test drags a checklist
+  from the files onto a canvas and finds it there.
 - **A lift wakes only the carries it concerns.** The board keeps every carried
   payload in one `lifted` signal, so each `carries(&payload)` reader (every
   slider, colour control and scrollbar thumb's `ThumbCarry`, every splitter, every
