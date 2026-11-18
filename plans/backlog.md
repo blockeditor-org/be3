@@ -20,11 +20,19 @@ Fixed items are removed as they land.
   `navigator.share`, Android's send intent) and says whether it has one, with
   a Share button in the Invite member dialog where it does, and in beui-demo.
 
-- **The host's canvas when a page grows.** In headless Chromium, the first frame after the page
-  grows still shows be-host's own chrome at the old width, with the page background beyond,
-  although beui-platform-web runs a frame from its `ResizeObserver` (`resized` in web.rs). Next
-  step: log whether `runner.frame()` has something pending and whether `present()` runs inside
-  `resized`. Done when the first frame after a grow is drawn at the new size, shown by a web test.
+- **The first frame after a page grows.** In headless Chromium the first frame after the page
+  grows shows the workspace's tabs and files at the old width with a plain background beyond.
+  be-host's own canvas is not behind it: the window's `resize` event schedules an animation
+  frame, which runs before the page's ResizeObserver in the same rendering update and draws the
+  host's canvas at the new size (`frame.pending`, presented; `resized`'s frame then has nothing
+  pending), and read with `preserveDrawingBuffer` in a later ResizeObserver its first frame is
+  the settled one's wherever the page was before. That chrome is the workspace app's canvas
+  (be-app-workspace), which shows its old frame at its old size until its frame of the new size
+  arrives, which in a browser is always a later page frame, since the page cannot wait on a
+  worker; beyond its last placement the host's canvas shows its surface (guides/apps/runtime.md,
+  Late answers). What is left is a decision: accept that frame, or fill beyond a view's last
+  placement with its app's clear colour (the next entry), which makes the gap the app's
+  background rather than the host's.
 
 - **An app view's backdrop beyond its last placement.** While a view grows before its app
   reports the new size, the part beyond its last placement shows what is behind the view (its
