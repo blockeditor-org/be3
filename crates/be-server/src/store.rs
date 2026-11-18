@@ -1984,7 +1984,8 @@ fn remove_from(
         let shared = node.grants.keys().any(|other| *other != account);
         let before = graph.audience(block);
         if held {
-            crate::blocks::write_grant(store,
+            crate::blocks::write_grant(
+                store,
                 graph,
                 connection,
                 organization,
