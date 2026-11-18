@@ -697,19 +697,25 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     /// Takes the server's word that an entry of a log this device follows was redacted: its
-    /// payload goes from what this device kept, and the entry as it is now comes back, none when
-    /// this device kept nothing of it. The entry's leaf stays, so the log still proves it.
-    pub fn redacted(
+    /// payload goes from what this device kept, and the entry as it is now comes back, read
+    /// from the server when this device kept nothing of it. The entry's leaf stays, so the log
+    /// still proves it.
+    pub async fn redacted(
         &self,
         redacted: &be_block_protocol::Redacted,
     ) -> Result<Option<LoggedEntry>, ClientError> {
         if redacted.organization != self.organization {
             return Ok(None);
         }
-        let entry = self
-            .refs
-            .log_entry_redacted(redacted.block, redacted.seq)?;
-        Ok(entry.map(|entry| self.opened(redacted.block, entry)))
+        let (block, seq) = (redacted.block, redacted.seq);
+        if let Some(entry) = self.refs.log_entry_redacted(block, seq)? {
+            return Ok(Some(self.opened(block, entry)));
+        }
+        let read = self.read_log(block, seq, 1).await?;
+        Ok(read
+            .entries
+            .into_iter()
+            .find(|logged| logged.entry.seq == seq))
     }
 
     /// The latest `count` entries of `block`'s signed log, read as `read_log` reads (and
