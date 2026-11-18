@@ -836,9 +836,22 @@ interface types {
         editable: bool,
     }
 
+    /// An editor opening on a block its account may only join
+    /// (`access-level.join`; plans/hosted_blocks.md, "Hosting"): it is given no
+    /// content, only the block's host channel (`editor-event.channel`,
+    /// `block-command.tell-host`). An editor open on a block whose access
+    /// falls to Join, or rises from it, is closed and opened again as the
+    /// other kind.
+    record open-join {
+        block-id: block-id,
+        block-type: block-type-id,
+        page-origin: string,
+        host-palette: bool,
+    }
+
     /// How an editor instance opens: on a block, as a creation dialog, on an
-    /// artifact's settings, as a picker, as a form renaming a block, or as a
-    /// host component, which has no frame.
+    /// artifact's settings, as a picker, as a form renaming a block, as a host
+    /// component, which has no frame, or on a block it may only join.
     variant opening-kind {
         block(open-block),
         creation(open-creation),
@@ -846,6 +859,7 @@ interface types {
         picker(open-picker),
         rename(open-rename),
         host(open-host),
+        join(open-join),
     }
 
     /// An editor instance opening: which instance, which editor, who opens it

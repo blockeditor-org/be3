@@ -1151,6 +1151,34 @@ impl Editor {
             .tell_member(self.block_id(), member, payload);
     }
 
+    /// Whether the editor opened as a Join member of its block (`EditorHost::joined`): it has
+    /// no content, only the block's host channel (`on_channel`, `tell_host`).
+    pub fn joined(&self) -> bool {
+        self.core().host().joined()
+    }
+
+    /// For a Join member: calls `receive` with each change of the block's host channel, in
+    /// order: opened to the account that hosts, closed, or what the host said.
+    pub fn on_channel(&self, receive: impl Fn(be_sdk_api::blocks::ChannelEvent) + 'static) {
+        let core = self.core();
+        let changed = self.pushed(Pushed::Channel);
+        create_effect(move || {
+            changed.track();
+            let events = core.host().take_channel_events();
+            untrack(|| {
+                for event in events {
+                    receive(event);
+                }
+            });
+        });
+    }
+
+    /// For a Join member: tells the block's host `payload`, sealed on its channel; lost while
+    /// the channel is not open.
+    pub fn tell_host(&self, payload: Vec<u8>) {
+        self.core().host().tell_host(self.block_id(), payload);
+    }
+
     pub fn presence_visible(&self) -> ReadSignal<bool> {
         self.state().shown.presence_visible.read_only()
     }
