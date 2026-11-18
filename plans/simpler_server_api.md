@@ -353,6 +353,23 @@ two describe.
   `a_contact_made_on_one_device_is_read_by_another_from_the_accounts_block` and
   `a_new_phrase_leaves_the_old_one_unable_to_read_the_accounts_next_commit`;
   the rollback and slow-device tests now serve or write an older block.
+- **4b2. Links' codes, pins and bootstrapping (done).** The account's block
+  also keeps each link's code and kind until it is finished
+  (`contacts::KeptLink`, kept before `create-link`) and what it pins per
+  organization. `pin-escrow`, `query.links` (`own-link`), `own-sealed`
+  (`recovery-key.own`, `set-recovery-key.own`), `create-link.code`,
+  `invitation-row.code` and the `pinned_escrows` table and `links.code` column
+  are gone; the server checks only that a new phrase reseals what the account
+  sealed for itself. Where it differs: a pin made with another write arrives
+  as `letter.pinned` (from `create-organization`, an invitation's
+  `accept-link`, `create-agent`), taken into the block as records are, and an
+  agent keeps its letter. `finish_links` works from the `letter.accepted`
+  letters and the codes the block keeps, and drops a link's code once it is
+  finished; an invitation that expires or is revoked unaccepted keeps its code
+  in the block (plans/backlog.md has no entry yet: it is small). Bootstrapping:
+  `Peer::open_session` reads its pin from the block (`contacts::pinned`).
+  Tests: be-block-client's
+  `a_new_device_opens_a_company_organization_from_the_pin_in_the_accounts_block`.
 - **An owner-only block** in the personal organization holds what the account
   seals for itself: contact records, its cards and link codes, the escrow keys
   it pinned per organization. `put-contact`, `list-contacts`, `list-links`,

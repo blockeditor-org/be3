@@ -171,7 +171,6 @@ const SCHEMA: &str = "
         id              TEXT PRIMARY KEY,
         owner_id        TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
         card            BLOB NOT NULL,
-        code            BLOB NOT NULL,
         grant_organization TEXT NOT NULL DEFAULT '',
         grant_block     TEXT NOT NULL DEFAULT '',
         grant_access    TEXT NOT NULL DEFAULT '',
@@ -369,13 +368,6 @@ const SCHEMA: &str = "
         head            BLOB NOT NULL DEFAULT x'',
         signature       BLOB NOT NULL DEFAULT x'',
         PRIMARY KEY (organization_id, id)
-    );
-
-    CREATE TABLE pinned_escrows (
-        account_id      TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
-        organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-        sealed          BLOB NOT NULL,
-        PRIMARY KEY (account_id, organization_id)
     );
 
     CREATE TABLE rotations (

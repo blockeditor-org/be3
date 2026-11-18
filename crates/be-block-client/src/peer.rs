@@ -692,19 +692,13 @@ impl<S: ObjectStore> Peer<S> {
         let verified =
             crate::contacts::contacts(&connection, self.account, self.keys.identity(), &pins)
                 .await?;
-        let recovery =
-            crate::contacts::register_identity(&connection, self.keys.identity()).await?;
-        let pinned = recovery
-            .own
-            .into_iter()
-            .find(|own| own.kind == be_block_protocol::OwnKind::Escrow && own.id == organization)
-            .map(|own| own.sealed)
-            .unwrap_or_default();
-        self.keys.set_pinned(crate::contacts::open_pin(
-            self.keys.identity(),
-            organization,
-            &pinned,
-        ));
+        crate::contacts::register_identity(&connection, self.keys.identity()).await?;
+        // What this account pinned for the organization, from its block in the personal
+        // organization (an agent's from the letter its maker left).
+        self.keys.set_pinned(
+            crate::contacts::pinned(&connection, self.account, self.keys.identity(), organization)
+                .await?,
+        );
         let made = escrows.is_empty();
         self.learn_administrators().await;
         self.keys.set_escrows(escrows);

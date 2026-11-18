@@ -18,7 +18,6 @@ const REACHING_PAST: &[&str] = &[
     "create-link (invitation)",
     "link",
     "accept-link",
-    "links",
     "delete-link",
     "remove-contact",
     "move",
@@ -63,7 +62,6 @@ const CONNECTING: &[&str] = &[
     "put-keys (reseal)",
     "key-work",
     "server-info",
-    "pin-escrow",
     "revoke-token",
 ];
 

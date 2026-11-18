@@ -15,7 +15,6 @@ pub(super) async fn join(
             peer.write::<()>(be_block_protocol::Op::CreateLink {
                 link: Uuid::from_u128(invitation),
                 card: Vec::new(),
-                code: Vec::new(),
                 kind: be_block_protocol::LinkKind::Invitation(be_block_protocol::Invitation {
                     organization,
                     escrow: Vec::new(),

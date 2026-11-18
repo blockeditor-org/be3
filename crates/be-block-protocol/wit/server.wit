@@ -23,7 +23,7 @@ interface server {
         access-level, account-id, block-id, block-parent, client-id, commit-id,
         content-type-id, error, escrow-key, hash, journal, journal-seal, key-id, key-set,
         link-id, listing, organization-id, organization-role, public-key, sealed-key,
-        own-sealed, key-change, block-summary, session-state,
+        key-change, block-summary, session-state,
     };
     use account.{account-storage, message, authenticated, browser-login, browser-login-state, pairing-message};
     use objects.{hold, object-length, upload-url};
@@ -32,7 +32,7 @@ interface server {
         publish-outcome, reference-change,
     };
     use sessions.{session-event};
-    use contacts.{invitation-preview, invitation-row, link, link-kind, own-link};
+    use contacts.{invitation-preview, invitation-row, link, link-kind};
     use keys.{key-page, key-work, recovery-key, retirement, revocation, signing-key};
     use members.{bound-agent, created-agent, member};
     use organizations.{organization, server-info};
@@ -114,11 +114,11 @@ interface server {
         /// blocks the other manages). The caller signs each revocation and
         /// sends them with the removal.
         revocations(revocations-query),
-        /// The account's recovery key, what is sealed to it, what it sealed for
-        /// itself outside its block (link codes, the escrow key it pinned in
-        /// each organization) and the logs it signed in. The account's own.
-        /// Its contacts' records are in its block in the personal organization
-        /// (`be_block::account_block`), whose key is sealed to it.
+        /// The account's recovery key, what is sealed to it and the logs it
+        /// signed in. The account's own. What it keeps for itself (its
+        /// contacts' records, link codes, what it pins per organization) is in
+        /// its block in the personal organization (`be_block::account_block`),
+        /// whose key is sealed to it.
         recovery-key,
         /// The signing keys of those of `accounts` that are the caller, its
         /// contacts or members of the organization (in the personal
@@ -144,9 +144,6 @@ interface server {
         /// account's own; followed, the connection hears `mailbox` when a
         /// message arrives or is deleted through another connection.
         mailbox,
-        /// The caller's links, outstanding or accepted and not yet finished;
-        /// an invitation expired or revoked is not one. The account's own.
-        links,
         /// A link not yet accepted; an invitation only while it is neither
         /// expired nor revoked, and not for an account already a member.
         /// Reading an invitation marks it opened. The account's own.
@@ -226,7 +223,6 @@ interface server {
         invitations(list<invitation-row>),
         storage(account-storage),
         mailbox(list<message>),
-        links(list<own-link>),
         link(link),
         invitation(invitation-preview),
         download-urls(list<option<string>>),
@@ -317,23 +313,25 @@ interface server {
         /// caller as its administrator. `root` is the root of its access log
         /// (`be_block_keys::Entry::root`), signed by the caller with its
         /// current keys; `pinned` is what the caller pins for it, sealed to
-        /// itself, as `pin-escrow` keeps it. The account's own.
+        /// itself, left in its mailbox (`letter.pinned`) for a device to keep
+        /// in the account's block. The account's own.
         create-organization(create-organization),
         /// Makes the agent account `account` in the organization (the id
         /// derived from the caller and the agent's keys,
         /// be_block_keys::agent_account), with the recovery key `recovery` and
         /// the signing key `signing` derived with it, its record of the caller as
         /// a contact (`contact`, left in its mailbox as `letter.contact`), the
-        /// caller's record of it (`record`, left in the caller's), and its
-        /// escrow key sealed for it. With `bound-to`, which
+        /// caller's record of it (`record`, left in the caller's), and what it
+        /// pins for the organization sealed for it (`escrow`, left in its
+        /// mailbox as `letter.pinned`). With `bound-to`, which
         /// needs Manage on that block, the agent is granted Edit on it by the
         /// signed grant and reaches nothing else.
         create-agent(create-agent),
         /// A new token for an agent the caller made in the organization; every
         /// older one stops signing it in, and its connections close.
         rotate-agent-token(account-id),
-        /// Makes a link: `card` is sealed with the code, and `code` is the
-        /// code sealed to the caller, which `own-link.code` gives back. A
+        /// Makes a link: `card` is sealed with the code, which the caller keeps
+        /// in its block (guides/blocks/keys.md, "Contacts"). A
         /// contact link any account makes, as its own; an invitation needs an
         /// administrator of the organization the write names, which has a
         /// bounded number outstanding.
@@ -342,8 +340,9 @@ interface server {
         /// (`letter.accepted`) and its record of the owner, sealed to itself,
         /// in its own (`contact`, as `letter.contact`). `key` is,
         /// for a contact link with a grant, the granted key sealed to the
-        /// caller; for an invitation, the escrow key it pins sealed to
-        /// itself; otherwise empty. The account's own.
+        /// caller; for an invitation, what it pins for the organization sealed
+        /// to itself, left in its mailbox (`letter.pinned`); otherwise empty.
+        /// The account's own.
         accept-link(accept-link),
         /// Ends a link: revokes one outstanding, or finishes one accepted. A
         /// contact link goes; an invitation's row stays in its organization's
@@ -366,9 +365,6 @@ interface server {
         /// epoch of the account's block (`be_block::account_block`), sealed to
         /// the new key alone, as a `put-keys` rotation.
         set-recovery-key(set-recovery-key),
-        /// Keeps the escrow key the caller pinned for the organization, sealed
-        /// to itself.
-        pin-escrow(list<u8>),
         /// Registers or forgets this device's push endpoint for the account in
         /// the organization. An account keeps at most
         /// `limits::MAX_PUSH_ENDPOINTS` per organization, the oldest going
@@ -529,7 +525,6 @@ interface server {
     record create-link {
         link: link-id,
         card: list<u8>,
-        code: list<u8>,
         kind: link-kind,
     }
 
@@ -549,7 +544,6 @@ interface server {
         public: public-key,
         signing: public-key,
         sealed: list<sealed-key>,
-        %own: list<own-sealed>,
         changes: list<key-change>,
         retirements: list<retirement>,
     }

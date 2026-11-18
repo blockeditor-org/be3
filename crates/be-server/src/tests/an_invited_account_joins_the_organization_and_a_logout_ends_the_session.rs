@@ -26,7 +26,6 @@ async fn an_invited_account_joins_the_organization_and_a_logout_ends_the_session
             peer.write::<()>(be_block_protocol::Op::CreateLink {
                 link: invitation,
                 card: b"sealed to the invite code".to_vec(),
-                code: Vec::new(),
                 kind: be_block_protocol::LinkKind::Invitation(be_block_protocol::Invitation {
                     organization,
                     escrow: Vec::new(),

@@ -51,17 +51,16 @@ async fn an_invitation_finished_halfway_signs_its_accepter_in_on_the_next_finish
             .member(member.into_bytes())
             .is_some()
     };
+    // The accepted link waits while its card waits in the mailbox.
     let listed = || async {
-        be_block_protocol::read::<Vec<be_block_protocol::OwnLink>, _>(
-            &admin.connection(),
-            None,
-            be_block_protocol::Query::Links,
-        )
-        .await
-        .unwrap()
-        .unwrap()
-        .iter()
-        .any(|link| link.accepter == Some(member))
+        crate::contacts::mailbox(&admin.connection())
+            .await
+            .unwrap()
+            .iter()
+            .any(|message| {
+                message.from == Some(member)
+                    && matches!(message.letter, be_block_protocol::Letter::Accepted { .. })
+            })
     };
 
     // The device opens the link and stops before signing the member in.
