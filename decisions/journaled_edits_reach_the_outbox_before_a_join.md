@@ -32,6 +32,12 @@ is passed over for it. So each way the edits seemed to be lost reaches a commit:
   before joining still goes to the outbox, and a held join waits as for a failed seal. No test
   holds this one; it follows from the code.
 
+Open, not handled: an edit made on the content before a reload of a merge and numbered after
+the reload applies as nothing when the merge rebuilt what it was made on (a text merge with
+conflict markers). Its replica journals it and the join waits for a seal of it, but the content
+sealed does not hold it: `carry_pending` carries edits over a restart, not over a reload. This
+happens with or without a join.
+
 Edits of another build are lost by design: a journal of another build's tag is opened with none
 of its entries (`replayable`), and the replica says its edits were lost (`lost_edits`). That
 covers a module that comes back as a new build after a crash, and one restarted as a new build
