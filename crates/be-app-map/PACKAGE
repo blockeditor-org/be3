@@ -30,6 +30,7 @@ write_package_value("be3.cargo", {
             "test_deps": [
                 "//crates/be-sdk-test:be-sdk-test",
                 "//crates/be-worker-map-tiles:be-worker-map-tiles",
+                "//third-party/rust:serde_json-1.0.150",
             ],
             "test_features": [],
         },

@@ -38,9 +38,7 @@ fn sized(editor: BeuiTest<MapRoot>) -> BeuiTest<MapRoot> {
 
 /// `editor` in the camera the host gives the map, showing `content`.
 fn holding(editor: BeuiTest<MapRoot>, content: MapContent) -> BeuiTest<MapRoot> {
-    let mut editor = editor
-        .with_manifest(crate::APP_MANIFEST, "map")
-        .in_viewport();
+    let mut editor = editor.in_viewport();
     editor.serve_worker::<be_worker_map_tiles::Tiles>(be_worker_map::MODULE);
     editor.store().register(be_type_map::registrations());
     editor.hold(None, content);

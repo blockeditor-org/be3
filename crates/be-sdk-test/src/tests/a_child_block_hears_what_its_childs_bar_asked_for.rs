@@ -57,3 +57,5 @@ fn a_child_block_hears_what_its_childs_bar_asked_for() {
         Some("\"Details\"")
     );
 }
+
+test_editor!(BarRoot);

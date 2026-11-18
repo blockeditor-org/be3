@@ -40,7 +40,7 @@ impl Organization {
         }
     }
 
-    fn open<R: BeuiRoot>(&self, block: Uuid, size: Vec2) -> BeuiTest<R> {
+    fn open<R: BeuiRoot + be_sdk_beui::AppEditor>(&self, block: Uuid, size: Vec2) -> BeuiTest<R> {
         let host = EditorHost::default();
         host.set_account_id(Uuid::nil());
         host.set_organization_id(Uuid::from_u128(0x0e0f));

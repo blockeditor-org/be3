@@ -28,7 +28,13 @@ const MAX_RASTERIZING: usize = 2;
 struct TileJson {
     /// Tile URL templates, holding `{z}`, `{x}` and `{y}`; the map uses the first.
     tiles: Vec<String>,
+    /// The deepest zoom it serves; TileJSON 3.0 makes it optional, defaulting to 30.
+    #[serde(default = "default_max_zoom")]
     maxzoom: u8,
+}
+
+fn default_max_zoom() -> u8 {
+    30
 }
 
 /// The tile source, as its TileJSON describes it.

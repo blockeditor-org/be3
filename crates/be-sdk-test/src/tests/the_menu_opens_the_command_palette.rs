@@ -53,3 +53,5 @@ fn the_menu_opens_the_command_palette() {
     );
     assert!(!test.shown("command-palette.search"));
 }
+
+test_editor!(PaletteRoot);

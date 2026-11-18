@@ -70,3 +70,5 @@ fn a_floating_overlay_covers_only_the_children_painted_beneath_it() {
         "the overlay covers the child beneath it and not the one inside it"
     );
 }
+
+test_editor!(WindowRoot);

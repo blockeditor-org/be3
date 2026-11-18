@@ -71,3 +71,5 @@ fn a_watch_open_while_asked_starts_anew_each_time_it_opens() {
         "a new watch hears nothing of the one before"
     );
 }
+
+test_editor!(CaptureRoot);

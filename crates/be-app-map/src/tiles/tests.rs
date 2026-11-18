@@ -1,5 +1,6 @@
 use super::*;
 
+mod a_tile_json_without_a_max_zoom_serves_every_zoom;
 mod cancelling_the_last_waiting_tile_unqueues_its_source;
 mod queue_serves_latest_requests_first;
 mod tiles_asked_for_before_the_source_is_read_wait_for_it;

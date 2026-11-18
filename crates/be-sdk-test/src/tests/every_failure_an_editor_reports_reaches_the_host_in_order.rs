@@ -34,3 +34,5 @@ fn every_failure_an_editor_reports_reaches_the_host_in_order() {
         "a failure is taken once"
     );
 }
+
+test_editor!(FailingRoot);

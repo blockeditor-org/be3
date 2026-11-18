@@ -42,11 +42,11 @@ fn editor_for(account: Uuid) -> BeuiTest<SettingsRoot> {
     editor_as(account)
 }
 
-fn editor_as<R: be_sdk_beui::BeuiRoot>(account: Uuid) -> BeuiTest<R> {
+fn editor_as<R: be_sdk_beui::BeuiRoot + be_sdk_beui::AppEditor>(account: Uuid) -> BeuiTest<R> {
     editor_in(account, Uuid::nil())
 }
 
-fn editor_in<R: be_sdk_beui::BeuiRoot>(account: Uuid, organization: Uuid) -> BeuiTest<R> {
+fn editor_in<R: be_sdk_beui::BeuiRoot + be_sdk_beui::AppEditor>(account: Uuid, organization: Uuid) -> BeuiTest<R> {
     let block = Uuid::from_u128(0x5e77_0001);
     let host = EditorHost::default();
     host.set_account_id(account);

@@ -106,3 +106,5 @@ fn a_blocks_agent_is_made_rotated_and_removed_through_the_host() {
     test.settle();
     assert_eq!(test.label("agent.status"), Failure::Denied.to_string());
 }
+
+test_editor!(AgentRoot);
