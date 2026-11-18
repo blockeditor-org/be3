@@ -138,11 +138,6 @@ pub struct Identity {
     pub created: i64,
 }
 
-/// A fresh attempt secret for a browser's `be3-attempt` cookie.
-pub fn new_attempt() -> String {
-    format!("{}{}", Uuid::new_v4().simple(), Uuid::new_v4().simple())
-}
-
 /// The name of an attempt the mail's link carries: enough to tell the browser that began it,
 /// and no use without that browser's secret.
 pub fn public_attempt(attempt: &str) -> String {
@@ -561,13 +556,7 @@ impl ServerStore {
                 };
                 let session = match purpose {
                     CodePurpose::Proof => {
-                        let proved = transaction.execute(
-                            "UPDATE sessions SET proved = ?3 WHERE token_hash = ?1 AND account_id = ?2 AND kind = 'browser' AND expires > ?3",
-                            params![browser, account.to_string(), now],
-                        )?;
-                        if proved == 0 {
-                            return Err(refused("Sign in to continue."));
-                        }
+                        note_proof(&transaction, &browser, account)?;
                         None
                     }
                     _ => Some(open_browser_session(&transaction, account)?),
@@ -594,7 +583,7 @@ impl ServerStore {
         request: CodeRequest<'_>,
         config: crate::ServerConfig,
     ) -> Result<EnteredCode, ServerError> {
-        let attempt = new_attempt();
+        let attempt = crate::new_secret();
         let address = request.address;
         let mailed = self
             .request_code(CodeRequest {
@@ -625,14 +614,50 @@ impl ServerStore {
     pub async fn require_fresh(&self, browser: &str) -> Result<(), ServerError> {
         match self.is_fresh(browser).await? {
             true => Ok(()),
-            false => Err(ServerError::Refused(
-                ErrorCode::InvalidRequest,
-                "Confirm it is you first, with a code to your email, a passkey or a provider you sign in with."
-                    .into(),
-            )),
+            false => Err(refused(NOT_FRESH)),
         }
     }
+}
 
+const NOT_FRESH: &str = "Confirm it is you first, with a code to your email, a passkey or a provider you sign in with.";
+
+/// Refuses unless the browser session hashed as `browser` is `account`'s and proved it is the
+/// owner in the last `FRESH_PROOF`; checked in the transaction of the change it allows, so a
+/// session that changed or went stale meanwhile changes nothing.
+pub(crate) fn require_fresh_proof(
+    database: &Connection,
+    browser: &str,
+    account: Uuid,
+) -> Result<(), ServerError> {
+    let fresh: bool = database.query_row(
+        "SELECT EXISTS(SELECT 1 FROM sessions WHERE token_hash = ?1 AND account_id = ?2 AND kind = 'browser' AND expires > ?3 AND proved > ?4)",
+        params![browser, account.to_string(), now(), now() - FRESH_PROOF],
+        |row| row.get(0),
+    )?;
+    match fresh {
+        true => Ok(()),
+        false => Err(refused(NOT_FRESH)),
+    }
+}
+
+/// Notes that the browser session hashed as `browser`, `account`'s, proved it is the owner just
+/// now; refuses one that is not the account's or has ended.
+pub(crate) fn note_proof(
+    database: &Connection,
+    browser: &str,
+    account: Uuid,
+) -> Result<(), ServerError> {
+    let proved = database.execute(
+        "UPDATE sessions SET proved = ?3 WHERE token_hash = ?1 AND account_id = ?2 AND kind = 'browser' AND expires > ?3",
+        params![browser, account.to_string(), now()],
+    )?;
+    match proved {
+        0 => Err(refused("Sign in to continue.")),
+        _ => Ok(()),
+    }
+}
+
+impl ServerStore {
     pub async fn identities(&self, account: Uuid) -> Result<Vec<Identity>, ServerError> {
         self.with_database(move |_, database| {
             let mut query = database.prepare(

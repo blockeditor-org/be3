@@ -10,7 +10,7 @@ use rusqlite::{OptionalExtension, params};
 use uuid::Uuid;
 use webauthn_rs::prelude::{AuthenticationResult, Passkey};
 
-use super::codes::{FRESH_PROOF, Identity, open_browser_session};
+use super::codes::{Identity, note_proof, open_browser_session, require_fresh_proof};
 use super::{ServerStore, TokenKind, hash_token, parse_uuid, portal::now};
 use crate::ServerError;
 
@@ -148,16 +148,7 @@ impl ServerStore {
         let rp_id = rp_id.to_owned();
         self.with_database(move |_, database| {
             let transaction = be_block_sqlite_schema::write_transaction(database)?;
-            let fresh: bool = transaction.query_row(
-                "SELECT EXISTS(SELECT 1 FROM sessions WHERE token_hash = ?1 AND account_id = ?2 AND kind = 'browser' AND expires > ?3 AND proved > ?4)",
-                params![browser, account.to_string(), now(), now() - FRESH_PROOF],
-                |row| row.get(0),
-            )?;
-            if !fresh {
-                return Err(refused(
-                    "Confirm it is you first, with one of your ways to sign in.",
-                ));
-            }
+            require_fresh_proof(&transaction, &browser, account)?;
             let held: i64 = transaction.query_row(
                 "SELECT count(*) FROM identities WHERE account_id = ?1 AND kind = 'passkey'",
                 [account.to_string()],
@@ -254,14 +245,7 @@ impl ServerStore {
                 &result,
                 "That passkey did not confirm it is you. Try again, or another way.",
             )?;
-            let now = now();
-            let proved = transaction.execute(
-                "UPDATE sessions SET proved = ?3 WHERE token_hash = ?1 AND account_id = ?2 AND kind = 'browser' AND expires > ?3",
-                params![browser, account.to_string(), now],
-            )?;
-            if proved == 0 {
-                return Err(refused("Sign in to continue."));
-            }
+            note_proof(&transaction, &browser, account)?;
             transaction.commit()?;
             Ok(())
         })

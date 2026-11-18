@@ -386,16 +386,7 @@ impl ServerStore {
                     let transaction = be_block_sqlite_schema::write_transaction(database)?;
                     // The browser must still be the account that began it, and have proved so
                     // just now: a session that changed or went stale meanwhile links nothing.
-                    let fresh: bool = transaction.query_row(
-                        "SELECT EXISTS(SELECT 1 FROM sessions WHERE token_hash = ?1 AND account_id = ?2 AND kind = 'browser' AND expires > ?3 AND proved > ?4)",
-                        params![browser, account.to_string(), now(), now() - super::codes::FRESH_PROOF],
-                        |row| row.get(0),
-                    )?;
-                    if !fresh {
-                        return Err(refused(
-                            "Confirm it is you first, with a code to your email, a passkey or a provider you sign in with.",
-                        ));
-                    }
+                    super::codes::require_fresh_proof(&transaction, &browser, account)?;
                     add_provider_identity(&transaction, account, &subject, &email)?;
                     super::identity_changes::claim_identity_add(&transaction, account, &label)?;
                     transaction.commit()?;
@@ -418,15 +409,8 @@ impl ServerStore {
                     if !linked {
                         return Err(refused("That provider account does not sign in to yours."));
                     }
-                    let now = now();
-                    let proved = database.execute(
-                        "UPDATE sessions SET proved = ?3 WHERE token_hash = ?1 AND account_id = ?2 AND kind = 'browser' AND expires > ?3",
-                        params![browser, account.to_string(), now],
-                    )?;
-                    match proved {
-                        0 => Err(refused("Sign in to continue.")),
-                        _ => Ok(Outcome::Proved),
-                    }
+                    super::codes::note_proof(database, &browser, account)?;
+                    Ok(Outcome::Proved)
                 })
                 .await
             }
