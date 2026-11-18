@@ -240,7 +240,9 @@ fn DockGathered(dock: State, tree: Tree, vertical: bool, folded: bool) -> NodeId
         direction,
         tabs: list,
         menu,
-        test_prefix: String::from("dock"),
+        // It gathers the tabs of several panes, so it has no one pane to be named by: it takes
+        // its bar's name, so its ids never meet a pane strip's.
+        test_prefix: String::from("dock.compact"),
     });
     let focused = create_memo(move || {
         let shown = shown.get();
