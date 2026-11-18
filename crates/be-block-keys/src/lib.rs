@@ -670,7 +670,9 @@ thread_local! {
 }
 
 /// How many signatures this thread has verified: what a test of how often logs are checked
-/// counts.
+/// counts, in this crate and in those that check logs (be-server, be-block-client). Always
+/// counted, as a thread-local increment beside an Ed25519 verification costs nothing to speak
+/// of, and a feature for it would build the crates twice.
 pub fn signatures_verified() -> u64 {
     VERIFIED.with(std::cell::Cell::get)
 }
