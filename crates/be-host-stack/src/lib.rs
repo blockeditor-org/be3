@@ -528,9 +528,115 @@ pub fn take_updates_in_frame() {
 /// run with their answers, which is when what they read has what the worker did before
 /// answering. Answers that land after the stack stopped are lost with it: a callback for a
 /// command sent just before a stop or a restart may not run.
+///
+/// Natively a take may race another thread's: a test that runs no frames has a thread take each
+/// update as it lands (`start`). A take that finds another under way, one that took before it and
+/// has not told what it took yet, returns only once that one has told, so whoever took returns
+/// with the watchers having heard everything up to what it read. A take made while its own
+/// thread tells (a callback that takes again) does not wait, so two threads never wait on each
+/// other. So a callback the taking thread runs as it tells must not block on another thread that
+/// takes: that take waits for the callback, and the two never finish.
 pub fn take_updates() {
-    if let Some(taken) = with_stack(Stack::catch_up) {
+    let me = std::thread::current().id();
+    let (taken, number) = {
+        let mut held = stack().lock().unwrap_or_else(PoisonError::into_inner);
+        (held.as_mut().map(Stack::catch_up), telling::began(me))
+    };
+    let told = telling::Told(number);
+    if let Some(taken) = taken {
         taken.tell();
+    }
+    drop(told);
+    #[cfg(not(target_arch = "wasm32"))]
+    telling::await_earlier(me, number);
+}
+
+/// The takes whose updates are not told yet (`take_updates`), by the order they took in.
+mod telling {
+    use std::sync::{Condvar, Mutex, OnceLock, PoisonError};
+    use std::thread::ThreadId;
+
+    #[derive(Default)]
+    struct Telling {
+        next: u64,
+        under_way: Vec<(u64, ThreadId)>,
+        /// Takes waiting on an earlier one, for a test to see one wait.
+        #[cfg(test)]
+        waiting: usize,
+    }
+
+    fn telling() -> &'static (Mutex<Telling>, Condvar) {
+        static TELLING: OnceLock<(Mutex<Telling>, Condvar)> = OnceLock::new();
+        TELLING.get_or_init(Default::default)
+    }
+
+    /// A take by `thread` is under way; called under the stack's lock, so takes are numbered in
+    /// the order they took.
+    pub(super) fn began(thread: ThreadId) -> u64 {
+        let mut held = telling().0.lock().unwrap_or_else(PoisonError::into_inner);
+        let number = held.next;
+        held.next += 1;
+        held.under_way.push((number, thread));
+        number
+    }
+
+    /// Its take has told what it took, or panicked telling it.
+    pub(super) struct Told(pub(super) u64);
+
+    impl Drop for Told {
+        fn drop(&mut self) {
+            let (lock, told) = telling();
+            let mut held = lock.lock().unwrap_or_else(PoisonError::into_inner);
+            held.under_way.retain(|(number, _)| *number != self.0);
+            drop(held);
+            told.notify_all();
+        }
+    }
+
+    /// Waits until every take before `number` by another thread has told, unless `thread` is
+    /// telling one of its own.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(super) fn await_earlier(thread: ThreadId, number: u64) {
+        let (lock, told) = telling();
+        let held = lock.lock().unwrap_or_else(PoisonError::into_inner);
+        let waits = |held: &Telling| {
+            !held.under_way.iter().any(|(_, by)| *by == thread)
+                && held
+                    .under_way
+                    .iter()
+                    .any(|(earlier, by)| *earlier < number && *by != thread)
+        };
+        if !waits(&held) {
+            return;
+        }
+        #[cfg(test)]
+        let held = {
+            let mut held = held;
+            held.waiting += 1;
+            told.notify_all();
+            held
+        };
+        let held = told
+            .wait_while(held, |held| waits(held))
+            .unwrap_or_else(PoisonError::into_inner);
+        #[cfg(test)]
+        let held = {
+            let mut held = held;
+            held.waiting -= 1;
+            held
+        };
+        drop(held);
+    }
+
+    /// Waits until a take is waiting on an earlier one.
+    #[cfg(test)]
+    pub(crate) fn await_a_waiting_take() {
+        let (lock, told) = telling();
+        let held = lock.lock().unwrap_or_else(PoisonError::into_inner);
+        drop(
+            told.wait_while(held, |held| held.waiting == 0)
+                .unwrap_or_else(PoisonError::into_inner),
+        );
     }
 }
 
@@ -725,10 +831,12 @@ pub fn stop() {
 }
 
 fn stop_now() {
-    let stack = stack()
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner)
-        .take();
+    // Numbered as a take is (`take_updates`), so a take meanwhile waits for what this tells.
+    let (stack, number) = {
+        let mut held = stack().lock().unwrap_or_else(PoisonError::into_inner);
+        (held.take(), telling::began(std::thread::current().id()))
+    };
+    let told = telling::Told(number);
     let stopped = stack.is_some();
     if let Some(mut stack) = stack {
         let taken = stack.catch_up();
@@ -746,6 +854,7 @@ fn stop_now() {
         drop(stack);
         taken.tell();
     }
+    drop(told);
     if stopped {
         changes::everything();
     }
