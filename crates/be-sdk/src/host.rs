@@ -2002,7 +2002,7 @@ impl EditorHost {
     /// Revokes the share link `link` (a `ShareLink::id`) on `block_id`.
     pub fn revoke_share_link(&self, block_id: Uuid, link: &str) -> Asked<Result<(), Failure>> {
         let link = link.to_owned();
-        Asked::of(self.ask(move || host_services::revoke_share_link(block_id.into_bytes(), &link)))
+        Asked::of(self.ask(move || host_services::revoke_share_link(block_id.into_bytes(), link.clone())))
     }
 
     pub fn contact_link(
