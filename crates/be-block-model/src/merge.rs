@@ -219,21 +219,43 @@ fn merge_fields(base: &Object, ours: &Object, theirs: &Object, conflicts: &mut u
     }
 }
 
-/// The client a merge's own insertions are made under (`spliced`): no session numbers a
-/// participant this high.
-const MERGED: u64 = u64::MAX;
+/// The client a merge's own insertions are made under (`spliced`): one of its own for each
+/// pair of sides, derived from both, so two merges made apart (on two devices, of different
+/// sides) name what they insert apart, and an edit made on one's merge names nothing in the
+/// other's rather than the wrong item. Its top bit is set, which no session numbers a
+/// participant with (as a replica's own before it joins), and it is never `u64::MAX`, the
+/// stand-in that holds a joining replica's lease.
+fn merge_client(ours: &[Vec<u8>], merged: &[Vec<u8>]) -> u64 {
+    let mut bytes = Vec::new();
+    for side in [ours, merged] {
+        bytes.extend_from_slice(&(side.len() as u64).to_le_bytes());
+        for unit in side {
+            bytes.extend_from_slice(&(unit.len() as u64).to_le_bytes());
+            bytes.extend_from_slice(unit);
+        }
+    }
+    let hash = be_block_store::Hash::of(&bytes);
+    let mut first = [0; 8];
+    first.copy_from_slice(&hash.as_bytes()[..8]);
+    let client = u64::from_le_bytes(first) | 1 << 63;
+    match client {
+        u64::MAX => u64::MAX - 1,
+        client => client,
+    }
+}
 
 /// `ours` made into `merged` by splicing in only where they differ, compared a unit (a line, an
 /// entry) at a time: what they share keeps its identities in `ours`, which the session's edits
 /// name, so an edit made on it before the merge, applied after, still lands. Rebuilt from its
 /// items instead, every item would be new, and such an edit would apply as nothing.
-fn spliced<T: Clone, U: Eq + std::hash::Hash + Ord>(
+fn spliced<T: Clone>(
     ours: &Sequence<T>,
-    ours_units: &[U],
-    merged_units: &[U],
-    length: impl Fn(&U) -> usize,
-    items: impl Fn(&[U]) -> Vec<T>,
+    ours_units: &[Vec<u8>],
+    merged_units: &[Vec<u8>],
+    length: impl Fn(&Vec<u8>) -> usize,
+    items: impl Fn(&[Vec<u8>]) -> Vec<T>,
 ) -> Sequence<T> {
+    let client = merge_client(ours_units, merged_units);
     let mut starts = Vec::with_capacity(ours_units.len() + 1);
     let mut at = 0;
     for unit in ours_units {
@@ -248,7 +270,7 @@ fn spliced<T: Clone, U: Eq + std::hash::Hash + Ord>(
         let replacement = items(&merged_units[new]);
         let operation = match replacement.is_empty() {
             true => sequence.delete(range),
-            false => sequence.replace(MERGED, range, replacement),
+            false => sequence.replace(client, range, replacement),
         };
         if let Some(operation) = operation {
             sequence.apply(&operation);
