@@ -18,6 +18,7 @@ fn a_version_kept_for_the_replicas_order_still_waits_for_its_upload() {
             metadata: be_block_content::BlockMetadata::default(),
             references: Vec::new(),
             content: None,
+            log: Vec::new(),
         },
         BlockParent::Root,
     )]);

@@ -220,12 +220,19 @@ within one page: step 4's fold takes the first occurrence of an id.
    extend the kept head is reported; an entry signed with a replaced key
    after its replacement answers `Replaced`; reading the first page of a
    log of a million entries fetches that page and O(log n) proof hashes.
-4. **Type modules and apps.** `type-info.log`, `replica.logged`, `read-log`,
-   the editor's append message signed by the host, `LogFold` for search and
+4. **Type modules and apps.** Built. `type-info.log`, `replica.logged`, `read-log`,
+   the editor's append message signed by the host, `LogFold` for
    descriptions, export carrying entries. Done: a test type in
-   be-sdk-type-guest appends from two replicas and both fold one order; an
-   app's unsigned or foreign-signed entry never reaches the server; an export
-   reimported elsewhere verifies against the original block id.
+   be-sdk-type-guest appends from two replicas and both fold one order, and
+   an entry served again under its id later is folded once (its first
+   place); an app's unsigned or foreign-signed entry never reaches the
+   server; an export reimported elsewhere verifies against the original
+   block id. Where it differs: an entry's signature covers the app's bytes
+   framed by the app's id (`by_app`), not the sealed bytes, so an export
+   verifies without the block's key (a redacted entry's author is then the
+   log's word alone); search does not fold the log yet (step 5's "search per
+   log page"); and an import keeps the exported entries in the file, verified,
+   without appending them to the new block, which step 5 decides for chat.
 5. **Chat on the log.** Messages, edits, reactions and deletions as entries;
    content keeps drafts and settings; deletion redacts; unread places are
    seqs; notifications go as `[append, push]`; search per log page. Done:

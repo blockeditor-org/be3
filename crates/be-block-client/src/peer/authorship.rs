@@ -113,6 +113,16 @@ pub enum Signer {
     Bad,
 }
 
+/// `bytes` an app wrote, framed by the app's id ahead of them, as the host signs and verifies
+/// what apps write (guides/blocks/keys.md, "Signing what a person writes"): a signature over
+/// them verifies only for the same app.
+pub fn by_app(app: &str, bytes: &[u8]) -> Vec<u8> {
+    let mut bound = (app.len() as u64).to_be_bytes().to_vec();
+    bound.extend_from_slice(app.as_bytes());
+    bound.extend_from_slice(bytes);
+    bound
+}
+
 impl<S: ObjectStore> Peer<S> {
     /// Signs `bytes` the account wrote in `block` with its signing key.
     pub fn sign_authored(&self, block: Uuid, bytes: &[u8]) -> Vec<u8> {

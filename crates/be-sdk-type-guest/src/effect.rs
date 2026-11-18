@@ -47,6 +47,17 @@ pub(crate) enum Effect {
         token: Token,
         bytes: Vec<u8>,
     },
+    Append {
+        replica: ReplicaId,
+        token: Token,
+        bytes: Vec<u8>,
+    },
+    ReadLog {
+        replica: ReplicaId,
+        token: Token,
+        from: u64,
+        limit: u32,
+    },
     Resume {
         replica: ReplicaId,
         token: Token,

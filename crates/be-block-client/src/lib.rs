@@ -21,11 +21,11 @@ pub use contacts::{Contact, GrantOffer};
 pub use keys::{EscrowWarning, KeyBook};
 pub use peer::account_block::AccountRecords;
 pub use peer::hosted::{Admitted, Admitting, Joining};
-pub use peer::log::{Appended, LogRead, LoggedEntry};
+pub use peer::log::{Appended, ExportedEntry, LogRead, LoggedEntry};
 pub use peer::{
     BlockRead, Drained, Listed, MAX_NOTIFICATION_AGE_MILLISECONDS, MAX_NOTIFICATION_TEXT,
     Notification, OpenedNotification, Peer, PeerConfig, PendingRotation, Reconciled, Resolver,
-    Saved, Sealed, SealsJournal, Signer, Write,
+    Saved, Sealed, SealsJournal, Signer, Write, by_app,
 };
 pub use refs::{
     Aside, KeptChange, KeptEdit, KeptLogHead, KeptSubmission, ListedBlock, OpenEdits,

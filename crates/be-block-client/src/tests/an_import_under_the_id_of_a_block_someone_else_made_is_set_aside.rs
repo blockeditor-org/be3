@@ -41,6 +41,7 @@ async fn an_import_under_the_id_of_a_block_someone_else_made_is_set_aside() {
             metadata: be_block_content::BlockMetadata::named("Imported"),
             references: Vec::new(),
             content: Some(TextBlock::of("imported").encode()),
+            log: Vec::new(),
         },
     )
     .await;

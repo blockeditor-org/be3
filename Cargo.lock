@@ -1289,6 +1289,7 @@ dependencies = [
  "memchr",
  "postcard",
  "serde",
+ "serde_bytes",
  "uuid",
 ]
 

@@ -8,6 +8,7 @@ fn saved(id: Uuid, parent: Option<usize>) -> Saved {
         metadata: be_block_content::BlockMetadata::default(),
         references: Vec::new(),
         content: None,
+        log: Vec::new(),
     }
 }
 

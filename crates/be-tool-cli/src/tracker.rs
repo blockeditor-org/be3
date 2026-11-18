@@ -1782,6 +1782,7 @@ impl<S: ObjectStore> Tracker<S> {
                         metadata: BlockMetadata::named(title).with_derived(description.derived),
                         references: self.peer.resolve(page, description.references),
                         content: Some(content),
+                        log: Vec::new(),
                     },
                     BlockParent::Block(database),
                 ));

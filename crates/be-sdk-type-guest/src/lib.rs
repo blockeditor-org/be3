@@ -92,6 +92,8 @@ pub struct Registration {
     merge_parts: Option<MergePartsFn>,
     /// The replica's merge by parts, a `replica::PartsMerge` of the type's content.
     replica_merge: Option<std::rc::Rc<dyn std::any::Any>>,
+    /// The type's fold of its signed log, a `replica::Fold` of its content, if it has a log.
+    fold: Option<std::rc::Rc<dyn std::any::Any>>,
     describe: fn(&[u8], Uuid) -> Result<Description, String>,
     search_text: SearchTextFn,
     unread: Option<UnreadFns>,
@@ -116,6 +118,7 @@ impl Registration {
                 first_part: C::LOADS == Loads::FirstPart,
                 merges_parts: false,
                 whole_bytes: C::WHOLE_BYTES,
+                log: false,
                 blank: Vec::new(),
                 blank_description: Description::default(),
                 reads: None,
@@ -129,6 +132,7 @@ impl Registration {
             merge: merge::<C>,
             merge_parts: None,
             replica_merge: None,
+            fold: None,
             describe: describe_bytes::<C>,
             search_text: search_text::<C>,
             unread: None,
@@ -179,6 +183,17 @@ impl Registration {
         self
     }
 
+    /// Keeps a signed log beside the content (`type-info.log`), folded onto what it shows
+    /// (`LogFold`): its editors append and read the log through their replica.
+    pub fn log<C: be_block_content::LogFold + LiveEdit>(mut self) -> Self {
+        assert_eq!(self.info.content_type, C::CONTENT_TYPE);
+        self.info.log = true;
+        self.fold = Some(std::rc::Rc::new(
+            fold::<C> as replica::Fold<C>,
+        ));
+        self
+    }
+
     pub fn file<C: FileForm + LiveEdit>(mut self) -> Self {
         assert_eq!(self.info.content_type, C::CONTENT_TYPE);
         self.info.plain = Plain::File;
@@ -203,6 +218,30 @@ impl Registration {
 
     pub fn info(&self) -> &TypeInfo {
         &self.info
+    }
+}
+
+fn fold<C: be_block_content::LogFold>(content: &mut C, item: &be_block_content::LogItem) {
+    content.fold(item);
+}
+
+/// A log entry as the host interface carries it, as a type sees it.
+fn log_item(item: be_sdk_type_api::LogItem) -> be_block_content::LogItem {
+    use be_block_content::LogSigner;
+    be_block_content::LogItem {
+        seq: item.seq,
+        id: item.id,
+        author: item.author,
+        arrival: item.arrival,
+        payload: item.payload,
+        signer: match item.signer {
+            be_sdk_type_api::Signer::Verified => LogSigner::Verified,
+            be_sdk_type_api::Signer::Unverified => LogSigner::Unverified,
+            be_sdk_type_api::Signer::Changed => LogSigner::Changed,
+            be_sdk_type_api::Signer::Replaced => LogSigner::Replaced,
+            be_sdk_type_api::Signer::Bad => LogSigner::Bad,
+            be_sdk_type_api::Signer::Unknown => LogSigner::Unknown,
+        },
     }
 }
 
@@ -573,6 +612,7 @@ impl Module {
                 epoch: opening.epoch,
                 from_file: kind.from_file,
                 parts_merge: kind.replica_merge.clone(),
+                fold: kind.fold.clone(),
                 now,
             })
         });
@@ -852,6 +892,40 @@ impl Module {
                     result: result
                         .and_then(|put| put)
                         .map(be_block_content::PartRef::from),
+                });
+            }
+            Effect::Append {
+                replica,
+                token,
+                bytes,
+            } => {
+                let pending = ops::with_parent(replica, || host::append(bytes));
+                self.answer_later(replica, pending, move |result| Input::Appended {
+                    token,
+                    result: result
+                        .and_then(|appended| appended)
+                        .map(|appended| match appended {
+                            be_sdk_type_api::host::Appended::Logged(place) => {
+                                Some((place.seq, place.arrival))
+                            }
+                            be_sdk_type_api::host::Appended::Kept => None,
+                        }),
+                });
+            }
+            Effect::ReadLog {
+                replica,
+                token,
+                from,
+                limit,
+            } => {
+                let pending = ops::with_parent(replica, || host::read_log(from, limit));
+                self.answer_later(replica, pending, move |result| Input::LogRead {
+                    token,
+                    result: result
+                        .and_then(|read| read)
+                        .map(|page| {
+                            (page.size, page.items.into_iter().map(log_item).collect())
+                        }),
                 });
             }
             Effect::Resume {
@@ -1233,6 +1307,14 @@ impl replicas::GuestReplica for OpenReplica {
 
     fn lease(&self, session: SessionState) -> LocalFuture<()> {
         self.module.input(self.id, Input::Lease { session });
+        Box::pin(ready(()))
+    }
+
+    fn logged(&self, items: Vec<be_sdk_type_api::LogItem>) -> LocalFuture<()> {
+        self.module.input(
+            self.id,
+            Input::Logged(items.into_iter().map(log_item).collect()),
+        );
         Box::pin(ready(()))
     }
 

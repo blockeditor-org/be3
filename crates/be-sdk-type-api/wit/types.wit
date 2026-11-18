@@ -91,6 +91,11 @@ interface types {
         /// The stored form read whole decodes to the content (`be_block::BlockContent::WHOLE_BYTES`),
         /// so a copy of its bytes loses nothing.
         whole-bytes: bool,
+        /// The type keeps a signed log beside its content (plans/signed_logs.md):
+        /// its replicas read it with `host.read-log`, hear it with
+        /// `replica.logged`, append with `host.append`, and fold it into what
+        /// they describe (`be_block_content::LogFold`).
+        log: bool,
         /// The type's default content (`Default`), encoded.
         blank: list<u8>,
         /// `blank` described, with no organization.
@@ -99,6 +104,40 @@ interface types {
         /// type up to, for a type that counts what is unread (`replicas.unread`); none
         /// for one that does not.
         reads: option<content-type-id>,
+    }
+
+    /// An entry of a block's signed log as the host read and verified it.
+    record log-item {
+        /// Its place in the log.
+        seq: u64,
+        id: uuid,
+        /// The account that appended it, as the server recorded it.
+        author: account-id,
+        /// When the server took it, by the server's clock.
+        arrival: s64,
+        /// The bytes the app appended; none once redacted, or while no key
+        /// this device holds opens them.
+        payload: option<list<u8>>,
+        /// Who of `author` signed it as this app's, as far as the device can tell.
+        signer: signer,
+    }
+
+    /// Who signed a log entry (`be_block_client::Signer`), or `unknown` when it
+    /// could not be told (offline, or its payload unopened).
+    enum signer {
+        verified,
+        unverified,
+        changed,
+        replaced,
+        bad,
+        unknown,
+    }
+
+    /// A run of a block's signed log from where it was asked: `size` is the
+    /// log's length as the host verified it.
+    record log-page {
+        size: u64,
+        items: list<log-item>,
     }
 
     record description {
