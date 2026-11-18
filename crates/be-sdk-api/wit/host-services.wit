@@ -37,6 +37,8 @@ interface host-services {
         waiting: bool,
         /// Their grant came through a share link they opened.
         through-link: bool,
+        /// A guest of the organization, there only through share links.
+        guest: bool,
     }
 
     /// Who a share link admits.
@@ -57,6 +59,7 @@ interface host-services {
         /// The link to send, when the signed-in account made it and keeps
         /// its code; empty otherwise.
         url: string,
+        maker: account-id,
         maker-name: string,
     }
 

@@ -767,10 +767,11 @@ pub(crate) fn is_viewer(
             Some(be_block_protocol::OrganizationRole::Administrator) => {
                 graph.contains(block) && !graph.closed_to(block, account)
             }
-            Some(
-                be_block_protocol::OrganizationRole::Editor
-                | be_block_protocol::OrganizationRole::Guest,
-            ) => {
+            // A guest reaches only what links granted it, not the organization's settings.
+            Some(be_block_protocol::OrganizationRole::Guest) => {
+                graph.inherited(block, account).can_view()
+            }
+            Some(be_block_protocol::OrganizationRole::Editor) => {
                 graph.inherited(block, account).can_view()
                     || crate::organization::in_settings(graph, organization, block)
             }

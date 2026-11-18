@@ -84,6 +84,32 @@ fn a_share_link_grants_whoever_opens_it_until_it_is_revoked() {
         "a holder of the code names no keys it does not hold"
     );
 
+    // A viewer the log names already opens a link only with the keys it names for them.
+    let granted = Entry::sign(
+        &owner,
+        owner_id,
+        block,
+        Some(made.hash()),
+        false,
+        Record::Grant(Grant {
+            grantee: viewer_id,
+            identity: viewer.identity(),
+            level: Level::View,
+            authority: Authority::Log,
+        }),
+    );
+    let impostor = RecoveryPhrase::generate().secret();
+    let swapped_keys = Entry::opened(&code, block, granted.hash(), viewer_id, &impostor, Level::Edit);
+    assert!(
+        check(&[root.clone(), made.clone(), granted.clone(), swapped_keys]).is_err(),
+        "a link's grant replaces no keys the log names for an account"
+    );
+    let raised = Entry::opened(&code, block, granted.hash(), viewer_id, &viewer, Level::Edit);
+    assert!(
+        check(&[root.clone(), made.clone(), granted, raised]).is_ok(),
+        "the same keys raise them"
+    );
+
     let revoked = link(&owner, owner_id, joined.hash(), &code, false, true);
     let checked = check(&[root.clone(), made.clone(), joined.clone(), revoked.clone()]).unwrap();
     assert_eq!(

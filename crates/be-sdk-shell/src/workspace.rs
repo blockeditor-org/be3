@@ -599,16 +599,20 @@ impl Workspace {
             self.share.set(Some(share));
             return;
         }
-        if let ShareAction::RevokeLink(link) = &action {
-            share.error = None;
-            let workspace = *self;
-            let asked = self.host().revoke_share_link(share.block, link);
-            // Listed again once it is done: whom it granted lose their access then.
-            let task = self.editor.then(asked, move |revoked| match revoked {
-                Ok(()) => workspace.relist_links(),
-                Err(failure) => workspace.access_set(Err(failure)),
-            });
-            self.state.value().share_asks.borrow_mut().push(task);
+        if let ShareAction::ConfirmRevoke = action {
+            if let Some(link) = share.revoking.take()
+                && !share.revoking_now.contains(&link)
+            {
+                share.error = None;
+                let workspace = *self;
+                let asked = self.host().revoke_share_link(share.block, &link);
+                share.revoking_now.push(link.clone());
+                // Listed again once it is answered: whom it granted lose their access then.
+                let task = self.editor.then(asked, move |revoked| {
+                    workspace.link_revoked(&link, revoked)
+                });
+                self.state.value().share_asks.borrow_mut().push(task);
+            }
             self.share.set(Some(share));
             return;
         }
@@ -674,6 +678,18 @@ impl Workspace {
     fn relist_links(&self) {
         self.share_listing.refresh();
         self.share_links_listed.refresh();
+    }
+
+    fn link_revoked(&self, link: &str, revoked: Result<(), Failure>) {
+        let Some(mut share) = self.share.get_untracked() else {
+            return;
+        };
+        share.revoking_now.retain(|pending| pending != link);
+        if let Err(error) = revoked {
+            share.error = Some(error.to_string());
+        }
+        self.share.set(Some(share));
+        self.relist_links();
     }
 
     fn link_made(&self, ask: u64, made: Result<(), Failure>) {

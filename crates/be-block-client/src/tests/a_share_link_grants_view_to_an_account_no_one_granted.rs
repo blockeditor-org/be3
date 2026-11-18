@@ -82,11 +82,12 @@ async fn a_share_link_grants_view_to_an_account_no_one_granted() {
             .is_err(),
         "what a link hands opens only with its code"
     );
+    let plain = be_block_keys::CarriedKey::decode(&maker.keys().carried_plain(scope).unwrap())
+        .unwrap()
+        .key;
     assert!(
-        !sealed
-            .windows(16)
-            .any(|window| window == scope.as_bytes().as_slice()),
-        "the stored link names its key only sealed"
+        !sealed.windows(plain.len()).any(|window| window == plain),
+        "the stored link holds the scope key's bytes only sealed"
     );
     // Whoever holds only what the server holds (the link's id and its record) signs no grant:
     // the record's key derives from the code.
