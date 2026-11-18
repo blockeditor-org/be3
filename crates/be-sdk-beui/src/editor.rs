@@ -1131,7 +1131,7 @@ impl Editor {
     /// order. A member is known by the number the host gives it while it stays.
     pub fn on_member(&self, receive: impl Fn(be_sdk_api::blocks::MemberEvent) + 'static) {
         let core = self.core();
-        let changed = self.pushed(Pushed::Members);
+        let changed = self.pushed(Pushed::MemberEvents);
         create_effect(move || {
             changed.track();
             let events = core.host().take_member_events();
