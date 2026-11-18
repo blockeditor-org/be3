@@ -23,8 +23,9 @@ use be_wasm_guest_abi::{Flow, Guest, Waker};
 use be_wasm_ops::guest::{Executor, LocalFuture};
 use be_wasm_password::Password;
 use be_wasm_root_api::{
-    AccountRow, CoreCommand, CoreView, DisplayQuestion, FrameDone, FrameRequest, HostStatistics, LockState,
-    NewAccount, Notice, PowerAction, Refusal, SavingState, ServerAccount, SetAside, StatisticRow, SyncState, UnsentEdit,
+    AccountRow, CoreCommand, CoreView, DisplayQuestion, FrameDone, FrameRequest, HostStatistics,
+    LockState, NewAccount, Notice, PowerAction, Refusal, SavingState, ServerAccount, SetAside,
+    StatisticRow, SyncState, UnsentEdit,
     guest::{
         exports::{frames, input, paintings},
         host,
@@ -37,14 +38,15 @@ use beui::styled::*;
 use beui::{Align, Align2, Direction, KeyPhase, NodeId, Overflow, Pos2, Rect, TextAlign, vec2};
 
 use crate::{
-    ACCOUNTS_LAYER, ACCOUNTS_SURFACE, ADD_ACCOUNT_TITLE, FORGET_ACCOUNT_TITLE, SIGN_IN_TITLE,
-    APP, APP_ENTRY, CLOSES, DIALOG_LAYER, DISCARD_UNSENT_TITLE, OPENS_UNSENT, UNSENT_TITLE, DIALOG_ORIGIN, KEEP_DISPLAY_TITLE, DIALOG_SIZE, DIALOG_SURFACE, DIALOG_TITLE,
-    LATE_LAYER, LATER, LATER_TEXT, LOCK_LAYER, LOCK_SURFACE, LOCKS_SESSION, OPENS_DIALOG,
-    OPENS_STATISTICS, ORIGIN, RASTER, RESIZED, RESIZES, ROOT_COLOR, ROOT_LAYER, ROOT_SURFACE,
-    SCREEN, SCREEN_SIZE, SCRIM_COLOR, SCRIM_LAYER, SCRIM_SURFACE, SIZE, SLOW_SAVE, SLOW_SAVE_TITLE,
-    SLOW_SAVE_TOAST, STATISTICS_AREA, STATISTICS_LAYER, STATISTICS_ORIGIN, STATISTICS_SURFACE,
-    STATISTICS_TITLE, STRAY_PASSWORD, TEXT, TEXT_LAYER, TEXT_STRIP, TEXT_SURFACE, TOAST_AREA,
-    TOAST_LAYER, TOAST_SURFACE, UNLOCKS_TWICE, UNPRESENTED_SURFACE,
+    ACCOUNTS_LAYER, ACCOUNTS_SURFACE, ADD_ACCOUNT_TITLE, APP, APP_ENTRY, CLOSES, DIALOG_LAYER,
+    DIALOG_ORIGIN, DIALOG_SIZE, DIALOG_SURFACE, DIALOG_TITLE, DISCARD_UNSENT_TITLE,
+    FORGET_ACCOUNT_TITLE, KEEP_DISPLAY_TITLE, LATE_LAYER, LATER, LATER_TEXT, LOCK_LAYER,
+    LOCK_SURFACE, LOCKS_SESSION, OPENS_DIALOG, OPENS_STATISTICS, OPENS_UNSENT, ORIGIN, RASTER,
+    RESIZED, RESIZES, ROOT_COLOR, ROOT_LAYER, ROOT_SURFACE, SCREEN, SCREEN_SIZE, SCRIM_COLOR,
+    SCRIM_LAYER, SCRIM_SURFACE, SIGN_IN_TITLE, SIZE, SLOW_SAVE, SLOW_SAVE_TITLE, SLOW_SAVE_TOAST,
+    STATISTICS_AREA, STATISTICS_LAYER, STATISTICS_ORIGIN, STATISTICS_SURFACE, STATISTICS_TITLE,
+    STRAY_PASSWORD, TEXT, TEXT_LAYER, TEXT_STRIP, TEXT_SURFACE, TOAST_AREA, TOAST_LAYER,
+    TOAST_SURFACE, UNLOCKS_TWICE, UNPRESENTED_SURFACE, UNSENT_TITLE,
 };
 
 /// The triangle's editor, by its manifest's id.
@@ -162,10 +164,15 @@ enum Asking {
     Unsent,
     /// Adding an account: afresh, or `resumed` mid sign-in once a question that replaced it
     /// went.
-    AddAccount { resumed: bool },
+    AddAccount {
+        resumed: bool,
+    },
     /// The question before removing the account of `key`, named `name`, kept on this device
     /// alone.
-    ForgetAccount { key: String, name: String },
+    ForgetAccount {
+        key: String,
+        name: String,
+    },
 }
 
 /// The root's accounts while the block stack waits for the person to open or add one.
@@ -841,10 +848,14 @@ impl Root {
                             core.accounts.iter().map(|row| row.key.clone()).collect();
                         let core = create_signal(core);
                         core_shown.set(Some(core));
-                        view! { <AddAccountDialog core={core} known done={done} /> }
+                        view! {
+                            <AddAccountDialog core={core} known done={done} />
+                        }
                     }
                     Asking::ForgetAccount { key, name } => {
-                        view! { <ForgetAccountDialog key name done={done} /> }
+                        view! {
+                            <ForgetAccountDialog key name done={done} />
+                        }
                     }
                 };
                 view! {
