@@ -46,8 +46,8 @@ fn only_the_types_own_app_writes_in_its_blocks_log() {
         let mut refused = Vec::new();
         while refused.is_empty() || mirror.log().count() < 1 {
             step(&peer, &shared, &mut replicas).await;
-            receive_frames(&shared, other, &mut held);
-            receive_frames(&shared, own, &mut mirror);
+            receive_frames(&shared, &mut replicas, block, other, &mut held);
+            receive_frames(&shared, &mut replicas, block, own, &mut mirror);
             refused.extend(held.take_appended());
         }
         assert!(

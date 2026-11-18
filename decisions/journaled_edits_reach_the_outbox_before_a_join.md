@@ -31,14 +31,17 @@ is passed over for it. So each way the edits seemed to be lost reaches a commit:
 - **A merge that cannot read its parts.** It stops only the due timer (`commit_at`): the seal
   before joining still goes to the outbox, and a held join waits as for a failed seal. No test
   holds this one; it follows from the code.
-
-Open, not handled: edits typed after the merge and before its reload lands are lost today. An
-edit its editor made on what it showed before the reload, numbered after it, applies as nothing
-when the merge rebuilt what it names (a text merge with conflict markers): its replica journals
-it and the join waits for a seal of it, but the content sealed does not hold it, as
-`carry_pending` carries edits over a restart, not over a reload. This happens with or without a
-join. The fix is on branch claude/journaled-edits-s2; plans/backlog.md, "An edit made before a
-reload of a merge", tracks it until that lands.
+- **An edit made before a reload of a merge.** Merges rebuilt texts, rich texts and series from
+  their items, and a fast-forward reloaded the head as loaded, so everything in the reload was
+  new and an edit made before it and applied after (one on its way, a peer's, one the reload
+  applies again, an editor's not yet shown the reload) named nothing and was lost, with or
+  without a join. Now a merge splices ours where it differs, a fast-forward goes through one,
+  and the reload carries the merge's session state, so those edits land
+  (guides/blocks/content_types.md, guides/type_modules.md). An editor's edit made before a
+  reload that still gives new identities (a restart) is carried over it
+  (`carried_over_a_reload` in be-sdk-type-guest's replica.rs). Carrying the replica's unsent
+  edits over a reload (`carry_unsent`) was dropped: every reload but a restart now keeps what
+  they name, and a restart carries them already (`carry_pending`).
 
 Edits of another build are lost by design: a journal of another build's tag is opened with none
 of its entries (`replayable`), and the replica says its edits were lost (`lost_edits`). That
@@ -48,9 +51,14 @@ while open, whose made-up session still speaks the old build, so the replica div
 Tests in be-block-type-host:
 `edits_typed_offline_into_a_session_of_another_build_are_sealed_before_the_replica_diverges`,
 `edits_typed_offline_while_a_reload_of_the_replicas_own_is_on_its_way_reach_the_server`,
-`edits_typed_offline_whose_seal_before_joining_fails_reach_the_server` and
+`edits_typed_offline_whose_seal_before_joining_fails_reach_the_server`,
+`an_edit_typed_while_a_reload_of_the_replicas_own_is_on_its_way_reaches_the_server_once` and
 `an_edit_and_a_definition_kept_beside_another_devices_head_both_reach_the_server` (a kept seal
-merged with another device's head).
+merged with another device's head); in be-sdk-type-guest,
+`edits_on_their_way_when_another_head_lands_land_on_it` and
+`an_editors_edit_made_before_two_restarts_it_was_not_shown_lands`; in be-block-model,
+`an_edit_made_on_our_text_before_a_clean_merge_lands_on_the_merge` and its rich-text and series
+twins.
 
 ## Rejected
 
