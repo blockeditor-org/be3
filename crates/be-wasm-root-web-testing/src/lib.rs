@@ -79,7 +79,14 @@ async fn frame(
     let root = Rc::clone(root);
     let draw = Closure::once_into_js(move || {
         let deadline = Instant::now() + budget;
-        let started = root.frame(FrameRequest { time, wall_clock: 0 }, deadline, move |done| answer(done));
+        let started = root.frame(
+            FrameRequest {
+                time,
+                wall_clock: 0,
+            },
+            deadline,
+            move |done| answer(done),
+        );
         assert!(started, "no earlier frame is still being drawn");
     });
     web_sys::window()
@@ -165,9 +172,14 @@ async fn a_root_that_keeps_waking_itself_lets_the_page_run_its_tasks() -> Result
                 let _ = set.call2(&global, &task, &0.into());
             }
             *started.borrow_mut() = Some(Instant::now());
-            let begun = root.frame(FrameRequest { time: SPINS, wall_clock: 0 }, Instant::now(), move |done| {
-                answer((Instant::now(), done))
-            });
+            let begun = root.frame(
+                FrameRequest {
+                    time: SPINS,
+                    wall_clock: 0,
+                },
+                Instant::now(),
+                move |done| answer((Instant::now(), done)),
+            );
             assert!(begun, "no earlier frame is still being drawn");
         })
     };

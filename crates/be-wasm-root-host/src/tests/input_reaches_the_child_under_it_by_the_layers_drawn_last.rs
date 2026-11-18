@@ -17,8 +17,14 @@ fn layer(done: &FrameDone, id: LayerId) -> Option<be_lib_layers::Layer> {
 fn input_reaches_the_child_under_it_by_the_layers_drawn_last() {
     let mut root = root();
     let frame = |root: &mut Root, time| {
-        root.frame(FrameRequest { time, wall_clock: 0 }, Instant::now() + PATIENT)
-            .expect("the root draws")
+        root.frame(
+            FrameRequest {
+                time,
+                wall_clock: 0,
+            },
+            Instant::now() + PATIENT,
+        )
+        .expect("the root draws")
     };
     let done = frame(&mut root, 1);
     assert_eq!(shown(&done), vec![ROOT_LAYER, CHILD_LAYER]);

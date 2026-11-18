@@ -5,13 +5,18 @@ use super::*;
 #[test]
 fn a_root_paints_its_own_surface_with_beui_in_the_hosts_fonts() {
     let mut root = embedding();
-    root.frame(FrameRequest { time: 1, wall_clock: 0 }, Instant::now() + PATIENT)
-        .expect("the root draws");
+    root.frame(
+        FrameRequest {
+            time: 1,
+            wall_clock: 0,
+        },
+        Instant::now() + PATIENT,
+    )
+    .expect("the root draws");
     let painting = own_painting(&mut root, 1);
     let own = ROOT_COLOR.map(|channel| (channel * 255.0).round() as u8);
     assert_eq!(
-        painting.frame.background,
-        own,
+        painting.frame.background, own,
         "its beui document clears the surface to the root's colour"
     );
     let glyphs = glyphs(&painting.frame.primitives);

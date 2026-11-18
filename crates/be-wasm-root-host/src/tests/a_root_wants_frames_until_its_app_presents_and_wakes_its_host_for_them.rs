@@ -12,7 +12,13 @@ fn a_root_wants_frames_until_its_app_presents_and_wakes_its_host_for_them() {
     });
     // Past its deadline at once: the app has not even said hello.
     let early = root
-        .frame(FrameRequest { time: 1, wall_clock: 0 }, Instant::now())
+        .frame(
+            FrameRequest {
+                time: 1,
+                wall_clock: 0,
+            },
+            Instant::now(),
+        )
         .expect("the root draws");
     assert_eq!(
         shown(&early).len(),
@@ -31,7 +37,13 @@ fn a_root_wants_frames_until_its_app_presents_and_wakes_its_host_for_them() {
     );
 
     let shown_at_last = root
-        .frame(FrameRequest { time: 2, wall_clock: 0 }, Instant::now() + PATIENT)
+        .frame(
+            FrameRequest {
+                time: 2,
+                wall_clock: 0,
+            },
+            Instant::now() + PATIENT,
+        )
         .expect("the root draws");
     assert_eq!(
         shown(&shown_at_last).len(),
@@ -53,7 +65,13 @@ fn a_root_wants_frames_until_its_app_presents_and_wakes_its_host_for_them() {
         assert!(time < 5, "the root keeps wanting frames from {at}");
         time += 1;
         let again = root
-            .frame(FrameRequest { time, wall_clock: 0 }, Instant::now() + PATIENT)
+            .frame(
+                FrameRequest {
+                    time,
+                    wall_clock: 0,
+                },
+                Instant::now() + PATIENT,
+            )
             .expect("the root draws");
         assert_eq!(shown(&again).len(), 2, "the screen stays shown");
         next = again.next;

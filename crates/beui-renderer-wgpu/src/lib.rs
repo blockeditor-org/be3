@@ -2132,7 +2132,14 @@ impl Renderer {
             self.prepare(device, queue, output, screen, pixels_per_point, whole);
         }
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
-        self.render(device, queue, &mut encoder, target, size, wgpu::LoadOp::Load);
+        self.render(
+            device,
+            queue,
+            &mut encoder,
+            target,
+            size,
+            wgpu::LoadOp::Load,
+        );
         queue.submit([encoder.finish()]);
     }
 
