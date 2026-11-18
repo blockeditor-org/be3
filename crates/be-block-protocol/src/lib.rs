@@ -1,7 +1,25 @@
 use std::fmt;
+use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+
+/// Silence after which a client's connection calls `connection.ping` ahead of anything queued
+/// (be-block-client's connection.rs). It is a protocol call because a browser cannot send
+/// websocket pings; any frame from the server proves it alive.
+pub const PING_INTERVAL: Duration = Duration::from_secs(15);
+/// How long after a ping is actually written, with nothing heard, before a client's connection
+/// closes itself; a write still stuck this long after the ping fell due closes it too. Only an
+/// unanswered ping closes it, so a process suspended for longer keeps a live connection when it
+/// wakes.
+pub const PONG_WAIT: Duration = Duration::from_secs(20);
+/// The longest a live client goes without sending anything: it pings at most `PING_INTERVAL`
+/// after it last heard the server, and the server answers, so twice that and the `PONG_WAIT` it
+/// would wait for an answer covers a ping that crossed a slow answer. The server gives up on a
+/// connection silent this long (be-server's `IDLE_TIMEOUT`), which writes that it left every
+/// session, so a holder that went silent gives up its lease within it.
+pub const CLIENT_SILENCE: Duration =
+    Duration::from_secs(2 * PING_INTERVAL.as_secs() + PONG_WAIT.as_secs());
 
 be_wasm_ops_bindgen::generate!({
     path: "wit",

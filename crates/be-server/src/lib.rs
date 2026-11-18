@@ -242,7 +242,10 @@ const MAX_UNSIGNED_CONNECTIONS: usize = MAX_CONNECTIONS / 4;
 pub(crate) const MAX_UNSIGNED_CONNECTIONS_PER_ADDRESS: usize = 8;
 pub(crate) const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(10);
 const PING_INTERVAL: Duration = Duration::from_secs(30);
-pub(crate) const IDLE_TIMEOUT: Duration = Duration::from_secs(90);
+/// A connection silent this long is given up on, and leaves every session it was in: as long as a
+/// live client ever goes without sending (be-block-protocol's `CLIENT_SILENCE`), and no longer,
+/// so a holder that went silent gives up its lease soon.
+pub(crate) const IDLE_TIMEOUT: Duration = be_block_protocol::CLIENT_SILENCE;
 const DRAIN_TIMEOUT: Duration = Duration::from_secs(30);
 /// How often idle, unauthenticated and overflowing HTTP sessions are swept away.
 const SWEEP_INTERVAL: Duration = Duration::from_secs(10);
