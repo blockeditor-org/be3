@@ -291,8 +291,12 @@ fn HostMenu(
             }
         });
     }
+    // The rows lay out at their full height inside the scroll, so what they measure is what the
+    // menu needs: the popover grows to it, and only a window too short for it scrolls.
     view! {
-        <Frame align={beui::Align2::START}>{rows}</Frame>
+        <Scroll>
+            <Frame align={beui::Align2::START}>{rows}</Frame>
+        </Scroll>
     }
 }
 
