@@ -17,7 +17,10 @@ async fn an_entry_signed_with_a_replaced_key_after_its_replacement_answers_repla
         .share(team, guest.account(), Access::Edit, &public)
         .await
         .unwrap();
-    let before = owner.append(team, "test.app", b"before the new phrase").await.unwrap();
+    let before = owner
+        .append(team, "test.app", b"before the new phrase")
+        .await
+        .unwrap();
     assert!(matches!(before, Appended::Logged { seq: 0, .. }));
     let old = owner.keys().identity().clone();
     let fresh = be_block_keys::RecoveryPhrase::generate().secret();

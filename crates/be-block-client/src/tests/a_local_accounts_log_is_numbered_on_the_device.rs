@@ -23,7 +23,11 @@ async fn a_local_accounts_log_is_numbered_on_the_device() {
     let notes = workspace(&peer, "Notes").await;
     let mut seqs = Vec::new();
     for text in ["one", "two", "three"] {
-        match peer.append(notes, "test.app", text.as_bytes()).await.unwrap() {
+        match peer
+            .append(notes, "test.app", text.as_bytes())
+            .await
+            .unwrap()
+        {
             Appended::Logged { seq, .. } => seqs.push(seq),
             kept => panic!("a local account kept an entry to send: {kept:?}"),
         }
