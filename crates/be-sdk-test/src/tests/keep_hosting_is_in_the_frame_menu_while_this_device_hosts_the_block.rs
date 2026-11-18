@@ -20,7 +20,7 @@ impl BeuiRoot for HostedRoot {
     }
 }
 
-/// The frame menu offers Keep hosting only while this device hosts the block
+/// The frame menu, and the palette, offer Keep hosting only while this device hosts the block
 /// (plans/hosted_blocks.md, "Hosting"), ticked once it keeps hosting it, and picking it asks the
 /// host to keep hosting, or to stop keeping it.
 #[test]
@@ -31,10 +31,17 @@ fn keep_hosting_is_in_the_frame_menu_while_this_device_hosts_the_block() {
         .on_phone();
     let offered =
         |test: &BeuiTest<HostedRoot>| test.menu_ids().iter().any(|id| id == "editor.keep-hosting");
+    let in_palette = |test: &BeuiTest<HostedRoot>| {
+        test.described_actions()
+            .iter()
+            .any(|action| action.id == "editor.keep-hosting")
+    };
     assert!(!offered(&test), "not offered while another device hosts it");
+    assert!(!in_palette(&test), "nor in the palette");
 
     test.set_hosting(HostingHere::Yes);
     assert!(offered(&test), "offered once this device hosts it");
+    assert!(in_palette(&test), "and in the palette");
     assert_eq!(
         test.menu_entry("editor.keep-hosting").check,
         MenuCheck::Checkbox(false)
@@ -61,6 +68,7 @@ fn keep_hosting_is_in_the_frame_menu_while_this_device_hosts_the_block() {
 
     test.set_hosting(HostingHere::No);
     assert!(!offered(&test), "gone once this device no longer hosts it");
+    assert!(!in_palette(&test), "and from the palette");
 }
 
 test_editor!(HostedRoot);
