@@ -394,8 +394,11 @@ hosting while it is anything but `no` (`Editor::hosting`,
 `Editor::keep_hosting`). It sends the block command `keep-hosting`: be-host
 then counts the block as edited here once its editors close, so its component
 runs on, and lists it in the host menu with Stop (`UiCommand::StopHosting`).
-What is kept lives in memory only; it is dropped when the lease or the access
-goes, and quitting be-host stops it.
+While kept, be-host holds the block's replica open itself
+(`be_host_stack::open`, let go with `close`), so a lease lost to a disconnect
+comes back and the component starts again; only Stop, or the account no
+longer allowed to edit, lets it go. Only an editor of the block may ask to keep
+hosting it. What is kept lives in memory only: quitting be-host stops it.
 
 The other end of the channel is an ordinary editor. An editor opened on a
 block whose access is Join opens with `opening-kind.join` (block, type), is

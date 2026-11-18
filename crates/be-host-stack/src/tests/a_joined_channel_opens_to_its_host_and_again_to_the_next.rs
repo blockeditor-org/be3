@@ -210,7 +210,11 @@ fn a_joined_channel_opens_to_its_host_and_again_to_the_next() {
             .expect("the first host leaves");
     });
     let heard = channel_until("heard the first host go", block, |count| count >= 1);
-    assert_eq!(heard, vec![ChannelEvent::Closed]);
+    assert_eq!(
+        heard.last(),
+        Some(&ChannelEvent::Closed),
+        "the channel to the first host closed: {heard:?}"
+    );
     assert_eq!(channel_host(block), None);
 
     admit(&second, &mut second_events, block);

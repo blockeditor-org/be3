@@ -229,7 +229,12 @@ a role inside the app, since the share dialog grants no roles. A game:
      with Stop, in be-host's host menu (done): `editor-event.hosting`,
      `block-command.keep-hosting`, `Hosts::keep`;
      `keep_hosting_is_in_the_frame_menu_while_this_device_hosts_the_block`,
-     `the_menu_lists_what_this_device_keeps_hosting_with_stop`.
+     `the_menu_lists_what_this_device_keeps_hosting_with_stop`, and the host
+     test `keep_hosting_outlives_the_editor_until_stop`: two devices, the kept
+     one hosting on with no editor open and through a reconnect (it holds the
+     block's replica open, `be_host_stack::open`, so the lease comes back), until
+     Stop. A kept block is let go only on Stop or once the account may no
+     longer edit it.
    - d2. Claiming a hosted type's lease only while a component runs, so a
      device that holds the replica open for another reason (a child, a
      preview) does not hold the lease. The lease is the session's
