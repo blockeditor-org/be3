@@ -370,10 +370,6 @@ Depends on #686 (session catch-ups replaced by server ordering).
   gives no fixed places, so a keyboard carry cannot step into it. Done: a
   custom site offers stepping points (a frame grid along the timeline), shown
   by a test that carries a clip there from the keyboard.
-- **A keyboard step reveals the place it chose.** Edge scrolling follows only a
-  pointer, so a keyboard carry stepped to a place in the hidden part of a scroll
-  leaves it out of sight. Done: after each keyboard step the board scrolls the
-  chosen rest into view in every scroll around it, as focus does.
 - **A fixed list's carried row is listed twice.** A `fixed` `Reorder` keeps
   its own row's slot open at opacity 0 while the list draws the row's preview
   at its root, and an opacity-0 frame stays in the accessibility tree, so a
