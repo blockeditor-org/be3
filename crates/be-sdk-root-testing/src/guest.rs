@@ -152,6 +152,8 @@ struct Dialog {
     host_asks: Option<HostAsks>,
     /// Whether it asks for secrets (the invitations, the agents), to which an answer is handed.
     receives_secret: bool,
+    /// Rung as it closes, which stops a request for a secret it made waiting.
+    closing: Closing,
     /// The layer focused when it opened, which gets the focus back when it closes.
     had: Option<LayerId>,
     /// Whether it took the focus yet: once it has been drawn.
@@ -892,6 +894,7 @@ impl Root {
         let Some(dialog) = self.dialog.borrow_mut().take() else {
             return;
         };
+        dialog.closing.close();
         self.core_shown.set(None);
         self.secret_shown.set(None);
         let mut embedding = self.embedding.borrow_mut();
@@ -934,6 +937,8 @@ impl Root {
             _ => {}
         }
         let secret_shown = Rc::clone(&self.secret_shown);
+        let closing = Closing::default();
+        let closes = closing.clone();
         let answered = Rc::clone(&self.secret);
         let wakes = self.waker.clone();
         let signs_in = matches!(opening, Asking::AddAccount { .. });
@@ -993,7 +998,7 @@ impl Root {
                     Asking::Invitations => {
                         let core = create_signal(core);
                         core_shown.set(Some(core));
-                        let (link, pending, ask) = secret_asker(&secret_shown, &answered, &wakes);
+                        let (link, pending, ask) = secret_asker(&secret_shown, &answered, &wakes, &closes);
                         view! {
                             <InvitationsDialog
                                 core={core}
@@ -1012,7 +1017,7 @@ impl Root {
                     Asking::Agents => {
                         let core = create_signal(core);
                         core_shown.set(Some(core));
-                        let (made, pending, ask) = secret_asker(&secret_shown, &answered, &wakes);
+                        let (made, pending, ask) = secret_asker(&secret_shown, &answered, &wakes, &closes);
                         view! {
                             <AgentsDialog core={core} made={made} pending={pending} ask={ask} done={done} />
                         }
@@ -1040,6 +1045,7 @@ impl Root {
             signs_in,
             host_asks,
             receives_secret,
+            closing,
             had,
             focused: false,
         });
@@ -2461,11 +2467,16 @@ impl Held {
 /// What a document asking its host for secrets needs, made in it: the secret shown, whether a
 /// request waits, and the request itself, answered with the frame after the host answers
 /// (`settle_dialog` hands the answer over); while one waits the document asks for no other.
+///
+/// A request the dialog's `closing` rings for stops waiting, which cancels it: the host never
+/// makes a secret it had not taken yet.
 fn secret_asker(
     shown: &Rc<Cell<Option<(Signal<Option<Held>>, Signal<bool>)>>>,
     answered: &Rc<RefCell<Option<Option<CoreSecret>>>>,
     wakes: &Waker,
+    closing: &Closing,
 ) -> (Signal<Option<Held>>, Signal<bool>, Callback<SecretCommand>) {
+    let closing = closing.clone();
     let secret = create_signal(None::<Held>);
     let pending = create_signal(false);
     shown.set(Some((secret, pending)));
@@ -2475,14 +2486,49 @@ fn secret_asker(
         pending.set(true);
         let answered = Rc::clone(&answered);
         let wakes = wakes.clone();
+        let closing = closing.clone();
         be_wasm_ops::guest::spawn(async move {
-            if let Ok(secret) = host::make_secret(command).await {
+            let mut made = pin!(host::make_secret(command));
+            let mut closed = pin!(closing.closed());
+            // The answer, or none once the dialog closed first: dropping the call cancels it.
+            let answer = std::future::poll_fn(|context| {
+                if let Poll::Ready(answer) = made.as_mut().poll(context) {
+                    return Poll::Ready(Some(answer));
+                }
+                closed.as_mut().poll(context).map(|()| None)
+            })
+            .await;
+            if let Some(Ok(secret)) = answer {
                 *answered.borrow_mut() = Some(secret);
                 wakes.wake();
             }
         });
     });
     (secret, pending, ask)
+}
+
+/// Rung once, as a dialog closes, waking whatever waits for it.
+#[derive(Clone, Default)]
+struct Closing(Rc<(Cell<bool>, RefCell<Option<std::task::Waker>>)>);
+
+impl Closing {
+    fn close(&self) {
+        self.0.0.set(true);
+        if let Some(waker) = self.0.1.borrow_mut().take() {
+            waker.wake();
+        }
+    }
+
+    async fn closed(&self) {
+        std::future::poll_fn(|context| match self.0.0.get() {
+            true => Poll::Ready(()),
+            false => {
+                *self.0.1.borrow_mut() = Some(context.waker().clone());
+                Poll::Pending
+            }
+        })
+        .await;
+    }
 }
 
 impl PartialEq for Held {
