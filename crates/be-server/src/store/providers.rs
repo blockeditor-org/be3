@@ -331,15 +331,17 @@ impl ServerStore {
                     |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?, row.get(6)?)),
                 )
                 .optional()?;
-            transaction.execute("DELETE FROM oidc_states WHERE state_hash = ?1", [&state])?;
-            transaction.commit()?;
             let Some((begun_with, verifier, nonce, began_in, device_code, intent, account)) = row
             else {
                 return Err(refused("This sign-in expired or was already used. Start again."));
             };
+            // Spent only by the browser that began it, so someone else holding the callback's
+            // URL can't spend it for them.
             if begun_with != provider || began_in != attempt {
                 return Err(refused("This sign-in began in another browser. Start again here."));
             }
+            transaction.execute("DELETE FROM oidc_states WHERE state_hash = ?1", [&state])?;
+            transaction.commit()?;
             Ok(Begun {
                 verifier,
                 nonce,

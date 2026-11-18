@@ -302,9 +302,16 @@ counts and records nothing: `reserve-uploads` did before it signed.
     a signed-in session; an HTTP session exists only once its greeting signed
     it in. A one-shot call is never signed in.
   - Pending browser sign-ins and portal form tokens are kept in a
-    `browser_auth::Bounded` table, indexed by age and by address: one address
-    holds `PENDING_PER_ADDRESS` or `FORMS_PER_ADDRESS`, the server `LIMIT`,
-    and another lets go of the oldest instead of being refused.
+    `browser_auth::Bounded` table, indexed by age, by address and by network:
+    one address holds `PENDING_PER_ADDRESS` or `FORMS_PER_ADDRESS`, one
+    network (`unsigned_key`, a /48 of 65536 /64s) `PENDING_PER_NETWORK` or
+    `FORMS_PER_NETWORK`, the server `LIMIT`, and another lets go of the
+    oldest of whichever is full instead of being refused, so one network
+    never pushes out everyone else's.
+  - A request head with a `Transfer-Encoding`, more than one
+    `Content-Length`, or one that is not digits is refused with a 400
+    (`Head::parse`), so a proxy in front never frames a body otherwise than
+    the server and smuggles a request inside it.
   - Request bodies grow only as their bytes arrive and stall out after
     `BODY_READ_TIMEOUT`. A websocket is idle only after `IDLE_TIMEOUT` with no
     bytes read at all (`next_heard`), so a large message on a slow link is
@@ -817,7 +824,11 @@ needs code of its own for any method.
   by code, provider or passkey, or recovering, also gives. A new email's
   verification link (`email_change_link`) is capped per email, per address, and
   globally; only a signed-in account with a fresh proof asks for one, so
-  anonymous traffic can't reach the cap (`store/portal.rs`). A browser signed
+  anonymous traffic can't reach the cap (`store/portal.rs`). The link confirms
+  only in a browser signed in as the account that asked for it
+  (`confirm_mail`), or an account asking for a stranger's address would have
+  the stranger's click attach it; opened anywhere else it confirms nothing and
+  stays unspent. A browser signed
   in longer ago is asked to sign in again before it approves, and signing out
   keeps the code, so the sign-in returns to the approval.
 - **App tokens** expire `APP_SESSION_IDLE` (90 days) after they were last
@@ -902,7 +913,8 @@ the portal's CSP has `form-action 'self'`, which checks the caps on begun
 sign-ins before it calls the provider, gives the browser a fresh `be3-attempt`,
 keeps the request's PKCE verifier, `state` and nonce in `oidc_states` bound to
 it and redirects; and `/auth/oidc/{id}/callback`, which takes that row back
-once, in that browser only, exchanges the code and checks the ID token in full
+once, in that browser only (opened in another, it leaves the row for the
+browser that began it), exchanges the code and checks the ID token in full
 (signature against the provider's keys, read again at most once a minute when
 a token's key is unknown, `iss`, `aud`, `azp`, expiry, nonce). `store/providers.rs` does the rest.
 An identity's subject is `"{issuer} {sub}"`, never an email. A sign-in with a

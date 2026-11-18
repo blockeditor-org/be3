@@ -379,7 +379,9 @@ pub(crate) async fn handle(
                 response.location = Some("/auth".into());
             },
             "/auth/verify" => {
-                let (account, old_email, new_email) = services.store.confirm_mail(value("token")).await?;
+                // Only the account that asked confirms it (plans/crypto_audit.md, 15).
+                let account = account().map_err(|_| invalid(crate::store::portal::ASKED_ELSEWHERE))?;
+                let (old_email, new_email) = services.store.confirm_mail(value("token"), account).await?;
                 if !old_email.is_empty() { email_moved_notice(services, old_email); }
                 // The old address was mailed above; the new one verified it, and needs no mail.
                 tell_identity(services, account, "", ChangeKind::Email, &new_email, false).await;

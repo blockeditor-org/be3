@@ -55,7 +55,7 @@ BE3BROWSER 1
     "<div style=\"font: bold 20px Inter, NotoEmoji, system-ui, sans-serif; line-height: 23px; color: var(--v-248e1604); white-space: pre-wrap; overflow-wrap: break-word; --beui-gap-room: 100%; flex: 0 0 auto;\" role=\"heading\" aria-level=\"1\">",
     "Verify your email address</div>",
     "<div style=\"font: 14px Inter, NotoEmoji, system-ui, sans-serif; line-height: 16px; color: var(--v-d2dd52bc); white-space: pre-wrap; overflow-wrap: break-word; --beui-gap-room: 100%; flex: 0 0 auto;\">",
-    "Confirm that this address is yours to continue.</div>",
+    "Confirm that this address is yours, signed in as the account that asked for it.</div>",
     "</div>",
     "<form method=\"post\" action=\"/auth/verify\" novalidate=\"\" style=\"display: grid; grid-template: minmax(0, 1fr) / minmax(0, 1fr); flex: 0 0 auto;\">",
     "<input type=\"hidden\" name=\"csrf\" value=\"snapshot-form-token\">",
