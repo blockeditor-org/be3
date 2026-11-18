@@ -30,6 +30,18 @@ pub struct LogItem {
     #[serde(with = "serde_bytes")]
     pub payload: Option<Vec<u8>>,
     pub signer: LogSigner,
+    /// For history an import brought from another block: where it was written. Its author and
+    /// arrival are then the file's word, as written there.
+    pub imported: Option<LogImport>,
+}
+
+/// Where an imported entry of a log was written: the block, its place in that block's log, and
+/// who imported it.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
+pub struct LogImport {
+    pub block: Uuid,
+    pub seq: u64,
+    pub importer: Uuid,
 }
 
 /// How a type's log changes what its content shows, for its description (and, later, search):

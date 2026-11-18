@@ -115,6 +115,11 @@ pub fn decode(bytes: &[u8]) -> Result<Vec<Saved>, String> {
         let mut log = Vec::new();
         for _ in 0..reader.u32()? {
             let original = reader.uuid()?;
+            // A block's log holds what was written in it: an entry of another block's would be
+            // replayed in it as history it never had.
+            if original != id {
+                return Err("a log entry in the file was written in another block".to_owned());
+            }
             let seq = reader.u64()?;
             let id = reader.uuid()?;
             let author = reader.uuid()?;

@@ -13,6 +13,7 @@ fn a_log_longer_than_a_page_is_folded_whole() {
         arrival: seq as i64,
         payload: Some(seq.to_string().into_bytes()),
         signer: be_sdk_type_api::Signer::Verified,
+        imported: None,
     };
     for seq in 0..600 {
         sim.log.push(item(seq));

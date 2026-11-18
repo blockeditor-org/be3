@@ -112,19 +112,68 @@ pub struct ChatLog {
     /// Redacted entries their author's deletion names, with when and who signed it: shown as
     /// deleted messages once the fold knows none was a reaction taken back (`show_deleted`).
     deleted: BTreeMap<u64, (i64, LogSigner)>,
+    /// What an import brought from another block, folded on its own.
+    history: Option<Box<History>>,
+}
+
+/// A chat's history an import brought from the block it was written in (`LogItem::imported`):
+/// read-only, folded apart from the chat's own entries by its places there, so an imported
+/// edit, reaction, deletion or reply names only imported messages, and none of the chat's own
+/// names one of them.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct History {
+    /// Who imported it.
+    pub importer: Uuid,
+    /// Its messages, by their places in the block they were written in.
+    pub log: ChatLog,
 }
 
 impl ChatLog {
-    /// The fold of `items`, in the log's order.
+    /// The fold of `items`, in the log's order: the chat's own entries, and apart from them its
+    /// imported history (`history`).
     pub fn of<'a>(items: impl IntoIterator<Item = &'a LogItem>) -> Self {
         let mut log = Self::default();
+        let mut imported = Vec::new();
+        let mut importer = None;
         for item in items {
-            log.take(item);
+            match item.imported {
+                // One that may not be history here (replayed into the log) is hidden.
+                Some(_) if item.signer == LogSigner::Bad => {}
+                Some(from) => {
+                    importer.get_or_insert(from.importer);
+                    imported.push(LogItem {
+                        seq: from.seq,
+                        ..item.clone()
+                    });
+                }
+                None => log.take(item),
+            }
         }
-        log.show_deleted();
-        log.show_removed();
-        log.group_reactions();
+        log.settle();
+        if let Some(importer) = importer {
+            let mut history = Self::default();
+            imported.sort_by_key(|item| item.seq);
+            for item in &imported {
+                history.take(item);
+            }
+            history.settle();
+            log.history = Some(Box::new(History {
+                importer,
+                log: history,
+            }));
+        }
         log
+    }
+
+    fn settle(&mut self) {
+        self.show_deleted();
+        self.show_removed();
+        self.group_reactions();
+    }
+
+    /// The history an import brought, if any.
+    pub fn history(&self) -> Option<&History> {
+        self.history.as_deref()
     }
 
     fn take(&mut self, item: &LogItem) {

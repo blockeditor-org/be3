@@ -577,6 +577,7 @@ impl TestClient {
                 from: 0,
                 limit: 10,
                 known: None,
+                redactions_after: None,
             })
             .await;
         calls.write(Op::Redact { block, seq: 0 }).await;
