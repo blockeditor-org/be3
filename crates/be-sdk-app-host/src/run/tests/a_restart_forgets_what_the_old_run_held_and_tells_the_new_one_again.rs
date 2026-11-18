@@ -49,7 +49,10 @@ fn a_restart_forgets_what_the_old_run_held_and_tells_the_new_one_again() {
     assert_eq!(*run.session.state(), crate::session::SessionState::Idle);
     assert!(run.queued.is_empty());
     assert!(run.holds.is_empty(), "the answers held go");
-    assert!(run.screens.is_empty(), "the new run is sent its screens again");
+    assert!(
+        run.screens.is_empty(),
+        "the new run is sent its screens again"
+    );
     assert!(
         !docks.docked(EditorInstanceId(2)),
         "what the app's instances placed in their docks goes"
