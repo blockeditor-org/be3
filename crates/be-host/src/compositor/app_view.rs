@@ -1071,11 +1071,9 @@ pub(crate) fn AppView(
     let site = use_drop_site(
         Func::new(|_: BlockDrag| true),
         Func::new(move |drag: BlockDrag| {
-            drag::custom(area, move |local: Pos2, held: Modifiers| {
-                let (at, scale) = area.try_get().and_then(|node| drag::space().placed(node))?;
-                let pos = at.min + local.to_vec2() * scale;
-                takes(pos - state.with_untracked(|view| view.rect.min.to_vec2()))
-                    .then_some((drag, pos, DropAction::of(held)))
+            drag::custom(area, move |_: Pos2, point: DragPoint| {
+                takes(point.pos - state.with_untracked(|view| view.rect.min.to_vec2()))
+                    .then_some((drag, point.pos, DropAction::of(point.modifiers)))
             })
         }),
         Callback::new(move |(_, over): (BlockDrag, (BlockDrag, Pos2, DropAction))| {

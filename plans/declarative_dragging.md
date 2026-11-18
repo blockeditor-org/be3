@@ -468,7 +468,7 @@ through the drag and Escape rebuilds nothing; drawn invisible, it is the gap, at
    `Editor::drag` lifts a `Carry` of the block at the pointer pressing in it
    (`PointerSample::pointer`), and each app view is a `custom` site over itself, its place
    the window point where the view takes the pointer and the `DropAction` the keys held make
-   (`custom`'s `place` now gets the modifiers too), which the app hears as it moves and on
+   (`custom`'s `place` now gets the pointer's `DragPoint` too), which the app hears as it moves and on
    the drop (`drag_over_view`). The guides the step names are rewritten, and
    decisions/beui_drags_are_reachable_places.md records the decision. The beui-demo page's
    bins and beui-tests' drag screen are carries onto sites now; the old API's host tests are
