@@ -569,6 +569,19 @@ interface server {
         /// accepting an invitation (`accept-link`), and an agent removed by
         /// `delete-agent`.
         member(member-record),
+        /// Bars `account` from joining the block's host (plans/hosted_blocks.md,
+        /// "Hosting"): `signed` is the ban record (be_block_keys::Ban) the
+        /// caller signed, appended to the block's access log. Needs Edit. Until
+        /// a grant to it lifts the ban, the server refuses the account joining
+        /// the block's session, and takes it out of one it is in, unless it
+        /// holds Edit: a ban binds no editor, as a Join member or a viewer.
+        ban(ban-record),
+    }
+
+    record ban-record {
+        block: block-id,
+        account: account-id,
+        signed: list<u8>,
     }
 
     record grant-record {
