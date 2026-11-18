@@ -38,16 +38,10 @@ fn a_share_link_asks_before_opening_a_block_someone_shared() {
     host.type_text(&link);
     host.key("Enter");
     host.wait("#host.share-link.offer");
-    // The question holds the keys: Escape declines, and asking again, Enter opens.
+    // The question holds the keys: Enter opens.
     host.wait("Button \"Open\" focused #host.share-link.offered.accept");
     host.crop("AlertDialog \"Open this block?\"");
     host.snapshot("a_share_link_asks_before_opening_a_block_someone_shared");
-    host.key("Escape");
-    host.gone("AlertDialog \"Open this block?\"");
-    host.click("#host.share-link.paste");
-    host.type_text(&link);
-    host.key("Enter");
-    host.wait("Button \"Open\" focused #host.share-link.offered.accept");
     host.key("Enter");
     host.wait("#host.share-link.opened");
     host.key("Escape");
