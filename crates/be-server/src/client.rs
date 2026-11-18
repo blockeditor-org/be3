@@ -94,7 +94,6 @@ pub(crate) fn query_rule(query: &Query) -> Rule {
         | Query::Organizations
         | Query::Storage
         | Query::Mailbox
-        | Query::Links
         | Query::Link(_)
         | Query::ServerInfo => Rule::Account,
         // A bearer read of an invitation, before its holder signs in (a one-shot call).
@@ -130,7 +129,6 @@ pub(crate) fn op_rule(op: &Op) -> Rule {
         Op::ReserveUploads(_)
         | Op::CreateAgent { .. }
         | Op::RotateAgentToken(_)
-        | Op::PinEscrow(_)
         | Op::SetPushEndpoint(_) => Rule::Member,
         Op::CreateLink {
             kind: LinkKind::Invitation(_),
@@ -208,7 +206,6 @@ pub(crate) fn bound_may_read(query: &Query, follow: bool) -> bool {
         | Query::Members
         | Query::Invitations
         | Query::Storage
-        | Query::Links
         | Query::Link(_)
         | Query::Invitation(_)
         | Query::NotifyModes => false,
@@ -230,7 +227,6 @@ pub(crate) fn bound_may_write(op: &Op, root: Uuid) -> bool {
         Op::Publish { .. }
         | Op::HoldObjects { .. }
         | Op::ReserveUploads(_)
-        | Op::PinEscrow(_)
         | Op::DeleteMessage(_)
         | Op::RevokeToken(_) => true,
         Op::PutKeys(keys) => !matches!(keys, PutKeys::Escrow { .. }),
@@ -1344,12 +1340,11 @@ impl Client {
             }
             Query::RecoveryKey => {
                 let account = admitted.account()?;
-                let (public, sealed, own) = store.recovery_key(account).await?;
+                let (public, sealed) = store.recovery_key(account).await?;
                 let logs = store.signed_logs(account).await?;
                 Page::RecoveryKey(RecoveryKey {
                     public,
                     sealed,
-                    own,
                     logs,
                 })
             }
@@ -1364,7 +1359,7 @@ impl Client {
                 let identity = admitted.identity()?;
                 Page::Invitations(
                     store
-                        .list_invitations(identity.account, identity.organization)
+                        .list_invitations(identity.organization)
                         .await?,
                 )
             }
@@ -1373,7 +1368,6 @@ impl Client {
                 Page::Storage(usage)
             }
             Query::Mailbox => Page::Mailbox(store.mailbox(admitted.account()?).await?),
-            Query::Links => Page::Links(store.links(admitted.account()?).await?),
             Query::Link(link) => Page::Link(store.link(admitted.account()?, link).await?),
             Query::Invitation(link) => Page::Invitation(store.read_invitation(link).await?),
             Query::DownloadUrls(hashes) => {
@@ -2010,7 +2004,6 @@ impl Client {
             Op::CreateLink {
                 link,
                 card,
-                code,
                 kind,
             } => {
                 let account = admitted.account()?;
@@ -2024,7 +2017,7 @@ impl Client {
                 }
                 connection
                     .store
-                    .create_link(account, link, card, code, kind)
+                    .create_link(account, link, card, kind)
                     .await?;
                 Ok(Done::Nothing)
             }
@@ -2085,7 +2078,6 @@ impl Client {
                 public,
                 signing,
                 sealed,
-                own,
                 changes,
                 retirements,
             } => {
@@ -2093,7 +2085,7 @@ impl Client {
                 let told: Vec<Uuid> = changes.iter().map(|change| change.contact).collect();
                 connection
                     .store
-                    .set_recovery_key(account, public, signing, sealed, own, changes, retirements)
+                    .set_recovery_key(account, public, signing, sealed, changes, retirements)
                     .await?;
                 for contact in told {
                     connection
@@ -2103,13 +2095,6 @@ impl Client {
                         })
                         .await;
                 }
-                Ok(Done::Nothing)
-            }
-            Op::PinEscrow(sealed) => {
-                connection
-                    .store
-                    .pin_escrow(admitted.identity()?, sealed)
-                    .await?;
                 Ok(Done::Nothing)
             }
             Op::SetPushEndpoint(change) => {

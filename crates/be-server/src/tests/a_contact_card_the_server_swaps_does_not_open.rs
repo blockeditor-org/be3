@@ -22,7 +22,6 @@ async fn a_contact_card_the_server_swaps_does_not_open() {
             peer.write::<()>(be_block_protocol::Op::CreateLink {
                 link: link,
                 card: honest.seal(&code, CardRole::Owner),
-                code: Vec::new(),
                 kind: be_block_protocol::LinkKind::Contact(None),
             })
         })

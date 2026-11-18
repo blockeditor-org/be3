@@ -31,7 +31,6 @@ async fn contacts_are_made_by_a_link_and_finished_by_its_owner() {
             peer.write::<()>(be_block_protocol::Op::CreateLink {
                 link: link,
                 card: owner_card.seal(&code, CardRole::Owner),
-                code: owner_secret.seal_own(&code.to_bytes()),
                 kind: be_block_protocol::LinkKind::Contact(None),
             })
         })
@@ -108,15 +107,9 @@ async fn contacts_are_made_by_a_link_and_finished_by_its_owner() {
         owner_card
     );
 
-    let Ok(links) = owners_device
-        .call(|peer| peer.read::<Vec<be_block_protocol::OwnLink>>(be_block_protocol::Query::Links))
-        .await
-    else {
-        panic!("listing links failed");
-    };
+    let links = owners_device.links().await;
     assert_eq!(links.len(), 1);
     assert_eq!(links[0].accepter, Some(other_id));
-    let code = InviteCode::from_bytes(&owner_secret.open_own(&links[0].code).unwrap()).unwrap();
     // The accepter's card waits in the owner's mailbox, from the accepter.
     let Ok(mailbox) = owners_device
         .call(|peer| {
@@ -149,13 +142,7 @@ async fn contacts_are_made_by_a_link_and_finished_by_its_owner() {
             ])
         })
         .await;
-    let Ok(links) = owner
-        .call(|peer| peer.read::<Vec<be_block_protocol::OwnLink>>(be_block_protocol::Query::Links))
-        .await
-    else {
-        panic!("listing links failed");
-    };
-    assert!(links.is_empty());
+    assert!(owner.links().await.is_empty());
     assert_eq!(owner.contacts().await, vec![other_id]);
 
     harness.stop().await;

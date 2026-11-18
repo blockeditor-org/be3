@@ -13,10 +13,9 @@ async fn an_administrator_creates_lists_and_revokes_an_invitation() {
         .expect("an administrator invites");
     let links = admin.links().await;
     assert!(
-        links.iter().any(|own| own.id == link
-            && own.accepter.is_none()
-            && matches!(&own.kind, be_block_protocol::LinkKind::Invitation(invitation)
-                if invitation.organization == organization)),
+        links
+            .iter()
+            .any(|own| own.id == link && own.accepter.is_none()),
         "an outstanding invitation is listed: {links:?}"
     );
     let found = invited
