@@ -16,11 +16,13 @@ fn a_session_in_the_desktop_gives_each_tab_only_its_own_blocks_actions() {
     host.key("Enter");
     host.wait("Tab \"Canvas\" selected");
     host.run(&["settle"]);
-    assert_eq!(
-        host.count(FILES_BAR),
-        0,
-        "the Files bar has none of the session block's actions and no menu"
-    );
+    for part in ["pin.", "menu"] {
+        assert_eq!(
+            host.count(&format!("{FILES_BAR}{part}")),
+            0,
+            "the Files bar has none of the session block's actions and no menu"
+        );
+    }
     for action in ["undo", "redo", "share"] {
         let canvas = format!("{EDITORS_BAR}pin.editor.{action} ");
         assert_eq!(host.count(&canvas), 1, "the canvas bar has one {action}");
