@@ -355,7 +355,9 @@ Depends on #686 (session catch-ups replaced by server ordering).
   included, so a `search-text` that failed once (`NotSearched`, a type module
   busy or starting under load) leaves that hit's snippet empty until its head
   moves. Done: the cause found from a failing run's output and fixed at its
-  source, with a test that shows it.
+  source, with a test that shows it. The suspect is gone: a text that could not be
+  read is no longer kept (`text_of` answers `Err`), though the hit shown then still
+  has no snippet until its answer is shown again, when the mirror next moves.
 
 - **A crash test that once never counted 11 after the restart.**
   `an_edit_to_a_block_made_editable_again_after_its_edits_were_discarded_lands_once_across_a_crash`
