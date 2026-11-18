@@ -641,6 +641,48 @@ impl Instances {
                     answering.send_or_fail(made)
                 });
             }
+            Call::ListShareLinks { reply, block } => {
+                let answering = self.answering(instance, reply);
+                be_host_stack::list_share_links(Uuid::from_bytes(block), move |listed| {
+                    answering.send_or_fail(listed.map(|links| {
+                        links
+                            .into_iter()
+                            .map(|(row, url)| be_sdk_api::ShareLink {
+                                id: row.id.to_string(),
+                                access: be_host_stack::app_graph::level_of(row.access),
+                                admits: be_host_stack::app_graph::admits_of(row.admits),
+                                url,
+                                maker_name: row.maker_name,
+                            })
+                            .collect::<Vec<_>>()
+                    }))
+                });
+            }
+            Call::MakeShareLink {
+                reply,
+                block,
+                access,
+                admits,
+            } => {
+                let answering = self.answering(instance, reply);
+                be_host_stack::make_share_link(
+                    Uuid::from_bytes(block),
+                    be_host_stack::app_graph::access_of(access),
+                    be_host_stack::app_graph::link_admits(admits),
+                    move |made| answering.send_or_fail(made),
+                );
+            }
+            Call::RevokeShareLink { reply, block, link } => {
+                let answering = self.answering(instance, reply);
+                match Uuid::parse_str(&link) {
+                    Ok(link) => be_host_stack::revoke_share_link(
+                        Uuid::from_bytes(block),
+                        link,
+                        move |revoked| answering.send_or_fail(revoked),
+                    ),
+                    Err(_) => answering.send_or_fail(Err("That is not a share link.".to_owned())),
+                }
+            }
             Call::CreateBlockAgent { reply, block, name } => {
                 let answering = self.answering(instance, reply);
                 be_host_stack::create_block_agent(Uuid::from_bytes(block), name, move |made| {

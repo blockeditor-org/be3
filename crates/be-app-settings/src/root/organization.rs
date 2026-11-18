@@ -1,5 +1,5 @@
 use be_sdk_beui::be_block::{
-    Allowance, LostAccess, OfflinePolicy, OfflineSettings, OrganizationPolicies, Settings,
+    Allowance, LinkSharing, LostAccess, OfflinePolicy, OfflineSettings, OrganizationPolicies, Settings,
     SettingsContent, WhoMay,
 };
 use be_sdk_beui::be_block_content::be_block_model::Document;
@@ -44,7 +44,7 @@ fn index_of<T: PartialEq>(all: &[T], value: &T) -> Option<usize> {
     all.iter().position(|held| held == value)
 }
 
-const POLICIES: [Policy<OrganizationPolicies>; 4] = [
+const POLICIES: [Policy<OrganizationPolicies>; 5] = [
     Policy {
         key: "sharing",
         label: "Sharing outside the organization",
@@ -59,6 +59,23 @@ const POLICIES: [Policy<OrganizationPolicies>; 4] = [
         set: |index| {
             OrganizationPolicies::set_outside_sharing(
                 [None, Some(Allowance::Blocked)][index.min(1)],
+            )
+        },
+    },
+    Policy {
+        key: "share-links",
+        label: "Who share links admit",
+        description: "Anyone with a block's link may open it as its maker chose, within this. Anyone with an account joins as a guest, who sees only what links share; it needs sharing outside allowed.",
+        options: &["Members", "Anyone with an account", "No share links"],
+        get: |policies| {
+            index_of(
+                &[LinkSharing::Members, LinkSharing::Anyone, LinkSharing::Off],
+                &policies.link_sharing.unwrap_or_default(),
+            )
+        },
+        set: |index| {
+            OrganizationPolicies::set_link_sharing(
+                [None, Some(LinkSharing::Anyone), Some(LinkSharing::Off)][index.min(2)],
             )
         },
     },

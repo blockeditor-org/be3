@@ -36,6 +36,7 @@ fn the_share_dialog_grants_no_knows_it_exists_but_shows_one_held() {
         effective: granted.unwrap_or(AccessLevel::None),
         source: granted.map(|_| block.into_bytes()),
         waiting: false,
+        through_link: false,
     };
     fixture.test.answer(
         listing,
@@ -47,6 +48,7 @@ fn the_share_dialog_grants_no_knows_it_exists_but_shows_one_held() {
             ],
             company: false,
             set_inside: 0,
+            links_admit: None,
         }),
     );
     fixture.settle();
