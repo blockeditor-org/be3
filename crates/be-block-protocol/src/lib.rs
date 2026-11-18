@@ -500,11 +500,14 @@ pub fn read_hello(frame: &[u8]) -> Option<Hello<'_>> {
 pub const MAX_LOG_ENTRY_BYTES: usize = 64 * 1024;
 
 /// What an entry's author signs (`sign_authored`, which binds it to its block): the entry's id
-/// and the hash of what it says, its payload as the app wrote it framed by the app's id
-/// (`be_block_client::by_app`), not sealed: so it verifies wherever its plaintext goes (an
-/// export), only in the app that wrote it, and the server can neither move it to another id nor
-/// replay it under a new one (an id the log holds is answered, not appended again). The leaf
-/// commits to the sealed bytes, so who wrote a redacted entry is still the log's word.
+/// and `said`, the hash of a random salt sealed with the payload, then the payload as the app
+/// wrote it framed by the app's id (`be_block_client::Said::hash`), not the sealed bytes: so it
+/// verifies wherever its plaintext and salt go (an export), only in the app that wrote it, and
+/// the server can neither move it to another id nor replay it under a new one (an id the log
+/// holds is answered, not appended again). The salt keeps a signature from confirming a guessed
+/// payload to anyone without the block's key, the server included, before or after the entry
+/// is redacted. The leaf commits to the sealed bytes, so who wrote a redacted entry is still the
+/// log's word.
 pub fn log_signed(id: Uuid, said: be_block_store::Hash) -> Vec<u8> {
     let mut signed = Vec::with_capacity(LOG_SIGNED_DOMAIN.len() + 16 + 32);
     signed.extend_from_slice(LOG_SIGNED_DOMAIN);

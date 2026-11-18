@@ -161,22 +161,25 @@ fn announcement(sent: be_sdk_type_api::Announcement) -> be_block_content::Announ
     }
 }
 
-/// Sends what the edits the server now holds announce (`Peer::send_announcements`); an
-/// unreachable server leaves them for the next time.
 /// Entries of `block`'s signed log as a replica of the app `app` is handed them: opened, and
 /// who signed each as that app's, judged by its arrival (`Peer::verify_entry`); `unknown` where
-/// that cannot be told now (offline, or unopened).
+/// that cannot be told now (offline, or unopened), and `redacted` for an entry whose payload is
+/// gone. An author that cannot be told of is asked about once a page, not once an entry.
 async fn log_items<S: be_block_store::ObjectStore>(
     peer: &Peer<S>,
     block: Uuid,
     app: &str,
     entries: Vec<be_block_client::LoggedEntry>,
 ) -> Vec<be_sdk_type_api::LogItem> {
+    let mut untold = HashSet::new();
     let mut items = Vec::with_capacity(entries.len());
     for logged in entries {
         let entry = logged.entry;
         let signer = match &logged.opened {
-            Some(said) => peer
+            None if entry.payload.is_none() => be_sdk_type_api::Signer::Redacted,
+            None => be_sdk_type_api::Signer::Unknown,
+            Some(_) if untold.contains(&entry.author) => be_sdk_type_api::Signer::Unknown,
+            Some(said) => match peer
                 .verify_entry(
                     block,
                     app,
@@ -187,27 +190,32 @@ async fn log_items<S: be_block_store::ObjectStore>(
                     &entry.signature,
                 )
                 .await
-                .map_or(be_sdk_type_api::Signer::Unknown, |signer| match signer {
-                    be_block_client::Signer::Verified => be_sdk_type_api::Signer::Verified,
-                    be_block_client::Signer::Unverified => be_sdk_type_api::Signer::Unverified,
-                    be_block_client::Signer::Changed => be_sdk_type_api::Signer::Changed,
-                    be_block_client::Signer::Replaced => be_sdk_type_api::Signer::Replaced,
-                    be_block_client::Signer::Bad => be_sdk_type_api::Signer::Bad,
-                }),
-            None => be_sdk_type_api::Signer::Unknown,
+            {
+                Ok(be_block_client::Signer::Verified) => be_sdk_type_api::Signer::Verified,
+                Ok(be_block_client::Signer::Unverified) => be_sdk_type_api::Signer::Unverified,
+                Ok(be_block_client::Signer::Changed) => be_sdk_type_api::Signer::Changed,
+                Ok(be_block_client::Signer::Replaced) => be_sdk_type_api::Signer::Replaced,
+                Ok(be_block_client::Signer::Bad) => be_sdk_type_api::Signer::Bad,
+                Err(_) => {
+                    untold.insert(entry.author);
+                    be_sdk_type_api::Signer::Unknown
+                }
+            },
         };
         items.push(be_sdk_type_api::LogItem {
             seq: entry.seq,
             id: entry.id,
             author: entry.author,
             arrival: entry.arrival,
-            payload: logged.opened,
+            payload: logged.opened.map(|said| said.bytes),
             signer,
         });
     }
     items
 }
 
+/// Sends what the edits the server now holds announce (`Peer::send_announcements`); an
+/// unreachable server leaves them for the next time.
 pub async fn send_announcements<H: Host>(peer: &Peer<H::Store>, shared: &Arc<Mutex<H>>) {
     if let Err(error) = peer.send_announcements().await
         && !unreachable(&error)
@@ -2292,6 +2300,38 @@ impl<H: Host> Replicas<H> {
         idle
     }
 
+    /// What an app's editor sends its block's replica. Only the app whose module serves the
+    /// block's type writes in its signed log: the host signs each entry as that app
+    /// (`be_block_client::by_app`), so an `Append` from any other app's editor is answered
+    /// `Appended` with an error and goes no further.
+    pub fn relay_from_app(
+        &mut self,
+        shared: &Arc<Mutex<H>>,
+        block: Uuid,
+        editor: EditorId,
+        app: &str,
+        bytes: Vec<u8>,
+        at: Instant,
+    ) {
+        if let Some(FromEditor::Append { token, .. }) = FromEditor::decode(&bytes)
+            && let Some((_, open)) = self.replica_of(block)
+            && self.modules.name(open.module) != app
+        {
+            let refused = be_sdk_type_guest::editor::ToEditor::Appended {
+                token,
+                result: Err(format!(
+                    "only {} writes in this block's log",
+                    self.modules.name(open.module)
+                )),
+            };
+            H::to_editor(shared, block, editor, refused.encode());
+            return;
+        }
+        self.relay_from_editor(block, editor, bytes, at);
+    }
+
+    /// What an editor the host trusts sends its block's replica: the host's own, or one an app
+    /// sent through `relay_from_app`.
     pub fn relay_from_editor(
         &mut self,
         block: Uuid,

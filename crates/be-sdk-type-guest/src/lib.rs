@@ -241,6 +241,7 @@ fn log_item(item: be_sdk_type_api::LogItem) -> be_block_content::LogItem {
             be_sdk_type_api::Signer::Replaced => LogSigner::Replaced,
             be_sdk_type_api::Signer::Bad => LogSigner::Bad,
             be_sdk_type_api::Signer::Unknown => LogSigner::Unknown,
+            be_sdk_type_api::Signer::Redacted => LogSigner::Redacted,
         },
     }
 }

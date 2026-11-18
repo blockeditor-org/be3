@@ -175,6 +175,8 @@ pub(super) enum Command {
     FromEditor {
         block: Uuid,
         editor: EditorId,
+        /// The app whose editor sent it.
+        app: String,
         #[serde(with = "serde_bytes")]
         bytes: Vec<u8>,
         #[serde(with = "crate::seen::moment")]
@@ -4020,10 +4022,11 @@ async fn apply(
         Command::FromEditor {
             block,
             editor,
+            app,
             bytes,
             at,
         } => {
-            replicas.relay_from_editor(block, editor, bytes, at);
+            replicas.relay_from_app(shared, block, editor, &app, bytes, at);
             false
         }
         Command::OfflineChoices(choices) => {

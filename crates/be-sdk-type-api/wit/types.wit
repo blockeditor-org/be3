@@ -122,8 +122,9 @@ interface types {
         signer: signer,
     }
 
-    /// Who signed a log entry (`be_block_client::Signer`), or `unknown` when it
-    /// could not be told (offline, or its payload unopened).
+    /// Who signed a log entry (`be_block_client::Signer`), `unknown` when it
+    /// could not be told (offline, or its payload unopened), or `redacted` when
+    /// its payload is gone and with it what was signed.
     enum signer {
         verified,
         unverified,
@@ -131,6 +132,7 @@ interface types {
         replaced,
         bad,
         unknown,
+        redacted,
     }
 
     /// A run of a block's signed log from where it was asked: `size` is the
