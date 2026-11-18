@@ -142,6 +142,8 @@ pub struct EditorRegistry {
     templates: Vec<TemplateEntry>,
     types: HashMap<Uuid, be_sdk_api::BlockTypeDescriptor>,
     app_block_types: Arc<AppCatalog>,
+    /// The host component of each hosted block type (plans/hosted_blocks.md, "Hosting").
+    hosted: crate::hosting::HostedTypes,
 }
 
 impl EditorRegistry {
@@ -155,6 +157,7 @@ impl EditorRegistry {
             templates: Vec::new(),
             types: be_host_stack::discovery::block_types(&manifests),
             app_block_types: Arc::default(),
+            hosted: crate::hosting::HostedTypes::of(&manifests),
         };
         for manifest in manifests {
             for editor in &manifest.editors {
@@ -210,6 +213,10 @@ impl EditorRegistry {
 
     pub(super) fn app_block_types(&self) -> &Arc<AppCatalog> {
         &self.app_block_types
+    }
+
+    pub(super) fn hosted(&self) -> &crate::hosting::HostedTypes {
+        &self.hosted
     }
 
     fn register_editor(&mut self, manifest: &Arc<AppManifest>, editor: &EditorManifest) {
