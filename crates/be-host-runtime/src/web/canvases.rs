@@ -72,29 +72,53 @@ struct Shown {
     above: bool,
 }
 
+/// The canvases a runtime's screens show in. A canvas keeps what its worker last drew into it,
+/// so a canvas whose layer leaves the list moves to a new layer showing the same surface (a view
+/// mounted anew), and one whose surface the runtime still retains (`Run::retained_surfaces`: the
+/// app's layout, and the kept frames of views it left out, `Shown::keep_left_out`, such as a dock
+/// tab or bar hidden with its tab) stays on the page, hidden, until a layer shows that surface
+/// again or the runtime lets it go, as natively the presenter keeps its texture: shown again
+/// before its app has drawn it anew, a view shows its last frame rather than an empty canvas
+/// (guides/apps/runtime.md, Layout and present commits).
 #[derive(Default)]
 pub(super) struct Canvases {
     shown: HashMap<LayerId, Shown>,
+    hidden: Vec<Shown>,
 }
 
+/// The style of a canvas kept while its view is hidden.
+const HIDDEN: &str = "display: none";
+
 impl Canvases {
+    /// Shows each of `placements` in a canvas, keeping hidden the canvases of the surfaces in
+    /// `retained` that no placement shows.
     pub(super) fn place(
         &mut self,
         channel: &WorkerChannel,
         placements: Vec<Placement>,
+        retained: &[u32],
     ) -> Result<(), String> {
-        let mut kept = HashMap::with_capacity_and_hasher(placements.len(), Default::default());
+        let mut placed = HashMap::with_capacity_and_hasher(placements.len(), Default::default());
         let mut result = Ok(());
+        let mut unplaced = Vec::new();
         for placement in placements {
-            let key = placement.layer;
-            let mut shown = match self.shown.remove(&key) {
-                Some(mut shown) => {
-                    if shown.surface != placement.surface {
-                        shown.surface = placement.surface;
-                        result = result.and(channel.show(shown.id, None, placement.surface));
-                    }
-                    shown
+            match self.shown.remove(&placement.layer) {
+                Some(shown) => {
+                    let key = placement.layer;
+                    placed.insert(key, update(channel, shown, placement, &mut result));
                 }
+                None => unplaced.push(placement),
+            }
+        }
+        let mut left: Vec<Shown> = self.shown.drain().map(|(_, shown)| shown).collect();
+        left.append(&mut self.hidden);
+        for placement in unplaced {
+            let reused = left
+                .iter()
+                .position(|shown| shown.surface == placement.surface)
+                .map(|at| left.swap_remove(at));
+            let shown = match reused {
+                Some(shown) => shown,
                 None => match create(channel, placement.surface, placement.above) {
                     Ok(shown) => shown,
                     Err(error) => {
@@ -103,26 +127,24 @@ impl Canvases {
                     }
                 },
             };
-            if shown.above != placement.above {
-                // Moving a canvas keeps the offscreen canvas its worker draws into.
-                match layer(placement.above) {
-                    Ok(layer) => {
-                        let _ = layer.append_child(&shown.element);
-                        shown.above = placement.above;
-                    }
-                    Err(error) => result = result.and(Err(error)),
-                }
-            }
-            if shown.style != placement.style {
-                let _ = shown.element.set_attribute("style", &placement.style);
-                shown.style = placement.style;
-            }
-            kept.insert(key, shown);
+            let key = placement.layer;
+            placed.insert(key, update(channel, shown, placement, &mut result));
         }
-        for shown in std::mem::replace(&mut self.shown, kept).into_values() {
-            shown.element.remove();
-            channel.forget(shown.id);
+        for mut shown in left {
+            let hides = retained.contains(&shown.surface)
+                && !self.hidden.iter().any(|hidden| hidden.surface == shown.surface);
+            if !hides {
+                shown.element.remove();
+                channel.forget(shown.id);
+                continue;
+            }
+            if shown.style != HIDDEN {
+                let _ = shown.element.set_attribute("style", HIDDEN);
+                shown.style = HIDDEN.to_owned();
+            }
+            self.hidden.push(shown);
         }
+        self.shown = placed;
         result
     }
 
@@ -130,7 +152,43 @@ impl Canvases {
         for shown in self.shown.drain().map(|(_, shown)| shown) {
             shown.element.remove();
         }
+        for shown in self.hidden.drain(..) {
+            shown.element.remove();
+        }
     }
+}
+
+/// Moves `shown` to `placement`: its surface, its layer above or below the host's canvas, and its
+/// style.
+fn update(
+    channel: &WorkerChannel,
+    mut shown: Shown,
+    placement: Placement,
+    result: &mut Result<(), String>,
+) -> Shown {
+    if shown.surface != placement.surface {
+        shown.surface = placement.surface;
+        let told = channel.show(shown.id, None, placement.surface);
+        if result.is_ok() {
+            *result = told;
+        }
+    }
+    if shown.above != placement.above {
+        // Moving a canvas keeps the offscreen canvas its worker draws into.
+        match layer(placement.above) {
+            Ok(layer) => {
+                let _ = layer.append_child(&shown.element);
+                shown.above = placement.above;
+            }
+            Err(error) if result.is_ok() => *result = Err(error),
+            Err(_) => {}
+        }
+    }
+    if shown.style != placement.style {
+        let _ = shown.element.set_attribute("style", &placement.style);
+        shown.style = placement.style;
+    }
+    shown
 }
 
 fn create(channel: &WorkerChannel, surface: u32, above: bool) -> Result<Shown, String> {

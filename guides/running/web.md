@@ -88,6 +88,10 @@ hands workers canvases instead (crates/be-host-runtime/src/web):
   `#layers` too, stacked with the overlays by paint order, so it shows above the view as it does
   natively; every other screen stays in `#apps`, under the host's chrome (`presenter::lifted`).
   Screens and overlays carry `data-kind="screen"` or `"overlay"`.
+- A canvas whose layer leaves the list is handed to a new layer that shows the same surface (a
+  view mounted anew), else kept hidden while the runtime retains its surface (the app's layout,
+  or a hidden view's kept frame: guides/apps/runtime.md, Layout and present commits), else
+  removed: a tab shown again shows its views' last frames until their app draws them anew.
 - Screens and overlays are placed from the host's last frame, so on the web they follow the host
   by one frame. The frame's blits become its layer list first (`layers::frame`, guides/apps/runtime.md,
   The layer list): the screens below `Surface::Root(0)`, the host's canvas, go in `#apps`, the

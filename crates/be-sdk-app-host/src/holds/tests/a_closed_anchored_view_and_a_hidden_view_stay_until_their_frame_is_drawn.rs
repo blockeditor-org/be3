@@ -36,10 +36,22 @@ fn a_closed_anchored_view_and_a_hidden_view_stay_until_their_frame_is_drawn() {
     shown.release_kept(3, |_| true);
     assert!(!shown.frame_shown(3).kept, "its new frame has been drawn");
 
+    // In the browser the app's worker shows a present as it makes it, so the kept frame goes
+    // once the present is taken in, not when the host draws a frame.
     let mut shown = Shown::new(false);
     shown.keep_left_out(&layout(&[1, 2]), &layout(&[1]), holds);
+    assert_eq!(
+        shown.kept_placements(),
+        vec![placement(2, 2)],
+        "the page keeps a hidden view's canvas too"
+    );
+    shown.keep_left_out(&layout(&[1]), &layout(&[1, 2]), holds);
+    shown.release_kept(0, |_| true);
+    assert!(shown.keeps(ScreenId(2)), "shown again, it waits for its new frame");
+    assert!(shown.presented(Some(3), 0).kept);
+    shown.release_kept(0, |_| true);
     assert!(
-        shown.kept_placements().is_empty(),
-        "a host that holds no textures keeps no frame"
+        !shown.keeps(ScreenId(2)),
+        "its new frame is on its canvas once presented"
     );
 }

@@ -497,7 +497,13 @@ never blanks for a frame when a tab switch brings it back before its app
 answers. The kept frame goes when that frame is drawn, the instance closes, or
 the app restarts, and only the eight views of an app hidden last keep theirs
 (`MOST_KEPT`): one hidden longer may show empty for a frame when shown again.
-The web keeps none: its surfaces are the app worker's canvases.
+On the web the kept frame is a canvas: the page hides a canvas whose surface the
+runtime retains (the app's layout or a kept frame) rather than removing it, with what the app's worker last drew
+into it, and a layer that shows that surface again takes it back (`Canvases` in
+be-host-runtime's `web/canvases.rs`); since the worker shows a present on its
+canvases as it makes it, the kept frame goes once the present that draws the
+view anew is taken in (`Shown::draws_presents`), and the canvas moves to the
+new surface, which its worker then draws into it.
 
 An anchored view the app closes leaves the same way (`Runtime::place`, `Shown::place`): the app sends
 its screens ahead of the frame's commits, and the host keeps the closed view, showing its last
