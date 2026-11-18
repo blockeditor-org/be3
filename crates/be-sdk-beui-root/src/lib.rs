@@ -348,7 +348,9 @@ impl BeuiSurface {
 
     /// Runs `change` in the document, as its own code runs, at the host's frame clock's time the
     /// root was handed last, so it may set the signals the document reads: what the root tells it from outside, such as its host's notices. Its
-    /// next frame is due at once, and the root is woken for it.
+    /// next frame is due at once, and the root is woken for it. An answer that arrives before that
+    /// frame's `set_clock` runs at the last time handed over, so a timer it starts can fire up to one
+    /// frame early.
     pub fn enter<R>(&mut self, change: impl FnOnce() -> R) -> R {
         // At the host's time now, as the document's own code runs in a frame: a timer `change`
         // starts counts from it, not from the document's last frame.
