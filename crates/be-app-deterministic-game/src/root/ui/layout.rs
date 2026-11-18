@@ -115,6 +115,15 @@ impl Layout {
             .and_then(|placed| placed.spot)
     }
 
+    /// The piece or card on top at a spot, which a press there takes.
+    pub(crate) fn face(&self, spot: Spot) -> Option<ItemId> {
+        self.items
+            .iter()
+            .rev()
+            .find(|placed| placed.spot == Some(spot) && movable(&placed.sprite))
+            .map(|placed| placed.id)
+    }
+
     pub(crate) fn find(&self, spot: Spot) -> Option<&SpotPlace> {
         self.spots.iter().find(|place| place.spot == spot)
     }

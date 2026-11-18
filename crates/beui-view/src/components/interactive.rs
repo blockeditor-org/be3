@@ -82,7 +82,7 @@ pub fn Interactive(
     #[prop(default = false)]
     lifts_on_press: bool,
     /// Whether Space lifts `drag`'s carry from the keyboard, on a source that does not
-    /// activate. Off for a surface whose Space is another's: a canvas, where a held Space pans
+    /// activate, and Enter too where the source's own `on_key` turns it down. Off for a surface whose Space is another's: a canvas, where a held Space pans
     /// (guides/pan_and_zoom.md). Ctrl+Shift and an arrow, and Move in the palette, still move
     /// it.
     #[prop(default = true)]
@@ -550,7 +550,9 @@ fn carrying(
         );
         match focusable {
             true => Callback::new(move |press: KeyPress| {
-                carry_keys(press, activates, drag, at, &keyboard_lift) || on_key.call(press)
+                carry_keys(press, activates, drag, at, &keyboard_lift)
+                    || on_key.call(press)
+                    || enter_lifts(press, activates, drag, at, &keyboard_lift)
             }),
             // Focused within, it moves one place with Ctrl+Shift and an arrow once the
             // focused node has turned the key down.
@@ -581,7 +583,8 @@ fn carrying(
 }
 
 /// Keys on a focusable source given `drag`, while it has the focus and the keyboard holds no
-/// carry of it (`held_keys` takes those). Space lifts its carry with the keyboard, unless the
+/// carry of it (`held_keys` takes those). Space lifts its carry with the keyboard (and Enter,
+/// after the source's own keys: `enter_lifts`), unless the
 /// source also activates, when Space and Enter stay its own, or it keeps Space for another
 /// (`lifts_on_space`); Ctrl+Shift and an arrow move it one
 /// place (`step_keys`). Whether the key was taken.
@@ -607,6 +610,25 @@ fn carry_keys(
         return false;
     }
     lift_by_keys(drag, at, lifted)
+}
+
+/// Enter on a focused source that lifts on Space, once its own keys have turned Enter down:
+/// it lifts the carry as Space does. Whether it lifted.
+fn enter_lifts(
+    press: KeyPress,
+    keeps_space: bool,
+    drag: Func<PointerPress, Option<crate::drag::Carry>>,
+    at: (
+        NodeId,
+        crate::reactive::ReadSignal<Option<crate::measure::Measured>>,
+    ),
+    lifted: &std::rc::Rc<dyn Fn(crate::drag::CarryId, crate::drag::CarryFace)>,
+) -> bool {
+    press.pressed
+        && press.key == crate::types::Key::Enter
+        && press.modifiers == crate::types::Modifiers::NONE
+        && !keeps_space
+        && lift_by_keys(drag, at, lifted)
 }
 
 /// How many steps an arrow takes a held carry over a free place: ten with Shift, as a
