@@ -1595,6 +1595,7 @@ impl ServerStore {
     ) -> Result<(), ServerError> {
         let by = encode_wrapped_by(WrappedBy::Account(account));
         self.with_database(move |_, database| {
+            refuse_agent(database, account)?;
             let transaction = be_block_sqlite_schema::write_transaction(database)?;
             let who = account.to_string();
             let (public, signing) = (part.public.to_vec(), part.signing.to_vec());
@@ -1697,6 +1698,7 @@ impl ServerStore {
         let (_, held) = self.recovery_key(account).await?;
         let by = encode_wrapped_by(WrappedBy::Account(account));
         self.with_database(move |store, database| {
+            refuse_agent(database, account)?;
             // What parts staged for these keys carry, beside what this write does: its own go
             // over theirs.
             let (sealed, retirements) =
@@ -1983,4 +1985,16 @@ fn with_staged(
     }
     retired.extend(logs.into_values());
     Ok((keys.into_values().collect(), retired))
+}
+
+/// Refuses a move to new keys by an agent: its keys are its maker's, which makes the agent
+/// again rather than move it, so no contact ever seals to an agent's replaced key.
+fn refuse_agent(database: &Connection, account: Uuid) -> Result<(), ServerError> {
+    match crate::store::is_agent(database, account)? {
+        true => Err(ServerError::Refused(
+            ErrorCode::PermissionDenied,
+            "an agent takes no new recovery key: its maker makes it again".into(),
+        )),
+        false => Ok(()),
+    }
 }

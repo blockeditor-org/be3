@@ -489,7 +489,8 @@ interface server {
         /// (`be_block_keys::Entry::retirement`). The account's own; a write
         /// naming the personal organization carries beside it the new key
         /// epoch of the account's block (`be_block::account_block`), sealed to
-        /// the new key alone, as a `put-keys` rotation.
+        /// the new key alone, as a `put-keys` rotation. Refused to an agent,
+        /// whose maker makes it again instead.
         set-recovery-key(set-recovery-key),
         /// Holds part of what a `set-recovery-key` to the same keys carries
         /// (the keys sealed again and the retirements), for an account whose
@@ -497,7 +498,7 @@ interface server {
         /// staged for its keys beside its own, checks them all as one, and
         /// drops them. Parts for other keys go; a part names only keys sealed
         /// to the account and logs it signed in, and staging one again
-        /// replaces it. The account's own.
+        /// replaces it. The account's own; refused to an agent.
         stage-recovery-key(recovery-key-part),
         /// Publishes the account's name card (`be_block_keys::NameCard`,
         /// signed with its signing key), which `signing-keys` serves its
