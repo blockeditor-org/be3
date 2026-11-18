@@ -54,6 +54,8 @@ be_wasm_ops_bindgen::generate!({
 
 pub use accessibility::DescribedAction;
 pub use app::ShellDialog;
+/// The fonts a host bundles, which it tells an app and a root (be3:ui's).
+pub use be_lib_ui_types::{FontFace, FontRole, Fonts};
 pub use be_wasm_ops as ops;
 pub use blocks::{
     ArtifactAction, ArtifactState, BlockCommand, BlockInfo, BlockMetadata, BlockQuery,
@@ -77,16 +79,13 @@ pub use shell_types::{
 };
 pub use types::{
     AnchorSpace, AnchoredPlacement, ChildContent, ChildLayer, ChildMode, ChildPlacement,
-    ChildPlacements, DialogFrame, Failure, FrameChrome, FrameReport,
-    FrameSpec, Hello, HelloAccepted, HostPanel, HostTransform, HostView, InputBatch, Insets,
-    LayoutCommit, MenuAsk, Occluder, OpenArtifact, OpenBlock, OpenCreation, OpenHost, Opening,
-    OpeningKind, Picture, PresentCommit, PresentedFrame, PressClaim, ScreenDamage, ScreenLayout,
-    ScreenPlacement, ScreenRequest, ScreenWindow, Scrim, SurfaceFormat, SurfaceRect, SurfaceSpec,
-    SurfaceSupport, TimedInput, TopBar, ViewAnchor, ViewEdge, ViewPlacement, ViewSize,
-    ViewportMetrics,
+    ChildPlacements, DialogFrame, Failure, FrameChrome, FrameReport, FrameSpec, Hello,
+    HelloAccepted, HostPanel, HostTransform, HostView, InputBatch, Insets, LayoutCommit, MenuAsk,
+    Occluder, OpenArtifact, OpenBlock, OpenCreation, OpenHost, Opening, OpeningKind, Picture,
+    PresentCommit, PresentedFrame, PressClaim, ScreenDamage, ScreenLayout, ScreenPlacement,
+    ScreenRequest, ScreenWindow, Scrim, SurfaceFormat, SurfaceRect, SurfaceSpec, SurfaceSupport,
+    TimedInput, TopBar, ViewAnchor, ViewEdge, ViewPlacement, ViewSize, ViewportMetrics,
 };
-/// The fonts a host bundles, which it tells an app and a root (be3:ui's).
-pub use be_lib_ui_types::{FontFace, FontRole, Fonts};
 pub use types::{BlockFilter, BlockLocation, BlockPick, OpenPicker, OpenRename, PickedBlock};
 pub use types::{
     DockAlign, DockBar, DockBarEdge, DockBarHide, DockBarMove, DockBarPlace, DockBarPlacement,
