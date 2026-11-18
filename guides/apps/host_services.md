@@ -316,12 +316,13 @@ asking the server. A host component may not watch it
 ## Host components
 
 A host component is a component of the app's wasm with no frame: the manifest
-names it under `hosts` (an id; `edits`, the one block type it runs on; and
-`levels`, what the share dialog offers on a block of that type, Join among them,
-each with a `name` and a `line` saying what it adds for the stored block:
-`HostManifest::levels`, plans/hosted_blocks.md, "The share dialog"), and the app's `beui_app!` map pairs the name with a root as it does an
-editor's; the framework refuses to start unless the roots cover the editors
-and hosts together. The root's `BeuiRoot::host(editor)` runs once it is attached,
+names it under `hosts` (an id; `edits`, the one block type it runs on, one its
+own app declares; and `levels`, what the share dialog offers on a block of that
+type, Join among them, each with a `name` and a `line` saying what it adds for
+the stored block: `HostManifest::levels`, plans/hosted_blocks.md, "The share
+dialog"), and the app's `beui_app!` map pairs the name with a root as it does an
+editor's; the framework refuses to start unless the roots cover the editors and
+hosts together. The root's `BeuiRoot::host(editor)` runs once it is attached,
 in a reactive scope kept while it runs, and is where the component does its
 work (its `View` is never shown): be-app-example-counter's `CounterHost` adds
 one to its block once the content arrives. With no frames, the guest takes in

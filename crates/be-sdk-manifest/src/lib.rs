@@ -58,7 +58,8 @@ pub struct HostManifest {
     pub edits: [u8; 16],
     /// The levels a block of the type is shared at, each named and said in a line for what
     /// it adds for the type's stored content (plans/hosted_blocks.md, "The share dialog"):
-    /// Join always, in the order the share dialog lists them.
+    /// Join always. The dialog lists them by level, whatever order they are written in. Only
+    /// a type of the app's own: on another's, a host could rename that type's levels.
     pub levels: Vec<OfferedLevel>,
 }
 
@@ -226,6 +227,7 @@ pub enum ManifestError {
     ServiceWithTemplates,
     DuplicateHost,
     InvalidLevels,
+    HostOfAnotherType,
     InvalidWorker,
 }
 
@@ -260,6 +262,9 @@ impl fmt::Display for ManifestError {
             ),
             Self::InvalidLevels => formatter.write_str(
                 "a host component's levels must offer Join, and each level once",
+            ),
+            Self::HostOfAnotherType => formatter.write_str(
+                "a host component runs only on a block type its own app declares",
             ),
             Self::DuplicateBlockType => {
                 formatter.write_str("two block types are declared with the same id or name")
@@ -338,6 +343,15 @@ impl AppManifest {
                 .any(|editor| editor.id == host.id || editor.name == host.name)
             {
                 return Err(ManifestError::DuplicateHost);
+            }
+            // A host names and offers the levels of its own app's type alone: on another's (text,
+            // or another app's) it could relabel a level or turn on Join in that type's dialog.
+            if !self
+                .block_types
+                .iter()
+                .any(|block_type| block_type.content_type() == host.edits)
+            {
+                return Err(ManifestError::HostOfAnotherType);
             }
             if !host
                 .levels
