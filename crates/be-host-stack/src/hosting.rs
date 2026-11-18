@@ -151,28 +151,60 @@ fn lock(shared: &Arc<Mutex<Shared>>) -> std::sync::MutexGuard<'_, Shared> {
     shared.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
-/// This device's replica holds `block`'s lease (`holder`) or no longer does: every channel goes
-/// with the lease, and what no component took of it.
-pub fn holding(shared: &Arc<Mutex<Shared>>, block: Uuid, holder: bool) {
+/// Who hosts `block`'s session, as the server last said: no one, this device (`Some(true)`),
+/// or another. Hosting no longer, every channel goes, and what no component took of it.
+pub fn host_heard(shared: &Arc<Mutex<Shared>>, block: Uuid, host: Option<bool>) {
     let mut held = lock(shared);
-    let changed = match holder {
-        true => held.seen.hosted.insert(block).is_none(),
-        false => {
-            held.hosting.channels.remove(&block);
-            held.seen.member_news.clear(block);
-            held.seen.hosted.remove(&block).is_some()
-        }
-    };
+    let mut changed = held.seen.session_hosts.insert(block, host) != Some(host);
+    match host == Some(true) {
+        true => changed |= held.seen.hosted.insert(block).is_none(),
+        false => changed |= stop_hosting(&mut held, block),
+    }
     if changed {
         held.seen.leases_changed += 1;
         crate::changes::wake();
     }
 }
 
+/// This device's replica of `block` left its session: it hosts it no longer.
+pub fn left(shared: &Arc<Mutex<Shared>>, block: Uuid) {
+    let mut held = lock(shared);
+    let mut changed = held.seen.session_hosts.remove(&block).is_some();
+    changed |= stop_hosting(&mut held, block);
+    if changed {
+        held.seen.leases_changed += 1;
+        crate::changes::wake();
+    }
+}
+
+fn stop_hosting(held: &mut Shared, block: Uuid) -> bool {
+    held.hosting.channels.remove(&block);
+    held.seen.member_news.clear(block);
+    held.seen.hosted.remove(&block).is_some()
+}
+
+/// A host component starts on `block`: it claims the session's lease (plans/hosted_blocks.md,
+/// step 4d2), so this device hosts it, and hears every member already admitted.
+pub fn start(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: &Tasks, block: Uuid) {
+    restart(shared, block);
+    if lock(shared).seen.hosted.contains(&block) {
+        return;
+    }
+    let claimed = peer.connection().claim(block);
+    let shared = Arc::clone(shared);
+    tasks.spawn(async move {
+        // The claimant is not told of its own claim, so it takes the answer as the word that
+        // it hosts. Refused (it left the session, or may no longer edit), nothing changes.
+        if claimed.await.is_ok() {
+            host_heard(&shared, block, Some(true));
+        }
+    });
+}
+
 /// A host component starts on `block`: it hears every member already admitted join, and none of
 /// what an earlier component left untaken, in one step, so nothing a member says comes before
 /// it is heard to join.
-pub fn restart(shared: &Arc<Mutex<Shared>>, block: Uuid) {
+fn restart(shared: &Arc<Mutex<Shared>>, block: Uuid) {
     let mut held = lock(shared);
     held.seen.member_news.clear(block);
     let again: Vec<MemberNews> = held
@@ -235,6 +267,9 @@ pub fn heard(
             payload,
             ..
         }) => hosted(peer, shared, tasks, *block, *from, payload),
+        Some(Event::Host { block, host, ours }) => {
+            host_heard(shared, *block, host.map(|_| *ours));
+        }
         Some(Event::Joiner {
             block,
             change: JoinerChange::Left(member),

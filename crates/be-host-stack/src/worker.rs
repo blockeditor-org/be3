@@ -4160,7 +4160,7 @@ async fn apply(
             false
         }
         Command::RestartHost(block) => {
-            crate::hosting::restart(shared, block);
+            crate::hosting::start(peer, shared, tasks, block);
             false
         }
         Command::WantChannels(blocks) => {

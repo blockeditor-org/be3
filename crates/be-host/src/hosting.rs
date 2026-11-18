@@ -1,9 +1,10 @@
 //! Runs a hosted block's host component on this device while it hosts the block
 //! (plans/hosted_blocks.md, "Hosting"): an editor of the block open here, this account allowed
-//! to edit it, and this device's replica holding its session's lease. Whoever holds the lease
-//! hosts and the others stand by; when the holder leaves, the next editor's replica takes the
-//! lease by the session's order and starts its own. Closing the last editor of the block here
-//! stops it, so the lease goes on to another editor and a world left closed uses nothing,
+//! to edit it, and no other device hosting its session (`be_host_stack::may_host`). Starting the
+//! component claims the session's lease (`be_host_stack::restart_host`), which makes this device
+//! the host; if another device claims after it, this one stops its own. When the host leaves,
+//! the session has no host until a device with an editor open starts its component and claims.
+//! Closing the last editor of the block here stops it, so a world left closed uses nothing,
 //! unless the person chose Keep hosting in its frame menu (`block-command.keep-hosting`): a kept
 //! block's component runs on with no editor open, listed in the host menu with Stop, until
 //! Stop, the lease or the access goes, or be-host quits. Nothing keeps it across a restart.
@@ -135,7 +136,7 @@ impl Hosts {
         for block in editing.into_iter().chain(kept) {
             if types.of_type(block.block_type).is_some()
                 && be_host_stack::access(block.id).can_edit()
-                && be_host_stack::holds_lease(block.id)
+                && be_host_stack::may_host(block.id)
             {
                 wanted.insert(block.id, block);
             }
