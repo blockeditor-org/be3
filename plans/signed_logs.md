@@ -247,6 +247,12 @@ within one page: step 4's fold takes the first occurrence of an id.
    deletion signed with an old key shows "deleted with an old key"; a host
    test sends with the server cut and the message gets the server's arrival
    once it drains.
+   Built in two slices: **5a** moves chat onto the log (everything below but
+   search and import), **5b** follows straight after it with search per log
+   page and an import's read-only history. Between them chat's messages are
+   not searchable; both land on the integration branch before it merges, so
+   that gap never reaches main.
+
    Design (being built on `claude/signed-logs-5`):
    - **Entries.** `ChatEntry` (postcard) is `Message { time, body, reply_to,
      attachments }`, `Edit { message, time, body }`, `React { message,
