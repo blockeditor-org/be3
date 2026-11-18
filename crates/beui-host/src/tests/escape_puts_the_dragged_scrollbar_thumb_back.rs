@@ -31,7 +31,10 @@ fn escape_puts_the_dragged_scrollbar_thumb_back() {
     let grabbed = pos2(bar.center().x, bar.top() + thumb / 2.0);
 
     harness.down(grabbed, PointerButton::Primary);
-    harness.frame(vec![Input::PointerMoved(pos2(grabbed.x, grabbed.y + DRAGGED))]);
+    harness.frame(vec![Input::PointerMoved(pos2(
+        grabbed.x,
+        grabbed.y + DRAGGED,
+    ))]);
     harness.frame(Vec::new());
     assert!(
         harness.document().scroll_offset(scroll) > 0.0,
@@ -39,8 +42,14 @@ fn escape_puts_the_dragged_scrollbar_thumb_back() {
     );
 
     harness.key(Key::Escape, Modifiers::NONE);
-    harness.frame(vec![Input::PointerMoved(pos2(grabbed.x, grabbed.y + 2.0 * DRAGGED))]);
-    harness.up(pos2(grabbed.x, grabbed.y + 2.0 * DRAGGED), PointerButton::Primary);
+    harness.frame(vec![Input::PointerMoved(pos2(
+        grabbed.x,
+        grabbed.y + 2.0 * DRAGGED,
+    ))]);
+    harness.up(
+        pos2(grabbed.x, grabbed.y + 2.0 * DRAGGED),
+        PointerButton::Primary,
+    );
     harness.settle();
 
     assert_eq!(

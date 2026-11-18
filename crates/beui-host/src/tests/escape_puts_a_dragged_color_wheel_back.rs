@@ -31,15 +31,27 @@ fn escape_puts_a_dragged_color_wheel_back() {
     );
     let along_ring = WHEEL_SIZE / 2.0 - 11.0;
 
-    harness.down(pos2(centre.x + along_ring, centre.y), PointerButton::Primary);
-    harness.frame(vec![Input::PointerMoved(pos2(centre.x, centre.y - along_ring))]);
+    harness.down(
+        pos2(centre.x + along_ring, centre.y),
+        PointerButton::Primary,
+    );
+    harness.frame(vec![Input::PointerMoved(pos2(
+        centre.x,
+        centre.y - along_ring,
+    ))]);
     harness.frame(Vec::new());
     let turned = Hsva::from_color(value.get_untracked());
-    assert!((turned.hue - 90.0).abs() < 1.0, "the ring turns as it is dragged: {turned:?}");
+    assert!(
+        (turned.hue - 90.0).abs() < 1.0,
+        "the ring turns as it is dragged: {turned:?}"
+    );
 
     harness.key(Key::Escape, Modifiers::NONE);
     harness.frame(Vec::new());
-    harness.up(pos2(centre.x, centre.y - along_ring), PointerButton::Primary);
+    harness.up(
+        pos2(centre.x, centre.y - along_ring),
+        PointerButton::Primary,
+    );
     harness.frame(Vec::new());
 
     assert_eq!(value.get_untracked(), start, "Escape turns it back");
