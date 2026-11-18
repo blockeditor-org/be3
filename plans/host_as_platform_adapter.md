@@ -1451,12 +1451,12 @@ Each step lands on its own.
        root guest says. Then be-host brings back under `--root` what the host keeps, and the
        root becomes the default. A real root shows a lock layer per window or display,
        each the size of it, as be-host's lock screen does per display today.
-       Proposed slices (to be agreed before any is built). The compositor is about 7,000
+       The slices, agreed. The compositor is about 7,000
        lines of `src/compositor` (app views 2,200, editors and the camera 2,400, desktop
        windows 1,200, anchored views 500, the palette 500), over be-host-runtime's
        orchestration; each slice moves one area and its tests, and be-host keeps running its
        own until the last.
-       - 4g7a. The real root's crate. be-sdk-root-testing is a test fixture and stays one:
+       - 4g7a. The real root's crate (decisions/the_real_root_is_its_own_crate_not_the_testing_root.md). be-sdk-root-testing is a test fixture and stays one:
          its keys (F2 to F12) and its fixed 152-point dialog exist for tests. The real root is
          a new guest crate (`crates/be-root`, a cdylib on be-sdk-root and be-sdk-beui-root),
          which be-host's `--root` runs when it is given no other, and which starts with what
@@ -1480,7 +1480,9 @@ Each step lands on its own.
        - 4g7g. be-host brings back under `--root` what the host keeps, each answering the
          capability 4g6 gave it: the block stack's `core-view` and its commands and
          secrets (until step 5 moves the stack), the login session's lock and PAM, the
-         displays' keep changes, and the clipboard and notices already wired; then the root
+         displays' keep changes, and the clipboard and notices already wired; then, once the
+         real root passes the host tests that exercise be-host's own `src/ui` today, with
+         their paintings compared, and only then, the root
          becomes the default and be-host's `src/ui` and `src/compositor` go, with the copies
          noted above (`SlowSave`, the memory graph).
 5. The block stack as an instance the root guest spawns, behind capabilities, building on the
