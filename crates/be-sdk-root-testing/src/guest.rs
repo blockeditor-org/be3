@@ -23,11 +23,12 @@ use be_wasm_guest_abi::{Flow, Guest, Waker};
 use be_wasm_ops::guest::{Executor, LocalFuture};
 use be_wasm_password::Password;
 use be_wasm_root_api::{
-    AccountRow, AgentRow, MemoryMinutes, PairingApproval, ContactCard, ContactMismatch, ContactRow, ShareAccess, SharePreview,
-    CoreCommand, CoreSecret, MemberRole, MemberRow, RoleChange, SecretCommand, CoreView, CoreWait, DiscardReason, InvitationRow,
-    InvitationState, OrganizationRow, OrganizationsListed, ProfileRow,
-    SessionRow, DisplayQuestion, FrameDone, FrameRequest, HostStatistics, LockState,
-    NewAccount, Notice, PowerAction, Refusal, SavingState, ServerAccount, SetAside, StatisticRow, SyncState, UnsentEdit,
+    AccountRow, AgentRow, ContactCard, ContactMismatch, ContactRow, CoreCommand, CoreSecret,
+    CoreView, CoreWait, DiscardReason, DisplayQuestion, FrameDone, FrameRequest, HostStatistics,
+    InvitationRow, InvitationState, LockState, MemberRole, MemberRow, MemoryMinutes, NewAccount,
+    Notice, OrganizationRow, OrganizationsListed, PairingApproval, PowerAction, ProfileRow,
+    Refusal, RoleChange, SavingState, SecretCommand, ServerAccount, SessionRow, SetAside,
+    ShareAccess, SharePreview, StatisticRow, SyncState, UnsentEdit,
     guest::{
         exports::{frames, input, paintings},
         host,
@@ -1479,7 +1480,12 @@ fn MemoryDrawing(history: Signal<MemoryMinutes>) -> NodeId {
     let theme = use_theme();
     let draw: Prop<Draw> = Prop::dynamic(move || {
         let history = history.get();
-        let colors = [theme.accent.get(), theme.success.get(), theme.warning.get(), theme.danger.get()];
+        let colors = [
+            theme.accent.get(),
+            theme.success.get(),
+            theme.warning.get(),
+            theme.danger.get(),
+        ];
         let border = theme.border.get();
         Rc::new(move |painter: &Painter, rect: Rect| {
             draw_memory(painter, rect, &history, colors, border);
@@ -1515,7 +1521,12 @@ fn draw_memory(
         return;
     };
     const STEP: u64 = 64 << 20;
-    let peak = history.points.iter().map(|point| point.resident).max().unwrap_or(0);
+    let peak = history
+        .points
+        .iter()
+        .map(|point| point.resident)
+        .max()
+        .unwrap_or(0);
     let top = peak.div_ceil(STEP).max(1) * STEP;
     let span = history.now.saturating_sub(first.at).max(60) as f32;
     let at = |point: &be_wasm_root_api::MemoryPoint, value: u64| {

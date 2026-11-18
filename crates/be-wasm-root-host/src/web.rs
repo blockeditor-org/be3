@@ -247,7 +247,12 @@ impl Root {
     /// points, oldest first, and when the latest sample was taken, in seconds since the Unix
     /// epoch. If the root waits on it and it changed, it is stepped for it.
     pub fn show_memory_history(&self, points: Vec<be_wasm_root_api::MemoryPoint>, now: u64) {
-        if self.shared.core.borrow_mut().show_memory_history(points, now) {
+        if self
+            .shared
+            .core
+            .borrow_mut()
+            .show_memory_history(points, now)
+        {
             ring(self.shared.id);
         }
     }
