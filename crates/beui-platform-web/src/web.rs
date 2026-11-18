@@ -446,8 +446,8 @@ impl PlatformServices for WebPlatform {
         }
         if window.requests.cursor != shown.requests.cursor {
             let cursor = match window.requests.cursor {
-                CursorIcon::Touch => beui_core::touch_cursor::css(CursorIcon::Crosshair.name()),
-                cursor => cursor.name().to_owned(),
+                CursorIcon::Touch => beui_core::touch_cursor::css(CursorIcon::Touch.css()),
+                cursor => cursor.css().to_owned(),
             };
             let _ = self.surface.style().set_property("cursor", &cursor);
         }

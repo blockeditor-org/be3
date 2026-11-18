@@ -1356,6 +1356,7 @@ impl Host for Gpu {
         if let Some(target) = self.surfaces.get_mut(&surface) {
             target.drawn = (target.drawn + 1) % target.textures.len();
             target.ages.present();
+            self.last_presented.insert(surface, target.shown().clone());
         }
         self.presented.push(surface);
     }

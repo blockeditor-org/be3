@@ -28,4 +28,12 @@ fn every_cursor_is_found_by_its_css_name() {
         "the touch cursor, which CSS has no keyword for, has a name of its own"
     );
     assert!(!names.contains(&CursorIcon::Touch.name()));
+    assert_eq!(
+        CursorIcon::Touch.css(),
+        "crosshair",
+        "in CSS the touch cursor falls back to the crosshair"
+    );
+    for icon in CursorIcon::ALL {
+        assert_eq!(icon.css(), icon.name(), "{icon:?}'s name is its CSS value");
+    }
 }

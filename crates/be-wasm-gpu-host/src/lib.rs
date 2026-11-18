@@ -62,6 +62,9 @@ pub struct Gpu {
     surfaces: HashMap<u32, Surface>,
     imports: Imports,
     presented: Vec<u32>,
+    /// The texture each surface showed when the app last presented it, and its generation:
+    /// what its host draws, whatever the app configured since.
+    last_presented: HashMap<u32, (wgpu::Texture, u64)>,
     /// The surfaces let go of since `take_released`.
     released: Vec<u32>,
     error: Option<String>,
@@ -166,6 +169,7 @@ impl Gpu {
             surfaces: HashMap::new(),
             imports: Imports::default(),
             presented: Vec::new(),
+            last_presented: HashMap::new(),
             released: Vec::new(),
             error: None,
         }
@@ -224,6 +228,7 @@ impl Gpu {
     pub fn detach_surface(&mut self, surface: u32) {
         if self.surfaces.remove(&surface).is_some() {
             self.presented.retain(|presented| *presented != surface);
+            self.last_presented.remove(&surface);
             self.released.push(surface);
         }
     }
@@ -235,6 +240,13 @@ impl Gpu {
 
     pub fn surface(&self, surface: u32) -> Option<(&wgpu::Texture, u64)> {
         let (texture, generation) = self.surfaces.get(&surface)?.shown();
+        Some((texture, *generation))
+    }
+
+    /// The texture `surface` showed when it was last presented, and its generation: a surface
+    /// configured afresh since (a new size) still shows it until it is presented again.
+    pub fn presented_surface(&self, surface: u32) -> Option<(&wgpu::Texture, u64)> {
+        let (texture, generation) = self.last_presented.get(&surface)?;
         Some((texture, *generation))
     }
 

@@ -192,15 +192,16 @@ impl Root {
     }
 
     /// Takes what the root let go of and presented during the frame drawn, as the sandbox
-    /// keeps what its instances present. A surface let go of and presented again is presented
-    /// after, so it is kept.
+    /// keeps what its instances present: the texture each showed when presented, even if the
+    /// root configured it afresh later in the frame. A surface let go of and presented again is
+    /// presented after, so it is kept.
     fn presented(&mut self) {
         let guest = &mut self.core.guest;
         for surface in guest.take_released() {
             self.own.remove(&surface);
         }
         for surface in guest.take_presented() {
-            if let Some((texture, generation)) = guest.surface(surface) {
+            if let Some((texture, generation)) = guest.presented_surface(surface) {
                 self.own.insert(
                     surface,
                     PresentedTexture {
