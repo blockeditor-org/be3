@@ -757,7 +757,8 @@ Each step lands on its own.
            pixels rather than a snapshot.
          - The frame clock measures no composite time (`FrameClock::settle` is never called),
            so its deadline assumes the default.
-         - A replaced device stops the root rather than moving it, and no host ships a root.
+         - A replaced device stops the root rather than moving it, so a replaced renderer
+           (device loss) quits be-host under `--root`; and no host ships a root.
    - 4f. The router over the layer list: the `HitTest` moves from beui's catchers to the last
      committed `WindowLayers`. `AppView`, anchored views, scrims and popups declare each layer's
      `LayerInput` (hit and gesture areas, `captures`, `focuses`, `placer`), the host's UI its

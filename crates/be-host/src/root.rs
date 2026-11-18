@@ -80,7 +80,7 @@ struct RootShell {
     pass: u64,
     /// The catcher, focused once it is shown, so keys reach the root without a press first.
     catcher: NodeRef,
-    focused: bool,
+    focus_asked: bool,
     /// Why the root stopped, once it did, for `run` to exit with.
     stopped: Rc<RefCell<Option<String>>>,
     /// What the last frame showed, so an unchanged frame keeps its drawing.
@@ -125,7 +125,7 @@ impl RootShell {
             clock: FrameClock::default(),
             pass: 0,
             catcher: caught_by.expect("the catcher's ref is made while the document is built"),
-            focused: false,
+            focus_asked: false,
             stopped,
             drawn: Vec::new(),
         }
@@ -257,12 +257,17 @@ impl beui::native::Program for RootShell {
             context.close_window();
             return;
         }
-        if !self.focused {
+        // Once, after the first frame shows the catcher: a frame more shows it focused. One the
+        // first frame did not show is left for a press to focus, so nothing repaints for it.
+        if !self.focus_asked {
+            self.focus_asked = true;
             let catcher = self.catcher;
-            self.focused = beui::native::enter(&mut self.document, || {
+            let focused = beui::native::enter(&mut self.document, || {
                 catcher.try_get().map(|catcher| catcher.focus()).is_some()
             });
-            context.request_repaint();
+            if focused {
+                context.request_repaint();
+            }
         }
         // What the window caught this frame reaches the root with the next.
         if !self.caught.borrow().is_empty() {
