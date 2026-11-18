@@ -1,6 +1,6 @@
 //! `Tally`, a counter whose session state can be made as large as a test needs, so the order
 //! restarts once it is sealed (`RESTART_STATE_BYTES`): a test of what a restart does to edits
-//! on their way. It keeps a signed log beside, which each entry counts one in (`LogFold`).
+//! on their way.
 
 use be_block_commit::MergeResult;
 use be_block_content::{BlockContent, ContentError, LiveEdit, Merge};
@@ -64,11 +64,4 @@ impl Merge for Tally {
     }
 }
 
-/// A tally keeps a signed log too: each entry counts one, in the log's order.
-impl be_block_content::LogFold for Tally {
-    fn fold(&mut self, _: &be_block_content::LogItem) {
-        self.count += 1;
-    }
-}
-
-be_sdk_type_guest::be_block_types![Tally { log }];
+be_sdk_type_guest::be_block_types![Tally];

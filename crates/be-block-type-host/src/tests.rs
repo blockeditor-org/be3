@@ -8,6 +8,7 @@ use be_block_store::{Manifest, MemoryStore};
 use be_sdk_type_api::{Description, EditorId, Status};
 use be_sdk_type_testing::probe::{self, Probe};
 use be_sdk_type_testing::sections::{self, Sections};
+use be_sdk_type_testing::ledger::Ledger;
 use be_sdk_type_testing::tally::{Tally, TallyOp};
 use std::sync::Mutex;
 use uuid::Uuid;
@@ -398,13 +399,14 @@ fn type_at_start(
     replicas.relay_from_editor(block, editor, message.encode(), std::time::Instant::now());
 }
 
-/// The modules of the `Sections`, `Probe` and text types, on `clock`.
+/// The modules of the test types and the text and counter types, on `clock`.
 async fn test_modules(clock: be_block_client::Clock) -> crate::Modules {
     started(
         vec![
             in_process::<sections::BlockTypes>("test.sections"),
             in_process::<probe::BlockTypes>("test.probe"),
             in_process::<be_sdk_type_testing::tally::BlockTypes>("test.tally"),
+            in_process::<be_sdk_type_testing::ledger::BlockTypes>("test.ledger"),
             in_process::<be_type_text::BlockTypes>("be3.text"),
             in_process::<be_type_example_counter::BlockTypes>("be3.counter"),
         ],
