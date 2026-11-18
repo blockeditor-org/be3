@@ -37,6 +37,7 @@ async fn a_share_link_opened_after_a_rotation_unlocks_once_an_editor_tends() {
         early.keys().identity(),
         early.account(),
         &first,
+        None,
     )
     .await
     .unwrap();
@@ -74,6 +75,7 @@ async fn a_share_link_opened_after_a_rotation_unlocks_once_an_editor_tends() {
         opener.keys().identity(),
         opener.account(),
         &later,
+        None,
     )
     .await
     .unwrap();
