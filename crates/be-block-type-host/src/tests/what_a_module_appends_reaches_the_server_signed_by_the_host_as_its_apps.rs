@@ -8,14 +8,14 @@ use super::*;
 fn what_a_module_appends_reaches_the_server_signed_by_the_host_as_its_apps() {
     with_test_types(|peer, shared, mut replicas| async move {
         let block = peer
-            .create::<Tally>(BlockParent::Root)
+            .create::<Ledger>(BlockParent::Root)
             .await
-            .expect("the tally is made");
-        peer.save(block, &Tally::default(), None)
+            .expect("the ledger is made");
+        peer.save(block, &Ledger::default(), None)
             .await
-            .expect("the empty tally is published");
+            .expect("the empty ledger is published");
         replicas
-            .open((&peer, &shared), block, Tally::CONTENT_TYPE, true)
+            .open((&peer, &shared), block, Ledger::CONTENT_TYPE, true)
             .await
             .expect("the block opens");
         while replicas.joining() {
@@ -23,7 +23,7 @@ fn what_a_module_appends_reaches_the_server_signed_by_the_host_as_its_apps() {
             replicas.pump((&peer, &shared)).await;
         }
         let editor = 7;
-        let mut mirror = attach_mirror::<Tally>(&peer, &shared, &mut replicas, block, editor).await;
+        let mut mirror = attach_mirror::<Ledger>(&peer, &shared, &mut replicas, block, editor).await;
         for said in [&b"hello"[..], b"forged"] {
             let (_, message) = mirror.append(said.to_vec());
             replicas.relay_from_editor(block, editor, message.encode(), std::time::Instant::now());
@@ -75,7 +75,7 @@ fn what_a_module_appends_reaches_the_server_signed_by_the_host_as_its_apps() {
                 }
             };
             assert_eq!(
-                as_app("test.tally").await,
+                as_app("test.ledger").await,
                 be_block_client::Signer::Verified,
                 "every entry on the server is signed as the module's app"
             );
