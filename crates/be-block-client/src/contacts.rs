@@ -225,6 +225,26 @@ impl<'a> Secrets<'a> {
         }
     }
 
+    /// `sealed`, a key `from` sealed to this account, opened with the current secret or a
+    /// retired one: a contact that still held this account's old key sealed it to that.
+    fn open_from(
+        &self,
+        from: &Party,
+        to: [u8; 16],
+        key: &[u8],
+        sealed: &[u8],
+    ) -> Result<Vec<u8>, be_block_keys::KeyError> {
+        let current = self.current.open_from(from, to, key, sealed);
+        if current.is_ok() {
+            return current;
+        }
+        self.retired
+            .iter()
+            .map(|secret| secret.open_from(from, to, key, sealed))
+            .find(Result::is_ok)
+            .unwrap_or(current)
+    }
+
     fn open_key_change(
         &self,
         from: &Party,
@@ -661,6 +681,19 @@ pub async fn contacts(
     identity: &RecoverySecret,
     pinned: &HashMap<Uuid, OwnContact>,
 ) -> Result<Vec<Contact>, ClientError> {
+    Ok(contacts_and_retired(connection, account, identity, pinned)
+        .await?
+        .0)
+}
+
+/// `contacts`, with the identity secrets the account retired (`AccountBlock::retired`) as its
+/// block holds them, which a key a contact sealed to an old key opens with (`KeyBook::retire`).
+pub(crate) async fn contacts_and_retired(
+    connection: &Arc<Connection>,
+    account: Uuid,
+    identity: &RecoverySecret,
+    pinned: &HashMap<Uuid, OwnContact>,
+) -> Result<(Vec<Contact>, Vec<RecoverySecret>), ClientError> {
     let block = AccountRecords::open(connection, account, identity).await?;
     let mut tries = 0;
     loop {
@@ -677,7 +710,7 @@ async fn contacts_once(
     identity: &RecoverySecret,
     pinned: &HashMap<Uuid, OwnContact>,
     block: Option<&AccountRecords>,
-) -> Result<Vec<Contact>, ClientError> {
+) -> Result<(Vec<Contact>, Vec<RecoverySecret>), ClientError> {
     let held = match block {
         Some(block) => match block.read().await {
             Ok(held) => Some(held),
@@ -810,7 +843,7 @@ async fn contacts_once(
             reseal_from(
                 connection,
                 account,
-                identity,
+                &secrets,
                 &record.card,
                 held_keys.as_deref().unwrap_or_default(),
             )
@@ -899,7 +932,7 @@ async fn contacts_once(
             .await??;
         }
     }
-    Ok(listed)
+    Ok((listed, secrets.retired))
 }
 
 /// Follows `changes` in order from `card`'s key: the key they lead to, if another, and how many
@@ -977,10 +1010,11 @@ async fn sealed_to_me(connection: &Arc<Connection>) -> Result<Vec<SealedKey>, Cl
 async fn reseal_from(
     connection: &Arc<Connection>,
     account: Uuid,
-    identity: &RecoverySecret,
+    secrets: &Secrets<'_>,
     card: &ContactCard,
     held: &[SealedKey],
 ) -> Result<(), ClientError> {
+    let identity = secrets.current;
     let from = Party {
         account: card.account,
         public: card.public,
@@ -993,7 +1027,7 @@ async fn reseal_from(
         .iter()
         .filter(|key| key.sender.into_bytes() == card.account)
         .filter_map(|key| {
-            let plain = identity
+            let plain = secrets
                 .open_from(&from, account.into_bytes(), key.key.as_bytes(), &key.sealed)
                 .ok()?;
             Some(SealedKey {

@@ -19,6 +19,9 @@ pub struct KeyBook {
     account: Uuid,
     organization: Uuid,
     identity: RecoverySecret,
+    /// The identity secrets the account replaced with new phrases (`AccountBlock::retired`),
+    /// which a key a contact sealed to an old key opens with (`retire`).
+    retired: Mutex<Vec<RecoverySecret>>,
     ring: Keyring,
     /// The escrow secrets this device holds, by escrow key id: X25519 secrets, never content
     /// keys, so kept out of `ring`, where an object whose header named one would open with it.
@@ -379,6 +382,7 @@ impl KeyBook {
             account,
             organization,
             identity,
+            retired: Mutex::default(),
             ring,
             escrow_secrets: Mutex::default(),
             server_held: Mutex::default(),
@@ -867,6 +871,27 @@ impl KeyBook {
 
     pub fn identity(&self) -> &RecoverySecret {
         &self.identity
+    }
+
+    /// Takes `retired`, the identity secrets the account's block keeps from its earlier
+    /// phrases, so a key a contact sealed to one of those keys opens (`open_sealed`).
+    pub fn retire(&self, retired: Vec<RecoverySecret>) {
+        *self.retired.lock().unwrap() = retired;
+    }
+
+    /// `sealed`, a key `from` sealed to this account, opened with the current identity secret
+    /// or one the account retired: a contact that had not yet followed the account's new phrase
+    /// sealed it to the old key.
+    fn open_sealed(&self, from: &Party, key: &[u8], sealed: &[u8]) -> Option<Vec<u8>> {
+        let to = self.account.into_bytes();
+        if let Ok(plain) = self.identity.open_from(from, to, key, sealed) {
+            return Some(plain);
+        }
+        self.retired
+            .lock()
+            .unwrap()
+            .iter()
+            .find_map(|secret| secret.open_from(from, to, key, sealed).ok())
     }
 
     pub fn ring(&self) -> &Keyring {
@@ -1682,15 +1707,7 @@ impl KeyBook {
                         account: wrap.sender.into_bytes(),
                         public,
                     };
-                    let plain = self
-                        .identity
-                        .open_from(
-                            &from,
-                            self.account.into_bytes(),
-                            wrap.key.as_bytes(),
-                            &wrap.sealed,
-                        )
-                        .ok()?;
+                    let plain = self.open_sealed(&from, wrap.key.as_bytes(), &wrap.sealed)?;
                     self.hold_escrowed(wrap, row?, &plain, false);
                     return None;
                 };
@@ -1698,15 +1715,7 @@ impl KeyBook {
                     account: wrap.sender.into_bytes(),
                     public,
                 };
-                let plain = self
-                    .identity
-                    .open_from(
-                        &sender,
-                        self.account.into_bytes(),
-                        wrap.key.as_bytes(),
-                        &wrap.sealed,
-                    )
-                    .ok()?;
+                let plain = self.open_sealed(&sender, wrap.key.as_bytes(), &wrap.sealed)?;
                 if self.contact(wrap.sender).is_some()
                     && !self.sender_may(
                         wrap.sender,
