@@ -251,10 +251,13 @@ impl<C: LiveEdit + Clone + Default + 'static> LiveContent<C> {
         self.0.host.send_to_replica(self.0.block, message);
     }
 
-    /// The entries of the block's signed log this editor heard or read, in the log's order,
-    /// each id once at its first place.
-    pub fn log(&self) -> Vec<be_block_content::LogItem> {
-        self.0.mirror.borrow().log().cloned().collect()
+    /// Reads the entries of the block's signed log this editor holds, in the log's order, each
+    /// id once at its first place: the latest it heard or read, up to `editor::LOG_HELD`.
+    pub fn with_log<R>(
+        &self,
+        read: impl FnOnce(&mut dyn Iterator<Item = &be_block_content::LogItem>) -> R,
+    ) -> R {
+        read(&mut self.0.mirror.borrow().log())
     }
 
     /// Makes an edit outside any gesture.

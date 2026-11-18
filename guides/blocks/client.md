@@ -241,14 +241,16 @@ A block's signed log (guides/blocks/server.md, "Signed logs"; `peer/log.rs`)
 is read and appended a page at a time, and nothing the server serves of it is
 taken unproven.
 
-- **Appending.** `Peer::append(block, app, payload)` signs the entry's id
-  and the hash of the app's bytes framed by its id
-  (`be_block_protocol::log_signed` over `by_app(app, payload)`, under
-  `sign_authored`, so the signature binds the block and the app, and verifies
-  wherever the plaintext goes), seals the payload under the block's key and
-  keeps it in the outbox (`refs::Op::Append`). The leaf commits to the sealed
-  bytes, so after a redaction who wrote an entry is the log's word, its
-  signature no longer checkable. Online, with nothing of the block waiting ahead of it,
+- **Appending.** `Peer::append(block, app, payload)` seals a random
+  32-byte salt and the payload under the block's key, signs the entry's id
+  and the hash of the salt and the app's bytes framed by its id
+  (`be_block_protocol::log_signed` over `Said::hash`, under `sign_authored`,
+  so the signature binds the block and the app, verifies wherever the
+  plaintext and salt go, and confirms no guessed payload to whoever lacks the
+  key), and keeps it in the outbox (`refs::Op::Append`). Opening strips the
+  salt (`LoggedEntry::opened`, a `Said`; `LoggedEntry::bytes`). The leaf
+  commits to the sealed bytes, so after a redaction who wrote an entry is the
+  log's word, its signature no longer checkable. Online, with nothing of the block waiting ahead of it,
   it goes at once with any of the block's entries that wait
   (`send_appends`, batched), answering `Appended::Logged` with its place and
   arrival; otherwise `Appended::Kept`, and the drain sends it in order
@@ -268,7 +270,10 @@ taken unproven.
   hit points into, costs that page and O(log n) hashes (`LogRead::proof_hashes`).
   Offline it answers what was kept, from `from` up to the first entry it
   lacks. `Peer::logged` takes an `Event::Appended`: at once when it extends
-  the kept head, else by reading from the kept head.
+  the kept head, else by reading from the kept head. One told late, after a
+  read moved the kept head past it (a page from the log's start, an export),
+  is proved and its entries answered all the same: whoever follows the log
+  drops those it holds by their place.
 - **Cut and forked logs.** A head the server serves that does not extend the
   kept one (shorter, or with other entries) is `ClientError::LogForked`, and
   nothing of that answer is kept; so is a push of a head no longer than the
@@ -284,12 +289,18 @@ taken unproven.
 - **Exports.** `Peer::export_log` reads a block's whole log, opened, as an
   export carries it (`ExportedEntry`, `transfer::Saved::log`), and
   `Peer::verify_exported` checks an entry against the block it was written in
-  (the file's id for it), wherever the file was imported.
+  (the file's id for it) and its salt, wherever the file was imported, with
+  no key of the block. A redacted entry, or one this device cannot open, is
+  carried without what it said, and verifies as nothing (`None`). Offline it
+  carries the run from the log's start this device kept. An export proves
+  each entry's author, app and block, not that the file holds the whole log
+  or its order: it carries no head or proof, so whoever edits the file can
+  drop entries or reorder them unseen.
 - **Redactions.** A device keeps a payload it already holds until it reads
   that page again; what tells it to is a later entry naming the redacted one
   (chat's deletion entry, plans/signed_logs.md step 5).
 - **Who wrote an entry.** `Peer::verify_entry(block, app, ..., said, signature)`
-  is `verify_authored` over what the app said, with the entry's arrival,
+  is `verify_authored` over what the app said and its salt, with the entry's arrival,
   which only the server sets, so a contact's replaced key that
   signed an entry the server took after this device learned of the new key
   answers `Replaced` (guides/blocks/keys.md, "Verifying").

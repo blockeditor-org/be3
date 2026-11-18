@@ -542,6 +542,12 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     /// at its first place, folded onto what it describes.
     signed_log: BTreeMap<u64, be_block_content::LogItem>,
     signed_ids: BTreeMap<Uuid, u64>,
+    /// What it describes with a type's log: the content as last described, with the log's
+    /// entries before the place it names folded onto it, which the log's next entries fold onto
+    /// in turn while the content stays as it is.
+    folded: Option<(C, u64)>,
+    /// Entries of the log heard or read since it last described.
+    log_grew: bool,
     /// Appends an editor asked for, by the token of the call: the editor and its token.
     appends: BTreeMap<Token, (EditorId, u64)>,
     /// Reads of the log, by the token of the call: the editor and its token, or none for the
@@ -892,6 +898,8 @@ where
             }),
             signed_log: BTreeMap::new(),
             signed_ids: BTreeMap::new(),
+            folded: None,
+            log_grew: false,
             appends: BTreeMap::new(),
             log_reads: BTreeMap::new(),
             state: opened.session,
@@ -3808,23 +3816,21 @@ where
     }
 
     /// Keeps entries of the log heard or read, each id once at its first place, and has the
-    /// description fold them; answers those it had not.
+    /// description fold them; answers those it had not, or now tells better.
     fn take_log(
         &mut self,
         items: Vec<be_block_content::LogItem>,
     ) -> Vec<be_block_content::LogItem> {
         let mut fresh = Vec::new();
         for item in items {
-            let held = self.signed_log.get(&item.seq) == Some(&item)
-                || self.signed_ids.get(&item.id).is_some_and(|seq| *seq <= item.seq);
-            if held {
-                continue;
+            let seq = item.seq;
+            match crate::editor::take_logged(&mut self.signed_log, &mut self.signed_ids, item) {
+                crate::editor::Taken::Held => continue,
+                crate::editor::Taken::New => self.log_grew = true,
+                // Folded already as it was told then: the fold starts over.
+                crate::editor::Taken::Changed => self.described = true,
             }
-            fresh.push(item.clone());
-            crate::editor::take_logged(&mut self.signed_log, &mut self.signed_ids, item);
-        }
-        if !fresh.is_empty() {
-            self.described = true;
+            fresh.extend(self.signed_log.get(&seq).cloned());
         }
         fresh
     }
@@ -3854,8 +3860,10 @@ where
             (Some((editor, token)), result) => {
                 self.tell_editor(editor, &ToEditor::LogRead { token, result });
             }
-            (None, Err(error)) => self.error(format!("the block's log could not be read: {error}")),
-            (None, Ok(_)) => {}
+            // The replica's own read as it opens fails when the host is stopping, restarting
+            // its module, or offline with nothing kept: it describes the content without the
+            // log until it hears entries, and reads again as it next opens.
+            (None, _) => {}
         }
     }
 
@@ -4348,18 +4356,33 @@ where
         if !self.loaded || self.released {
             return;
         }
-        if std::mem::take(&mut self.described) {
+        let changed = std::mem::take(&mut self.described);
+        let grew = std::mem::take(&mut self.log_grew);
+        if changed || grew {
             let organization = self.organization;
             let description = match self.fold {
-                // What the content shows with its log folded onto it, in the log's order.
-                Some(fold) if !self.signed_log.is_empty() => {
-                    let mut folded = self.unheld().clone();
-                    for item in self.signed_log.values() {
-                        fold(&mut folded, item);
+                // What the content shows with its log folded onto it, in the log's order: the
+                // run of entries from its start this replica holds, up to the first it lacks,
+                // and each signed as nobody's (`Bad`) left out. Content changed folds again from
+                // the start; entries that follow on fold onto what was folded.
+                Some(fold) => {
+                    if changed || self.folded.is_none() {
+                        self.folded = Some((self.unheld().clone(), 0));
                     }
-                    crate::describe(&folded, organization)
+                    let (folded, through) = self.folded.as_mut().expect("folded is kept above");
+                    let from = *through;
+                    while let Some(item) = self.signed_log.get(&*through) {
+                        if item.signer != be_block_content::LogSigner::Bad {
+                            fold(folded, item);
+                        }
+                        *through += 1;
+                    }
+                    if !changed && *through == from {
+                        return;
+                    }
+                    crate::describe(folded, organization)
                 }
-                _ => crate::describe(self.unheld(), organization),
+                None => crate::describe(self.unheld(), organization),
             };
             self.out.push(Effect::Described {
                 replica: self.id,

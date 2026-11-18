@@ -239,7 +239,7 @@ impl ContentLink {
         be_host_stack::describe_implicitly(block, derived);
     }
 
-    fn detach(&mut self, instance: EditorInstanceId, block: Uuid, shown: &[Uuid]) {
+    fn detach(&mut self, instance: EditorInstanceId, app: &str, block: Uuid, shown: &[Uuid]) {
         if self.attached.take().is_none() {
             return;
         }
@@ -257,7 +257,12 @@ impl ContentLink {
             });
         }
         for goodbye in goodbyes {
-            be_host_stack::from_editor(block, instance.0, &be_sdk_type_api::encode_frame(&goodbye));
+            be_host_stack::from_editor(
+                block,
+                instance.0,
+                app,
+                &be_sdk_type_api::encode_frame(&goodbye),
+            );
         }
         be_host_stack::detach(block, instance.0);
     }
@@ -1013,10 +1018,10 @@ impl Instances {
         if let Some(block) = entry.role.block()
             && let Some(link) = entry.content.as_mut()
         {
-            link.detach(instance, block.id, &shown_on(block.id));
+            link.detach(instance, &self.app_id, block.id, &shown_on(block.id));
         }
         for (block, link) in &mut entry.watched {
-            link.detach(instance, *block, &shown_on(*block));
+            link.detach(instance, &self.app_id, *block, &shown_on(*block));
         }
         for preview in entry.revision_previews.values() {
             if let Some(block) = preview.block() {
@@ -1084,7 +1089,7 @@ impl Instances {
             link.awaiting_preview = true;
         }
         if !(resend && attaching) {
-            be_host_stack::from_editor(block, instance.0, &frame);
+            be_host_stack::from_editor(block, instance.0, &self.app_id, &frame);
         }
         true
     }

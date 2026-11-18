@@ -771,7 +771,10 @@ Edit can write as someone else.
   app's `verify` accepts, even in a block both are shown. Apps put their own
   domain first in their bytes (chat's `be3.chat.message`) so their records can't
   be mistaken for each other. A block's signed log is signed the same way: the host signs what a type module
-  appends as the module's app (guides/type_modules.md, "Signed logs"). `signing-block` names the block signatures bind to, which a record that names its chat or block inside its bytes uses (the block the revision is of, in a revision preview, where `editor.block_id()` is the preview's own). Signatures verify only in the app that made them: another app's `verify` answers `Bad`, which is not a forgery verdict.
+  appends as the module's app (guides/type_modules.md, "Signed logs"), and only that
+  app's editors may append. What it signs commits to a random salt sealed with the
+  payload (`Said::hash`), so neither the server nor anyone else without the block's
+  key can confirm a guessed entry against its signature, before or after a redaction. `signing-block` names the block signatures bind to, which a record that names its chat or block inside its bytes uses (the block the revision is of, in a revision preview, where `editor.block_id()` is the preview's own). Signatures verify only in the app that made them: another app's `verify` answers `Bad`, which is not a forgery verdict.
 - **Apps** never hold it: host-services' `sign` and `verify`
   (guides/apps/host_services.md) answer from the worker (`be-host-stack`
   `authorship.rs`), in the block the editor shows.
@@ -858,6 +861,9 @@ who lost access. Cited from code by these names.
 
 - **What a revoked member held** stays readable to them: every epoch before
   the rotation.
+- **Exported logs.** An export's entries each verify against their block, app
+  and author (`Peer::verify_exported`), but the file carries no head or proof:
+  whoever edits it can drop or reorder entries unseen.
 - **Withheld revocations.** A device knows a log only as far as the server
   served it, or as it kept it (`KeptLog`). A server that withholds a
   revocation, a closing or a demotion from a device keeps an older epoch

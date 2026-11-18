@@ -272,35 +272,55 @@ who signed them, `LogSigner`) changes what the content shows.
 - **Appending.** An editor sends `FromEditor::Append` (`EditorMirror::append`,
   `ContentProjection::append` in be-sdk); the replica calls `host.append`
   with the bytes alone and answers `ToEditor::Appended`. The host signs them
-  for the person as the module's app (`be_block_client::by_app` with the
+  for the person as the module's app (`be_block_client::Said::hash` with the
   module's source name, `Modules::name`) and hands them to `Peer::append`, so
   a module never holds a signature: it cannot skip signing, sign as anyone
-  else, or make an entry another app's `verify` takes.
-- **Hearing.** A replica reads its first entries as it loads (`host.read-log`,
-  which follows the log) and hears the rest through `replica.logged`, every
-  device's own included, which the host takes from `Event::Appended` once
-  `Peer::logged` proved it (`Replicas::appended`) and hands on with who signed
-  each, judged by its arrival (`Peer::verify_entry`). Neither is kept for a
-  replica opened again, which reads the log afresh. An editor hears each as
-  `ToEditor::Logged` and reads more with `FromEditor::ReadLog`
-  (`ToEditor::LogRead`).
+  else, or make an entry another app's `verify` takes. Only that app's
+  editors may ask: be-host-stack relays an editor's messages with its app's
+  id (`from_editor`, `Replicas::relay_from_app`), and an `Append` from any
+  other app's editor is answered with an error and goes no further.
+- **Hearing.** A replica reads its first 256 entries as it loads
+  (`host.read-log`, which follows the log) and hears the rest through
+  `replica.logged`, every device's own included, which the host takes from
+  `Event::Appended` once `Peer::logged` proved it (`Replicas::appended`) and
+  hands on with who signed each, judged by its arrival (`Peer::verify_entry`,
+  asking about an author it cannot tell of once a page). A push told after a
+  read already moved the head past it is still handed on, and the replica
+  drops what it holds. Neither is kept for a replica opened again, which
+  reads the log afresh; a first read that fails (a restart, offline) is no
+  error, and the replica describes its content without the log until it
+  hears entries. An editor hears each as `ToEditor::Logged` and reads more
+  with `FromEditor::ReadLog` (`ToEditor::LogRead`).
 - **Folding.** The replica and each `EditorMirror` keep the entries they
   heard or read by place, each id once at its first place
   (`editor::take_logged`), so an entry a server serves again under its id is
-  never shown twice. The replica describes its content with the log folded
-  onto a copy of it, in the log's order; what it commits never holds the
-  fold. Search does not fold the log yet (plans/signed_logs.md, step 5).
+  never shown twice; one held is replaced when told better (`Unknown` to a
+  verdict, or `Redacted`), never by `Unknown`. An editor holds the latest
+  `editor::LOG_HELD`, and be-sdk reads them through
+  `ContentProjection::with_log`. The replica describes its content with the
+  log folded onto a copy of it, in the log's order: the run of entries from
+  the log's start it holds, up to the first it lacks, so entries heard past a
+  gap (a long log read only from its start) wait until it is filled, and
+  never an entry signed as nobody's (`Bad`); a type decides what the other
+  verdicts count for. It keeps the folded copy and folds entries that follow
+  on onto it, folding from the start again only when the content changed or
+  an entry it folded is told better. What it commits never holds the fold.
+  Search does not fold the log yet (plans/signed_logs.md, step 5).
 - **Export.** An export carries a type's log opened, each entry with its
-  author's signature (`transfer::Saved::log`, `Peer::export_log`), which
-  verifies against the block it was written in wherever the file goes
-  (`Peer::verify_exported`); a duplicate (`transfer::renumber`) starts its
-  own log.
+  salt and its author's signature (`transfer::Saved::log`,
+  `Peer::export_log`), which verifies against the block it was written in
+  wherever the file goes, with no key of the block (`Peer::verify_exported`);
+  a redacted entry, or one this device could not open, is carried without
+  what it said. A duplicate (`transfer::renumber`) starts its own log, and
+  nothing reads an imported block's exported entries yet
+  (plans/signed_logs.md, step 5).
 
 Hosts: be-block-type-host's `Replicas`, be-sdk-test's store (one device, so
 every entry is its own and verified) and be-sdk-type-guest's `Sim`. Tests:
 `two_replicas_append_to_one_log_and_fold_it_in_one_order` (be-sdk-type-guest)
 and be-block-type-host's
-`what_a_module_appends_reaches_the_server_signed_by_the_host_as_its_apps`.
+`what_a_module_appends_reaches_the_server_signed_by_the_host_as_its_apps` and
+`only_the_types_own_app_writes_in_its_blocks_log`.
 
 ### Whole bytes
 
