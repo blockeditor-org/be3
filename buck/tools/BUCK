@@ -387,11 +387,12 @@ script(
     src = "msvc-cxx",
 )
 
+# The wasm C and C++ compilers. The triple is the toolchain's to give, since
+# it differs by platform (buck/toolchains/BUCK, wasi_cxx and wasm32_cxx).
 command_alias(
     name = "wasm-cc",
     args = [
         "$(location :llvm)/bin/clang",
-        "--target=wasm32-wasip1-threads",
     ],
 )
 
@@ -399,7 +400,6 @@ command_alias(
     name = "wasm-cxx",
     args = [
         "$(location :llvm)/bin/clang++",
-        "--target=wasm32-wasip1-threads",
     ],
 )
 
