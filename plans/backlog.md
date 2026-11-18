@@ -143,7 +143,11 @@ Fixed items are removed as they land.
   the holder's presence arrives or `CLAIM_INTERVAL` passes: at once in the
   common case, the timer only for a holder that sends no presence. Done: a
   test where the holder's presence is held back past the join, and the second
-  host still stands by once it arrives.
+  host still stands by once it arrives. What it needs first: presence reaches the host only
+  through its replica's `EditorMirror` (be-tool-cli's replica.rs), which lists the peers
+  that show something, not which peers it has heard from at all, so "a holder that sends
+  no presence" cannot be told from one whose presence is late until the replica says when a
+  peer's presence (empty included) has arrived.
 
 ## 9. Version control's caches
 
