@@ -633,9 +633,14 @@ pub(crate) fn append_retirements(
         entries.push(entry.clone());
         // A block's log is checked with the authority its records name, as every check of it is,
         // so what it accepts never hangs on what was checked of it before.
+        // A failure of the server's own storage is that, not a refusal.
         let follows = match kind {
             LogKind::Block => {
-                checked_block_log(connection, log.organization, log.log, &entries).is_ok()
+                match checked_block_log(connection, log.organization, log.log, &entries) {
+                    Ok(_) => true,
+                    Err(ServerError::Refused(..)) => false,
+                    Err(error) => return Err(error),
+                }
             }
             LogKind::Organization => {
                 checked(kind, log.organization, log.log, pinned, &entries, &|_| None).is_ok()
