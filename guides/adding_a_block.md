@@ -173,8 +173,8 @@ it without writing anything.
 
 Content that does not fit a document (a large file, `Blob<K>`) implements
 `BlockContent`, `LiveEdit`, `Merge` and optionally `Undo` by hand. Content that
-is a document but must not load whole wraps one and forwards those traits to
-it, saving it as the first part (`crates/be-type-chat`'s `ChatContent`). Its
+is a document but needs traits of its own wraps one and forwards those traits
+to it (`crates/be-type-chat`'s `ChatContent`). Its
 constructors and constants go on the kind (`PdfFile::from_file`), since a
 types crate cannot add methods to be-block-content's `Blob<K>`. Bump
 `BlobKind::SCHEMA` when the header changes so an old one would be misread;

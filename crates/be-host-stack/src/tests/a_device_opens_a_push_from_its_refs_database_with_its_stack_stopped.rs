@@ -24,12 +24,7 @@ fn a_device_opens_a_push_from_its_refs_database_with_its_stack_stopped() {
         crate::refs_in(&phone_dir).expect("the phone's refs database opens"),
     );
     let block = Uuid::new_v4();
-    let mut chat = be_type_chat::ChatContent::default();
-    let (_, said) = chat.send(
-        block,
-        be_type_chat::Message::new(harness.account, 1, "Lunch?"),
-    );
-    chat.apply(&be_type_chat::ChatOp::from(said));
+    let chat = be_type_chat::ChatContent::default();
     create(
         block,
         be_type_chat::ChatContent::CONTENT_TYPE,

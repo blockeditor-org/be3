@@ -2284,11 +2284,21 @@ impl<H: Host> Replicas<H> {
         }
     }
 
+    /// Attaches `editor` to `block`'s replica. One attached while the replica closes (its last
+    /// editor left a moment before) has the block opened again once it closed, and follows the
+    /// replica opened in its place, rather than one that is going.
     pub fn attach(&mut self, block: Uuid, editor: EditorId, editable: bool) {
         let Some((replica, open)) = self.replica_of(block) else {
             return;
         };
         if open.editors.get(&editor) == Some(&editable) {
+            return;
+        }
+        if open.closing
+            && let Some(open) = self.open.get_mut(&replica)
+        {
+            open.reopen = true;
+            open.editors.insert(editor, editable);
             return;
         }
         self.attach_now(replica, editor, editable);
@@ -3077,7 +3087,7 @@ impl<H: Host> Replicas<H> {
         let scope = types::Scope::of([&content]);
         let (answer, mut scope) = self
             .ask_reading(ctx, module, scope, |connection| {
-                replicas::unread(connection, content_type, content, place, &log, account)
+                replicas::unread(connection, content_type, content, place, log, account)
             })
             .await;
         if let Some(failed) = scope.take_failure() {
@@ -3520,6 +3530,32 @@ impl<H: Host> Replicas<H> {
     /// Takes an append to the signed log of an open block (`Peer::logged`, which proves it
     /// extends the head this device holds) and hands the replica the entries it verified, as
     /// the app that wrote them.
+    /// Follows the signed log of each open block of a type with one again, as the device
+    /// connects: a follow ends with the connection it was made on, and one a replica's editors
+    /// asked for offline was never made. Each reads on from the head this device kept, so what
+    /// was appended meanwhile (this device's own entries the outbox drained among them) reaches
+    /// the replica as appends told do.
+    pub fn follow_logs(&mut self, (peer, _): Ctx<'_, H>) {
+        for open in self.open.values() {
+            if !crate::kind_of(open.content_type).is_some_and(|kind| kind.log) {
+                continue;
+            }
+            let (block, app) = (open.block, self.modules.name(open.module).to_owned());
+            let (peer, io) = (Arc::clone(peer), self.io.clone());
+            H::spawn(async move {
+                let from = peer.log_head(block).map_or(0, |head| head.size);
+                let Ok(read) = peer.read_log(block, from, u32::MAX).await else {
+                    return;
+                };
+                let items = log_items(&peer, block, &app, read.entries).await;
+                if !items.is_empty() {
+                    let _ = io.send(Io::Logged { block, items });
+                    H::wake();
+                }
+            });
+        }
+    }
+
     fn appended(&mut self, peer: &Arc<Peer<H::Store>>, appended: be_block_protocol::Appended) {
         let block = appended.block;
         let Some(module) = self
