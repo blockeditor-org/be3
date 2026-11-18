@@ -2,4 +2,7 @@ load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_package")
 
 cargo_package()
 
-cargo_library(resources = glob(["wit/*.wit"]))
+cargo_library(
+    foreign_resources = {"//crates/be-wasm-ops:wit": "crates/be-wasm-ops"},
+    resources = glob(["wit/*.wit"]),
+)

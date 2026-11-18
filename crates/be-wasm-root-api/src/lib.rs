@@ -10,14 +10,17 @@ pub use be_wasm_ops as ops;
 be_wasm_ops_bindgen::generate!({
     path: "wit",
     world: "root",
+    deps: ["../be-wasm-ops/wit"],
     with: {
+        "uuid": [u8; 16],
         "password": ::be_wasm_password::Password,
     },
+    copy: ["uuid"],
     secret: ["password"],
 });
 
 pub use frames::{FrameDone, FrameRequest};
 pub use host::{
-    DisplayQuestion, DisplayState,    HostStatistics, LockState, Notice, NoticeAction, PowerAction, SavingState, ShownNotices,
-    StatisticRow, SyncState,
+    CoreCommand, CoreView, DisplayQuestion, DisplayState, HostStatistics, LockState, Notice, NoticeAction, PowerAction, SavingState, ShownNotices,
+    Refusal, SetAside, StatisticRow, SyncState, UnsentEdit,
 };

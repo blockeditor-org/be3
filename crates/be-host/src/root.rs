@@ -249,7 +249,7 @@ impl RootShell {
             Err(why) => return self.stopped(&why),
         };
         clipboard(context, root, &self.pasted);
-        refuse_lock(root);
+        refuse_unserved(root);
         let answers = root.take_answers();
         if !answers.is_empty() {
             answer_notices(context, answers);
@@ -545,16 +545,19 @@ fn statistic_row(row: be_host_base::performance::PerformanceRow) -> StatisticRow
     }
 }
 
-/// Answers what the root asked of the session's screen lock: `--root` runs no screen lock (it
-/// is refused as a login session), so the lock is unavailable, as `be3:root` answers by default,
-/// and asking to lock or a power action from the lock screen changes nothing. `be3:root` drops
-/// a password handed over while the session is not locked, so none reaches here.
-fn refuse_lock(root: &mut Root) {
+/// Answers what the root asked of what `--root` does not run yet (4g7 brings each back), so
+/// that each request changes nothing:
+/// - The session's screen lock: it runs none (it is refused as a login session), so the lock is
+///   unavailable, as `be3:root` answers by default, and asking to lock or a power action from
+///   the lock screen changes nothing. `be3:root` drops a password handed over while the session
+///   is not locked, so none reaches here.
+/// - Displays (the desktop's): it asks to keep none, and an answer changes nothing.
+/// - The block stack: it shows nothing (no unsent changes), so it asks nothing of it.
+fn refuse_unserved(root: &mut Root) {
     root.take_lock_asked();
     root.take_lock_powers();
-    // Nor does it manage displays (the desktop's), so it asks to keep none, and an answer
-    // changes nothing.
     root.take_display_answers();
+    root.take_core_commands();
 }
 
 /// The host's notices as `be3:root` carries them, oldest first.

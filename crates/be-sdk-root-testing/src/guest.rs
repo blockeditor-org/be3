@@ -23,21 +23,21 @@ use be_wasm_guest_abi::{Flow, Guest, Waker};
 use be_wasm_ops::guest::{Executor, LocalFuture};
 use be_wasm_password::Password;
 use be_wasm_root_api::{
-    DisplayQuestion, FrameDone, FrameRequest, HostStatistics, LockState, Notice, PowerAction, SavingState,
-    StatisticRow, SyncState,
+    CoreCommand, CoreView, DisplayQuestion, FrameDone, FrameRequest, HostStatistics, LockState,
+    Notice, PowerAction, Refusal, SavingState, SetAside, StatisticRow, SyncState, UnsentEdit,
     guest::{
         exports::{frames, input, paintings},
         host,
     },
 };
-use beui::icons::{Glyph, ICON_LOG_OUT, ICON_MOON, ICON_POWER, ICON_ROTATE_CCW};
+use beui::icons::{Glyph, ICON_LOG_OUT, ICON_MOON, ICON_POWER, ICON_ROTATE_CCW, ICON_TRASH};
 use beui::native::painting::{Frame as PaintFrame, Painting, ScreenPaintings};
 use beui::reactive::*;
 use beui::styled::*;
 use beui::{Align, Align2, Direction, KeyPhase, NodeId, Overflow, Pos2, Rect, TextAlign, vec2};
 
 use crate::{
-    APP, APP_ENTRY, CLOSES, DIALOG_LAYER, DIALOG_ORIGIN, KEEP_DISPLAY_TITLE, DIALOG_SIZE, DIALOG_SURFACE, DIALOG_TITLE,
+    APP, APP_ENTRY, CLOSES, DIALOG_LAYER, DISCARD_UNSENT_TITLE, OPENS_UNSENT, UNSENT_TITLE, DIALOG_ORIGIN, KEEP_DISPLAY_TITLE, DIALOG_SIZE, DIALOG_SURFACE, DIALOG_TITLE,
     LATE_LAYER, LATER, LATER_TEXT, LOCK_LAYER, LOCK_SURFACE, LOCKS_SESSION, OPENS_DIALOG,
     OPENS_STATISTICS, ORIGIN, RASTER, RESIZED, RESIZES, ROOT_COLOR, ROOT_LAYER, ROOT_SURFACE,
     SCREEN, SCREEN_SIZE, SCRIM_COLOR, SCRIM_LAYER, SCRIM_SURFACE, SIZE, SLOW_SAVE, SLOW_SAVE_TITLE,
@@ -80,6 +80,10 @@ struct Root {
     keep_asking: Rc<RefCell<Option<DisplayQuestion>>>,
     /// The round of display settings the root answered last, which it does not ask again.
     keep_answered: Rc<Cell<Option<u64>>>,
+    /// What the block stack shows the person, as its host said last.
+    core: Rc<RefCell<CoreView>>,
+    /// The core's view its list of unsent edits shows, while that list is its open dialog.
+    core_shown: Rc<Cell<Option<Signal<CoreView>>>>,
     /// The surface a `RESIZES` frame configures and never presents.
     unpresented: Rc<RefCell<Option<OwnSurface>>>,
     /// The scrim under its dialog, filled with `SCRIM_COLOR` on its first frame.
@@ -135,6 +139,8 @@ enum Closed {
 enum Asking {
     Rename,
     KeepDisplay(DisplayQuestion),
+    /// The list of the block stack's unsent edits.
+    Unsent,
 }
 
 /// The root's lock screen while the session is locked.
@@ -154,6 +160,7 @@ struct Locked {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Asked {
     Open,
+    OpenUnsent,
     Close,
     ToggleStatistics,
 }
@@ -172,6 +179,11 @@ impl Root {
             saving: Rc::default(),
             keep_asking: Rc::default(),
             keep_answered: Rc::default(),
+            core: Rc::new(RefCell::new(CoreView {
+                generation: 0,
+                unsent: Vec::new(),
+            })),
+            core_shown: Rc::default(),
             unpresented: Rc::default(),
             scrim: Rc::default(),
             dialog: Rc::default(),
@@ -259,6 +271,7 @@ impl Root {
         be_wasm_ops::guest::spawn(self.clone().hear_lock());
         be_wasm_ops::guest::spawn(self.clone().hear_saving());
         be_wasm_ops::guest::spawn(self.clone().hear_displays());
+        be_wasm_ops::guest::spawn(self.clone().hear_core());
         Ok(())
     }
 
@@ -298,6 +311,21 @@ impl Root {
             seen = displays.generation;
             *self.keep_asking.borrow_mut() = displays.asking;
             self.waker.wake();
+        }
+    }
+
+    /// Keeps what the block stack shows the person as each change of it comes, until the host
+    /// stops answering, and shows it in the list of unsent edits while that is open.
+    async fn hear_core(self) {
+        let mut seen = 0;
+        while let Ok(view) = host::core(seen).await {
+            seen = view.generation;
+            *self.core.borrow_mut() = view.clone();
+            if let (Some(dialog), Some(shown)) =
+                (&mut *self.dialog.borrow_mut(), self.core_shown.get())
+            {
+                dialog.surface.enter(|| shown.set(view));
+            }
         }
     }
 
@@ -410,6 +438,7 @@ impl Root {
             let asked = match &delivery.input {
                 Input::Key(stroke) if stroke.pressed && !stroke.repeat => match stroke.key {
                     Some(key) if key == OPENS_DIALOG && !open => Some(Asked::Open),
+                    Some(key) if key == OPENS_UNSENT && !open => Some(Asked::OpenUnsent),
                     Some(key) if key == OPENS_STATISTICS => Some(Asked::ToggleStatistics),
                     Some(key) if key == UNLOCKS_TWICE => {
                         unlock(STRAY_PASSWORD.to_owned());
@@ -586,6 +615,9 @@ impl Root {
             _ if !locked && asked == Some(Asked::Open) && self.dialog.borrow().is_none() => {
                 Some(Asking::Rename)
             }
+            _ if !locked && asked == Some(Asked::OpenUnsent) && self.dialog.borrow().is_none() => {
+                Some(Asking::Unsent)
+            }
             _ => None,
         };
         if closed.is_some() || asked == Some(Asked::Close) || withdrawn || opening.is_some() {
@@ -613,6 +645,7 @@ impl Root {
         let Some(dialog) = self.dialog.borrow_mut().take() else {
             return;
         };
+        self.core_shown.set(None);
         let mut embedding = self.embedding.borrow_mut();
         embedding.intercept(chords(false));
         let told = embedding.focus(None, dialog.had);
@@ -632,8 +665,10 @@ impl Root {
         let waker = self.waker.clone();
         let keep = match &opening {
             Asking::KeepDisplay(asked) => Some(asked.round),
-            Asking::Rename => None,
+            Asking::Rename | Asking::Unsent => None,
         };
+        let core = self.core.borrow().clone();
+        let core_shown = Rc::clone(&self.core_shown);
         let surface = BeuiSurface::new(
             &beui,
             OwnSurface::new(DIALOG_SURFACE, DIALOG_SIZE),
@@ -647,6 +682,11 @@ impl Root {
                     Asking::Rename => view! { <RenameDialog done={done} /> },
                     Asking::KeepDisplay(asked) => {
                         view! { <KeepDisplayDialog asked shown_at done={done} /> }
+                    }
+                    Asking::Unsent => {
+                        let core = create_signal(core);
+                        core_shown.set(Some(core));
+                        view! { <UnsentDialog core={core} done={done} /> }
                     }
                 };
                 view! {
@@ -672,7 +712,7 @@ impl Root {
 
 /// The chords the root takes ahead of the focus, while the session is not locked: F2, which
 /// opens the dialog, F3, which opens and closes the statistics panel, F4, which locks the
-/// session, and Escape while
+/// session, F5, the test fixture, F7, which opens the list of unsent edits, and Escape while
 /// the dialog is open but the focus is outside it. With the focus in the dialog, Escape is its
 /// document's, which closes it once nothing in it (a popup) took the key first.
 fn chords(escape: bool) -> Vec<KeyChord> {
@@ -681,6 +721,7 @@ fn chords(escape: bool) -> Vec<KeyChord> {
         KeyChord::new(OPENS_STATISTICS, Modifiers::NONE),
         KeyChord::new(LOCKS_SESSION, Modifiers::NONE),
         KeyChord::new(UNLOCKS_TWICE, Modifiers::NONE),
+        KeyChord::new(OPENS_UNSENT, Modifiers::NONE),
     ];
     if escape {
         chords.push(KeyChord::new(Key::Escape, Modifiers::NONE));
@@ -1129,6 +1170,160 @@ fn KeepDisplayDialog(asked: DisplayQuestion, shown_at: Duration, done: Callback<
             </DialogBody>
         </Frame>
     }
+}
+
+/// The list of the block stack's unsent edits, as `core` shows them: each block's name and why
+/// its edits were set aside, with Restore, which sends them again, and Discard, which asks
+/// first, in the list's place. A block that leaves the list takes its question with it. Escape
+/// cancels the question, or else closes the list.
+#[component]
+fn UnsentDialog(core: Signal<CoreView>, done: Callback<Closed>) -> NodeId {
+    // A memo per area of the core's view: this one changes only when the unsent edits do.
+    let edits = create_memo(move || core.get().unsent);
+    let discarding = create_signal(None::<[u8; 16]>);
+    let asked = create_memo(move || {
+        let block = discarding.get()?;
+        edits.with(|edits| edits.iter().find(|edit| edit.block == block).cloned())
+    });
+    let asks = create_memo(move || asked.with(Option::is_some));
+    let question = create_memo(move || {
+        let name = asked.with(|edit| edit.as_ref().map(edit_name).unwrap_or_default());
+        format!("Discard the edits to {name}? They are kept only on this device, and cannot be brought back.")
+    });
+    let discard = move || {
+        if let Some(edit) = asked.get() {
+            ask_core(CoreCommand::DiscardUnsent(edit.block));
+        }
+        discarding.set(None);
+    };
+    on_key(
+        KeyAt::Node(component_node()),
+        KeyPhase::Bubble,
+        KeyReveal::Focus,
+        move |event| {
+            let closes = event
+                .press()
+                .is_some_and(|press| press.pressed && !press.repeat && press.key == Key::Escape);
+            if closes {
+                match asks.get_untracked() {
+                    true => discarding.set(None),
+                    false => done.call(Closed::Dismissed),
+                }
+            }
+            closes
+        },
+    );
+    view! {
+        <Frame
+            width=Length::FILL
+            height=Length::FILL
+            fill=ColorRole::Surface
+            border={Border::DEFAULT}
+            radius=Radius::Lg
+        >
+            <Show
+                value={asks}
+                fallback={move || view! {
+                    <DialogBody
+                        title=UNSENT_TITLE
+                        actions={vec![DialogAction::cancel("Close")]}
+                        on_dismiss={move || done.call(Closed::Dismissed)}
+                    >
+                        <List spacing=Space::Md>
+                            <ForEach
+                                value={edits}
+                                key={|edit: &UnsentEdit| edit.block}
+                                fallback={|| view! {
+                                    <Text style=TextStyle::CAPTION>"No unsent edits."</Text>
+                                }}
+                            >|edit: ReadSignal<UnsentEdit>| {
+                                let block = edit.with_untracked(|edit| edit.block);
+                                let name = create_memo(move || edit.with(edit_name));
+                                let detail = create_memo(move || edit.with(edit_detail));
+                                view! {
+                                    <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
+                                        <ListItem grow=1.0>
+                                            <List spacing=Space::Xs2>
+                                                <Text>{name}</Text>
+                                                <Text style=TextStyle::CAPTION>{detail}</Text>
+                                            </List>
+                                        </ListItem>
+                                        <Button
+                                            label="Restore"
+                                            variant=ButtonVariant::Primary
+                                            disabled={move || !edit.get().offerable}
+                                            on_click={move || ask_core(CoreCommand::RestoreUnsent(block))}
+                                        />
+                                        <Button
+                                            icon_only=true
+                                            glyph=ICON_TRASH
+                                            label="Discard"
+                                            on_click={move || discarding.set(Some(block))}
+                                        />
+                                    </List>
+                                }
+                            }</ForEach>
+                        </List>
+                    </DialogBody>
+                }}
+            >
+                <DialogBody
+                    kind=DialogKind::Alert
+                    title=DISCARD_UNSENT_TITLE
+                    scrolls=false
+                    actions={vec![
+                        DialogAction::destructive("Discard", discard),
+                        DialogAction::cancel("Keep"),
+                    ]}
+                    on_dismiss={move || discarding.set(None)}
+                >
+                    <Text style=TextStyle::PARAGRAPH>{question}</Text>
+                </DialogBody>
+            </Show>
+        </Frame>
+    }
+}
+
+/// An unsent block's name, or what the root calls one with none.
+fn edit_name(edit: &UnsentEdit) -> String {
+    edit.name.clone().unwrap_or_else(|| "Untitled".to_owned())
+}
+
+/// Why a block's edits went unsent, and how many never became a commit, in words.
+fn edit_detail(edit: &UnsentEdit) -> String {
+    let why = match (&edit.aside, edit.offerable) {
+        (Some(SetAside::Refused(refusal)), _) => {
+            let why = match refusal {
+                Refusal::OverQuota => "it would go over a limit",
+                Refusal::Invalid => "it could not take it as it is",
+                Refusal::Policy => "your organization does not allow it",
+                Refusal::NotPermitted => "you may not make it there",
+                Refusal::Unexplained => "it would not say why",
+            };
+            format!("The server refused it: {why}")
+        }
+        (Some(SetAside::KeyOutdated), _) => {
+            "It was locked offline with a key someone who lost access may hold: discard it to go on editing".to_owned()
+        }
+        (Some(SetAside::Misplaced), _) => {
+            "It was locked offline under a folder it is not really in: discard it to go on editing".to_owned()
+        }
+        (None, true) => "You can edit it again".to_owned(),
+        (None, false) => "You cannot edit it now".to_owned(),
+    };
+    match edit.kept_edits {
+        0 => why,
+        1 => format!("{why}. 1 unsaved edit"),
+        kept => format!("{why}. {kept} unsaved edits"),
+    }
+}
+
+/// Asks its host's block stack to do `command`.
+fn ask_core(command: CoreCommand) {
+    be_wasm_ops::guest::spawn(async move {
+        // A host that cannot hear it has stopped, which the root hears from its frames.
+        let _ = host::ask_core(command).await;
+    });
 }
 
 /// The strip of text: `TEXT`, and `LATER_TEXT` from `LATER` on, or the `name` the dialog gave.

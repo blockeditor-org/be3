@@ -153,6 +153,12 @@ struct Core<G> {
     /// and whether kept, until the host takes them: only answers to the round asked when the
     /// answer came.
     display_answers: Vec<(u64, bool)>,
+    /// What the block stack shows the person, which `host.core` answers.
+    core: be_wasm_root_api::CoreView,
+    /// The root's `host.core` calls waiting for it to change from what they saw.
+    core_watchers: Vec<Reply<be_wasm_root_api::CoreView>>,
+    /// What the root asked of the block stack (`host.ask-core`), until the host takes it.
+    core_commands: Vec<be_wasm_root_api::CoreCommand>,
 }
 
 impl<G: Inline> Core<G> {
@@ -218,6 +224,12 @@ impl<G: Inline> Core<G> {
             },
             display_watchers: Vec::new(),
             display_answers: Vec::new(),
+            core: be_wasm_root_api::CoreView {
+                generation: 1,
+                unsent: Vec::new(),
+            },
+            core_watchers: Vec::new(),
+            core_commands: Vec::new(),
         };
         core.received()?;
         Ok(core)
@@ -406,6 +418,35 @@ impl<G: Inline> Core<G> {
         answered
     }
 
+    /// Shows the root what the block stack shows the person (`host.core`), in place of what it
+    /// showed: `shown`'s generation is the host's to count, so it is ignored. Answers whether a
+    /// root's call waited for it.
+    fn show_core(&mut self, shown: be_wasm_root_api::CoreView) -> bool {
+        let generation = self.core.generation;
+        if (be_wasm_root_api::CoreView {
+            generation,
+            ..shown.clone()
+        }) == self.core
+        {
+            return false;
+        }
+        self.core = be_wasm_root_api::CoreView {
+            generation: generation + 1,
+            ..shown
+        };
+        let watching = std::mem::take(&mut self.core_watchers);
+        let answered = !watching.is_empty();
+        for reply in watching {
+            reply.send(&mut self.connection, &self.core);
+        }
+        answered
+    }
+
+    /// What the root asked of the block stack since the last call, oldest first.
+    fn take_core_commands(&mut self) -> Vec<be_wasm_root_api::CoreCommand> {
+        std::mem::take(&mut self.core_commands)
+    }
+
     /// How the root answered the display questions since the last call, oldest first.
     fn take_display_answers(&mut self) -> Vec<(u64, bool)> {
         std::mem::take(&mut self.display_answers)
@@ -574,6 +615,12 @@ impl<G: Inline> Core<G> {
                             .remove(at)
                             .fail(&mut self.connection, OpError::Canceled);
                     } else if let Some(at) =
+                        self.core_watchers.iter().position(|reply| reply.op() == op)
+                    {
+                        self.core_watchers
+                            .remove(at)
+                            .fail(&mut self.connection, OpError::Canceled);
+                    } else if let Some(at) =
                         self.display_watchers.iter().position(|reply| reply.op() == op)
                     {
                         self.display_watchers
@@ -682,6 +729,16 @@ impl<G: Inline> Core<G> {
                     true => self.display_watchers.push(reply),
                     false => reply.send(&mut self.connection, &self.displays),
                 }
+            }
+            embed::Call::Host(embed::host::Call::Core { seen, reply }) => {
+                match seen == self.core.generation {
+                    true => self.core_watchers.push(reply),
+                    false => reply.send(&mut self.connection, &self.core),
+                }
+            }
+            embed::Call::Host(embed::host::Call::AskCore { command, reply }) => {
+                self.core_commands.push(command);
+                reply.send(&mut self.connection, &());
             }
             embed::Call::Host(embed::host::Call::AnswerDisplay { round, keep, reply }) => {
                 // An answer to a round no longer asked (answered, withdrawn, or one the root
