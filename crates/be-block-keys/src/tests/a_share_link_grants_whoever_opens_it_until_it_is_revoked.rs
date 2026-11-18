@@ -106,8 +106,22 @@ fn a_share_link_grants_whoever_opens_it_until_it_is_revoked() {
     );
     let raised = Entry::opened(&code, block, granted.hash(), viewer_id, &viewer, Level::Edit);
     assert!(
-        check(&[root.clone(), made.clone(), granted, raised]).is_ok(),
+        check(&[root.clone(), made.clone(), granted.clone(), raised]).is_ok(),
         "the same keys raise them"
+    );
+
+    // A grantee who took a new phrase opens a link with its new keys, never its retired ones.
+    let renewed = RecoveryPhrase::generate().secret();
+    let retired = Entry::retirement(&viewer, &renewed, viewer_id, block, granted.hash());
+    let with_new = Entry::opened(&code, block, retired.hash(), viewer_id, &renewed, Level::Edit);
+    assert!(
+        check(&[root.clone(), made.clone(), granted.clone(), retired.clone(), with_new]).is_ok(),
+        "a grantee's new keys open a link after its retirement"
+    );
+    let with_old = Entry::opened(&code, block, retired.hash(), viewer_id, &viewer, Level::Edit);
+    assert!(
+        check(&[root.clone(), made.clone(), granted.clone(), retired, with_old]).is_err(),
+        "its retired keys open nothing"
     );
 
     let revoked = link(&owner, owner_id, joined.hash(), &code, false, true);

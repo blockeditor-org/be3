@@ -1017,10 +1017,15 @@ impl ServerStore {
                 None => graph
                     .visible(identity.account)
                     .into_keys()
-                    .chain(match graph.contains(settings) {
-                        true => graph.subtree(settings),
-                        false => Vec::new(),
-                    })
+                    // A guest reads none of the organization's settings.
+                    .chain(
+                        match graph.contains(settings)
+                            && identity.role != be_block_protocol::OrganizationRole::Guest
+                        {
+                            true => graph.subtree(settings),
+                            false => Vec::new(),
+                        },
+                    )
                     .collect(),
                 Some(blocks) => blocks
                     .into_iter()
