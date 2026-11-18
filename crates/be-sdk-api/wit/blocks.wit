@@ -151,6 +151,25 @@ interface blocks {
         /// of the block, while this device hosts it, and only to a member it
         /// heard join (`member-event.joined`).
         tell-member(member-said),
+        /// Sends the block's host `payload`, sealed on this device's channel to
+        /// it (plans/hosted_blocks.md, "Hosting"). Only an editor opened as a
+        /// Join member (`opening-kind.join`), and only while the channel is
+        /// open (`channel-event.open`): what is told while it is not is lost.
+        tell-host(list<u8>),
+    }
+
+    /// The host channel of the block an editor opened as a Join member
+    /// (`opening-kind.join`; plans/hosted_blocks.md, "Hosting"): what the host
+    /// says on it, and whether it is open.
+    variant channel-event {
+        /// A host answered: the channel is open to the account that hosts.
+        /// Told again, after `closed`, when another account's device takes the
+        /// lease or the channel is made again.
+        open(account-id),
+        /// No host is online, or the channel broke and is being made again:
+        /// what was told on it and not answered may be lost.
+        closed,
+        said(list<u8>),
     }
 
     /// A member of the host channel of the block a host component runs on came,

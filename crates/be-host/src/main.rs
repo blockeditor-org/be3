@@ -3544,8 +3544,9 @@ impl HostCore {
                 self.queue_reorder(id, Uuid::from_bytes(parent), after.map(Uuid::from_bytes))
             }
             BlockCommand::Restore => self.restore(id),
-            // The runtime answers it for a host component (`Instances::act_on`).
-            BlockCommand::TellMember(_) => {}
+            // The runtime answers them for a host component and a Join member
+            // (`Instances::act_on`).
+            BlockCommand::TellMember(_) | BlockCommand::TellHost(_) => {}
             BlockCommand::Place {
                 block_type,
                 parent,

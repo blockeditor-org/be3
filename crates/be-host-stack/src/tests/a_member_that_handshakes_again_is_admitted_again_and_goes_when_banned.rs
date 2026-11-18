@@ -41,7 +41,7 @@ fn a_member_that_handshakes_again_is_admitted_again_and_goes_when_banned() {
     set_access(block, editor.account(), be_block_graph::Access::Edit, |_| {});
     flush_and_send();
     assert_eq!(status().error, None);
-    wait_until("held the world's lease", |shared| shared.hosting.holds(block));
+    wait_until("held the world's lease", |shared| shared.hosted.contains(&block));
 
     let peer = &viewer.peer;
     let mut events = peer.connection().subscribe();
@@ -82,13 +82,13 @@ fn a_member_that_handshakes_again_is_admitted_again_and_goes_when_banned() {
         level: be_sdk_api::AccessLevel::View,
     });
     wait_until("admitted the viewer", |shared| {
-        shared.hosting.queued(block).contains(&joined)
+        crate::hosting::queued(shared, block).contains(&joined)
     });
     take_member_events(block);
 
     let _second = handshake(&mut events, host);
     wait_until("admitted the viewer again", |shared| {
-        shared.hosting.queued(block).contains(&joined)
+        crate::hosting::queued(shared, block).contains(&joined)
     });
     let heard = take_member_events(block);
     assert_eq!(
@@ -106,6 +106,6 @@ fn a_member_that_handshakes_again_is_admitted_again_and_goes_when_banned() {
             .expect("the editor bans the viewer");
     });
     wait_until("dropped the banned viewer", |shared| {
-        shared.hosting.queued(block).contains(&MemberEvent::Left(member))
+        crate::hosting::queued(shared, block).contains(&MemberEvent::Left(member))
     });
 }

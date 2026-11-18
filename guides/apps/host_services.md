@@ -353,8 +353,9 @@ own. The component hears its block's host channel members as `editor-event.membe
 (`member-event`: `joined` with the member's number, account and level, `said`,
 `left`), which be-host-stack admits and checks (`crates/be-host-stack/src/hosting.rs`,
 guides/blocks/keys.md, "Hosted channels") and the runtime passes on
-(`be_host_stack::take_member_events`, read when `member_events_revision`
-moves), and answers one with the block command `tell-member`, which only a
+(`be_host_stack::take_member_events`, read when `news_revision` moves; the
+worker queues them in `Seen::member_news`, which reaches the page on the web
+too), and answers one with the block command `tell-member`, which only a
 host component of its own block may send. A member goes (`left`) when it
 leaves the session, when a message of its does not open (taken then as its new
 handshake), when the component falls too far behind to hear it, and when the
@@ -366,6 +367,25 @@ when a lease (`be_host_stack::lease_revision`), the instances running
 (`be_host_runtime::roles_revision`) or the graph changed, and does not start a
 failed one again until the block stops being one it should host. In
 be-sdk-beui, `Editor::on_member` and `Editor::tell_member`.
+
+The other end of the channel is an ordinary editor. An editor opened on a
+block whose access is Join opens with `opening-kind.join` (block, type), is
+given no content (`Instance::connect_join`, `EditorHost::joined`), and speaks
+to whoever hosts the block: it hears `editor-event.channel` (`channel-event`:
+`open` with the hosting account, `closed`, `said`) and sends with the block
+command `tell-host`, which only a Join editor of its own block may send and
+which is lost while the channel is not open. The runtime asks the stack for
+the channel while such an editor is open (`be_host_stack::want_channel`), and
+the stack joins the block's session as a Join member, handshakes with the
+account holding the lease, and makes the channel again whenever the host
+changes, the session is joined again, or a message on it does not open
+(`crates/be-host-stack/src/joining.rs`); what the editor tells the host leaves
+one message at a time, and one the server holds back (`slow-down`) is sent
+again, the same bytes, before any after it. An editor open on a block whose
+access falls to Join, or rises from it, is closed at the app and opened again
+as the other kind, so a participant that falls to Join handshakes as a member.
+One just opened hears first who hosts now (`be_host_stack::channel_host`).
+In be-sdk-beui, `Editor::joined`, `Editor::on_channel` and `Editor::tell_host`.
 
 ## Workers
 

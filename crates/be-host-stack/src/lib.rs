@@ -19,6 +19,7 @@ mod diff;
 pub mod discovery;
 mod graph;
 mod hosting;
+mod joining;
 pub mod invite_link;
 pub mod keys;
 pub mod link;
@@ -355,6 +356,8 @@ struct Stack {
     storage_watched: bool,
     /// The full-text searches each owner shows (`want_searches`).
     searches: std::collections::HashMap<Owner, Vec<SearchAsk>>,
+    /// The block whose host channel each Join editor joins (`want_channel`).
+    channels: std::collections::HashMap<Owner, Uuid>,
     /// Natively, the worker's own state, for a test to wait on and reach into: the page never
     /// locks it. On the web it is the worker's alone.
     #[cfg(not(target_arch = "wasm32"))]
@@ -683,6 +686,7 @@ pub fn start(config: Config) {
         kept_frames: std::collections::HashMap::new(),
         storage_watched: false,
         searches: std::collections::HashMap::new(),
+        channels: std::collections::HashMap::new(),
         #[cfg(not(target_arch = "wasm32"))]
         shared,
         #[cfg(not(target_arch = "wasm32"))]
@@ -1086,46 +1090,92 @@ pub fn detach(block: Uuid, editor: u64) {
 /// What the host component running on `block` has yet to hear of its host channel's members
 /// (plans/hosted_blocks.md, "Hosting"), taken: the runtime passes it on as `member-event`s.
 pub fn take_member_events(block: Uuid) -> Vec<be_sdk_api::blocks::MemberEvent> {
-    let held = stack().lock().unwrap_or_else(PoisonError::into_inner);
-    let Some(stack) = held.as_ref() else {
+    let Some((events, upto)) = with_seen(|seen| {
+        let news = seen.member_news.get(&block)?;
+        let events = news.iter().map(|news| hosting::event_of(&news.news)).collect();
+        Some((events, news.last()?.number))
+    })
+    .flatten() else {
         return Vec::new();
     };
-    hosting::take_events(&stack.shared, block)
+    edit(vec![Edit::TookMemberNews { block, upto }]);
+    events
 }
 
-/// How many events were ever queued for host components: the runtime takes them
-/// (`take_member_events`) only when this moved.
-pub fn member_events_revision() -> u64 {
-    hosting::events_revision()
+/// What the Join editors of `block` have yet to hear of its host channel
+/// (plans/hosted_blocks.md, "Hosting"), taken: the runtime passes it on as `channel-event`s.
+pub fn take_channel_events(block: Uuid) -> Vec<be_sdk_api::blocks::ChannelEvent> {
+    let Some((events, upto)) = with_seen(|seen| {
+        let news = seen.channel_news.get(&block)?;
+        let events = news.iter().map(|news| joining::event_of(&news.news)).collect();
+        Some((events, news.last()?.number))
+    })
+    .flatten() else {
+        return Vec::new();
+    };
+    edit(vec![Edit::TookChannelNews { block, upto }]);
+    events
+}
+
+/// How many events were ever queued for host components and Join editors: the runtime takes
+/// them (`take_member_events`, `take_channel_events`) only when this moved.
+pub fn news_revision() -> u64 {
+    with_seen(|seen| seen.news_queued).unwrap_or_default()
 }
 
 /// How many times the blocks whose lease this device holds changed: be-host looks again at
 /// which host components should run only when this, or the editors open, moved.
 pub fn lease_revision() -> u64 {
-    hosting::lease_revision()
+    with_seen(|seen| seen.leases_changed).unwrap_or_default()
 }
 
 /// A host component starts on `block`: it hears every member already admitted join, and none of
 /// what an earlier component left untaken.
 pub fn restart_host(block: Uuid) {
-    let held = stack().lock().unwrap_or_else(PoisonError::into_inner);
-    if let Some(stack) = held.as_ref() {
-        hosting::restart(&stack.shared, block);
-    }
+    edit(vec![Edit::TookMemberNews {
+        block,
+        upto: u64::MAX,
+    }]);
+    send(Command::RestartHost(block));
 }
 
 /// Whether this device's replica holds `block`'s session's lease, so a host component may run
 /// on it here.
 pub fn holds_lease(block: Uuid) -> bool {
-    let held = stack().lock().unwrap_or_else(PoisonError::into_inner);
-    held.as_ref().is_some_and(|stack| {
-        stack
-            .shared
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .hosting
-            .holds(block)
+    with_seen(|seen| seen.hosted.contains(&block)).unwrap_or_default()
+}
+
+/// Names the block whose host channel `owner`, an editor opened as a Join member, joins
+/// (`opening-kind.join`), or none: this device joins the session of each block some owner
+/// names, and leaves it once none does.
+pub fn want_channel(owner: Owner, block: Option<Uuid>) {
+    let changed = with_stack(|stack| {
+        let before = stack.channels.get(&owner).copied();
+        if before == block {
+            return None;
+        }
+        match block {
+            Some(block) => stack.channels.insert(owner, block),
+            None => stack.channels.remove(&owner),
+        };
+        Some(stack.channels.values().copied().collect())
     })
+    .flatten();
+    if let Some(blocks) = changed {
+        send(Command::WantChannels(blocks));
+    }
+}
+
+/// The account hosting `block`, while the channel to it of an editor here that joins it is
+/// open.
+pub fn channel_host(block: Uuid) -> Option<Uuid> {
+    with_seen(|seen| seen.channel_hosts.get(&block).copied()).flatten()
+}
+
+/// A Join editor of `block` tells its host `payload`, sealed on this device's channel to it:
+/// nothing while the channel is not open.
+pub fn tell_host(block: Uuid, payload: Vec<u8>) {
+    send(Command::TellHost { block, payload });
 }
 
 /// A host component of `block` tells `member` of its host channel `payload`, sealed on the

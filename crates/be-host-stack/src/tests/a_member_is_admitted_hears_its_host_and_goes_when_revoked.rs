@@ -4,7 +4,7 @@ use be_sdk_api::blocks::{JoinedMember, MemberEvent, MemberSaid};
 
 /// What `block`'s host component has yet to hear, once `ready` holds of it.
 fn queued_until(what: &str, block: Uuid, ready: impl Fn(&[MemberEvent]) -> bool) -> Vec<MemberEvent> {
-    wait_until(what, |shared| ready(&shared.hosting.queued(block)));
+    wait_until(what, |shared| ready(&crate::hosting::queued(shared, block)));
     take_member_events(block)
 }
 
@@ -31,7 +31,7 @@ fn a_member_is_admitted_hears_its_host_and_goes_when_revoked() {
     set_access(block, player.account(), be_block_graph::Access::Join, |_| {});
     flush_and_send();
     assert_eq!(status().error, None);
-    wait_until("held the world's lease", |shared| shared.hosting.holds(block));
+    wait_until("held the world's lease", |shared| shared.hosted.contains(&block));
 
     let peer = &player.peer;
     let mut events = peer.connection().subscribe();

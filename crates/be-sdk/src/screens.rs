@@ -577,6 +577,17 @@ impl Screens {
                     Uuid::from_bytes(open.block_type),
                 );
             }
+            // A Join member: an editor on its block that is given no content, only the block's
+            // host channel.
+            OpeningKind::Join(open) => {
+                session.set_editable(false);
+                session.set_page_origin(open.page_origin);
+                session.set_host_palette(open.host_palette);
+                session.connect_join(
+                    Uuid::from_bytes(open.block_id),
+                    Uuid::from_bytes(open.block_type),
+                );
+            }
             OpeningKind::Creation(open) => session.connect_creation(open.template),
             OpeningKind::Picker(open) => session.connect_picker(crate::host::PickerRequest {
                 filter: open.filter,
