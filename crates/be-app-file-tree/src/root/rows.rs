@@ -352,7 +352,7 @@ impl Tree {
                 .as_ref()
                 .map(|_| own_system(held.clone(), host.account_id()))
                 .map_err(Clone::clone);
-            let guest = role.get() == be_sdk_beui::AccountRole::Guest;
+            let guest = role.get() == Some(be_sdk_beui::AccountRole::Guest);
             let loose = clock.listed(&shared).map(|shared| match guest {
                 // What is shared at the top shows there too, as everything else a guest reaches.
                 true => {
@@ -381,12 +381,7 @@ impl Tree {
                     entered: entered.get(),
                 };
                 builder.push_shared(loose, !shared_closed);
-                let due = builder.clock.due;
-                let seen = std::mem::take(&mut builder.seen);
-                let used = std::mem::take(&mut builder.used);
-                let built = builder.rows;
-                watched.shown.retain(|id, _| seen.contains(id));
-                watched.used_by.retain(|id, _| used.contains(id));
+                let (built, due) = builder.finish();
                 watched.sections.clear();
                 watched.workspaces.clear();
                 watched.unfiled = None;
@@ -465,12 +460,7 @@ impl Tree {
             builder.push_shared(loose, !shared_closed);
             builder.push_orphans(showing);
             builder.push_system(system, system_open);
-            let due = builder.clock.due;
-            let seen = std::mem::take(&mut builder.seen);
-            let used = std::mem::take(&mut builder.used);
-            let built = builder.rows;
-            watched.shown.retain(|id, _| seen.contains(id));
-            watched.used_by.retain(|id, _| used.contains(id));
+            let (built, due) = builder.finish();
             drop(watched);
             if let Some(due) = due {
                 timer.start(due.saturating_duration_since(clock.now));
@@ -665,6 +655,22 @@ fn note_for(
 }
 
 impl Builder<'_> {
+    /// The rows built, and when they must be built again: what was watched for rows no longer
+    /// shown is let go.
+    fn finish(self) -> (Vec<Row>, Option<Instant>) {
+        let Self {
+            watched,
+            rows,
+            seen,
+            used,
+            clock,
+            ..
+        } = self;
+        watched.shown.retain(|id, _| seen.contains(id));
+        watched.used_by.retain(|id, _| used.contains(id));
+        (rows, clock.due)
+    }
+
     fn push_orphans(&mut self, open: bool) {
         self.rows.push(Row {
             key: RowKey::Orphans,

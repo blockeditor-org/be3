@@ -532,7 +532,8 @@ impl ServerStore {
 /// Removes `account` from `organization` when it is a guest that holds no grant there any more:
 /// a guest is there only through what links granted it. Its shell's own blocks, which only it
 /// reads (decisions/a_guest_makes_only_its_own_shell.md), go with it. Answers whether it went.
-/// Every path that removes a grant calls it (`blocks::write_grant`).
+/// Every path that removes a grant calls it (`blocks::write_grant`): a guest's membership row
+/// is deleted nowhere else, so its shell never outlives it.
 pub(crate) fn drop_idle_guest(
     store: &crate::store::ServerStore,
     connection: &Connection,

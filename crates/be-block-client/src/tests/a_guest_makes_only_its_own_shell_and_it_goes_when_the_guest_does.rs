@@ -129,6 +129,15 @@ async fn a_guest_makes_only_its_own_shell_and_it_goes_when_the_guest_does() {
             make(TextContent::CONTENT_TYPE, BlockParent::Block(team), false).await,
             "a block in another's block, though its link lets it edit there",
         ),
+        (
+            make(
+                SettingsProfileContent::CONTENT_TYPE,
+                BlockParent::Block(settings),
+                true,
+            )
+            .await,
+            "a block owner-only of its own in settings only it reads already",
+        ),
     ] {
         assert!(refused(&made), "a guest made {why}: {made:?}");
     }
