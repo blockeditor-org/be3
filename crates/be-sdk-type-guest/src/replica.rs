@@ -2618,7 +2618,10 @@ where
                 if let Some(id) = reply {
                     self.reply(id, Answer::Sealed);
                 }
-                if self.restart_due() {
+                // The restart reloads this seal's commit afresh and applies nothing on top of it:
+                // what the order numbered after the seal would be lost, so it waits for a seal
+                // that holds everything numbered (the next, which this one owes).
+                if self.restart_due() && self.applied == through {
                     self.submit_reload(head, true, true, Vec::new(), None);
                 }
             }
