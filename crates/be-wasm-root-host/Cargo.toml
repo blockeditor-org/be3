@@ -30,6 +30,8 @@ web-sys = { version = "0.3", features = [
 ] }
 
 [dev-dependencies]
+be-lib-ui-types = { path = "../be-lib-ui-types" }
+be-lib-geometry = { path = "../be-lib-geometry" }
 be-lib-layers = { path = "../be-lib-layers" }
 be-wasm-dylink = { path = "../be-wasm-dylink" }
 be-wasm-guest-echo = { path = "../be-wasm-guest-echo" }

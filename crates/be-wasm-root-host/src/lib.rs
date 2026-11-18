@@ -2,6 +2,9 @@
 //! guest): `Root` runs be-host's own module inline on the host's frame thread, and serves it the
 //! sandbox (be-wasm-sandbox-host) and `be3:root`'s `host` (crates/be-wasm-root-api).
 //!
+//! Input is the root's `input.deliver`, an op the host starts ahead of the frame it is input for
+//! and steps the root through with that frame, so the root routes it by the layers it drew last.
+//!
 //! A frame is the root's `frames.frame`, an op the root serves, which the host starts and steps
 //! the root through until it answers. A step that leaves the frame unanswered is the root's
 //! `Pending`: what it waits on is the ops it left open, its children's frames (`instance.next`)
@@ -109,6 +112,17 @@ impl<G: Inline> Core<G> {
     #[cfg(target_arch = "wasm32")]
     fn drawing(&self) -> bool {
         self.drawing.is_some()
+    }
+
+    /// Hands the root `window`'s input, which it takes in with the next frame's steps: the call
+    /// goes ahead of that frame's, so the root routes it by the layers it drew last. Its answer
+    /// is not waited for. A root that stopped hears nothing, and says why.
+    fn input(&mut self, window: Option<u64>, events: Vec<u8>) -> Result<(), String> {
+        if let Some(failure) = &self.failure {
+            return Err(failure.clone());
+        }
+        let _answered = embed::exports::input::deliver(&mut self.connection, window, events);
+        Ok(())
     }
 
     /// Asks the root for a frame for `request`, drawn by `deadline`, or says why the root drew

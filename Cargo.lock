@@ -3167,7 +3167,9 @@ dependencies = [
 name = "be-wasm-root-host"
 version = "0.1.0"
 dependencies = [
+ "be-lib-geometry",
  "be-lib-layers",
+ "be-lib-ui-types",
  "be-wasm-dylink",
  "be-wasm-guest-echo",
  "be-wasm-guest-host",
@@ -3190,11 +3192,14 @@ name = "be-wasm-root-testing"
 version = "0.1.0"
 dependencies = [
  "be-lib-geometry",
+ "be-lib-input-router",
  "be-lib-layers",
+ "be-lib-ui-types",
  "be-wasm-guest-abi",
  "be-wasm-ops",
  "be-wasm-root-api",
  "be-wasm-sandbox-api",
+ "postcard",
 ]
 
 [[package]]

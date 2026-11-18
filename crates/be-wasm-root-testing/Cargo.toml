@@ -9,11 +9,14 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 be-lib-geometry = { path = "../be-lib-geometry" }
+be-lib-input-router = { path = "../be-lib-input-router" }
 be-lib-layers = { path = "../be-lib-layers" }
+be-lib-ui-types = { path = "../be-lib-ui-types" }
 be-wasm-guest-abi = { path = "../be-wasm-guest-abi" }
 be-wasm-ops = { path = "../be-wasm-ops" }
 be-wasm-root-api = { path = "../be-wasm-root-api" }
 be-wasm-sandbox-api = { path = "../be-wasm-sandbox-api" }
+postcard = { version = "1", features = ["use-std"] }
 
 [features]
 module = []

@@ -97,6 +97,14 @@ impl Root {
         self
     }
 
+    /// Hands the root `window`'s input since the last call, in the window's points: `events` is
+    /// be-lib-ui-types' `input::encode`, and `window` the layer list's `WindowId`, by its number
+    /// (`None`: the host's one window). The root takes it in with the next `frame`, ahead of
+    /// drawing it, and routes it by the layers it drew last. A root that stopped says why.
+    pub fn input(&mut self, window: Option<u64>, events: Vec<u8>) -> Result<(), String> {
+        self.core.input(window, events)
+    }
+
     /// Draws a frame for `request`, waiting for the root's children until `deadline` and for the
     /// root itself as long as it takes, up to its patience past the deadline. A root that
     /// trapped, panicked or took longer says why, and draws nothing again.

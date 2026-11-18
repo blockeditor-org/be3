@@ -121,7 +121,14 @@ module compiled with `WebAssembly.compile`, and steps it inline with the steppin
 whenever an instance's worker answers, a compile finishes or the root wakes itself, and a timer at
 the deadline and at the patience past it, and a root with more to do past its 4 ms resumes as a
 task of its own, after the page's input and rendering. The drawn frame is handed to a callback. `crates/be-wasm-root-web-testing` runs 4a's root
-so in Chromium. Nothing runs a root in be-host yet, and there is no `input` export.
+so in Chromium. Nothing runs a root in be-host yet.
+
+Built (step 4e5a): the root's `input` export, `input.deliver(window, events)`, the window's input
+since the last call as be-lib-ui-types' `input::encode` (be-wasm crates may use only be-wasm
+ones, so it is bytes, as the layer list is). `Root::input`, natively and on the page, starts it
+ahead of the frame it is input for, and the root takes it in with that frame's steps, so it
+routes by the layers it drew last. be-wasm-root-testing's root routes it with a `Router` per
+window over that list, and sends its child what lands on its screen, in the child's coordinates.
 
 Its rules:
 
@@ -633,15 +640,47 @@ Each step lands on its own.
          the revision previews gave the old run. The library tests a restart over a `Run` and a
          stand-in for the host's views; be-host-runtime's restart tests stay, since they test
          what `Instances` sends again, and restart through `Run::restart` as `Runtime` does.
-         Left for 4e5, so a root built on the library does not copy them: `Runtime::layout`, the
-         last `ScreenLayout`, is per-run state that `Shown` reads and likely belongs in `Run`;
-         and the pattern of sending calls and asking for a frame if any were sent
-         (`pacing.need_if` beside `send`, at about ten places in be-host-runtime's
-         `runtime.rs`) should become a `Run` method.
+         Left for 4e5, so a root built on the library does not copy them, and done in 4e5a:
+         `Runtime::layout` and the pattern of sending calls and asking for a frame if any were
+         sent.
      - 4e5. A root built on the library embeds an editor without the host's compositor, shown by
        a host test, and the root gets its `input` export, routed by `Router` over its last
        list. be-host runs it through a run option that starts a root module in place of its
-       own UI: the path 4g turns on and makes the default, not a test-only fork 4g replaces.
+       own UI: the path 4g turns on and makes the default, not a test-only fork 4g replaces. In
+       sub-steps:
+       - 4e5a. Built: what a root must not copy, and the root's input. `Run` keeps the app's
+         layout (`Run::layout`, which `place`, `lay_out`, `placement` and `retained_surfaces`
+         read with `Shown`; a restart empties it), and sends: `send_for_frame` asks the app for a
+         frame if it sends anything, readied for the wire by the host's closure (be-host
+         translates ids and holds what waits for a report, or drops all of it for an app that
+         failed), `queue` sends without asking, and both answer what to send now, everything
+         queued once the session runs (`deliverable`). be-host-runtime's `need_if` and
+         `send` pairs are its `send_for_frame`. `be3:root` gains `input.deliver(window,
+         events)`, the window's input as be-lib-ui-types' `input::encode` bytes (be-wasm crates
+         may use only be-wasm ones, as the layer list's bytes already are), which `Root::input`
+         starts ahead of the next frame, natively and on the page; the root takes it in with
+         that frame's steps, so it routes by the layers it drew last. be-wasm-root-testing's
+         root routes it with a `Router` per window over that list and sends its child what lands
+         on the child's screen, in the child's coordinates; its test presses on the child and
+         drags off it, and the child hears both, the drag held by the press.
+       - 4e5b. A root built on the library embeds an editor: a library a root links (a
+         `be-sdk` crate, since be-sdk-app-host is one), holding for each app it spawns a `Wire`
+         over the instance's channel, a `Run` with its session, pacing and holds, and a
+         `Router` over its last list, forwarding what is routed to a screen as `AppCall::Input`
+         in the screen's coordinates and naming each screen's presented surface by handle in its
+         layer list. Its test, in be-wasm-root-host, spawns an editor that needs no block
+         content (the triangle, whose `connect` reads nothing) on a stand-in device, and shows
+         its screen after the hello, `Screens`, `Draw` and the commits; an editor that answers
+         input visibly needs content, so a store in the root (be-sdk-app-host's `BlockStore`
+         over type modules it spawns) waits for 4e5c or step 5.
+       - 4e5c. be-host's run option that starts a staged root module in place of its own UI
+         (a `--root=APP` argument): it starts the root on the window's device, hands it the
+         window's raw input (`Root::input`) and asks it for a frame each host frame, and draws
+         its layer list with `beui_draw::compose`, resolving `Surface::Screen` through
+         `Root::surface`; the root's own surfaces are a plain background until it draws its own.
+         A host test runs it with 4e5b's root and an editor, and compares the window's shot, or
+         a painting the root assembles from its children's (Other moves, Paintings), whichever
+         drive can take from a root by then.
    - 4f. The router over the layer list: the `HitTest` moves from beui's catchers to the last
      committed `WindowLayers`. `AppView`, anchored views, scrims and popups declare each layer's
      `LayerInput` (hit and gesture areas, `captures`, `focuses`, `placer`), the host's UI its

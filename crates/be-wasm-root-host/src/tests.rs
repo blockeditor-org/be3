@@ -3,8 +3,8 @@ use std::{sync::Arc, time::Duration};
 use be_lib_layers::{LayerId, LayerList, Surface};
 use be_wasm_host::{Host, Stored, library_file_name, sandbox::Staged};
 use be_wasm_root_testing::{
-    CHILD_LAYER, HANGS_CHILD, PAINTED_SURFACE, PAINTER, PAINTER_ENTRY, PAINTER_LAYER, PAINTS,
-    ROOT_LAYER, SPINS,
+    CHILD_LAYER, CHILD_ORIGIN, HANGS_CHILD, HEARD_LAYER, PAINTED_SURFACE, PAINTER, PAINTER_ENTRY,
+    PAINTER_LAYER, PAINTS, ROOT_LAYER, SPINS,
 };
 
 use super::*;
@@ -14,6 +14,7 @@ mod a_frame_past_its_deadline_draws_without_the_child_it_waits_for;
 mod a_frame_waits_for_its_child_and_shows_it;
 mod a_root_names_what_its_child_presented_only_by_handle;
 mod a_root_that_keeps_waking_itself_without_answering_stops_at_its_patience;
+mod input_reaches_the_child_under_it_by_the_layers_drawn_last;
 
 const ROOT: &[u8] = include_bytes!(env!("ROOT_GUEST_WASM"));
 

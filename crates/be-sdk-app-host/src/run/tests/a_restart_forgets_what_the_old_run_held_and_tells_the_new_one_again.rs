@@ -21,9 +21,10 @@ fn a_restart_forgets_what_the_old_run_held_and_tells_the_new_one_again() {
     run.screens = vec![screen_request(ScreenId(1))];
     run.painting = true;
     run.pacing.need();
-    run.shown
-        .keep_left_out(&layout(&[1, 2]), &layout(&[1]), |_| true);
+    run.lay_out(layout(&[1, 2]), |_| true);
+    run.lay_out(layout(&[1]), |_| true);
     assert!(run.shown.keeps(ScreenId(2)));
+    assert!(run.placement(ScreenId(2)).is_some(), "its kept frame shows");
 
     let mut docks = Docks::default();
     docks.register(EditorInstanceId(1), "demo", None);
@@ -60,6 +61,10 @@ fn a_restart_forgets_what_the_old_run_held_and_tells_the_new_one_again() {
     assert!(!run.painting);
     assert!(!run.pacing.drawing(), "no frame is in flight");
     assert!(!run.shown.keeps(ScreenId(2)), "the old run's frames go");
+    assert!(
+        run.layout().screens.is_empty() && run.retained_surfaces().is_empty(),
+        "and its layout with them"
+    );
     assert!(
         run.tell(telling(true)).is_empty(),
         "nothing but the preferences, sent with its hello, is told before it runs"

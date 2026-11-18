@@ -28,7 +28,9 @@ write_package_value("be3.cargo", {
             "examples": {},
             "features": [],
             "test_deps": [
+                "//crates/be-lib-geometry:be-lib-geometry",
                 "//crates/be-lib-layers:be-lib-layers",
+                "//crates/be-lib-ui-types:be-lib-ui-types",
                 "//crates/be-wasm-dylink:be-wasm-dylink",
                 "//crates/be-wasm-guest-echo:be-wasm-guest-echo",
                 "//crates/be-wasm-root-testing:be-wasm-root-testing",
@@ -50,7 +52,9 @@ write_package_value("be3.cargo", {
             "examples": {},
             "features": [],
             "test_deps": [
+                "//crates/be-lib-geometry:be-lib-geometry",
                 "//crates/be-lib-layers:be-lib-layers",
+                "//crates/be-lib-ui-types:be-lib-ui-types",
                 "//crates/be-wasm-dylink:be-wasm-dylink",
                 "//crates/be-wasm-guest-echo:be-wasm-guest-echo",
                 "//crates/be-wasm-root-testing:be-wasm-root-testing",
@@ -72,7 +76,9 @@ write_package_value("be3.cargo", {
             "examples": {},
             "features": [],
             "test_deps": [
+                "//crates/be-lib-geometry:be-lib-geometry",
                 "//crates/be-lib-layers:be-lib-layers",
+                "//crates/be-lib-ui-types:be-lib-ui-types",
                 "//crates/be-wasm-dylink:be-wasm-dylink",
                 "//crates/be-wasm-guest-echo:be-wasm-guest-echo",
                 "//crates/be-wasm-root-testing:be-wasm-root-testing",
@@ -94,7 +100,9 @@ write_package_value("be3.cargo", {
             "examples": {},
             "features": [],
             "test_deps": [
+                "//crates/be-lib-geometry:be-lib-geometry",
                 "//crates/be-lib-layers:be-lib-layers",
+                "//crates/be-lib-ui-types:be-lib-ui-types",
                 "//crates/be-wasm-dylink:be-wasm-dylink",
                 "//crates/be-wasm-guest-echo:be-wasm-guest-echo",
                 "//crates/be-wasm-root-testing:be-wasm-root-testing",
@@ -116,7 +124,9 @@ write_package_value("be3.cargo", {
             "examples": {},
             "features": [],
             "test_deps": [
+                "//crates/be-lib-geometry:be-lib-geometry",
                 "//crates/be-lib-layers:be-lib-layers",
+                "//crates/be-lib-ui-types:be-lib-ui-types",
                 "//crates/be-wasm-dylink:be-wasm-dylink",
                 "//crates/be-wasm-guest-echo:be-wasm-guest-echo",
                 "//crates/be-wasm-root-testing:be-wasm-root-testing",
@@ -156,7 +166,9 @@ write_package_value("be3.cargo", {
             "examples": {},
             "features": [],
             "test_deps": [
+                "//crates/be-lib-geometry:be-lib-geometry",
                 "//crates/be-lib-layers:be-lib-layers",
+                "//crates/be-lib-ui-types:be-lib-ui-types",
                 "//crates/be-wasm-dylink:be-wasm-dylink",
                 "//crates/be-wasm-guest-echo:be-wasm-guest-echo",
                 "//crates/be-wasm-root-testing:be-wasm-root-testing",
@@ -178,7 +190,9 @@ write_package_value("be3.cargo", {
             "examples": {},
             "features": [],
             "test_deps": [
+                "//crates/be-lib-geometry:be-lib-geometry",
                 "//crates/be-lib-layers:be-lib-layers",
+                "//crates/be-lib-ui-types:be-lib-ui-types",
                 "//crates/be-wasm-dylink:be-wasm-dylink",
                 "//crates/be-wasm-guest-echo:be-wasm-guest-echo",
                 "//crates/be-wasm-root-testing:be-wasm-root-testing",
