@@ -1489,19 +1489,16 @@ fn ModalSheetBody(
 /// drag on a phone keeps the field being edited), Up and Down settle it on the next stop
 /// that way. Both keys are taken, pressed and let go, even where no stop is that way, so
 /// they never scroll what holds the sheet. A screen reader finds it as a slider named
-/// "Sheet height" whose value is the share of the extent it stands at, which its Increment and
+/// "Sheet height" whose value is the share of the extent it stands at, read as the stop it
+/// rests at ("Stop 2 of 3"), which its Increment and
 /// Decrement step (a phone's screen reader swiping up and down). A Tab stop, and a slider,
 /// only when the sheet has more than one stop.
 #[component]
 fn SheetHandle(motion: Stored<Motion>, focused: Signal<bool>, children: NodeId) -> NodeId {
     let axis = create_memo(|| Some(Direction::Vertical));
-    let (rest_at, extent, steps) = motion.with(|motion| {
-        (
-            motion.rest_at,
-            motion.extent,
-            !motion.fit && motion.shares.len() > 1,
-        )
-    });
+    let (rest_at, extent, shares) =
+        motion.with(|motion| (motion.rest_at, motion.extent, Rc::clone(&motion.shares)));
+    let steps = motion.with(|motion| !motion.fit) && shares.len() > 1;
     let share = create_memo(move || match rest_at.get() {
         Rest::Share(share) => share,
         Rest::Free(height) => height / extent.get(),
@@ -1513,9 +1510,18 @@ fn SheetHandle(motion: Stored<Motion>, focused: Signal<bool>, children: NodeId) 
             crate::labelled_node(Role::Slider, None, Prop::Static("Sheet height".to_owned()));
         component_accessibility(create_memo(move || {
             let mut node = accessibility.get();
-            node.set_numeric_value(f64::from((share.get() * 100.0).round()));
+            let share = share.get();
+            node.set_numeric_value(f64::from(share * 100.0));
             node.set_min_numeric_value(0.0);
             node.set_max_numeric_value(100.0);
+            // Read as the stop it rests at, or the share it was let go at between them.
+            node.set_value(match rest_at.get() {
+                Rest::Share(at) => match shares.iter().position(|stop| *stop == at) {
+                    Some(stop) => format!("Stop {} of {}", stop + 1, shares.len()),
+                    None => format!("{}%", (share * 100.0).round()),
+                },
+                _ => format!("{}%", (share * 100.0).round()),
+            });
             node
         }));
     }
