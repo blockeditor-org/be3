@@ -47,6 +47,7 @@ pub(crate) fn frame(
     fade_edges: Prop<Sides>,
     raised: Prop<bool>,
     collapsed: Prop<bool>,
+    accessibility_hidden: Prop<bool>,
     children: Option<Child>,
 ) -> NodeId {
     let frame = with_document(|document| {
@@ -64,6 +65,11 @@ pub(crate) fn frame(
     bind(frame, opacity, Document::set_frame_opacity);
     bind(frame, fade_edges, Document::set_frame_fade_edges);
     bind(frame, collapsed, Document::set_frame_collapsed);
+    bind(
+        frame,
+        accessibility_hidden,
+        Document::set_frame_accessibility_hidden,
+    );
     if !matches!(raised, Prop::Static(false)) {
         create_binding(move || {
             let raised = raised.get();
