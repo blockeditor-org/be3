@@ -37,7 +37,10 @@ fn a_share_button_shows_where_the_platform_has_a_share_sheet_and_hands_it_the_cl
         .share_sheet = true;
     program.frame(Vec::new());
     program.frame(Vec::new());
-    assert!(program.shown("share"), "a platform with a sheet shows Share");
+    assert!(
+        program.shown("share"),
+        "a platform with a sheet shows Share"
+    );
     program.click("share");
     let shared = &program.simulation().expect("a simulated window").shared;
     assert_eq!(

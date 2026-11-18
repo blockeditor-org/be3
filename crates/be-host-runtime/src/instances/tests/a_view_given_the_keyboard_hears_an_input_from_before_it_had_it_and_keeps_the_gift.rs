@@ -26,9 +26,21 @@ fn a_view_given_the_keyboard_hears_an_input_from_before_it_had_it_and_keeps_the_
         &mut input,
         pass,
     );
-    notes_keys(&mut instances, progress((1, 1), true, true), true, Vec::new(), pass);
+    notes_keys(
+        &mut instances,
+        progress((1, 1), true, true),
+        true,
+        Vec::new(),
+        pass,
+    );
     assert_eq!(
-        notes_keys(&mut instances, progress((2, 2), true, true), true, Vec::new(), pass + 1),
+        notes_keys(
+            &mut instances,
+            progress((2, 2), true, true),
+            true,
+            Vec::new(),
+            pass + 1
+        ),
         [letter("T")],
         "once seen with the keyboard, the view is owed the key held for it"
     );
