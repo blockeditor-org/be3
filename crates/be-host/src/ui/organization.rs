@@ -290,13 +290,16 @@ fn HostMenu(
             },
         );
         let measured = measure(rows);
+        // One memo of both, so the popover hears one size per change of either: never the
+        // rows' new measure with the scroll's old overflow, a frame too tall.
+        let wanted = create_memo(move || {
+            let measured = measured.get()?;
+            let beyond = scrolled.with(|scrolled| (scrolled.content - scrolled.viewport).max(0.0));
+            Some(measured.rect.size() + beui::vec2(0.0, beyond))
+        });
         create_effect(move || {
-            if let Some(measured) = measured.get() {
-                let beyond =
-                    scrolled.with(|scrolled| (scrolled.content - scrolled.viewport).max(0.0));
-                report
-                    .size
-                    .set(Some(measured.rect.size() + beui::vec2(0.0, beyond)));
+            if let Some(wanted) = wanted.get() {
+                report.size.set(Some(wanted));
             }
         });
     }
