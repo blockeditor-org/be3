@@ -108,8 +108,8 @@ rebuilds nothing else:
   (guides/build_server.md); errors go to `target/re-relay.log`. A relay remembers which blobs the
   server holds and answers `FindMissingBlobs` about them itself, and holds back a caller asking
   about a blob another is uploading, so a slow link carries each blob once (`cas.go`). It forgets a blob
-  when the server says it is missing (an `Execute` refused FAILED_PRECONDITION, a read NOT_FOUND), so
-  the next attempt uploads it again.
+  when the server says it is missing (an `Execute` refused FAILED_PRECONDITION, a read NOT_FOUND);
+  buck2's daemon keeps its own 12-hour record, which only `./scripts/buck kill` clears.
 - **Retries.** buck2 exits 2 on an infrastructure error, such as a reset partway through a
   download, and does not retry; the wrapper runs the command three times in all
   (`BE3_BUCK_ATTEMPTS`). For `run` it retries the build, not the program: it builds with
