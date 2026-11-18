@@ -1215,12 +1215,25 @@ Each step lands on its own.
            the members, each but the person and agents with a change of role and Remove, which
            asks first in the list's place (`REMOVE_MEMBER_TITLE`); F11 (`OPENS_AGENTS`,
            `AGENTS_TITLE`) lists the agents with Remove and a name to make one, the credentials
-           answered shown once with Copy and Done. The secret a dialog shows is now any
+           answered shown once with Copy and Done, as be-host's own dialog does: the JSON
+           bundle a program reads from `BE3_AGENT_CREDENTIALS` (server, organization, recovery
+           phrase, token), shown and copied whole. Credentials cannot be had again, so none may
+           be lost on either side: be3:root drops a `make-secret` the root cancels before the
+           host took it, so the host never makes it, and the agents' dialog neither closes
+           (Close, its close button, Escape, the scrim) nor gives way to a question of the
+           host's while one is being made, until the answer comes. A secret the root no longer
+           waits for when the host answers is lost for good: `answer_secret` answers false,
+           and 4g7's host then removes the agent it just made and says so in `agents`' error.
+           The host refuses `set-member-role` for the person's own role, or one leaving no
+           administrator, in `members`' error; the testing root offers no change of the
+           person's own role. The secret a dialog shows is now any
            `core-secret` (`Held`, an `Rc` compared by identity), handed by `secret_asker` to
            whichever dialog asks for secrets. be-wasm-root-host's
            `a_root_lists_its_hosts_members_and_agents_and_shows_an_agents_credentials_once`
            changes a role, keeps and removes a member, makes an agent from a typed name and
-           shows its credentials, copies them, sees them gone once reopened, removes an agent,
+           shows its credentials, copies them, sees them gone once reopened, sees the dialog
+           stay open and a question of the host's wait while one is being made, removes an
+           agent,
            and snapshots the members, the removal question, the agents and the credentials.
          - 4g6f2a. Built (4g6f2 split again: 4g6f2b is members and agents): signing in again,
            the question before discarding unsaved changes, and invitations, with the rule for
