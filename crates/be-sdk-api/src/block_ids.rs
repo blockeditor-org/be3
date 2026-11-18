@@ -241,7 +241,8 @@ impl BlockCommand {
             | Self::CloseEditor
             | Self::Define { .. }
             | Self::TellMember(_)
-            | Self::TellHost(_) => {}
+            | Self::TellHost(_)
+            | Self::KeepHosting(_) => {}
         }
     }
 }
@@ -271,7 +272,8 @@ impl BlockCommand {
             | Self::Share
             | Self::CloseEditor
             | Self::Artifact { .. }
-            | Self::TellHost(_) => false,
+            | Self::TellHost(_)
+            | Self::KeepHosting(_) => false,
         }
     }
 }

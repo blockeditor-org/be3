@@ -507,10 +507,12 @@ pub enum Pushed {
     /// A Join member's host channel opened, closed or carried what the host said
     /// (`take_channel_events`).
     Channel,
+    /// Whether this device hosts the editor's block changed (`hosting`).
+    Hosting,
 }
 
 impl Pushed {
-    pub const ALL: [Self; 18] = [
+    pub const ALL: [Self; 19] = [
         Self::Peers,
         Self::Histories,
         Self::Artifacts,
@@ -529,6 +531,7 @@ impl Pushed {
         Self::Reveal,
         Self::MemberEvents,
         Self::Channel,
+        Self::Hosting,
     ];
 }
 
@@ -574,6 +577,7 @@ pub struct EditorHost {
     /// Opened as a Join member (`opening-kind.join`): no content, only the host channel.
     joined: Rc<Cell<bool>>,
     channel_events: Rc<RefCell<Vec<be_sdk_api::blocks::ChannelEvent>>>,
+    hosting: Rc<Cell<Option<be_sdk_api::blocks::HostingHere>>>,
     shows: Rc<RefCell<Vec<ShowRequest>>>,
     focused: Rc<RefCell<FocusedBlock>>,
     reported_focus: Rc<RefCell<Option<FocusedBlock>>>,
@@ -820,6 +824,25 @@ impl EditorHost {
     pub(crate) fn channel(&self, event: be_sdk_api::blocks::ChannelEvent) {
         self.channel_events.borrow_mut().push(event);
         self.push(Pushed::Channel);
+    }
+
+    /// Whether this device hosts the editor's block (plans/hosted_blocks.md, "Hosting"): runs
+    /// its host component, and keeps hosting it after its editors here close
+    /// (`keep_hosting`). `No` until the host says otherwise.
+    pub fn hosting(&self) -> be_sdk_api::blocks::HostingHere {
+        self.hosting
+            .get()
+            .unwrap_or(be_sdk_api::blocks::HostingHere::No)
+    }
+
+    pub(crate) fn set_hosting(&self, hosting: be_sdk_api::blocks::HostingHere) {
+        self.hosting.set(Some(hosting));
+        self.push(Pushed::Hosting);
+    }
+
+    /// Keeps this device hosting `block_id` after its last editor here closes, or no longer.
+    pub fn keep_hosting(&self, block_id: Uuid, keep: bool) {
+        self.command(block_id, BlockCommand::KeepHosting(keep));
     }
 
     /// A Join member tells the host of `block_id` `payload`, sealed on its channel: lost while

@@ -314,6 +314,10 @@ impl EditorSession {
         self.host.channel(event);
     }
 
+    pub(crate) fn set_hosting(&self, hosting: be_sdk_api::blocks::HostingHere) {
+        self.host.set_hosting(hosting);
+    }
+
     pub(crate) fn show_dialog(&self, block_id: Uuid, dialog: be_sdk_api::ShellDialog) {
         self.host.show_dialog(block_id, dialog);
     }
