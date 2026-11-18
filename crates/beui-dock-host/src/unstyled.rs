@@ -179,6 +179,10 @@ pub struct DockBarHandle {
 pub struct DockStripHandle {
     pub direction: Direction,
     pub tabs: NodeId,
+    /// Every tab of the strip as a row that shows it, the shown one chosen: what a face offers
+    /// in a menu while the strip is too short for its tabs (row ids `tab.<tab>`, `group.<index>`).
+    pub menu: Memo<Vec<MenuNode>>,
+    pub test_prefix: String,
 }
 
 pub struct DockSplitterHandle {
@@ -1755,7 +1759,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         }),
         strip: strip.unwrap_or_else(|| {
             RenderFn::new(move |handle: DockStripHandle| {
-                let DockStripHandle { direction, tabs } = handle;
+                let DockStripHandle { direction, tabs, .. } = handle;
                 view! {
                     <Scroll direction style={ScrollStyle::new(curves.rubber)}>{tabs}</Scroll>
                 }
@@ -2957,6 +2961,55 @@ fn DockTabBar(dock: State, leaf: LeafId, vertical: bool) -> NodeId {
             dock.part_for_bar(leaf, reorder.gap);
             let order = reorder.order;
             let selected = create_memo(move || state.with(|state| state.active_entry(leaf)));
+            let pick = Callback::new(move |entry: Entry| {
+                dock.edit(|state| {
+                    let at = state.entries(leaf).iter().position(|shown| *shown == entry);
+                    if let Some(at) = at {
+                        state.set_active_index(leaf, at);
+                    }
+                    state.focus(leaf);
+                });
+                dock.release_dialog_focus();
+                let picked = tab_list
+                    .try_get()
+                    .is_some_and(|tabs| tabs.focus_is_within());
+                let shown = dock.state.with_untracked(|state| state.active_tab(leaf));
+                if let Some(tab) = shown.filter(|_| !picked) {
+                    dock.give_keyboard(tab);
+                }
+            });
+            // Another tab shown, picked from the strip's menu or by a key, scrolls into view.
+            let revealed = StoredCell::new(selected.get_untracked());
+            let handles = dock.handles;
+            create_effect(move || {
+                let Some(entry) = selected.get() else {
+                    return;
+                };
+                if revealed.get() == Some(entry) {
+                    return;
+                }
+                let tab = state.with_untracked(|state| state.entry_tabs(entry).first().copied());
+                let node = handles.with(|handles| {
+                    tab.and_then(|tab| handles.get(&tab))
+                        .and_then(|(handle, _)| handle.try_get())
+                });
+                if let Some(node) = node {
+                    revealed.set(Some(entry));
+                    node.reveal();
+                }
+            });
+            let menu = create_memo(move || {
+                let selected = selected.get();
+                let rows = entries.get().into_iter().enumerate().map(|(index, entry)| {
+                    let id = match entry {
+                        Entry::Tab(tab) => format!("tab.{}", dock.test_key(tab)),
+                        Entry::Group(_) => format!("group.{index}"),
+                    };
+                    let chosen = selected == Some(entry);
+                    (id, entry, chosen)
+                });
+                strip_menu(dock, rows, move |entry| pick.call(entry))
+            });
             let tabs = view! {
                 <Choice
                     @node_ref=&tab_list
@@ -2970,23 +3023,8 @@ fn DockTabBar(dock: State, leaf: LeafId, vertical: bool) -> NodeId {
                         }</ForEach>
                     }}
                     selected={Binding::new(selected, move |entry: Option<Entry>| {
-                        let Some(entry) = entry else {
-                            return;
-                        };
-                        dock.edit(|state| {
-                            let at = state.entries(leaf).iter().position(|shown| *shown == entry);
-                            if let Some(at) = at {
-                                state.set_active_index(leaf, at);
-                            }
-                            state.focus(leaf);
-                        });
-                        dock.release_dialog_focus();
-                        let picked = tab_list
-                            .try_get()
-                            .is_some_and(|tabs| tabs.focus_is_within());
-                        let shown = dock.state.with_untracked(|state| state.active_tab(leaf));
-                        if let Some(tab) = shown.filter(|_| !picked) {
-                            dock.give_keyboard(tab);
+                        if let Some(entry) = entry {
+                            pick.call(entry);
                         }
                     })}
                     item={move |item: ChoiceItem<Entry>| {
@@ -3011,7 +3049,12 @@ fn DockTabBar(dock: State, leaf: LeafId, vertical: bool) -> NodeId {
                     }
                 }</Choice>
             };
-            let scroll = dock.strip.call(DockStripHandle { direction, tabs });
+            let scroll = dock.strip.call(DockStripHandle {
+                direction,
+                tabs,
+                menu,
+                test_prefix: dock.pane_test_id("dock", leaf),
+            });
             strip.fill(scroll);
             // Measured from the start: a lift's places leave the strip to the bar.
             measure(scroll);
@@ -4224,6 +4267,22 @@ fn tab_actions(dock: State, keys: Prop<DockTabKeys>, area: NodeRef) {
     })
     .enabled(closable)
     .register();
+}
+
+/// A strip's menu of its tabs: a row for each `(id, entry, shown)` that calls `pick`.
+fn strip_menu(
+    dock: State,
+    rows: impl Iterator<Item = (String, Entry, bool)>,
+    pick: impl Fn(Entry) + Copy + 'static,
+) -> Vec<MenuNode> {
+    rows.map(|(id, entry, shown)| {
+        let action = Action::new(id, dock.entry_title(entry), move || pick(entry))
+            .glyph(dock.entry_icon(entry))
+            .radio(shown)
+            .detached();
+        MenuNode::action(&action)
+    })
+    .collect()
 }
 
 /// The tab `leaf` shows: its active tab, or for a joined editor's group, the tab its stage shows.
