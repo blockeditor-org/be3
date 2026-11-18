@@ -50,6 +50,7 @@ fn query_case(query: &Query) -> &'static str {
         Query::Log(Some(_)) => "log (block)",
         Query::Log(None) => "log (organization)",
         Query::Access(_) => "access",
+        Query::Names(_) => "names",
         Query::Keys { .. } => "keys",
         Query::KeyWork => "key-work",
         Query::Revocations { .. } => "revocations",
@@ -78,6 +79,7 @@ const QUERIES: &[&str] = &[
     "log (block)",
     "log (organization)",
     "access",
+    "names",
     "keys",
     "key-work",
     "revocations",
@@ -513,6 +515,7 @@ impl TestClient {
             }))
             .await;
         calls.read(Query::Access(block)).await;
+        calls.read(Query::Names(block)).await;
         calls
             .read(Query::Keys {
                 blocks: Some(vec![block]),
@@ -733,6 +736,7 @@ async fn every_call_states_who_may_make_it() {
         "log (block)",
         "tree",
         "access",
+        "names",
         "append-log (grant)",
         "put-keys (rotate)",
         "session",

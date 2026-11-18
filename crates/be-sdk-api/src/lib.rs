@@ -58,7 +58,7 @@ pub use app::ShellDialog;
 pub use be_lib_ui_types::{FontFace, FontRole, Fonts};
 pub use be_wasm_ops as ops;
 pub use blocks::{
-    ArtifactAction, ArtifactState, BlockCommand, BlockInfo, BlockMetadata, BlockQuery,
+    ArtifactAction, ArtifactState, BlockCommand, BlockInfo, BlockMember, BlockMetadata, BlockQuery,
     ConflictSide, SearchHit, SearchLocation, SearchResults, StoredHead, VersionBranch,
     VersionChange, VersionChangeKind, VersionCommand, VersionCommit, VersionOperation,
     VersionStatus,

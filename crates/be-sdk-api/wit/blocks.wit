@@ -332,27 +332,43 @@ interface blocks {
         send: async func(frame: list<u8>);
     }
 
+    /// An account that may view the editor's own block, or its author, and
+    /// the name to show for it (`block-subject.members`). `verified` when the
+    /// name is the one on the account's contact card, which this device
+    /// verified, or the signed-in account's own; otherwise it is the name the
+    /// account gave the server, which the server could have changed, and the
+    /// editor marks it as unverified.
+    record block-member {
+        account: account-id,
+        name: string,
+        verified: bool,
+    }
+
     /// What a `block-watch` follows: the blocks a query lists, a block's undo
-    /// history, the content stored at its head, an artifact block's state, or
-    /// the version control status of the editor's own block, for a block that
-    /// has one.
+    /// history, the content stored at its head, an artifact block's state, or,
+    /// of the editor's own block, its version control status (for a block that
+    /// has one) or its members.
     variant block-subject {
         blocks(block-query),
         history(block-id),
         head(block-id),
         artifact(block-id),
         version,
+        members,
     }
 
     /// The latest value of a `block-subject`, the variant of the same name.
     /// `head` is none for a block without content; `artifact` none while the
-    /// host knows no state for it.
+    /// host knows no state for it. `members` is answered again as who may view
+    /// the block or the contacts' names change; it fails while the host cannot
+    /// ask the server (offline, or a host with none).
     variant block-value {
         blocks(result<list<block-info>, failure>),
         history(block-history),
         head(result<option<stored-head>, failure>),
         artifact(option<artifact-state>),
         version(version-status),
+        members(result<list<block-member>, failure>),
     }
 
     /// Follows a subject. `next` answers with its latest value once it differs

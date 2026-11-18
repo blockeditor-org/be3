@@ -19,7 +19,7 @@ use uuid::Uuid;
 
 use crate::{
     BlockQuery, EditorHost, GraphCommand,
-    host::{ArtifactState, BlockHistory, OpenRequest, StoredHead},
+    host::{ArtifactState, BlockHistory, BlockMember, OpenRequest, StoredHead},
 };
 
 struct Held {
@@ -46,6 +46,7 @@ pub(crate) enum Subject {
     Head(Uuid),
     Artifact(Uuid),
     Version,
+    Members,
 }
 
 impl Subject {
@@ -56,6 +57,7 @@ impl Subject {
             Self::Head(block) => BlockSubject::Head(block.into_bytes()),
             Self::Artifact(block) => BlockSubject::Artifact(block.into_bytes()),
             Self::Version => BlockSubject::Version,
+            Self::Members => BlockSubject::Members,
         }
     }
 
@@ -101,6 +103,9 @@ impl Subject {
                 }),
             ),
             (Self::Version, BlockValue::Version(status)) => host.set_version_status(status),
+            (Self::Members, BlockValue::Members(members)) => host.set_members(
+                members.map(|members| members.into_iter().map(BlockMember::decode).collect()),
+            ),
             (subject, value) => {
                 if cfg!(debug_assertions) {
                     panic!("the host answered a watch of {subject:?} with {value:?}");

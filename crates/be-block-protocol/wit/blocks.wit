@@ -157,6 +157,13 @@ interface blocks {
         company: bool,
         set-inside: u32,
     }
+
+    /// An account that may view a block, with the name it gave the server
+    /// (`query.names`): no more of it than that.
+    record account-name {
+        account: account-id,
+        display-name: string,
+    }
 }
 
 /// Live sessions on blocks. The server orders each session's submissions,

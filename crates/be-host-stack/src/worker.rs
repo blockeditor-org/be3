@@ -100,6 +100,7 @@ pub(super) struct Inbox {
 }
 
 type AccessReply = Reply<Result<AccessList, String>>;
+type NamesReply = Reply<Result<Vec<be_block_protocol::AccountName>, String>>;
 type MuteReply = Reply<Result<be_block_protocol::NotifyMode, String>>;
 
 type ExportReply = Reply<Result<(String, Vec<u8>), String>>;
@@ -263,6 +264,10 @@ pub(super) enum Command {
     ListAccess {
         block: Uuid,
         reply: AccessReply,
+    },
+    ListNames {
+        block: Uuid,
+        reply: NamesReply,
     },
     SetMute {
         block: Uuid,
@@ -452,6 +457,7 @@ impl Command {
             Command::SetAccess { .. } => "set access",
             Command::TransferOwnership { .. } => "transfer ownership",
             Command::ListAccess { .. } => "list access",
+            Command::ListNames { .. } => "list names",
             Command::SetMute { .. } => "set mute",
             Command::ReadHead { .. } => "read head",
             Command::Export { .. } => "export",
@@ -484,6 +490,7 @@ impl Command {
             Command::SetAccess { .. }
                 | Command::TransferOwnership { .. }
                 | Command::ListAccess { .. }
+                | Command::ListNames { .. }
                 | Command::ReadHead { .. }
                 | Command::Leave { .. }
                 | Command::ApprovePairing { .. }
@@ -579,6 +586,7 @@ impl Command {
             | Command::SetAccess { block, .. }
             | Command::TransferOwnership { block, .. }
             | Command::ListAccess { block, .. }
+            | Command::ListNames { block, .. }
             | Command::SetMute { block, .. }
             | Command::ReadHead { block, .. }
             | Command::CreateBlockAgent { block, .. }
@@ -2781,6 +2789,7 @@ fn refuse_offline(command: Command, shared: &Arc<Mutex<Shared>>) -> Option<Comma
         Command::Leave { reply, .. } => reply.send(Err(OFFLINE_LEAVING.to_owned())),
         Command::ApprovePairing { reply, .. } => reply.send(Err(OFFLINE_PAIRING.to_owned())),
         Command::ListAccess { reply, .. } => reply.send(Err(NEEDS_CONNECTION.to_owned())),
+        Command::ListNames { reply, .. } => reply.send(Err(NEEDS_CONNECTION.to_owned())),
         Command::SetMute { reply, .. } => reply.send(Err(NEEDS_CONNECTION.to_owned())),
         Command::Members(
             MembersCommand::List(reply)
@@ -3634,6 +3643,11 @@ async fn serve_command(
             reply.send(listed);
             crate::changes::wake();
         }
+        Command::ListNames { block, reply } => {
+            let named = peer.names(block).await.map_err(|error| error.to_string());
+            reply.send(named);
+            crate::changes::wake();
+        }
         Command::ReadHead {
             block,
             commit,
@@ -3713,6 +3727,7 @@ async fn apply(
         Command::SetAccess { .. }
         | Command::TransferOwnership { .. }
         | Command::ListAccess { .. }
+        | Command::ListNames { .. }
         | Command::ReadHead { .. }
         | Command::Leave { .. }
         | Command::ApprovePairing { .. }
