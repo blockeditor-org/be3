@@ -12,6 +12,10 @@ fn view(unsent: Vec<UnsentEdit>) -> CoreView {
     CoreView {
         generation: 0,
         unsent,
+        choosing_account: false,
+        accounts: Vec::new(),
+        signing_in: None,
+        account_error: None,
     }
 }
 
@@ -87,9 +91,11 @@ fn a_root_lists_its_hosts_unsent_edits_and_asks_before_discarding_one() {
     press(&mut root, &mut time, Key::Tab);
     press(&mut root, &mut time, Key::Tab);
     press(&mut root, &mut time, Key::Enter);
-    assert_eq!(
-        root.take_core_commands(),
-        vec![CoreCommand::RestoreUnsent(NOTES)],
+    assert!(
+        matches!(
+            root.take_core_commands().as_slice(),
+            [CoreCommand::RestoreUnsent(NOTES)]
+        ),
         "Restore asks the block stack to send the block's edits again"
     );
 
@@ -123,9 +129,11 @@ fn a_root_lists_its_hosts_unsent_edits_and_asks_before_discarding_one() {
     press(&mut root, &mut time, Key::Enter);
     press(&mut root, &mut time, Key::Tab);
     press(&mut root, &mut time, Key::Enter);
-    assert_eq!(
-        root.take_core_commands(),
-        vec![CoreCommand::DiscardUnsent(NOTES)],
+    assert!(
+        matches!(
+            root.take_core_commands().as_slice(),
+            [CoreCommand::DiscardUnsent(NOTES)]
+        ),
         "confirming discards the block's edits"
     );
 

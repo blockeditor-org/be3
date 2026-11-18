@@ -1143,6 +1143,43 @@ Each step lands on its own.
          `a_root_lists_its_hosts_unsent_edits_and_asks_before_discarding_one` restores one,
          cancels and confirms a discard, sees a question whose block left discard nothing,
          and snapshots the list and the question.
+       - 4g6e. Built: accounts and adding one (onboarding), as fields of `core-view` and
+         cases of `core-command`. The view carries `choosing-account` (whether the block stack
+         waits for the person to open or add an account: be-host's `Screen::Accounts`), the
+         `accounts` (each `account-row`: the host's key for it, its name, email, its server or
+         none for one kept on this device alone, whether it remembers its organization,
+         whether it is open, its organizations), `signing-in` (an account being added, with the
+         `browser-sign-in`'s page and code once the server gave them) and `account-error`, in
+         words as be-host has it. The commands are `open-account` and `choose-organization`
+         (be-host's `OpenAccount`, `ChooseOrganization`), `forget-account` (its `LogOut` and
+         `ConfirmRemoveAccount`: the root asks first for an account kept on this device alone,
+         whose blocks go with it, so be-host's `removing_account` is the root's), `add-account`
+         with a `new-account` (`local(name)`, or `server` with its address and the gateway
+         token, a `password`: be-host's `SubmitAccount` and its `AccountForm`), and
+         `open-sign-in-page`, `check-sign-in` and `cancel-sign-in` (its `OpenLoginBrowser`,
+         `CheckLoginNow`, and `RetryAccount` and `CloseAddAccount`, which both drop the sign-in
+         and its error). Whether the dialog is open and which step it is on are the root's
+         (be-host's `add_account_open`, its generation and the form). The gateway token is a
+         secret: be-wasm-ops-bindgen's `secret` option now also makes every type holding one
+         derive `Debug` alone, neither copied nor compared, as `Password` is, and `ask-core`'s
+         arguments are zeroed once decoded as `unlock`'s are. Reauthenticating an account
+         (be-host's `ReauthView`) waits for 4g6f, since it opens over the organizations.
+         be-host's `--root` runs no block stack, so it waits for no account. be-sdk-root-testing
+         shows the accounts while the stack waits for one (`ACCOUNTS_LAYER` on
+         `ACCOUNTS_SURFACE`, be-host-accounts-ui's `AccountsScreen`, over the app and under its
+         dialog, taking every press and, once drawn, the focus, given back when they go), and
+         adds an account in its dialog's place (`ADD_ACCOUNT_TITLE`: where to keep it, then the
+         server's address and its gateway token, or a name; then `SIGN_IN_TITLE` with the code,
+         Check now and Open browser), clearing the token's field as it hands it over, starting
+         afresh when it opens, stopping the sign-in when it closes other than for an account
+         added, and closing itself once an account it did not list is added; removing one kept
+         on this device asks first (`FORGET_ACCOUNT_TITLE`). be-wasm-root-host's
+         `a_root_shows_its_hosts_accounts_and_adds_one_handing_over_only_what_was_typed` opens
+         an account both ways, asks before removing a local one, hands over a server's address
+         and gateway token as typed, opens the sign-in's page, stops the sign-in when closed,
+         adds a local account and sees the dialog close for it stopping nothing, sees the
+         accounts go once one is open, and snapshots the accounts, the removal question, the
+         dialog and the browser sign-in.
        - 4g6a. Built: the lock screen, over the screen lock and password check the host grants.
          The lock is the host's (the platform's, a login session's): `be3:root` carries it as
          data, nothing beui's. `host.lock` is a watch, as `host.notices` is, answering the lock

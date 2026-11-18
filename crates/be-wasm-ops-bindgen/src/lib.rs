@@ -135,7 +135,8 @@ mod tests;
 /// - `encodings` (map): the `be_wasm_ops::wire` encoding of a `with` type holding bytes.
 /// - `secret`: types holding a secret (a password): a call taking one, at any depth, has its encoded
 ///   arguments zeroed once decoded (`be_wasm_ops::scrub`), so the secret lives on only in the
-///   decoded value, whose type zeroes itself. No other call pays for it.
+///   decoded value, whose type zeroes itself. No other call pays for it. A type holding one
+///   is neither copied nor compared: it derives `Debug` alone.
 /// - `local`: interfaces answered synchronously on the guest's own thread (the GPU);
 ///   only these may have plain `func`s.
 /// - `network: true`: a client and server over a socket instead of a guest and host.
@@ -977,18 +978,26 @@ impl Generator {
             true => quote!(#[serde(default)]),
             false => TokenStream::new(),
         };
-        let copy = self.copyable(&Type::Id(id));
-        let exact = !self.floating(&Type::Id(id));
-        let ordered = exact && (copy || listed(&self.options.ordered));
-        let mut derives = vec!["Clone"];
-        derives.extend(copy.then_some("Copy"));
-        derives.extend((!listed(&self.options.own_debug)).then_some("Debug"));
-        derives.extend(listed(&self.options.default).then_some("Default"));
-        derives.extend(exact.then_some("Eq"));
-        derives.extend(ordered.then_some("Hash"));
-        derives.extend(ordered.then_some("Ord"));
-        derives.push("PartialEq");
-        derives.extend(ordered.then_some("PartialOrd"));
+        let debug = (!listed(&self.options.own_debug)).then_some("Debug");
+        // A type holding a secret is neither copied nor compared, as the secret's own type is
+        // not: it derives `Debug` alone, which the secret's type writes without the secret.
+        let mut derives = Vec::new();
+        if self.holds_secret(&Type::Id(id)) {
+            derives.extend(debug);
+        } else {
+            let copy = self.copyable(&Type::Id(id));
+            let exact = !self.floating(&Type::Id(id));
+            let ordered = exact && (copy || listed(&self.options.ordered));
+            derives.push("Clone");
+            derives.extend(copy.then_some("Copy"));
+            derives.extend(debug);
+            derives.extend(listed(&self.options.default).then_some("Default"));
+            derives.extend(exact.then_some("Eq"));
+            derives.extend(ordered.then_some("Hash"));
+            derives.extend(ordered.then_some("Ord"));
+            derives.push("PartialEq");
+            derives.extend(ordered.then_some("PartialOrd"));
+        }
         let derives = derives
             .into_iter()
             .map(|derive| Ident::new(derive, Span::call_site()));

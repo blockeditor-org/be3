@@ -323,6 +323,38 @@ interface host {
         kept-edits: u32,
     }
 
+    /// An account this device keeps, which the person can open.
+    record account-row {
+        /// The host's name for it, which `core-command`s name it by.
+        key: string,
+        name: string,
+        email: string,
+        /// Its server's address, or none for an account kept on this device
+        /// alone, whose blocks go when it is removed.
+        server: option<string>,
+        /// Whether it remembers the organization it was in last, which opening
+        /// it goes back to.
+        has-last-organization: bool,
+        /// Whether it is the account open now.
+        current: bool,
+        /// The organizations it belongs to, by name.
+        companies: list<string>,
+    }
+
+    /// A sign-in the person finishes in their browser.
+    record browser-sign-in {
+        /// The page the person signs in on.
+        url: string,
+        /// The code that page asks for, which the root shows.
+        code: string,
+    }
+
+    /// Adding an account, while the host is at it.
+    record signing-in {
+        /// The browser sign-in, once the server gave one.
+        browser: option<browser-sign-in>,
+    }
+
     /// What the block stack shows the person, a field per area, each the
     /// plain data its area shows; the root words it, and holds what is open
     /// and what is being asked itself. It changes at the rate its slowest
@@ -333,12 +365,39 @@ interface host {
         generation: u64,
         /// The blocks whose changes could not be sent, oldest first.
         unsent: list<unsent-edit>,
+        /// Whether the block stack waits for the person to open or add an
+        /// account, for which the root shows the accounts.
+        choosing-account: bool,
+        /// The accounts this device keeps.
+        accounts: list<account-row>,
+        /// Adding an account, while the host is at it.
+        signing-in: option<signing-in>,
+        /// Why adding, opening or removing an account failed last, in words,
+        /// until the next attempt.
+        account-error: option<string>,
     }
 
     /// What the block stack shows the person, once it differs from the
     /// generation `seen`, as `notices` answers: at once for any other
     /// generation, such as 0.
     core: async func(seen: u64) -> core-view;
+
+    /// A new account on the server at `url`, which the person signs in to in
+    /// their browser.
+    record server-account {
+        url: string,
+        /// The gateway token the server's address needs, if it needs one: a
+        /// secret, zeroed once the host decoded it, as `unlock`'s password is.
+        gateway: option<password>,
+    }
+
+    /// Where a new account is kept.
+    variant new-account {
+        /// On this device alone, under this name.
+        local(string),
+        /// On a server.
+        server(server-account),
+    }
 
     /// What the person asked of the block stack, a case per area's request.
     variant core-command {
@@ -347,12 +406,31 @@ interface host {
         /// Drop a block's unsent changes for good, which the root asks the
         /// person to confirm first.
         discard-unsent(block-id),
+        /// Open the account of this key, in the organization it was in last.
+        open-account(string),
+        /// Open the account of this key, choosing its organization afresh.
+        choose-organization(string),
+        /// Sign out of the account of this key and forget it on this device;
+        /// one kept on this device alone takes its blocks with it, which the
+        /// root asks the person to confirm first.
+        forget-account(string),
+        /// Add an account, which `signing-in` shows until it is added or
+        /// fails, unless one is being added already.
+        add-account(new-account),
+        /// Open the browser sign-in's page in the person's browser.
+        open-sign-in-page,
+        /// Ask the server now whether the browser sign-in finished, rather
+        /// than at its next turn.
+        check-sign-in,
+        /// Stop adding an account, and forget why the last attempt failed.
+        cancel-sign-in,
     }
 
     /// The person asked `command` of the block stack, which the host does. It
     /// answers at once; what changes reaches `core`. A command naming a block
-    /// the view no longer lists (it went while the person was asked) changes
-    /// nothing.
+    /// or an account the view no longer lists (it went while the person was
+    /// asked) changes nothing. A secret in it (`add-account`'s gateway token)
+    /// is zeroed once decoded, as `unlock`'s password is.
     ask-core: async func(command: core-command);
 }
 

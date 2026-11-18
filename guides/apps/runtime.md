@@ -208,11 +208,16 @@ its own (a `v8::SharedIsolate`, locked by the thread that runs it):
   the changes not yet sent, the sync's state; `Root::show_saving`), apart from
   anything slower since it moves at the rate the person types. The rest of
   the block stack's state is one watch, `host.core`, a `core-view` with a field
-  per area (so far `unsent`, the blocks whose changes could not be sent, and
-  why, as data the root words; `Root::show_core`), and one call,
-  `host.ask-core(core-command)`, a case per request of an area
-  (`restore-unsent`, `discard-unsent`; `Root::take_core_commands`); the root
-  holds what it has open and what it asks the person itself
+  per area (`unsent`, the blocks whose changes could not be sent, and why, as
+  data the root words; the accounts, whether the stack waits for one to be
+  opened, the sign-in in progress and why one failed; `Root::show_core`), and
+  one call, `host.ask-core(core-command)`, a case per request of an area
+  (restoring or discarding unsent changes; opening, forgetting and adding
+  accounts and the browser sign-in; `Root::take_core_commands`); the root
+  holds what it has open and what it asks the person itself. A secret the
+  person types into a command (an account's gateway token) is a `password`,
+  zeroed once decoded as `host.unlock`'s is: the bindings' `secret` option
+  covers every type holding one, which derives `Debug` alone
   (plans/host_as_platform_adapter.md, 4g6, has how the rest of be-host's core
   reaches the root). Keep changes is the platform's: `host.displays` is
   a watch of whether the host asks to keep display settings that just changed
