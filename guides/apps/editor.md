@@ -238,7 +238,9 @@ tree, so a beui editor needs only the labels and `@test_id`s it already has;
 another framework fills `Frame::description` itself. The host renumbers the
 nodes into its own tree, repairs whatever the app sent, shows each view as a
 pane named after the app with its actions, and calls back `node-action` and
-`run-action`.
+`run-action`. The grafting is be-sdk-app-host's (`accessibility::Graft`, one per
+view, on be-lib-geometry and AccessKit), so any host of the protocol shows an
+app's tree as be-host does; the host puts the pane under its own tree.
 
 ## Holding the pointer and sound
 

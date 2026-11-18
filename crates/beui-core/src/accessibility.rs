@@ -24,12 +24,9 @@ use beui_types::WindowId;
 use beui_types::{Key, KeyPress, Modifiers};
 use beui_types::{Pos2, Vec2};
 
-mod embedded;
-
-pub use embedded::Embedded;
-
 pub const WINDOW_NODE: AccessNodeId = AccessNodeId(0);
-pub(crate) const DOCUMENT_SHIFT: u32 = 40;
+/// A node's id is `document << DOCUMENT_SHIFT | local`: each document numbers its own nodes.
+pub const DOCUMENT_SHIFT: u32 = 40;
 const GENERATION_SHIFT: u32 = 32;
 const SLOT_SHIFT: u32 = 30;
 const SLOT_MASK: u32 = 0b11;
@@ -51,6 +48,26 @@ pub struct Fragment {
 }
 
 impl Fragment {
+    /// A fragment of a single tree under `root`, as an app's grafted screen is: in no window or
+    /// layer of its own.
+    pub fn new(
+        nodes: Vec<(AccessNodeId, Node)>,
+        root: AccessNodeId,
+        focus: Option<AccessNodeId>,
+    ) -> Self {
+        Self {
+            nodes,
+            root,
+            focus,
+            windows: Vec::new(),
+            window_roots: Vec::new(),
+            focus_window: None,
+            focus_layer: None,
+            escaped: Vec::new(),
+            escaped_roots: Vec::new(),
+        }
+    }
+
     pub fn scale(&mut self, scale: f32) {
         let root = self.root;
         for (id, node) in &mut self.nodes {

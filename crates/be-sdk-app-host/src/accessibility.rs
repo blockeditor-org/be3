@@ -1,26 +1,60 @@
-use accesskit::{Affine, Node, NodeId as AccessNodeId, Rect as AccessRect, Role, TreeUpdate};
+//! Grafting an app's accessibility tree into the host's: the app describes each screen as an
+//! accesskit tree in its own ids and coordinates (be-sdk-api's `ScreenDescription`); the host
+//! shows it as a pane under its own tree, in the host's ids and placed where the screen is
+//! drawn. `Graft` keeps one screen's tree and sends only what changed (`Graft::grafted`), and
+//! takes the host's ids back to the app's for the actions the host is asked for
+//! (`Graft::app_node`). It knows no GUI framework: the host puts the pane under its own tree.
+
+use accesskit::{Affine, Node, NodeId, Rect as AccessRect, Role, TreeUpdate};
+use be_lib_geometry::{Rect, Vec2};
 use be_lib_stable_hash::{HashMap, HashSet};
 
-use super::{DOCUMENT_SHIFT, Fragment};
-use beui_types::{Rect, Vec2};
+/// A host id is `document << DOCUMENT_SHIFT | local`: each grafted screen numbers its nodes in a
+/// document of its own, which the host gives it (`Graft::new`) from the same space as its own
+/// documents.
+pub const DOCUMENT_SHIFT: u32 = 40;
 
 const PANE: u64 = 0;
 
-pub struct Embedded {
+/// What a graft sends the host's tree this frame (`Graft::grafted`), in the host's ids.
+pub struct Grafted {
+    /// The nodes that changed, the pane among them when it did.
+    pub nodes: Vec<(NodeId, Node)>,
+    /// The pane the app's tree hangs under, for the host to make a child of its own node.
+    pub root: NodeId,
+    /// The app's focused node, while its screen has the keyboard.
+    pub focus: Option<NodeId>,
+}
+
+/// Where a screen's tree is drawn this frame.
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub struct Placing<'a> {
+    /// The pane's label: the app's name, or none for a pane that is not a window of its own
+    /// (an anchored view, a dock bar).
+    pub title: Option<&'a str>,
+    /// The pane's bounds, where the screen shows (its rect clipped), in host coordinates.
+    pub area: Rect,
+    /// Where the screen's origin is drawn, in host coordinates.
+    pub origin: Vec2,
+    /// How much larger the screen is drawn than its app lays it out (its zoom).
+    pub scale: f32,
+}
+
+pub struct Graft {
     document: u32,
-    nodes: HashMap<AccessNodeId, Node>,
-    root: Option<AccessNodeId>,
-    focus: Option<AccessNodeId>,
-    local: HashMap<AccessNodeId, u64>,
-    remote: HashMap<u64, AccessNodeId>,
-    parents: HashMap<AccessNodeId, AccessNodeId>,
+    nodes: HashMap<NodeId, Node>,
+    root: Option<NodeId>,
+    focus: Option<NodeId>,
+    local: HashMap<NodeId, u64>,
+    remote: HashMap<u64, NodeId>,
+    parents: HashMap<NodeId, NodeId>,
     next: u64,
-    changed: HashSet<AccessNodeId>,
+    changed: HashSet<NodeId>,
     restructured: bool,
     placed: Option<(Option<String>, Rect, Vec2, f32)>,
 }
 
-impl Embedded {
+impl Graft {
     pub fn new(document: u32) -> Self {
         Self {
             document,
@@ -41,6 +75,21 @@ impl Embedded {
         self.document
     }
 
+    /// Forgets the app's tree, as when its app restarts: the pane stays, empty, until the new
+    /// run describes the screen. Host ids are not reused, so one the old run's node had never
+    /// names a node of the new run's.
+    pub fn restarted(&mut self) {
+        self.nodes.clear();
+        self.local.clear();
+        self.remote.clear();
+        self.parents.clear();
+        self.root = None;
+        self.focus = None;
+        self.changed.clear();
+        self.restructured = true;
+    }
+
+    /// Takes the app's update to its tree, sent with its frame report.
     pub fn update(&mut self, update: TreeUpdate) {
         if let Some(tree) = update.tree
             && self.root != Some(tree.root)
@@ -60,15 +109,17 @@ impl Embedded {
         self.focus = Some(update.focus);
     }
 
-    pub fn fragment(
-        &mut self,
-        title: Option<&str>,
-        area: Rect,
-        origin: Vec2,
-        scale: f32,
-        focused: bool,
-        full: bool,
-    ) -> Fragment {
+    /// What to send the host's tree for the screen placed at `placing`: everything when `full`
+    /// (the host's tree does not have it) or when the app's tree changed shape, else what
+    /// changed and, if the screen moved, the pane and the app's root. Its focus counts only while
+    /// the screen has the keyboard (`focused`).
+    pub fn grafted(&mut self, placing: Placing, focused: bool, full: bool) -> Grafted {
+        let Placing {
+            title,
+            area,
+            origin,
+            scale,
+        } = placing;
         let placed = (title.map(str::to_owned), area, origin, scale);
         let moved = self.placed.as_ref() != Some(&placed);
         self.placed = Some(placed);
@@ -95,7 +146,7 @@ impl Embedded {
             nodes.push((self.host_id(PANE), pane));
         }
         let changed = std::mem::take(&mut self.changed);
-        let mut sent: Vec<AccessNodeId> = match resend {
+        let mut sent: Vec<NodeId> = match resend {
             true => self.nodes.keys().copied().collect(),
             false => changed
                 .into_iter()
@@ -118,21 +169,17 @@ impl Embedded {
             .focus
             .filter(|focus| focused && Some(*focus) != root && self.nodes.contains_key(focus))
             .map(|focus| self.host(focus));
-        Fragment {
+        Grafted {
             nodes,
             root: self.host_id(PANE),
             focus,
-            windows: Vec::new(),
-            window_roots: Vec::new(),
-            focus_window: None,
-            focus_layer: None,
-            escaped: Vec::new(),
-            escaped_roots: Vec::new(),
         }
     }
 
-    pub fn app_node(&self, id: AccessNodeId) -> Option<AccessNodeId> {
-        if super::document_of(id) != u64::from(self.document) {
+    /// The app's id for a node of the host's, if it is one of this graft's: the pane stands
+    /// for the app's root.
+    pub fn app_node(&self, id: NodeId) -> Option<NodeId> {
+        if id.0 >> DOCUMENT_SHIFT != u64::from(self.document) {
             return None;
         }
         match id.0 & ((1 << DOCUMENT_SHIFT) - 1) {
@@ -172,10 +219,10 @@ impl Embedded {
         });
     }
 
-    fn translate(&mut self, id: AccessNodeId, origin: Vec2, scale: f32) -> Node {
+    fn translate(&mut self, id: NodeId, origin: Vec2, scale: f32) -> Node {
         let mut node = self.nodes[&id].clone();
         let mut seen = HashSet::default();
-        let children: Vec<AccessNodeId> = node
+        let children: Vec<NodeId> = node
             .children()
             .iter()
             .filter(|child| self.parents.get(child) == Some(&id) && seen.insert(**child))
@@ -189,7 +236,7 @@ impl Embedded {
         );
         macro_rules! relations {
             ($($getter:ident $setter:ident $clearer:ident),*) => {$(
-                let related: Vec<AccessNodeId> = node
+                let related: Vec<NodeId> = node
                     .$getter()
                     .iter()
                     .filter(|related| self.nodes.contains_key(related))
@@ -259,7 +306,7 @@ impl Embedded {
         node
     }
 
-    fn host(&mut self, id: AccessNodeId) -> AccessNodeId {
+    fn host(&mut self, id: NodeId) -> NodeId {
         let local = match self.local.get(&id) {
             Some(local) => *local,
             None => {
@@ -273,8 +320,8 @@ impl Embedded {
         self.host_id(local)
     }
 
-    fn host_id(&self, local: u64) -> AccessNodeId {
-        AccessNodeId((u64::from(self.document) << DOCUMENT_SHIFT) | local)
+    fn host_id(&self, local: u64) -> NodeId {
+        NodeId((u64::from(self.document) << DOCUMENT_SHIFT) | local)
     }
 }
 
@@ -286,3 +333,6 @@ fn bounds(rect: Rect) -> AccessRect {
         rect.max.y.into(),
     )
 }
+
+#[cfg(test)]
+mod tests;

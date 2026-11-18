@@ -458,3 +458,12 @@ Kill buttons try both paths.
 
 `Frame::stopped` is how a view says it will draw nothing more (closed, or
 failed with the panic); the host shows the error in its place with a restart.
+
+A restart (the Reload button, `restart_app`, or a new gpu) stops the app and
+starts its module afresh in the same `Runtime` (`Runtime::restart`): its
+instances and their views stay, and the new run is sent their content, blocks,
+keyboard focus and children's statuses again (`Instances::reopen`). What the old
+run sent or held goes: its session, held answers and frame, kept frames
+(`Holds::clear`, `Shown::clear`), what its docks declared (`Docks::restarted`)
+and each view's accessibility tree, whose pane stays, empty, until the new run
+describes the view (`Graft::restarted`).

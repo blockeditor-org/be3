@@ -1,11 +1,17 @@
 use std::cell::Cell;
 
 use be_sdk_api::{ScreenId, ViewPlacement};
+use be_sdk_app_host::accessibility::{DOCUMENT_SHIFT, Grafted, Placing};
 use beui::accesskit::Action;
 use beui::native::accessibility::Fragment;
 use beui::{ActionGroup, ActionInfo};
 
 use super::runtime;
+
+const _: () = assert!(
+    DOCUMENT_SHIFT == beui::native::accessibility::DOCUMENT_SHIFT,
+    "a graft's host ids are in beui's documents"
+);
 
 thread_local! {
     static DESCRIBING: Cell<bool> = const { Cell::new(false) };
@@ -90,14 +96,17 @@ pub fn describe(context: &beui::native::Context) {
                     Some(request)
                 })
                 .collect();
-            let fragment = described.tree.fragment(
-                title,
-                rect.intersect(clip),
-                rect.min.to_vec2(),
-                zoom,
+            let Grafted { nodes, root, focus } = described.tree.grafted(
+                Placing {
+                    title,
+                    area: rect.intersect(clip),
+                    origin: rect.min.to_vec2(),
+                    scale: zoom,
+                },
                 described.focused,
                 !context.accessibility_known(document),
             );
+            let fragment = Fragment::new(nodes, root, focus);
             let actions = ActionGroup {
                 name: name.clone(),
                 window: None,

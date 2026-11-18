@@ -598,13 +598,29 @@ Each step lands on its own.
          `waits_for_children`); `Shown` keeps the anchored views a layout closed until the
          frame that closed them is drawn (`place`, `closed`) and the last frames of views left
          out (`keep_left_out`, `release_kept`, `MOST_KEPT`), for a host that holds the
-         textures; a present applied (`presented`) or a frame shown (`frame_shown`) says what
+         textures; a present taken in (`presented`) or a frame shown (`frame_shown`) says what
          may go (`Release`), rather than the host asking; `Presents` the damage of the
          presents since the last frame shown. be-host-runtime drives them, and keeps the frame
          held for children, the presenter's state and the instances they consult. These use no
          geometry either, only be-sdk-api's placements.
-       - 4e4c. Restarts and grafting the accessibility trees, on be-lib-geometry rather than
-         beui's geometry. It may split again.
+       - 4e4c. Built: grafting the accessibility trees, `be_sdk_app_host::accessibility`.
+         `Graft` (beui-core's `Embedded`, moved) keeps one screen's AccessKit tree as its app
+         describes it, cuts it into a tree, renumbers it into a document of the host's ids
+         (`DOCUMENT_SHIFT`, which be-host-runtime checks against beui's at compile time), and
+         sends what changed under a pane placed where the screen is drawn (`grafted`, from a
+         `Placing` of be-lib-geometry's `Rect` and `Vec2`; `Grafted`), taking the host's ids
+         back to the app's for actions (`app_node`). be-host-runtime keeps one per screen,
+         makes beui's `Fragment` of what it sends (`Fragment::new`) and publishes it, and keeps
+         the actions, titles and which screens report. A restart now empties each screen's
+         pane until the new run describes it (`restarted`), where before the old run's tree
+         stayed. be-lib-geometry needed nothing new: the graft makes AccessKit's `Affine` and
+         `Rect` itself. Its tests moved from beui-host, checking the nodes rather than a dump.
+       - 4e4d. Restarts: what a restart keeps, resends and drops (`Runtime::restart`,
+         `Instances::reopen`) as one library call over the per-run state, once that state
+         (the session, holds, shown frames, presents, pacing, fonts and preferences sent, the
+         wire's heard answers) sits in one library type a host keeps per app. Today each piece
+         clears itself (`Holds::clear`, `Shown::clear`, `Pacing::reset`, `Docks::restarted`,
+         `Graft::restarted`) and be-host-runtime calls them in order with its own state.
      - 4e5. A root built on the library embeds an editor without the host's compositor, shown by
        a host test, and the root gets its `input` export, routed by `Router` over its last
        list. be-host runs it through a run option that starts a root module in place of its

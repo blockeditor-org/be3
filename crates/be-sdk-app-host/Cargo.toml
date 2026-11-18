@@ -1,11 +1,13 @@
 [package]
 name = "be-sdk-app-host"
-description = "The host's half of the app protocol: an app's wire, what host and app say on it, docks across apps, sent states, the session, frame pacing and the layout and present holds, with no GUI framework or block stack"
+description = "The host's half of the app protocol: an app's wire, what host and app say on it, docks across apps, sent states, the session, frame pacing, the layout and present holds and grafting apps' accessibility trees, with no GUI framework or block stack"
 edition.workspace = true
 version.workspace = true
 license.workspace = true
 
 [dependencies]
+accesskit = "0.24.1"
+be-lib-geometry = { path = "../be-lib-geometry" }
 be-lib-stable-hash = { path = "../be-lib-stable-hash" }
 be-sdk-api = { path = "../be-sdk-api" }
 be-sdk-manifest = { path = "../be-sdk-manifest" }

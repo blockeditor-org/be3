@@ -46,7 +46,6 @@ pub struct Pacing {
     waiting: u32,
 }
 
-/// What `Pacing::ask` decided for this host frame.
 /// What `Pacing::ask` decides from.
 #[derive(Clone, Copy, Debug)]
 pub struct Asking {
@@ -64,6 +63,7 @@ pub struct Asking {
     pub holds_input: bool,
 }
 
+/// What `Pacing::ask` decided for this host frame.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Ask {
     /// No frame is due.

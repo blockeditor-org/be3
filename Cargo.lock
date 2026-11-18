@@ -2097,6 +2097,8 @@ dependencies = [
 name = "be-sdk-app-host"
 version = "0.1.0"
 dependencies = [
+ "accesskit",
+ "be-lib-geometry",
  "be-lib-stable-hash",
  "be-sdk-api",
  "be-sdk-manifest",

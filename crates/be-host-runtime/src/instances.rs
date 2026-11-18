@@ -17,7 +17,7 @@ use be_sdk_api::{
     },
 };
 use be_sdk_type_guest::editor::{FromEditor, Gesture, ToEditor};
-use beui::native::accessibility::Embedded;
+use be_sdk_app_host::accessibility::Graft;
 use beui::{ImeArea, Pos2, Rect, Vec2, pos2, vec2};
 use std::{
     collections::{BTreeMap, VecDeque},
@@ -664,7 +664,7 @@ pub(super) struct Described<'a> {
     pub(super) screen: ScreenId,
     pub(super) actions: &'a [DescribedAction],
     pub(super) focused: bool,
-    pub(super) tree: &'a mut Embedded,
+    pub(super) tree: &'a mut Graft,
 }
 
 struct Screen {
@@ -677,7 +677,7 @@ struct Screen {
     holding: bool,
     used: Option<Vec2>,
     report: Option<FrameReport>,
-    accessibility: Embedded,
+    accessibility: Graft,
     dragging: Option<DragKind>,
     window: WindowRequests,
     stopped: Option<Stopped>,
@@ -710,7 +710,7 @@ impl Screen {
             holding: false,
             used: None,
             report: None,
-            accessibility: Embedded::new(beui::native::accessibility::next_document_id()),
+            accessibility: Graft::new(beui::native::accessibility::next_document_id()),
             dragging: None,
             window: WindowRequests::default(),
             stopped: None,
@@ -2085,6 +2085,10 @@ impl Instances {
             entry.version_sent = None;
             for link in entry.content.iter_mut().chain(entry.watched.values_mut()) {
                 link.delivered = false;
+            }
+            let anchored = entry.anchored.iter_mut().map(|held| &mut held.screen);
+            for screen in entry.screens.values_mut().chain(anchored) {
+                screen.accessibility.restarted();
             }
             for screen in entry.screens.values_mut() {
                 screen.stopped = None;

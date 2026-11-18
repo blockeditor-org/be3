@@ -18,7 +18,7 @@ fn a_frame_whose_children_wait_for_the_poll_is_shown_with_them() {
     runtime.hear(vec![placing(2, &[1])]);
     runtime.received(frame(2));
     assert_eq!(
-        (runtime.held.len(), runtime.frames),
+        (runtime.held.laid().count(), runtime.frames),
         (1, 1),
         "between polls, the children wait, and so does the frame drawn after their layout, even \
          before its present is heard"
@@ -32,7 +32,7 @@ fn a_frame_whose_children_wait_for_the_poll_is_shown_with_them() {
     runtime.taking_in = true;
     runtime.hear(Vec::new());
     assert_eq!(
-        (runtime.held.len(), runtime.frames),
+        (runtime.held.laid().count(), runtime.frames),
         (0, 2),
         "the poll applies the children and shows the frame with them"
     );
@@ -53,7 +53,7 @@ fn a_frame_whose_children_wait_for_the_poll_is_shown_with_them() {
     runtime.taking_in = true;
     runtime.hear(Vec::new());
     assert_eq!(
-        (runtime.held.len(), runtime.frames),
+        (runtime.held.laid().count(), runtime.frames),
         (0, 4),
         "and the poll that applies the children shows it"
     );

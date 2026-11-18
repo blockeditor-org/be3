@@ -115,14 +115,6 @@ impl<A> Holds<A> {
         self.held.is_empty()
     }
 
-    pub fn len(&self) -> usize {
-        self.held.len()
-    }
-
-    pub fn iter(&self) -> impl Iterator<Item = &Held<A>> {
-        self.held.iter()
-    }
-
     /// What every held layout lays out.
     pub fn laid(&self) -> impl Iterator<Item = &Laid> {
         self.held.iter().filter_map(|held| match held {
@@ -136,7 +128,8 @@ impl<A> Holds<A> {
         *self = Self::default();
     }
 
-    /// The app sent `presents` presents, the last that painted being `painted`.
+    /// The host heard `presents` more presents from the app: a layout held until the present
+    /// that follows it (`Laid::presented_by`) is released once that many have been heard.
     pub fn heard_presents(&mut self, presents: u64) {
         self.presents_heard += presents;
     }
@@ -212,7 +205,7 @@ impl<A> Holds<A> {
 }
 
 /// The app's screens while anchored views they leave out are still shown: until the present
-/// after the layout (`presented_by`, counted in presents applied) and, when it painted, the frame
+/// after the layout (`presented_by`, counted in present commits taken in) and, when it painted, the frame
 /// of that present's sequence (`drawn_by`).
 struct Closing {
     presented_by: u64,
@@ -233,17 +226,17 @@ struct Kept {
 }
 
 /// A kept frame goes once the present that follows the layout bringing its view back has been
-/// applied and, where it painted, its frame has been drawn, as an anchored view that closes does
+/// taken in and, where it painted, its frame has been drawn, as an anchored view that closes does
 /// (`Closing`).
 #[derive(Clone, Copy)]
 enum Back {
-    /// Laid out again; waits for this many presents applied.
+    /// Laid out again; waits for this many present commits taken in.
     Laid(u64),
     /// That present came, with the sequence of its frame if it painted.
     Presented(Option<u64>),
 }
 
-/// What a present applied or a frame shown lets go (`Shown::presented`, `Shown::frame_shown`).
+/// What a present taken in or a frame shown lets go (`Shown::presented`, `Shown::frame_shown`).
 #[must_use]
 pub struct Release {
     /// The anchored views a layout closed may go: lay out these screens.
@@ -260,8 +253,8 @@ pub struct Shown {
     /// a frame and wait for a present's pixels; in the browser a surface is the app worker's
     /// canvas, which goes when the app's layout leaves it out.
     holds_textures: bool,
-    /// Presents applied, in the order the app sent them among its other answers.
-    presents_applied: u64,
+    /// Present commits taken in, in the order the app sent them among its other answers.
+    presents_taken: u64,
     closing: Option<Closing>,
     kept: HashMap<ScreenId, Kept>,
     /// Counts the views hidden, to order the kept frames (`Kept::hidden`).
@@ -272,7 +265,7 @@ impl Shown {
     pub fn new(holds_textures: bool) -> Self {
         Self {
             holds_textures,
-            presents_applied: 0,
+            presents_taken: 0,
             closing: None,
             kept: HashMap::default(),
             hides: 0,
@@ -281,7 +274,7 @@ impl Shown {
 
     /// Forgets what the app showed, as when it restarts.
     pub fn clear(&mut self) {
-        self.presents_applied = 0;
+        self.presents_taken = 0;
         self.closing = None;
         self.kept.clear();
     }
@@ -312,26 +305,27 @@ impl Shown {
         let mut shown = layout.clone();
         shown.screens.extend(closed);
         self.closing = Some(Closing {
-            presented_by: self.presents_applied + 1,
+            presented_by: self.presents_taken + 1,
             drawn_by: None,
             layout,
         });
         shown
     }
 
-    /// The app's present was applied, with the sequence of its frame if it painted, while the
-    /// last present shown is `shown`: what may now be let go.
+    /// The host took in a present commit of the app's (`painted`: the sequence of its frame, if
+    /// it painted one), while the frame it shows is that of present `shown`: what may now be let
+    /// go.
     pub fn presented(&mut self, painted: Option<u64>, shown: u64) -> Release {
-        self.presents_applied += 1;
+        self.presents_taken += 1;
         let holds_textures = self.holds_textures;
         if let Some(closing) = &mut self.closing
-            && self.presents_applied == closing.presented_by
+            && self.presents_taken == closing.presented_by
         {
             closing.drawn_by = painted.filter(|_| holds_textures);
         }
         for kept in self.kept.values_mut() {
             if let Some(Back::Laid(presented_by)) = kept.back
-                && self.presents_applied >= presented_by
+                && self.presents_taken >= presented_by
             {
                 kept.back = Some(Back::Presented(painted));
             }
@@ -355,7 +349,7 @@ impl Shown {
     /// where the host holds its textures, drawn (`shown`, the last present shown).
     fn closed(&mut self, shown: u64) -> Option<ScreenLayout> {
         let closing = self.closing.as_ref()?;
-        let presented = self.presents_applied >= closing.presented_by;
+        let presented = self.presents_taken >= closing.presented_by;
         let drawn = closing.drawn_by.is_none_or(|sequence| shown >= sequence);
         if !presented || !drawn {
             return None;
@@ -406,7 +400,7 @@ impl Shown {
                 self.kept.remove(screen);
             }
         }
-        let next = self.presents_applied + 1;
+        let next = self.presents_taken + 1;
         for placement in &layout.screens {
             if let Some(kept) = self.kept.get_mut(&placement.screen)
                 && kept.back.is_none()
