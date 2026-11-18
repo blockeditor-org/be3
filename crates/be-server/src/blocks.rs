@@ -2183,7 +2183,8 @@ impl ServerStore {
             // The log grants the new owner Manage, as the row does: authorship alone gives it
             // only while they can view the parent, which a block given away from somewhere
             // they cannot see would not be.
-            write_grant(store,
+            write_grant(
+                store,
                 graph,
                 &transaction,
                 identity.organization,
@@ -2191,7 +2192,8 @@ impl ServerStore {
                 account,
                 Access::Manage,
             )?;
-            write_grant(store,
+            write_grant(
+                store,
                 graph,
                 &transaction,
                 identity.organization,
@@ -2480,7 +2482,8 @@ fn open_or_close_inside(
             }
         }
     }
-    write_grant(store,
+    write_grant(
+        store,
         graph,
         database,
         organization,
@@ -2658,10 +2661,10 @@ impl ServerStore {
                         "SELECT commit_id FROM block_commits
                          WHERE organization_id = ?1 AND block_id = ?2",
                     )?;
-                    let rows = statement
-                        .query_map(params![organization.to_string(), block.to_string()], |row| {
-                            row.get::<_, String>(0)
-                        })?;
+                    let rows = statement.query_map(
+                        params![organization.to_string(), block.to_string()],
+                        |row| row.get::<_, String>(0),
+                    )?;
                     rows.map(|row| parse_commit(&row?))
                         .collect::<Result<Vec<_>, _>>()?
                 };
@@ -2676,10 +2679,10 @@ impl ServerStore {
                     let mut statement = connection.prepare_cached(
                         "SELECT hash FROM block_objects WHERE organization_id = ?1 AND block_id = ?2",
                     )?;
-                    let rows = statement
-                        .query_map(params![organization.to_string(), block.to_string()], |row| {
-                            row.get::<_, String>(0)
-                        })?;
+                    let rows = statement.query_map(
+                        params![organization.to_string(), block.to_string()],
+                        |row| row.get::<_, String>(0),
+                    )?;
                     rows.map(|row| Hash::from_hex(&row?).ok_or(ServerError::Corrupt))
                         .collect::<Result<Vec<_>, _>>()?
                 };
