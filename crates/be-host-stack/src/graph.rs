@@ -209,6 +209,42 @@ struct Follow {
     again: bool,
 }
 
+/// What `member` reads of the graph: borrowed field by field, so a listing can be changed while
+/// its members are worked out.
+struct Known<'a> {
+    nodes: &'a imbl::OrdMap<Uuid, Arc<Node>>,
+    referenced: &'a imbl::OrdMap<Uuid, Vec<Uuid>>,
+    read: &'a imbl::OrdMap<Uuid, (CommitId, Vec<Uuid>)>,
+    organization_settings: Option<Uuid>,
+}
+
+macro_rules! known {
+    ($graph:expr) => {
+        Known {
+            nodes: &$graph.nodes,
+            referenced: &$graph.referenced,
+            read: &$graph.read,
+            organization_settings: $graph.organization_settings,
+        }
+    };
+}
+
+impl Known<'_> {
+    /// Whether `node`'s references are those of what it holds now: its open replica's report,
+    /// what was read at its head, or with no content yet its metadata's. At a new head the
+    /// references read at the last one show until it is read, but say nothing of what it
+    /// points at now.
+    fn current(&self, node: &Node) -> bool {
+        node.references.is_some()
+            && (self.referenced.contains_key(&node.id)
+                || node.head.is_none()
+                || self
+                    .read
+                    .get(&node.id)
+                    .is_some_and(|(at, _)| node.head == Some(*at)))
+    }
+}
+
 #[derive(Clone, Debug, Default, serde::Deserialize, serde::Serialize)]
 pub struct Graph {
     /// Counts the changes to the mirror, for the stack's own work to tell whether it moved;
@@ -593,7 +629,7 @@ impl Graph {
             let members = self
                 .nodes
                 .values()
-                .filter(|node| member(listing, node, &self.nodes, self.organization_settings) == Some(true))
+                .filter(|node| member(listing, node, &known!(self)) == Some(true))
                 .map(|node| node.id)
                 .collect();
             self.listings.insert(
@@ -726,7 +762,7 @@ impl Graph {
                 .filter(|block| {
                     self.nodes
                         .get(block)
-                        .is_some_and(|node| member(listing, node, &self.nodes, self.organization_settings) == Some(true))
+                        .is_some_and(|node| member(listing, node, &known!(self)) == Some(true))
                 }),
         );
         // Where this device knows a block's content (its open replica's report, or a read of its
@@ -751,7 +787,7 @@ impl Graph {
                             .get(&node.id)
                             .is_some_and(|heard| *heard > sequence)
                 })
-                .filter(|node| member(listing, node, &self.nodes, self.organization_settings) == Some(true))
+                .filter(|node| member(listing, node, &known!(self)) == Some(true))
                 .map(|node| node.id),
         );
         let unlisted: Vec<Uuid> = before
@@ -760,7 +796,7 @@ impl Graph {
             .filter(|block| {
                 self.nodes
                     .get(block)
-                    .is_some_and(|node| member(listing, node, &self.nodes, self.organization_settings) == Some(true))
+                    .is_some_and(|node| member(listing, node, &known!(self)) == Some(true))
             })
             .collect();
         if !unlisted.is_empty() {
@@ -1051,7 +1087,7 @@ impl Graph {
                 .any(|target| self.listings.contains_key(&Listing::Backrefs(*target)))
             || self.listings.keys().any(|listing| {
                 matches!(listing, Listing::References(_))
-                    && member(*listing, node, &self.nodes, self.organization_settings) == Some(true)
+                    && member(*listing, node, &known!(self)) == Some(true)
             })
     }
 
@@ -1264,12 +1300,22 @@ impl Graph {
     /// A block made here, kept until the drain sends it: what the server lists before then
     /// cannot hold it (`unpublished`).
     /// The organization the mirror is of: its settings block is never a root block.
+    /// A root listing made before this took the settings in as it took any block at the root:
+    /// they leave it, and the mirror, unless something else holds them.
     pub fn organized(&mut self, organization: Uuid) {
-        let settings = Some(be_block::organization_settings(organization));
-        if self.organization_settings != settings {
-            self.organization_settings = settings;
-            self.moved();
+        let settings = be_block::organization_settings(organization);
+        if self.organization_settings == Some(settings) {
+            return;
         }
+        self.organization_settings = Some(settings);
+        if let Some(listed) = self
+            .listings
+            .get_mut(&Listing::Children(BlockParent::Root))
+        {
+            listed.members.remove(&settings);
+        }
+        self.prune();
+        self.moved();
     }
 
     pub fn made(&mut self, block: Uuid) {
@@ -1767,7 +1813,7 @@ impl Graph {
             .listings
             .iter()
             .filter_map(|(listing, listed)| {
-                let member = member(*listing, &node, &self.nodes, self.organization_settings)?;
+                let member = member(*listing, &node, &known!(self))?;
                 (member != listed.members.contains(&node.id)).then_some((*listing, member))
             })
             .collect();
@@ -1942,13 +1988,14 @@ impl Graph {
                 Some(_) => self.listed_nodes(Listing::References(block)),
                 None => return Vec::new(),
             },
-            // Those whose content is read and references it, and those the server lists whose
-            // content is not read.
+            // Those whose content is read at their head and references it, and those the server
+            // lists whose content is not read there.
             Query::Backrefs(block) => {
                 let listed = self.listings.get(&Listing::Backrefs(block));
+                let known = known!(self);
                 self.nodes
                     .values()
-                    .filter(|node| match node.refers_to(block) {
+                    .filter(|node| match member(Listing::Backrefs(block), node, &known) {
                         Some(refers) => refers,
                         None => listed.is_some_and(|listed| listed.members.contains(&node.id)),
                     })
@@ -2169,22 +2216,22 @@ impl Graph {
 }
 
 /// Whether `node` belongs in `listing` as the server lists it, where this device can tell. The
-/// organization's settings lie at the root but are never among its children.
-fn member(
-    listing: Listing,
-    node: &Node,
-    nodes: &imbl::OrdMap<Uuid, Arc<Node>>,
-    organization_settings: Option<Uuid>,
-) -> Option<bool> {
+/// organization's settings lie at the root but are never among its children, and a block counts
+/// among another's backrefs by its references only while they are current (`Known::current`).
+fn member(listing: Listing, node: &Node, known: &Known) -> Option<bool> {
     match listing {
-        Listing::Children(BlockParent::Root) if organization_settings == Some(node.id) => {
+        Listing::Children(BlockParent::Root) if known.organization_settings == Some(node.id) => {
             Some(false)
         }
         Listing::Children(parent) => Some(node.parent == Some(parent)),
         Listing::Deleted => Some(node.parent.is_some() && !node.held),
         Listing::Block(block) => Some(block == node.id),
-        Listing::Backrefs(block) => node.refers_to(block),
-        Listing::References(block) => nodes
+        Listing::Backrefs(block) => known
+            .current(node)
+            .then(|| node.refers_to(block))
+            .flatten(),
+        Listing::References(block) => known
+            .nodes
             .get(&block)
             .and_then(|referrer| referrer.refers_to(node.id)),
         Listing::Shared | Listing::OpenSettings(_) => None,

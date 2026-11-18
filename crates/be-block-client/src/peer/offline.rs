@@ -861,6 +861,7 @@ impl<S: ObjectStore> Peer<S> {
                 self.refs.remove(&[sequence])?;
                 self.keys.made_taken(block);
                 self.note(&summary);
+                self.taken(block);
                 self.escrow_created(&creation.keys).await;
                 Ok(Drained::Created { block })
             }
@@ -871,6 +872,7 @@ impl<S: ObjectStore> Peer<S> {
                 if self.made_here(&creation).await? {
                     self.refs.remove(&[sequence])?;
                     self.keys.made_taken(block);
+                    self.taken(block);
                     return Ok(Drained::Created { block });
                 }
                 let why = crate::refs::Aside::Refused(ErrorCode::BlockAlreadyExists);
@@ -921,6 +923,7 @@ impl<S: ObjectStore> Peer<S> {
         match self.send_parent(block, moving.parent).await {
             Ok(()) => {
                 self.refs.remove(&[sequence])?;
+                self.taken(block);
                 let _ = self
                     .follow_prefixes(block, moving.from, moving.parent)
                     .await;

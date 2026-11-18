@@ -415,14 +415,11 @@ sends it. `Peer::write` does both.
   through) and where it is returned (`Peer::summary_with_outbox`), and a server
   listing with what the outbox adds or moves (`Peer::with_outbox`): an answer
   the server gave before those reached it would otherwise undo them here. A
-  listing is laid over too with each block whose creation or move waited when it
-  was asked for (`Peer::placing`) and that the drain sent while it was out, as
+  listing is laid over too with each block whose creation or move the server
+  took while it was out (`Peer::sent_since`, marked before it is asked for), as
   this device now has it: calls on one connection are answered in order, so
-  the answer was read before the server took that write. A
-  listing is laid over too with each block whose creation or move waited when it
-  was asked for (`Peer::placing`) and that the drain sent while it was out, as
-  this device now has it: calls on one connection are answered in order, so
-  the answer was read before the server took that write.
+  the answer was read before the server took that write. One the server
+  refused was never taken, and the answer stands for its block.
   Each goes up as one write: a creation as `[create-block, put-keys(rows)]`
   (`Creation::ops`), a move as `[move, put-keys(rows)]` with the keys
   `Peer::rescope` made for its new scope (none within one), and a define as a
