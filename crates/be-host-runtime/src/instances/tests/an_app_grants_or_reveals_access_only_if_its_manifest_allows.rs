@@ -32,7 +32,24 @@ fn an_app_grants_or_reveals_access_only_if_its_manifest_allows() {
             owner_only: false,
         },
     );
+    // One the host refuses to make, under a block it cannot edit, is not the app's to open.
+    let refused = Uuid::now_v7();
+    call(
+        &mut instances,
+        be_sdk_api::embed::blocks::Call::CreateBlock {
+            reply: reply(next_op()),
+            block: refused.into_bytes(),
+            block_type: CounterContent::CONTENT_TYPE.into_bytes(),
+            parent: be_sdk_api::BlockLocation::Block(Uuid::new_v4().into_bytes()),
+            defined: Vec::new(),
+            content: None,
+            owner_only: false,
+        },
+    );
     be_host_stack::flush_and_send();
+    be_host_stack::wait_until("listed the block the app made", |shared| {
+        shared.graph.get(made).map(|_| ())
+    });
     let ask = |instances: &mut Instances, call: Call| {
         instances.take_answers();
         instances.serve(crate::wire::Service {
@@ -56,6 +73,8 @@ fn an_app_grants_or_reveals_access_only_if_its_manifest_allows() {
         set(own, anyone_inside, AccessLevel::View),
         set(own, anyone_inside, AccessLevel::None),
         set(Uuid::new_v4(), anyone_inside, AccessLevel::View),
+        set(refused, anyone_inside, AccessLevel::View),
+        set(made, anyone_inside, AccessLevel::None),
         Call::ListAccess {
             reply: reply(1),
             block: own.into_bytes(),
