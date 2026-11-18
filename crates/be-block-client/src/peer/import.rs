@@ -95,8 +95,11 @@ impl<S: ObjectStore> Peer<S> {
         ready.queued = self.refs.push_all(ops)?;
         // Its log's history from the block it was written in goes after it, each entry as it
         // was written there, which it still verifies against; its new entries follow.
-        for original in &ready.log {
-            self.push_imported(ready.id, ready.creation.key, original)?;
+        // The new block's log is empty, and its history goes first: each entry lands at its
+        // place in it, which its importer signs (`verify_imported`).
+        let count = ready.log.len() as u64;
+        for (place, original) in ready.log.iter().enumerate() {
+            self.push_imported(ready.id, ready.creation.key, (place as u64, count), original)?;
         }
         // The outbox keeps the creation: so does the device the log made with it.
         self.keep_made_log(&ready.creation)?;
@@ -107,15 +110,17 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     /// Puts `original`, an entry an export carried, in `block`'s outbox as imported history,
-    /// sealed under `key` and signed by this account as importing it (`verify_imported`).
+    /// sealed under `key` with its place in the log and the history's length, and signed by
+    /// this account as importing it (`verify_imported`).
     pub(crate) fn push_imported(
         &self,
         block: Uuid,
         key: Uuid,
+        (place, count): (u64, u64),
         original: &crate::ExportedEntry,
     ) -> Result<(), ClientError> {
         let id = Uuid::new_v4();
-        let plain = original.sealed();
+        let plain = original.sealed(place, count);
         let payload = self.commits.vault().seal(key, &plain)?;
         let signature =
             self.sign_authored(block, &be_block_protocol::log_signed(id, Hash::of(&plain)));
