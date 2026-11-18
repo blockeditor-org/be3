@@ -181,7 +181,14 @@ tests read one their build made, crates/be-host-tests/apps.bzl). Each guest thre
   answers them once they change from the generation the root saw, as
   `host.notices` does (`Root::show_statistics`): performance and memory rows,
   each a heading or a measurement's latest, average and peak as the host words
-  them, and the file the memory statistics are written to. The input method
+  them, and the file the memory statistics are written to. The session's
+  screen lock is the host's: `host.lock` is a watch of it (locked, checking,
+  why the last password was refused, whose session, the power actions offered;
+  `Root::show_lock`), `host.lock-session` and `host.lock-power` ask the host to
+  lock or to do a power action, and `host.unlock` hands over what was typed
+  and answers only whether it unlocked: the host takes it (`Root::take_unlocks`,
+  a `Password` zeroed when dropped), checks it and answers (`answer_unlock`),
+  and nothing of it crosses back. The input method
   needs nothing more: the platform's input-method events reach the root as
   input, which its router hands the focused surface, and the field that
   surface edits is `frame-done`'s `ime`. Choosing and saving files are the
@@ -225,7 +232,8 @@ tests read one their build made, crates/be-host-tests/apps.bzl). Each guest thre
   watches its statistics it samples its memory, writing it nowhere and parking
   the sampler when the watch ends, and each sample wakes the window; it hands
   the root be-host-base's performance rows each frame and its memory rows once
-  a sample came. What the root
+  a sample came. It runs no screen lock, so it leaves the root's lock unavailable
+  and answers every password handed over no, unchecked. What the root
   copies it puts on the window's clipboard (`Context::copy`), and each paste it
   asks for it reads there (`Context::read_clipboard`) and hands back with the
   next frame. `drive
@@ -311,7 +319,8 @@ tests read one their build made, crates/be-host-tests/apps.bzl). Each guest thre
   triangle's screen, its host's notices as styled `Toasts` over
   everything, on a layer listed only while one shows, hit only where they are
   and never taking the focus, a dialog F2 opens over a scrim, and a panel of
-  its host's statistics F3 opens and closes, and which be-wasm-root-host's tests run with the
+  its host's statistics F3 opens and closes, and its host's lock screen while
+  the session is locked, and which be-wasm-root-host's tests run with the
   triangle on a stand-in device, and be-host's host test with `--root`. A root is
   built as an app is (`app_module`, in the `wasi-guest` plan, linked against
   base and beui; decisions/a_root_links_beui_as_an_app_does.md); only

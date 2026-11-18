@@ -27,8 +27,8 @@ use std::time::{Duration, Instant};
 use be_wasm_guest_host::STEP_TIMEOUT;
 use be_wasm_ops::{Connection, Incoming, OpError, OpId, Outcome, Reply, Side, Ticket};
 use be_wasm_root_api::{
-    FrameDone, FrameRequest, embed, host::HostStatistics, host::Notice, host::ShownNotices,
-    host::StatisticRow,
+    FrameDone, FrameRequest, embed, host::HostStatistics, host::LockState, host::Notice,
+    host::PowerAction, host::ShownNotices, host::StatisticRow,
 };
 use be_wasm_sandbox_host::Server;
 pub use be_wasm_sandbox_host::{Loader, Staged};
@@ -124,6 +124,50 @@ struct Core<G> {
     statistics: HostStatistics,
     /// The root's `host.statistics` calls waiting for them to change from those it saw.
     statistics_watchers: Vec<Reply<HostStatistics>>,
+    /// The session's screen lock, which `host.lock` answers: the generation counts each change.
+    lock: LockState,
+    /// The root's `host.lock` calls waiting for it to change from what they saw.
+    lock_watchers: Vec<Reply<LockState>>,
+    /// Whether the root asked to lock the session (`host.lock-session`) since the host last took
+    /// it.
+    lock_asked: bool,
+    /// The passwords the root handed over (`host.unlock`), by id, until the host takes them to
+    /// check.
+    unlocks: Vec<(u64, Password)>,
+    /// The root's `host.unlock` calls waiting for the host's answer, by id.
+    unlocking: Vec<(u64, Reply<bool>)>,
+    /// The id the next password handed over is given.
+    next_unlock: u64,
+    /// What the root chose on its lock screen besides unlocking (`host.lock-power`), until the
+    /// host takes it.
+    lock_powers: Vec<PowerAction>,
+}
+
+/// A password the root handed over to check (`host.unlock`): its bytes as typed, zeroed when it
+/// is dropped, and never printed.
+pub struct Password(Vec<u8>);
+
+impl Password {
+    /// The bytes as typed, which the host checks and drops.
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+// unsafe(memory)
+impl Drop for Password {
+    fn drop(&mut self) {
+        for byte in self.0.iter_mut() {
+            // Volatile, so the zeroing is not optimised away as a dead store.
+            unsafe { std::ptr::write_volatile(byte, 0) };
+        }
+    }
+}
+
+impl std::fmt::Debug for Password {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("Password(..)")
+    }
 }
 
 impl<G: Inline> Core<G> {
@@ -160,6 +204,21 @@ impl<G: Inline> Core<G> {
                 memory_file: None,
             },
             statistics_watchers: Vec::new(),
+            lock: LockState {
+                generation: 1,
+                available: false,
+                locked: false,
+                checking: false,
+                refused: None,
+                user: String::new(),
+                power: Vec::new(),
+            },
+            lock_watchers: Vec::new(),
+            lock_asked: false,
+            unlocks: Vec::new(),
+            unlocking: Vec::new(),
+            next_unlock: 0,
+            lock_powers: Vec::new(),
         };
         core.received()?;
         Ok(core)
@@ -278,6 +337,57 @@ impl<G: Inline> Core<G> {
             reply.send(&mut self.connection, &self.statistics);
         }
         answered
+    }
+
+    /// Shows the root the session's screen lock (`host.lock`), in place of what it showed:
+    /// `shown`'s generation is the host's own counting. Answers whether a root's call waited for
+    /// it, so the host steps the root.
+    fn show_lock(&mut self, shown: LockState) -> bool {
+        let LockState { generation, .. } = self.lock;
+        let changed = LockState {
+            generation,
+            ..shown.clone()
+        } != self.lock;
+        if !changed {
+            return false;
+        }
+        self.lock = LockState {
+            generation: generation + 1,
+            ..shown
+        };
+        let watching = std::mem::take(&mut self.lock_watchers);
+        let answered = !watching.is_empty();
+        for reply in watching {
+            reply.send(&mut self.connection, &self.lock);
+        }
+        answered
+    }
+
+    /// Whether the root asked to lock the session since the last call.
+    fn take_lock_asked(&mut self) -> bool {
+        std::mem::take(&mut self.lock_asked)
+    }
+
+    /// The passwords the root handed over since the last call, oldest first, each with the id
+    /// `answer_unlock` names.
+    fn take_unlocks(&mut self) -> Vec<(u64, Password)> {
+        std::mem::take(&mut self.unlocks)
+    }
+
+    /// Answers the password `id` handed over: whether it unlocked the session. Answers whether
+    /// the root waited for it.
+    fn answer_unlock(&mut self, id: u64, unlocked: bool) -> bool {
+        let Some(at) = self.unlocking.iter().position(|(asked, _)| *asked == id) else {
+            return false;
+        };
+        let (_, reply) = self.unlocking.remove(at);
+        reply.send(&mut self.connection, &unlocked);
+        true
+    }
+
+    /// What the root chose on its lock screen besides unlocking since the last call.
+    fn take_lock_powers(&mut self) -> Vec<PowerAction> {
+        std::mem::take(&mut self.lock_powers)
     }
 
     /// Asks the root for a frame for `request`, drawn by `deadline`, or says why the root drew
@@ -422,6 +532,19 @@ impl<G: Inline> Core<G> {
                         self.watching
                             .remove(at)
                             .fail(&mut self.connection, OpError::Canceled);
+                    } else if let Some(at) =
+                        self.lock_watchers.iter().position(|reply| reply.op() == op)
+                    {
+                        self.lock_watchers
+                            .remove(at)
+                            .fail(&mut self.connection, OpError::Canceled);
+                    } else if let Some(at) =
+                        self.unlocking.iter().position(|(_, reply)| reply.op() == op)
+                    {
+                        let (id, reply) = self.unlocking.remove(at);
+                        // Unchecked, its password goes with it.
+                        self.unlocks.retain(|(asked, _)| *asked != id);
+                        reply.fail(&mut self.connection, OpError::Canceled);
                     } else if let Some(at) = self
                         .statistics_watchers
                         .iter()
@@ -501,6 +624,33 @@ impl<G: Inline> Core<G> {
                     true => self.statistics_watchers.push(reply),
                     false => reply.send(&mut self.connection, &self.statistics),
                 }
+            }
+            embed::Call::Host(embed::host::Call::Lock { seen, reply }) => {
+                match seen == self.lock.generation {
+                    true => self.lock_watchers.push(reply),
+                    false => reply.send(&mut self.connection, &self.lock),
+                }
+            }
+            embed::Call::Host(embed::host::Call::LockSession { reply }) => {
+                self.lock_asked = true;
+                reply.send(&mut self.connection, &());
+            }
+            embed::Call::Host(embed::host::Call::Unlock { password, reply }) => {
+                let password = Password(password);
+                // Only a locked session is unlocked: anything else is a no, and its password
+                // is dropped unchecked.
+                if !self.lock.locked {
+                    reply.send(&mut self.connection, &false);
+                    return;
+                }
+                let id = self.next_unlock;
+                self.next_unlock += 1;
+                self.unlocks.push((id, password));
+                self.unlocking.push((id, reply));
+            }
+            embed::Call::Host(embed::host::Call::LockPower { action, reply }) => {
+                self.lock_powers.push(action);
+                reply.send(&mut self.connection, &());
             }
             embed::Call::Host(embed::host::Call::PasteShortcut { reply }) => {
                 reply.send(&mut self.connection, &self.paste_shortcut);

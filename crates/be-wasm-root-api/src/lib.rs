@@ -13,4 +13,5 @@ be_wasm_ops_bindgen::generate!({
 });
 
 pub use frames::{FrameDone, FrameRequest};
-pub use host::{HostStatistics, Notice, NoticeAction, ShownNotices, StatisticRow};
+pub use host::{
+    LockState, PowerAction,HostStatistics, Notice, NoticeAction, ShownNotices, StatisticRow};

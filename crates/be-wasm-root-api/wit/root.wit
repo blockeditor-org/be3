@@ -134,6 +134,61 @@ interface host {
     /// as 0. They change only while the root watches them
     /// (`watch-statistics`).
     statistics: async func(seen: u64) -> host-statistics;
+
+    /// What the person may do from the lock screen besides unlocking it.
+    enum power-action {
+        suspend,
+        restart,
+        power-off,
+        log-out,
+    }
+
+    /// The session's screen lock, which is the host's: the platform's (a
+    /// login session's) to engage and to check a password against. The root
+    /// only shows it.
+    record lock-state {
+        /// Which change of the lock this is, which the next `lock` call names
+        /// as `seen`: never 0.
+        generation: u64,
+        /// Whether this host can lock its session at all; when it cannot, it
+        /// is never locked.
+        available: bool,
+        /// Whether the session is locked: the root shows its lock screen over
+        /// everything, takes no other input, and shows nothing it would not
+        /// show a stranger.
+        locked: bool,
+        /// Whether a password handed over (`unlock`) is being checked.
+        checking: bool,
+        /// Why the last unlock was refused, in words for the person, until
+        /// they try again.
+        refused: option<string>,
+        /// The name of the person whose session it is.
+        user: string,
+        /// What the lock screen offers besides unlocking.
+        power: list<power-action>,
+    }
+
+    /// The screen lock, once it differs from the generation `seen`, as
+    /// `notices` answers: at once for any other generation, such as 0.
+    lock: async func(seen: u64) -> lock-state;
+
+    /// Locks the session now, as the person asked (a shortcut, a menu); a host
+    /// that cannot lock changes nothing. It answers at once; the change
+    /// reaches `lock`.
+    lock-session: async func();
+
+    /// Hands the host what the person typed into the lock screen to check,
+    /// and answers whether it unlocked the session: only yes or no, never
+    /// anything of the password. The bytes cross once, as typed; the host
+    /// checks them against the platform (PAM in a login session) and zeroes
+    /// them, and the root clears its field as it hands them over and keeps
+    /// no copy. Why a no was refused reaches `lock` (`refused`). A host whose
+    /// session is not locked answers no.
+    unlock: async func(password: list<u8>) -> bool;
+
+    /// The person chose `action` on the lock screen, which the host does if
+    /// the session is locked and offers it.
+    lock-power: async func(action: power-action);
 }
 
 /// The window's input, which the host hands the root inline on its frame thread

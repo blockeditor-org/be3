@@ -252,6 +252,11 @@ dismissable, focus can't leave it (not even to nothing), `Document::locked` is
 true, and listeners above the tree (`on_key` at `KeyAt::Window`, window and host actions)
 hear only media keys (`Key::is_media`).
 
+A root guest's lock screen is a layer of its own over every other, toasts
+hidden, which takes the focus once drawn while the root intercepts no key; the
+lock and the password check are its host's (`be3:root`'s `host.lock` and
+`host.unlock`; guides/apps/runtime.md, The root guest).
+
 ## Modals and dialogs
 
 `unstyled::Modal` is every modal's outer part: an overlay with a scrim that

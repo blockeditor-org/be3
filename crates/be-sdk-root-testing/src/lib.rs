@@ -27,6 +27,11 @@
 //! (`STATISTICS_LAYER`, drawn with beui on `STATISTICS_SURFACE`) of its host's statistics: it
 //! watches them while the panel is open (`be3:root`'s `host.watch-statistics`) and shows each
 //! change of them (`host.statistics`) as rows, never taking the focus.
+//! It shows its host's screen lock (`host.lock`): while the session is locked, a lock screen
+//! (`LOCK_LAYER`, drawn with beui on `LOCK_SURFACE`) over everything, toasts hidden, which takes
+//! the focus for its password field and gives it back once unlocked; it intercepts no key then.
+//! Its field hands what was typed to the host to check (`host.unlock`), cleared as it does, and
+//! shows why the host refused it. F4 (`LOCKS_SESSION`) asks the host to lock the session.
 //! A frame at `CLOSES` lets go of the app, which stops it. The window's input is routed by the
 //! library over the layers it drew last; what lands on `TEXT_SURFACE` its beui document hears,
 //! and what lands on its own surface beside the strip nothing does.
@@ -177,6 +182,18 @@ pub const STATISTICS_ORIGIN: (f32, f32) = ((SIZE.0 - STATISTICS_AREA.0) as f32, 
 
 /// The panel's title.
 pub const STATISTICS_TITLE: &str = "Performance";
+
+/// The key that asks the host to lock the session (`be3:root`'s `host.lock-session`), pressed
+/// with no modifiers: the root intercepts it wherever the focus is, but not while the session is
+/// locked.
+pub const LOCKS_SESSION: Key = Key::F4;
+
+/// The layer showing `LOCK_SURFACE` while the session is locked: over everything, toasts too,
+/// which it hides, taking every press and the focus.
+pub const LOCK_LAYER: LayerId = LayerId(7);
+
+/// A surface of the root's own the size of the window that beui draws its lock screen on.
+pub const LOCK_SURFACE: u32 = 8;
 
 #[cfg(target_arch = "wasm32")]
 mod guest;

@@ -17,13 +17,15 @@ use std::{
 };
 
 use be_wasm_guest_host::Wake;
-use be_wasm_root_api::{FrameDone, FrameRequest, host::Notice, host::StatisticRow};
+use be_wasm_root_api::{
+    FrameDone, FrameRequest, host::LockState, host::Notice, host::PowerAction, host::StatisticRow,
+};
 use be_wasm_sandbox_host::{Loader, Server};
 use js_sys::{Function, Object, Reflect, Uint8Array, WebAssembly};
 use wasm_bindgen::{JsCast, prelude::*};
 use wasm_bindgen_futures::JsFuture;
 
-use crate::{Core, Inline, Progress};
+use crate::{Core, Inline, Password, Progress};
 
 /// What hears a drawn frame, or why the root drew none.
 type Drawn = Box<dyn FnOnce(Result<FrameDone, String>)>;
@@ -220,6 +222,44 @@ impl Root {
         if answered {
             ring(self.shared.id);
         }
+    }
+
+    /// Shows the root the session's screen lock (`host.lock`), in place of what it showed (its
+    /// `generation` is ignored: the root counts the changes). If the root waits on it and it
+    /// changed, it is stepped for it.
+    pub fn show_lock(&self, shown: LockState) {
+        let answered = self.shared.core.borrow_mut().show_lock(shown);
+        if answered {
+            ring(self.shared.id);
+        }
+    }
+
+    /// Whether the root asked to lock the session (`host.lock-session`) since the last call,
+    /// which the host does if it can.
+    pub fn take_lock_asked(&self) -> bool {
+        self.shared.core.borrow_mut().take_lock_asked()
+    }
+
+    /// The passwords the root handed over to unlock the session (`host.unlock`) since the last
+    /// call, oldest first, each with the id `answer_unlock` names. The host checks each against
+    /// the platform and drops it, which zeroes it. Only a locked session's are handed over.
+    pub fn take_unlocks(&self) -> Vec<(u64, Password)> {
+        self.shared.core.borrow_mut().take_unlocks()
+    }
+
+    /// Answers the password `id` handed over with whether it unlocked the session: all the root
+    /// hears of it. If the root waits on it, it is stepped for it.
+    pub fn answer_unlock(&self, id: u64, unlocked: bool) {
+        let answered = self.shared.core.borrow_mut().answer_unlock(id, unlocked);
+        if answered {
+            ring(self.shared.id);
+        }
+    }
+
+    /// What the root chose on its lock screen besides unlocking (`host.lock-power`) since the
+    /// last call, which the host does if the session is locked and offers it.
+    pub fn take_lock_powers(&self) -> Vec<PowerAction> {
+        self.shared.core.borrow_mut().take_lock_powers()
     }
 
     /// How the root answered the host's notices since the last call (`host.answer-notice`), in
