@@ -1,12 +1,13 @@
 use be_sdk_beui::beui::CanvasView;
 use beui::Overflow;
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{
-    CursorIcon, NodeId, PointerId, PointerPress, Pos2, Rect, ScrollGesture, Vec2, drag,
+    CursorIcon, NodeId, PointerId, PointerPress, Pos2, Rect, ScrollGesture, Vec2, accesskit,
+    drag,
 };
 use be_sdk_beui::{ChildBlock, ChildMode, Drag};
 use uuid::Uuid;
@@ -25,7 +26,7 @@ const CLIP_RADIUS: Radius = Radius::Sm;
 /// How far apart, in points, a keyboard carry's stops along a lane are at the least.
 const KEYBOARD_STOP_SPACING: f32 = 8.0;
 
-/// The stops a clip carried from the keyboard steps between, in the timeline's own points:
+/// The stops a clip carried from the keyboard steps between, in the timeline's content:
 /// a grid of frames on each lane, at least `KEYBOARD_STOP_SPACING` apart, where the clip would
 /// land, each named by its lane and the time it starts at.
 fn keyboard_stops(
@@ -33,7 +34,7 @@ fn keyboard_stops(
     rows: &[ClipRow],
     content: Rect,
     pixels_per_frame: f32,
-    (lanes, offset, frame_rate): (usize, Vec2, be_type_video::VideoFrameRate),
+    (lanes, frame_rate): (usize, be_type_video::VideoFrameRate),
     dragged: &ClipDrag,
 ) -> Vec<drag::Stop> {
     let scale = pixels_per_frame.max(f32::EPSILON);
@@ -48,7 +49,7 @@ fn keyboard_stops(
                 timeline::drop_target_at(video, rows, content, scale, at, Some(dragged))?;
                 let start = frame.saturating_sub(dragged.grab);
                 Some(drag::Stop::new(
-                    Rect::from_center_size(at - offset, Vec2::new(width, LANE_HEIGHT)),
+                    Rect::from_center_size(at, Vec2::new(width, LANE_HEIGHT)),
                     format!(
                         "lane {}, {}",
                         lane + 1,
@@ -137,23 +138,38 @@ pub(crate) fn Timeline(state: VideoState) -> NodeId {
                 })
             })
             // From the keyboard the clip steps along a grid of frames on each lane, stopping
-            // only where it would land.
-            .stepping(move |_| {
-                let Some(dragged) = state.drag.get_untracked() else {
-                    return Vec::new();
-                };
-                untrack(|| {
-                    edit.with(|video| {
-                        keyboard_stops(
-                            video,
-                            &timeline::lane_rows(video),
-                            content.get(),
-                            pixels_per_frame.get(),
-                            (lanes.get(), offset.get(), state.frame_rate.get()),
-                            &dragged,
-                        )
-                    })
-                })
+            // only where it would land: worked out once, at the first ask, in the timeline's
+            // content, and placed where its pan shows them at each.
+            .stepping({
+                let found: Rc<RefCell<Option<Vec<drag::Stop>>>> = Rc::default();
+                move |_| {
+                    let mut found = found.borrow_mut();
+                    let stops = found.get_or_insert_with(|| {
+                        let Some(dragged) = state.drag.get_untracked() else {
+                            return Vec::new();
+                        };
+                        untrack(|| {
+                            edit.with(|video| {
+                                keyboard_stops(
+                                    video,
+                                    &timeline::lane_rows(video),
+                                    content.get(),
+                                    pixels_per_frame.get(),
+                                    (lanes.get(), state.frame_rate.get()),
+                                    &dragged,
+                                )
+                            })
+                        })
+                    });
+                    let offset = offset.get_untracked();
+                    stops
+                        .iter()
+                        .map(|stop| drag::Stop {
+                            rect: stop.rect.translate(-offset),
+                            label: stop.label.clone(),
+                        })
+                        .collect()
+                }
             })
         }),
         Callback::new(move |(_, target): (Uuid, TimelineDropTarget)| {
@@ -185,6 +201,33 @@ pub(crate) fn Timeline(state: VideoState) -> NodeId {
                 dragged.position - placed.get_untracked().min.to_vec2() + offset.get_untracked();
             timeline::drop_target_at(video, &rows, content, scale, at, None)
         })
+    });
+
+    // A keyboard carry is followed: the timeline pans to show the place it is over, and the
+    // board aims it again at the stop it stepped to, now drawn elsewhere.
+    create_effect(move || {
+        let Some(over) = site.over.get() else {
+            return;
+        };
+        untrack(|| {
+            if !state.drag.get().is_some_and(|drag| drag.keyboard) {
+                return;
+            }
+            let Some(marked) = marked(over, pixels_per_frame.get()) else {
+                return;
+            };
+            let viewport = placed.get().size();
+            let room = (content.get().size() - viewport).max(Vec2::ZERO);
+            let at = offset.get();
+            let next = Vec2::new(
+                follow(at.x, viewport.x, marked.left(), marked.right()).clamp(0.0, room.x),
+                follow(at.y, viewport.y, marked.top(), marked.bottom()).clamp(0.0, room.y),
+            );
+            if next != offset.get() {
+                offset.set(next);
+                beui::unstyled::drag_board().retrack();
+            }
+        });
     });
 
     let landing_drag = state.editor().drag();
@@ -361,6 +404,7 @@ fn Clip(
         state.begin_drag(Some(ClipDrag {
             clip: id,
             grab: (pressed / scale).max(0.0) as u64,
+            keyboard: press.pointer == PointerId::Keyboard,
         }));
         Some(drag::Carry::new(id).preview(move || {
             view! {
@@ -380,15 +424,7 @@ fn Clip(
         },
     );
 
-    view! {
-        <CanvasItem x={x} y={y} width={width} height=LANE_HEIGHT>
-            <Interactive
-                @test_id={element_test_id}
-                focusable=true
-                cursor=CursorIcon::Grab
-                drag={Some(drag)}
-                on_click={move || state.select(Some(id))}
-            >
+    let face = view! {
                 <Interactive on_press={move |press: PointerPress| grabbing.set(Some(press.local))}>
                     <Frame
                         fill={move || match attached.get() {
@@ -418,8 +454,106 @@ fn Clip(
                         </List>
                     </Frame>
                 </Interactive>
-            </Interactive>
+    };
+    view! {
+        <CanvasItem x={x} y={y} width={width} height=LANE_HEIGHT>
+            <ClipControl state id named={element_test_id} name row drag>{face}</ClipControl>
         </CanvasItem>
+    }
+}
+
+/// A clip on the timeline as a control: a click selects it, a drag carries it, and from the
+/// keyboard it is a Tab stop, selected while it has the focus, with its focus ring, that Space
+/// or Enter lifts and the arrows carry along the timeline. A screen reader reads it as a
+/// button named for its block and where it is.
+#[component]
+fn ClipControl(
+    state: VideoState,
+    id: Uuid,
+    named: String,
+    name: Memo<String>,
+    row: Memo<Lane>,
+    drag: Func<PointerPress, Option<drag::Carry>>,
+    children: Child,
+) -> NodeId {
+    let focused = create_signal(false);
+    let rate = state.frame_rate;
+    component_accessibility(create_memo(move || {
+        let mut node = accesskit::Node::new(accesskit::Role::Button);
+        let row = row.get();
+        node.set_label(format!(
+            "Clip {}, lane {}, {}",
+            name.get(),
+            row.lane + 1,
+            timeline::timecode(rate.get(), row.start)
+        ));
+        node
+    }));
+    view! {
+        <Interactive
+            @test_id={named}
+            focusable=true
+            on_focus_change={move |focus: bool| {
+                focused.set(focus);
+                if focus {
+                    state.select(Some(id));
+                }
+            }}
+            cursor=CursorIcon::Grab
+            drag={Some(drag)}
+            on_click={move || state.select(Some(id))}
+        >
+            <FocusRing focused radius=CLIP_RADIUS>{children}</FocusRing>
+        </Interactive>
+    }
+}
+
+
+/// How far inside its edge the timeline keeps the place a keyboard carry is over.
+const FOLLOW_MARGIN: f32 = 24.0;
+
+/// Where a view `length` long, now at `at`, goes along one axis to show `near` to `far`
+/// (as much of it from `near` as fits) `FOLLOW_MARGIN` inside its edges, moving no further
+/// than it must.
+fn follow(at: f32, length: f32, near: f32, far: f32) -> f32 {
+    let far = far.min(near + length - FOLLOW_MARGIN * 2.0);
+    if near < at + FOLLOW_MARGIN {
+        near - FOLLOW_MARGIN
+    } else if far > at + length - FOLLOW_MARGIN {
+        far - length + FOLLOW_MARGIN
+    } else {
+        at
+    }
+}
+
+/// Where the marker of `target` is drawn, in the timeline's content.
+fn marked(target: TimelineDropTarget, scale: f32) -> Option<Rect> {
+    match target {
+        TimelineDropTarget::Attach {
+            start,
+            lane,
+            length,
+            ..
+        }
+        | TimelineDropTarget::Offset {
+            start,
+            lane,
+            length,
+        } => {
+            let row = timeline::lane_rect(Rect::from_min_size(Pos2::ZERO, Vec2::ZERO), lane);
+            let left = start as f32 * scale;
+            Some(Rect::from_min_max(
+                Pos2::new(left, row.top()),
+                Pos2::new(left + (length as f32 * scale).max(3.0), row.bottom()),
+            ))
+        }
+        TimelineDropTarget::Base { x, .. } => {
+            let row = timeline::lane_rect(Rect::from_min_size(Pos2::ZERO, Vec2::ZERO), 0);
+            Some(Rect::from_min_max(
+                Pos2::new(x - 1.5, row.top()),
+                Pos2::new(x + 1.5, row.bottom()),
+            ))
+        }
     }
 }
 
@@ -428,36 +562,7 @@ fn DropMarker(
     target: Memo<Option<TimelineDropTarget>>,
     scale: ReadSignal<f32>,
 ) -> DynamicSegment<CanvasItem> {
-    let preview = create_memo(move || {
-        let scale = scale.get();
-        match target.get()? {
-            TimelineDropTarget::Attach {
-                start,
-                lane,
-                length,
-                ..
-            }
-            | TimelineDropTarget::Offset {
-                start,
-                lane,
-                length,
-            } => {
-                let row = timeline::lane_rect(Rect::from_min_size(Pos2::ZERO, Vec2::ZERO), lane);
-                let left = start as f32 * scale;
-                Some(Rect::from_min_max(
-                    Pos2::new(left, row.top()),
-                    Pos2::new(left + (length as f32 * scale).max(3.0), row.bottom()),
-                ))
-            }
-            TimelineDropTarget::Base { x, .. } => {
-                let row = timeline::lane_rect(Rect::from_min_size(Pos2::ZERO, Vec2::ZERO), 0);
-                Some(Rect::from_min_max(
-                    Pos2::new(x - 1.5, row.top()),
-                    Pos2::new(x + 1.5, row.bottom()),
-                ))
-            }
-        }
-    });
+    let preview = create_memo(move || marked(target.get()?, scale.get()));
     view! {
         <Show value={preview}>|rect: ReadSignal<Rect>|
             <CanvasItem
@@ -465,6 +570,7 @@ fn DropMarker(
                 y={move || rect.get().top()}
                 width={move || rect.get().width()}
                 height={move || rect.get().height()}
+                @test_id={"video.drop_marker"}
             >
                 <Frame fill=ColorRole::AccentSoft radius=CLIP_RADIUS border={Border::FOCUS} />
             </CanvasItem>

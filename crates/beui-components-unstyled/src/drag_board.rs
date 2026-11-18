@@ -113,10 +113,11 @@ impl Board {
     }
 
     /// Chooses again where each pointer last was: what is under it moved (a scroll, a
-    /// canvas's camera), though the pointer did not.
+    /// canvas's camera), though the pointer did not. A keyboard carry a step left on a
+    /// labelled place is aimed at that place again, wherever it moved to.
     pub fn retrack(&self) {
-        for last in self.placing_last() {
-            self.place(last, false);
+        for again in self.placing_again() {
+            self.place(again, false);
         }
     }
 

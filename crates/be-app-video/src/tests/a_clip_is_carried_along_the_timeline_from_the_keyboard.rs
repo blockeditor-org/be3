@@ -19,7 +19,20 @@ fn a_clip_is_carried_along_the_timeline_from_the_keyboard() {
     let mut fixture = Fixture::new();
     let clips = [fixture.insert(0), fixture.insert(1)];
     fixture.settle();
+    // Zoomed in, so the clips run past what the timeline shows.
+    for _ in 0..4 {
+        fixture.editor.click("video.zoom_in");
+    }
+    fixture.settle();
     let first = format!("video.clip.{}", clips[0]);
+    let timeline = fixture.editor.rect_of("video.timeline");
+    let second_at = fixture
+        .editor
+        .rect_of(&format!("video.clip.{}", clips[1]));
+    assert!(
+        second_at.right() > timeline.right(),
+        "the second clip runs past the timeline's edge"
+    );
 
     let mut reached = false;
     for _ in 0..40 {
@@ -33,6 +46,12 @@ fn a_clip_is_carried_along_the_timeline_from_the_keyboard() {
         }
     }
     assert!(reached, "Tab reaches a clip");
+    let label = fixture.editor.accessible_label(&first).unwrap_or_default();
+    assert!(
+        label.starts_with("Clip ") && label.ends_with(", lane 1, 0:00.00"),
+        "named for its block and where it starts, not {label:?}"
+    );
+    fixture.editor.snapshot("a_clip_focused_from_the_keyboard");
 
     fixture.editor.key(Key::Space, Modifiers::NONE);
     fixture.editor.key(Key::ArrowRight, Modifiers::NONE);
@@ -44,6 +63,18 @@ fn a_clip_is_carried_along_the_timeline_from_the_keyboard() {
     for _ in 0..400 {
         fixture.editor.key(Key::ArrowRight, Modifiers::NONE);
     }
+    let marker = fixture.editor.rect_of("video.drop_marker");
+    assert!(
+        timeline.contains_rect(marker),
+        "the timeline follows the carry: its marker at {marker:?} is shown in {timeline:?}"
+    );
+    assert_ne!(
+        fixture
+            .editor
+            .rect_of(&format!("video.clip.{}", clips[1])),
+        second_at,
+        "panned to show it"
+    );
     fixture.editor.key(Key::Enter, Modifiers::NONE);
 
     let order = fixture
