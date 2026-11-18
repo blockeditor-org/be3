@@ -40,12 +40,6 @@ fn section(id: u8, contents: &[u8]) -> Vec<u8> {
     out
 }
 
-fn custom(title: &str, payload: &[u8]) -> Vec<u8> {
-    let mut contents = named(title);
-    contents.extend_from_slice(payload);
-    section(0, &contents)
-}
-
 mod a_crate_in_two_modules_of_a_closure_is_refused;
 mod a_library_the_link_does_not_name_is_refused;
 mod a_linked_modules_mangled_symbols_are_shortened;
