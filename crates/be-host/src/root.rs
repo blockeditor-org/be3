@@ -22,6 +22,11 @@
 //! requests (`frame-done`); each input it is handed carries the frame clock's time it was
 //! sampled at, when the platform said.
 //!
+//! The host's own notices (be-host-base's `notices`: what of its own failed, or why it refused
+//! something) reach the root through `be3:root`'s `host.notices`, which shows them as toasts
+//! (plans/host_as_platform_adapter.md, step 4g3); what the person answers (`answer-notice`)
+//! be-host does: dismissing the notice, copying its report, opening its link.
+//!
 //! It runs none of the host's core: no data directory or the lock that keeps a second be-host
 //! off it, no block stack, workspace or accounts, no screen lock, and none of the desktop's OS
 //! services. Step 4g brings back under this program what the host keeps (the plan's What the
@@ -42,7 +47,8 @@ use std::{
 use be_lib_layers::{Layer, LayerList, Surface};
 use be_lib_ui_types::input::Timed;
 use be_sdk_app_host::pacing::FrameClock;
-use be_wasm_root_api::FrameRequest;
+use be_host_base::notices;
+use be_wasm_root_api::{FrameRequest, Notice, NoticeAction};
 use be_wasm_root_host::Root;
 use beui::native::painting::{Painting, Paints, Placement, ScreenPaintings};
 use beui::native::texture_quad::{Pipelines, Quad, Quads};
@@ -209,6 +215,7 @@ impl RootShell {
             + self
                 .clock
                 .deadline(self.pass, context.clock_stopped(), since(Instant::now()));
+        root.show_notices(shown_notices());
         let request = FrameRequest {
             time: nanos(time),
             wall_clock: nanos(beui::reactive::wall_clock()),
@@ -217,6 +224,13 @@ impl RootShell {
             Ok(done) => done,
             Err(why) => return self.stopped(&why),
         };
+        let answers = root.take_answers();
+        if !answers.is_empty() {
+            answer_notices(context, answers);
+            // Dismissing one changes them: the root hears it with its next frame, which this
+            // wakes the host for.
+            root.show_notices(shown_notices());
+        }
         if let Some(painted) = root.take_paintings() {
             self.painting = false;
             // A painting that cannot be read paints nothing: it is for the tests, not the user.
@@ -300,6 +314,9 @@ impl RootShell {
 impl beui::native::Program for RootShell {
     fn setup(&mut self, setup: &beui::native::Setup) {
         self.waker = Some(setup.waker.clone());
+        // A notice shown wakes the window, whose next frame hands it to the root.
+        let waker = setup.waker.clone();
+        be_host_base::host::install_waker(move || waker.wake());
         match start(&self.app, setup) {
             Ok(root) => self.root = Some(root),
             Err(why) => self.stopped(&format!("it did not start: {why}")),
@@ -419,6 +436,55 @@ fn start(app: &str, setup: &beui::native::Setup) -> Result<Root, String> {
     let waker = setup.waker.clone();
     root.on_wake(move || waker.wake());
     Ok(root)
+}
+
+/// The host's notices as `be3:root` carries them, oldest first.
+fn shown_notices() -> Vec<Notice> {
+    notices::shown()
+        .into_iter()
+        .map(|notice| Notice {
+            id: notice.id,
+            failure: notice.failure(),
+            actions: notice
+                .actions()
+                .into_iter()
+                .map(|(key, label)| NoticeAction {
+                    key: key.to_owned(),
+                    label: label.to_owned(),
+                })
+                .collect(),
+            message: notice.message,
+        })
+        .collect()
+}
+
+/// Does what the person answered the host's notices with through the root, in order: dismisses
+/// a notice answered with no action, copies its report, or opens its link and dismisses it.
+fn answer_notices(context: &beui::native::Context, answers: Vec<(u64, Option<String>)>) {
+    for (id, action) in answers {
+        match action.as_deref() {
+            // Under `--root` no account is signed in, so no notice is an account's to dismiss
+            // on the server too.
+            None => {
+                notices::dismiss(id);
+            }
+            Some(notices::COPY_REPORT) => {
+                if let Some(report) = notices::report_of(id) {
+                    context.copy(Clip::text(report));
+                }
+            }
+            Some(notices::OPEN_LINK) => {
+                if let Some(link) = notices::link_of(id)
+                    && let Err(error) = be_host_base::platform::open_link(&link)
+                {
+                    notices::report(error);
+                }
+                notices::dismiss(id);
+            }
+            // A key the notice does not offer changes nothing.
+            Some(_) => {}
+        }
+    }
 }
 
 /// The fonts be-host bundles, which it tells its apps, as `be3:root` hands them to its root.

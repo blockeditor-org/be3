@@ -9,7 +9,7 @@ use std::{
 };
 
 use be_wasm_host::{App, PresentedTexture};
-use be_wasm_root_api::{FrameDone, FrameRequest};
+use be_wasm_root_api::{FrameDone, FrameRequest, host::Notice};
 use be_wasm_sandbox_host::{Loader, Server};
 
 use crate::{Core, Inline, Progress};
@@ -151,6 +151,22 @@ impl Root {
             .host
             .lock()
             .unwrap_or_else(|held| held.into_inner()) = Some(Arc::new(wake));
+    }
+
+    /// Shows the person `shown`, the host's notices, oldest first, in place of those shown
+    /// before: the root hears them from its `host.notices`, and if it waits on that, its bell
+    /// rings, which wakes the host (`on_wake`) to step it.
+    pub fn show_notices(&mut self, shown: Vec<Notice>) {
+        if self.core.show_notices(shown) {
+            self.bell.ring();
+        }
+    }
+
+    /// How the root answered the host's notices since the last call (`host.answer-notice`), in
+    /// order: each notice's id and the key of the action the person chose, or none where they
+    /// dismissed it. The host does what each asks.
+    pub fn take_answers(&mut self) -> Vec<(u64, Option<String>)> {
+        self.core.take_answers()
     }
 
     /// Hands the root `window`'s input since the last call, in the window's points: `events` is

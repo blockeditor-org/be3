@@ -10,13 +10,19 @@
 //! `drew`), in its points, and draws when it heard something, was woken (an async memo's wake),
 //! or asked for a frame by now (an animation, a repaint after a delay, a timer).
 //!
+//! A document that shows only overlays over a clear window, as the root's toasts do
+//! (plans/host_as_platform_adapter.md, step 4g3), is hit only where they are: its layer takes
+//! `BeuiSurface::overlay_area`, the rects its overlays take the pointer in, as its hit area,
+//! and what lies under it takes the rest.
+//!
 //! A root links it as an app links be-sdk-beui: against the app libraries, whose beui library
 //! holds beui, its runner, its renderer and FreeType
 //! (decisions/a_root_links_beui_as_an_app_does.md). be-sdk-root itself stays free of any GUI
 //! framework; this is the beui half beside it.
 
 use std::{
-    cell::Cell,
+    any::Any,
+    cell::{Cell, RefCell},
     rc::Rc,
     sync::{
         Arc,
@@ -26,7 +32,7 @@ use std::{
 };
 
 use be_lib_geometry::Pos2;
-use be_lib_layers::{Layer, LayerId, Surface};
+use be_lib_layers::{Area, Layer, LayerId, Surface};
 use be_lib_ui_types::Fonts;
 use be_sdk_root::{Delivery, OwnSurface};
 use beui_core::context::{Context, RendererInfo, WindowOutput};
@@ -115,6 +121,8 @@ pub struct BeuiSurface {
     /// The frame clock's time the document wants its next frame at: none until it hears
     /// input or is woken.
     due: Option<Duration>,
+    /// Where its overlays took the pointer in its last frame, in its points.
+    overlays: Rc<RefCell<Vec<Rect>>>,
 }
 
 /// What the renderer and the surface share.
@@ -131,11 +139,16 @@ struct Window;
 impl PlatformServices for Window {}
 
 /// A program that shows one document, filling its window.
-struct Showing(beui_core::document::Document);
+struct Showing {
+    document: beui_core::document::Document,
+    /// Where the document's overlays took the pointer in its last frame, in its points.
+    overlays: Rc<RefCell<Vec<Rect>>>,
+}
 
 impl Program for Showing {
     fn update(&mut self, context: &Context, rect: Rect) {
-        self.0.show(context, rect);
+        self.document.show(context, rect);
+        *self.overlays.borrow_mut() = self.document.overlay_rects(WindowId::MAIN);
     }
 }
 
@@ -159,10 +172,14 @@ impl BeuiSurface {
         // Built at the host's time, so a timer the document starts counts from it.
         root.pin(&context);
         let document = beui_host::native::build(build);
+        let overlays = Rc::<RefCell<Vec<Rect>>>::default();
         let mut runner = Runner::new(Launch {
             options: RunOptions::default(),
             context,
-            program: Box::new(Showing(document)),
+            program: Box::new(Showing {
+                document,
+                overlays: Rc::clone(&overlays),
+            }),
             layers: Vec::new(),
         });
         runner.reports().resized(width, height);
@@ -194,6 +211,7 @@ impl BeuiSurface {
             raster,
             woken,
             due: Some(Duration::ZERO),
+            overlays,
         })
     }
 
@@ -261,6 +279,40 @@ impl BeuiSurface {
         match self.drawn.failure.borrow_mut().take() {
             Some(failure) => Err(failure),
             None => Ok(()),
+        }
+    }
+
+    /// Runs `change` in the document, as its own code runs, so it may set the signals the
+    /// document reads: what the root tells it from outside, such as its host's notices. Its
+    /// next frame is due at once.
+    pub fn enter<R>(&mut self, change: impl FnOnce() -> R) -> R {
+        let program: &mut dyn Any = self.runner.program_mut();
+        let showing = program
+            .downcast_mut::<Showing>()
+            .expect("a root's surface runs only the program that shows its document");
+        let changed = beui_core::current::enter(&mut showing.document, change);
+        self.due = Some(Duration::ZERO);
+        changed
+    }
+
+    /// Where the document's overlays (its toasts, popups and dialogs, with any scrim one lays
+    /// over the rest) took the pointer in its last frame, in the surface's pixels: as a layer's
+    /// hit area (be-lib-layers' `LayerInput::hit`), what shows only overlays over a clear
+    /// document is hit only there, and what lies under it takes the rest. Nowhere before it drew
+    /// or while it shows none.
+    pub fn overlay_area(&self) -> Area {
+        let rects: Vec<Rect> = self
+            .overlays
+            .borrow()
+            .iter()
+            .map(|rect| {
+                let pixels = |at: Pos2| Pos2::new(at.x * self.raster, at.y * self.raster);
+                Rect::from_min_max(pixels(rect.min), pixels(rect.max))
+            })
+            .collect();
+        match rects.is_empty() {
+            true => Area::Nowhere,
+            false => Area::Region(rects),
         }
     }
 

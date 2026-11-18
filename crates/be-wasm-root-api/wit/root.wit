@@ -16,6 +16,54 @@ interface host {
     /// encoding (`be_wasm_ops::encode`), as the layer list is bytes. The same
     /// faces every call: a root asks once.
     fonts: async func() -> list<u8>;
+
+    /// Something the host tells the person of its own: that something failed,
+    /// or why something they asked for was refused, with what they may do
+    /// about it beside dismissing it. The root shows it however it shows such
+    /// things (a toast) until the person answers it (`answer-notice`).
+    record notice {
+        /// Its id, which `answer-notice` names: the same while it is shown.
+        id: u64,
+        /// What it says, as one line or a few.
+        message: string,
+        /// Whether it says something failed, which reads as an alert and
+        /// stays until it is answered, rather than why something was
+        /// refused, which may go by itself after a while.
+        failure: bool,
+        /// What the person may do about it, which the host does once the root
+        /// answers with its key: copying a report, opening a link.
+        actions: list<notice-action>,
+    }
+
+    /// Something a notice offers the person to do.
+    record notice-action {
+        /// What `answer-notice` answers with.
+        key: string,
+        /// What it reads as.
+        label: string,
+    }
+
+    /// The host's notices at one time.
+    record shown-notices {
+        /// Which change of the notices they are, which the next `notices`
+        /// call names as `seen`: never 0.
+        generation: u64,
+        /// Every notice shown, oldest first.
+        shown: list<notice>,
+    }
+
+    /// The host's notices, once they differ from those of the generation
+    /// `seen`: at once for any other generation, such as 0, which no
+    /// notices are, so a root asks with 0 first and then with the generation
+    /// each answer gave, and hears each change as it happens rather than
+    /// asking again for it.
+    notices: async func(seen: u64) -> shown-notices;
+
+    /// The person answered the notice `id`: with one of its actions' keys,
+    /// which the host does, or with none, dismissing it, which ends it. A
+    /// notice already gone, or a key it does not offer, changes nothing. It
+    /// answers at once; the change reaches `notices`.
+    answer-notice: async func(id: u64, action: option<string>);
 }
 
 /// The window's input, which the host hands the root inline on its frame thread

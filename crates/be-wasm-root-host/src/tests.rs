@@ -17,6 +17,7 @@ mod a_root_built_on_the_library_shows_the_editor_it_embeds;
 mod a_root_draws_its_own_surface_on_the_hosts_device;
 mod a_root_names_what_its_child_presented_only_by_handle;
 mod a_root_paints_its_own_surface_with_beui_in_the_hosts_fonts;
+mod a_root_shows_its_hosts_notices_as_toasts_hit_only_where_they_are;
 mod a_root_that_keeps_waking_itself_without_answering_stops_at_its_patience;
 mod a_root_wants_frames_until_its_app_presents_and_wakes_its_host_for_them;
 mod a_roots_document_draws_again_when_the_frame_it_asked_for_comes;
@@ -100,7 +101,7 @@ fn start(module: &[u8]) -> Root {
 }
 
 /// The embedding root, linked against the base and beui libraries and loaded as be-host loads
-/// a root, as an app is, started on this thread with beui's text face, it and its
+/// a root, as an app is, started on this thread with beui's text face and icons, it and its
 /// children drawing on a stand-in for the host's device.
 fn embedding() -> Root {
     let (device, queue) = wgpu::Device::noop(&wgpu::DeviceDescriptor::default());
@@ -120,16 +121,20 @@ fn embedding() -> Root {
         .with_fonts(fonts())
 }
 
-/// The fonts the tests' host gives its root: beui's text face alone, as be-host hands its
-/// bundled fonts (be-sdk-api's `Fonts`, encoded).
+/// The fonts the tests' host gives its root: beui's text face and its icons, as be-host hands
+/// its bundled fonts (be-sdk-api's `Fonts`, encoded).
 fn fonts() -> Vec<u8> {
+    let face = |role, data: &[u8]| be_sdk_api::FontFace {
+        role,
+        index: 0,
+        data: data.to_vec(),
+    };
     be_wasm_ops::encode(&be_sdk_api::Fonts {
         replace: true,
-        faces: vec![be_sdk_api::FontFace {
-            role: be_sdk_api::FontRole::Text,
-            index: 0,
-            data: beui_fonts::INTER_REGULAR.to_vec(),
-        }],
+        faces: vec![
+            face(be_sdk_api::FontRole::Text, beui_fonts::INTER_REGULAR),
+            face(be_sdk_api::FontRole::Icons, beui_fonts::ICONS),
+        ],
     })
 }
 

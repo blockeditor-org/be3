@@ -3245,6 +3245,7 @@ dependencies = [
  "be-wasm-sandbox-host",
  "beui-fonts",
  "beui-paint-format",
+ "beui-paint-snapshot",
  "js-sys",
  "wasm-bindgen",
  "wasm-bindgen-futures",

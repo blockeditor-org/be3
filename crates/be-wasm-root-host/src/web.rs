@@ -17,7 +17,7 @@ use std::{
 };
 
 use be_wasm_guest_host::Wake;
-use be_wasm_root_api::{FrameDone, FrameRequest};
+use be_wasm_root_api::{FrameDone, FrameRequest, host::Notice};
 use be_wasm_sandbox_host::{Loader, Server};
 use js_sys::{Function, Object, Reflect, Uint8Array, WebAssembly};
 use wasm_bindgen::{JsCast, prelude::*};
@@ -176,6 +176,23 @@ impl Root {
     /// What the root answered `ask_paintings` with, once it did: be3:root's `paintings`.
     pub fn take_paintings(&self) -> Option<Vec<u8>> {
         self.shared.core.borrow_mut().take_paintings()
+    }
+
+    /// Shows the person `shown`, the host's notices, oldest first, in place of those shown
+    /// before: the root hears them from its `host.notices`, stepped for them at once if it waits
+    /// on that.
+    pub fn show_notices(&self, shown: Vec<Notice>) {
+        let answered = self.shared.core.borrow_mut().show_notices(shown);
+        if answered {
+            ring(self.shared.id);
+        }
+    }
+
+    /// How the root answered the host's notices since the last call (`host.answer-notice`), in
+    /// order: each notice's id and the key of the action the person chose, or none where they
+    /// dismissed it. The host does what each asks.
+    pub fn take_answers(&self) -> Vec<(u64, Option<String>)> {
+        self.shared.core.borrow_mut().take_answers()
     }
 
     /// Hands the root `window`'s input since the last call, in the window's points: `events` is

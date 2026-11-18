@@ -157,7 +157,14 @@ tests read one their build made, crates/be-host-tests/apps.bzl). Each guest thre
   app protocol's `Fonts` (be3:ui's, which beui-font-freetype's
   `FontSources::of_faces` reads), encoded (`Root::with_fonts`; be-host's
   `be_host_runtime::bundled_fonts`, which it tells its apps), which a root
-  asks once and draws its text in. `frame-request` carries the frame clock's
+  asks once, draws its text in and tells the apps it embeds. `host.notices`
+  answers the host's own notices (what of its own failed, or why it refused
+  something, each with the actions it offers) once they differ from the
+  generation the root saw (`Root::show_notices`), so the root hears each
+  change as a watch's answer rather than asking again, and shows them (as
+  toasts); `host.answer-notice` hands back what the person chose, an action's
+  key or none to dismiss it, which the host takes after the frame
+  (`Root::take_answers`) and does. `frame-request` carries the frame clock's
   time and the host's wall clock (`wall-clock`), the only clocks a root reads.
   A root may start no threads (`App::refuse_threads`, which `Root::start`
   sets): it runs on the host's frame thread, which must never wait on a lock
@@ -189,7 +196,9 @@ tests read one their build made, crates/be-host-tests/apps.bzl). Each guest thre
   `set_cursor_icon`, `set_pointer_locked`, `want_every_sample`), set after the
   document it shows the frame in, whose own the root's replace. The host keeps
   no list of chords the root intercepts: the root takes every key before beui
-  sees it and gives its own `Router` its chords (`Router::intercept`). `drive
+  sees it and gives its own `Router` its chords (`Router::intercept`). It hands
+  the root be-host-base's notices each frame and does what the root answers:
+  dismisses a notice, copies its report or opens its link. `drive
   paint` asks the root for its paintings and places each where its layer
   shows its surface (the app screens it embeds are not in the painting yet).
   It runs none of the host's core (no data directory, block
@@ -237,6 +246,10 @@ tests read one their build made, crates/be-host-tests/apps.bzl). Each guest thre
   `drew`) in its points, draws when it heard input, was woken or a frame it
   asked for is due (`BeuiSurface::next`, which the root folds into
   `frame-done`'s `next`), and paints what it drew (`BeuiSurface::painting`).
+  `BeuiSurface::enter` runs code in its document, to set the signals it reads
+  from outside, and `BeuiSurface::overlay_area` is where its overlays took
+  the pointer, in its pixels: a layer showing only overlays over a clear
+  document takes that as its hit area, so what lies under it takes the rest.
   Input for a window the last list leaves out is still routed, against the
   layers it had last, until its presses lift, and only then its router goes,
   the surface it focused hearing `Focus(false)`; one never drawn routes
@@ -244,6 +257,8 @@ tests read one their build made, crates/be-host-tests/apps.bzl). Each guest thre
   last `Embedded` of an app goes (`Embedding::remove`), its instance stops. It
   refuses what it serves no app yet (`Wire::refuse_unserved`: block calls,
   host services, the network, the shell but `tell`), and restarts nothing.
+  Once an app runs it is told the fonts `Spawn::fonts` carries, those
+  `host.fonts` gave the root, and UTC as its offset (`Run::tell`).
   `Embedding::wants` is what its apps want of the root's frames, which a root
   answers as `frame-done`'s `next` and `owed`: an app starting or shutting
   down owes its hello or its going and wants a frame by `FRAME_TIMEOUT`; one
@@ -252,7 +267,9 @@ tests read one their build made, crates/be-host-tests/apps.bzl). Each guest thre
   surface or that closed wants and owes nothing. be-sdk-root-testing is a
   root built on it, which fills its own surface with `ROOT_COLOR` and draws a
   strip over it with beui, a line of text in styled components, under the
-  triangle's screen, and which be-wasm-root-host's tests run with the
+  triangle's screen, and its host's notices as styled `Toasts` over
+  everything, on a layer listed only while one shows, hit only where they are
+  and never taking the focus, and which be-wasm-root-host's tests run with the
   triangle on a stand-in device, and be-host's host test with `--root`. A root is
   built as an app is (`app_module`, in the `wasi-guest` plan, linked against
   base and beui; decisions/a_root_links_beui_as_an_app_does.md); only

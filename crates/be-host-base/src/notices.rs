@@ -17,6 +17,28 @@ pub struct Notice {
     pub account: Option<u64>,
 }
 
+/// The key of the action a notice with a report offers: copying the report.
+pub const COPY_REPORT: &str = "copy-report";
+
+/// The key of the action a notice with a link offers: opening the link, which dismisses it.
+pub const OPEN_LINK: &str = "open-link";
+
+impl Notice {
+    /// Whether it says something failed, which reads as an alert and stays until dismissed,
+    /// rather than offering a link or saying why something was refused.
+    pub fn failure(&self) -> bool {
+        self.link.is_none() && !self.refusal
+    }
+
+    /// What it offers the person to do beside dismissing it: each action's key
+    /// (`COPY_REPORT`, `OPEN_LINK`) and label.
+    pub fn actions(&self) -> Vec<(&'static str, &'static str)> {
+        let report = self.report.iter().map(|_| (COPY_REPORT, "Copy report"));
+        let link = self.link.iter().map(|_| (OPEN_LINK, "Open"));
+        report.chain(link).collect()
+    }
+}
+
 struct Notices {
     next: u64,
     shown: Vec<Notice>,

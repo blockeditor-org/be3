@@ -40,6 +40,7 @@ be-wasm-root-testing = { path = "../be-wasm-root-testing" }
 be-sdk-api = { path = "../be-sdk-api" }
 beui-fonts = { path = "../beui-fonts" }
 beui-paint-format = { path = "../beui-paint-format" }
+beui-paint-snapshot = { path = "../beui-paint-snapshot" }
 wat = "1"
 wgpu = { version = "29", default-features = false, features = ["noop"] }
 
