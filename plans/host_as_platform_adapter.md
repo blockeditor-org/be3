@@ -125,9 +125,9 @@ so in Chromium. Nothing runs a root in be-host yet.
 
 Built (step 4e5a): the root's `input` export, `input.deliver(window, events)`, the window's input
 since the last call as be-lib-ui-types' `input::encode` (be-wasm crates may use only be-wasm
-ones, so it is bytes, as the layer list is). `Root::input`, natively and on the page, starts it
-ahead of the frame it is input for, and the root takes it in with that frame's steps, so it
-routes by the layers it drew last. be-wasm-root-testing's root routes it with a `Router` per
+ones, so it is bytes, as the layer list is). `Root::input`, natively and on the page, starts it,
+and the root takes it in with the frame being drawn, or else the next one, so it routes by the
+layers it drew last, and answers once it has routed. be-wasm-root-testing's root routes it with a `Router` per
 window over that list, and sends its child what lands on its screen, in the child's coordinates.
 
 Its rules:
@@ -295,6 +295,9 @@ over the last committed `WindowLayers` rather than through beui's document, with
 declaring each layer's `LayerInput`, the host's UI its root's area, and the chords it takes
 along the focus (its actions, the palette, Tab and F6 between surfaces) as the router's
 intercepted chords.
+
+After a resize, input is routed against the list drawn at the old size until the next frame
+draws, though a press already held still reaches its holder.
 
 On the web, a focused cross-origin iframe keeps its keys, so the compositor's chords reach it only
 once the user presses outside it, as in a browser. An iframe placed in a pan-and-zoom editor sits
@@ -658,8 +661,9 @@ Each step lands on its own.
          `send` pairs are its `send_for_frame`. `be3:root` gains `input.deliver(window,
          events)`, the window's input as be-lib-ui-types' `input::encode` bytes (be-wasm crates
          may use only be-wasm ones, as the layer list's bytes already are), which `Root::input`
-         starts ahead of the next frame, natively and on the page; the root takes it in with
-         that frame's steps, so it routes by the layers it drew last. be-wasm-root-testing's
+         starts natively and on the page; the root takes it in with the frame being drawn, or
+         else the next one, so it routes by the layers it drew last, and answers once it has
+         routed (the host keeps each call until then). be-wasm-root-testing's
          root routes it with a `Router` per window over that list and sends its child what lands
          on the child's screen, in the child's coordinates; its test presses on the child and
          drags off it, and the child hears both, the drag held by the press.
@@ -668,11 +672,15 @@ Each step lands on its own.
          over the instance's channel, a `Run` with its session, pacing and holds, and a
          `Router` over its last list, forwarding what is routed to a screen as `AppCall::Input`
          in the screen's coordinates and naming each screen's presented surface by handle in its
-         layer list. Its test, in be-wasm-root-host, spawns an editor that needs no block
+         layer list. It routes input for a window missing from its last list against an empty
+         list, or that window's last one, never dropping it, since a dropped release would leave
+         a press held, and forgets a window's router when the window goes. Its test, in
+         be-wasm-root-host, spawns an editor that needs no block
          content (the triangle, whose `connect` reads nothing) on a stand-in device, and shows
-         its screen after the hello, `Screens`, `Draw` and the commits; an editor that answers
+         its screen after the hello, `Screens`, `Draw` and the commits. An editor that answers
          input visibly needs content, so a store in the root (be-sdk-app-host's `BlockStore`
-         over type modules it spawns) waits for 4e5c or step 5.
+         over type modules it spawns) waits for step 5; until then 4e5's "input routed by
+         `Router`" is shown only on be-wasm-root-testing's root.
        - 4e5c. be-host's run option that starts a staged root module in place of its own UI
          (a `--root=APP` argument): it starts the root on the window's device, hands it the
          window's raw input (`Root::input`) and asks it for a frame each host frame, and draws

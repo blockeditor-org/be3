@@ -191,10 +191,11 @@ impl<A> Run<A> {
     /// Starts a new run of `app` in `session`, told `preferences` with its hello. What the old
     /// run was sent or held goes: its session, the calls queued for it, the answers held and
     /// what they wait for, its layout and the views it closed or left out (`Shown`), its
-    /// presents, its frames in flight, the screens and paintings it was asked for, and what its instances' docks
-    /// declared. Its views' accessibility panes stay, empty, and offer no actions until the new
-    /// run describes them. It is told the fonts, whether to describe and the UTC offset again
-    /// once it runs (`tell`); the host sends its instances' content again itself.
+    /// presents, its frames in flight, the screens and paintings it was asked for, and what its
+    /// instances' docks declared. Its views' accessibility panes stay, empty, and offer no
+    /// actions until the new run describes them. It is told the fonts, whether to describe and
+    /// the UTC offset again once it runs (`tell`); the host sends its instances' content again
+    /// itself.
     pub fn restart(
         &mut self,
         session: Session,

@@ -161,8 +161,9 @@ impl Root {
 
     /// Hands the root `window`'s input since the last call, in the window's points: `events` is
     /// be-lib-ui-types' `input::encode`, and `window` the layer list's `WindowId`, by its number
-    /// (`None`: the page's one window). The root takes it in with the next `frame`, ahead of
-    /// drawing it, and routes it by the layers it drew last. A root that stopped says why.
+    /// (`None`: the page's one window). The root takes it in with the frame being drawn, on its
+    /// next resume, or else with the next `frame`, and routes it by the layers it drew last. A
+    /// root that stopped says why.
     pub fn input(&self, window: Option<u64>, events: Vec<u8>) -> Result<(), String> {
         self.shared.core.borrow_mut().input(window, events)
     }
