@@ -460,9 +460,11 @@ impl<S: ObjectStore> Peer<S> {
         .into_iter()
         .find(|served| served.account == self.account)
         .and_then(|served| be_block_keys::NameCard::open(&served.name, &signing));
-        if held
-            .as_ref()
-            .is_some_and(|held| held.display_name == display_name && held.email == email)
+        // A greeting with no name names no one: nothing to publish.
+        if display_name.is_empty()
+            || held
+                .as_ref()
+                .is_some_and(|held| held.display_name == display_name && held.email == email)
         {
             return Ok(());
         }

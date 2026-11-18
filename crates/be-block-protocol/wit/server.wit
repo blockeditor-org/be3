@@ -469,9 +469,10 @@ interface server {
         set-recovery-key(set-recovery-key),
         /// Publishes the account's name card (`be_block_keys::NameCard`,
         /// signed with its signing key), which `signing-keys` serves its
-        /// contacts. The server keeps it only when it names the caller, its
-        /// current signing key signed it, and it is dated after the one it
-        /// holds. A new recovery key drops it. The account's own.
+        /// contacts. The server refuses one that does not name the caller or
+        /// that its current signing key did not sign, and keeps it only when
+        /// it is dated after the one it holds; an older one is taken and
+        /// ignored. A new recovery key drops it. The account's own.
         publish-name(list<u8>),
         /// Registers or forgets this device's push endpoint for the account in
         /// the organization. An account keeps at most

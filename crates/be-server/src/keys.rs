@@ -1447,8 +1447,9 @@ impl ServerStore {
         .await
     }
 
-    /// Keeps `signed`, `account`'s name card (`be_block_keys::NameCard`), when it names the
-    /// account, its current signing key signed it, and it is dated after the one kept.
+    /// Keeps `signed`, `account`'s name card (`be_block_keys::NameCard`), when it is dated after
+    /// the one kept; one dated no later is ignored, not refused. Refuses one that does not name
+    /// the account or that its current signing key did not sign.
     pub async fn publish_name(&self, account: Uuid, signed: Vec<u8>) -> Result<(), ServerError> {
         if signed.len() > crate::limits::MAX_NAME_CARD_BYTES {
             return Err(crate::limits::too_many(

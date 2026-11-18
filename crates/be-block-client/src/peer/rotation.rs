@@ -551,8 +551,12 @@ impl<S: ObjectStore> Peer<S> {
                 .and_then(|served| be_block_keys::NameCard::open(&served.name, &signing))
                 .filter(|card| card.account == contact.account.into_bytes());
             if let Some(card) = card {
-                contact.display_name = card.display_name;
-                contact.email = card.email;
+                if !card.display_name.is_empty() {
+                    contact.display_name = card.display_name;
+                }
+                if !card.email.is_empty() {
+                    contact.email = card.email;
+                }
             }
         }
         contacts
