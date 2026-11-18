@@ -23,6 +23,7 @@ pub(super) fn Dialogs(view: HostUiStore) -> NodeId {
             <InvitationsDialog view={view} />
             <AgentsDialog view={view} />
             <ContactsDialog view={view} />
+            <ShareLinkDialog view={view} />
             <MembersDialog view={view} />
             <AboutDialog view={view} />
             <UnsentDialog view={view} />
@@ -274,6 +275,77 @@ fn ContactsDialog(view: HostUiStore) -> NodeId {
             on_dismiss={|| send(UiCommand::CloseContacts)}
         >
             <ContactsPanel view />
+        </Dialog>
+    }
+}
+
+#[component]
+fn ShareLinkDialog(view: HostUiStore) -> NodeId {
+    let share_link = view.share_link;
+    let open = create_memo(move || share_link.with(Option::is_some));
+    let shown = create_memo(move || share_link.get().unwrap_or_default());
+    let busy = create_memo(move || shown.get().busy);
+    let error = create_memo(move || shown.get().error);
+    let offer = create_memo(move || shown.get().offer.unwrap_or_default());
+    let offered = create_memo(move || !offer.with(String::is_empty));
+    let opened = create_memo(move || shown.get().opened.unwrap_or_default());
+    let pasted = create_signal(String::new());
+    create_effect(move || {
+        if offered.get() {
+            untrack(|| pasted.set(String::new()));
+        }
+    });
+    let cannot_open = create_memo(move || busy.get() || pasted.get().trim().is_empty());
+    view! {
+        <Dialog
+            open={open}
+            title="Open a share link"
+            width={Size::Custom(460.0)}
+            id="host.share-link"
+            on_dismiss={|| send(UiCommand::CloseShareLinks)}
+        >
+            <List spacing=Space::Md>
+                <Text style=TextStyle::CAPTION>
+                    "Someone shared a block with you by a link. Opening it gives your account what the link grants, and makes no one your contact."
+                </Text>
+                <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
+                    <ListItem grow=1.0>
+                        <TextInput
+                            value={pasted}
+                            label="Share link"
+                            @test_id={"host.share-link.paste"}
+                            on_submit={move |value: String| send(UiCommand::OpenShareLink(value))}
+                        />
+                    </ListItem>
+                    <Button
+                        label="Open"
+                        variant=ButtonVariant::Secondary
+                        disabled={cannot_open}
+                        @test_id={"host.share-link.open"}
+                        on_click={move || send(UiCommand::OpenShareLink(pasted.get_untracked()))}
+                    />
+                </List>
+                <Show value={busy}>
+                    <Progress width=INLINE_PROGRESS_WIDTH />
+                </Show>
+                <Dialog
+                    open={offered}
+                    kind=DialogKind::Alert
+                    title="Open this block?"
+                    id="host.share-link.offered"
+                    actions={vec![
+                        DialogAction::primary("Open", || send(UiCommand::AcceptShareLink)).named("accept"),
+                        DialogAction::cancel("Cancel"),
+                    ]}
+                    on_dismiss={|| send(UiCommand::DeclineShareLink)}
+                >
+                    <Text style=TextStyle::PARAGRAPH @test_id={"host.share-link.offer"}>{offer}</Text>
+                </Dialog>
+                <Show value={move || !opened.with(String::is_empty)}>
+                    <Text style=TextStyle::PARAGRAPH @test_id={"host.share-link.opened"}>{opened}</Text>
+                </Show>
+                <ErrorText text={error} />
+            </List>
         </Dialog>
     }
 }
