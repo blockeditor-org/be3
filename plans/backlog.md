@@ -161,17 +161,6 @@ Fixed items are removed as they land.
   counts exactly what was made through it, or the walk removed with a test that
   shows every seal on the journal's base trims it.
 
-- **The order's entries pushed out of order.** `submit` numbers a submission in
-  the database (`journal::submit`) before `SessionRegistry::sequenced` takes the
-  registry's lock to push it, so two submissions numbered at once can reach
-  participants as N+1 then N, and a membership entry written between them is
-  stamped with whichever was pushed last. Replicas hold what arrives early
-  (`ahead`), and a host that sees a gap joins again, so nothing is lost, but the
-  stream is not one order. Done: numbering and pushing under one per-session
-  lock (the registry's lock is server-wide, so not that one), with a be-server
-  test where many connections submit at once and every participant hears the
-  entries in sequence.
-
 - **A terminal host stands by on a timer.** Since a claim takes the lease at
   once, a second terminal host waits `CLAIM_INTERVAL` (3 s) after it first sees
   a new holder before claiming, so the holder's presence can reach it first
