@@ -256,6 +256,19 @@ fn a_root_asks_its_hosts_questions_and_shows_an_invitations_link_only_once() {
         "Revoke revokes it: {commands:?}"
     );
 
+    // A request whose dialog closed before the host took it never reaches the host.
+    root.input(None, be_lib_ui_types::input::encode(&chord(Key::Enter, Modifiers::NONE)))
+        .expect("the root takes input");
+    root.input(None, be_lib_ui_types::input::encode(&chord(Key::Escape, Modifiers::NONE)))
+        .expect("the root takes input");
+    let _ = settle(&mut root, &mut time);
+    assert!(
+        root.take_secret_requests().is_empty(),
+        "a request cancelled before the host took it is never made"
+    );
+    assert!(!shows_dialog(&mut root, &mut time));
+    let _ = press(&mut root, &mut time, OPENS_INVITATIONS);
+
     // Closed, the link goes: opened again, the invitations show without it.
     let _ = press(&mut root, &mut time, Key::Escape);
     assert!(!shows_dialog(&mut root, &mut time));

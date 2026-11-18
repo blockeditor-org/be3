@@ -717,7 +717,9 @@ interface host {
         revoke-invitation(uuid),
         /// List the organization's members.
         list-members,
-        /// Give a member another role.
+        /// Give a member another role. The host refuses a change of the
+        /// person's own role, or one leaving the organization no
+        /// administrator, saying why in `members`' error.
         set-member-role(role-change),
         /// Remove a member from the organization, which the root asks the
         /// person to confirm first.
@@ -751,7 +753,10 @@ interface host {
     /// answered once it is made, with the secret, handed over this once and
     /// never in `core`, or with nothing if making it failed, why reaching
     /// `core`. Cancelled before the host took it, it is never made; after,
-    /// the host may have made it by then, and the secret is dropped.
+    /// the host may have made it by then, and a secret the root no longer
+    /// waits for is lost for good. One that cannot be had again (an agent's
+    /// credentials) the host undoes, removing the agent it just made, and
+    /// says so in `agents`' error.
     make-secret: async func(command: secret-command) -> option<core-secret>;
 }
 

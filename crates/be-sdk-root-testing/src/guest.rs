@@ -154,6 +154,9 @@ struct Dialog {
     receives_secret: bool,
     /// Rung as it closes, which stops a request for a secret it made waiting.
     closing: Closing,
+    /// Whether it stays open while a request for a secret waits: one that cannot be had again
+    /// (an agent's credentials), lost were it dropped.
+    holds_while_pending: bool,
     /// The layer focused when it opened, which gets the focus back when it closes.
     had: Option<LayerId>,
     /// Whether it took the focus yet: once it has been drawn.
@@ -714,7 +717,21 @@ impl Root {
             .borrow()
             .as_ref()
             .and_then(|dialog| dialog.closed.borrow_mut().take());
-        let asked = self.asked.take();
+        let mut asked = self.asked.take();
+        // A dialog waiting for a secret that cannot be had again neither closes nor gives way
+        // until it comes: a press on the scrim, Escape from outside and the host's questions wait.
+        let holding = self
+            .dialog
+            .borrow()
+            .as_ref()
+            .is_some_and(|dialog| dialog.holds_while_pending)
+            && self
+                .secret_shown
+                .get()
+                .is_some_and(|(_, pending)| pending.get_untracked());
+        if holding && asked == Some(Asked::Close) {
+            asked = None;
+        }
         let open_keep = self.dialog.borrow().as_ref().and_then(|dialog| dialog.keep);
         let signs_in = self
             .dialog
@@ -836,6 +853,8 @@ impl Root {
             _ if !locked && self.dialog.borrow().is_none() => wanted,
             _ => None,
         };
+        let opening = opening.filter(|_| !holding);
+        let withdrawn = withdrawn && !holding;
         let closing =
             closed.is_some() || asked == Some(Asked::Close) || withdrawn || opening.is_some();
         // The host's question replacing the dialog adding an account mid sign-in leaves the
@@ -926,6 +945,7 @@ impl Root {
             _ => None,
         };
         let receives_secret = matches!(opening, Asking::Invitations | Asking::Agents);
+        let holds_while_pending = matches!(opening, Asking::Agents);
         match opening {
             Asking::Invitations => ask_core(CoreCommand::ListInvitations),
             Asking::Members => ask_core(CoreCommand::ListMembers),
@@ -1032,6 +1052,7 @@ impl Root {
             host_asks,
             receives_secret,
             closing,
+            holds_while_pending,
             had,
             focused: false,
         });
@@ -2642,6 +2663,41 @@ fn MembersDialog(core: Signal<CoreView>, done: Callback<Closed>) -> NodeId {
     }
 }
 
+/// An agent's credentials as be-host's own dialog copies them: the JSON a program reads from
+/// BE3_AGENT_CREDENTIALS.
+fn agent_bundle(agent: &be_wasm_root_api::AgentCredentials) -> String {
+    let quoted = |text: &str| {
+        let mut quoted = String::from('"');
+        for character in text.chars() {
+            match character {
+                '"' => quoted.push_str("\\\""),
+                '\\' => quoted.push_str("\\\\"),
+                character if character < ' ' => quoted.push_str(&format!("\\u{:04x}", u32::from(character))),
+                character => quoted.push(character),
+            }
+        }
+        quoted.push('"');
+        quoted
+    };
+    let id = agent.organization;
+    let hex: String = id.iter().map(|byte| format!("{byte:02x}")).collect();
+    let organization = format!(
+        "{}-{}-{}-{}-{}",
+        &hex[0..8],
+        &hex[8..12],
+        &hex[12..16],
+        &hex[16..20],
+        &hex[20..32]
+    );
+    format!(
+        "{{\"organization\":{},\"recovery_phrase\":{},\"server\":{},\"token\":{}}}",
+        quoted(&organization),
+        quoted(agent.phrase.as_str().unwrap_or_default()),
+        quoted(&agent.server),
+        quoted(agent.token.as_str().unwrap_or_default())
+    )
+}
+
 /// A member's email and role, in words.
 fn member_detail(member: &MemberRow) -> String {
     let role = match (member.agent, &member.role) {
@@ -2685,22 +2741,19 @@ fn AgentsDialog(
             ask.call(SecretCommand::CreateAgent(named));
         }
     };
-    // What it shows of the credentials, the one copy it keeps beside them.
-    let credentials = create_memo(move || {
+    // What it shows and copies of the credentials, as be-host's own dialog does: the bundle a
+    // program reads from BE3_AGENT_CREDENTIALS, the one copy it keeps beside them.
+    let heading = create_memo(move || {
         made.with(|made| {
-            made.as_ref()
-                .and_then(Held::agent)
-                .map(|agent| {
-                    format!(
-                        "{} on {}\nToken: {}\nRecovery phrase: {}",
-                        agent.name,
-                        agent.server,
-                        agent.token.as_str().unwrap_or_default(),
-                        agent.phrase.as_str().unwrap_or_default()
-                    )
-                })
-                .unwrap_or_default()
+            let name = made.as_ref().and_then(Held::agent).map(|agent| agent.name.clone());
+            format!(
+                "Copy these secret credentials for {}. They are shown only once. Set BE3_AGENT_CREDENTIALS to this value.",
+                name.unwrap_or_default()
+            )
         })
+    });
+    let credentials = create_memo(move || {
+        made.with(|made| made.as_ref().and_then(Held::agent).map(agent_bundle).unwrap_or_default())
     });
     let copy = move || {
         let text = credentials.get_untracked();
@@ -2711,7 +2764,27 @@ fn AgentsDialog(
             });
         }
     };
-    escape_dismisses(done);
+    // While an agent is being made it stays open, so its credentials, which cannot be had
+    // again, reach the person: Close, its close button and Escape wait for the answer.
+    on_key(
+        KeyAt::Node(component_node()),
+        KeyPhase::Bubble,
+        KeyReveal::Focus,
+        move |event| {
+            let closes = event
+                .press()
+                .is_some_and(|press| press.pressed && !press.repeat && press.key == Key::Escape);
+            if closes && !pending.get_untracked() {
+                done.call(Closed::Dismissed);
+            }
+            closes
+        },
+    );
+    let dismiss = move || {
+        if !pending.get_untracked() {
+            done.call(Closed::Dismissed);
+        }
+    };
     view! {
         <Frame
             width=Length::FILL
@@ -2725,12 +2798,12 @@ fn AgentsDialog(
                     <DialogBody
                         title=AGENTS_TITLE
                         actions={vec![
-                            DialogAction::cancel("Close"),
+                            DialogAction::cancel("Close").disabled(move || pending.get()),
                             DialogAction::primary("Create agent", create)
                                 .busy(busy)
                                 .disabled(move || pending.get() || name.with(|name| name.trim().is_empty())),
                         ]}
-                        on_dismiss={move || done.call(Closed::Dismissed)}
+                        on_dismiss={dismiss}
                     >
                         <be_host_accounts_ui::ErrorText text={error} />
                         <ForEach
@@ -2771,9 +2844,7 @@ fn AgentsDialog(
                         ]}
                         on_dismiss={move || done.call(Closed::Dismissed)}
                     >
-                        <Text style=TextStyle::CAPTION>
-                            "Shown this once: keep them where the program can read them."
-                        </Text>
+                        <Text style=TextStyle::CAPTION>{heading}</Text>
                         <Text>{credentials}</Text>
                     </DialogBody>
                 </Show>
