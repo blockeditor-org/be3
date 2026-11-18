@@ -217,8 +217,8 @@ pub(super) fn OrganizationPage(editor: Editor) -> NodeId {
             .map(|index| policy_row::<OrganizationPolicies>(editor, settings, *index))
             .collect()
     };
-    let sharing = organization(&[0, 1]);
-    let storage = organization(&[2, 3]);
+    let sharing = organization(&[0, 1, 2]);
+    let storage = organization(&[3, 4]);
     let devices: Vec<Row> = (0..OFFLINE_POLICIES.len())
         .map(|index| policy_row::<OfflineSettings>(editor, settings, index))
         .collect();

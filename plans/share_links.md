@@ -61,16 +61,23 @@ able to use a link it relays or stores
 
 ## Order of work
 
-1. Link records, opening and revoking, for View and Edit, guests, and keys
-   after a rotation. Done: a test where a link grants View to an account no
-   one granted; the server, holding the stored link record and every relayed
-   message, opens nothing; one where a link opened after a rotation unlocks
-   once an editor tends.
-2. The share dialog's "Anyone with the link" row, choosing the level (up to
-   Edit), who may open it and revoking, and the organization policy. Done: a
-   painting; a test where a link that admits only members refuses another
-   account, and one where an account from another organization opens one as
-   a guest.
+1. ~~Link records, opening and revoking, for View and Edit, guests, and keys
+   after a rotation.~~ Done (be-block-keys `Record::ShareLink`/`Opened`,
+   be-server `share_links.rs`, be-block-client `share_links.rs`; tests
+   `a_share_link_grants_view_to_an_account_no_one_granted`,
+   `a_share_link_opened_after_a_rotation_unlocks_once_an_editor_tends`).
+2. ~~The share dialog's "Anyone with the link" row, choosing the level (up to
+   Edit), who may open it and revoking, and the organization policy.~~ Done
+   (painting `the_share_dialog_makes_copies_and_revokes_share_links`; test
+   `a_share_link_admits_only_members_unless_the_policy_lets_it_admit_guests`).
+2b. **Opening a link in be-host.** be-host does not yet take a
+   `{server}/#share/{CODE}` address or a pasted share link
+   (`InviteLink::parse_share` parses one): a dialog naming the block and its
+   organization, saying a guest joins it, then `share_links::open_share_link`
+   and the block shown in Shared with me, from that organization's peer. Done:
+   a host test where an account opens a link from the address bar and reads
+   the block.
 3. Join links, once plans/hosted_blocks.md step 3 lands.
-4. **Guides.** guides/blocks/keys.md (links, guests) and
-   guides/blocks/server.md (guests, the link policy).
+4. ~~Guides.~~ guides/blocks/keys.md ("Share links") and
+   guides/blocks/server.md (guests, the link policy) describe steps 1 and 2;
+   step 3 adds Join links to them.
