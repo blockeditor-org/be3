@@ -344,14 +344,18 @@ two describe.
   deleting the letters never follows a change twice nor takes back a removal;
   the block is written only over the head read, which replaces `put-contact`'s
   `replaces`. An agent, in no personal organization, has no block and keeps its
-  letters. A new phrase (`contacts::set_recovery_key`) reseals the block's keys
+  letters, so after its maker's seventeenth new phrase its chain of key changes
+  breaks for good (keys.md, "Contacts"). A removal stays in the block as a
+  tombstone (`KeptContact::Removed`) so a replayed record never brings back an
+  older card. A new phrase (`contacts::set_recovery_key`) reseals the block's keys
   with the rest and, in the same write in the personal organization
   (`set-recovery-key` is now `Rule::Anywhere`), starts its new epoch sealed to
   the new phrase alone (`AccountRecords::epoch_for`); the server now checks
   only that what the account sealed for itself is resealed, as it cannot read
   which contacts' keys a device reaches. Tests: be-block-client's
   `a_contact_made_on_one_device_is_read_by_another_from_the_accounts_block` and
-  `a_new_phrase_leaves_the_old_one_unable_to_read_the_accounts_next_commit`;
+  `a_new_phrase_leaves_the_old_one_unable_to_read_the_accounts_next_commit`,
+  and `a_record_the_server_replays_after_a_removal_does_not_bring_the_contact_back`;
   the rollback and slow-device tests now serve or write an older block.
 - **An owner-only block** in the personal organization holds what the account
   seals for itself: contact records, its cards and link codes, the escrow keys
