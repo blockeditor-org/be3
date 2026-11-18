@@ -23,6 +23,7 @@ fn a_folder_whose_share_is_taken_back_leaves_the_mirror_with_what_is_in_it() {
             &sharer.me().card(),
             &code,
             be_block_client::contacts::Expected::Contact,
+            &Default::default(),
         ))
         .expect("the sharer accepts the link");
     runtime

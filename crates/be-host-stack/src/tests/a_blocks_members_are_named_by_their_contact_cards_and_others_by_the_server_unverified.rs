@@ -55,6 +55,7 @@ fn a_blocks_members_are_named_by_their_contact_cards_and_others_by_the_server_un
             &teo.me().card(),
             &code,
             be_block_client::contacts::Expected::Contact,
+            &Default::default(),
         ))
         .expect("Teo accepts");
     ada.runtime

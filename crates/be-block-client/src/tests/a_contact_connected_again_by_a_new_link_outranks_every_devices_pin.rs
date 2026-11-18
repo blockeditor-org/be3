@@ -68,6 +68,7 @@ async fn a_contact_connected_again_by_a_new_link_outranks_every_devices_pin() {
         ),
         &code,
         crate::contacts::Expected::Contact,
+        &Default::default(),
     )
     .await
     .unwrap();

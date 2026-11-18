@@ -106,6 +106,7 @@ async fn a_contact_whose_key_changes_outran_the_mailbox_is_not_confirmed_until_l
         ),
         &code,
         crate::contacts::Expected::Contact,
+        &Default::default(),
     )
     .await
     .unwrap();

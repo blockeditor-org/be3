@@ -1590,6 +1590,7 @@ impl Member {
                 &someone.me().card(),
                 &code,
                 be_block_client::contacts::Expected::Contact,
+                &Default::default(),
             ))
             .expect("the member accepts");
         let account = someone.session.account;
