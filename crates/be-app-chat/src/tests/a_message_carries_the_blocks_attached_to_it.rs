@@ -118,4 +118,20 @@ fn a_message_carries_the_blocks_attached_to_it() {
         "a message with no text has none to edit"
     );
     chat.snapshot("a_message_carries_the_blocks_attached_to_it");
+
+    // A deletion the server refuses leaves what the message carries listed; one it takes
+    // unlists it.
+    chat.editor.store().refuse_appends(Some("no access"));
+    chat.click(&format!("chat.message.{sent}.delete"));
+    assert!(
+        chat.content().references().contains(&sketch),
+        "a refused deletion unlists nothing"
+    );
+    chat.editor.store().refuse_appends(None);
+    chat.click(&format!("chat.message.{sent}.dismiss"));
+    chat.click(&format!("chat.message.{sent}.delete"));
+    assert!(
+        !chat.content().references().contains(&sketch),
+        "a deletion in the log unlists what the message carried"
+    );
 }

@@ -63,5 +63,26 @@ fn an_entry_redacted_by_anyone_but_its_author_shows_removed() {
         ChatLog::of(&deleted).message(2).is_none(),
         "a deletion of a reaction taken back shows no row"
     );
+
+    // Nor one made before the take-back, as only a hand-made client orders them.
+    let early = [
+        item(0, ADA, &message("hello")),
+        redacted(1, ADA),
+        item(
+            2,
+            ADA,
+            &ChatEntry::Delete {
+                message: 1,
+                time: 0,
+            },
+        ),
+        item(3, ADA, &react(false, Some(1))),
+    ];
+    let early = ChatLog::of(&early);
+    assert!(
+        early.message(1).is_none(),
+        "a deletion before its reaction's take-back shows no row"
+    );
+    assert_eq!(early.messages().count(), 1);
     assert_eq!(log.message(1).unwrap().body, None);
 }
