@@ -174,6 +174,24 @@ async fn log_items<S: be_block_store::ObjectStore>(
     let mut untold = HashSet::new();
     let mut items = Vec::with_capacity(entries.len());
     for logged in entries {
+        // An entry an import brought in shows as it was written in its own block, by its
+        // author then, and verifies there.
+        if let Some(original) = logged.imported {
+            let signer = match peer.verify_exported(app, &original).await {
+                Ok(Some(signer)) => api_signer(signer),
+                Ok(None) => be_sdk_type_api::Signer::Redacted,
+                Err(_) => be_sdk_type_api::Signer::Unknown,
+            };
+            items.push(be_sdk_type_api::LogItem {
+                seq: logged.entry.seq,
+                id: logged.entry.id,
+                author: original.author,
+                arrival: original.arrival,
+                payload: original.said.map(|said| said.bytes),
+                signer,
+            });
+            continue;
+        }
         let entry = logged.entry;
         let signer = match &logged.opened {
             None if entry.payload.is_none() => be_sdk_type_api::Signer::Redacted,
@@ -192,11 +210,7 @@ async fn log_items<S: be_block_store::ObjectStore>(
                 )
                 .await
             {
-                Ok(be_block_client::Signer::Verified) => be_sdk_type_api::Signer::Verified,
-                Ok(be_block_client::Signer::Unverified) => be_sdk_type_api::Signer::Unverified,
-                Ok(be_block_client::Signer::Changed) => be_sdk_type_api::Signer::Changed,
-                Ok(be_block_client::Signer::Replaced) => be_sdk_type_api::Signer::Replaced,
-                Ok(be_block_client::Signer::Bad) => be_sdk_type_api::Signer::Bad,
+                Ok(signer) => api_signer(signer),
                 Err(_) => {
                     untold.insert(entry.author);
                     be_sdk_type_api::Signer::Unknown
@@ -217,6 +231,16 @@ async fn log_items<S: be_block_store::ObjectStore>(
 
 /// Sends what the edits the server now holds announce (`Peer::send_announcements`); an
 /// unreachable server leaves them for the next time.
+fn api_signer(signer: be_block_client::Signer) -> be_sdk_type_api::Signer {
+    match signer {
+        be_block_client::Signer::Verified => be_sdk_type_api::Signer::Verified,
+        be_block_client::Signer::Unverified => be_sdk_type_api::Signer::Unverified,
+        be_block_client::Signer::Changed => be_sdk_type_api::Signer::Changed,
+        be_block_client::Signer::Replaced => be_sdk_type_api::Signer::Replaced,
+        be_block_client::Signer::Bad => be_sdk_type_api::Signer::Bad,
+    }
+}
+
 pub async fn send_announcements<H: Host>(peer: &Peer<H::Store>, shared: &Arc<Mutex<H>>) {
     if let Err(error) = peer.send_announcements().await
         && !unreachable(&error)
