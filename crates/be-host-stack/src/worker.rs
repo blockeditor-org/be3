@@ -756,6 +756,42 @@ pub(super) enum ContactCommand {
         reply: CardReply,
     },
     Remove(Uuid),
+    /// Reads a share link before it is opened (guides/blocks/keys.md, "Share links").
+    PreviewShare {
+        code: be_block_keys::InviteCode,
+        reply: Reply<Result<SharePreview, String>>,
+    },
+    /// Opens a share link as this account.
+    OpenShare {
+        code: be_block_keys::InviteCode,
+        reply: Reply<Result<SharePreview, String>>,
+    },
+}
+
+/// A share link as a person is asked to open it: its block and that block's name as its maker
+/// saw it, the organization and whether opening it joins that organization as a guest, and
+/// what it grants.
+#[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
+pub struct SharePreview {
+    pub organization: Uuid,
+    pub organization_name: String,
+    pub block: Uuid,
+    pub name: String,
+    pub access: Access,
+    pub guest: bool,
+}
+
+impl SharePreview {
+    fn of(link: &be_block_protocol::ShareLink, name: String) -> Self {
+        Self {
+            organization: link.organization,
+            organization_name: link.organization_name.clone(),
+            block: link.block,
+            name,
+            access: link.access,
+            guest: link.guest,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
@@ -2823,6 +2859,9 @@ fn refuse_offline(command: Command, shared: &Arc<Mutex<Shared>>) -> Option<Comma
         Command::Contact(
             ContactCommand::Open { reply, .. } | ContactCommand::Accept { reply, .. },
         ) => reply.send(Err(NEEDS_CONNECTION.to_owned())),
+        Command::Contact(
+            ContactCommand::PreviewShare { reply, .. } | ContactCommand::OpenShare { reply, .. },
+        ) => reply.send(Err(NEEDS_CONNECTION.to_owned())),
         Command::Contact(ContactCommand::Remove(_)) => {
             shared.lock().unwrap_or_else(PoisonError::into_inner).error =
                 Some(NEEDS_CONNECTION.to_owned());
@@ -3526,6 +3565,36 @@ async fn contact(
                 })
                 .map_err(|error| error.to_string()),
             );
+        }
+        ContactCommand::PreviewShare { code, reply } => {
+            let previewed =
+                be_block_client::share_links::preview_share_link(&peer.connection(), &code)
+                    .await
+                    .map(|(link, handed)| SharePreview::of(&link, handed.name));
+            reply.send(previewed.map_err(|error| error.to_string()));
+        }
+        ContactCommand::OpenShare { code, reply } => {
+            let opened = async {
+                let (_, handed) =
+                    be_block_client::share_links::preview_share_link(&peer.connection(), &code)
+                        .await?;
+                let link = be_block_client::share_links::open_share_link(
+                    &peer.connection(),
+                    identity,
+                    peer.account(),
+                    &code,
+                )
+                .await?;
+                Ok::<_, be_block_client::ClientError>(SharePreview::of(&link, handed.name))
+            }
+            .await;
+            // What it opened here is listed as shared with this account at once.
+            if let Ok(opened) = &opened
+                && opened.organization == peer.organization()
+            {
+                tasks.sync(peer, shared);
+            }
+            reply.send(opened.map_err(|error| error.to_string()));
         }
         ContactCommand::Open { code, reply } => {
             let opened = be_block_client::contacts::open_link(
