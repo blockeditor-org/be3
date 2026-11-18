@@ -201,7 +201,7 @@ a role inside the app, since the share dialog grants no roles. A game:
      hears every admitted member join again;
      `a_member_is_admitted_hears_its_host_and_goes_when_revoked`,
      `a_member_that_handshakes_again_is_admitted_again_and_goes_when_banned`.
-     Known gap, fixed in d: a device that holds a hosted block's replica open
+     Known gap, fixed in d2: a device that holds a hosted block's replica open
      for another reason (a child, a preview) holds its lease and runs no host
      component; d claims a hosted type's lease only while a component runs.
    - c. The Join side (done): an editor opened on a block its account may
@@ -225,8 +225,16 @@ a role inside the app, since the share dialog grants no roles. A game:
      for a replica of the block to leave; a host that answers the newest of two
      handshakes a member sent while the first was checked; be-sdk's Join opening
      and be-sdk-beui's `on_channel` and `tell_host` in an app.
-   - d. Keep hosting in the frame menu and the device's list of what it hosts,
-     with Stop, in be-host's organization menu.
+   - d1. Keep hosting in the frame menu and the device's list of what it hosts,
+     with Stop, in be-host's host menu (done): `editor-event.hosting`,
+     `block-command.keep-hosting`, `Hosts::keep`;
+     `keep_hosting_is_in_the_frame_menu_while_this_device_hosts_the_block`,
+     `the_menu_lists_what_this_device_keeps_hosting_with_stop`.
+   - d2. Claiming a hosted type's lease only while a component runs, so a
+     device that holds the replica open for another reason (a child, a
+     preview) does not hold the lease. The lease is the session's
+     (`be-block-session`'s `holder`, which falls back to the first editor),
+     which also decides who seals, so this changes the session.
    - e. `be BLOCK host` (plans/headless_apps.md, step 2).
    Done: a be-host-tests test with two editor devices and two players as raw
    peers, where the first host closes the world and the second carries on;
