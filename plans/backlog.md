@@ -409,11 +409,6 @@ Depends on #686 (session catch-ups replaced by server ordering).
   beui-core-html's `watch()` seeds the signal synchronously the first time it
   is made, and those eager `measure` calls at build go.
 
-- **Selecting a game piece from the keyboard.** Space lifts the selected
-  piece and the arrows step it between its squares, but only a click selects
-  one, so a game cannot be played from the keyboard alone. Done: the arrows
-  move a selection between the movable pieces while nothing is carried, shown
-  by a test that plays a chess move with keys only.
 - **A lift wakes only the carries it concerns.** The board keeps every carried
   payload in one `lifted` signal, so each `carries(&payload)` reader (every
   slider, colour control and scrollbar thumb's `ThumbCarry`, every splitter, every

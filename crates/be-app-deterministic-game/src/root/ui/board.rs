@@ -6,8 +6,8 @@ use be_sdk_beui::Editor;
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{
-    Color32, FontId, Key, KeyPress, NodeId, PointerId, PointerPress, Pos2, Rect, SecondaryDrag,
-    TextLayout, Vec2, drag, reactive::Painter,
+    Color32, FontId, Key, KeyPress, NodeId, PointerId, PointerPress, Pos2, Rect,
+    SecondaryDrag, TextLayout, Vec2, accesskit, drag, reactive::Painter,
 };
 use tabletop_api::Spot;
 use tabletop_api::board::{CARD_HEIGHT, CARD_WIDTH, HandCard, ItemId, Sprite};
@@ -245,6 +245,21 @@ pub(crate) fn Stage(
     };
     // A press on a piece that can move lifts it; any other press goes on as a pan. The
     // keyboard lifts the piece selected.
+    // The carry of the piece at `from`, selecting it: a press on it lifts it, as does the
+    // keyboard on the stage (the piece selected) or on the piece itself (a focus stop).
+    let lift_from = Func::new(move |from: Spot| {
+        if !play.can_drag(from) {
+            return None;
+        }
+        let size = lifted_size(from)?;
+        play.choices.set(Vec::new());
+        play.selected.set(Some(from));
+        Some(
+            drag::Carry::new(Carried(from))
+                .item(Rect::from_center_size(Pos2::ZERO, size))
+                .drawn_by_site(),
+        )
+    });
     let drag = Func::new(move |pointer: PointerPress| {
         let from = match pointer.pointer {
             PointerId::Keyboard => play.selected.get_untracked()?,
@@ -257,17 +272,7 @@ pub(crate) fn Stage(
                 from
             }
         };
-        if !play.can_drag(from) {
-            return None;
-        }
-        let size = lifted_size(from)?;
-        play.choices.set(Vec::new());
-        play.selected.set(Some(from));
-        Some(
-            drag::Carry::new(Carried(from))
-                .item(Rect::from_center_size(Pos2::ZERO, size))
-                .drawn_by_site(),
-        )
+        lift_from.call(from)
     });
     let on_drag = move |pointer: PointerPress| {
         let pressed = press.value();
@@ -393,7 +398,7 @@ pub(crate) fn Stage(
                     <ListItem grow=1.0>
                         <Canvas view={canvas} @node_ref={&content}>
                             <ForEach value={item_keys}>|id: ItemId|
-                                <TableItem id layout={layout} play={play} hidden={hidden} />
+                                <TableItem id layout={layout} play={play} hidden={hidden} lift_from />
                             </ForEach>
                             <ForEach value={spot_keys}>|spot: Spot|
                                 <SpotItem spot layout={layout} play={play} />
@@ -442,6 +447,7 @@ fn TableItem(
     layout: Memo<Layout>,
     play: Play,
     hidden: Memo<Vec<ItemId>>,
+    lift_from: Func<Spot, Option<drag::Carry>>,
 ) -> CanvasItem {
     let placed = create_memo(move || {
         layout.with(|layout| layout.item(id).cloned().map(|placed| (placed, layout.unit)))
@@ -476,6 +482,21 @@ fn TableItem(
             }
         }) as Draw
     };
+    let drawing = view! {
+        <Drawing draw={draw} />
+    };
+    // A piece or card stays one through its moves, though its spot and face change.
+    let piece = placed.with_untracked(|placed| {
+        placed
+            .as_ref()
+            .is_some_and(|(placed, _)| piece_name(&placed.sprite).is_some())
+    });
+    let face = match piece {
+        true => view! {
+            <PieceStop id layout play lift_from>{drawing}</PieceStop>
+        },
+        false => drawing,
+    };
     view! {
         <CanvasItem
             x={move || rect.get().left()}
@@ -483,8 +504,101 @@ fn TableItem(
             width={move || rect.get().width().max(1.0)}
             height={move || rect.get().height().max(1.0)}
         >
-            <Drawing draw={draw} />
+            {face}
         </CanvasItem>
+    }
+}
+
+/// A piece or card on the table, as a focus stop while it can move: Tab and Shift+Tab
+/// reach the movable ones in board order, one for each spot (the top card of a pile, which a
+/// press would take), and Space or Enter lifts the focused one, which the keyboard then
+/// carries as any other (guides/beui_keyboard.md). Its presses are the stage's, which
+/// catches them around the table; a press focuses it, so Space lifts what it selected.
+#[component]
+fn PieceStop(
+    id: ItemId,
+    layout: Memo<Layout>,
+    play: Play,
+    lift_from: Func<Spot, Option<drag::Carry>>,
+    children: Child,
+) -> NodeId {
+    // Where it stands and what it is, which a move or a turned card changes.
+    let named = create_memo(move || {
+        layout.with(|layout| {
+            let placed = layout.item(id)?;
+            Some((placed.spot, piece_name(&placed.sprite)?))
+        })
+    });
+    let spot = create_memo(move || named.with(|named| named.as_ref().and_then(|(spot, _)| *spot)));
+    // Only the one on top of a pile is its spot's stop, and read: the rest lie under it.
+    let face = create_memo(move || {
+        spot.get()
+            .is_none_or(|spot| layout.with(|layout| layout.face(spot) == Some(id)))
+    });
+    let movable = create_memo(move || face.get() && spot.get().is_some_and(|spot| play.movable(spot)));
+    let focused = create_signal(false);
+    component_accessibility(create_memo(move || {
+        if !face.get() {
+            return accesskit::Node::new(accesskit::Role::GenericContainer);
+        }
+        let mut node = accesskit::Node::new(accesskit::Role::Button);
+        named.with(|named| {
+            if let Some((spot, name)) = named {
+                node.set_label(match spot {
+                    Some(spot) => format!("{name}, {}", square_name(*spot)),
+                    None => name.clone(),
+                });
+            }
+        });
+        if !movable.get() {
+            node.set_disabled();
+        }
+        node
+    }));
+    view! {
+        <Interactive
+            @test_id={move || match (spot.get(), face.get()) {
+                (Some(spot), true) => piece_test_id(spot),
+                _ => format!("game.piece.under.{}", id.0),
+            }}
+            focusable=true
+            tab_stop={movable}
+            on_focus_change={focused}
+            drag={Func::new(move |pointer: PointerPress| match (pointer.pointer, spot.get_untracked()) {
+                (PointerId::Keyboard, Some(spot)) => lift_from.call(spot),
+                _ => None,
+            })}
+        >
+            <FocusRing focused>{children}</FocusRing>
+        </Interactive>
+    }
+}
+
+/// What a sprite on the table is called, for a screen reader: a piece by its kind and
+/// seat, a card by its rank and suit. Nothing for the board's own frames and labels.
+fn piece_name(sprite: &Sprite) -> Option<String> {
+    match sprite {
+        Sprite::Piece(piece) => Some(format!("Player {}'s {}", piece.seat + 1, piece.kind)),
+        Sprite::Card(card) => Some(format!("{:?} of {:?}", card.rank, card.suit)),
+        Sprite::CardBack => Some("Card".to_owned()),
+        _ => None,
+    }
+}
+
+fn piece_test_id(spot: Spot) -> String {
+    match spot {
+        Spot::Tile { column, row } => format!("game.piece.{column}.{row}"),
+        Spot::Pile(pile) => format!("game.piece.pile.{pile}"),
+        Spot::Card { pile, card } => format!("game.piece.{pile}.card.{card}"),
+    }
+}
+
+/// Where a spot is, in words.
+fn square_name(spot: Spot) -> String {
+    match spot {
+        Spot::Tile { column, row } => format!("column {}, row {}", column + 1, row + 1),
+        Spot::Pile(pile) => format!("pile {}", pile + 1),
+        Spot::Card { pile, card } => format!("pile {}, card {}", pile + 1, card + 1),
     }
 }
 
