@@ -112,6 +112,7 @@ fn op_case(op: &Op) -> &'static str {
         Op::AppendLog(LogRecord::Grant { .. }) => "append-log (grant)",
         Op::AppendLog(LogRecord::Role { .. }) => "append-log (role)",
         Op::AppendLog(LogRecord::Member { .. }) => "append-log (member)",
+        Op::AppendLog(LogRecord::Ban { .. }) => "append-log (ban)",
         Op::DeleteAgent { .. } => "delete-agent",
         Op::PutKeys(PutKeys::Rows(_)) => "put-keys (rows)",
         Op::PutKeys(PutKeys::Rotate { .. }) => "put-keys (rotate)",
@@ -152,6 +153,7 @@ const OPS: &[&str] = &[
     "append-log (grant)",
     "append-log (role)",
     "append-log (member)",
+    "append-log (ban)",
     "delete-agent",
     "put-keys (rows)",
     "put-keys (rotate)",
@@ -362,6 +364,13 @@ impl TestClient {
                 account: other,
                 role: OrganizationRole::Administrator,
                 signed: None,
+            }))
+            .await;
+        calls
+            .write(Op::AppendLog(LogRecord::Ban {
+                block,
+                account: other,
+                signed: sealed(),
             }))
             .await;
         calls
@@ -780,6 +789,7 @@ async fn every_call_states_who_may_make_it() {
         "tree",
         "access",
         "append-log (grant)",
+        "append-log (ban)",
         "put-keys (rotate)",
         "session",
         "send session (claim)",

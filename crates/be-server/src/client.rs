@@ -120,6 +120,7 @@ pub(crate) fn op_rule(op: &Op) -> Rule {
         Op::AppendLog(record) => match record {
             LogRecord::Grant { block: of, .. } => block(*of, Access::KnowExists),
             LogRecord::Role { .. } => Rule::Administrator,
+            LogRecord::Ban { block: of, .. } => block(*of, Access::Edit),
             // An administrator removes a person; anyone signs in or out an agent it made.
             LogRecord::Member { .. } => Rule::Member,
         },
@@ -1274,6 +1275,12 @@ impl Client {
             .await
             .is_err()
         {
+            if connection.store.banned(identity, block).await? {
+                return Err(ServerError::Refused(
+                    ErrorCode::PermissionDenied,
+                    format!("this account is barred from joining block {block}'s host"),
+                ));
+            }
             self.following.sessions.insert(place, tag);
             let connection = &self.connection;
             let host = connection
@@ -1914,6 +1921,24 @@ impl Client {
                             .after(After::Recheck {
                                 organization: identity.organization,
                                 account: None,
+                                within: Some(block),
+                            })
+                            .await;
+                    }
+                    LogRecord::Ban {
+                        block,
+                        account,
+                        signed,
+                    } => {
+                        connection
+                            .store
+                            .ban(identity, block, account, signed)
+                            .await?;
+                        // A banned Join member in the session leaves.
+                        connection
+                            .after(After::Recheck {
+                                organization: identity.organization,
+                                account: Some(account),
                                 within: Some(block),
                             })
                             .await;
@@ -2929,7 +2954,13 @@ impl Connection {
                     MemberKind::Participant => Access::View,
                     MemberKind::Join => Access::Join,
                 };
-                if access(needs).await.is_err() {
+                let barred = kind == MemberKind::Join
+                    && self
+                        .store
+                        .banned(identity, block.block)
+                        .await
+                        .unwrap_or(false);
+                if barred || access(needs).await.is_err() {
                     self.registry.leave(block, client).await;
                     continue;
                 }

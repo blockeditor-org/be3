@@ -180,7 +180,9 @@ a role inside the app, since the share dialog grants no roles. A game:
    again on each access change (as `Peer::admit` checks it) and drop one that
    no longer holds Join, and make a participant that falls to Join (the server
    takes it out and it joins again as a Join member) handshake again.
-4. **Hosting.** The host component, starting and stopping it with the editor,
+4. **Hosting.** Done so far: ban records (`Record::Ban`, `append-log(ban)`,
+   `Peer::ban`; test `a_banned_member_is_refused_until_a_grant_lifts_the_ban`).
+   The host component, starting and stopping it with the editor,
    Keep hosting and the shell's list, lease handoff and reconnecting, ban
    records; then `be BLOCK host`. Done: a test with two editors and two
    players where the first host closes the world and the second carries on;

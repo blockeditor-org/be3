@@ -434,7 +434,10 @@ counts and records nothing: `reserve-uploads` did before it signed.
   the plan grants it, a Join member learns, as `KnowExists` and View members
   already do, its no-access summary's `changed` and the length of the log.
   `recheck_sessions` takes out a Join member that lost `Join`, and a
-  participant that fell to `Join`, which joins again as a Join member.
+  participant that fell to `Join`, which joins again as a Join member. An
+  `append-log(ban)` (Edit) appends a ban record (`access::append_ban`); joining
+  below View is refused while the block's log bans the caller
+  (`access::banned`), and a banned Join member in the session is taken out.
 
   After a grant, a revocation, a move or a role change,
   `recheck_sessions` checks each participant below the block again: one that

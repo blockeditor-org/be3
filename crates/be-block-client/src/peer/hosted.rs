@@ -191,6 +191,10 @@ impl<S: ObjectStore> Peer<S> {
             Some((level, identity)) if identity.public == responder.joiner => level,
             _ => return Err(refused("the logs grant it nothing with that key")),
         };
+        // A ban binds no editor: one may change the block directly anyway.
+        if level < Level::Edit && checked.banned.contains(&account) {
+            return Err(refused("the block's log bars it"));
+        }
         let (channel, answer) = responder.accept(&[]);
         Ok((
             Admitting {
@@ -201,6 +205,48 @@ impl<S: ObjectStore> Peer<S> {
             },
             answer,
         ))
+    }
+
+    /// Bars `account` from joining `block`'s host (plans/hosted_blocks.md, "Hosting"): signs a
+    /// ban record into the block's log, which this account may do with Edit or above (from the
+    /// log or from outside it). A host refuses the account at the handshake and the server at
+    /// joining, until a grant to it signed after the ban lifts it. A ban binds no editor.
+    pub async fn ban(&self, block: Uuid, account: Uuid) -> Result<(), ClientError> {
+        use be_block_keys::{Authority, Ban};
+        let (_, checked) = self.checked_access(block).await?;
+        let me = self.account.into_bytes();
+        let authority = match checked.holding(LogKind::Block, me, Level::Edit) {
+            Some(_) => Authority::Log,
+            None => self.authority_outside(block, &checked, Level::Edit).await?,
+        };
+        let signed = checked
+            .next(
+                self.keys.identity(),
+                me,
+                block.into_bytes(),
+                Record::Ban(Ban {
+                    account: account.into_bytes(),
+                    authority,
+                }),
+            )
+            .ok_or_else(|| {
+                ClientError::Refused(
+                    ErrorCode::PermissionDenied,
+                    format!("this account is not served the whole log of block {block}"),
+                )
+            })?
+            .encode();
+        be_block_protocol::write::<(), _>(
+            &self.connection(),
+            Some(self.organization),
+            be_block_protocol::Op::AppendLog(be_block_protocol::LogRecord::Ban {
+                block,
+                account,
+                signed,
+            }),
+        )
+        .await??;
+        Ok(())
     }
 
     /// The level `account` holds at or above `level` on the block `checked` is the log of, as

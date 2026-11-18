@@ -22,6 +22,7 @@ const REACHING_PAST: &[&str] = &[
     "remove-contact",
     "move",
     "append-log (grant)",
+    "append-log (ban)",
     "access",
     "set-recovery-key",
     "signing-keys",
