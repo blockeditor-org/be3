@@ -4,7 +4,7 @@
 //! (plans/host_as_platform_adapter.md, The sandbox API). Staged apps come from a loader the host
 //! plugs in (be-host-runtime's `staged_app`), since finding them is the host's and lies above
 //! be-wasm. be-host-runtime serves one to every app (`Server::for_app`), which may spawn only its
-//! own app's modules, its workers (plans/single_threaded_guests.md); be-wasm-root-host serves the
+//! own app's modules, its workers (guides/adding_an_app.md, Workers); be-wasm-root-host serves the
 //! root guest one (`Server::new`, plans/host_as_platform_adapter.md, The root guest).
 
 use std::{
@@ -39,7 +39,7 @@ type Frames = Result<Vec<Vec<u8>>, String>;
 pub type Loader = Box<dyn Fn(&str, &str) -> Result<Staged, String> + Send>;
 
 /// Why an app may not compile a module from bytes: those stay the root guest's until a plan gives
-/// apps a reason for them (plans/single_threaded_guests.md, step 1).
+/// apps a reason for them (the Games app's game modules would be one).
 pub const APPS_COMPILE_NOTHING: &str = "an app may not compile a module from bytes";
 
 /// The most bytes the memory of an app's worker may hold, whatever the app asks for.

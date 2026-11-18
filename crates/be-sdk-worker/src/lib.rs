@@ -1,6 +1,6 @@
 //! Workers: work an app runs off its own thread, as an instance of a module of its own that it
-//! talks to by messages (plans/single_threaded_guests.md, Workers; guides/adding_an_app.md,
-//! Workers). be-sdk re-exports it as `be_sdk::worker`.
+//! talks to by messages, since a guest is single-threaded (decisions/guests_are_single_threaded.md;
+//! guides/adding_an_app.md, Workers). be-sdk re-exports it as `be_sdk::worker`.
 //!
 //! - The app names each worker module in its manifest's `workers`, and its BUCK file builds and
 //!   stages it (`app(workers = ...)`).

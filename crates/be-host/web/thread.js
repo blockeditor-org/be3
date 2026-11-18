@@ -5,17 +5,12 @@
 // wasi_thread_start, which is where wasi-libc picks up the stack and the
 // thread-local block the spawning thread already laid out for it. The module's
 // start function is deliberately not run: memory, and everything in it, is
-// already initialised by the thread that got there first. An app linked
-// against libraries is linked again here, by its own thread's plan, and its
-// thread-local blocks are given back when the thread ends.
+// already initialised by the thread that got there first.
 //
-// The calls out of the module a thread may make are the wake, which says a
-// job it was started for has landed and the module should be stepped again,
-// and a letter to the page (threads.js).
-// The JavaScript that answers the rest belongs to the thread that made it, so
-// the wake is passed to the spawning thread as a message instead.
+// The calls out of the module a thread may make are WASI's and a letter to the
+// page (threads.js). The JavaScript that answers the rest belongs to the
+// thread that made it.
 
-import * as dylink from "./dylink.js";
 import * as wasi from "./wasi.js";
 import * as environment from "./env.js";
 import * as threads from "./threads.js";
@@ -41,13 +36,6 @@ function imports(module, memory) {
             group[wanted.name] = threads[wanted.name];
         } else if (wanted.module === "env") {
             group[wanted.name] = environment[wanted.name];
-        } else if (wanted.module === "be3_host" && wanted.name === "host_wake") {
-            group[wanted.name] = () => self.postMessage({ kind: "wake" });
-        } else if (wanted.module === "be3_host" && wanted.name === "host_panic") {
-            group[wanted.name] = (pointer, length) => {
-                const bytes = new Uint8Array(memory.buffer).slice(pointer, pointer + length);
-                throw new Error(new TextDecoder().decode(bytes));
-            };
         } else {
             group[wanted.name] = stub(wanted.module, wanted.name);
         }
@@ -56,7 +44,7 @@ function imports(module, memory) {
 }
 
 self.onmessage = (event) => {
-    const { module, memory, id, startArgument, modules, plan, blocks, rootBlock, files, letters } = event.data;
+    const { module, memory, id, startArgument, files, letters } = event.data;
     wasi.bindMemory(memory);
     wasi.bindFiles(files);
     environment.bindMemory(memory);
@@ -64,18 +52,10 @@ self.onmessage = (event) => {
     threads.bindLetters(letters);
     try {
         const instance = new WebAssembly.Instance(module, imports(module, memory));
-        if (modules) {
-            threads.bindLinked(modules, plan);
-            const thread = { blocks, rootBlock, main: false };
-            dylink.link(modules, plan, instance, thread, (linked) => imports(linked, memory));
-        }
         instance.exports.wasi_thread_start(id, startArgument);
     } catch (error) {
         console.error(`thread ${id} stopped`, error);
     } finally {
-        if (modules) {
-            dylink.freeBlocks(memory, plan, blocks);
-        }
         self.close();
     }
 };

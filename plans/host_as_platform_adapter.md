@@ -325,8 +325,8 @@ posts its gestures back to the host could feel closer to native, but that is not
 
 ## The sandbox API
 
-A new WIT interface the host serves to the root guest, and later to apps
-(plans/single_threaded_guests.md, step 1):
+A new WIT interface the host serves to the root guest, and to apps for their workers
+(guides/adding_an_app.md, Workers):
 
 - `compile(bytes) -> module`, hashed and cached. It completes later: natively the host compiles
   on a thread of its own, and on the web with `WebAssembly.compile`, or in the spawned worker
@@ -358,10 +358,9 @@ compile turns the memory a module defines into an import, so one compile serves 
 different memory limits. A staged app's module, its entry point or one of its workers, is found by
 a loader the host gives the `Server` (be-host-runtime's `staged_app`), and runs with its libraries
 and WASI but no display. Every app is served one already, for its workers, which spawns only its
-own app's modules and compiles none (plans/single_threaded_guests.md, step 1).
+own app's modules and compiles none (guides/adding_an_app.md, Workers).
 `crates/be-wasm-root-host` serves the root one that may spawn any staged app (step 4a). On the web
-the same `Server` spawns an app's workers, each in a web worker of its own
-(plans/single_threaded_guests.md, step 2), and compiles a module from bytes on the page with
+the same `Server` spawns an app's workers, each in a web worker of its own, and compiles a module from bytes on the page with
 `WebAssembly.compile`, once per page for the same bytes, with its memory imported as natively,
 refusing one that imports more than its transport; each instance of it is a plain worker the page
 posts the `WebAssembly.Module` to, with a memory capped at the instance's limit (step 4d). The
@@ -866,7 +865,7 @@ Each step lands on its own.
        be3:ui, which beui shares, so beui-font-freetype's `FontSources::of_faces` reads it), encoded
        (be-host's `be_host_runtime::bundled_fonts`, which it tells its apps; `Root::with_fonts`),
        which the root asks once and draws its text in; `frame-request`'s `wall-clock`, the
-       host's wall clock (drive pins it); a root may start no threads (`App::refuse_threads`);
+       host's wall clock (drive pins it);
        and the export `paintings`, what its own surfaces
        painted in beui-paint-format's `ScreenPaintings` keyed by surface id, as `be3:debug`'s
        `paintings` is for an app, which `drive paint` under `--root` asks for

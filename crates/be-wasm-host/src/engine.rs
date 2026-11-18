@@ -20,6 +20,7 @@ const TABLE_ENTRIES: u32 = 1 << 20;
 
 static PLATFORM: OnceLock<v8::SharedRef<v8::Platform>> = OnceLock::new();
 static FLAGS: OnceLock<String> = OnceLock::new();
+static TRAP_HANDLER: OnceLock<bool> = OnceLock::new();
 
 /// The platform V8 runs on, whose message loop a compilation that finishes later is pumped on.
 pub(crate) fn platform() -> v8::SharedRef<v8::Platform> {
@@ -30,10 +31,26 @@ pub(crate) fn platform() -> v8::SharedRef<v8::Platform> {
         .unwrap_or_else(|| unreachable!("V8 is initialized"))
 }
 
-/// A hash of the flags V8 runs with, which code cached under other flags is kept apart by.
+/// A hash of the flags V8 runs with, and whether its trap handler is on, which code cached under
+/// others is kept apart by: code compiled for guard regions does not check its own bounds.
 pub(crate) fn flags_hash() -> String {
     initialize();
-    be_wasm_dylink::identity(FLAGS.get().map_or("", String::as_str).as_bytes())[..16].to_owned()
+    let flags = format!(
+        "{} trap-handler={}",
+        FLAGS.get().map_or("", String::as_str),
+        memories_stay_put()
+    );
+    be_wasm_dylink::identity(flags.as_bytes())[..16].to_owned()
+}
+
+/// Whether every wasm32 memory stays where it was made while it grows. With V8's trap handler on,
+/// each is reserved in full with guard regions around it, and V8 grows it only in place (else
+/// the grow fails), so its base never moves; the gpu and transport imports then read it without
+/// V8, as fast-API calls (gpu.rs). Where the trap handler cannot be had, a memory may move when it
+/// grows, and the imports are ordinary calls that ask V8 where it is.
+pub(crate) fn memories_stay_put() -> bool {
+    initialize();
+    TRAP_HANDLER.get().copied().unwrap_or(false)
 }
 
 /// Starts V8 once for the process. `--wasm-unsafe-fast-api-wrapper` lets a wasm import call a
@@ -60,6 +77,9 @@ pub(crate) fn initialize() {
         }
         v8::V8::set_flags_from_string(&flags);
         let _ = FLAGS.set(flags);
+        // V8's own signal handler, which passes on any fault that is not a guest's out-of-bounds
+        // access to the handler it found (memories_stay_put).
+        let _ = TRAP_HANDLER.set(v8::V8::enable_web_assembly_trap_handler(true));
         let platform = v8::new_default_platform(0, false).make_shared();
         let _ = PLATFORM.set(platform.clone());
         v8::V8::initialize_platform(platform);
@@ -603,7 +623,6 @@ pub(crate) fn memory<'s>(
     scope: &mut v8::PinScope<'s, '_>,
     initial: u64,
     maximum: Option<u64>,
-    shared: bool,
 ) -> Result<v8::Local<'s, v8::Object>, String> {
     let descriptor = v8::Object::new(scope);
     let initial = number(scope, initial as f64);
@@ -611,10 +630,6 @@ pub(crate) fn memory<'s>(
     if let Some(maximum) = maximum {
         let maximum = number(scope, maximum as f64);
         set(scope, descriptor, "maximum", maximum);
-    }
-    if shared {
-        let yes = v8::Boolean::new(scope, true).into();
-        set(scope, descriptor, "shared", yes);
     }
     let constructor = web_assembly(scope, "Memory")?;
     constructor

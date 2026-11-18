@@ -178,7 +178,7 @@ impl Host {
         };
         let (outcome, _) = running.call(entry);
         let state = running.state_mut();
-        if let Some(failure) = state.take_error().or_else(|| state.threads.take_failure()) {
+        if let Some(failure) = state.take_error() {
             return Err(failure);
         }
         if let Some(code) = state
