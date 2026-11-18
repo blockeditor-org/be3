@@ -483,7 +483,9 @@ pub async fn set_recovery_key(
         && let Err(error) =
             be_block_client::contacts::contacts(&connection, account, old, &pins).await
     {
-        eprintln!("be-host: a new phrase goes on without following the contacts' key changes: {error}");
+        eprintln!(
+            "be-host: a new phrase goes on without following the contacts' key changes: {error}"
+        );
     }
     let be_block_protocol::RecoveryKey {
         sealed, own, logs, ..
