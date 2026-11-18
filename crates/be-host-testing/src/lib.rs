@@ -73,6 +73,9 @@ impl Harness {
     /// Stops the server, as a device losing its connection finds it: the stack keeps what it
     /// does until `start_server` brings it back at the same address.
     pub fn stop_server(&mut self) {
+        // Dropped, the server is told to stop and its thread joined, so its listener is closed
+        // before this returns, and `start_server` can bind the address again at once: std's
+        // listeners set SO_REUSEADDR on Unix, so connections it left in TIME_WAIT hold nothing.
         self.server = None;
     }
 
