@@ -93,7 +93,8 @@ append; another app's append is answered with an error), with what goes along
 with it (`be_block_content::Along`: the push it announces, the entry it takes
 back), `take_appended` for where each went (its entry's id, and its place once
 the server took it), `read_log(from, limit)`, `log_size`, and `with_log`, which
-reads the latest entries heard or read (up to `editor::LOG_HELD`) in the log's
+reads the latest entries heard or read (up to `editor::LOG_HELD`, and all from
+where it paged back to) in the log's
 order, each with who signed it. What is sending is `with_kept`: the entries
 this device appended that the server has not taken, from its own appends and
 from what each read tells (`LogPage::kept`, which the host reads from the

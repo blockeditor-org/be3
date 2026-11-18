@@ -49,7 +49,7 @@ replica neither reads nor keeps the log, and each editor reads what it shows.
   past the log's end names its length (`ContentProjection::log_size`), then it
   reads the page before it. Scrolled to its first message, "Earlier messages"
   reads the page before what it holds. It keeps the latest
-  `editor::LOG_HELD` entries.
+  `editor::LOG_HELD` entries, and all it paged back to.
 - It sends, replies, edits and deletes its own messages and toggles reactions,
   each an `append` the host signs as the person's
   (`ContentProjection::append`). A draft stays in the editor until sent.

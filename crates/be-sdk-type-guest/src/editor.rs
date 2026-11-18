@@ -240,8 +240,9 @@ mod range_result {
     }
 }
 
-/// How many entries of a block's signed log an editor holds at most: the latest it heard or
-/// read. Older ones it reads again (`FromEditor::ReadLog`).
+/// How many entries of a block's signed log an editor holds at most, unless it paged back past
+/// them: the latest it heard or read. Older ones it reads again (`FromEditor::ReadLog`), and
+/// what it pages back to it keeps.
 pub const LOG_HELD: usize = 1024;
 
 /// What `take_logged` did with an entry.
@@ -269,6 +270,9 @@ pub(crate) struct HeldLog {
     ids: BTreeMap<Uuid, u64>,
     /// Places a repeat of an id held earlier takes.
     pub(crate) skipped: std::collections::BTreeSet<u64>,
+    /// The earliest place the editor paged back to (a read from before what it held): what it
+    /// holds from there on is kept, however many, so a page read back is never trimmed away.
+    floor: Option<u64>,
 }
 
 impl HeldLog {
@@ -317,9 +321,24 @@ impl HeldLog {
         self.items.contains_key(&seq) || self.skipped.contains(&seq)
     }
 
-    /// Keeps only the latest `count` entries.
+    /// Notes a read from `from`: one from before every entry held pages back, and what it reads
+    /// is kept.
+    fn reading(&mut self, from: u64) {
+        let first = self.items.keys().next().copied();
+        if first.is_some_and(|first| from < first) {
+            self.floor = Some(self.floor.map_or(from, |floor| floor.min(from)));
+        }
+    }
+
+    /// Keeps only the latest `count` entries, and every one from where the editor paged back to.
     fn keep_latest(&mut self, count: usize) {
         while self.items.len() > count {
+            let Some((&seq, _)) = self.items.first_key_value() else {
+                break;
+            };
+            if self.floor.is_some_and(|floor| seq >= floor) {
+                break;
+            }
             if let Some((seq, oldest)) = self.items.pop_first() {
                 self.ids.remove(&oldest.id);
                 self.skipped = self.skipped.split_off(&(seq + 1));
@@ -397,7 +416,7 @@ pub struct EditorMirror<C: LiveEdit> {
     /// What `ToEditor::Appended` answered, by token, until taken.
     appended: Vec<(u64, Result<be_block_content::LogAppended, String>)>,
     /// The entries of the block's signed log this editor heard or read, by place, each id once
-    /// at its first place: the latest `LOG_HELD`.
+    /// at its first place: the latest `LOG_HELD`, and all from where it paged back to.
     log: HeldLog,
     /// The log's length as last read.
     log_size: u64,
@@ -583,13 +602,15 @@ impl<C: LiveEdit + Clone + Default> EditorMirror<C> {
     /// Asks the replica for at most `limit` entries of the block's signed log from `from`,
     /// which join `log` as they come back.
     pub fn read_log(&mut self, from: u64, limit: u32) -> (u64, FromEditor) {
+        self.log.reading(from);
         self.reads += 1;
         let token = self.reads;
         (token, FromEditor::ReadLog { token, from, limit })
     }
 
     /// The entries of the block's signed log this editor holds, in the log's order, each id
-    /// once at its first place: the latest `LOG_HELD` it heard or read.
+    /// once at its first place: the latest `LOG_HELD` it heard or read, and every one from where
+    /// it paged back to (a read from before all it held), however many.
     pub fn log(&self) -> impl Iterator<Item = &be_block_content::LogItem> {
         self.log.items.values()
     }
