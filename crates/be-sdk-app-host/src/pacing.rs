@@ -267,9 +267,7 @@ impl FrameClock {
             return now + STOPPED_CLOCK_FRAME_BUDGET;
         }
         let origin = self.present.map_or(now, |(at, _)| at.min(now));
-        let present = self
-            .present
-            .map(|(at, interval)| (at - origin, interval));
+        let present = self.present.map(|(at, interval)| (at - origin, interval));
         now + frame_wait(now - origin, present, &self.composites)
     }
 

@@ -1,8 +1,8 @@
 use super::*;
 
+mod a_closed_anchored_view_and_a_hidden_view_stay_until_their_frame_is_drawn;
 mod a_frame_carries_damage_only_when_every_present_since_the_last_one_reported_it;
 mod a_layout_s_children_wait_for_the_present_that_follows_it;
-mod a_closed_anchored_view_and_a_hidden_view_stay_until_their_frame_is_drawn;
 
 fn placement(screen: u64, surface: u32) -> ScreenPlacement {
     ScreenPlacement {
