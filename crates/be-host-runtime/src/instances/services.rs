@@ -246,10 +246,8 @@ impl Instances {
                 ..
             } => {
                 let opening = Uuid::from_bytes(*account) == be_block_graph::ANYONE_INSIDE
-                    && be_host_stack::app_graph::access_of(*access)
-                        > be_block_graph::Access::None
-                    && be_host_stack::app_graph::access_of(*access)
-                        <= be_block_graph::Access::View;
+                    && be_host_stack::app_graph::access_of(*access) > be_block_graph::Access::None
+                    && be_host_stack::app_graph::access_of(*access) <= be_block_graph::Access::View;
                 // Made by this instance, and still held as this app made it: a create the
                 // host dropped, or one the server's own block took the place of, opens nothing.
                 let block = Uuid::from_bytes(*block);

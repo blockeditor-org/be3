@@ -45,7 +45,10 @@ async fn a_link_accepted_after_the_server_serves_an_older_contact_record_outrank
         })
         .await
         .unwrap();
-    assert_eq!(record(&guest, rosa.account()).await.verified, newer.verified);
+    assert_eq!(
+        record(&guest, rosa.account()).await.verified,
+        newer.verified
+    );
     block
         .update(|_| {
             vec![be_block::AccountBlock::set_contact(
