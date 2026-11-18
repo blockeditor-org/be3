@@ -199,7 +199,8 @@ fn a_root_lists_its_hosts_members_and_agents_and_shows_an_agents_credentials_onc
         panic!("Create agent asks for one, Escape cancelling nothing: {requests:?}");
     };
     assert_eq!(name, "Crawler");
-    assert_eq!(painting(&mut root, &mut time), listed, "the agents stay, the question waits");
+    assert!(layer_of(&step(&mut root, time), DIALOG_LAYER).is_some(), "the agents stay");
+    let waiting = painting(&mut root, &mut time);
     root.answer_secret(
         *id,
         Some(CoreSecret::Agent(AgentCredentials {
@@ -215,6 +216,7 @@ fn a_root_lists_its_hosts_members_and_agents_and_shows_an_agents_credentials_onc
     let _ = asks(&mut root, &mut time, key(Key::Escape));
     let discard = painting(&mut root, &mut time);
     assert_ne!(discard, listed, "the host's question opens once the agents close");
+    assert_ne!(waiting, discard, "while the agent was made, the question waited");
     let _ = asks(&mut root, &mut time, key(Key::Escape));
     root.show_core(agents());
     let _ = asks(&mut root, &mut time, Vec::new());
