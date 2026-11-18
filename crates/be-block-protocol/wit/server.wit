@@ -98,7 +98,8 @@ interface server {
         /// above on any block, else a proof path, empty for the personal
         /// organization. Served whole, a caller that names the entry it holds
         /// the log up to (`held`) is sent only the entries after it, when the
-        /// log holds that entry at that place (`access-log-page.from`).
+        /// log as stored chains from its root to that entry at that place
+        /// (`access-log-page.from`).
         log(access-log-query),
         /// A page of a block's signed log: at most `limit` entries (and
         /// `be_server::log::MAX_PAGE_ENTRIES`, and what fits half a frame)

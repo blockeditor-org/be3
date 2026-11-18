@@ -217,9 +217,17 @@ pub(crate) fn served_log(
     held: Option<be_block_protocol::HeldEntry>,
 ) -> Result<be_block_protocol::AccessLogPage, ServerError> {
     let mut entries = entries(connection, kind, organization, log)?;
+    // Only when the log as stored still chains from its root to the held entry: one whose
+    // prefix was rewritten after the reader held it is sent from its root, for the reader to
+    // refuse.
     let after = held.and_then(|held| {
         let place = usize::try_from(held.place).ok()?;
-        (reader.is_none() && entries.get(place)?.hash() == held.hash).then_some(place + 1)
+        let prefix = entries.get(..=place)?;
+        let chained = prefix[0].previous.is_none()
+            && prefix
+                .windows(2)
+                .all(|pair| pair[1].previous == Some(pair[0].hash()));
+        (reader.is_none() && chained && prefix[place].hash() == held.hash).then_some(place + 1)
     });
     if let Some(after) = after {
         return Ok(be_block_protocol::AccessLogPage {

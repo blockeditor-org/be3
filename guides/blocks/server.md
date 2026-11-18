@@ -588,8 +588,9 @@ exactly its parent's access and takes no grants (guides/blocks/host.md, "Search"
   every member who has made a block is served the organization's whole log,
   and with it its member list. A caller served a log whole names the entry it
   holds the log up to (`held-entry`: its place and hash), and is sent only the
-  entries after it while the log holds that entry there, else the log from its
-  root (`access-log-page.from`); a proof path is always sent whole.
+  entries after it while the log as stored chains from its root to that entry
+  there, else the log from its root (`access-log-page.from`), which a device
+  that holds a rewritten prefix refuses; a proof path is always sent whole.
 
 No check maps the whole graph. `BlockGraph` indexes children by parent and
 blocks by the accounts that authored or were granted them; `inherited` walks
