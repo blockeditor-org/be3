@@ -465,15 +465,6 @@ Depends on #686 (session catch-ups replaced by server ordering).
   server keeps the newest and lists it with the contact, and a device shows the
   newest card that its pinned key signs, shown by a client test where a
   contact renames and the server's forged rename is refused.
-- **Invitations that end only on the server.** An invitation that expires, or
-  is accepted, leaves its record in the organization's log, and one that
-  expires stays open there for good (expiry is the server's word), so the log,
-  and every proof path of it served below Edit, which keeps invitation records
-  whole, grows with every invitation made. An administrator's `tend` could end
-  each expired one with an invitation record (`open: false`), and proof paths
-  could then reduce invitation records that ended before the reader's own
-  member record. Done when an organization that made many invitations serves a
-  below-Edit member a path no longer than its live invitations need.
 
 ## 19. Local accounts
 
