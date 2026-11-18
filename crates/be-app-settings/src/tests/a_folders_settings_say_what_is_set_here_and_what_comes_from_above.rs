@@ -112,6 +112,7 @@ fn a_folders_settings_say_what_is_set_here_and_what_comes_from_above() {
             company: false,
             set_inside: 0,
             levels: Vec::new(),
+            host: None,
         }),
     );
     editor.run();
