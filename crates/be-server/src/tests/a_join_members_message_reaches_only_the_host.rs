@@ -129,7 +129,10 @@ async fn a_join_members_message_reaches_only_the_host() {
         }],
         "the host hears the Join member's message"
     );
-    for (who, other) in [("the other Join member", &mut second), ("a viewer", &mut viewer)] {
+    for (who, other) in [
+        ("the other Join member", &mut second),
+        ("a viewer", &mut viewer),
+    ] {
         assert!(
             heard(other, world).await.is_empty(),
             "{who} heard of a message to the host"
@@ -168,11 +171,15 @@ async fn a_join_members_message_reaches_only_the_host() {
     for (what, refused) in [
         (
             "a Join member sent to another",
-            first.to_host(world, Some(second_client), b"psst".to_vec()).await,
+            first
+                .to_host(world, Some(second_client), b"psst".to_vec())
+                .await,
         ),
         (
             "a viewer sent to a Join member",
-            viewer.to_host(world, Some(first_client), b"psst".to_vec()).await,
+            viewer
+                .to_host(world, Some(first_client), b"psst".to_vec())
+                .await,
         ),
         (
             "the host sent to itself",
@@ -186,10 +193,7 @@ async fn a_join_members_message_reaches_only_the_host() {
             "a Join member relayed to the session",
             first.relay(world, None, b"psst".to_vec()).await,
         ),
-        (
-            "a Join member claimed the lease",
-            first.claim(world).await,
-        ),
+        ("a Join member claimed the lease", first.claim(world).await),
     ] {
         assert!(
             refused_as(&refused, ErrorCode::PermissionDenied),
@@ -228,7 +232,9 @@ async fn a_join_members_message_reaches_only_the_host() {
     assert_eq!(
         flooded
             .iter()
-            .filter(|notice| matches!(notice, Notice::Hosted { from, .. } if *from == second_client))
+            .filter(
+                |notice| matches!(notice, Notice::Hosted { from, .. } if *from == second_client)
+            )
             .count(),
         sent,
         "the host heard what was let through: {:?}",
@@ -256,12 +262,10 @@ async fn a_join_members_message_reaches_only_the_host() {
 
     owner.leave(world).await;
     assert!(
-        heard(&mut second, world)
-            .await
-            .contains(&Notice::Host {
-                block: world,
-                host: None
-            }),
+        heard(&mut second, world).await.contains(&Notice::Host {
+            block: world,
+            host: None
+        }),
         "a Join member hears that no one hosts"
     );
     let sent = second.to_host(world, None, b"anyone?".to_vec()).await;

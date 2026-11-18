@@ -129,7 +129,10 @@ async fn a_join_member_refuses_a_host_the_server_makes_up() {
     );
 
     // The server names as host an account the log gives only View, or nothing.
-    for (who, named) in [("a viewer", viewer.account()), ("a stranger", stranger.account())] {
+    for (who, named) in [
+        ("a viewer", viewer.account()),
+        ("a stranger", stranger.account()),
+    ] {
         assert!(
             matches!(player.join_host(world, named).await, Err(ClientError::Forged(block)) if block == world),
             "{who} was taken as the host"
@@ -143,14 +146,20 @@ async fn a_join_member_refuses_a_host_the_server_makes_up() {
     let (head, message) = first.split_at(32);
     let prologue = hosted_prologue(world.into_bytes(), head.try_into().unwrap());
     assert!(Responder::read(stranger.keys().identity(), &prologue, message).is_err());
-    assert!(matches!(joining.finish(&answer), Err(ClientError::Forged(_))));
+    assert!(matches!(
+        joining.finish(&answer),
+        Err(ClientError::Forged(_))
+    ));
     let (joining, _) = player.join_host(world, owner.account()).await.unwrap();
     let mut made_up = be_block_keys::RecoverySecret::from_bytes([7; 32])
         .public()
         .0
         .to_vec();
     made_up.extend([0; 16]);
-    assert!(matches!(joining.finish(&made_up), Err(ClientError::Forged(_))));
+    assert!(matches!(
+        joining.finish(&made_up),
+        Err(ClientError::Forged(_))
+    ));
 
     // The server serves a log of its own making, rooted at a stranger it works with, who grants
     // the player Join and holds the block: no contact of the player's vouches for it.

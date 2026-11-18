@@ -116,7 +116,10 @@ impl<S: ObjectStore> Peer<S> {
         host: Uuid,
     ) -> Result<(Joining, Vec<u8>), ClientError> {
         let checked = self.joined_log(block).await?;
-        let identity = match self.held_with_key(&checked, host.into_bytes(), Level::Edit).await? {
+        let identity = match self
+            .held_with_key(&checked, host.into_bytes(), Level::Edit)
+            .await?
+        {
             Some((_, identity)) => identity,
             None => return Err(ClientError::Forged(block)),
         };
@@ -291,9 +294,7 @@ impl<S: ObjectStore> Peer<S> {
                     .signers(Uuid::from_bytes(entry.signer))
                     .iter()
                     .filter(|signer| signer.verified)
-                    .any(|signer| {
-                        entry.signed_by(&be_block_keys::SigningPublic(signer.key))
-                    })
+                    .any(|signer| entry.signed_by(&be_block_keys::SigningPublic(signer.key)))
         });
         if !vouched {
             return Err(ClientError::Forged(block));

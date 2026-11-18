@@ -248,10 +248,7 @@ impl SessionRegistry {
         tag: be_block_store::Hash,
     ) -> (SessionState, Option<SessionHost>) {
         let mut sessions = self.sessions.lock().await;
-        sessions
-            .session(block)
-            .accounts
-            .insert(client, account);
+        sessions.session(block).accounts.insert(client, account);
         sessions.joined.entry(client).or_default().insert(block);
         let change = MembershipChange::Joined(JoinedParticipant { tag, may_edit });
         let state = sessions
@@ -329,9 +326,8 @@ impl SessionRegistry {
         let Some(session) = sessions.sessions.get_mut(&block) else {
             return HostRoute::Refused;
         };
-        let member = |client: ClientId| {
-            session.joiners.contains_key(&client) || session.state.has(client)
-        };
+        let member =
+            |client: ClientId| session.joiners.contains_key(&client) || session.state.has(client);
         if !member(from) {
             return HostRoute::Refused;
         }
@@ -344,10 +340,9 @@ impl SessionRegistry {
         match (from == holder, to) {
             (true, Some(to)) if to != holder && member(to) => HostRoute::To(to),
             (false, None) => {
-                let sends = session
-                    .sends
-                    .entry(account)
-                    .or_insert_with(|| crate::limits::Bucket::full(crate::limits::HOST_MESSAGE_BURST));
+                let sends = session.sends.entry(account).or_insert_with(|| {
+                    crate::limits::Bucket::full(crate::limits::HOST_MESSAGE_BURST)
+                });
                 match sends.take(
                     std::time::Instant::now(),
                     crate::limits::HOST_MESSAGES_PER_SECOND,

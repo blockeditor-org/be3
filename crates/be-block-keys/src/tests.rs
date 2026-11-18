@@ -1,4 +1,5 @@
 use super::*;
+use crate::noise::{Initiator, Responder, hosted_prologue};
 
 mod a_block_is_above_another_only_as_signed_parent_records_place_it;
 mod a_contact_card_opens_only_with_its_code_in_its_role;
@@ -22,4 +23,15 @@ mod an_owner_record_checks_only_as_the_owner_signed_it_and_a_path_cannot_hide_on
 mod authority_from_far_above_is_checked_once_per_log;
 mod pairing_with_a_different_code_fails;
 mod pairing_with_the_same_code_shares_a_key;
+mod the_hosted_handshake_makes_noises_published_ik_vector;
 mod what_an_account_seals_for_itself_opens_only_with_its_secret;
+
+fn hex(text: &str) -> Vec<u8> {
+    (0..text.len())
+        .step_by(2)
+        .map(|at| u8::from_str_radix(&text[at..at + 2], 16).unwrap())
+        .collect()
+}
+fn key(text: &str) -> [u8; 32] {
+    hex(text).try_into().unwrap()
+}

@@ -66,7 +66,10 @@ async fn a_joiner_whose_grant_was_revoked_is_refused_by_the_host() {
     assert!(
         matches!(
             &refused,
-            Err(ClientError::Refused(be_block_protocol::ErrorCode::PermissionDenied, _))
+            Err(ClientError::Refused(
+                be_block_protocol::ErrorCode::PermissionDenied,
+                _
+            ))
         ),
         "a member revoked since was admitted: {refused:?}"
     );
