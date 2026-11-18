@@ -150,6 +150,16 @@ impl Play {
         self.editable.get_untracked() && self.movable_untracked(spot)
     }
 
+    /// Whether the piece at `spot` can move now; tracked.
+    pub(crate) fn movable(&self, spot: Spot) -> bool {
+        self.editable.get()
+            && self.actions.with(|actions| {
+                actions.iter().any(
+                    |action| matches!(action.gesture, Some(Gesture::Drag { from, .. }) if from == spot),
+                )
+            })
+    }
+
     fn movable_untracked(&self, spot: Spot) -> bool {
         self.actions.with_untracked(|actions| {
             actions.iter().any(

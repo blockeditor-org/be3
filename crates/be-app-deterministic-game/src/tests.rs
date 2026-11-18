@@ -13,6 +13,8 @@ use uuid::Uuid;
 
 use crate::root::{DeterministicGameRoot, module_filter, seats};
 
+mod a_pile_is_read_once_as_its_top_card;
+mod a_chess_move_is_played_with_the_keys_alone;
 mod a_carried_piece_snaps_onto_a_square_it_can_move_to;
 mod a_module_that_is_not_a_game_is_reported;
 mod a_new_player_can_take_the_other_side;
