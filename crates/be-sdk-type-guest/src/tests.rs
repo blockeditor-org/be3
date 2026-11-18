@@ -145,6 +145,7 @@ mod undo_mid_drag_cancels_it;
 mod undo_reverts_only_this_devices_edit;
 mod what_is_typed_while_a_seal_waits_on_the_server_is_journaled_at_once;
 mod what_is_typed_while_a_seal_waits_survives_a_crash_before_the_seal_is_answered;
+mod edits_on_their_way_when_another_head_lands_land_on_it;
 
 #[derive(Clone, Debug, Default, Eq, Model, PartialEq)]
 struct Checklist {

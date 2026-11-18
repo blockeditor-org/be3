@@ -408,8 +408,10 @@ enum AfterPublish {
         through: u64,
         state: Vec<u8>,
     },
-    /// The holder merged a head moved from elsewhere: the order then reloads it.
-    Merged { through: u64 },
+    /// The holder merged a head moved from elsewhere: the order then reloads it, with the
+    /// merge's session state, which keeps the identities of what the merge left as it was
+    /// (be-block-model's `spliced`): an edit made before the merge and numbered after it lands.
+    Merged { through: u64, state: Vec<u8> },
 }
 
 enum AfterStash<C> {
@@ -2277,7 +2279,13 @@ where
             MergeThen::FastForward { to, through } => match result {
                 MergeResult::Clean(value) => {
                     let content = self.written(&value);
-                    self.publish(Some(to), None, content, AfterPublish::Merged { through });
+                    let state = value.session_state();
+                    self.publish(
+                        Some(to),
+                        None,
+                        content,
+                        AfterPublish::Merged { through, state },
+                    );
                 }
                 MergeResult::Conflicted { value, conflicts } => {
                     let content = self.written(&self.confirmed);
@@ -2327,11 +2335,12 @@ where
                             self.conflict(ours, theirs, count);
                         }
                         let content = self.written(&value);
+                        let state = value.session_state();
                         self.publish(
                             Some(theirs),
                             Some(Merging { base, ours }),
                             content,
-                            AfterPublish::Merged { through },
+                            AfterPublish::Merged { through, state },
                         );
                     }
                 }
@@ -2422,11 +2431,9 @@ where
                 self.take_heard_seal();
             }
 
-            // Nothing unsealed: the order takes the head as it is, applying again what it
-            // numbered since the seal.
-            Resume::FastForward { to } if !unsealed => {
-                self.submit_reload(to, true, false, Vec::new(), None);
-            }
+            // The head is made into what the order holds by a merge into it, unsealed work or
+            // none: loaded as it is, everything in it would be new, and what the order numbers
+            // after the reload (edits on their way here, and peers') would name nothing in it.
             Resume::FastForward { to } => {
                 self.read(vec![self.base, Some(to)], Then::FastForwardMerge { to });
             }
@@ -2538,8 +2545,8 @@ where
                     self.submit_reload(head, true, true, Vec::new(), None);
                 }
             }
-            AfterPublish::Merged { through, .. } => {
-                self.submit_reload_based(head, true, false, Vec::new(), None, through);
+            AfterPublish::Merged { through, state } => {
+                self.submit_reload_based(head, true, false, state, None, through);
             }
         }
     }
@@ -2589,11 +2596,12 @@ where
             } => {
                 self.conflict(commit, expected, count);
                 let content = self.written(&value);
+                let state = value.session_state();
                 self.publish(
                     Some(expected),
                     Some(Merging { base, ours: commit }),
                     content,
-                    AfterPublish::Merged { through },
+                    AfterPublish::Merged { through, state },
                 );
             }
             AfterStash::Unsaved { content, reply } => {
