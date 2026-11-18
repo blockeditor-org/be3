@@ -251,9 +251,10 @@ a role inside the app, since the share dialog grants no roles. A game:
        claims the session (`Call::Claim`'s path), which makes this device the
        host and, by the same claim, the sealer. Two devices that start at once
        both claim; the later claim wins, and the other, hearing another host,
-       stops its component. A component that stops gives up hosting by
-       leaving the claim to lapse: the stack sends no unclaim, so the claim
-       stands until the device leaves the session, as a sealer's does.
+       stops its component. A component that stops while the device stays in
+       the session (a preview still open) has its replica join the session
+       again, which drops the claim; one that stops with the last editor
+       drops it by leaving.
      - be-host-stack's `Seen::hosted` follows `session-event.host` naming this
        connection, rather than the replica's holder status.
    - e. `be BLOCK host` (plans/headless_apps.md, step 2).
