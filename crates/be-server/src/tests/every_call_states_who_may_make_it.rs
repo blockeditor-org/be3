@@ -184,6 +184,10 @@ fn target_case(target: &Target) -> &'static str {
             kind: SessionSend::Claim,
             ..
         } => "send session (claim)",
+        Target::Session {
+            kind: SessionSend::Host(_),
+            ..
+        } => "send session (host)",
         Target::Devices(_) => "send devices",
         Target::Push { .. } => "send push",
     }
@@ -193,6 +197,7 @@ const TARGETS: &[&str] = &[
     "send session (ordered)",
     "send session (ephemeral)",
     "send session (claim)",
+    "send session (host)",
     "send devices",
     "send push",
 ];
@@ -609,6 +614,15 @@ impl TestClient {
                 Target::Session {
                     block,
                     kind: SessionSend::Ephemeral(None),
+                },
+                sealed(),
+            )
+            .await;
+        calls
+            .send(
+                Target::Session {
+                    block,
+                    kind: SessionSend::Host(None),
                 },
                 sealed(),
             )

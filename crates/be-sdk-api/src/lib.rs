@@ -593,6 +593,10 @@ impl AccessLevel {
         self >= Self::KnowExists
     }
 
+    pub fn can_join(self) -> bool {
+        self >= Self::Join
+    }
+
     pub fn can_view(self) -> bool {
         self >= Self::View
     }
@@ -609,6 +613,7 @@ impl AccessLevel {
         match self {
             Self::None => "No access",
             Self::KnowExists => "Knows it exists",
+            Self::Join => "Can join",
             Self::View => "Can view",
             Self::Edit => "Can edit",
             Self::Manage => "Can manage",

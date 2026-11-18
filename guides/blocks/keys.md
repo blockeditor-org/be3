@@ -349,7 +349,8 @@ organization's whole log, and so its member list; whether to narrow that is
 open. Readers below Edit never seal and are served proof paths
 (decisions/editors_are_served_whole_access_logs.md). No log goes to
 `KnowExists`, which anyone gets by naming an id in their own block's
-references: the log names every grantee.
+references: the log names every grantee. A `Join` member is served a proof
+path of its own right and of the session's lease holder's ("Hosted channels").
 
 **Proof paths.** A log is
 served whole to a member with Edit or above (on the block or a block below it;
@@ -801,6 +802,37 @@ Edit can write as someone else.
   after asking the server is remembered for that connection (`Forged`), so a
   forged row shown again asks nothing until the device reconnects.
 
+### Hosted channels
+
+A hosted block's members speak to its host over a private channel
+(plans/hosted_blocks.md, "The channel"; `be_block_keys::noise`,
+`be_block_client::peer::hosted`), carried by the session's `host` send
+(guides/blocks/server.md, "Live sessions"), which the server routes and
+cannot read.
+
+- **The host is an account.** The server names the lease holder's account; a
+  member checks the block's log gives it Edit or above and takes the identity
+  key that log names for it (`Peer::join_host`), else refuses it as forged. A
+  member that pinned the block's root checks the log as `checked_access`
+  does. A `Join` member holds no key of the block, so nothing carried it the
+  root: it takes the root of the log as served once that log holds a grant to
+  it signed with the key of a contact it verified (`joined_log`), and keeps
+  nothing of it ("Accepted limits").
+- **The handshake** is Noise IK (`Noise_IK_25519_XChaChaPoly_SHA256`: this
+  crate's one seal in place of ChaChaPoly) between the two accounts' X25519
+  identity keys, the member initiating, with the prologue
+  `hosted_prologue(block, head)`: the block and the head of the log the member
+  checked the host at, which its first message carries in the clear before the
+  Noise message, with its account id as the payload. The host
+  (`Peer::admit`), served the whole log, admits it only if its log reaches
+  that head and grants that account Join or above now, with the key the
+  handshake carried; a member revoked since, or one speaking with another
+  account's key, is refused.
+- **Messages** (`noise::Channel`) each carry a 64-bit counter, the seal's
+  nonce, and are taken only past the last counter taken, so the server can
+  neither read, forge, reorder nor replay one; one it drops is lost. A host
+  change or reconnect starts a new handshake.
+
 ### Accepted limits
 
 What the signed logs still leave to the server, or to the server with someone
@@ -895,6 +927,13 @@ who lost access. Cited from code by these names.
   escrow; it reads everything through escrow anyway.
 - **Authorship** is the root's and the owner records'. A transfer needs no
   acceptance ("Owner records").
+- **A Join member's root.** A `Join` member takes a block's root from the log
+  as served once a grant to it there is signed by a verified contact ("Hosted
+  channels"), so that contact, with the server, can show it a log of their own
+  making and stand in a host of theirs, as a contact can hand a device new to a
+  block a key of it naming any heads. A member checks the host on a proof
+  path, which can hide a later revocation of the host's Edit behind a hash
+  (plans/hosted_blocks.md, "Accepted limits").
 - **A leaked phrase** acts as the account until a retirement lands: it reads
   and writes what the account may and signs records, which stay valid after.
   The thief who retires first wins those logs, and a retirement's endorsement
