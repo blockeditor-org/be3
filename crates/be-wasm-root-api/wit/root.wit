@@ -338,7 +338,7 @@ interface host {
         /// Whether it is the account open now.
         current: bool,
         /// The organizations it belongs to, by name.
-        companies: list<string>,
+        organizations: list<string>,
     }
 
     /// A sign-in the person finishes in their browser.
