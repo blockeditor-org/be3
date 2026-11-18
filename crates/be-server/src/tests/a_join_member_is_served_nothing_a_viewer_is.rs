@@ -91,7 +91,10 @@ async fn a_join_member_is_served_nothing_a_viewer_is() {
     );
 
     let keys = viewer.keys(Some(vec![world])).await;
-    assert!(!keys.keys.is_empty(), "the viewer is served the block's keys");
+    assert!(
+        !keys.keys.is_empty(),
+        "the viewer is served the block's keys"
+    );
     let keys = player.keys(Some(vec![world])).await;
     assert!(
         keys.keys.is_empty() && keys.wrapped.is_empty(),

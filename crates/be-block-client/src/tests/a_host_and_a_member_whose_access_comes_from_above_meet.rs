@@ -54,10 +54,7 @@ async fn a_host_and_a_member_whose_access_comes_from_above_meet() {
             .await
             .unwrap();
         assert_eq!(joined.joined_as, kind);
-        assert_eq!(
-            joined.host.map(|host| host.account),
-            Some(editor.account())
-        );
+        assert_eq!(joined.host.map(|host| host.account), Some(editor.account()));
     }
 
     for (member, level) in [(&player, Level::Join), (&viewer, Level::View)] {

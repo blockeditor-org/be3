@@ -219,7 +219,9 @@ impl Symmetric {
     fn decrypt_and_hash(&mut self, sealed: &[u8]) -> Result<Vec<u8>, KeyError> {
         let plain = match &self.state.key {
             Some(key) => {
-                let plain = self.cipher.open(key, self.state.nonce, &self.hash, sealed)?;
+                let plain = self
+                    .cipher
+                    .open(key, self.state.nonce, &self.hash, sealed)?;
                 self.state.nonce += 1;
                 plain
             }
@@ -318,7 +320,12 @@ impl Initiator {
         let payload = self.symmetric.decrypt_and_hash(rest)?;
         let (sending, receiving) = self.symmetric.split();
         Ok((
-            Channel::new(self.symmetric.cipher, sending, receiving, self.symmetric.hash),
+            Channel::new(
+                self.symmetric.cipher,
+                sending,
+                receiving,
+                self.symmetric.hash,
+            ),
             payload,
         ))
     }
@@ -379,7 +386,11 @@ impl Responder {
     }
 
     /// `accept` with the ephemeral key given: what a test checks a published vector with.
-    pub(crate) fn accept_with(mut self, ephemeral: StaticSecret, payload: &[u8]) -> (Channel, Vec<u8>) {
+    pub(crate) fn accept_with(
+        mut self,
+        ephemeral: StaticSecret,
+        payload: &[u8],
+    ) -> (Channel, Vec<u8>) {
         let ephemeral_public = PublicKey::from(&ephemeral).to_bytes();
         let mut message = ephemeral_public.to_vec();
         self.symmetric.mix_hash(&ephemeral_public);
@@ -388,7 +399,12 @@ impl Responder {
         message.extend(self.symmetric.encrypt_and_hash(payload));
         let (receiving, sending) = self.symmetric.split();
         (
-            Channel::new(self.symmetric.cipher, sending, receiving, self.symmetric.hash),
+            Channel::new(
+                self.symmetric.cipher,
+                sending,
+                receiving,
+                self.symmetric.hash,
+            ),
             message,
         )
     }
