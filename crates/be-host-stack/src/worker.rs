@@ -5452,9 +5452,9 @@ async fn list(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, wanted: Vec<
     // asked at 10, revoked at 12) survives it, though it is older than the refusal; the exact
     // rule waits for 3a's `read` answering the sequence it was refused at.
     let asked_at = peer.newest_sequence();
-    // What the outbox placed when the requests went: a creation or move the drain sends while
-    // they are out is laid over their answers, which may be from before the server took it.
-    let placing = peer.placing();
+    // Marked before the requests go: a creation or move the server takes while they are out is
+    // laid over their answers, which may be from before it took it.
+    let since = peer.sent_since();
     let answers = futures_util::future::join_all(wanted.iter().map(|listing| async move {
         match listing.served() {
             Some(served) => peer.listing(served).await,
@@ -5500,11 +5500,12 @@ async fn list(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, wanted: Vec<
         if let Err(error) = peer.learn(&summaries).await {
             record(shared, error);
         }
-        // As the outbox stands now, and as this device has what it held when the request went:
-        // a creation or move kept since, whose block is no longer pending in the graph, is in
-        // it, and one sent since is where this device has it (no await from here on).
+        // As the outbox stands now, and as this device has what the server took since the
+        // request went: a creation or move kept since, whose block is no longer pending in the
+        // graph, is in it, and one taken since is where this device has it (no await from here
+        // on).
         let summaries = match listing.served() {
-            Some(served) => peer.with_outbox(served, summaries, &placing),
+            Some(served) => peer.with_outbox(served, summaries, since),
             None => summaries,
         };
         // A block the server refused to make left the files (`Graph::forget` when it was set

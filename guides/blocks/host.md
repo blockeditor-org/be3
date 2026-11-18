@@ -466,7 +466,7 @@ in the outbox while a creation, move or define of it waits
 (`Peer::publish_sealed`), a block made under it waits behind its parent's
 creation (`Peer::create_block`), `Peer::summary` answers from the device until
 the server knows it, and a listing the server answers is laid over with what the
-outbox adds or moves, or held when it was asked for and sent meanwhile
+outbox adds or moves, or the server took while it was out
 (`Peer::with_outbox`). A block opened before its creation is
 sent opens as offline does; once a drain sends it, the replica seals what it
 ordered and joins (`Replicas::created` asks for that seal once, while it owes one
@@ -521,9 +521,10 @@ file tree or picker has anything to expand (`BlockInfo::references`), are read
 without opening it; `ready(Query::References | Query::Children)` waits for the
 first read. Until then a child is held as the server says (`block-summary.held`,
 `Graph::holds_in`), and backrefs are the server's listing, except that a block
-whose content is read or open counts among another's backrefs by what that
-content says, in the graph's listing as in its query: an edit not sealed and
-sent yet (a child added to a folder) is ahead of the server. At a new head the
+whose content is open, or read at its head, counts among another's backrefs by
+what that content says, in the graph's listing as in its query (`Known::current`):
+an edit not sealed and sent yet (a child added to a folder) is ahead of the
+server, while references read at an older head say nothing of now. At a new head the
 references read at the last one show until it is read, and a child the server
 says is held counts as held meanwhile, so one another device just added never
 reads as deleted. Offline the read answers from content this device kept (the

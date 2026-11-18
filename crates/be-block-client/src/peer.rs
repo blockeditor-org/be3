@@ -27,10 +27,21 @@ use crate::{
     refs::{Creation, ListedBlock, Op, Pending, Refs, RefsDb, Scope, Session},
 };
 
-/// The blocks whose creation or move waited in the outbox when a listing was asked for
-/// (`Peer::placing`), for laying its answer over (`Peer::with_outbox`).
-#[derive(Clone, Debug, Default)]
-pub struct Placing(Vec<Uuid>);
+/// Where the creations and moves the server took stood when a listing was asked for
+/// (`Peer::sent_since`): those it took after are laid over its answer (`Peer::with_outbox`).
+#[derive(Clone, Copy, Debug)]
+pub struct SentSince(u64);
+
+/// The creations and moves the drain sent and the server took, numbered in the order it took
+/// them: the last `TAKEN_KEPT` of them, which listings out longer than that many writes no
+/// longer see laid over (their answers then stand as the server gave them).
+#[derive(Default)]
+struct Taken {
+    next: u64,
+    recent: std::collections::VecDeque<(u64, Uuid)>,
+}
+
+const TAKEN_KEPT: usize = 256;
 
 /// A listing's blocks, and the organization's change sequence the server read them at: a block
 /// that changes after it does so at a larger `changed`.
@@ -369,6 +380,8 @@ pub struct Peer<S: ObjectStore> {
     /// learned it, until taken (`take_moved_heads`): one per block, so a peer that never takes
     /// them holds no more than it knows blocks.
     moved_heads: Mutex<HashMap<Uuid, CommitId>>,
+    /// The creations and moves the server took, for listings out while it did (`SentSince`).
+    taken: Mutex<Taken>,
     /// How many outbox drains are under way: announcements wait for their end
     /// (`send_announcements`).
     draining: std::sync::atomic::AtomicUsize,
@@ -635,6 +648,7 @@ impl<S: ObjectStore> Peer<S> {
             pending_rotations: Mutex::new(HashMap::new()),
             keys_arrived: Arc::default(),
             moved_heads: Mutex::new(HashMap::new()),
+            taken: Mutex::new(Taken::default()),
             draining: std::sync::atomic::AtomicUsize::new(0),
             whole: Mutex::new(HashSet::new()),
             forged: Mutex::new(authorship::Forged::default()),
@@ -3182,7 +3196,7 @@ impl<S: ObjectStore> Peer<S> {
         {
             return Ok(here(self.listed_here(listing, block)));
         }
-        let placing = self.placing();
+        let since = self.sent_since();
         match self.list_online(listing).await {
             Ok((sequence, blocks)) => {
                 self.observe(&blocks);
@@ -3190,7 +3204,7 @@ impl<S: ObjectStore> Peer<S> {
                     .into_iter()
                     .map(|summary| self.summary_with_outbox(summary))
                     .collect();
-                let blocks = self.with_outbox(listing, blocks, &placing);
+                let blocks = self.with_outbox(listing, blocks, since);
                 let _ = self.refs.listed(listing, &blocks, sequence);
                 Ok(Listed { sequence, blocks })
             }
@@ -3313,7 +3327,7 @@ impl<S: ObjectStore> Peer<S> {
     /// what is in force at its parent.
     fn listed_here(&self, listing: Listing, block: Uuid) -> Vec<BlockSummary> {
         if let Some(cached) = self.refs.cached_listing(listing) {
-            return self.with_outbox(listing, cached, &Placing::default());
+            return self.with_outbox(listing, cached, self.sent_since());
         }
         let parent = self
             .refs
@@ -3327,7 +3341,7 @@ impl<S: ObjectStore> Peer<S> {
                 .unwrap_or_default(),
             _ => Vec::new(),
         };
-        self.with_outbox(listing, blocks, &Placing::default())
+        self.with_outbox(listing, blocks, self.sent_since())
     }
 
     /// A summary the server answered, as this device has it: where a move waiting in the
@@ -3337,38 +3351,48 @@ impl<S: ObjectStore> Peer<S> {
         self.refs.with_outbox(summary)
     }
 
-    /// The blocks whose creation or move waits in the outbox now: taken before a listing is
-    /// asked for, so its answer is laid over with them (`with_outbox`) even when the drain sends
-    /// them while the request is out.
-    pub fn placing(&self) -> Placing {
-        Placing(
-            self.refs
-                .outbox()
-                .into_iter()
-                .filter_map(|(_, op)| match op {
-                    Op::Create(creation) => Some(creation.block),
-                    Op::Move(moving) => Some(moving.block),
-                    Op::Publish(_) | Op::Define(_) | Op::Hold(_) | Op::Append(_) => None,
-                })
-                .collect(),
-        )
+    /// Marks where the creations and moves the server took stand now: taken before a listing
+    /// is asked for, so its answer is laid over with those the drain sends while the request is
+    /// out (`with_outbox`).
+    pub fn sent_since(&self) -> SentSince {
+        SentSince(self.taken.lock().unwrap().next)
+    }
+
+    /// The drain sent `block`'s creation or move and the server took it (`SentSince`).
+    pub(crate) fn taken(&self, block: Uuid) {
+        let mut taken = self.taken.lock().unwrap();
+        let number = taken.next;
+        taken.next += 1;
+        taken.recent.push_back((number, block));
+        if taken.recent.len() > TAKEN_KEPT {
+            taken.recent.pop_front();
+        }
     }
 
     /// A listing the server answered, as this device has it: what a creation or move waiting in
-    /// the outbox puts in it or takes out, and where this device has each block `placing` named
-    /// (`Peer::placing`, taken before the listing was asked for) whose creation or move the
-    /// drain sent since. Calls on one connection are answered in order, so an answer to a
-    /// request that went before such a write was read before the server took it, and would
-    /// otherwise leave out a block made here or keep one moved away.
+    /// the outbox puts in it or takes out, and where this device has each block whose creation
+    /// or move the server took since `since` (`Peer::sent_since`, marked before the listing was
+    /// asked for). Calls on one connection are answered in order, so an answer to a request
+    /// that went before such a write was read before the server took it, and would otherwise
+    /// leave out a block made here or keep one moved away. A creation or move the server
+    /// refused was never taken: the answer stands for its block.
     pub fn with_outbox(
         &self,
         listing: Listing,
         mut blocks: Vec<BlockSummary>,
-        placing: &Placing,
+        since: SentSince,
     ) -> Vec<BlockSummary> {
-        let waiting = self.placing();
-        for block in placing.0.iter().filter(|block| !waiting.0.contains(block)) {
-            let Some(summary) = self.refs.summary(*block) else {
+        let sent: HashSet<Uuid> = self
+            .taken
+            .lock()
+            .unwrap()
+            .recent
+            .iter()
+            .filter(|(number, _)| *number >= since.0)
+            .map(|(_, block)| *block)
+            .collect();
+        for block in sent {
+            let Some(summary) = self.refs.summary(block) else {
                 continue;
             };
             let here = match (listing, summary.parent) {
@@ -3376,8 +3400,8 @@ impl<S: ObjectStore> Peer<S> {
                 (Listing::Deleted, Some(parent)) => parent == BlockParent::Detached,
                 _ => continue,
             };
-            blocks.retain(|listed| listed.id != *block);
-            if here && self.refs.refused(*block).is_none() {
+            blocks.retain(|listed| listed.id != block);
+            if here {
                 blocks.push(summary);
             }
         }
