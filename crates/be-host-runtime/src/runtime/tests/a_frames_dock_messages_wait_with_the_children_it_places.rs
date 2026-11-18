@@ -64,7 +64,7 @@ fn presented(serial: u64) -> Heard {
 }
 
 fn held_docks(runtime: &Runtime) -> usize {
-    runtime.held.laid().map(|laid| laid.docks.len()).sum()
+    runtime.run.holds.laid().map(|laid| laid.docks.len()).sum()
 }
 
 /// A root's dock messages say which of a joined dock's tabs it shows, and the host draws only the
@@ -98,7 +98,7 @@ fn a_frames_dock_messages_wait_with_the_children_it_places() {
 
     runtime.hear(vec![presented(2), presented(3)]);
     assert!(
-        runtime.held.is_empty(),
+        runtime.run.holds.is_empty(),
         "with the frames that place the children, they apply"
     );
 }

@@ -78,7 +78,7 @@ fn a_restarted_app_s_views_describe_nothing_until_it_describes_them_again() {
     };
     assert_eq!(labels(&mut instances), described());
 
-    instances.reopen();
+    restart(&mut instances);
     assert_eq!(labels(&mut instances), (vec!["App".to_owned()], Vec::new()));
 
     describe(&mut instances);

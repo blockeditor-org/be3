@@ -182,8 +182,8 @@ fn an_anchored_view_that_closes_stays_until_the_frame_that_closed_it_is_drawn() 
         "presented, it stays until that frame's pixels arrive"
     );
     with(APP, |runtime| {
-        runtime.presents.damage_through(1);
-        let closed = runtime.shown.frame_shown(runtime.presents.shown()).closed;
+        runtime.run.presents.damage_through(1);
+        let closed = runtime.run.shown.frame_shown(runtime.run.presents.shown()).closed;
         runtime.close_anchored(closed);
     });
     assert!(!lifted_shown(), "and goes with them");

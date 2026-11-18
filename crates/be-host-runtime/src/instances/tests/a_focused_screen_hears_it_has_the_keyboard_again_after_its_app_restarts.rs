@@ -17,7 +17,7 @@ fn a_focused_screen_hears_it_has_the_keyboard_again_after_its_app_restarts() {
         [Input::Focus(true)]
     );
 
-    instances.reopen();
+    restart(&mut instances);
     let screens = instances.next_screens(PASS).screens;
     instances.screen_set(screens);
     assert_eq!(

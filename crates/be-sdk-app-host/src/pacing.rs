@@ -78,8 +78,8 @@ pub enum Ask {
 }
 
 impl Pacing {
-    /// Forgets every frame in flight, as when the app restarts.
-    pub fn reset(&mut self) {
+    /// Forgets every frame in flight, as a restart does (`Run::restart`).
+    pub(crate) fn reset(&mut self) {
         self.needed = false;
         self.unseen = false;
         self.animating = false;

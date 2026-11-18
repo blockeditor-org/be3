@@ -62,7 +62,7 @@ fn a_restarted_app_is_sent_its_content_and_blocks_again() {
     let again = sent(&mut instances, block, listing);
     assert!(again.is_empty(), "nothing changed since: {again:?}");
 
-    instances.reopen();
+    restart(&mut instances);
     let listing = watching(&mut instances);
     to_replica(&mut instances, block, &FromEditor::Resend);
 

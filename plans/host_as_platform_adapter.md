@@ -615,12 +615,24 @@ Each step lands on its own.
          pane until the new run describes it (`restarted`), where before the old run's tree
          stayed. be-lib-geometry needed nothing new: the graft makes AccessKit's `Affine` and
          `Rect` itself. Its tests moved from beui-host, checking the nodes rather than a dump.
-       - 4e4d. Restarts: what a restart keeps, resends and drops (`Runtime::restart`,
-         `Instances::reopen`) as one library call over the per-run state, once that state
-         (the session, holds, shown frames, presents, pacing, fonts and preferences sent, the
-         wire's heard answers) sits in one library type a host keeps per app. Today each piece
-         clears itself (`Holds::clear`, `Shown::clear`, `Pacing::reset`, `Docks::restarted`,
-         `Graft::restarted`) and be-host-runtime calls them in order with its own state.
+       - 4e4d. Built: restarts, `be_sdk_app_host::run`. `Run` is one run of an app as its host
+         keeps it: the session, the calls queued for it, the holds, the shown frames, the
+         presents, the pacing, the screens and paintings asked for, and what it was told
+         (`tell`: the fonts once, then whether to describe, the preferences and the UTC offset
+         whenever they change, all but the preferences once it runs). `restart` is the one call
+         that says what a restart keeps, resends and drops, given the new session, the host's
+         `Docks` and what its views described (`Descriptions`, which be-host-runtime's
+         `Instances` implements over each screen's `Graft` and each view's actions); the pieces'
+         own `Holds::clear`, `Shown::clear`, `Pacing::reset`, `Docks::restarted` and
+         `Graft::restarted` are the library's own now. be-host-runtime keeps one `Run` per app
+         and drives it. What stays with the host: the wire, which lives with the backend because
+         it is bound to the worker and sandbox the backend starts and is made afresh with each
+         start; the presenter's textures, the frame held for children and the surfaces drawn,
+         which hold the GPU's; the font fallbacks, which read the host's fonts; and
+         `Instances::reopen`, which takes back what the block stack, the input forwarders and
+         the revision previews gave the old run. The library tests a restart over a `Run` and a
+         stand-in for the host's views; be-host-runtime's restart tests stay, since they test
+         what `Instances` sends again, and restart through `Run::restart` as `Runtime` does.
      - 4e5. A root built on the library embeds an editor without the host's compositor, shown by
        a host test, and the root gets its `input` export, routed by `Router` over its last
        list. be-host runs it through a run option that starts a root module in place of its

@@ -80,10 +80,10 @@ impl Graft {
         self.document
     }
 
-    /// Forgets the app's tree, as when its app restarts: the pane stays, empty, until the new
-    /// run describes the screen. Host ids are not reused, so one the old run's node had never
-    /// names a node of the new run's.
-    pub fn restarted(&mut self) {
+    /// Forgets the app's tree, as a restart does (`Run::restart`): the pane stays, empty, until
+    /// the new run describes the screen. Host ids are not reused, so one the old run's node had
+    /// never names a node of the new run's.
+    pub(crate) fn restarted(&mut self) {
         self.nodes.clear();
         self.local.clear();
         self.remote.clear();
