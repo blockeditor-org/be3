@@ -23,10 +23,10 @@ use be_wasm_guest_abi::{Flow, Guest, Waker};
 use be_wasm_ops::guest::{Executor, LocalFuture};
 use be_wasm_password::Password;
 use be_wasm_root_api::{
-    AccountRow, CoreCommand, CoreSecret, CoreView, CoreWait, DiscardReason, DisplayQuestion,
-    FrameDone, FrameRequest, HostStatistics, InvitationRow, InvitationState, LockState, NewAccount,
-    Notice, OrganizationRow, OrganizationsListed, PowerAction, ProfileRow, Refusal, SavingState,
-    SecretCommand, ServerAccount, SessionRow, SetAside, StatisticRow, SyncState, UnsentEdit,
+    AccountRow, AgentRow, CoreCommand, CoreSecret, MemberRole, MemberRow, RoleChange, SecretCommand, CoreView, CoreWait, DiscardReason, InvitationRow,
+    InvitationState, OrganizationRow, OrganizationsListed, ProfileRow,
+    SessionRow, DisplayQuestion, FrameDone, FrameRequest, HostStatistics, LockState,
+    NewAccount, Notice, PowerAction, Refusal, SavingState, ServerAccount, SetAside, StatisticRow, SyncState, UnsentEdit,
     guest::{
         exports::{frames, input, paintings},
         host,
@@ -41,13 +41,13 @@ use beui::{
 };
 
 use crate::{
-    ADD_ACCOUNT_TITLE, APP, APP_ENTRY, CLOSES, DIALOG_LAYER, DIALOG_ORIGIN, DIALOG_SIZE,
-    DIALOG_SURFACE, DIALOG_TITLE, DISCARD_TITLE, DISCARD_UNSENT_TITLE, FORGET_ACCOUNT_TITLE,
-    INVITATIONS_TITLE, KEEP_DISPLAY_TITLE, LATE_LAYER, LATER, LATER_TEXT, LOCK_LAYER, LOCK_SURFACE,
-    LOCKS_SESSION, ONBOARDING_LAYER, ONBOARDING_SURFACE, OPENS_DIALOG, OPENS_INVITATIONS,
-    OPENS_STATISTICS, OPENS_UNSENT, ORGANIZATIONS_TITLE, ORIGIN, RASTER, REAUTH_TITLE, RESIZED,
-    RESIZES, ROOT_COLOR, ROOT_LAYER, ROOT_SURFACE, SCREEN, SCREEN_SIZE, SCRIM_COLOR, SCRIM_LAYER,
-    SCRIM_SURFACE, SESSIONS_TITLE, SIGN_IN_TITLE, SIZE, SLOW_SAVE, SLOW_SAVE_TITLE,
+    AGENTS_TITLE, DISCARD_TITLE, INVITATIONS_TITLE, MEMBERS_TITLE, OPENS_AGENTS, OPENS_MEMBERS,
+    REMOVE_MEMBER_TITLE, OPENS_INVITATIONS, REAUTH_TITLE, ONBOARDING_LAYER,
+    ONBOARDING_SURFACE, ORGANIZATIONS_TITLE, SESSIONS_TITLE, ADD_ACCOUNT_TITLE, FORGET_ACCOUNT_TITLE, SIGN_IN_TITLE,
+    APP, APP_ENTRY, CLOSES, DIALOG_LAYER, DISCARD_UNSENT_TITLE, OPENS_UNSENT, UNSENT_TITLE, DIALOG_ORIGIN, KEEP_DISPLAY_TITLE, DIALOG_SIZE, DIALOG_SURFACE, DIALOG_TITLE,
+    LATE_LAYER, LATER, LATER_TEXT, LOCK_LAYER, LOCK_SURFACE, LOCKS_SESSION, OPENS_DIALOG,
+    OPENS_STATISTICS, ORIGIN, RASTER, RESIZED, RESIZES, ROOT_COLOR, ROOT_LAYER, ROOT_SURFACE,
+    SCREEN, SCREEN_SIZE, SCRIM_COLOR, SCRIM_LAYER, SCRIM_SURFACE, SIZE, SLOW_SAVE, SLOW_SAVE_TITLE,
     SLOW_SAVE_TOAST, STATISTICS_AREA, STATISTICS_LAYER, STATISTICS_ORIGIN, STATISTICS_SURFACE,
     STATISTICS_TITLE, STRAY_PASSWORD, TEXT, TEXT_LAYER, TEXT_STRIP, TEXT_SURFACE, TOAST_AREA,
     TOAST_LAYER, TOAST_SURFACE, UNLOCKS_TWICE, UNPRESENTED_SURFACE, UNSENT_TITLE,
@@ -108,9 +108,10 @@ struct Root {
     /// A secret the host answered `make-secret` with (an invitation's link), until the next
     /// frame hands it to the dialog that asked, or drops it, zeroed, if that dialog closed.
     secret: Rc<RefCell<Option<Option<CoreSecret>>>>,
-    /// The link its invitations show, and whether they wait for one, while they are its open
-    /// dialog: one request at a time, so an answer is the latest request's.
-    link_shown: Rc<Cell<Option<(Signal<Option<Held>>, Signal<bool>)>>>,
+    /// The secret its open dialog shows (the invitations' link, the agents' credentials), and
+    /// whether it waits for one, while that dialog asks for secrets: one request at a time, so
+    /// an answer is the latest request's.
+    secret_shown: Rc<Cell<Option<(Signal<Option<Held>>, Signal<bool>)>>>,
     /// The surface a `RESIZES` frame configures and never presents.
     unpresented: Rc<RefCell<Option<OwnSurface>>>,
     /// The scrim under its dialog, filled with `SCRIM_COLOR` on its first frame.
@@ -149,8 +150,8 @@ struct Dialog {
     /// The question of the host's it asks, if it is one: it closes once the host no longer
     /// asks it.
     host_asks: Option<HostAsks>,
-    /// Whether it lists the invitations, to which an invitation's link is handed.
-    invitations: bool,
+    /// Whether it asks for secrets (the invitations, the agents), to which an answer is handed.
+    receives_secret: bool,
     /// The layer focused when it opened, which gets the focus back when it closes.
     had: Option<LayerId>,
     /// Whether it took the focus yet: once it has been drawn.
@@ -203,6 +204,10 @@ enum Asking {
     Host(HostAsks),
     /// The organization's invitations.
     Invitations,
+    /// The organization's members.
+    Members,
+    /// The organization's agents.
+    Agents,
 }
 
 /// The root's accounts while the block stack waits for the person to open or add one.
@@ -233,6 +238,8 @@ enum Asked {
     Open,
     OpenUnsent,
     OpenInvitations,
+    OpenMembers,
+    OpenAgents,
     Close,
     ToggleStatistics,
 }
@@ -258,7 +265,7 @@ impl Root {
             wanted: Rc::default(),
             resuming: Rc::default(),
             secret: Rc::default(),
-            link_shown: Rc::default(),
+            secret_shown: Rc::default(),
             unpresented: Rc::default(),
             scrim: Rc::default(),
             dialog: Rc::default(),
@@ -576,6 +583,8 @@ impl Root {
                     Some(key) if key == OPENS_DIALOG && !open => Some(Asked::Open),
                     Some(key) if key == OPENS_UNSENT && !open => Some(Asked::OpenUnsent),
                     Some(key) if key == OPENS_INVITATIONS && !open => Some(Asked::OpenInvitations),
+                    Some(key) if key == OPENS_MEMBERS && !open => Some(Asked::OpenMembers),
+                    Some(key) if key == OPENS_AGENTS && !open => Some(Asked::OpenAgents),
                     Some(key) if key == OPENS_STATISTICS => Some(Asked::ToggleStatistics),
                     Some(key) if key == UNLOCKS_TWICE => {
                         unlock(STRAY_PASSWORD.to_owned());
@@ -731,10 +740,10 @@ impl Root {
         // A secret the host answered with goes to the invitations that asked, or is dropped.
         if let Some(secret) = self.secret.borrow_mut().take()
             && let Some(dialog) = &mut *self.dialog.borrow_mut()
-            && dialog.invitations
-            && let Some((shown, pending)) = self.link_shown.get()
+            && dialog.receives_secret
+            && let Some((shown, pending)) = self.secret_shown.get()
         {
-            let link = secret.map(|CoreSecret::Link(link)| Held(Rc::new(link)));
+            let link = secret.map(|secret| Held(Rc::new(secret)));
             dialog.surface.enter(|| {
                 shown.set(link);
                 pending.set(false);
@@ -814,6 +823,12 @@ impl Root {
             {
                 Some(Asking::Invitations)
             }
+            _ if !locked && asked == Some(Asked::OpenMembers) && self.dialog.borrow().is_none() => {
+                Some(Asking::Members)
+            }
+            _ if !locked && asked == Some(Asked::OpenAgents) && self.dialog.borrow().is_none() => {
+                Some(Asking::Agents)
+            }
             _ if !locked && self.dialog.borrow().is_none() && self.resuming.take() => self
                 .core
                 .borrow()
@@ -878,7 +893,7 @@ impl Root {
             return;
         };
         self.core_shown.set(None);
-        self.link_shown.set(None);
+        self.secret_shown.set(None);
         let mut embedding = self.embedding.borrow_mut();
         embedding.intercept(chords(false));
         let told = embedding.focus(None, dialog.had);
@@ -903,17 +918,22 @@ impl Root {
             | Asking::AddAccount { .. }
             | Asking::ForgetAccount { .. }
             | Asking::Host(_)
-            | Asking::Invitations => None,
+            | Asking::Invitations
+            | Asking::Members
+            | Asking::Agents => None,
         };
         let host_asks = match &opening {
             Asking::Host(asks) => Some(*asks),
             _ => None,
         };
-        let invitations = matches!(opening, Asking::Invitations);
-        if invitations {
-            ask_core(CoreCommand::ListInvitations);
+        let receives_secret = matches!(opening, Asking::Invitations | Asking::Agents);
+        match opening {
+            Asking::Invitations => ask_core(CoreCommand::ListInvitations),
+            Asking::Members => ask_core(CoreCommand::ListMembers),
+            Asking::Agents => ask_core(CoreCommand::ListAgents),
+            _ => {}
         }
-        let link_shown = Rc::clone(&self.link_shown);
+        let secret_shown = Rc::clone(&self.secret_shown);
         let answered = Rc::clone(&self.secret);
         let wakes = self.waker.clone();
         let signs_in = matches!(opening, Asking::AddAccount { .. });
@@ -973,22 +993,7 @@ impl Root {
                     Asking::Invitations => {
                         let core = create_signal(core);
                         core_shown.set(Some(core));
-                        let link = create_signal(None::<Held>);
-                        let pending = create_signal(false);
-                        link_shown.set(Some((link, pending)));
-                        // Asked of the host, answered with a secret the next frame hands over;
-                        // the dialog asks nothing more until then.
-                        let ask = Callback::new(move |command: SecretCommand| {
-                            pending.set(true);
-                            let answered = Rc::clone(&answered);
-                            let wakes = wakes.clone();
-                            be_wasm_ops::guest::spawn(async move {
-                                if let Ok(secret) = host::make_secret(command).await {
-                                    *answered.borrow_mut() = Some(secret);
-                                    wakes.wake();
-                                }
-                            });
-                        });
+                        let (link, pending, ask) = secret_asker(&secret_shown, &answered, &wakes);
                         view! {
                             <InvitationsDialog
                                 core={core}
@@ -997,6 +1002,19 @@ impl Root {
                                 ask={ask}
                                 done={done}
                             />
+                        }
+                    }
+                    Asking::Members => {
+                        let core = create_signal(core);
+                        core_shown.set(Some(core));
+                        view! { <MembersDialog core={core} done={done} /> }
+                    }
+                    Asking::Agents => {
+                        let core = create_signal(core);
+                        core_shown.set(Some(core));
+                        let (made, pending, ask) = secret_asker(&secret_shown, &answered, &wakes);
+                        view! {
+                            <AgentsDialog core={core} made={made} pending={pending} ask={ask} done={done} />
                         }
                     }
                     Asking::ForgetAccount { key, name } => {
@@ -1021,7 +1039,7 @@ impl Root {
             keep,
             signs_in,
             host_asks,
-            invitations,
+            receives_secret,
             had,
             focused: false,
         });
@@ -1042,6 +1060,8 @@ fn chords(escape: bool) -> Vec<KeyChord> {
         KeyChord::new(UNLOCKS_TWICE, Modifiers::NONE),
         KeyChord::new(OPENS_UNSENT, Modifiers::NONE),
         KeyChord::new(OPENS_INVITATIONS, Modifiers::NONE),
+        KeyChord::new(OPENS_MEMBERS, Modifiers::NONE),
+        KeyChord::new(OPENS_AGENTS, Modifiers::NONE),
     ];
     if escape {
         chords.push(KeyChord::new(Key::Escape, Modifiers::NONE));
@@ -2317,16 +2337,14 @@ fn InvitationsDialog(
     let shown = create_memo(move || {
         link.with(|link| {
             link.as_ref()
-                .and_then(|link| link.0.as_str())
+                .and_then(Held::link)
                 .unwrap_or_default()
                 .to_owned()
         })
     });
     let copy = move || {
         if let Some(text) = link.with_untracked(|link| {
-            link.as_ref()
-                .and_then(|link| link.0.as_str())
-                .map(str::to_owned)
+            link.as_ref().and_then(Held::link).map(str::to_owned)
         }) {
             be_wasm_ops::guest::spawn(async move {
                 let item = be_lib_ui_types::ClipItem::text(text);
@@ -2420,11 +2438,322 @@ fn InvitationsDialog(
 
 /// A secret a dialog shows, compared by identity alone: a secret's bytes are never compared.
 #[derive(Clone)]
-struct Held(Rc<Password>);
+struct Held(Rc<CoreSecret>);
+
+impl Held {
+    /// The invitation's link it is, if it is one.
+    fn link(&self) -> Option<&str> {
+        match &*self.0 {
+            CoreSecret::Link(link) => link.as_str(),
+            CoreSecret::Agent(_) => None,
+        }
+    }
+
+    /// The agent's credentials it is, if they are.
+    fn agent(&self) -> Option<&be_wasm_root_api::AgentCredentials> {
+        match &*self.0 {
+            CoreSecret::Agent(agent) => Some(agent),
+            CoreSecret::Link(_) => None,
+        }
+    }
+}
+
+/// What a document asking its host for secrets needs, made in it: the secret shown, whether a
+/// request waits, and the request itself, answered with the frame after the host answers
+/// (`settle_dialog` hands the answer over); while one waits the document asks for no other.
+fn secret_asker(
+    shown: &Rc<Cell<Option<(Signal<Option<Held>>, Signal<bool>)>>>,
+    answered: &Rc<RefCell<Option<Option<CoreSecret>>>>,
+    wakes: &Waker,
+) -> (Signal<Option<Held>>, Signal<bool>, Callback<SecretCommand>) {
+    let secret = create_signal(None::<Held>);
+    let pending = create_signal(false);
+    shown.set(Some((secret, pending)));
+    let answered = Rc::clone(answered);
+    let wakes = wakes.clone();
+    let ask = Callback::new(move |command: SecretCommand| {
+        pending.set(true);
+        let answered = Rc::clone(&answered);
+        let wakes = wakes.clone();
+        be_wasm_ops::guest::spawn(async move {
+            if let Ok(secret) = host::make_secret(command).await {
+                *answered.borrow_mut() = Some(secret);
+                wakes.wake();
+            }
+        });
+    });
+    (secret, pending, ask)
+}
 
 impl PartialEq for Held {
     fn eq(&self, other: &Self) -> bool {
         Rc::ptr_eq(&self.0, &other.0)
+    }
+}
+
+/// The organization's members: each with their email and role, and, but for the person
+/// themselves and agents, a change of role (administrator or editor) and Remove, which asks
+/// first in the list's place. A member who leaves the list takes the question with them.
+#[component]
+fn MembersDialog(core: Signal<CoreView>, done: Callback<Closed>) -> NodeId {
+    let area = create_memo(move || core.with(|view| view.members.clone()));
+    let members = create_memo(move || area.with(|area| area.members.clone()));
+    let busy = create_memo(move || area.with(|area| area.busy || !area.listed));
+    let error = create_memo(move || area.with(|area| area.error.clone()));
+    let removing = create_signal(None::<[u8; 16]>);
+    let asked = create_memo(move || {
+        let account = removing.get()?;
+        members.with(|members| members.iter().find(|member| member.account == account).cloned())
+    });
+    let asks = create_memo(move || asked.with(Option::is_some));
+    let listing = create_memo(move || !asks.get());
+    let question = create_memo(move || {
+        let name = asked.with(|member| member.as_ref().map(|member| member.name.clone()).unwrap_or_default());
+        format!("Remove {name} from the organization? They lose access to its blocks.")
+    });
+    let remove = move || {
+        if let Some(member) = asked.get_untracked() {
+            ask_core(CoreCommand::RemoveMember(member.account));
+        }
+        removing.set(None);
+    };
+    on_key(
+        KeyAt::Node(component_node()),
+        KeyPhase::Bubble,
+        KeyReveal::Focus,
+        move |event| {
+            let closes = event
+                .press()
+                .is_some_and(|press| press.pressed && !press.repeat && press.key == Key::Escape);
+            if closes {
+                match asks.get_untracked() {
+                    true => removing.set(None),
+                    false => done.call(Closed::Dismissed),
+                }
+            }
+            closes
+        },
+    );
+    view! {
+        <Frame
+            width=Length::FILL
+            height=Length::FILL
+            fill=ColorRole::Surface
+            border={Border::DEFAULT}
+            radius=Radius::Lg
+        >
+            <List spacing=Space::None>
+                <Show value={listing}>
+                    <DialogBody
+                        title=MEMBERS_TITLE
+                        actions={vec![DialogAction::cancel("Close")]}
+                        on_dismiss={move || done.call(Closed::Dismissed)}
+                    >
+                        <be_host_accounts_ui::ErrorText text={error} />
+                        <ForEach
+                            value={members}
+                            key={|member: &MemberRow| member.account}
+                        >|member: ReadSignal<MemberRow>| {
+                            let account = member.with_untracked(|member| member.account);
+                            let name = create_memo(move || member.with(|member| member.name.clone()));
+                            let detail = create_memo(move || member.with(member_detail));
+                            let managed = create_memo(move || member.with(|member| !member.me && !member.agent));
+                            let promote = create_memo(move || member.with(|member| member.role != MemberRole::Administrator));
+                            let role_label = create_memo(move || match promote.get() {
+                                true => "Make administrator".to_owned(),
+                                false => "Make editor".to_owned(),
+                            });
+                            let change = move || {
+                                let role = match promote.get_untracked() {
+                                    true => MemberRole::Administrator,
+                                    false => MemberRole::Editor,
+                                };
+                                ask_core(CoreCommand::SetMemberRole(RoleChange { account, role }));
+                            };
+                            view! {
+                                <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
+                                    <ListItem grow=1.0>
+                                        <List spacing=Space::Xs2>
+                                            <Text>{name}</Text>
+                                            <Text style=TextStyle::CAPTION>{detail}</Text>
+                                        </List>
+                                    </ListItem>
+                                    <Show value={managed}>
+                                        <Button
+                                            label={role_label}
+                                            variant=ButtonVariant::Secondary
+                                            disabled={busy}
+                                            on_click={change}
+                                        />
+                                        <Button
+                                            icon_only=true
+                                            glyph=ICON_TRASH
+                                            label="Remove"
+                                            disabled={busy}
+                                            on_click={move || removing.set(Some(account))}
+                                        />
+                                    </Show>
+                                </List>
+                            }
+                        }</ForEach>
+                    </DialogBody>
+                </Show>
+                <Show value={asks}>
+                    <DialogBody
+                        kind=DialogKind::Alert
+                        title=REMOVE_MEMBER_TITLE
+                        scrolls=false
+                        actions={vec![
+                            DialogAction::destructive("Remove", remove),
+                            DialogAction::cancel("Keep"),
+                        ]}
+                        on_dismiss={move || removing.set(None)}
+                    >
+                        <Text style=TextStyle::PARAGRAPH>{question}</Text>
+                    </DialogBody>
+                </Show>
+            </List>
+        </Frame>
+    }
+}
+
+/// A member's email and role, in words.
+fn member_detail(member: &MemberRow) -> String {
+    let role = match (member.agent, &member.role) {
+        (true, _) => "agent",
+        (false, MemberRole::Administrator) => "administrator",
+        (false, MemberRole::Editor) => "editor",
+        (false, MemberRole::Guest) => "guest",
+    };
+    let detail = match member.email.is_empty() {
+        true => role.to_owned(),
+        false => format!("{}, {role}", member.email),
+    };
+    match member.unsigned {
+        true => format!("{detail}, added by the server"),
+        false => detail,
+    }
+}
+
+/// The organization's agents: each with Remove, and a name to make one by, whose credentials
+/// come back once, as the answer to the request that made it (`ask`, `make-secret`): shown in
+/// the list's place with Copy and Done, held only while they show.
+#[component]
+fn AgentsDialog(
+    core: Signal<CoreView>,
+    made: Signal<Option<Held>>,
+    pending: Signal<bool>,
+    ask: Callback<SecretCommand>,
+    done: Callback<Closed>,
+) -> NodeId {
+    let area = create_memo(move || core.with(|view| view.agents.clone()));
+    let agents = create_memo(move || area.with(|area| area.agents.clone()));
+    let busy = create_memo(move || pending.get() || area.with(|area| area.busy || !area.listed));
+    let error = create_memo(move || area.with(|area| area.error.clone()));
+    let showing = create_memo(move || made.with(|made| made.as_ref().and_then(Held::agent).is_some()));
+    let listing = create_memo(move || !showing.get());
+    let name = create_signal(String::new());
+    let create = move || {
+        let named = name.get_untracked().trim().to_owned();
+        if !named.is_empty() && !pending.get_untracked() {
+            name.set(String::new());
+            ask.call(SecretCommand::CreateAgent(named));
+        }
+    };
+    // What it shows of the credentials, the one copy it keeps beside them.
+    let credentials = create_memo(move || {
+        made.with(|made| {
+            made.as_ref()
+                .and_then(Held::agent)
+                .map(|agent| {
+                    format!(
+                        "{} on {}\nToken: {}\nRecovery phrase: {}",
+                        agent.name,
+                        agent.server,
+                        agent.token.as_str().unwrap_or_default(),
+                        agent.phrase.as_str().unwrap_or_default()
+                    )
+                })
+                .unwrap_or_default()
+        })
+    });
+    let copy = move || {
+        let text = credentials.get_untracked();
+        if !text.is_empty() {
+            be_wasm_ops::guest::spawn(async move {
+                let item = be_lib_ui_types::ClipItem::text(text);
+                let _ = host::copy(vec![be_wasm_ops::encode(&item)]).await;
+            });
+        }
+    };
+    escape_dismisses(done);
+    view! {
+        <Frame
+            width=Length::FILL
+            height=Length::FILL
+            fill=ColorRole::Surface
+            border={Border::DEFAULT}
+            radius=Radius::Lg
+        >
+            <List spacing=Space::None>
+                <Show value={listing}>
+                    <DialogBody
+                        title=AGENTS_TITLE
+                        actions={vec![
+                            DialogAction::cancel("Close"),
+                            DialogAction::primary("Create agent", create)
+                                .busy(busy)
+                                .disabled(move || pending.get() || name.with(|name| name.trim().is_empty())),
+                        ]}
+                        on_dismiss={move || done.call(Closed::Dismissed)}
+                    >
+                        <be_host_accounts_ui::ErrorText text={error} />
+                        <ForEach
+                            value={agents}
+                            key={|agent: &AgentRow| agent.account}
+                        >|agent: ReadSignal<AgentRow>| {
+                            let account = agent.with_untracked(|agent| agent.account);
+                            let label = create_memo(move || agent.with(|agent| agent.name.clone()));
+                            view! {
+                                <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
+                                    <ListItem grow=1.0>
+                                        <Text>{label}</Text>
+                                    </ListItem>
+                                    <Button
+                                        label="Remove"
+                                        variant=ButtonVariant::Secondary
+                                        disabled={busy}
+                                        on_click={move || ask_core(CoreCommand::RemoveAgent(account))}
+                                    />
+                                </List>
+                            }
+                        }</ForEach>
+                        <TextInput
+                            value={name}
+                            label="New agent"
+                            placeholder="New agent"
+                            focused=true
+                            on_submit={move |_: String| create()}
+                        />
+                    </DialogBody>
+                </Show>
+                <Show value={showing}>
+                    <DialogBody
+                        title="Agent made"
+                        actions={vec![
+                            DialogAction::secondary("Done", move || made.set(None)),
+                            DialogAction::primary("Copy", copy),
+                        ]}
+                        on_dismiss={move || done.call(Closed::Dismissed)}
+                    >
+                        <Text style=TextStyle::CAPTION>
+                            "Shown this once: keep them where the program can read them."
+                        </Text>
+                        <Text>{credentials}</Text>
+                    </DialogBody>
+                </Show>
+            </List>
+        </Frame>
     }
 }
 

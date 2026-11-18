@@ -277,5 +277,24 @@ pub const OPENS_INVITATIONS: Key = Key::F9;
 /// The title of the organization's invitations.
 pub const INVITATIONS_TITLE: &str = "Invitations";
 
+/// The key that opens the root's list of the organization's members, in its dialog's place,
+/// pressed with no modifiers: the root intercepts it wherever the focus is, but not while the
+/// session is locked.
+pub const OPENS_MEMBERS: Key = Key::F10;
+
+/// The title of the organization's members.
+pub const MEMBERS_TITLE: &str = "Members";
+
+/// The title of the question the members ask before removing one.
+pub const REMOVE_MEMBER_TITLE: &str = "Remove member?";
+
+/// The key that opens the root's list of the organization's agents, in its dialog's place,
+/// pressed with no modifiers: the root intercepts it wherever the focus is, but not while the
+/// session is locked.
+pub const OPENS_AGENTS: Key = Key::F11;
+
+/// The title of the organization's agents.
+pub const AGENTS_TITLE: &str = "Agents";
+
 #[cfg(target_arch = "wasm32")]
 mod guest;

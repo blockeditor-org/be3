@@ -215,9 +215,11 @@ its own (a `v8::SharedIsolate`, locked by the thread that runs it):
   one call, `host.ask-core(core-command)`, a case per request of an area
   (restoring or discarding unsent changes; opening, forgetting and adding
   accounts and the browser sign-in; listing, opening, creating and joining
-  organizations; choosing and making sessions and profiles;
+  organizations; choosing and making sessions and profiles; the invitations,
+  members and agents;
   `Root::take_core_commands`). A secret the host hands the person (an
-  invitation's link) comes from a call of its own, `host.make-secret`, answered
+  invitation's link, a new agent's credentials) comes from a call of its own,
+  `host.make-secret`, answered
   once with it (`Root::take_secret_requests`, `Root::answer_secret`), never in
   the view. The root
   holds what it has open and what it asks the person itself. A secret the
