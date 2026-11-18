@@ -3,10 +3,9 @@ use super::*;
 use be_block_client::{Admitted, Event};
 use be_sdk_api::blocks::ChannelEvent;
 
-/// What `block`'s Join editors have yet to hear, once `ready` holds of it.
+/// What `block`'s Join editors have yet to hear, once `ready` holds of how many there are.
 fn channel_until(what: &str, block: Uuid, ready: impl Fn(usize) -> bool) -> Vec<ChannelEvent> {
-    wait_until(what, |shared| ready(shared.channel_news.len(block)));
-    take_channel_events(block)
+    take_channel_events_until(what, block, |events| ready(events.len()))
 }
 
 /// The next message on `block`'s host channel that `events` hear.
@@ -227,9 +226,9 @@ fn a_joined_channel_opens_to_its_host_and_again_to_the_next() {
     });
     let heard = channel_until("heard the first host go", block, |count| count >= 1);
     assert_eq!(
-        heard.last(),
-        Some(&ChannelEvent::Closed),
-        "the channel to the first host closed: {heard:?}"
+        heard,
+        vec![ChannelEvent::Closed],
+        "the channel to the first host closed"
     );
     assert_eq!(channel_host(block), None);
 
