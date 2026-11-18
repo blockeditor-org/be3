@@ -344,7 +344,9 @@ Debugging:
   host tests' harness once and runs the tests whose names contain NAME N times (20), K at a
   time (twice the cores), killing a run that takes more than SECONDS (300). It prints how many
   runs failed, grouped by the panic's message with the numbers blurred and the first logs of
-  each group, which are under target/stress/NAME/. Every run uses the host that has every app
+  each group, which are under target/stress/NAME/: a failing run's output as N.log, and in
+  N.logs/ the whole log of each program it drove (a failure carries only the end of one, and
+  says when it logged nothing). Every run uses the host that has every app
   unless `--apps` lists the apps the test names in `APPS`; verify stages only those, which
   changes the timing, so try both. `--apps` builds the host apps.bzl defines for that set, so
   it takes only a set some test in `APPS` names already. `--latency` delays each read of what
