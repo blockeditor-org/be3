@@ -79,6 +79,7 @@ impl Opening {
             }
             OpeningKind::Rename(open) => existing(&mut open.block_id),
             OpeningKind::Host(open) => existing(&mut open.block_id),
+            OpeningKind::Join(open) => existing(&mut open.block_id),
             OpeningKind::Creation(_) => {}
         }
     }
@@ -239,7 +240,8 @@ impl BlockCommand {
             | Self::Leave
             | Self::CloseEditor
             | Self::Define { .. }
-            | Self::TellMember(_) => {}
+            | Self::TellMember(_)
+            | Self::TellHost(_) => {}
         }
     }
 }
@@ -263,9 +265,13 @@ impl BlockCommand {
             Self::Delete { source, .. } | Self::Move { source, .. } => block(source),
             Self::SetParent(parent) => block(parent),
             Self::Version(command) => command.may_be_made_by_a_host(),
-            // An account-wide membership change, a person's dialog or editor, and artifacts
-            // made where the service places them.
-            Self::Leave | Self::Share | Self::CloseEditor | Self::Artifact { .. } => false,
+            // An account-wide membership change, a person's dialog or editor, artifacts made
+            // where the service places them, and a Join member's side of the channel.
+            Self::Leave
+            | Self::Share
+            | Self::CloseEditor
+            | Self::Artifact { .. }
+            | Self::TellHost(_) => false,
         }
     }
 }

@@ -504,10 +504,13 @@ pub enum Pushed {
     /// A host component's block's host channel members came, spoke or went
     /// (`take_member_events`).
     MemberEvents,
+    /// A Join member's host channel opened, closed or carried what the host said
+    /// (`take_channel_events`).
+    Channel,
 }
 
 impl Pushed {
-    pub const ALL: [Self; 17] = [
+    pub const ALL: [Self; 18] = [
         Self::Peers,
         Self::Histories,
         Self::Artifacts,
@@ -525,6 +528,7 @@ impl Pushed {
         Self::Searches,
         Self::Reveal,
         Self::MemberEvents,
+        Self::Channel,
     ];
 }
 
@@ -567,6 +571,9 @@ pub struct EditorHost {
     opens: Rc<RefCell<Vec<OpenRequest>>>,
     reveal: Rc<RefCell<Option<be_sdk_api::SearchLocation>>>,
     member_events: Rc<RefCell<Vec<be_sdk_api::blocks::MemberEvent>>>,
+    /// Opened as a Join member (`opening-kind.join`): no content, only the host channel.
+    joined: Rc<Cell<bool>>,
+    channel_events: Rc<RefCell<Vec<be_sdk_api::blocks::ChannelEvent>>>,
     shows: Rc<RefCell<Vec<ShowRequest>>>,
     focused: Rc<RefCell<FocusedBlock>>,
     reported_focus: Rc<RefCell<Option<FocusedBlock>>>,
@@ -791,6 +798,34 @@ impl EditorHost {
     pub(crate) fn member(&self, event: be_sdk_api::blocks::MemberEvent) {
         self.member_events.borrow_mut().push(event);
         self.push(Pushed::MemberEvents);
+    }
+
+    /// Whether the editor opened as a Join member of its block (`opening-kind.join`;
+    /// plans/hosted_blocks.md, "Hosting"): it is given no content, and speaks to whoever hosts
+    /// the block on its host channel (`take_channel_events`, `tell_host`).
+    pub fn joined(&self) -> bool {
+        self.joined.get()
+    }
+
+    pub(crate) fn set_joined(&self, joined: bool) {
+        self.joined.set(joined);
+    }
+
+    /// What a Join member's host channel did since this was last taken (`Pushed::Channel`), in
+    /// order: opened to the account that hosts, closed, or carried what the host said.
+    pub fn take_channel_events(&self) -> Vec<be_sdk_api::blocks::ChannelEvent> {
+        std::mem::take(&mut self.channel_events.borrow_mut())
+    }
+
+    pub(crate) fn channel(&self, event: be_sdk_api::blocks::ChannelEvent) {
+        self.channel_events.borrow_mut().push(event);
+        self.push(Pushed::Channel);
+    }
+
+    /// A Join member tells the host of `block_id` `payload`, sealed on its channel: lost while
+    /// the channel is not open.
+    pub fn tell_host(&self, block_id: Uuid, payload: Vec<u8>) {
+        self.command(block_id, BlockCommand::TellHost(payload));
     }
 
     /// A host component tells `member` of its block's host channel `payload`, sealed on the

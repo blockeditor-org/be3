@@ -310,6 +310,10 @@ impl EditorSession {
         self.host.member(event);
     }
 
+    pub(crate) fn channel(&self, event: be_sdk_api::blocks::ChannelEvent) {
+        self.host.channel(event);
+    }
+
     pub(crate) fn show_dialog(&self, block_id: Uuid, dialog: be_sdk_api::ShellDialog) {
         self.host.show_dialog(block_id, dialog);
     }
@@ -366,6 +370,15 @@ impl EditorSession {
         self.own_block = Some(block_id);
         self.link.connect(block_id, block_type);
         self.editor.connect(block_id);
+    }
+
+    /// A Join member's session: its block, given no content, only the host channel.
+    pub(crate) fn connect_join(&mut self, block_id: Uuid, block_type: Uuid) {
+        self.host.set_block_type(block_type);
+        self.host.set_joined(true);
+        self.own_block = Some(block_id);
+        self.link.connect(block_id, block_type);
+        self.editor.connect_join(block_id);
     }
 
     /// A host component's session: its block, with no screen ever given it.

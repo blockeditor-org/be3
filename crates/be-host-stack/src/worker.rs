@@ -180,6 +180,15 @@ pub(super) enum Command {
     },
     /// A host component starts on a block (`crate::hosting::restart`).
     RestartHost(Uuid),
+    /// The blocks whose host channel an editor here joins as a Join member
+    /// (`crate::joining::want`).
+    WantChannels(std::collections::HashSet<Uuid>),
+    /// A Join editor tells its block's host something (`crate::joining::tell`).
+    TellHost {
+        block: Uuid,
+        #[serde(with = "serde_bytes")]
+        payload: Vec<u8>,
+    },
     FromEditor {
         block: Uuid,
         editor: EditorId,
@@ -458,6 +467,8 @@ impl Command {
             Command::Detach { .. } => "detach",
             Command::TellMember { .. } => "tell member",
             Command::RestartHost(..) => "restart host",
+            Command::WantChannels(..) => "want channels",
+            Command::TellHost { .. } => "tell host",
             Command::FromEditor { .. } => "from editor",
             Command::HoldClock(..) => "hold clock",
             Command::OfflineChoices(..) => "offline choices",
@@ -658,7 +669,9 @@ impl Command {
             | Command::HoldClock(_)
             | Command::OfflineChoices(_)
             | Command::Reads(..)
-            | Command::RestartHost(_) => None,
+            | Command::RestartHost(_)
+            | Command::WantChannels(_)
+            | Command::TellHost { .. } => None,
         }
     }
 
@@ -863,6 +876,8 @@ pub struct Shared {
     pub peer_messages: HashMap<Uuid, std::collections::VecDeque<(u64, PeerMessage)>>,
     /// The host's side of the hosted blocks whose lease this device holds (`crate::hosting`).
     pub(crate) hosting: crate::hosting::Hosting,
+    /// The Join member's side of the hosted blocks an editor here joins (`crate::joining`).
+    pub(crate) joining: crate::joining::Joining,
     pub peer_message_count: u64,
     /// Passes of the loop in a row whose wait was over before it began: a loop that keeps
     /// waking itself shows here.
@@ -1818,6 +1833,7 @@ impl Session<'_> {
                             None => self.replicas.resynchronize((peer, shared)),
                         }
                         crate::hosting::heard(peer, shared, &self.tasks.0, event.as_ref());
+                        crate::joining::heard(peer, shared, &self.tasks.0, event.as_ref());
                         heard(peer, shared, &self.tasks.0, event).await;
                         if keyed {
                             self.unlock(peer, shared).await;
@@ -1928,6 +1944,10 @@ impl Session<'_> {
             step(shared, Some("unread counts"));
             moved |= crate::unread::step(peer, shared, self.replicas, &self.tasks.0).await;
             spawn_listings(peer, shared, &self.tasks.0);
+            let replicas = &*self.replicas;
+            crate::joining::step(peer, shared, &self.tasks.0, |block| {
+                replicas.is_open(block) || replicas.leaving()
+            });
             if !after_order.is_empty() && !order_pending(self.replicas) {
                 let mut ran = Ran {
                     peer,
@@ -2123,6 +2143,7 @@ impl Session<'_> {
         self.rejoin = false;
         if self.line.is_up() {
             self.replicas.reconnect((peer, shared));
+            crate::joining::reconnect(shared);
         }
         if !self.in_arrive {
             arrived(shared);
@@ -4141,6 +4162,14 @@ async fn apply(
         }
         Command::RestartHost(block) => {
             crate::hosting::restart(shared, block);
+            false
+        }
+        Command::WantChannels(blocks) => {
+            crate::joining::want(peer, shared, tasks, blocks);
+            false
+        }
+        Command::TellHost { block, payload } => {
+            crate::joining::tell(peer, shared, tasks, block, payload);
             false
         }
         Command::FromEditor {
