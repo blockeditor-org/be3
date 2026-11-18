@@ -211,7 +211,7 @@ impl RootShell {
                 .deadline(self.pass, context.clock_stopped(), since(Instant::now()));
         let request = FrameRequest {
             time: nanos(time),
-            wall_clock: nanos(be_host_base::host::wall_clock()),
+            wall_clock: nanos(beui::reactive::wall_clock()),
         };
         let done = match root.frame(request, deadline) {
             Ok(done) => done,

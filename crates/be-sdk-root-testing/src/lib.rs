@@ -6,9 +6,9 @@
 //! frame when one is due, races that against the frame's deadline, and shows its own surface with
 //! the triangle's screen over it at `ORIGIN`, by handle, once the app painted it, and
 //! `LATE_LAYER` when the deadline came first.
-//! Its own surface (`ROOT_SURFACE`) it draws with beui (be-sdk-beui-root): cleared to
-//! `ROOT_COLOR`, with `TEXT` at its top left in the host's fonts, and `LATER_TEXT` in its place
-//! from `LATER` on.
+//! Its own surface (`ROOT_SURFACE`) it fills with `ROOT_COLOR` through `be3:gpu`; over it, the
+//! strip `TEXT_SURFACE` it draws with beui (be-sdk-beui-root): `TEXT` in the host's fonts, and
+//! `LATER_TEXT` in its place from `LATER` on.
 //! A frame at `CLOSES` lets go of the app, which stops it. The window's input is routed by the
 //! library over the layers it drew last, and what lands on its own surface its beui document
 //! hears.
@@ -71,21 +71,27 @@ pub const RESIZED: (u32, u32) = (200, 120);
 /// A surface of the root's own that a `RESIZES` frame configures and never presents.
 pub const UNPRESENTED_SURFACE: u32 = 2;
 
-/// The line of text the root's own surface shows, in the host's fonts.
+/// The layer showing `TEXT_SURFACE`, over the root's own surface.
+pub const TEXT_LAYER: LayerId = LayerId(2);
+
+/// A surface of the root's own that beui draws: the strip above the triangle's screen, at the
+/// window's top left, clear but for its line of text, in the host's fonts.
+pub const TEXT_SURFACE: u32 = 3;
+
+/// `TEXT_SURFACE`'s size, a pixel to a point: as wide as the root's surface and as tall as the
+/// strip above the screen.
+pub const TEXT_STRIP: (u32, u32) = (400, 20);
+
+/// The line of text `TEXT_SURFACE` shows.
 pub const TEXT: &str = "The root draws this line with beui";
 
-/// Where `TEXT` starts: its top left, in the window's points, in the strip above the screen.
-pub const TEXT_ORIGIN: (f32, f32) = (3.0, 3.0);
-
-/// The size of `TEXT`'s font, in points: small enough that its line stays above the screen.
-pub const TEXT_SIZE: f32 = 12.0;
-
-/// How long after its first frame, by its host's frame clock, the root's document shows
+/// How long after its first frame, by its host's frame clock, the root's text shows
 /// `LATER_TEXT` in place of `TEXT`: a timer of its own, which only a frame drawn when it is due
-/// shows.
-pub const LATER: std::time::Duration = std::time::Duration::from_secs(1);
+/// shows. An hour, so a host test, whose clock runs from the host's start until the test stops
+/// it, never reaches it.
+pub const LATER: std::time::Duration = std::time::Duration::from_secs(60 * 60);
 
-/// What the root's own surface shows from `LATER` on.
+/// What `TEXT_SURFACE` shows from `LATER` on.
 pub const LATER_TEXT: &str = "The root draws this line with beui, and redraws it on time";
 
 #[cfg(target_arch = "wasm32")]

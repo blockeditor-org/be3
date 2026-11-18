@@ -27,13 +27,12 @@ use std::{
 
 use be_lib_geometry::Pos2;
 use be_lib_layers::{Layer, LayerId, Surface};
-use be_sdk::fonts::HostFont;
-use be_sdk_api::Fonts;
+use be_lib_ui_types::Fonts;
 use be_sdk_root::{Delivery, OwnSurface};
 use beui_core::context::{Context, RendererInfo, WindowOutput};
 use beui_core::painting::{Painting, Punches};
 use beui_core::program::{Program, SafeArea, Setup, Waker};
-use beui_font_freetype::{FontLibrary, FreetypeFonts};
+use beui_font_freetype::{FontBytes, FontData, FontLibrary, FontSources, FreetypeFonts};
 use beui_renderer_wgpu::{Repaint, Resources};
 use beui_runner::renderer::{Loaded, Renderer};
 use beui_runner::{Incoming, Launch, PlatformServices, RunOptions, Runner};
@@ -60,11 +59,14 @@ impl BeuiRoot {
     /// `wall_clock`, as `frame-request` carries them.
     pub fn new(fonts: &[u8], time: Duration, wall_clock: Duration) -> Result<Self, String> {
         let fonts: Fonts = be_wasm_ops::decode(fonts).ok_or("the host's fonts cannot be read")?;
-        let faces: Vec<HostFont> = fonts.faces.iter().map(HostFont::from).collect();
+
         // TODO: a character none of these has is drawn as nothing: the host has no call yet that
         // answers a fallback face for it from the system's fonts, as an app's
         // `MissingCharacters` would be (plans/host_as_platform_adapter.md, 4g2's leftovers).
-        let fonts = FontLibrary::new(be_sdk_beui_platform::font_sources(&faces));
+        let fonts = FontLibrary::new(FontSources::of_faces(fonts.faces.into_iter().map(|face| {
+            let data = FontData::new(FontBytes::Shared(Arc::from(face.data)), face.index);
+            (face.role, data)
+        })));
         let (device, queue) = be_wasm_gpu_guest::request_device(&wgpu::DeviceDescriptor {
             label: Some("root device"),
             required_limits: be_wasm_gpu_guest::limits(),

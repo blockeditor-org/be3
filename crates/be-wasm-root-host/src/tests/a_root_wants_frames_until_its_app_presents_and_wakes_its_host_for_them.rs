@@ -22,8 +22,8 @@ fn a_root_wants_frames_until_its_app_presents_and_wakes_its_host_for_them() {
         .expect("the root draws");
     assert_eq!(
         shown(&early).len(),
-        2,
-        "the root's surface and its late marker, with no screen yet"
+        3,
+        "the root's surface, its text and its late marker, with no screen yet"
     );
     assert!(
         early.next.is_some_and(|next| next > 1),
@@ -47,8 +47,9 @@ fn a_root_wants_frames_until_its_app_presents_and_wakes_its_host_for_them() {
         .expect("the root draws");
     assert_eq!(
         shown(&shown_at_last).len(),
-        2,
-        "the root's surface and the editor's screen, the frame having waited for the app"
+        3,
+        "the root's surface, its text and the editor's screen, the frame having waited for the \
+         app"
     );
     assert!(
         woken.load(Ordering::Relaxed) > 0,
@@ -73,7 +74,7 @@ fn a_root_wants_frames_until_its_app_presents_and_wakes_its_host_for_them() {
                 Instant::now() + PATIENT,
             )
             .expect("the root draws");
-        assert_eq!(shown(&again).len(), 2, "the screen stays shown");
+        assert_eq!(shown(&again).len(), 3, "the screen stays shown");
         next = again.next;
         owed = again.owed;
         assert!(

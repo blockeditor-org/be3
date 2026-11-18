@@ -1,4 +1,4 @@
-use be_sdk_root_testing::{ORIGIN, ROOT_COLOR, SCREEN_SIZE, SIZE, TEXT_ORIGIN, TEXT_SIZE};
+use be_sdk_root_testing::{ORIGIN, ROOT_COLOR, SCREEN_SIZE, SIZE, TEXT_STRIP};
 
 use super::*;
 
@@ -64,16 +64,15 @@ fn a_root_in_place_of_the_hosts_ui_shows_the_editor_it_embeds() {
         "past the root's surface the window shows its own background, not the root's colour: \
          {past:?}"
     );
-    // The root draws its own surface with beui, with a line of text in the host's fonts in the
-    // strip above the screen: white glyphs on its colour.
-    let (text_left, text_top) = TEXT_ORIGIN;
-    let lit = (0..(TEXT_SIZE as u32))
-        .flat_map(|y| (0..120).map(move |x| (text_left + x as f32, text_top + y as f32)))
-        .filter(|&(x, y)| at(x, y).iter().all(|channel| *channel > 200))
+    // Over its own surface the root draws a strip with beui, a line of text in the host's fonts
+    // above the screen, clear around it: the text's glyphs stand out from the root's colour.
+    let inked = (0..TEXT_STRIP.1)
+        .flat_map(|y| (0..TEXT_STRIP.0 / 2).map(move |x| (x as f32, y as f32)))
+        .filter(|&(x, y)| !near(at(x, y), own))
         .count();
     assert!(
-        lit > 20,
-        "the root's line of text shows white glyphs above the screen, not {lit} lit points"
+        inked > 20,
+        "the root's line of text shows above the screen, not {inked} points apart from its colour"
     );
     // Below its top corner, which is red, the triangle is mostly red; beside its bottom left,
     // which is green, mostly green.
