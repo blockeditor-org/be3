@@ -19,6 +19,10 @@ fn a_restart_waits_for_a_seal_holding_everything_the_order_numbered() {
         sim.erase(0, 1, 0..typed);
     }
     sim.advance(crate::QUIET_INTERVAL);
+    assert_eq!(
+        sim.devices[0].status.restarts, 0,
+        "the seal the churn came due on holds less than the order numbered: no restart on it"
+    );
     sim.advance(crate::QUIET_INTERVAL);
 
     assert_eq!(sim.devices[0].status.restarts, 1, "the session restarted");
