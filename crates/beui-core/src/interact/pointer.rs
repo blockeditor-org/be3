@@ -787,13 +787,13 @@ fn press(doc: &mut Document, frame: &Frame, session: &mut Session, claimant: Opt
     let focused = doc.focused_node();
     doc.set_focus_visible(false);
     for owner in session.owners.clone().into_iter().rev() {
-        let change = node_mut(doc, owner).and_then(|node| node.arm(true));
+        // Armed before `on_press`, as on the HTML core, so `on_press` reads it active.
+        if let Some((on_active_change, active)) = node_mut(doc, owner).and_then(|node| node.arm(true)) {
+            on_active_change.call(active);
+        }
         let pressed = rect_of(doc, frame.rects, owner).zip(interactive(doc, owner));
         if let Some((rect, node)) = pressed {
             node.on_press.clone().call(session.press(rect, pos));
-        }
-        if let Some((on_active_change, active)) = change {
-            on_active_change.call(active);
         }
     }
     session.pressed_focus = focused;

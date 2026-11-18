@@ -694,6 +694,11 @@ fn InteractiveFixture() -> NodeId {
     let clicked = create_memo(move || format!("Clicked {}", clicks.get()));
     let keys = create_memo(move || format!("Pressed {}", pressed.get()));
     let text = create_memo(move || format!("Typed {}", typed.get()));
+    // What a press tells its `Interactive`, in order: both cores arm it (`active`) before
+    // `on_press`, so `on_press` reads it active.
+    let heard = create_signal(Vec::<&'static str>::new());
+    let active = create_signal(false);
+    let order = create_memo(move || format!("Heard {}", heard.get().join(" ")));
     view! {
         <List spacing=12.0>
             <Button
@@ -724,6 +729,20 @@ fn InteractiveFixture() -> NodeId {
                 <Frame width=160.0 height=30.0 fill={GREEN} />
             </Interactive>
             <Text color={INK}>{text}</Text>
+            <Interactive
+                @test_id="interactive.order"
+                on_active_change={move |on: bool| {
+                    active.set(on);
+                    heard.update(|heard| heard.push(if on { "armed" } else { "released" }));
+                }}
+                on_press={move |_: beui::PointerPress| {
+                    let word = if active.get_untracked() { "press-active" } else { "press-idle" };
+                    heard.update(|heard| heard.push(word));
+                }}
+            >
+                <Frame width=160.0 height=30.0 fill={BLUE} />
+            </Interactive>
+            <Text color={INK}>{order}</Text>
         </List>
     }
 }
