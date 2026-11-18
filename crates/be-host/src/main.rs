@@ -24,6 +24,8 @@ mod memory;
 mod pressed_notifications;
 mod qr;
 mod reveals;
+#[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
+mod root;
 mod root_settings;
 mod shell_route;
 mod surfaces;
@@ -139,6 +141,9 @@ fn run_host(
     dev_token: Option<String>,
 ) -> Result<(), Box<dyn Error>> {
     panic_guard::install();
+    if let Some(app) = arguments.root {
+        return root::run(app, native_options());
+    }
     let data_dir = storage_dir().ok_or("the application-data directory is unavailable")?;
     std::fs::create_dir_all(&data_dir)
         .map_err(|error| format!("could not make {}: {error}", data_dir.display()))?;
@@ -153,15 +158,7 @@ fn run_host(
     if arguments.drm {
         core.start_screen_lock();
     }
-    let options = beui_host::native::RunOptions {
-        #[cfg(target_os = "linux")]
-        device_extensions: &be_lib_dmabuf::DEVICE_EXTENSIONS,
-        #[cfg(target_os = "linux")]
-        platforms: vec![Box::new(beui_platform_drm::Drm)],
-        #[cfg(windows)]
-        device_extensions: &be_host_win32_capture::DEVICE_EXTENSIONS,
-        ..run_options()
-    };
+    let options = native_options();
     if arguments.dev_workspace {
         core.open_dev_workspace(arguments.dev_server.clone(), dev_token);
     }
@@ -170,6 +167,21 @@ fn run_host(
     }
     core.warm_apps();
     beui_host_window::run_with(options, Shell::new(core))
+}
+
+/// How be-host opens its window natively: on the displays themselves too (`BEUI_PLATFORM=drm`),
+/// on a device that shares textures with the programs and windows it shows.
+#[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
+fn native_options() -> beui_host::native::RunOptions {
+    beui_host::native::RunOptions {
+        #[cfg(target_os = "linux")]
+        device_extensions: &be_lib_dmabuf::DEVICE_EXTENSIONS,
+        #[cfg(target_os = "linux")]
+        platforms: vec![Box::new(beui_platform_drm::Drm)],
+        #[cfg(windows)]
+        device_extensions: &be_host_win32_capture::DEVICE_EXTENSIONS,
+        ..run_options()
+    }
 }
 
 #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]

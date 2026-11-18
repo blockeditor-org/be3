@@ -8,6 +8,9 @@ pub(crate) struct Arguments {
     pub(crate) desktop: bool,
     pub(crate) drm: bool,
     pub(crate) login_session: Option<LoginSessionSetup>,
+    /// `--root=APP`: the staged app `APP`'s entry point runs as the root guest in place of
+    /// be-host's own UI (crates/be-host/src/root.rs).
+    pub(crate) root: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -20,6 +23,8 @@ pub(crate) enum LoginSessionSetup {
 pub(crate) const INSTALL: &str = "--install-login-session";
 pub(crate) const UNINSTALL: &str = "--uninstall-login-session";
 pub(crate) const APPLY_CHANGES: &str = "--apply-login-session-changes";
+
+pub(crate) const ROOT: &str = "--root=";
 
 pub(crate) const LINUX: bool = cfg!(target_os = "linux");
 
@@ -60,8 +65,20 @@ pub(crate) fn parse(
                 parsed.dev_server = Some(url.to_owned());
             }
             "--desktop" => parsed.desktop = true,
+            other if other.starts_with(ROOT) => {
+                let app = &other[ROOT.len()..];
+                if app.is_empty() {
+                    return Err(format!("{ROOT}APP needs the id of a staged app"));
+                }
+                parsed.root = Some(app.to_owned());
+            }
             _ => return Err(format!("unknown argument {argument}")),
         }
+    }
+    if parsed.root.is_some() && (parsed.dev_workspace || parsed.desktop) {
+        return Err(format!(
+            "{ROOT}APP runs a root in place of be-host's own UI, which --dev-workspace and --desktop are part of"
+        ));
     }
     if platform == Some(DRM) {
         if !linux {

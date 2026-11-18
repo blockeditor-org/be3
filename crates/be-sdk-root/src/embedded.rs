@@ -20,7 +20,7 @@ use be_sdk_api::{
 };
 use be_sdk_app_host::{
     calls::{AppCall, Heard, Outbound},
-    pacing::{Ask, Asking},
+    pacing::{Ask, Asking, FRAME_TIMEOUT},
     run::Run,
     session::{Session, SessionFailure, SessionState},
     wire::Wire,
@@ -199,6 +199,29 @@ impl Embedded {
             Poll::Pending
         })
         .await;
+    }
+
+    /// The frame clock's time the app wants its next frame drawn for, as of the last frame: at
+    /// once while a frame it needs has not been asked for or it animates, its frame in flight's
+    /// timeout while it starts or draws (its hello or present wakes the root first), or when it
+    /// said to draw again. None once it wants nothing, or stopped.
+    pub fn next_frame(&self) -> Option<Duration> {
+        let state = self.state.borrow();
+        if state.failure.is_some() {
+            return None;
+        }
+        let now = state.now;
+        if !state.run.session.running() {
+            return Some(now + FRAME_TIMEOUT);
+        }
+        let pacing = &state.run.pacing;
+        if (pacing.drawing() && !pacing.in_flight()) || pacing.animating() {
+            return Some(now);
+        }
+        let drawing = state.run.session.granted_surface().is_some();
+        pacing
+            .wake_after(now, drawing)
+            .map(|after| now.saturating_add(after))
     }
 
     /// The layer showing `screen` with its top left at `origin` in its window's points, once

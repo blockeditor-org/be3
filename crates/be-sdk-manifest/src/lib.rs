@@ -40,6 +40,10 @@ pub struct AppManifest {
     /// The app's worker modules, by file name, which it may start through the sandbox API
     /// (guides/adding_an_app.md, Workers).
     pub workers: Vec<String>,
+    /// Whether the app is a root guest (plans/host_as_platform_adapter.md, The root guest),
+    /// which `be-host --root=APP` runs in place of its own UI: a module with no editors, block
+    /// types or host components of its own, staged as an app is so it spawns the apps it embeds.
+    pub root: bool,
 }
 
 /// A host component: a component of the app's wasm with no frame, which the host opens on a
@@ -186,6 +190,7 @@ pub enum ManifestError {
     InvalidNetworkHost,
     UnknownExtension,
     NoEditors,
+    RootWithEditors,
     DuplicateEditor,
     DuplicateBlockType,
     SeveralTypeModules,
@@ -217,6 +222,8 @@ impl fmt::Display for ManifestError {
             Self::NoEditors => {
                 formatter.write_str("the app declares no editors and no block types")
             }
+            Self::RootWithEditors => formatter
+                .write_str("a root declares no editors, block types or host components"),
             Self::InvalidWorker => formatter.write_str(
                 "a worker is not a plain .wasm file name, is named twice, or is the entry point",
             ),
@@ -258,7 +265,11 @@ impl AppManifest {
         {
             return Err(ManifestError::InvalidIdentity);
         }
-        if self.editors.is_empty() && self.block_types.is_empty() {
+        if self.root {
+            if !self.editors.is_empty() || !self.block_types.is_empty() || !self.hosts.is_empty() {
+                return Err(ManifestError::RootWithEditors);
+            }
+        } else if self.editors.is_empty() && self.block_types.is_empty() {
             return Err(ManifestError::NoEditors);
         }
         for (index, block_type) in self.block_types.iter().enumerate() {

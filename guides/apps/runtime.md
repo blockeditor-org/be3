@@ -143,7 +143,19 @@ tests read one their build made, crates/be-host-tests/apps.bzl). Each guest thre
   one with more to do resumes as a task of its own (a `MessageChannel`
   message), so a busy or self-waking root never holds up the page's input and
   rendering. The frame goes to the callback `frame` was given, inline if the
-  root answered at once. Only tests run a root today: natively
+  root answered at once. A frame says when the root wants the next
+  (`frame-done`'s `next`, in the frame clock's time; none while it wants
+  none), and natively `Root::on_wake` tells the host whenever the bell rings,
+  so a host that draws on demand draws for both. be-host runs a root in place
+  of its own UI with `--root=APP` (`crates/be-host/src/root.rs`): the staged
+  app `APP`, whose manifest says `"root": true`, starts as a pure guest on the
+  window's device; each host frame hands it the input beui's catcher over
+  the whole window got (replayed as the platform's `Input`s), asks it for a
+  frame and draws each `Surface::Screen` of its list from the texture
+  `Root::surface` resolves, as `compose::quad` places it, with the root's own
+  surfaces the window's plain background. No host ships a root yet; the host
+  test `a_root_in_place_of_the_hosts_ui_shows_the_editor_it_embeds` stages
+  be-sdk-root-testing as one. Tests also run a root natively in
   be-wasm-root-host's, and in Chromium
   `//crates/be-wasm-root-web-testing:web-test`, which also serves a guest on
   the page the sandbox for modules from bytes. That page is the crate's
@@ -170,10 +182,12 @@ tests read one their build made, crates/be-host-tests/apps.bzl). Each guest thre
   last `Embedded` of an app goes (`Embedding::remove`), its instance stops. It
   refuses what it serves no app yet (`Wire::refuse_unserved`: block calls,
   host services, the network, the shell but `tell`), and restarts nothing.
-  be3:root cannot yet ask the host for a frame, so an embedded app that
-  animates draws only when the host asks the root for one. be-sdk-root-testing
-  is a root built on it, which be-wasm-root-host's tests run with the
-  triangle on a stand-in device.
+  `Embedding::next_frame` is when its apps want their next frame (at once
+  while one is needed or animates, by `FRAME_TIMEOUT` while one starts or a
+  frame is in flight, or when an app said), which a root answers as
+  `frame-done`'s `next`. be-sdk-root-testing is a root built on it, which
+  be-wasm-root-host's tests run with the triangle on a stand-in device, and
+  be-host's host test with `--root`.
 - **V8's heap.** No guest may declare garbage-collected types (structs,
   arrays) or more than one table, and a table holds at most a million entries
   (`engine::Shape::bounded`): V8 stops delivering a termination once an

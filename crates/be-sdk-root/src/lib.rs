@@ -28,6 +28,8 @@ mod windows;
 pub use embedded::{Embedded, Spawn};
 pub use windows::{Delivery, Windows};
 
+use std::time::Duration;
+
 use be_lib_layers::{LayerId, LayerList, Surface};
 use be_lib_ui_types::input;
 
@@ -61,6 +63,13 @@ impl Embedding {
     /// The apps embedded, in the order they were.
     pub fn apps(&self) -> &[Embedded] {
         &self.apps
+    }
+
+    /// The frame clock's time the root wants its next frame drawn for, for its apps: the
+    /// earliest any of them wants (`Embedded::next_frame`), as `be3:root`'s `frame-done` carries
+    /// it.
+    pub fn next_frame(&self) -> Option<Duration> {
+        self.apps.iter().filter_map(Embedded::next_frame).min()
     }
 
     /// Routes `window`'s input (`events`, be-lib-ui-types' `input::encode`, as `be3:root`'s

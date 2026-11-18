@@ -11,7 +11,8 @@ cargo_package()
 # apps it names here beside the ones every host needs (apps.bzl), so it
 # builds and reruns only for those. A test not named here stages every app:
 # keep it so for a test whose paintings show every block type, such as the add
-# menu's.
+# menu's. An entry that is a package's label stages that package as an app,
+# such as a root a test runs with --root, which no host ships.
 APPS = {
     "a_beui_demos_dock_joins_the_workspace_dock_as_a_locked_group": ["example-beui-gallery"],
     "a_block_added_from_the_files_is_named_in_its_row": ["text"],
@@ -56,6 +57,7 @@ APPS = {
     "a_note_made_while_a_device_is_offline_reaches_it_once_it_reconnects": ["text"],
     "a_pan_and_zoom_editor_on_a_canvas_takes_the_frame_in_place_and_pans_with_it": ["infinite-canvas", "example-pan-zoom"],
     "a_pen_draws_a_line_on_a_canvas_with_the_pen_tool": ["infinite-canvas"],
+    "a_root_in_place_of_the_hosts_ui_shows_the_editor_it_embeds": ["example-triangle", "//crates/be-sdk-root-testing"],
     "a_personal_organization_can_create_an_agent": [],
     "a_popup_a_joined_demo_tab_places_over_its_own_window_opens_over_that_tab": ["example-beui-gallery"],
     "a_presented_slide_takes_clicks_and_leaves_the_keys_to_the_deck": ["infinite-canvas", "presentation", "text"],

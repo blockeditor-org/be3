@@ -57,6 +57,10 @@ source ~/.cache/be3/dev/env
 # the desktop shell headless
 ./scripts/buck run //crates/be-host:dev -- --desktop
 
+# be-host with the root guest it runs in place of its own UI (`--root=APP`, a staged app whose
+# manifest says "root": true); no host ships one yet, so only this host test stages one
+./scripts/test a_root_in_place_of_the_hosts_ui_shows_the_editor_it_embeds
+
 # the VR simulator headless, with drive taps under space and the host: `drive --into=space ...`
 # walks and clicks through space, `drive xr left|right ...` works a headset's controllers
 BEUI_LAYERS=space ./scripts/buck run //crates/be-host:dev
