@@ -3,6 +3,8 @@ package be3:root@0.1.0;
 /// What the host serves the root guest beside the sandbox
 /// (plans/host_as_platform_adapter.md, The root guest).
 interface host {
+    use be3:shared/ids@0.1.0.{block-id};
+
     /// Answers once the frame being drawn reaches its deadline: the display's
     /// next present less the time the host's own work after the frame takes.
     /// Until then the root waits for its children's answers; after it, it
@@ -277,6 +279,78 @@ interface host {
     /// answer to a round it no longer asks changes nothing. It answers at
     /// once; the change reaches `displays`.
     answer-display: async func(round: u64, keep: bool);
+
+    /// Why the server refused a change, which the root words for the person.
+    enum refusal {
+        /// It would go over a limit.
+        over-quota,
+        /// The server could not take it as it is.
+        invalid,
+        /// The person's organization does not allow it.
+        policy,
+        /// The person may not make it there.
+        not-permitted,
+        /// The server would not say why.
+        unexplained,
+    }
+
+    /// Why a block's changes were set aside rather than sent, when it was not
+    /// that the person lost access to it.
+    variant set-aside {
+        /// The server refused them.
+        refused(refusal),
+        /// They were locked offline with a key someone who lost access to the
+        /// block may hold: only discarding them lets the person edit it again.
+        key-outdated,
+        /// They were locked offline under a folder the block is not really
+        /// in: only discarding them lets the person edit it again.
+        misplaced,
+    }
+
+    /// A block whose changes made on this device could not be sent, which
+    /// stay until the person restores or discards them.
+    record unsent-edit {
+        block: block-id,
+        /// The block's name, if it has one.
+        name: option<string>,
+        /// Whether the person may edit it again, so restoring sends them.
+        offerable: bool,
+        /// Why they were set aside, or none when access to it was lost.
+        aside: option<set-aside>,
+        /// How many of its changes on this device never became a commit; a
+        /// host with more says as many as fit.
+        kept-edits: u32,
+    }
+
+    /// What the block stack shows the person, a field per area, each the
+    /// plain data its area shows; the root words it, and holds what is open
+    /// and what is being asked itself. It changes at the rate its slowest
+    /// areas do; saving, which is fast, is `saving`.
+    record core-view {
+        /// Which change of it this is, which the next `core` call names as
+        /// `seen`: never 0.
+        generation: u64,
+        /// The blocks whose changes could not be sent, oldest first.
+        unsent: list<unsent-edit>,
+    }
+
+    /// What the block stack shows the person, once it differs from the
+    /// generation `seen`, as `notices` answers: at once for any other
+    /// generation, such as 0.
+    core: async func(seen: u64) -> core-view;
+
+    /// What the person asked of the block stack, a case per area's request.
+    variant core-command {
+        /// Send a block's unsent changes again.
+        restore-unsent(block-id),
+        /// Drop a block's unsent changes for good, which the root asks the
+        /// person to confirm first.
+        discard-unsent(block-id),
+    }
+
+    /// The person asked `command` of the block stack, which the host does. It
+    /// answers at once; what changes reaches `core`.
+    ask-core: async func(command: core-command);
 }
 
 /// The window's input, which the host hands the root inline on its frame thread

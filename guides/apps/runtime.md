@@ -206,7 +206,13 @@ its own (a `v8::SharedIsolate`, locked by the thread that runs it):
   that carried it once read; the guest's own buffers are not. `host.saving` is a
   watch of whether the person's changes are saved (unsaved, the saves finished,
   the changes not yet sent, the sync's state; `Root::show_saving`), apart from
-  anything slower since it moves at the rate the person types
+  anything slower since it moves at the rate the person types. The rest of
+  the block stack's state is one watch, `host.core`, a `core-view` with a field
+  per area (so far `unsent`, the blocks whose changes could not be sent, and
+  why, as data the root words; `Root::show_core`), and one call,
+  `host.ask-core(core-command)`, a case per request of an area
+  (`restore-unsent`, `discard-unsent`; `Root::take_core_commands`); the root
+  holds what it has open and what it asks the person itself
   (plans/host_as_platform_adapter.md, 4g6, has how the rest of be-host's core
   reaches the root). Keep changes is the platform's: `host.displays` is
   a watch of whether the host asks to keep display settings that just changed

@@ -234,6 +234,21 @@ impl Root {
         }
     }
 
+    /// Shows the root what the block stack shows the person (`host.core`), its generation the
+    /// host's to count. If the root waits on it and it changed, it is stepped for it.
+    pub fn show_core(&self, shown: be_wasm_root_api::CoreView) {
+        let answered = self.shared.core.borrow_mut().show_core(shown);
+        if answered {
+            ring(self.shared.id);
+        }
+    }
+
+    /// What the root asked of the block stack since the last call (`host.ask-core`), oldest
+    /// first, which the host does.
+    pub fn take_core_commands(&self) -> Vec<be_wasm_root_api::CoreCommand> {
+        self.shared.core.borrow_mut().take_core_commands()
+    }
+
     /// Shows the root whether the host asks the person to keep display settings that just
     /// changed (`host.displays`): the question, or none. If the root waits on it and it changed,
     /// it is stepped for it.
