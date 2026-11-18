@@ -237,9 +237,11 @@ snippet and match ranges, again whenever an index it read changes
 
 A `BlockInfo` carries type, author, parent (`BlockLocation`), name, references,
 access, artifact source, `locked` (viewable but no key yet, so metadata is
-empty), `deleted`, and the server's `size` and `tree_size` in bytes (the
+empty), `deleted`, the server's `size` and `tree_size` in bytes (the
 block alone, and with everything below it; zero where the reader only knows
-it exists). A size comes from that field, never from walking the children.
+it exists), and `unread`, how many things in it the account has not read for
+a type that counts them (guides/blocks/host.md, "Unread counts"), which a row
+shows as a badge (`CountBadge`). A size comes from that field, never from walking the children.
 `out_of_reach` says the host is offline and holds no version of the block's
 content whole (`Peer::held_head`), so it can be neither opened nor changed, nor have a block
 added to it, until the host reconnects; the block picker refuses to make a

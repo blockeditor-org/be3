@@ -534,6 +534,9 @@ pub(crate) fn TextPage() -> NodeId {
             <Sample title="Icons and chips" code={vec![IconsAndChips::SOURCE]}>
                 <IconsAndChips />
             </Sample>
+            <Sample title="Count badges" code={vec![CountBadges::SOURCE]}>
+                <CountBadges />
+            </Sample>
             <Sample title="Shortcuts" code={vec![Shortcuts::SOURCE]}>
                 <Shortcuts />
             </Sample>
@@ -686,6 +689,23 @@ fn IconsAndChips() -> NodeId {
             </Text>
             <Chip label="Chip" />
             <Chip label="Another chip" />
+        </List>
+    }
+}
+
+#[sample]
+#[component]
+fn CountBadges() -> NodeId {
+    view! {
+        <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
+            <Text>"Lunch"</Text>
+            <CountBadge count=3 />
+            <Text>"Standup"</Text>
+            <CountBadge count=42 />
+            <Text>"Everyone"</Text>
+            <CountBadge count=250 />
+            <Text>"Read"</Text>
+            <CountBadge count=0 />
         </List>
     }
 }

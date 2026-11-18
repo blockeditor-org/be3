@@ -95,6 +95,10 @@ interface types {
         blank: list<u8>,
         /// `blank` described, with no organization.
         blank-description: description,
+        /// The owner-only settings kind holding where the account read blocks of this
+        /// type up to, for a type that counts what is unread (`replicas.unread`); none
+        /// for one that does not.
+        reads: option<content-type-id>,
     }
 
     record description {

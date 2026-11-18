@@ -23,6 +23,7 @@ fn info(block: Uuid, parent: Uuid, references: Vec<Uuid>) -> BlockInfo {
         size: 0,
         tree_size: 0,
         out_of_reach: false,
+        unread: 0,
     }
 }
 

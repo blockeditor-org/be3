@@ -23,6 +23,7 @@ pub mod keys;
 pub mod link;
 mod nudge;
 pub mod offline_choice;
+pub mod unread;
 mod replicas;
 mod replies;
 pub mod revisions;
@@ -630,6 +631,7 @@ pub fn start(config: Config) {
         config,
         held_clock: held_clock(),
         offline_choices: offline_choice::current(),
+        reads: unread::current(),
         #[cfg(target_arch = "wasm32")]
         apps: discovery::fetched(),
     };
@@ -1275,6 +1277,7 @@ pub fn duplicate(from: Uuid, to: Uuid) -> Option<Uuid> {
         // Its tree is the server's word, once the drain sends it.
         changed: 0,
         entry: None,
+        unread: 0,
     })]);
     send(Command::Duplicate {
         from,
@@ -1976,6 +1979,7 @@ pub fn create(
         // Its tree is the server's word, once the drain sends it.
         changed: 0,
         entry: None,
+        unread: 0,
     })]);
     send(Command::Create {
         block,
@@ -2488,6 +2492,7 @@ pub fn import(
             // Its tree is the server's word, once the drain sends it.
             changed: 0,
             entry: None,
+            unread: 0,
         }));
         if let Some(bytes) = &block.content {
             edits.push(Edit::Stage {

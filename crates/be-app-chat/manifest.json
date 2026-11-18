@@ -22,7 +22,8 @@
       "display_name": "Chat",
       "icon": "",
       "color": [72, 133, 237],
-      "module": "chat_types.wasm"
+      "module": "chat_types.wasm",
+      "counts_unread": true
     },
     "chat_reads": {
       "id": "63686174-2d72-6561-6473-000000000001",

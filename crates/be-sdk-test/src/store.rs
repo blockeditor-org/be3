@@ -171,6 +171,9 @@ struct Inner {
     hold_reads: bool,
     held_reads: Vec<(Option<Uuid>, Call)>,
     known_elsewhere: Option<Rc<dyn Fn(Uuid) -> bool>>,
+    /// The account the editor's host is signed in to, whose unread counts it is told
+    /// (`BlockInfo::unread`).
+    account: Uuid,
 }
 
 impl Default for Inner {
@@ -178,6 +181,7 @@ impl Default for Inner {
         let module = Module::new(every_type());
         let mut inner = Self {
             own: None,
+            account: Uuid::nil(),
             organization: Uuid::nil(),
             executor: module.executor(),
             module,
@@ -1445,6 +1449,7 @@ impl ContentStore {
             size: 0,
             tree_size: 0,
             out_of_reach: false,
+            unread: 0,
         });
         {
             let mut inner = self.0.borrow_mut();
@@ -1629,6 +1634,48 @@ impl ContentStore {
         false
     }
 
+    /// The account the editor's host is signed in to, as be-host's stack knows its own.
+    pub(crate) fn sign_in(&self, account: Uuid) {
+        self.0.borrow_mut().account = account;
+    }
+
+    /// How many things in `block` the account has not read, as be-host counts them for a type
+    /// that counts (guides/blocks/host.md, "Unread counts"): from its head and every
+    /// block of the type's reads kind the store holds, this account's layers of it.
+    fn unread_of(&self, block: Uuid) -> u32 {
+        let mut inner = self.0.borrow_mut();
+        let Some(content_type) = inner.blocks.get(&block).map(|held| held.content_type) else {
+            return 0;
+        };
+        let Some(kind) = inner.module.reads_of(content_type) else {
+            return 0;
+        };
+        let layers: Vec<Uuid> = inner
+            .blocks
+            .iter()
+            .filter(|(_, held)| held.content_type == kind)
+            .map(|(id, _)| *id)
+            .collect();
+        let reads: Vec<Vec<u8>> = layers
+            .into_iter()
+            .filter_map(|layer| Self::head_bytes(&mut inner, layer).map(|(_, bytes)| bytes))
+            .collect();
+        // Its head, as be-host counts it, never its replica: asking an open replica for its
+        // content would step it in the middle of what the test holds back (a part read).
+        let Some(bytes) = inner
+            .blocks
+            .get(&block)
+            .and_then(|held| held.head)
+            .and_then(|head| inner.commits.get(&head).cloned())
+        else {
+            return 0;
+        };
+        inner
+            .module
+            .unread_of_bytes(content_type, &bytes, &reads, block, inner.account)
+            .unwrap_or_default()
+    }
+
     fn references_of(&self, id: Uuid) -> Vec<Uuid> {
         let inner = self.0.borrow();
         inner
@@ -1652,6 +1699,7 @@ impl ContentStore {
         let known = |id: &Uuid| nodes.iter().find(|node| node.id == *id).cloned();
         let with_references = |mut info: BlockInfo| {
             info.references = self.references_of(info.id);
+            info.unread = self.unread_of(info.id);
             info
         };
         let listed: Vec<BlockInfo> = match query {

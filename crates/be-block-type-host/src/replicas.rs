@@ -350,7 +350,7 @@ pub struct Searched {
     pub read: Vec<be_block_store::PartRef>,
 }
 
-/// Why `Replicas::search_text` has no answer.
+/// Why `Replicas::search_text` (or `unread`) has no answer.
 #[derive(Debug)]
 pub enum NotSearched {
     /// A part could not be read (offline, a key this device lacks): try again later.
@@ -2868,6 +2868,42 @@ impl<H: Host> Replicas<H> {
             documents: kept,
             read: scope.read().to_vec(),
         })
+    }
+
+    /// How many things in a commit of `block` the account has not read, by its layers of the
+    /// type's reads kind (`reads`, each a layer's content bytes, lowest first):
+    /// `be_block_content::Unread`. `content` is the commit as the type loads it
+    /// (`Kind::load`), which a caller reads beforehand, away from the replicas.
+    pub async fn unread(
+        &mut self,
+        ctx: Ctx<'_, H>,
+        content_type: Uuid,
+        content: be_sdk_type_api::Loaded,
+        reads: Vec<Vec<u8>>,
+        block: Uuid,
+        account: Uuid,
+    ) -> Result<u32, NotSearched> {
+        let no_module =
+            || NotSearched::Type(format!("no type module has the block type {content_type}"));
+        self.kind(content_type).await.ok_or_else(no_module)?;
+        let module = self.modules.module_of(content_type).ok_or_else(no_module)?;
+        let scope = types::Scope::of([&content]);
+        let (answer, mut scope) = self
+            .ask_reading(ctx, module, scope, |connection| {
+                replicas::unread(connection, content_type, content, reads, block, account)
+            })
+            .await;
+        if let Some(failed) = scope.take_failure() {
+            return Err(NotSearched::Read(failed));
+        }
+        match answer {
+            Ok(Ok(count)) => Ok(count),
+            Ok(Err(be_sdk_type_api::Failure::Malformed(error))) => Err(NotSearched::Type(error)),
+            Ok(Err(be_sdk_type_api::Failure::UnknownType)) => Err(no_module()),
+            Err(error) => Err(NotSearched::Type(format!(
+                "the type module answered: {error}"
+            ))),
+        }
     }
 
     /// Merges a block the drain found diverged (`Drained::Diverged`) and publishes the merge:

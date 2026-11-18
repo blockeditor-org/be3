@@ -77,6 +77,8 @@ pub struct BlockTypeManifest {
     pub descriptor: BlockTypeDescriptor,
     pub module: String,
     pub exported_whole: bool,
+    /// The type counts what is unread (`counts_unread` in the manifest).
+    pub counts_unread: bool,
 }
 
 impl BlockTypeManifest {

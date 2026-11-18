@@ -378,6 +378,21 @@ impl RootSettings {
         settings.layers(kind, profile.as_ref())
     }
 
+    /// The account's layers of the settings kind `kind`, each its content's bytes, lowest first
+    /// (every device, then this device): what a type counts what is unread from
+    /// (`be_host_stack::unread`). None until each layer it has is loaded.
+    pub(crate) fn layer_contents(&self, kind: Uuid, client: Uuid) -> Option<Vec<Vec<u8>>> {
+        let layers = self.layers(kind, client);
+        [layers.every_device, layers.this_device]
+            .into_iter()
+            .flatten()
+            .map(|block| {
+                be_host_stack::hold(block, kind);
+                be_host_stack::content(block).map(|content| content.bytes().to_vec())
+            })
+            .collect()
+    }
+
     fn current_profile(&self, settings: &Settings, client: Uuid) -> Option<Uuid> {
         self.chosen_profile
             .or(settings.profile(client))

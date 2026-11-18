@@ -10,7 +10,7 @@ pub use chat::{
 pub use reads::{ChatReads, ChatReadsContent, ReadPlace};
 pub use signed::{MessageHash, Prior};
 
-be_sdk_type_guest::be_block_types![ChatContent { undo, merge_parts }, ChatReadsContent];
+be_sdk_type_guest::be_block_types![ChatContent { undo, merge_parts, unread }, ChatReadsContent];
 
 #[cfg(feature = "module")]
 be_sdk_type_guest::type_module!(BlockTypes);

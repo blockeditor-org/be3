@@ -130,9 +130,19 @@ content's description), and seeds the module's randomness, since a pure guest
 has none.
 
 Stateless requests (`merge3`, `merge-parts`, `describe`, `to-file`,
-`search-text`, `claims`, `apply`) are answered in the step that asks, except
-`merge-parts` and `search-text`, which may read parts first (below, "Merging
-by parts"). `apply` is how a host that publishes commits rather than joining a
+`search-text`, `unread`, `claims`, `apply`) are answered in the step that asks,
+except `merge-parts`, `search-text` and `unread`, which may read parts first
+(below, "Merging by parts").
+
+`unread` counts what the account has not read in a commit
+(`be_block_content::Unread`, registered with the type's `unread` part in
+`be_block_types!`): the type names the owner-only settings kind it keeps the
+account's read places in (`type-info.reads`) and is handed the commit as it
+loads it with the account's layers of that kind, lowest first. Its manifest
+says `counts_unread`, so the host starts the module for a row before anything
+else asks it; be-tool-cli's
+`a_manifest_says_which_of_its_types_count_what_is_unread` holds the two in
+step (guides/blocks/host.md, "Unread counts"). `apply` is how a host that publishes commits rather than joining a
 session edits a block (`be sync`, version control).
 
 `search-text` answers a commit's searchable text for the search index
