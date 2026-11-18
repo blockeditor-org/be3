@@ -9,12 +9,11 @@ use beui::icons::{
 };
 use beui::reactive::*;
 use beui::styled::*;
-use uuid::Uuid;
 
 use super::debug::DebugPanels;
 use super::dialogs::Dialogs;
 use super::keys::PairingDialog;
-use super::{HostUiStore, StatusView, SyncState, UiCommand, send};
+use super::{HostUiStore, KeptHost, StatusView, SyncState, UiCommand, send};
 use crate::compositor::{ConflictSurface, PresentingSurface};
 use crate::surfaces::MainSurface;
 
@@ -152,13 +151,20 @@ fn HostMenu(
                 disabled=true
             />
         </Show>
-        <ForEach value={hosting}>|kept: (Uuid, String)|
+        <ForEach value={hosting}>|kept: KeptHost|
             <MenuItem
-                @test_id={format!("host.menu.hosting.{}", kept.0)}
-                label={format!("Stop hosting {}", kept.1)}
+                // Which it is shows in its id too, as drive reads no detail.
+                @test_id={match kept.now {
+                    true => format!("host.menu.hosting-now.{}", kept.block),
+                    false => format!("host.menu.hosting.{}", kept.block),
+                }}
+                label={format!("Stop hosting {}", kept.name)}
                 glyph=ICON_RADIO_TOWER
-                detail="Kept hosting here"
-                on_click={move || pick(UiCommand::StopHosting(kept.0))}
+                detail={match kept.now {
+                    true => "Hosting here now",
+                    false => "Kept here, standing by",
+                }}
+                on_click={move || pick(UiCommand::StopHosting(kept.block))}
             />
         </ForEach>
         <MenuItem
