@@ -4,9 +4,10 @@
 //! time, and races that whole exchange against the frame's deadline. Its layer list shows its own
 //! surface, and over it the child's screen only when the child echoed in time.
 //!
-//! It routes the window's input (`input.deliver`) as the compositor will, with be-lib-input-router's
-//! `Router` over the layers it drew last: what lands on the child's screen goes to the child, in
-//! the child's own coordinates, and the child echoes it back. A frame then shows `HEARD_LAYER`
+//! It routes the window's input (`input.deliver`) as the compositor will, with
+//! be-lib-input-router's `Router` over the layers it drew last, and answers once it has: what
+//! lands on the child's screen goes to the child with the next frame, in the child's own
+//! coordinates, and the child echoes it back. A frame then shows `HEARD_LAYER`
 //! at the last point the child heard.
 //!
 //! A frame at `PAINTS` instead spawns a child that paints (`PAINTER`), asks it for a frame, and
@@ -103,6 +104,8 @@ struct Frames {
     routers: Rc<RefCell<Vec<(Option<u64>, Router<LayerId>)>>>,
     /// The last point the child heard input at, in its own coordinates.
     heard: Rc<Cell<Option<Pos2>>>,
+    /// Input routed to the child, which it is sent ahead of the next frame's ask.
+    routed: Rc<RefCell<Vec<Vec<u8>>>>,
 }
 
 impl Frames {
@@ -163,14 +166,9 @@ impl input::Guest for Frames {
             Ok(events) => self.route(window, events),
             Err(_) => Vec::new(),
         };
-        let child = self.child.borrow().clone();
-        Box::pin(async move {
-            if let Some(child) = child
-                && !routed.is_empty()
-            {
-                let _ = child.send(routed).await;
-            }
-        })
+        // Answered once routed: what is for the child goes ahead of the next frame's ask.
+        self.routed.borrow_mut().extend(routed);
+        Box::pin(async {})
     }
 }
 
@@ -239,7 +237,9 @@ impl Frames {
             let _ = child.send(vec![HANG.to_vec()]).await;
         }
         let asked = time.to_le_bytes().to_vec();
-        if child.send(vec![asked.clone()]).await.is_err() {
+        let mut sending = std::mem::take(&mut *self.routed.borrow_mut());
+        sending.push(asked.clone());
+        if child.send(sending).await.is_err() {
             return false;
         }
         loop {

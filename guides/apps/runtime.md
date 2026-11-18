@@ -129,10 +129,11 @@ tests read one their build made, crates/be-host-tests/apps.bzl). Each guest thre
   still busy `with_patience` (`STEP_TIMEOUT`) past the deadline.
   `Root::input` starts the root's `input.deliver` op with the window's input
   (be-lib-ui-types' `input::encode`, since be-wasm crates use only be-wasm
-  ones) ahead of the next frame, which steps the root through it first, so
-  the root routes it by the layers it drew last; its answer is not awaited.
-  The stepping is `Core`, shared with the browser's half (`web`), where the page may never
-  wait: `Root::load` compiles the root with `WebAssembly.compile` and
+  ones), which the root takes in with the frame being drawn (on the page, at
+  its next resume), or else ahead of the next frame, so it routes by the
+  layers it drew last; the host does not await the answer, which the root
+  gives once it has routed. The stepping is `Core`, shared with the
+  browser's half (`web`), where the page may never wait: `Root::load` compiles the root with `WebAssembly.compile` and
   instantiates it on the page, answering its transport itself, and
   `Root::frame`, called from `requestAnimationFrame`, steps it as far as it
   goes and returns. Whatever the root waits on queues a microtask that resumes
@@ -472,8 +473,8 @@ instances and their views stay, and the new run is sent their content, blocks,
 keyboard focus and children's statuses again (`Instances::reopen`). The host
 keeps what one run said and was told in a `Run` (be-sdk-app-host) per app, and
 `Run::restart` says what goes: the old run's session, queued calls, held
-answers, its layout and kept frames, presents and frames in flight, what its docks declared,
-and each view's accessibility tree and actions, whose pane stays, empty, until
+answers, its layout and kept frames, presents and frames in flight, what its
+docks declared, and each view's accessibility tree and actions, whose pane stays, empty, until
 the new run describes the view. The new run is told the fonts, whether to
 describe and the UTC offset again once it runs (`Run::tell`). The frame held
 for children and the presenter's textures go with the host's own state.

@@ -2,8 +2,8 @@
 //! guest): `Root` runs be-host's own module inline on the host's frame thread, and serves it the
 //! sandbox (be-wasm-sandbox-host) and `be3:root`'s `host` (crates/be-wasm-root-api).
 //!
-//! Input is the root's `input.deliver`, an op the host starts ahead of the frame it is input for
-//! and steps the root through with that frame, so the root routes it by the layers it drew last.
+//! Input is the root's `input.deliver`, an op the host starts and steps the root through with the
+//! frame being drawn, or else the next one, so the root routes it by the layers it drew last.
 //!
 //! A frame is the root's `frames.frame`, an op the root serves, which the host starts and steps
 //! the root through until it answers. A step that leaves the frame unanswered is the root's
@@ -114,9 +114,9 @@ impl<G: Inline> Core<G> {
         self.drawing.is_some()
     }
 
-    /// Hands the root `window`'s input, which it takes in with the next frame's steps: the call
-    /// goes ahead of that frame's, so the root routes it by the layers it drew last. Its answer
-    /// is not waited for. A root that stopped hears nothing, and says why.
+    /// Hands the root `window`'s input, which it takes in with the steps of the frame being
+    /// drawn, or else of the next one, ahead of drawing it, so the root routes it by the layers
+    /// it drew last. Its answer, which the root gives once it has routed, is not waited for. A root that stopped hears nothing, and says why.
     fn input(&mut self, window: Option<u64>, events: Vec<u8>) -> Result<(), String> {
         if let Some(failure) = &self.failure {
             return Err(failure.clone());
