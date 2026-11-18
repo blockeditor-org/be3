@@ -1430,6 +1430,7 @@ pub fn decode_role(value: &str) -> Result<OrganizationRole, ServerError> {
     match value {
         "administrator" => Ok(OrganizationRole::Administrator),
         "editor" => Ok(OrganizationRole::Editor),
+        "guest" => Ok(OrganizationRole::Guest),
         _ => Err(ServerError::Corrupt),
     }
 }
@@ -1438,6 +1439,7 @@ pub fn encode_role(role: OrganizationRole) -> &'static str {
     match role {
         OrganizationRole::Administrator => "administrator",
         OrganizationRole::Editor => "editor",
+        OrganizationRole::Guest => "guest",
     }
 }
 
@@ -2150,7 +2152,19 @@ pub(crate) fn recovery_key_of(
     recovery_key(connection, account)
 }
 
+/// Whether `account` is a member of `organization`: a guest, which holds only grants made
+/// through share links, is not one (`holds_membership`).
 pub(crate) fn is_member_of(
+    connection: &Connection,
+    account: Uuid,
+    organization: Uuid,
+) -> Result<bool, ServerError> {
+    Ok(crate::contacts::role_in(connection, account, organization)?
+        .is_some_and(|role| role != OrganizationRole::Guest))
+}
+
+/// Whether `account` has a row in `organization`, a guest's included.
+pub(crate) fn holds_membership(
     connection: &Connection,
     account: Uuid,
     organization: Uuid,

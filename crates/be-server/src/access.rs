@@ -445,7 +445,10 @@ fn insert_entry(
         Record::Member(member) => member.account,
         Record::Retirement(retirement) => retirement.account,
         Record::Owner(owner) => owner.account,
-        Record::Opening(_) | Record::Parent(_) | Record::Invitation(_) => entry.signer,
+        Record::Opened(opened) => opened.grantee,
+        Record::Opening(_) | Record::Parent(_) | Record::Invitation(_) | Record::ShareLink(_) => {
+            entry.signer
+        }
     };
     let accounts = [entry.signer, named];
     match kind {
@@ -711,6 +714,105 @@ pub(crate) fn append_grant(
         ],
     )?;
     Ok(())
+}
+
+/// Appends `record`, signed by `signer`, to `block`'s log once it checks at its head: a share
+/// link record opening a link (`open`) or revoking the one whose key is `key`. Answers the record.
+pub(crate) fn append_share_link(
+    connection: &Connection,
+    organization: Uuid,
+    block: Uuid,
+    signer: Uuid,
+    key: Option<SigningPublic>,
+    open: bool,
+    record: &[u8],
+) -> Result<be_block_keys::ShareLink, ServerError> {
+    let entry = Entry::decode(record).map_err(|_| refused("the record does not read"))?;
+    let Record::ShareLink(link) = &entry.record else {
+        return Err(refused("a share link is made or revoked by a share link record"));
+    };
+    if entry.signer != signer.into_bytes()
+        || link.open != open
+        || key.is_some_and(|key| key != link.key)
+    {
+        return Err(refused(
+            "the share link record is signed by its caller and names the link the call does",
+        ));
+    }
+    let link = link.clone();
+    authority_current(connection, organization, &link.authority)?;
+    append_checked(connection, organization, block, entry)?;
+    Ok(link)
+}
+
+/// Appends `record`, the grant `opener` signed with the key of the share link it opens (`key`),
+/// to `block`'s log once it checks at its head, naming `level` and the keys the server holds for
+/// the opener.
+pub(crate) fn append_opened(
+    connection: &Connection,
+    organization: Uuid,
+    block: Uuid,
+    opener: Uuid,
+    key: SigningPublic,
+    level: Level,
+    record: &[u8],
+) -> Result<(), ServerError> {
+    let entry = Entry::decode(record).map_err(|_| refused("the record does not read"))?;
+    let Record::Opened(opened) = &entry.record else {
+        return Err(refused("a share link is opened by the record it grants"));
+    };
+    if opened.grantee != opener.into_bytes() || opened.key != key || opened.level != level {
+        return Err(refused(
+            "a share link is opened by a record its key signed, granting its caller what it grants",
+        ));
+    }
+    if identity_of(connection, opener)? != Some(opened.identity) {
+        return Err(refused("the record names the keys its opener holds now"));
+    }
+    append_checked(connection, organization, block, entry)
+}
+
+/// The accounts `block`'s log says hold their access through the share link whose key is `key`.
+pub(crate) fn linked_through(
+    connection: &Connection,
+    organization: Uuid,
+    block: Uuid,
+    key: SigningPublic,
+) -> Result<Vec<Uuid>, ServerError> {
+    Ok(linked(connection, organization, block)?
+        .into_iter()
+        .filter(|(_, through)| *through == key)
+        .map(|(account, _)| account)
+        .collect())
+}
+
+/// Whom `block`'s log says hold their access through a share link, with the link's key.
+pub(crate) fn linked(
+    connection: &Connection,
+    organization: Uuid,
+    block: Uuid,
+) -> Result<Vec<(Uuid, SigningPublic)>, ServerError> {
+    let entries = entries(connection, LogKind::Block, organization, block)?;
+    if entries.is_empty() {
+        return Ok(Vec::new());
+    }
+    let checked = checked_block_log(connection, organization, block, &entries)?;
+    Ok(checked
+        .linked
+        .into_iter()
+        .map(|(account, key)| (Uuid::from_bytes(account), key))
+        .collect())
+}
+
+/// The hash of the last entry of `block`'s log.
+pub(crate) fn block_head(
+    connection: &Connection,
+    organization: Uuid,
+    block: Uuid,
+) -> Result<Option<be_block_keys::EntryHash>, ServerError> {
+    Ok(entries(connection, LogKind::Block, organization, block)?
+        .last()
+        .map(Entry::hash))
 }
 
 /// Whether `record` is an owner record: `set-access` carrying one moves the block's ownership

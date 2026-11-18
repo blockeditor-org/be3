@@ -315,7 +315,7 @@ fn mark_opened(connection: &Connection, link: Uuid) -> Result<(), ServerError> {
 }
 
 /// The organization's name, if it still exists.
-fn organization_name(
+pub(crate) fn organization_name(
     connection: &Connection,
     organization: Uuid,
 ) -> Result<Option<String>, ServerError> {
@@ -843,9 +843,10 @@ impl ServerStore {
                             invitation.organization,
                             &key,
                         )?;
-                        // An invitation joins as an editor, never as an administrator.
+                        // An invitation joins as an editor, never as an administrator; a
+                        // guest becomes a member.
                         transaction.execute(
-                            "INSERT OR IGNORE INTO memberships (organization_id, account_id, role)
+                            "INSERT OR REPLACE INTO memberships (organization_id, account_id, role)
                              VALUES (?1, ?2, ?3)",
                             params![
                                 invitation.organization.to_string(),
