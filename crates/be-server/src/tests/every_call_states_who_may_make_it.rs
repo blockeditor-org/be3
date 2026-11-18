@@ -81,6 +81,7 @@ const QUERIES: &[&str] = &[
     "tree",
     "history",
     "block-log",
+    "log-redactions",
     "log (block)",
     "log (organization)",
     "access",
