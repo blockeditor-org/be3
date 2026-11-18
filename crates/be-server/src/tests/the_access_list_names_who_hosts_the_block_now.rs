@@ -14,8 +14,8 @@ async fn listed_host(client: &mut TestClient, block: Uuid) -> Option<Uuid> {
 }
 
 /// The access list names who hosts the block now (plans/hosted_blocks.md, "The share dialog"):
-/// the account whose connection holds its live session's lease, never a viewer, and no one once
-/// the session is empty.
+/// the account whose connection claimed its live session's lease, never a viewer or an editor
+/// that has not claimed, and no one once the session is empty.
 #[tokio::test]
 async fn the_access_list_names_who_hosts_the_block_now() {
     let harness = Harness::start().await;
@@ -41,8 +41,14 @@ async fn the_access_list_names_who_hosts_the_block_now() {
     let _ = owner.join_session(block).await;
     assert_eq!(
         listed_host(&mut owner, block).await,
+        None,
+        "an editor holding the lease hosts nothing until it claims (plans/hosted_blocks.md, 4d2)"
+    );
+    owner.claim(block).await.expect("claiming failed");
+    assert_eq!(
+        listed_host(&mut owner, block).await,
         Some(owner_account),
-        "the editor holding the lease hosts it"
+        "the editor that claimed hosts it"
     );
     owner.leave(block).await;
     assert_eq!(

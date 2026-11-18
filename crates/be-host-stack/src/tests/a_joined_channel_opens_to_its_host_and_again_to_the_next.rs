@@ -92,7 +92,7 @@ fn admit(
 /// plans/hosted_blocks.md, "Hosting") handshakes with whoever holds its lease: it hears the
 /// channel open to that account and what the host says, and what it tells the host arrives in
 /// order. A message that does not open breaks the channel, and a stray one of the old channel
-/// does not end the new handshake. When the host leaves and another account's device takes the
+/// does not end the new handshake. When the host leaves and another account's device claims the
 /// lease, the channel closes and is made again with the new host.
 #[test]
 fn a_joined_channel_opens_to_its_host_and_again_to_the_next() {
@@ -116,8 +116,8 @@ fn a_joined_channel_opens_to_its_host_and_again_to_the_next() {
     flush_and_send();
     assert_eq!(status().error, None);
 
-    // The first holds the lease and the second stands by; this device, an editor too, joins
-    // after both, so the lease passes to the second when the first goes.
+    // The first claims the lease and hosts, and the second stands by: a device hosts only by a
+    // claim, as its host component starts (plans/hosted_blocks.md, step 4d2).
     let mut first_events = join_as_editor(&first, block, true);
     let mut second_events = join_as_editor(&second, block, false);
     let joiner = Owner::Editor(1);
@@ -209,16 +209,17 @@ fn a_joined_channel_opens_to_its_host_and_again_to_the_next() {
             .await
             .expect("the first host leaves");
     });
-    // The server says the lease moved to the second host, who hears it: only then is this
-    // device waited on, so a slow server does not count against its wait.
+    // The server says no one hosts once the first host left (the second has not claimed), and
+    // the second hears it: only then is this device waited on, so a slow server does not count
+    // against its wait.
     second.runtime.block_on(async {
         loop {
             match second_events.recv().await {
                 Ok(Event::Host {
                     block: of,
-                    host: Some(host),
+                    host: None,
                     ..
-                }) if of == block && host.account == second.account() => break,
+                }) if of == block => break,
                 Ok(_) | Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {}
                 Err(closed) => panic!("the events ended: {closed}"),
             }
@@ -232,6 +233,14 @@ fn a_joined_channel_opens_to_its_host_and_again_to_the_next() {
     );
     assert_eq!(channel_host(block), None);
 
+    second.runtime.block_on(async {
+        second
+            .peer
+            .connection()
+            .claim(block)
+            .await
+            .expect("the second host claims the lease");
+    });
     admit(&second, &mut second_events, block);
     let heard = channel_until("heard the second host", block, |count| count >= 1);
     assert_eq!(

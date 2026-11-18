@@ -235,11 +235,36 @@ a role inside the app, since the share dialog grants no roles. A game:
      block's replica open, `be_host_stack::open`, so the lease comes back), until
      Stop. A kept block is let go only on Stop or once the account may no
      longer edit it.
-   - d2. Claiming a hosted type's lease only while a component runs, so a
-     device that holds the replica open for another reason (a child, a
-     preview) does not hold the lease. The lease is the session's
-     (`be-block-session`'s `holder`, which falls back to the first editor),
-     which also decides who seals, so this changes the session.
+   - d2 (done). Hosting only where a component runs, so a device that holds the
+     replica open for another reason (a child, a preview) is never taken for
+     the host. The session's lease (`be-block-session`'s `holder`: the editor
+     that claimed last, else the first editor) decides who seals the journal,
+     and so far also who hosts. The two part:
+     - **Sealing does not move.** The holder stays as it is, so every session,
+       hosted or not, keeps a sealer whenever an editor is in it, and a
+       holder's edits pass to the next holder as today
+       (`a_holder_cut_off_before_it_seals_leaves_its_edits_to_the_next_holder`).
+     - **The host is the claimed holder only**: the editor that claimed last,
+       or no one when no editor in the session claimed. The server's
+       `session-event.host`, `joined-session.host` and the `host` send's route
+       (`SessionRegistry::host_route`) name it, so a session with no claim has
+       no host online, and members wait rather than handshake with a device
+       that runs no component.
+     - **A device claims when its component starts.** be-host starts a
+       component where an editor is open, the account may edit, and no one
+       hosts or this device does (no longer "holds the lease"); starting it
+       claims the session (`Call::Claim`'s path), which makes this device the
+       host and, by the same claim, the sealer. Two devices that start at once
+       both claim; the later claim wins, and the other, hearing another host,
+       stops its component. A component that stops while the device stays in
+       the session (a preview still open) has its replica join the session
+       again, which drops the claim; one that stops with the last editor
+       drops it by leaving.
+     - be-host-stack's `Seen::hosted` follows `session-event.host` naming this
+       connection, rather than the replica's holder status.
+     Done: `a_device_hosts_only_once_its_component_claims_the_lease`. Left:
+     a claim the server refuses leaves the component running unhosted until
+     the block stops being one this device should host.
    - e. `be BLOCK host` (plans/headless_apps.md, step 2).
    Done: a be-host-tests test with two editor devices and two players as raw
    peers, where the first host closes the world and the second carries on;
