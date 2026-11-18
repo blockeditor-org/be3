@@ -10,7 +10,10 @@ fn an_own_edit_numbered_behind_what_the_replica_applied_is_an_error() {
     sim.attach(0, 1, true);
     sim.type_at(0, 1, 0, "soup");
     sim.settle();
-    assert!(sim.errors.is_empty(), "a replay of what it applied is quiet");
+    assert!(
+        sim.errors.is_empty(),
+        "a replay of what it applied is quiet"
+    );
 
     sim.offline_submits = true;
     sim.offline_order = Some(Sequencer::starting(0));

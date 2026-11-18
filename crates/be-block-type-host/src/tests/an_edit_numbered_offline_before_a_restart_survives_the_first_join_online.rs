@@ -109,9 +109,10 @@ fn an_edit_numbered_offline_before_a_restart_survives_the_first_join_online() {
             step(&peer, &shared, &mut replicas).await;
         }
         // Opened on the server's journal, it merges in the seal's head once told of it.
-        while replicas.status(block).is_none_or(|status| {
-            !status.clean || status.head != peer.local_head(block)
-        }) {
+        while replicas
+            .status(block)
+            .is_none_or(|status| !status.clean || status.head != peer.local_head(block))
+        {
             step(&peer, &shared, &mut replicas).await;
         }
         let text = text(&peer, &shared, &mut replicas, block).await;

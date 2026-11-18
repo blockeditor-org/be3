@@ -5206,9 +5206,7 @@ fn mirror<S: be_block_store::ObjectStore>(
     head: Option<CommitId>,
 ) -> Result<(), ClientError> {
     match server {
-        Some((sealed, _)) if !kept_already(peer, block, sealed) => {
-            peer.keep_journal(block, sealed)
-        }
+        Some((sealed, _)) if !kept_already(peer, block, sealed) => peer.keep_journal(block, sealed),
         Some(_) => Ok(()),
         None if online => mirror_afresh(peer, block, head),
         None => Ok(()),
