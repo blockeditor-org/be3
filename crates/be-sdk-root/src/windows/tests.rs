@@ -6,9 +6,11 @@ use super::*;
 
 mod a_lock_the_platform_released_is_granted_again_only_once_asked_anew;
 mod a_window_that_went_routes_by_its_last_layers_until_its_press_lifts;
+mod an_intercepted_chord_goes_to_the_compositor_ahead_of_the_focus;
 mod each_delivery_carries_the_time_its_input_was_sampled;
 mod input_for_a_window_never_drawn_is_routed_against_no_layers;
 mod the_focus_is_the_layer_a_press_landed_on;
+mod the_focus_moved_to_a_layer_and_back_tells_each_layer;
 mod the_focused_layer_that_asks_holds_the_pointer_lock_until_it_stops_asking;
 
 /// The root's own layer, which takes intercepted keys.

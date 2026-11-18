@@ -18,6 +18,7 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-lib-layers:be-lib-layers",
+                "//crates/be-lib-ui-types:be-lib-ui-types",
                 "//crates/be-sdk-api:be-sdk-api",
             ],
             "examples": {},
@@ -29,6 +30,7 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-lib-layers:be-lib-layers",
+                "//crates/be-lib-ui-types:be-lib-ui-types",
                 "//crates/be-sdk-api:be-sdk-api",
             ],
             "examples": {},
@@ -40,6 +42,7 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-lib-layers:be-lib-layers",
+                "//crates/be-lib-ui-types:be-lib-ui-types",
                 "//crates/be-sdk-api:be-sdk-api",
             ],
             "examples": {},
@@ -51,6 +54,7 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-lib-layers:be-lib-layers",
+                "//crates/be-lib-ui-types:be-lib-ui-types",
                 "//crates/be-sdk-api:be-sdk-api",
             ],
             "examples": {},
@@ -62,6 +66,7 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-lib-layers:be-lib-layers",
+                "//crates/be-lib-ui-types:be-lib-ui-types",
                 "//crates/be-sdk-api:be-sdk-api",
             ],
             "examples": {},
@@ -74,6 +79,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-lib-geometry:be-lib-geometry",
                 "//crates/be-lib-layers:be-lib-layers",
+                "//crates/be-lib-ui-types:be-lib-ui-types",
                 "//crates/be-sdk-api:be-sdk-api",
                 "//crates/be-sdk-beui-root:be-sdk-beui-root",
                 "//crates/be-sdk-root:be-sdk-root",
@@ -92,6 +98,7 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-lib-layers:be-lib-layers",
+                "//crates/be-lib-ui-types:be-lib-ui-types",
                 "//crates/be-sdk-api:be-sdk-api",
             ],
             "examples": {},
@@ -103,6 +110,7 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-lib-layers:be-lib-layers",
+                "//crates/be-lib-ui-types:be-lib-ui-types",
                 "//crates/be-sdk-api:be-sdk-api",
             ],
             "examples": {},

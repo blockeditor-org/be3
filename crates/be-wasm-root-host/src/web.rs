@@ -195,6 +195,28 @@ impl Root {
         self.shared.core.borrow_mut().take_answers()
     }
 
+    /// What the root copied since the last call (`host.copy`), oldest first: each copy's items,
+    /// richest first, each be-lib-ui-types' `ClipItem` in be-wasm-ops' encoding.
+    pub fn take_copies(&self) -> Vec<Vec<Vec<u8>>> {
+        self.shared.core.borrow_mut().take_copies()
+    }
+
+    /// The pastes the root asked for since the last call (`host.paste`), oldest first: each its
+    /// id and the formats it takes, preferred first, which the page answers (`answer_paste`).
+    pub fn take_pastes(&self) -> Vec<(u64, Vec<String>)> {
+        self.shared.core.borrow_mut().take_pastes()
+    }
+
+    /// Answers the paste `id` with the first of its formats the page's clipboard held, a
+    /// `ClipItem` in be-wasm-ops' encoding, or none: the root is stepped for it at once if it
+    /// waits on it.
+    pub fn answer_paste(&self, id: u64, item: Option<Vec<u8>>) {
+        let answered = self.shared.core.borrow_mut().answer_paste(id, item);
+        if answered {
+            ring(self.shared.id);
+        }
+    }
+
     /// Hands the root `window`'s input since the last call, in the window's points: `events` is
     /// be-lib-ui-types' `input::encode`, and `window` the layer list's `WindowId`, by its number
     /// (`None`: the page's one window). The root takes it in with the frame being drawn, on its

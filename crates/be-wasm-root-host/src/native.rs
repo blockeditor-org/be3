@@ -169,6 +169,29 @@ impl Root {
         self.core.take_answers()
     }
 
+    /// What the root copied since the last call (`host.copy`), oldest first: each copy's items,
+    /// richest first, each be-lib-ui-types' `ClipItem` in be-wasm-ops' encoding. The host puts
+    /// each on its clipboard in turn, so the last stays.
+    pub fn take_copies(&mut self) -> Vec<Vec<Vec<u8>>> {
+        self.core.take_copies()
+    }
+
+    /// The pastes the root asked for since the last call (`host.paste`), oldest first: each its
+    /// id and the formats it takes, preferred first. The host reads its clipboard for each and
+    /// answers it (`answer_paste`), in a later frame if its platform is slow to.
+    pub fn take_pastes(&mut self) -> Vec<(u64, Vec<String>)> {
+        self.core.take_pastes()
+    }
+
+    /// Answers the paste `id` with the first of its formats the host's clipboard held, a
+    /// `ClipItem` in be-wasm-ops' encoding, or none: the root hears it as it steps, and if it
+    /// waits on it, its bell rings, which wakes the host (`on_wake`) to step it.
+    pub fn answer_paste(&mut self, id: u64, item: Option<Vec<u8>>) {
+        if self.core.answer_paste(id, item) {
+            self.bell.ring();
+        }
+    }
+
     /// Hands the root `window`'s input since the last call, in the window's points: `events` is
     /// be-lib-ui-types' `input::encode`, and `window` the layer list's `WindowId`, by its number
     /// (`None`: the host's one window). The root takes it in with the next `frame`, ahead of
