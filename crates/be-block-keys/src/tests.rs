@@ -30,17 +30,11 @@ mod pairing_with_the_same_code_shares_a_key;
 mod the_hosted_handshake_makes_noises_published_ik_vector;
 mod what_an_account_seals_for_itself_opens_only_with_its_secret;
 
-thread_local! {
-    /// Signatures verified on this thread (`verify_signature`), so a test can tell how many a
-    /// check verified.
-    pub(crate) static VERIFIED: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
-}
-
 /// The signatures `run` verifies.
 fn verified(run: impl FnOnce()) -> usize {
-    let before = VERIFIED.with(std::cell::Cell::get);
+    let before = signatures_verified();
     run();
-    VERIFIED.with(std::cell::Cell::get) - before
+    (signatures_verified() - before) as usize
 }
 
 fn hex(text: &str) -> Vec<u8> {

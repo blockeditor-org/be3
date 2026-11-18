@@ -663,9 +663,19 @@ impl fmt::Debug for EscrowSecret {
     }
 }
 
+thread_local! {
+    /// Signatures verified on this thread (`verify_signature`).
+    static VERIFIED: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+}
+
+/// How many signatures this thread has verified: what a test of how often logs are checked
+/// counts.
+pub fn signatures_verified() -> u64 {
+    VERIFIED.with(std::cell::Cell::get)
+}
+
 pub fn verify_signature(signing: &[u8; 32], message: &[u8], signature: &[u8]) -> bool {
-    #[cfg(test)]
-    tests::VERIFIED.with(|verified| verified.set(verified.get() + 1));
+    VERIFIED.with(|verified| verified.set(verified.get() + 1));
     let Ok(key) = ed25519_dalek::VerifyingKey::from_bytes(signing) else {
         return false;
     };
