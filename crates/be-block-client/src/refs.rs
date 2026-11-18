@@ -66,10 +66,12 @@ pub(crate) enum Table {
     /// The entries this device appended that the server refused, by block and id, until let go
     /// (`Refs::not_appended`).
     NotAppended,
+    /// The newest name card each contact signed that this device showed (`Refs::name_card`).
+    NameCards,
 }
 
 impl Table {
-    pub const ALL: [Self; 27] = [
+    pub const ALL: [Self; 28] = [
         Self::Session,
         Self::Head,
         Self::Remote,
@@ -97,6 +99,7 @@ impl Table {
         Self::LogHead,
         Self::LogEntry,
         Self::NotAppended,
+        Self::NameCards,
     ];
 
     pub fn code(self) -> u8 {
@@ -128,6 +131,7 @@ impl Table {
             Self::LogHead => 25,
             Self::LogEntry => 26,
             Self::NotAppended => 27,
+            Self::NameCards => 28,
         }
     }
 
@@ -485,6 +489,7 @@ struct State {
     /// Every contact's name as the server last listed it, so a push opened with no connection
     /// names its sender (`Peer::contact_name`).
     contact_names: Vec<(Uuid, String)>,
+    name_cards: Vec<(Uuid, be_block_keys::NameCard)>,
     signers: HashMap<Uuid, Vec<KnownSigner>>,
     outbox: BTreeMap<u64, Op>,
     unsent: BTreeMap<Uuid, Unsent>,
@@ -736,6 +741,7 @@ impl State {
             }
             Table::Contacts => self.contacts = decode(value)?,
             Table::ContactNames => self.contact_names = decode(value)?,
+            Table::NameCards => self.name_cards = decode(value)?,
             Table::Signers => {
                 self.signers.insert(uuid_key(&row.key)?, decode(value)?);
             }
@@ -1709,6 +1715,40 @@ impl Refs {
             state.contact_names = names.clone();
         }
         self.write(vec![row(Table::ContactNames, Vec::new(), &names)])
+    }
+
+    /// The newest name card `account` signed that this device showed (`Peer::refresh_contacts`),
+    /// which it shows over any older one a server serves.
+    pub fn name_card(&self, account: Uuid) -> Option<be_block_keys::NameCard> {
+        self.state
+            .lock()
+            .unwrap()
+            .name_cards
+            .iter()
+            .find(|(named, _)| *named == account)
+            .map(|(_, card)| card.clone())
+    }
+
+    /// Keeps `card` as `account`'s newest shown name card, unless one dated as late or later is
+    /// kept already.
+    pub fn keep_name_card(
+        &self,
+        account: Uuid,
+        card: be_block_keys::NameCard,
+    ) -> Result<(), StoreError> {
+        let cards = {
+            let mut state = self.state.lock().unwrap();
+            if let Some((_, kept)) = state.name_cards.iter().find(|(named, _)| *named == account)
+                && kept.dated >= card.dated
+            {
+                return Ok(());
+            }
+            state.name_cards.retain(|(named, _)| *named != account);
+            state.name_cards.push((account, card));
+            state.name_cards.sort_by_key(|(named, _)| *named);
+            state.name_cards.clone()
+        };
+        self.write(vec![row(Table::NameCards, Vec::new(), &cards)])
     }
 
     /// Keeps `key` as one `account` signs with: verified once a contact's card or key change

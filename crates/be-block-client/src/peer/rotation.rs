@@ -519,10 +519,11 @@ impl<S: ObjectStore> Peer<S> {
         Ok(contacts)
     }
 
-    /// `contacts`, each confirmed one named by the newest name card the server holds for it
-    /// that its verified signing key signs (`be_block_keys::NameCard`): a contact who renamed
-    /// shows the new name, and a card the server made up, which no key of theirs signs, shows
-    /// nothing. As listed when the server cannot say.
+    /// `contacts`, each confirmed one named by the newest name card its verified signing key
+    /// signs (`be_block_keys::NameCard`) of the one the server serves and the one this device
+    /// showed last (`Refs::name_card`): a contact who renamed shows the new name, a card the
+    /// server made up, which no key of theirs signs, shows nothing, and an older card the
+    /// server serves again, or none, takes back no rename.
     async fn named(&self, mut contacts: Vec<crate::Contact>) -> Vec<crate::Contact> {
         let asked: Vec<Uuid> = contacts
             .iter()
@@ -532,15 +533,16 @@ impl<S: ObjectStore> Peer<S> {
         if asked.is_empty() {
             return contacts;
         }
-        let Ok(Ok(served)) = be_block_protocol::read::<Vec<be_block_protocol::SigningKey>, _>(
+        // What the server cannot say leaves each contact as this device last showed it.
+        let served = be_block_protocol::read::<Vec<be_block_protocol::SigningKey>, _>(
             &self.connection(),
             Some(self.organization),
             be_block_protocol::Query::SigningKeys(asked),
         )
         .await
-        else {
-            return contacts;
-        };
+        .ok()
+        .and_then(Result::ok)
+        .unwrap_or_default();
         for contact in &mut contacts {
             let Some(signing) = contact.signing else {
                 continue;
@@ -550,6 +552,17 @@ impl<S: ObjectStore> Peer<S> {
                 .find(|served| served.account == contact.account)
                 .and_then(|served| be_block_keys::NameCard::open(&served.name, &signing))
                 .filter(|card| card.account == contact.account.into_bytes());
+            // The newest this device showed outranks an older one the server serves again.
+            let kept = self.refs.name_card(contact.account);
+            let card = match (card, kept) {
+                (Some(card), kept) if kept.as_ref().is_none_or(|kept| card.dated > kept.dated) => {
+                    if let Err(error) = self.refs.keep_name_card(contact.account, card.clone()) {
+                        eprintln!("be-block-client: a contact's name card was not kept: {error}");
+                    }
+                    Some(card)
+                }
+                (_, kept) => kept,
+            };
             if let Some(card) = card {
                 if !card.display_name.is_empty() {
                     contact.display_name = card.display_name;
