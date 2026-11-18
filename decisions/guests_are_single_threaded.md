@@ -39,7 +39,7 @@ and no state kept where a second thread could not reach it.
   place, so the calls read its backing store, which stays put (`engine::memories_stay_put`);
   without the trap handler they are ordinary V8 calls. Each memory then takes about 10 GiB of
   address space, so the trap handler is on only in a process that can reserve 4 TiB; under a
-  39-bit arm64 kernel (512 GiB, many Android and vendor kernels) it is off, and the calls are the
+  39-bit arm64 Linux vendor kernel (512 GiB) it is off, and the calls are the
   ordinary ones. Measured with
   `./scripts/buck run -m release //crates/be-wasm-host:example-gpu-calls` (four render-pass calls
   in a loop, on a noop device, fastest of 20 steps) in November 2026: 46.7 ns a call with the
