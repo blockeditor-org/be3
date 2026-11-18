@@ -61,7 +61,10 @@ impl CanvasState {
                 ..
             }) => Some((
                 *start,
-                originals.iter().map(entity_bounds).reduce(WorldRect::union)?,
+                originals
+                    .iter()
+                    .map(entity_bounds)
+                    .reduce(WorldRect::union)?,
             )),
             _ => None,
         })?;
@@ -83,9 +86,9 @@ impl CanvasState {
     /// The board chose `at` for the carried move, the world point under the pointer, or
     /// nothing: the carry was put down, and the move goes back. A drop commits before it.
     fn carry_over(&self, at: Option<CanvasPoint>) {
-        let carried = self.gesture.with_untracked(|gesture| {
-            matches!(gesture, Some(Gesture::Move { carried: true, .. }))
-        });
+        let carried = self
+            .gesture
+            .with_untracked(|gesture| matches!(gesture, Some(Gesture::Move { carried: true, .. })));
         match at {
             Some(at) => self.update_gesture(|gesture| {
                 if let Gesture::Move {
@@ -111,9 +114,8 @@ impl CanvasState {
 
     /// Whether the gesture is a move the board carries, which only the board ends.
     pub(crate) fn carries(&self) -> bool {
-        self.gesture.with_untracked(|gesture| {
-            matches!(gesture, Some(Gesture::Move { carried: true, .. }))
-        })
+        self.gesture
+            .with_untracked(|gesture| matches!(gesture, Some(Gesture::Move { carried: true, .. })))
     }
 }
 

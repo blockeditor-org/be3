@@ -6,8 +6,9 @@ pub use crate::types::drag::{
 };
 pub use crate::types::drag::{
     After, Candidate, CandidateId, Carry, CarryFace, CarryId, DragFrame, DragSpec, Evaluated,
-    Evaluation, FREE_STEP, REACH, Rest, SNAP_RADIUS, STICKY, THROW_SECONDS, THROW_SPEED, closest, custom,
-    evaluate, fixed, floating, free, into, free_step, move_after, nodes, rests, step_toward,
+    Evaluation, FREE_STEP, REACH, Rest, SNAP_RADIUS, STICKY, THROW_SECONDS, THROW_SPEED, closest,
+    custom, evaluate, fixed, floating, free, free_step, into, move_after, nodes, rests,
+    step_toward,
 };
 
 pub fn space() -> Rc<dyn Space> {

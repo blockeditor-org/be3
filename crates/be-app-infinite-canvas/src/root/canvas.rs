@@ -187,6 +187,7 @@ fn CanvasSurface(state: CanvasState, children: Option<Child>) -> NodeId {
             on_secondary_press={move |press: PointerPress| state.secondary_press(press)}
             on_drag={move |press: PointerPress| state.drag(press)}
             drag={move |press: PointerPress| state.lift_move(press)}
+            lifts_on_space=false
             on_hover_move={move |press: PointerPress| {
                 let at = state.world_at(press.pos);
                 state.hover(Some(at));

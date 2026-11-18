@@ -333,8 +333,8 @@ through the drag and Escape rebuilds nothing; drawn invisible, it is the gap, at
      carried move's offset (`CanvasCursor::carried`), which a peer applies to what of the
      mover's selection is unlocked and its `Entities` draws there (`carry_for_peers`, a `drawn` memo beside `stored` that edits never read), with what
      they are bound to following. The surface is an edge scroller that pans the camera, and
-     the site chooses again as the camera moves (`Board::retrack`). From the keyboard, Space
-     lifts the selection and the arrows step it as far as they nudge one (`stepped`: a world unit, ten with Shift). Where it differs:
+     the site chooses again as the camera moves (`Board::retrack`). From the keyboard, Move in
+     the palette (not Space, which pans: `lifts_on_space`) lifts the selection and the arrows step it as far as they nudge one (`stepped`: a world unit, ten with Shift). Where it differs:
      the board publishes nothing itself, as its frame is in the mover's window points,
      so each site publishes its `over` in its own terms; `EdgeScroller` scrolls along both
      axes; the board commits a drop before it tells the site it is over nothing, so a site

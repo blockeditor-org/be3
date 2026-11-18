@@ -73,6 +73,12 @@ pub fn Interactive(
     /// holding it first (a card on a board, a row in a list that scrolls the other way).
     #[prop(default = false)]
     lifts_on_long_press: bool,
+    /// Whether Space lifts `drag`'s carry from the keyboard, on a source that does not
+    /// activate. Off for a surface whose Space is another's: a canvas, where a held Space pans
+    /// (guides/pan_and_zoom.md). Ctrl+Shift and an arrow, and Move in the palette, still move
+    /// it.
+    #[prop(default = true)]
+    lifts_on_space: bool,
     on_pointer: Callback<PointerInput, bool>,
     on_wheel: Callback<WheelInput, bool>,
     #[prop(default = Area::Nowhere)] gesture_area: Prop<Area>,
@@ -88,51 +94,53 @@ pub fn Interactive(
     // A source that also activates keeps Space and Enter for that (decisions/
     // beui_activating_drag_sources_keep_their_keys.md).
     let activates = !on_activate.is_empty() || !on_activate_change.is_empty();
+    // Whether Space stays the source's, or another's, rather than lifting.
+    let keeps_space = activates || !lifts_on_space;
     let source = crate::reactive::NodeRef::new();
     let (on_press, on_drag, on_long_press_drag, on_active_change, on_cancel, on_key, children) =
         match drag {
-        Some(drag) => {
-            let carry = carrying(
-                drag,
-                (focusable, activates, source),
+            Some(drag) => {
+                let carry = carrying(
+                    drag,
+                    (focusable, keeps_space, source),
+                    on_press,
+                    on_drag,
+                    on_long_press_drag,
+                    (on_active_change, on_cancel),
+                    lifts_on_long_press,
+                );
+                let Face {
+                    raised,
+                    offset,
+                    said,
+                    anchor,
+                    open,
+                    preview,
+                } = carry.face.clone();
+                let face = view! {
+                    <CarriedFace raised offset said anchor open preview children />
+                };
+                let on_key = (carry.finish)(face, on_key);
+                (
+                    carry.pressed,
+                    carry.dragged,
+                    carry.long_pressed,
+                    carry.active,
+                    carry.cancelled,
+                    on_key,
+                    Some(face.into()),
+                )
+            }
+            None => (
                 on_press,
                 on_drag,
                 on_long_press_drag,
-                (on_active_change, on_cancel),
-                lifts_on_long_press,
-            );
-            let Face {
-                raised,
-                offset,
-                said,
-                anchor,
-                open,
-                preview,
-            } = carry.face.clone();
-            let face = view! {
-                <CarriedFace raised offset said anchor open preview children />
-            };
-            let on_key = (carry.finish)(face, on_key);
-            (
-                carry.pressed,
-                carry.dragged,
-                carry.long_pressed,
-                carry.active,
-                carry.cancelled,
+                on_active_change,
+                on_cancel,
                 on_key,
-                Some(face.into()),
-            )
-        }
-        None => (
-            on_press,
-            on_drag,
-            on_long_press_drag,
-            on_active_change,
-            on_cancel,
-            on_key,
-            children,
-        ),
-    };
+                children,
+            ),
+        };
     let node = crate::core::interactive(
         focusable,
         tab_stop,
@@ -532,7 +540,8 @@ fn carrying(
 
 /// Keys on a focusable source given `drag`, while it has the focus and the keyboard holds no
 /// carry of it (`held_keys` takes those). Space lifts its carry with the keyboard, unless the
-/// source also activates, when Space and Enter stay its own; Ctrl+Shift and an arrow move it one
+/// source also activates, when Space and Enter stay its own, or it keeps Space for another
+/// (`lifts_on_space`); Ctrl+Shift and an arrow move it one
 /// place (`step_keys`). Whether the key was taken.
 fn carry_keys(
     press: KeyPress,

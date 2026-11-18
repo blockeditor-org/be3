@@ -21,13 +21,19 @@ fn a_selection_carried_from_the_keyboard_steps_and_drops_as_one_edit() {
         ..Modifiers::NONE
     };
 
+    // Space is the host's, a held Space panning: Move in the palette lifts the selection.
     editor.key(Key::Space, Modifiers::NONE);
+    assert!(
+        editor.store().take_written(None).is_empty() && at(&editor) == CanvasPoint::default(),
+        "Space lifts nothing"
+    );
+    editor.run_action("drag.move");
     editor.key(Key::ArrowRight, Modifiers::NONE);
     editor.key(Key::ArrowRight, shift);
     assert_eq!(
         at(&editor),
         CanvasPoint::new(11.0, 0.0),
-        "Space lifts the selection and each arrow steps it on as far as it nudges, ten with Shift"
+        "Move lifts the selection and each arrow steps it on as far as it nudges, ten with Shift"
     );
     editor.key(Key::Delete, Modifiers::NONE);
     assert_eq!(
@@ -43,7 +49,7 @@ fn a_selection_carried_from_the_keyboard_steps_and_drops_as_one_edit() {
     assert_eq!(editor.rect_of(&item), resting, "Escape puts it back");
     assert!(editor.store().take_written(None).is_empty());
 
-    editor.key(Key::Space, Modifiers::NONE);
+    editor.run_action("drag.move");
     editor.key(Key::ArrowDown, Modifiers::NONE);
     editor.key(Key::Enter, Modifiers::NONE);
     assert_eq!(at(&editor), CanvasPoint::new(0.0, 1.0), "Enter drops it");

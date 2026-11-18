@@ -132,7 +132,8 @@ the drag.
 Moving the selection is a drag board carry (`root/carry.rs`;
 guides/beui/components.md, Drag and drop): a press on the selection begins
 `Gesture::Move`, and the surface's `drag` lifts it once the press passes the
-threshold, or Space lifts it from the keyboard and the arrows step it. The
+threshold, or Move in the palette lifts it from the keyboard (Space stays the
+host's, a held Space panning: `lifts_on_space=false`) and the arrows step it. The
 arrows also nudge a selection not carried, by the same world unit (ten with
 Shift), each nudge an edit of its own; a carry is the move a screen reader hears
 place by place, that Escape puts back, written once when dropped. While the
