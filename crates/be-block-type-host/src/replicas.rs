@@ -175,12 +175,16 @@ async fn log_items<S: be_block_store::ObjectStore>(
     let mut items = Vec::with_capacity(entries.len());
     for logged in entries {
         // An entry an import brought in shows as it was written in its own block, by its
-        // author then, and verifies there.
-        if let Some(original) = logged.imported {
-            let signer = match peer.verify_exported(app, &original).await {
+        // author then, and verifies there, if it may be history here at all
+        // (`Peer::verify_imported`).
+        if logged.imported.is_some() {
+            let signer = match peer.verify_imported(block, app, &logged).await {
                 Ok(Some(signer)) => api_signer(signer),
                 Ok(None) => be_sdk_type_api::Signer::Redacted,
                 Err(_) => be_sdk_type_api::Signer::Unknown,
+            };
+            let Some(original) = logged.imported else {
+                continue;
             };
             items.push(be_sdk_type_api::LogItem {
                 seq: logged.entry.seq,
@@ -189,6 +193,11 @@ async fn log_items<S: be_block_store::ObjectStore>(
                 arrival: original.arrival,
                 payload: original.said.map(|said| said.bytes),
                 signer,
+                imported: Some(be_sdk_type_api::LogImport {
+                    block: original.block,
+                    seq: original.seq,
+                    importer: logged.entry.author,
+                }),
             });
             continue;
         }
@@ -224,6 +233,7 @@ async fn log_items<S: be_block_store::ObjectStore>(
             arrival: entry.arrival,
             payload: logged.opened.map(|said| said.bytes),
             signer,
+            imported: None,
         });
     }
     items
@@ -3233,68 +3243,129 @@ impl<H: Host> Replicas<H> {
         let module = self.modules.module_of(content_type).ok_or_else(no_module)?;
         let app = self.modules.name(module).to_owned();
         // Verified, so an entry signed as nobody's (`Bad`) changes nothing.
-        let items = log_items(&peer, block, &app, read.entries).await;
-        let forged: HashSet<u64> = items
-            .iter()
-            .filter(|item| item.signer == be_sdk_type_api::Signer::Bad)
-            .map(|item| item.seq)
+        let items: Vec<be_sdk_type_api::LogItem> = log_items(&peer, block, &app, read.entries)
+            .await
+            .into_iter()
+            .filter(|item| item.signer != be_sdk_type_api::Signer::Bad)
             .collect();
-        let (answer, _) = self
-            .ask_reading(ctx, module, types::Scope::of([]), |connection| {
-                replicas::search_log(connection, content_type, items)
+        // Imported history is searched apart, by its places in the block it was written in, so
+        // none of it changes the block's own documents nor theirs it.
+        let mut history = HashMap::new();
+        let (own, imported): (Vec<_>, Vec<_>) = items
+            .into_iter()
+            .partition(|item| item.imported.is_none());
+        let imported: Vec<be_sdk_type_api::LogItem> = imported
+            .into_iter()
+            .filter_map(|item| {
+                let original = item.imported?;
+                history.insert(original.seq, (item.seq, item.author, item.payload.is_none()));
+                Some(be_sdk_type_api::LogItem {
+                    seq: original.seq,
+                    ..item
+                })
             })
-            .await;
-        let searched = match answer {
-            Ok(Ok(searched)) => searched,
-            Ok(Err(be_sdk_type_api::Failure::Malformed(error))) => {
-                return Err(NotSearched::Type(error));
-            }
-            Ok(Err(be_sdk_type_api::Failure::UnknownType)) => return Err(no_module()),
-            Err(error) => {
-                return Err(NotSearched::Type(format!(
-                    "the type module answered: {error}"
-                )));
-            }
-        };
+            .collect();
+        let own_authors: HashMap<u64, Uuid> =
+            own.iter().map(|item| (item.seq, item.author)).collect();
         let mut changes = redacted;
-        for change in searched {
-            let Some((author, arrival, id, _)) = entries.get(&change.seq).copied() else {
+        // The entries outside the page a change names, read once each.
+        let mut named_elsewhere: HashMap<u64, Option<(Uuid, bool, bool)>> = HashMap::new();
+        for change in self.searched(ctx, module, content_type, own).await? {
+            let Some(author) = own_authors.get(&change.seq).copied() else {
                 continue;
             };
-            if forged.contains(&change.seq) {
+            let Some((_, arrival, id, _)) = entries.get(&change.seq).copied() else {
                 continue;
-            }
-            // The entry whose document it changes: its author, and whether it is redacted, which
-            // no edit brings back.
+            };
+            // The entry whose document it changes: its author, whether it is redacted, which no
+            // edit brings back, and whether it is imported history, which none of the block's
+            // own entries names.
             let named = match entries.get(&change.place) {
-                Some((named, _, _, gone)) => Some((*named, *gone)),
-                None => peer
-                    .read_log(block, change.place, 1)
-                    .await
-                    .ok()
-                    .and_then(|read| {
-                        read.entries.first().map(|logged| {
-                            (logged.entry.author, logged.entry.payload.is_none())
-                        })
-                    }),
+                Some((named, _, _, gone)) => Some((*named, *gone, history_place(&history, change.place))),
+                None => match named_elsewhere.get(&change.place) {
+                    Some(named) => *named,
+                    None => {
+                        let named = peer
+                            .read_log(block, change.place, 1)
+                            .await
+                            .ok()
+                            .and_then(|read| {
+                                read.entries.first().map(|logged| {
+                                    (
+                                        logged.entry.author,
+                                        logged.entry.payload.is_none(),
+                                        logged.imported.is_some(),
+                                    )
+                                })
+                            });
+                        named_elsewhere.insert(change.place, named);
+                        named
+                    }
+                },
             };
-            let kept = named
-                .is_some_and(|(named, gone)| named == author && (!gone || change.text.is_none()));
-            if !kept {
-                continue;
-            }
-            changes.push(LogChange {
-                place: change.place,
-                text: change.text,
-                arrival,
-                id,
+            let kept = named.is_some_and(|(named, gone, imported)| {
+                !imported && named == author && (!gone || change.text.is_none())
             });
+            if kept {
+                changes.push(LogChange {
+                    place: change.place,
+                    text: change.text,
+                    arrival,
+                    id,
+                });
+            }
+        }
+        if !imported.is_empty() {
+            for change in self.searched(ctx, module, content_type, imported).await? {
+                let (Some((source, author, _)), Some((place, named, gone))) = (
+                    history.get(&change.seq).copied(),
+                    history.get(&change.place).copied(),
+                ) else {
+                    continue;
+                };
+                let Some((_, arrival, id, _)) = entries.get(&source).copied() else {
+                    continue;
+                };
+                if named == author && (!gone || change.text.is_none()) {
+                    changes.push(LogChange {
+                        place,
+                        text: change.text,
+                        arrival,
+                        id,
+                    });
+                }
+            }
         }
         Ok(LogSearched {
             changes,
             next,
             size,
         })
+    }
+
+    /// What the type says `items` change in its searchable text (`LogFold::search`).
+    async fn searched(
+        &mut self,
+        ctx: Ctx<'_, H>,
+        module: usize,
+        content_type: Uuid,
+        items: Vec<be_sdk_type_api::LogItem>,
+    ) -> Result<Vec<be_sdk_type_api::LogSearch>, NotSearched> {
+        let (answer, _) = self
+            .ask_reading(ctx, module, types::Scope::of([]), |connection| {
+                replicas::search_log(connection, content_type, items)
+            })
+            .await;
+        match answer {
+            Ok(Ok(searched)) => Ok(searched),
+            Ok(Err(be_sdk_type_api::Failure::Malformed(error))) => Err(NotSearched::Type(error)),
+            Ok(Err(be_sdk_type_api::Failure::UnknownType)) => Err(NotSearched::Type(format!(
+                "no type module has the block type {content_type}"
+            ))),
+            Err(error) => Err(NotSearched::Type(format!(
+                "the type module answered: {error}"
+            ))),
+        }
     }
 
     /// Merges a block the drain found diverged (`Drained::Diverged`) and publishes the merge:

@@ -1555,6 +1555,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                     arrival: self.now as i64,
                     payload: Some(bytes),
                     signer: be_sdk_type_api::Signer::Verified,
+                    imported: None,
                 };
                 let place = be_sdk_type_api::host::LogPlace {
                     seq,

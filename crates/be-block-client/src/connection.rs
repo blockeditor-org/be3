@@ -324,6 +324,12 @@ impl Connection {
         let _ = self.events.send(Event::KeysChanged);
     }
 
+    /// Tells this connection's subscribers of a redaction a read learned of, as the push they
+    /// missed would have (`Peer::read_log`).
+    pub(crate) fn redaction_read(&self, redacted: be_block_protocol::Redacted) {
+        let _ = self.events.send(Event::Redacted(redacted));
+    }
+
     /// Hears what the server tells this connection (`server.events`) from now on: the trees,
     /// sessions and topics it follows (`Peer::follow_topics`), and its account's other
     /// connections' messages.

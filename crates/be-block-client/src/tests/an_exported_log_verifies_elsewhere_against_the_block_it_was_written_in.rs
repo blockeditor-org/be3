@@ -5,7 +5,8 @@ use super::*;
 /// imports it as a block of its own, each entry still verifies against the block it was written
 /// in, and against nothing else; an entry changed in the file verifies as no one's. A redacted
 /// entry is carried without what it said, which leaves nothing to verify. Imported, the log is
-/// history in the new block, each entry still as it was written, and new entries follow it.
+/// history in the new block, each entry still as it was written, and new entries follow it;
+/// an exported entry replayed after them is no one's.
 #[tokio::test]
 async fn an_exported_log_verifies_elsewhere_against_the_block_it_was_written_in() {
     let harness = Harness::start().await;
@@ -125,6 +126,37 @@ async fn an_exported_log_verifies_elsewhere_against_the_block_it_was_written_in(
             .await
             .unwrap(),
         Some(Signer::Bad)
+    );
+
+    // Imported by the block's creator as its log's leading run, the history verifies here.
+    assert_eq!(
+        elsewhere
+            .verify_imported(new, "test.app", &history.entries[0])
+            .await
+            .unwrap(),
+        Some(Signer::Verified)
+    );
+    assert_eq!(
+        elsewhere
+            .verify_imported(new, "test.app", &history.entries[3])
+            .await
+            .unwrap(),
+        None,
+        "the block's own entry is no history"
+    );
+    // Replayed into the log after an entry of the block's own, an exported entry is no one's.
+    let key = elsewhere.sealing_key(new).await.unwrap();
+    elsewhere.push_imported(new, key, &saved.log[0]).unwrap();
+    elsewhere.drain(|_| false).await.unwrap();
+    let after = elsewhere.read_log(new, 4, 10).await.unwrap();
+    assert!(after.entries[0].imported.is_some());
+    assert_eq!(
+        elsewhere
+            .verify_imported(new, "test.app", &after.entries[0])
+            .await
+            .unwrap(),
+        Some(Signer::Bad),
+        "history may only lead the log"
     );
     harness.stop().await;
 }

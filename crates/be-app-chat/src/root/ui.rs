@@ -42,6 +42,8 @@ const PAGE: u64 = 100;
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 enum RowKey {
     Logged(u64),
+    /// A message of the history an import brought, by its place in the block it was written in.
+    History(u64),
     Kept(Uuid),
     Refused(u64),
 }
@@ -50,6 +52,7 @@ impl std::fmt::Display for RowKey {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Logged(seq) => write!(formatter, "{seq}"),
+            Self::History(seq) => write!(formatter, "history.{seq}"),
             Self::Kept(id) => write!(formatter, "kept.{id}"),
             Self::Refused(token) => write!(formatter, "refused.{token}"),
         }
@@ -489,6 +492,35 @@ pub fn Chat(editor: Editor) -> NodeId {
     });
     let ids = rows.keys();
     let empty = create_memo(move || ids.with(Vec::is_empty));
+    // The history an import brought: read-only, as the file says it was written, with no
+    // verdict on when (its times are the file's word).
+    let history_rows: KeyedStore<RowKey, Row> = KeyedStore::new();
+    create_effect(move || {
+        let today = local_date(now());
+        let list: Vec<(RowKey, Row)> = log.with(|log| {
+            let Some(history) = log.history() else {
+                return Vec::new();
+            };
+            history
+                .log
+                .messages()
+                .filter_map(|shown| {
+                    let mut row = row(&history.log, shown, me, today)?;
+                    row.arrived = None;
+                    Some((RowKey::History(shown.seq), row))
+                })
+                .collect()
+        });
+        history_rows.reconcile_owned(list);
+    });
+    let history_ids = history_rows.keys();
+    let importer = create_memo(move || log.with(|log| log.history().map(|history| history.importer)));
+    let has_history = create_memo(move || importer.get().is_some());
+    let history_heading = create_memo(move || match importer.get() {
+        Some(importer) => format!("Imported by {} from an export", names.name(importer)),
+        None => String::new(),
+    });
+    let nothing = create_memo(move || empty.get() && !has_history.get());
 
     // Where each append went shows in the log and in what is sending or not sent, so its
     // answers are let go.
@@ -678,6 +710,14 @@ pub fn Chat(editor: Editor) -> NodeId {
     });
     let editing = create_memo(move || composer.editing.get().is_some());
 
+    let history_message_rows = {
+        move |key: RowKey| {
+            let shown = history_rows.get(&key);
+            view! {
+                <MessageRow chat={chat} editor me names key row={shown} composer log attached />
+            }
+        }
+    };
     let message_rows = {
         move |key: RowKey| {
             let shown = rows.get(&key);
@@ -699,7 +739,7 @@ pub fn Chat(editor: Editor) -> NodeId {
                 >
                     <Frame padding={Padding::all(Space::Xl)}>
                         <List spacing=Space::Md>
-                            <Show value={empty}>
+                            <Show value={nothing}>
                                 <Text style=TextStyle::CAPTION>
                                     "No messages yet. Say hello below."
                                 </Text>
@@ -719,6 +759,16 @@ pub fn Chat(editor: Editor) -> NodeId {
                                         on_click={load_older}
                                     />
                                 </List>
+                            </Show>
+                            <Show value={has_history}>
+                                <Text
+                                    style=TextStyle::CAPTION
+                                    @test_id={"chat.history"}
+                                >
+                                    {history_heading}
+                                </Text>
+                                <ForEach value={history_ids} view={history_message_rows} />
+                                <Separator />
                             </Show>
                             <ForEach value={ids} view={message_rows} />
                         </List>
@@ -1203,7 +1253,7 @@ fn MessageRow(
     // Only a message in the log takes a reply, a reaction, an edit or a deletion.
     let logged = match key {
         RowKey::Logged(seq) => Some(seq),
-        RowKey::Kept(_) | RowKey::Refused(_) => None,
+        RowKey::History(_) | RowKey::Kept(_) | RowKey::Refused(_) => None,
     };
     let actionable = create_memo(move || logged.is_some() && !deleted.get());
     let own_actions = create_memo(move || actionable.get() && mine.get());

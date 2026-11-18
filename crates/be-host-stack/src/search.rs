@@ -1677,6 +1677,21 @@ async fn puts_of(
     Some((puts, removed))
 }
 
+/// The commit a redacted log document's removal is as of: the server's clock now, after every
+/// entry that changed it, or just after the commit the index holds it at (`kept`) when that is
+/// later, as when the clock's estimate lags the arrival of the edit that put it. A removal at
+/// or before what the index holds would lose to it, and the text would stay found.
+pub(crate) fn redaction_commit(
+    kept: Option<be_lib_search::Commit>,
+    key: &str,
+    now: i64,
+) -> be_lib_search::Commit {
+    be_lib_search::Commit {
+        time: kept.map_or(now, |kept| now.max(kept.time.saturating_add(1))),
+        id: *be_block_store::Hash::of(key.as_bytes()).as_bytes(),
+    }
+}
+
 /// The prefix of a log document's key, which the place of the entry it is follows.
 const LOG_KEY: &str = "log.";
 
@@ -1708,9 +1723,8 @@ async fn log_puts(
         .unwrap_or(0);
     let start = from;
     let (mut puts, mut removed) = (Vec::new(), Vec::new());
-    // What was redacted since says nothing any more, whoever redacted it: its removal is as of
-    // the server's clock now, after every entry that changed it, and nothing after brings it
-    // back (`search_log`).
+    // What was redacted since says nothing any more, whoever redacted it, and nothing after
+    // brings it back (`search_log`): its removal outlasts what the index holds of it.
     let now = peer
         .server_now()
         .unwrap_or_else(be_block_commit::now_milliseconds);
@@ -1722,17 +1736,16 @@ async fn log_puts(
         .remove(&block)
         .unwrap_or_default();
     for seq in redacted {
-        let key = format!("{LOG_KEY}{seq}");
-        removed.push((
-            DocId {
-                block: block.as_bytes().to_vec(),
-                key: key.clone(),
-            },
-            be_lib_search::Commit {
-                time: now,
-                id: *be_block_store::Hash::of(key.as_bytes()).as_bytes(),
-            },
-        ));
+        let doc = DocId {
+            block: block.as_bytes().to_vec(),
+            key: format!("{LOG_KEY}{seq}"),
+        };
+        let kept = held
+            .iter()
+            .find(|entry| entry.doc == doc)
+            .map(|entry| entry.commit);
+        let commit = redaction_commit(kept, &doc.key, now);
+        removed.push((doc, commit));
     }
     loop {
         let searched = match replicas

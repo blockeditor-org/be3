@@ -66,10 +66,13 @@ pub(crate) enum Table {
     /// The entries this device appended that the server refused, by block and id, until let go
     /// (`Refs::not_appended`).
     NotAppended,
+    /// How many of each block's log redactions this device caught up with
+    /// (`Refs::log_redactions`).
+    LogRedactions,
 }
 
 impl Table {
-    pub const ALL: [Self; 27] = [
+    pub const ALL: [Self; 28] = [
         Self::Session,
         Self::Head,
         Self::Remote,
@@ -97,6 +100,7 @@ impl Table {
         Self::LogHead,
         Self::LogEntry,
         Self::NotAppended,
+        Self::LogRedactions,
     ];
 
     pub fn code(self) -> u8 {
@@ -128,6 +132,7 @@ impl Table {
             Self::LogHead => 25,
             Self::LogEntry => 26,
             Self::NotAppended => 27,
+            Self::LogRedactions => 28,
         }
     }
 
@@ -513,6 +518,8 @@ struct State {
     /// The entries this device appended that the server refused, by block, in the order they
     /// were refused (`Refs::not_appended`).
     not_appended: HashMap<Uuid, BTreeMap<u64, RefusedEntry>>,
+    /// How many of each block's log redactions this device caught up with.
+    log_redactions: HashMap<Uuid, u64>,
     next: u64,
 }
 
@@ -775,6 +782,10 @@ impl State {
             }
             Table::LetGo => {
                 self.let_go.insert(uuid_key(&row.key)?, decode(value)?);
+            }
+            Table::LogRedactions => {
+                self.log_redactions
+                    .insert(uuid_key(&row.key)?, decode(value)?);
             }
             Table::NotAppended => {
                 let (block, order) = row.key.split_at_checked(16).ok_or(StoreError::Corrupt)?;
@@ -1631,6 +1642,30 @@ impl Refs {
             }
         }
         self.write(rows)
+    }
+
+    /// How many of `block`'s log redactions this device caught up with, none for a log it never
+    /// read (`LogPage::redactions`).
+    pub fn log_redactions(&self, block: Uuid) -> Option<u64> {
+        self.state.lock().unwrap().log_redactions.get(&block).copied()
+    }
+
+    pub fn set_log_redactions(&self, block: Uuid, redactions: u64) -> Result<(), StoreError> {
+        let mut state = self.state.lock().unwrap();
+        if state.log_redactions.insert(block, redactions) == Some(redactions) {
+            return Ok(());
+        }
+        drop(state);
+        self.write(vec![row(
+            Table::LogRedactions,
+            block.as_bytes().to_vec(),
+            &redactions,
+        )])
+    }
+
+    /// The blocks whose signed log this device verified a head of.
+    pub fn logs_kept(&self) -> Vec<Uuid> {
+        self.state.lock().unwrap().log_heads.keys().copied().collect()
     }
 
     /// The entry of `block`'s log this device kept at `seq`.

@@ -120,6 +120,17 @@ interface types {
         payload: option<list<u8>>,
         /// Who of `author` signed it as this app's, as far as the device can tell.
         signer: signer,
+        /// For history an import brought from another block: where it was
+        /// written. Its author and arrival are then the file's word.
+        imported: option<log-import>,
+    }
+
+    /// Where an imported log entry was written: the block, its place in that
+    /// block's log, and who imported it.
+    record log-import {
+        block: uuid,
+        seq: u64,
+        importer: account-id,
     }
 
     /// Who signed a log entry (`be_block_client::Signer`), `unknown` when it
