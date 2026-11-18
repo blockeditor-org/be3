@@ -209,20 +209,20 @@ impl<'a> Secrets<'a> {
     }
 
     /// The secrets of `account`'s block, as `identity` reads it: none retired when it has no
-    /// block or cannot read it.
+    /// block or it cannot be read, so taking a link never fails for want of them.
     async fn held(
         connection: &Arc<Connection>,
         account: Uuid,
         identity: &'a RecoverySecret,
-    ) -> Result<Self, ClientError> {
-        let Some(block) = AccountRecords::open(connection, account, identity).await? else {
-            return Ok(Self::new(identity, None));
+    ) -> Self {
+        let block = match AccountRecords::open(connection, account, identity).await {
+            Ok(Some(block)) => block,
+            Ok(None) | Err(_) => return Self::new(identity, None),
         };
-        Ok(match block.read().await {
+        match block.read().await {
             Ok(held) => Self::new(identity, Some(&held.content.root())),
-            Err(ClientError::Locked(_)) => Self::new(identity, None),
-            Err(error) => return Err(error),
-        })
+            Err(_) => Self::new(identity, None),
+        }
     }
 
     fn open_key_change(
@@ -231,11 +231,16 @@ impl<'a> Secrets<'a> {
         to: [u8; 16],
         sealed: &[u8],
     ) -> Result<PublicIdentity, be_block_keys::KeyError> {
-        std::iter::once(self.current)
-            .chain(&self.retired)
+        let current = self.current.open_key_change(from, to, sealed);
+        if current.is_ok() {
+            return current;
+        }
+        // When none opens it, why the current one did not.
+        self.retired
+            .iter()
             .map(|secret| secret.open_key_change(from, to, sealed))
             .find(Result::is_ok)
-            .unwrap_or(Err(be_block_keys::KeyError::Sender))
+            .unwrap_or(current)
     }
 }
 
@@ -1410,7 +1415,7 @@ pub async fn accept_link(
     let changes = outdated(
         &mailbox(connection).await?,
         Uuid::from_bytes(me.account),
-        &Secrets::held(connection, Uuid::from_bytes(me.account), identity).await?,
+        &Secrets::held(connection, Uuid::from_bytes(me.account), identity).await,
         &card,
     );
     // The log may move between reading the link and accepting it: a few tries, each after the
@@ -1562,7 +1567,7 @@ pub(crate) async fn finish_links(
             Err(ClientError::Locked(_)) => continue,
             Err(error) => return Err(error),
         }
-        let secrets = Secrets::held(connection, account, identity).await?;
+        let secrets = Secrets::held(connection, account, identity).await;
         let ops = outdated(&held, account, &secrets, &card);
         if !ops.is_empty() {
             be_block_protocol::write_all::<(), _>(connection, None, ops).await??;
