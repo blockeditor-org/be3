@@ -10,8 +10,8 @@ use be_wasm_root_testing::{
 use super::*;
 
 mod a_child_that_lets_its_surface_go_names_nothing_there_any_more;
-mod a_frame_past_its_deadline_draws_without_the_child_it_waits_for;
 mod a_frame_asks_its_host_for_what_the_surface_under_the_pointer_and_the_focus_ask;
+mod a_frame_past_its_deadline_draws_without_the_child_it_waits_for;
 mod a_frame_waits_for_its_child_and_shows_it;
 mod a_root_built_on_the_library_shows_the_editor_it_embeds;
 mod a_root_draws_its_own_surface_on_the_hosts_device;

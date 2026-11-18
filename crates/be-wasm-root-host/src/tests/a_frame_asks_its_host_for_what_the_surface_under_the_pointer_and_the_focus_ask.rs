@@ -53,8 +53,11 @@ fn a_frame_asks_its_host_for_what_the_surface_under_the_pointer_and_the_focus_as
         "the press focused the child, which holds the pointer lock"
     );
 
-    root.input(None, encode(&[Input::PointerMoved(pos2(10.0, 50.0)).into()]))
-        .expect("the root takes input");
+    root.input(
+        None,
+        encode(&[Input::PointerMoved(pos2(10.0, 50.0)).into()]),
+    )
+    .expect("the root takes input");
     let done = frame(&mut root, 4);
     assert_eq!(
         done.cursor, "default",
