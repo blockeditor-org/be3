@@ -50,6 +50,10 @@ pub struct ManifestDocument {
     /// and staged beside the app under `workers/<id>/` (guides/adding_an_app.md, Workers).
     #[serde(default)]
     pub workers: Vec<String>,
+    /// Whether the app is a root guest, which `be-host --root=APP` runs in place of its own UI
+    /// (`AppManifest::root`).
+    #[serde(default)]
+    pub root: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -279,6 +283,7 @@ impl ManifestDocument {
                 })
                 .collect::<Result<_, ManifestError>>()?,
             workers: self.workers,
+            root: self.root,
         };
         manifest.validate()?;
         Ok(manifest)
