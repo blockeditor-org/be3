@@ -242,7 +242,11 @@ impl Hosts {
                 (*block, hosting)
             })
             .collect();
-        for (block, _) in self.told.iter().filter(|(block, _)| !now.contains_key(block)) {
+        for (block, _) in self
+            .told
+            .iter()
+            .filter(|(block, _)| !now.contains_key(block))
+        {
             be_host_runtime::set_hosting(*block, HostingHere::No);
         }
         for (block, hosting) in &now {

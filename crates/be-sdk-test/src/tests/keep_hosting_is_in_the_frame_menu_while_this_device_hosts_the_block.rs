@@ -29,11 +29,8 @@ fn keep_hosting_is_in_the_frame_menu_while_this_device_hosts_the_block() {
     let mut test = BeuiTest::<HostedRoot>::editing(block)
         .with_size(Vec2::new(390.0, 800.0))
         .on_phone();
-    let offered = |test: &BeuiTest<HostedRoot>| {
-        test.menu_ids()
-            .iter()
-            .any(|id| id == "editor.keep-hosting")
-    };
+    let offered =
+        |test: &BeuiTest<HostedRoot>| test.menu_ids().iter().any(|id| id == "editor.keep-hosting");
     assert!(!offered(&test), "not offered while another device hosts it");
 
     test.set_hosting(HostingHere::Yes);
