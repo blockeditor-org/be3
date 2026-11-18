@@ -34,4 +34,20 @@ fn a_deletion_or_reaction_the_server_refuses_says_so_on_its_message() {
             .shown(&format!("chat.message.{question}.undone"))
     );
     assert_eq!(chat.editor.store().refused_appends(None).len(), 1);
+
+    // Another refused on the same message joins the one caption, and goes with it.
+    chat.click(&format!("chat.message.{question}.react"));
+    chat.click(&format!("chat.message.{question}.react.heart"));
+    assert_eq!(
+        chat.editor
+            .label(&format!("chat.message.{question}.undone")),
+        "Reaction not saved: no access; Reaction not saved: no access"
+    );
+    chat.click(&format!("chat.message.{question}.dismiss"));
+    assert!(
+        !chat.editor.shown(&format!("chat.message.{question}.undone")),
+        "{:?}",
+        chat.editor.label(&format!("chat.message.{question}.undone"))
+    );
+    assert!(chat.editor.store().refused_appends(None).is_empty());
 }
