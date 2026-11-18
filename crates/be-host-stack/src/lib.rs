@@ -48,6 +48,7 @@ use web as platform;
 #[cfg(target_arch = "wasm32")]
 pub use web::{Port, STACK_ENTRY, run_first, run_stack, start_in_worker};
 
+pub use be_block_protocol::AccountName;
 pub use changes::{ChangeWatch, Changes};
 pub use graph::{Graph, Node, Owner, Query, Scope};
 pub use search::{SearchAsk, SearchHit, Searched};
@@ -1704,6 +1705,28 @@ pub fn wait_until<T>(what: &str, read: impl Fn(&Shared) -> Option<T>) -> T {
     }
 }
 
+/// Takes the worker's updates and, unless `done` then holds, waits for the worker to hand over
+/// more and takes those: one step of a test whose stack is taken by frames
+/// (`take_updates_in_frame`) and that waits on what a reply's callback does. The callback runs
+/// only as updates are taken, and a served command's answer makes none of the progress
+/// `wait_until` waits on. Panics after `WAIT_LIMIT` without an update, naming `what`.
+#[cfg(all(any(test, feature = "testing"), not(target_arch = "wasm32")))]
+#[track_caller]
+pub fn take_updates_or_wait(what: &str, done: impl Fn() -> bool) {
+    let handover = with_stack(|stack| Arc::clone(&stack.handover)).expect("the stack is running");
+    let puts = handover.puts();
+    take_updates();
+    if done() {
+        return;
+    }
+    let until = std::time::Instant::now() + WAIT_LIMIT;
+    assert!(
+        handover.wait_past(puts, Some(until)),
+        "the stack never handed over {what}"
+    );
+    take_updates();
+}
+
 /// Flushes, then waits until the server holds what the flush kept: `flush` returns once the device
 /// keeps it, and the outbox sends it after. For a test that reads the server next.
 #[cfg(all(any(test, feature = "testing"), not(target_arch = "wasm32")))]
@@ -2379,6 +2402,18 @@ pub fn list_access(
     reply: impl FnOnce(Result<be_block_protocol::AccessList, String>) + Send + 'static,
 ) {
     send(Command::ListAccess {
+        block,
+        reply: replies::expect(reply),
+    });
+}
+
+/// The accounts that may view `block`, and its author, with the names they gave the server
+/// (`query.names`); an editor shows them through `app_graph::members_of`.
+pub fn list_names(
+    block: Uuid,
+    reply: impl FnOnce(Result<Vec<be_block_protocol::AccountName>, String>) + Send + 'static,
+) {
+    send(Command::ListNames {
         block,
         reply: replies::expect(reply),
     });

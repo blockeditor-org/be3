@@ -201,7 +201,8 @@ scrims stay the framework's.
 An app follows what the host knows of blocks with one resource, `block-watch`,
 opened on a `block-subject`: the blocks a `BlockQuery` lists, a block's undo
 history, the content at its head, an artifact's state, or its own block's
-version status. `next` answers the `block-value` of the same name once it
+version status or members (guides/apps/host_services.md, "Naming a block's
+members"). `next` answers the `block-value` of the same name once it
 changes; listings come from the host's mirror (`be-host-stack/src/app_graph.rs`).
 On the app side `editor.watch_blocks(query)` and `editor.blocks()`, held while
 anything holds the `BlockList`; be-sdk's `link.rs` keeps one watch per subject

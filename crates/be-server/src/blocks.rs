@@ -4,7 +4,7 @@ use be_block_graph::{
     SETTINGS_TYPE,
 };
 use be_block_protocol::{
-    AccessEntry, AccessList, BlockSummary, ChangeCursor, ChangedPage, ErrorCode, HistoryEntry,
+    AccessEntry, AccessList, AccountName, BlockSummary, ChangeCursor, ChangedPage, ErrorCode, HistoryEntry,
     Hold, Listed, Listing, ObjectChange, OrganizationRole, ReferenceChange,
 };
 use be_block_store::Hash;
@@ -2097,6 +2097,50 @@ impl ServerStore {
             )?;
             transaction.commit()?;
             Ok(Some(before))
+        })
+        .await
+    }
+
+    /// The accounts that may view `block`, and its author, with the names they gave the
+    /// server, for a caller that may view it (`query.names`).
+    pub async fn list_names(
+        &self,
+        identity: Identity,
+        block: Uuid,
+    ) -> Result<Vec<AccountName>, ServerError> {
+        self.with_graph(identity.organization, move |_, graph, database| {
+            require(graph, &visibility(identity), block, Access::View, "viewable")?;
+            let node = graph.get(block).ok_or(ServerError::Corrupt)?;
+            let mut listed: BTreeSet<Uuid> = graph
+                .audience(block)
+                .into_iter()
+                .filter(|account| {
+                    *account != ANYONE_INSIDE && graph.effective_access(block, *account).can_view()
+                })
+                .collect();
+            listed.insert(node.author);
+            let mut statement = database.prepare_cached(
+                "SELECT accounts.display_name
+                 FROM memberships
+                 JOIN accounts ON accounts.id = memberships.account_id
+                 WHERE memberships.organization_id = ?1 AND memberships.account_id = ?2",
+            )?;
+            let mut names = Vec::new();
+            for account in listed {
+                let name = statement
+                    .query_row(
+                        params![identity.organization.to_string(), account.to_string()],
+                        |row| row.get::<_, String>(0),
+                    )
+                    .optional()?;
+                if let Some(display_name) = name {
+                    names.push(AccountName {
+                        account,
+                        display_name,
+                    });
+                }
+            }
+            Ok(names)
         })
         .await
     }
