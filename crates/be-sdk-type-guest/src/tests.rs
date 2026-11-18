@@ -150,6 +150,7 @@ mod undo_mid_drag_cancels_it;
 mod undo_reverts_only_this_devices_edit;
 mod what_is_typed_while_a_seal_waits_on_the_server_is_journaled_at_once;
 mod what_is_typed_while_a_seal_waits_survives_a_crash_before_the_seal_is_answered;
+mod two_editors_of_one_block_on_one_device_each_land_what_they_type_unheard;
 
 #[derive(Clone, Debug, Default, Eq, Model, PartialEq)]
 struct Checklist {
@@ -1844,8 +1845,15 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
 }
 
 impl Sim<ProseContent> {
+    /// The client `editor` on `device` makes what it inserts under: its own, as each editor's
+    /// `LiveText` mints one (be-sdk-text's live_text.rs), never the replica's session client, so
+    /// two editors of one block on one device never name what they insert alike.
+    fn editor_client(device: usize, editor: EditorId) -> u64 {
+        1 << 63 | (device as u64) << 32 | editor
+    }
+
     fn type_at(&mut self, device: usize, editor: EditorId, at: usize, typed: &str) {
-        let client = self.devices[device].client;
+        let client = Self::editor_client(device, editor);
         let op = self
             .mirror(device, editor)
             .text(ObjectId::ROOT, Prose::BODY)
