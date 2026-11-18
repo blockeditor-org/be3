@@ -164,6 +164,7 @@ fn CanvasSurface(state: CanvasState, children: Option<Child>) -> NodeId {
     let cursor = create_memo(move || state.cursor());
     let interactive = !state.previewing();
     let surface = state.surface();
+    super::carry::use_move_site(state, surface);
     let inking = create_memo(move || {
         state
             .gesture
@@ -185,6 +186,7 @@ fn CanvasSurface(state: CanvasState, children: Option<Child>) -> NodeId {
             on_press={move |press: PointerPress| state.press(press)}
             on_secondary_press={move |press: PointerPress| state.secondary_press(press)}
             on_drag={move |press: PointerPress| state.drag(press)}
+            drag={move |press: PointerPress| state.lift_move(press)}
             on_hover_move={move |press: PointerPress| {
                 let at = state.world_at(press.pos);
                 state.hover(Some(at));
@@ -656,7 +658,7 @@ fn entered_group_bounds(state: CanvasState) -> Option<WorldRect> {
 }
 
 fn entity_of(state: CanvasState, id: Uuid) -> Memo<Option<CanvasEntity>> {
-    state.entities.watch(id).stored()
+    state.entities.watch(id).drawn()
 }
 
 pub(crate) fn palette(theme: &be_sdk_beui::beui::styled::ThemeStore) -> Palette {

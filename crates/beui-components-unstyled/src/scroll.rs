@@ -335,18 +335,22 @@ fn edge_scroll(
     let edge = board.register_scroller(EdgeScroller {
         id: 0,
         node,
-        axis: Rc::new(move || direction.get_untracked()),
         movable: Rc::new(move || {
-            position().map_or([false; 2], |position| {
+            let along = position().map_or([false; 2], |position| {
                 [
                     position.offset > 0.0,
                     position.offset < position.max_offset(),
                 ]
-            })
+            });
+            match direction.get_untracked() {
+                Direction::Horizontal => [along, [false; 2]],
+                Direction::Vertical => [[false; 2], along],
+            }
         }),
-        scroll: Rc::new(move |depth: Option<f32>| {
+        scroll: Rc::new(move |depth: Option<Vec2>| {
             scroll(
                 depth
+                    .map(|depth| direction.get_untracked().main(depth))
                     .map(|depth| (AUTOSCROLL_DEAD_ZONE + depth.abs() * EDGE_GAIN) * depth.signum()),
             );
         }),

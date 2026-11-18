@@ -126,28 +126,32 @@ impl DragSource {
 pub const EDGE_BAND: f32 = 40.0;
 
 /// A scroll area a carried item scrolls while it is held near an edge: `scroll` hears how
-/// far into the band the pointer is (negative toward the start), or None when it stops.
+/// far into the band the pointer is along each axis (negative toward the start), or None
+/// when it stops. `movable` says which ways it can move now, along x and then y, toward the
+/// start and toward the end: a list scrolls along one axis, a canvas's world along both.
 pub struct EdgeScroller {
     pub id: u64,
     pub node: crate::node::NodeRef,
-    pub axis: std::rc::Rc<dyn Fn() -> crate::layout::Direction>,
-    pub movable: std::rc::Rc<dyn Fn() -> [bool; 2]>,
-    pub scroll: std::rc::Rc<dyn Fn(Option<f32>)>,
+    pub movable: std::rc::Rc<dyn Fn() -> [[bool; 2]; 2]>,
+    pub scroll: std::rc::Rc<dyn Fn(Option<Vec2>)>,
 }
 
 impl EdgeScroller {
-    pub fn depth(&self, rect: Rect, pos: Pos2) -> Option<f32> {
-        let axis = (self.axis)();
-        let along = |pos: Pos2| axis.main(pos.to_vec2());
-        let (start, end) = (along(rect.min), along(rect.max));
-        let band = EDGE_BAND.min((end - start) / 4.0);
-        let at = along(pos);
+    pub fn depth(&self, rect: Rect, pos: Pos2) -> Option<Vec2> {
         let movable = (self.movable)();
-        match () {
-            _ if at < start + band && movable[0] => Some(at - (start + band)),
-            _ if at > end - band && movable[1] => Some(at - (end - band)),
-            _ => None,
-        }
+        let axis = |at: f32, start: f32, end: f32, movable: [bool; 2]| {
+            let band = EDGE_BAND.min((end - start) / 4.0);
+            match () {
+                _ if at < start + band && movable[0] => at - (start + band),
+                _ if at > end - band && movable[1] => at - (end - band),
+                _ => 0.0,
+            }
+        };
+        let depth = Vec2::new(
+            axis(pos.x, rect.min.x, rect.max.x, movable[0]),
+            axis(pos.y, rect.min.y, rect.max.y, movable[1]),
+        );
+        (depth != Vec2::ZERO).then_some(depth)
     }
 }
 

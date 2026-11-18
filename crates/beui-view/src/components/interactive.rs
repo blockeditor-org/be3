@@ -89,7 +89,8 @@ pub fn Interactive(
     // beui_activating_drag_sources_keep_their_keys.md).
     let activates = !on_activate.is_empty() || !on_activate_change.is_empty();
     let source = crate::reactive::NodeRef::new();
-    let (on_press, on_drag, on_long_press_drag, on_key, children) = match drag {
+    let (on_press, on_drag, on_long_press_drag, on_active_change, on_cancel, on_key, children) =
+        match drag {
         Some(drag) => {
             let carry = carrying(
                 drag,
@@ -97,6 +98,7 @@ pub fn Interactive(
                 on_press,
                 on_drag,
                 on_long_press_drag,
+                (on_active_change, on_cancel),
                 lifts_on_long_press,
             );
             let Face {
@@ -115,11 +117,21 @@ pub fn Interactive(
                 carry.pressed,
                 carry.dragged,
                 carry.long_pressed,
+                carry.active,
+                carry.cancelled,
                 on_key,
                 Some(face.into()),
             )
         }
-        None => (on_press, on_drag, on_long_press_drag, on_key, children),
+        None => (
+            on_press,
+            on_drag,
+            on_long_press_drag,
+            on_active_change,
+            on_cancel,
+            on_key,
+            children,
+        ),
     };
     let node = crate::core::interactive(
         focusable,
@@ -199,12 +211,14 @@ struct Carrying {
     pressed: Callback<PointerPress>,
     dragged: Callback<PointerPress>,
     long_pressed: Callback<PointerPress>,
+    active: Callback<bool>,
+    cancelled: Callback<()>,
     face: Face,
     finish: Box<dyn FnOnce(NodeId, Callback<KeyPress, bool>) -> Callback<KeyPress, bool>>,
 }
 
-/// Wraps a press's callbacks so the first drag of each press asks `drag` for a carry and
-/// lifts it onto the tree's drag driver; once lifted, the driver follows the pointer and the
+/// Wraps a press's callbacks so the first drag of each press past the threshold asks `drag`
+/// for a carry and lifts it onto the tree's drag driver; once lifted, the driver follows the pointer and the
 /// press hears no more drags. While the carry is held, the children are drawn where its frame
 /// puts the item, raised above their siblings (a scroll around them still clips them), unless
 /// its `face` is a `preview`, which floats in a layer of its own, pinned by its top left corner
@@ -219,6 +233,7 @@ fn carrying(
     on_press: Callback<PointerPress>,
     on_drag: Callback<PointerPress>,
     on_long_press_drag: Callback<PointerPress>,
+    (on_active_change, on_cancel): (Callback<bool>, Callback<()>),
     lifts_on_long_press: bool,
 ) -> Carrying {
     use crate::reactive::{Get, Set, create_memo, create_signal, on_cleanup};
@@ -227,7 +242,11 @@ fn carrying(
     use std::cell::RefCell;
     use std::rc::Rc;
 
+    // Whether this press has passed the threshold and asked `drag` for a carry.
     let asked = Rc::new(Cell::new(false));
+    // The moves of this press short of the threshold, not yet a drag of either kind: the
+    // source's own once `drag` declines the press, or once it ends short of the threshold.
+    let held = Rc::new(RefCell::new(Vec::<PointerPress>::new()));
     // Whether this press lifted a carry: the board follows its drags from then on, so they
     // are not this node's to hear.
     let lifted = Rc::new(Cell::new(false));
@@ -241,9 +260,15 @@ fn carrying(
     // Whether this node floats the carry's own preview.
     let floats_here = create_signal(false);
     let pressed = {
-        let (asked, lifted, origin) = (Rc::clone(&asked), Rc::clone(&lifted), Rc::clone(&origin));
+        let (asked, held, lifted, origin) = (
+            Rc::clone(&asked),
+            Rc::clone(&held),
+            Rc::clone(&lifted),
+            Rc::clone(&origin),
+        );
         Callback::new(move |press: PointerPress| {
             asked.set(false);
+            held.borrow_mut().clear();
             lifted.set(false);
             origin.set(Some(press));
             on_press.call(press);
@@ -264,19 +289,22 @@ fn carrying(
             *preview.borrow_mut() = floats;
         })
     };
-    // Asks `drag` for a carry at `press` and lifts it; whether `drag` gave one.
-    let lift_at = {
+    // Asks `drag` for a carry at `press`, while nothing is carried.
+    let ask = move |press: PointerPress| {
+        crate::drag::driver()
+            .filter(|driver| !driver.carrying())
+            .and_then(|_| drag.call(press))
+    };
+    // Lifts `carry` at `press`.
+    let lift = {
         let (origin, show_face, lifted) = (
             Rc::clone(&origin),
             Rc::clone(&show_face),
             Rc::clone(&lifted),
         );
-        Rc::new(move |press: PointerPress| -> bool {
+        Rc::new(move |mut carry: crate::drag::Carry, press: PointerPress| {
             let Some(driver) = crate::drag::driver().filter(|driver| !driver.carrying()) else {
-                return false;
-            };
-            let Some(mut carry) = drag.call(press) else {
-                return false;
+                return;
             };
             // Unless the carry says otherwise, the item is this node, held where it was
             // pressed.
@@ -294,31 +322,47 @@ fn carrying(
                 by_keys.set(false);
                 mine.set(Some(id));
             }
-            true
         })
     };
-    // The first drag past the threshold asks for a carry; the moves before it are not yet a
-    // drag of either kind, and every move of a press `drag` declined goes on as the source's
-    // own.
+    // The first drag past the threshold asks for a carry; the moves before it are held. A
+    // press `drag` declines is the source's own: it hears the held moves, then every move on,
+    // however near its start the press comes back.
     let dragged = {
-        let (lift_at, lifted, origin) =
-            (Rc::clone(&lift_at), Rc::clone(&lifted), Rc::clone(&origin));
+        let (asked, held, lifted, origin, lift) = (
+            Rc::clone(&asked),
+            Rc::clone(&held),
+            Rc::clone(&lifted),
+            Rc::clone(&origin),
+            Rc::clone(&lift),
+        );
         Callback::new(move |press: PointerPress| {
             if lifted.get() {
                 return;
             }
-            let threshold = match press.touch {
-                true => crate::types::TOUCH_DRAG_THRESHOLD,
-                false => crate::types::DRAG_THRESHOLD,
-            };
-            // Once a press has crossed the threshold it is a drag until it ends, however near
-            // its start it comes back.
-            let past = asked.get()
-                || origin
+            if !asked.get() {
+                let threshold = match press.touch {
+                    true => crate::types::TOUCH_DRAG_THRESHOLD,
+                    false => crate::types::DRAG_THRESHOLD,
+                };
+                let past = origin
                     .get()
                     .is_none_or(|origin| (press.pos - origin.pos).length() >= threshold);
-            if !past || (!asked.replace(true) && lift_at(press)) {
-                return;
+                if !past {
+                    held.borrow_mut().push(press);
+                    return;
+                }
+                asked.set(true);
+                if let Some(carry) = ask(press) {
+                    lift(carry, press);
+                }
+                if lifted.get() {
+                    held.borrow_mut().clear();
+                    return;
+                }
+                let before = std::mem::take(&mut *held.borrow_mut());
+                for move_before in before {
+                    on_drag.call(move_before);
+                }
             }
             on_drag.call(press);
         })
@@ -326,13 +370,40 @@ fn carrying(
     // A finger's long press lifts too, as a drag does for the mouse; a long press `drag`
     // declines goes on as the source's own.
     let long_pressed = match lifts_on_long_press {
-        true => Callback::new(move |press: PointerPress| {
-            if !lift_at(press) {
-                on_long_press_drag.call(press);
-            }
-        }),
+        true => {
+            let (asked, lifted, lift) = (Rc::clone(&asked), Rc::clone(&lifted), Rc::clone(&lift));
+            Callback::new(move |press: PointerPress| {
+                if !asked.get()
+                    && let Some(carry) = ask(press)
+                {
+                    asked.set(true);
+                    lift(carry, press);
+                }
+                if !lifted.get() {
+                    on_long_press_drag.call(press);
+                }
+            })
+        }
         false => on_long_press_drag,
     };
+    // A press that ends short of the threshold was the source's own: it hears the moves it
+    // made before it hears the press end. One called off hears none of them.
+    let active = {
+        let held = Rc::clone(&held);
+        Callback::new(move |active: bool| {
+            if !active {
+                let before = std::mem::take(&mut *held.borrow_mut());
+                for move_before in before {
+                    on_drag.call(move_before);
+                }
+            }
+            on_active_change.call(active);
+        })
+    };
+    let cancelled = Callback::new(move |()| {
+        held.borrow_mut().clear();
+        on_cancel.call(());
+    });
     on_cleanup(move || {
         let id = mine.is_alive().then(|| mine.get_untracked()).flatten();
         if let (Some(id), Some(driver)) = (id, crate::drag::driver()) {
@@ -451,6 +522,8 @@ fn carrying(
         pressed,
         dragged,
         long_pressed,
+        active,
+        cancelled,
         face,
         finish,
     }
@@ -631,13 +704,15 @@ fn CarriedFace(
     children: Option<Child>,
 ) -> NodeId {
     use crate::components::overlay::Overlay;
-    use crate::primitives::{Frame, List};
+    use crate::primitives::{Frame, Layers};
     use crate::types::{LayerLevel, LayerPolicy, Placement};
+    // Stacked over one box, the face lays its child out as a plain `Interactive` does: a
+    // child that fills what it is given (a canvas) fills it here too. The status and the
+    // overlay's anchor take no room and catch no pointer.
     view! {
         <Frame raised={raised}>
-            <List spacing=0.0>
+            <Layers>
                 <CarryStatus said={said} />
-                <Frame translate={offset} children={children} />
                 <Overlay
                     anchor={anchor}
                     placement=Placement::At
@@ -654,7 +729,8 @@ fn CarriedFace(
                         },
                     }
                 }</Overlay>
-            </List>
+                <Frame translate={offset} children={children} />
+            </Layers>
         </Frame>
     }
 }

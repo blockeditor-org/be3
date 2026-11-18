@@ -4,7 +4,7 @@ use crate::primitives::*;
 use crate::reactive::*;
 
 /// What an `Interactive` given `drag` wraps its children in takes no room of its own: a
-/// child it stretches or grows is as long as without it, in either direction.
+/// child it stretches, grows or fills is as long as without it, in either direction.
 #[test]
 fn a_source_given_drag_lays_out_as_it_would_without() {
     let _root = RootScope::new();
@@ -35,6 +35,16 @@ fn a_source_given_drag_lays_out_as_it_would_without() {
                         </Interactive>
                     </ListItem>
                 </List>
+                <Frame height=60.0>
+                    <Interactive>
+                        <Frame @test_id="plain.filled" height={Extent::fraction(1.0)} />
+                    </Interactive>
+                </Frame>
+                <Frame height=60.0>
+                    <Interactive drag={lift()}>
+                        <Frame @test_id="drag.filled" height={Extent::fraction(1.0)} />
+                    </Interactive>
+                </Frame>
                 <Frame @test_id="after" height=10.0 />
             </List>
         }
@@ -49,9 +59,15 @@ fn a_source_given_drag_lays_out_as_it_would_without() {
     );
     assert_eq!(size("drag.grown"), size("plain.grown"), "a grown child");
     assert_eq!(
+        size("drag.filled"),
+        size("plain.filled"),
+        "a child that fills its height, as a canvas does"
+    );
+    assert_eq!(size("drag.filled").y, 60.0);
+    assert_eq!(
         top_of(&harness, "drag.stretched") - top_of(&harness, "plain.stretched"),
         40.0,
         "and the wrapper adds no height and no gap"
     );
-    assert_eq!(top_of(&harness, "after"), 4.0 * 40.0);
+    assert_eq!(top_of(&harness, "after"), 4.0 * 40.0 + 2.0 * 70.0);
 }

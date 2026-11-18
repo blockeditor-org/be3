@@ -11,7 +11,7 @@ use beui_view::reactive::{Get, NodeId, OwnedSignal, tree_local};
 
 mod sites;
 use beui_view::types::input::PointerId;
-use beui_view::types::{Rect, WindowId};
+use beui_view::types::{Rect, Vec2, WindowId};
 pub(crate) use sites::{Erased, Site};
 
 /// The drag board of the current tree: what is carried, the targets and scrollers it can
@@ -34,7 +34,7 @@ struct Carried {
     pointer: Option<PointerId>,
 }
 
-type Scrolling = (u64, f32, Rc<dyn Fn(Option<f32>)>);
+type Scrolling = (u64, Vec2, Rc<dyn Fn(Option<Vec2>)>);
 
 struct Under {
     id: u64,
@@ -232,7 +232,12 @@ impl Board {
         }
     }
 
+    /// Puts down whatever is carried, dropping nothing: Escape, or a site whose own gesture
+    /// ended under the carry (a canvas whose move an undo took back). Whether anything was.
     pub fn cancel(&self) -> bool {
+        if self.placing() {
+            return self.put_down(false);
+        }
         if !self.carrying() {
             return false;
         }
@@ -278,7 +283,13 @@ impl Board {
         }
     }
 
+    /// Chooses again where the pointer last was: what is under it moved (a scroll, a
+    /// canvas's camera), though the pointer did not.
     pub fn retrack(&self) {
+        if let Some(last) = self.placing_last() {
+            self.place(last, false);
+            return;
+        }
         if let Some(last) = self.last() {
             self.track(last);
         }
@@ -595,9 +606,6 @@ impl Driver for Board {
     }
 
     fn cancel(&self) -> bool {
-        if self.placing() {
-            return self.put_down(false);
-        }
         Board::cancel(self)
     }
 
