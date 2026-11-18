@@ -23,7 +23,8 @@ use be_wasm_guest_abi::{Flow, Guest, Waker};
 use be_wasm_ops::guest::{Executor, LocalFuture};
 use be_wasm_password::Password;
 use be_wasm_root_api::{
-    FrameDone, FrameRequest, HostStatistics, LockState, Notice, PowerAction, StatisticRow,
+    FrameDone, FrameRequest, HostStatistics, LockState, Notice, PowerAction, Saving,
+    StatisticRow, SyncState,
     guest::{
         exports::{frames, input, paintings},
         host,
@@ -39,10 +40,10 @@ use crate::{
     APP, APP_ENTRY, CLOSES, DIALOG_LAYER, DIALOG_ORIGIN, DIALOG_SIZE, DIALOG_SURFACE, DIALOG_TITLE,
     LATE_LAYER, LATER, LATER_TEXT, LOCK_LAYER, LOCK_SURFACE, LOCKS_SESSION, OPENS_DIALOG,
     OPENS_STATISTICS, ORIGIN, RASTER, RESIZED, RESIZES, ROOT_COLOR, ROOT_LAYER, ROOT_SURFACE,
-    SCREEN, SCREEN_SIZE, SCRIM_COLOR, SCRIM_LAYER, SCRIM_SURFACE, SIZE, STATISTICS_AREA,
-    STATISTICS_LAYER, STATISTICS_ORIGIN, STATISTICS_SURFACE, STATISTICS_TITLE, STRAY_PASSWORD,
-    TEXT, TEXT_LAYER, TEXT_STRIP, TEXT_SURFACE, TOAST_AREA, TOAST_LAYER, TOAST_SURFACE,
-    UNLOCKS_TWICE, UNPRESENTED_SURFACE,
+    SCREEN, SCREEN_SIZE, SCRIM_COLOR, SCRIM_LAYER, SCRIM_SURFACE, SIZE, SLOW_SAVE,
+    SLOW_SAVE_TITLE, SLOW_SAVE_TOAST, STATISTICS_AREA, STATISTICS_LAYER, STATISTICS_ORIGIN,
+    STATISTICS_SURFACE, STATISTICS_TITLE, STRAY_PASSWORD, TEXT, TEXT_LAYER, TEXT_STRIP,
+    TEXT_SURFACE, TOAST_AREA, TOAST_LAYER, TOAST_SURFACE, UNLOCKS_TWICE, UNPRESENTED_SURFACE,
 };
 
 /// The triangle's editor, by its manifest's id.
@@ -71,6 +72,9 @@ struct Root {
     toasts: Rc<RefCell<Option<BeuiSurface>>>,
     /// The toasts that document shows, which the host's notices set.
     shown: Rc<Cell<Option<Signal<Vec<Toast>>>>>,
+    /// Whether its host's changes are saved, as its core said last, which the toasts' document
+    /// shows (the slow save's toast).
+    saving: Rc<Cell<Option<Signal<Saving>>>>,
     /// The surface a `RESIZES` frame configures and never presents.
     unpresented: Rc<RefCell<Option<OwnSurface>>>,
     /// The scrim under its dialog, filled with `SCRIM_COLOR` on its first frame.
@@ -139,6 +143,7 @@ impl Root {
             text: Rc::default(),
             toasts: Rc::default(),
             shown: Rc::default(),
+            saving: Rc::default(),
             unpresented: Rc::default(),
             scrim: Rc::default(),
             dialog: Rc::default(),
@@ -189,6 +194,7 @@ impl Root {
         )?;
         let waker = self.waker.clone();
         let shown = Rc::clone(&self.shown);
+        let saved = Rc::clone(&self.saving);
         let toasts = BeuiSurface::new(
             &beui,
             OwnSurface::new(TOAST_SURFACE, TOAST_AREA),
@@ -197,9 +203,16 @@ impl Root {
             move || {
                 let toasts = create_signal(Vec::<Toast>::new());
                 shown.set(Some(toasts));
+                let saving = create_signal(Saving {
+                    unsaved: false,
+                    saves: 0,
+                    unsent: 0,
+                    sync: SyncState::Saved,
+                });
+                saved.set(Some(saving));
                 view! {
                     <Root clear_color=ColorRole::None>
-                        <Notices toasts={toasts} />
+                        <Notices toasts={toasts} saving={saving} />
                     </Root>
                 }
             },
@@ -215,6 +228,7 @@ impl Root {
         *self.toasts.borrow_mut() = Some(toasts);
         be_wasm_ops::guest::spawn(self.clone().hear_notices());
         be_wasm_ops::guest::spawn(self.clone().hear_lock());
+        be_wasm_ops::guest::spawn(self.clone().hear_core());
         Ok(())
     }
 
@@ -228,6 +242,20 @@ impl Root {
             if let (Some(surface), Some(shown)) = (&mut *self.toasts.borrow_mut(), self.shown.get())
             {
                 surface.enter(|| shown.set(toasts));
+            }
+        }
+    }
+
+    /// Shows what its host's core shows as each change of it comes, until the host stops
+    /// answering: whether its changes are saved, in the toasts' document.
+    async fn hear_core(self) {
+        let mut seen = 0;
+        while let Ok(core) = host::core(seen).await {
+            seen = core.generation;
+            if let (Some(surface), Some(saving)) =
+                (&mut *self.toasts.borrow_mut(), self.saving.get())
+            {
+                surface.enter(|| saving.set(core.saving));
             }
         }
     }
@@ -625,21 +653,80 @@ fn answer(id: u64, action: Option<String>) {
 /// Its host's notices as toasts at the top right of its surface, each gone at once from here
 /// when dismissed, as its host lets go of it.
 #[component]
-fn Notices(toasts: Signal<Vec<Toast>>) -> NodeId {
+fn Notices(toasts: Signal<Vec<Toast>>, saving: Signal<Saving>) -> NodeId {
     let (width, height) = TOAST_AREA;
     let area = Rect::from_min_size(Pos2::ZERO, vec2(width as f32, height as f32));
+    let slow = slow_save(saving);
+    let shown = create_memo(move || {
+        let mut shown = toasts.get();
+        if slow.shown.get() {
+            shown.insert(
+                0,
+                Toast {
+                    id: SLOW_SAVE_TOAST,
+                    title: SLOW_SAVE_TITLE.to_owned(),
+                    message: "This is taking longer than usual. Keep it open until it finishes."
+                        .to_owned(),
+                    sticky: true,
+                    ..Toast::default()
+                },
+            );
+        }
+        shown
+    });
     view! {
         <Toasts
             anchor={OverlayAnchor::Rect(area)}
             edge=Edge::TopEnd
-            toasts={toasts}
+            toasts={shown}
             on_dismiss={move |id: u64| {
+                if id == SLOW_SAVE_TOAST {
+                    slow.dismissed.set(true);
+                    return;
+                }
                 toasts.update(|toasts| toasts.retain(|toast| toast.id != id));
                 answer(id, None);
             }}
             on_action={move |(id, key): (u64, String)| answer(id, Some(key))}
         />
     }
+}
+
+/// The slow save's toast: shown once changes have stayed unsaved for `SLOW_SAVE` by the host's
+/// frame clock, a save finishing starting the wait afresh, until they are saved or the person
+/// dismisses it.
+#[derive(Clone, Copy)]
+struct SlowSave {
+    shown: Memo<bool>,
+    dismissed: Signal<bool>,
+}
+
+fn slow_save(saving: Signal<Saving>) -> SlowSave {
+    let saved = create_memo(move || !saving.with(|saving| saving.unsaved));
+    let saves = create_memo(move || saving.with(|saving| saving.saves));
+    let slow = create_signal(false);
+    let dismissed = create_signal(false);
+    let waiting = create_timer(move || {
+        slow.set(true);
+        None
+    });
+    create_effect(move || {
+        saves.get();
+        match saved.get() {
+            true => untrack(|| {
+                waiting.stop();
+                slow.set(false);
+                dismissed.set(false);
+            }),
+            false => untrack(|| {
+                if !slow.get() {
+                    waiting.restart(SLOW_SAVE);
+                }
+            }),
+        }
+    });
+    let shown = create_memo(move || slow.get() && !dismissed.get());
+    SlowSave { shown, dismissed }
 }
 
 /// The host's statistics as its debug panels show them: a row a measurement, under headings,
