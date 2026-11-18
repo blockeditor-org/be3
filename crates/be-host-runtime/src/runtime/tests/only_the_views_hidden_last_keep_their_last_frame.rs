@@ -90,8 +90,10 @@ fn on(screen: ScreenId, view: View, surface: u32) -> be_sdk_api::ScreenPlacement
 }
 
 fn retained() -> Vec<u32> {
-    let mut held =
-        with(APP, |runtime| runtime.shown.retained_surfaces(&runtime.layout)).expect("the runtime is running");
+    let mut held = with(APP, |runtime| {
+        runtime.shown.retained_surfaces(&runtime.layout)
+    })
+    .expect("the runtime is running");
     held.sort_unstable();
     held
 }

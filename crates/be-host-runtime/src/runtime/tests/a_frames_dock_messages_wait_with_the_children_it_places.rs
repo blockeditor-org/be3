@@ -64,11 +64,7 @@ fn presented(serial: u64) -> Heard {
 }
 
 fn held_docks(runtime: &Runtime) -> usize {
-    runtime
-        .held
-        .laid()
-        .map(|laid| laid.docks.len())
-        .sum()
+    runtime.held.laid().map(|laid| laid.docks.len()).sum()
 }
 
 /// A root's dock messages say which of a joined dock's tabs it shows, and the host draws only the

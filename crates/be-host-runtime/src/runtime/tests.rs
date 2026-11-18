@@ -1,4 +1,5 @@
 use super::*;
+use be_sdk_api::{ChildPlacements, DockMessage, PresentedFrame};
 mod a_child_comes_or_goes_only_with_the_frame_its_placer_draws_it_in;
 mod a_failed_app_session_is_reported_as_a_crash;
 mod a_frame_held_for_its_children_is_dropped_when_the_app_stops_or_restarts;

@@ -6,7 +6,11 @@ fn a_closed_anchored_view_and_a_hidden_view_stay_until_their_frame_is_drawn() {
     let old = layout(&[1, 2]);
     let now = shown.place(&old, layout(&[1]), |screen| screen == ScreenId(2));
     assert_eq!(now, old, "the closed anchored view is still laid out");
-    assert_eq!(shown.frame_shown(0).closed, None, "its frame has not been presented");
+    assert_eq!(
+        shown.frame_shown(0).closed,
+        None,
+        "its frame has not been presented"
+    );
     assert_eq!(
         shown.presented(Some(7), 6).closed,
         None,
@@ -21,7 +25,10 @@ fn a_closed_anchored_view_and_a_hidden_view_stay_until_their_frame_is_drawn() {
     assert_eq!(shown.retained_surfaces(&layout(&[1])), vec![1, 2]);
     shown.keep_left_out(&layout(&[1]), &layout(&[1, 2]), holds);
     shown.release_kept(0, |_| true);
-    assert!(shown.keeps(ScreenId(2)), "shown again, it waits for its new frame");
+    assert!(
+        shown.keeps(ScreenId(2)),
+        "shown again, it waits for its new frame"
+    );
     assert!(shown.presented(Some(3), 2).kept);
     shown.release_kept(2, |_| true);
     assert!(shown.keeps(ScreenId(2)));

@@ -8,11 +8,9 @@ use std::{
 };
 
 use be_sdk_api::{
-    AnchorSpace, ArtifactDescription, BlockPick, ChildPlacements, ChildPreview, DockMessage,
-    EditorInstanceId, FrameSpec, HostPanel, HostTransform, LayoutCommit, OpeningKind,
-    PresentCommit, PresentedFrame, PreviewImage, ScreenDamage, ScreenId, ScreenLayout,
-    ScreenPlacement, ScreenRequest, SurfaceFormat, SurfaceSpec, View, ViewId,
-    WindowRequest,
+    AnchorSpace, ArtifactDescription, BlockPick, ChildPreview, EditorInstanceId, FrameSpec, HostPanel, HostTransform, LayoutCommit, OpeningKind,
+    PresentCommit, PreviewImage, ScreenDamage, ScreenId, ScreenLayout,
+    ScreenPlacement, ScreenRequest, SurfaceFormat, SurfaceSpec, View, ViewId, WindowRequest,
 };
 use be_sdk_app_host::{
     holds::{Held, Holds, Laid, Presents, Shown},
@@ -1089,10 +1087,11 @@ impl Runtime {
             .export(shown.iter().map(|placement| placement.surface).collect());
         self.instances.keep_anchored(&layout);
         let instances = &self.instances;
-        self.shown.keep_left_out(&self.layout, &layout, |placement| {
-            placement.view != ViewId::PREVIEW
-                && instances.view_request_of(placement.screen).is_some()
-        });
+        self.shown
+            .keep_left_out(&self.layout, &layout, |placement| {
+                placement.view != ViewId::PREVIEW
+                    && instances.view_request_of(placement.screen).is_some()
+            });
         self.layout = layout;
         self.release_kept();
     }

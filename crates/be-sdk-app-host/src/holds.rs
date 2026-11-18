@@ -356,9 +356,7 @@ impl Shown {
     fn closed(&mut self, shown: u64) -> Option<ScreenLayout> {
         let closing = self.closing.as_ref()?;
         let presented = self.presents_applied >= closing.presented_by;
-        let drawn = closing
-            .drawn_by
-            .is_none_or(|sequence| shown >= sequence);
+        let drawn = closing.drawn_by.is_none_or(|sequence| shown >= sequence);
         if !presented || !drawn {
             return None;
         }
