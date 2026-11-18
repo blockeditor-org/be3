@@ -1199,6 +1199,45 @@ Each step lands on its own.
          what is not secret about it (that a link exists, whose, when it expires); the root
          holds it only while the dialog showing it is open, and drops it, zeroed, as it
          closes.
+         - 4g6f2a. Built (4g6f2 split again: 4g6f2b is members and agents): signing in again,
+           the question before discarding unsaved changes, and invitations, with the rule for
+           secrets the host hands the person. `core-view` gains `reauthenticating` (the account
+           whose sign-in ended: its key, name, whether busy and why it failed; be-host's
+           `ReauthView`), `discarding` (a `discard-reason`, `switch-organization` or `close`:
+           be-host's `PendingDestructiveAction`, as data the root words) and `invitations`, an
+           `invitations-area` (whether `listed` since asked, each `invitation-row` as data: its
+           id, `invitation-state`, inviter, accepter, the times it was made, opened, expires and
+           ended, and whether its link can be had again, never the link; busy and error). The
+           commands: `reauthenticate` (its `ReauthSubmit`; its `ReauthLogOut` is
+           `forget-account` with the key and its `ReauthClose` is `switch-account`),
+           `switch-organization`, `confirm-discard` and `cancel-discard` (its `Discard`,
+           `CancelDiscard`), `list-invitations` (its `OpenInvitations`, whose open state is the
+           root's), `invite-member`, `invitation-link` and `revoke-invitation`. `ask-core` now
+           answers an `option<core-secret>`: nothing at once for any command but one making a
+           secret (`invite-member`, `invitation-link`), which waits for the host's answer, the
+           secret (`core-secret`'s `link`, a `password`) or nothing if making it failed (why
+           reaching `invitations`' error). be-wasm-root-host's `Root::take_core_commands` hands
+           each command with an id (`AskedCore`), answered by `Root::answer_core`; one answered
+           already, or not waiting, drops the secret. be-host's `--root` answers each with
+           nothing (`refuse_unserved`). be-sdk-root-testing asks the host's questions in its
+           dialog's place while the host asks them, once no dialog is open (the discard before
+           the sign-in; the display question still replaces any): `DISCARD_TITLE` (Keep, Escape
+           or closing it is `cancel-discard`, the destructive action `confirm-discard`, and one
+           the host withdraws closes answering nothing) and `REAUTH_TITLE` (Continue in browser,
+           Log out; closing it is `switch-account`, as be-host's is). Signing in again shows as
+           the dialog adding an account resumed, which now also closes once a sign-in it showed
+           ends with no error. F9 (`OPENS_INVITATIONS`) lists the invitations
+           (`INVITATIONS_TITLE`), asking `list-invitations` as it opens: each row worded from
+           its data, Link and Revoke while open, New link; a link answered shows in the
+           dialog's place with Copy (the host's clipboard) and Done, held as a `Password`
+           behind an `Rc` compared by identity, and dropped, zeroed, with Done or the dialog.
+           be-wasm-root-host's
+           `a_root_asks_its_hosts_questions_and_shows_an_invitations_link_only_once` keeps and
+           discards changes, sees a withdrawn question answer nothing, signs in again through
+           the sign-in and sees it close stopping nothing, closes the question to switch
+           account, lists the invitations, answers New link with a link, sees a second answer
+           to the same id change nothing, copies it, sees it gone once reopened, and snapshots
+           the discard question, the sign-in question, the invitations and the link.
          - 4g6f1. Built: `core-view`'s `waits-for`, a `core-wait` (`account`, `organization`,
            `session`; none once an organization's blocks are open), in place of 4g6e's flag:
            be-host's `Screen::Accounts`, `Organizations` and `Sessions` (its `Recovery`,
