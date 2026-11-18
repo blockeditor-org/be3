@@ -145,6 +145,13 @@ can land beside it, or outside the sheet and close it. Wait for it to settle fir
     drive type 'buy milk'           drive key ctrl+z Enter shift+Tab
     drive ime compose ni; drive ime commit 你
     drive act ACTION_ID [PANE]      drive a11y TARGET [ACTION [VALUE]]
+    drive back                      drive back left|right; drive back 0.4; drive back commit|cancel
+
+`back` alone is a whole system back gesture from the left edge, as a phone's swipe or back
+button gives (guides/beui/overlays.md, Back and `BackSlide`). `back left` or `back right` starts
+one from that edge and holds it; `back PROGRESS` (0 to 1) moves it there, starting one from the
+left if none is under way; `back commit` ends it as invoked, `back cancel` as cancelled, so a
+test can stop part way and see what the gesture previews.
 
 `pen draw` packs PER_FRAME samples into each frame, as a fast stylus or a backed-up program
 delivers them. `motion DX DY` is relative motion for a locked pointer. `a11y` acts through the
