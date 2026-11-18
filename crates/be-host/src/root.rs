@@ -44,10 +44,10 @@ use std::{
     time::{Duration, Instant},
 };
 
+use be_host_base::notices;
 use be_lib_layers::{Layer, LayerList, Surface};
 use be_lib_ui_types::input::Timed;
 use be_sdk_app_host::pacing::FrameClock;
-use be_host_base::notices;
 use be_wasm_root_api::{FrameRequest, Notice, NoticeAction};
 use be_wasm_root_host::Root;
 use beui::native::painting::{Painting, Paints, Placement, ScreenPaintings};

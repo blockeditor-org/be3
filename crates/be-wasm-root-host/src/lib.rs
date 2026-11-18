@@ -325,8 +325,7 @@ impl<G: Inline> Core<G> {
                         self.deadlines
                             .remove(at)
                             .fail(&mut self.connection, OpError::Canceled);
-                    } else if let Some(at) =
-                        self.watching.iter().position(|reply| reply.op() == op)
+                    } else if let Some(at) = self.watching.iter().position(|reply| reply.op() == op)
                     {
                         self.watching
                             .remove(at)

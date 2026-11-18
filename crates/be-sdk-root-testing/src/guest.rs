@@ -147,8 +147,7 @@ impl Root {
         while let Ok(notices) = host::notices(seen).await {
             seen = notices.generation;
             let toasts: Vec<Toast> = notices.shown.into_iter().map(toast).collect();
-            if let (Some(surface), Some(shown)) =
-                (&mut *self.toasts.borrow_mut(), self.shown.get())
+            if let (Some(surface), Some(shown)) = (&mut *self.toasts.borrow_mut(), self.shown.get())
             {
                 surface.enter(|| shown.set(toasts));
             }
