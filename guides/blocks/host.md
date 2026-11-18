@@ -695,7 +695,14 @@ index and search it locally.
   loop takes the queued blocks whose root it may edit, reads each one's name
   from the mirror and its documents' text at its head with `search-text`
   (`Replicas::search_text`; a type that answers nothing is found by its name),
-  and hands each index one batch in a task, which applies it to the index's
+  and for a type with a signed log its log's documents (`log_puts`,
+  `Replicas::search_log`): one per entry the type says is searchable, keyed
+  `log.` and the entry's place, put or removed as of the arrival of the entry
+  that last changed it, read on from the furthest place the index holds a
+  document of, at most `LOG_PER_ROUND` entries a round. A head reindex leaves
+  those alone, an append told of queues the block (`Event::Appended`), and a
+  log document's snippet reads its entry and the ones after it again
+  (`text_of`). It hands each index one batch in a task, which applies it to the index's
   newest head and seals the commit into the outbox: it is saved offline-first,
   published by the next drain, and two devices' batches meet as a diverged
   block that merges by parts. A workspace (`WORKSPACE_TYPE` at the top) with no
