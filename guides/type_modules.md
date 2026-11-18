@@ -308,7 +308,9 @@ who signed them, `LogSigner`) changes what the content shows.
   whose payload opens to no salt). A push told after a read already moved
   the head past it is still handed on, as read again against the kept head,
   and the replica drops what it holds. Neither is kept for a replica opened again, which
-  reads the log afresh; a first read that fails (a restart, offline) is no
+  reads the log afresh, and asks again for each read an editor asked that the
+  replica before it had no answer to yet (`Carried::log_reads`): an answer goes to
+  the replica that asked, so the editor would never hear. A first read that fails (a restart, offline) is no
   error, and the replica describes its content without the log until it
   hears entries. A follow ends with its connection, and a read made offline
   makes none: as the device connects, the host reads each open replica's log
