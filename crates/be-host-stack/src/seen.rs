@@ -482,8 +482,7 @@ where
             held: crate::diff::Diff::diff(&old.held, &new.held),
             queued: new.queued,
         };
-        (delta.news.is_some() || delta.held.is_some() || old.queued != new.queued)
-            .then_some(delta)
+        (delta.news.is_some() || delta.held.is_some() || old.queued != new.queued).then_some(delta)
     }
 
     fn apply(&mut self, delta: NewsDelta<T>) {

@@ -29,8 +29,8 @@ use be_host_base::host;
 use be_sdk_api::app::{EditorEvent, MenuChoice};
 
 use super::{
-    ArtifactSlot, ArtifactState, CreationSlot, CreationState, HostAnchored, HostChild,
-    EditorBlock, HostChildStatus, InstanceRole, RuntimeStatus, SurfaceStatus,
+    ArtifactSlot, ArtifactState, CreationSlot, CreationState, EditorBlock, HostAnchored, HostChild,
+    HostChildStatus, InstanceRole, RuntimeStatus, SurfaceStatus,
     backend::{Availability, Backend, Deadline, Frame, ShownFrame},
     calls::{AppCall, EditorAnswer, EditorCall, Heard, Outbound},
     input::{BlockDrag, DragEvent},

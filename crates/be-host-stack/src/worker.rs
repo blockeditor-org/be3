@@ -3822,14 +3822,14 @@ async fn serve_command(
             account,
             reply,
         } => {
-            let failed = peer
-                .ban(block, account)
-                .await
-                .err()
-                .map(|error| match error.is_unreachable() {
-                    true => OFFLINE_SHARING.to_owned(),
-                    false => error.to_string(),
-                });
+            let failed =
+                peer.ban(block, account)
+                    .await
+                    .err()
+                    .map(|error| match error.is_unreachable() {
+                        true => OFFLINE_SHARING.to_owned(),
+                        false => error.to_string(),
+                    });
             crate::hosting::recheck(peer, shared, tasks);
             reply.send(failed.map_or(Ok(()), Err));
             crate::changes::wake();

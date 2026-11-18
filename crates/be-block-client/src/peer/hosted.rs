@@ -190,7 +190,11 @@ impl<S: ObjectStore> Peer<S> {
             .map_err(|_| refused("it names no account"))?;
         let level = match self.member_held(&checked, account).await? {
             Some((level, identity)) if identity.public == responder.joiner => level,
-            _ => return Err(refused("the logs grant it nothing with that key, or bar it")),
+            _ => {
+                return Err(refused(
+                    "the logs grant it nothing with that key, or bar it",
+                ));
+            }
         };
         let public = responder.joiner;
         let (channel, answer) = responder.accept(&[]);

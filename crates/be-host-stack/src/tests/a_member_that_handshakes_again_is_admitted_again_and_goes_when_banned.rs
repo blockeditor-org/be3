@@ -37,11 +37,23 @@ fn a_member_that_handshakes_again_is_admitted_again_and_goes_when_banned() {
     );
     flush();
     open(block, CounterContent::CONTENT_TYPE);
-    set_access(block, viewer.account(), be_block_graph::Access::View, |_| {});
-    set_access(block, editor.account(), be_block_graph::Access::Edit, |_| {});
+    set_access(
+        block,
+        viewer.account(),
+        be_block_graph::Access::View,
+        |_| {},
+    );
+    set_access(
+        block,
+        editor.account(),
+        be_block_graph::Access::Edit,
+        |_| {},
+    );
     flush_and_send();
     assert_eq!(status().error, None);
-    wait_until("held the world's lease", |shared| shared.hosted.contains(&block));
+    wait_until("held the world's lease", |shared| {
+        shared.hosted.contains(&block)
+    });
 
     let peer = &viewer.peer;
     let mut events = peer.connection().subscribe();
@@ -67,13 +79,22 @@ fn a_member_that_handshakes_again_is_admitted_again_and_goes_when_banned() {
         })
     };
     let (member, host) = viewer.runtime.block_on(async {
-        peer.refresh_keys(None).await.expect("the viewer's keys read");
+        peer.refresh_keys(None)
+            .await
+            .expect("the viewer's keys read");
         let joined = peer
             .connection()
-            .join(organization, block, be_block_store::Hash::from_bytes([3; 32]))
+            .join(
+                organization,
+                block,
+                be_block_store::Hash::from_bytes([3; 32]),
+            )
             .await
             .expect("the viewer joins");
-        (joined.client, joined.host.expect("this device hosts").account)
+        (
+            joined.client,
+            joined.host.expect("this device hosts").account,
+        )
     });
     let _first = handshake(&mut events, host);
     let joined = MemberEvent::Joined(JoinedMember {
@@ -98,7 +119,11 @@ fn a_member_that_handshakes_again_is_admitted_again_and_goes_when_banned() {
     );
 
     editor.runtime.block_on(async {
-        editor.peer.refresh_keys(None).await.expect("the editor's keys read");
+        editor
+            .peer
+            .refresh_keys(None)
+            .await
+            .expect("the editor's keys read");
         editor
             .peer
             .ban(block, viewer.account())

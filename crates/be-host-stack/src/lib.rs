@@ -2300,11 +2300,7 @@ pub fn set_access(
 
 /// Bars `account` from joining `block`'s host (plans/hosted_blocks.md, "Hosting"); `reply`
 /// hears whether the server took it. A member of what this device hosts that it bars goes.
-pub fn ban(
-    block: Uuid,
-    account: Uuid,
-    reply: impl FnOnce(Result<(), String>) + Send + 'static,
-) {
+pub fn ban(block: Uuid, account: Uuid, reply: impl FnOnce(Result<(), String>) + Send + 'static) {
     send(Command::Ban {
         block,
         account,
