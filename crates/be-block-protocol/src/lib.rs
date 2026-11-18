@@ -523,6 +523,9 @@ pub fn read_hello(frame: &[u8]) -> Option<Hello<'_>> {
 /// refuses past and a device before it keeps the entry.
 pub const MAX_LOG_ENTRY_BYTES: usize = 64 * 1024;
 
+/// The logs one `query.log-redactions` asks of at most, which the server refuses past.
+pub const MAX_LOG_REDACTIONS_ASKED: usize = 256;
+
 /// What an entry's author signs (`sign_authored`, which binds it to its block): the entry's id
 /// and `said`, the hash of a random salt sealed with the payload, then the payload as the app
 /// wrote it framed by the app's id (`be_block_client::Said::hash`), not the sealed bytes: so it

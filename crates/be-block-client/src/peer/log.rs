@@ -147,9 +147,6 @@ pub struct LogRead {
     pub proof_hashes: usize,
 }
 
-/// How many logs one catch-up read asks of (`Peer::catch_up_redactions`).
-const REDACTIONS_PER_READ: usize = 256;
-
 /// How many times `read_log` reads a page again because the kept head moved while it was on
 /// its way, before giving up as contended.
 const READS_WHILE_MOVING: usize = 4;
@@ -758,7 +755,7 @@ impl<S: ObjectStore> Peer<S> {
                 })
             })
             .collect();
-        for asked in asked.chunks(REDACTIONS_PER_READ) {
+        for asked in asked.chunks(be_block_protocol::MAX_LOG_REDACTIONS_ASKED) {
             let answered = crate::ask(be_block_protocol::ask::<
                 Vec<be_block_protocol::LogRedactions>,
                 _,

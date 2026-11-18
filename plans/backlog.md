@@ -626,6 +626,13 @@ decisions/tentative_edits_wait_for_release.md) left as it was.
   whose answer has made no progress for `IDLE_TIMEOUT`, with a be-server test
   where a client that stops reading a GetObject answer is disconnected.
 
+- **Following a log past one page on reconnect, tested.** `Replicas::follow_logs`
+  reads an open replica's log on from its kept head a page at a time as the
+  device connects, but no test appends more than one server page
+  (`MAX_PAGE_ENTRIES`) while the device is away. Done: a be-host-stack test
+  appends past a page offline and the open chat shows every entry once it
+  reconnects.
+
 - **Imported history in a re-export.** An export carries only a block's own
   log entries (`Peer::export_log`), and `transfer::decode` refuses an entry
   written in another block, so exporting a chat with imported history drops
