@@ -714,10 +714,15 @@ impl Graph {
                         .is_some_and(|node| member(listing, node, &self.nodes) == Some(true))
                 }),
         );
+        // Where this device knows a block's content (its open replica's report, or a read of its
+        // head), that says whether it is in the listing, as the query answers: the server lists
+        // what was published, and an edit not sealed and sent yet, such as a new child added to
+        // a folder, is ahead of it until the next publish reaches the server.
         let described = match listing {
             Listing::References(block) => {
                 self.referenced.contains_key(&block) || self.read.contains_key(&block)
             }
+            Listing::Backrefs(_) => true,
             _ => false,
         };
         listed.members.extend(
@@ -1485,6 +1490,12 @@ impl Graph {
     /// (`UnlistedHeld`).
     pub fn take_unlisted_held(&mut self) -> Vec<UnlistedHeld> {
         std::mem::take(&mut self.unlisted_held)
+    }
+
+    /// What `take_unlisted_held` would take now.
+    #[cfg(test)]
+    pub fn unlisted_held(&self) -> &[UnlistedHeld] {
+        &self.unlisted_held
     }
 
     /// The children that dropped out of their parent's references since this was last asked.

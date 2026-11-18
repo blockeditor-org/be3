@@ -907,6 +907,9 @@ pub struct Shared {
     /// hold. Each start makes a fresh `Shared`, so the next stack starts with it unset.
     #[cfg(any(test, feature = "testing"))]
     pub crashed: bool,
+    /// What `log_unlisted_held` logged, for a test to read.
+    #[cfg(test)]
+    pub unlisted_logged: Vec<crate::graph::UnlistedHeld>,
     pub connection: Option<Arc<be_block_client::connection::Connection>>,
     /// The workspace's peer, which knows what content this device holds.
     pub peer: Option<Arc<Peer<Store>>>,
@@ -1025,6 +1028,8 @@ impl Shared {
                 stale = unlisted.stale,
                 connected = self.connected,
             );
+            #[cfg(test)]
+            self.unlisted_logged.push(unlisted);
         }
     }
 
@@ -5443,6 +5448,9 @@ async fn list(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, wanted: Vec<
     // asked at 10, revoked at 12) survives it, though it is older than the refusal; the exact
     // rule waits for 3a's `read` answering the sequence it was refused at.
     let asked_at = peer.newest_sequence();
+    // What the outbox placed when the requests went: a creation or move the drain sends while
+    // they are out is laid over their answers, which may be from before the server took it.
+    let placing = peer.placing();
     let answers = futures_util::future::join_all(wanted.iter().map(|listing| async move {
         match listing.served() {
             Some(served) => peer.listing(served).await,
@@ -5488,10 +5496,11 @@ async fn list(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, wanted: Vec<
         if let Err(error) = peer.learn(&summaries).await {
             record(shared, error);
         }
-        // As the outbox stands now, not when the request went: a creation or move kept since,
-        // whose block is no longer pending in the graph, is in it (no await from here on).
+        // As the outbox stands now, and as this device has what it held when the request went:
+        // a creation or move kept since, whose block is no longer pending in the graph, is in
+        // it, and one sent since is where this device has it (no await from here on).
         let summaries = match listing.served() {
-            Some(served) => peer.with_outbox(served, summaries),
+            Some(served) => peer.with_outbox(served, summaries, &placing),
             None => summaries,
         };
         // A block the server refused to make left the files (`Graph::forget` when it was set
