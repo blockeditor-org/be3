@@ -24,15 +24,9 @@ fn edits_typed_offline_into_a_session_of_another_build_are_sealed_before_the_rep
                 .await
                 .expect("the device is connected again");
             replicas.reconnect((&peer, &shared));
-            step_until_replicas(
-                &peer,
-                &shared,
-                &mut replicas,
-                "diverged",
-                |replicas, _| {
-                    !replicas.joining() && replicas.status(block).is_some_and(|s| s.diverged)
-                },
-            )
+            step_until_replicas(&peer, &shared, &mut replicas, "diverged", |replicas, _| {
+                !replicas.joining() && replicas.status(block).is_some_and(|s| s.diverged)
+            })
             .await;
             let status = replicas.status(block).expect("the replica reported");
             assert_eq!(
