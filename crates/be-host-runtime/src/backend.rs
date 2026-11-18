@@ -268,11 +268,12 @@ impl Backend {
         &mut self,
         placements: Vec<super::web::Placement>,
         layers: Option<super::web::Overlay>,
+        retained: &[u32],
     ) {
         let Some(worker) = &mut self.worker else {
             return;
         };
-        if let Err(error) = worker.channel.place(placements, layers) {
+        if let Err(error) = worker.channel.place(placements, layers, retained) {
             self.error.get_or_insert(error);
         }
     }
