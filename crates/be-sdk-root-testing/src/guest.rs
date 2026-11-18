@@ -23,12 +23,11 @@ use be_wasm_guest_abi::{Flow, Guest, Waker};
 use be_wasm_ops::guest::{Executor, LocalFuture};
 use be_wasm_password::Password;
 use be_wasm_root_api::{
-    AccountRow, AgentRow, ContactCard, ContactMismatch, ContactRow, CoreCommand, CoreSecret,
-    CoreView, CoreWait, DiscardReason, DisplayQuestion, FrameDone, FrameRequest, HostStatistics,
-    InvitationRow, InvitationState, LockState, MemberRole, MemberRow, NewAccount, Notice,
-    OrganizationRow, OrganizationsListed, PairingApproval, PowerAction, ProfileRow, Refusal,
-    RoleChange, SavingState, SecretCommand, ServerAccount, SessionRow, SetAside, ShareAccess,
-    SharePreview, StatisticRow, SyncState, UnsentEdit,
+    AccountRow, AgentRow, MemoryHistory, PairingApproval, ContactCard, ContactMismatch, ContactRow, ShareAccess, SharePreview,
+    CoreCommand, CoreSecret, MemberRole, MemberRow, RoleChange, SecretCommand, CoreView, CoreWait, DiscardReason, InvitationRow,
+    InvitationState, OrganizationRow, OrganizationsListed, ProfileRow,
+    SessionRow, DisplayQuestion, FrameDone, FrameRequest, HostStatistics, LockState,
+    NewAccount, Notice, PowerAction, Refusal, SavingState, ServerAccount, SetAside, StatisticRow, SyncState, UnsentEdit,
     guest::{
         exports::{frames, input, paintings},
         host,
@@ -140,6 +139,8 @@ struct Root {
     statistics: Rc<RefCell<Option<BeuiSurface>>>,
     /// The statistics that panel shows, which the host's answers set.
     shown_statistics: Rc<Cell<Option<Signal<HostStatistics>>>>,
+    /// The memory over time that panel graphs, which the host's answers set.
+    shown_memory: Rc<Cell<Option<Signal<MemoryHistory>>>>,
     /// Counts the panel's openings, so a watch begun for an earlier one stops.
     statistics_opened: Rc<Cell<u64>>,
     /// The session's screen lock as the host said last, until a frame shows it.
@@ -306,6 +307,7 @@ impl Root {
             named: Rc::default(),
             statistics: Rc::default(),
             shown_statistics: Rc::default(),
+            shown_memory: Rc::default(),
             statistics_opened: Rc::default(),
             lock_state: Rc::default(),
             lock: Rc::default(),
@@ -715,6 +717,7 @@ impl Root {
         };
         let waker = self.waker.clone();
         let shown = Rc::clone(&self.shown_statistics);
+        let graphed = Rc::clone(&self.shown_memory);
         let panel = BeuiSurface::new(
             &beui,
             OwnSurface::new(STATISTICS_SURFACE, STATISTICS_AREA),
@@ -728,9 +731,11 @@ impl Root {
                     memory_file: None,
                 });
                 shown.set(Some(statistics));
+                let history = create_signal(MemoryHistory::default());
+                graphed.set(Some(history));
                 view! {
                     <Root>
-                        <StatisticsPanel statistics={statistics} />
+                        <StatisticsPanel statistics={statistics} history={history} />
                     </Root>
                 }
             },
@@ -741,6 +746,25 @@ impl Root {
             Err(_) => return,
         }
         be_wasm_ops::guest::spawn(self.clone().hear_statistics(opened));
+        be_wasm_ops::guest::spawn(self.clone().hear_memory(opened));
+    }
+
+    /// Watches the host's memory over time and graphs each change of it in the panel opened as
+    /// the `opened`th, until it closes or the host stops answering. Its rows change every frame,
+    /// these once a minute, so they are a watch of their own.
+    async fn hear_memory(self, opened: u64) {
+        let mut seen = 0;
+        while let Ok(history) = host::memory_history(seen).await {
+            if self.statistics_opened.get() != opened {
+                return;
+            }
+            seen = history.generation;
+            if let (Some(panel), Some(shown)) =
+                (&mut *self.statistics.borrow_mut(), self.shown_memory.get())
+            {
+                panel.enter(|| shown.set(history));
+            }
+        }
     }
 
     /// Watches the host's statistics and shows each change of them in the panel opened as the
@@ -1389,7 +1413,7 @@ fn slow_save(saving: Signal<SavingState>) -> SlowSave {
 /// The host's statistics as its debug panels show them: a row a measurement, under headings,
 /// its performance first and then its memory, scrolling.
 #[component]
-fn StatisticsPanel(statistics: Signal<HostStatistics>) -> NodeId {
+fn StatisticsPanel(statistics: Signal<HostStatistics>, history: Signal<MemoryHistory>) -> NodeId {
     let rows = create_memo(move || {
         statistics.with(|statistics| {
             let mut rows = statistics.performance.clone();
@@ -1412,6 +1436,7 @@ fn StatisticsPanel(statistics: Signal<HostStatistics>) -> NodeId {
             <Frame padding=Space::Md>
                 <List spacing=Space::Xs>
                     <Text style=TextStyle::TITLE>{STATISTICS_TITLE}</Text>
+                    <MemoryGraph history={history} />
                     <StatisticLine
                         row={create_memo(|| Some(StatisticRow {
                             heading: true,
@@ -1431,6 +1456,83 @@ fn StatisticsPanel(statistics: Signal<HostStatistics>) -> NodeId {
                 </List>
             </Frame>
         </Scroll>
+    }
+}
+
+/// The host's memory over time, as be-host's own panel graphs it: resident, anonymous,
+/// shared and wasm memory a point a minute, each line in its own colour role, against a top of
+/// the peak resident size rounded up to 64 MiB, a gap of more than two minutes breaking a line.
+/// Nothing shows until a minute is measured.
+#[component]
+fn MemoryGraph(history: Signal<MemoryHistory>) -> NodeId {
+    let theme = use_theme();
+    let measured = create_memo(move || history.with(|history| !history.points.is_empty()));
+    let draw: Prop<Draw> = Prop::dynamic(move || {
+        let history = history.get();
+        let colors = [theme.accent.get(), theme.success.get(), theme.warning.get(), theme.danger.get()];
+        let border = theme.border.get();
+        Rc::new(move |painter: &Painter, rect: Rect| {
+            draw_memory(painter, rect, &history, colors, border);
+        }) as Draw
+    });
+    view! {
+        <Show value={measured}>
+            <Frame height={Size::Custom(MEMORY_GRAPH_HEIGHT)}>
+                <Drawing draw />
+            </Frame>
+        </Show>
+    }
+}
+
+/// The memory graph's height, in points.
+const MEMORY_GRAPH_HEIGHT: f32 = 60.0;
+
+fn draw_memory(
+    painter: &Painter,
+    rect: Rect,
+    history: &MemoryHistory,
+    colors: [beui::Color; 4],
+    border: beui::Color,
+) {
+    painter.rect_stroke(rect, 0.0, 1.0, border);
+    let Some(first) = history.points.first() else {
+        return;
+    };
+    const STEP: u64 = 64 << 20;
+    let peak = history.points.iter().map(|point| point.resident).max().unwrap_or(0);
+    let top = peak.div_ceil(STEP).max(1) * STEP;
+    let span = history.now.saturating_sub(first.at).max(60) as f32;
+    let at = |point: &be_wasm_root_api::MemoryPoint, value: u64| {
+        pos2(
+            rect.left() + rect.width() * point.at.saturating_sub(first.at) as f32 / span,
+            rect.bottom() - rect.height() * value as f32 / top as f32,
+        )
+    };
+    let lines: [fn(&be_wasm_root_api::MemoryPoint) -> u64; 4] = [
+        |point| point.resident,
+        |point| point.anonymous,
+        |point| point.shared,
+        |point| point.wasm,
+    ];
+    for (line, color) in lines.into_iter().zip(colors).rev() {
+        let mut path = beui::Path::new();
+        let mut previous: Option<u64> = None;
+        for point in &history.points {
+            let spot = at(point, line(point));
+            path = match previous {
+                Some(before) if point.at.saturating_sub(before) <= 120 => path.line_to(spot),
+                _ => path.move_to(spot),
+            };
+            previous = Some(point.at);
+        }
+        if let [only] = history.points.as_slice() {
+            path = path.line_to(pos2(rect.right(), at(only, line(only)).y));
+        }
+        painter.stroke_path(
+            &path,
+            &beui::Stroke::new(1.5).join(beui::LineJoin::Round),
+            color,
+        );
     }
 }
 
