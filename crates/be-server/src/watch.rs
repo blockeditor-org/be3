@@ -81,6 +81,9 @@ pub enum Push {
         block: Place,
         told: std::sync::Arc<crate::log::Told>,
     },
+    /// An entry of a block's signed log was redacted (`event.redacted`): told to the log's
+    /// followers who may still view the block.
+    Redacted { block: Place, seq: u64 },
     /// A message arrived in the account's mailbox, or was deleted (`store/mailbox.rs`).
     MailboxChanged,
     /// The account's key work in the organization may have changed (`topic.key-work`).

@@ -180,6 +180,9 @@ pub(crate) struct Settle {
 pub struct Searching {
     /// Blocks whose text their root's index has yet to take.
     dirty: BTreeSet<Uuid>,
+    /// The places of entries of each block's log the server redacted since the block was last
+    /// indexed: their documents go (`log_puts`).
+    redacted: HashMap<Uuid, BTreeSet<u64>>,
     /// Indexes a batch is being written to.
     writing: HashSet<Uuid>,
     /// Roots whose index this device made, until their metadata names it.
@@ -335,6 +338,12 @@ impl Searching {
 
     /// Queues a block whose head this device's session moved.
     pub(crate) fn sealed(&mut self, block: Uuid) {
+        self.dirty.insert(block);
+    }
+
+    /// Queues a block an entry of whose log, at `seq`, the server redacted: its document goes.
+    pub(crate) fn redacted(&mut self, block: Uuid, seq: u64) {
+        self.redacted.entry(block).or_default().insert(seq);
         self.dirty.insert(block);
     }
 
@@ -1699,6 +1708,28 @@ async fn log_puts(
         .unwrap_or(0);
     let start = from;
     let (mut puts, mut removed) = (Vec::new(), Vec::new());
+    // What was redacted since says nothing any more, whoever redacted it, and nothing after
+    // brings it back: its removal is as of no time any entry reaches.
+    let redacted = shared
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .search
+        .redacted
+        .remove(&block)
+        .unwrap_or_default();
+    for seq in redacted {
+        let key = format!("{LOG_KEY}{seq}");
+        removed.push((
+            DocId {
+                block: block.as_bytes().to_vec(),
+                key: key.clone(),
+            },
+            be_lib_search::Commit {
+                time: i64::MAX,
+                id: *be_block_store::Hash::of(key.as_bytes()).as_bytes(),
+            },
+        ));
+    }
     loop {
         let searched = match replicas
             .search_log((peer, shared), block, content_type, from)

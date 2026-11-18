@@ -123,5 +123,8 @@ log's latest entries (`be_block_content::UNREAD_ENTRIES`, guides/blocks/host.md,
 ## Search
 
 Each message is a document of the chat's log (`LogFold::search`): its own,
-which its author's edit replaces and deletion drops (guides/blocks/host.md,
-"Search"). Reactions are not searched.
+which its author's edit replaces and deletion drops, and any redaction drops
+for good, so a message removed by someone else is not found either
+(guides/blocks/host.md, "Search"). Reactions and forged messages are not
+searched. An open chat hears a redaction as it happens (`Event::Redacted`),
+so a removed message shows removed at once.

@@ -3172,7 +3172,9 @@ impl<H: Host> Replicas<H> {
     /// `LOG_SEARCHED` entries at a time: each change its type names (`LogFold::search`), as of
     /// the entry that made it, and where to go on from. A change to another entry's document
     /// is kept only when that entry has the same author, so nobody changes what someone else
-    /// wrote. Read as `Peer::read_log` reads, so it follows the log.
+    /// wrote, and never brings back the text of a redacted one; a redacted entry's document
+    /// goes, whoever redacted it, and an entry signed as nobody's (`Bad`) changes nothing. Read
+    /// as `Peer::read_log` reads, so it follows the log.
     pub async fn search_log(
         &mut self,
         ctx: Ctx<'_, H>,
@@ -3199,29 +3201,44 @@ impl<H: Host> Replicas<H> {
             .entries
             .last()
             .map_or(from, |logged| logged.entry.seq + 1);
-        let entries: HashMap<u64, (Uuid, i64, Uuid)> = read
+        let entries: HashMap<u64, (Uuid, i64, Uuid, bool)> = read
             .entries
             .iter()
             .map(|logged| {
                 (
                     logged.entry.seq,
-                    (logged.entry.author, logged.entry.arrival, logged.entry.id),
+                    (
+                        logged.entry.author,
+                        logged.entry.arrival,
+                        logged.entry.id,
+                        logged.entry.payload.is_none(),
+                    ),
                 )
             })
             .collect();
-        let items: Vec<be_sdk_type_api::LogItem> = read
+        // An entry whose payload is gone says nothing any more: its document goes, whoever
+        // redacted it.
+        let redacted: Vec<LogChange> = read
             .entries
-            .into_iter()
-            .map(|logged| be_sdk_type_api::LogItem {
-                seq: logged.entry.seq,
-                id: logged.entry.id,
-                author: logged.entry.author,
+            .iter()
+            .filter(|logged| logged.entry.payload.is_none())
+            .map(|logged| LogChange {
+                place: logged.entry.seq,
+                text: None,
                 arrival: logged.entry.arrival,
-                payload: logged.opened.map(|said| said.bytes),
-                signer: be_sdk_type_api::Signer::Unknown,
+                id: logged.entry.id,
             })
             .collect();
+        let size = read.head.size;
         let module = self.modules.module_of(content_type).ok_or_else(no_module)?;
+        let app = self.modules.name(module).to_owned();
+        // Verified, so an entry signed as nobody's (`Bad`) changes nothing.
+        let items = log_items(&peer, block, &app, read.entries).await;
+        let forged: HashSet<u64> = items
+            .iter()
+            .filter(|item| item.signer == be_sdk_type_api::Signer::Bad)
+            .map(|item| item.seq)
+            .collect();
         let (answer, _) = self
             .ask_reading(ctx, module, types::Scope::of([]), |connection| {
                 replicas::search_log(connection, content_type, items)
@@ -3239,20 +3256,31 @@ impl<H: Host> Replicas<H> {
                 )));
             }
         };
-        let mut changes = Vec::with_capacity(searched.len());
+        let mut changes = redacted;
         for change in searched {
-            let Some((author, arrival, id)) = entries.get(&change.seq).copied() else {
+            let Some((author, arrival, id, _)) = entries.get(&change.seq).copied() else {
                 continue;
             };
+            if forged.contains(&change.seq) {
+                continue;
+            }
+            // The entry whose document it changes: its author, and whether it is redacted, which
+            // no edit brings back.
             let named = match entries.get(&change.place) {
-                Some((named, ..)) => Some(*named),
+                Some((named, _, _, gone)) => Some((*named, *gone)),
                 None => peer
                     .read_log(block, change.place, 1)
                     .await
                     .ok()
-                    .and_then(|read| read.entries.first().map(|logged| logged.entry.author)),
+                    .and_then(|read| {
+                        read.entries.first().map(|logged| {
+                            (logged.entry.author, logged.entry.payload.is_none())
+                        })
+                    }),
             };
-            if named != Some(author) {
+            let kept = named
+                .is_some_and(|(named, gone)| named == author && (!gone || change.text.is_none()));
+            if !kept {
                 continue;
             }
             changes.push(LogChange {
@@ -3265,7 +3293,7 @@ impl<H: Host> Replicas<H> {
         Ok(LogSearched {
             changes,
             next,
-            size: read.head.size,
+            size,
         })
     }
 
@@ -3512,6 +3540,9 @@ impl<H: Host> Replicas<H> {
             Told::Event(Event::Appended(appended)) => {
                 return self.appended(peer, appended.clone());
             }
+            Told::Event(Event::Redacted(redacted)) => {
+                return self.redacted(peer, redacted);
+            }
             Told::Event(_) => return,
         };
         if let Some(waiting) = self.unsealing.get_mut(block) {
@@ -3726,6 +3757,33 @@ impl<H: Host> Replicas<H> {
                 }
             });
         }
+    }
+
+    /// Takes the server's word that an entry of a block's signed log was redacted: what this
+    /// device kept of it loses its payload (`Peer::redacted`), and the replica of an open block
+    /// hears the entry as it is now, so its editors show it redacted.
+    fn redacted(&mut self, peer: &Arc<Peer<H::Store>>, redacted: &be_block_protocol::Redacted) {
+        let block = redacted.block;
+        let Ok(Some(entry)) = peer.redacted(redacted) else {
+            return;
+        };
+        let Some(module) = self
+            .blocks
+            .get(&block)
+            .and_then(|replica| self.open.get(replica))
+            .map(|open| open.module)
+        else {
+            return;
+        };
+        let app = self.modules.name(module).to_owned();
+        let (peer, io) = (Arc::clone(peer), self.io.clone());
+        H::spawn(async move {
+            let items = log_items(&peer, block, &app, vec![entry]).await;
+            if !items.is_empty() {
+                let _ = io.send(Io::Logged { block, items });
+                H::wake();
+            }
+        });
     }
 
     /// Takes an append to the signed log of an open block (`Peer::logged`, which proves it

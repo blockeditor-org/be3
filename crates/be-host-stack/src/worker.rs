@@ -1832,6 +1832,13 @@ impl Session<'_> {
                             held.counting.appended(appended.block);
                             held.search.sealed(appended.block);
                         }
+                        // A redacted entry's text leaves the index, and may change what is
+                        // unread.
+                        if let Some(Event::Redacted(redacted)) = &event {
+                            let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+                            held.counting.appended(redacted.block);
+                            held.search.redacted(redacted.block, redacted.seq);
+                        }
                         match &event {
                             Some(message) => self.replicas.heard((peer, shared), message),
                             None => self.replicas.resynchronize((peer, shared)),
