@@ -107,7 +107,9 @@ Notes on particular calls:
   the manifest sets `"sharing": true` (an app the person opened cannot share
   what it shows, or read its links, unasked). Any app may still open a block
   it just made (one it created in this run, answered once the server took the
-  create and the block is still the app's) to anyone inside
+  create and the block is still the app's: made by this app and account, so if
+  the listing of such a block made on another device lands before this
+  device's create is set aside, the opening goes ahead) to anyone inside
   (`set_access(ANYONE_INSIDE, View)`), as the editor framework does when it
   makes a settings kind every member reads (`ensure_block_kind`,
   `ensure_edit_kind`): that names no one. It is not airtight: such an app can
