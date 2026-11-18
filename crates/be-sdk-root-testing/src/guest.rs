@@ -1529,7 +1529,8 @@ fn OrganizationsCard(core: Signal<CoreView>) -> NodeId {
         }
     };
     let open_link = move || {
-        // The link is a bearer secret: it leaves the field as it is handed over.
+        // The link is a bearer secret: shown as typed, so the person sees what they pasted,
+        // it leaves the field as it is handed over.
         let typed = link.get_untracked();
         link.set(String::new());
         if !typed.trim().is_empty() {
@@ -1616,7 +1617,6 @@ fn OrganizationsCard(core: Signal<CoreView>) -> NodeId {
                         value={link}
                         label="Invitation link"
                         placeholder="Invitation link"
-                        kind={InputKind::Password}
                         on_submit={move |_: String| open_link()}
                     />
                 </ListItem>
@@ -1654,7 +1654,7 @@ fn SessionsCard(core: Signal<CoreView>) -> NodeId {
     let new_label = create_memo(move || {
         area.with(|area| {
             let name = area
-                .session_types
+                .session_kinds
                 .iter()
                 .find(|kind| kind.id == area.session_type)
                 .map(|kind| kind.name.clone())

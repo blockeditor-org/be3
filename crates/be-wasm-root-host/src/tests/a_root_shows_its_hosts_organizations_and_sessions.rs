@@ -3,7 +3,7 @@ use be_lib_ui_types::input::{ImeEvent, Input};
 use be_sdk_root_testing::{ONBOARDING_LAYER, ONBOARDING_SURFACE};
 use be_wasm_root_api::{
     CoreCommand, CoreView, CoreWait, Invitation, OrganizationRow, OrganizationsArea,
-    OrganizationsListed, ProfileRow, SessionRow, SessionType, SessionsArea,
+    OrganizationsListed, ProfileRow, SessionKind, SessionRow, SessionsArea,
 };
 
 use super::*;
@@ -60,12 +60,12 @@ fn sessions() -> CoreView {
                     current: false,
                 },
             ],
-            session_types: vec![
-                SessionType {
+            session_kinds: vec![
+                SessionKind {
                     id: DESKTOP,
                     name: "desktop".to_owned(),
                 },
-                SessionType {
+                SessionKind {
                     id: NOTEBOOK,
                     name: "notebook".to_owned(),
                 },
