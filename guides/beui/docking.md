@@ -238,7 +238,9 @@ moves only by the pointer.
 (`lifts_on_press`) and past the threshold along its axis by a finger, and the drop site of its own
 carry alone: a `free` place over its tree's canvas, unbounded, which turns the pointer's travel from
 the press into a `SplitSize` as `SplitSize::moved` does. Unlike a tab it previews by writing: each
-place chosen is written with `State::drag_edit`, and a drop writes its place too. Escape or a
+place chosen is written with `State::edit` from its site's own effect, and a drop writes its place
+too (not `drag_edit`, whose write runs after input, before the board hears the pointer, so it
+would reach layout a frame late). Escape or a
 cancelled press puts it back to the size it had at the lift. Its carry `reads_outside`,
 so past the window's edge it follows the captured pointer to its clamp, and a release there drops
 it there. It scrolls nothing. Its arrows step it `SPLIT_STEP` of the
