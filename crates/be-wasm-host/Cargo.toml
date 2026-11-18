@@ -19,6 +19,9 @@ wasmparser = "0.257"
 be-wasm-dylink = { path = "../be-wasm-dylink" }
 wgpu = { version = "29", default-features = false, features = ["std", "wgsl"] }
 
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
 [lints]
 workspace = true
 

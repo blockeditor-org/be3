@@ -46,8 +46,9 @@ pub(crate) fn flags_hash() -> String {
 /// Whether every wasm32 memory stays where it was made while it grows. With V8's trap handler on,
 /// each is reserved in full with guard regions around it, and V8 grows it only in place (else
 /// the grow fails), so its base never moves; the gpu and transport imports then read it without
-/// V8, as fast-API calls (gpu.rs). Where the trap handler cannot be had, a memory may move when it
-/// grows, and the imports are ordinary calls that ask V8 where it is.
+/// V8, as fast-API calls (gpu.rs). Where the trap handler cannot be had, or the process has too
+/// little address space for it (`ROOM`), a memory may move when it grows, and the imports are
+/// ordinary calls that ask V8 where it is.
 pub(crate) fn memories_stay_put() -> bool {
     initialize();
     TRAP_HANDLER.get().copied().unwrap_or(false)
@@ -79,12 +80,48 @@ pub(crate) fn initialize() {
         let _ = FLAGS.set(flags);
         // V8's own signal handler, which passes on any fault that is not a guest's out-of-bounds
         // access to the handler it found (memories_stay_put).
-        let _ = TRAP_HANDLER.set(v8::V8::enable_web_assembly_trap_handler(true));
+        let _ = TRAP_HANDLER.set(has_room() && v8::V8::enable_web_assembly_trap_handler(true));
         let platform = v8::new_default_platform(0, false).make_shared();
         let _ = PLATFORM.set(platform.clone());
         v8::V8::initialize_platform(platform);
         v8::V8::initialize();
     });
+}
+
+/// The address space a process must have room to reserve before V8's trap handler is turned on.
+/// With it, every wasm32 memory, each guest's and each worker's, takes about 10 GiB of address
+/// space (its 4 GiB and guard regions), so this is room for some 400 of them. A 64-bit Linux on
+/// x86_64 has 128 TiB; an arm64 kernel built with 39-bit addresses, as many Android and vendor
+/// kernels are, has 512 GiB, which would run out after a few dozen guests, so there the memories
+/// may move and the imports are ordinary calls.
+const ROOM: usize = 4 << 40;
+
+/// Whether the process can reserve `ROOM` of address space, tried by reserving it and letting it go.
+#[cfg(unix)]
+fn has_room() -> bool {
+    // a reservation of no pages anyone may touch, unmapped at once.
+    // unsafe(ffi)
+    unsafe {
+        let reserved = libc::mmap(
+            std::ptr::null_mut(),
+            ROOM,
+            libc::PROT_NONE,
+            libc::MAP_PRIVATE | libc::MAP_ANONYMOUS | libc::MAP_NORESERVE,
+            -1,
+            0,
+        );
+        if reserved == libc::MAP_FAILED {
+            return false;
+        }
+        libc::munmap(reserved, ROOM);
+    }
+    true
+}
+
+/// A 64-bit Windows process has 128 TiB of address space.
+#[cfg(not(unix))]
+fn has_room() -> bool {
+    cfg!(target_pointer_width = "64")
 }
 
 /// The most a guest's isolate holds on V8's own heap (its table, exceptions and the host's few
@@ -207,6 +244,8 @@ pub(crate) struct Shape {
     pub(crate) collected: bool,
     /// The functions it defines.
     pub(crate) functions: usize,
+    /// Whether a memory it imports or defines is shared.
+    pub(crate) shared: bool,
 }
 
 impl Shape {
@@ -239,6 +278,7 @@ impl Shape {
                                 if memory.memory64 {
                                     return Err("the module imports a 64-bit memory".to_owned());
                                 }
+                                shape.shared |= memory.shared;
                                 Kind::Memory(Memory {
                                     initial: memory.initial,
                                     maximum: memory.maximum,
@@ -258,6 +298,7 @@ impl Shape {
                 Payload::MemorySection(reader) => {
                     for memory in reader {
                         let memory = memory.map_err(invalid)?;
+                        shape.shared |= memory.shared;
                         memories.push(Memory {
                             initial: memory.initial,
                             maximum: memory.maximum,

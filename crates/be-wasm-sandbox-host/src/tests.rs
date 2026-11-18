@@ -79,7 +79,7 @@ fn config() -> Config {
     }
 }
 
-/// An app links its libraries into one shared memory, which the base library alone fills more of
+/// An app links its libraries into one memory, which the base library alone fills more of
 /// than a module from bytes needs.
 fn app_config() -> Config {
     Config {

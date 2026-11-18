@@ -118,9 +118,8 @@ pub(crate) const PLANS: &[Plan] = &[
         html: false,
         lib: true,
     },
-    // The apps, the libraries apps are linked against and the crates that
-    // test linking them (wasm_library and linked_app in buck/wasm/defs.bzl),
-    // the echo guest staged as an app and its worker, the apps' workers, beui's demo, the paint
+    // The apps, the libraries apps are linked against (wasm_library in
+    // buck/wasm/defs.bzl), the echo guest staged as an app and its worker, the apps' workers, beui's demo, the paint
     // review, whose tests paint as an app's do, and the root guests linked as apps are
     // (decisions/a_root_links_beui_as_an_app_does.md): a plan of their own, since they want a
     // different wgpu.

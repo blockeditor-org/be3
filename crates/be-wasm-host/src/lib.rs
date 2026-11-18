@@ -371,6 +371,27 @@ fn source(bytes: Vec<u8>) -> Result<Vec<u8>, String> {
     Ok(bytes)
 }
 
+/// Refuses a guest that would have a second thread: one whose modules share a memory or ask for
+/// threads (`wasi.thread-spawn`), since a guest is single-threaded
+/// (decisions/guests_are_single_threaded.md).
+fn single_threaded(program: &Program) -> Result<(), String> {
+    const SINGLE: &str = "a guest is single-threaded (decisions/guests_are_single_threaded.md)";
+    for module in program.modules() {
+        if module.shape.shared {
+            return Err(format!("the app has a shared memory, and {SINGLE}"));
+        }
+        if module
+            .shape
+            .imports
+            .iter()
+            .any(|import| import.module == "wasi" && import.name == "thread-spawn")
+        {
+            return Err(format!("the app asks to start threads, and {SINGLE}"));
+        }
+    }
+    Ok(())
+}
+
 /// A guest instantiated on an isolate of its own, which an App runs and a test run runs
 /// (harness.rs).
 pub(crate) struct Running {
@@ -468,6 +489,7 @@ impl Running {
             Code::Compiled(module) => module,
         };
         let (program, identities) = host.program(scope, app, library)?;
+        single_threaded(&program)?;
         let cap = host.memory_limit.map(engine::pages);
         let declared = match program.first().shape.memory_import() {
             Some(engine::Import {
@@ -477,11 +499,6 @@ impl Running {
             _ => None,
         };
         let memory = match &declared {
-            Some(declared) if declared.shared => {
-                return Err("the app imports a shared memory, and a guest is single-threaded \
-                            (decisions/guests_are_single_threaded.md)"
-                    .to_owned());
-            }
             Some(declared) => {
                 let maximum = match cap {
                     Some(cap) => Some(engine::capped_maximum(declared, cap)?),
