@@ -13,6 +13,7 @@ be_wasm_ops_bindgen::generate!({
     with: {
         "password": ::be_wasm_password::Password,
     },
+    secret: ["password"],
 });
 
 pub use frames::{FrameDone, FrameRequest};

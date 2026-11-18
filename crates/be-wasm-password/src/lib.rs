@@ -8,8 +8,8 @@
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-/// A password as typed.
-#[derive(Clone, Default, PartialEq, Eq)]
+/// A password as typed. It is neither cloned nor compared: the host checks it against the
+/// platform and drops it.
 pub struct Password(Vec<u8>);
 
 impl Password {

@@ -1058,21 +1058,24 @@ Each step lands on its own.
          data, nothing beui's. `host.lock` is a watch, as `host.notices` is, answering the lock
          (`lock-state`: whether the host can lock, whether it is locked, whether a password is
          being checked, why the last was refused, whose session it is, the power actions the
-         lock screen offers, and `retry-at`, the frame clock's time before which the host checks
-         none, which the root counts down itself) once it changes; `host.lock-session` asks the
+         lock screen offers, and `retry-at`, the frame clock's time the host's wait after failed
+         checks ends at, which the root counts down itself; until the host shows the lock again
+         with none, once the wait is over, a password is dropped unchecked) once it changes; `host.lock-session` asks the
          host to lock it; `host.lock-power` is a power action chosen on it; and `host.unlock`
          hands the host what the person typed, answering nothing: how the check went reaches
          the root only through `lock`. The host takes one password at a time: while one is
-         handed over and not taken, being checked, or the host makes the person wait, or while
-         the session is not locked, `be3:root` drops one unchecked. The host rate-limits failed
+         handed over and not taken, being checked, or while the lock has a `retry-at`, or while
+         the session is not locked, `be3:root` drops one unchecked. 4g7's host shows the lock
+         again with no `retry-at` when its wait expires. The host rate-limits failed
          checks with a growing wait, as the login session's lock does (`login_session::lock`'s
          `FREE_ATTEMPTS` and penalty), which is the guard against guessing, since a root can
          always lock the session itself. The password is be-wasm-password's `Password`, the one
          type be3:root's `password`, the login session's lock and PAM share: zeroed when
          dropped and never printed, so the generated call's `Debug` shows nothing of it. What
          holds of the secret: the host zeroes its decoded copy once checked and nothing of it
-         crosses back; be-wasm-ops zeroes an accepted call's arguments once decoded
-         (`be_wasm_ops::scrub`) and the root host each frame it received; the guest's own
+         crosses back; be-wasm-ops zeroes the arguments of an accepted call taking a
+         secret once decoded (be-wasm-ops-bindgen's `secret` option, `be_wasm_ops::scrub`; no
+         other call pays for it) and the root host each frame it received; the guest's own
          buffers (its text field and what encoded the call) and, on the web, the page's copy
          are not scrubbed, so a root clears its field as it hands it over and keeps no copy
          (be-wasm-root-host's `Root::show_lock`, `take_lock_asked`, `take_unlock`,
@@ -1082,7 +1085,8 @@ Each step lands on its own.
          (4g7). be-sdk-root-testing shows a lock screen while locked (`LOCK_LAYER`, beui on
          `LOCK_SURFACE`, hit everywhere, capturing and focusing): over everything, toasts
          hidden, taking the focus for its password field once drawn and giving it back once
-         unlocked, the root intercepting none of its own keys meanwhile and opening no dialog;
+         unlocked, the root intercepting none of its own keys meanwhile, only the F5 test
+         fixture, and opening no dialog;
          F4 (`LOCKS_SESSION`) asks the host to lock, and F5 (`UNLOCKS_TWICE`), a fixture,
          hands over a stray password twice as a root gone wrong might. be-wasm-root-host's
          `a_root_shows_its_hosts_lock_screen_and_hands_over_only_what_was_typed` checks a

@@ -29,7 +29,8 @@
 //! change of them (`host.statistics`) as rows, never taking the focus.
 //! It shows its host's screen lock (`host.lock`): while the session is locked, a lock screen
 //! (`LOCK_LAYER`, drawn with beui on `LOCK_SURFACE`) over everything, toasts hidden, which takes
-//! the focus for its password field and gives it back once unlocked; it intercepts no key then.
+//! the focus for its password field and gives it back once unlocked; it intercepts none of its
+//! own keys then, only the F5 test fixture (`UNLOCKS_TWICE`).
 //! Its field hands what was typed to the host to check (`host.unlock`), cleared as it does, and
 //! shows why the host refused it. F4 (`LOCKS_SESSION`) asks the host to lock the session.
 //! A frame at `CLOSES` lets go of the app, which stops it. The window's input is routed by the

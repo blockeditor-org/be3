@@ -189,10 +189,12 @@ tests read one their build made, crates/be-host-tests/apps.bzl). Each guest thre
   (be-wasm-password's `Password`, the type the login session's lock and PAM
   take too) and answers nothing: the host takes one at a time
   (`Root::take_unlock`), only into a locked session and not while one is
-  checked or it makes the person wait after failures (`retry-at`, its rate
-  limit, the guard against guessing), checks it, drops it, which zeroes it,
-  and shows the lock as it then stands. The call's arguments and the frames
-  that carried it are zeroed once read; the guest's own buffers are not. The input method
+  checked or while the lock has a `retry-at` (the wait after failures, its
+  rate limit and the guard against guessing, which lasts until the host shows
+  the lock again with none once the wait is over), checks it, drops it, which zeroes it,
+  and shows the lock as it then stands. The call's arguments are zeroed once
+  decoded (the bindings' `secret` option, for this call alone) and the frames
+  that carried it once read; the guest's own buffers are not. The input method
   needs nothing more: the platform's input-method events reach the root as
   input, which its router hands the focused surface, and the field that
   surface edits is `frame-done`'s `ime`. Choosing and saving files are the

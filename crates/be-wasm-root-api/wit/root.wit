@@ -171,9 +171,10 @@ interface host {
         /// What the lock screen offers besides unlocking.
         power: list<power-action>,
         /// While the host makes the person wait after failed passwords, the
-        /// frame clock's time, in nanoseconds, before which it checks none:
-        /// it drops one handed over sooner unchecked. The root counts down to
-        /// it itself.
+        /// frame clock's time, in nanoseconds, the wait ends at, which the root
+        /// counts down to itself. Until the host shows the lock again with none,
+        /// once the wait is over, a password handed over is dropped unchecked,
+        /// whatever the time.
         retry-at: option<u64>,
     }
 
@@ -191,8 +192,8 @@ interface host {
     /// reaches the root only through `lock`: unlocked, or refused with why.
     /// The host takes one at a time: while one is being checked (`checking`),
     /// one is handed over and not yet taken, the session is not locked, or
-    /// the host makes the person wait after failed passwords (`retry-at`),
-    /// it drops one handed over unchecked. The host rate-limits failed
+    /// the lock has a `retry-at` (until the host shows it again with none,
+    /// once its wait is over), it drops one handed over unchecked. The host rate-limits failed
     /// checks with a growing wait, as the login session's lock does, which is
     /// the guard against guessing, since a root can always lock the session
     /// itself. The host zeroes its decoded copy once checked and nothing of
