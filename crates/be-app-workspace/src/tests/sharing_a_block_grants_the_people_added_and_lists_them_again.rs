@@ -55,6 +55,7 @@ fn sharing_a_block_grants_the_people_added_and_lists_them_again() {
             company: false,
             set_inside: 0,
             links_admit: None,
+            hosted: false,
         }),
     );
     fixture.settle();

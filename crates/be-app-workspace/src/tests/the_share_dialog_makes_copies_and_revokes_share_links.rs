@@ -43,6 +43,7 @@ fn answer_listings(fixture: &mut Fixture, block: Uuid) -> Vec<HostCall> {
                         company: true,
                         set_inside: 0,
                         links_admit: Some(LinkAdmits::Anyone),
+                        hosted: false,
                     }),
                 );
             }

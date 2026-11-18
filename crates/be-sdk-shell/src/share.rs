@@ -6,8 +6,9 @@ use uuid::Uuid;
 pub(crate) const GRANTABLE: [AccessLevel; 3] =
     [AccessLevel::Manage, AccessLevel::Edit, AccessLevel::View];
 
-/// What a share link offers: never Manage, which a link holder could then hand on.
-pub(crate) const LINK_GRANTABLE: [AccessLevel; 2] = [AccessLevel::Edit, AccessLevel::View];
+/// What a share link offers: never Manage, which a link holder could then hand on; Join only on
+/// a hosted block.
+const LINK_GRANTABLE: [AccessLevel; 3] = [AccessLevel::Edit, AccessLevel::View, AccessLevel::Join];
 
 const MAX_SUGGESTIONS: usize = 6;
 
@@ -102,8 +103,9 @@ pub(crate) struct Share {
     pub(crate) invite_link: Option<String>,
     /// The member whom the person asked to give ownership to, until they confirm or cancel.
     pub(crate) transferring: Option<Uuid>,
-    /// What the next share link grants, and whom it admits.
-    pub(crate) link_access: AccessLevel,
+    /// What the next share link grants, once the person chose (`Share::link_access`), and
+    /// whom it admits.
+    pub(crate) chosen_link_access: Option<AccessLevel>,
     pub(crate) link_admits: LinkAdmits,
     /// The share link being made, by ask, until the host answers.
     pub(crate) making_link: Option<u64>,
@@ -125,7 +127,7 @@ impl Share {
             inviting: None,
             invite_link: None,
             transferring: None,
-            link_access: AccessLevel::View,
+            chosen_link_access: None,
             link_admits: LinkAdmits::Members,
             making_link: None,
             revoking: None,
@@ -208,7 +210,7 @@ impl Share {
                 }
             }
             ShareAction::CancelOwnership => self.transferring = None,
-            ShareAction::LinkAccess(access) => self.link_access = access,
+            ShareAction::LinkAccess(access) => self.chosen_link_access = Some(access),
             ShareAction::LinkAdmits(admits) => self.link_admits = admits,
             ShareAction::OfferRevoke(link) => self.revoking = Some(link),
             ShareAction::CancelRevoke => self.revoking = None,
@@ -247,6 +249,28 @@ impl Share {
             .collect()
     }
 
+    /// The levels a share link on the block offers: Join only on a hosted block, which offers it
+    /// first.
+    pub(crate) fn link_levels(listing: &AccessListing) -> Vec<AccessLevel> {
+        let mut levels: Vec<AccessLevel> = LINK_GRANTABLE
+            .into_iter()
+            .filter(|level| *level != AccessLevel::Join || listing.hosted)
+            .collect();
+        if listing.hosted {
+            levels.rotate_right(1);
+        }
+        levels
+    }
+
+    /// What the next share link grants: what the person chose, else Join on a hosted block
+    /// (plans/hosted_blocks.md, "The share dialog") and View on any other.
+    pub(crate) fn link_access(&self, listing: Option<&AccessListing>) -> AccessLevel {
+        self.chosen_link_access.unwrap_or(match listing.is_some_and(|listing| listing.hosted) {
+            true => AccessLevel::Join,
+            false => AccessLevel::View,
+        })
+    }
+
     /// Whether `me` manages the block as `listing` lists it: only a manager sees and makes its
     /// share links.
     pub(crate) fn manages(listing: &AccessListing, me: Uuid) -> bool {
@@ -282,6 +306,7 @@ impl Share {
         };
         let what = match link.access {
             AccessLevel::Edit => "can edit",
+            AccessLevel::Join => "can join",
             _ => "can view",
         };
         match (link.maker == me.into_bytes(), link.maker_name.is_empty()) {
