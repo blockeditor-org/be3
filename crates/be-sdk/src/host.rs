@@ -1795,13 +1795,19 @@ impl EditorHost {
         self.tell(ShellMessage::ChangeView(ViewChange::PanDrag));
     }
 
+    /// The block dragged over the editor, positioned in the view it is over. The host offers
+    /// a block only to the view holding the editor's content (its main view, or the dock view
+    /// given its frame), so this is that view's, whichever view asks: a docked editor steps
+    /// its bars' views too.
     pub fn drag(&self) -> Option<BlockDrag> {
         self.read();
-        let view = self.shown_view()?;
-        match self.drops.borrow().get(&view)?.dragged {
-            Some(Dragged::Block(drag)) => Some(drag),
-            _ => None,
-        }
+        self.drops
+            .borrow()
+            .values()
+            .find_map(|drops| match drops.dragged {
+                Some(Dragged::Block(drag)) => Some(drag),
+                _ => None,
+            })
     }
 
     pub fn files(&self) -> Option<FileDrop> {

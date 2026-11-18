@@ -487,17 +487,6 @@ Depends on #686 (session catch-ups replaced by server ordering).
   one, so a game cannot be played from the keyboard alone. Done: the arrows
   move a selection between the movable pieces while nothing is carried, shown
   by a test that plays a chess move with keys only.
-- **A block dragged onto a docked editor reaches its content.** A block
-  carried from the files onto an open canvas never lands. The host takes it
-  right: the canvas's surface view (a dock view, not its main view) is the
-  site chosen and is told the drop (`drag_over_view` for that view). But an
-  editor reads one `drag()`, filled in `EditorState::begin_frame` from the
-  view it runs in, only on the first `begin_frame` after a change. A docked
-  canvas begins a frame in each of its dock views, bars first, so it reads a
-  bar's drag, which is none. Done (with plans/declarative_dragging.md step 6,
-  which redesigns `Editor::drag`): an editor hears the drag over the view that
-  holds its content, and a host test drags a checklist from the files onto a
-  canvas and finds it there.
 - **A lift wakes only the carries it concerns.** The board keeps every carried
   payload in one `lifted` signal, so each `carries(&payload)` reader (every
   slider, colour control and scrollbar thumb's `ThumbCarry`, every splitter, every

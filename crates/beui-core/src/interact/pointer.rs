@@ -1767,17 +1767,27 @@ fn track(doc: &mut Document, frame: &Frame) {
         }
         return;
     };
+    // While a pointer presses, the sample is that press: its place and window with its id,
+    // never the place of another pointer's later event.
     let pressing = doc
         .pointers
         .sessions
         .iter()
         .find(|session| session.role == Role::Press)
-        .map_or(PointerId::Mouse, |session| session.pointer);
-    doc.last_pointer = Some(PointerSample {
-        pos,
-        window,
-        touch,
-        pointer: pressing,
+        .map(|session| (session.pos, session.window, session.pointer));
+    doc.last_pointer = Some(match pressing {
+        Some((pos, window, pointer)) => PointerSample {
+            pos,
+            window,
+            touch: matches!(pointer, PointerId::Touch(_)),
+            pointer: Some(pointer),
+        },
+        None => PointerSample {
+            pos,
+            window,
+            touch,
+            pointer: None,
+        },
     });
     let Some(drags) = doc.drags.clone() else {
         return;
