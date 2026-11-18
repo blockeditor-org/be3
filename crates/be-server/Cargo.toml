@@ -8,6 +8,7 @@ license.workspace = true
 base64 = "0.22"
 be-server-portal = { path = "../be-server-portal" }
 async-trait = "0.1"
+axum = { version = "0.8", default-features = false }
 be-block = { path = "../be-block" }
 be-block-search-index = { path = "../be-block-search-index" }
 be-block-content = { path = "../be-block-content" }
@@ -22,9 +23,9 @@ be-lib-build-id = { path = "../be-lib-build-id" }
 bytes = "1"
 futures-util = "0.3"
 http = "1"
-httparse = "1"
 hkdf = "0.12"
 zeroize = "1"
+hyper = { version = "1", features = ["http1", "server"] }
 hyper-util = { version = "0.1", features = ["server-auto", "tokio"] }
 openidconnect = { version = "4", default-features = false, features = ["ureq"] }
 rand = "0.9"
@@ -40,6 +41,8 @@ sha2 = "0.10"
 be-block-sqlite-schema = { path = "../be-block-sqlite-schema" }
 tokio = { version = "1", features = ["io-util", "macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
 tokio-tungstenite = "0.23"
+tower = { version = "0.5", features = ["util"] }
+tower-http = { version = "0.6", features = ["limit", "set-header", "timeout"] }
 tracing = "0.1"
 ureq = { version = "2", features = ["json"] }
 url = "2"

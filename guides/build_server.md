@@ -138,7 +138,8 @@ Behind an HTTPS proxy, as in a cloud session, buck2 reaches nl.be3.pfg.pw throug
   and run the command again: the new daemon asks the relay, which has forgotten, and uploads. Fallbacks, in order,
   if it survives that: kill this checkout's relays too (each checkout, a worktree included, runs its own pair,
   `target/tools/re-relay-*/re-relay serve` under that checkout, and they outlive `./scripts/buck kill`;
-  `pgrep -a re-relay` lists them; kill this checkout's two by PID, and the next `./scripts/buck` starts them again);
+  `pgrep -a re-relay` lists them; kill this checkout's two by PID, and the next `./scripts/buck` starts them again;
+  a removed agent worktree leaves its own pair running, under a path that no longer exists: kill those too);
   then `./scripts/buck kill`, kill the relays and `rm -rf ~/.buck/buckd buck-out` together before running it.
 - **`could not run ...: No such file`** after a full disk forced clearing part of `buck-out`:
   the daemon still believes the outputs it deleted exist. `./scripts/buck kill`, then remove all of
