@@ -1286,7 +1286,9 @@ starts one beside the web build.
 - be-host-stack's `Harness` (`src/tests.rs`) starts the embedded server and the
   host's peer against it; crates above it use `be-host-testing`'s `Harness`,
   which serves the first-party types in process
-  (`be_host_stack::testing::serve_in_process`).
+  (`be_host_stack::testing::serve_in_process`), and stops and starts its server
+  on the same address (`stop_server`, `start_server`) for a test of what the
+  host does while it is out of reach.
 - `crates/be-block-fault-relay` sits between a client and a server and can
   `stall`, `stall_at_next_request`, `cut`, `hold_new` or `jam_at_next_request`
   connections, go `offline` (cut them and refuse new ones until it is back), and `count` the calls the client starts (method ids are
