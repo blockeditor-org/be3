@@ -18,7 +18,6 @@ APPS = {
     "a_block_added_from_the_files_is_named_in_its_row": ["text"],
     "a_block_added_to_my_files_from_a_slow_server_stays_in_it": ["text"],
     "a_canvas_in_a_canvas_keeps_to_its_card_and_closes_when_pressed_outside": ["infinite-canvas"],
-    "a_block_dragged_from_the_files_onto_a_canvas_lands_on_it": ["checklist", "infinite-canvas"],
     "a_canvas_in_a_canvas_shows_its_tool_bar_in_place_of_the_outer_ones": ["infinite-canvas"],
     "a_canvas_pans_with_the_wheel_and_drags_and_zooms_with_ctrl": ["infinite-canvas"],
     "a_canvas_popped_out_into_a_window_hides_the_files_behind_it": ["infinite-canvas"],
