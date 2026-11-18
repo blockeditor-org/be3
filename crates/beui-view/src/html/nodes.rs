@@ -60,6 +60,10 @@ pub(crate) fn reveal(node: NodeId) {
     scroll::reveal(node);
 }
 
+pub(crate) fn reveal_part(node: NodeId, part: crate::types::Rect) {
+    scroll::reveal_part(node, Some(part));
+}
+
 pub(crate) fn first_offset_within(node: NodeId) -> Option<NodeId> {
     scroll::first_within(node)
 }
