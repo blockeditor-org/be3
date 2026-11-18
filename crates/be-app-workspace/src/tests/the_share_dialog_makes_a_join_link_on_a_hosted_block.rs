@@ -7,8 +7,8 @@ use super::*;
 
 /// A hosted block's dialog offers its type's levels by their names, each said in a line, and
 /// a share link grants Join unless the person chooses more (plans/hosted_blocks.md, "The share
-/// dialog"): a game's Join game, Host and Manage. Someone invited by a contact link starts at
-/// Join too.
+/// dialog"): a game's Join game, Host and Manage. It says who is hosting the world now.
+/// Someone invited by a contact link starts at Join too.
 #[test]
 fn the_share_dialog_makes_a_join_link_on_a_hosted_block() {
     let (mut fixture, block) = editor_sized(Some(Vec2::new(900.0, 800.0)));
@@ -71,6 +71,7 @@ fn the_share_dialog_makes_a_join_link_on_a_hosted_block() {
                             line: "Can also share the world.".to_owned(),
                         },
                     ],
+                    host: Some(ada.into_bytes()),
                 }),
             ),
             HostCall::ListShareLinks { reply, .. } => fixture.test.answer(reply, Ok(Vec::new())),
@@ -93,6 +94,10 @@ fn the_share_dialog_makes_a_join_link_on_a_hosted_block() {
     assert!(
         fixture.says("Host, set here"),
         "a member's access is named by the type too: Ada hosts"
+    );
+    assert!(
+        fixture.says("Ada is hosting it now."),
+        "the dialog says who hosts the world now"
     );
     fixture
         .test
