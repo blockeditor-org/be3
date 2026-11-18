@@ -32,6 +32,9 @@ pub struct LoggedEntry {
     pub entry: LogEntry,
     /// None once redacted, or when no key this device holds opens it.
     pub opened: Option<Said>,
+    /// Its payload opened but holds no salt, which no client writes: it says nothing anyone
+    /// signed.
+    pub malformed: bool,
 }
 
 impl LoggedEntry {
@@ -392,7 +395,8 @@ impl<S: ObjectStore> Peer<S> {
     /// the head this device kept, which it proves itself; otherwise, having missed some, by
     /// reading the log from the kept head. Answers the entries it took, in order: those this
     /// device did not have, and when told late, after a read moved the kept head past them,
-    /// those the push names too, which a follower may have heard already.
+    /// those the push names too, as read again against the kept head, which a follower may have
+    /// heard already.
     pub async fn logged(
         &self,
         appended: be_block_protocol::Appended,
@@ -424,9 +428,19 @@ impl<S: ObjectStore> Peer<S> {
                 return Err(ClientError::LogForked(block));
             }
             // A read since may have taken the head past these without their entries (a page
-            // from the log's start, an export), so they are handed on all the same: whoever
-            // follows the log drops those it holds by their place.
-            return self.open_entries(block, appended.entries).await;
+            // from the log's start, an export), so they are handed on all the same, but only
+            // as proved against the head kept: the head this push names is the server's word
+            // alone. Those this device holds were; the rest it reads again. Whoever follows the
+            // log drops those it holds by their place.
+            let held = appended
+                .entries
+                .iter()
+                .all(|entry| self.refs.log_entry(block, entry.seq).is_some());
+            if held {
+                return self.open_entries(block, appended.entries).await;
+            }
+            let count = u32::try_from(appended.entries.len()).unwrap_or(u32::MAX);
+            return Ok(self.read_log(block, appended.previous, count).await?.entries);
         }
         if appended.previous == size
             && let Some(entries) = self.take_entries(
@@ -567,12 +581,18 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     fn opened(&self, block: Uuid, entry: LogEntry) -> LoggedEntry {
-        let opened = entry
+        let plain = entry
             .payload
             .as_ref()
-            .and_then(|sealed| self.open_for(block, sealed).ok())
-            .and_then(Said::opened);
-        LoggedEntry { entry, opened }
+            .and_then(|sealed| self.open_for(block, sealed).ok());
+        let malformed = plain
+            .as_ref()
+            .is_some_and(|plain| plain.len() < LOG_SALT_BYTES);
+        LoggedEntry {
+            entry,
+            opened: plain.and_then(Said::opened),
+            malformed,
+        }
     }
 
     /// Who signed an entry of `block`'s log that says `said` (its payload opened, with its salt)

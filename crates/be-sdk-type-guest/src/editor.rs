@@ -252,36 +252,71 @@ pub(crate) enum Taken {
     /// It was held at this place, and is now told better: who signed it, once that could be
     /// told (`Unknown` to `Verified`), or its payload gone (`Redacted`).
     Changed,
+    /// Its id is held at an earlier place: its place is skipped.
+    Skipped,
+    /// Its id was held at a later place, which is now skipped.
+    Moved,
 }
 
-/// Keeps `item` in a log held by place, unless its id is held at an earlier place: a log
-/// read in pieces keeps the first place of each id (an entry served again under its id later
-/// in the log is never the one shown), and one heard at a later place first is moved back.
-/// One held at its place is replaced when told better, never by an `Unknown` verdict.
-pub(crate) fn take_logged(
-    log: &mut BTreeMap<u64, be_block_content::LogItem>,
-    ids: &mut BTreeMap<Uuid, u64>,
-    item: be_block_content::LogItem,
-) -> Taken {
-    match ids.get(&item.id).copied() {
-        Some(seq) if seq < item.seq => Taken::Held,
-        Some(seq) if seq == item.seq => {
-            let unchanged = log.get(&seq).is_none_or(|held| {
-                *held == item || item.signer == be_block_content::LogSigner::Unknown
-            });
-            if unchanged {
-                return Taken::Held;
+/// The entries of a block's signed log held by place: each id once, at its first place, so
+/// one a server serves again under its id later in the log is never shown twice, and the places
+/// such repeats take, which a walk of the log in order steps over.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct HeldLog {
+    pub(crate) items: BTreeMap<u64, be_block_content::LogItem>,
+    ids: BTreeMap<Uuid, u64>,
+    /// Places a repeat of an id held earlier takes.
+    pub(crate) skipped: std::collections::BTreeSet<u64>,
+}
+
+impl HeldLog {
+    /// Keeps `item`, unless its id is held at an earlier place: a log read in pieces keeps the
+    /// first place of each id, and one heard at a later place first is moved back. One held at
+    /// its place is replaced when told better, never by an `Unknown` verdict.
+    pub(crate) fn take(&mut self, item: be_block_content::LogItem) -> Taken {
+        match self.ids.get(&item.id).copied() {
+            Some(seq) if seq < item.seq => {
+                self.skipped.insert(item.seq);
+                Taken::Skipped
             }
-            log.insert(seq, item);
-            Taken::Changed
+            Some(seq) if seq == item.seq => {
+                let unchanged = self.items.get(&seq).is_none_or(|held| {
+                    *held == item || item.signer == be_block_content::LogSigner::Unknown
+                });
+                if unchanged {
+                    return Taken::Held;
+                }
+                self.items.insert(seq, item);
+                Taken::Changed
+            }
+            held => {
+                self.skipped.remove(&item.seq);
+                self.ids.insert(item.id, item.seq);
+                self.items.insert(item.seq, item);
+                match held {
+                    Some(later) => {
+                        self.items.remove(&later);
+                        self.skipped.insert(later);
+                        Taken::Moved
+                    }
+                    None => Taken::New,
+                }
+            }
         }
-        held => {
-            if let Some(later) = held {
-                log.remove(&later);
+    }
+
+    /// Whether the place `seq` is held: an entry, or a repeat skipped.
+    pub(crate) fn holds(&self, seq: u64) -> bool {
+        self.items.contains_key(&seq) || self.skipped.contains(&seq)
+    }
+
+    /// Keeps only the latest `count` entries.
+    fn keep_latest(&mut self, count: usize) {
+        while self.items.len() > count {
+            if let Some((seq, oldest)) = self.items.pop_first() {
+                self.ids.remove(&oldest.id);
+                self.skipped = self.skipped.split_off(&seq);
             }
-            ids.insert(item.id, item.seq);
-            log.insert(item.seq, item);
-            Taken::New
         }
     }
 }
@@ -356,8 +391,7 @@ pub struct EditorMirror<C: LiveEdit> {
     appended: Vec<(u64, Result<Option<(u64, i64)>, String>)>,
     /// The entries of the block's signed log this editor heard or read, by place, each id once
     /// at its first place: the latest `LOG_HELD`.
-    log: BTreeMap<u64, be_block_content::LogItem>,
-    log_ids: BTreeMap<Uuid, u64>,
+    log: HeldLog,
     /// The log's length as last read.
     log_size: u64,
     lacking: BTreeMap<u64, (Vec<u8>, bool)>,
@@ -391,8 +425,7 @@ impl<C: LiveEdit + Clone + Default> Default for EditorMirror<C> {
             ranges: Vec::new(),
             puts: Vec::new(),
             appended: Vec::new(),
-            log: BTreeMap::new(),
-            log_ids: BTreeMap::new(),
+            log: HeldLog::default(),
             log_size: 0,
             lacking: BTreeMap::new(),
             lacking_revision: 0,
@@ -531,7 +564,7 @@ impl<C: LiveEdit + Clone + Default> EditorMirror<C> {
     /// The entries of the block's signed log this editor holds, in the log's order, each id
     /// once at its first place: the latest `LOG_HELD` it heard or read.
     pub fn log(&self) -> impl Iterator<Item = &be_block_content::LogItem> {
-        self.log.values()
+        self.log.items.values()
     }
 
     /// The log's length as this editor last heard it.
@@ -542,14 +575,10 @@ impl<C: LiveEdit + Clone + Default> EditorMirror<C> {
     fn take_log(&mut self, items: Vec<be_block_content::LogItem>) {
         for item in items {
             self.log_size = self.log_size.max(item.seq + 1);
-            take_logged(&mut self.log, &mut self.log_ids, item);
+            self.log.take(item);
         }
         // An editor holds the latest entries it heard or read, and reads older ones again.
-        while self.log.len() > LOG_HELD {
-            if let Some((_, oldest)) = self.log.pop_first() {
-                self.log_ids.remove(&oldest.id);
-            }
-        }
+        self.log.keep_latest(LOG_HELD);
         self.revision += 1;
     }
 
