@@ -1252,6 +1252,11 @@ impl Instances {
             .any(|entry| matches!(entry.role, InstanceRole::Host(..)))
     }
 
+    /// Whether the host asked this app for a view of any of its instances (`report`).
+    pub(super) fn has_views(&self) -> bool {
+        self.entries.values().any(|entry| !entry.screens.is_empty())
+    }
+
     pub(super) fn has_mounted(&self) -> bool {
         self.entries.iter().any(|(instance, entry)| {
             entry.screens.values().any(|screen| screen.mounted > 0)
