@@ -1898,7 +1898,8 @@ fn parse_log_kind(name: &str) -> Result<be_block_protocol::LogKind, ServerError>
 
 /// `sealed` and `retirements`, with what parts staged for `account`'s move to `public` and
 /// `signing` carry (`stage-recovery-key`) beside them: the write's own go over a part's for
-/// the same key or log.
+/// the same key or log. A key the write seals twice is refused, as a log it retires twice is
+/// by the check after.
 fn with_staged(
     database: &Connection,
     account: Uuid,
@@ -1933,7 +1934,14 @@ fn with_staged(
             },
         );
     }
+    let mut sealed_here = std::collections::HashSet::new();
     for key in sealed {
+        if !sealed_here.insert((key.organization, key.key)) {
+            return Err(refused(format!(
+                "a new recovery key seals {} once",
+                key.key
+            )));
+        }
         keys.insert((key.organization, key.key), key);
     }
     let mut logs: BTreeMap<(Uuid, &'static str, Uuid), be_block_protocol::Retirement> =

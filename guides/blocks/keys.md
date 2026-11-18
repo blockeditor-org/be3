@@ -1099,7 +1099,11 @@ who lost access. Cited from code by these names.
   again. Past a quarter of a frame (`RECOVERY_PART_BYTES`) the device sends the
   rest ahead in parts (`stage-recovery-key`), which the server holds for those
   keys and the last write (`set-recovery-key`) checks with its own as one, so
-  any account takes a new phrase. The server still reads every log the account
+  any account takes a new phrase. Two devices moving to different phrases at
+  once each drop the other's parts as they stage, so at most one move goes
+  through and the other is refused, to be taken again; a key sealed to the
+  account between staging and the last write is in no part, so that write is
+  refused too. The server still reads every log the account
   signed in to serve `recovery-key` (each one's head) and to check the
   retirements, so a move costs time in the number of blocks the account made.
 
