@@ -241,10 +241,8 @@ async fn front(
             "a request has no Transfer-Encoding; send a Content-Length",
         ));
     }
-    let client = services.client_address(
-        link.peer.ip(),
-        text(request.headers(), "x-forwarded-for"),
-    );
+    let client =
+        services.client_address(link.peer.ip(), text(request.headers(), "x-forwarded-for"));
     let route = Route::of(request.method(), request.uri().path(), routes.s3.is_some());
     {
         let mut places = link.places.lock().unwrap();
@@ -878,7 +876,11 @@ async fn call(
     closing(answered.unwrap_or_else(failed))
 }
 
-async fn one_shot(body: Body, address: IpAddr, services: &Services) -> Result<Response, ServerError> {
+async fn one_shot(
+    body: Body,
+    address: IpAddr,
+    services: &Services,
+) -> Result<Response, ServerError> {
     if !services.calls.allow(address) {
         return Ok(refuse(
             StatusCode::TOO_MANY_REQUESTS,

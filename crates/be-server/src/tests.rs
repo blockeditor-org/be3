@@ -3221,9 +3221,10 @@ impl TestPushService {
                         let (sending, answer) = (sending.clone(), Arc::clone(&answer));
                         async move {
                             let (parts, body) = request.into_parts();
-                            let body = axum::body::to_bytes(axum::body::Body::new(body), usize::MAX)
-                                .await
-                                .unwrap_or_default();
+                            let body =
+                                axum::body::to_bytes(axum::body::Body::new(body), usize::MAX)
+                                    .await
+                                    .unwrap_or_default();
                             let request = PushRequest {
                                 path: parts.uri.to_string(),
                                 headers: parts
@@ -3271,7 +3272,6 @@ impl TestPushService {
             .expect("the push service stays open")
     }
 }
-
 
 /// A device taking pushes: its P-256 key and authentication secret (RFC 8291). Its key is
 /// ring's ephemeral kind, so it decrypts one push.

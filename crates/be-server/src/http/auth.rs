@@ -68,11 +68,11 @@ async fn portal(
         return Ok((
             [
                 (header::CONTENT_TYPE, asset.content_type),
+                (header::CACHE_CONTROL, "public, max-age=31536000, immutable"),
                 (
-                    header::CACHE_CONTROL,
-                    "public, max-age=31536000, immutable",
+                    header::HeaderName::from_static("cross-origin-resource-policy"),
+                    "same-origin",
                 ),
-                (header::HeaderName::from_static("cross-origin-resource-policy"), "same-origin"),
                 (header::X_CONTENT_TYPE_OPTIONS, "nosniff"),
             ],
             asset.bytes,
@@ -138,8 +138,14 @@ async fn portal(
         crate::portal::Body::Html(html) => (
             [
                 (header::CONTENT_TYPE, "text/html; charset=utf-8"),
-                (header::HeaderName::from_static("cross-origin-opener-policy"), "same-origin"),
-                (header::HeaderName::from_static("cross-origin-embedder-policy"), "require-corp"),
+                (
+                    header::HeaderName::from_static("cross-origin-opener-policy"),
+                    "same-origin",
+                ),
+                (
+                    header::HeaderName::from_static("cross-origin-embedder-policy"),
+                    "require-corp",
+                ),
             ],
             html,
         )
@@ -165,14 +171,20 @@ async fn portal(
     }
     if let Some(cookie) = result.cookie {
         let lifetime = if cookie.is_empty() { 0 } else { 30 * 86400 };
-        insert(header::SET_COOKIE, &cookies.set(ACCOUNT_COOKIE, &cookie, lifetime));
+        insert(
+            header::SET_COOKIE,
+            &cookies.set(ACCOUNT_COOKIE, &cookie, lifetime),
+        );
     }
     if let Some(attempt) = result.attempt {
         let lifetime = match attempt.is_empty() {
             true => 0,
             false => crate::store::codes::CODE_LIFETIME,
         };
-        insert(header::SET_COOKIE, &cookies.set(ATTEMPT_COOKIE, &attempt, lifetime));
+        insert(
+            header::SET_COOKIE,
+            &cookies.set(ATTEMPT_COOKIE, &attempt, lifetime),
+        );
     }
     Ok(response)
 }
