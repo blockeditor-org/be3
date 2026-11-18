@@ -29,15 +29,8 @@ fn children_that_move_wait_with_a_child_that_comes_in_the_same_layout() {
     runtime.hear(vec![placing(2, &[1, 2])]);
     let held: Vec<u64> = runtime
         .held
-        .iter()
-        .flat_map(|held| match held {
-            Answer::Laid(laid) => laid
-                .children
-                .iter()
-                .map(|placed| placed.instance.0)
-                .collect(),
-            _ => Vec::new(),
-        })
+        .laid()
+        .flat_map(|laid| laid.children.iter().map(|placed| placed.instance.0))
         .collect();
     assert_eq!(
         held,

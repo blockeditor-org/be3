@@ -1,7 +1,7 @@
 use be_lib_stable_hash::HashMap;
 use std::{
     cell::RefCell,
-    collections::{BTreeMap, VecDeque},
+    collections::BTreeMap,
     rc::Rc,
     sync::Arc,
     time::{Duration, Instant},
@@ -11,10 +11,13 @@ use be_sdk_api::{
     AnchorSpace, ArtifactDescription, BlockPick, ChildPlacements, ChildPreview, DockMessage,
     EditorInstanceId, FrameSpec, HostPanel, HostTransform, LayoutCommit, OpeningKind,
     PresentCommit, PresentedFrame, PreviewImage, ScreenDamage, ScreenId, ScreenLayout,
-    ScreenPlacement, ScreenRequest, ScreenWindow, SurfaceFormat, SurfaceSpec, View, ViewId,
-    ViewSize, WindowRequest,
+    ScreenPlacement, ScreenRequest, SurfaceFormat, SurfaceSpec, View, ViewId,
+    WindowRequest,
 };
-use be_sdk_app_host::pacing::{self, FrameClock, Pacing};
+use be_sdk_app_host::{
+    holds::{Held, Holds, Laid, Presents, Shown},
+    pacing::{self, FrameClock, Pacing},
+};
 use be_sdk_manifest::AppManifest;
 use beui::native::EmbedPlacement;
 use beui::{Modifiers, Pos2, Rect, Vec2, pos2, vec2};
@@ -43,7 +46,6 @@ use super::{
 const HOST_NAME: &str = "BE3";
 const UNIT: Rect = Rect::from_min_max(Pos2::ZERO, pos2(1.0, 1.0));
 use be_host_base::performance::PACING;
-const REMEMBERED_PRESENTS: usize = 16;
 const IDLE_TIMEOUT: Duration = Duration::from_secs(30);
 
 thread_local! {
@@ -254,27 +256,16 @@ pub(super) struct Runtime {
     pub(super) backend: Backend,
     session: Session,
     queued: Vec<Outbound>,
-    held: Vec<Answer>,
+    held: Holds<Answer>,
     /// The person asked to restart the app; the next `poll` does.
     restart_asked: bool,
     taking_in: bool,
     /// A frame held until the poll applies the children and docks its layout brought
     /// (`Runtime::received`), so both show in the same host frame.
     held_frame: Option<Frame>,
-    /// The sequence of the last present heard that painted: frames up to it were drawn before
-    /// any layout heard since (`Laid::drawn_after`).
-    painted_heard: u64,
-    layouts_heard: u64,
-    presents_heard: u64,
-    /// Presents applied, in the order the app sent them among its other answers.
-    presents_applied: u64,
-    /// The app's screens while anchored views it closed are still shown (`Runtime::place`).
-    closing: Option<Closing>,
-    /// The last frames of views the app's layout left out while the host still holds them
-    /// (`Runtime::keep_left_out`).
-    kept: HashMap<ScreenId, Kept>,
-    /// Counts the views hidden, to order the kept frames (`Kept::hidden`).
-    hides: u64,
+    /// Anchored views the app closed and the last frames of views it left out, while still
+    /// shown (`Runtime::place`, `Runtime::laid_out`).
+    shown: Shown,
     pub(super) instances: Instances,
     pub(super) layout: ScreenLayout,
     pub(super) pass: u64,
@@ -353,88 +344,10 @@ impl From<Heard> for Answer {
     }
 }
 
-/// The app's screens while anchored views they leave out are still shown: until the present
-/// after the layout (`presented_by`, counted in `Runtime::presents_applied`) and, when it painted,
-/// the frame of that present's sequence (`drawn_by`).
-struct Closing {
-    presented_by: u64,
-    drawn_by: Option<u64>,
-    layout: ScreenLayout,
-}
-
-/// Whether the host keeps the last frame of a view its app stops drawing. Natively it holds the
-/// frame's textures itself; on the web a surface is the app worker's canvas, which goes when the
-/// app's layout leaves it out.
-const KEEPS_FRAMES: bool = cfg!(not(target_arch = "wasm32"));
-
-/// The last frame of a view the app's layout left out because the host stopped showing it (a
-/// dock tab or bar hidden with its tab), while the host still holds the view: shown again, the
-/// view draws this until the app's new frame of it has been drawn, so it never shows empty while
-/// that frame is on its way.
-struct Kept {
-    placement: ScreenPlacement,
-    /// When it was hidden, counted in hides, so the oldest goes first past `MOST_KEPT`.
-    hidden: u64,
-    /// How far the app has come drawing the view again, once it lays its screen out again.
-    back: Option<Back>,
-}
-
-/// How many hidden views of one app keep their last frame at once: past it, the one hidden
-/// longest lets its frame go, and if it is shown again it may show empty for a frame while its
-/// app draws it.
-const MOST_KEPT: usize = 8;
-
-/// A kept frame goes once the present that follows the layout bringing its view back has been
-/// applied and, where it painted, its frame has been drawn, as an anchored view that closes does
-/// (`Closing`).
-#[derive(Clone, Copy)]
-enum Back {
-    /// Laid out again; waits for this many presents applied.
-    Laid(u64),
-    /// That present came, with the sequence of its frame if it painted.
-    Presented(Option<u64>),
-}
-
-struct Laid {
-    serial: u64,
-    /// How many presents the app must have sent before this is applied: the one that follows
-    /// the layout commit it came in. Children come and go only with the frame that punches or
-    /// fills their space, so a closed child never leaves its hole in the placer's old frame.
-    presented_by: u64,
-    /// The sequence of the last frame drawn before its layout: a frame past it may paint what
-    /// these children go with, so it waits for them (`Runtime::received`), even when it arrives
-    /// before the present that brings it is heard.
-    drawn_after: u64,
-    sizes: Vec<ViewSize>,
-    windows: Vec<ScreenWindow>,
-    children: Vec<ChildPlacements>,
-    /// The commit's dock messages, applied after its children: which tabs a root shows decides
-    /// which of the children it places are drawn, so a tab switched to and the one it hides
-    /// change in the same frame (`docks::resolve`).
-    docks: Vec<DockMessage>,
-}
-
-impl Laid {
-    fn is_empty(&self) -> bool {
-        self.sizes.is_empty()
-            && self.windows.is_empty()
-            && self.children.is_empty()
-            && self.docks.is_empty()
-    }
-
-    fn screens(&self, instances: &Instances) -> be_lib_stable_hash::HashSet<ScreenId> {
-        self.sizes
-            .iter()
-            .map(|size| size.screen)
-            .chain(self.windows.iter().map(|window| window.screen))
-            .chain(
-                self.children.iter().filter_map(|placements| {
-                    instances.screen_id(placements.instance, placements.view)
-                }),
-            )
-            .collect()
-    }
-}
+/// Whether the host holds the textures of what an app presented, so it keeps the last frame of a
+/// view its app stops drawing and waits for a present's pixels (`Shown`). On the web a surface is
+/// the app worker's canvas, which goes when the app's layout leaves it out.
+const HOLDS_TEXTURES: bool = cfg!(not(target_arch = "wasm32"));
 
 pub(super) struct Placed {
     pub(super) rect: Rect,
@@ -442,48 +355,6 @@ pub(super) struct Placed {
     pub(super) zoom: f32,
     pub(super) inert: bool,
     shown: Rect,
-}
-
-#[derive(Default)]
-struct Presents {
-    reported: VecDeque<PresentedFrame>,
-    shown: u64,
-}
-
-impl Presents {
-    fn report(&mut self, presented: PresentedFrame) {
-        if self.reported.len() == REMEMBERED_PRESENTS {
-            self.reported.pop_front();
-        }
-        self.reported.push_back(presented);
-    }
-
-    /// The damage of the presents since the last shown through `presents`, where every one of
-    /// them reported it, and the placements their surfaces were painted at, in order.
-    fn damage_through(
-        &mut self,
-        presents: u64,
-    ) -> (Option<Vec<ScreenDamage>>, Vec<be_sdk_api::ScreenPlacement>) {
-        let since = std::mem::replace(&mut self.shown, presents);
-        let mut damage = Vec::new();
-        let mut painted = Vec::new();
-        let mut found = 0;
-        for presented in &self.reported {
-            if presented.sequence <= presents {
-                painted.extend_from_slice(&presented.painted);
-            }
-            if presented.sequence > since && presented.sequence <= presents {
-                damage.extend_from_slice(&presented.damage);
-                found += 1;
-            }
-        }
-        self.reported
-            .retain(|presented| presented.sequence > presents);
-        (
-            (presents > since && found == presents - since).then_some(damage),
-            painted,
-        )
-    }
 }
 
 fn frame_changed(damage: Option<&[ScreenDamage]>) -> bool {
@@ -504,16 +375,10 @@ impl Runtime {
             backend,
             session,
             queued: Vec::new(),
-            held: Vec::new(),
+            held: Holds::default(),
             taking_in: false,
             held_frame: None,
-            painted_heard: 0,
-            layouts_heard: 0,
-            presents_heard: 0,
-            presents_applied: 0,
-            closing: None,
-            kept: HashMap::default(),
-            hides: 0,
+            shown: Shown::new(HOLDS_TEXTURES),
             instances,
             layout: ScreenLayout::default(),
             pass: 0,
@@ -565,12 +430,7 @@ impl Runtime {
         self.queued.clear();
         self.held.clear();
         self.held_frame = None;
-        self.painted_heard = 0;
-        self.layouts_heard = 0;
-        self.presents_heard = 0;
-        self.presents_applied = 0;
-        self.closing = None;
-        self.kept.clear();
+        self.shown.clear();
         self.error = None;
         self.status = PresenterStatus::waiting();
         self.layout = ScreenLayout::default();
@@ -830,10 +690,8 @@ impl Runtime {
         self.painting = false;
         let mut shared = self.shared.borrow_mut();
         // A kept frame's painting stays with it: the app no longer paints a view it left out.
-        let kept = &self.kept;
-        shared
-            .paintings
-            .retain(|screen, _| kept.contains_key(screen));
+        let kept = &self.shown;
+        shared.paintings.retain(|screen, _| kept.keeps(*screen));
         shared.overflows.clear();
         let Ok(paintings) = beui::native::painting::ScreenPaintings::decode(payload) else {
             return;
@@ -1045,9 +903,7 @@ impl Runtime {
 
     /// Whether the frame of present `sequence` comes after the layout of children still held.
     fn waits_for_children(&self, sequence: u64) -> bool {
-        self.held
-            .iter()
-            .any(|held| matches!(held, Answer::Laid(laid) if sequence > laid.drawn_after))
+        self.held.waits_for_children(sequence)
     }
 
     fn show_frame(&mut self, mut frame: Frame) {
@@ -1058,12 +914,14 @@ impl Runtime {
             frame.set_damage(damage);
             self.shared.borrow_mut().paint(&painted);
             changed = frame_changed(frame.damage());
-            if !self.kept.is_empty() {
+            if self.shown.has_kept() {
                 self.release_kept();
             }
-            self.shared
-                .borrow_mut()
-                .publish(&self.layout, self.kept_placements(), Some(frame));
+            self.shared.borrow_mut().publish(
+                &self.layout,
+                self.shown.kept_placements(),
+                Some(frame),
+            );
             self.close_anchored();
             self.frames += 1;
             be_host_base::performance::record_group_count(
@@ -1082,7 +940,7 @@ impl Runtime {
             .iter()
             .filter(|heard| matches!(heard, Heard::Presented(_)))
             .count() as u64;
-        self.presents_heard += presents;
+        self.held.heard_presents(presents);
         let mut answers = Vec::with_capacity(forwarded.len());
         if self.taking_in {
             self.release_presented(&mut answers);
@@ -1091,17 +949,17 @@ impl Runtime {
         for heard in forwarded {
             match heard {
                 Heard::LaidOut(commit) => {
-                    self.layouts_heard += 1;
-                    let (now, later) = self.split(*commit);
-                    answers.push(Answer::LaidOut(now));
-                    if let Some(later) = later {
-                        held = true;
-                        self.held.push(Answer::Laid(later));
-                    }
+                    let mut commit = *commit;
+                    self.instances.translate(&mut commit, true);
+                    let instances = &self.instances;
+                    held |= self
+                        .held
+                        .heard_layout(&mut commit, |placements| instances.only_moves(placements));
+                    answers.push(Answer::LaidOut(commit));
                 }
                 Heard::Presented(commit) => {
                     if let Some(presented) = &commit.presented {
-                        self.painted_heard = self.painted_heard.max(presented.sequence);
+                        self.held.heard_painted(presented.sequence);
                     }
                     answers.push(Answer::Presented(commit));
                 }
@@ -1113,7 +971,7 @@ impl Runtime {
                 }
                 heard => {
                     held = true;
-                    self.held.push(Answer::from(heard));
+                    self.held.hold(Answer::from(heard));
                 }
             }
         }
@@ -1136,11 +994,15 @@ impl Runtime {
     /// Moves the held answers into `answers` in order, up to the first children still waiting on
     /// the frame they came with.
     fn release_presented(&mut self, answers: &mut Vec<Answer>) {
-        let waiting = self.held.iter().position(
-            |held| matches!(held, Answer::Laid(laid) if laid.presented_by > self.presents_heard),
+        answers.extend(
+            self.held
+                .release_presented()
+                .into_iter()
+                .map(|held| match held {
+                    Held::Laid(laid) => Answer::Laid(laid),
+                    Held::Answer(answer) => answer,
+                }),
         );
-        let rest = self.held.split_off(waiting.unwrap_or(self.held.len()));
-        answers.extend(std::mem::replace(&mut self.held, rest));
     }
 
     fn export_previews(&mut self, frame: &Frame) -> bool {
@@ -1175,51 +1037,23 @@ impl Runtime {
     }
 
     /// Takes the app's screens. An anchored view they leave out stays, showing its last frame,
-    /// until the frame that closed it is drawn (`Closing`): what the view showed may have moved
+    /// until the frame that closed it is drawn (`Shown::place`): what the view showed may have moved
     /// into another of the app's surfaces (a dragged dock bar settling back into its band), which
     /// shows only with that frame, so it is never missing in between, as children come and go
     /// with the frame that fills their space. The app sends a layout ahead of the frame's commits.
     fn place(&mut self, layout: ScreenLayout) {
-        self.closing = None;
-        let closed: Vec<_> = self
-            .layout
-            .screens
-            .iter()
-            .filter(|placement| {
-                layout.placement(placement.screen).is_none()
-                    && self.instances.is_anchored_screen(placement.screen)
-            })
-            .cloned()
-            .collect();
-        if closed.is_empty() {
-            self.laid_out(layout);
-            return;
-        }
-        let mut shown = layout.clone();
-        shown.screens.extend(closed);
-        self.laid_out(shown);
-        self.closing = Some(Closing {
-            presented_by: self.presents_applied + 1,
-            drawn_by: None,
-            layout,
+        let instances = &self.instances;
+        let shown = self.shown.place(&self.layout, layout, |screen| {
+            instances.is_anchored_screen(screen)
         });
+        self.laid_out(shown);
     }
 
     /// Lets the anchored views a layout closed go once the frame that follows it has been
     /// presented and, where the host composites the app's surfaces, its pixels have arrived.
     fn close_anchored(&mut self) {
-        let Some(closing) = &self.closing else {
-            return;
-        };
-        let presented = self.presents_applied >= closing.presented_by;
-        let drawn = closing
-            .drawn_by
-            .is_none_or(|sequence| self.presents.shown >= sequence);
-        if !presented || !drawn {
-            return;
-        }
-        if let Some(closing) = self.closing.take() {
-            self.laid_out(closing.layout);
+        if let Some(layout) = self.shown.closed(self.presents.shown()) {
+            self.laid_out(layout);
             mark(&self.app.identity.id);
         }
     }
@@ -1239,99 +1073,30 @@ impl Runtime {
         self.backend
             .export(shown.iter().map(|placement| placement.surface).collect());
         self.instances.keep_anchored(&layout);
-        self.keep_left_out(&layout);
+        let instances = &self.instances;
+        self.shown.keep_left_out(&self.layout, &layout, |placement| {
+            placement.view != ViewId::PREVIEW
+                && instances.view_request_of(placement.screen).is_some()
+        });
         self.layout = layout;
         self.release_kept();
-    }
-
-    /// Keeps the last frame of each view `layout` leaves out that the host still holds, and notes
-    /// when the app lays out again a view whose last frame is kept (`Kept`).
-    fn keep_left_out(&mut self, layout: &ScreenLayout) {
-        if !KEEPS_FRAMES {
-            return;
-        }
-        for placement in &self.layout.screens {
-            let held = placement.view != ViewId::PREVIEW
-                && self.instances.view_request_of(placement.screen).is_some();
-            if !held || layout.placement(placement.screen).is_some() {
-                continue;
-            }
-            self.hides += 1;
-            let hidden = self.hides;
-            self.kept
-                .entry(placement.screen)
-                .and_modify(|kept| {
-                    kept.back = None;
-                    kept.hidden = hidden;
-                })
-                .or_insert(Kept {
-                    placement: *placement,
-                    hidden,
-                    back: None,
-                });
-        }
-        // Only the views hidden last keep their frame; the textures of the others go with the
-        // next `release_kept`. One this layout shows again is coming back, so it keeps its frame.
-        let mut hidden: Vec<(u64, ScreenId)> = self
-            .kept
-            .iter()
-            .filter(|(screen, kept)| kept.back.is_none() && layout.placement(**screen).is_none())
-            .map(|(screen, kept)| (kept.hidden, *screen))
-            .collect();
-        if hidden.len() > MOST_KEPT {
-            hidden.sort_unstable();
-            for (_, screen) in &hidden[..hidden.len() - MOST_KEPT] {
-                self.kept.remove(screen);
-            }
-        }
-        let next = self.presents_applied + 1;
-        for placement in &layout.screens {
-            if let Some(kept) = self.kept.get_mut(&placement.screen)
-                && kept.back.is_none()
-            {
-                kept.back = Some(Back::Laid(next));
-            }
-        }
     }
 
     /// Lets go of each kept frame whose view is gone or whose new frame has been drawn, and of
     /// every texture neither the app's layout nor a kept frame holds.
     fn release_kept(&mut self) {
-        let shown = self.presents.shown;
         let instances = &self.instances;
-        self.kept.retain(|screen, kept| {
-            let drawn = match kept.back {
-                None | Some(Back::Laid(_)) => false,
-                // A present that painted nothing lets the kept frame go though the new surface has
-                // no pixels yet, as a closing anchored view does (`Closing`).
-                Some(Back::Presented(painted)) => painted.is_none_or(|sequence| shown >= sequence),
-            };
-            instances.view_request_of(*screen).is_some() && !drawn
+        self.shown.release_kept(self.presents.shown(), |screen| {
+            instances.view_request_of(screen).is_some()
         });
-        self.shared.borrow_mut().kept = self.kept_placements();
-        presenter::keep(self.surface, &self.retained_surfaces());
-    }
-
-    fn kept_placements(&self) -> Vec<ScreenPlacement> {
-        self.kept.values().map(|kept| kept.placement).collect()
-    }
-
-    fn retained_surfaces(&self) -> Vec<u32> {
-        self.layout
-            .screens
-            .iter()
-            .chain(self.kept.values().map(|kept| &kept.placement))
-            .map(|placement| placement.surface)
-            .collect()
+        self.shared.borrow_mut().kept = self.shown.kept_placements();
+        presenter::keep(self.surface, &self.shown.retained_surfaces(&self.layout));
     }
 
     /// The placement a screen is drawn from: its kept last frame while it has one, else the
     /// app's layout's.
     fn shown_placement(&self, screen: ScreenId) -> Option<&ScreenPlacement> {
-        self.kept
-            .get(&screen)
-            .map(|kept| &kept.placement)
-            .or_else(|| self.layout.placement(screen))
+        self.shown.placement(&self.layout, screen)
     }
 
     fn offer_previews(&mut self, messages: &[Outbound]) {
@@ -1350,72 +1115,19 @@ impl Runtime {
         }
     }
 
-    fn split(&self, commit: LayoutCommit) -> (LayoutCommit, Option<Laid>) {
-        let mut commit = commit;
-        self.instances.translate(&mut commit, true);
-        // Children that only move are applied at once, with the painting that goes with them.
-        // When any child comes or goes the painting waits for the poll (`received`), so the
-        // ones that move, and the views' sizes, wait with it.
-        let moves = |placements: &ChildPlacements| {
-            !self.held.iter().any(|held| {
-                matches!(held, Answer::Laid(laid) if laid.children.iter().any(|earlier| {
-                    (earlier.instance, earlier.view) == (placements.instance, placements.view)
-                }))
-            }) && self.instances.only_moves(placements)
-        };
-        // A fit child's size goes with the painting too, so it waits with them.
-        let (coming, sizes) = match commit.children.iter().all(moves) {
-            true => (Vec::new(), Vec::new()),
-            false => (
-                std::mem::take(&mut commit.children),
-                std::mem::take(&mut commit.sizes),
-            ),
-        };
-        let mut later = Laid {
-            serial: commit.serial,
-            presented_by: self.layouts_heard,
-            drawn_after: self.painted_heard,
-            sizes,
-            windows: std::mem::take(&mut commit.windows),
-            children: coming,
-            docks: Vec::new(),
-        };
-        let waiting = self.held.iter().any(|held| matches!(held, Answer::Laid(_)));
-        if waiting || !later.is_empty() {
-            later.docks = std::mem::take(&mut commit.docks);
-        }
-        (commit, (!later.is_empty()).then_some(later))
-    }
-
     fn held_screens(&self) -> be_lib_stable_hash::HashSet<ScreenId> {
         self.held
-            .iter()
-            .filter_map(|held| match held {
-                Answer::Laid(laid) => Some(laid.screens(&self.instances)),
-                Answer::Layout(_)
-                | Answer::FrameNeeded
-                | Answer::MissingCharacters(_)
-                | Answer::Shell(_)
-                | Answer::Editor(..)
-                | Answer::Paintings(_)
-                | Answer::Blocks(..)
-                | Answer::Watch(..)
-                | Answer::Unwatch(..)
-                | Answer::Published(..)
-                | Answer::Debug(..)
-                | Answer::Ended(_)
-                | Answer::Service(_)
-                | Answer::Network(..)
-                | Answer::Withdrawn(_)
-                | Answer::LaidOut(_)
-                | Answer::Presented(_) => None,
-            })
-            .flatten()
+            .laid()
+            .flat_map(|laid| self.laid_screens(laid))
             .collect()
     }
 
+    fn laid_screens(&self, laid: &Laid) -> be_lib_stable_hash::HashSet<ScreenId> {
+        laid.screens(|instance, view| self.instances.screen_id(instance, view))
+    }
+
     fn lay(&mut self, laid: Laid) -> bool {
-        let screens = laid.screens(&self.instances);
+        let screens = self.laid_screens(&laid);
         let mut changed = self.instances.set_view_sizes(laid.sizes);
         changed |= self.instances.set_windows(laid.windows);
         for placements in laid.children {
@@ -1580,24 +1292,8 @@ impl Runtime {
         if let Some(delay) = delay {
             host::request_repaint_after(delay);
         }
-        self.presents_applied += 1;
-        if let Some(closing) = &mut self.closing
-            && self.presents_applied == closing.presented_by
-        {
-            closing.drawn_by = presented
-                .as_ref()
-                .filter(|_| cfg!(not(target_arch = "wasm32")))
-                .map(|presented| presented.sequence);
-        }
-        for kept in self.kept.values_mut() {
-            if let Some(Back::Laid(presented_by)) = kept.back
-                && self.presents_applied >= presented_by
-            {
-                kept.back = Some(Back::Presented(
-                    presented.as_ref().map(|presented| presented.sequence),
-                ));
-            }
-        }
+        self.shown
+            .presented(presented.as_ref().map(|presented| presented.sequence));
         if let Some(presented) = presented {
             // The browser's worker shows a present on its canvases as it makes it, so what each
             // surface holds changes now; natively it changes as the frame is shown (`show_frame`).
@@ -1606,7 +1302,7 @@ impl Runtime {
             self.presents.report(presented);
         }
         self.close_anchored();
-        if !self.kept.is_empty() {
+        if self.shown.has_kept() {
             self.release_kept();
         }
         self.drawn = self
@@ -1640,15 +1336,7 @@ impl Runtime {
         let held = self.held_screens();
         let mut changed = self.instances.confirm(serial, &held);
         changed |= self.instances.set_frame_reports(reports);
-        changed |= self.lay(Laid {
-            serial,
-            presented_by: 0,
-            drawn_after: 0,
-            sizes,
-            windows,
-            children,
-            docks: Vec::new(),
-        });
+        changed |= self.lay(Laid::now(serial, sizes, windows, children));
         changed |= self.instances.refresh_anchoring_views();
         changed |= super::docks::heard(&self.app.identity.id, docks);
         self.instances.settle_gifts(&committed);
@@ -1693,7 +1381,7 @@ impl Runtime {
         }
         self.shared
             .borrow_mut()
-            .publish(&self.layout, self.kept_placements(), None);
+            .publish(&self.layout, self.shown.kept_placements(), None);
     }
 
     fn template(&self, screen: ScreenId) -> Blit {
