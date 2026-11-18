@@ -20,8 +20,14 @@ fn timed(done: &FrameDone) -> Option<f32> {
 fn input_reaches_the_root_with_the_time_it_was_sampled() {
     let mut root = root();
     let frame = |root: &mut Root, time| {
-        root.frame(FrameRequest { time, wall_clock: 0 }, Instant::now() + PATIENT)
-            .expect("the root draws")
+        root.frame(
+            FrameRequest {
+                time,
+                wall_clock: 0,
+            },
+            Instant::now() + PATIENT,
+        )
+        .expect("the root draws")
     };
     frame(&mut root, 1);
     let on_child = pos2(CHILD_ORIGIN.0 + 10.0, 50.0);
