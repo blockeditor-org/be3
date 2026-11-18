@@ -9,8 +9,7 @@ use be_block_graph::Access;
 /// which the removed member, with the server, does not open; what was first sealed never
 /// leaves the device.
 #[tokio::test]
-async fn an_edit_made_offline_across_a_removal_is_sealed_again_under_a_key_the_removed_never_get()
-{
+async fn an_edit_made_offline_across_a_removal_is_sealed_again_under_a_key_the_removed_never_get() {
     let harness = Harness::start().await;
     let admin = harness.owner("admin@example.com").await;
     let reader = harness.member(&admin, "reader@example.com").await;
@@ -38,7 +37,10 @@ async fn an_edit_made_offline_across_a_removal_is_sealed_again_under_a_key_the_r
     assert_eq!(text(&online, note).await, "before");
     drop(online);
 
-    admin.grant(team, reader.account(), Access::None).await.unwrap();
+    admin
+        .grant(team, reader.account(), Access::None)
+        .await
+        .unwrap();
     admin.tend().await.unwrap();
 
     let offline = harness.offline(&admin, &refs, &store);

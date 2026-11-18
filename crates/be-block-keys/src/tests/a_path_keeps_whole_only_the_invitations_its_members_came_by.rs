@@ -59,7 +59,10 @@ fn a_path_keeps_whole_only_the_invitations_its_members_came_by() {
         &other,
     ));
     let few = whole_invitations(&log);
-    assert_eq!(few, 1, "the reader's own invitation is whole, another's reduced");
+    assert_eq!(
+        few, 1,
+        "the reader's own invitation is whole, another's reduced"
+    );
 
     for at in 0..50 {
         let code = InviteCode::generate();
