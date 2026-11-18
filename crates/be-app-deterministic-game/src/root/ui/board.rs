@@ -1,5 +1,6 @@
 use be_sdk_beui::beui::CanvasView;
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::rc::Rc;
 
 use be_sdk_beui::Editor;
@@ -341,6 +342,8 @@ pub(crate) fn Stage(
         true
     };
 
+    // One map for every item to find whether it is on top, rather than each searching.
+    let faces = create_memo(move || layout.with(Layout::faces));
     let item_keys = create_memo(move || {
         layout.with(|layout| {
             layout
@@ -398,7 +401,7 @@ pub(crate) fn Stage(
                     <ListItem grow=1.0>
                         <Canvas view={canvas} @node_ref={&content}>
                             <ForEach value={item_keys}>|id: ItemId|
-                                <TableItem id layout={layout} play={play} hidden={hidden} lift_from />
+                                <TableItem id layout={layout} faces play={play} hidden={hidden} lift_from />
                             </ForEach>
                             <ForEach value={spot_keys}>|spot: Spot|
                                 <SpotItem spot layout={layout} play={play} />
@@ -445,6 +448,7 @@ pub(crate) fn Stage(
 fn TableItem(
     id: ItemId,
     layout: Memo<Layout>,
+    faces: Memo<HashMap<Spot, ItemId>>,
     play: Play,
     hidden: Memo<Vec<ItemId>>,
     lift_from: Func<Spot, Option<drag::Carry>>,
@@ -485,15 +489,24 @@ fn TableItem(
     let drawing = view! {
         <Drawing draw={draw} />
     };
-    // A piece or card stays one through its moves, though its spot and face change.
+    // Untracked: an item never turns from a piece or card into the board's own sprites, or
+    // back, so whether it is a stop is settled once; its spot and face are tracked within.
     let piece = placed.with_untracked(|placed| {
         placed
             .as_ref()
             .is_some_and(|(placed, _)| piece_name(&placed.sprite).is_some())
     });
+    // Only the one on top of a pile is its spot's stop, and read: the rest lie under it.
+    let on_top = create_memo(move || {
+        placed
+            .with(|placed| placed.as_ref().and_then(|(placed, _)| placed.spot))
+            .is_none_or(|spot| faces.with(|faces| faces.get(&spot) == Some(&id)))
+    });
     let face = match piece {
         true => view! {
-            <PieceStop id layout play lift_from>{drawing}</PieceStop>
+            <Frame accessibility_hidden={move || !on_top.get()}>
+                <PieceStop id layout on_top play lift_from>{drawing}</PieceStop>
+            </Frame>
         },
         false => drawing,
     };
@@ -510,14 +523,15 @@ fn TableItem(
 }
 
 /// A piece or card on the table, as a focus stop while it can move: Tab and Shift+Tab
-/// reach the movable ones in board order, one for each spot (the top card of a pile, which a
-/// press would take), and Space or Enter lifts the focused one, which the keyboard then
+/// reach the movable ones in board order, one for each spot (`on_top`: the top card of a
+/// pile, which a press would take), and Space or Enter lifts the focused one, which the keyboard then
 /// carries as any other (guides/beui_keyboard.md). Its presses are the stage's, which
 /// catches them around the table; a press focuses it, so Space lifts what it selected.
 #[component]
 fn PieceStop(
     id: ItemId,
     layout: Memo<Layout>,
+    on_top: Memo<bool>,
     play: Play,
     lift_from: Func<Spot, Option<drag::Carry>>,
     children: Child,
@@ -530,17 +544,10 @@ fn PieceStop(
         })
     });
     let spot = create_memo(move || named.with(|named| named.as_ref().and_then(|(spot, _)| *spot)));
-    // Only the one on top of a pile is its spot's stop, and read: the rest lie under it.
-    let face = create_memo(move || {
-        spot.get()
-            .is_none_or(|spot| layout.with(|layout| layout.face(spot) == Some(id)))
-    });
-    let movable = create_memo(move || face.get() && spot.get().is_some_and(|spot| play.movable(spot)));
+    let movable =
+        create_memo(move || on_top.get() && spot.get().is_some_and(|spot| play.movable(spot)));
     let focused = create_signal(false);
     component_accessibility(create_memo(move || {
-        if !face.get() {
-            return accesskit::Node::new(accesskit::Role::GenericContainer);
-        }
         let mut node = accesskit::Node::new(accesskit::Role::Button);
         named.with(|named| {
             if let Some((spot, name)) = named {
@@ -557,7 +564,7 @@ fn PieceStop(
     }));
     view! {
         <Interactive
-            @test_id={move || match (spot.get(), face.get()) {
+            @test_id={move || match (spot.get(), on_top.get()) {
                 (Some(spot), true) => piece_test_id(spot),
                 _ => format!("game.piece.under.{}", id.0),
             }}

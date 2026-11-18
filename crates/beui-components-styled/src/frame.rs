@@ -328,7 +328,8 @@ fn focus_outline(
 
 /// A frame: a box with a fill, a rounded corner, an outline, padding and a size. `focus`
 /// draws the keyboard focus ring around it, `focus_offset` outside its edge, in place of its
-/// border while the ring shows.
+/// border while the ring shows. `accessibility_hidden` keeps it and what it holds out of the
+/// accessibility tree, as the base frame's does.
 #[component]
 pub fn Frame(
     #[prop(default = Length::INTRINSIC)] width: Prop<Length>,
@@ -346,6 +347,7 @@ pub fn Frame(
     #[prop(default = 0.0)] rotate: Prop<f32>,
     #[prop(default = 1.0)] opacity: Prop<f32>,
     #[prop(default = Sides::ZERO)] fade_edges: Prop<Sides>,
+    #[prop(default = false)] accessibility_hidden: Prop<bool>,
     children: Option<Child>,
 ) -> NodeId {
     let theme = use_theme();
@@ -373,6 +375,7 @@ pub fn Frame(
                 rotate
                 opacity
                 fade_edges
+                accessibility_hidden
             >
                 {child}
             </primitives::Frame>
@@ -391,6 +394,7 @@ pub fn Frame(
                 rotate
                 opacity
                 fade_edges
+                accessibility_hidden
             />
         },
     }
