@@ -25,6 +25,13 @@ pub trait Instance: std::any::Any {
         self.connect(block_id);
     }
 
+    /// Opens on `block_id` as a Join member (`opening-kind.join`; plans/hosted_blocks.md,
+    /// "Hosting"): connected as `connect` does, but given no content, only the block's host
+    /// channel (`EditorHost::joined`, `EditorHost::take_channel_events`).
+    fn connect_join(&mut self, block_id: Uuid) {
+        self.connect(block_id);
+    }
+
     /// Runs for a host component each time it is woken, in place of the frame it is never
     /// given: it takes in what changed (its content first) as `begin_frame` does for an editor.
     fn pass(&mut self) {}

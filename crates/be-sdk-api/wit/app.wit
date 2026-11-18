@@ -8,7 +8,7 @@ interface app {
     use shell-types.{drag-over, focus};
     use be3:ui/types@0.1.0.{clip-body, rect, vec2};
     use types.{failure};
-    use blocks.{member-event, search-location};
+    use blocks.{channel-event, member-event, search-location};
 
     /// The user picked command `id` of the menu of the editor's view `view`
     /// (`shell-message.menu`), wherever the menu was shown. `anchor`, in host
@@ -81,6 +81,9 @@ interface app {
         /// To a host component only: a member of its block's host channel came,
         /// spoke or went (plans/hosted_blocks.md, "Hosting").
         member(member-event),
+        /// To an editor opened as a Join member only: its block's host channel
+        /// opened, closed, or carried what the host said.
+        channel(channel-event),
     }
 
     /// An editor instance. Dropping it closes it.

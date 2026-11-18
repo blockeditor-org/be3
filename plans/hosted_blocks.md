@@ -204,10 +204,16 @@ a role inside the app, since the share dialog grants no roles. A game:
      Known gap, fixed in d: a device that holds a hosted block's replica open
      for another reason (a child, a preview) holds its lease and runs no host
      component; d claims a hosted type's lease only while a component runs.
-   - c. The Join side: an editor opened by a Join member with no content
-     frame (`opening-kind.join`), its channel and whether a host is online,
-     handshaking again on a host change, and a participant that falls to Join
-     handshaking again.
+   - c. The Join side (done): an editor opened on a block its account may
+     only join opens with `opening-kind.join`, no content, and the block's
+     channel (`editor-event.channel`, `tell-host`); the stack joins the session
+     as a Join member and handshakes again on a host change, a rejoin or a
+     message that does not open (`crates/be-host-stack/src/joining.rs`); an
+     editor whose access crosses between Join and View is closed at the app and
+     opened again as the other kind, so a participant that falls to Join
+     handshakes again; `a_joined_channel_opens_to_its_host_and_again_to_the_next`.
+     View members still reach the host only by a raw `send-host`: an editor
+     with View or Edit that is not hosting gets no channel of its own yet.
    - d. Keep hosting in the frame menu and the device's list of what it hosts,
      with Stop, in be-host's organization menu.
    - e. `be BLOCK host` (plans/headless_apps.md, step 2).

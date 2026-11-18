@@ -148,6 +148,17 @@ impl Instances {
                 be_host_stack::tell_member(block, said.member, said.payload);
                 Ok(false)
             }
+            BlockCommand::TellHost(payload) => {
+                let joined = self.entries.get(&instance).is_some_and(|entry| {
+                    entry.joined
+                        && matches!(entry.role, InstanceRole::Editor(_, own) if own.id == block)
+                });
+                if !joined {
+                    return Err(OpError::Denied);
+                }
+                be_host_stack::tell_host(block, payload);
+                Ok(false)
+            }
             command => {
                 if !self.entries.contains_key(&instance) {
                     return Err(OpError::Denied);
