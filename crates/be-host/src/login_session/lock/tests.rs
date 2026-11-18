@@ -14,7 +14,8 @@ struct Recorder {
 
 impl Authenticate for Recorder {
     fn start(&mut self, attempt: u64, password: Password) {
-        self.attempts.push((attempt, password.as_str().unwrap_or_default().to_owned()));
+        self.attempts
+            .push((attempt, password.as_str().unwrap_or_default().to_owned()));
     }
 }
 

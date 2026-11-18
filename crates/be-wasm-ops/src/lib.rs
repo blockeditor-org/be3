@@ -167,10 +167,10 @@ impl Outcome {
 
 /// Zeroes `bytes` in place, in a way the compiler keeps: what a decoded call's arguments or a
 /// received frame held (a password) is then gone from that buffer.
-// unsafe(memory)
 pub fn scrub(bytes: &mut [u8]) {
     for byte in bytes.iter_mut() {
         // Volatile, so the zeroing is not optimised away as a dead store.
+        // unsafe(memory)
         unsafe { std::ptr::write_volatile(byte, 0) };
     }
 }

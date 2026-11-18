@@ -142,7 +142,6 @@ struct Core<G> {
     lock_powers: Vec<PowerAction>,
 }
 
-
 impl<G: Inline> Core<G> {
     /// Takes over `guest`, the root, which has started, and what it sent while it started.
     fn new(guest: G, sandbox: Server) -> Result<Self, String> {
