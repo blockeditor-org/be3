@@ -159,7 +159,7 @@ fn HostMenu(
                 @test_id={format!("host.menu.hosting.{}", kept.0)}
                 label={format!("Stop hosting {}", kept.1)}
                 glyph=ICON_RADIO_TOWER
-                detail="Hosted here with no editor open"
+                detail="Kept hosting here"
                 on_click={move || pick(UiCommand::StopHosting(kept.0))}
             />
         </ForEach>
