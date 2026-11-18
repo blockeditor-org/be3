@@ -2081,7 +2081,7 @@ fn manages(
     )
 }
 
-fn is_agent(connection: &Connection, account: Uuid) -> Result<bool, ServerError> {
+pub(crate) fn is_agent(connection: &Connection, account: Uuid) -> Result<bool, ServerError> {
     Ok(connection
         .query_row(
             "SELECT 1 FROM agents WHERE account_id = ?1",
