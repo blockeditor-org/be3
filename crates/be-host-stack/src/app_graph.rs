@@ -51,6 +51,7 @@ pub fn access_of(level: AccessLevel) -> be_block_graph::Access {
     match level {
         AccessLevel::None => be_block_graph::Access::None,
         AccessLevel::KnowExists => be_block_graph::Access::KnowExists,
+        AccessLevel::Join => be_block_graph::Access::Join,
         AccessLevel::View => be_block_graph::Access::View,
         AccessLevel::Edit => be_block_graph::Access::Edit,
         AccessLevel::Manage => be_block_graph::Access::Manage,
@@ -105,6 +106,7 @@ pub fn level_of(access: be_block_graph::Access) -> AccessLevel {
     match access {
         be_block_graph::Access::None => AccessLevel::None,
         be_block_graph::Access::KnowExists => AccessLevel::KnowExists,
+        be_block_graph::Access::Join => AccessLevel::Join,
         be_block_graph::Access::View => AccessLevel::View,
         be_block_graph::Access::Edit => AccessLevel::Edit,
         be_block_graph::Access::Manage => AccessLevel::Manage,

@@ -101,6 +101,26 @@ pub enum Event {
         block: Uuid,
         entry: JournalEntry,
     },
+    /// A message on a block's host channel (`session-event.hosted`; plans/hosted_blocks.md):
+    /// from the lease holder to this member, or to this holder from a member. Sealed end to end
+    /// (`hosted::Channel`).
+    Hosted {
+        block: Uuid,
+        from: ClientId,
+        payload: Vec<u8>,
+        received: i64,
+    },
+    /// Who holds the lease of a block's session now (`session-event.host`).
+    Host {
+        block: Uuid,
+        host: Option<be_block_protocol::SessionHost>,
+    },
+    /// A Join member came to or left a block's session this connection holds the lease of
+    /// (`session-event.joiner`).
+    Joiner {
+        block: Uuid,
+        change: be_block_protocol::JoinerChange,
+    },
     Paired(PairingMessage),
     /// Keys this account may open were stored through another connection (`topic.keys`), or
     /// opened here by any path (`KeyBook::on_opened`: a fetch, a contact verified since, escrow):
@@ -358,6 +378,18 @@ impl Connection {
                         received,
                     },
                     SessionEvent::Sequenced(entry) => Event::Sequenced { block, entry },
+                    SessionEvent::Hosted {
+                        from,
+                        payload,
+                        received,
+                    } => Event::Hosted {
+                        block,
+                        from,
+                        payload,
+                        received,
+                    },
+                    SessionEvent::Host(host) => Event::Host { block, host },
+                    SessionEvent::Joiner(change) => Event::Joiner { block, change },
                 };
                 let mut registry = self.registry();
                 if let Some(held) = registry.joining.get_mut(&block) {
@@ -379,6 +411,28 @@ impl Connection {
         block: Uuid,
         tag: Hash,
     ) -> Answer<(ClientId, SessionState, Option<Journal>, bool)> {
+        let joining = self.join(organization, block, tag);
+        Box::pin(async move {
+            let JoinedSession {
+                client,
+                state,
+                journal,
+                may_edit,
+                ..
+            } = joining.await?;
+            Ok((client, state, journal, may_edit))
+        })
+    }
+
+    /// Joins a block's session as `join_session` does, answering all the server said: as a
+    /// participant, or, below View, as a Join member, which hears only the host channel and who
+    /// holds the lease (plans/hosted_blocks.md).
+    pub fn join(
+        self: &Arc<Self>,
+        organization: Uuid,
+        block: Uuid,
+        tag: Hash,
+    ) -> Answer<JoinedSession> {
         self.registry().joining.insert(block, Vec::new());
         let joining = be_block_protocol::ask::<JoinedSession, _>(
             &self.peer,
@@ -402,16 +456,11 @@ impl Connection {
                 }
                 held
             };
-            let JoinedSession {
-                client,
-                state,
-                journal,
-                may_edit,
-            } = joined??;
+            let joined = joined??;
             for event in held {
                 let _ = connection.events.send(event);
             }
-            Ok((client, state, journal, may_edit))
+            Ok(joined)
         })
     }
 
@@ -452,6 +501,12 @@ impl Connection {
             )
         });
         Box::pin(async move { Ok(sent?.await??) })
+    }
+
+    /// Sends `payload` on `block`'s host channel: from the lease holder to the member `to`, or
+    /// from any other member, naming none, to the holder (`session-send.host`).
+    pub fn send_host(&self, block: Uuid, to: Option<ClientId>, payload: Vec<u8>) -> Answer<()> {
+        self.send_session(block, SessionSend::Host(to), payload)
     }
 
     /// Claims the lease of `block`'s session: the server writes the claim into its order.

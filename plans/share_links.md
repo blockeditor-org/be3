@@ -1,6 +1,6 @@
 # Share links
 
-Depends on: plans/hosted_blocks.md step 3 for step 3 only.
+Depends on: none (plans/hosted_blocks.md step 3, which step 3 here needs, has landed).
 
 "Anyone with the link": a link that grants any level up to Edit on a block to
 whoever opens it, with no grant naming them first. It is passed outside the
