@@ -31,7 +31,7 @@ async fn a_contact_connected_again_by_a_new_link_outranks_every_devices_pin() {
         .update(|_| {
             vec![be_block::AccountBlock::set_contact(
                 rosa.account(),
-                Some(dated_ahead.encode()),
+                Some(dated_ahead.kept()),
             )]
         })
         .await

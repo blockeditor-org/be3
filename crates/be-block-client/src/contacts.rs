@@ -115,12 +115,74 @@ impl OwnContact {
     }
 }
 
-/// The records the account's block holds, by contact.
-fn records_of(block: &be_block::AccountBlock) -> HashMap<Uuid, OwnContact> {
+impl OwnContact {
+    /// As the account's block keeps it (`KeptContact::Record`).
+    pub fn kept(&self) -> Vec<u8> {
+        KeptContact::Record(self.clone()).encode()
+    }
+}
+
+/// What the account's block keeps of a contact: its record, or that it was removed, with the
+/// newest `verified` and letter the record had reached. A removal is kept rather than forgotten,
+/// so a record the server replays afterwards, however it was once sealed, is taken only if newer
+/// than any the account held, as a fresh link's always is: the server can make an account forget
+/// a contact (a made-up `letter.removed`), but never take back an older card.
+#[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
+pub enum KeptContact {
+    Record(OwnContact),
+    Removed { verified: u64, through: u64 },
+}
+
+impl KeptContact {
+    pub fn encode(&self) -> Vec<u8> {
+        postcard::to_stdvec(self).expect("a kept contact always encodes")
+    }
+
+    /// The kept contact in `bytes`, if a record in it names `account`.
+    pub fn decode(bytes: &[u8], account: Uuid) -> Option<Self> {
+        let kept: Self = postcard::from_bytes(bytes).ok()?;
+        match &kept {
+            Self::Record(record) if record.card.account != account.into_bytes() => None,
+            _ => Some(kept),
+        }
+    }
+
+    pub fn verified(&self) -> u64 {
+        match self {
+            Self::Record(record) => record.verified,
+            Self::Removed { verified, .. } => *verified,
+        }
+    }
+
+    pub fn through(&self) -> u64 {
+        match self {
+            Self::Record(record) => record.through,
+            Self::Removed { through, .. } => *through,
+        }
+    }
+
+    pub fn record(self) -> Option<OwnContact> {
+        match self {
+            Self::Record(record) => Some(record),
+            Self::Removed { .. } => None,
+        }
+    }
+}
+
+/// What the account's block keeps of each contact, removed ones included.
+fn kept_of(block: &be_block::AccountBlock) -> HashMap<Uuid, KeptContact> {
     block
         .contacts
         .iter()
-        .filter_map(|(account, bytes)| Some((*account, OwnContact::decode(bytes, *account)?)))
+        .filter_map(|(account, bytes)| Some((*account, KeptContact::decode(bytes, *account)?)))
+        .collect()
+}
+
+/// The records the account's block holds, by contact.
+fn records_of(block: &be_block::AccountBlock) -> HashMap<Uuid, OwnContact> {
+    kept_of(block)
+        .into_iter()
+        .filter_map(|(account, kept)| Some((account, kept.record()?)))
         .collect()
 }
 
@@ -349,8 +411,19 @@ async fn contacts_once(
     let keeps = held.is_some();
     let read = held
         .as_ref()
-        .map(|held| records_of(&held.content.root()))
+        .map(|held| kept_of(&held.content.root()))
         .unwrap_or_default();
+    let mut removed: HashMap<Uuid, (u64, u64)> = read
+        .iter()
+        .filter_map(|(account, kept)| match kept {
+            KeptContact::Removed { verified, through } => Some((*account, (*verified, *through))),
+            KeptContact::Record(_) => None,
+        })
+        .collect();
+    let read: HashMap<Uuid, OwnContact> = read
+        .into_iter()
+        .filter_map(|(account, kept)| Some((account, kept.record()?)))
+        .collect();
     let mut records = match readable {
         true => read.clone(),
         false => pinned.clone(),
@@ -362,23 +435,27 @@ async fn contacts_once(
         let Some(from) = message.from else {
             continue;
         };
-        let through = records.get(&from).map_or(0, |record| record.through);
+        // The newest the account held of the contact, kept or removed.
+        let (verified, through) = match (records.get(&from), removed.get(&from)) {
+            (Some(record), _) => (record.verified, record.through),
+            (None, Some(held)) => *held,
+            (None, None) => (0, 0),
+        };
         match &message.letter {
             be_block_protocol::Letter::Contact(sealed) => {
                 if message.id > through
                     && let Some(mut record) = OwnContact::open(identity, sealed, from)
-                    && records
-                        .get(&from)
-                        .is_none_or(|held| held.verified < record.verified)
+                    && verified < record.verified
                 {
                     record.through = message.id;
                     records.insert(from, record);
+                    removed.remove(&from);
                 }
                 taken.push(message.id);
             }
             be_block_protocol::Letter::Removed => {
-                if message.id > through {
-                    records.remove(&from);
+                if message.id > through && records.remove(&from).is_some() {
+                    removed.insert(from, (verified, message.id));
                 }
                 taken.push(message.id);
             }
@@ -466,12 +543,23 @@ async fn contacts_once(
             if read.get(contact) != Some(record) {
                 edits.push(be_block::AccountBlock::set_contact(
                     *contact,
-                    Some(record.encode()),
+                    Some(record.kept()),
                 ));
             }
         }
-        for contact in read.keys().filter(|contact| !records.contains_key(contact)) {
-            edits.push(be_block::AccountBlock::set_contact(*contact, None));
+        for (contact, (verified, through)) in &removed {
+            if read.contains_key(contact) {
+                edits.push(be_block::AccountBlock::set_contact(
+                    *contact,
+                    Some(
+                        KeptContact::Removed {
+                            verified: *verified,
+                            through: *through,
+                        }
+                        .encode(),
+                    ),
+                ));
+            }
         }
         block.save(held, &edits).await?;
         if !taken.is_empty() {
@@ -905,9 +993,9 @@ async fn held_verified(
         return Ok(0);
     };
     Ok(match block.read().await {
-        Ok(held) => records_of(&held.content.root())
+        Ok(held) => kept_of(&held.content.root())
             .get(&contact)
-            .map_or(0, |record| record.verified),
+            .map_or(0, KeptContact::verified),
         Err(ClientError::Locked(_)) => 0,
         Err(error) => return Err(error),
     })
@@ -1032,20 +1120,21 @@ pub(crate) async fn finish_links(
                 .update(|current| {
                     let before = current
                         .contact(accepter)
-                        .and_then(|bytes| OwnContact::decode(bytes, accepter));
-                    if before
-                        .as_ref()
-                        .is_some_and(|before| before.through >= letter && before.card == *card)
+                        .and_then(|bytes| KeptContact::decode(bytes, accepter));
+                    if let Some(KeptContact::Record(before)) = &before
+                        && before.through >= letter
+                        && before.card == *card
                     {
                         return Vec::new();
                     }
+                    // Newer than whatever the block held, a removal included.
                     let record = OwnContact {
                         through: letter,
-                        ..OwnContact::new(card.clone(), before.map_or(0, |before| before.verified))
+                        ..OwnContact::new(card.clone(), before.map_or(0, |before| before.verified()))
                     };
                     vec![be_block::AccountBlock::set_contact(
                         accepter,
-                        Some(record.encode()),
+                        Some(record.kept()),
                     )]
                 })
                 .await;
