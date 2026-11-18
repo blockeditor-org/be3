@@ -131,8 +131,8 @@ Notes on particular calls:
   block's key with the organization, the block, the sender and the time, so
   the server reads none of it; the device that shows it names the sender (whom
   the server vouches for) and the block itself. A member whose mode is
-  `mentions` is told only of what mentions them. `NotifyModesWatch` follows
-  the account's mode for every block, and `set_notify_mode` changes one; the
+  `mentions` is told only of what mentions them. `MutesWatch` follows
+  the account's mode for every block, and `set_mute` changes one; the
   workspace's block menu offers them (Notifications: All, Mentions only, Off),
   showing a change until the host answers and going back if it refuses.
   `BeuiTest::take_announced` records what the editor's edits announced.

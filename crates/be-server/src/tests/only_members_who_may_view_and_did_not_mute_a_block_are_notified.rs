@@ -22,11 +22,11 @@ async fn only_members_who_may_view_and_did_not_mute_a_block_are_notified() {
         let (mut member, account) =
             viewer_of(&harness, &mut owner, block, &format!("{name}@example.com")).await;
         member.register_endpoint(endpoint(name)).await;
-        member.set_notify_mode(block, mode).await;
+        member.set_mute(block, mode).await;
         let read = member
             .call(|peer| {
-                peer.read::<Vec<be_block_protocol::BlockNotifyMode>>(
-                    be_block_protocol::Query::NotifyModes,
+                peer.read::<Vec<be_block_protocol::BlockMute>>(
+                    be_block_protocol::Query::Mutes,
                 )
             })
             .await
@@ -45,7 +45,7 @@ async fn only_members_who_may_view_and_did_not_mute_a_block_are_notified() {
     bystander.register_endpoint(endpoint("bystander")).await;
     let muted = bystander
         .call(|peer| {
-            peer.write::<()>(be_block_protocol::Op::SetNotifyMode {
+            peer.write::<()>(be_block_protocol::Op::SetMute {
                 block: block,
                 mode: NotifyMode::Off,
             })

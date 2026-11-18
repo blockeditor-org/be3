@@ -225,7 +225,7 @@ counts and records nothing: `reserve-uploads` did before it signed.
   changed during the read is missed: `tree` its entry (in `WatchHub`),
   `session` joins the block's session (in `SessionRegistry`), and `keys`,
   `key-work`, a listing of the roots (`children(root)`, `deleted`, `shared`),
-  `storage`, `mailbox`, `contacts` and `notify-modes` their topic (in the
+  `storage`, `mailbox`, `contacts` and `mutes` their topic (in the
   connection's `Following`). A topic-changed carries no value: the client reads
   the query again. `unfollow` stops one, and leaves a session. A query with
   nothing to follow refuses `follow`.
@@ -1023,12 +1023,15 @@ text's length reaches the push service.
   404), or after `MAX_FAILURES` failures in a row over at least `FAILING_FOR`
   (counted per account, organization and address); 429 and 503 count as
   neither.
-- **Modes.** Each account's mode per block (`notify_modes`: `all` keeps no row,
-  `mentions`, `off`), deleted with the block, the member or the organization.
-  `query.notify-modes` lists an account's; a device reads them, following
-  them, when it connects and again on `topic.notify-modes`, which
-  `set-notify-mode` announces to the account's other connections (be-host-stack `Shared::notify_modes`, published
-  to apps as `NotifyModesWatch`).
+- **Mutes.** Each account's mode per block (table `mutes`: `all` keeps no
+  row, `mentions`, `off`), deleted with the block, the member or the
+  organization. The server reads them to send a muted block's pushes to
+  nobody, so a muted block wakes no phone, which is why these rows are their
+  one copy and not kept in the account's own block. `op.set-mute` sets one
+  (`all` unmutes) and tells `topic.mutes` to the account's other connections;
+  `query.mutes` lists an account's, which a device reads, following them,
+  when it connects and again on that topic (be-host-stack `Shared::mutes`,
+  published to apps as `MutesWatch`).
 - **`target.push`** (a `send`; Edit; at most `MAX_NOTIFICATION_BYTES` and `MAX_MENTIONS`,
   `MAX_NOTIFICATIONS_PER_MINUTE` per account and `MAX_NOTIFICATIONS_PER_BLOCK`
   per account and block) goes to every viewer of the block

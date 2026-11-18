@@ -86,7 +86,7 @@ pub(crate) fn query_rule(query: &Query) -> Rule {
         | Query::Revocations { .. }
         | Query::SigningKeys(_)
         | Query::DownloadUrls(_)
-        | Query::NotifyModes
+        | Query::Mutes
         // Every member, to an administrator; the agents it made, to anyone else.
         | Query::Members => Rule::Member,
         Query::Invitations => Rule::Administrator,
@@ -147,7 +147,7 @@ pub(crate) fn op_rule(op: &Op) -> Rule {
         Op::RemoveContact { .. } => Rule::Anywhere,
         // In the personal organization, the account's block's new epoch goes with it.
         Op::SetRecoveryKey { .. } => Rule::Anywhere,
-        Op::SetNotifyMode { block: of, .. } => block(*of, Access::View),
+        Op::SetMute { block: of, .. } => block(*of, Access::View),
     }
 }
 
@@ -171,7 +171,7 @@ pub(crate) fn topic_rule(topic: &Topic) -> Rule {
         | Topic::Keys
         | Topic::KeyWork
         | Topic::Roots
-        | Topic::NotifyModes => Rule::Member,
+        | Topic::Mutes => Rule::Member,
         Topic::Storage | Topic::Mailbox => Rule::Account,
     }
 }
@@ -208,7 +208,7 @@ pub(crate) fn bound_may_read(query: &Query, follow: bool) -> bool {
         | Query::Storage
         | Query::Link(_)
         | Query::Invitation(_)
-        | Query::NotifyModes => false,
+        | Query::Mutes => false,
     }
 }
 
@@ -241,7 +241,7 @@ pub(crate) fn bound_may_write(op: &Op, root: Uuid) -> bool {
         | Op::RemoveContact { .. }
         | Op::SetRecoveryKey { .. }
         | Op::SetPushEndpoint(_)
-        | Op::SetNotifyMode { .. } => false,
+        | Op::SetMute { .. } => false,
     }
 }
 
@@ -318,7 +318,7 @@ enum Followed {
     Keys(Uuid),
     KeyWork(Uuid),
     Roots(Uuid),
-    NotifyModes(Uuid),
+    Mutes(Uuid),
     Storage,
     Mailbox,
 }
@@ -329,7 +329,7 @@ impl Followed {
             (Topic::Keys, Some(organization)) => Self::Keys(organization),
             (Topic::KeyWork, Some(organization)) => Self::KeyWork(organization),
             (Topic::Roots, Some(organization)) => Self::Roots(organization),
-            (Topic::NotifyModes, Some(organization)) => Self::NotifyModes(organization),
+            (Topic::Mutes, Some(organization)) => Self::Mutes(organization),
             (Topic::Storage, None) => Self::Storage,
             (Topic::Mailbox, None) => Self::Mailbox,
             _ => return None,
@@ -341,7 +341,7 @@ impl Followed {
             Self::Keys(organization) => (Some(organization), Topic::Keys),
             Self::KeyWork(organization) => (Some(organization), Topic::KeyWork),
             Self::Roots(organization) => (Some(organization), Topic::Roots),
-            Self::NotifyModes(organization) => (Some(organization), Topic::NotifyModes),
+            Self::Mutes(organization) => (Some(organization), Topic::Mutes),
             Self::Storage => (None, Topic::Storage),
             Self::Mailbox => (None, Topic::Mailbox),
         };
@@ -365,7 +365,7 @@ fn topic_of(query: &Query) -> Option<Topic> {
         } => Topic::Roots,
         Query::Storage => Topic::Storage,
         Query::Mailbox => Topic::Mailbox,
-        Query::NotifyModes => Topic::NotifyModes,
+        Query::Mutes => Topic::Mutes,
         _ => return None,
     })
 }
@@ -802,9 +802,9 @@ impl Client {
                     false => return Ok(()),
                 }
             }
-            Push::NotifyModesChanged { organization } => {
-                match self.follows(Followed::NotifyModes(organization)) {
-                    true => Followed::NotifyModes(organization).told(),
+            Push::MutesChanged { organization } => {
+                match self.follows(Followed::Mutes(organization)) {
+                    true => Followed::Mutes(organization).told(),
                     false => return Ok(()),
                 }
             }
@@ -1387,8 +1387,8 @@ impl Client {
                 offers_fcm: connection.pusher.offers_fcm(),
                 time: be_block_commit::now_milliseconds(),
             }),
-            Query::NotifyModes => {
-                Page::NotifyModes(store.notify_modes(admitted.identity()?).await?)
+            Query::Mutes => {
+                Page::Mutes(store.mutes(admitted.identity()?).await?)
             }
             Query::Session { .. } => {
                 return Err(invalid("a session is joined with a read that follows it"));
@@ -2110,16 +2110,16 @@ impl Client {
                 }
                 Ok(Done::Nothing)
             }
-            Op::SetNotifyMode { block, mode } => {
+            Op::SetMute { block, mode } => {
                 let identity = admitted.identity()?;
                 connection
                     .store
-                    .set_notify_mode(identity, block, mode)
+                    .set_mute(identity, block, mode)
                     .await?;
                 connection
                     .after(After::Tell {
                         account: identity.account,
-                        push: Push::NotifyModesChanged {
+                        push: Push::MutesChanged {
                             organization: identity.organization,
                         },
                     })

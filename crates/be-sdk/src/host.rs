@@ -2081,10 +2081,10 @@ impl EditorHost {
         )
     }
 
-    /// Sets how the signed-in account is notified about `block_id`; `NotifyModesWatch` follows
+    /// Sets how the signed-in account is notified about `block_id`; `MutesWatch` follows
     /// every block's.
-    pub fn set_notify_mode(&self, block_id: Uuid, mode: NotifyMode) -> Asked<Result<(), Failure>> {
-        Asked::of(self.ask(|| host_services::set_notify_mode(block_id.into_bytes(), mode)))
+    pub fn set_mute(&self, block_id: Uuid, mode: NotifyMode) -> Asked<Result<(), Failure>> {
+        Asked::of(self.ask(|| host_services::set_mute(block_id.into_bytes(), mode)))
     }
 
     /// Turns pushes to this device on or off; `PushDeviceWatch` follows it. Call it from a

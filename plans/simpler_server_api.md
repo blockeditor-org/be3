@@ -49,7 +49,7 @@ with heads), `Children(parent, after)`, `Tree(entry, cursor)` (what was
 `Access(block)`, `Keys(blocks, after)`, `KeyWork`, `Revocations(account,
 contact)` (what was `removal-revocations`), `RecoveryKey`, `Members`,
 `Organizations`, `Invitations(org)`, `Account` (storage and quota),
-`SigningKeys(accounts)`, `Mailbox`, `Mutes` (decision (a)), `Link(id)` (the
+`SigningKeys(accounts)`, `Mailbox`, `Mutes` (built), `Link(id)` (the
 only query a one-shot call may make unauthenticated, as `read-invitation` is
 today), `DownloadUrls(hashes)`, `ServerInfo` (push key, whether FCM is
 offered, the server's account, its clock), `Session(block, tag)` (joining:
@@ -66,7 +66,7 @@ covers `set-access`, `set-role`, `sign-member` and a person's `remove-member`), 
 `CreateOrganization`, `CreateAgent`, `DeleteAgent` (an agent's removal by its
 maker, in any organization), `RotateAgentToken`, `CreateLink`, `AcceptLink`,
 `DeleteLink`, `RemoveContact`, `SetRecoveryKey`, `SetPushEndpoint` (none
-removes it), `SetMute` (decision (a)), `DeleteMessage`, `RevokeToken`
+removes it), `SetMute` (built), `DeleteMessage`, `RevokeToken`
 (`logout`, with the device's push address).
 
 A batch is applied in one transaction, so a rule is checked once over all of
@@ -203,7 +203,8 @@ In three pieces, each landing whole.
   a member record; `put-keys` is `rows`, `rotate`, `escrow` or `reseal`, each with its own
   rule; notices, contacts, links, `put-contact` and `pin-escrow` wait for step
   4; `remove-member` and the notify modes (`notify-modes`, `set-notify-mode`,
-  `topic.notify-modes`) are as they were, decisions (a) and (b) unanswered;
+  `topic.notify-modes`) are as they were, decisions (a) and (b) unanswered
+  (the modes became the mutes below);
   no `members` topic, since nothing pushed one before. Tests:
   `every_call_states_who_may_make_it` (by case of query, op and target),
   `a_write_whose_second_op_is_refused_keeps_nothing_of_its_first`,
@@ -271,6 +272,16 @@ In three pieces, each landing whole.
   `a_block_moved_back_into_a_scope_takes_what_was_made_below_it_meanwhile` and
   `a_block_restored_into_a_scope_rotated_while_it_was_in_the_trash_is_wrapped_under_its_new_key`, and
   `every_call_states_who_may_make_it`'s `publish (no commit)`.
+- **Mutes (decision (a), done).** The user kept one small server-read mute:
+  `notify-modes`, `set-notify-mode` and `topic.notify-modes` became the
+  `mutes` query, the `set-mute(block, mode)` op and the `mutes` topic
+  (`Peer::mutes` and `set_mute`, be-host-stack `Shared::mutes`, and for apps
+  `MutesWatch` and `set_mute`), with the server's `mutes` table their one copy,
+  not also put in the account's block. The mode keeps `all`, `mentions` and
+  `off`, which the block menu offers; `all` keeps no row. Tests:
+  `a_push_reaches_members_who_are_not_connected_and_want_it`,
+  `only_members_who_may_view_and_did_not_mute_a_block_are_notified`,
+  `a_mute_set_on_one_device_is_announced_to_the_others`.
 
 Guides: guides/blocks/server.md ("Protocol", "Organizations and access",
 "Accounts", "Notifications"), guides/blocks/client.md ("Connection"),
@@ -437,13 +448,6 @@ order tests read its kept references from its database.
 
 ## Decisions for the user
 
-- **(a) Notify modes.** Moving them to the device alone means a muted block
-  still wakes a phone for every push, which costs battery and shows the push
-  service traffic for a block the person muted. Recommended: keep one small
-  server-read mute: `SetMute(block, mode)`, the `Mutes` query and its topic,
-  replacing `notify-modes`, `set-notify-mode` and `notify-modes-changed`. The
-  server's rows stay the one copy; they are not also put in the account's
-  block.
 - **(b) Removing a member no record names.** A person accepting an invitation
   joins before any administrator's device signs a member record for them
   (guides/blocks/keys.md, "Access logs"), so `remove-member` without a record

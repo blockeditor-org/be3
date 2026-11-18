@@ -77,7 +77,7 @@ mod a_member_who_loses_view_of_a_trashed_block_leaves_its_session;
 mod a_member_who_loses_view_when_a_block_is_trashed_is_told_it_is_gone;
 mod a_member_who_loses_view_when_a_block_moves_somewhere_hidden_is_told_it_is_gone;
 mod a_message_arriving_slowly_is_not_taken_for_silence;
-mod a_mode_set_on_one_device_is_announced_to_the_others;
+mod a_mute_set_on_one_device_is_announced_to_the_others;
 mod a_move_missing_one_blocks_wrap_under_its_new_scope_is_refused_whole;
 mod a_move_never_takes_a_workspace_or_more_access_without_manage;
 mod a_move_past_the_new_payers_quota_is_refused;
@@ -3134,10 +3134,10 @@ impl TestClient {
         assert!(registered.is_ok(), "{registered:?}");
     }
 
-    async fn set_notify_mode(&mut self, block: Uuid, mode: be_block_protocol::NotifyMode) {
+    async fn set_mute(&mut self, block: Uuid, mode: be_block_protocol::NotifyMode) {
         let set = self
             .call(|peer| {
-                peer.write::<()>(be_block_protocol::Op::SetNotifyMode {
+                peer.write::<()>(be_block_protocol::Op::SetMute {
                     block: block,
                     mode: mode,
                 })

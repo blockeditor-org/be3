@@ -601,9 +601,9 @@ impl Instances {
                     move |set| answering.send_or_fail(set),
                 );
             }
-            Call::SetNotifyMode { reply, block, mode } => {
+            Call::SetMute { reply, block, mode } => {
                 let answering = self.answering(instance, reply);
-                be_host_stack::set_notify_mode(
+                be_host_stack::set_mute(
                     Uuid::from_bytes(block),
                     be_host_stack::app_graph::notify_mode_of(mode),
                     move |set| answering.send_or_fail(set),

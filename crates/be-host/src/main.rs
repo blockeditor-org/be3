@@ -3714,8 +3714,8 @@ impl HostCore {
             self.sync_push_subscription();
         }
         self.publish_storage(changes.storage);
-        if changes.notify_modes {
-            self.publish_notify_modes();
+        if changes.mutes {
+            self.publish_mutes();
         }
         self.publish_push_device();
         self.load_organizations_if_needed();
@@ -3837,17 +3837,17 @@ impl HostCore {
     }
 
     /// Publishes the account's notification modes, which the host stack read anew.
-    fn publish_notify_modes(&mut self) {
-        let modes = be_host_stack::notify_modes().map(|modes| {
+    fn publish_mutes(&mut self) {
+        let modes = be_host_stack::mutes().map(|modes| {
             modes
                 .into_iter()
-                .map(|(block, mode)| be_sdk_api::BlockNotifyMode {
+                .map(|(block, mode)| be_sdk_api::BlockMute {
                     block: block.into_bytes(),
                     mode: be_host_stack::app_graph::notify_mode_to(mode),
                 })
                 .collect::<Vec<_>>()
         });
-        be_host_base::watches::publish::<be_sdk_api::NotifyModesWatch>(&modes);
+        be_host_base::watches::publish::<be_sdk_api::MutesWatch>(&modes);
     }
 
     /// Publishes whether this device shows pushes whenever it changed.

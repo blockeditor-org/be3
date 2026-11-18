@@ -121,7 +121,7 @@ fn notifications(workspace: Workspace, info: &TabInfo) -> Option<MenuNode> {
         .into_iter()
         .map(|(choice, key, label)| {
             let chosen = Action::new(format!("workspace.notify.{key}"), label, move || {
-                workspace.set_notify_mode(id, choice);
+                workspace.set_mute(id, choice);
             })
             .radio(mode == choice)
             .detached();

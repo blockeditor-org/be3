@@ -97,7 +97,7 @@ pub(super) struct Inbox {
 }
 
 type AccessReply = Reply<Result<AccessList, String>>;
-type NotifyModeReply = Reply<Result<be_block_protocol::NotifyMode, String>>;
+type MuteReply = Reply<Result<be_block_protocol::NotifyMode, String>>;
 
 type ExportReply = Reply<Result<(String, Vec<u8>), String>>;
 
@@ -258,10 +258,10 @@ pub(super) enum Command {
         block: Uuid,
         reply: AccessReply,
     },
-    SetNotifyMode {
+    SetMute {
         block: Uuid,
         mode: be_block_protocol::NotifyMode,
-        reply: NotifyModeReply,
+        reply: MuteReply,
     },
     ReadHead {
         block: Uuid,
@@ -445,7 +445,7 @@ impl Command {
             Command::SetAccess { .. } => "set access",
             Command::TransferOwnership { .. } => "transfer ownership",
             Command::ListAccess { .. } => "list access",
-            Command::SetNotifyMode { .. } => "set notify mode",
+            Command::SetMute { .. } => "set mute",
             Command::ReadHead { .. } => "read head",
             Command::Export { .. } => "export",
             Command::PlainFile { .. } => "plain file",
@@ -512,7 +512,7 @@ impl Command {
                 | Command::WatchVersion(_)
                 | Command::UnwatchVersion(_)
                 | Command::DismissPairing(_)
-                | Command::SetNotifyMode { .. }
+                | Command::SetMute { .. }
                 | Command::Push(_)
                 | Command::Create { .. }
                 | Command::SetParent { .. }
@@ -570,7 +570,7 @@ impl Command {
             | Command::SetAccess { block, .. }
             | Command::TransferOwnership { block, .. }
             | Command::ListAccess { block, .. }
-            | Command::SetNotifyMode { block, .. }
+            | Command::SetMute { block, .. }
             | Command::ReadHead { block, .. }
             | Command::CreateBlockAgent { block, .. }
             | Command::PlainFile { block, .. }
@@ -2105,7 +2105,7 @@ impl Session<'_> {
         relist(shared);
         spawn_listings(peer, shared, &self.tasks.0);
         self.tasks.0.contacts(peer, shared);
-        self.tasks.0.notify_modes(peer, shared);
+        self.tasks.0.mutes(peer, shared);
         self.tasks.0.account_notices(peer);
         self.tasks.0.storage(peer, shared);
         self.rejoin = true;
@@ -2761,7 +2761,7 @@ fn refuse_offline(command: Command, shared: &Arc<Mutex<Shared>>) -> Option<Comma
         Command::Leave { reply, .. } => reply.send(Err(OFFLINE_LEAVING.to_owned())),
         Command::ApprovePairing { reply, .. } => reply.send(Err(OFFLINE_PAIRING.to_owned())),
         Command::ListAccess { reply, .. } => reply.send(Err(NEEDS_CONNECTION.to_owned())),
-        Command::SetNotifyMode { reply, .. } => reply.send(Err(NEEDS_CONNECTION.to_owned())),
+        Command::SetMute { reply, .. } => reply.send(Err(NEEDS_CONNECTION.to_owned())),
         Command::Members(
             MembersCommand::List(reply)
             | MembersCommand::SetRole { reply, .. }
@@ -2906,19 +2906,19 @@ impl Ran<'_> {
                 false
             }
             // Not a task of the worker's: its end changes nothing the worker keeps.
-            Command::SetNotifyMode { block, mode, reply } => {
+            Command::SetMute { block, mode, reply } => {
                 let (peer, shared) = (Arc::clone(self.peer), Arc::clone(self.shared));
                 platform::spawn_local(async move {
-                    let set = peer.set_notify_mode(block, mode).await;
+                    let set = peer.set_mute(block, mode).await;
                     if set.is_ok() {
                         let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
-                        if let Some(modes) = held.notify_modes.as_mut() {
+                        if let Some(modes) = held.mutes.as_mut() {
                             match mode {
                                 be_block_protocol::NotifyMode::All => modes.remove(&block),
                                 mode => modes.insert(block, mode),
                             };
                             crate::changes::post(crate::Changes {
-                                notify_modes: true,
+                                mutes: true,
                                 ..crate::Changes::default()
                             });
                             held.progressed += 1;
@@ -3698,7 +3698,7 @@ async fn apply(
         | Command::CreateAgent { .. }
         | Command::CreateBlockAgent { .. }
         | Command::BlockAgent { .. }
-        | Command::SetNotifyMode { .. }
+        | Command::SetMute { .. }
         | Command::Push(_)
         | Command::Authorship(_)
         | Command::Storage(_)
@@ -4404,7 +4404,7 @@ async fn heard(
             tasks.relearn_locked(peer, shared);
             spawn_listings(peer, shared, tasks);
         }
-        Some(Event::NotifyModesChanged) => tasks.notify_modes(peer, shared),
+        Some(Event::MutesChanged) => tasks.mutes(peer, shared),
         // A notice to show, or a contact's key change, a record of a contact made or removed,
         // or an accepted link's card to take; or another device took one into the account's
         // block.
@@ -4969,16 +4969,16 @@ impl Tasks {
         self.spawn(async move { refresh(&peer, &shared, block).await });
     }
 
-    /// Reads every notification mode the account set into `Shared::notify_modes`.
-    fn notify_modes(&self, peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
+    /// Reads every block the account muted into `Shared::mutes`.
+    fn mutes(&self, peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
         let (peer, shared) = (Arc::clone(peer), Arc::clone(shared));
         self.spawn(async move {
-            if let Ok(read) = peer.notify_modes().await {
+            if let Ok(read) = peer.mutes().await {
                 let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
-                held.notify_modes =
+                held.mutes =
                     crate::Part::new(Some(read.iter().map(|row| (row.block, row.mode)).collect()));
                 crate::changes::post(crate::Changes {
-                    notify_modes: true,
+                    mutes: true,
                     ..crate::Changes::default()
                 });
                 held.progressed += 1;

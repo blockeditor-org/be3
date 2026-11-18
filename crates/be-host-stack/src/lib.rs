@@ -2086,10 +2086,10 @@ pub fn transfer_ownership(
 
 /// Every block whose notification mode the account set to other than `all`, once the server
 /// has said: read when the host connects and again whenever another device changes one.
-pub fn notify_modes() -> Option<Vec<(Uuid, be_block_protocol::NotifyMode)>> {
+pub fn mutes() -> Option<Vec<(Uuid, be_block_protocol::NotifyMode)>> {
     with_seen(|shared| {
         shared
-            .notify_modes
+            .mutes
             .as_ref()
             .map(|modes| modes.iter().map(|(block, mode)| (*block, *mode)).collect())
     })
@@ -2097,12 +2097,12 @@ pub fn notify_modes() -> Option<Vec<(Uuid, be_block_protocol::NotifyMode)>> {
 }
 
 /// Sets how the signed-in account is notified about `block`.
-pub fn set_notify_mode(
+pub fn set_mute(
     block: Uuid,
     mode: be_block_protocol::NotifyMode,
     reply: impl FnOnce(Result<(), String>) + Send + 'static,
 ) {
-    send(Command::SetNotifyMode {
+    send(Command::SetMute {
         block,
         mode,
         reply: replies::expect(move |set: Result<be_block_protocol::NotifyMode, String>| {

@@ -50,7 +50,7 @@ pub use be_sdk_api::guest::desktop;
 pub use be_sdk_api::{
     AccessGrant, AccessLevel, AccessListing, AccountStorage, AdministratorWatch, ArtifactAction,
     AudioCommand, AudioOutput, AudioSource, AudioStatus, BlockAgent, BlockCommand, BlockFilter,
-    BlockLocation, BlockNotifyMode, BlockPick, BlockTypeDescriptor, CapturedChord, CapturedTrigger,
+    BlockLocation, BlockMute, BlockPick, BlockTypeDescriptor, CapturedChord, CapturedTrigger,
     Catalog, ChildContent, ChildId, ChildLayer, ChildMode, ChildOperations, ChildPlacement,
     ChildPreview, ChildStatus, ConflictSide, ContactsWatch, CreationProgress, CursorIcon,
     DescribedAction, Description, DesktopBarWatch, DialogAnswer, DialogFrame, DialogStatus,
@@ -63,7 +63,7 @@ pub use be_sdk_api::{
     LinkBaseWatch, MediaLevel, MediaLevels, MediaRequest, MediaWatch, MenuAsk, MenuCheck,
     MenuCommand, MenuEntry, MenuPin, MenuSubmenu, Modifiers, NotificationCloseReason,
     NotificationInbox, NotificationReport, NotificationRequest, NotificationSignal,
-    NotificationUrgency, NotificationsWatch, NotifyMode, NotifyModesWatch, Occluder, OpenProgram,
+    NotificationUrgency, NotificationsWatch, NotifyMode, MutesWatch, Occluder, OpenProgram,
     OpenProgramsWatch, PastedBlock, PenPhase, PickedBlock, Picture, PlayerCommand, PointerButton,
     Pointing, PowerAction, PowerAvailability, PowerWatch, Press, PreviewImage, ProgramAction,
     ProgramCatalog, ProgramsWatch, PushDevice, PushDeviceWatch, RemapState, RemapsWatch,

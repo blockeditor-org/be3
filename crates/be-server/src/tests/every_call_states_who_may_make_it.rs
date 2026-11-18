@@ -64,7 +64,7 @@ fn query_case(query: &Query) -> &'static str {
         Query::Invitation(_) => "invitation",
         Query::DownloadUrls(_) => "download-urls",
         Query::ServerInfo => "server-info",
-        Query::NotifyModes => "notify-modes",
+        Query::Mutes => "mutes",
         Query::Session { .. } => "session",
     }
 }
@@ -92,7 +92,7 @@ const QUERIES: &[&str] = &[
     "invitation",
     "download-urls",
     "server-info",
-    "notify-modes",
+    "mutes",
     "session",
 ];
 
@@ -132,7 +132,7 @@ fn op_case(op: &Op) -> &'static str {
         Op::SetRecoveryKey { .. } => "set-recovery-key",
         Op::SetPushEndpoint(PushEndpointChange::Register(_)) => "set-push-endpoint (register)",
         Op::SetPushEndpoint(PushEndpointChange::Forget(_)) => "set-push-endpoint (forget)",
-        Op::SetNotifyMode { .. } => "set-notify-mode",
+        Op::SetMute { .. } => "set-mute",
         Op::DeleteMessage(_) => "delete-message",
         Op::RevokeToken(_) => "revoke-token",
     }
@@ -164,7 +164,7 @@ const OPS: &[&str] = &[
     "set-recovery-key",
     "set-push-endpoint (register)",
     "set-push-endpoint (forget)",
-    "set-notify-mode",
+    "set-mute",
     "delete-message",
     "revoke-token",
 ];
@@ -207,7 +207,7 @@ fn topic_case(topic: &Topic) -> &'static str {
         Topic::Roots => "unfollow roots",
         Topic::Storage => "unfollow storage",
         Topic::Mailbox => "unfollow mailbox",
-        Topic::NotifyModes => "unfollow notify-modes",
+        Topic::Mutes => "unfollow mutes",
     }
 }
 
@@ -219,7 +219,7 @@ const TOPICS: &[&str] = &[
     "unfollow roots",
     "unfollow storage",
     "unfollow mailbox",
-    "unfollow notify-modes",
+    "unfollow mutes",
 ];
 
 /// The calls, queries, ops, targets and unfollows `everything` makes, by name.
@@ -548,9 +548,9 @@ impl TestClient {
                 endpoint.into(),
             )))
             .await;
-        calls.read(Query::NotifyModes).await;
+        calls.read(Query::Mutes).await;
         calls
-            .write(Op::SetNotifyMode {
+            .write(Op::SetMute {
                 block,
                 mode: be_block_protocol::NotifyMode::Off,
             })
@@ -625,7 +625,7 @@ impl TestClient {
             Topic::Roots,
             Topic::Storage,
             Topic::Mailbox,
-            Topic::NotifyModes,
+            Topic::Mutes,
         ] {
             calls.unfollow(topic).await;
         }
@@ -729,7 +729,7 @@ async fn every_call_states_who_may_make_it() {
         "send session (claim)",
         "send session (ephemeral)",
         "send session (ordered)",
-        "set-notify-mode",
+        "set-mute",
         "send push",
     ];
     for name in viewing {

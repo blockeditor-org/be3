@@ -329,8 +329,8 @@ pub struct Seen, delta SeenDelta {
     pub storage: Option<be_block_protocol::AccountStorage>,
     pub escrow_warning: Option<String>,
     /// The account's notification mode for each block it set to other than `all`, once read
-    /// (`Tasks::notify_modes`).
-    pub notify_modes: Part<Option<HashMap<Uuid, be_block_protocol::NotifyMode>>>,
+    /// (`Tasks::mutes`).
+    pub mutes: Part<Option<HashMap<Uuid, be_block_protocol::NotifyMode>>>,
     /// Blocks an open replica found locked, until keys arrive (`Replicas::unlock`).
     pub locked: Part<HashSet<Uuid>>,
     /// Blocks whose local edits were discarded and that no join has said since this account may

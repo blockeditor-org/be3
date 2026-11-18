@@ -1,6 +1,6 @@
 use super::*;
 
-use be_sdk_beui::{BlockNotifyMode, Failure, NotifyMode, NotifyModesWatch};
+use be_sdk_beui::{BlockMute, Failure, NotifyMode, MutesWatch};
 use be_sdk_test::HostCall;
 
 fn choose(fixture: &mut Fixture, words: &str) {
@@ -45,7 +45,7 @@ fn a_block_tabs_menu_mutes_its_notifications() {
     );
     fixture
         .test
-        .set_watched::<NotifyModesWatch>(&Some(Vec::new()));
+        .set_watched::<MutesWatch>(&Some(Vec::new()));
     fixture.settle();
 
     fixture.test.click("dock.editors.menu");
@@ -66,7 +66,7 @@ fn a_block_tabs_menu_mutes_its_notifications() {
         .take_requests()
         .into_iter()
         .find_map(|call| match call {
-            HostCall::SetNotifyMode { reply, block, mode }
+            HostCall::SetMute { reply, block, mode }
                 if block == opened.into_bytes() && mode == NotifyMode::Off =>
             {
                 Some(reply)
@@ -88,7 +88,7 @@ fn a_block_tabs_menu_mutes_its_notifications() {
 
     fixture
         .test
-        .set_watched::<NotifyModesWatch>(&Some(vec![BlockNotifyMode {
+        .set_watched::<MutesWatch>(&Some(vec![BlockMute {
             block: opened.into_bytes(),
             mode: NotifyMode::Mentions,
         }]));

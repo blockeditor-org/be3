@@ -103,7 +103,7 @@ impl crate::embed::host_services::Call {
             | Self::TransferOwnership { block, .. }
             | Self::MakeContactLink { block, .. }
             | Self::CreateBlockAgent { block, .. }
-            | Self::SetNotifyMode { block, .. } => visit(block),
+            | Self::SetMute { block, .. } => visit(block),
             Self::ImportBlocks { parent, .. } => location(parent, visit),
             Self::CutBlocks { blocks, holder, .. } => {
                 blocks.iter_mut().for_each(&mut *visit);
