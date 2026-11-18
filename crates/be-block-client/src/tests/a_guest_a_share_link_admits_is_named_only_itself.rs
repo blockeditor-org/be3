@@ -29,11 +29,12 @@ async fn a_guest_a_share_link_admits_is_named_only_itself() {
         .make_share_link(team, Access::View, Admits::Anyone)
         .await
         .unwrap();
-    let opened = crate::share_links::open_share_link(
+    let (opened, _) = crate::share_links::open_share_link(
         &outsider.connection(),
         outsider.keys().identity(),
         outsider.account(),
         &link,
+        None,
     )
     .await
     .unwrap();
