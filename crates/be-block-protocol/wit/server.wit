@@ -109,6 +109,11 @@ interface server {
         /// `appended` as entries are appended, and `redacted` as one is
         /// redacted.
         block-log(block-log-query),
+        /// For each block's log asked of, the places of the entries redacted
+        /// after the count the caller holds, as `block-log` names them with
+        /// `redactions-after`: one read catches a device up with many logs. A
+        /// block the caller may not view is left out.
+        log-redactions(list<log-redactions-query>),
         /// Who may do what to a block, for its managers.
         access(block-id),
         /// The accounts that may view a block, and its author, each with the
@@ -260,6 +265,19 @@ interface server {
         redactions-after: option<u64>,
     }
 
+    record log-redactions-query {
+        block: block-id,
+        after: u64,
+    }
+
+    /// A log's redactions after the count asked: how many there are now, and
+    /// the places of those after it, in the order they were.
+    record log-redactions {
+        block: block-id,
+        redactions: u64,
+        redacted: list<u64>,
+    }
+
     /// A read's answer: the case its query asks for.
     variant page {
         summaries(list<option<block-summary>>),
@@ -269,6 +287,7 @@ interface server {
         history(list<history-entry>),
         log(access-log-page),
         block-log(log-page),
+        log-redactions(list<log-redactions>),
         access(access-list),
         names(list<account-name>),
         keys(key-page),

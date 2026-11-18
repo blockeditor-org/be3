@@ -48,6 +48,7 @@ fn query_case(query: &Query) -> &'static str {
         Query::Tree { .. } => "tree",
         Query::History(_) => "history",
         Query::BlockLog { .. } => "block-log",
+        Query::LogRedactions(_) => "log-redactions",
         Query::Log { log: Some(_), .. } => "log (block)",
         Query::Log { log: None, .. } => "log (organization)",
         Query::Access(_) => "access",
@@ -581,6 +582,11 @@ impl TestClient {
             })
             .await;
         calls.write(Op::Redact { block, seq: 0 }).await;
+        calls
+            .read(Query::LogRedactions(vec![
+                be_block_protocol::LogRedactionsQuery { block, after: 0 },
+            ]))
+            .await;
         calls
             .read(Query::Log {
                 log: Some(block),
