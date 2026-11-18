@@ -70,3 +70,5 @@ fn a_fetched_body_reaches_the_editor_in_the_chunks_it_arrived_in() {
 
     assert_eq!(test.label("fetched"), "200 one|two|three");
 }
+
+test_editor!(FetchingRoot);

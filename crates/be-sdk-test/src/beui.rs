@@ -21,7 +21,7 @@ use be_sdk_beui::FromEditor;
 use be_sdk_beui::be_block_content::{LiveEdit, Merge};
 use be_sdk_beui::headless::{Adopted, HeadlessApp};
 use be_sdk_beui::{
-    Artifacts, BeuiRoot, ChildMode, ChildPlacement, ChildStatus, Creation, EditorHost,
+    AppEditor, Artifacts, BeuiRoot, ChildMode, ChildPlacement, ChildStatus, Creation, EditorHost,
     EditorInstanceId, Occluder, OwnedEditor, PeerPresence, SeededContent, ShownPresence,
     ViewChange, WebViewCommand, WebViewId,
 };
@@ -95,7 +95,7 @@ pub struct AskedPreview {
 /// `clear_calls` drops it. Calls such as `set_view` queue what be-host would send; setting the
 /// same state on the `EditorHost` directly skips the protocol and is overwritten by the
 /// session on the next frame.
-pub struct BeuiTest<A: BeuiRoot> {
+pub struct BeuiTest<A: BeuiRoot + AppEditor> {
     app: HeadlessApp,
     kind: Kind,
     host: EditorHost,
@@ -129,7 +129,7 @@ pub struct BeuiTest<A: BeuiRoot> {
     drew: bool,
     recording: Recording,
     viewport: Option<Viewport>,
-    /// The deepest the viewport zooms: the manifest's `max_zoom` once `with_manifest` read it.
+    /// The deepest the viewport zooms: the `max_zoom` the app's manifest gives the editor.
     max_zoom: f32,
     children: Vec<ChildPlacement>,
     views_children: Vec<(ViewId, Vec<ChildPlacement>)>,
@@ -168,7 +168,7 @@ enum Kind {
     Rename(Uuid),
 }
 
-impl<A: BeuiRoot> BeuiTest<A> {
+impl<A: BeuiRoot + AppEditor> BeuiTest<A> {
     pub fn new(editor: OwnedEditor) -> Self {
         let block = editor.block_id();
         Self::open(
@@ -212,7 +212,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
         Self::open(Kind::Picker, Adopted::Editor(editor, None), Vec::new())
     }
 
-    pub fn picker_beside<B: BeuiRoot>(
+    pub fn picker_beside<B: BeuiRoot + AppEditor>(
         beside: &BeuiTest<B>,
         host: EditorHost,
         request: be_sdk_beui::PickerRequest,
@@ -228,13 +228,13 @@ impl<A: BeuiRoot> BeuiTest<A> {
 
     /// Another editor run beside `beside`, on the blocks it holds: the same block reopened, or
     /// one it made.
-    pub fn new_beside<B: BeuiRoot>(beside: &BeuiTest<B>, editor: OwnedEditor) -> Self {
+    pub fn new_beside<B: BeuiRoot + AppEditor>(beside: &BeuiTest<B>, editor: OwnedEditor) -> Self {
         beside.store.forget_answers();
         SHARED_STORE.with(|shared| *shared.borrow_mut() = Some(beside.store.clone()));
         Self::new(editor)
     }
 
-    pub fn rename_beside<B: BeuiRoot>(beside: &BeuiTest<B>, host: EditorHost, block: Uuid) -> Self {
+    pub fn rename_beside<B: BeuiRoot + AppEditor>(beside: &BeuiTest<B>, host: EditorHost, block: Uuid) -> Self {
         beside.store.forget_answers();
         SHARED_STORE.with(|shared| *shared.borrow_mut() = Some(beside.store.clone()));
         let editor = OwnedEditor::new(host, Uuid::nil());
@@ -418,7 +418,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
             drew: false,
             recording: Recording::default(),
             viewport: None,
-            max_zoom: MAXIMUM_ZOOM,
+            max_zoom: max_zoom::<A>(),
             children: Vec::new(),
             views_children: Vec::new(),
             occluders: Vec::new(),
@@ -851,27 +851,6 @@ impl<A: BeuiRoot> BeuiTest<A> {
 
     pub fn exited(&self) -> bool {
         self.exited
-    }
-
-    /// Gives the editor the camera limits the host gives `editor` of the app whose manifest is
-    /// `manifest` (its crate's `APP_MANIFEST`): the deepest zoom its `capabilities` allow.
-    pub fn with_manifest(mut self, manifest: &str, editor: &str) -> Self {
-        let manifest =
-            be_sdk_manifest::ManifestDocument::parse(manifest).expect("the manifest parses");
-        let (_, document) = manifest
-            .editors
-            .0
-            .iter()
-            .find(|(name, _)| name == editor)
-            .unwrap_or_else(|| panic!("the manifest names no editor {editor:?}"));
-        self.max_zoom = document
-            .capabilities
-            .max_zoom
-            .map_or(MAXIMUM_ZOOM, |zoom| zoom as f32);
-        if let Some(viewport) = &mut self.viewport {
-            viewport.max_zoom = self.max_zoom;
-        }
-        self
     }
 
     pub fn in_viewport(mut self) -> Self {
@@ -2122,7 +2101,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
     }
 }
 
-impl<A: BeuiRoot> Gui for BeuiTest<A> {
+impl<A: BeuiRoot + AppEditor> Gui for BeuiTest<A> {
     type DocumentRef<'a> = std::cell::Ref<'a, Document>;
     type DocumentMut<'a> = std::cell::RefMut<'a, Document>;
 
@@ -2276,7 +2255,7 @@ impl<A: BeuiRoot> Gui for BeuiTest<A> {
     }
 }
 
-impl<A: BeuiRoot> Snapshots for BeuiTest<A> {
+impl<A: BeuiRoot + AppEditor> Snapshots for BeuiTest<A> {
     fn capture(&mut self) -> Snapshot {
         self.painted()
     }
@@ -2297,6 +2276,22 @@ impl<A: BeuiRoot> Snapshots for BeuiTest<A> {
 fn roundtrip<T: serde::Serialize + serde::de::DeserializeOwned>(value: T, what: &str) -> T {
     be_sdk_api::ops::decode(&be_sdk_api::ops::encode(&value))
         .unwrap_or_else(|| panic!("{what} could not be read back"))
+}
+
+/// The deepest the host zooms the editor `A`: its manifest's `max_zoom`, or be-host's default.
+fn max_zoom<A: AppEditor>() -> f32 {
+    let manifest =
+        be_sdk_manifest::ManifestDocument::parse(A::MANIFEST).expect("the app's manifest parses");
+    let (_, document) = manifest
+        .editors
+        .0
+        .iter()
+        .find(|(name, _)| name == A::EDITOR)
+        .unwrap_or_else(|| panic!("the app's manifest names no editor {:?}", A::EDITOR));
+    document
+        .capabilities
+        .max_zoom
+        .map_or(MAXIMUM_ZOOM, |zoom| zoom as f32)
 }
 
 struct Viewport {

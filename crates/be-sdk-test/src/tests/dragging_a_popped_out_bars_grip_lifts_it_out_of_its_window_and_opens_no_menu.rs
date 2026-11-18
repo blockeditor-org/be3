@@ -130,3 +130,5 @@ fn dragging_a_popped_out_bars_grip_lifts_it_out_of_its_window_and_opens_no_menu(
         "a click on the landed bar's menu reaches it, and the bar hides"
     );
 }
+
+test_editor!(PoppedRoot);

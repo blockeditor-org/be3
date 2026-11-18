@@ -107,9 +107,25 @@ pub fn context() -> beui::native::Context {
     be_sdk_beui_platform_api::runtime().context()
 }
 
+/// An editor an app's manifest declares: `beui_app!` implements it for each root it names, so
+/// whatever runs the root (be-sdk-test's `BeuiTest`) reads what the manifest says of it, such as
+/// the camera limits the host gives it.
+pub trait AppEditor {
+    /// The app's `manifest.json`.
+    const MANIFEST: &'static str;
+    /// The editor's key under the manifest's `editors`.
+    const EDITOR: &'static str;
+}
+
 #[macro_export]
 macro_rules! beui_app {
     ($manifest:expr, { $($name:ident => $root:ty),+ $(,)? }) => {
         $crate::be_sdk::app!($manifest, { $($name => $crate::BeuiApp<$root>),+ });
+        $(
+            impl $crate::AppEditor for $root {
+                const MANIFEST: &'static str = APP_MANIFEST;
+                const EDITOR: &'static str = stringify!($name);
+            }
+        )+
     };
 }

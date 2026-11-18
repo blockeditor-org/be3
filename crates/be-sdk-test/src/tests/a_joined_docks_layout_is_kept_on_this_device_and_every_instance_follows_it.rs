@@ -196,3 +196,5 @@ fn a_joined_docks_layout_is_kept_on_this_device_and_every_instance_follows_it() 
         "an open instance follows the layout another one kept"
     );
 }
+
+test_editor!(BarredRoot);

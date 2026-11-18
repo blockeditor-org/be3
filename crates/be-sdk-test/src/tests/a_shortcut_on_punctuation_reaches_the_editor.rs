@@ -31,3 +31,5 @@ fn a_shortcut_on_punctuation_reaches_the_editor() {
 
     assert_eq!(test.label("shortcut.pressed"), "Slash");
 }
+
+test_editor!(ShortcutRoot);

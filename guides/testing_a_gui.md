@@ -115,7 +115,10 @@ says `impl Wraps for Fixture {}` to be one too.
 The region is 800×600 points at scale 1; `with_size`, `with_scale_factor` and `set_raster`
 change it (a phone, a high-density screen, a VR panel drawn finer than it is laid out). An
 editor whose manifest claims `pan_and_zoom` calls `in_viewport()`, and the harness then holds
-a zoom and offset and answers pan, zoom and fit as the host does (guides/pan_and_zoom.md).
+a zoom and offset and answers pan, zoom and fit as the host does (guides/pan_and_zoom.md),
+within the `max_zoom` the manifest gives the editor: `beui_app!` implements `AppEditor` for
+each root it names, which tells the harness the app's manifest and the editor's name in it. A
+root the SDK's own tests define implements it with `test_editor!`.
 
 ## 4. Snapshots of the painting
 

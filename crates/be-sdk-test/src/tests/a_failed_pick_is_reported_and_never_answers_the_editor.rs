@@ -49,3 +49,5 @@ fn a_failed_pick_is_reported_and_never_answers_the_editor() {
     );
     assert!(!PICKED.get(), "the editor's callback hears nothing of it");
 }
+
+test_editor!(FailingPick);

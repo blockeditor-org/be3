@@ -130,3 +130,5 @@ fn narrowing_one_kind_of_block_watch_keeps_the_others() {
         "an artifact state lands only on its own block"
     );
 }
+
+test_editor!(Quiet);

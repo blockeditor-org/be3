@@ -89,3 +89,5 @@ fn a_dock_bar_lifted_by_its_grip_draws_above_a_hosted_window() {
         "let go at rest over the window, nearest the top, the bar floats over the top: {bar:?}"
     );
 }
+
+test_editor!(LiftedRoot);

@@ -123,3 +123,5 @@ fn a_popped_out_bar_stays_above_a_window_raised_over_it_until_covered() {
         test.desk_windows()
     );
 }
+
+test_editor!(PoppedOverRoot);

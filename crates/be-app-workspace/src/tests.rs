@@ -115,7 +115,7 @@ const SHOWN_TYPE: Uuid = Uuid::from_u128(0x7368_6f77_6e2d_7479_7065_2d74_6573_74
 const TEMPLATE_EDITOR: Uuid = Uuid::from_u128(0x7465_6d70_6c61_7465_2d65_6469_746f_7231);
 const TEMPLATE_TYPE: Uuid = Uuid::from_u128(0x7465_6d70_6c61_7465_2d74_7970_6531_0000);
 
-struct Fixture<A: be_sdk_beui::BeuiRoot = WorkspaceUiRoot> {
+struct Fixture<A: be_sdk_beui::BeuiRoot + be_sdk_beui::AppEditor = WorkspaceUiRoot> {
     test: BeuiTest<A>,
     host: EditorHost,
     windows: Vec<TestWindow>,
@@ -170,7 +170,7 @@ impl TestWindow {
     }
 }
 
-impl<A: be_sdk_beui::BeuiRoot> Fixture<A> {
+impl<A: be_sdk_beui::BeuiRoot + be_sdk_beui::AppEditor> Fixture<A> {
     fn new(test: BeuiTest<A>, host: EditorHost) -> Self {
         Self {
             test,
@@ -625,7 +625,7 @@ struct Places {
     budget: Uuid,
 }
 
-fn places<A: be_sdk_beui::BeuiRoot>(fixture: &mut Fixture<A>) -> Places {
+fn places<A: be_sdk_beui::BeuiRoot + be_sdk_beui::AppEditor>(fixture: &mut Fixture<A>) -> Places {
     use be_sdk_beui::BlockInfo;
     use be_sdk_beui::be_block_content::BlockContent;
     let places = PLACES;
@@ -683,14 +683,14 @@ fn places<A: be_sdk_beui::BeuiRoot>(fixture: &mut Fixture<A>) -> Places {
     places
 }
 
-fn report_creation<A: be_sdk_beui::BeuiRoot>(
+fn report_creation<A: be_sdk_beui::BeuiRoot + be_sdk_beui::AppEditor>(
     fixture: &mut Fixture<A>,
     progress: be_sdk_beui::CreationProgress,
 ) {
     report_creation_dialog(fixture, progress, be_sdk_beui::DialogStatus::default());
 }
 
-fn report_creation_dialog<A: be_sdk_beui::BeuiRoot>(
+fn report_creation_dialog<A: be_sdk_beui::BeuiRoot + be_sdk_beui::AppEditor>(
     fixture: &mut Fixture<A>,
     progress: be_sdk_beui::CreationProgress,
     dialog: be_sdk_beui::DialogStatus,

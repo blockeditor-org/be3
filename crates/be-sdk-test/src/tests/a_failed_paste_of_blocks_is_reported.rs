@@ -53,3 +53,5 @@ fn a_failed_paste_of_blocks_is_reported() {
         "the editor hears that nothing was pasted"
     );
 }
+
+test_editor!(FailingPaste);

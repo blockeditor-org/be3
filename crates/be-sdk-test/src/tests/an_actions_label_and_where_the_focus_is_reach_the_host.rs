@@ -63,3 +63,5 @@ fn an_actions_label_and_where_the_focus_is_reach_the_host() {
         "a label that changes is sent again"
     );
 }
+
+test_editor!(ScopesRoot);
