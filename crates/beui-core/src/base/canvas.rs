@@ -283,7 +283,7 @@ impl CanvasNode {
     }
 
     fn follow_reveal(&mut self, doc: &mut Document, host: NodeId, laid: Rect) {
-        if let Some(target) = doc.take_reveal(host) {
+        if let Some((target, _)) = doc.take_reveal(host) {
             self.revealing = Some(Revealing {
                 target,
                 since: doc.now(),
