@@ -32,7 +32,7 @@ async fn a_contacts_key_the_server_rolls_back_stays_the_newest_one_seen() {
         .update(|_| {
             vec![be_block::AccountBlock::set_contact(
                 owner.account(),
-                Some(stale.encode()),
+                Some(stale.kept()),
             )]
         })
         .await
