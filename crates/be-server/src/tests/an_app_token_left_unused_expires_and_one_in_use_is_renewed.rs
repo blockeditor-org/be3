@@ -2,7 +2,7 @@ use super::*;
 use crate::store::APP_SESSION_IDLE;
 
 /// An app token outlives no browser session for good: left unused for `APP_SESSION_IDLE` it
-/// stops working, and each use moves that day on (plans/crypto_audit.md, 8).
+/// stops working, and each use moves that day on (guides/blocks/server.md, "Accounts").
 #[tokio::test]
 async fn an_app_token_left_unused_expires_and_one_in_use_is_renewed() {
     let harness = Harness::start().await;

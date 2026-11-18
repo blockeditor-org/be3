@@ -104,6 +104,7 @@ async fn a_block_whose_root_the_server_swaps_is_refused() {
     let other = Uuid::new_v4();
     let carried = be_block_keys::CarriedKey {
         key: [4; 32],
+        label: crate::tests::planted(other, "data", 8),
         block: note.into_bytes(),
         root: Some(forged.hash()),
         heads: be_block_keys::Heads::default(),
@@ -116,7 +117,7 @@ async fn a_block_whose_root_the_server_swaps_is_refused() {
         },
         other.as_bytes(),
         &carried.encode(),
-    );
+    ).unwrap();
     let database = harness.database();
     database
         .execute(

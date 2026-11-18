@@ -19,7 +19,6 @@ fn made_by(
         id: Uuid::new_v4(),
         epoch,
         public: secret.public().0,
-        signing: secret.signing(),
         head,
         maker: maker.account(),
         signature: Vec::new(),

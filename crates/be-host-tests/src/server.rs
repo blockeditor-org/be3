@@ -106,7 +106,7 @@ impl Server {
     /// Has the server serve `of` its account's block, which holds its contacts' records, with
     /// keys that do not open, as a server tampering with them would: a device that saw the
     /// records keeps the ones it pinned, and says it cannot read the server's copy
-    /// (plans/crypto_audit.md, 4). Every contact's record is spoiled alike, `contact`'s with them.
+    /// (guides/blocks/keys.md, "Contacts"). Every contact's record is spoiled alike, `contact`'s with them.
     pub fn spoil_contact(&self, of: &Account, _contact: &Account) {
         let database =
             be_block_sqlite_schema::open(self.inner.running.directory.join("metadata.sqlite"))

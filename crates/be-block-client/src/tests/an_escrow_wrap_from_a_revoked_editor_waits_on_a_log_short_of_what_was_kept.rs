@@ -19,6 +19,7 @@ async fn an_escrow_wrap_from_a_revoked_editor_waits_on_a_log_short_of_what_was_k
     let made_up = Uuid::new_v4();
     let carried = CarriedKey {
         key: [6; 32],
+        label: crate::tests::planted(made_up, "data", 90),
         block: revoked.note.into_bytes(),
         root: None,
         heads: Heads {
@@ -34,7 +35,7 @@ async fn an_escrow_wrap_from_a_revoked_editor_waits_on_a_log_short_of_what_was_k
         },
         made_up.as_bytes(),
         &carried.encode(),
-    );
+    ).unwrap();
     plant_sealed(
         &harness,
         &revoked,

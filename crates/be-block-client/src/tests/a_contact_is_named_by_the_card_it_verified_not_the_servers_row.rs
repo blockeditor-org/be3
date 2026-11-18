@@ -1,7 +1,7 @@
 use super::*;
 
 /// The server labels one verified contact with another's name; the device names each by the
-/// card it verified, so sharing with "Bob" can't seal to Mallory (plans/crypto_audit.md, 5).
+/// card it verified, so sharing with "Bob" can't seal to Mallory (guides/blocks/keys.md, "Contacts").
 #[tokio::test]
 async fn a_contact_is_named_by_the_card_it_verified_not_the_servers_row() {
     let harness = Harness::start().await;

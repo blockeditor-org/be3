@@ -2,7 +2,7 @@ use super::*;
 
 /// Whoever holds a signed-in browser's cookie, or phishes its owner to the approve page long
 /// after they signed in, gets no app token for the account without proving it is them again
-/// (plans/crypto_audit.md, 8).
+/// (guides/blocks/server.md, "Accounts").
 #[tokio::test]
 async fn approving_a_device_code_needs_a_fresh_proof() {
     let harness = Harness::configured(ServerConfig {

@@ -57,6 +57,11 @@ fn an_access_root_checks_only_as_its_creator_signed_it() {
 
     let carried = CarriedKey {
         key: [3; 32],
+        label: Label {
+            id: [4; 16],
+            kind: KeyRole::Scope,
+            epoch: 3,
+        },
         block,
         root: Some(root.hash()),
         heads: Heads {

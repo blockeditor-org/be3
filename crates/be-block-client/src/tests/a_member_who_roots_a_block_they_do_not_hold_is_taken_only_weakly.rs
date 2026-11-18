@@ -27,6 +27,7 @@ async fn a_member_who_roots_a_block_they_do_not_hold_is_taken_only_weakly() {
     let key = Uuid::new_v4();
     let carried = CarriedKey {
         key: [9; 32],
+        label: crate::tests::planted(key, "scope", 9),
         block: secret.into_bytes(),
         root: Some(planted.hash()),
         heads: be_block_keys::Heads::default(),
@@ -93,7 +94,7 @@ async fn a_member_who_roots_a_block_they_do_not_hold_is_taken_only_weakly() {
                     &to,
                     key.as_bytes(),
                     &carried.encode()
-                )
+                ).unwrap()
             ],
         )
         .unwrap();

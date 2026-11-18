@@ -744,18 +744,69 @@ pub fn proof_path(
         .collect()
 }
 
-/// A key as it travels sealed or wrapped: the key, the block (or, for an escrow key, the
-/// organization) it is a key of, the hash of that log's root when the sender holds it pinned,
-/// and the heads of the logs its epoch was made under (`Heads`). Sealed together, so a server
-/// that relabels a key row as another block's, serves a block's log rooted elsewhere, or names
-/// an older head for an epoch, is caught by whoever opens it. A sender that holds no pinned root
-/// (it reached the block only through escrow, say) sends none, and the key pins nothing.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+/// A key as it travels sealed or wrapped: the key; its own row (`Label`: its id, kind and
+/// epoch) and the block (or, for an escrow key, the organization) it is a key of; the hash of
+/// that log's root when the sender holds it pinned; and the heads of the logs its epoch was made
+/// under (`Heads`). Sealed together, so a server that relabels a key row as another block's or
+/// another epoch's (a rewrap of an old key served as the newest), serves a block's log rooted
+/// elsewhere, or names an older head for an epoch, is caught by whoever opens it. A sender that
+/// holds no pinned root (it reached the block only through escrow, say) sends none, and the key
+/// pins nothing.
+#[derive(Clone, Copy, Eq, PartialEq)]
 pub struct CarriedKey {
     pub key: [u8; 32],
+    pub label: Label,
     pub block: [u8; 16],
     pub root: Option<EntryHash>,
     pub heads: Heads,
+}
+
+impl std::fmt::Debug for CarriedKey {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("CarriedKey")
+            .field("key", &"..")
+            .field("label", &self.label)
+            .field("block", &self.block)
+            .field("root", &self.root)
+            .field("heads", &self.heads)
+            .finish()
+    }
+}
+
+/// Which key row a carried key is: its id, kind and epoch, as its maker made it.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct Label {
+    pub id: [u8; 16],
+    pub kind: KeyRole,
+    pub epoch: u64,
+}
+
+/// A key's kind, as a key row names it.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum KeyRole {
+    Data,
+    Scope,
+    Escrow,
+}
+
+impl KeyRole {
+    fn byte(self) -> u8 {
+        match self {
+            Self::Data => 0,
+            Self::Scope => 1,
+            Self::Escrow => 2,
+        }
+    }
+
+    fn from_byte(byte: u8) -> Result<Self, KeyError> {
+        match byte {
+            0 => Ok(Self::Data),
+            1 => Ok(Self::Scope),
+            2 => Ok(Self::Escrow),
+            _ => Err(KeyError::Corrupt),
+        }
+    }
 }
 
 /// The heads of the access logs a key's epoch was made under, as its maker held them
@@ -775,7 +826,14 @@ pub struct Heads {
 
 impl CarriedKey {
     pub fn encode(&self) -> Vec<u8> {
-        let mut bytes = [self.key.as_slice(), &self.block].concat();
+        let mut bytes = [
+            self.key.as_slice(),
+            &self.label.id,
+            &[self.label.kind.byte()],
+            &self.label.epoch.to_be_bytes(),
+            &self.block,
+        ]
+        .concat();
         for hash in [self.root, self.heads.block, self.heads.organization] {
             match hash {
                 Some(hash) => {
@@ -790,6 +848,14 @@ impl CarriedKey {
 
     pub fn decode(bytes: &[u8]) -> Result<Self, KeyError> {
         let (key, rest) = bytes.split_at_checked(32).ok_or(KeyError::Corrupt)?;
+        let (id, rest) = rest.split_at_checked(16).ok_or(KeyError::Corrupt)?;
+        let (kind, rest) = rest.split_first().ok_or(KeyError::Corrupt)?;
+        let (epoch, rest) = rest.split_at_checked(8).ok_or(KeyError::Corrupt)?;
+        let label = Label {
+            id: id.try_into().map_err(|_| KeyError::Corrupt)?,
+            kind: KeyRole::from_byte(*kind)?,
+            epoch: u64::from_be_bytes(epoch.try_into().map_err(|_| KeyError::Corrupt)?),
+        };
         let (block, mut rest) = rest.split_at_checked(16).ok_or(KeyError::Corrupt)?;
         let mut hash = || -> Result<Option<EntryHash>, KeyError> {
             let (flag, after) = rest.split_first().ok_or(KeyError::Corrupt)?;
@@ -814,6 +880,7 @@ impl CarriedKey {
         }
         Ok(Self {
             key: key.try_into().map_err(|_| KeyError::Corrupt)?,
+            label,
             block: block.try_into().map_err(|_| KeyError::Corrupt)?,
             root,
             heads,

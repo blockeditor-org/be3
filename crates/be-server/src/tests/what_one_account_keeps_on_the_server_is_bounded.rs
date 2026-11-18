@@ -208,7 +208,6 @@ async fn what_one_account_keeps_on_the_server_is_bounded() {
                     id: Uuid::new_v4(),
                     epoch: MAX_ESCROWS_PER_ORGANIZATION as u64 + 1,
                     public: [0; 32],
-                    signing: [0; 32],
                     head: [0; 32],
                     maker: Uuid::nil(),
                     signature: Vec::new(),

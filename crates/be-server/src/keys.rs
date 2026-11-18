@@ -488,7 +488,7 @@ pub(crate) fn escrow_chain(
     organization: Uuid,
 ) -> Result<Vec<EscrowKey>, ServerError> {
     let mut statement = connection.prepare_cached(
-        "SELECT id, epoch, public, signing, maker, signature, head FROM keys
+        "SELECT id, epoch, public, maker, signature, head FROM keys
          WHERE organization_id = ?1 AND block_id = ?1 AND kind = 'escrow'
          ORDER BY epoch",
     )?;
@@ -497,20 +497,18 @@ pub(crate) fn escrow_chain(
             row.get::<_, String>(0)?,
             row.get::<_, i64>(1)?,
             row.get::<_, Vec<u8>>(2)?,
-            row.get::<_, Vec<u8>>(3)?,
-            row.get::<_, String>(4)?,
+            row.get::<_, String>(3)?,
+            row.get::<_, Vec<u8>>(4)?,
             row.get::<_, Vec<u8>>(5)?,
-            row.get::<_, Vec<u8>>(6)?,
         ))
     })?;
     let mut chain = Vec::new();
     for row in rows {
-        let (id, epoch, public, signing, maker, signature, head) = row?;
+        let (id, epoch, public, maker, signature, head) = row?;
         chain.push(EscrowKey {
             id: parse_uuid(&id)?,
             epoch: u64::try_from(epoch).map_err(|_| ServerError::Corrupt)?,
             public: public.try_into().map_err(|_| ServerError::Corrupt)?,
-            signing: signing.try_into().map_err(|_| ServerError::Corrupt)?,
             head: head.try_into().map_err(|_| ServerError::Corrupt)?,
             maker: parse_uuid(&maker)?,
             signature,
@@ -1342,9 +1340,7 @@ impl ServerStore {
                 previous.map_or(Uuid::nil(), |previous| previous.id),
             );
             if escrow.maker != identity.account
-                || !maker.is_some_and(|maker| {
-                    be_block_keys::verify_signature(&maker.0, &chained, &escrow.signature)
-                })
+                || !maker.is_some_and(|maker| maker.verifies_escrow(&chained, &escrow.signature))
             {
                 return Err(refused(
                     "an escrow key is signed by the administrator making it, as the organization's log names them",
@@ -1353,15 +1349,14 @@ impl ServerStore {
             let transaction = be_block_sqlite_schema::write_transaction(database)?;
             transaction.execute(
                 "INSERT INTO keys
-                    (organization_id, id, block_id, kind, epoch, created, public, signing, maker, signature, head)
-                 VALUES (?1, ?2, ?1, 'escrow', ?3, ?4, ?5, ?6, ?8, ?7, ?9)",
+                    (organization_id, id, block_id, kind, epoch, created, public, maker, signature, head)
+                 VALUES (?1, ?2, ?1, 'escrow', ?3, ?4, ?5, ?7, ?6, ?8)",
                 params![
                     organization.to_string(),
                     escrow.id.to_string(),
                     i64::try_from(escrow.epoch).map_err(|_| refused("that epoch is too large"))?,
                     now_milliseconds(),
                     escrow.public.to_vec(),
-                    escrow.signing.to_vec(),
                     escrow.signature,
                     escrow.maker.to_string(),
                     escrow.head.to_vec()

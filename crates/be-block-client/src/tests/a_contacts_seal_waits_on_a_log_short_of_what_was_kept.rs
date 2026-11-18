@@ -20,6 +20,7 @@ async fn a_contacts_seal_waits_on_a_log_short_of_what_was_kept() {
         let key = Uuid::new_v4();
         let carried = CarriedKey {
             key: [8; 32],
+            label: crate::tests::planted(key, kind, 90),
             block: block.into_bytes(),
             root: None,
             heads: Heads {
@@ -35,7 +36,7 @@ async fn a_contacts_seal_waits_on_a_log_short_of_what_was_kept() {
             },
             key.as_bytes(),
             &carried.encode(),
-        );
+        ).unwrap();
         plant_sealed(
             &harness,
             &revoked,

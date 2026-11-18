@@ -4,7 +4,7 @@ use super::*;
 /// accepts it; a device of the same account that pinned a record dated by a clock running
 /// ahead takes the new record all the same, as a record a link makes follows the newest the
 /// account's block holds
-/// (plans/crypto_audit.md, 4).
+/// (guides/blocks/keys.md, "Contacts").
 #[tokio::test]
 async fn a_contact_connected_again_by_a_new_link_outranks_every_devices_pin() {
     let harness = Harness::start().await;

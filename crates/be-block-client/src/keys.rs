@@ -4,8 +4,8 @@ use std::{
 };
 
 use be_block_keys::{
-    CarriedKey, Checked, EntryHash, EscrowSecret, Heads, Level, Party, PublicIdentity,
-    RecoveryPublic, RecoverySecret, SigningPublic,
+    CarriedKey, Checked, EntryHash, EscrowSecret, Heads, KeyRole, Label, Level, Party,
+    PublicIdentity, RecoveryPublic, RecoverySecret, SigningPublic,
 };
 use be_block_protocol::{EscrowKey, KeyKind, KeyRow, KeySet, WrappedBy, WrappedKey};
 use be_block_store::{ContentKey, Keyring, StoreError};
@@ -63,6 +63,9 @@ struct Opened {
 #[derive(Default)]
 struct Roots {
     blocks: HashMap<Uuid, Uuid>,
+    /// Each key's own row (`be_block_keys::Label`), as it was minted here or carried by what
+    /// opened it: what it carries on, so a server cannot pass an old key off as a new epoch.
+    labels: HashMap<Uuid, Label>,
     pinned: HashMap<Uuid, EntryHash>,
     /// Blocks whose trusted keys carried different roots: one of them was forged, so neither
     /// is used.
@@ -249,6 +252,8 @@ struct Escrow {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Escrowed {
     pub key: Uuid,
+    /// Its row as the wrap carries it, checked against the row the server serves.
+    pub label: Label,
     pub block: Uuid,
     pub sender: Uuid,
     pub root: Option<EntryHash>,
@@ -308,6 +313,19 @@ impl Rows {
     }
 }
 
+/// The label a key carries of `row`, which whoever opens it checks against the row it is served.
+pub(crate) fn label(row: KeyRow) -> Label {
+    Label {
+        id: row.id.into_bytes(),
+        kind: match row.kind {
+            KeyKind::Data => KeyRole::Data,
+            KeyKind::Scope => KeyRole::Scope,
+            KeyKind::Escrow => KeyRole::Escrow,
+        },
+        epoch: row.epoch,
+    }
+}
+
 /// The latest escrow key this device trusts: the one it pinned, or a newer one it holds the
 /// secret of, or, epoch by epoch, a newer one signed by its maker chained to the one before,
 /// where the maker is one of `administrators` (the organization's log, checked to its head as
@@ -347,11 +365,7 @@ pub fn verify_escrow(
             && next.epoch == known.epoch + 1
             && holds(&next.head)
             && let Some(maker) = maker
-            && be_block_keys::verify_signature(
-                &maker.0,
-                &next.chained(organization, known.id),
-                &next.signature,
-            )
+            && maker.verifies_escrow(&next.chained(organization, known.id), &next.signature)
         {
             verified = Some(next.clone());
         }
@@ -578,6 +592,7 @@ impl KeyBook {
         {
             let mut roots = self.roots.lock().unwrap();
             roots.blocks.insert(key, escrowed.block);
+            roots.labels.insert(key, escrowed.label);
             match weak {
                 true => roots.pin_weak(escrowed.block, root),
                 false => roots.pin(escrowed.block, root),
@@ -635,9 +650,8 @@ impl KeyBook {
         if !self.trusted.lock().unwrap().contains(&escrow.id) {
             return false;
         }
-        self.escrow_secret(escrow.id).is_some_and(|secret| {
-            secret.public().0 == escrow.public && secret.signing() == escrow.signing
-        })
+        self.escrow_secret(escrow.id)
+            .is_some_and(|secret| secret.public().0 == escrow.public)
     }
 
     fn settle_escrow(&self) {
@@ -754,7 +768,8 @@ impl KeyBook {
             sender: self.account,
             sealed: self
                 .identity
-                .seal_for(self.account.into_bytes(), &to, key.as_bytes(), &plain),
+                .seal_for(self.account.into_bytes(), &to, key.as_bytes(), &plain)
+                .map_err(|_| StoreError::Corrupt)?,
         }))
     }
 
@@ -782,7 +797,6 @@ impl KeyBook {
             id: Uuid::new_v4(),
             epoch: previous.as_ref().map_or(1, |previous| previous.epoch + 1),
             public: secret.public().0,
-            signing: secret.signing(),
             head,
             maker: self.account,
             signature: Vec::new(),
@@ -799,6 +813,14 @@ impl KeyBook {
         {
             let mut roots = self.roots.lock().unwrap();
             roots.blocks.insert(escrow.id, self.organization);
+            roots.labels.insert(
+                escrow.id,
+                Label {
+                    id: escrow.id.into_bytes(),
+                    kind: KeyRole::Escrow,
+                    epoch: escrow.epoch,
+                },
+            );
             roots.heads.insert(
                 escrow.id,
                 Heads {
@@ -1005,8 +1027,10 @@ impl KeyBook {
         };
         let roots = self.roots.lock().unwrap();
         let block = roots.blocks.get(&key).ok_or(StoreError::MissingKey(key))?;
+        let label = *roots.labels.get(&key).ok_or(StoreError::MissingKey(key))?;
         Ok(CarriedKey {
             key: plain,
+            label,
             block: block.into_bytes(),
             root: roots.pinned.get(block).copied(),
             heads: roots.heads.get(&key).copied().unwrap_or_default(),
@@ -1457,11 +1481,12 @@ impl KeyBook {
     fn opened(&self, row: Option<KeyRow>, bytes: &[u8], vouched: bool) -> Option<Opened> {
         let row = row?;
         let carried = CarriedKey::decode(bytes).ok()?;
-        if carried.block != row.block.into_bytes() {
+        if carried.block != row.block.into_bytes() || carried.label != label(row) {
             return None;
         }
         let mut roots = self.roots.lock().unwrap();
         roots.blocks.insert(row.id, row.block);
+        roots.labels.insert(row.id, carried.label);
         if vouched
             && !roots.unmade.contains(&row.id)
             && let Some(root) = carried.root
@@ -1567,7 +1592,7 @@ impl KeyBook {
         let Ok(carried) = CarriedKey::decode(plain) else {
             return;
         };
-        if carried.block != row.block.into_bytes() {
+        if carried.block != row.block.into_bytes() || carried.label != label(row) {
             return;
         }
         self.escrowed.lock().unwrap().insert(
@@ -1575,6 +1600,7 @@ impl KeyBook {
             (
                 Escrowed {
                     key: wrap.key,
+                    label: carried.label,
                     block: row.block,
                     sender: wrap.sender,
                     root: carried.root,
@@ -1772,7 +1798,8 @@ impl KeyBook {
             sender: self.account,
             sealed: self
                 .identity
-                .seal_for(self.account.into_bytes(), &to, key.as_bytes(), &plain),
+                .seal_for(self.account.into_bytes(), &to, key.as_bytes(), &plain)
+                .map_err(|_| StoreError::Corrupt)?,
         })
     }
 
@@ -1795,6 +1822,7 @@ impl KeyBook {
         self.trusted.lock().unwrap().insert(row.id);
         let mut roots = self.roots.lock().unwrap();
         roots.blocks.insert(row.id, block);
+        roots.labels.insert(row.id, label(row));
         roots.heads.insert(row.id, heads);
         row
     }

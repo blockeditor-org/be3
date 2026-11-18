@@ -2291,7 +2291,7 @@ pub fn is_own_invitation(
 }
 
 /// An invitation in the organization's invite list.
-#[derive(Clone, Debug, PartialEq, serde::Deserialize, serde::Serialize)]
+#[derive(Clone, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct Invite {
     pub id: Uuid,
     /// Who made it.
@@ -2306,6 +2306,24 @@ pub struct Invite {
     pub expires: i64,
     pub opened: i64,
     pub ended: i64,
+}
+
+/// Leaves out the link, a bearer secret, so no log ever holds it.
+impl std::fmt::Debug for Invite {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("Invite")
+            .field("id", &self.id)
+            .field("inviter", &self.inviter)
+            .field("link", &self.link.as_ref().map(|_| ".."))
+            .field("state", &self.state)
+            .field("accepter", &self.accepter)
+            .field("created", &self.created)
+            .field("expires", &self.expires)
+            .field("opened", &self.opened)
+            .field("ended", &self.ended)
+            .finish()
+    }
 }
 
 type InvitationsReply = Box<dyn FnOnce(Result<Vec<Invite>, String>) + Send>;

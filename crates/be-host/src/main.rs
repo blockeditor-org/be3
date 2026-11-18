@@ -1472,7 +1472,11 @@ impl HostCore {
                 if let Some(joining) = &mut self.joining {
                     joining.preview = Some(preview);
                 }
-                if self.signed_in && self.organizations_loaded && !self.keys.needs_recovery() {
+                if self.signed_in
+                    && self.organizations_loaded
+                    && !self.keys.needs_recovery()
+                    && self.keys.lost().is_none()
+                {
                     self.look_up_invite();
                 }
             }
@@ -1874,7 +1878,16 @@ impl HostCore {
                 self.organizations_loaded = true;
                 self.organizations_load_failed = false;
                 self.organizations_cached = false;
-                self.keys.loaded(keys);
+                // A local account's server is this device: nothing it says is a stranger's.
+                let held = match self.account.server {
+                    ServerLocation::Local => None,
+                    _ => self.identity,
+                };
+                self.keys.loaded(keys, held);
+                if let Some(lost) = self.keys.lost() {
+                    self.organization_error = Some(lost.into());
+                    return;
+                }
                 if self.keys.needs_recovery() {
                     // A local account's key sits in plaintext beside its database, so
                     // there is nothing to lose and no phrase to make the user save.
