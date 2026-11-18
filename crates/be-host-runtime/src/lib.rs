@@ -16,6 +16,8 @@ mod description;
 mod docks;
 mod events;
 mod fonts;
+
+pub use fonts::bundled as bundled_fonts;
 mod headless;
 mod heads;
 mod input;

@@ -1,10 +1,11 @@
 # Pure guests in the apps' plan
 
-Depends on: plans/single_threaded_guests.md, step 3 (every guest built for `wasm32-wasip1`), and
-plans/host_as_platform_adapter.md, step 4g2 (which settles whether a root stays a pure guest).
+Depends on: plans/single_threaded_guests.md, step 3 (every guest built for `wasm32-wasip1`).
+plans/host_as_platform_adapter.md's step 4g2 settled that a root is built as an app is, in
+`wasi-guest` already (decisions/a_root_links_beui_as_an_app_does.md).
 
-Build the pure guests (games, type modules, the remapper, root guests; guides/app_libraries.md,
-Pure guests) in the `wasi-guest` plan, for `wasm32-wasip1`, instead of in a `wasm32` plan of their
+Build the pure guests (games, type modules, the remapper, be-wasm-root-testing's root;
+guides/app_libraries.md, Pure guests) in the `wasi-guest` plan, for `wasm32-wasip1`, instead of in a `wasm32` plan of their
 own, so a crate they share with the apps compiles once instead of once per plan. Do it only if
 step 1 shows it saves compile time; otherwise drop this plan and record why in decisions/.
 

@@ -5,7 +5,9 @@ use std::path::PathBuf;
 
 use be_sdk_api::{FontFace, FontRole, Fonts};
 
-pub(super) fn bundled() -> Fonts {
+/// The fonts be-host bundles, which it tells every app once it runs, and hands its root
+/// (`be3:root`'s `host.fonts`).
+pub fn bundled() -> Fonts {
     let sources = beui_font_freetype::FontSources::bundled();
     let faces = [
         (FontRole::Text, &sources.proportional),
