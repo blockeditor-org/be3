@@ -1,5 +1,5 @@
-use be_lib_ui_types::FontRole;
 use be_lib_stable_hash::HashSet;
+use be_lib_ui_types::FontRole;
 use std::cell::RefCell;
 use std::fmt;
 use std::ops::Deref;

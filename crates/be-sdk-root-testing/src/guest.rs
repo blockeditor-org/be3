@@ -12,9 +12,8 @@ use std::{
 use be_lib_geometry::pos2;
 use be_lib_layers::{LayerList, Surface, WindowLayers};
 use be_sdk_api::{
-    EditorInstanceId, OpenBlock, Opening, OpeningKind, ParentView, Pos2 as ViewPos2,
-    ScreenRequest, SurfaceFormat, SurfaceSpec, Vec2 as ViewVec2, ViewId, ViewPlacement,
-    ViewportMetrics,
+    EditorInstanceId, OpenBlock, Opening, OpeningKind, ParentView, Pos2 as ViewPos2, ScreenRequest,
+    SurfaceFormat, SurfaceSpec, Vec2 as ViewVec2, ViewId, ViewPlacement, ViewportMetrics,
 };
 use be_sdk_beui_root::{BeuiRoot, BeuiSurface};
 use be_sdk_root::{Delivery, Embedded, Embedding, OwnSurface, Spawn};
@@ -27,15 +26,15 @@ use be_wasm_root_api::{
         host,
     },
 };
-use beui::{Align2, NodeId};
 use beui::native::painting::{Frame as PaintFrame, Painting, ScreenPaintings};
 use beui::reactive::*;
 use beui::styled::*;
+use beui::{Align2, NodeId};
 
 use crate::{
     APP, APP_ENTRY, CLOSES, LATE_LAYER, LATER, LATER_TEXT, ORIGIN, RASTER, RESIZED, RESIZES,
-    ROOT_COLOR, ROOT_LAYER, ROOT_SURFACE, SCREEN, SCREEN_SIZE, SIZE, TEXT, TEXT_LAYER,
-    TEXT_STRIP, TEXT_SURFACE, UNPRESENTED_SURFACE,
+    ROOT_COLOR, ROOT_LAYER, ROOT_SURFACE, SCREEN, SCREEN_SIZE, SIZE, TEXT, TEXT_LAYER, TEXT_STRIP,
+    TEXT_SURFACE, UNPRESENTED_SURFACE,
 };
 
 /// The triangle's editor, by its manifest's id.
@@ -98,7 +97,9 @@ impl Root {
             move || waker.wake(),
             || {
                 view! {
-                    <Root clear_color=ColorRole::None><Strip /></Root>
+                    <Root clear_color=ColorRole::None>
+                        <Strip />
+                    </Root>
                 }
             },
         )?;
@@ -173,7 +174,8 @@ impl frames::Guest for Root {
                 }
                 *root.unpresented.borrow_mut() = Some(OwnSurface::new(UNPRESENTED_SURFACE, SIZE));
             } else if let Some(text) = &mut *root.text.borrow_mut() {
-                text.frame().expect("the root draws its strip of text with beui");
+                text.frame()
+                    .expect("the root draws its strip of text with beui");
             }
             let own = root
                 .own
