@@ -3358,7 +3358,10 @@ fn DockSplitterView(dock: State, tree: Tree, split: SplitId) -> NodeId {
         active: active.read_only(),
         focused: focused.read_only(),
     });
-    let carried = SplitterCarry { dock: dock.id, split };
+    let carried = SplitterCarry {
+        dock: dock.id,
+        split,
+    };
     let handle = NodeRef::new();
     // The size at the lift, written back unless the carry is dropped.
     let started = Rc::new(Cell::new(None::<SplitSize>));
@@ -3375,9 +3378,8 @@ fn DockSplitterView(dock: State, tree: Tree, split: SplitId) -> NodeId {
                     .try_with(|panes| panes.borrow().get(&tree).copied())
                     .flatten();
                 let space = beui_view::drag::space();
-                let placed = |node: Option<NodeRef>| {
-                    node?.try_get().and_then(|node| space.placed(node))
-                };
+                let placed =
+                    |node: Option<NodeRef>| node?.try_get().and_then(|node| space.placed(node));
                 let (Some(area), Some((within, scale)), Some((at, _)), Some(splitter)) = (
                     area,
                     placed(area),
@@ -3408,15 +3410,17 @@ fn DockSplitterView(dock: State, tree: Tree, split: SplitId) -> NodeId {
             let dropped = Rc::clone(&dropped);
             move |(_, next): (SplitterCarry, SplitSize)| {
                 dropped.set(true);
-                dock.drag_edit(move |state| state.set_split_size(split, next));
+                dock.edit(|state| state.set_split_size(split, next));
             }
         }),
     );
     create_effect_on(
         move || site.over.get(),
         move |over: &Option<SplitSize>, _| {
+            // Written at once, not queued after input: the board hears the pointer once input
+            // is over, and the size must reach this frame's layout.
             if let Some(next) = *over {
-                dock.drag_edit(move |state| state.set_split_size(split, next));
+                dock.edit(|state| state.set_split_size(split, next));
             }
         },
     );
@@ -3431,7 +3435,7 @@ fn DockSplitterView(dock: State, tree: Tree, split: SplitId) -> NodeId {
                 if let Some(begun) = started.take()
                     && !dropped.replace(false)
                 {
-                    dock.drag_edit(move |state| state.set_split_size(split, begun));
+                    dock.edit(|state| state.set_split_size(split, begun));
                 }
             },
         );
