@@ -183,7 +183,11 @@ fn an_anchored_view_that_closes_stays_until_the_frame_that_closed_it_is_drawn() 
     );
     with(APP, |runtime| {
         runtime.run.presents.damage_through(1);
-        let closed = runtime.run.shown.frame_shown(runtime.run.presents.shown()).closed;
+        let closed = runtime
+            .run
+            .shown
+            .frame_shown(runtime.run.presents.shown())
+            .closed;
         runtime.close_anchored(closed);
     });
     assert!(!lifted_shown(), "and goes with them");

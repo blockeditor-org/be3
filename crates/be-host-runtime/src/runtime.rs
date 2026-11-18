@@ -10,8 +10,8 @@ use std::{
 use be_sdk_api::{
     AnchorSpace, ArtifactDescription, BlockPick, ChildPreview, EditorInstanceId, FrameSpec,
     HostPanel, HostTransform, LayoutCommit, OpeningKind, PresentCommit, PreviewImage, ScreenDamage,
-    ScreenId, ScreenLayout, ScreenPlacement, SurfaceFormat, SurfaceSpec, View,
-    ViewId, WindowRequest,
+    ScreenId, ScreenLayout, ScreenPlacement, SurfaceFormat, SurfaceSpec, View, ViewId,
+    WindowRequest,
 };
 use be_sdk_app_host::{
     holds::{Held, Laid},
@@ -172,7 +172,8 @@ fn request_frames(runtimes: &mut HashMap<String, Runtime>, asked: &[String]) {
     let active: be_lib_stable_hash::HashSet<String> = runtimes
         .iter()
         .filter(|(id, runtime)| {
-            runtime.run.pacing.laying_out(host::pass()) || (asked.contains(*id) && runtime.will_draw())
+            runtime.run.pacing.laying_out(host::pass())
+                || (asked.contains(*id) && runtime.will_draw())
         })
         .map(|(id, _)| id.clone())
         .collect();
@@ -969,7 +970,8 @@ impl Runtime {
     /// the frame they came with.
     fn release_presented(&mut self, answers: &mut Vec<Answer>) {
         answers.extend(
-            self.run.holds
+            self.run
+                .holds
                 .release_presented()
                 .into_iter()
                 .map(|held| match held {
@@ -1049,7 +1051,8 @@ impl Runtime {
             .export(shown.iter().map(|placement| placement.surface).collect());
         self.instances.keep_anchored(&layout);
         let instances = &self.instances;
-        self.run.shown
+        self.run
+            .shown
             .keep_left_out(&self.layout, &layout, |placement| {
                 placement.view != ViewId::PREVIEW
                     && instances.view_request_of(placement.screen).is_some()
@@ -1062,11 +1065,16 @@ impl Runtime {
     /// every texture neither the app's layout nor a kept frame holds.
     fn release_kept(&mut self) {
         let instances = &self.instances;
-        self.run.shown.release_kept(self.run.presents.shown(), |screen| {
-            instances.view_request_of(screen).is_some()
-        });
+        self.run
+            .shown
+            .release_kept(self.run.presents.shown(), |screen| {
+                instances.view_request_of(screen).is_some()
+            });
         self.shared.borrow_mut().kept = self.run.shown.kept_placements();
-        presenter::keep(self.surface, &self.run.shown.retained_surfaces(&self.layout));
+        presenter::keep(
+            self.surface,
+            &self.run.shown.retained_surfaces(&self.layout),
+        );
     }
 
     /// The placement a screen is drawn from: its kept last frame while it has one, else the
@@ -1092,7 +1100,8 @@ impl Runtime {
     }
 
     fn held_screens(&self) -> be_lib_stable_hash::HashSet<ScreenId> {
-        self.run.holds
+        self.run
+            .holds
             .laid()
             .flat_map(|laid| self.laid_screens(laid))
             .collect()
@@ -1263,7 +1272,8 @@ impl Runtime {
             input_waiting,
         } = presented;
         let delay = repaint_after_micros.map(Duration::from_micros);
-        self.run.pacing
+        self.run
+            .pacing
             .presented(self.now(), animating, delay, input_waiting);
         if let Some(delay) = delay {
             host::request_repaint_after(delay);
