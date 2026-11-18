@@ -23,11 +23,12 @@ use be_wasm_guest_abi::{Flow, Guest, Waker};
 use be_wasm_ops::guest::{Executor, LocalFuture};
 use be_wasm_password::Password;
 use be_wasm_root_api::{
-    AccountRow, AgentRow, PairingApproval, ContactCard, ContactMismatch, ContactRow, ShareAccess, SharePreview,
-    CoreCommand, CoreSecret, MemberRole, MemberRow, RoleChange, SecretCommand, CoreView, CoreWait, DiscardReason, InvitationRow,
-    InvitationState, OrganizationRow, OrganizationsListed, ProfileRow,
-    SessionRow, DisplayQuestion, FrameDone, FrameRequest, HostStatistics, LockState,
-    NewAccount, Notice, PowerAction, Refusal, SavingState, ServerAccount, SetAside, StatisticRow, SyncState, UnsentEdit,
+    AccountRow, AgentRow, ContactCard, ContactMismatch, ContactRow, CoreCommand, CoreSecret,
+    CoreView, CoreWait, DiscardReason, DisplayQuestion, FrameDone, FrameRequest, HostStatistics,
+    InvitationRow, InvitationState, LockState, MemberRole, MemberRow, NewAccount, Notice,
+    OrganizationRow, OrganizationsListed, PairingApproval, PowerAction, ProfileRow, Refusal,
+    RoleChange, SavingState, SecretCommand, ServerAccount, SessionRow, SetAside, ShareAccess,
+    SharePreview, StatisticRow, SyncState, UnsentEdit,
     guest::{
         exports::{frames, input, paintings},
         host,
@@ -42,17 +43,19 @@ use beui::{
 };
 
 use crate::{
-    AGENTS_TITLE, CONTACTS_TITLE, FAILURE_TITLE, PAIRING_TITLE, RECOVERY_TITLE, UNLOCK_TITLE, LEAVE_TITLE, OPENS_CONTACTS, OPENS_SHARE_LINKS,
-    REMOVE_CONTACT_TITLE, SHARE_LINK_TITLE, DISCARD_TITLE, INVITATIONS_TITLE, MEMBERS_TITLE, OPENS_AGENTS, OPENS_MEMBERS,
-    REMOVE_MEMBER_TITLE, OPENS_INVITATIONS, REAUTH_TITLE, ONBOARDING_LAYER,
-    ONBOARDING_SURFACE, ORGANIZATIONS_TITLE, SESSIONS_TITLE, ADD_ACCOUNT_TITLE, FORGET_ACCOUNT_TITLE, SIGN_IN_TITLE,
-    APP, APP_ENTRY, CLOSES, DIALOG_LAYER, DISCARD_UNSENT_TITLE, OPENS_UNSENT, UNSENT_TITLE, DIALOG_ORIGIN, KEEP_DISPLAY_TITLE, DIALOG_SIZE, DIALOG_SURFACE, DIALOG_TITLE,
-    LATE_LAYER, LATER, LATER_TEXT, LOCK_LAYER, LOCK_SURFACE, LOCKS_SESSION, OPENS_DIALOG,
-    OPENS_STATISTICS, ORIGIN, RASTER, RESIZED, RESIZES, ROOT_COLOR, ROOT_LAYER, ROOT_SURFACE,
-    SCREEN, SCREEN_SIZE, SCRIM_COLOR, SCRIM_LAYER, SCRIM_SURFACE, SIZE, SLOW_SAVE, SLOW_SAVE_TITLE,
-    SLOW_SAVE_TOAST, STATISTICS_AREA, STATISTICS_LAYER, STATISTICS_ORIGIN, STATISTICS_SURFACE,
-    STATISTICS_TITLE, STRAY_PASSWORD, TEXT, TEXT_LAYER, TEXT_STRIP, TEXT_SURFACE, TOAST_AREA,
-    TOAST_LAYER, TOAST_SURFACE, UNLOCKS_TWICE, UNPRESENTED_SURFACE,
+    ADD_ACCOUNT_TITLE, AGENTS_TITLE, APP, APP_ENTRY, CLOSES, CONTACTS_TITLE, DIALOG_LAYER,
+    DIALOG_ORIGIN, DIALOG_SIZE, DIALOG_SURFACE, DIALOG_TITLE, DISCARD_TITLE, DISCARD_UNSENT_TITLE,
+    FAILURE_TITLE, FORGET_ACCOUNT_TITLE, INVITATIONS_TITLE, KEEP_DISPLAY_TITLE, LATE_LAYER, LATER,
+    LATER_TEXT, LEAVE_TITLE, LOCK_LAYER, LOCK_SURFACE, LOCKS_SESSION, MEMBERS_TITLE,
+    ONBOARDING_LAYER, ONBOARDING_SURFACE, OPENS_AGENTS, OPENS_CONTACTS, OPENS_DIALOG,
+    OPENS_INVITATIONS, OPENS_MEMBERS, OPENS_SHARE_LINKS, OPENS_STATISTICS, OPENS_UNSENT,
+    ORGANIZATIONS_TITLE, ORIGIN, PAIRING_TITLE, RASTER, REAUTH_TITLE, RECOVERY_TITLE,
+    REMOVE_CONTACT_TITLE, REMOVE_MEMBER_TITLE, RESIZED, RESIZES, ROOT_COLOR, ROOT_LAYER,
+    ROOT_SURFACE, SCREEN, SCREEN_SIZE, SCRIM_COLOR, SCRIM_LAYER, SCRIM_SURFACE, SESSIONS_TITLE,
+    SHARE_LINK_TITLE, SIGN_IN_TITLE, SIZE, SLOW_SAVE, SLOW_SAVE_TITLE, SLOW_SAVE_TOAST,
+    STATISTICS_AREA, STATISTICS_LAYER, STATISTICS_ORIGIN, STATISTICS_SURFACE, STATISTICS_TITLE,
+    STRAY_PASSWORD, TEXT, TEXT_LAYER, TEXT_STRIP, TEXT_SURFACE, TOAST_AREA, TOAST_LAYER,
+    TOAST_SURFACE, UNLOCK_TITLE, UNLOCKS_TWICE, UNPRESENTED_SURFACE, UNSENT_TITLE,
 };
 
 /// The triangle's editor, by its manifest's id.
@@ -520,7 +523,13 @@ impl Root {
                     secret_asker(&secret_shown, &answered, &asks_wake, &closes);
                 view! {
                     <Root>
-                        <Onboarding core={core} want={want} secret={secret} pending={pending} ask={ask} />
+                        <Onboarding
+                            core={core}
+                            want={want}
+                            secret={secret}
+                            pending={pending}
+                            ask={ask}
+                        />
                     </Root>
                 }
             },
@@ -1093,7 +1102,9 @@ impl Root {
                     Asking::Host(HostAsks::Pairing(id)) => {
                         let core = create_signal(core);
                         core_shown.set(Some(core));
-                        view! { <PairingDialog core={core} id={id} done={done} /> }
+                        view! {
+                            <PairingDialog core={core} id={id} done={done} />
+                        }
                     }
                     Asking::Host(HostAsks::Leave(_)) => {
                         let core = create_signal(core);
@@ -1873,7 +1884,10 @@ fn RecoveryCard(
     let asked = create_memo(move || {
         area.with(|area| {
             let positions: Vec<String> = area.checked.iter().map(u32::to_string).collect();
-            format!("Type words {} to show you wrote it down.", positions.join(", "))
+            format!(
+                "Type words {} to show you wrote it down.",
+                positions.join(", ")
+            )
         })
     });
     let typed = create_signal(String::new());
@@ -1906,8 +1920,18 @@ fn RecoveryCard(
                 on_submit={move |_: String| confirm()}
             />
             <List direction=Direction::Horizontal spacing=Space::Md>
-                <Button label="Confirm" variant=ButtonVariant::Primary disabled={busy} on_click={confirm} />
-                <Button label="New phrase" variant=ButtonVariant::Secondary disabled={busy} on_click={renew} />
+                <Button
+                    label="Confirm"
+                    variant=ButtonVariant::Primary
+                    disabled={busy}
+                    on_click={confirm}
+                />
+                <Button
+                    label="New phrase"
+                    variant=ButtonVariant::Secondary
+                    disabled={busy}
+                    on_click={renew}
+                />
                 <Show value={replacing}>
                     <Button
                         label="Keep the old one"
@@ -2003,15 +2027,20 @@ fn UnlockCard(
 #[component]
 fn FailureCard(core: Signal<CoreView>) -> NodeId {
     let failure = create_memo(move || core.with(|view| view.failure.clone()));
-    let message = create_memo(move || failure.with(|it| it.as_ref().map(|it| it.message.clone()).unwrap_or_default()));
+    let message = create_memo(move || {
+        failure.with(|it| it.as_ref().map(|it| it.message.clone()).unwrap_or_default())
+    });
     let asking = create_signal(false);
     let calm = create_memo(move || !asking.get());
     let question = create_memo(move || {
         let unsaved = failure.with(|it| it.as_ref().map_or(0, |it| it.unsaved));
         match unsaved {
-            0 => "Delete this device's copy of your blocks? They download again from the server.".to_owned(),
+            0 => "Delete this device's copy of your blocks? They download again from the server."
+                .to_owned(),
             1 => "Delete this device's copy of your blocks? 1 change not saved is lost.".to_owned(),
-            unsaved => format!("Delete this device's copy of your blocks? {unsaved} changes not saved are lost."),
+            unsaved => format!(
+                "Delete this device's copy of your blocks? {unsaved} changes not saved are lost."
+            ),
         }
     });
     view! {
@@ -2020,16 +2049,32 @@ fn FailureCard(core: Signal<CoreView>) -> NodeId {
             <Text style=TextStyle::PARAGRAPH>{message}</Text>
             <Show value={calm}>
                 <List direction=Direction::Horizontal spacing=Space::Md>
-                    <Button label="Restart" variant=ButtonVariant::Primary on_click={|| ask_core(CoreCommand::Restart)} />
-                    <Button label="Delete local copy" variant=ButtonVariant::Secondary on_click={move || asking.set(true)} />
-                    <Button label="Quit" variant=ButtonVariant::Secondary on_click={|| ask_core(CoreCommand::Exit)} />
+                    <Button
+                        label="Restart"
+                        variant=ButtonVariant::Primary
+                        on_click={|| ask_core(CoreCommand::Restart)}
+                    />
+                    <Button
+                        label="Delete local copy"
+                        variant=ButtonVariant::Secondary
+                        on_click={move || asking.set(true)}
+                    />
+                    <Button
+                        label="Quit"
+                        variant=ButtonVariant::Secondary
+                        on_click={|| ask_core(CoreCommand::Exit)}
+                    />
                 </List>
             </Show>
             <Show value={asking}>
                 <List spacing=Space::Md>
                     <Text style=TextStyle::PARAGRAPH>{question}</Text>
                     <List direction=Direction::Horizontal spacing=Space::Md>
-                        <Button label="Keep" variant=ButtonVariant::Secondary on_click={move || asking.set(false)} />
+                        <Button
+                            label="Keep"
+                            variant=ButtonVariant::Secondary
+                            on_click={move || asking.set(false)}
+                        />
                         <Button
                             label="Delete"
                             variant=ButtonVariant::Danger
@@ -2051,11 +2096,19 @@ fn FailureCard(core: Signal<CoreView>) -> NodeId {
 #[component]
 fn PairingDialog(core: Signal<CoreView>, id: u64, done: Callback<Closed>) -> NodeId {
     let request = create_memo(move || {
-        core.with(|view| view.pairing.iter().find(|request| request.id == id).cloned())
+        core.with(|view| {
+            view.pairing
+                .iter()
+                .find(|request| request.id == id)
+                .cloned()
+        })
     });
     let lead = create_memo(move || {
         request.with(|request| {
-            let device = request.as_ref().map(|it| it.device.clone()).unwrap_or_default();
+            let device = request
+                .as_ref()
+                .map(|it| it.device.clone())
+                .unwrap_or_default();
             format!("{device} asks to pair. Type the code it shows.")
         })
     });

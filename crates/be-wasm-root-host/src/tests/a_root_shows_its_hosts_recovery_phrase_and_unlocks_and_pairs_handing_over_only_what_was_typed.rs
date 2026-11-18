@@ -9,8 +9,7 @@ use be_wasm_root_api::{
 
 use super::*;
 
-const PHRASE: &str =
-    "apple banana cherry date elder fig grape hazel iris juniper kale lime";
+const PHRASE: &str = "apple banana cherry date elder fig grape hazel iris juniper kale lime";
 
 fn asks(
     root: &mut Root,
@@ -110,7 +109,10 @@ fn a_root_shows_its_hosts_recovery_phrase_and_unlocks_and_pairs_handing_over_onl
     root.show_core(recovery());
     let (id, asked) = requested(&mut root, &mut time);
     assert!(matches!(asked, SecretCommand::RecoveryPhrase), "{asked:?}");
-    root.answer_secret(id, Some(CoreSecret::Phrase(Password::from(PHRASE.to_owned()))));
+    root.answer_secret(
+        id,
+        Some(CoreSecret::Phrase(Password::from(PHRASE.to_owned()))),
+    );
     beui_paint_snapshot::assert_painting(
         "a_root_shows_its_hosts_recovery_phrase",
         painting(&mut root, &mut time, ONBOARDING_SURFACE),
@@ -138,11 +140,17 @@ fn a_root_shows_its_hosts_recovery_phrase_and_unlocks_and_pairs_handing_over_onl
         [CoreCommand::UnlockWithPhrase(phrase)] => assert_eq!(phrase.as_bytes(), PHRASE.as_bytes()),
         other => panic!("Unlock hands over the phrase: {other:?}"),
     }
-    root.input(None, be_lib_ui_types::input::encode(&click(pos2(200.0, 158.0))))
-        .expect("the root takes input");
+    root.input(
+        None,
+        be_lib_ui_types::input::encode(&click(pos2(200.0, 158.0))),
+    )
+    .expect("the root takes input");
     let (id, asked) = requested(&mut root, &mut time);
     assert!(matches!(asked, SecretCommand::PairingCode), "{asked:?}");
-    root.answer_secret(id, Some(CoreSecret::Code(Password::from("482-913".to_owned()))));
+    root.answer_secret(
+        id,
+        Some(CoreSecret::Code(Password::from("482-913".to_owned()))),
+    );
     beui_paint_snapshot::assert_painting(
         "a_root_shows_its_hosts_pairing_code",
         painting(&mut root, &mut time, ONBOARDING_SURFACE),
@@ -155,9 +163,15 @@ fn a_root_shows_its_hosts_recovery_phrase_and_unlocks_and_pairs_handing_over_onl
         painting(&mut root, &mut time, ONBOARDING_SURFACE),
     );
     let commands = asks(&mut root, &mut time, click(pos2(55.0, 102.0)));
-    assert!(matches!(commands.as_slice(), [CoreCommand::Restart]), "{commands:?}");
+    assert!(
+        matches!(commands.as_slice(), [CoreCommand::Restart]),
+        "{commands:?}"
+    );
     let commands = asks(&mut root, &mut time, click(pos2(286.0, 102.0)));
-    assert!(matches!(commands.as_slice(), [CoreCommand::Exit]), "{commands:?}");
+    assert!(
+        matches!(commands.as_slice(), [CoreCommand::Exit]),
+        "{commands:?}"
+    );
     let commands = asks(&mut root, &mut time, click(pos2(176.0, 102.0)));
     assert!(commands.is_empty(), "asking deletes nothing: {commands:?}");
     beui_paint_snapshot::assert_painting(
@@ -188,7 +202,10 @@ fn a_root_shows_its_hosts_recovery_phrase_and_unlocks_and_pairs_handing_over_onl
         other => panic!("Approve approves it with the code typed: {other:?}"),
     }
     let commands = asks(&mut root, &mut time, key(Key::Escape));
-    assert!(commands.is_empty(), "Not now asks nothing of the host: {commands:?}");
+    assert!(
+        commands.is_empty(),
+        "Not now asks nothing of the host: {commands:?}"
+    );
     time += 1;
     assert!(
         layer_of(&step(&mut root, time), DIALOG_LAYER).is_none(),
