@@ -419,7 +419,7 @@ interface host {
     }
 
     /// A type a new session can be, with its name.
-    record session-type {
+    record session-kind {
         id: block-type-id,
         name: string,
     }
@@ -439,7 +439,7 @@ interface host {
         /// The organization's sessions, of every type.
         sessions: list<session-row>,
         /// The types a new session can be.
-        session-types: list<session-type>,
+        session-kinds: list<session-kind>,
         /// The type of session this device opens, which a new session is
         /// unless the person picks another.
         session-type: block-type-id,
