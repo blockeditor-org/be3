@@ -11,7 +11,7 @@ const BUILDING: [u8; 4] = [217, 208, 201, 255];
 const SITE: [u8; 4] = [232, 229, 219, 255];
 const URBAN: [u8; 4] = [224, 222, 219, 255];
 const GRASS: [u8; 4] = [205, 235, 176, 255];
-const PARK: [u8; 4] = [200, 230, 170, 110];
+const PARK_EDGE: [u8; 4] = [110, 170, 90, 150];
 const PEDESTRIAN_AREA: [u8; 4] = [237, 237, 237, 255];
 const RUNWAY: [u8; 4] = [190, 190, 200, 255];
 const BOUNDARY: [u8; 4] = [140, 110, 150, 170];
@@ -53,7 +53,7 @@ pub(crate) fn rasterize(tile: &Tile, zoom: u8, window: Window) -> TileRaster {
     fill_layer(&mut canvas, tile.layer("landcover"), |layer, feature| {
         landcover_color(class(layer, feature))
     });
-    fill_layer(&mut canvas, tile.layer("park"), |_, _| Some(PARK));
+    outline_layer(&mut canvas, tile.layer("park"), PARK_EDGE, 1.5);
     fill_layer(&mut canvas, tile.layer("water"), |layer, feature| {
         (!tunnel(layer, feature)).then_some(WATER)
     });
@@ -180,8 +180,11 @@ fn road_style(class: &str, subclass: &str) -> Option<(u8, [u8; 4], f32)> {
             "cycleway" => Some((0, [130, 130, 220, 255], 1.2)),
             _ => Some((0, [200, 140, 120, 255], 1.2)),
         },
+        "pier" => Some((0, LAND, 3.0)),
+        "ferry" => Some((0, [100, 130, 200, 255], 1.0)),
         "rail" => Some((6, [140, 140, 140, 255], 1.6)),
         "transit" => Some((6, [150, 150, 150, 255], 1.4)),
+        "aerialway" => Some((6, [110, 110, 110, 255], 1.0)),
         _ => None,
     }
 }
@@ -224,6 +227,25 @@ fn fill_layer(
         };
         let paths = canvas.transformed(feature, layer.extent);
         canvas.fill(&paths, color);
+    }
+}
+
+/// Strokes the edges of a layer's areas.
+fn outline_layer(canvas: &mut Canvas, layer: Option<&Layer>, color: [u8; 4], width: f32) {
+    let Some(layer) = layer else {
+        return;
+    };
+    for feature in &layer.features {
+        if feature.kind != GeometryKind::Polygon {
+            continue;
+        }
+        let mut rings = canvas.transformed(feature, layer.extent);
+        for ring in &mut rings {
+            if let Some(first) = ring.first().copied() {
+                ring.push(first);
+            }
+        }
+        canvas.stroke(&rings, width * SUPERSAMPLE as f32, color);
     }
 }
 

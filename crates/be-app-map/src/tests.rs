@@ -12,6 +12,7 @@ mod a_map_on_a_phone_on_its_side_shows_its_inspector_beside_it;
 mod a_map_on_a_phone_shows_its_inspector_below_it;
 mod a_new_map_shows_the_whole_world;
 mod a_tile_source_that_cannot_be_read_says_why;
+mod a_tile_source_naming_tiles_elsewhere_is_not_followed;
 mod a_town_is_drawn_from_its_openmaptiles_layers;
 mod a_tile_the_rasterizer_fails_on_fails_alone;
 mod labels_hold_still_between_frames;
@@ -32,10 +33,17 @@ fn phone(size: Vec2) -> BeuiTest<MapRoot> {
 }
 
 fn sized(editor: BeuiTest<MapRoot>) -> BeuiTest<MapRoot> {
-    let mut editor = editor.in_viewport();
+    holding(editor, MapContent::default())
+}
+
+/// `editor` in the camera the host gives the map, showing `content`.
+fn holding(editor: BeuiTest<MapRoot>, content: MapContent) -> BeuiTest<MapRoot> {
+    let mut editor = editor
+        .with_manifest(crate::APP_MANIFEST, "map")
+        .in_viewport();
     editor.serve_worker::<be_worker_map_tiles::Tiles>(be_worker_map::MODULE);
     editor.store().register(be_type_map::registrations());
-    editor.hold(None, MapContent::default());
+    editor.hold(None, content);
     editor.run();
     editor
 }
@@ -140,8 +148,12 @@ const TILES: &str = "https://tiles.openfreemap.org/planet/20261115_080022_pt";
 
 /// The tile source's TileJSON, trimmed to what the map reads.
 fn tile_json() -> Vec<u8> {
-    format!(r#"{{"tilejson":"3.0.0","tiles":["{TILES}/{{z}}/{{x}}/{{y}}.pbf"],"maxzoom":14}}"#)
-        .into_bytes()
+    tile_json_naming(&format!("{TILES}/{{z}}/{{x}}/{{y}}.pbf"))
+}
+
+/// A TileJSON naming `template` for its tiles.
+fn tile_json_naming(template: &str) -> Vec<u8> {
+    format!(r#"{{"tilejson":"3.0.0","tiles":["{template}"],"maxzoom":14}}"#).into_bytes()
 }
 
 fn tile_test_id(url: &str) -> String {
@@ -195,10 +207,19 @@ fn serve(editor: &mut BeuiTest<MapRoot>, fetch: &Fetch, tile: Vec<u8>) {
 }
 
 fn serve_tiles_with(editor: &mut BeuiTest<MapRoot>, tile: impl Fn() -> Vec<u8>) -> Vec<String> {
+    serve_tiles_with_each(editor, |_| tile())
+}
+
+/// Serves each tile the map asks for with `tile` of its URL until it asks for no more, and waits
+/// for them to be drawn; returns their URLs, sorted.
+fn serve_tiles_with_each(
+    editor: &mut BeuiTest<MapRoot>,
+    tile: impl Fn(&str) -> Vec<u8>,
+) -> Vec<String> {
     let mut served = Vec::new();
     loop {
         for (fetch, url) in requested_tiles(editor) {
-            serve(editor, &fetch, tile());
+            serve(editor, &fetch, tile(&url));
             served.push(url);
         }
         let ids: Vec<String> = served.iter().map(|url| tile_test_id(url)).collect();

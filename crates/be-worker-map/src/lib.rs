@@ -9,10 +9,6 @@ use serde::{Deserialize, Serialize};
 /// The rasterizer's module, as the map's manifest names it under `workers`.
 pub const MODULE: &str = "tiles.wasm";
 
-/// The deepest zoom the tile source serves (OpenFreeMap's TileJSON says 14): deeper tiles are cut
-/// from one of its tiles.
-pub const SOURCE_MAX_ZOOM: u8 = 14;
-
 /// The width and height of a rasterized tile, in pixels.
 pub const TILE_PIXELS: usize = 512;
 
@@ -33,10 +29,11 @@ impl TileId {
         })
     }
 
-    /// The source's tile this one is drawn from: itself, or its ancestor at `SOURCE_MAX_ZOOM`.
-    pub fn source(self) -> TileId {
+    /// The source's tile this one is drawn from: itself, or its ancestor at `max_zoom`, the
+    /// deepest zoom the tile source serves.
+    pub fn source(self, max_zoom: u8) -> TileId {
         let mut source = self;
-        while source.zoom > SOURCE_MAX_ZOOM {
+        while source.zoom > max_zoom {
             source = source
                 .parent()
                 .expect("a tile deeper than the source has a parent");
