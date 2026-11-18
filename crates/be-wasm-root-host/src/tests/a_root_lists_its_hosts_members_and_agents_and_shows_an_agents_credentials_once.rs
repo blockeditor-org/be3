@@ -107,7 +107,10 @@ fn a_root_lists_its_hosts_members_and_agents_and_shows_an_agents_credentials_onc
     assert!(
         matches!(
             commands.as_slice(),
-            [CoreCommand::SetMemberRole(RoleChange { account: GRACE, role: MemberRole::Administrator })]
+            [CoreCommand::SetMemberRole(RoleChange {
+                account: GRACE,
+                role: MemberRole::Administrator
+            })]
         ),
         "Make administrator makes them one: {commands:?}"
     );
@@ -121,7 +124,10 @@ fn a_root_lists_its_hosts_members_and_agents_and_shows_an_agents_credentials_onc
     );
     let commands = asks(&mut root, &mut time, key(Key::Escape));
     assert!(commands.is_empty(), "Escape keeps them: {commands:?}");
-    assert!(layer_of(&step(&mut root, time), DIALOG_LAYER).is_some(), "the list stays open");
+    assert!(
+        layer_of(&step(&mut root, time), DIALOG_LAYER).is_some(),
+        "the list stays open"
+    );
     let _ = asks(&mut root, &mut time, click(pos2(324.0, 136.0)));
     let commands = asks(&mut root, &mut time, click(pos2(296.0, 163.0)));
     assert!(
@@ -129,7 +135,10 @@ fn a_root_lists_its_hosts_members_and_agents_and_shows_an_agents_credentials_onc
         "Remove removes them: {commands:?}"
     );
     let _ = asks(&mut root, &mut time, key(Key::Escape));
-    assert!(!layer_of(&step(&mut root, time), DIALOG_LAYER).is_some(), "Escape closes the list");
+    assert!(
+        !layer_of(&step(&mut root, time), DIALOG_LAYER).is_some(),
+        "Escape closes the list"
+    );
 
     // F11 lists the agents; a name makes one, whose credentials come back once.
     let commands = asks(&mut root, &mut time, key(OPENS_AGENTS));
@@ -143,10 +152,13 @@ fn a_root_lists_its_hosts_members_and_agents_and_shows_an_agents_credentials_onc
     let _ = asks(
         &mut root,
         &mut time,
-        [ImeEvent::Enabled, ImeEvent::CommitText("Indexer".to_owned())]
-            .into_iter()
-            .map(|event| Input::Ime(event).into())
-            .collect(),
+        [
+            ImeEvent::Enabled,
+            ImeEvent::CommitText("Indexer".to_owned()),
+        ]
+        .into_iter()
+        .map(|event| Input::Ime(event).into())
+        .collect(),
     );
     let _ = asks(&mut root, &mut time, key(Key::Enter));
     let requests = root.take_secret_requests();
@@ -174,16 +186,23 @@ fn a_root_lists_its_hosts_members_and_agents_and_shows_an_agents_credentials_onc
     // Closed, they go: opened again, the agents show without them.
     let _ = asks(&mut root, &mut time, key(Key::Escape));
     let _ = asks(&mut root, &mut time, key(OPENS_AGENTS));
-    assert_eq!(painting(&mut root, &mut time), listed, "reopened, no credentials are held");
+    assert_eq!(
+        painting(&mut root, &mut time),
+        listed,
+        "reopened, no credentials are held"
+    );
     // While an agent is being made the dialog stays open, its credentials not to be lost:
     // Escape waits, and so does a question of the host's, until they come.
     let _ = asks(
         &mut root,
         &mut time,
-        [ImeEvent::Enabled, ImeEvent::CommitText("Crawler".to_owned())]
-            .into_iter()
-            .map(|event| Input::Ime(event).into())
-            .collect(),
+        [
+            ImeEvent::Enabled,
+            ImeEvent::CommitText("Crawler".to_owned()),
+        ]
+        .into_iter()
+        .map(|event| Input::Ime(event).into())
+        .collect(),
     );
     root.input(None, be_lib_ui_types::input::encode(&key(Key::Enter)))
         .expect("the root takes input");
@@ -199,7 +218,10 @@ fn a_root_lists_its_hosts_members_and_agents_and_shows_an_agents_credentials_onc
         panic!("Create agent asks for one, Escape cancelling nothing: {requests:?}");
     };
     assert_eq!(name, "Crawler");
-    assert!(layer_of(&step(&mut root, time), DIALOG_LAYER).is_some(), "the agents stay");
+    assert!(
+        layer_of(&step(&mut root, time), DIALOG_LAYER).is_some(),
+        "the agents stay"
+    );
     let waiting = painting(&mut root, &mut time);
     root.answer_secret(
         *id,
@@ -211,12 +233,22 @@ fn a_root_lists_its_hosts_members_and_agents_and_shows_an_agents_credentials_onc
             phrase: Password::from("date elder fig".to_owned()),
         })),
     );
-    assert_ne!(painting(&mut root, &mut time), listed, "the credentials come, and show");
+    assert_ne!(
+        painting(&mut root, &mut time),
+        listed,
+        "the credentials come, and show"
+    );
     // Shown, Escape closes them, and the question waiting opens.
     let _ = asks(&mut root, &mut time, key(Key::Escape));
     let discard = painting(&mut root, &mut time);
-    assert_ne!(discard, listed, "the host's question opens once the agents close");
-    assert_ne!(waiting, discard, "while the agent was made, the question waited");
+    assert_ne!(
+        discard, listed,
+        "the host's question opens once the agents close"
+    );
+    assert_ne!(
+        waiting, discard,
+        "while the agent was made, the question waited"
+    );
     let _ = asks(&mut root, &mut time, key(Key::Escape));
     root.show_core(agents());
     let _ = asks(&mut root, &mut time, Vec::new());
