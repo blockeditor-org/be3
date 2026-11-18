@@ -1221,7 +1221,11 @@ Each step lands on its own.
            be lost on either side: be3:root drops a `make-secret` the root cancels before the
            host took it, so the host never makes it, and the agents' dialog neither closes
            (Close, its close button, Escape, the scrim) nor gives way to a question of the
-           host's while one is being made, until the answer comes. A secret the root no longer
+           host's while one is being made, until the answer comes. A question of keeping
+           display settings that comes meanwhile waits too, so the host may revert at its
+           `revert-at` before the person sees it: the safe way for displays, but the real root
+           (4g7) either defers no longer than making an agent can take or lets that question
+           go over a dialog held this way. A secret the root no longer
            waits for when the host answers is lost for good: `answer_secret` answers false,
            and 4g7's host then removes the agent it just made and says so in `agents`' error.
            The host refuses `set-member-role` for the person's own role, or one leaving no
