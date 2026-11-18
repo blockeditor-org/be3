@@ -409,20 +409,20 @@ async fn contacts_once(
     let readable = held.is_some() || block.is_none();
     // Letters are taken, and deleted, only into a block this device reads.
     let keeps = held.is_some();
-    let read = held
+    let kept = held
         .as_ref()
         .map(|held| kept_of(&held.content.root()))
         .unwrap_or_default();
-    let mut removed: HashMap<Uuid, (u64, u64)> = read
+    let mut removed: HashMap<Uuid, (u64, u64)> = kept
         .iter()
         .filter_map(|(account, kept)| match kept {
             KeptContact::Removed { verified, through } => Some((*account, (*verified, *through))),
             KeptContact::Record(_) => None,
         })
         .collect();
-    let read: HashMap<Uuid, OwnContact> = read
-        .into_iter()
-        .filter_map(|(account, kept)| Some((account, kept.record()?)))
+    let read: HashMap<Uuid, OwnContact> = kept
+        .iter()
+        .filter_map(|(account, kept)| Some((*account, kept.clone().record()?)))
         .collect();
     let mut records = match readable {
         true => read.clone(),
@@ -538,26 +538,31 @@ async fn contacts_once(
         });
     }
     if let (Some(block), Some(held), true) = (block, held, keeps) {
+        // Each contact whose state, kept or removed, differs from what the block held: a record
+        // taken and removed in one pass still leaves its tombstone.
         let mut edits = Vec::new();
-        for (contact, record) in &records {
-            if read.get(contact) != Some(record) {
+        let mut ended: HashMap<Uuid, KeptContact> = removed
+            .iter()
+            .map(|(contact, (verified, through))| {
+                (
+                    *contact,
+                    KeptContact::Removed {
+                        verified: *verified,
+                        through: *through,
+                    },
+                )
+            })
+            .collect();
+        ended.extend(
+            records
+                .iter()
+                .map(|(contact, record)| (*contact, KeptContact::Record(record.clone()))),
+        );
+        for (contact, now) in &ended {
+            if kept.get(contact) != Some(now) {
                 edits.push(be_block::AccountBlock::set_contact(
                     *contact,
-                    Some(record.kept()),
-                ));
-            }
-        }
-        for (contact, (verified, through)) in &removed {
-            if read.contains_key(contact) {
-                edits.push(be_block::AccountBlock::set_contact(
-                    *contact,
-                    Some(
-                        KeptContact::Removed {
-                            verified: *verified,
-                            through: *through,
-                        }
-                        .encode(),
-                    ),
+                    Some(now.encode()),
                 ));
             }
         }
