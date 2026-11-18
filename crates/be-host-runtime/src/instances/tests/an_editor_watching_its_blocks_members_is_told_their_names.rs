@@ -45,12 +45,12 @@ fn an_editor_watching_its_blocks_members_is_told_their_names() {
         subject: BlockSubject::Members,
     });
 
-    // The block's only member is its author, this account, named by the name it gave the
-    // server, which is its own.
+    // The block's only member is its author, this account, named by the name this device holds
+    // of it, the one on the card it hands out.
     let named = members(&mut instances, watch).expect("the server named the members");
     let me = be_host_stack::account().expect("signed in");
     assert_eq!(named.len(), 1, "{named:?}");
     assert_eq!(named[0].account, me.into_bytes());
     assert!(named[0].verified);
-    assert!(!named[0].name.is_empty());
+    assert_eq!(named[0].name, "Counter");
 }

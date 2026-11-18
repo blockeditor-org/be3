@@ -11,13 +11,15 @@ fn a_blocks_members_are_named_by_their_contact_cards_and_others_by_the_server_un
     // Ada is a contact, whose card says "Ada"; the server now says otherwise, which an editor
     // is not shown.
     let ada = Member::join(&harness, personal, "ada@example.com", "Ada");
+    let server = be_server::ServerStore::open(&harness.directory.join("server")).unwrap();
     runtime()
-        .block_on(
-            be_server::ServerStore::open(&harness.directory.join("server"))
-                .unwrap()
-                .update_display_name(ada.account(), "Not Ada"),
-        )
+        .block_on(server.update_display_name(ada.account(), "Not Ada"))
         .expect("the server renames her");
+    // The server renames this account too: it is named by the name this device holds of
+    // itself, the one on the card it hands out, never by the server's.
+    runtime()
+        .block_on(server.update_display_name(harness.account, "Not Counter"))
+        .expect("the server renames this account");
     set_access(block, ada.account(), be_block_graph::Access::Manage, |_| {});
     flush_and_send();
     assert_eq!(status().error, None);
@@ -82,7 +84,7 @@ fn a_blocks_members_are_named_by_their_contact_cards_and_others_by_the_server_un
         .collect();
     members.sort();
     let mut expected = vec![
-        (harness.account, harness_name(&named, harness.account), true),
+        (harness.account, "Counter".to_owned(), true),
         (ada.account(), "Ada".to_owned(), true),
         (teo.session.account, "Teo Lind".to_owned(), false),
     ];
@@ -90,11 +92,3 @@ fn a_blocks_members_are_named_by_their_contact_cards_and_others_by_the_server_un
     assert_eq!(members, expected);
 }
 
-/// The name the server gave this account, which is its own, so verified.
-fn harness_name(named: &[crate::AccountName], account: Uuid) -> String {
-    named
-        .iter()
-        .find(|named| named.account == account)
-        .map(|named| named.display_name.clone())
-        .expect("the server names the block's author")
-}
