@@ -1543,7 +1543,18 @@ impl Client {
                 Page::Log(store.organization_log(admitted.identity()?, held).await?)
             }
             Query::Access(block) => {
-                Page::Access(store.list_access(admitted.identity()?, block).await?)
+                let identity = admitted.identity()?;
+                let mut list = store.list_access(identity, block).await?;
+                // Who hosts the block now: the account whose device holds its session's lease.
+                list.host = connection
+                    .registry
+                    .host(crate::watch::Place {
+                        organization: identity.organization,
+                        block,
+                    })
+                    .await
+                    .map(|host| host.account);
+                Page::Access(list)
             }
             Query::Names(block) => {
                 Page::Names(store.list_names(admitted.identity()?, block).await?)
