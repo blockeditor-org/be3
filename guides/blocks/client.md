@@ -248,7 +248,8 @@ taken unproven.
   so the signature binds the block and the app, verifies wherever the
   plaintext and salt go, and confirms no guessed payload to whoever lacks the
   key), and keeps it in the outbox (`refs::Op::Append`). Opening strips the
-  salt (`LoggedEntry::opened`, a `Said`; `LoggedEntry::bytes`). The leaf
+  salt (`LoggedEntry::opened`, a `Said`; `LoggedEntry::bytes`); a payload that
+  opens to less than a salt is `LoggedEntry::malformed`. The leaf
   commits to the sealed bytes, so after a redaction who wrote an entry is the
   log's word, its signature no longer checkable. Online, with nothing of the block waiting ahead of it,
   it goes at once with any of the block's entries that wait
@@ -272,8 +273,9 @@ taken unproven.
   lacks. `Peer::logged` takes an `Event::Appended`: at once when it extends
   the kept head, else by reading from the kept head. One told late, after a
   read moved the kept head past it (a page from the log's start, an export),
-  is proved and its entries answered all the same: whoever follows the log
-  drops those it holds by their place.
+  is answered all the same, as proved against the kept head, never the head
+  the push names alone: those it holds as held, the rest read again
+  (`read_log`). Whoever follows the log drops those it holds by their place.
 - **Cut and forked logs.** A head the server serves that does not extend the
   kept one (shorter, or with other entries) is `ClientError::LogForked`, and
   nothing of that answer is kept; so is a push of a head no longer than the
