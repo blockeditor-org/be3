@@ -296,5 +296,27 @@ pub const OPENS_AGENTS: Key = Key::F11;
 /// The title of the organization's agents.
 pub const AGENTS_TITLE: &str = "Agents";
 
+/// The key that opens the root's contacts, in its dialog's place, pressed with no modifiers:
+/// the root intercepts it wherever the focus is, but not while the session is locked.
+pub const OPENS_CONTACTS: Key = Key::F12;
+
+/// The title of the person's contacts.
+pub const CONTACTS_TITLE: &str = "Contacts";
+
+/// The title of the question the contacts ask before removing one.
+pub const REMOVE_CONTACT_TITLE: &str = "Remove contact?";
+
+/// The key that opens the root's dialog for opening a share link, in its dialog's place,
+/// pressed with no modifiers: the root intercepts it wherever the focus is, but not while the
+/// session is locked.
+pub const OPENS_SHARE_LINKS: Key = Key::F8;
+
+/// The title of the dialog opening a share link.
+pub const SHARE_LINK_TITLE: &str = "Open a share link";
+
+/// The title of the question the host asks before leaving a block an editor asked to leave
+/// (`core-view`'s `leaving`).
+pub const LEAVE_TITLE: &str = "Leave this block?";
+
 #[cfg(target_arch = "wasm32")]
 mod guest;
