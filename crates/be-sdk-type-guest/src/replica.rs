@@ -2637,8 +2637,8 @@ where
                 // Nothing of its own may be on its way either: numbered before the restart, it
                 // would be in neither the commit nor what the restart carries.
                 let own_on_its_way = self.pending.iter().any(|sent| sent.operation.is_some());
-                match self.restart_due() {
-                    true if self.applied == through && !own_on_its_way => {
+                match self.due_restart_state() {
+                    Some(_) if self.applied == through && !own_on_its_way => {
                         self.restart_short = false;
                         self.submit_reload(head, true, true, Vec::new(), None);
                     }
@@ -2646,12 +2646,12 @@ where
                     // what it submitted is numbered, which holds everything. With others in the
                     // session the shortfall may be theirs, which holding its own would not end:
                     // its edits go on, and the restart waits for a seal that holds everything.
-                    true => {
+                    Some(state) => {
                         self.restart_short = self.alone();
-                        self.report_overdue_restart();
+                        self.report_overdue_restart(state);
                         self.seal_for_restart();
                     }
-                    false => self.restart_short = false,
+                    None => self.restart_short = false,
                 }
             }
             AfterPublish::Merged { through, state } => {
@@ -3173,6 +3173,7 @@ where
         }
         if restart {
             self.restarts += 1;
+            self.restart_overdue = false;
         }
         let sent = match mine {
             true => self.forget_sent(op.id),
@@ -3295,19 +3296,27 @@ where
         });
     }
 
-    /// Says once that a due restart was put off past `RESTART_CEILING` times the limit: others'
-    /// writing keeps every seal short (plans/restart_carries_numbered_entries.md).
-    fn report_overdue_restart(&mut self) {
-        let state = self.confirmed.session_state().len();
-        if state > restart_limit().saturating_mul(RESTART_CEILING)
-            && !std::mem::replace(&mut self.restart_overdue, true)
+    /// Says once, until a restart lands, that a due restart was put off past `RESTART_CEILING`
+    /// times the limit with the session state `state` bytes: with others in the session, their
+    /// writing keeps every seal short (plans/restart_carries_numbered_entries.md); alone, its own
+    /// seals do not settle (they fail, or edits stay on their way).
+    fn report_overdue_restart(&mut self, state: usize) {
+        if state <= restart_limit().saturating_mul(RESTART_CEILING)
+            || std::mem::replace(&mut self.restart_overdue, true)
         {
-            self.error(format!(
-                "a restart is overdue: the session state is {state} bytes, and every seal falls \
-                 short of what the order numbered (others are writing; \
-                 plans/restart_carries_numbered_entries.md)"
-            ));
+            return;
         }
+        let cause = match self.alone() {
+            false => {
+                "others are writing, and a restart waits for a seal holding everything \
+                 (plans/restart_carries_numbered_entries.md)"
+            }
+            true => "this holder's own seals do not settle",
+        };
+        self.error(format!(
+            "a restart is overdue: the session state is {state} bytes, and every seal falls short \
+             of what the order numbered: {cause}"
+        ));
     }
 
     /// A stash the order keeps, or a reload, is sealed at once: what it changed reaches the
@@ -4911,14 +4920,20 @@ where
     }
 
     fn restart_due(&self) -> bool {
+        self.due_restart_state().is_some()
+    }
+
+    /// The session state's size, when it makes a restart due (`restart_due`).
+    fn due_restart_state(&self) -> Option<usize> {
         if self.history.gesture_open() || self.holds.holding() {
-            return false;
+            return None;
         }
         let state = self.confirmed.session_state().len();
         let limit = restart_limit();
-        state > limit
+        (state > limit
             && state > self.confirmed.encode().len()
-            && (self.alone() || state > limit.saturating_mul(RESTART_CEILING))
+            && (self.alone() || state > limit.saturating_mul(RESTART_CEILING)))
+        .then_some(state)
     }
 
     /// An edit `editor` made on what it showed before a reload it has not said it was shown
