@@ -700,7 +700,11 @@ index and search it locally.
   `log.` and the entry's place, put or removed as of the arrival of the entry
   that last changed it, read on from the furthest place the index holds a
   document of, at most `LOG_PER_ROUND` entries a round. A head reindex leaves
-  those alone, an append told of queues the block (`Event::Appended`), and a
+  those alone, an append told of queues the block (`Event::Appended`), a
+  redaction told removes its entry's document for good, whoever redacted it
+  (`Event::Redacted`, `Searching::redacted`; `search_log` also drops a
+  redacted entry it reads, keeps nothing a forged entry says, and never
+  brings back a redacted entry's text), and a
   log document's snippet reads its entry and the ones after it again
   (`text_of`). It hands each index one batch in a task, which applies it to the index's
   newest head and seals the commit into the outbox: it is saved offline-first,

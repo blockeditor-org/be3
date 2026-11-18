@@ -577,6 +577,8 @@ enum After {
         place: Place,
         told: Arc<crate::log::Told>,
     },
+    /// An entry of a block's log redacted, told to its followers who may view it.
+    Redacted { place: Place, seq: u64 },
     /// A push to the account's other connections.
     Tell {
         account: Uuid,
@@ -872,6 +874,11 @@ impl Client {
                 }
             }
             Push::Paired(message) => Event::Paired(message),
+            Push::Redacted { block, seq } => Event::Redacted(be_block_protocol::Redacted {
+                organization: block.organization,
+                block: block.block,
+                seq,
+            }),
             Push::Logged { block, told } => Event::Appended(be_block_protocol::Appended {
                 organization: block.organization,
                 block: block.block,
@@ -2539,7 +2546,17 @@ impl Client {
             }
             Op::Redact { block, seq } => {
                 let identity = admitted.identity()?;
-                connection.store.redact_log(identity, block, seq).await?;
+                if connection.store.redact_log(identity, block, seq).await? {
+                    connection
+                        .after(After::Redacted {
+                            place: Place {
+                                organization: identity.organization,
+                                block,
+                            },
+                            seq,
+                        })
+                        .await;
+                }
                 Ok(Done::Nothing)
             }
             Op::SetMute { block, mode } => {
@@ -2786,6 +2803,12 @@ impl Connection {
 
     /// Tells the followers of `place`'s log who may still view it of entries appended to it.
     async fn logged(&self, place: Place, told: Arc<crate::log::Told>) {
+        self.tell_log_followers(place, Push::Logged { block: place, told })
+            .await;
+    }
+
+    /// Tells the followers of `place`'s log who may still view it `push`.
+    async fn tell_log_followers(&self, place: Place, push: Push) {
         let followers = self.hub.log_followers(place).await;
         if followers.is_empty() {
             return;
@@ -2806,9 +2829,7 @@ impl Connection {
             .zip(viewing)
             .filter_map(|((client, _), viewing)| viewing.then_some(client))
             .collect();
-        self.hub
-            .send_every(&clients, &Push::Logged { block: place, told })
-            .await;
+        self.hub.send_every(&clients, &push).await;
     }
 
     /// Does `after` now, or once the batch running commits.
@@ -2905,6 +2926,10 @@ impl Connection {
                 account,
             } => self.hub.drop_member(organization, account).await,
             After::Logged { place, told } => self.logged(place, told).await,
+            After::Redacted { place, seq } => {
+                self.tell_log_followers(place, Push::Redacted { block: place, seq })
+                    .await;
+            }
             After::KeyWorkChanged {
                 organization,
                 accounts,

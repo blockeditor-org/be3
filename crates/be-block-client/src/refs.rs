@@ -1643,6 +1643,35 @@ impl Refs {
     }
 
     /// The entry of `block`'s log this device kept at `seq`.
+    /// Drops the payload of the entry of `block`'s log this device kept at `seq`, as the server
+    /// redacted it: the entry as it is now, or none when this device kept nothing of it to drop.
+    pub fn log_entry_redacted(
+        &self,
+        block: Uuid,
+        seq: u64,
+    ) -> Result<Option<be_block_protocol::LogEntry>, StoreError> {
+        let entry = {
+            let mut state = self.state.lock().unwrap();
+            let Some(entry) = state
+                .log_entries
+                .get_mut(&block)
+                .and_then(|kept| kept.get_mut(&seq))
+            else {
+                return Ok(None);
+            };
+            if entry.payload.take().is_none() {
+                return Ok(None);
+            }
+            entry.clone()
+        };
+        self.write(vec![row(
+            Table::LogEntry,
+            journal_entry_key(block, seq),
+            &entry,
+        )])?;
+        Ok(Some(entry))
+    }
+
     pub fn log_entry(&self, block: Uuid, seq: u64) -> Option<be_block_protocol::LogEntry> {
         let state = self.state.lock().unwrap();
         state.log_entries.get(&block)?.get(&seq).cloned()
