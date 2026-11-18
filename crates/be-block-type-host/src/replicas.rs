@@ -443,7 +443,30 @@ pub struct Searched {
     pub read: Vec<be_block_store::PartRef>,
 }
 
-/// Why `Replicas::search_text` (or `unread`) has no answer.
+/// How many entries of a block's signed log one `Replicas::search_log` reads.
+pub const LOG_SEARCHED: u32 = 256;
+
+/// What a run of a block's signed log changes in its searchable text (`Replicas::search_log`).
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct LogSearched {
+    pub changes: Vec<LogChange>,
+    /// The place to go on from.
+    pub next: u64,
+    /// The log's length as read.
+    pub size: u64,
+}
+
+/// A change to the searchable document of the entry at `place`: what it says now, none once
+/// gone, as of the entry that changed it (when the server took it, and its id).
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct LogChange {
+    pub place: u64,
+    pub text: Option<String>,
+    pub arrival: i64,
+    pub id: Uuid,
+}
+
+/// Why `Replicas::search_text` (or `unread`, or `search_log`) has no answer.
 #[derive(Debug)]
 pub enum NotSearched {
     /// A part could not be read (offline, a key this device lacks): try again later.
@@ -3143,6 +3166,107 @@ impl<H: Host> Replicas<H> {
                 "the type module answered: {error}"
             ))),
         }
+    }
+
+    /// What `block`'s signed log changes in its searchable text from the place `from`, at most
+    /// `LOG_SEARCHED` entries at a time: each change its type names (`LogFold::search`), as of
+    /// the entry that made it, and where to go on from. A change to another entry's document
+    /// is kept only when that entry has the same author, so nobody changes what someone else
+    /// wrote. Read as `Peer::read_log` reads, so it follows the log.
+    pub async fn search_log(
+        &mut self,
+        ctx: Ctx<'_, H>,
+        block: Uuid,
+        content_type: Uuid,
+        from: u64,
+    ) -> Result<LogSearched, NotSearched> {
+        let no_module =
+            || NotSearched::Type(format!("no type module has the block type {content_type}"));
+        let kind = self.kind(content_type).await.ok_or_else(no_module)?;
+        if !kind.log {
+            return Ok(LogSearched {
+                changes: Vec::new(),
+                next: from,
+                size: 0,
+            });
+        }
+        let peer = Arc::clone(ctx.0);
+        let read = peer
+            .read_log(block, from, LOG_SEARCHED)
+            .await
+            .map_err(NotSearched::Read)?;
+        let next = read
+            .entries
+            .last()
+            .map_or(from, |logged| logged.entry.seq + 1);
+        let entries: HashMap<u64, (Uuid, i64, Uuid)> = read
+            .entries
+            .iter()
+            .map(|logged| {
+                (
+                    logged.entry.seq,
+                    (logged.entry.author, logged.entry.arrival, logged.entry.id),
+                )
+            })
+            .collect();
+        let items: Vec<be_sdk_type_api::LogItem> = read
+            .entries
+            .into_iter()
+            .map(|logged| be_sdk_type_api::LogItem {
+                seq: logged.entry.seq,
+                id: logged.entry.id,
+                author: logged.entry.author,
+                arrival: logged.entry.arrival,
+                payload: logged.opened.map(|said| said.bytes),
+                signer: be_sdk_type_api::Signer::Unknown,
+            })
+            .collect();
+        let module = self.modules.module_of(content_type).ok_or_else(no_module)?;
+        let (answer, _) = self
+            .ask_reading(ctx, module, types::Scope::of([]), |connection| {
+                replicas::search_log(connection, content_type, items)
+            })
+            .await;
+        let searched = match answer {
+            Ok(Ok(searched)) => searched,
+            Ok(Err(be_sdk_type_api::Failure::Malformed(error))) => {
+                return Err(NotSearched::Type(error));
+            }
+            Ok(Err(be_sdk_type_api::Failure::UnknownType)) => return Err(no_module()),
+            Err(error) => {
+                return Err(NotSearched::Type(format!(
+                    "the type module answered: {error}"
+                )));
+            }
+        };
+        let mut changes = Vec::with_capacity(searched.len());
+        for change in searched {
+            let Some((author, arrival, id)) = entries.get(&change.seq).copied() else {
+                continue;
+            };
+            let named = match entries.get(&change.place) {
+                Some((named, ..)) => Some(*named),
+                None => peer
+                    .read_log(block, change.place, 1)
+                    .await
+                    .ok()
+                    .and_then(|read| read.entries.first().map(|logged| logged.entry.author)),
+            };
+            if named != Some(author) {
+                continue;
+            }
+            changes.push(LogChange {
+                place: change.place,
+                text: change.text,
+                arrival,
+                id,
+            });
+        }
+        Ok(LogSearched {
+            changes,
+            next,
+            size: read.head.size,
+        })
     }
 
     /// Merges a block the drain found diverged (`Drained::Diverged`) and publishes the merge:

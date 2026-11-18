@@ -122,5 +122,6 @@ log's latest entries (`be_block_content::UNREAD_ENTRIES`, guides/blocks/host.md,
 
 ## Search
 
-Not built yet: a chat's messages are not searchable until search reads logs
-(plans/signed_logs.md, step 5b).
+Each message is a document of the chat's log (`LogFold::search`): its own,
+which its author's edit replaces and deletion drops (guides/blocks/host.md,
+"Search"). Reactions are not searched.
