@@ -599,13 +599,15 @@ impl ServerStore {
     /// session's block is `block` or lies below it, whom a Join member or viewer checks before it
     /// speaks to it (plans/hosted_blocks.md), and, for a block above what the caller views, of
     /// whoever signs below on authority from it. A host is proved nowhere else, so a member of
-    /// one session learns nothing of its host's records on unrelated blocks.
+    /// one session learns nothing of its host's records on unrelated blocks. Served whole, only
+    /// the entries after `held` when the log holds it (`access::served_log`).
     pub async fn access_log(
         &self,
         identity: Identity,
         block: Uuid,
         hosts: Vec<(Uuid, Uuid)>,
-    ) -> Result<Vec<Vec<u8>>, ServerError> {
+        held: Option<be_block_protocol::HeldEntry>,
+    ) -> Result<be_block_protocol::AccessLogPage, ServerError> {
         self.with_graph(identity.organization, move |_, graph, database| {
             let seen = visibility(identity);
             let viewed = graph.contains(block) && seen.can_view(graph, block);
@@ -654,6 +656,7 @@ impl ServerStore {
                 block,
                 reader,
                 also,
+                held,
             )
         })
         .await

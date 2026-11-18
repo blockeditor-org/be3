@@ -80,7 +80,7 @@ pub(crate) fn query_rule(query: &Query) -> Rule {
         Query::History(of) => block(*of, Access::View),
         Query::BlockLog { block: of, .. } => block(*of, Access::View),
         // Of a block the caller views, or one above a block it views (`access_log`).
-        Query::Log(_) => Rule::Member,
+        Query::Log { .. } => Rule::Member,
         Query::Access(of) => block(*of, Access::Manage),
         Query::Names(of) => block(*of, Access::View),
         Query::Keys { .. }
@@ -226,7 +226,7 @@ pub(crate) fn bound_may_read(query: &Query, follow: bool) -> bool {
         | Query::List { .. }
         | Query::Tree { .. }
         | Query::History(_)
-        | Query::Log(_)
+        | Query::Log { .. }
         | Query::BlockLog { .. }
         | Query::KeyWork
         | Query::RecoveryKey
@@ -1463,7 +1463,10 @@ impl Client {
                     .read_log(admitted.identity()?, block, from, limit, known)
                     .await?,
             ),
-            Query::Log(Some(block)) => {
+            Query::Log {
+                log: Some(block),
+                held,
+            } => {
                 let identity = admitted.identity()?;
                 // A reader below Edit checks a lease holder's right to host before it speaks to
                 // it (plans/hosted_blocks.md), in the block's log or one above it: the path proves
@@ -1478,9 +1481,11 @@ impl Client {
                         hosts.push((place.block, host.account));
                     }
                 }
-                Page::Log(store.access_log(identity, block, hosts).await?)
+                Page::Log(store.access_log(identity, block, hosts, held).await?)
             }
-            Query::Log(None) => Page::Log(store.organization_log(admitted.identity()?).await?),
+            Query::Log { log: None, held } => {
+                Page::Log(store.organization_log(admitted.identity()?, held).await?)
+            }
             Query::Access(block) => {
                 Page::Access(store.list_access(admitted.identity()?, block).await?)
             }

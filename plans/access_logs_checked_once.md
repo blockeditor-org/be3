@@ -46,19 +46,32 @@ entry once. It need not see each again.
 ## Steps
 
 1. Landed: `Checked::extend` and `Checked::resume`; a whole log's checked
-   state is kept in `KeptLog::checked`, and `checked_access` and
-   `checked_organization` check on from it (be-block-keys
-   `a_kept_log_checks_only_what_was_appended_and_refuses_a_rewritten_prefix`).
-   The device still reads the whole log and hashes its prefix: step 2 drops
-   that, and should keep the Merkle tree's size and frontier in place of
-   `Checked::positions`, which grows by an entry's hash for each entry. A proof
-   path is checked whole each time until step 3. Still checked from the root:
-   the organization's log a block's check reads (`Around::organization`), and
-   the escrow and hosted-block paths.
-2. **Access logs as Merkle trees, consistency proofs on read.** Done: a client
-   test reads the organization's log twice and the second read fetches only
-   the new entries and a proof; a server that served a rewritten prefix is
-   reported as it is today.
+   state is kept in `KeptLog::checked`, and `checked_access`,
+   `checked_organization`, `organization_log` and the escrow path check on
+   from it (be-block-keys
+   `a_kept_log_checks_only_what_was_appended_and_refuses_a_rewritten_prefix`,
+   `a_log_checked_on_from_any_entry_is_the_log_checked_whole`).
+2. Landed, without Merkle trees: a whole log read again in a run names the
+   last entry the device holds (`held-entry`), and the server sends only the
+   entries after it when it holds that entry there, else the log from its root
+   (be-block-client
+   `an_organizations_log_read_again_sends_only_what_was_appended`). The device
+   receives every new entry and already holds the prefix, so the hash chain
+   (the first entry sent names the held one) ties them as a consistency proof
+   would; a Merkle tree buys nothing until a reader is sent less than every
+   entry, which is step 3. Left for later steps:
+   - The prefix is held in memory for a run (`Peer::served_logs`): after a
+     restart the first read is whole, and only hashed, not checked, against
+     `KeptLog::checked`. Keeping the entries with the refs would drop that.
+   - `Checked::positions` grows by an entry's hash for each entry: epochs name
+     their heads by hash (`holds`, `current_at`, `outdates`), so it stays until
+     they name a place too.
+   - Authority from another log (`answer`, which `Around` serves a block's
+     check from) checks that log as of the entry a record names, from its
+     root, each time: a kept state at the head cannot answer as of an earlier
+     entry. Keeping states as of the heads records name would.
+   - A hosted block's log checked from an unpinned root (`joined_log`) keeps
+     nothing, as there is nothing pinned to keep it under.
 3. **Proof paths with inclusion proofs.** Done: a reader below Edit of a log
    of 100,000 entries is served the entries naming it and O(log n) hashes;
    every test of `holds`, `current_at` and `outdates` on paths passes.

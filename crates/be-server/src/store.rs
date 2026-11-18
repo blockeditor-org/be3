@@ -400,11 +400,19 @@ impl ServerStore {
 
     /// The organization's access log, root first (`query.log`): whole to an
     /// administrator or a member with Edit or above on any of its blocks, else a proof path of
-    /// the caller's own records and its sealers' (`access::served_log`).
-    pub async fn organization_log(&self, identity: Identity) -> Result<Vec<Vec<u8>>, ServerError> {
+    /// the caller's own records and its sealers' (`access::served_log`), only after `held` when
+    /// served whole and it holds that entry.
+    pub async fn organization_log(
+        &self,
+        identity: Identity,
+        held: Option<be_block_protocol::HeldEntry>,
+    ) -> Result<be_block_protocol::AccessLogPage, ServerError> {
         self.with_graph(identity.organization, move |_, graph, database| {
             if crate::access::organization_log(database, identity.organization)?.is_empty() {
-                return Ok(Vec::new());
+                return Ok(be_block_protocol::AccessLogPage {
+                    from: 0,
+                    entries: Vec::new(),
+                });
             }
             let seen = crate::blocks::visibility(identity);
             let reader = (!seen.served_whole_organization(graph)).then_some(identity.account);
@@ -415,6 +423,7 @@ impl ServerStore {
                 identity.organization,
                 reader,
                 Vec::new(),
+                held,
             )
         })
         .await

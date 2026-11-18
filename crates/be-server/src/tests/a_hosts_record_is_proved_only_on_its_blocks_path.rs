@@ -6,7 +6,7 @@ use super::*;
 /// The accounts the whole grants of `block`'s log, as served to `client`, name.
 async fn granted(client: &mut TestClient, block: Uuid) -> Vec<Uuid> {
     let served = client
-        .call(|peer| peer.read::<Vec<Vec<u8>>>(Query::Log(Some(block))))
+        .access_log(Some(block))
         .await
         .expect("reading the log failed");
     decode_steps(served)

@@ -56,15 +56,19 @@ async fn a_guest_sees_no_members_or_settings_and_leaves_with_its_last_grant() {
     .unwrap();
     assert_eq!(text(&guest, note).await, "for a guest");
 
-    let served = be_block_protocol::read::<Vec<Vec<u8>>, _>(
+    let served = be_block_protocol::read::<be_block_protocol::AccessLogPage, _>(
         &guest.connection(),
         Some(admin.organization()),
-        be_block_protocol::Query::Log(None),
+        be_block_protocol::Query::Log {
+            log: None,
+            held: None,
+        },
     )
     .await
     .unwrap()
     .unwrap();
     let steps: Vec<Step> = served
+        .entries
         .iter()
         .map(|bytes| Step::decode(bytes).unwrap())
         .collect();

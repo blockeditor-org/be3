@@ -816,6 +816,18 @@ impl TestClient {
         }
     }
 
+    /// The access log of `log` (the organization's with none), as served from its root.
+    async fn access_log(&mut self, log: Option<Uuid>) -> Result<Vec<Vec<u8>>, Error> {
+        self.call(|peer| {
+            peer.read::<be_block_protocol::AccessLogPage>(be_block_protocol::Query::Log {
+                log,
+                held: None,
+            })
+        })
+        .await
+        .map(|page| page.entries)
+    }
+
     async fn call<T: 'static, F: Future<Output = Answered<T>>>(
         &mut self,
         start: impl FnOnce(&At) -> F,
@@ -2269,9 +2281,7 @@ impl TestClient {
             BlockParent::Detached => Placement::Detached,
             BlockParent::Block(above) => {
                 let log = decode_steps(
-                    self.call(|peer| {
-                        peer.read::<Vec<Vec<u8>>>(be_block_protocol::Query::Log(Some(above)))
-                    })
+                    self.access_log(Some(above))
                     .await
                     .unwrap_or_default(),
                 );
@@ -2312,7 +2322,7 @@ impl TestClient {
             return Vec::new();
         };
         let log = decode_steps(
-            self.call(|peer| peer.read::<Vec<Vec<u8>>>(be_block_protocol::Query::Log(Some(block))))
+            self.access_log(Some(block))
                 .await
                 .unwrap_or_default(),
         );
@@ -2373,9 +2383,7 @@ impl TestClient {
         {
             at = parent;
             let above = decode_steps(
-                self.call(|peer| {
-                    peer.read::<Vec<Vec<u8>>>(be_block_protocol::Query::Log(Some(parent)))
-                })
+                self.access_log(Some(parent))
                 .await
                 .unwrap_or_default(),
             );
@@ -2395,7 +2403,7 @@ impl TestClient {
             }
         }
         let organization = decode_steps(
-            self.call(|peer| peer.read::<Vec<Vec<u8>>>(Query::Log(None)))
+            self.access_log(None)
                 .await
                 .unwrap_or_default(),
         );
@@ -2501,7 +2509,7 @@ impl TestClient {
     /// what it gives. None in an organization with no log.
     async fn organization_log(&mut self) -> Option<([u8; 16], be_block_keys::Checked)> {
         let steps = decode_steps(
-            self.call(|peer| peer.read::<Vec<Vec<u8>>>(Query::Log(None)))
+            self.access_log(None)
                 .await
                 .ok()?,
         );
@@ -2671,7 +2679,7 @@ impl TestClient {
         let me = self.account?;
         let decode = decode_steps;
         let log = decode(
-            self.call(|peer| peer.read::<Vec<Vec<u8>>>(be_block_protocol::Query::Log(Some(block))))
+            self.access_log(Some(block))
                 .await
                 .ok()?,
         );

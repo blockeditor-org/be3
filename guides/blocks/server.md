@@ -586,7 +586,10 @@ exactly its parent's access and takes no grants (guides/blocks/host.md, "Search"
   proves whoever signs below on authority from it (`access_log_authorities`,
   `access::inherited_signers`). A block's creator holds Manage on it, so
   every member who has made a block is served the organization's whole log,
-  and with it its member list.
+  and with it its member list. A caller served a log whole names the entry it
+  holds the log up to (`held-entry`: its place and hash), and is sent only the
+  entries after it while the log holds that entry there, else the log from its
+  root (`access-log-page.from`); a proof path is always sent whole.
 
 No check maps the whole graph. `BlockGraph` indexes children by parent and
 blocks by the accounts that authored or were granted them; `inherited` walks

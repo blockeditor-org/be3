@@ -48,8 +48,8 @@ fn query_case(query: &Query) -> &'static str {
         Query::Tree { .. } => "tree",
         Query::History(_) => "history",
         Query::BlockLog { .. } => "block-log",
-        Query::Log(Some(_)) => "log (block)",
-        Query::Log(None) => "log (organization)",
+        Query::Log { log: Some(_), .. } => "log (block)",
+        Query::Log { log: None, .. } => "log (organization)",
         Query::Access(_) => "access",
         Query::Names(_) => "names",
         Query::Keys { .. } => "keys",
@@ -541,7 +541,12 @@ impl TestClient {
                 placement: moving,
             })
             .await;
-        calls.read(Query::Log(None)).await;
+        calls
+            .read(Query::Log {
+                log: None,
+                held: None,
+            })
+            .await;
         calls.read(Query::History(block)).await;
         calls
             .write(Op::Append {
@@ -562,7 +567,12 @@ impl TestClient {
             })
             .await;
         calls.write(Op::Redact { block, seq: 0 }).await;
-        calls.read(Query::Log(Some(block))).await;
+        calls
+            .read(Query::Log {
+                log: Some(block),
+                held: None,
+            })
+            .await;
         calls
             .read(Query::Tree {
                 entry: block,

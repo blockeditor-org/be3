@@ -343,10 +343,12 @@ the log served next on from it (`Checked::resume`). That takes the served
 prefix only when every entry names the one before and the last kept hashes to
 the kept head, verifying no signature there, and refuses the log as forged
 otherwise, as it does a log at least as long that does not reach the kept
-head (one shorter is checked whole, and withheld). A proof path is
-checked whole each time (plans/access_logs_checked_once.md has what is left:
-Merkle reads, proof paths, the organization's log as a block's check reads it,
-and the server).
+head (one shorter is checked whole, and withheld). Within a run, a device
+reads a whole log again by naming its last entry (`Peer::served_access`): the
+server sends only the entries after it, and the first must name it as the one
+before. A proof path is read and checked whole each time
+(plans/access_logs_checked_once.md has what is left: proof paths, authority
+from another log, keeping the entries across restarts, and the server).
 
 **Who is served what.** A sealer must see every entry up to the head, since
 an entry reduced to its hash could be the revocation of whom it seals to, or of
