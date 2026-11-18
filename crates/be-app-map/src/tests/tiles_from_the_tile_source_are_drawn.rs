@@ -7,6 +7,10 @@ fn tiles_from_the_tile_source_are_drawn() {
     let served = serve_tiles(&mut editor);
 
     assert_eq!(served.len(), 16);
-    assert!(served.iter().all(|url| url.contains(&format!("{TILES}/2/"))));
+    assert!(
+        served
+            .iter()
+            .all(|url| url.contains(&format!("{TILES}/2/")))
+    );
     editor.snapshot("tiles_from_the_tile_source_are_drawn");
 }

@@ -10,7 +10,8 @@ fn a_tile_source_naming_tiles_elsewhere_is_not_followed() {
         "https://tiles.openfreemap.org/planet/{z}/{x}.pbf",
     ] {
         let mut editor = editor();
-        let [fetch] = <[Fetch; 1]>::try_from(editor.take_fetches()).expect("one fetch, the TileJSON");
+        let [fetch] =
+            <[Fetch; 1]>::try_from(editor.take_fetches()).expect("one fetch, the TileJSON");
         assert_eq!(fetch.request.url, crate::tiles::TILE_JSON);
 
         serve(&mut editor, &fetch, tile_json_naming(template));

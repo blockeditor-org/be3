@@ -68,20 +68,24 @@ pub(crate) fn rasterize(tile: &Tile, zoom: u8, window: Window) -> TileRaster {
         };
         Some((WATER, width * line_scale))
     });
-    fill_layer(&mut canvas, tile.layer("aeroway"), |layer, feature| {
-        match class(layer, feature) {
+    fill_layer(
+        &mut canvas,
+        tile.layer("aeroway"),
+        |layer, feature| match class(layer, feature) {
             "runway" | "taxiway" => Some(RUNWAY),
             "aerodrome" | "apron" => Some(SITE),
             _ => None,
-        }
-    });
-    stroke_layer(&mut canvas, tile.layer("aeroway"), |layer, feature| {
-        match class(layer, feature) {
+        },
+    );
+    stroke_layer(
+        &mut canvas,
+        tile.layer("aeroway"),
+        |layer, feature| match class(layer, feature) {
             "runway" => Some((RUNWAY, 6.0 * line_scale)),
             "taxiway" => Some((RUNWAY, 2.0 * line_scale)),
             _ => None,
-        }
-    });
+        },
+    );
     fill_layer(
         &mut canvas,
         tile.layer("transportation"),

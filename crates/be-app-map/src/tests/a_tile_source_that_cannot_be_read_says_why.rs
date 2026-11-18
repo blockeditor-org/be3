@@ -13,9 +13,7 @@ fn a_tile_source_that_cannot_be_read_says_why() {
         headers: Vec::new(),
     };
     editor.respond(&fetch, head, [Vec::new()]);
-    editor.settle_until("the map to say why", |editor| {
-        editor.shown("map.error")
-    });
+    editor.settle_until("the map to say why", |editor| editor.shown("map.error"));
 
     assert!(!editor.has_fetches());
     assert!(
