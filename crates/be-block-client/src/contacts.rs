@@ -234,17 +234,15 @@ pub fn card(
 pub struct Pinned {
     pub root: Option<be_block_keys::EntryHash>,
     pub escrow: Option<EscrowKey>,
+    /// When it was pinned, in milliseconds since the epoch, as `KeptLink::made`.
     pub made: u64,
 }
 
 impl Pinned {
     /// This pin made now, after any pin made at `after`.
     pub fn stamped(self, after: u64) -> Self {
-        let now = Uuid::now_v7()
-            .get_timestamp()
-            .map_or(0, |time| time.to_unix().0);
         Self {
-            made: now.max(after.saturating_add(1)),
+            made: now_milliseconds().max(after.saturating_add(1)),
             ..self
         }
     }
@@ -283,7 +281,10 @@ pub const KEPT_INVITATION: u64 = 30 * 86_400_000;
 fn now_milliseconds() -> u64 {
     Uuid::now_v7()
         .get_timestamp()
-        .map_or(0, |time| time.to_unix().0 * 1000)
+        .map_or(0, |time| {
+            let (seconds, nanos) = time.to_unix();
+            seconds * 1000 + u64::from(nanos) / 1_000_000
+        })
 }
 
 impl KeptLink {
@@ -1267,8 +1268,17 @@ pub async fn accept_link(
                 .ok()
                 .and_then(|bytes| Pinned::decode(&bytes))
                 .ok_or_else(tampered)?;
-            // Pinned as it is taken, so it outranks any older pin a letter brought.
-            seal_pin(identity, invitation.organization, &opened.stamped(0))
+            // Pinned as it is taken, after any pin this account held for the organization, so it
+            // outranks every older one whatever this device's clock says.
+            let after = pinned(
+                connection,
+                Uuid::from_bytes(me.account),
+                identity,
+                invitation.organization,
+            )
+            .await?
+            .map_or(0, |held| held.made);
+            seal_pin(identity, invitation.organization, &opened.stamped(after))
         }
     };
     let mut ops = vec![be_block_protocol::Op::AcceptLink {
