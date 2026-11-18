@@ -59,7 +59,10 @@ fn dragging_a_color_picker_writes_each_move_between_its_drag_changes() {
     assert!((reported.saturation - 0.5).abs() < 0.02);
     assert!((reported.value - 0.5).abs() < 0.02);
     assert_eq!(
-        heard.iter().filter(|heard| matches!(heard, Heard::Dragging(_))).count(),
+        heard
+            .iter()
+            .filter(|heard| matches!(heard, Heard::Dragging(_)))
+            .count(),
         2,
         "one drag starts and ends once"
     );

@@ -3,11 +3,11 @@ use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 use beui_view::types::Color32;
 
-use crate::value_drag::ValueDrag;
 use crate::anchored::AnchoredStyle;
 use crate::color_picker::HexText;
 use crate::popover::{Popover, PopoverHandle};
 use crate::popup_trigger::PopupTriggerHandle;
+use crate::value_drag::ValueDrag;
 
 pub struct ColorInputHandle {
     pub swatch: NodeId,

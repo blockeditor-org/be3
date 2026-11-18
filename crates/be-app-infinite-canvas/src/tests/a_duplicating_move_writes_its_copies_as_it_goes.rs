@@ -22,7 +22,11 @@ fn a_duplicating_move_writes_its_copies_as_it_goes() {
         2,
         "a copy is made as the move starts, so it is written as it goes, as a stroke is"
     );
-    mover.pen(PenPhase::Up(PointerButton::Primary), from + Vec2::new(80.0, 0.0), 0.0);
+    mover.pen(
+        PenPhase::Up(PointerButton::Primary),
+        from + Vec2::new(80.0, 0.0),
+        0.0,
+    );
     sync(&mut mover, &mut watcher);
     assert_eq!(entities(&watcher), entities(&mover));
 

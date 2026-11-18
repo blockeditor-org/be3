@@ -22,9 +22,17 @@ fn a_sidebar_drag_whose_control_goes_lets_go_of_its_hold() {
     dragger.store().take_written(None);
 
     // A peer removes the shape the slider is dragging.
-    apply(&mut dragger, InfiniteCanvasOperation::Remove { ids: vec![first.id] });
+    apply(
+        &mut dragger,
+        InfiniteCanvasOperation::Remove {
+            ids: vec![first.id],
+        },
+    );
     assert!(
-        dragger.document().find_test_id("infinite-canvas.opacity").is_none(),
+        dragger
+            .document()
+            .find_test_id("infinite-canvas.opacity")
+            .is_none(),
         "the slider goes with the shape it was dragging"
     );
     dragger.up(slider.center(), PointerButton::Primary);
@@ -33,7 +41,11 @@ fn a_sidebar_drag_whose_control_goes_lets_go_of_its_hold() {
     let at = dragger.rect_of(&item).center();
     dragger.pen(PenPhase::Down(PointerButton::Primary), at, 0.5);
     dragger.pen(PenPhase::Move, at + Vec2::new(40.0, 0.0), 0.5);
-    dragger.pen(PenPhase::Up(PointerButton::Primary), at + Vec2::new(40.0, 0.0), 0.0);
+    dragger.pen(
+        PenPhase::Up(PointerButton::Primary),
+        at + Vec2::new(40.0, 0.0),
+        0.0,
+    );
     assert!(
         !dragger.store().take_written(None).is_empty(),
         "the drag the slider left ended with it, so the next move is written"

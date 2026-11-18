@@ -38,6 +38,9 @@ fn a_press_off_a_sliders_thumb_reports_the_drag_before_its_jump() {
         Some(&Heard::Drag(ValueDrag::Started)),
         "the drag starts before the jump writes, so an owner holds the jump too: {heard:?}"
     );
-    assert!(matches!(heard[1], Heard::Value(value) if (value - 0.8).abs() < 0.02), "{heard:?}");
+    assert!(
+        matches!(heard[1], Heard::Value(value) if (value - 0.8).abs() < 0.02),
+        "{heard:?}"
+    );
     assert_eq!(heard.last(), Some(&Heard::Drag(ValueDrag::Kept)));
 }

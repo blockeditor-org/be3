@@ -32,5 +32,9 @@ fn the_eraser_writes_one_removal_and_none_of_its_dimming() {
         "the release writes the removal alone"
     );
     undo(&mut editor);
-    assert_eq!(entities(&editor), vec![shape], "one undo brings it back undimmed");
+    assert_eq!(
+        entities(&editor),
+        vec![shape],
+        "one undo brings it back undimmed"
+    );
 }

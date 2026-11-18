@@ -14,14 +14,22 @@ fn an_undo_mid_move_puts_it_back_and_lets_go_of_the_drag() {
     assert_ne!(editor.rect_of(&item), resting);
 
     undo(&mut editor);
-    assert_eq!(editor.rect_of(&item), resting, "the undo calls the held move off");
+    assert_eq!(
+        editor.rect_of(&item),
+        resting,
+        "the undo calls the held move off"
+    );
     editor.pen(PenPhase::Move, from + Vec2::new(90.0, 0.0), 0.5);
     assert_eq!(
         editor.rect_of(&item),
         resting,
         "and the canvas lets go of the drag, so the pointer carries nothing"
     );
-    editor.pen(PenPhase::Up(PointerButton::Primary), from + Vec2::new(90.0, 0.0), 0.0);
+    editor.pen(
+        PenPhase::Up(PointerButton::Primary),
+        from + Vec2::new(90.0, 0.0),
+        0.0,
+    );
     assert_eq!(entities(&editor), vec![shape]);
     assert!(editor.store().take_written(None).is_empty());
 }

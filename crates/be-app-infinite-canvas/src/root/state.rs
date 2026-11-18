@@ -15,8 +15,8 @@ use be_sdk_beui::beui::icons::{
 };
 use be_sdk_beui::beui::native::with_document;
 use be_sdk_beui::beui::reactive::*;
-use be_sdk_beui::beui::{Pos2, Rect, Thumbhash, Vec2, pos2};
 use be_sdk_beui::beui::unstyled::ValueDrag;
+use be_sdk_beui::beui::{Pos2, Rect, Thumbhash, Vec2, pos2};
 use be_sdk_beui::{BlockFilter, ChildState, Drag, Editor, FileDrop, InteractionMode, ResizeMode};
 use be_sdk_beui::{BlockParent, BlockQuery, DropAction, PickAnchor};
 use be_sdk_beui::{ContentGesture, ContentProjection};
@@ -991,7 +991,10 @@ impl CanvasState {
                 .collect::<Edit>()
         }) && !edit.0.is_empty()
         {
-            match self.gesture.with_untracked(|gesture| gesture.as_ref().map(Gesture::chooses)) {
+            match self
+                .gesture
+                .with_untracked(|gesture| gesture.as_ref().map(Gesture::chooses))
+            {
                 Some(true) => self.open_hold(),
                 Some(false) => self.open_writes(),
                 None => {}

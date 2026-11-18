@@ -273,7 +273,9 @@ fn TextSettings(state: State) -> NodeId {
         let width = value.round().clamp(1.0, 8.0) as u8;
         state
             .text
-            .execute(EditorCommand::SetIndentation(TextIndentation::Spaces { width }));
+            .execute(EditorCommand::SetIndentation(TextIndentation::Spaces {
+                width,
+            }));
     }));
     view! {
         <List spacing=SETTINGS_SPACING>

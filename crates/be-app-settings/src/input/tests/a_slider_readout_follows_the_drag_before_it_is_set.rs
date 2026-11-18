@@ -20,7 +20,10 @@ fn a_slider_readout_follows_the_drag_before_it_is_set() {
     editor.hover(slider.center());
     editor.hover(slider.center() + Vec2::new(slider.width() / 4.0, 0.0));
     let dragged = editor.label("input.repeat-delay.value");
-    assert_ne!(dragged, resting, "the readout follows the drag, as the slider does");
+    assert_ne!(
+        dragged, resting,
+        "the readout follows the drag, as the slider does"
+    );
     assert_eq!(
         content(&editor).root().repeat_delay(),
         stored,

@@ -6,8 +6,8 @@ use std::rc::Rc;
 use beui_macros::{component, view};
 
 use crate::color_picker::thumb;
-use beui_components_unstyled::ValueDrag;
 use beui_components_unstyled as unstyled;
+use beui_components_unstyled::ValueDrag;
 use beui_components_unstyled::{ColorPickerState, ColorWheelHandle, WheelGeometry, WheelPoint};
 use beui_view::primitives::Drawing;
 use beui_view::reactive::NodeId;

@@ -605,11 +605,7 @@ fn SliderSetting(
                 />
             </ListItem>
             <ListItem length=VALUE_WIDTH>
-                <Text
-                    color=TextColor::Muted
-                    align=TextAlign::End
-                    @test_id={readout_id}
-                >
+                <Text color=TextColor::Muted align=TextAlign::End @test_id={readout_id}>
                     {readout}
                 </Text>
             </ListItem>
