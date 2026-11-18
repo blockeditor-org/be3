@@ -1112,8 +1112,10 @@ keys the granter verified that way, which every device then seals to.
   (`publish-name`), drops it with a new recovery key, and serves it beside the
   key (`signing-keys`). A device shows a verified contact by the card its
   verified signing key signs, else by the card it verified
-  (`Peer::refresh_contacts`), so the server cannot rename anyone; it can only
-  withhold the newest card, or serve an older one the contact signed.
+  (`Peer::refresh_contacts`), so the server cannot rename anyone. Each device
+  keeps the newest card it showed per contact (`Refs::name_card`) and shows it
+  over an older one the server serves, or none, so a server that withholds a
+  rename only keeps it from devices that never showed it.
 - **The account's block** (`be_block::account_block`, `AccountBlock`) holds the
   account's records of its contacts, the code and kind of each link it made
   until it is finished (`contacts::KeptLink`, kept before `create-link`, so a
