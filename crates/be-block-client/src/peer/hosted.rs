@@ -32,9 +32,10 @@ impl Joining {
 
     /// Reads the host's answer: the channel, once it was made by the holder of the key the
     /// block's log names for the host. Anything else (another key, an answer to another
-    /// handshake) is refused as forged. The member's first message on the channel is what
+    /// handshake, a stray message of an earlier channel) is refused as forged, and the
+    /// handshake goes on waiting for its answer. The member's first message on the channel is what
     /// shows the host it is there (`Admitting::confirm`), so it sends one at once.
-    pub fn finish(self, answer: &[u8]) -> Result<Channel, ClientError> {
+    pub fn finish(&self, answer: &[u8]) -> Result<Channel, ClientError> {
         self.initiator
             .finish(answer)
             .map(|(channel, _)| channel)

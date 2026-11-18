@@ -2898,6 +2898,18 @@ pub fn read_seen<T>(read: impl FnOnce(&Seen) -> T) -> Option<T> {
     with_seen(read)
 }
 
+/// Sets the access the page and the worker see this account has to `block`, as a node edit,
+/// for a test of what follows a change of access that the test's accounts cannot make (this
+/// account's own access falling from View to Join, which only another account can lower).
+#[cfg(any(test, feature = "testing"))]
+pub fn set_access_seen(block: Uuid, access: be_block_graph::Access) {
+    let Some(mut node) = with_seen(|seen| seen.graph.get(block).cloned()).flatten() else {
+        return;
+    };
+    node.access = access;
+    edit(vec![Edit::Node(node)]);
+}
+
 fn with_stack<T>(use_stack: impl FnOnce(&mut Stack) -> T) -> Option<T> {
     let mut held = stack().lock().unwrap_or_else(PoisonError::into_inner);
     Some(use_stack(held.as_mut()?))

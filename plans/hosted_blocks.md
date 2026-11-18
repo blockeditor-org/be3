@@ -214,6 +214,17 @@ a role inside the app, since the share dialog grants no roles. A game:
      handshakes again; `a_joined_channel_opens_to_its_host_and_again_to_the_next`.
      View members still reach the host only by a raw `send-host`: an editor
      with View or Edit that is not hosting gets no channel of its own yet.
+     Tested: the channel opening, carrying messages in order, made again after
+     a message that does not open (a stray one of the old channel leaving the
+     new handshake waiting), and with the next host
+     (`a_joined_channel_opens_to_its_host_and_again_to_the_next`); an editor
+     reopened across Join and View
+     (`an_editor_whose_access_crosses_join_opens_again_as_the_other_kind`, its
+     access set by a test hook, since no test account can lower another's).
+     Untested: a send held back by `slow-down` and sent again; a join that waits
+     for a replica of the block to leave; a host that answers the newest of two
+     handshakes a member sent while the first was checked; be-sdk's Join opening
+     and be-sdk-beui's `on_channel` and `tell_host` in an app.
    - d. Keep hosting in the frame menu and the device's list of what it hosts,
      with Stop, in be-host's organization menu.
    - e. `be BLOCK host` (plans/headless_apps.md, step 2).

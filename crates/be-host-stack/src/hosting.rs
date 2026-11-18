@@ -45,10 +45,11 @@ pub struct Hosting {
 }
 
 enum Member {
-    /// Its first message is being checked (`Peer::admit`): this device's `admit`th.
-    Answering {
-        admit: u64,
-    },
+    /// Its first message is being checked (`Peer::admit`): this device's `admit`th. What it
+    /// sent since (`next`, the newest only) is taken as its new handshake once the check ends:
+    /// a member speaks again only after a handshake of its own, so the last thing it sent is
+    /// the one it waits on.
+    Answering { admit: u64, next: Option<Vec<u8>> },
     /// Answered: admitted once its first message on the channel opens.
     Admitting(Box<Admitting>),
     Admitted(Box<Admitted>),
@@ -266,9 +267,15 @@ fn hosted(
     let channels = held.hosting.channels.entry(block).or_default();
     match channels.remove(&from) {
         None => {}
-        // Still being checked: what it sends before its answer is dropped.
-        Some(answering @ Member::Answering { .. }) => {
-            channels.insert(from, answering);
+        // Still being checked: what it sends meanwhile is answered once the check ends.
+        Some(Member::Answering { admit, .. }) => {
+            channels.insert(
+                from,
+                Member::Answering {
+                    admit,
+                    next: Some(payload.to_vec()),
+                },
+            );
             return;
         }
         Some(Member::Admitting(admitting)) => match admitting.confirm(payload) {
@@ -295,21 +302,33 @@ fn hosted(
             Err(_) => queue(held, block, MemberNews::Left(from)),
         },
     }
-    let hosting = &mut held.hosting;
-    hosting.admits += 1;
-    let (admit, snapshot) = (hosting.admits, hosting.snapshots);
-    hosting
-        .channels
-        .entry(block)
-        .or_default()
-        .insert(from, Member::Answering { admit });
     drop(guard);
-    let (peer, shared, tasks, payload) = (
-        Arc::clone(peer),
-        Arc::clone(shared),
-        tasks.clone(),
-        payload.to_vec(),
-    );
+    answer(peer, shared, tasks, block, from, payload.to_vec());
+}
+
+/// Checks `payload` as `from`'s handshake (`Peer::admit`) and answers it when it is let in. What
+/// the member sent while it was checked is checked next instead, as its newer handshake.
+fn answer(
+    peer: &Arc<Peer<Store>>,
+    shared: &Arc<Mutex<Shared>>,
+    tasks: &Tasks,
+    block: Uuid,
+    from: ClientId,
+    payload: Vec<u8>,
+) {
+    let (admit, snapshot) = {
+        let mut held = lock(shared);
+        let hosting = &mut held.hosting;
+        hosting.admits += 1;
+        let admit = hosting.admits;
+        hosting
+            .channels
+            .entry(block)
+            .or_default()
+            .insert(from, Member::Answering { admit, next: None });
+        (admit, hosting.snapshots)
+    };
+    let (peer, shared, tasks) = (Arc::clone(peer), Arc::clone(shared), tasks.clone());
     tasks.clone().spawn(async move {
         let admitted = peer.admit(block, &payload).await;
         let mut held = lock(&shared);
@@ -318,9 +337,16 @@ fn hosted(
         let Some(channels) = held.hosting.channels.get_mut(&block) else {
             return;
         };
-        if !matches!(channels.get(&from), Some(Member::Answering { admit: current, .. }) if *current == admit)
-        {
-            return;
+        let next = match channels.get_mut(&from) {
+            Some(Member::Answering {
+                admit: current,
+                next,
+            }) if *current == admit => next.take(),
+            _ => return,
+        };
+        if let Some(next) = next {
+            drop(held);
+            return answer(&peer, &shared, &tasks, block, from, next);
         }
         match admitted {
             Ok((admitting, answer)) => {

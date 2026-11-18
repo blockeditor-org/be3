@@ -27,6 +27,9 @@ use crate::worker::{Shared, Store, Tasks};
 /// How long a message the server held back waits before it is sent again.
 const SLOWED: Duration = Duration::from_millis(250);
 
+/// How many times a handshake that could not read the logs tries again.
+const JOIN_HOST_TRIES: u32 = 3;
+
 #[derive(Default)]
 pub struct Joining {
     /// Each block an editor here joins, and its channel.
@@ -226,10 +229,24 @@ fn handshake(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: &Tasks
     };
     let (peer, shared) = (Arc::clone(peer), Arc::clone(shared));
     tasks.spawn(async move {
-        // The logs do not name the account as one that may host: a server's forgery, or a
-        // lease handed on since, which the next `session-event.host` tells.
-        let Ok((joining, first)) = peer.join_host(block, host.account).await else {
-            return;
+        // The logs do not name the account as one that may host (a server's forgery, or a
+        // lease handed on since, which the next `session-event.host` tells): it waits. Any
+        // other failure (the logs out of reach) is tried again a few times while it is still
+        // this attempt's.
+        let mut tries = 0;
+        let (joining, first) = loop {
+            match peer.join_host(block, host.account).await {
+                Ok(started) => break started,
+                Err(ClientError::Forged(_)) => return,
+                Err(_) if tries < JOIN_HOST_TRIES => {
+                    tries += 1;
+                    peer.connection().clock().sleep(SLOWED * 4).await;
+                    if lock(&shared).joining.current(block, attempt).is_none() {
+                        return;
+                    }
+                }
+                Err(_) => return,
+            }
         };
         {
             let mut held = lock(&shared);
@@ -381,7 +398,13 @@ pub fn heard(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: &Tasks
         Some(Event::Host { block, host }) => {
             let restarted = {
                 let mut held = lock(shared);
-                match held.joining.blocks.get(block) {
+                match held.joining.blocks.get_mut(block) {
+                    // Not in the session yet: it joins at the next step, and handshakes with
+                    // whoever hosts then.
+                    Some(joined) if matches!(joined.state, State::Unjoined) => {
+                        joined.host = *host;
+                        None
+                    }
                     Some(joined) if joined.host != *host => {
                         let attempt = restart(&mut held, *block);
                         if let Some(joined) = held.joining.blocks.get_mut(block) {
@@ -443,8 +466,9 @@ fn hosted(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: &Tasks, b
                 drop(guard);
                 pump(peer, shared, tasks, block);
             }
-            // Not the host's answer: it waits for the next host or reconnect.
-            Err(_) => {}
+            // Not this handshake's answer (a stray message of an earlier channel, say): it goes
+            // on waiting for it.
+            Err(_) => joined.state = State::Handshaking(handshaking),
         },
         State::Open(mut channel) => match channel.open(payload) {
             Ok(said) => {

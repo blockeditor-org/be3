@@ -77,8 +77,9 @@ fn admit(
 /// An editor here that joins a hosted block as a Join member (`want_channel`;
 /// plans/hosted_blocks.md, "Hosting") handshakes with whoever holds its lease: it hears the
 /// channel open to that account and what the host says, and what it tells the host arrives in
-/// order. When the host leaves and another account's device takes the lease, the channel
-/// closes and is made again with the new host.
+/// order. A message that does not open breaks the channel, and a stray one of the old channel
+/// does not end the new handshake. When the host leaves and another account's device takes the
+/// lease, the channel closes and is made again with the new host.
 #[test]
 fn a_joined_channel_opens_to_its_host_and_again_to_the_next() {
     let harness = Harness::start();
@@ -138,6 +139,41 @@ fn a_joined_channel_opens_to_its_host_and_again_to_the_next() {
         told
     });
     assert_eq!(told, vec![b"open the door".to_vec(), b"go through".to_vec()]);
+
+    // A message that does not open breaks the channel, and the member handshakes again. A
+    // stray message of the old channel reaching it before the host's answer leaves that
+    // handshake waiting for its answer, which then opens the channel again.
+    first.runtime.block_on(async {
+        let peer = &first.peer;
+        peer.connection()
+            .send_host(block, Some(member), vec![7; 40])
+            .await
+            .expect("the garbled message goes");
+        let (from, again) = next_hosted(&mut first_events, block).await;
+        assert_eq!(from, member, "the member handshakes again");
+        peer.connection()
+            .send_host(block, Some(member), admitted.channel.seal(b"stray"))
+            .await
+            .expect("the stray message goes");
+        let (admitting, answer) = peer.admit(block, &again).await.expect("the member checks");
+        peer.connection()
+            .send_host(block, Some(member), answer)
+            .await
+            .expect("the answer goes");
+        let (_, confirming) = next_hosted(&mut first_events, block).await;
+        admitting
+            .confirm(&confirming)
+            .expect("the new channel opens");
+    });
+    let heard = channel_until("heard the channel made again", block, |count| count >= 2);
+    assert_eq!(
+        heard,
+        vec![
+            ChannelEvent::Closed,
+            ChannelEvent::Open(first.account().into_bytes()),
+        ],
+        "a stray message of the old channel did not end the new handshake"
+    );
 
     first.runtime.block_on(async {
         first
