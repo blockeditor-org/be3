@@ -267,10 +267,13 @@ pub(super) fn route(
     }
     // A sink that came under a mouse resting where it was (it moved there, or what covered it
     // went) hears where the pointer is, as `reforward` tells it after a layout: without it, a
-    // sink told it was left keeps thinking so.
+    // sink told it was left keeps thinking so. Not while another holds the mouse, which
+    // `reforward` leaves alone too.
     let resting = ctx.input(|input| input.pointer.mouse().map(|pos| (input.pointer.window, pos)));
+    let holder = alive(doc, doc.forward.router.held(Pointer::Mouse));
     if let (Some(sink), Some((window, pos))) = (alive(doc, hovered), resting)
         && was_hovered != hovered
+        && holder.is_none_or(|holder| holder == sink)
         && !reached.contains(&sink)
     {
         doc.forward.router.entered(sink);

@@ -39,4 +39,8 @@ fn a_hovered_catcher_hears_where_the_pointer_is_while_another_holds_it() {
         heard.contains(&(true, Some(pos2(260.0, 60.0)), 0)),
         "the catcher under the pointer hears each move without the events, {heard:?}"
     );
+    assert!(
+        heard.iter().all(|(_, _, events)| *events == 0),
+        "not even the move that brought the pointer over it, {heard:?}"
+    );
 }
