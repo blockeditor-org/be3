@@ -225,6 +225,17 @@ harness serves and decrypts (RFC 8291) what be-server posts to it (`pushes.next(
 `deliverPush` dispatches a push in the worker, since DevTools' `deliverPushMessage` carries text,
 not a push's bytes, and needs an open page. buck/program/web-host-test.mjs lists the rest.
 
+A test that reads what a frame drew reads the host's canvas (`#host`; app screens are their
+workers' canvases under it, in `#apps`, seen through holes cut in it). It is blank after the
+frame that drew it unless its WebGL context keeps its drawing buffer, so the test forces
+`preserveDrawingBuffer` in `context.addInitScript`, reopens the page (`openPage()`), and copies
+it with `drawImage` in the frame it wants. After a resize, the window's `resize` animation frame
+draws the host at the new size before a ResizeObserver reports in the same rendering update, so
+the observer's report of the new size holds the first frame of it; a new observer reports its
+starting size first, so pick reports by size. The workspace clears to the theme's background as
+the host does, so to tell them apart the test has the page's opaque WebGL clears clear to a
+colour of its own (`grown-web-host-test`).
+
 Typing offline then reloading is checked by hand: open a text block, `kill -STOP` the
 instance's be-server (or Playwright's `context.setOffline(true)`), type with
 `page.keyboard.type`, `page.reload()` with a `dialog` handler that accepts the `beforeunload`

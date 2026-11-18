@@ -608,7 +608,9 @@ placed with a matrix from its pixels and clipped in them
 (`presenter::canvas_style`), so the browser never scales it into a box of
 another size. A block preview is a picture and is fitted to each place it is
 shown at. In the browser the answer always lands in a later frame, since the
-host cannot block on a worker.
+host cannot block on a worker: the first frame after a page grows shows the
+workspace's old frame, and beyond it its backdrop in the host's canvas, around
+the hole cut at the old frame's size (`grown-web-host-test`).
 
 Each frame an app draws is two steps of its guest: one lays out and sends
 `laid-out`, the next paints. The calls an app makes without waiting on them

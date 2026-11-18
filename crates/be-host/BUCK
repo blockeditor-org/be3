@@ -328,6 +328,16 @@ web_host_test(
     test = "web-test/a_tab_shown_again_shows_its_last_frame_before_its_app_answers.mjs",
 )
 
+# The first frame after the page grows shows the workspace's backdrop beyond its last frame,
+# which its app's worker has not yet drawn at the new size.
+web_host_test(
+    name = "grown-web-host-test",
+    bundle = ":web",
+    caddyfile = ":Caddyfile",
+    server = "//crates/be-server-bin:bin",
+    test = "web-test/a_grown_page_shows_the_workspaces_backdrop_beyond_its_last_frame.mjs",
+)
+
 web_host_test(
     name = "push-web-host-test",
     bundle = ":web",
