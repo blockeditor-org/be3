@@ -3,30 +3,28 @@ use super::*;
 #[test]
 fn reactions_show_under_a_message_with_their_counts() {
     let mut chat = Harness::new(&[(ROSA, "The release is out!"), (ME, "Thanks everyone")]);
-    let (release, thanks) = (chat.id(0), chat.id(1));
+    let (release, thanks) = (chat.seq(0), chat.seq(1));
     let other = Uuid::from_u128(0x3b0c_0000_0000_4000_8000_0000_0000_0004);
     for (author, reaction) in [
         (ROSA, "party-popper"),
         (other, "party-popper"),
         (other, "heart"),
     ] {
-        let (key, made) = chat
-            .content()
-            .reaction(release, author, reaction, MORNING, true);
-        let made = be_type_chat::Reaction {
-            signature: Signature(be_sdk_test::signature(
-                author,
-                &key.signed_bytes(CHAT, &made),
-            )),
-            ..made
-        };
-        chat.arrive(chat.content().put_reaction(&key, &made));
+        chat.arrive(
+            author,
+            &ChatEntry::React {
+                message: release,
+                reaction: reaction.to_owned(),
+                kept: true,
+                time: MORNING,
+            },
+        );
     }
     chat.click(&format!("chat.message.{release}.reaction.heart"));
     chat.click(&format!("chat.message.{thanks}.react"));
 
     assert_eq!(
-        chat.content().reactions(release),
+        chat.log().message(release).unwrap().reactions,
         [
             ("heart".to_owned(), vec![other, ME]),
             ("party-popper".to_owned(), vec![other, ROSA]),
