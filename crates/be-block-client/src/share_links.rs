@@ -149,7 +149,11 @@ pub async fn open_share_link(
     };
     let sealed = identity
         .seal_for(account.into_bytes(), &mine, handed.key.as_bytes(), &handed.scope)
-        .map_err(|_| tampered())?;
+        .map_err(|error| {
+            ClientError::Encoding(format!(
+                "this device could not seal the link's key to this account: {error:?}"
+            ))
+        })?;
     if link.guest
         && let Some(root) = handed.organization_root
         && contacts::pinned(connection, account, identity, link.organization)
