@@ -1365,6 +1365,8 @@ pub(crate) enum TokenKind {
     LoginLink,
     /// An invite code (`invite_codes`).
     Invite,
+    /// A device sign-in's poll secret, held in memory (`browser_auth::Sessions::poll`).
+    Poll,
 }
 
 impl TokenKind {
@@ -1379,6 +1381,7 @@ impl TokenKind {
             Self::MailLink => "be3 mail link",
             Self::LoginLink => "be3 login link",
             Self::Invite => "be3 invite",
+            Self::Poll => "be3 poll",
         }
     }
 }

@@ -275,12 +275,24 @@ impl Pinned {
 
 /// A link this account made, as its block keeps it until the link is finished: its code, and
 /// what accepting it does.
-#[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
+#[derive(Clone, serde::Deserialize, serde::Serialize)]
 pub struct KeptLink {
     pub code: Vec<u8>,
     pub kind: LinkKind,
     /// When it was made, in milliseconds since the epoch.
     pub made: u64,
+}
+
+/// Leaves out the code, a bearer secret, so no log ever holds it.
+impl std::fmt::Debug for KeptLink {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("KeptLink")
+            .field("code", &"..")
+            .field("kind", &self.kind)
+            .field("made", &self.made)
+            .finish()
+    }
 }
 
 /// The most links the account's block keeps: the server keeps at most a thousand contact links

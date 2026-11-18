@@ -943,6 +943,17 @@ struct Head {
     forwarded: Option<String>,
 }
 
+/// A Content-Length's value: ASCII digits alone, with only ASCII whitespace around them. Rust's
+/// `parse` would also take a `+`, and `str::trim` Unicode spaces, which no proxy in front reads as
+/// a length, so it would frame the body otherwise and could smuggle a request inside it.
+pub(crate) fn content_length(value: &[u8]) -> Option<usize> {
+    let digits = value.trim_ascii();
+    if digits.is_empty() || !digits.iter().all(u8::is_ascii_digit) {
+        return None;
+    }
+    std::str::from_utf8(digits).ok()?.parse().ok()
+}
+
 impl Head {
     fn parse(buffer: &[u8]) -> Result<Self, ServerError> {
         let mut headers = [httparse::EMPTY_HEADER; MAX_HEADERS];
@@ -978,16 +989,15 @@ impl Head {
                 "a request has one Content-Length".into(),
             ));
         }
-        let length = match header("content-length") {
-            // Digits only: Rust's parse would take a `+` no proxy reads as one.
-            Some(value) if value.bytes().all(|byte| byte.is_ascii_digit()) => value
-                .parse()
-                .map_err(|_| ServerError::Socket("the content length is not a number".into()))?,
-            Some(_) => {
-                return Err(ServerError::Socket(
-                    "the content length is not a number".into(),
-                ));
-            }
+        // Read from the raw bytes: a value that is not UTF-8 must not read as no length at all.
+        let length = match request
+            .headers
+            .iter()
+            .find(|header| header.name.eq_ignore_ascii_case("content-length"))
+        {
+            Some(header) => content_length(header.value).ok_or_else(|| {
+                ServerError::Socket("the content length is not a number".into())
+            })?,
             None => 0,
         };
         let session = header(SESSION_HEADER).map(str::to_owned);

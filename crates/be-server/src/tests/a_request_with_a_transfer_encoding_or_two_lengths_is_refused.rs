@@ -6,14 +6,18 @@ use super::*;
 #[tokio::test]
 async fn a_request_with_a_transfer_encoding_or_two_lengths_is_refused() {
     let harness = Harness::start().await;
-    let status = |extra: &'static str| {
+    let status = |extra: &'static [u8]| {
         let address = harness.address;
         async move {
             let mut stream = tokio::net::TcpStream::connect(address).await.unwrap();
             stream
                 .write_all(
-                    format!("GET /auth/login HTTP/1.1\r\nHost: {address}\r\n{extra}Connection: close\r\n\r\n0\r\n\r\n")
-                        .as_bytes(),
+                    &[
+                        format!("GET /auth/login HTTP/1.1\r\nHost: {address}\r\n").as_bytes(),
+                        extra,
+                        b"Connection: close\r\n\r\n0\r\n\r\n",
+                    ]
+                    .concat(),
                 )
                 .await
                 .unwrap();
@@ -27,10 +31,25 @@ async fn a_request_with_a_transfer_encoding_or_two_lengths_is_refused() {
                 .to_owned()
         }
     };
-    assert_eq!(status("").await, "200");
-    assert_eq!(status("Transfer-Encoding: chunked\r\n").await, "400");
+    assert_eq!(status(b"").await, "200");
+    assert_eq!(status(b"Content-Length:  0 \r\n").await, "200");
+    assert_eq!(status(b"Transfer-Encoding: chunked\r\n").await, "400");
     assert_eq!(
-        status("Content-Length: 0\r\nContent-Length: 5\r\n").await,
+        status(b"Content-Length: 0\r\nContent-Length: 5\r\n").await,
         "400"
     );
+    // A length that would read as none, or as a number no proxy reads it as.
+    for odd in [
+        b"Content-Length: 5\xff\r\n".as_slice(),
+        "Content-Length: 5\u{a0}\r\n".as_bytes(),
+        b"Content-Length: +5\r\n",
+        b"Content-Length: \r\n",
+    ] {
+        assert_eq!(
+            status(odd).await,
+            "400",
+            "{}",
+            String::from_utf8_lossy(odd)
+        );
+    }
 }

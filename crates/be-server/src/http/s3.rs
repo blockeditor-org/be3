@@ -111,12 +111,8 @@ impl Head {
         for header in parsed.headers.iter() {
             if header.name.eq_ignore_ascii_case("content-length") {
                 // One length, of digits only, so no proxy in front frames the body otherwise.
-                let Some(parsed) = std::str::from_utf8(header.value)
-                    .ok()
-                    .map(str::trim)
-                    .filter(|value| value.bytes().all(|byte| byte.is_ascii_digit()))
-                    .and_then(|value| value.parse().ok())
-                    .filter(|_| length.is_none())
+                let Some(parsed) =
+                    crate::http::content_length(header.value).filter(|_| length.is_none())
                 else {
                     return Ok(None);
                 };

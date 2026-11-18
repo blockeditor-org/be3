@@ -57,6 +57,12 @@ async fn fcm_sends_a_data_message_with_the_service_accounts_token() {
     });
     let mut fcm = push::FcmConfig::from_service_account(&account.to_string()).unwrap();
     fcm.endpoint = service.url.clone();
+    // The configuration prints, as a log of it would, without the service account's key.
+    let printed = format!("{fcm:?}");
+    assert!(
+        printed.contains("a-project") && !printed.contains(&format!("{:?}", fcm.private_key)),
+        "{printed}"
+    );
     let public = RsaKeyPair::from_pkcs8(&fcm.private_key)
         .unwrap()
         .public_key()

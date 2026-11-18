@@ -144,12 +144,25 @@ pub(crate) struct AddAccountView {
     pub(crate) error: Option<String>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub(crate) struct AccountForm {
     pub(crate) remote: bool,
     pub(crate) remote_url: String,
     pub(crate) authorization: String,
     pub(crate) display_name: String,
+}
+
+/// Leaves out the authorization, so no log ever holds it.
+impl std::fmt::Debug for AccountForm {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("AccountForm")
+            .field("remote", &self.remote)
+            .field("remote_url", &self.remote_url)
+            .field("authorization", &"..")
+            .field("display_name", &self.display_name)
+            .finish()
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -252,7 +265,7 @@ pub(crate) struct ProfileRow {
     pub(crate) current: bool,
 }
 
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Default, PartialEq)]
 pub(crate) struct InviteView {
     pub(crate) organization: String,
     pub(crate) busy: bool,
@@ -260,8 +273,21 @@ pub(crate) struct InviteView {
     pub(crate) link: Option<String>,
 }
 
+/// Leaves out the link, a bearer secret, so no log ever holds it.
+impl std::fmt::Debug for InviteView {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("InviteView")
+            .field("organization", &self.organization)
+            .field("busy", &self.busy)
+            .field("error", &self.error)
+            .field("link", &self.link.as_ref().map(|_| ".."))
+            .finish()
+    }
+}
+
 /// An invitation in the organization's invite list.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, PartialEq)]
 pub(crate) struct InvitationRow {
     pub(crate) id: Uuid,
     pub(crate) title: String,
@@ -271,6 +297,21 @@ pub(crate) struct InvitationRow {
     pub(crate) revocable: bool,
     /// Expired: a fresh link takes its place in one step.
     pub(crate) renewable: bool,
+}
+
+/// Leaves out the link, a bearer secret, so no log ever holds it.
+impl std::fmt::Debug for InvitationRow {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("InvitationRow")
+            .field("id", &self.id)
+            .field("title", &self.title)
+            .field("detail", &self.detail)
+            .field("link", &self.link.as_ref().map(|_| ".."))
+            .field("revocable", &self.revocable)
+            .field("renewable", &self.renewable)
+            .finish()
+    }
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -290,7 +331,7 @@ pub(crate) struct ContactRow {
     pub(crate) mismatch: Option<be_block_client::contacts::Mismatch>,
 }
 
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Default, PartialEq)]
 pub(crate) struct ContactsView {
     pub(crate) contacts: Vec<ContactRow>,
     pub(crate) link: Option<String>,
@@ -299,6 +340,22 @@ pub(crate) struct ContactsView {
     pub(crate) removing: Option<String>,
     pub(crate) busy: bool,
     pub(crate) error: Option<String>,
+}
+
+/// Leaves out the link, a bearer secret, so no log ever holds it.
+impl std::fmt::Debug for ContactsView {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("ContactsView")
+            .field("contacts", &self.contacts)
+            .field("link", &self.link.as_ref().map(|_| ".."))
+            .field("offer", &self.offer)
+            .field("connected", &self.connected)
+            .field("removing", &self.removing)
+            .field("busy", &self.busy)
+            .field("error", &self.error)
+            .finish()
+    }
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]

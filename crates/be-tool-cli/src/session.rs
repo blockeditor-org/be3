@@ -8,7 +8,7 @@ use uuid::Uuid;
 
 pub const DEFAULT_SERVER: &str = "https://api.be3.pfg.pw";
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct Settings {
     pub server: String,
     pub organization: Option<Uuid>,
@@ -19,6 +19,22 @@ pub struct Settings {
     /// The boat.dev sandbox a terminal host was installed for, as the credentials an app
     /// handed it say (`boat_id`): a fork of that sandbox, whose `BOAT_ID` differs, runs none.
     pub boat_id: Option<String>,
+}
+
+/// Leaves out the token, the recovery phrase and the authorization, so no log ever holds them.
+impl std::fmt::Debug for Settings {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("Settings")
+            .field("server", &self.server)
+            .field("organization", &self.organization)
+            .field("token", &"..")
+            .field("phrase", &"..")
+            .field("authorization", &self.authorization.as_ref().map(|_| ".."))
+            .field("cache", &self.cache)
+            .field("boat_id", &self.boat_id)
+            .finish()
+    }
 }
 
 impl Settings {

@@ -1073,10 +1073,11 @@ the server could already cause by withholding; it cannot forge a change, nor
 hide one beyond withholding it.
 
 It still decides, and devices trust it for: which held key is a block's current
-data key and which epoch is newest, among the rows its keys name (a wrap names
-its own row, so it cannot pass an old key off as a new epoch) (so a server colluding with someone who lost
-access, or a demoted administrator, can keep a device writing under a key that
-person knows, for as long as it withholds from that device what outdates it);
+data key and which epoch is newest, among the rows its keys name, since a wrap
+names its own row and so cannot pass an old key off as a new epoch. A server
+colluding with someone who lost access, or with a demoted administrator, can
+therefore keep a device writing under a key that person knows, for as long as
+it withholds from that device what outdates it. It also decides:
 which blocks lie under a block, as listings and key work name
 them (a device wraps nothing under a scope its block's signed parent records do
 not reach, but may leave a block out of a listing or a rotation), and who views

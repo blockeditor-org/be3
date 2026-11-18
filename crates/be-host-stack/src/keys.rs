@@ -61,11 +61,23 @@ impl std::fmt::Debug for RecoveryView {
     }
 }
 
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Default, PartialEq)]
 pub struct UnlockView {
     pub account: String,
     pub code: Option<String>,
     pub error: Option<String>,
+}
+
+/// Leaves out the pairing code, so no log ever holds it.
+impl std::fmt::Debug for UnlockView {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("UnlockView")
+            .field("account", &self.account)
+            .field("code", &self.code.as_ref().map(|_| ".."))
+            .field("error", &self.error)
+            .finish()
+    }
 }
 
 /// Why a device that holds an account's identity secret makes it no new phrase when the server

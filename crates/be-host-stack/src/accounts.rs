@@ -2,12 +2,25 @@ use be_block_client::{ClientError, Connection, ask};
 use be_block_protocol::{Authenticated, ErrorCode, Invitation, LinkKind, Organization, client};
 use uuid::Uuid;
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct Session {
     pub account: Uuid,
     pub email: String,
     pub display_name: String,
     pub token: String,
+}
+
+/// Leaves out the token, so no log ever holds it.
+impl std::fmt::Debug for Session {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("Session")
+            .field("account", &self.account)
+            .field("email", &self.email)
+            .field("display_name", &self.display_name)
+            .field("token", &"..")
+            .finish()
+    }
 }
 
 #[derive(Debug)]
@@ -400,13 +413,27 @@ fn invitation_of(link: be_block_protocol::Link) -> Result<Invitation, AccountErr
     }
 }
 
-#[derive(Clone, Debug, PartialEq, serde::Deserialize, serde::Serialize)]
+#[derive(Clone, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct AgentCredentials {
     pub name: String,
     pub server: String,
     pub organization: Uuid,
     pub token: String,
     pub phrase: String,
+}
+
+/// Leaves out the token and the recovery phrase, so no log ever holds them.
+impl std::fmt::Debug for AgentCredentials {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("AgentCredentials")
+            .field("name", &self.name)
+            .field("server", &self.server)
+            .field("organization", &self.organization)
+            .field("token", &"..")
+            .field("phrase", &"..")
+            .finish()
+    }
 }
 
 impl AgentCredentials {

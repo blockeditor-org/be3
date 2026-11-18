@@ -434,9 +434,19 @@ const HELLO: &[u8] = b"be3 hello\n";
 /// What a client's greeting says after its build: the token it signs in with. None signs in
 /// with the request's Authorization header instead (`be` behind a proxy that injects it), and
 /// is what a one-shot call, which signs nothing in, says.
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[derive(Clone, Default, Serialize, Deserialize)]
 pub struct Greeting {
     pub token: Option<String>,
+}
+
+/// Leaves out the token, so no log ever holds it.
+impl std::fmt::Debug for Greeting {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("Greeting")
+            .field("token", &self.token.as_ref().map(|_| ".."))
+            .finish()
+    }
 }
 
 /// What the server's greeting says after its build to a connection of the same build: who

@@ -309,7 +309,8 @@ counts and records nothing: `reserve-uploads` did before it signed.
     oldest of whichever is full instead of being refused, so one network
     never pushes out everyone else's.
   - A request head with a `Transfer-Encoding`, more than one
-    `Content-Length`, or one that is not digits is refused with a 400
+    `Content-Length`, or one that is anything but ASCII digits (with only
+    ASCII spaces around them) is refused with a 400
     (`Head::parse`), so a proxy in front never frames a body otherwise than
     the server and smuggles a request inside it.
   - Request bodies grow only as their bytes arrive and stall out after

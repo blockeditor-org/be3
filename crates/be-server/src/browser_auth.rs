@@ -196,6 +196,8 @@ struct Form {
 }
 
 struct Pending {
+    /// The hash of the poll secret (`TokenKind::Poll`): a poll is compared by hash, so how long
+    /// a wrong guess takes tells nothing of the secret.
     secret: String,
     denied: bool,
     expires: Instant,
@@ -246,7 +248,7 @@ impl Sessions {
         self.pending.lock().unwrap().insert(
             code.clone(),
             Pending {
-                secret: secret.clone(),
+                secret: crate::store::hash_token(crate::store::TokenKind::Poll, &secret),
                 denied: false,
                 expires: Instant::now() + LIFETIME,
                 account: None,
@@ -266,7 +268,8 @@ impl Sessions {
     pub(crate) fn poll(&self, code: &str, secret: &str) -> Result<Polled, ServerError> {
         let mut pending = self.pending.lock().unwrap();
         let now = Instant::now();
-        let Some(entry) = pending.get_mut(code).filter(|entry| entry.secret == secret) else {
+        let hashed = crate::store::hash_token(crate::store::TokenKind::Poll, secret);
+        let Some(entry) = pending.get_mut(code).filter(|entry| entry.secret == hashed) else {
             return Ok(Polled::Expired);
         };
         if entry.expires <= now {

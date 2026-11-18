@@ -18,9 +18,17 @@ fn a_debug_print_shows_no_key() {
         key: Uuid::nil(),
         secret: carried.encode(),
     };
-    let printed = format!("{carried:?} {offer:?}");
+    let kept = crate::contacts::KeptLink {
+        code: vec![0xab; 25],
+        kind: be_block_protocol::LinkKind::Contact(None),
+        made: 0,
+    };
+    let greeting = be_block_protocol::Greeting {
+        token: Some("GREETINGTOKEN".into()),
+    };
+    let printed = format!("{carried:?} {offer:?} {kept:?} {greeting:?}");
     assert!(
-        !printed.contains("171, 171"),
-        "a key shows in a debug print: {printed}"
+        !printed.contains("171, 171") && !printed.contains("GREETINGTOKEN"),
+        "a key, a code or a token shows in a debug print: {printed}"
     );
 }

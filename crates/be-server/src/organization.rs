@@ -83,7 +83,8 @@ impl ServerKey {
     /// directory without being stored apart from it.
     pub(crate) fn derived(&self, purpose: &str) -> [u8; 32] {
         let mut derived = [0u8; 32];
-        hkdf::Hkdf::<sha2::Sha256>::new(Some(b"be3 server derived"), &self.secret.to_bytes())
+        let secret = zeroize::Zeroizing::new(self.secret.to_bytes());
+        hkdf::Hkdf::<sha2::Sha256>::new(Some(b"be3 server derived"), secret.as_slice())
             .expand(purpose.as_bytes(), &mut derived)
             .expect("32 bytes is a valid HKDF-SHA256 length");
         derived
@@ -144,7 +145,11 @@ impl ServerKey {
             let row = crate::keys::key_row(connection, organization, key)?;
             if let Some(carried) = plain
                 .and_then(|plain| be_block_keys::CarriedKey::decode(&plain).ok())
-                .filter(|carried| row.is_some_and(|row| carried.label == label(row)))
+                .filter(|carried| {
+                    row.is_some_and(|row| {
+                        carried.label == label(row) && carried.block == row.block.into_bytes()
+                    })
+                })
             {
                 ring.insert(
                     key,

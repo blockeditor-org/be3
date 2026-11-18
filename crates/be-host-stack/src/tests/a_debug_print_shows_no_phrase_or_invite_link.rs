@@ -19,9 +19,35 @@ fn a_debug_print_shows_no_phrase_or_invite_link() {
         opened: 0,
         ended: 0,
     };
-    let printed = format!("{view:?} {invite:?}");
+    let session = crate::accounts::Session {
+        account: Uuid::nil(),
+        email: "ada@example.com".into(),
+        display_name: "Ada".into(),
+        token: "SESSIONTOKEN".into(),
+    };
+    let agent = crate::accounts::AgentCredentials {
+        name: "Helper".into(),
+        server: "https://be.example".into(),
+        organization: Uuid::nil(),
+        token: "AGENTTOKEN".into(),
+        phrase: "agentphrase".into(),
+    };
+    let unlock = crate::keys::UnlockView {
+        account: "Ada".into(),
+        code: Some("PAIRCODE".into()),
+        error: None,
+    };
+    let printed = format!("{view:?} {invite:?} {session:?} {agent:?} {unlock:?}");
     assert!(printed.contains("Ada"));
-    for secret in ["abandon", "zebra", "SECRETCODE"] {
+    for secret in [
+        "abandon",
+        "zebra",
+        "SECRETCODE",
+        "SESSIONTOKEN",
+        "AGENTTOKEN",
+        "agentphrase",
+        "PAIRCODE",
+    ] {
         assert!(
             !printed.contains(secret),
             "{secret} shows in a debug print: {printed}"
