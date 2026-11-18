@@ -18,8 +18,8 @@ use be_sdk_beui::beui::{NodeId, Rect};
 use be_sdk_beui::{
     AccessLevel, AccessListing, BlockFilter, ChildState, ContactsWatch, DisplaysWatch, Editor,
     EditorHost, Failure, FocusedBlock, HostPanel, HostProgram, HostWindow, HostWindowId,
-    MutesWatch, NotifyMode, PickAnchor, PickedBlock, ProgramsWatch, Pushed, ShareLink,
-    ShellDialog, WindowsWatch,
+    MutesWatch, NotifyMode, PickAnchor, PickedBlock, ProgramsWatch, Pushed, ShareLink, ShellDialog,
+    WindowsWatch,
 };
 use be_sdk_beui::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks, ChildTarget};
 use uuid::Uuid;
@@ -608,9 +608,9 @@ impl Workspace {
                 let asked = self.host().revoke_share_link(share.block, &link);
                 share.revoking_now.push(link.clone());
                 // Listed again once it is answered: whom it granted lose their access then.
-                let task = self.editor.then(asked, move |revoked| {
-                    workspace.link_revoked(&link, revoked)
-                });
+                let task = self
+                    .editor
+                    .then(asked, move |revoked| workspace.link_revoked(&link, revoked));
                 self.state.value().share_asks.borrow_mut().push(task);
             }
             self.share.set(Some(share));

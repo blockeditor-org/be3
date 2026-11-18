@@ -349,10 +349,9 @@ fn member(
             Some("Opens for them once you have both confirmed each other as contacts".to_owned())
         }
         (false, false) if grant.author && source == Some(block) => None,
-        (false, false) if grant.through_link && source == Some(block) => Some(format!(
-            "{}, through a share link",
-            grant.effective.label()
-        )),
+        (false, false) if grant.through_link && source == Some(block) => {
+            Some(format!("{}, through a share link", grant.effective.label()))
+        }
         (false, false) => origin(grant.effective, source, block, name_of),
     };
     // Someone there only through a link is no one to hand the block to: a guest, or a member

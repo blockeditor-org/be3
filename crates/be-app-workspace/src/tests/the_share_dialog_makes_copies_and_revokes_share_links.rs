@@ -11,8 +11,8 @@ use super::*;
 /// one link and Ada, who opened it, would; answers the other calls.
 fn answer_listings(fixture: &mut Fixture, block: Uuid) -> Vec<HostCall> {
     let me = fixture.host.account_id();
-    let grant = |account: Uuid, name: &str, effective: AccessLevel, through_link: bool| {
-        AccessGrant {
+    let grant =
+        |account: Uuid, name: &str, effective: AccessLevel, through_link: bool| AccessGrant {
             account: account.into_bytes(),
             email: format!("{}@example.org", name.to_lowercase()),
             display_name: name.to_owned(),
@@ -25,12 +25,14 @@ fn answer_listings(fixture: &mut Fixture, block: Uuid) -> Vec<HostCall> {
             waiting: false,
             through_link,
             guest: false,
-        }
-    };
+        };
     let mut others = Vec::new();
     for call in fixture.test.take_requests() {
         match call {
-            HostCall::ListAccess { reply, block: asked } if asked == block.into_bytes() => {
+            HostCall::ListAccess {
+                reply,
+                block: asked,
+            } if asked == block.into_bytes() => {
                 fixture.test.answer(
                     reply,
                     Ok(AccessListing {
@@ -44,7 +46,10 @@ fn answer_listings(fixture: &mut Fixture, block: Uuid) -> Vec<HostCall> {
                     }),
                 );
             }
-            HostCall::ListShareLinks { reply, block: asked } if asked == block.into_bytes() => {
+            HostCall::ListShareLinks {
+                reply,
+                block: asked,
+            } if asked == block.into_bytes() => {
                 fixture.test.answer(
                     reply,
                     Ok(vec![ShareLink {

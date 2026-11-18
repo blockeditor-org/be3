@@ -223,7 +223,11 @@ pub(crate) fn require_edit(
     require(graph, seen, block, Access::Edit, "editable")
 }
 
-pub(crate) fn require_manage(graph: &BlockGraph, seen: &Visibility, block: Uuid) -> Result<(), ServerError> {
+pub(crate) fn require_manage(
+    graph: &BlockGraph,
+    seen: &Visibility,
+    block: Uuid,
+) -> Result<(), ServerError> {
     require(graph, seen, block, Access::Manage, "managed")
 }
 
@@ -2221,12 +2225,12 @@ impl ServerStore {
                 let granted = node.grants.get(&account).copied();
                 let (effective, source) = match role {
                     OrganizationRole::Administrator => (Access::Manage, None),
-                    OrganizationRole::Editor | OrganizationRole::Guest => match graph
-                        .inherited_from(block, account)
-                    {
-                        (level, source) if level.can_know_exists() => (level, source),
-                        _ => (graph.effective_access(block, account), None),
-                    },
+                    OrganizationRole::Editor | OrganizationRole::Guest => {
+                        match graph.inherited_from(block, account) {
+                            (level, source) if level.can_know_exists() => (level, source),
+                            _ => (graph.effective_access(block, account), None),
+                        }
+                    }
                 };
                 let inherited = match (role, granted) {
                     (OrganizationRole::Administrator, _) | (_, None) => effective,

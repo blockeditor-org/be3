@@ -730,7 +730,9 @@ pub(crate) fn append_share_link(
 ) -> Result<be_block_keys::ShareLink, ServerError> {
     let entry = Entry::decode(record).map_err(|_| refused("the record does not read"))?;
     let Record::ShareLink(link) = &entry.record else {
-        return Err(refused("a share link is made or revoked by a share link record"));
+        return Err(refused(
+            "a share link is made or revoked by a share link record",
+        ));
     };
     if entry.signer != signer.into_bytes()
         || link.open != open

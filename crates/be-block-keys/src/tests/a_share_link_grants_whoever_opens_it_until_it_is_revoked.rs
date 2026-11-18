@@ -38,7 +38,12 @@ fn a_share_link_grants_whoever_opens_it_until_it_is_revoked() {
         "the opener holds what the link grants, with the keys it signed with"
     );
     assert_eq!(checked.linked.get(&opener_id), Some(&code.share_key(block)));
-    let path = proof_path(LogKind::Block, &[root.clone(), made.clone(), joined.clone()], opener_id, []);
+    let path = proof_path(
+        LogKind::Block,
+        &[root.clone(), made.clone(), joined.clone()],
+        opener_id,
+        [],
+    );
     let partial = check_log(LogKind::Block, block, pinned, &path, &none).unwrap();
     assert_eq!(
         partial.level_as_of(opener_id, &joined.hash()),
@@ -99,12 +104,26 @@ fn a_share_link_grants_whoever_opens_it_until_it_is_revoked() {
         }),
     );
     let impostor = RecoveryPhrase::generate().secret();
-    let swapped_keys = Entry::opened(&code, block, granted.hash(), viewer_id, &impostor, Level::Edit);
+    let swapped_keys = Entry::opened(
+        &code,
+        block,
+        granted.hash(),
+        viewer_id,
+        &impostor,
+        Level::Edit,
+    );
     assert!(
         check(&[root.clone(), made.clone(), granted.clone(), swapped_keys]).is_err(),
         "a link's grant replaces no keys the log names for an account"
     );
-    let raised = Entry::opened(&code, block, granted.hash(), viewer_id, &viewer, Level::Edit);
+    let raised = Entry::opened(
+        &code,
+        block,
+        granted.hash(),
+        viewer_id,
+        &viewer,
+        Level::Edit,
+    );
     assert!(
         check(&[root.clone(), made.clone(), granted.clone(), raised]).is_ok(),
         "the same keys raise them"
@@ -113,14 +132,42 @@ fn a_share_link_grants_whoever_opens_it_until_it_is_revoked() {
     // A grantee who took a new phrase opens a link with its new keys, never its retired ones.
     let renewed = RecoveryPhrase::generate().secret();
     let retired = Entry::retirement(&viewer, &renewed, viewer_id, block, granted.hash());
-    let with_new = Entry::opened(&code, block, retired.hash(), viewer_id, &renewed, Level::Edit);
+    let with_new = Entry::opened(
+        &code,
+        block,
+        retired.hash(),
+        viewer_id,
+        &renewed,
+        Level::Edit,
+    );
     assert!(
-        check(&[root.clone(), made.clone(), granted.clone(), retired.clone(), with_new]).is_ok(),
+        check(&[
+            root.clone(),
+            made.clone(),
+            granted.clone(),
+            retired.clone(),
+            with_new
+        ])
+        .is_ok(),
         "a grantee's new keys open a link after its retirement"
     );
-    let with_old = Entry::opened(&code, block, retired.hash(), viewer_id, &viewer, Level::Edit);
+    let with_old = Entry::opened(
+        &code,
+        block,
+        retired.hash(),
+        viewer_id,
+        &viewer,
+        Level::Edit,
+    );
     assert!(
-        check(&[root.clone(), made.clone(), granted.clone(), retired, with_old]).is_err(),
+        check(&[
+            root.clone(),
+            made.clone(),
+            granted.clone(),
+            retired,
+            with_old
+        ])
+        .is_err(),
         "its retired keys open nothing"
     );
 
@@ -131,7 +178,10 @@ fn a_share_link_grants_whoever_opens_it_until_it_is_revoked() {
         Some(Level::None),
         "revoking the link takes back every grant made through it"
     );
-    assert!(checked.outdates(&joined.hash()), "and outdates the epochs before");
+    assert!(
+        checked.outdates(&joined.hash()),
+        "and outdates the epochs before"
+    );
     let path = proof_path(
         LogKind::Block,
         &[root.clone(), made.clone(), joined.clone(), revoked.clone()],
@@ -143,7 +193,14 @@ fn a_share_link_grants_whoever_opens_it_until_it_is_revoked() {
         partial.outdates(&joined.hash()),
         "a path that hides whom a revoked link granted still outdates the epochs before"
     );
-    let late = Entry::opened(&code, block, revoked.hash(), viewer_id, &viewer, Level::View);
+    let late = Entry::opened(
+        &code,
+        block,
+        revoked.hash(),
+        viewer_id,
+        &viewer,
+        Level::View,
+    );
     assert!(
         check(&[root.clone(), made, joined, revoked, late]).is_err(),
         "a revoked link grants no one"

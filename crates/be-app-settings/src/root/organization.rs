@@ -1,6 +1,6 @@
 use be_sdk_beui::be_block::{
-    Allowance, LinkSharing, LostAccess, OfflinePolicy, OfflineSettings, OrganizationPolicies, Settings,
-    SettingsContent, WhoMay,
+    Allowance, LinkSharing, LostAccess, OfflinePolicy, OfflineSettings, OrganizationPolicies,
+    Settings, SettingsContent, WhoMay,
 };
 use be_sdk_beui::be_block_content::be_block_model::Document;
 use be_sdk_beui::be_block_content::{
