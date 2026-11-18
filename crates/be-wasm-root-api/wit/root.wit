@@ -750,7 +750,8 @@ interface host {
     /// The person asked `command` of the block stack, which makes a secret:
     /// answered once it is made, with the secret, handed over this once and
     /// never in `core`, or with nothing if making it failed, why reaching
-    /// `core`.
+    /// `core`. Cancelled before the host took it, it is never made; after,
+    /// the host may have made it by then, and the secret is dropped.
     make-secret: async func(command: secret-command) -> option<core-secret>;
 }
 
