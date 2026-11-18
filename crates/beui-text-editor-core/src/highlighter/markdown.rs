@@ -152,6 +152,15 @@ fn line_look(
         true => skip_spaces(source, content, end),
         false => content,
     };
+    // A code line's spaces past its fence's column are its code's own indentation.
+    let content = match block.filter(|_| list.is_none()) {
+        Some(block) => {
+            let fence = blocks[block].start;
+            let column = fence - memchr::memrchr(b'\n', &source[..fence]).map_or(0, |at| at + 1);
+            content.min((start + column).max(at))
+        }
+        None => content,
+    };
     let marker = match content > lead || (continues && content > start) {
         true => start..content,
         false => start..start,
@@ -168,9 +177,10 @@ fn line_look(
     let look = LineLook {
         marker,
         list: list.map(|(list, _)| list),
-        depth: match list.is_some() || continues {
-            true => lists.saturating_sub(1),
-            false => 0,
+        depth: match (list.is_some() || continues, code_block) {
+            (true, _) => lists.saturating_sub(1),
+            (false, true) => lists,
+            (false, false) => 0,
         },
         continues,
         quote,
