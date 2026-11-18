@@ -249,7 +249,7 @@ impl ServerStore {
     pub async fn resolve_token(&self, token: &str) -> Result<Profile, ServerError> {
         let token = token.to_owned();
         self.with_database(move |_, database| {
-            let token_hash = hash_token(&token);
+            let token_hash = hash_token(TokenKind::Session, &token);
             let now = portal::now();
             let row: Option<(String, String, String, i64)> = database
                 .query_row(
@@ -302,7 +302,7 @@ impl ServerStore {
         self.with_database(move |store, database| {
             database.execute(
                 "DELETE FROM sessions WHERE token_hash = ?1",
-                [hash_token(&token)],
+                [hash_token(TokenKind::Session, &token)],
             )?;
             store.sessions_changed();
             Ok(())
@@ -1341,13 +1341,57 @@ fn issue_token(database: &Connection, account: Uuid) -> Result<String, ServerErr
     let token = Hash::from_bytes(bytes).to_hex();
     database.execute(
         "INSERT INTO sessions (token_hash, account_id, kind, public_id, created, expires) VALUES (?1, ?2, 'app', ?3, ?4, ?5)",
-        params![hash_token(&token), account.to_string(), Uuid::new_v4().to_string(), portal::now(), portal::now() + APP_SESSION_IDLE],
+        params![hash_token(TokenKind::Session, &token), account.to_string(), Uuid::new_v4().to_string(), portal::now(), portal::now() + APP_SESSION_IDLE],
     )?;
     Ok(token)
 }
 
-pub(crate) fn hash_token(token: &str) -> String {
+/// What a secret the server keeps only the hash of is for. Each kind hashes under its own
+/// domain, so a token of one kind never matches a row of another.
+#[derive(Clone, Copy)]
+pub(crate) enum TokenKind {
+    /// A browser's or an app's session (`sessions`).
+    Session,
+    /// A browser's `be3-attempt` secret.
+    Attempt,
+    /// An attempt's name in a mailed code's link ([`codes::public_attempt`]).
+    PublicAttempt,
+    /// A mailed code, with the attempt it belongs to.
+    Code,
+    /// A provider sign-in's `state` (`oidc_states`).
+    ProviderState,
+    /// The settings page's check that a provider link or proof began there
+    /// ([`providers::start_check`]).
+    ProviderStart,
+    /// An email change's link (`account_mail`).
+    MailLink,
+    /// An operator's login link (`login_links`).
+    LoginLink,
+    /// An invite code (`invite_codes`).
+    Invite,
+}
+
+impl TokenKind {
+    fn domain(self) -> &'static str {
+        match self {
+            Self::Session => "be3 session",
+            Self::Attempt => "be3 attempt",
+            Self::PublicAttempt => "be3 public attempt",
+            Self::Code => "be3 code",
+            Self::ProviderState => "be3 provider state",
+            Self::ProviderStart => "be3 provider start",
+            Self::MailLink => "be3 mail link",
+            Self::LoginLink => "be3 login link",
+            Self::Invite => "be3 invite",
+        }
+    }
+}
+
+/// The hash of a `kind` of secret, which is all the server keeps of it.
+pub(crate) fn hash_token(kind: TokenKind, token: &str) -> String {
     let mut hasher = Sha256::new();
+    hasher.update(kind.domain().as_bytes());
+    hasher.update([0]);
     hasher.update(token.as_bytes());
     Hash::from_bytes(hasher.finalize().into()).to_hex()
 }

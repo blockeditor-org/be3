@@ -16,7 +16,7 @@ async fn an_app_token_left_unused_expires_and_one_in_use_is_renewed() {
         metadata_database(&harness.directory)
             .query_row(
                 "SELECT expires FROM sessions WHERE token_hash = ?1",
-                [crate::store::hash_token(token)],
+                [crate::store::hash_token(crate::store::TokenKind::Session, token)],
                 |row| row.get(0),
             )
             .unwrap()
@@ -31,7 +31,7 @@ async fn an_app_token_left_unused_expires_and_one_in_use_is_renewed() {
     metadata_database(&harness.directory)
         .execute(
             "UPDATE sessions SET expires = ?1 WHERE token_hash = ?2",
-            rusqlite::params![now + 60, crate::store::hash_token(&used)],
+            rusqlite::params![now + 60, crate::store::hash_token(crate::store::TokenKind::Session, &used)],
         )
         .unwrap();
     assert!(store.resolve_token(&used).await.is_ok());

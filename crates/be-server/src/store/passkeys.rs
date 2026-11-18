@@ -11,7 +11,7 @@ use uuid::Uuid;
 use webauthn_rs::prelude::{AuthenticationResult, Passkey};
 
 use super::codes::{FRESH_PROOF, Identity, open_browser_session};
-use super::{ServerStore, hash_token, parse_uuid, portal::now};
+use super::{ServerStore, TokenKind, hash_token, parse_uuid, portal::now};
 use crate::ServerError;
 
 fn refused(message: &str) -> ServerError {
@@ -144,7 +144,7 @@ impl ServerStore {
         browser: &str,
         passkey: Passkey,
     ) -> Result<Identity, ServerError> {
-        let browser = hash_token(browser);
+        let browser = hash_token(TokenKind::Session, browser);
         let rp_id = rp_id.to_owned();
         self.with_database(move |_, database| {
             let transaction = be_block_sqlite_schema::write_transaction(database)?;
@@ -244,7 +244,7 @@ impl ServerStore {
         result: AuthenticationResult,
     ) -> Result<(), ServerError> {
         let subject = subject(rp_id, result.cred_id());
-        let browser = hash_token(browser);
+        let browser = hash_token(TokenKind::Session, browser);
         self.with_database(move |_, database| {
             let transaction = be_block_sqlite_schema::write_transaction(database)?;
             note_use(
