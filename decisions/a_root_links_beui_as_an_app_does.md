@@ -1,7 +1,7 @@
 # A root links beui as an app does
 
 A root guest (plans/host_as_platform_adapter.md, The root guest) is built as an app is: a
-linked module in the apps' plan (`wasi-guest`, for `wasm32-wasip1-threads`), linked against the
+linked module in the apps' plan (`wasi-guest`, for single-threaded `wasm32-wasip1`, decisions/guests_are_single_threaded.md), linked against the
 app libraries (base and beui, `app_module` in buck/wasm/defs.bzl), and loaded by be-host as an
 app is (`be_wasm_host::Host::new` on the window's device, `Staged::load`), with app WASI. It
 draws its own surfaces with beui through crates/be-sdk-beui-root. Only the host runs it
@@ -9,8 +9,8 @@ differently: `Root` (crates/be-wasm-root-host) steps that `App` inline on the fr
 than on a thread of its own.
 
 A root still never blocks its thread (plans/host_as_platform_adapter.md, The root guest, Its
-rules), which a linked module allows as a pure one does: nothing it runs waits, its allocator's
-lock is never contended on one thread, and it spawns no threads.
+rules), which a linked module allows as a pure one does: nothing it runs waits, and as every
+guest it is single-threaded, so it can start no threads.
 
 ## Why
 
@@ -25,8 +25,7 @@ lock is never contended on one thread, and it spawns no threads.
   uses (`Host`'s library cache is per flavor, so a pure root would compile beui again).
 - Every guest is to end up on one triple (plans/pure_guests_in_the_apps_plan.md); building the
   root with the apps is that, for the root, already.
-- What a root needs it gets as an app: the host's device (`Host::new` gives it the gpu, with the
-  fast imports its shared memory allows), the sandbox (`be3:sandbox` over its ops connection,
+- What a root needs it gets as an app: the host's device (`Host::new` gives it the gpu), the sandbox (`be3:sandbox` over its ops connection,
   which no flavor changes), and WASI with nothing it cannot have: an app's WASI has no files,
   arguments or environment, only the clocks, randomness, standard error and exiting
   (be-wasm-host's `wasi.rs`, and be-host/web/wasi.js on the page).
@@ -49,9 +48,5 @@ lock is never contended on one thread, and it spawns no threads.
 ## What it costs
 
 - On the web the page runs the root on its main thread (decisions/the_web_page_never_waits.md),
-  so a linked root there needs the page to link its libraries into a shared memory on that
-  thread with `dylink.js` and serve it `wasi.js`, which today only an app's worker does. A
-  shared memory on the main thread is allowed on a cross-origin-isolated page; waiting on it is
-  not, and the root never waits.
-- Once guests are single-threaded (plans/single_threaded_guests.md), the root moves with the
-  apps, as one of them.
+  so a linked root there needs the page to link its libraries into the root's unshared memory
+  on that thread with `dylink.js` and serve it `wasi.js`, which today only an app's worker does.
