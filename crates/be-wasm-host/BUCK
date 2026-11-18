@@ -10,10 +10,6 @@ cargo_test(
     env = {
         "COUNTER_TYPES_WASM": "$(location //crates/be-type-example-counter:module)",
         "GUEST_ECHO_WASM": "$(location //crates/be-wasm-guest-echo:module)",
-        "TLS_DIAMOND_APP_WASM": "$(location //crates/be-tool-tls-diamond-app:module)",
-        "TLS_DIAMOND_BASE_WASM": "$(location //crates/be-tool-tls-diamond-base:module)",
-        "TLS_DIAMOND_LEFT_WASM": "$(location //crates/be-tool-tls-diamond-left:module)",
-        "TLS_DIAMOND_RIGHT_WASM": "$(location //crates/be-tool-tls-diamond-right:module)",
     }
 )
 
@@ -43,8 +39,6 @@ program(
         "//crates/be-wasm-guest-host:guest.js",
         "//crates/be-host:env.js",
         "//crates/be-host:app.js",
-        "//crates/be-host:thread.js",
-        "//crates/be-host:threads.js",
         "//crates/be-host:wasi.js",
     ],
     manifests = [],

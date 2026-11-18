@@ -1,19 +1,17 @@
 //! Carrying out a dynamically linked app's Plan (be-wasm-dylink) on an isolate, as
 //! crates/be-host/web/dylink.js does in the browser: the root library is instantiated first, the
 //! memory grown to hold the rest, and each library and then the app instantiated against
-//! `WebAssembly.Global`s for their addresses and thread-locals, the root's function table, and
-//! the functions earlier modules export.
+//! `WebAssembly.Global`s for their addresses, the root's function table, and the functions
+//! earlier modules export.
 
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use be_wasm_dylink::{
-    APPLY_DATA_RELOCS, CONSTRUCTORS, Described, INIT_TLS, Import, PAGE_SIZE, Plan, STACK_POINTER,
-    TABLE, TLS_BASE,
+    APPLY_DATA_RELOCS, CONSTRUCTORS, Described, Import, PAGE_SIZE, Plan, STACK_POINTER, TABLE,
 };
 
 use crate::engine::{self, Kind, Module};
 use crate::instance::{self, Answers};
-use crate::state::View;
 
 #[derive(Clone)]
 pub(crate) enum Program {
@@ -39,56 +37,6 @@ impl Program {
 
 pub(crate) fn libraries(module: &engine::Shape) -> Result<Vec<String>, String> {
     be_wasm_dylink::libraries(module.exports.iter().map(|export| export.name.as_str()))
-}
-
-pub(crate) struct Linked {
-    pub(crate) plan: Plan,
-    free: Mutex<Vec<u32>>,
-}
-
-impl Linked {
-    /// A thread-local block for a new thread, growing the memory by `grow` for more when none is
-    /// free.
-    pub(crate) fn take(
-        &self,
-        store: &v8::SharedRef<v8::BackingStore>,
-        grow: &mut dyn FnMut(u32) -> Result<u32, String>,
-    ) -> Result<u32, String> {
-        let blocks = self.plan.blocks;
-        if blocks.size == 0 {
-            return Ok(0);
-        }
-        let mut free = self
-            .free
-            .lock()
-            .map_err(|_| "the thread-local blocks were poisoned".to_owned())?;
-        if free.is_empty() {
-            let pages = blocks.pages;
-            let start = grow(pages).map_err(|error| {
-                format!("the memory could not grow for thread-local storage: {error}")
-            })?;
-            let start = start
-                .checked_mul(PAGE_SIZE)
-                .ok_or("thread-local storage lies past a 32-bit address space")?;
-            free.extend(blocks.carve(start, pages).into_iter().rev());
-        }
-        let block = free
-            .pop()
-            .ok_or("no thread-local block fits in the pages grown for them")?;
-        View::of(store)
-            .write(block, &vec![0; blocks.size as usize])
-            .map_err(|_| "thread-local storage ran past the end of the shared memory")?;
-        Ok(block)
-    }
-
-    pub(crate) fn give(&self, block: u32) {
-        if self.plan.blocks.size == 0 {
-            return;
-        }
-        if let Ok(mut free) = self.free.lock() {
-            free.push(block);
-        }
-    }
 }
 
 fn describe(module: &Module, name: String) -> Described {
@@ -149,14 +97,14 @@ pub(crate) fn plan(
     identities: &[String],
     root: v8::Local<v8::Object>,
     memory: v8::Local<v8::Object>,
-) -> Result<Arc<Linked>, String> {
+) -> Result<Plan, String> {
     let described: Vec<Described> = modules
         .iter()
         .enumerate()
         .map(|(index, module)| describe(module, name(modules, index, identities)))
         .collect();
     let pages = be_wasm_dylink::pages(&described)?;
-    let placed = crate::threads::grow(scope, memory, pages)
+    let placed = grow(scope, memory, pages)
         .map_err(|error| format!("the memory could not grow to hold the app: {error}"))?;
     let placed = placed
         .checked_mul(PAGE_SIZE)
@@ -165,16 +113,19 @@ pub(crate) fn plan(
     let size = engine::get(scope, table, "length")
         .and_then(|length| length.uint32_value(scope))
         .ok_or("the function table has no length")?;
-    Ok(Arc::new(Linked {
-        plan: be_wasm_dylink::plan(&described, placed, u64::from(size))?,
-        free: Mutex::new(Vec::new()),
-    }))
+    be_wasm_dylink::plan(&described, placed, u64::from(size))
 }
 
-pub(crate) struct Thread {
-    pub(crate) blocks: u32,
-    pub(crate) root_block: u32,
-    pub(crate) main: bool,
+/// Grows `memory` by `pages`, as `memory.grow` does, answering the pages it had.
+fn grow(
+    scope: &mut v8::PinScope<'_, '_>,
+    memory: v8::Local<v8::Object>,
+    pages: u32,
+) -> Result<u32, String> {
+    let pages = engine::number(scope, f64::from(pages));
+    engine::call(scope, memory, "grow", &[pages])
+        .and_then(|had| had.uint32_value(scope))
+        .ok_or_else(|| "the app memory could not grow".to_owned())
 }
 
 fn fill_slots(
@@ -215,11 +166,9 @@ pub(crate) fn link<'s>(
     scope: &mut v8::PinScope<'s, '_>,
     answers: &Answers<'s>,
     modules: &[Module],
-    linked: &Linked,
+    plan: &Plan,
     root: v8::Local<'s, v8::Object>,
-    thread: &Thread,
 ) -> Result<v8::Local<'s, v8::Object>, String> {
-    let plan = &linked.plan;
     let table = table(scope, root)?;
     let grown = engine::number(scope, f64::from(plan.table_grow as u32));
     engine::call(scope, table, "grow", &[grown])
@@ -232,7 +181,6 @@ pub(crate) fn link<'s>(
         let placed = &plan.modules[index];
         let mut imports = Vec::new();
         let mut own = Vec::new();
-        let mut thread_locals = Vec::new();
         for (import, resolution) in module.shape.imports.iter().zip(&placed.imports) {
             let name = import.name.as_str();
             let resolved: v8::Local<v8::Value> = match *resolution {
@@ -253,11 +201,6 @@ pub(crate) fn link<'s>(
                     own.push((name.to_owned(), entry));
                     entry
                 }
-                Import::ThreadLocal(definer) => {
-                    let entry = engine::global(scope, 0, true)?;
-                    thread_locals.push((name.to_owned(), definer, entry));
-                    entry
-                }
                 Import::Elsewhere => answers.answer(scope, import)?,
             };
             imports.push((import, resolved));
@@ -269,57 +212,17 @@ pub(crate) fn link<'s>(
                 .ok_or_else(|| format!("{name} could not be relocated"))?;
         }
         fill_slots(scope, table, plan, exports, index)?;
-        if thread.main {
-            called(
-                instance::call_export(scope, exports, APPLY_DATA_RELOCS, &[]),
-                "the app's data could not be relocated",
-            )?;
-        }
-        let block = v8::Integer::new_from_unsigned(scope, plan.block(thread.blocks, index)).into();
         called(
-            instance::call_export(scope, exports, INIT_TLS, &[block]),
-            "thread-local storage could not be set up",
+            instance::call_export(scope, exports, APPLY_DATA_RELOCS, &[]),
+            "the app's data could not be relocated",
         )?;
-        let own_base = exported_i32(scope, exports, TLS_BASE).unwrap_or(0) as u32;
-        for (name, definer, entry) in thread_locals {
-            let base = match definer {
-                0 => thread.root_block,
-                _ => exported_i32(scope, instances[definer], TLS_BASE).unwrap_or(0) as u32,
-            };
-            let offset =
-                exported_i32(scope, instances[definer], &name).ok_or_else(|| unexported(&name))?;
-            let slot =
-                be_wasm_dylink::thread_local_slot(base.wrapping_add_signed(offset), own_base);
-            engine::set_global_value(scope, entry, slot)
-                .ok_or_else(|| format!("the thread-local {name} could not be placed"))?;
-        }
-        if thread.main {
-            called(
-                instance::call_export(scope, exports, CONSTRUCTORS, &[]),
-                "the app could not run its constructors",
-            )?;
-        }
+        called(
+            instance::call_export(scope, exports, CONSTRUCTORS, &[]),
+            "the app could not run its constructors",
+        )?;
         instances.push(exports);
     }
     instances
         .pop()
         .ok_or_else(|| "there is no module to link".to_owned())
-}
-
-/// The root's thread-local block on the main thread: none, 0, for a single-threaded root, whose
-/// thread-locals are plain data (decisions/guests_are_single_threaded.md).
-pub(crate) fn main_thread_locals(
-    scope: &mut v8::PinScope<'_, '_>,
-    root: v8::Local<v8::Object>,
-) -> u32 {
-    exported_i32(scope, root, TLS_BASE).map_or(0, |base| base as u32)
-}
-
-pub(crate) fn spawned_thread_locals(
-    store: &v8::SharedRef<v8::BackingStore>,
-    start_argument: i32,
-) -> Result<u32, String> {
-    let at = be_wasm_dylink::spawned_thread_locals(start_argument)?;
-    let bytes = View::of(store).read(at, 4)?;
-    Ok(u32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]))
 }

@@ -134,7 +134,7 @@ the call (`own-memory-web-host-test`). Traps that shape this code:
   it and shows the first screen; the page reads its copy and sends the worker each change
   (decisions/web_host_state_in_a_worker.md).
 - Nothing may spin or poll while it waits; a worker waits with `Atomics.wait` (std's locks and
-  `Condvar`, `web/wasi.js`'s file calls, `web/dylink.js`'s lock), woken by the side that
+  `Condvar`, `web/wasi.js`'s file calls), woken by the side that
   changed the state. A browser traps `memory.atomic.wait` on the page's thread, so the page
   may never wait at all. A module's page entry calls `be_wasm_threads::initialize_page` and a
   worker's `initialize_worker`; `be_wasm_threads::may_wait` tells them apart. The page shares

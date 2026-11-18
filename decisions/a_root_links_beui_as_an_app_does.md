@@ -51,7 +51,7 @@ guest it is single-threaded, so it can start no threads.
 - On the web the page runs the root on its main thread (decisions/the_web_page_never_waits.md),
   so a linked root there needs the page to link its libraries into the root's unshared memory
   on that thread with `dylink.js` and serve it `wasi.js`, which today only an app's worker does.
-- Natively its gpu calls are ordinary V8 calls, slower than fast-API ones, as every
-  single-threaded guest's are (decisions/guests_are_single_threaded.md, What it costs). The root
-  pays that on the frame's critical path, since the host steps it inline, so it gains first from
-  winning the fast path back for an unshared memory (plans/single_threaded_guests.md, step 4).
+- Its gpu calls are on the frame's critical path, since the host steps it inline, so they stay
+  fast-API calls only as every guest's do: where V8's trap handler keeps its unshared memory in
+  place (decisions/guests_are_single_threaded.md, What it costs). Without it each costs about
+  200 ns more.

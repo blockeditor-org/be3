@@ -131,7 +131,6 @@ pub(crate) const PLANS: &[Plan] = &[
         packages: Packages::Only(&[
             Prefix("be-app-", &[]),
             Prefix("be-sdk-library-", &[]),
-            Prefix("be-tool-tls-diamond-", &[]),
             Named("be-wasm-guest-echo"),
             Named("be-sdk-worker-echo"),
             Prefix("be-worker-", &[]),

@@ -24,8 +24,8 @@ hung step. Neither side polls: everything an app says wakes the host, in
 order, and the reverse.
 
 `wasm.rs` runs the guest through `crates/be-wasm-host`, which embeds V8 (the
-rusty_v8 `v8` crate) and runs every wasm guest outside the browser: apps and
-their threads, type modules and the wasm app tests. V8 compiles a module when
+rusty_v8 `v8` crate) and runs every wasm guest outside the browser: apps,
+type modules and the wasm app tests. V8 compiles a module when
 it loads (Liftoff, then TurboFan on hot code); each module's bytes are
 compiled once per process and shared between isolates as a
 `v8::CompiledWasmModule`. Libraries are trimmed as they load to the exports
@@ -33,21 +33,23 @@ the staged apps import (`keep_exports`), since V8 wraps every export of an
 instance. What TurboFan optimised is kept in a code cache
 (`be-wasm-host/src/cache.rs`) under the data directory's `code-cache/`, or
 `BE3_CODE_CACHE` (read-only with `BE3_CODE_CACHE_READ_ONLY`, as the host
-tests read one their build made, crates/be-host-tests/apps.bzl). Each guest thread has an isolate of its own (a
-`v8::SharedIsolate`, locked by the thread that runs it):
+tests read one their build made, crates/be-host-tests/apps.bzl). Each guest is
+single-threaded (decisions/guests_are_single_threaded.md) and has an isolate of
+its own (a `v8::SharedIsolate`, locked by the thread that runs it):
 
 - **Imports.** The gpu and transport imports are generated from
-  `gpu_local_imports!` and `transport_functions!`. They are ordinary V8
-  function calls, since a guest's memory is unshared and may move when it
-  grows (decisions/guests_are_single_threaded.md). Only a guest whose memory
-  is shared, which nothing builds any more, gets V8 fast-API calls, reached
-  from wasm code with no JavaScript between (`--wasm-unsafe-fast-api-wrapper`).
+  `gpu_local_imports!` and `transport_functions!` as V8 fast-API calls,
+  reached from wasm code with no JavaScript between
+  (`--wasm-unsafe-fast-api-wrapper`). A fast call may not ask V8 where the
+  memory is, so it reads the memory's backing store, which stays where it was
+  made: be-wasm-host turns on V8's trap handler, under which a wasm32 memory
+  is reserved in full with guard regions and only ever grows in place
+  (`engine::memories_stay_put`). Where the trap handler cannot be had, the
+  imports are ordinary V8 calls that ask where the memory is each time.
 - **WASI.** Preview1 is implemented in Rust (`src/wasi.rs`). An app gets no
   files, arguments or environment, as `wasi.js` gives it in the browser; the
   test harness also gets arguments, environment, stdout and its preopened
   directories.
-- **Threads.** `thread-spawn` starts an OS thread with a new isolate, handed
-  the shared memory as a serialized `WebAssembly.Memory`.
 - **Linking.** The be-wasm-dylink `Plan` is carried out over the JavaScript
   WebAssembly API, called from Rust, as `crates/be-host/web/dylink.js` does
   in the browser.
@@ -187,10 +189,8 @@ tests read one their build made, crates/be-host-tests/apps.bzl). Each guest thre
   surface edits is `frame-done`'s `ime`. Choosing and saving files are the
   platform's own dialogs, which `be3:root` does not carry yet. `frame-request` carries the frame clock's
   time and the host's wall clock (`wall-clock`), the only clocks a root reads.
-  A root may start no threads: it runs on the host's frame thread, which must
-  never wait on a lock another thread holds, and on the page such a wait
-  traps. Built single-threaded as every guest is, it cannot ask for one, and
-  `Root::start` refuses any it would (`App::refuse_threads`). The root's
+  A root, single-threaded as every guest is, starts no threads, and nothing
+  it runs waits: it runs on the host's frame thread. The root's
   `paintings` export answers what its own surfaces painted, in
   beui-paint-format's `ScreenPaintings` keyed by surface id
   (`Root::ask_paintings`, answered with the next frame's steps as

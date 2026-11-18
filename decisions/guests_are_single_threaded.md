@@ -7,7 +7,8 @@ memory is imported and unshared: the loaders (be-wasm-host natively, `web/app.js
 link an app's libraries into the memory its root library imports, which is not shared. Work that needs another thread runs as an instance of its
 own, a worker (`be_sdk_worker`), spawned through the sandbox API and talking to its app by
 messages. Programs in the browser, such as be-host's web bundle, are not guests and stay
-`wasm32-wasip1-threads`.
+`wasm32-wasip1-threads`, so the page's thread support stays for them (`web/threads.js`,
+`thread.js`, crates/be-wasm-threads); be-wasm-host has none.
 
 Threads are meant to come back once a standard for them has settled, so nothing built meanwhile
 may rule them out. The sandbox API, the app protocol, the library format and be-sdk may not
@@ -32,16 +33,15 @@ and no state kept where a second thread could not reach it.
 - A result crosses between instances as a copy.
 - An instance costs more memory than a thread: it shares the compiled code but has its own heap
   and its own copy of each library's data.
-- Natively, an app's gpu and transport imports are ordinary V8 calls rather than fast-API ones,
-  which read a memory that never moves: an unshared memory may move when it grows. Measured with
+- Natively, an app's gpu and transport imports are V8 fast-API calls, which may not ask V8 where
+  the memory is, and an unshared memory may move when it grows. be-wasm-host turns on V8's trap
+  handler, under which a wasm32 memory is reserved in full with guard regions and only grows in
+  place, so the calls read its backing store, which stays put (`engine::memories_stay_put`);
+  without the trap handler they are ordinary V8 calls. Measured with
   `./scripts/buck run -m release //crates/be-wasm-host:example-gpu-calls` (four render-pass calls
-  in a loop, on a noop device) in November 2026: 61.5 ns a call with a shared memory and 339 ns
-  with an unshared one, fastest of 20 steps, so about 280 ns more a call: 0.28 ms more a frame
-  for every 1,000 gpu calls an app makes in it. How many a real app's frame makes was not
-  counted. That is not negligible, so winning the fast path
-  back for an unshared memory is a follow-up (plans/single_threaded_guests.md, step 4).
-  be-host-bench's `app-canvas-and-text` could not compare the two builds: it fails on the base
-  alone, its text editor not yet showing when it is clicked.
+  in a loop, on a noop device, fastest of 20 steps) in November 2026: 46.7 ns a call with the
+  shared memory guests had, 240.6 ns with an unshared one and ordinary calls, and 43.1 ns with
+  an unshared one and fast calls.
 
 ## Rejected
 
@@ -50,5 +50,3 @@ and no state kept where a second thread could not reach it.
   object compiled with them, so the choice is made for every guest at once.
 - Shared-memory threads between an app and its workers: the same legacy proposal, and the same
   machinery.
-
-See plans/single_threaded_guests.md.

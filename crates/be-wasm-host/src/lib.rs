@@ -1,8 +1,8 @@
-//! The host every wasm guest runs on: apps (with the gpu, WASI and threads), pure guests (type
-//! modules: transport only, and a memory cap) and their libraries, on V8
-//! (decisions/guests_run_on_v8.md).
-//! Each guest thread has an isolate of its own; modules are compiled once and shared between
-//! isolates; the gpu and transport imports are fast-API calls (gpu.rs).
+//! The host every wasm guest runs on: apps (with the gpu and WASI), pure guests (type modules:
+//! transport only, and a memory cap) and their libraries, on V8 (decisions/guests_run_on_v8.md).
+//! Each guest is single-threaded (decisions/guests_are_single_threaded.md) and has an isolate of
+//! its own; modules are compiled once and shared between isolates; the gpu and transport imports
+//! are fast-API calls where memories stay put (gpu.rs).
 
 mod cache;
 mod dylink;
@@ -15,7 +15,6 @@ mod interrupt;
 mod panic;
 pub mod sandbox;
 mod state;
-mod threads;
 mod wake;
 mod wasi;
 
@@ -44,7 +43,6 @@ use engine::{Kind, Module};
 use instance::{Answers, Role};
 use interrupt::Interrupt;
 use state::{Device, Memory};
-use threads::{Share, Spawner};
 use wake::Wake;
 use wasi::Wasi;
 
@@ -479,46 +477,30 @@ impl Running {
             _ => None,
         };
         let memory = match &declared {
+            Some(declared) if declared.shared => {
+                return Err("the app imports a shared memory, and a guest is single-threaded \
+                            (decisions/guests_are_single_threaded.md)"
+                    .to_owned());
+            }
             Some(declared) => {
                 let maximum = match cap {
                     Some(cap) => Some(engine::capped_maximum(declared, cap)?),
                     None => declared.maximum,
                 };
-                Some(engine::memory(
-                    scope,
-                    declared.initial,
-                    maximum,
-                    declared.shared,
-                )?)
+                Some(engine::memory(scope, declared.initial, maximum)?)
             }
             None => None,
-        };
-        let share = match (memory, &declared) {
-            (Some(memory), Some(declared)) if declared.shared => Some(Share::of(scope, memory)?),
-            _ => None,
         };
         if matches!(program, Program::Linked(_)) && memory.is_none() {
             return Err("the root library does not import its memory".to_owned());
         }
-        let handle = isolate.thread_safe_handle();
-        let threads = Spawner::new(
-            program.clone(),
-            share,
-            Arc::clone(wake),
-            Arc::clone(&setup.wasi),
-            Arc::clone(&host.interrupt),
-            handle.clone(),
-        );
+        let handle = Arc::new(isolate.thread_safe_handle());
+        host.interrupt.watch(&handle);
         let state = State {
-            memory: match (&memory, threads.share()) {
-                (_, Some(share)) => Memory::Shared(share.store.clone()),
-                (Some(own), None) => Memory::Own(v8::Global::new(scope, *own)),
-                (None, None) => Memory::None,
+            memory: match memory {
+                Some(memory) => Memory::of(scope, memory),
+                None => Memory::None,
             },
-            memory_object: threads
-                .share()
-                .and(memory)
-                .map(|memory| v8::Global::new(scope, memory)),
             device: host.devices.open(&host.imports),
             imports: Arc::clone(&host.imports),
             error: None,
@@ -526,7 +508,7 @@ impl Running {
             panicked: None,
             returned: Vec::new(),
             transport: Default::default(),
-            threads: Arc::clone(&threads),
+            interrupt: Arc::clone(&host.interrupt),
             wake: Arc::clone(wake),
             wasi: setup.wasi,
             gpu_time: Duration::ZERO,
@@ -546,7 +528,6 @@ impl Running {
         match made {
             Ok(exports) => Ok((state, v8::Global::new(scope, exports))),
             Err(error) => {
-                threads.release();
                 // nothing the failed instance holds runs again.
                 // unsafe(memory)
                 drop(unsafe { Box::from_raw(state.as_ptr()) });
@@ -565,18 +546,18 @@ impl Running {
         initialize_whole: bool,
     ) -> Result<v8::Local<'s, v8::Object>, String> {
         let pure = host.flavor == Flavor::Pure;
-        // no guest runs yet, so nothing else reaches the State.
-        // unsafe(memory)
-        let fast = unsafe { state.as_ref() }.memory.shared().is_some();
         let role = match pure {
             true => Role::Pure {
                 gpu: !matches!(host.devices, Devices::None),
             },
-            false => Role::App { fast },
+            false => Role::App,
         };
+        // A memory the module exports is known only once it is instantiated, and stays put as
+        // one the host makes does.
+        let fast = engine::memories_stay_put();
         let data = v8::External::new(scope, state.as_ptr().cast()).into();
         let answers = Answers {
-            defined: instance::host_functions(scope, data, role, program.modules())?,
+            defined: instance::host_functions(scope, data, role, fast, program.modules())?,
             memory,
             pure,
         };
@@ -591,7 +572,7 @@ impl Running {
                     && let Some(own) =
                         engine::get(scope, first, MEMORY).and_then(|memory| memory.to_object(scope))
                 {
-                    state.memory = Memory::Own(v8::Global::new(scope, own));
+                    state.memory = Memory::of(scope, own);
                 }
                 if initialize_whole {
                     initialize(scope, first)?;
@@ -602,31 +583,7 @@ impl Running {
                 let memory = memory.ok_or("the root library does not import its memory")?;
                 initialize(scope, first)?;
                 let linked = dylink::plan(scope, modules, identities, first, memory)?;
-                // as above.
-                // unsafe(memory)
-                let threads = Arc::clone(&unsafe { state.as_ref() }.threads);
-                // A single-threaded guest's memory is its own and it has no thread-local blocks
-                // (decisions/guests_are_single_threaded.md); a threaded one's are in its shared
-                // memory.
-                let blocks = match threads.share() {
-                    Some(share) => {
-                        let mut grow = |pages| threads::grow(scope, memory, pages);
-                        linked.take(&share.store, &mut grow)?
-                    }
-                    None if linked.plan.blocks.size == 0 => 0,
-                    None => {
-                        return Err("the app has thread-local blocks and its memory is not \
-                                    shared"
-                            .to_owned());
-                    }
-                };
-                let thread = dylink::Thread {
-                    blocks,
-                    root_block: dylink::main_thread_locals(scope, first),
-                    main: true,
-                };
-                threads.linked(Arc::clone(&linked));
-                dylink::link(scope, &answers, modules, &linked, first, &thread)
+                dylink::link(scope, &answers, modules, &linked, first)
             }
         }
     }
@@ -707,7 +664,6 @@ impl Running {
 
 impl Drop for Running {
     fn drop(&mut self) {
-        self.state().threads.release();
         // each is dropped once, here, the handles before their isolate and the
         // State after it.
         // unsafe(memory)
@@ -762,13 +718,6 @@ impl App {
         self.call(Call::Step)
     }
 
-    /// Refuses every thread the app asks to start (`wasi.thread-spawn`), which stops it saying
-    /// so: a root guest, run inline on its host's frame thread, may start none, since a lock
-    /// another thread held would make that thread wait (and trap on the web page's).
-    pub fn refuse_threads(&self) {
-        self.state().threads.refuse();
-    }
-
     pub fn on_wake(&self, notify: impl Fn() + Send + Sync + 'static) {
         self.wake.notify(notify);
     }
@@ -800,10 +749,6 @@ impl App {
             self.stopped = true;
             return Err(INTERRUPTED.to_owned());
         }
-        if let Some(failure) = self.state().threads.take_failure() {
-            self.stopped = true;
-            return Err(failure);
-        }
         if let Err(thrown) = self.run(call) {
             self.stopped = true;
             if self.interrupted() {
@@ -820,7 +765,7 @@ impl App {
             return Err(format!("the app trapped: {thrown}"));
         }
         let state = self.state_mut();
-        match state.take_error().or_else(|| state.threads.take_failure()) {
+        match state.take_error() {
             Some(error) => Err(error),
             None => Ok(()),
         }
@@ -898,14 +843,13 @@ impl App {
             return;
         }
         self.stopped = true;
-        self.state().threads.stop();
         if !self.interrupted() {
             let _ = self.run(Call::Shutdown);
         }
     }
 
     fn interrupted(&self) -> bool {
-        self.state().threads.halts(true)
+        self.state().interrupt.interrupted()
     }
 }
 

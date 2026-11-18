@@ -86,8 +86,8 @@ module names its whole closure, in dependency order, as exported globals
 hash is not its name.
 
 Every linked module carries a `be3.lib` custom section listing its name, the
-libraries it needs, the Rust archives and C libraries it holds, and its
-thread-locals; the linker reads it.
+libraries it needs, and the Rust archives and C libraries it holds; the
+linker reads it.
 
 ## How the links are made
 
@@ -112,11 +112,6 @@ imports, checks every import resolves to exactly one library, and shortens
 mangled symbol names to a hash (`be_wasm_dylink::short_symbol`; the `name`
 section keeps readable names for backtraces).
 
-A crate other crates depend on is linked from a `library.rs` beside its
-`Cargo.toml` that only names the crate, so the module holds the very rlib its
-dependents compiled against; a separate cdylib compile would hash
-differently and its symbols would not match.
-
 ### The root
 
 The root is the module holding std and wasi-libc. Rust's prebuilt std and
@@ -126,44 +121,20 @@ stack, heap and table; it imports the memory the loader makes, and the loader
 places everything else above it
 (decisions/app_library_base_is_a_fixed_address_root.md). Every guest is
 single-threaded `wasm32-wasip1` (decisions/guests_are_single_threaded.md), so
-that memory is not shared.
-
-## Thread-locals
-
-A single-threaded guest has none: LLVM lowers a thread-local to plain data
-when atomics are off, so its modules import no `GOT.tls` and have no
-thread-local blocks, and what follows is left for threaded guests until
-plans/single_threaded_guests.md deletes it.
-
-LLVM compiles a thread-local access as an offset from the module's own
-`__tls_base`, which cannot reach another module's thread-locals, yet an app
-reaches a library's through the generics it instantiates. So the linker
-(`tls.rs`) rewrites each such access in the app's objects into a `global.get`
-of an imported `GOT.tls.<symbol>`, and the loader fills it per thread with the
-symbol's address less the importing module's `__tls_base`
-(`thread_local_slot` in `crates/be-wasm-dylink`). Every module above the
-root gets its own TLS block on every thread, carved from memory the loader
-grows: natively a free list in `be-wasm-host/src/dylink.rs`, in a browser a
-list in the shared memory under a lock (`be-host/web/dylink.js`), since any
-worker may start or end a thread.
-
-`crates/be-tool-tls-diamond-{base,left,right,app}` are an app reaching a
-thread-local in each of three libraries, now on its one thread, run natively
-on V8 (`the_thread_local_diamond_runs_on_its_one_thread`) and in Chromium
-(`//crates/be-tool-tls-diamond-app:web-test`).
+that memory is not shared, and LLVM lowers a thread-local to plain data: no
+module has a thread-local block or imports another's thread-locals.
 
 ## Loading
 
 `crates/be-wasm-dylink` plans the link as plain data (`plan`): where each
-module's data goes, its table slots, what answers each import, and its TLS
-block. `crates/be-wasm-host/src/dylink.rs` (natively, on V8 through the JavaScript
+module's data goes, its table slots and what answers each import. `crates/be-wasm-host/src/dylink.rs` (natively, on V8 through the JavaScript
 WebAssembly API called from Rust) and `crates/be-host/web/dylink.js` (the
 browser, through be-wasm-gpu-shim) only carry it out the same way: instantiate the root against the memory and run
 `_initialize`, grow the memory for the other modules' data, then instantiate
 and relocate each module in order and run its constructors before anything
-above it is instantiated. Each spawned thread links the whole list again from
-the same plan. Everything is linked at start, since a table cannot be shared
-between threads: nothing loads later.
+above it is instantiated, once, on the guest's one thread. Everything is
+linked at start and nothing loads later; with no threads to share a table
+with, a library could, but nothing asks for it yet.
 
 Natively each library is compiled once per process and shared between the
 isolates of every app as a `v8::CompiledWasmModule` (`Host` in be-wasm-host),
@@ -180,15 +151,15 @@ that paints through the gpu.
 
 Every guest speaks the ABI in `crates/be-wasm-guest-abi`. It exports
 `app_start`, `app_step` and `app_shutdown` (no parameters or results),
-optionally `memory`, `_initialize` and `wasi_thread_start`. It may import,
+optionally `memory` and `_initialize`. It may import,
 each only if used:
 
 - `be3_host`: `host_send` and `host_receive` (the frames of its world,
   postcard, guides/type_modules.md), `host_wake` and `host_panic`;
 - the `be3:gpu/device@0.1.0` imports (`gpu_local_imports!` in
   be-wasm-gpu-abi lists them);
-- one memory, `wasi_snapshot_preview1`, and `wasi.thread-spawn`, which needs a
-  shared memory; a spawned thread may only call `host_wake` and `host_panic`.
+- one memory, not shared (a guest is single-threaded,
+  decisions/guests_are_single_threaded.md), and `wasi_snapshot_preview1`.
 
 Any other import is answered by a function that fails when called. A Rust
 guest implements `be_wasm_guest_abi::Guest` and exports it with
