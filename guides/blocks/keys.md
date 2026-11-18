@@ -345,7 +345,7 @@ the kept head, verifying no signature there, and refuses the log as forged
 otherwise, as it does a log at least as long that does not reach the kept
 head (one shorter is checked whole, and withheld). Within a run, a device
 reads a whole log again by naming its last entry (`Peer::served_access`,
-holding the `SERVED_LOGS` logs it read last): the server sends only the entries
+holding those it read last, up to `SERVED_ENTRIES` entries): the server sends only the entries
 after it while its stored log chains to that entry, and the first must name it
 as the one before. The server checks each log once too (`access::checked`): an
 append is checked against the head it kept alone. A proof path is read and
