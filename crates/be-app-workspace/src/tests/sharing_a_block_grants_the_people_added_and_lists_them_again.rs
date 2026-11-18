@@ -36,6 +36,7 @@ fn sharing_a_block_grants_the_people_added_and_lists_them_again() {
         effective: granted.unwrap_or(AccessLevel::None),
         source: granted.map(|_| block.into_bytes()),
         waiting: false,
+        through_link: false,
     };
     fixture.test.answer(
         listing,
@@ -52,6 +53,7 @@ fn sharing_a_block_grants_the_people_added_and_lists_them_again() {
             ],
             company: false,
             set_inside: 0,
+            links_admit: None,
         }),
     );
     fixture.settle();

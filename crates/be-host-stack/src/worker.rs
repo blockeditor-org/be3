@@ -258,6 +258,12 @@ pub(super) enum Command {
         block: Uuid,
         reply: AccessReply,
     },
+    /// Lists, makes or revokes the share links on `block` (guides/blocks/keys.md, "Share
+    /// links").
+    ShareLink {
+        block: Uuid,
+        change: ShareLinkCommand,
+    },
     SetMute {
         block: Uuid,
         mode: be_block_protocol::NotifyMode,
@@ -445,6 +451,7 @@ impl Command {
             Command::SetAccess { .. } => "set access",
             Command::TransferOwnership { .. } => "transfer ownership",
             Command::ListAccess { .. } => "list access",
+            Command::ShareLink { .. } => "share link",
             Command::SetMute { .. } => "set mute",
             Command::ReadHead { .. } => "read head",
             Command::Export { .. } => "export",
@@ -570,6 +577,7 @@ impl Command {
             | Command::SetAccess { block, .. }
             | Command::TransferOwnership { block, .. }
             | Command::ListAccess { block, .. }
+            | Command::ShareLink { block, .. }
             | Command::SetMute { block, .. }
             | Command::ReadHead { block, .. }
             | Command::CreateBlockAgent { block, .. }
@@ -631,6 +639,10 @@ impl Command {
             Command::SetParent { block, .. }
             | Command::SetAccess { block, .. }
             | Command::TransferOwnership { block, .. }
+            | Command::ShareLink {
+                block,
+                change: ShareLinkCommand::Make { .. },
+            }
             | Command::CreateBlockAgent { block, .. }
             | Command::Leave { block, .. }
             | Command::Contact(ContactCommand::Link {
@@ -643,6 +655,34 @@ impl Command {
 }
 
 type MembersReply = Reply<Result<crate::MemberList, String>>;
+
+/// A share link on a block, with the link to send when this account keeps its code (empty
+/// otherwise).
+pub type ShareLinks = Vec<(be_block_protocol::ShareLinkRow, String)>;
+
+#[derive(serde::Deserialize, serde::Serialize)]
+pub(super) enum ShareLinkCommand {
+    List(Reply<Result<ShareLinks, String>>),
+    Make {
+        access: Access,
+        admits: be_block_keys::Admits,
+        reply: LinkReply,
+    },
+    Revoke {
+        link: Uuid,
+        reply: DoneReply,
+    },
+}
+
+impl ShareLinkCommand {
+    fn refuse(self, why: &str) {
+        match self {
+            ShareLinkCommand::List(reply) => reply.send(Err(why.to_owned())),
+            ShareLinkCommand::Make { reply, .. } => reply.send(Err(why.to_owned())),
+            ShareLinkCommand::Revoke { reply, .. } => reply.send(Err(why.to_owned())),
+        }
+    }
+}
 
 /// What a device does with push notifications; a reply is the peer's error as text.
 #[derive(serde::Deserialize, serde::Serialize)]
@@ -2761,6 +2801,7 @@ fn refuse_offline(command: Command, shared: &Arc<Mutex<Shared>>) -> Option<Comma
         Command::Leave { reply, .. } => reply.send(Err(OFFLINE_LEAVING.to_owned())),
         Command::ApprovePairing { reply, .. } => reply.send(Err(OFFLINE_PAIRING.to_owned())),
         Command::ListAccess { reply, .. } => reply.send(Err(NEEDS_CONNECTION.to_owned())),
+        Command::ShareLink { change, .. } => change.refuse(NEEDS_CONNECTION),
         Command::SetMute { reply, .. } => reply.send(Err(NEEDS_CONNECTION.to_owned())),
         Command::Members(
             MembersCommand::List(reply)
@@ -2865,6 +2906,11 @@ impl Ran<'_> {
             }
             Command::Contact(command) => {
                 contact(self.peer, self.shared, self.config, self.tasks, command).await;
+                false
+            }
+            Command::ShareLink { block, change } => {
+                share_link(self.peer, self.shared, self.config, block, change).await;
+                crate::changes::wake();
                 false
             }
             Command::Authorship(command) => {
@@ -3139,6 +3185,54 @@ async fn members(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, command: 
     };
     reply.send(listed.map_err(|error| error.to_string()));
     crate::changes::wake();
+}
+
+/// Lists, makes or revokes the share links on `block`; a link is answered as the address to
+/// send (`invite_link::share_link`).
+async fn share_link(
+    peer: &Arc<Peer<Store>>,
+    shared: &Arc<Mutex<Shared>>,
+    config: &Config,
+    block: Uuid,
+    change: ShareLinkCommand,
+) {
+    let base = crate::accounts::link_base(&config.server_url);
+    let url = |code: &be_block_keys::InviteCode| crate::invite_link::share_link(&base, code);
+    match change {
+        ShareLinkCommand::List(reply) => {
+            let listed = peer.share_links(block).await.map(|links| {
+                links
+                    .into_iter()
+                    .map(|(row, code)| (row, code.map(|code| url(&code)).unwrap_or_default()))
+                    .collect()
+            });
+            reply.send(listed.map_err(|error| error.to_string()));
+        }
+        ShareLinkCommand::Make {
+            access,
+            admits,
+            reply,
+        } => {
+            let made = peer.make_share_link(block, access, admits).await;
+            tend(peer, shared).await;
+            reply.send(
+                made.map(|code| url(&code))
+                    .map_err(|error| error.to_string()),
+            );
+        }
+        ShareLinkCommand::Revoke { link, reply } => {
+            let revoked = async {
+                let links = peer.share_links(block).await?;
+                let Some((row, _)) = links.iter().find(|(row, _)| row.id == link) else {
+                    return Ok(());
+                };
+                peer.revoke_share_link(block, row).await
+            }
+            .await;
+            tend(peer, shared).await;
+            reply.send(revoked.map_err(|error| error.to_string()));
+        }
+    }
 }
 
 async fn invitations(peer: &Peer<Store>, config: &Config, command: InvitationsCommand) {
@@ -3614,6 +3708,7 @@ async fn serve_command(
             reply.send(listed);
             crate::changes::wake();
         }
+
         Command::ReadHead {
             block,
             commit,
@@ -3693,6 +3788,7 @@ async fn apply(
         Command::SetAccess { .. }
         | Command::TransferOwnership { .. }
         | Command::ListAccess { .. }
+        | Command::ShareLink { .. }
         | Command::ReadHead { .. }
         | Command::Leave { .. }
         | Command::ApprovePairing { .. }

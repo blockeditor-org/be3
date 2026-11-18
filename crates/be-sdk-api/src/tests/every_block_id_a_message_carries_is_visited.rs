@@ -29,9 +29,11 @@ fn every_block_id_a_message_carries_is_visited() {
             effective: AccessLevel::Edit,
             source: Some([1; 16]),
             waiting: false,
+            through_link: false,
         }],
         company: false,
         set_inside: 0,
+        links_admit: None,
     };
     let mut command = VersionCommand::Adopt { block_id: [1; 16] };
     let mut visit = |role, block_id: &mut [u8; 16]| {

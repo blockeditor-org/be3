@@ -580,6 +580,8 @@ answers!(FromPage, from_page, Page {
     Mailbox => Vec<Message>,
     Link => Link,
     Invitation => InvitationPreview,
+    ShareLink => ShareLink,
+    ShareLinks => Vec<ShareLinkRow>,
     DownloadUrls => Vec<Option<String>>,
     ServerInfo => ServerInfo,
     Mutes => Vec<BlockMute>,

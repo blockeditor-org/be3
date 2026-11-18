@@ -18,8 +18,8 @@ use be_sdk_beui::beui::{NodeId, Rect};
 use be_sdk_beui::{
     AccessLevel, AccessListing, BlockFilter, ChildState, ContactsWatch, DisplaysWatch, Editor,
     EditorHost, Failure, FocusedBlock, HostPanel, HostProgram, HostWindow, HostWindowId,
-    MutesWatch, NotifyMode, PickAnchor, PickedBlock, ProgramsWatch, Pushed, ShellDialog,
-    WindowsWatch,
+    MutesWatch, NotifyMode, PickAnchor, PickedBlock, ProgramsWatch, Pushed, ShareLink,
+    ShellDialog, WindowsWatch,
 };
 use be_sdk_beui::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks, ChildTarget};
 use uuid::Uuid;
@@ -88,6 +88,12 @@ pub struct Workspace {
     /// again, so read it through `share_members`, which waits for the one of the shown block.
     share_listing: AsyncMemo<Option<(Uuid, AccessListing)>>,
     pub(crate) share_members: Memo<Ready<AccessListing>>,
+    /// The share links on the block the share dialog shows, as the host lists them for a
+    /// manager, with the block it lists; read through `share_links`.
+    share_links_listed: AsyncMemo<Option<(Uuid, Vec<ShareLink>)>>,
+    /// The share links of the block shown, once listed; none while they are listed, or when
+    /// the account may not list them.
+    pub(crate) share_links: Memo<Option<Vec<ShareLink>>>,
     pub(crate) windows: Memo<Vec<HostWindow>>,
     pub(crate) programs: Signal<Programs>,
     pub(crate) heard: Signal<HashMap<TabId, Heard>>,
@@ -128,6 +134,25 @@ impl Workspace {
                 }
             })
         };
+        let share_links_listed = {
+            let host = editor.host();
+            create_async_memo(move || {
+                let asked = shared.get().map(|block| (block, host.share_links(block)));
+                async move {
+                    let Some((block, asked)) = asked else {
+                        return Ok(None);
+                    };
+                    Ok(Some((block, be_sdk_beui::answer(asked).await?)))
+                }
+            })
+        };
+        let share_links = create_memo(move || {
+            let shown = shared.get();
+            share_links_listed.with(|listed| match listed {
+                Ok(Some((block, links))) if Some(*block) == shown => Some(links.clone()),
+                _ => None,
+            })
+        });
         let share_members = create_memo(move || {
             let shown = shared.get();
             share_listing.with(|listing| match listing {
@@ -189,6 +214,8 @@ impl Workspace {
             share,
             share_listing,
             share_members,
+            share_links_listed,
+            share_links,
             windows,
             programs: create_signal(Programs::new()),
             heard: create_signal(HashMap::new()),
@@ -500,7 +527,7 @@ impl Workspace {
         self.forget_share();
         if let OpenDialog::Share(block) = dialog {
             self.share.set(Some(Share::new(block)));
-            self.share_listing.refresh();
+            self.relist_links();
         }
         self.dialog.set(Some(dialog));
     }
@@ -552,6 +579,36 @@ impl Workspace {
                 self.state.value().share_asks.borrow_mut().push(task);
                 share.inviting = Some(ask);
             }
+            self.share.set(Some(share));
+            return;
+        }
+        if let ShareAction::MakeLink = action {
+            if share.making_link.is_none() {
+                share.error = None;
+                let ask = self.ask_number();
+                let workspace = *self;
+                let asked =
+                    self.host()
+                        .make_share_link(share.block, share.link_access, share.link_admits);
+                let task = self.editor.then(asked, move |made| {
+                    workspace.link_made(ask, made.map(|_| ()));
+                });
+                self.state.value().share_asks.borrow_mut().push(task);
+                share.making_link = Some(ask);
+            }
+            self.share.set(Some(share));
+            return;
+        }
+        if let ShareAction::RevokeLink(link) = &action {
+            share.error = None;
+            let workspace = *self;
+            let asked = self.host().revoke_share_link(share.block, link);
+            // Listed again once it is done: whom it granted lose their access then.
+            let task = self.editor.then(asked, move |revoked| match revoked {
+                Ok(()) => workspace.relist_links(),
+                Err(failure) => workspace.access_set(Err(failure)),
+            });
+            self.state.value().share_asks.borrow_mut().push(task);
             self.share.set(Some(share));
             return;
         }
@@ -611,6 +668,27 @@ impl Workspace {
         share.error = Some(failure.to_string());
         self.share.set(Some(share));
         self.share_listing.refresh();
+    }
+
+    /// The share dialog's people and links, listed again.
+    fn relist_links(&self) {
+        self.share_listing.refresh();
+        self.share_links_listed.refresh();
+    }
+
+    fn link_made(&self, ask: u64, made: Result<(), Failure>) {
+        let Some(mut share) = self.share.get_untracked() else {
+            return;
+        };
+        if share.making_link != Some(ask) {
+            return;
+        }
+        share.making_link = None;
+        if let Err(error) = made {
+            share.error = Some(error.to_string());
+        }
+        self.share.set(Some(share));
+        self.relist_links();
     }
 
     fn contact_made(&self, ask: u64, made: Result<String, Failure>) {

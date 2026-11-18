@@ -2,6 +2,7 @@ use be_block_keys::InviteCode;
 
 const INVITE: &str = "#invite/";
 const CONTACT: &str = "#contact/";
+const SHARE: &str = "#share/";
 
 pub fn link(base: &str, code: &InviteCode) -> String {
     format_link(base, INVITE, code)
@@ -9,6 +10,11 @@ pub fn link(base: &str, code: &InviteCode) -> String {
 
 pub fn contact_link(base: &str, code: &InviteCode) -> String {
     format_link(base, CONTACT, code)
+}
+
+/// A share link (guides/blocks/keys.md, "Share links"): `{server}/#share/{CODE}`.
+pub fn share_link(base: &str, code: &InviteCode) -> String {
+    format_link(base, SHARE, code)
 }
 
 fn format_link(base: &str, marker: &str, code: &InviteCode) -> String {
@@ -33,6 +39,10 @@ impl InviteLink {
 
     pub fn parse_contact(text: &str) -> Option<Self> {
         Self::parse_marked(text, CONTACT)
+    }
+
+    pub fn parse_share(text: &str) -> Option<Self> {
+        Self::parse_marked(text, SHARE)
     }
 
     fn parse_marked(text: &str, marker: &str) -> Option<Self> {

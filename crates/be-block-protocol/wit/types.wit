@@ -69,6 +69,16 @@ interface types {
         guest,
     }
 
+    /// Who may open a share link (be_block_keys::Admits).
+    enum link-admits {
+        /// Members of the block's organization: in the personal
+        /// organization, every account.
+        members,
+        /// Any account on the server; one from outside the organization
+        /// joins it as a guest.
+        anyone,
+    }
+
     enum organization-kind {
         company,
         personal,
