@@ -743,7 +743,9 @@ fn LinkRow(
 ) -> NodeId {
     let described = create_memo(move || {
         link.get()
-            .map(|link| offered.with(|offered| Share::describe_link(&link, company.get(), me, offered)))
+            .map(|link| {
+                offered.with(|offered| Share::describe_link(&link, company.get(), me, offered))
+            })
             .unwrap_or_default()
     });
     let url = create_memo(move || link.get().map(|link| link.url).unwrap_or_default());

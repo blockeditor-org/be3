@@ -264,8 +264,13 @@ fn HostMenu(
             />
         };
     }
+    // The popover starts at a size of its own and grows to what the menu reports, and the rows
+    // measure only what that start gave them: what they need is that plus what their scroll
+    // holds beyond its viewport, so the popover grows to them, and only a window too short for
+    // them scrolls, in the menu's own scroll.
+    let scrolled = create_signal(beui::ScrollPosition::ZERO);
     let rows = view! {
-        <MenuRows active=true items />
+        <MenuRows active=true items on_scroll={move |position| scrolled.set(position)} />
     };
     if let Some(report) = report {
         let held = NodeRef::new();
@@ -287,18 +292,13 @@ fn HostMenu(
         let measured = measure(rows);
         create_effect(move || {
             if let Some(measured) = measured.get() {
-                report.size.set(Some(measured.rect.size()));
+                let beyond = scrolled.with(|scrolled| (scrolled.content - scrolled.viewport).max(0.0));
+                report.size.set(Some(measured.rect.size() + beui::vec2(0.0, beyond)));
             }
         });
     }
-    // The popover starts at a size of its own and grows to what the menu reports, so the menu
-    // reports what its rows need rather than what that start left them: inside a vertical
-    // scroll they lay out at their full height (their width is still the popover's), so the
-    // popover grows to them, and only a window too short for them scrolls.
     view! {
-        <Scroll direction=beui::Direction::Vertical>
-            <Frame align={beui::Align2::START}>{rows}</Frame>
-        </Scroll>
+        <Frame align={beui::Align2::START}>{rows}</Frame>
     }
 }
 
