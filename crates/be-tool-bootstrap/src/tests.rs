@@ -1,6 +1,7 @@
 use super::*;
 
 mod a_crate_has_a_test_target_unless_its_macro_is_told_not_to;
+mod a_crate_whose_only_tests_are_named_runs_them_by_their_name;
 mod a_tar_file_is_found_by_its_long_name;
 mod a_test_is_named_by_its_module_path;
 mod ci_names_the_changed_paintings_before_the_bxl_script;
