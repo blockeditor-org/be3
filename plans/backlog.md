@@ -476,16 +476,6 @@ Depends on #686 (session catch-ups replaced by server ordering).
   device holding the old secret (or the reseal, which could carry an opened
   copy) follows it, with a test where both accounts take new phrases at once.
 
-- **A contact's name as they rename.** A contact's name and email are the
-  card's from when the two connected (guides/blocks/keys.md, Contacts), so a
-  contact who renames keeps the old name on their contacts' devices until they
-  connect again. A name is changed in the server's portal, where no device key
-  can sign it. Done: each account's devices publish a card signed with its
-  identity key whenever its name changes (noticed from the account's row), the
-  server keeps the newest and lists it with the contact, and a device shows the
-  newest card that its pinned key signs, shown by a client test where a
-  contact renames and the server's forged rename is refused.
-
 ## 19. Local accounts
 
 - **Share and Access offered with no server.** A local account's block menus

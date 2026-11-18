@@ -467,6 +467,12 @@ interface server {
         /// epoch of the account's block (`be_block::account_block`), sealed to
         /// the new key alone, as a `put-keys` rotation.
         set-recovery-key(set-recovery-key),
+        /// Publishes the account's name card (`be_block_keys::NameCard`,
+        /// signed with its signing key), which `signing-keys` serves its
+        /// contacts. The server keeps it only when it names the caller, its
+        /// current signing key signed it, and it is dated after the one it
+        /// holds. A new recovery key drops it. The account's own.
+        publish-name(list<u8>),
         /// Registers or forgets this device's push endpoint for the account in
         /// the organization. An account keeps at most
         /// `limits::MAX_PUSH_ENDPOINTS` per organization, the oldest going

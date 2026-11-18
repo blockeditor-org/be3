@@ -511,11 +511,51 @@ impl<S: ObjectStore> Peer<S> {
             &pinned,
         )
         .await?;
+        let contacts = self.named(contacts).await;
         self.adopt_contacts(&contacts);
         // Keys a contact sealed before this device verified it open now, and arrive as any key
         // that opens does (`KeyBook::on_opened`).
         self.keys.absorb(KeySet::default());
         Ok(contacts)
+    }
+
+    /// `contacts`, each confirmed one named by the newest name card the server holds for it
+    /// that its verified signing key signs (`be_block_keys::NameCard`): a contact who renamed
+    /// shows the new name, and a card the server made up, which no key of theirs signs, shows
+    /// nothing. As listed when the server cannot say.
+    async fn named(&self, mut contacts: Vec<crate::Contact>) -> Vec<crate::Contact> {
+        let asked: Vec<Uuid> = contacts
+            .iter()
+            .filter(|contact| contact.signing.is_some())
+            .map(|contact| contact.account)
+            .collect();
+        if asked.is_empty() {
+            return contacts;
+        }
+        let Ok(Ok(served)) = be_block_protocol::read::<Vec<be_block_protocol::SigningKey>, _>(
+            &self.connection(),
+            Some(self.organization),
+            be_block_protocol::Query::SigningKeys(asked),
+        )
+        .await
+        else {
+            return contacts;
+        };
+        for contact in &mut contacts {
+            let Some(signing) = contact.signing else {
+                continue;
+            };
+            let card = served
+                .iter()
+                .find(|served| served.account == contact.account)
+                .and_then(|served| be_block_keys::NameCard::open(&served.name, &signing))
+                .filter(|card| card.account == contact.account.into_bytes());
+            if let Some(card) = card {
+                contact.display_name = card.display_name;
+                contact.email = card.email;
+            }
+        }
+        contacts
     }
 
     pub async fn leave(&self, block: Uuid) -> Result<(), ClientError> {

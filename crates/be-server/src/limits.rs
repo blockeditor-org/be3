@@ -66,6 +66,8 @@ pub const LISTING_PAGE_BYTES: usize = MAX_FRAME_BYTES / 8;
 pub const MAX_SEALED_BYTES: usize = 64 * 1024;
 /// Accounts named in one `query.signing-keys`: more than a chat shows at once.
 pub const MAX_SIGNING_KEYS_ASKED: usize = 1_024;
+/// Bytes in one published name card (`publish-name`): a name and an email, with room to spare.
+pub const MAX_NAME_CARD_BYTES: usize = 4 * 1024;
 /// Ops one `write` applies in one transaction, which holds the database meanwhile.
 pub const MAX_OPS_PER_WRITE: usize = 256;
 /// A pairing message between an account's connections.

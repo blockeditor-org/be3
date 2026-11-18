@@ -182,6 +182,9 @@ pub struct Connection {
     /// What reaching the account's block learned, kept for the next pass
     /// (`AccountRecords::open`).
     pub(crate) account_block: Mutex<Option<crate::peer::account_block::Reached>>,
+    /// The name and email the server greeted it with, until the peer published them as the
+    /// account's name card (`Peer::publish_name`).
+    pub(crate) greeted: Mutex<Option<(String, String)>>,
 }
 
 impl Caller for Connection {
@@ -253,6 +256,10 @@ impl Connection {
             registry: Mutex::new(Registry::default()),
             clock: clock.clone(),
             account_block: Mutex::new(None),
+            greeted: Mutex::new(Some((
+                signed_in.display_name.clone(),
+                signed_in.email.clone(),
+            ))),
         });
         spawn(worker(
             Carried {
@@ -290,6 +297,7 @@ impl Connection {
             registry: Mutex::new(Registry::default()),
             clock: Clock::real(),
             account_block: Mutex::new(None),
+            greeted: Mutex::new(None),
         })
     }
 
