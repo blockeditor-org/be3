@@ -234,7 +234,7 @@ impl<K: Clone + Hash + Eq + 'static> VirtualListNode<K> {
         );
         let pinned = doc.pinned_to_end() == Some(self.direction);
         let before = self.metrics.total();
-        let rows = match pinned {
+        let mut rows = match pinned {
             true => self.rows_from_end(doc, list, painter, window, main.unwrap_or(before), cross),
             false => self.rows_from_anchor(doc, list, painter, window, main, cross, at_start),
         };
@@ -242,7 +242,8 @@ impl<K: Clone + Hash + Eq + 'static> VirtualListNode<K> {
         self.measure_held(doc, list, painter, &mut held, cross);
         // The origin, which the next layout lays the rows out from, is the anchor while it is
         // built, else the first row built. The shift is the origin's: how far the rows measured
-        // so far moved it, which the offset takes up so it stays where it is shown.
+        // so far moved it. The rows are placed where it puts them, which is where they settle,
+        // and the offset takes it up so they stay where they are shown.
         let origin = self
             .anchor
             .as_ref()
@@ -259,8 +260,11 @@ impl<K: Clone + Hash + Eq + 'static> VirtualListNode<K> {
                 0.0
             }
         };
+        for row in &mut rows {
+            row.position += shift;
+        }
         for row in &mut held {
-            row.position = self.metrics.position(row.index) - shift;
+            row.position = self.metrics.position(row.index);
         }
         self.keep(rows, held);
         shift
