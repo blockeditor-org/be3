@@ -9,7 +9,7 @@ fn a_panic_before_the_end_of_the_log_is_still_reported() {
         String::new(),
     ];
     log.extend((0..100).map(|frame| format!("  {frame}: a backtrace frame")));
-    let report = log_report(&log.join("\n"));
+    let report = log_report("be-host", &log.join("\n"));
     assert!(
         report.contains("panicked at crates/be-host/src/be.rs:1:1:\nthe replica was gone"),
         "the panic and its message are reported, got {report}"
@@ -20,6 +20,6 @@ fn a_panic_before_the_end_of_the_log_is_still_reported() {
     );
     assert!(report.ends_with("  99: a backtrace frame"));
 
-    let short = log_report("one\ntwo");
-    assert_eq!(short, "The end of the app's log:\none\ntwo");
+    let short = log_report("be-host", "one\ntwo");
+    assert_eq!(short, "The end of be-host's log:\none\ntwo");
 }
