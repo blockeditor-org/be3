@@ -73,12 +73,12 @@ pub trait Descriptions {
 
 impl<A> Run<A> {
     /// A first run, told `preferences` with its hello (`Run::preferences`).
-    pub fn new(session: Session, holds_textures: bool, preferences: Preferences) -> Self {
+    pub fn new(session: Session, draws_presents: bool, preferences: Preferences) -> Self {
         Self {
             session,
             queued: Vec::new(),
             holds: Holds::default(),
-            shown: Shown::new(holds_textures),
+            shown: Shown::new(draws_presents),
             presents: Presents::default(),
             pacing: Pacing::default(),
             screens: Vec::new(),

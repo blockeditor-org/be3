@@ -31,12 +31,6 @@ Fixed items are removed as they land.
   `navigator.share`, Android's send intent) and says whether it has one, with
   a Share button in the Invite member dialog where it does, and in beui-demo.
 
-- **A view shown again on the web.** A dock tab or bar shown again (a text's format bar after
-  a tab switch) can draw empty for a frame in a browser: the native host keeps a hidden view's
-  last frame until its app draws it anew (guides/apps/runtime.md), but the web's surfaces are the
-  app worker's canvases and it keeps none. Done when the web keeps a hidden view's last canvas
-  frame the same way, with a web test that shows it again before its app answers.
-
 - **The host's canvas when a page grows.** In headless Chromium, the first frame after the page
   grows still shows be-host's own chrome at the old width, with the page background beyond,
   although beui-platform-web runs a frame from its `ResizeObserver` (`resized` in web.rs). Next
