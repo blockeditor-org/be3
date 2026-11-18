@@ -14,7 +14,7 @@ fn counted(block: Uuid, expected: i64) {
 
 /// An editor's tentative gesture, named by its id, is held while an edit outside it is written,
 /// and written when it commits; one of its gestures cancelled meanwhile writes nothing
-/// (plans/tentative_gestures.md).
+/// (guides/type_modules.md, Tentative gestures).
 #[test]
 fn a_tentative_gesture_is_written_when_it_commits() {
     let harness = be_host_testing::Harness::start();

@@ -162,9 +162,9 @@ fn StorageRow(editor: Editor) -> NodeId {
 const PUSH_DENIED: &str =
     "Notifications are blocked for this site. Allow them in the browser's site settings.";
 
-/// Whether this device shows notifications while the app is closed (plans/notifications.md),
-/// for hosts that can receive pushes; the host asks for the person's permission when it is
-/// turned on, so this runs in their press.
+/// Whether this device shows notifications while the app is closed
+/// (guides/running/android.md, "Push notifications"), for hosts that can receive pushes; the
+/// host asks for the person's permission when it is turned on, so this runs in their press.
 #[component]
 fn PushRow(editor: Editor, device: Memo<Option<PushDevice>>) -> NodeId {
     let on = create_memo(move || device.get() == Some(PushDevice::On));

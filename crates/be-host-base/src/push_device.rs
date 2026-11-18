@@ -1,7 +1,7 @@
-//! Whether this device shows notifications pushed to it (plans/notifications.md): the
-//! state apps watch and the switch they turn. A host that can receive pushes (the web
-//! build, and Android through UnifiedPush) installs a `Handler` and keeps the state; every
-//! other host leaves it `Unsupported`.
+//! Whether this device shows notifications pushed to it (guides/blocks/server.md,
+//! "Notifications"): the state apps watch and the switch they turn. A host that can receive
+//! pushes (the web build, and Android through UnifiedPush) installs a `Handler` and keeps the
+//! state; every other host leaves it `Unsupported`.
 
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;

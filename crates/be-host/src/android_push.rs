@@ -1,8 +1,9 @@
 //! Push notifications on Android, through a UnifiedPush distributor
-//! (decisions/android_push_via_unifiedpush.md, plans/notifications.md). The Java side
-//! (`android/java/com/be3/host`) registers with the distributor and receives its broadcasts in
-//! `PushReceiver`, which may run with no activity: it loads this library and calls the
-//! `native*` entries here, which work from the files directory alone. The endpoint the
+//! (decisions/android_push_via_unifiedpush.md, guides/running/android.md, "Push
+//! notifications"). The Java side (`android/java/com/be3/host`) registers with the
+//! distributor and receives its broadcasts in `PushReceiver`, which may run with no activity:
+//! it loads this library and calls the `native*` entries here, which work from the files
+//! directory alone. The endpoint the
 //! distributor gives is kept in the host state with this device's RFC 8291 keys
 //! (`be_host_stack::device_push`) and registered with the server for each organization the host
 //! opens (`sync`).

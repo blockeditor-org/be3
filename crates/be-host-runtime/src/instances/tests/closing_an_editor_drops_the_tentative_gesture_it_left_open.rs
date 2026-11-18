@@ -13,7 +13,7 @@ fn counted(block: Uuid, expected: i64) {
 }
 
 /// The tentative gestures an editor left open when it goes, two here (two fingers), are each
-/// cancelled, and their held edits are never written (plans/tentative_gestures.md).
+/// cancelled, and their held edits are never written (guides/type_modules.md, Tentative gestures).
 #[test]
 fn closing_an_editor_drops_the_tentative_gesture_it_left_open() {
     let harness = be_host_testing::Harness::start();

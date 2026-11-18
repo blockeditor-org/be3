@@ -86,8 +86,8 @@ fn gesture(editor: u64, id: u64) -> GestureId {
     }
 }
 
-/// A replica in miniature, as plans/tentative_gestures.md shapes it: `written` is what was
-/// written, and the tentative layer's edits sit on it, held, until the layer commits.
+/// A replica in miniature, as guides/type_modules.md (Tentative gestures) shapes it: `written`
+/// is what was written, and the tentative layer's edits sit on it, held, until the layer commits.
 #[derive(Default)]
 struct Desk {
     written: Cells,

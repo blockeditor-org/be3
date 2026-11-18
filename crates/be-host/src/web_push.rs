@@ -1,7 +1,7 @@
 //! What the page's push notifications (web/push.js, web/sw.js) call into the host:
 //! subscribing registers an endpoint with the server, the service worker hands a push
 //! to be opened and named, and pressing a notification asks the host to open its block.
-//! plans/notifications.md has the design.
+//! guides/blocks/server.md, "Notifications", has the design.
 
 use be_block_protocol::{PushEndpoint, PushMessage, PushService};
 use tokio::sync::oneshot;

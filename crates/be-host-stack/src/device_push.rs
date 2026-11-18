@@ -1,4 +1,4 @@
-//! A push notification as this device shows it (plans/notifications.md). The web build's
+//! A push notification as this device shows it (guides/blocks/client.md). The web build's
 //! browser decrypts a push and hands the page a `PushMessage` (be-host's `web_push`); a device
 //! with no browser to do that (Android's UnifiedPush receiver) is handed the RFC 8291 body
 //! itself, decrypts it with the keys it keeps in the host state, and opens it here, whether the

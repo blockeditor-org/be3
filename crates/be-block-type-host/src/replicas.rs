@@ -5081,8 +5081,9 @@ pub type Loads = (
 ///   head the replica takes once it replayed it.
 /// - For the server's journal, such a seal is an ancestor of `head` along seals (the server lost
 ///   the seal's rebase, and the outbox published the seal and those made on it since): the same,
-///   with that seal as the sealed head; the replica hears of `head` after. Plan step 1 of
-///   plans/simpler_server_api.md removes this case, as a seal then carries its journal base.
+///   with that seal as the sealed head; the replica hears of `head` after. Leases from the
+///   order closed the cause; the case stays until no path is shown to reach it
+///   (plans/backlog.md, "A lost seal's rebase with a merge above it").
 /// - The server's journal otherwise: that journal on its own base, which the replica opens on
 ///   because the order goes on from there (it hears of `head` after, and its holder merges it
 ///   in).

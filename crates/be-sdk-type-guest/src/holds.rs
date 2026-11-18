@@ -1,6 +1,6 @@
 //! Which of a block's editor messages its tentative gestures hold, followed from the messages
 //! alone, so the host keeping them to give again and the replica counting them agree on every
-//! one (plans/tentative_gestures.md, Counting and replay).
+//! one (guides/type_modules.md, Tentative gestures).
 //!
 //! A tentative gesture's begin, commit and cancel never count as local edits. Its operations
 //! count once the layer commits: when the last open tentative gesture of the block ends, every
