@@ -126,6 +126,8 @@ struct RootShell {
     /// What the window's clipboard answered the root's pastes with, by their ids, until the
     /// root is handed them.
     pasted: Rc<RefCell<Vec<(u64, Option<ClipItem>)>>>,
+    /// The memory rows the root was last handed while it watches the host's statistics.
+    memory: Option<MemoryRows>,
 }
 
 /// What a root's frame asks of its window (`frame-done`'s `cursor`, `pointer-locked` and
@@ -169,6 +171,7 @@ impl RootShell {
             waker: None,
             notices: None,
             pasted: Rc::default(),
+            memory: None,
         }
     }
 
@@ -233,7 +236,7 @@ impl RootShell {
                 .clock
                 .deadline(self.pass, context.clock_stopped(), since(Instant::now()));
         show_notices(root, &mut self.notices);
-        show_statistics(root);
+        show_statistics(root, &mut self.memory);
         for (id, item) in self.pasted.take() {
             root.answer_paste(id, item.as_ref().map(be_sdk_api::ops::encode));
         }
@@ -470,42 +473,69 @@ fn show_notices(root: &mut Root, seen: &mut Option<u64>) {
 }
 
 /// Hands `root` the host's statistics while it watches them (`host.watch-statistics`), and
-/// measures be-host's memory only then, as be-host's own debug panels do: the sampling thread
-/// wakes the window for each sample while it is watched, and each frame hands the root what
-/// changed.
-fn show_statistics(root: &mut Root) {
+/// measures be-host's memory only then, writing it nowhere: the sampling thread parks while
+/// nothing watches and wakes the window for each sample while the root does, and each frame
+/// hands the root what changed.
+fn show_statistics(root: &mut Root, memory: &mut Option<MemoryRows>) {
     let watching = root.watching_statistics();
     #[cfg(target_os = "linux")]
     {
         if watching {
-            crate::memory::start();
+            // Under `--root` it samples only while watched, and writes no file.
+            crate::memory::start_watched();
         }
         crate::memory::watch(watching);
     }
     if !watching {
+        *memory = None;
         return;
     }
-    let row = |row: be_host_base::performance::PerformanceRow| StatisticRow {
+    // Cached by be-host-base for a quarter of a second, so cheap to ask each frame.
+    let performance = be_host_base::performance::rows()
+        .into_iter()
+        .map(statistic_row)
+        .collect();
+    // Read again only once a new sample came.
+    #[cfg(target_os = "linux")]
+    {
+        let generation = crate::memory::generation();
+        if memory.as_ref().is_none_or(|shown| shown.generation != generation) {
+            let (rows, file) = crate::memory::view()
+                .map(|view| {
+                    let rows = view.rows.into_iter().map(|memory| statistic_row(memory.row));
+                    (rows.collect(), view.file)
+                })
+                .unwrap_or_default();
+            *memory = Some(MemoryRows {
+                generation,
+                rows,
+                file,
+            });
+        }
+    }
+    let (rows, file) = memory
+        .as_ref()
+        .map(|shown| (shown.rows.clone(), shown.file.clone()))
+        .unwrap_or_default();
+    root.show_statistics(performance, rows, file);
+}
+
+/// The memory rows the root was last handed, and the sample they are of.
+struct MemoryRows {
+    generation: u64,
+    rows: Vec<StatisticRow>,
+    file: Option<String>,
+}
+
+/// One of be-host-base's performance rows, or a memory row, as `be3:root` carries it.
+fn statistic_row(row: be_host_base::performance::PerformanceRow) -> StatisticRow {
+    StatisticRow {
         heading: row.heading,
         name: row.name,
         current: row.current,
         average: row.average,
         peak: row.peak,
-    };
-    let performance = be_host_base::performance::rows()
-        .into_iter()
-        .map(row)
-        .collect();
-    #[cfg(target_os = "linux")]
-    let (memory, file) = crate::memory::view()
-        .map(|memory| {
-            let rows = memory.rows.into_iter().map(|memory| row(memory.row));
-            (rows.collect(), memory.file)
-        })
-        .unwrap_or_default();
-    #[cfg(not(target_os = "linux"))]
-    let (memory, file) = (Vec::new(), None);
-    root.show_statistics(performance, memory, file);
+    }
 }
 
 /// The host's notices as `be3:root` carries them, oldest first.

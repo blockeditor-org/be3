@@ -137,8 +137,8 @@ impl Windows {
     }
 
     /// Takes `list` as the layers drawn last. A window it leaves out has gone: its router goes
-    /// once nothing is pressed on it. A focused layer a window's list leaves out loses the
-    /// focus, which goes to no layer; a press it holds still ends there. Answers what that tells the surfaces those windows
+    /// once nothing is pressed on it. A layer a window's list leaves out is forgotten: the
+    /// focus, a lock, a press or a key it held go to no layer. Answers what that tells the surfaces those windows
     /// focused.
     pub fn drew(&mut self, list: LayerList) -> Vec<Delivery> {
         for routing in &mut self.windows {
@@ -153,18 +153,17 @@ impl Windows {
                 .find(|routing| routing.window == window)
             {
                 Some(routing) => {
+                    // A layer the list leaves out went: the router forgets it, so the focus,
+                    // the pointer lock and the presses and keys it held go nowhere, rather than
+                    // to whatever later takes its id without hearing it had them. It hears
+                    // nothing of it, as it is gone.
+                    for layer in &routing.layers.layers {
+                        if layers.layer(layer.id).is_none() {
+                            routing.router.forget(layer.id);
+                        }
+                    }
                     routing.layers = layers;
                     routing.gone = false;
-                    // A focused layer the list leaves out went: the keyboard goes to no layer,
-                    // rather than to whatever later takes its id without hearing it was focused.
-                    if let Some(focused) = routing.router.focused()
-                        && routing.layers.layer(focused).is_none()
-                    {
-                        // What this tells the layer that went (that it lost the focus, and the
-                        // pointer lock if it held it) reaches nothing, as it is gone: dropped
-                        // on purpose. The window's lock follows from `Windows::locked`.
-                        let _ = routing.router.focus(None);
-                    }
                 }
                 None => self.windows.push(Window {
                     window,

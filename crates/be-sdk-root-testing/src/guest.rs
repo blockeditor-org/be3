@@ -31,7 +31,7 @@ use be_wasm_root_api::{
 use beui::native::painting::{Frame as PaintFrame, Painting, ScreenPaintings};
 use beui::reactive::*;
 use beui::styled::*;
-use beui::{Align2, Direction, KeyPhase, NodeId, Overflow, Pos2, Rect, vec2};
+use beui::{Align2, Direction, KeyPhase, NodeId, Overflow, Pos2, Rect, TextAlign, vec2};
 
 use crate::{
     APP, APP_ENTRY, CLOSES, DIALOG_LAYER, DIALOG_ORIGIN, DIALOG_SIZE, DIALOG_SURFACE, DIALOG_TITLE,
@@ -544,6 +544,13 @@ fn StatisticsPanel(statistics: Signal<HostStatistics>) -> NodeId {
             <Frame padding=Space::Md>
                 <List spacing=Space::Xs>
                     <Text style=TextStyle::TITLE>{STATISTICS_TITLE}</Text>
+                    <StatisticLine row={create_memo(|| Some(StatisticRow {
+                        heading: true,
+                        name: "Measurement".to_owned(),
+                        current: "Latest".to_owned(),
+                        average: "Average".to_owned(),
+                        peak: "Peak".to_owned(),
+                    }))} />
                     <ForEach value={keys}>|index: usize| {
                         let row = create_memo(move || rows.with(|rows| rows.get(index).cloned()));
                         view! {
@@ -557,28 +564,44 @@ fn StatisticsPanel(statistics: Signal<HostStatistics>) -> NodeId {
     }
 }
 
-/// One row of the host's statistics: its name, and its latest value, average and peak.
+/// One row of the host's statistics: its name, and its latest value, average and peak, each
+/// right-aligned in a column of its own.
 #[component]
 fn StatisticLine(row: Memo<Option<StatisticRow>>) -> NodeId {
     let cell = |read: fn(&StatisticRow) -> String| {
         create_memo(move || row.with(|row| row.as_ref().map(read).unwrap_or_default()))
     };
     let name = cell(|row| row.name.clone());
-    let values = cell(|row| match row.heading {
-        true => String::new(),
-        false => format!("{}  {}  {}", row.current, row.average, row.peak),
-    });
-    let weight = create_memo(move || match row.with(|row| row.as_ref().is_some_and(|row| row.heading)) {
-        true => Weight::Bold,
-        false => Weight::Normal,
+    let current = cell(|row| row.current.clone());
+    let average = cell(|row| row.average.clone());
+    let peak = cell(|row| row.peak.clone());
+    let weight = create_memo(move || {
+        match row.with(|row| row.as_ref().is_some_and(|row| row.heading)) {
+            true => Weight::Bold,
+            false => Weight::Normal,
+        }
     });
     view! {
-        <List direction=Direction::Horizontal spacing=Space::Md>
+        <List direction=Direction::Horizontal spacing=Space::Sm>
             <ListItem grow=1.0>
                 <Text overflow=Overflow::Ellipsis size=TextSize::Xs weight={weight}>{name}</Text>
             </ListItem>
-            <Text size=TextSize::Xs family=Family::Mono>{values}</Text>
+            <StatisticCell value={current} weight={weight} />
+            <StatisticCell value={average} weight={weight} />
+            <StatisticCell value={peak} weight={weight} />
         </List>
+    }
+}
+
+/// One value of a row, right-aligned in its column.
+#[component]
+fn StatisticCell(value: Memo<String>, weight: Memo<Weight>) -> NodeId {
+    view! {
+        <Frame width=Size::Xl3>
+            <Text size=TextSize::Xs family=Family::Mono weight={weight} align=TextAlign::End>
+                {value}
+            </Text>
+        </Frame>
     }
 }
 

@@ -488,6 +488,13 @@ impl<G: Inline> Core<G> {
             embed::Call::Host(embed::host::Call::WatchStatistics { watching, reply }) => {
                 self.watching_statistics = watching;
                 reply.send(&mut self.connection, &());
+                // No change comes while nothing watches: a call still waiting for one hears
+                // the statistics as they are, so the root's task waiting on it ends.
+                if !watching {
+                    for reply in std::mem::take(&mut self.statistics_watchers) {
+                        reply.send(&mut self.connection, &self.statistics);
+                    }
+                }
             }
             embed::Call::Host(embed::host::Call::Statistics { seen, reply }) => {
                 match seen == self.statistics.generation {

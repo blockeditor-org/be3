@@ -116,14 +116,17 @@ interface host {
         /// the heap, and wasm memory in all and by guest. Empty where the
         /// host cannot measure it, or until it has.
         memory: list<statistic-row>,
-        /// The file the host writes its memory statistics to, if it does.
+        /// The file the host writes its memory statistics to, if it does: its
+        /// whole path, which the host trusts its own root with (an app is never
+        /// told it).
         memory-file: option<string>,
     }
 
     /// Whether the root shows the host's statistics now. The host measures
-    /// what only they need (its memory, sampled a few times a second) only
-    /// while the root watches, and draws frames often enough to keep them
-    /// fresh. It answers at once.
+    /// what only they need (its memory, sampled every few seconds) only while
+    /// the root watches, and wakes the root for each sample. It answers at
+    /// once; turning the watch off answers a `statistics` call still waiting
+    /// with the statistics as they are.
     watch-statistics: async func(watching: bool);
 
     /// The host's statistics, once they differ from those of the generation

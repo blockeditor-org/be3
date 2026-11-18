@@ -381,6 +381,11 @@ impl<T: Copy + Eq + Debug> Router<T> {
                 if !focused {
                     self.unlock_into(&mut out);
                     self.end_gesture();
+                    // Every surface lets go of the keys it held when the window loses the
+                    // keyboard, so a release that comes after goes nowhere.
+                    for (_, holder) in &mut self.keys {
+                        *holder = None;
+                    }
                 }
                 self.to_focus(Input::Focus(focused), &mut out);
             }
@@ -397,15 +402,23 @@ impl<T: Copy + Eq + Debug> Router<T> {
                             repeat: stroke.repeat,
                             modifiers: self.modifiers,
                         };
-                        let target = match self.intercepted.iter().any(|chord| chord.matches(press))
-                        {
-                            true => self.compositor,
-                            false => self.focused,
-                        };
-                        // A repeat travels as a press does, so it holds the key for where it went.
-                        self.keys.retain(|(held, _)| *held != key);
-                        self.keys.push((key, target));
-                        target
+                        let held = self.keys.iter().find(|(held, _)| *held == key);
+                        match (stroke.repeat, held) {
+                            // A repeat goes where its press went, which keeps holding the key,
+                            // wherever the focus has moved since.
+                            (true, Some((_, holder))) => *holder,
+                            _ => {
+                                let target =
+                                    match self.intercepted.iter().any(|chord| chord.matches(press))
+                                    {
+                                        true => self.compositor,
+                                        false => self.focused,
+                                    };
+                                self.keys.retain(|(held, _)| *held != key);
+                                self.keys.push((key, target));
+                                target
+                            }
+                        }
                     }
                     // A release goes where its press went, the compositor for a chord it took, so
                     // the release of a key that moved the focus (an Escape that closed a dialog,

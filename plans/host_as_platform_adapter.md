@@ -1021,10 +1021,12 @@ Each step lands on its own.
        latest, average and peak of each) and memory rows, each a heading or a measurement as
        the host words it (`statistic-row`, be-host-base's `PerformanceRow`), and the file its
        memory statistics are written to (be-wasm-root-host's `Root::watching_statistics` and
-       `show_statistics`). be-host's `--root` starts and watches its memory sampling while the
-       root watches, whose samples wake the window, and hands the root be-host-base's
-       performance rows and its memory rows each frame, which the root hears only once they
-       changed. be-sdk-root-testing opens and closes a panel of them on F3, which it always
+       `show_statistics`); turning the watch off answers a call still waiting. be-host's
+       `--root` samples its memory only while the root watches (a sampler that parks on a
+       condition variable while nothing does, and writes no file, unlike the desktop's, which
+       samples for good into `memory.tsv`), whose samples wake the window, and hands the root
+       be-host-base's performance rows each frame and its memory rows once a new sample came,
+       which the root hears only once they changed. be-sdk-root-testing opens and closes a panel of them on F3, which it always
        intercepts (`STATISTICS_LAYER`, drawn with beui on `STATISTICS_SURFACE` at the window's
        right), watching them while it is open and never taking the focus.
        be-wasm-root-host's
@@ -1032,9 +1034,12 @@ Each step lands on its own.
        rows and snapshots the panel, and the host test
        `a_root_in_place_of_the_hosts_ui_shows_the_hosts_statistics_in_a_panel` opens and closes
        it in be-host.
-       Carried from 4g4's re-review: a key's release goes where its press went
+       Carried from 4g4's re-review: a key's repeats and release go where its press went
        (be-lib-input-router's `Router`), so the release of an Escape that closed a root's
-       dialog never reaches the layer the focus went back to.
+       dialog never reaches the layer the focus went back to; the release of a key held when
+       the window lost the keyboard goes nowhere; and be-sdk-root's `Windows::drew` forgets a
+       layer its list leaves out, so the focus, a lock, a press or a key it held goes to no
+       layer that later takes its id.
        Left for later:
        - The memory graph (be-host's `MemoryGraph`): `be3:root` would carry the minutes'
          points (resident, anonymous, shared and wasm, in bytes) beside the rows.

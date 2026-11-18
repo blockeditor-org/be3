@@ -220,9 +220,10 @@ tests read one their build made, crates/be-host-tests/apps.bzl). Each guest thre
   the root be-host-base's notices whenever they changed (`notices::generation`)
   and does what the root answers:
   dismisses a notice, copies its report or opens its link. While the root
-  watches its statistics it samples its memory, which wakes the window, and
-  hands the root be-host-base's performance rows and its memory rows each
-  frame. What the root
+  watches its statistics it samples its memory, writing it nowhere and parking
+  the sampler when the watch ends, and each sample wakes the window; it hands
+  the root be-host-base's performance rows each frame and its memory rows once
+  a sample came. What the root
   copies it puts on the window's clipboard (`Context::copy`), and each paste it
   asks for it reads there (`Context::read_clipboard`) and hands back with the
   next frame. `drive
@@ -285,8 +286,8 @@ tests read one their build made, crates/be-host-tests/apps.bzl). Each guest thre
   `Embedding::intercept` hands chords to the root's own layer, ahead of the
   focus, in every window, and `Embedding::focus` moves the keyboard to a layer
   or takes it from all, telling the layer that had it and the one that gets
-  it (a layer the window was not drawn with last cannot take it, and a focused
-  layer a list leaves out loses it); a root's own dialog uses both (guides/beui/overlays.md, Modals and
+  it (a layer the window was not drawn with last cannot take it, and a layer a
+  list leaves out is forgotten, with the focus, presses and keys it held); a root's own dialog uses both (guides/beui/overlays.md, Modals and
   dialogs).
   Input for a window the last list leaves out is still routed, against the
   layers it had last, until its presses lift, and only then its router goes,
