@@ -235,7 +235,7 @@ impl Root {
                 },
                 Input::PointerButton { pressed: true, .. } if open => Some(Asked::Close),
                 Input::Touch {
-                    phase: TouchPhase::Started,
+                    phase: TouchPhase::Start,
                     ..
                 } if open => Some(Asked::Close),
                 _ => None,
