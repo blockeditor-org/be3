@@ -28,6 +28,7 @@ fn types(content_type: Uuid) -> Vec<TypeInfo> {
         whole_bytes: true,
         blank: Vec::new(),
         blank_description: Description::default(),
+        reads: None,
     }]
 }
 

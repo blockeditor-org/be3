@@ -68,6 +68,10 @@ pub struct Node {
     /// The entry point whose tree the mirror follows to hear of the block's changes
     /// (`block-summary.entry`).
     pub entry: Option<Uuid>,
+    /// How many things in the block's content the account has not read, for a type that counts
+    /// them (`crate::unread`): no summary says it, so a node read again keeps the count it had
+    /// until it is counted again.
+    pub unread: u32,
 }
 
 #[cfg(test)]
@@ -97,6 +101,7 @@ impl Clone for Node {
             tree_size: self.tree_size,
             changed: self.changed,
             entry: self.entry,
+            unread: self.unread,
         }
     }
 }
@@ -1281,6 +1286,17 @@ impl Graph {
         Some(Arc::make_mut(node))
     }
 
+    /// Sets how many things in `block`'s content the account has not read (`crate::unread`),
+    /// when that changes it.
+    pub fn set_unread(&mut self, block: Uuid, unread: u32) {
+        if self.nodes.get(&block).is_some_and(|node| node.unread != unread)
+            && let Some(node) = self.node_mut(block)
+        {
+            node.unread = unread;
+            self.moved();
+        }
+    }
+
     pub fn update(&mut self, block: Uuid, change: impl FnOnce(&mut Node)) {
         if self.nodes.contains_key(&block) {
             *self.pending.entry(block).or_default() += 1;
@@ -1650,6 +1666,9 @@ impl Graph {
     /// entry point's tree, so the mirror follows the entries of exactly what it holds.
     fn insert(&mut self, mut node: Node, at: u64) {
         self.to_read_changed = true;
+        if let Some(known) = self.nodes.get(&node.id) {
+            node.unread = known.unread;
+        }
         if let Some(derived) = self.derived.get(&node.id) {
             node.metadata.derived.clone_from(derived);
         }

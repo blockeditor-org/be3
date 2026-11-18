@@ -233,6 +233,18 @@ interface replicas {
         indexed: list<part-ref>,
     ) -> result<list<search-document>, failure>;
 
+    /// How many things in `content` the account has not read (`be_block_content::Unread`),
+    /// for a type with `type-info.reads`. `content` is a commit of `block` as `host.load`
+    /// answers it (only its first part for a type with `first-part`), and `reads` the
+    /// account's layers of the `reads` kind, each its content's bytes, lowest first.
+    unread: async func(
+        content-type: content-type-id,
+        content: loaded,
+        reads: list<list<u8>>,
+        block: block-id,
+        account: account-id,
+    ) -> result<u32, failure>;
+
     /// Which of the module's types takes a file, by name and first bytes, or
     /// with `directory` a new directory.
     claims: async func(name: string, first: list<u8>, directory: bool, fallback: bool) -> option<content-type-id>;

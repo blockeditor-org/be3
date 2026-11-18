@@ -33,6 +33,8 @@ pub struct Kind {
     pub whole_bytes: bool,
     pub blank: Vec<u8>,
     pub described: Description,
+    /// The owner-only settings kind the type counts what is unread from (`type-info.reads`).
+    pub reads: Option<Uuid>,
 }
 
 impl Kind {
@@ -655,6 +657,7 @@ impl Modules {
                 whole_bytes: info.whole_bytes,
                 blank: info.blank,
                 described: info.blank_description,
+                reads: info.reads,
             });
         }
         if registered {

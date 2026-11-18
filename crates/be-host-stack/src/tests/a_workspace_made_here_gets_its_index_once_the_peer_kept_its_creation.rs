@@ -25,6 +25,7 @@ fn a_workspace_made_here_gets_its_index_once_the_peer_kept_its_creation() {
         tree_size: 0,
         changed: 0,
         entry: None,
+        unread: 0,
     });
     assert!(shared.graph.get(workspace).is_some());
     assert_eq!(

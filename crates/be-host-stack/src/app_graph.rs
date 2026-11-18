@@ -148,6 +148,7 @@ pub fn info_of(node: &Node, deleted: bool, unfiled: Option<Uuid>, out_of_reach: 
         size: node.size,
         tree_size: node.tree_size,
         out_of_reach,
+        unread: node.unread,
     }
 }
 
