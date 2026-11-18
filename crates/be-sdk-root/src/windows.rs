@@ -55,7 +55,11 @@ impl Windows {
         }
         for layers in list.windows {
             let window = layers.window.map(|window| window.raw());
-            match self.windows.iter_mut().find(|routing| routing.window == window) {
+            match self
+                .windows
+                .iter_mut()
+                .find(|routing| routing.window == window)
+            {
                 Some(routing) => {
                     routing.layers = layers;
                     routing.gone = false;
@@ -101,7 +105,11 @@ impl Windows {
                 let Routed::Input { target, input } = routed else {
                     continue;
                 };
-                let Some(layer) = routing.layers.layers.iter().find(|layer| layer.id == target)
+                let Some(layer) = routing
+                    .layers
+                    .layers
+                    .iter()
+                    .find(|layer| layer.id == target)
                 else {
                     continue;
                 };
@@ -123,7 +131,11 @@ impl Windows {
             let keep = !routing.gone || routing.router.holding();
             if !keep
                 && let Some(target) = routing.router.focused()
-                && let Some(layer) = routing.layers.layers.iter().find(|layer| layer.id == target)
+                && let Some(layer) = routing
+                    .layers
+                    .layers
+                    .iter()
+                    .find(|layer| layer.id == target)
             {
                 lost.push(Delivery {
                     target,
