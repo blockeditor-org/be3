@@ -632,6 +632,18 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     /// since changed what it shows: a replica opened again in this one's place (`carry`) does
     /// not tell an editor a snapshot it holds already.
     snapshots_shown: BTreeMap<EditorId, be_block_store::Hash>,
+    /// How many reloads (a merge's, a head's, a restart's; not a replacement's) landed with
+    /// editors attached since the replica opened: each editor's snapshot names it, and each
+    /// says once it was shown one (`FromEditor::Shown`).
+    reloads: u64,
+    /// The reloads each editor said it was shown, from its snapshot on attaching: an edit it
+    /// sends while that is behind `reloads` was made on what it showed before.
+    shown_reloads: BTreeMap<EditorId, u64>,
+    /// What the editors showed before the last reload, with the edits made on it since,
+    /// while one has not said it was shown that reload: what an edit of theirs made on it is
+    /// carried from (`carried_over_a_reload`). None after a replacement, which drops them,
+    /// and once every editor said it was shown the last reload.
+    before_reload: Option<C>,
     projected: Settling<C>,
     landed: Vec<(Landed<C::Op>, Option<EditorId>)>,
     resnapshot: bool,
@@ -955,6 +967,9 @@ where
             acknowledged: BTreeMap::new(),
             holding: BTreeSet::new(),
             snapshots_shown: BTreeMap::new(),
+            reloads: 0,
+            shown_reloads: BTreeMap::new(),
+            before_reload: None,
             landed: Vec::new(),
             resnapshot: false,
             described: false,
@@ -1812,6 +1827,7 @@ where
                 self.acknowledged.remove(&editor);
                 self.holding.remove(&editor);
                 self.snapshots_shown.remove(&editor);
+                self.shown_reloads.remove(&editor);
                 self.lacking.unfollow(editor);
             }
             Input::Head(HeadEvent::Moved { head }) => self.moved(head),
@@ -3042,6 +3058,7 @@ where
     ) {
         let mut content = content;
         let mine = op.id.origin == self.origin;
+        let shown = self.visible.clone();
         match self.adopt_base_state(&state, op.sequence) {
             Some(state) if !state.is_empty() => {
                 if content.adopt_session_state(&state).is_err() {
@@ -3100,6 +3117,15 @@ where
             self.history.restart();
             self.restarted_at = Some(commit);
             self.log.clear();
+        } else if !replace {
+            self.carry_unsent(before);
+        }
+        // A replacement drops what was made on the content it replaced; any other reload
+        // carries the editors' edits made before they were shown it (`carried_over_a_reload`).
+        self.before_reload = None;
+        if !replace && !self.editors.is_empty() {
+            self.reloads += 1;
+            self.before_reload = Some(shown);
         }
         match head {
             true => {
@@ -3680,6 +3706,7 @@ where
                 // The host's own edits are no one's to undo (`HOST_EDITOR`).
                 let took = editable
                     && C::decode_operation(&bytes).is_ok_and(|operation| {
+                        let operation = self.carried_over_a_reload(editor, operation);
                         match (editor, self.held_now) {
                             // Made in its editor's open tentative gesture: held in the layer.
                             (_, Some((gesture, serial))) => self.hold(
@@ -3699,6 +3726,12 @@ where
                 // now: otherwise it would take a later one landing as its own for this one.
                 if !took && !self.holding.contains(&editor) {
                     self.snapshot_to(editor);
+                }
+            }
+            FromEditor::Shown { reloads } => {
+                self.shown_reloads.insert(editor, reloads);
+                if self.shown_reloads.values().all(|shown| *shown >= self.reloads) {
+                    self.before_reload = None;
                 }
             }
             FromEditor::FollowLacking => self.lacking.follow(editor),
@@ -4096,6 +4129,7 @@ where
             return;
         }
         self.acknowledged.insert(editor, acknowledged);
+        self.shown_reloads.insert(editor, self.reloads);
         // Its snapshot waits for `resent`, after what the host gives again of its edits.
         self.holding.insert(editor);
         if first {
@@ -4156,6 +4190,7 @@ where
                 .map(C::encode_operation)
                 .collect(),
             applied,
+            reloads: self.reloads,
         }
     }
 
@@ -4599,6 +4634,53 @@ where
             && (self.alone() || state > limit.saturating_mul(RESTART_CEILING))
     }
 
+    /// Moves this replica's edits not yet submitted from `before` onto the content a reload
+    /// (of a merge, or of a head) just replaced it with: they were made on `before`, which the
+    /// merge may have rebuilt (`carried_if_lost`). Those already submitted go as they went: the
+    /// order numbers them after the reload, and every replica applies them as written. One that
+    /// goes as an earlier opening's submission (`kept_submissions`) keeps that submission's
+    /// payload.
+    fn carry_unsent(&mut self, before: C) {
+        let mut before = before;
+        let mut after = self.confirmed.clone();
+        for sent in &self.pending {
+            if let Some(operation) = &sent.operation {
+                before.apply(operation);
+                after.apply(operation);
+            }
+        }
+        let mut carried = VecDeque::new();
+        for (operation, size, weight, through, kept) in std::mem::take(&mut self.unsent) {
+            let moved = match kept {
+                Some(_) => Some(operation.clone()),
+                None => carried_if_lost(&operation, &before, &after, self.client),
+            };
+            before.apply(&operation);
+            if let Some(moved) = moved {
+                after.apply(&moved);
+                let size = C::encode_operation(&moved).len().max(size);
+                carried.push_back((moved, size, weight, through, kept));
+            }
+        }
+        self.unsent = carried;
+    }
+
+    /// An edit `editor` made on what it showed before the last reload (it has not said it was
+    /// shown that reload's snapshot, `FromEditor::Shown`), carried onto what the reload left
+    /// (`carried_if_lost`), as edits not yet submitted are (`carry_unsent`).
+    fn carried_over_a_reload(&mut self, editor: EditorId, operation: C::Op) -> C::Op {
+        let stale = self
+            .shown_reloads
+            .get(&editor)
+            .is_some_and(|shown| *shown < self.reloads);
+        let Some(before) = self.before_reload.as_mut().filter(|_| stale) else {
+            return operation;
+        };
+        let carried = carried_if_lost(&operation, before, &self.visible, self.client);
+        before.apply(&operation);
+        carried.unwrap_or(operation)
+    }
+
     /// Moves this replica's own edits not yet numbered from `before` onto the content it just
     /// reloaded at a restart: they go again, after it.
     fn carry_pending(&mut self, before: C) {
@@ -4728,4 +4810,24 @@ pub(crate) fn replay<C: LiveEdit + Default>(
         }
     }
     Ok(content.encode())
+}
+
+/// `operation`, made on `before`, as it goes on `after`, the content a reload left: unchanged
+/// where it still applies, and otherwise as what it visibly did on `before` (`carry_over`), as
+/// the reload rebuilt what it names. None when nothing of it is left. One that changes nothing
+/// on `before` either goes unchanged.
+fn carried_if_lost<C: LiveEdit + Clone>(
+    operation: &C::Op,
+    before: &C,
+    after: &C,
+    client: ClientId,
+) -> Option<C::Op> {
+    let (mut made, mut landed) = (before.clone(), after.clone());
+    made.apply(operation);
+    landed.apply(operation);
+    let lost = made.encode() != before.encode() && landed.encode() == after.encode();
+    match lost {
+        true => C::carry_over(operation, before, after, client),
+        false => Some(operation.clone()),
+    }
 }
