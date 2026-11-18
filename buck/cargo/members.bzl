@@ -100,6 +100,8 @@ members = [
     "crates/be-sdk-library-beui",
     "crates/be-sdk-library-test",
     "crates/be-sdk-manifest",
+    "crates/be-sdk-root",
+    "crates/be-sdk-root-testing",
     "crates/be-sdk-shell",
     "crates/be-sdk-terminal",
     "crates/be-sdk-test",

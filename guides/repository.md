@@ -19,7 +19,8 @@ library is `//crates/NAME:NAME`, abbreviated `//crates/NAME`, with its other tar
   `be-worker-<app>-<worker>` a worker's `Work` and module, which only the module and the app's
   tests link.
 - `be-sdk-*`: what apps are written with: the protocol (`be-sdk-api`) and its host half
-  (`be-sdk-app-host`, which every host links), the guest libraries (`be-sdk`, `be-sdk-beui`),
+  (`be-sdk-app-host`, which every host links, and `be-sdk-root`, which a root guest links to
+  embed apps), the guest libraries (`be-sdk`, `be-sdk-beui`),
   the libraries apps link against and the test harness.
 - `be-host-*`: be-host, split into crates that build in parallel. `be-host-base`,
   `be-host-stack` and `be-host-server` (be-server on a thread, which tests start to sign in

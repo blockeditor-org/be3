@@ -1,0 +1,20 @@
+[package]
+name = "be-sdk-root"
+description = "What a root guest links to embed apps: each app it spawns run over its instance's channel with be-sdk-app-host's wire and run, its screens named in the layer list by handle, and the window's input routed to them over the layers drawn last"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+be-lib-geometry = { path = "../be-lib-geometry" }
+be-lib-input-router = { path = "../be-lib-input-router" }
+be-lib-layers = { path = "../be-lib-layers" }
+be-lib-stable-hash = { path = "../be-lib-stable-hash" }
+be-lib-ui-types = { path = "../be-lib-ui-types" }
+be-sdk-api = { path = "../be-sdk-api" }
+be-sdk-app-host = { path = "../be-sdk-app-host" }
+be-wasm-ops = { path = "../be-wasm-ops" }
+be-wasm-sandbox-api = { path = "../be-wasm-sandbox-api" }
+
+[lints]
+workspace = true

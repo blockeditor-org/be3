@@ -1,0 +1,9 @@
+load("@root//buck/cargo:defs.bzl", "cargo_package")
+load("@root//buck/wasm:defs.bzl", "wasm32_crate")
+
+cargo_package()
+
+# A root guest built on be-sdk-root, which be-wasm-root-host's tests run: it
+# spawns the triangle as a staged app and shows its screen. Only :module, with
+# the `module` feature, exports its entry points.
+wasm32_crate(extra_features = ["module"])

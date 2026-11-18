@@ -151,6 +151,24 @@ tests read one their build made, crates/be-host-tests/apps.bzl). Each guest thre
   be-wasm-root-testing's constants as a library: only that crate's `:module`,
   built with its `module` feature, exports a guest's entry points, so the page
   links none.
+- **Apps in a root.** A root guest embeds apps with `crates/be-sdk-root`, the
+  host's half of the app protocol run inside the root. `Embedded::spawn`
+  spawns a staged app's entry point through the sandbox and runs it as its
+  host: be-sdk-app-host's `Wire` over the instance's channel, which a task on
+  the root's executor hears (`be_wasm_ops::guest::spawn`), and a `Run` with
+  its session, pacing and holds. The editor and its screens are queued until
+  the hello; `Embedded::frame` asks for a frame when the pacing says one is
+  due and answers once the app presented, which the root races against
+  `host.deadline`; `Embedded::layer` names a screen the app painted as a
+  `Surface::Screen`, scaled from its pixels to its points. `Embedding` routes
+  each window's input (`Windows`: a `Router` per window over the layers drawn
+  last) and sends what lands on a screen to its app as `AppCall::Input`.
+  Input for a window the last list leaves out is still routed, against the
+  layers it had last, until its presses lift, and only then its router goes;
+  one never drawn routes against none. It refuses what it serves no app yet
+  (block calls, host services, the network, the shell but `tell`), and
+  restarts nothing. be-sdk-root-testing is a root built on it, which
+  be-wasm-root-host's tests run with the triangle on a stand-in device.
 - **V8's heap.** No guest may declare garbage-collected types (structs,
   arrays) or more than one table, and a table holds at most a million entries
   (`engine::Shape::bounded`): V8 stops delivering a termination once an

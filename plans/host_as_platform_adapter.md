@@ -128,7 +128,14 @@ since the last call as be-lib-ui-types' `input::encode` (be-wasm crates may use 
 ones, so it is bytes, as the layer list is). `Root::input`, natively and on the page, starts it,
 and the root takes it in with the frame being drawn, or else the next one, so it routes by the
 layers it drew last, and answers once it has routed. be-wasm-root-testing's root routes it with a `Router` per
-window over that list, and sends its child what lands on its screen, in the child's coordinates.
+window over that list (be-sdk-root's `Windows`, since 4e5b), and sends its child what lands on its
+screen, in the child's coordinates.
+
+Built (step 4e5b): `crates/be-sdk-root`, what a root links to embed apps. `Embedded` runs an app
+the root spawned as its host, with be-sdk-app-host's `Wire` over the instance's channel (heard by
+a task on the root's executor) and a `Run`; `Embedded::layer` names each screen it painted by
+handle; `Embedding` routes the windows' input (`Windows`) and forwards what lands on a screen as
+`AppCall::Input`. be-sdk-root-testing is a root on it, which embeds the triangle.
 
 Its rules:
 
@@ -667,20 +674,35 @@ Each step lands on its own.
          root routes it with a `Router` per window over that list and sends its child what lands
          on the child's screen, in the child's coordinates; its test presses on the child and
          drags off it, and the child hears both, the drag held by the press.
-       - 4e5b. A root built on the library embeds an editor: a library a root links (a
-         `be-sdk` crate, since be-sdk-app-host is one), holding for each app it spawns a `Wire`
-         over the instance's channel, a `Run` with its session, pacing and holds, and a
-         `Router` over its last list, forwarding what is routed to a screen as `AppCall::Input`
-         in the screen's coordinates and naming each screen's presented surface by handle in its
-         layer list. It routes input for a window missing from its last list against an empty
-         list, or that window's last one, never dropping it, since a dropped release would leave
-         a press held, and forgets a window's router when the window goes. Its test, in
-         be-wasm-root-host, spawns an editor that needs no block
-         content (the triangle, whose `connect` reads nothing) on a stand-in device, and shows
-         its screen after the hello, `Screens`, `Draw` and the commits. An editor that answers
-         input visibly needs content, so a store in the root (be-sdk-app-host's `BlockStore`
-         over type modules it spawns) waits for step 5; until then 4e5's "input routed by
-         `Router`" is shown only on be-wasm-root-testing's root.
+       - 4e5b. Built: a root built on the library embeds an editor. `crates/be-sdk-root` is the
+         library a root links (a be-sdk crate, since be-sdk-app-host is one; a root linking it
+         is an app's module or a be-sdk test crate's, so the be-wasm layer rule needed no
+         change, and like be-sdk-app-host it may not use beui or the block stack). For each app
+         it spawns, `Embedded` holds a `Wire` over the instance's channel, which a task on the
+         root's executor hears, and a `Run` with its session, pacing and holds: it queues the
+         editor's opening and `Screens` until the hello, asks for a frame when the pacing says
+         one is due (`Embedded::frame`, which the root races against `host.deadline`; one still
+         in flight is waited for), and names each screen it painted by handle in its layer
+         list (`Embedded::layer`, scaled from the surface's pixels to the screen's points).
+         `Windows` keeps a `Router` per window over the last list; input for a window the list
+         leaves out routes against the layers it had last, and one never drawn against none,
+         never dropped, and a window's router goes once the list leaves it out and no press on
+         it is held (`Router::holding`). `Embedding` forwards what lands on a screen as
+         `AppCall::Input` in the screen's points, and answers what lands on the root's own
+         surfaces. It refuses at once what it serves no app yet (block calls, host services,
+         the network, debug, published calls and the shell but `tell`), and restarts nothing:
+         an app that stops reports why (`Embedded::failure`). `Wire::send` now sends
+         `Outbound`s for every host. be-sdk-root-testing is a root built on it; be-wasm-root-host's
+         test spawns the triangle (whose `connect` reads nothing) on a stand-in device and shows
+         its screen after the hello, `Screens`, `Draw` and the commits, by the handle
+         `Root::surface` resolves to the texture it presented, at the size asked for.
+         be-wasm-root-testing's root routes with `Windows` too. An editor that answers input
+         visibly needs content, so a store in the root (be-sdk-app-host's `BlockStore` over type
+         modules it spawns) waits for step 5; until then 4e5's "input routed by `Router`" is
+         shown only on be-wasm-root-testing's root. Left for later: the fonts, preferences and
+         UTC offset an app is told (`Run::tell`), children an embedded app places (the holds'
+         layouts are let go unapplied), restarts, and the workers an app starts (its wire
+         serves it no sandbox).
        - 4e5c. be-host's run option that starts a staged root module in place of its own UI
          (a `--root=APP` argument): it starts the root on the window's device, hands it the
          window's raw input (`Root::input`) and asks it for a frame each host frame, and draws

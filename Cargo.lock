@@ -2212,6 +2212,34 @@ dependencies = [
 ]
 
 [[package]]
+name = "be-sdk-root"
+version = "0.1.0"
+dependencies = [
+ "be-lib-geometry",
+ "be-lib-input-router",
+ "be-lib-layers",
+ "be-lib-stable-hash",
+ "be-lib-ui-types",
+ "be-sdk-api",
+ "be-sdk-app-host",
+ "be-wasm-ops",
+ "be-wasm-sandbox-api",
+]
+
+[[package]]
+name = "be-sdk-root-testing"
+version = "0.1.0"
+dependencies = [
+ "be-lib-geometry",
+ "be-lib-layers",
+ "be-sdk-api",
+ "be-sdk-root",
+ "be-wasm-guest-abi",
+ "be-wasm-ops",
+ "be-wasm-root-api",
+]
+
+[[package]]
 name = "be-sdk-shell"
 version = "0.1.0"
 dependencies = [
@@ -3170,6 +3198,7 @@ dependencies = [
  "be-lib-geometry",
  "be-lib-layers",
  "be-lib-ui-types",
+ "be-sdk-root-testing",
  "be-wasm-dylink",
  "be-wasm-guest-echo",
  "be-wasm-guest-host",
@@ -3192,9 +3221,9 @@ name = "be-wasm-root-testing"
 version = "0.1.0"
 dependencies = [
  "be-lib-geometry",
- "be-lib-input-router",
  "be-lib-layers",
  "be-lib-ui-types",
+ "be-sdk-root",
  "be-wasm-guest-abi",
  "be-wasm-ops",
  "be-wasm-root-api",

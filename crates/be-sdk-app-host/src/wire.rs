@@ -4,7 +4,7 @@
 use be_lib_stable_hash::HashMap;
 use std::collections::BTreeMap;
 
-use crate::calls::{AppCall, EditorAnswer, EditorCall, Heard};
+use crate::calls::{AppCall, EditorAnswer, EditorCall, Heard, Outbound};
 use be_sdk_api::{Encoded, Watch};
 use be_wasm_sandbox_api::embed::sandbox;
 
@@ -234,6 +234,20 @@ impl Wire {
         self.child_statuses.remove(&instance);
         self.docks.remove(&instance);
         self.audio.remove(&instance);
+    }
+
+    /// Sends the app `outbound` in order, the events among them included.
+    pub fn send(&mut self, outbound: Vec<Outbound>) {
+        for outbound in outbound {
+            match outbound {
+                Outbound::Open(opening) => self.open(*opening),
+                Outbound::Close(instance) => self.close(instance),
+                Outbound::Event(instance, event) => self.event(instance, event),
+                Outbound::Editor(instance, call) => self.call(instance, call),
+                Outbound::App(call) => self.app_call(call),
+            }
+        }
+        self.flush_hearing();
     }
 
     pub fn app_call(&mut self, call: AppCall) {

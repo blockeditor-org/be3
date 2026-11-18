@@ -33,6 +33,7 @@ web-sys = { version = "0.3", features = [
 be-lib-ui-types = { path = "../be-lib-ui-types" }
 be-lib-geometry = { path = "../be-lib-geometry" }
 be-lib-layers = { path = "../be-lib-layers" }
+be-sdk-root-testing = { path = "../be-sdk-root-testing" }
 be-wasm-dylink = { path = "../be-wasm-dylink" }
 be-wasm-guest-echo = { path = "../be-wasm-guest-echo" }
 be-wasm-root-testing = { path = "../be-wasm-root-testing" }
