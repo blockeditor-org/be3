@@ -733,6 +733,9 @@ pub(crate) async fn next_heard<M>(
     let mut next = source.next();
     loop {
         tokio::select! {
+            // A message waiting in the buffer counts before the deadline does: when this
+            // connection's own work held the reader past it, the client was not silent.
+            biased;
             message = &mut next => return message,
             () = tokio::time::sleep_until(heard.last() + IDLE_TIMEOUT) => {
                 if heard.last() + IDLE_TIMEOUT <= tokio::time::Instant::now() {
