@@ -5,14 +5,6 @@ Depends on: none.
 The running to-do list, grouped. Every item says what "done" looks like.
 Fixed items are removed as they land.
 
-## 1. Text
-
-- **Anchored rows on the web without `overflow-anchor`.** On the HTML core a
-  `VirtualList` leaves its `anchor` to the browser's scroll anchoring, which
-  Safari (and so every iOS browser) lacks, so rows measured anew above the view
-  move what is shown there. Done: the HTML list keeps its anchor row in place
-  itself where `overflow-anchor` is missing, shown by a test on the HTML core.
-
 ## 2. Docking
 
 - **Bar drops across layers.** A joined dock bar (guides/beui/docking.md,

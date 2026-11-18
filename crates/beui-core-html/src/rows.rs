@@ -42,6 +42,29 @@ pub fn main_length(node: NodeId, direction: Direction) -> Option<f32> {
     }
 }
 
+/// Where `row` starts along `list`, in points.
+pub fn start_within(list: NodeId, row: NodeId, direction: Direction) -> Option<f32> {
+    #[cfg(target_arch = "wasm32")]
+    {
+        web::start_within(list, row, direction)
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let _ = (list, row, direction);
+        None
+    }
+}
+
+/// Scrolls the scroll around `list` on to follow a row that moved `drift` points along it,
+/// so the row stays where it is shown: unless the browser anchors that scroll itself
+/// (`overflow-anchor: auto`, which Safari lacks) or it is an `Offset`, which anchors itself.
+pub fn follow_row(list: NodeId, direction: Direction, drift: f32) {
+    #[cfg(target_arch = "wasm32")]
+    web::follow_row(list, direction, drift);
+    #[cfg(not(target_arch = "wasm32"))]
+    let _ = (list, direction, drift);
+}
+
 #[derive(Default)]
 pub struct Watch {
     #[cfg(target_arch = "wasm32")]
@@ -78,6 +101,63 @@ impl Watch {
 #[cfg(target_arch = "wasm32")]
 mod web {
     use beui_types::{Direction, Rect};
+
+    pub(super) fn start_within(
+        list: crate::node::NodeId,
+        row: crate::node::NodeId,
+        direction: Direction,
+    ) -> Option<f32> {
+        let connected = |node| {
+            crate::dom::element(node).filter(|element: &web_sys::Element| element.is_connected())
+        };
+        let (list, row) = (connected(list)?, connected(row)?);
+        let rect = crate::dom::client_rect(&list);
+        let scale = crate::dom::scale_of(&list, rect);
+        Some(direction.main(crate::dom::client_rect(&row).min - rect.min) / scale)
+    }
+
+    pub(super) fn follow_row(list: crate::node::NodeId, direction: Direction, drift: f32) {
+        let Some(list) = crate::dom::element(list) else {
+            return;
+        };
+        let Some(window) = web_sys::window() else {
+            return;
+        };
+        let (overflow, position) = match direction {
+            Direction::Horizontal => ("overflow-x", "scrollLeft"),
+            Direction::Vertical => ("overflow-y", "scrollTop"),
+        };
+        let mut above = list.parent_element();
+        while let Some(viewer) = above {
+            above = viewer.parent_element();
+            if crate::scroll::anchors(&viewer) {
+                return;
+            }
+            let Some(style) = window.get_computed_style(&viewer).ok().flatten() else {
+                continue;
+            };
+            let scrolls = style
+                .get_property_value(overflow)
+                .is_ok_and(|value| value == "auto" || value == "scroll");
+            if !scrolls {
+                continue;
+            }
+            // Where the browser anchors the scroll, it already followed the row.
+            if style
+                .get_property_value("overflow-anchor")
+                .is_ok_and(|value| value == "auto")
+            {
+                return;
+            }
+            let at = js_sys::Reflect::get(&viewer, &position.into())
+                .ok()
+                .and_then(|value| value.as_f64())
+                .unwrap_or(0.0);
+            let to = at + f64::from(drift);
+            let _ = js_sys::Reflect::set(&viewer, &position.into(), &to.into());
+            return;
+        }
+    }
 
     pub(super) fn visible_span(
         list: crate::node::NodeId,
