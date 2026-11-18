@@ -2742,20 +2742,41 @@ impl<S: ObjectStore> Peer<S> {
             return Ok(Some(sign(Record::Opening(Opening { level, authority }))?));
         }
         let named = checked.grants.get(&account.into_bytes()).copied();
+        // A revocation of someone the log names nowhere is still recorded while the server holds
+        // a grant for them (a contact link's, applied when it was accepted and not yet finished),
+        // so finishing the link reads the log alone.
+        let applied = level == be_block_keys::Level::None
+            && named.is_none()
+            && self
+                .list_access(block)
+                .await?
+                .entries
+                .iter()
+                .any(|entry| {
+                    entry.account == account
+                        && entry.granted.is_some_and(|granted| granted > Access::None)
+                });
         if level == be_block_keys::Level::None
             && named.is_none_or(|(named, _)| named == be_block_keys::Level::None)
+            && !applied
         {
             return Ok(None);
         }
         let identity = given
             .or_else(|| self.verified_identity(account))
-            .or(named.map(|(_, identity)| identity))
-            .ok_or_else(|| {
-                ClientError::Refused(
+            .or(named.map(|(_, identity)| identity));
+        let identity = match identity {
+            Some(identity) => identity,
+            // A link's grantee this device does not know the keys of yet: nothing names them, and
+            // finishing the link finds the server no longer holds the grant.
+            None if applied => return Ok(None),
+            None => {
+                return Err(ClientError::Refused(
                     ErrorCode::NotAContact,
                     "share only with your contacts: send them a contact link first".into(),
-                )
-            })?;
+                ));
+            }
+        };
         let own = account.into_bytes() == me && level == be_block_keys::Level::None;
         let authority = authority(own).await?;
         Ok(Some(sign(Record::Grant(Grant {
