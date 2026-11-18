@@ -267,7 +267,7 @@ message id; older messages close into segments, so a long chat loads only what
 is on screen; messages written offline merge with each side's run kept whole.
 The editor sends, replies, edits, reacts and deletes, shows sending state and
 unread counts, and signs messages; sending notifies members who are away.
-Still to come (plans/chat.md): member names, attachments and arrival times.
+Still to come (plans/chat.md): what waits for its move to a signed log.
 
 ### Presentation
 
