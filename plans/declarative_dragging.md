@@ -13,7 +13,7 @@ and tool bar drag geometry and the hand-written drop targets in apps. Nothing ke
 
 ## Done means
 
-The final PR deletes `Draggable`, `DropTarget`, `Target`, `DragSource`, and `Reorder`'s tree-only `hover`/`part`/`shut`/`resting` with the `visit` and
+The final PR deletes `Draggable`, `DropTarget`, `Target`, `DragSource` (gone in step 9), and `Reorder`'s tree-only `hover`/`part`/`shut`/`resting` with the `visit` and
 `slot_at` only they use (step 6), and replaces the geometry at each site: `bars.rs`'s band logic
 (`resolve_bar`, `dock_reach`, `thrown`, `float_near`, `lift_goal`, `step_lift`; gone in step 4), the dock's
 `resolve`/`resolve_in` (gone in step 3b; its `judged` and `takes` in step 3a), and the game board's press state machine. The video
@@ -460,13 +460,26 @@ through the drag and Escape rebuilds nothing; drawn invisible, it is the gap, at
    What the board gives them is little beyond Escape (keyboard steps each has its own, and
    peers see their drags by what their owners write), so each moves only where it is no
    longer than its `on_drag`.
-9. **Remove the rest.** Delete the old API. Rewrite components.md's Drag and drop, docking.md's
-   Dragging, Dialogs and tool bars sections, and host_services.md, and replace `Draggable` and
-   `DropTarget` in the list of behaviour-only pieces styled re-exports
-   (decisions/beui_outside_crates_use_only_the_styled_layer.md) with what replaces them. Record
-   decisions/beui_drags_are_reachable_places.md with what was rejected (building speculative
-   states, blending view trees, a numeric optimiser, a drag mode that writes before release,
-   implicit context arming glides).
+9. **Remove the rest (done, as far as it goes before step 6).** `Draggable`, `DropTarget`,
+   the board's `Target`, `DragSource` and their callback aliases (`Accepts`, `Dropped`, `Over`,
+   `Pending`, `Outside`) and the board's old carry (`begin`, `press`, `track`, `finish`,
+   `end`, `held`, `holds`, `hides_preview`, `floating`) are deleted. Their last in-process
+   user was the host's block drag, which moved onto the board as an intermediate: an app's
+   `Editor::drag` lifts a `Carry` of the block at the pointer pressing in it
+   (`PointerSample::pointer`), and each app view is a `custom` site over itself, its place
+   the window point where the view takes the pointer and the `DropAction` the keys held make
+   (`custom`'s `place` now gets the modifiers too), which the app hears as it moves and on
+   the drop (`drag_over_view`). The guides the step names are rewritten, and
+   decisions/beui_drags_are_reachable_places.md records the decision. The beui-demo page's
+   bins and beui-tests' drag screen are carries onto sites now; the old API's host tests are
+   gone, three ported (across windows, a cancelled touch, edge scrolling).
+   Left for step 6, which needs the host adapter's cross-app session:
+   - **`Editor::drag` and `accept_drag` as the handoff.** Each app view is a `custom` site
+     that only forwards points; it becomes an `Into` candidate whose app runs the engine over
+     its own places and answers the rect it chose, so the host glides the item there.
+   - **`Reorder`'s tree-only `hover`, `part`, `shut` and `resting`, with `visit` and
+     `slot_at`**, which only the files pane's tree uses; its rows' drag is the host's block
+     drag, so it moves with the handoff.
 
 ## Open questions
 

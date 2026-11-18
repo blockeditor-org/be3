@@ -118,7 +118,7 @@ impl State {
         }
         let floats = move |anywhere: bool| {
             let offering = Rc::clone(&offering);
-            custom(tiles, move |local: Pos2| {
+            custom(tiles, move |local: Pos2, _| {
                 let (window, pos) = dock.open_at(tiles, local)?;
                 let topmost = dock.topmost(window, pos);
                 let offers = topmost.is_some_and(|top| offering.borrow().contains(&top));

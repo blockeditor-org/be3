@@ -43,7 +43,7 @@ control's exact keys are in its code and tests. The patterns that span them:
   (`text_area::keys::caret_key`; the hex view follows it). Shift extends the
   selection with any of them. Backspace and Delete take a word with Alt, and
   with Ctrl elsewhere; Cmd takes the rest of the line (`delete_stop`).
-- A source given `drag` (guides/beui/components.md, Drags as places), with the
+- A source given `drag` (guides/beui/components.md, Carries and drop sites), with the
   focus on it or within it (a dock tab's row, a `Reorder` row holding a
   button), moves one place with Ctrl+Shift and an arrow, lifted, stepped and dropped at
   once, and offers Move in the command palette while it has the focus, which

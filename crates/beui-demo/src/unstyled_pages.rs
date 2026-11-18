@@ -4,7 +4,7 @@ use beui::Rect;
 use beui::drag;
 use beui::unstyled::{
     AnchoredSheetHandle, AnchoredStyle, ButtonHandle, ChoiceKind, ChoiceOptionHandle,
-    DisclosureHandle, DragHandle, DragPoint, DropHandle, Dropdown, MenuRowHandle,
+    DisclosureHandle, Dropdown, MenuRowHandle,
     PopupTriggerHandle, ScrollHandle, ScrollStyle, ScrollbarHandle, SliderHandle, TextInputHandle,
     TextInputStyle, ToggleHandle, TooltipHandle,
 };
@@ -816,7 +816,7 @@ pub(crate) fn DraggingPage() -> NodeId {
     view! {
         <ScrollPage>
             <Sample
-                title="Draggable and drop target"
+                title="Fruit carried between two bins"
                 code={vec![FruitBins::SOURCE, FruitBin::SOURCE, FruitChip::SOURCE]}
             >
                 <FruitBins />
@@ -862,6 +862,8 @@ fn FruitBins() -> NodeId {
     }
 }
 
+/// A bin as a drop site: the whole bin is its one place for a fruit from the other bin, its
+/// edge lit while one is carried over it. A chip floats as a preview, so it leaves its bin.
 #[sample]
 #[component]
 fn FruitBin(bin: usize, bins: Signal<Vec<usize>>) -> NodeId {
@@ -870,38 +872,42 @@ fn FruitBin(bin: usize, bins: Signal<Vec<usize>>) -> NodeId {
             .filter(|fruit| bins.get()[*fruit] == bin)
             .collect::<Vec<usize>>()
     });
+    let area = NodeRef::new();
+    let site = unstyled::use_drop_site(
+        Func::new(move |fruit: usize| bins.with_untracked(|bins| bins[fruit] != bin)),
+        Func::new(move |_: usize| unstyled::place_on(area, ()).map_or(drag::floating(), drag::fixed)),
+        Callback::new(move |(fruit, ()): (usize, ())| bins.update(|bins| bins[fruit] = bin)),
+    );
+    let edge = create_memo(move || match site.over.get() {
+        Some(()) => ColorRole::Accent,
+        None => ColorRole::Border,
+    });
     view! {
-        <unstyled::DropTarget
-            on_drop={move |(fruit, _): (usize, DragPoint)| bins.update(|bins| bins[fruit] = bin)}
-        >|handle: DropHandle| {
-            let DropHandle { over, .. } = handle;
-            let edge = create_memo(move || match over.get() {
-                true => ColorRole::Accent,
-                false => ColorRole::Border,
-            });
-            view! {
-                <Frame
-                    height=BIN_HEIGHT
-                    border={move || Some(Border::new(edge.get()).width(Stroke::Focus))}
-                    radius=Radius::Lg
-                    padding=Space::Lg
-                >
-                    <List spacing=Space::Md>
-                        <Text color=TextColor::Muted>{BINS[bin].to_owned()}</Text>
-                        <ForEach value={fruits}>|fruit: usize|
-                            <unstyled::Draggable
-                                payload={Some(fruit)}
-                                preview={move |fruit: usize| view! {
+        <Frame
+            @node_ref=&area
+            height=BIN_HEIGHT
+            border={move || Some(Border::new(edge.get()).width(Stroke::Focus))}
+            radius=Radius::Lg
+            padding=Space::Lg
+        >
+            <List spacing=Space::Md>
+                <Text color=TextColor::Muted>{BINS[bin].to_owned()}</Text>
+                <ForEach value={fruits}>|fruit: usize| {
+                    let lifted = unstyled::is_carried(fruit);
+                    view! {
+                        <Interactive
+                            drag={Func::new(move |_: PointerPress| {
+                                Some(drag::Carry::new(fruit).preview(move || view! {
                                     <FruitChip fruit lifted=true />
-                                }}
-                            >|handle: DragHandle|
-                                <FruitChip fruit lifted={handle.dragging} />
-                            </unstyled::Draggable>
-                        </ForEach>
-                    </List>
-                </Frame>
-            }
-        }</unstyled::DropTarget>
+                                }))
+                            })}
+                        >
+                            <FruitChip fruit lifted />
+                        </Interactive>
+                    }
+                }</ForEach>
+            </List>
+        </Frame>
     }
 }
 

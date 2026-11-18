@@ -157,10 +157,9 @@ impl Board {
         Some(id)
     }
 
-    /// Whether `pointer` may lift a carry: it holds none, and no carry of the old API is
-    /// held.
+    /// Whether `pointer` may lift a carry: it holds none.
     pub(crate) fn lifts(&self, pointer: PointerId) -> bool {
-        self.carried.borrow().is_none() && !self.carried_by(pointer)
+        !self.carried_by(pointer)
     }
 
     /// How many sites take `payload`: a site that is the only one has nowhere else to let

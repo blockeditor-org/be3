@@ -1,12 +1,9 @@
-use std::any::Any;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use be_lib_stable_hash::HashMap;
 use beui_view::drag::{CarryId, DragFrame};
-use beui_view::drag::{
-    DragPoint, DragSource, Driver, EdgeScroller, Order, Over, Pending, Space, Target,
-};
+use beui_view::drag::{DragPoint, Driver, EdgeScroller, Order, Space};
 use beui_view::reactive::{Get, NodeId, OwnedSignal, tree_local};
 
 mod sites;
@@ -14,9 +11,9 @@ use beui_view::types::input::PointerId;
 use beui_view::types::{Rect, Vec2, WindowId};
 pub(crate) use sites::{Erased, Site};
 
-/// The drag board of the current tree: what is carried, the targets and scrollers it can
-/// pass over, floating, drops, cancels and edge scrolling. Each core says where its nodes
-/// are (`Space`) and drives the board with pointer points (`Driver`).
+/// The drag board of the current tree: the carries held (one per pointer), the drop sites
+/// they choose among, and the scrollers they scroll at an edge. Each core says where its
+/// nodes are (`Space`) and drives the board with pointer points (`Driver`).
 pub fn drag_board() -> Rc<Board> {
     tree_local(|| {
         let board = Rc::new(Board::new(beui_view::drag::space()));
@@ -25,32 +22,13 @@ pub fn drag_board() -> Rc<Board> {
     })
 }
 
-struct Carried {
-    source: DragSource,
-    over: Option<u64>,
-    last: Option<DragPoint>,
-    floating: Option<bool>,
-    /// The first pointer to move it: with several pressing, only it moves the carry.
-    pointer: Option<PointerId>,
-}
-
 /// The scroller a carry is scrolling: its id, how deep into its band, how to tell it, and
 /// the pointer whose carry scrolls it (only that one moves or stops it).
 type Scrolling = (u64, Vec2, Rc<dyn Fn(Option<Vec2>)>, PointerId);
 
-struct Under {
-    id: u64,
-    rect: (Rect, f32),
-    over: Over,
-    hides: bool,
-}
-
 pub struct Board {
     space: Rc<dyn Space>,
     orders: RefCell<HashMap<NodeId, (Vec<usize>, WindowId)>>,
-    pressed: RefCell<Option<Pending>>,
-    carried: RefCell<Option<Carried>>,
-    targets: RefCell<Vec<Target>>,
     outside: Cell<bool>,
     scrollers: RefCell<Vec<EdgeScroller>>,
     scrolling: RefCell<Option<Scrolling>>,
@@ -73,9 +51,6 @@ impl Board {
         Self {
             space,
             orders: RefCell::default(),
-            pressed: RefCell::default(),
-            carried: RefCell::default(),
-            targets: RefCell::default(),
             outside: Cell::default(),
             scrollers: RefCell::default(),
             scrolling: RefCell::default(),
@@ -89,20 +64,17 @@ impl Board {
         }
     }
 
-    fn order(&self, order: Order) {
-        if !self.carrying() && self.pressed.borrow().is_none() {
+    /// Notes the paint order and window of every node a carry's places and the scrollers
+    /// are relative to, as the core knows them now.
+    fn note_order(&self, order: Order) {
+        if !self.carrying() {
             return;
         }
-        self.note_order(order);
-    }
-
-    fn note_order(&self, order: Order) {
         let nodes: Vec<NodeId> = self
-            .targets
+            .scrollers
             .borrow()
             .iter()
-            .map(|target| target.node)
-            .chain(self.scrollers.borrow().iter().map(|scroller| scroller.node))
+            .map(|scroller| scroller.node)
             .chain(self.placing_nodes())
             .filter_map(|node| node.try_get())
             .collect();
@@ -125,338 +97,27 @@ impl Board {
             .map(|(order, _)| order.clone())
     }
 
-    fn rect_of(&self, target: &Target) -> Option<(Rect, f32)> {
-        self.space.placed(target.node.try_get()?)
-    }
-
-    pub fn register(&self, mut target: Target) -> u64 {
-        let id = self.next.get();
-        self.next.set(id + 1);
-        target.id = id;
-        let carrying = self
-            .carried
-            .borrow()
-            .as_ref()
-            .is_some_and(|carried| (target.accepts)(carried.source.payload.as_ref()));
-        let mark = Rc::clone(&target.carrying);
-        self.targets.borrow_mut().push(target);
-        if carrying {
-            mark(true);
-        }
-        id
-    }
-
-    pub fn unregister(&self, id: u64) {
-        self.targets.borrow_mut().retain(|target| target.id != id);
-        if let Some(carried) = self.carried.borrow_mut().as_mut()
-            && carried.over == Some(id)
-        {
-            carried.over = None;
-        }
-    }
-
+    /// Whether anything is carried.
     pub fn carrying(&self) -> bool {
-        self.carried.borrow().is_some() || self.placing()
-    }
-
-    pub fn item(&self) -> Option<Rect> {
-        self.carried
-            .borrow()
-            .as_ref()
-            .map(|carried| carried.source.item)
-    }
-
-    pub fn begin(&self, source: DragSource, point: DragPoint) {
-        let marks = self
-            .targets
-            .borrow()
-            .iter()
-            .filter(|target| (target.accepts)(source.payload.as_ref()))
-            .map(|target| Rc::clone(&target.carrying))
-            .collect::<Vec<_>>();
-        *self.carried.borrow_mut() = Some(Carried {
-            source,
-            over: None,
-            last: None,
-            floating: None,
-            pointer: None,
-        });
-        for mark in marks {
-            mark(true);
-        }
-        self.track(point);
-    }
-
-    pub fn press(&self, pending: Pending) {
-        *self.pressed.borrow_mut() = Some(pending);
-    }
-
-    pub fn release(&self) {
-        self.pressed.borrow_mut().take();
+        self.placing()
     }
 
     pub fn set_outside(&self, outside: bool) {
         self.outside.set(outside);
     }
 
-    pub fn outside(&self) -> bool {
-        self.outside.get()
-    }
-
-    fn leave(&self) {
-        let previous = self
-            .carried
-            .borrow_mut()
-            .as_mut()
-            .and_then(|carried| carried.over.take());
-        if let Some(left) = previous.and_then(|id| self.over(id)) {
-            left(None);
-        }
-        self.float(true);
-    }
-
-    fn float(&self, floating: bool) {
-        let changed = self.carried.borrow_mut().as_mut().and_then(|carried| {
-            (carried.floating != Some(floating)).then(|| {
-                carried.floating = Some(floating);
-                Rc::clone(&carried.source.floating)
-            })
-        });
-        if let Some(changed) = changed {
-            changed(floating);
-        }
-    }
-
-    fn stamp(&self, point: DragPoint) -> DragPoint {
-        DragPoint {
-            item: self.item().unwrap_or(point.item),
-            ..point
-        }
-    }
-
-    /// Puts down whatever is carried, dropping nothing: Escape, or a site whose own gesture
-    /// ended under the carry (a canvas whose move an undo took back). Whether anything was.
+    /// Puts down every carry, dropping nothing: Escape, or a site whose own gesture ended
+    /// under the carry (a canvas whose move an undo took back). Whether anything was.
     pub fn cancel(&self) -> bool {
-        if self.placing() {
-            return self.put_down_all();
-        }
-        if !self.carrying() {
-            return false;
-        }
-        self.end(None);
-        true
+        self.put_down_all()
     }
 
-    pub fn track(&self, point: DragPoint) {
-        if !self.carrying() {
-            let pending = self.pressed.borrow().clone();
-            if let Some(pending) = pending {
-                pending(point);
-            }
-            return;
-        }
-        if self.outside.get() && !self.held() {
-            if let Some(carried) = self.carried.borrow_mut().as_mut() {
-                carried.last = Some(point);
-            }
-            self.stop_edge();
-            self.leave();
-            return;
-        }
-        let follow = {
-            let mut carried = self.carried.borrow_mut();
-            let Some(carried) = carried.as_mut() else {
-                return;
-            };
-            if carried.last == Some(point) {
-                None
-            } else {
-                carried.last = Some(point);
-                Some(Rc::clone(&carried.source.follow))
-            }
-        };
-        let moved = follow.is_some();
-        if let Some(follow) = follow {
-            follow(self.stamp(point));
-        }
-        self.edge_scroll(point);
-        if moved || self.scrolling.borrow().is_some() {
-            self.move_to(point);
-        }
-    }
-
-    /// Chooses again where the pointer last was: what is under it moved (a scroll, a
+    /// Chooses again where each pointer last was: what is under it moved (a scroll, a
     /// canvas's camera), though the pointer did not.
     pub fn retrack(&self) {
-        let lasts = self.placing_last();
-        if !lasts.is_empty() {
-            for last in lasts {
-                self.place(last, false);
-            }
-            return;
+        for last in self.placing_last() {
+            self.place(last, false);
         }
-        if let Some(last) = self.last() {
-            self.track(last);
-        }
-    }
-
-    fn last(&self) -> Option<DragPoint> {
-        self.carried
-            .borrow()
-            .as_ref()
-            .and_then(|carried| carried.last)
-    }
-
-    pub fn finish(&self) {
-        let last = self.last();
-        if !self.outside.get() || self.held() {
-            self.end(last);
-            return;
-        }
-        let outside = self
-            .carried
-            .borrow()
-            .as_ref()
-            .map(|carried| Rc::clone(&carried.source.outside));
-        let last = last.map(|last| self.stamp(last));
-        self.leave();
-        self.settle(None, false);
-        if let (Some(outside), Some(last)) = (outside, last) {
-            outside(last);
-        }
-    }
-
-    pub fn held(&self) -> bool {
-        let carried = self.carried.borrow();
-        carried.as_ref().is_some_and(|carried| {
-            holder(&self.targets.borrow(), carried.source.payload.as_ref()).is_some()
-        })
-    }
-
-    fn under(&self, point: DragPoint) -> Option<Under> {
-        let carried = self.carried.borrow();
-        let payload = carried.as_ref()?.source.payload.as_ref();
-        let under = |target: &Target, rect| Under {
-            id: target.id,
-            rect,
-            over: Rc::clone(&target.over),
-            hides: (target.hides_preview)(),
-        };
-        let targets = self.targets.borrow();
-        let found = targets
-            .iter()
-            .filter_map(|target| Some((target.node.try_get()?, target)))
-            .filter(|(node, _)| self.window(*node) == point.window)
-            .filter(|(node, _)| {
-                self.space
-                    .visible(*node)
-                    .is_some_and(|visible| visible.contains_half_open(point.pos))
-            })
-            .filter_map(|(node, target)| Some((node, self.rect_of(target)?, target)))
-            .filter(|(.., target)| (target.accepts)(payload))
-            .max_by_key(|(node, ..)| self.painted(*node))
-            .map(|(_, rect, target)| under(target, rect));
-        if found.is_some() {
-            return found;
-        }
-        let holder = holder(&targets, payload)?;
-        let target = targets.iter().find(|target| target.id == holder)?;
-        let rect = self.rect_of(target)?;
-        Some(under(target, rect))
-    }
-
-    fn over(&self, id: u64) -> Option<Over> {
-        self.targets
-            .borrow()
-            .iter()
-            .find(|target| target.id == id)
-            .map(|target| Rc::clone(&target.over))
-    }
-
-    fn placed(&self, id: u64) -> Option<(Rect, f32)> {
-        self.targets
-            .borrow()
-            .iter()
-            .find(|target| target.id == id)
-            .and_then(|target| self.rect_of(target))
-    }
-
-    fn move_to(&self, point: DragPoint) {
-        if !self.carrying() {
-            return;
-        }
-        let point = self.stamp(point);
-        let under = self.under(point);
-        let id = under.as_ref().map(|under| under.id);
-        let previous = self
-            .carried
-            .borrow_mut()
-            .as_mut()
-            .and_then(|carried| std::mem::replace(&mut carried.over, id));
-        if previous.is_some()
-            && previous != id
-            && let Some(left) = previous.and_then(|id| self.over(id))
-        {
-            left(None);
-        }
-        self.float(!under.as_ref().is_some_and(|under| under.hides));
-        let payload = self
-            .carried
-            .borrow()
-            .as_ref()
-            .map(|carried| Rc::clone(&carried.source.payload));
-        if let (Some(under), Some(payload)) = (under, payload) {
-            (under.over)(Some((payload.as_ref(), point.within(under.rect))));
-        }
-    }
-
-    pub fn end(&self, point: Option<DragPoint>) -> bool {
-        self.settle(point, true)
-    }
-
-    fn settle(&self, point: Option<DragPoint>, tell: bool) -> bool {
-        if let Some(point) = point {
-            self.move_to(point);
-        }
-        let Some(carried) = self.carried.borrow_mut().take() else {
-            return false;
-        };
-        self.stop_edge();
-        let point = point.map(|point| DragPoint {
-            item: carried.source.item,
-            ..point
-        });
-        let targets = self
-            .targets
-            .borrow()
-            .iter()
-            .map(|target| {
-                (
-                    target.id,
-                    Rc::clone(&target.carrying),
-                    Rc::clone(&target.over),
-                    Rc::clone(&target.dropped),
-                )
-            })
-            .collect::<Vec<_>>();
-        let mut drop = None;
-        for (id, carrying, over, dropped) in targets {
-            if carried.over == Some(id) {
-                drop = Some((dropped, self.placed(id)));
-            }
-            over(None);
-            carrying(false);
-        }
-        if let (Some((dropped, rect)), Some(point)) = (drop, point) {
-            let point = rect.map_or(point, |rect| point.within(rect));
-            dropped(carried.source.payload.as_ref(), point);
-            (carried.source.dropped)();
-            return true;
-        }
-        if tell {
-            (carried.source.cancelled)();
-        }
-        false
     }
 
     pub fn register_scroller(&self, mut scroller: EdgeScroller) -> u64 {
@@ -484,10 +145,7 @@ impl Board {
     /// Scrolls the innermost scroller whose edge band holds `point`, for the carry of its
     /// pointer, unless that carry scrolls nothing or another pointer's carry is scrolling.
     fn edge_scroll(&self, point: DragPoint) {
-        if !self.carrying()
-            || self.outside.get()
-            || (self.placing() && !self.placing_scrolls(point.pointer))
-        {
+        if !self.carrying() || self.outside.get() || !self.placing_scrolls(point.pointer) {
             self.stop_edge_of(point.pointer);
             return;
         }
@@ -562,14 +220,6 @@ impl Board {
     }
 }
 
-fn holder(targets: &[Target], payload: &dyn Any) -> Option<u64> {
-    let holder = targets.iter().find(|target| (target.holds)(payload))?;
-    let elsewhere = targets
-        .iter()
-        .any(|target| target.id != holder.id && (target.accepts)(payload));
-    (!elsewhere).then_some(holder.id)
-}
-
 struct Smaller(f32);
 
 impl PartialEq for Smaller {
@@ -602,36 +252,15 @@ impl Driver for Board {
     }
 
     fn track(&self, point: DragPoint, order: Order) {
-        if self.placing() {
-            if self.carried_by(point.pointer) {
-                self.order(order);
-                self.place(point, false);
-                self.edge_scroll(point);
-            }
-            return;
+        if self.carried_by(point.pointer) {
+            self.note_order(order);
+            self.place(point, false);
+            self.edge_scroll(point);
         }
-        if let Some(carried) = self.carried.borrow_mut().as_mut() {
-            match carried.pointer {
-                Some(pointer) if pointer != point.pointer => return,
-                _ => carried.pointer = Some(point.pointer),
-            }
-        }
-        self.order(order);
-        Board::track(self, point);
     }
 
-    fn release(&self, pointer: PointerId, cancelled: bool, order: Order) {
-        if self.placing() {
-            self.put_down(pointer, !cancelled);
-            return;
-        }
-        self.order(order);
-        match cancelled {
-            true => {
-                self.end(None);
-            }
-            false => self.finish(),
-        }
+    fn release(&self, pointer: PointerId, cancelled: bool, _order: Order) {
+        self.put_down(pointer, !cancelled);
     }
 
     fn cancel(&self) -> bool {

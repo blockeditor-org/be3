@@ -302,7 +302,7 @@ impl Page {
             Page::Values => "Sliders, text and number inputs, colors",
             Page::Selecting => "Choices, disclosures, trees, text menus",
             Page::Popups => "Popovers, tooltips, menus, sheets, dates",
-            Page::Dragging => "Draggables and drop targets",
+            Page::Dragging => "Items carried to the places that take them",
             Page::Scrolling => "Scroll areas and scrollbars",
             Page::Frames => "Fills, outlines, padding, sizes",
             Page::Paths => "Curves, joins, caps, dashes",

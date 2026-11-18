@@ -80,7 +80,7 @@ pub(crate) fn Timeline(state: VideoState) -> NodeId {
             // The rows as they are at the lift, as every spec is read then: the board asks for
             // a place each frame, even while the clip is held still.
             let rows: Vec<ClipRow> = untrack(|| edit.with(timeline::lane_rows));
-            drag::custom(area, move |at: Pos2| {
+            drag::custom(area, move |at: Pos2, _| {
                 let dragged = state.drag.get_untracked()?;
                 untrack(|| {
                     edit.with(|video| {

@@ -75,53 +75,6 @@ impl DragPoint {
     }
 }
 
-pub type Accepts = std::rc::Rc<dyn Fn(&dyn std::any::Any) -> bool>;
-pub type Dropped = std::rc::Rc<dyn Fn(&dyn std::any::Any, DragPoint)>;
-pub type Over = std::rc::Rc<dyn Fn(Option<(&dyn std::any::Any, DragPoint)>)>;
-pub type Pending = std::rc::Rc<dyn Fn(DragPoint)>;
-pub type Outside = std::rc::Rc<dyn Fn(DragPoint)>;
-
-/// A place a carried item may be dropped. `accepts` says which payloads it takes, and `holds` names the payloads it keeps wherever the pointer is when no other target
-/// accepts them. `hides_preview` asks the source to show the item in place, not floating.
-pub struct Target {
-    pub id: u64,
-    pub node: crate::node::NodeRef,
-    pub accepts: Accepts,
-    pub carrying: std::rc::Rc<dyn Fn(bool)>,
-    pub over: Over,
-    pub dropped: Dropped,
-    pub hides_preview: std::rc::Rc<dyn Fn() -> bool>,
-    pub holds: Accepts,
-}
-
-/// What a drag carries and who hears how it goes: `follow` every point, `floating` when
-/// the item leaves for or comes back from the floating preview, `outside` a release
-/// outside every window, `cancelled` an end nothing took, `dropped` a target taking it.
-/// `item` is the carried item's rect relative to the pointer.
-pub struct DragSource {
-    pub payload: std::rc::Rc<dyn std::any::Any>,
-    pub item: Rect,
-    pub follow: std::rc::Rc<dyn Fn(DragPoint)>,
-    pub floating: std::rc::Rc<dyn Fn(bool)>,
-    pub outside: Outside,
-    pub cancelled: std::rc::Rc<dyn Fn()>,
-    pub dropped: std::rc::Rc<dyn Fn()>,
-}
-
-impl DragSource {
-    pub fn new(payload: std::rc::Rc<dyn std::any::Any>) -> Self {
-        Self {
-            payload,
-            item: Rect::ZERO,
-            follow: std::rc::Rc::new(|_| {}),
-            floating: std::rc::Rc::new(|_| {}),
-            outside: std::rc::Rc::new(|_| {}),
-            cancelled: std::rc::Rc::new(|| {}),
-            dropped: std::rc::Rc::new(|| {}),
-        }
-    }
-}
-
 /// How far from a scroller's edge a carried item starts scrolling it.
 pub const EDGE_BAND: f32 = 40.0;
 

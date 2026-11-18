@@ -392,8 +392,8 @@ Across windows:
   `PointerPress` naming the window under the pointer. Forwarding catchers (app regions, Wayland
   windows) get it in their own coordinates once the host has reported both windows' `Moved`.
 - Dragging out of every window: a host sends `PointerLeft` while a button is held over no window;
-  the drag board then drops nothing and calls the carry's `outside` (`Draggable`'s
-  `on_drop_outside` on the old API). This happens only
+  the drag board then drops nothing and calls the carry's `outside`, unless the carry
+  `reads_outside` (a splitter). This happens only
   when the host opens every window; elsewhere a drag out drops at the last point inside.
 - `be_lib_ui_types::Input` has no window: it is also the app protocol's input, and an app region is
   always one window.

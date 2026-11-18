@@ -537,7 +537,7 @@ impl State {
             }
         }
         let dock = *self;
-        let float = custom(tiles, move |local: Pos2| {
+        let float = custom(tiles, move |local: Pos2, _| {
             let tiles = measure(tiles.try_get()?).get_untracked()?.rect;
             Some(dock.float_at(bar, tiles.min + local.to_vec2()))
         });
