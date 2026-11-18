@@ -309,10 +309,16 @@ fn a_root_asks_its_hosts_questions_and_shows_an_invitations_link_only_once() {
     );
 
     // A request whose dialog closed before the host took it never reaches the host.
-    root.input(None, be_lib_ui_types::input::encode(&chord(Key::Enter, Modifiers::NONE)))
-        .expect("the root takes input");
-    root.input(None, be_lib_ui_types::input::encode(&chord(Key::Escape, Modifiers::NONE)))
-        .expect("the root takes input");
+    root.input(
+        None,
+        be_lib_ui_types::input::encode(&chord(Key::Enter, Modifiers::NONE)),
+    )
+    .expect("the root takes input");
+    root.input(
+        None,
+        be_lib_ui_types::input::encode(&chord(Key::Escape, Modifiers::NONE)),
+    )
+    .expect("the root takes input");
     let _ = settle(&mut root, &mut time);
     assert!(
         root.take_secret_requests().is_empty(),

@@ -23,10 +23,11 @@ use be_wasm_guest_abi::{Flow, Guest, Waker};
 use be_wasm_ops::guest::{Executor, LocalFuture};
 use be_wasm_password::Password;
 use be_wasm_root_api::{
-    AccountRow, AgentRow, CoreCommand, CoreSecret, MemberRole, MemberRow, RoleChange, SecretCommand, CoreView, CoreWait, DiscardReason, InvitationRow,
-    InvitationState, OrganizationRow, OrganizationsListed, ProfileRow,
-    SessionRow, DisplayQuestion, FrameDone, FrameRequest, HostStatistics, LockState,
-    NewAccount, Notice, PowerAction, Refusal, SavingState, ServerAccount, SetAside, StatisticRow, SyncState, UnsentEdit,
+    AccountRow, AgentRow, CoreCommand, CoreSecret, CoreView, CoreWait, DiscardReason,
+    DisplayQuestion, FrameDone, FrameRequest, HostStatistics, InvitationRow, InvitationState,
+    LockState, MemberRole, MemberRow, NewAccount, Notice, OrganizationRow, OrganizationsListed,
+    PowerAction, ProfileRow, Refusal, RoleChange, SavingState, SecretCommand, ServerAccount,
+    SessionRow, SetAside, StatisticRow, SyncState, UnsentEdit,
     guest::{
         exports::{frames, input, paintings},
         host,
@@ -41,16 +42,17 @@ use beui::{
 };
 
 use crate::{
-    AGENTS_TITLE, DISCARD_TITLE, INVITATIONS_TITLE, MEMBERS_TITLE, OPENS_AGENTS, OPENS_MEMBERS,
-    REMOVE_MEMBER_TITLE, OPENS_INVITATIONS, REAUTH_TITLE, ONBOARDING_LAYER,
-    ONBOARDING_SURFACE, ORGANIZATIONS_TITLE, SESSIONS_TITLE, ADD_ACCOUNT_TITLE, FORGET_ACCOUNT_TITLE, SIGN_IN_TITLE,
-    APP, APP_ENTRY, CLOSES, DIALOG_LAYER, DISCARD_UNSENT_TITLE, OPENS_UNSENT, UNSENT_TITLE, DIALOG_ORIGIN, KEEP_DISPLAY_TITLE, DIALOG_SIZE, DIALOG_SURFACE, DIALOG_TITLE,
-    LATE_LAYER, LATER, LATER_TEXT, LOCK_LAYER, LOCK_SURFACE, LOCKS_SESSION, OPENS_DIALOG,
-    OPENS_STATISTICS, ORIGIN, RASTER, RESIZED, RESIZES, ROOT_COLOR, ROOT_LAYER, ROOT_SURFACE,
-    SCREEN, SCREEN_SIZE, SCRIM_COLOR, SCRIM_LAYER, SCRIM_SURFACE, SIZE, SLOW_SAVE, SLOW_SAVE_TITLE,
+    ADD_ACCOUNT_TITLE, AGENTS_TITLE, APP, APP_ENTRY, CLOSES, DIALOG_LAYER, DIALOG_ORIGIN,
+    DIALOG_SIZE, DIALOG_SURFACE, DIALOG_TITLE, DISCARD_TITLE, DISCARD_UNSENT_TITLE,
+    FORGET_ACCOUNT_TITLE, INVITATIONS_TITLE, KEEP_DISPLAY_TITLE, LATE_LAYER, LATER, LATER_TEXT,
+    LOCK_LAYER, LOCK_SURFACE, LOCKS_SESSION, MEMBERS_TITLE, ONBOARDING_LAYER, ONBOARDING_SURFACE,
+    OPENS_AGENTS, OPENS_DIALOG, OPENS_INVITATIONS, OPENS_MEMBERS, OPENS_STATISTICS, OPENS_UNSENT,
+    ORGANIZATIONS_TITLE, ORIGIN, RASTER, REAUTH_TITLE, REMOVE_MEMBER_TITLE, RESIZED, RESIZES,
+    ROOT_COLOR, ROOT_LAYER, ROOT_SURFACE, SCREEN, SCREEN_SIZE, SCRIM_COLOR, SCRIM_LAYER,
+    SCRIM_SURFACE, SESSIONS_TITLE, SIGN_IN_TITLE, SIZE, SLOW_SAVE, SLOW_SAVE_TITLE,
     SLOW_SAVE_TOAST, STATISTICS_AREA, STATISTICS_LAYER, STATISTICS_ORIGIN, STATISTICS_SURFACE,
     STATISTICS_TITLE, STRAY_PASSWORD, TEXT, TEXT_LAYER, TEXT_STRIP, TEXT_SURFACE, TOAST_AREA,
-    TOAST_LAYER, TOAST_SURFACE, UNLOCKS_TWICE, UNPRESENTED_SURFACE,
+    TOAST_LAYER, TOAST_SURFACE, UNLOCKS_TWICE, UNPRESENTED_SURFACE, UNSENT_TITLE,
 };
 
 /// The triangle's editor, by its manifest's id.
@@ -1018,7 +1020,8 @@ impl Root {
                     Asking::Invitations => {
                         let core = create_signal(core);
                         core_shown.set(Some(core));
-                        let (link, pending, ask) = secret_asker(&secret_shown, &answered, &wakes, &closes);
+                        let (link, pending, ask) =
+                            secret_asker(&secret_shown, &answered, &wakes, &closes);
                         view! {
                             <InvitationsDialog
                                 core={core}
@@ -1032,14 +1035,23 @@ impl Root {
                     Asking::Members => {
                         let core = create_signal(core);
                         core_shown.set(Some(core));
-                        view! { <MembersDialog core={core} done={done} /> }
+                        view! {
+                            <MembersDialog core={core} done={done} />
+                        }
                     }
                     Asking::Agents => {
                         let core = create_signal(core);
                         core_shown.set(Some(core));
-                        let (made, pending, ask) = secret_asker(&secret_shown, &answered, &wakes, &closes);
+                        let (made, pending, ask) =
+                            secret_asker(&secret_shown, &answered, &wakes, &closes);
                         view! {
-                            <AgentsDialog core={core} made={made} pending={pending} ask={ask} done={done} />
+                            <AgentsDialog
+                                core={core}
+                                made={made}
+                                pending={pending}
+                                ask={ask}
+                                done={done}
+                            />
                         }
                     }
                     Asking::ForgetAccount { key, name } => {
@@ -2370,9 +2382,9 @@ fn InvitationsDialog(
         })
     });
     let copy = move || {
-        if let Some(text) = link.with_untracked(|link| {
-            link.as_ref().and_then(Held::link).map(str::to_owned)
-        }) {
+        if let Some(text) =
+            link.with_untracked(|link| link.as_ref().and_then(Held::link).map(str::to_owned))
+        {
             be_wasm_ops::guest::spawn(async move {
                 let item = be_lib_ui_types::ClipItem::text(text);
                 let _ = host::copy(vec![be_wasm_ops::encode(&item)]).await;
@@ -2570,12 +2582,22 @@ fn MembersDialog(core: Signal<CoreView>, done: Callback<Closed>) -> NodeId {
     let removing = create_signal(None::<[u8; 16]>);
     let asked = create_memo(move || {
         let account = removing.get()?;
-        members.with(|members| members.iter().find(|member| member.account == account).cloned())
+        members.with(|members| {
+            members
+                .iter()
+                .find(|member| member.account == account)
+                .cloned()
+        })
     });
     let asks = create_memo(move || asked.with(Option::is_some));
     let listing = create_memo(move || !asks.get());
     let question = create_memo(move || {
-        let name = asked.with(|member| member.as_ref().map(|member| member.name.clone()).unwrap_or_default());
+        let name = asked.with(|member| {
+            member
+                .as_ref()
+                .map(|member| member.name.clone())
+                .unwrap_or_default()
+        });
         format!("Remove {name} from the organization? They lose access to its blocks.")
     });
     let remove = move || {
@@ -2638,7 +2660,11 @@ fn MembersDialog(core: Signal<CoreView>, done: Callback<Closed>) -> NodeId {
                                 ask_core(CoreCommand::SetMemberRole(RoleChange { account, role }));
                             };
                             view! {
-                                <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
+                                <List
+                                    direction=Direction::Horizontal
+                                    align=Align::Center
+                                    spacing=Space::Sm
+                                >
                                     <ListItem grow=1.0>
                                         <List spacing=Space::Xs2>
                                             <Text>{name}</Text>
@@ -2693,7 +2719,9 @@ fn agent_bundle(agent: &be_wasm_root_api::AgentCredentials) -> String {
             match character {
                 '"' => quoted.push_str("\\\""),
                 '\\' => quoted.push_str("\\\\"),
-                character if character < ' ' => quoted.push_str(&format!("\\u{:04x}", u32::from(character))),
+                character if character < ' ' => {
+                    quoted.push_str(&format!("\\u{:04x}", u32::from(character)))
+                }
                 character => quoted.push(character),
             }
         }
@@ -2752,7 +2780,8 @@ fn AgentsDialog(
     let agents = create_memo(move || area.with(|area| area.agents.clone()));
     let busy = create_memo(move || pending.get() || area.with(|area| area.busy || !area.listed));
     let error = create_memo(move || area.with(|area| area.error.clone()));
-    let showing = create_memo(move || made.with(|made| made.as_ref().and_then(Held::agent).is_some()));
+    let showing =
+        create_memo(move || made.with(|made| made.as_ref().and_then(Held::agent).is_some()));
     let listing = create_memo(move || !showing.get());
     let name = create_signal(String::new());
     let create = move || {
@@ -2774,7 +2803,12 @@ fn AgentsDialog(
         })
     });
     let credentials = create_memo(move || {
-        made.with(|made| made.as_ref().and_then(Held::agent).map(agent_bundle).unwrap_or_default())
+        made.with(|made| {
+            made.as_ref()
+                .and_then(Held::agent)
+                .map(agent_bundle)
+                .unwrap_or_default()
+        })
     });
     let copy = move || {
         let text = credentials.get_untracked();
@@ -2834,7 +2868,11 @@ fn AgentsDialog(
                             let account = agent.with_untracked(|agent| agent.account);
                             let label = create_memo(move || agent.with(|agent| agent.name.clone()));
                             view! {
-                                <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
+                                <List
+                                    direction=Direction::Horizontal
+                                    align=Align::Center
+                                    spacing=Space::Sm
+                                >
                                     <ListItem grow=1.0>
                                         <Text>{label}</Text>
                                     </ListItem>
