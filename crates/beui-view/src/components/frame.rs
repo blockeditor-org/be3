@@ -18,6 +18,10 @@ use beui_macros::component;
 /// in a `List`, as if it were not there, while its subtree stays built and running (unlike
 /// `Show`, which removes it).
 ///
+/// `accessibility_hidden` keeps the frame and everything in it out of the accessibility tree
+/// (HTML's `aria-hidden`), for what is drawn twice: a row a list draws again as the item
+/// being carried.
+///
 /// `translate`, `rotate`, `opacity` and `fade_edges` leave the space the frame takes alone.
 /// `translate` snaps to the pixel grid and paints nothing while off screen. Opacity and
 /// faded edges are one mask over the whole frame, so overlapping shapes inside show
@@ -41,6 +45,7 @@ pub fn Frame(
     #[prop(default = Sides::ZERO)] fade_edges: Prop<Sides>,
     #[prop(default = false)] raised: Prop<bool>,
     #[prop(default = false)] collapsed: Prop<bool>,
+    #[prop(default = false)] accessibility_hidden: Prop<bool>,
     children: Option<Child>,
 ) -> NodeId {
     crate::core::frame(
@@ -58,6 +63,7 @@ pub fn Frame(
         fade_edges,
         raised,
         collapsed,
+        accessibility_hidden,
         children,
     )
 }
