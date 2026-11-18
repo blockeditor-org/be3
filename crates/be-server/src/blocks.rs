@@ -4,8 +4,8 @@ use be_block_graph::{
     SETTINGS_TYPE,
 };
 use be_block_protocol::{
-    AccessEntry, AccessList, AccountName, BlockSummary, ChangeCursor, ChangedPage, ErrorCode, HistoryEntry,
-    Hold, Listed, Listing, ObjectChange, OrganizationRole, ReferenceChange,
+    AccessEntry, AccessList, AccountName, BlockSummary, ChangeCursor, ChangedPage, ErrorCode,
+    HistoryEntry, Hold, Listed, Listing, ObjectChange, OrganizationRole, ReferenceChange,
 };
 use be_block_store::Hash;
 use rusqlite::{Connection, OptionalExtension, params};
@@ -2159,7 +2159,13 @@ impl ServerStore {
         block: Uuid,
     ) -> Result<Vec<AccountName>, ServerError> {
         self.with_graph(identity.organization, move |_, graph, database| {
-            require(graph, &visibility(identity), block, Access::View, "viewable")?;
+            require(
+                graph,
+                &visibility(identity),
+                block,
+                Access::View,
+                "viewable",
+            )?;
             let node = graph.get(block).ok_or(ServerError::Corrupt)?;
             let listed: BTreeSet<Uuid> = graph
                 .audience(block)

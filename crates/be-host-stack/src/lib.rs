@@ -23,7 +23,6 @@ pub mod keys;
 pub mod link;
 mod nudge;
 pub mod offline_choice;
-pub mod unread;
 mod replicas;
 mod replies;
 pub mod revisions;
@@ -33,6 +32,7 @@ pub mod terminal_host;
 #[cfg(feature = "testing")]
 pub mod testing;
 pub mod types;
+pub mod unread;
 mod version;
 mod worker;
 

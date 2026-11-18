@@ -395,8 +395,7 @@ impl RootSettings {
         // Which blocks hold the layers moves with the graph (the settings at the root), the
         // settings and the profile, whose content are block changes; the modules' kinds with
         // `stale`.
-        if !(changes.graph || changes.stale || changes.every_block || !changes.blocks.is_empty())
-        {
+        if !(changes.graph || changes.stale || changes.every_block || !changes.blocks.is_empty()) {
             return Vec::new();
         }
         let mut read = self.reads.borrow_mut();

@@ -45,19 +45,31 @@ fn a_chats_unread_count_is_counted_from_its_head_and_the_accounts_reads() {
     );
 
     crate::unread::publish(reads, Vec::new());
-    counts(chat, 2, "counted both of Rosa's messages, with nothing read");
+    counts(
+        chat,
+        2,
+        "counted both of Rosa's messages, with nothing read",
+    );
 
     let newest = editor.content().newest().expect("the chat has messages");
     let mut read = ChatReadsContent::default();
     read.apply(&ChatReads::set_read(chat, Uuid::new_v4(), newest, &[]));
     crate::unread::publish(reads, vec![read.encode()]);
-    counts(chat, 0, "counted nothing once another device read up to the newest");
+    counts(
+        chat,
+        0,
+        "counted nothing once another device read up to the newest",
+    );
 
     let (_, answer) = editor
         .content()
         .send(chat, Message::new(rosa, 3, "Bring the minutes"));
     editor.operate(answer.into());
     flush();
-    counts(chat, 1, "counted the message that came after the place read");
+    counts(
+        chat,
+        1,
+        "counted the message that came after the place read",
+    );
     crate::unread::forget();
 }
