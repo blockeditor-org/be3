@@ -19,6 +19,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-block-commit:be-block-commit",
                 "//crates/be-block-graph:be-block-graph",
+                "//crates/be-block-keys:be-block-keys",
                 "//crates/be-block-store:be-block-store",
                 "//crates/be-wasm-ops-bindgen:be-wasm-ops-bindgen",
                 "//crates/be-wasm-ops:be-wasm-ops",
@@ -37,6 +38,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-block-commit:be-block-commit",
                 "//crates/be-block-graph:be-block-graph",
+                "//crates/be-block-keys:be-block-keys",
                 "//crates/be-block-store:be-block-store",
                 "//crates/be-wasm-ops-bindgen:be-wasm-ops-bindgen",
                 "//crates/be-wasm-ops:be-wasm-ops",
@@ -55,6 +57,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-block-commit:be-block-commit",
                 "//crates/be-block-graph:be-block-graph",
+                "//crates/be-block-keys:be-block-keys",
                 "//crates/be-block-store:be-block-store",
                 "//crates/be-wasm-ops-bindgen:be-wasm-ops-bindgen",
                 "//crates/be-wasm-ops:be-wasm-ops",
@@ -73,6 +76,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-block-commit:be-block-commit",
                 "//crates/be-block-graph:be-block-graph",
+                "//crates/be-block-keys:be-block-keys",
                 "//crates/be-block-store:be-block-store",
                 "//crates/be-wasm-ops-bindgen:be-wasm-ops-bindgen",
                 "//crates/be-wasm-ops:be-wasm-ops",
@@ -91,6 +95,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-block-commit:be-block-commit",
                 "//crates/be-block-graph:be-block-graph",
+                "//crates/be-block-keys:be-block-keys",
                 "//crates/be-block-store:be-block-store",
                 "//crates/be-wasm-ops-bindgen:be-wasm-ops-bindgen",
                 "//crates/be-wasm-ops:be-wasm-ops",
@@ -109,6 +114,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-block-commit:be-block-commit",
                 "//crates/be-block-graph:be-block-graph",
+                "//crates/be-block-keys:be-block-keys",
                 "//crates/be-block-store:be-block-store",
                 "//crates/be-wasm-ops-bindgen:be-wasm-ops-bindgen",
                 "//crates/be-wasm-ops:be-wasm-ops",
@@ -127,6 +133,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-block-commit:be-block-commit",
                 "//crates/be-block-graph:be-block-graph",
+                "//crates/be-block-keys:be-block-keys",
                 "//crates/be-block-store:be-block-store",
                 "//crates/be-wasm-ops-bindgen:be-wasm-ops-bindgen",
                 "//crates/be-wasm-ops:be-wasm-ops",
@@ -145,6 +152,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-block-commit:be-block-commit",
                 "//crates/be-block-graph:be-block-graph",
+                "//crates/be-block-keys:be-block-keys",
                 "//crates/be-block-store:be-block-store",
                 "//crates/be-wasm-ops-bindgen:be-wasm-ops-bindgen",
                 "//crates/be-wasm-ops:be-wasm-ops",
@@ -163,6 +171,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-block-commit:be-block-commit",
                 "//crates/be-block-graph:be-block-graph",
+                "//crates/be-block-keys:be-block-keys",
                 "//crates/be-block-store:be-block-store",
                 "//crates/be-wasm-ops-bindgen:be-wasm-ops-bindgen",
                 "//crates/be-wasm-ops:be-wasm-ops",
@@ -181,6 +190,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-block-commit:be-block-commit",
                 "//crates/be-block-graph:be-block-graph",
+                "//crates/be-block-keys:be-block-keys",
                 "//crates/be-block-store:be-block-store",
                 "//crates/be-wasm-ops-bindgen:be-wasm-ops-bindgen",
                 "//crates/be-wasm-ops:be-wasm-ops",
@@ -199,6 +209,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-block-commit:be-block-commit",
                 "//crates/be-block-graph:be-block-graph",
+                "//crates/be-block-keys:be-block-keys",
                 "//crates/be-block-store:be-block-store",
                 "//crates/be-wasm-ops-bindgen:be-wasm-ops-bindgen",
                 "//crates/be-wasm-ops:be-wasm-ops",

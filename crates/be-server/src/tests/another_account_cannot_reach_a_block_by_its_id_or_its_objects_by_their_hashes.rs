@@ -91,6 +91,7 @@ async fn another_account_cannot_reach_a_block_by_its_id_or_its_objects_by_their_
                     time: 1_000,
                     pinned: false,
                     objects: Vec::new(),
+                    log_through: None,
                 }),
                 references: listing(&[], Vec::new()),
                 metadata: Vec::new(),

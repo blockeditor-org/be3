@@ -31,6 +31,7 @@ async fn a_request_stuck_in_a_full_socket_fails_once_the_server_goes_silent() {
                 time: 0,
                 pinned: false,
                 objects: vec![vec![7; be_block_protocol::MAX_FRAME_BYTES - 1024]],
+                log_through: None,
             }),
             references: be_block_protocol::ReferenceChange::default(),
             metadata: Vec::new(),

@@ -202,7 +202,7 @@ pub(crate) fn visibility(identity: Identity) -> Visibility {
     Visibility::of(identity)
 }
 
-fn require_edit(graph: &BlockGraph, seen: &Visibility, block: Uuid) -> Result<(), ServerError> {
+pub(crate) fn require_edit(graph: &BlockGraph, seen: &Visibility, block: Uuid) -> Result<(), ServerError> {
     require(graph, seen, block, Access::Edit, "editable")
 }
 
@@ -210,7 +210,7 @@ fn require_manage(graph: &BlockGraph, seen: &Visibility, block: Uuid) -> Result<
     require(graph, seen, block, Access::Manage, "managed")
 }
 
-fn require(
+pub(crate) fn require(
     graph: &BlockGraph,
     seen: &Visibility,
     block: Uuid,
@@ -855,6 +855,7 @@ impl ServerStore {
         references: ReferenceChange,
         metadata: Vec<u8>,
         trim: Option<crate::journal::Asked>,
+        log_through: Option<be_block_protocol::LogHead>,
     ) -> Result<PublishOutcome, ServerError> {
         crate::limits::at_most("metadata", metadata.len(), MAX_METADATA_BYTES)?;
         if let Some(crate::journal::Asked { base, .. }) = &trim {
@@ -898,6 +899,18 @@ impl ServerStore {
                 let current = graph.head(block);
                 if current != expected {
                     return Ok(PublishOutcome::Rejected(current));
+                }
+                // A commit names only a head its block's signed log had.
+                if let Some(through) = &log_through
+                    && !crate::log::holds_prefix(database, identity.organization, block, through)?
+                {
+                    return Err(ServerError::Refused(
+                        ErrorCode::InvalidRequest,
+                        format!(
+                            "the commit names a head of the block's log ({} entries) that the log never had",
+                            through.size
+                        ),
+                    ));
                 }
                 // A trim with no new commit: the head is the base's commit already. Only the
                 // lease holder trims so, held as the holder while the trim is written; anyone
@@ -2764,7 +2777,7 @@ fn listing_ids(
 }
 
 /// A block and its ancestors: the blocks whose sizes change with its own.
-fn chain(graph: &BlockGraph, block: Uuid) -> Vec<Uuid> {
+pub(crate) fn chain(graph: &BlockGraph, block: Uuid) -> Vec<Uuid> {
     std::iter::once(block)
         .chain(graph.ancestors(block))
         .collect()

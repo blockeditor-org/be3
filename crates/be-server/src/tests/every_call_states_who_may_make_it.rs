@@ -47,6 +47,7 @@ fn query_case(query: &Query) -> &'static str {
         Query::List { .. } => "list",
         Query::Tree { .. } => "tree",
         Query::History(_) => "history",
+        Query::BlockLog { .. } => "block-log",
         Query::Log(Some(_)) => "log (block)",
         Query::Log(None) => "log (organization)",
         Query::Access(_) => "access",
@@ -75,6 +76,7 @@ const QUERIES: &[&str] = &[
     "list",
     "tree",
     "history",
+    "block-log",
     "log (block)",
     "log (organization)",
     "access",
@@ -105,6 +107,8 @@ fn op_case(op: &Op) -> &'static str {
             commit: Some(_), ..
         } => "publish",
         Op::Move { .. } => "move",
+        Op::Append { .. } => "append",
+        Op::Redact { .. } => "redact",
         Op::AppendLog(LogRecord::Grant { .. }) => "append-log (grant)",
         Op::AppendLog(LogRecord::Role { .. }) => "append-log (role)",
         Op::AppendLog(LogRecord::Member { .. }) => "append-log (member)",
@@ -143,6 +147,8 @@ const OPS: &[&str] = &[
     "publish",
     "publish (no commit)",
     "move",
+    "append",
+    "redact",
     "append-log (grant)",
     "append-log (role)",
     "append-log (member)",
@@ -202,6 +208,7 @@ fn topic_case(topic: &Topic) -> &'static str {
     match topic {
         Topic::Tree(_) => "unfollow tree",
         Topic::Session(_) => "unfollow session",
+        Topic::BlockLog(_) => "unfollow block-log",
         Topic::Keys => "unfollow keys",
         Topic::KeyWork => "unfollow key-work",
         Topic::Roots => "unfollow roots",
@@ -214,6 +221,7 @@ fn topic_case(topic: &Topic) -> &'static str {
 const TOPICS: &[&str] = &[
     "unfollow tree",
     "unfollow session",
+    "unfollow block-log",
     "unfollow keys",
     "unfollow key-work",
     "unfollow roots",
@@ -464,6 +472,7 @@ impl TestClient {
                     time: 1_000,
                     pinned: false,
                     objects: vec![b"an object".to_vec()],
+                    log_through: None,
                 }),
                 references: listing(&[], Vec::new()),
                 metadata: Vec::new(),
@@ -493,6 +502,25 @@ impl TestClient {
             .await;
         calls.read(Query::Log(None)).await;
         calls.read(Query::History(block)).await;
+        calls
+            .write(Op::Append {
+                block,
+                entries: vec![be_block_protocol::NewEntry {
+                    id: other,
+                    payload: sealed(),
+                    signature: vec![0; 64],
+                }],
+            })
+            .await;
+        calls
+            .read(Query::BlockLog {
+                block,
+                from: 0,
+                limit: 10,
+                known: None,
+            })
+            .await;
+        calls.write(Op::Redact { block, seq: 0 }).await;
         calls.read(Query::Log(Some(block))).await;
         calls
             .read(Query::Tree {
@@ -630,6 +658,7 @@ impl TestClient {
         for topic in [
             Topic::Tree(block),
             Topic::Session(block),
+            Topic::BlockLog(block),
             Topic::Keys,
             Topic::KeyWork,
             Topic::Roots,
@@ -730,6 +759,9 @@ async fn every_call_states_who_may_make_it() {
         "blocks (contents)",
         "move",
         "history",
+        "block-log",
+        "append",
+        "redact",
         "log (block)",
         "tree",
         "access",

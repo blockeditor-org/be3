@@ -104,6 +104,7 @@ async fn an_http_answer_leaves_what_would_overflow_it_for_the_next_post() {
                     time: 1_000,
                     pinned: false,
                     objects: Vec::new(),
+                    log_through: None,
                 }),
                 references: listing(&[], Vec::new()),
                 metadata: Vec::new(),

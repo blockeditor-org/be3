@@ -1,0 +1,69 @@
+package be3:server@0.1.0;
+
+/// Blocks' signed logs (plans/signed_logs.md; guides/blocks/server.md, "Signed
+/// logs"): beside a block's content, entries the server orders, stamps and
+/// hashes into a Merkle tree (RFC 6962) that no commit can change. Each entry
+/// is its author's, sealed under the block's data key and signed by its
+/// author; the server keeps and hashes the sealed bytes and never opens them.
+interface logs {
+    use types.{account-id, uuid, hash};
+
+    /// An entry's id, chosen by its author: one the log holds already is
+    /// answered and not appended again, so an outbox sends an entry until it
+    /// hears the answer.
+    type entry-id = uuid;
+
+    /// A log's head: how many entries it holds, and the root of the Merkle
+    /// tree over them (`be_block_keys::merkle`).
+    record log-head {
+        size: u64,
+        root: hash,
+    }
+
+    /// An entry the log holds. Its leaf in the tree is
+    /// `be_block_protocol::LogEntry::leaf`: its place, arrival, author, id,
+    /// the hash of its payload and its signature, so a redacted entry, whose
+    /// payload is gone, still verifies.
+    record log-entry {
+        /// Its place in the log, from zero.
+        seq: u64,
+        id: entry-id,
+        /// The account that appended it.
+        author: account-id,
+        /// When the server took it, in milliseconds since the Unix epoch by
+        /// the server's clock.
+        arrival: s64,
+        /// The SHA-256 of the sealed payload.
+        payload-hash: hash,
+        /// The author's signature (`be_block_protocol::log_signed`).
+        signature: list<u8>,
+        /// The sealed payload; none once redacted.
+        payload: option<list<u8>>,
+    }
+
+    /// An entry to append.
+    record new-entry {
+        id: entry-id,
+        /// Sealed under the block's data key, at most
+        /// `be_block_protocol::MAX_LOG_ENTRY_BYTES`.
+        payload: list<u8>,
+        signature: list<u8>,
+    }
+
+    /// Where an appended entry went.
+    record logged {
+        seq: u64,
+        arrival: s64,
+    }
+
+    /// A page of a log: entries from `from`, the head as the server read
+    /// them, `proof` tying the entries to it
+    /// (`be_block_keys::merkle::range_proof`), and with `known`, a
+    /// `consistency` proof from that head to this one.
+    record log-page {
+        head: log-head,
+        entries: list<log-entry>,
+        proof: list<hash>,
+        consistency: list<hash>,
+    }
+}

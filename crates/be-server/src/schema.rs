@@ -515,6 +515,40 @@ const SCHEMA: &str = "
     CREATE UNIQUE INDEX journal_entries_by_id
         ON journal_entries (organization_id, block_id, origin, counter);
 
+    CREATE TABLE block_log_heads (
+        organization_id TEXT NOT NULL,
+        block_id        TEXT NOT NULL,
+        size            INTEGER NOT NULL,
+        root            BLOB NOT NULL,
+        bytes           INTEGER NOT NULL,
+        PRIMARY KEY (organization_id, block_id)
+    );
+
+    CREATE TABLE block_logs (
+        organization_id TEXT NOT NULL,
+        block_id        TEXT NOT NULL,
+        seq             INTEGER NOT NULL,
+        id              BLOB NOT NULL,
+        author          TEXT NOT NULL,
+        arrival         INTEGER NOT NULL,
+        payload_hash    BLOB NOT NULL,
+        signature       BLOB NOT NULL,
+        payload         BLOB,
+        PRIMARY KEY (organization_id, block_id, seq)
+    );
+
+    CREATE UNIQUE INDEX block_logs_by_id
+        ON block_logs (organization_id, block_id, id);
+
+    CREATE TABLE block_log_nodes (
+        organization_id TEXT NOT NULL,
+        block_id        TEXT NOT NULL,
+        level           INTEGER NOT NULL,
+        position        INTEGER NOT NULL,
+        hash            BLOB NOT NULL,
+        PRIMARY KEY (organization_id, block_id, level, position)
+    ) WITHOUT ROWID;
+
     CREATE TABLE push_key (
         id              INTEGER PRIMARY KEY CHECK (id = 1),
         pkcs8           BLOB NOT NULL

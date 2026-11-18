@@ -43,6 +43,7 @@ async fn metadata_travels_with_the_content_once_a_block_has_any() {
                     time: 1_000,
                     pinned: false,
                     objects: Vec::new(),
+                    log_through: None,
                 }),
                 references: listing(&[], Vec::new()),
                 metadata: b"sealed with content".to_vec(),

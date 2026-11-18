@@ -48,6 +48,7 @@ mod a_code_is_refused_after_five_wrong_tries_once_expired_and_once_replaced;
 mod a_code_signs_in_only_the_browser_that_asked_for_it;
 mod a_codes_link_opened_in_another_browser_shows_the_code_and_signs_nothing_in;
 mod a_commit_from_the_far_future_is_refused;
+mod a_commit_naming_a_head_its_log_never_had_is_refused;
 mod a_connection_follows_a_bounded_number_of_entry_points;
 mod a_connection_hears_only_of_the_trees_it_follows;
 mod a_connection_holds_one_events_stream_and_a_bounded_number_of_sessions;
@@ -67,6 +68,7 @@ mod a_link_accepted_then_unmade_as_a_contact_leaves_no_link_or_card;
 mod a_link_or_a_proof_begins_only_with_the_settings_pages_check;
 mod a_link_or_a_proof_needs_a_sign_in_at_the_provider_just_now;
 mod a_listing_pages_in_id_order_without_skipping_a_block_that_stays;
+mod a_log_numbers_stamps_and_tells_appends_and_takes_an_entry_once;
 mod a_login_link_for_a_new_email_makes_its_account;
 mod a_login_link_signs_in_once_and_ends_other_sessions;
 mod a_login_link_to_an_account_keeps_no_email_it_did_not_check;
@@ -98,6 +100,7 @@ mod a_provider_sign_in_with_no_account_waits_for_an_invite_code;
 mod a_provider_the_server_no_longer_has_is_no_way_in;
 mod a_provider_token_with_the_wrong_audience_or_a_strangers_signature_is_refused;
 mod a_publish_adding_a_reference_the_block_already_holds_moves_it;
+mod a_publish_leaves_the_log_and_a_redaction_keeps_its_tree_verifying;
 mod a_publish_pushes_the_new_storage_usage_to_its_payer;
 mod a_publish_with_no_commit_changes_the_metadata_and_leaves_the_head;
 mod a_push_hosts_cap_is_keyed_by_its_allowlist_entry_and_statuses_are_judged;
@@ -215,6 +218,7 @@ mod one_connection_reads_two_organizations_without_reconnecting;
 mod one_shot_calls_only_sign_in_and_are_rate_limited;
 mod only_a_manager_lets_go_of_a_blocks_settings;
 mod only_a_manager_shares_and_a_lower_grant_reduces_nothing;
+mod only_an_editor_appends_and_only_an_author_or_manager_redacts;
 mod only_members_who_may_view_and_did_not_mute_a_block_are_notified;
 mod pairing_messages_reach_only_the_same_accounts_other_connections;
 mod proxy_account_authentication_never_discloses_the_token;
@@ -409,6 +413,8 @@ enum Notice {
         block: Uuid,
         entry: be_block_protocol::JournalEntry,
     },
+    /// Entries were appended to a log the connection follows (`event.appended`).
+    Appended(be_block_protocol::Appended),
     /// Another topic the connection follows changed (`event.topic-changed`).
     Changed {
         organization: Option<Uuid>,
@@ -438,6 +444,7 @@ impl Notice {
                 topic,
             },
             Event::Paired(PairingMessage { from, payload }) => Notice::Paired { from, payload },
+            Event::Appended(appended) => Notice::Appended(appended),
             Event::Session { block, event, .. } => match event {
                 SessionEvent::Membership(entry) => Notice::Membership { block, entry },
                 SessionEvent::Sealed {
@@ -816,6 +823,47 @@ impl TestClient {
                 std::task::Poll::Ready(Some(event)) => self.notifications.push(Notice::of(event)),
                 std::task::Poll::Ready(None) => self.heard = None,
                 std::task::Poll::Pending => break,
+            }
+        }
+    }
+
+    /// Appends `entries` to `block`'s signed log: where each went.
+    async fn append(
+        &mut self,
+        block: Uuid,
+        entries: Vec<be_block_protocol::NewEntry>,
+    ) -> Result<Vec<be_block_protocol::Logged>, Error> {
+        self.call(|peer| peer.write(Op::Append { block, entries }))
+            .await
+    }
+
+    /// A page of `block`'s signed log, following it with `follow`.
+    async fn log_page(
+        &mut self,
+        block: Uuid,
+        from: u64,
+        known: Option<u64>,
+        follow: bool,
+    ) -> Result<be_block_protocol::LogPage, Error> {
+        self.call(|peer| {
+            peer.ask(
+                Query::BlockLog {
+                    block,
+                    from,
+                    limit: 100,
+                    known,
+                },
+                follow,
+            )
+        })
+        .await
+    }
+
+    /// The next append told of a log this connection follows.
+    async fn appended(&mut self) -> be_block_protocol::Appended {
+        loop {
+            if let Notice::Appended(appended) = self.next_notification().await {
+                return appended;
             }
         }
     }
@@ -1479,6 +1527,7 @@ impl TestClient {
                     time: time,
                     pinned: false,
                     objects: Vec::new(),
+                    log_through: None,
                 }),
                 references: listing(&[], Vec::new()),
                 metadata: Vec::new(),
@@ -1654,6 +1703,7 @@ impl TestClient {
                         time: 1_000,
                         pinned: false,
                         objects: Vec::new(),
+                        log_through: None,
                     }),
                     references: listing(&[], children),
                     metadata: Vec::new(),
@@ -1743,6 +1793,31 @@ impl Author {
         hashes.extend_from_slice(chunks);
         hashes
     }
+}
+
+/// A log entry with `payload` for its sealed bytes, under a fresh id, its signature made up: the
+/// server keeps and hashes what it is given, and devices verify.
+fn log_entry(payload: &[u8]) -> be_block_protocol::NewEntry {
+    be_block_protocol::NewEntry {
+        id: Uuid::new_v4(),
+        payload: payload.to_vec(),
+        signature: vec![9; 64],
+    }
+}
+
+/// Whether `page`'s entries are the log's from `from`, tied to its head by its proof.
+fn verifies(page: &be_block_protocol::LogPage, from: u64) -> bool {
+    let leaves: Vec<[u8; 32]> = page.entries.iter().map(|entry| entry.leaf()).collect();
+    page.entries
+        .iter()
+        .enumerate()
+        .all(|(index, entry)| entry.seq == from + index as u64)
+        && be_block_keys::merkle::range_root(
+            page.head.size,
+            from,
+            &leaves,
+            &page.proof.iter().map(|hash| *hash.as_bytes()).collect::<Vec<_>>(),
+        ) == Some(*page.head.root.as_bytes())
 }
 
 type Socket = WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>;

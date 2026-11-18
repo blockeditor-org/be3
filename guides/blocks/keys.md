@@ -781,7 +781,8 @@ Edit can write as someone else.
   since someone holding the old phrase can sign with it. A newer verified key
   marks the older ones replaced as of the server's clock as the device estimates
   it (`KnownSigner::replaced`, `Peer::server_now`); a record that keeps when the
-  server took it (`verify`'s `arrived`, chat's `Message::arrival`) and arrived
+  server took it (`verify`'s `arrived`, chat's `Message::arrival`, every entry
+  of a signed log, `Peer::verify_entry`) and arrived
   more than a minute after that answers `Replaced`: louder than `Changed`, but
   not `Bad`, since the account's own devices not yet told of the new phrase and
   sends held offline sign with the old key too, as does someone holding the old
@@ -859,7 +860,12 @@ who lost access. Cited from code by these names.
   differently for different participants
   (decisions/live_edits_are_ordered_by_the_server.md). The fix, not planned
   yet, is fork detection: signed log heads carried in sessions, relays and
-  commits, compared when two devices meet; for a session, each seal would name
+  commits, compared when two devices meet. A block's signed log already has
+  them per device: each device keeps the log's head it verified and takes a
+  later one only with a proof that it extends it (`ClientError::LogForked`;
+  guides/blocks/client.md, "Signed logs"), so a cut or rewritten log is caught
+  by every device that saw the head, though two devices shown different logs
+  learn of it only by comparing heads. For a session, each seal would name
   the last sequence it holds and a signed digest of the order up to it (each
   entry's sequence, floor and arrival as the server assigned them, its OpId,
   base and payload as its author sent them), so a participant that applied a

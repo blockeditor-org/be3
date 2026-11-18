@@ -594,6 +594,12 @@ impl ServerStore {
                     shift_usage(connection, payer, Column::Held, bytes, true)?;
                 }
             }
+            let logged = crate::log::bytes(connection, organization, below)?;
+            if logged > 0 {
+                shift_usage(connection, old, Column::Held, logged, false)?;
+                shift_usage(connection, payer, Column::Held, logged, true)?;
+                changed.insert(old);
+            }
             connection
                 .prepare_cached(
                     "UPDATE blocks SET payer = ?3 WHERE organization_id = ?1 AND id = ?2",
@@ -613,6 +619,51 @@ impl ServerStore {
         }
         for account in changed {
             self.usage_changed(account);
+        }
+        Ok(())
+    }
+
+    /// Charges `bytes` of a block's signed log to its payer and its organization (or frees them,
+    /// not `adding`), in the block's size and its ancestors' tree sizes too, and refuses a charge
+    /// that takes the payer past its quota or the organization past its policy's. Nothing that
+    /// frees space is refused.
+    pub(crate) fn charge_log(
+        &self,
+        graph: &mut BlockGraph,
+        connection: &Connection,
+        organization: Uuid,
+        block: Uuid,
+        bytes: u64,
+        adding: bool,
+    ) -> Result<(), ServerError> {
+        if bytes == 0 {
+            return Ok(());
+        }
+        let payer = block_payer(connection, organization, block)?;
+        shift_usage(connection, payer, Column::Held, bytes, adding)?;
+        shift_organization(connection, organization, bytes, adding)?;
+        graph.add_size(block, bytes, adding)?;
+        persist_sizes(
+            connection,
+            graph,
+            organization,
+            crate::blocks::chain(graph, block),
+        )?;
+        self.usage_changed(payer);
+        if !adding {
+            return Ok(());
+        }
+        let after = usage_of(connection, payer)?;
+        if let Some(quota) = self.limits.account_quota
+            && after.total() > quota
+        {
+            return Err(over_account_quota(quota, after.total()));
+        }
+        if let Some(quota) = self.policies(graph, connection, organization)?.quota() {
+            let total = organization_bytes(connection, organization)?;
+            if total > quota {
+                return Err(over_organization_quota(quota, total));
+            }
         }
         Ok(())
     }

@@ -31,6 +31,7 @@ impl<S: ObjectStore> Peer<S> {
                     Op::Move(_) => "move",
                     Op::Define(_) => "define",
                     Op::Hold(_) => "hold",
+                    Op::Append(_) => "append",
                 };
                 (kind, op.block())
             })
@@ -425,6 +426,7 @@ impl<S: ObjectStore> Peer<S> {
                     self.grow_locally(block, &holding.objects)?;
                     Drained::Held { block }
                 }
+                Op::Append(appending) => self.append_locally(sequence, appending)?,
             };
             if !matches!(outcome, Drained::Diverged { .. }) {
                 self.settled_here.lock().unwrap().insert(block);
@@ -586,6 +588,22 @@ impl<S: ObjectStore> Peer<S> {
                 continue;
             };
             let block = op.block();
+            // A log's entries wait only behind the block's creation, not behind its content:
+            // a diverged or refused publish holds back none of them.
+            if let Op::Append(_) = op {
+                if skip(block) || self.refs.creating(block) || self.refs.is_unsent(block) {
+                    continue;
+                }
+                match self.send_appends(block).await {
+                    Ok(drained) => outcomes.extend(drained),
+                    Err(error) if error.is_unreachable() && outcomes.is_empty() => {
+                        return Err(error);
+                    }
+                    Err(error) if error.is_unreachable() => break,
+                    Err(_) => outcomes.push(Drained::Failed { block }),
+                }
+                continue;
+            }
             if skip(block) || stopped.contains(&block) {
                 continue;
             }
@@ -617,6 +635,7 @@ impl<S: ObjectStore> Peer<S> {
                 Op::Move(moving) => self.drain_move(sequence, moving).await,
                 Op::Define(defining) => self.drain_define(sequence, defining).await,
                 Op::Hold(holding) => self.drain_hold(sequence, holding).await,
+                Op::Append(_) => unreachable!("a log's entries are sent above"),
             };
             let outcome = match sent {
                 Ok(outcome) => outcome,
@@ -654,6 +673,8 @@ impl<S: ObjectStore> Peer<S> {
                 | Drained::Moved { .. }
                 | Drained::Defined { .. }
                 | Drained::Held { .. }
+                | Drained::Appended { .. }
+                | Drained::NotAppended { .. }
                 | Drained::Refused { .. }
                 | Drained::SetAside { .. }
                 | Drained::Resealed { .. }
@@ -1101,7 +1122,7 @@ impl<S: ObjectStore> Peer<S> {
                 self.refs.remove(&[sequence])?;
                 Ok(Drained::Created { block })
             }
-            Some((_, Op::Hold(_))) => {
+            Some((_, Op::Hold(_) | Op::Append(_))) => {
                 self.refs.remove(&[sequence])?;
                 Ok(Drained::Refused {
                     block,

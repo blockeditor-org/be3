@@ -102,6 +102,9 @@ pub enum Event {
         entry: JournalEntry,
     },
     Paired(PairingMessage),
+    /// Entries were appended to a block's signed log the connection follows
+    /// (`Peer::read_log`): `Peer::logged` takes them as they verify.
+    Appended(be_block_protocol::Appended),
     /// Keys this account may open were stored through another connection (`topic.keys`), or
     /// opened here by any path (`KeyBook::on_opened`: a fetch, a contact verified since, escrow):
     /// `Peer::keys_changed`, then reading again what was locked, opens what they unlock.
@@ -331,9 +334,10 @@ impl Connection {
                 Topic::Mutes => Event::MutesChanged,
                 Topic::Mailbox => Event::MailboxChanged,
                 Topic::Storage => Event::StorageChanged,
-                Topic::Tree(_) | Topic::Session(_) => return None,
+                Topic::Tree(_) | Topic::Session(_) | Topic::BlockLog(_) => return None,
             },
             Told::Paired(message) => Event::Paired(message),
+            Told::Appended(appended) => Event::Appended(appended),
             Told::Session { block, event, .. } => {
                 let event = match event {
                     SessionEvent::Membership(entry) => Event::Membership { block, entry },

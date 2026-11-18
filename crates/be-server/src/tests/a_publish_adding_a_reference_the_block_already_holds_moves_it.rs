@@ -28,6 +28,7 @@ async fn publish_references(
                     time: time,
                     pinned: false,
                     objects: Vec::new(),
+                    log_through: None,
                 }),
                 references: references,
                 metadata: Vec::new(),

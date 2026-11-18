@@ -55,6 +55,7 @@ async fn a_summary_names_no_references_and_a_referenced_block_still_reads_as_kno
                         time,
                         pinned: false,
                         objects: Vec::new(),
+                        log_through: None,
                     }),
                     references: listing(&[], references),
                     metadata: Vec::new(),

@@ -1,7 +1,8 @@
 # Access logs checked once
 
-Depends on: plans/signed_logs.md step 1 (its Merkle tree, heads, and
-inclusion and consistency proofs, shared with this plan).
+Depends on: none. (plans/signed_logs.md step 1, which this needed, landed:
+its Merkle tree, heads, and range and consistency proofs are
+`be_block_keys::merkle`, shared with this plan.)
 
 ## The problem
 

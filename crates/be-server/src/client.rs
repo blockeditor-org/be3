@@ -78,6 +78,7 @@ pub(crate) fn query_rule(query: &Query) -> Rule {
         | Query::List { .. } => Rule::Member,
         Query::Tree { entry: of, .. } => block(*of, Access::View),
         Query::History(of) => block(*of, Access::View),
+        Query::BlockLog { block: of, .. } => block(*of, Access::View),
         // Of a block the caller views, or one above a block it views (`access_log`).
         Query::Log(_) => Rule::Member,
         Query::Access(of) => block(*of, Access::Manage),
@@ -111,7 +112,10 @@ pub(crate) fn op_rule(op: &Op) -> Rule {
         },
         Op::Publish { block: of, .. }
         | Op::Move { block: of, .. }
-        | Op::HoldObjects { block: of, .. } => block(*of, Access::Edit),
+        | Op::HoldObjects { block: of, .. }
+        | Op::Append { block: of, .. } => block(*of, Access::Edit),
+        // Its author, or a manager of the block (`ServerStore::redact_log`).
+        Op::Redact { block: of, .. } => block(*of, Access::View),
         Op::AppendLog(record) => match record {
             LogRecord::Grant { block: of, .. } => block(*of, Access::KnowExists),
             LogRecord::Role { .. } => Rule::Administrator,
@@ -168,6 +172,7 @@ pub(crate) fn topic_rule(topic: &Topic) -> Rule {
     match topic {
         Topic::Tree(_)
         | Topic::Session(_)
+        | Topic::BlockLog(_)
         | Topic::Keys
         | Topic::KeyWork
         | Topic::Roots
@@ -191,6 +196,7 @@ pub(crate) fn bound_may_read(query: &Query, follow: bool) -> bool {
         | Query::Tree { .. }
         | Query::History(_)
         | Query::Log(_)
+        | Query::BlockLog { .. }
         | Query::KeyWork
         | Query::RecoveryKey
         | Query::Organizations
@@ -226,6 +232,8 @@ pub(crate) fn bound_may_write(op: &Op, root: Uuid) -> bool {
         Op::Move { block, parent, .. } => *block != root && matches!(parent, BlockParent::Block(_)),
         Op::Publish { .. }
         | Op::HoldObjects { .. }
+        | Op::Append { .. }
+        | Op::Redact { .. }
         | Op::ReserveUploads(_)
         | Op::DeleteMessage(_)
         | Op::RevokeToken(_) => true,
@@ -357,6 +365,7 @@ fn topic_of(query: &Query) -> Option<Topic> {
     Some(match query {
         Query::Tree { entry, .. } => Topic::Tree(*entry),
         Query::Session { block, .. } => Topic::Session(*block),
+        Query::BlockLog { block, .. } => Topic::BlockLog(*block),
         Query::Keys { .. } => Topic::Keys,
         Query::KeyWork => Topic::KeyWork,
         Query::List {
@@ -425,6 +434,8 @@ pub(crate) struct Connection {
     pub(crate) notifications: Arc<crate::address::Rate<Uuid>>,
     /// Notifications each account sent about each block this minute.
     pub(crate) block_notifications: Arc<crate::address::Rate<(Uuid, Uuid)>>,
+    /// Log entries each account appended this minute (`Services::log_entries`).
+    pub(crate) log_entries: Arc<crate::address::Rate<Uuid>>,
     /// The address the connection comes from; see [`crate::Services::client_address`].
     pub(crate) address: IpAddr,
     /// Set once the connection should be closed after what it has answered: it signed out.
@@ -516,6 +527,11 @@ enum After {
         block: Uuid,
         before: BTreeSet<Uuid>,
     },
+    /// Entries appended to a block's log, told to its followers who may view it.
+    Logged {
+        place: Place,
+        told: Arc<crate::log::Told>,
+    },
     /// A push to the account's other connections.
     Tell {
         account: Uuid,
@@ -563,6 +579,7 @@ impl Client {
                 pusher: Arc::clone(&services.pusher),
                 notifications: Arc::clone(&services.notifications),
                 block_notifications: Arc::clone(&services.block_notifications),
+                log_entries: Arc::clone(&services.log_entries),
                 address,
                 closing: false,
                 deferred: None,
@@ -786,6 +803,15 @@ impl Client {
                 }
             }
             Push::Paired(message) => Event::Paired(message),
+            Push::Logged { block, told } => Event::Appended(be_block_protocol::Appended {
+                organization: block.organization,
+                block: block.block,
+                previous: told.previous,
+                head: told.head,
+                entries: told.entries.clone(),
+                proof: told.proof.clone(),
+                consistency: told.consistency.clone(),
+            }),
             Push::MailboxChanged => match self.follows(Followed::Mailbox) {
                 true => Followed::Mailbox.told(),
                 false => return Ok(()),
@@ -1101,7 +1127,7 @@ impl Client {
         let topic = topic_of(&query).ok_or_else(|| invalid("this query has nothing to follow"))?;
         match topic {
             // Followed by its own handlers, which follow before they read.
-            Topic::Tree(_) | Topic::Session(_) => {}
+            Topic::Tree(_) | Topic::Session(_) | Topic::BlockLog(_) => {}
             topic => {
                 let followed = Followed::of(organization, &topic)
                     .ok_or_else(|| invalid("this topic is followed in another organization"))?;
@@ -1152,6 +1178,29 @@ impl Client {
                 page.map(Page::Tree)
             }
             Query::Session { block, tag } => self.join(admitted.identity()?, block, tag).await,
+            Query::BlockLog {
+                block,
+                from,
+                limit,
+                known,
+            } => {
+                let identity = admitted.identity()?;
+                let connection = &self.connection;
+                let place = Place {
+                    organization: identity.organization,
+                    block,
+                };
+                // Followed before it is read, so no append during the read is missed.
+                connection.hub.follow_log(connection.client, place).await?;
+                let page = connection
+                    .store
+                    .read_log(identity, block, from, limit, known)
+                    .await;
+                if page.is_err() {
+                    connection.hub.unfollow_log(connection.client, place).await;
+                }
+                page.map(Page::BlockLog)
+            }
             Query::Storage => {
                 let account = admitted.account()?;
                 let payer = self.connection.store.payer(account).await?;
@@ -1306,6 +1355,16 @@ impl Client {
             Query::History(block) => {
                 Page::History(store.list_history(admitted.identity()?, block).await?)
             }
+            Query::BlockLog {
+                block,
+                from,
+                limit,
+                known,
+            } => Page::BlockLog(
+                store
+                    .read_log(admitted.identity()?, block, from, limit, known)
+                    .await?,
+            ),
             Query::Log(Some(block)) => {
                 Page::Log(store.access_log(admitted.identity()?, block).await?)
             }
@@ -1409,6 +1468,14 @@ impl Client {
                     block: entry,
                 };
                 connection.hub.unfollow(connection.client, place).await;
+            }
+            Topic::BlockLog(block) => {
+                let identity = admitted.identity()?;
+                let place = Place {
+                    organization: identity.organization,
+                    block,
+                };
+                connection.hub.unfollow_log(connection.client, place).await;
             }
             Topic::Session(block) => {
                 let identity = admitted.identity()?;
@@ -1626,6 +1693,7 @@ impl Client {
                         time,
                         pinned,
                         objects,
+                        log_through,
                     }),
                 references,
                 metadata,
@@ -1658,8 +1726,18 @@ impl Client {
                 let outcome = connection
                     .store
                     .publish(
-                        identity, block, commit, expected, parents, held, time, pinned, references,
-                        metadata, trim,
+                        identity,
+                        block,
+                        commit,
+                        expected,
+                        parents,
+                        held,
+                        time,
+                        pinned,
+                        references,
+                        metadata,
+                        trim,
+                        log_through,
                     )
                     .await?;
                 let (outcome, trimmed) = match outcome {
@@ -2123,6 +2201,38 @@ impl Client {
                 }
                 Ok(Done::Nothing)
             }
+            Op::Append { block, entries } => {
+                let identity = admitted.identity()?;
+                for _ in &entries {
+                    if !connection.log_entries.allow_key(identity.account) {
+                        return Err(crate::limits::too_many(
+                            "log entries a minute",
+                            crate::log::MAX_ENTRIES_PER_MINUTE,
+                        ));
+                    }
+                }
+                let (logged, told) = connection
+                    .store
+                    .append_log(identity, block, entries)
+                    .await?;
+                if let Some(told) = told {
+                    connection
+                        .after(After::Logged {
+                            place: Place {
+                                organization: identity.organization,
+                                block,
+                            },
+                            told: Arc::new(told),
+                        })
+                        .await;
+                }
+                Ok(Done::Logged(logged))
+            }
+            Op::Redact { block, seq } => {
+                let identity = admitted.identity()?;
+                connection.store.redact_log(identity, block, seq).await?;
+                Ok(Done::Nothing)
+            }
             Op::SetMute { block, mode } => {
                 let identity = admitted.identity()?;
                 connection.store.set_mute(identity, block, mode).await?;
@@ -2314,6 +2424,33 @@ impl Connection {
             .await;
     }
 
+    /// Tells the followers of `place`'s log who may still view it of entries appended to it.
+    async fn logged(&self, place: Place, told: Arc<crate::log::Told>) {
+        let followers = self.hub.log_followers(place).await;
+        if followers.is_empty() {
+            return;
+        }
+        let asked = followers
+            .iter()
+            .map(|(_, identity)| (*identity, place.block))
+            .collect();
+        let viewing = match self.store.viewing(place.organization, asked).await {
+            Ok(viewing) => viewing,
+            Err(error) => {
+                tracing::warn!(%error, "who may view a log could not be read");
+                return;
+            }
+        };
+        let clients: Vec<u64> = followers
+            .into_iter()
+            .zip(viewing)
+            .filter_map(|((client, _), viewing)| viewing.then_some(client))
+            .collect();
+        self.hub
+            .send_every(&clients, &Push::Logged { block: place, told })
+            .await;
+    }
+
     /// Does `after` now, or once the batch running commits.
     async fn after(&mut self, after: After) {
         match &mut self.deferred {
@@ -2406,6 +2543,7 @@ impl Connection {
                 organization,
                 account,
             } => self.hub.drop_member(organization, account).await,
+            After::Logged { place, told } => self.logged(place, told).await,
             After::KeyWorkChanged {
                 organization,
                 accounts,

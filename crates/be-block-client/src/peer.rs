@@ -57,6 +57,7 @@ mod authorship;
 mod import;
 mod journal;
 pub use journal::Submitted;
+pub mod log;
 mod notifications;
 mod offline;
 mod prefixes;
@@ -276,6 +277,20 @@ pub enum Drained {
     /// Objects held for the block offline were uploaded and held.
     Held {
         block: Uuid,
+    },
+    /// The server took an entry this device appended to the block's signed log
+    /// (`Peer::append`): its place and when it arrived.
+    Appended {
+        block: Uuid,
+        id: Uuid,
+        seq: u64,
+        arrival: i64,
+    },
+    /// The server refused an entry for the block's signed log: it is not sent again.
+    NotAppended {
+        block: Uuid,
+        id: Uuid,
+        code: ErrorCode,
     },
     /// The server refused a change. With `restored`, it was a move or a definition, and the
     /// block's summary is the server's again (`unchanged`); otherwise a publish.
@@ -3156,7 +3171,7 @@ impl<S: ObjectStore> Peer<S> {
             let (block, parent) = match op {
                 Op::Create(creation) => (creation.block, creation.parent),
                 Op::Move(moving) => (moving.block, moving.parent),
-                Op::Publish(_) | Op::Define(_) | Op::Hold(_) => continue,
+                Op::Publish(_) | Op::Define(_) | Op::Hold(_) | Op::Append(_) => continue,
             };
             let here = match listing {
                 Listing::Children(under) => under == parent,
@@ -3743,6 +3758,7 @@ impl<S: ObjectStore> Peer<S> {
                             time: time,
                             pinned: pinned,
                             objects: objects,
+                            log_through: None,
                         }),
                         references: listed.clone(),
                         metadata: metadata.clone(),

@@ -24,6 +24,7 @@ async fn publish_onto(
                     time: time,
                     pinned: false,
                     objects: Vec::new(),
+                    log_through: None,
                 }),
                 references: listing(&[], Vec::new()),
                 metadata: Vec::new(),

@@ -188,16 +188,26 @@ and appended only by the block's members, so it reaches no one new.
 
 ## Steps
 
-1. **Server log.** `block_logs`, `append`, `redact`, `query.log`,
+Steps 1 to 3 are built (guides/blocks/server.md and guides/blocks/client.md,
+"Signed logs"). Where they differ from option A above: the query and topic are
+`block-log` (`log` is the access logs' query); a page carries one range proof
+for all its entries rather than one inclusion proof each; an append's push
+carries a consistency proof from the head before it, so a follower holding
+that head takes it with no round trip; the server checks no signature (a
+device not yet told of its account's new phrase signs with the old key, which
+devices judge by arrival); and the Merkle tree is `be_block_keys::merkle`,
+which access logs will use too (plans/access_logs_checked_once.md).
+
+1. **Server log.** Built. `block_logs`, `append`, `redact`, `query.log`,
    `topic.log`, the Merkle tree (heads, inclusion and consistency proofs), arrival, quota and limits, rules in
    `client::rule`, deleted with the block. Done: be-server tests show appends
    numbered and stamped in order and pushed to followers; a publish leaves the
    log as it was; a redaction keeps the tree verifying; a viewer's append
    and another account's redaction are refused; `every_call_states_who_may_make_it` passes.
-2. **Commits name a log head.** `log-through` in a commit; the server refuses
+2. **Commits name a log head.** Built. `log-through` in a commit; the server refuses
    one naming no prefix. Done: a be-server test refuses a commit naming a seq
    past the log or with the wrong hash.
-3. **Peer.** `Peer::append` through the outbox, log pages and the last
+3. **Peer.** Built. `Peer::append` through the outbox, log pages and the last
    verified head in the refs database, a cut or forked log reported,
    `verify_authored` with each entry's arrival. Done: be-block-client tests
    append offline and drain in order; a server answering a log that does not

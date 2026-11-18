@@ -235,12 +235,53 @@ arrives.
   its last number, and reports the edits lost (guides/blocks/host.md, Undo); its
   holder starts the journal over.
 
+## Signed logs
+
+A block's signed log (guides/blocks/server.md, "Signed logs"; `peer/log.rs`)
+is read and appended a page at a time, and nothing the server serves of it is
+taken unproven.
+
+- **Appending.** `Peer::append(block, payload)` seals the payload under the
+  block's key, signs its id and the hash of the sealed bytes
+  (`be_block_protocol::log_signed`, under `sign_authored`, so the signature
+  binds the block and survives a redaction), and keeps it in the outbox
+  (`refs::Op::Append`). Online, with nothing of the block waiting ahead of it,
+  it goes at once with any of the block's entries that wait
+  (`send_appends`, batched), answering `Appended::Logged` with its place and
+  arrival; otherwise `Appended::Kept`, and the drain sends it in order
+  (`Drained::Appended`). A log's entries wait only behind the block's
+  creation, never behind its content: a diverged publish holds none back. One
+  the server refuses leaves the outbox (`Drained::NotAppended`). A local
+  account numbers and stamps entries on the device (`append_locally`),
+  keeping its tree's right edge (`KeptLogHead::frontier`).
+- **Reading.** `Peer::read_log(block, from, limit)` reads a page and follows
+  the log. The page is taken only when its range proof ties its entries to the
+  head the server names (`merkle::range_root`), every payload matches its
+  hash, and a consistency proof shows that head extends the one this device
+  kept (`merkle::consistent`); then the head and the page are kept in the refs
+  database (`Refs::keep_entries`; `KeptLogHead`, and entries by block and
+  place), and opened, the block's keys asked for once if one is missing. A
+  page anywhere in a log, the first of a million-entry chat's or one a search
+  hit points into, costs that page and O(log n) hashes (`LogRead::proof_hashes`).
+  Offline it answers what was kept, from `from` up to the first entry it
+  lacks. `Peer::logged` takes an `Event::Appended`: at once when it extends
+  the kept head, else by reading from the kept head.
+- **Cut and forked logs.** A head the server serves that does not extend the
+  kept one (shorter, or with other entries) is `ClientError::LogForked`, and
+  nothing of that answer is kept. `forget` drops a log's entries but keeps its
+  head.
+- **Who wrote an entry.** `Peer::verify_entry` is `verify_authored` with the
+  entry's arrival, which only the server sets, so a contact's replaced key that
+  signed an entry the server took after this device learned of the new key
+  answers `Replaced` (guides/blocks/keys.md, "Verifying").
+
 ## The refs database
 
 A `Peer` keeps what it learns in `RefsDb` (`be_block_client::refs`, SQLite on
 every platform, in the origin private file system on the web), keyed by server,
 account and organization: local and last-known remote heads, the newest head
 whose content it has read whole, raw `BlockSummary`s (metadata stays sealed),
+the pages of signed logs it read and each log's last verified head,
 key rows and wraps, verified contacts, every contact's name and the escrow chain, the workspace list, the
 outbox, the unsent area, each block's journal and the blocks the search indexer let
 go (`Peer::let_go`). A sealed commit and its local
@@ -321,9 +362,10 @@ sends it. `Peer::write` does both.
 
 - **Offline**, a failed publish stays in the outbox (`Peer::write` answers
   `Saved::Kept`), as do creates (`refs::Op::Create`), moves (`Op::Move`),
-  defines on a block with no content (`Op::Define`) and holds of objects for a
+  defines on a block with no content (`Op::Define`), holds of objects for a
   block (`Op::Hold`, from `Peer::hold`, which version control puts on its
-  snapshots); these rewrite the cached summary so listings show
+  snapshots) and entries for a block's signed log (`Op::Append`, "Signed
+  logs"); creates, moves and defines rewrite the cached summary so listings show
   them, and later ones for a block queue behind earlier ones. `keep_creation`,
   `keep_definition` and `keep_move` put them there online too (the host's
   path); a publish waits behind a creation, move or define of its block, and
