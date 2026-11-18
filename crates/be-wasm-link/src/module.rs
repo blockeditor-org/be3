@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use be_wasm_dylink::{ENV, GOT_FUNCTION, GOT_MEMORY, GOT_THREAD_LOCAL, short_symbol};
+use be_wasm_dylink::{ENV, GOT_FUNCTION, GOT_MEMORY, short_symbol};
 
 pub const CUSTOM: u8 = 0;
 pub(crate) const IMPORT: u8 = 2;
@@ -318,7 +318,7 @@ fn short_imports(contents: &[u8]) -> Result<Vec<u8>, String> {
         let symbol = reader.name()?;
         name(&module, &mut out);
         match module.as_str() {
-            ENV | GOT_FUNCTION | GOT_MEMORY | GOT_THREAD_LOCAL => {
+            ENV | GOT_FUNCTION | GOT_MEMORY => {
                 name(&short_symbol(&symbol), &mut out);
             }
             _ => name(&symbol, &mut out),

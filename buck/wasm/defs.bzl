@@ -280,58 +280,8 @@ def _needs(libraries):
 # the host links each app that names it to when it loads. libraries names
 # every library under it, the whole closure; with none it is the root, linked
 # at fixed addresses with std and wasi-libc, and with some it is
-# position-independent, leaves out everything they link and reaches their
-# thread-locals through GOT.tls. A package whose crate other crates depend on,
-# such as crates/be-tool-tls-diamond-base, has a library.rs beside its Cargo.toml that only
-# names the crate, and that is what is linked, so the module holds the very rlib
-# its dependents compile against.
+# position-independent and leaves out everything they link.
 def wasm_library(module, libraries = [], rustc_flags = []):
-    facts = cargo_wasm_facts()
-    linker_flags = _needs(libraries) + ["--be3-library=" + module]
-    rustc_flags = _guest_exports + rustc_flags + ([] if libraries else _reactor) + SYMBOL_FLAGS
-    if native.glob(["library.rs"]):
-        cargo_library(rustc_flags = rustc_flags)
-        native.rust_library(
-            name = "wasm",
-            crate = facts.crate + "_library",
-            crate_root = "library.rs",
-            deps = [":" + facts.name],
-            edition = facts.edition,
-            linker_flags = linker_flags,
-            preferred_linkage = "shared",
-            rustc_flags = rustc_flags,
-            srcs = ["library.rs"],
-            target_compatible_with = ["prelude//cpu/constraints:cpu[wasm32]"] + facts.compatible,
-            **RUST_LOCAL,
-        )
-    else:
-        native.rust_library(
-            name = "wasm",
-            crate = facts.crate,
-            crate_root = facts.crate_root,
-            deps = facts.deps,
-            edition = facts.edition,
-            env = facts.env,
-            features = facts.features,
-            linker_flags = linker_flags,
-            mapped_srcs = cargo_manifest_sources(),
-            preferred_linkage = "shared",
-            rustc_flags = rustc_flags,
-            srcs = cargo_library_sources(),
-            target_compatible_with = ["prelude//cpu/constraints:cpu[wasm32]"] + facts.compatible,
-            **RUST_LOCAL,
-        )
-    wasi_module(
-        name = "module",
-        libraries = libraries,
-        library = ":wasm",
-        module = module,
-    )
-
-# A package's crate linked against libraries, every one in its closure, and
-# exporting only what an app does: an app that is not an editor, such as
-# crates/be-tool-tls-diamond-app.
-def linked_app(module, libraries, rustc_flags = []):
     facts = cargo_wasm_facts()
     native.rust_library(
         name = "wasm",
@@ -341,10 +291,10 @@ def linked_app(module, libraries, rustc_flags = []):
         edition = facts.edition,
         env = facts.env,
         features = facts.features,
-        linker_flags = _needs(libraries),
+        linker_flags = _needs(libraries) + ["--be3-library=" + module],
         mapped_srcs = cargo_manifest_sources(),
         preferred_linkage = "shared",
-        rustc_flags = _guest_exports + rustc_flags + SYMBOL_FLAGS,
+        rustc_flags = _guest_exports + rustc_flags + ([] if libraries else _reactor) + SYMBOL_FLAGS,
         srcs = cargo_library_sources(),
         target_compatible_with = ["prelude//cpu/constraints:cpu[wasm32]"] + facts.compatible,
         **RUST_LOCAL,

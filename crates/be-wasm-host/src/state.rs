@@ -10,7 +10,7 @@ use be_wasm_gpu_host::{
 };
 
 use crate::engine;
-use crate::threads::Spawner;
+use crate::interrupt::Interrupt;
 use crate::wake::Wake;
 
 pub type Connect = Arc<dyn Fn() -> Result<(wgpu::Device, wgpu::Queue), String> + Send + Sync>;
@@ -41,26 +41,29 @@ impl Device {
 pub(crate) enum Memory {
     /// Not known yet: a module that exports its memory has not been instantiated.
     None,
-    /// A shared memory, which never moves (V8 reserves its maximum) and only grows, so a call
-    /// reads where it is and how long it is without V8, which a fast-API call may not reach.
-    Shared(v8::SharedRef<v8::BackingStore>),
-    /// A memory of the guest's own, which may move when it grows: every call that reads it asks
-    /// V8 for its buffer, so only calls made through a scope may.
-    Own(v8::Global<v8::Object>),
+    /// A memory that stays where it was made as it grows (`engine::memories_stay_put`), so a call
+    /// reads where it is and how long it is from its backing store without V8, which a fast-API
+    /// call may not reach.
+    Fixed(v8::SharedRef<v8::BackingStore>),
+    /// One that may move when it grows: every call that reads it asks V8 for its buffer, so only
+    /// calls made through a scope may.
+    Moving(v8::Global<v8::Object>),
 }
 
 impl Memory {
-    pub(crate) fn shared(&self) -> Option<&v8::SharedRef<v8::BackingStore>> {
-        match self {
-            Self::Shared(store) => Some(store),
-            Self::None | Self::Own(_) => None,
+    /// The guest's `memory`, a `WebAssembly.Memory`, as the host reads it.
+    pub(crate) fn of(scope: &mut v8::PinScope<'_, '_>, memory: v8::Local<v8::Object>) -> Self {
+        if engine::memories_stay_put()
+            && let Some(buffer) = engine::get(scope, memory, "buffer")
+                .and_then(|buffer| v8::Local::<v8::ArrayBuffer>::try_from(buffer).ok())
+        {
+            return Self::Fixed(buffer.get_backing_store());
         }
+        Self::Moving(v8::Global::new(scope, memory))
     }
 }
 
-/// Where a memory's bytes are, for one call. Copying a shared memory's bytes races with the
-/// guest's other threads, as under any engine: what the host reads or leaves may be torn by a
-/// thread writing at once, which only the guest's own data suffers.
+/// Where a memory's bytes are, for one call.
 #[derive(Clone, Copy)]
 pub(crate) struct View {
     base: *mut u8,
@@ -112,8 +115,7 @@ impl View {
         let range = self.range(pointer, length as usize)?;
         let mut bytes = vec![0u8; range.len()];
         // the range lies inside the memory, checked above, and the memory stays where
-        // it is for the call. Another guest thread may write it meanwhile, as it may under any
-        // engine; the bytes read are then whatever it wrote.
+        // it is for the call: the guest, its one thread, is in the call.
         // unsafe(ffi)
         unsafe {
             std::ptr::copy_nonoverlapping(
@@ -138,8 +140,6 @@ impl View {
 
 pub struct State {
     pub(crate) memory: Memory,
-    /// The `WebAssembly.Memory` on this isolate, when it is shared, which the host grows.
-    pub(crate) memory_object: Option<v8::Global<v8::Object>>,
     pub(crate) device: Device,
     pub(crate) imports: Imports,
     pub(crate) error: Option<String>,
@@ -149,28 +149,30 @@ pub struct State {
     pub(crate) panicked: Option<String>,
     pub(crate) returned: Vec<u8>,
     pub(crate) transport: Transport,
-    pub(crate) threads: Arc<Spawner>,
+    pub(crate) interrupt: Arc<Interrupt>,
     pub(crate) wake: Arc<Wake>,
     pub(crate) wasi: Arc<crate::wasi::Wasi>,
     pub(crate) gpu_time: Duration,
     pub(crate) submit_time: Duration,
-    pub(crate) isolate: v8::IsolateHandle,
+    /// Terminated when the host is interrupted (Interrupt::watch).
+    pub(crate) isolate: Arc<v8::IsolateHandle>,
 }
 
 impl State {
-    /// The memory as it is now, when it is shared.
+    /// The memory as it is now, when it stays put; a fast-API call reads it so.
     pub(crate) fn view(&self) -> View {
-        self.memory
-            .shared()
-            .map_or(View::EMPTY, |store| View::of(store))
+        match &self.memory {
+            Memory::Fixed(store) => View::of(store),
+            Memory::None | Memory::Moving(_) => View::EMPTY,
+        }
     }
 
     /// The memory as it is now, whichever it is.
     pub(crate) fn view_in(&self, scope: &mut v8::PinScope<'_, '_>) -> View {
         match &self.memory {
             Memory::None => View::EMPTY,
-            Memory::Shared(store) => View::of(store),
-            Memory::Own(memory) => {
+            Memory::Fixed(store) => View::of(store),
+            Memory::Moving(memory) => {
                 let memory = v8::Local::new(scope, memory);
                 engine::get(scope, memory, "buffer")
                     .and_then(|buffer| v8::Local::<v8::ArrayBuffer>::try_from(buffer).ok())
@@ -260,7 +262,6 @@ impl State {
 /// # Safety
 ///
 /// The State outlives every call of the isolate's functions: Running frees it only after its
-/// isolate, and an app thread once its guest has returned, after which nothing runs on its
 /// isolate (an External has no finalizer). V8 runs one call of an isolate at a time, so nothing
 /// else holds the State while an import runs.
 pub(crate) unsafe fn state_of<'a>(data: v8::Local<v8::Value>) -> &'a mut State {

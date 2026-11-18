@@ -5,7 +5,7 @@ fn an_app_that_panics_reports_its_panic_message() {
     let message = "the count overflowed\n(at src/counter.rs:12:9)";
     let source = format!(
         r#"(module
-            (import "env" "memory" (memory 1 4 shared))
+            (import "env" "memory" (memory 1 4))
             (import "be3_host" "host_panic" (func $host_panic (param i32 i32)))
             (data (i32.const 64) "{text}")
             (func (export "app_start"))

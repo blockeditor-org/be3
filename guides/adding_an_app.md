@@ -291,7 +291,7 @@ Work that should not hold up the app's frames (rendering a PDF page,
 rasterizing map tiles) runs in a worker: an instance of a module of the app's
 own, on a thread and isolate of its own natively and in a web worker of its own
 in the browser, that the app talks to by messages (`be_sdk::worker`,
-crates/be-sdk-worker; plans/single_threaded_guests.md). The map's
+crates/be-sdk-worker; decisions/guests_are_single_threaded.md). The map's
 (crates/be-worker-map, be-worker-map-tiles) and the PDF editor's
 (crates/be-worker-pdf, be-worker-pdf-render) are the examples to copy.
 
