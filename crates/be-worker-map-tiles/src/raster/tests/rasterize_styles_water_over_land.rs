@@ -7,7 +7,7 @@ fn rasterize_styles_water_over_land() {
     let extent = 100u32;
     let tile = Tile {
         layers: vec![Layer {
-            name: "water_polygons".into(),
+            name: "water".into(),
             extent,
             keys: Vec::new(),
             values: Vec::new(),

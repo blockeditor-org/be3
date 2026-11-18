@@ -7,18 +7,42 @@ use be_sdk_beui::worker::Shared;
 use be_sdk_beui::{EditorHost, Task, Waker};
 pub(crate) use be_worker_map::TileId;
 use be_worker_map::{Job, Rasterized, TileRaster};
+use serde::Deserialize;
 
 pub(crate) const MAX_TILE_ZOOM: u8 = 17;
-const TILE_URL_BASE: &str = "https://vector.openstreetmap.org/shortbread_v1";
+/// OpenFreeMap's TileJSON, which names where its current tiles are: their address carries the
+/// date they were built and changes every week or so, so the map reads it rather than keeping one.
+/// The tiles follow the OpenMapTiles schema, which be-worker-map-tiles draws.
+pub(crate) const TILE_JSON: &str = "https://tiles.openfreemap.org/planet";
 const MAX_IN_FLIGHT: usize = 8;
 const MAX_BODIES: usize = 48;
 /// The most jobs the rasterizer holds at once: one it works on and one queued behind it, so it
 /// never waits on the app between tiles, while the app keeps the rest and can still cancel them.
 const MAX_RASTERIZING: usize = 2;
 
-fn url(id: TileId) -> String {
-    format!("{TILE_URL_BASE}/{}/{}/{}.mvt", id.zoom, id.x, id.y)
+/// The part of a TileJSON the map reads.
+#[derive(Deserialize)]
+struct TileJson {
+    /// Tile URL templates, holding `{z}`, `{x}` and `{y}`; the map uses the first.
+    tiles: Vec<String>,
 }
+
+fn url(template: &str, id: TileId) -> String {
+    template
+        .replace("{z}", &id.zoom.to_string())
+        .replace("{x}", &id.x.to_string())
+        .replace("{y}", &id.y.to_string())
+}
+
+/// Where the tiles are, as the TileJSON says.
+enum Template {
+    /// Not asked yet, or the last answer failed: the next tile asks again.
+    Unread,
+    Reading(Task),
+    Read(String),
+}
+
+type TemplateAnswer = Rc<RefCell<Option<Result<String, String>>>>;
 
 pub(crate) struct TileResult {
     pub id: TileId,
@@ -28,6 +52,9 @@ pub(crate) struct TileResult {
 type Fetched = Rc<RefCell<Vec<(TileId, Result<Vec<u8>, String>)>>>;
 
 pub(crate) struct TileWorker {
+    /// Read once per worker: reloading the map starts a new worker, which reads it again.
+    template: Template,
+    template_answer: TemplateAnswer,
     downloads: HashMap<TileId, Task>,
     fetched: Fetched,
     waker: Waker,
@@ -49,6 +76,8 @@ pub(crate) struct TileWorker {
 impl TileWorker {
     pub(crate) fn spawn(waker: Waker) -> Self {
         Self {
+            template: Template::Unread,
+            template_answer: Rc::default(),
             downloads: HashMap::new(),
             fetched: Rc::default(),
             waker,
@@ -116,14 +145,42 @@ impl TileWorker {
     }
 
     pub(crate) fn dispatch(&mut self, host: &EditorHost) {
-        while self.downloads.len() < MAX_IN_FLIGHT {
+        let template = match &self.template {
+            Template::Read(template) => Some(template.clone()),
+            Template::Reading(_) => None,
+            Template::Unread if self.queued.is_empty() => None,
+            Template::Unread => {
+                let answer = Rc::clone(&self.template_answer);
+                let waker = self.waker.clone();
+                let tile_json = host
+                    .fetch(Request::get(TILE_JSON))
+                    .map(|answer| answer.and_then(Response::success))
+                    .and_then(Response::json::<TileJson>);
+                let task = host.then(tile_json, move |result| {
+                    let template = result
+                        .map_err(|failure| format!("the tile source could not be read: {failure}"))
+                        .and_then(|tile_json| {
+                            tile_json.tiles.into_iter().next().ok_or_else(|| {
+                                "the tile source names no tiles".to_owned()
+                            })
+                        });
+                    *answer.borrow_mut() = Some(template);
+                    waker.wake();
+                });
+                self.template = Template::Reading(task);
+                None
+            }
+        };
+        while let Some(template) = &template
+            && self.downloads.len() < MAX_IN_FLIGHT
+        {
             let Some(id) = self.queued.pop() else {
                 break;
             };
             let fetched = Rc::clone(&self.fetched);
             let waker = self.waker.clone();
             let tile = host
-                .fetch(Request::get(url(id)))
+                .fetch(Request::get(url(template, id)))
                 .map(|answer| answer.and_then(Response::success))
                 .and_then(Response::bytes);
             let task = host.then(tile, move |result| {
@@ -152,6 +209,9 @@ impl TileWorker {
     }
 
     pub(crate) fn forget(mut self) {
+        if let Template::Reading(task) = std::mem::replace(&mut self.template, Template::Unread) {
+            task.cancel();
+        }
         for task in std::mem::take(&mut self.downloads).into_values() {
             task.cancel();
         }
@@ -159,6 +219,21 @@ impl TileWorker {
 
     pub(crate) fn poll(&mut self, host: &EditorHost) -> Vec<TileResult> {
         let mut results = Vec::new();
+        match self.template_answer.borrow_mut().take() {
+            Some(Ok(template)) => self.template = Template::Read(template),
+            // Every tile waiting for its download fails with it; the next asks again.
+            Some(Err(error)) => {
+                self.template = Template::Unread;
+                self.queued.clear();
+                for (_, waiting) in self.waiting.drain() {
+                    results.extend(waiting.into_iter().map(|id| TileResult {
+                        id,
+                        result: Err(error.clone()),
+                    }));
+                }
+            }
+            None => {}
+        }
         let fetched = std::mem::take(&mut *self.fetched.borrow_mut());
         for (source, result) in fetched {
             if self.downloads.remove(&source).is_none() {

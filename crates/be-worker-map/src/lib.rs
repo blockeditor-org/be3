@@ -9,7 +9,8 @@ use serde::{Deserialize, Serialize};
 /// The rasterizer's module, as the map's manifest names it under `workers`.
 pub const MODULE: &str = "tiles.wasm";
 
-/// The deepest zoom the tile source serves: deeper tiles are cut from one of its tiles.
+/// The deepest zoom the tile source serves (OpenFreeMap's TileJSON says 14): deeper tiles are cut
+/// from one of its tiles.
 pub const SOURCE_MAX_ZOOM: u8 = 14;
 
 /// The width and height of a rasterized tile, in pixels.
