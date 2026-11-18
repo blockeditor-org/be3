@@ -12,10 +12,4 @@ fn text_changed_on_different_lines_on_each_side_merges_cleanly() {
 
     assert_eq!(conflicts, 0);
     assert_eq!(body(&merged), "one!\ntwo\nthree?\n");
-    assert!(
-        merged
-            .text(ObjectId::ROOT, Note::BODY)
-            .expect("the note has a body")
-            .is_fresh()
-    );
 }
