@@ -118,11 +118,12 @@ async fn a_share_link_grants_view_to_an_account_no_one_granted() {
     assert_eq!(refused.code, ErrorCode::InvalidRequest, "{refused:?}");
     assert!(stranger.summary(note).await.is_err());
 
-    let opened = crate::share_links::open_share_link(
+    let (opened, _) = crate::share_links::open_share_link(
         &opener.connection(),
         opener.keys().identity(),
         opener.account(),
         &code,
+        None,
     )
     .await
     .unwrap();

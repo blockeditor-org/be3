@@ -779,9 +779,11 @@ pub(super) enum ContactCommand {
         code: be_block_keys::InviteCode,
         reply: Reply<Result<SharePreview, String>>,
     },
-    /// Opens a share link as this account.
+    /// Opens a share link as this account, refused if it no longer shares the block, or grants
+    /// the level, that the person was shown (`expected`).
     OpenShare {
         code: be_block_keys::InviteCode,
+        expected: (Uuid, Access),
         reply: Reply<Result<SharePreview, String>>,
     },
 }
@@ -3606,21 +3608,20 @@ async fn contact(
                     .map(|(link, handed)| SharePreview::of(&link, handed.name));
             reply.send(previewed.map_err(|error| error.to_string()));
         }
-        ContactCommand::OpenShare { code, reply } => {
-            let opened = async {
-                let (_, handed) =
-                    be_block_client::share_links::preview_share_link(&peer.connection(), &code)
-                        .await?;
-                let link = be_block_client::share_links::open_share_link(
-                    &peer.connection(),
-                    identity,
-                    peer.account(),
-                    &code,
-                )
-                .await?;
-                Ok::<_, be_block_client::ClientError>(SharePreview::of(&link, handed.name))
-            }
-            .await;
+        ContactCommand::OpenShare {
+            code,
+            expected,
+            reply,
+        } => {
+            let opened = be_block_client::share_links::open_share_link(
+                &peer.connection(),
+                identity,
+                peer.account(),
+                &code,
+                Some(expected),
+            )
+            .await
+            .map(|(link, handed)| SharePreview::of(&link, handed.name));
             // What it opened here is listed as shared with this account at once.
             if let Ok(opened) = &opened
                 && opened.organization == peer.organization()

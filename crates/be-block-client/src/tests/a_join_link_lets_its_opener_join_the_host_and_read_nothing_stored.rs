@@ -36,6 +36,7 @@ async fn a_join_link_lets_its_opener_join_the_host_and_read_nothing_stored() {
         player.keys().identity(),
         player.account(),
         &code,
+        None,
     )
     .await
     .unwrap();

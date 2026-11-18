@@ -83,6 +83,7 @@ APPS = {
     "adding_an_account_chooses_a_local_or_custom_server": [],
     "an_active_child_pans_in_the_frame_its_canvas_pans": ["infinite-canvas", "example-pan-zoom"],
     "an_edit_made_offline_reads_as_kept_on_the_device_and_syncs_without_an_error": ["text"],
+    "an_outsider_opens_a_share_link_as_a_guest": ["settings"],
     "an_invitation_shows_the_link_to_send_the_invited_person": [],
     "an_offline_device_refuses_to_move_a_block_into_a_folder_it_never_opened": ["text", "workspace-index"],
     "an_offline_device_says_a_block_it_never_opened_is_not_on_it_yet": ["text"],
