@@ -380,7 +380,11 @@ Back is the browser's back, reaching what `Dismiss::Back` reaches natively
 
 A component's accessibility node becomes ARIA through the one table in
 `beui-core-html`'s `aria.rs`. Drive lines come from the accessibility nodes,
-not the ARIA, so they read the same on both cores.
+not the ARIA, so they read the same on both cores. A `Frame` given
+`accessibility_hidden` leaves the tree with all it holds (natively it is skipped
+and its subtree described again when the flag changes; on HTML it is
+`aria-hidden`), for what is drawn twice: a fixed list's empty slot while the
+row's preview floats.
 
 **Running and server rendering.** `beui::html::run(element_id, build)` starts a
 program; `render_to_string` on the host and `hydrate` in the browser serve a

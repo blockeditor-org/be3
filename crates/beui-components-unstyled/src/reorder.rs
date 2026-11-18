@@ -1041,6 +1041,16 @@ where
     });
     // A fixed list keeps its own row's slot open, empty, while the row's preview floats.
     let hidden = create_memo(move || lifted.get() && fixed.get());
+    // The preview, at the list's root, is the row a screen reader finds then: the empty slot
+    // leaves the accessibility tree, unless the keyboard carries the row or the focus is
+    // within it, which a screen reader keeps reading where it is.
+    let row = NodeRef::new();
+    let focus_within = holds_focus(row);
+    let unread = create_memo(move || {
+        hidden.get()
+            && !focus_within.get()
+            && !untrack(|| drag_board().carried_by(PointerId::Keyboard))
+    });
     let root = NodeRef::new();
     // Where the carry was last drawn while the row was away, to glide back in from.
     let last = Rc::new(Cell::new(None::<Pos2>));
@@ -1119,7 +1129,6 @@ where
             </Interactive>
         </Glide>
     };
-    let row = NodeRef::new();
     let glide = view! {
         <Frame
             @node_ref=&row
@@ -1141,6 +1150,7 @@ where
                             true => 0.0,
                             false => 1.0,
                         }}
+                        accessibility_hidden={unread}
                     >
                         {inner}
                     </Frame>

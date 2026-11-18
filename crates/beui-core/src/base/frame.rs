@@ -44,6 +44,8 @@ pub struct FrameNode {
     pub fade_edges: Sides,
     /// Laid out at no size, drawing nothing, and given no spacing in a list (`Element::collapsed`).
     pub collapsed: bool,
+    /// Left out of the accessibility tree, with all it holds.
+    pub accessibility_hidden: bool,
     mask: Option<SpaceId>,
     /// Holds control flow's one child (`create_host`): focusing it focuses that child.
     host: bool,
@@ -191,6 +193,7 @@ impl Default for FrameNode {
             opacity: 1.0,
             fade_edges: Sides::ZERO,
             collapsed: false,
+            accessibility_hidden: false,
             mask: None,
             host: false,
         }
@@ -612,6 +615,21 @@ impl Document {
         };
         if self.arena.get_as::<FrameNode>(frame).opacity != opacity {
             self.arena.paint_mut_as::<FrameNode>(frame).opacity = opacity;
+        }
+    }
+
+    pub fn set_frame_accessibility_hidden(&mut self, frame: NodeOf<FrameNode>, hidden: bool) {
+        if self.arena.get_as::<FrameNode>(frame).accessibility_hidden != hidden {
+            self.arena.get_mut_as::<FrameNode>(frame).accessibility_hidden = hidden;
+            // Every node within is described again: what the tree kept of them while the
+            // frame was hidden (or shown) no longer holds.
+            let mut within = vec![frame.id()];
+            while let Some(node) = within.pop() {
+                self.accessibility_tree.get_mut().mark(node, &self.arena);
+                self.arena
+                    .get(node)
+                    .for_each_child(&mut |child| within.push(child));
+            }
         }
     }
 
