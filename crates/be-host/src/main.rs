@@ -2509,8 +2509,10 @@ impl HostCore {
             }
             RestoreTo::Into(destination) => destination,
         };
+        // While the destination's content is not read, as the server says it holds the block.
         let listed = be_host_stack::node(destination)
-            .is_some_and(|parent| parent.refers_to(root) == Some(true));
+            .and_then(|parent| parent.refers_to(root))
+            .unwrap_or(node.held && node.parent == Some(BlockParent::Block(destination)));
         match listed {
             true => be_host_stack::set_parent(root, BlockParent::Block(destination)),
             false => self.queue_move(

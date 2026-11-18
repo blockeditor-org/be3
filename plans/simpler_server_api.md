@@ -414,13 +414,18 @@ read from the mailbox, are built.) Guides: guides/blocks/keys.md
 carry them, while a reader takes a block's references, in their order, from
 its decrypted content (`Peer::content_references`: the commit's and its parts',
 or the metadata's for a block with no content yet) and the tree's shape from
-parents. The host's mirror reads them per head for the blocks it shows with
-what they hold (`Graph::take_to_read`, `read_references` in the worker), so a
-folder's order is read without opening it; until read, a child is held as the
-server says (`held`) and backrefs are the server's listing, and a head whose
-content cannot be read offline answers the server's listing until a new
-connection. A `references` listing comes in the order of ids. A local account
-answers `references` and `backrefs` listings from content. Where it differs:
+parents. The host's mirror reads them per head for every block it holds
+(`Graph::take_to_read`, `read_references` in the worker), so a folder's order,
+and whether a collapsed row has anything to expand, are read without opening
+it; until read, a child is held as the server says (`held`) and backrefs are
+the server's listing, and a head whose content cannot be read offline answers
+the server's listing until a new
+connection or new keys. A `references` listing comes in the order of ids. A
+local account answers `references` and `backrefs` listings from content. The
+server still learns each block's order of references, through
+`ReferenceChange`'s indices and `block_edges.position`, kept deliberately for
+now (a client diffs against it); a positionless change is the path if the order
+should stop reaching the server. Where it differs:
 `LARGEST_SUMMARY_BYTES` lost the `MAX_REFERENCES` ids, but the page budgets
 stay as they were, since nothing about them was sized for the references
 alone and a frame must still carry a publish adding `MAX_REFERENCES`. Tests:

@@ -1768,26 +1768,28 @@ impl<S: ObjectStore> Peer<S> {
 
     /// The blocks `block`'s content references that this device knows of, from what it holds:
     /// a local account's answer to `Listing::References`, and an offline one's when it kept the
-    /// block's content.
-    async fn references_here(&self, block: Uuid) -> Result<Vec<BlockSummary>, ClientError> {
-        let Some(summary) = self.refs.summary(block) else {
-            return Ok(Vec::new());
-        };
-        if !summary.access.can_view() {
-            return Ok(Vec::new());
-        }
-        Ok(self
-            .content_references(&summary)
-            .await?
-            .into_iter()
-            .filter_map(|reference| self.refs.summary(reference))
-            .filter(|summary| summary.access.can_know_exists())
-            .collect())
+    /// block's content. None when it holds no summary of the block it may view, or cannot read
+    /// its content.
+    async fn references_here(&self, block: Uuid) -> Option<Vec<BlockSummary>> {
+        let summary = self
+            .refs
+            .summary(block)
+            .filter(|summary| summary.access.can_view())?;
+        let references = self.content_references(&summary).await.ok()?;
+        Some(
+            references
+                .into_iter()
+                .filter_map(|reference| self.refs.summary(reference))
+                .filter(|summary| summary.access.can_know_exists())
+                .collect(),
+        )
     }
 
     /// The blocks this device holds whose content references `block`: a local account's answer
     /// to `Listing::Backrefs`, which has no server keeping references. One whose content cannot
-    /// be read is left out.
+    /// be read is left out. It reads every head the account holds, each from the local store:
+    /// a local account is one person's blocks on one device, and nothing lists its backrefs
+    /// often enough yet to want them kept.
     async fn backrefs_here(&self, block: Uuid) -> Vec<BlockSummary> {
         let mut found = Vec::new();
         for summary in self.refs.summaries() {
@@ -2976,7 +2978,9 @@ impl<S: ObjectStore> Peer<S> {
         };
         if self.local {
             let mut blocks = match listing {
-                Listing::References(block) => self.references_here(block).await?,
+                Listing::References(block) => {
+                    self.references_here(block).await.unwrap_or_default()
+                }
                 Listing::Backrefs(block) => self.backrefs_here(block).await,
                 _ => self.refs.local_listing(listing),
             };
@@ -3003,7 +3007,7 @@ impl<S: ObjectStore> Peer<S> {
             Err(error) if error.is_unreachable() => {
                 // What a block references, from the content this device kept of it.
                 if let Listing::References(block) = listing
-                    && let Ok(mut blocks) = self.references_here(block).await
+                    && let Some(mut blocks) = self.references_here(block).await
                 {
                     blocks.sort_by_key(|summary| summary.id);
                     blocks.dedup_by_key(|summary| summary.id);

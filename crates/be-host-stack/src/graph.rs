@@ -244,9 +244,14 @@ pub struct Graph {
     /// Blocks whose head's references the worker is reading (`take_to_read`).
     #[serde(skip)]
     reading: imbl::OrdSet<Uuid>,
-    /// Heads whose references could not be read (offline, and not kept on this device): not
-    /// read again until a new connection (`relist_all`). A query answers what the server's
-    /// listing holds meanwhile.
+    /// Whether a node, a want or a read changed since `take_to_read` last looked, so a pass of
+    /// the worker with nothing new to read does not scan the nodes.
+    #[serde(skip)]
+    to_read_changed: bool,
+    /// Heads whose references could not be read (offline and not kept on this device, or not
+    /// opened by a key yet): not read again at that head until a new connection (`relist_all`)
+    /// or new keys (`keys_changed`). What was known before shows meanwhile, or else what the
+    /// server's listing holds.
     unread: imbl::OrdMap<Uuid, CommitId>,
     /// The head an open block's replica last reported, which what the server lists of it does not
     /// outrun: a listing or an event made before the commit reached the server says the head
@@ -315,6 +320,7 @@ impl Diff for Graph {
             referenced,
             read,
             reading: _,
+            to_read_changed: _,
             unread,
             reported,
             placing,
@@ -447,6 +453,7 @@ impl PartialEq for Graph {
             referenced,
             read,
             reading: _,
+            to_read_changed: _,
             unread,
             reported,
             placing,
@@ -497,10 +504,12 @@ pub struct UnlistedHeld {
 impl Graph {
     fn moved(&mut self) {
         self.revision += 1;
+        self.to_read_changed = true;
         crate::changes::graph();
     }
 
     pub fn want(&mut self, owner: Owner, queries: Vec<Query>) {
+        self.to_read_changed = true;
         match queries.is_empty() {
             true => self.wants.remove(&owner),
             false => self.wants.insert(owner, queries),
@@ -794,8 +803,11 @@ impl Graph {
     /// where it was read to, since the server follows nothing for it yet.
     pub fn relist_all(&mut self) {
         self.heard.clear();
-        // Content that could not be read offline may be read now.
+        // Content that could not be read offline may be read now, and a read the connection
+        // dropped is read again.
         self.unread.clear();
+        self.reading.clear();
+        self.to_read_changed = true;
         let entries: Vec<Uuid> = self.follows.keys().copied().collect();
         for entry in entries {
             if let Some(follow) = self.follows.get_mut(&entry) {
@@ -1426,51 +1438,64 @@ impl Graph {
     }
 
     /// An open block's replica closed: what it reported last stays what the block references
-    /// at the head it reported, as if read from it (`read`).
+    /// at the head it reported, as if read from it (`read`). That report may hold edits its
+    /// session had not sealed yet, which this device showed last; the head their seal makes is
+    /// read again.
     pub fn forget_references(&mut self, block: Uuid) {
-        if self.referenced.remove(&block).is_some()
-            && let Some(node) = self.nodes.get(&block)
-            && let (Some(head), Some(references)) = (node.head, node.references.clone())
-        {
-            self.read.insert(block, (head, references));
+        if self.referenced.remove(&block).is_some() {
+            self.to_read_changed = true;
+            if let Some(node) = self.nodes.get(&block)
+                && let (Some(head), Some(references)) = (node.head, node.references.clone())
+            {
+                self.read.insert(block, (head, references));
+            }
         }
     }
 
-    /// Whether a block's references wait to be read from its head (`take_to_read`).
-    pub fn has_to_read(&self) -> bool {
-        !self.to_read().is_empty()
+    /// New keys arrived: content no key opened before may open now.
+    pub fn keys_changed(&mut self) {
+        if !self.unread.is_empty() {
+            self.unread.clear();
+            self.to_read_changed = true;
+            self.moved();
+        }
     }
 
-    /// The blocks whose references to read from their head, with that head, marked as being read
-    /// until `read_references` or `read_failed`.
+    /// Whether a block's references may wait to be read from its head (`take_to_read`): asked
+    /// first, since taking changes the graph.
+    pub fn has_to_read(&self) -> bool {
+        self.to_read_changed
+    }
+
+    /// The blocks whose references to read from their head, with that head: every node held
+    /// that this account may read, that no replica reports and no read so far covers, so what
+    /// shows a block (a file tree's row, a link) knows what it holds, whether shown open or not.
+    /// Marked as being read until `read_references` or `read_failed`.
     pub fn take_to_read(&mut self) -> Vec<(Uuid, CommitId)> {
-        let found = self.to_read();
+        self.to_read_changed = false;
+        let found: Vec<(Uuid, CommitId)> = self
+            .nodes
+            .values()
+            .filter(|node| self.wants_read(node))
+            .filter_map(|node| Some((node.id, node.head?)))
+            .collect();
         for (block, _) in &found {
             self.reading.insert(*block);
         }
         found
     }
 
-    /// Those shown with what they hold (their references or children asked for, or a child of
-    /// theirs held) that this account may read, no replica reports and no read so far covers.
-    fn to_read(&self) -> Vec<(Uuid, CommitId)> {
-        let parents: HashSet<Uuid> = self
-            .nodes
-            .values()
-            .filter_map(|node| node.parent.and_then(BlockParent::block))
-            .collect();
-        self.nodes
-            .values()
-            .filter(|node| self.wants_read(node))
-            .filter(|node| {
-                parents.contains(&node.id)
-                    || self.listings.contains_key(&Listing::References(node.id))
-                    || self
-                        .listings
-                        .contains_key(&Listing::Children(BlockParent::Block(node.id)))
-            })
-            .filter_map(|node| Some((node.id, node.head?)))
-            .collect()
+    /// Whether `node`'s references are what its content holds now: reported by its replica,
+    /// read at its head, or its metadata's with no content. Else they are from an earlier head,
+    /// shown until its head is read.
+    fn references_current(&self, node: &Node) -> bool {
+        match node.head {
+            None => true,
+            Some(head) => {
+                self.referenced.contains_key(&node.id)
+                    || self.read.get(&node.id).is_some_and(|(at, _)| *at == head)
+            }
+        }
     }
 
     /// Whether `node`'s references at its head are still to be read: no replica reports them,
@@ -1491,6 +1516,11 @@ impl Graph {
     /// it is at that head and no replica reports them.
     pub fn read_references(&mut self, block: Uuid, head: CommitId, references: Vec<Uuid>) {
         self.reading.remove(&block);
+        self.to_read_changed = true;
+        // Gone from the mirror while it was read: nothing keeps what was read.
+        if !self.nodes.contains_key(&block) {
+            return;
+        }
         self.unread.remove(&block);
         self.read.insert(block, (head, references.clone()));
         if self.referenced.contains_key(&block) {
@@ -1514,17 +1544,22 @@ impl Graph {
         }
     }
 
-    /// `block`'s content at `head` could not be read: it is not tried again until a new
-    /// connection, and what shows it answers from the server's listings meanwhile.
+    /// `block`'s content at `head` could not be read: it is not tried again at that head until
+    /// a new connection or new keys, and what shows it answers from what was known before, or
+    /// the server's listings, meanwhile.
     pub fn read_failed(&mut self, block: Uuid, head: CommitId) {
         self.reading.remove(&block);
-        self.unread.insert(block, head);
-        self.moved();
+        self.to_read_changed = true;
+        if self.nodes.contains_key(&block) {
+            self.unread.insert(block, head);
+            self.moved();
+        }
     }
 
     /// Puts `node` in the mirror, heard as of `at`, where it is covered, and counts it in its
     /// entry point's tree, so the mirror follows the entries of exactly what it holds.
     fn insert(&mut self, mut node: Node, at: u64) {
+        self.to_read_changed = true;
         if let Some(derived) = self.derived.get(&node.id) {
             node.metadata.derived.clone_from(derived);
         }
@@ -1879,12 +1914,16 @@ impl Graph {
             Some(BlockParent::Root) | None => true,
             Some(BlockParent::Detached) => false,
             Some(BlockParent::Block(parent)) => match self.nodes.get(&parent) {
+                // From an earlier head, what the server says holds too: a child another device
+                // added since is not taken for deleted until the new head is read.
                 Some(parent) if parent.access.can_view() => match &parent.references {
                     _ if parent.unfiled() => true,
-                    Some(references) => sets
-                        .entry(parent.id)
-                        .or_insert_with(|| references.iter().copied().collect())
-                        .contains(&node.id),
+                    Some(references) => {
+                        sets.entry(parent.id)
+                            .or_insert_with(|| references.iter().copied().collect())
+                            .contains(&node.id)
+                            || (node.held && !self.references_current(parent))
+                    }
                     None => node.held,
                 },
                 _ => node.held,

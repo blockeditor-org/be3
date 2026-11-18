@@ -4395,7 +4395,15 @@ async fn heard(
         Some(Event::Paired(be_block_protocol::PairingMessage { from, payload })) => {
             asked_to_pair(shared, from, &payload);
         }
-        Some(Event::KeysChanged) => tasks.relearn_locked(peer, shared),
+        Some(Event::KeysChanged) => {
+            shared
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .graph
+                .keys_changed();
+            tasks.relearn_locked(peer, shared);
+            spawn_listings(peer, shared, tasks);
+        }
         Some(Event::NotifyModesChanged) => tasks.notify_modes(peer, shared),
         // A notice to show, or a contact's key change, a record of a contact made or removed,
         // or an accepted link's card to take; or another device took one into the account's
@@ -4597,22 +4605,31 @@ fn take_reads(shared: &Arc<Mutex<Shared>>) -> Vec<(Uuid, CommitId)> {
     held.graph.take_to_read()
 }
 
+/// How many heads `read_references` reads at once.
+const READS_AT_ONCE: usize = 16;
+
 /// Reads what each block references from its content at `head` (`Graph::take_to_read`), as no
-/// summary names it: a folder's order, its children's liveness and its links. Offline, only
-/// content this device kept answers; what cannot be read is answered from the server's listings
-/// until a new connection (`Graph::read_failed`).
+/// summary names it: a folder's order, its children's liveness, whether a row has anything to
+/// expand, its links. `READS_AT_ONCE` at a time, each told to the graph as it lands. Offline,
+/// only content this device kept answers; what cannot be read waits for a new connection or new
+/// keys (`Graph::read_failed`).
 async fn read_references(
     peer: &Arc<Peer<Store>>,
     shared: &Arc<Mutex<Shared>>,
     blocks: Vec<(Uuid, CommitId)>,
 ) {
-    let read = futures_util::future::join_all(blocks.iter().map(|(block, head)| async move {
-        let commit = peer.load_head(*block, *head).await?;
-        peer.references_of(*block, &commit).await
-    }))
-    .await;
-    let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
-    for ((block, head), read) in blocks.into_iter().zip(read) {
+    use futures_util::StreamExt;
+    let mut reads = futures_util::stream::iter(blocks)
+        .map(|(block, head)| async move {
+            let read = async {
+                let commit = peer.load_head(block, head).await?;
+                peer.references_of(block, &commit).await
+            };
+            (block, head, read.await)
+        })
+        .buffer_unordered(READS_AT_ONCE);
+    while let Some((block, head, read)) = reads.next().await {
+        let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
         match read {
             Ok(references) => held.graph.read_references(block, head, references),
             Err(_) => held.graph.read_failed(block, head),

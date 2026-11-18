@@ -501,15 +501,20 @@ its links) from its content: its open replica's report (`Graph::refer`), or
 else read from its head by the worker (`read_references` in worker.rs,
 `Peer::references_of`) and kept per head (`Graph::read`, which a replica's last
 report joins as it closes), or for a block with no content yet its metadata's.
-They are `None` until read. The worker reads them only for a block shown with
-what it holds (its `References` or `Children` asked for, or a child of it
-held: `Graph::take_to_read`), so a folder's order is read without opening it,
-and `ready(Query::References)` waits for the read. Until then a child is held
-as the server says (`block-summary.held`, `Graph::holds_in`), and backrefs are
-the server's listing. Offline the read answers from content this device kept
-(the vault holds the commits it read); a head it cannot read is not tried
-again until a new connection (`Graph::read_failed`, `unread`), and its
-`References` query answers the server's listing meanwhile, in the order of ids.
+They are `None` until read. The worker reads them for every node it holds that
+this account may read (`Graph::take_to_read`, `READS_AT_ONCE` at a time, only
+after something changed), so a folder's order, and whether a collapsed row in a
+file tree or picker has anything to expand (`BlockInfo::references`), are read
+without opening it; `ready(Query::References | Query::Children)` waits for the
+first read. Until then a child is held as the server says (`block-summary.held`,
+`Graph::holds_in`), and backrefs are the server's listing. At a new head the
+references read at the last one show until it is read, and a child the server
+says is held counts as held meanwhile, so one another device just added never
+reads as deleted. Offline the read answers from content this device kept (the
+vault holds the commits it read); a head it cannot read is not tried again
+until a new connection or new keys (`Graph::read_failed`, `unread`,
+`keys_changed`), and its `References` query answers the server's listing
+meanwhile, in the order of ids.
 
 The stack tells the host what changed rather than being polled: it pushes a
 `Changes` notice (the graph, contacts, storage, stale blocks, search answers,
