@@ -169,6 +169,7 @@ async fn agent(
                     0,
                 )
                 .seal(&phrase.secret()),
+                record: Vec::new(),
                 escrow: be_block_client::contacts::seal_pin(
                     &phrase.secret(),
                     organization,

@@ -52,7 +52,6 @@ be_wasm_ops_bindgen::generate!({
         "create-link",
         "accept-link",
         "accepted-link",
-        "put-contact",
         "remove-contact",
         "set-recovery-key",
         "set-notify-mode",
@@ -75,6 +74,12 @@ pub use organizations::*;
 pub use server::*;
 pub use sessions::*;
 pub use types::*;
+
+/// The email an agent account has: none it receives mail at, derived from its id, so its maker
+/// names it on the card it keeps for it before the server makes it.
+pub fn agent_email(account: Uuid) -> String {
+    format!("agent-{}@agents.invalid", account.simple())
+}
 
 pub const MAX_FRAME_BYTES: usize = 8 * 1024 * 1024;
 /// The most blocks one `query.blocks` names.
@@ -513,7 +518,6 @@ answers!(FromPage, from_page, Page {
     Invitations => Vec<InvitationRow>,
     Storage => AccountStorage,
     Mailbox => Vec<Message>,
-    Contacts => Vec<ContactRow>,
     Links => Vec<OwnLink>,
     Link => Link,
     Invitation => InvitationPreview,

@@ -502,7 +502,7 @@ client what it can do, and following it tells `topic.key-work` as it may have
 changed: rotations on blocks it may edit, scope keys not yet sealed to
 someone who should have them (`unsealed`, whose list is `keys::sealed_to`), and
 scope keys not yet escrowed. `Peer::tend` does all of it; the worker calls it
-on connect, `ContactsChanged`, `MailboxChanged`, each `KeyWorkChanged` and after its own changes.
+on connect, `MailboxChanged`, each `KeyWorkChanged` and after its own changes.
 
 `Peer::rotate` sends one `put-keys(rotate)` for a subtree: new epochs of every scope key,
 every data key rewrapped, a new data key per block. The server takes it only
@@ -609,7 +609,8 @@ of it so a server cannot relabel it, and is sealed to its author alone, not wrap
 unescrowed, a rotation by anyone else leaves it out (it needs nothing from the
 scope above), and the author's own rotation mints it again the same way. A new
 device of the owner opens it through the identity secret, and a new phrase
-reseals it with everything else the account sealed for itself.
+reseals it with everything else the account sealed for itself. The account's
+own block (Contacts below) is one too.
 
 A member wraps only under an escrow key it pinned from somewhere the server
 cannot forge: its own, the invitation (`InviteCode::seal_escrow`), an agent's
@@ -628,9 +629,18 @@ one signature at a time (`keys::verify_escrow`) and pins the newest verified
   `ui/keys.rs`). A local account (`ServerLocation::Local`) is never asked to
   save its phrase: its secret sits beside its database anyway, so be-host saves
   the first phrase without the check screen, as the dev workspace does.
-- **A new phrase** must reseal every row sealed to the account by itself or a
-  verified contact, and everything it sealed for itself (`OwnSealed`), which
-  the server checks, so only a device with the old secret can make one. It
+- **A new phrase** (`contacts::set_recovery_key`) must reseal every row the
+  account sealed for itself, and everything it sealed for itself outside its
+  block (`OwnSealed`), which the server checks, so only a device with the old
+  secret can make one; it reseals too every row a contact sealed to it that its
+  records in the account's block reach, which the server cannot check. The
+  account's block's keys are among those rows, so the new phrase reads its
+  history; and in the same write the block starts a new key epoch whose scope
+  key is sealed to the new phrase alone (`AccountRecords::epoch_for`, a
+  `put-keys` rotation beside `set-recovery-key`, in the personal
+  organization), so the old phrase reads nothing written to it after, even on a
+  device that kept every key it opened. A device whose block does not open
+  (a newer phrase was taken elsewhere) takes no new phrase. It
   also appends a retirement (`be_block_keys::Retirement`) to every access log
   the account signed in (`recovery-key`'s `logs`): endorsed by the old signing
   key, signed as an entry by the new one, and checked by the server and every
@@ -642,8 +652,8 @@ one signature at a time (`keys::verify_escrow`) and pins the newest verified
   (`contacts::new_identity`, `RecoverySecret::seal_key_change`), left in the
   contact's mailbox (`letter.key-change`) by the same write; a contact's device
   follows changes one at a time from the key it holds, reseals what that
-  account sealed to it (`ResealKeys`), replaces its row (`PutContact`) and
-  deletes the changes it followed. Before sending, the device follows its own
+  account sealed to it (`ResealKeys`), writes its record in the account's block
+  and deletes the changes it followed. Before sending, the device follows its own
   contacts' waiting changes, checked against its pins, so the changes seal to
   each contact's newest key; that step is best-effort, so a contact's mailbox
   never holds up a new phrase (`accounts::set_recovery_key`). The server, in
@@ -859,35 +869,52 @@ keys the granter verified that way, which every device then seals to.
 
 - A **contact card** (`be_block_keys::ContactCard`: account id, identity public
   key, signing key, name, email) is sealed with a link's code (`ContactCard::seal`, keyed by
-  code and side). A contact link is `{server}/#contact/{CODE}`. What an
-  account keeps for itself (cards, link codes) is sealed with a key derived
+  code and side). A contact link is `{server}/#contact/{CODE}`. What the account
+  seals for itself outside its block (link codes) is sealed with a key derived
   from its identity secret (`RecoverySecret::seal_own`): sealing to the public
   key would let the server forge a row the owner trusts.
+- **The account's block** (`be_block::account_block`, `AccountBlock`) holds the
+  account's records of its contacts: an owner-only block (guides/settings.md,
+  Owner only) at the top of the personal organization, at an id derived from
+  the account, made by its first device that has a record to keep
+  (`be_block_client::AccountRecords`, a peer of the personal organization that
+  reaches this block alone and keeps nothing on the device). The server makes
+  it only there, owner-only, of its type (`require_account_block`), and keeps
+  of contacts only that two accounts are (`contacts`, two columns): no call
+  lists them and nothing it holds names a contact's keys. An account in no
+  personal organization (an agent) has no block, and keeps the letters its
+  records arrive in.
 - **A contact's record** (`contacts::OwnContact`) is the card the account
-  verified and `verified`, a sequence set when it verified the card or
-  followed a key change, sealed to itself. The server cannot make one, but it
-  could serve an older one to bring back a key the contact replaced, so each
-  device pins the newest record of each contact it has seen (refs'
-  `Contacts`), refuses an older one or one that does not open, keeps sealing
-  to the pinned key, and says which (`contacts::Mismatch`: an older key, or a
-  copy it can't read, as after a new phrase taken on another device) while
-  the server serves it. Key changes are followed from the record kept, in
-  mailbox order, and deleted with the record that follows them written, with
-  any before the last followed that did not open (forged). One after it that
-  does not open breaks the chain: the server let older ones go past
-  `MAX_LETTERS_FROM_ONE`, or it is sealed to a phrase this account took since.
-  The contact is then listed as not confirmed, named as verified, with nothing
-  sealed to it, and the changes stay until the two connect again by a link,
-  whose write deletes those that lead nowhere from the new card. Nothing is
-  deleted while the served record does not open on this device, since the
-  changes may be sealed to a new phrase it lacks (`contacts::contacts`). `PutContact`
-  writes a record only over the one the device read (`replaces`), so a device
-  that read fewer changes than another never rolls the record back past a
-  change the other already deleted: refused `RecordChanged`, it reads again. A
-  contact who connects again by a new link, as one who lost their phrase
-  must, gets a record that follows the newest the server holds, so it
-  outranks every device's pin whatever their clocks say, and a new key needs
-  no signed change.
+  verified, `verified`, a sequence set when it verified the card or followed a
+  key change, and `through`, the newest mailbox message it reflects. Records
+  arrive as letters sealed by the account for itself (`letter.contact`, left by
+  the write that made two contacts: `accept-link` for the accepter,
+  `create-agent` for both) and go as `letter.removed` (left to both by
+  `remove-contact`); each pass of `contacts::contacts` takes them into the
+  block in mailbox order, then deletes them, and a letter up to a record's
+  `through` is taken already, so a device that stops between the two never
+  takes back a removal nor follows a change twice. The server cannot read or
+  make a record, but it could serve an older version of the block to bring
+  back a key the contact replaced, so each device pins the newest record of
+  each contact it has seen (refs' `Contacts`), refuses an older one, keeps
+  sealing to the pinned key, and says which (`contacts::Mismatch`: an older
+  key, or a block it can't read, as after a new phrase taken on another
+  device) while the block holds it. Key changes are followed from the record
+  kept, in mailbox order, and deleted once the record that follows them is
+  written, with any before the last followed that did not open (forged). One
+  after it that does not open breaks the chain: the server let older ones go
+  past `MAX_LETTERS_FROM_ONE`, or it is sealed to a phrase this account took
+  since. The contact is then listed as not confirmed, named as verified, with
+  nothing sealed to it, and the changes stay until the two connect again by a
+  link, whose write deletes those that lead nowhere from the new card. Nothing
+  is written or deleted while the block does not open on this device, since the
+  changes may be sealed to a new phrase it lacks. A device writes the block
+  only over the head it read (`AccountRecords::save`), so a device that read
+  fewer changes than another never rolls a record back past a change the other
+  already deleted: refused, it reads again. A contact who connects again by a
+  new link, as one who lost their phrase must, gets a record that follows the
+  newest the block holds, so it outranks every device's pin whatever their
+  clocks say, and a new key needs no signed change.
 - **A contact's name and email** are the card's, as verified, never the
   server's account row, which could name one contact as another so a share to
   "Bob" sealed to Mallory. They are as the contact gave them in their link;
@@ -908,22 +935,24 @@ keys the granter verified that way, which every device then seals to.
   (`open_link`), opens the card, and on "Connect with NAME (EMAIL)?" (or the
   invitation's join dialog) accepts with its own card (`accept_link`). The
   server records both `contacts` rows, leaves the accepter's card in the
-  maker's mailbox (`letter.accepted`) and tells it; the maker's device then
-  opens the card with the code it holds, writes its row, signs a contact
+  maker's mailbox (`letter.accepted`) and the accepter's record of the maker in
+  the accepter's (`letter.contact`), and tells both; the maker's device then
+  opens the card with the code it holds, keeps its record in the account's
+  block (`through` the letter), signs a contact
   link's pending grant into the block's log (only while that log names the
   accepter nowhere, so finishing again never undoes a later revocation) or an
   invitation's accepter into the organization's log, and only then deletes the
   link and the message in one write, so a device that stops halfway finishes
-  it again (`finish_links`, on connect, `ContactsChanged` and
-  `MailboxChanged`).
+  it again (`finish_links`, on connect and `MailboxChanged`).
 - **A pending grant**: a link may carry a block, an access level and the
   block's scope key sealed with the code (`Peer::offer`). Accepting applies the
   grant at once, so a share works while the maker is offline; finishing
   reseals the scope (`Peer::seal_share`). A grant to a contact whose key the
   granter has not verified yet works on the server at once and is sealed later
   through `unsealed`.
-- `RemoveContact` deletes both rows and revokes each one's grants on blocks
-  the other may edit, in every shared organization. Contacts are per account,
+- `RemoveContact` deletes both rows, what each left the other and the links
+  between them, leaves each a `letter.removed`, and revokes each one's grants on
+  blocks the other may edit, in every shared organization. Contacts are per account,
   across organizations; a grant also needs membership.
 - **In the host**: the Contacts dialog, the share dialog (whose "Invite someone
   new" calls host-services' `make-contact-link`), and the worker's

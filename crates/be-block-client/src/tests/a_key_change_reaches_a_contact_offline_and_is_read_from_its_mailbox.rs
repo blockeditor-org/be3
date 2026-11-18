@@ -1,6 +1,6 @@
 use super::*;
 
-use be_block_protocol::RecoveryKey;
+
 
 fn waiting(harness: &Harness, to: Uuid, from: Uuid) -> i64 {
     harness
@@ -36,40 +36,7 @@ async fn a_key_change_reaches_a_contact_offline_and_is_read_from_its_mailbox() {
     drop(guest);
 
     let fresh = be_block_keys::RecoveryPhrase::generate().secret();
-    let RecoveryKey {
-        sealed, own, logs, ..
-    } = crate::ask(
-        be_block_protocol::read::<be_block_protocol::RecoveryKey, _>(
-            &owner.connection(),
-            None,
-            be_block_protocol::Query::RecoveryKey,
-        ),
-    )
-    .await
-    .unwrap();
-    let resealed = crate::contacts::new_identity(
-        owner.account(),
-        owner.keys().identity(),
-        &fresh,
-        sealed,
-        own,
-        logs,
-    )
-    .unwrap();
-    crate::ask(be_block_protocol::write::<(), _>(
-        &owner.connection(),
-        None,
-        be_block_protocol::Op::SetRecoveryKey {
-            public: fresh.public().0,
-            signing: fresh.signing().0,
-            sealed: resealed.sealed,
-            own: resealed.own,
-            changes: resealed.changes,
-            retirements: resealed.retirements,
-        },
-    ))
-    .await
-    .unwrap();
+    take_phrase(&owner.connection(), owner.account(), owner.keys().identity(), &fresh).await;
     assert_eq!(
         waiting(&harness, account, owner.account()),
         1,

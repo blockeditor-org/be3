@@ -24,7 +24,7 @@ async fn a_record_the_old_key_signs_after_a_new_phrase_is_refused() {
 
     let fresh = be_block_keys::RecoveryPhrase::generate().secret();
     let RecoveryKey {
-        sealed, own, logs, ..
+        logs, ..
     } = crate::ask(
         be_block_protocol::read::<be_block_protocol::RecoveryKey, _>(
             &owner.connection(),
@@ -38,22 +38,7 @@ async fn a_record_the_old_key_signs_after_a_new_phrase_is_refused() {
         logs.iter().any(|log| log.log == team) && logs.iter().any(|log| log.log == organization),
         "the logs the owner signed in are its workspace's and its organization's: {logs:?}"
     );
-    let resealed =
-        crate::contacts::new_identity(owner.account(), &old, &fresh, sealed, own, logs).unwrap();
-    crate::ask(be_block_protocol::write::<(), _>(
-        &owner.connection(),
-        None,
-        be_block_protocol::Op::SetRecoveryKey {
-            public: fresh.public().0,
-            signing: fresh.signing().0,
-            sealed: resealed.sealed,
-            own: resealed.own,
-            changes: resealed.changes,
-            retirements: resealed.retirements,
-        },
-    ))
-    .await
-    .unwrap();
+    take_phrase(&owner.connection(), owner.account(), &old, &fresh).await;
 
     let laptop = harness.second(&member).await;
     let retired = laptop.access_log(team).await.unwrap();

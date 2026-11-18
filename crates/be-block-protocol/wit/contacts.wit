@@ -88,11 +88,4 @@ interface contacts {
         accepter: option<account-id>,
     }
 
-    record contact-row {
-        account: account-id,
-        email: string,
-        display-name: string,
-        sealed: list<u8>,
-    }
-
 }

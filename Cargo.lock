@@ -1190,6 +1190,7 @@ dependencies = [
  "be-block-fault-relay",
  "be-block-graph",
  "be-block-keys",
+ "be-block-model",
  "be-block-protocol",
  "be-block-session",
  "be-block-sqlite-schema",
