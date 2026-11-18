@@ -918,7 +918,7 @@ pub(crate) fn append_member(
                     && named.agent == agent
                     && named.invitation.is_none() =>
             {
-                Ok(member.then_some((account, named.identity)))
+                Ok(named.identity.map(|identity| (account, identity)))
             }
             _ => Err(refused(
                 "a member is signed in or out by a member record naming what the call does",
@@ -978,9 +978,12 @@ pub(crate) fn append_accepted(
                 if named.account == accepter.into_bytes()
                     && named.member
                     && !named.agent
-                    && named.invitation.is_some_and(|signing| signing.0 == key) =>
+                    && named
+                        .invitation
+                        .as_ref()
+                        .is_some_and(|invited| invited.key.0 == key) =>
             {
-                Ok(Some((accepter, named.identity)))
+                Ok(named.identity.map(|identity| (accepter, identity)))
             }
             _ => Err(refused(
                 "an invitation is accepted by a member record signed with its key, naming the accepter",

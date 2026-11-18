@@ -600,34 +600,37 @@ impl<S: ObjectStore> Peer<S> {
     /// when it names it; a person by signing them out of the log (`append-log`), as an
     /// administrator. Each carries the signed revocations of their grants that logs name.
     pub async fn remove_member(&self, account: Uuid) -> Result<(), ClientError> {
-        let agent = self
-            .members()
-            .await?
-            .iter()
-            .find(|member| member.account == account)
-            .is_some_and(|member| member.created_by.is_some());
         let checked = self.checked_organization().await?;
+        // An agent or a person as the log names them; one it names nowhere, as the server lists
+        // them.
         let named = checked
             .as_ref()
-            .and_then(|checked| checked.member(account.into_bytes()));
+            .filter(|checked| checked.member(account.into_bytes()).is_some());
+        let agent = match named {
+            Some(checked) => checked
+                .members
+                .get(&account.into_bytes())
+                .is_some_and(|named| named.maker.is_some()),
+            None => self
+                .members()
+                .await?
+                .iter()
+                .find(|member| member.account == account)
+                .is_some_and(|member| member.created_by.is_some()),
+        };
         let revocations = self.removal_revocations(account, false).await?;
         let op = match agent {
             true => be_block_protocol::Op::DeleteAgent {
                 account: account,
-                signed: named.and_then(|identity| {
-                    self.member_record(checked.as_ref(), account, identity, false, true)
-                }),
+                signed: named
+                    .and_then(|checked| self.member_record(Some(checked), account, None, true)),
                 revocations: revocations,
             },
+            // A sign-out names no keys, so one of a person no record signed in (the server
+            // added them on its own) names nothing the server says either.
             false => {
-                // A person no record signed in (the server added them on its own) is signed out
-                // naming the signing key the server holds for them: nothing seals to them once out.
-                let identity = match named.or_else(|| self.verified_identity(account)) {
-                    Some(identity) => identity,
-                    None => self.served_identity(account).await?,
-                };
                 let signed = self
-                    .member_record(checked.as_ref(), account, identity, false, false)
+                    .member_record(checked.as_ref(), account, None, false)
                     .ok_or_else(|| {
                         ClientError::Refused(
                             ErrorCode::PermissionDenied,
@@ -643,28 +646,6 @@ impl<S: ObjectStore> Peer<S> {
         };
         be_block_protocol::write::<(), _>(&self.connection(), Some(self.organization), op).await??;
         Ok(())
-    }
-
-    /// `account`'s signing key as the server holds it, with no identity key: what a sign-out of
-    /// someone no record names names.
-    async fn served_identity(
-        &self,
-        account: Uuid,
-    ) -> Result<be_block_keys::PublicIdentity, ClientError> {
-        let signing = be_block_protocol::read::<Vec<be_block_protocol::SigningKey>, _>(
-            &self.connection(),
-            Some(self.organization),
-            be_block_protocol::Query::SigningKeys(vec![account]),
-        )
-        .await??
-        .into_iter()
-        .find(|served| served.account == account)
-        .map(|served| served.key)
-        .unwrap_or_default();
-        Ok(be_block_keys::PublicIdentity {
-            public: be_block_keys::RecoveryPublic([0; 32]),
-            signing: be_block_keys::SigningPublic(signing),
-        })
     }
 
     /// Revokes an outstanding invitation into this organization: as an administrator, ending
@@ -906,16 +887,16 @@ impl<S: ObjectStore> Peer<S> {
         Ok(Some(checked))
     }
 
-    /// A member record signing `account`, with `identity`, in or out of the organization's
-    /// log as it checks at its head: none when it has no log.
+    /// A member record signing `account` into the organization's log as it checks at its head,
+    /// with `identity`, or with none out of it: none when it has no log.
     pub(crate) fn member_record(
         &self,
         checked: Option<&be_block_keys::Checked>,
         account: Uuid,
-        identity: be_block_keys::PublicIdentity,
-        member: bool,
+        identity: Option<be_block_keys::PublicIdentity>,
         agent: bool,
     ) -> Option<Vec<u8>> {
+        let member = identity.is_some();
         let entry = checked?.next(
             self.keys.identity(),
             self.account.into_bytes(),
@@ -939,7 +920,7 @@ impl<S: ObjectStore> Peer<S> {
         identity: be_block_keys::PublicIdentity,
     ) -> Result<Option<Vec<u8>>, ClientError> {
         let checked = self.checked_organization().await?;
-        Ok(self.member_record(checked.as_ref(), account, identity, true, true))
+        Ok(self.member_record(checked.as_ref(), account, Some(identity), true))
     }
 
     /// Signs `account`, an agent this account made, into the organization's log with the keys
@@ -957,7 +938,7 @@ impl<S: ObjectStore> Peer<S> {
         {
             return Ok(());
         }
-        let Some(signed) = self.member_record(checked.as_ref(), account, identity, true, true)
+        let Some(signed) = self.member_record(checked.as_ref(), account, Some(identity), true)
         else {
             return Ok(());
         };
@@ -984,11 +965,11 @@ impl<S: ObjectStore> Peer<S> {
             return Ok(());
         };
         let me = self.account.into_bytes();
-        let made: Vec<([u8; 16], be_block_keys::PublicIdentity)> = checked
+        let made: Vec<[u8; 16]> = checked
             .members
             .iter()
             .filter(|(_, named)| named.maker == Some(me))
-            .map(|(account, named)| (*account, named.identity))
+            .map(|(account, _)| *account)
             .collect();
         let mine_unsigned = unsigned.iter().any(|account| *account != self.account);
         if made.is_empty() && !mine_unsigned {
@@ -1003,14 +984,14 @@ impl<S: ObjectStore> Peer<S> {
                 self.sign_in_agent(member.account, identity).await?;
             }
         }
-        for (account, identity) in made {
+        for account in made {
             let account = Uuid::from_bytes(account);
             if members.iter().any(|member| member.account == account) {
                 continue;
             }
             let checked = self.checked_organization().await?;
             if let Some(signed) =
-                self.member_record(checked.as_ref(), account, identity, false, true)
+                self.member_record(checked.as_ref(), account, None, true)
             {
                 be_block_protocol::write::<(), _>(
                     &self.connection(),

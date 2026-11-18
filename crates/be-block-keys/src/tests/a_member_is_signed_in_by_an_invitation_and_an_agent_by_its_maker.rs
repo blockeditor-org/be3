@@ -12,7 +12,7 @@ fn a_member_is_signed_in_by_an_invitation_and_an_agent_by_its_maker() {
     let none = |_: &Asked| None;
     let root = Entry::root(&admin, admin_id, LogKind::Organization, organization);
     let pinned = root.hash();
-    let member = |by: &RecoverySecret, signer, previous, account, identity, member, agent| {
+    let member = |by: &RecoverySecret, signer, previous, account, identity: PublicIdentity, member: bool, agent: bool| {
         Entry::sign(
             by,
             signer,
@@ -21,7 +21,7 @@ fn a_member_is_signed_in_by_an_invitation_and_an_agent_by_its_maker() {
             false,
             Record::Member(Member {
                 account,
-                identity,
+                identity: member.then_some(identity),
                 member,
                 agent,
                 invitation: None,
@@ -46,13 +46,7 @@ fn a_member_is_signed_in_by_an_invitation_and_an_agent_by_its_maker() {
 
     let code = InviteCode::generate();
     let invited = invitation(&admin, admin_id, pinned, &code, true);
-    let joined = Entry::accepted(
-        &code,
-        organization,
-        invited.hash(),
-        person_id,
-        person.identity(),
-    );
+    let joined = Entry::accepted(&code, organization, invited.hash(), person_id, &person);
     let checked = check(&[root.clone(), invited.clone(), joined.clone()]).unwrap();
     assert_eq!(checked.member(person_id), Some(person.identity()));
     assert_eq!(
@@ -60,31 +54,19 @@ fn a_member_is_signed_in_by_an_invitation_and_an_agent_by_its_maker() {
         Some(admin.identity()),
         "an administrator is a member"
     );
-    let again = Entry::accepted(
-        &code,
-        organization,
-        joined.hash(),
-        stranger_id,
-        stranger.identity(),
-    );
+    let again = Entry::accepted(&code, organization, joined.hash(), stranger_id, &stranger);
     assert!(
         check(&[root.clone(), invited.clone(), joined.clone(), again]).is_err(),
         "an invitation used once signs no one else in"
     );
     let ended = invitation(&admin, admin_id, invited.hash(), &code, false);
-    let late = Entry::accepted(
-        &code,
-        organization,
-        ended.hash(),
-        person_id,
-        person.identity(),
-    );
+    let late = Entry::accepted(&code, organization, ended.hash(), person_id, &person);
     assert!(
         check(&[root.clone(), invited.clone(), ended, late]).is_err(),
         "an invitation ended signs no one in"
     );
     let other = InviteCode::generate();
-    let uninvited = Entry::accepted(&other, organization, pinned, person_id, person.identity());
+    let uninvited = Entry::accepted(&other, organization, pinned, person_id, &person);
     assert!(
         check(&[root.clone(), uninvited]).is_err(),
         "a code no administrator opened as an invitation signs no one in"
@@ -211,13 +193,7 @@ fn a_member_is_signed_in_by_an_invitation_and_an_agent_by_its_maker() {
     );
     let code = InviteCode::generate();
     let second = invitation(&admin, admin_id, joined.hash(), &code, true);
-    let swapped = Entry::accepted(
-        &code,
-        organization,
-        second.hash(),
-        person_id,
-        stranger.identity(),
-    );
+    let swapped = Entry::accepted(&code, organization, second.hash(), person_id, &stranger);
     assert!(
         check(&[joined_log.as_slice(), &[second.clone(), swapped]].concat()).is_err(),
         "a member already signed in is not signed in again with other keys"
@@ -253,19 +229,52 @@ fn a_member_is_signed_in_by_an_invitation_and_an_agent_by_its_maker() {
     );
     let after = [root.clone(), promoted, by_deputy];
     let accepting = |previous| {
-        Entry::accepted(
-            &code,
-            organization,
-            previous,
-            person_id,
-            person.identity(),
-        )
+        Entry::accepted(&code, organization, previous, person_id, &person)
     };
     let in_time = accepting(after[2].hash());
     assert!(check(&[after.as_slice(), &[in_time]].concat()).is_ok());
     let too_late = accepting(demoted.hash());
     assert!(
-        check(&[after.as_slice(), &[demoted, too_late]].concat()).is_err(),
+        check(&[after.as_slice(), &[demoted.clone(), too_late]].concat()).is_err(),
         "an invitation whose inviter no longer administers signs no one in"
+    );
+    // Nor once they administer again: it ended with their role.
+    let again = Entry::sign(
+        &admin,
+        admin_id,
+        organization,
+        Some(demoted.hash()),
+        false,
+        Record::Administrator(Administrator {
+            account: deputy_id,
+            identity: deputy.identity(),
+            administrator: true,
+        }),
+    );
+    let revived = accepting(again.hash());
+    assert!(
+        check(&[after.as_slice(), &[demoted, again, revived]].concat()).is_err(),
+        "an invitation came back with its inviter's role"
+    );
+
+    // The accepter's own keys endorse the record: a holder of the code names no keys it does
+    // not hold.
+    let code = InviteCode::generate();
+    let opened = invitation(&admin, admin_id, pinned, &code, true);
+    let endorsed = Entry::accepted(&code, organization, opened.hash(), person_id, &stranger);
+    let Record::Member(mut member) = endorsed.record else {
+        unreachable!()
+    };
+    member.identity = Some(person.identity());
+    let claimed = Entry::invitation_signed(
+        &code.invitation_signing(organization),
+        organization,
+        opened.hash(),
+        person_id,
+        Record::Member(member),
+    );
+    assert!(
+        check(&[root.clone(), opened, claimed]).is_err(),
+        "a record named keys its accepter does not hold"
     );
 }

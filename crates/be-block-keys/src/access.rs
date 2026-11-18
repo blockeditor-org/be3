@@ -30,6 +30,9 @@ const ACCESS_DIGEST_INFO: &[u8] = b"be3.access.digest.v1";
 /// What an old signing key signs to hand an account's records on to its new keys comes after
 /// this (`Retirement::endorsement`).
 const RETIREMENT_INFO: &[u8] = b"be3.access.retirement.v1";
+/// What an accepter's signing key signs to show it holds the keys an invitation signs it in with
+/// comes after this (`Invited::endorsement`).
+const INVITED_INFO: &[u8] = b"be3.access.invited.v1";
 
 /// The hash of an access log entry, by which the next entry and a device's pin name it.
 pub type EntryHash = [u8; 32];
@@ -189,17 +192,45 @@ pub struct Administrator {
 /// its maker.
 ///
 /// A person signs themselves in (the entry's signer is `account`) with the key of the
-/// invitation they accept (`Entry::accepted`), which names the keys they hold: the server never
-/// holds the invitation's code, so it cannot sign anyone in, and no administrator need be online.
-#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+/// invitation they accept (`Entry::accepted`), naming the keys they hold, which endorse the
+/// record: the server never holds the invitation's code, so it cannot sign anyone in, nor can a
+/// holder of the code sign in keys it does not hold; and no administrator need be online.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct Member {
     pub account: [u8; 16],
-    pub identity: PublicIdentity,
+    /// The keys signed in; none for a sign-out, which names no keys.
+    pub identity: Option<PublicIdentity>,
     pub member: bool,
     pub agent: bool,
-    /// For a person signed in, the key of the invitation that signs the entry
-    /// (`Invitation::key`); none for anything else.
-    pub invitation: Option<SigningPublic>,
+    /// For a person signed in, the invitation that signs the entry; none for anything else.
+    pub invitation: Option<Invited>,
+}
+
+/// The invitation a person signed in with: its key (`Invitation::key`), which signs the entry,
+/// and the person's own signing key's endorsement of the record, so the keys it names are ones
+/// the accepter holds.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct Invited {
+    pub key: SigningPublic,
+    #[serde(with = "serde_bytes")]
+    pub endorsement: Vec<u8>,
+}
+
+fn invited(
+    organization: [u8; 16],
+    account: [u8; 16],
+    identity: &PublicIdentity,
+    key: &SigningPublic,
+) -> Vec<u8> {
+    [
+        INVITED_INFO,
+        &organization,
+        &account,
+        &identity.public.0,
+        &identity.signing.0,
+        &key.0,
+    ]
+    .concat()
 }
 
 /// An invitation into the organization, as an administrator opened it (`open`) or ended it: its
@@ -386,25 +417,49 @@ impl Entry {
         )
     }
 
-    /// The entry after `previous` in the log of `organization` that signs `account`, with
-    /// `identity`, in as a member: signed with the key of the invitation `code` made
-    /// (`Invitation`), so only whoever holds the code can make it.
+    /// The entry after `previous` in the log of `organization` that signs `account`, with the
+    /// keys of `secret`, in as a member: signed with the key of the invitation `code` made
+    /// (`Invitation`), so only whoever holds the code can make it, and endorsed by `secret`, so
+    /// it names only keys their holder signs in.
     pub fn accepted(
         code: &InviteCode,
         organization: [u8; 16],
         previous: EntryHash,
         account: [u8; 16],
-        identity: PublicIdentity,
+        secret: &RecoverySecret,
     ) -> Self {
         use ed25519_dalek::Signer;
         let key = code.invitation_signing(organization);
+        let public = SigningPublic(key.verifying_key().to_bytes());
+        let identity = secret.identity();
+        let endorsement = secret
+            .signing_key()
+            .sign(&invited(organization, account, &identity, &public))
+            .to_bytes()
+            .to_vec();
         let record = Record::Member(Member {
             account,
-            identity,
+            identity: Some(identity),
             member: true,
             agent: false,
-            invitation: Some(SigningPublic(key.verifying_key().to_bytes())),
+            invitation: Some(Invited {
+                key: public,
+                endorsement,
+            }),
         });
+        Self::invitation_signed(&key, organization, previous, account, record)
+    }
+
+    /// `record`, the member record signing `account` in, signed with an invitation's `key` after
+    /// `previous` in the log of `organization`.
+    pub(crate) fn invitation_signed(
+        key: &ed25519_dalek::SigningKey,
+        organization: [u8; 16],
+        previous: EntryHash,
+        account: [u8; 16],
+        record: Record,
+    ) -> Self {
+        use ed25519_dalek::Signer;
         let signature = key
             .sign(&signed(organization, Some(previous), false, &record, account))
             .to_bytes()
@@ -914,6 +969,17 @@ impl Checked {
         ))
     }
 
+    /// Ends every invitation `inviter` opened that is open still: they no longer administer the
+    /// organization, and an invitation lasts only while its inviter does, whatever they become
+    /// later.
+    fn end_invitations_of(&mut self, inviter: [u8; 16]) {
+        for opened in self.invitations.values_mut() {
+            if *opened == Some(inviter) {
+                *opened = None;
+            }
+        }
+    }
+
     /// `former` no longer owns the block: they keep what a former owner keeps
     /// (`FORMER_OWNER`), with the keys last named for them.
     fn demote_owner(&mut self, former: [u8; 16]) {
@@ -1176,6 +1242,9 @@ pub fn check_log(
                 state.owner = Some(owner.account);
             }
             Record::Administrator(administrator) => {
+                if !administrator.administrator {
+                    state.end_invitations_of(administrator.account);
+                }
                 let may = kind == LogKind::Organization
                     && state.administrators.contains_key(&entry.signer)
                     && own.is_some_and(|signing| entry.signed_by(&signing));
@@ -1217,20 +1286,26 @@ pub fn check_log(
             }
             Record::Member(Member {
                 account,
-                identity,
+                identity: Some(identity),
                 member: true,
                 agent: false,
-                invitation: Some(key),
+                invitation: Some(Invited { key, endorsement }),
             }) => {
                 // A person signs themselves in with the key of an invitation still open, whose
-                // inviter administers the organization still, once: no one already named.
+                // inviter administers the organization still, once: no one already named; and
+                // their own keys endorse it.
                 let inviter = state.invitations.get(key).copied().flatten();
                 let may = kind == LogKind::Organization
                     && entry.signer == *account
                     && inviter.is_some_and(|inviter| state.administrators.contains_key(&inviter))
                     && !state.members.contains_key(account)
                     && !state.administrators.contains_key(account)
-                    && entry.signed_by(key);
+                    && entry.signed_by(key)
+                    && verify_signature(
+                        &identity.signing.0,
+                        &invited(log, *account, identity, key),
+                        endorsement,
+                    );
                 if !may {
                     return Err(KeyError::Record);
                 }
@@ -1261,37 +1336,37 @@ pub fn check_log(
                 // retirement, or by signing them out and in, both in the log.
                 let named = state.members.contains_key(&member.account)
                     || state.administrators.contains_key(&member.account);
-                let may = match (member.member, member.agent) {
-                    (_, _) if member.invitation.is_some() => false,
-                    (true, false) => false,
-                    (true, true) => {
+                // A sign-in names keys, and a sign-out none.
+                let may = match (member.member, member.agent, &member.identity) {
+                    _ if member.invitation.is_some() => false,
+                    (true, true, Some(identity)) => {
                         (administrator || person)
                             && !named
-                            && member.account == agent_account(entry.signer, &member.identity)
+                            && member.account == agent_account(entry.signer, identity)
                     }
-                    (false, _) => administrator || maker == Some(entry.signer),
+                    (false, _, None) => administrator || maker == Some(entry.signer),
+                    _ => false,
                 };
                 if kind != LogKind::Organization || !signed || !may {
                     return Err(KeyError::Record);
                 }
-                state
-                    .signers
-                    .insert(member.account, member.identity.signing);
-                match member.member {
-                    true => {
+                match member.identity {
+                    Some(identity) => {
+                        state.signers.insert(member.account, identity.signing);
                         state.members.insert(
                             member.account,
                             Named {
-                                identity: member.identity,
+                                identity,
                                 maker: member.agent.then_some(entry.signer),
                             },
                         );
                     }
-                    // Signed out, an administrator administers no more.
-                    false => {
+                    // Signed out, an administrator administers no more, and their invitations end.
+                    None => {
                         state.members.remove(&member.account);
                         if state.administrators.remove(&member.account).is_some() {
                             state.set_level(member.account, Level::None);
+                            state.end_invitations_of(member.account);
                         }
                     }
                 }

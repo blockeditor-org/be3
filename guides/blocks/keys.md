@@ -230,19 +230,22 @@ appends each once it checks at the log's head as devices check it.
 online. Making one (`contacts::invite`), an administrator signs an invitation
 record naming a key the link's code derives (`InviteCode::invitation_key`),
 which `create-link` appends. Accepting (`contacts::accept_link`), the accepter
-signs a member record naming itself and its keys with that key
-(`Entry::accepted`, the entry's signer being the accepter), after the head of
+signs a member record naming itself and its keys with that key, endorsed by
+its own signing key (`Entry::accepted`, `Invited`; the entry's signer is the
+accepter, so a holder of the code names no keys it does not hold), after the head of
 the log the link names (`link.head`; read and signed again a few times if the
 log moved), which `accept-link` appends. The server never holds the code, so it
 can sign no one in, and `check_log` takes such a record only once, by an
 invitation still open whose inviter still administers the organization, for an
 account the log does not name (`Checked::invitations`). An administrator ends
 one with another invitation record (`open: false`, which `delete-link` carries
-when revoking); one whose inviter stopped administering is ended with their
-role. Expiry is the server's alone: no device can check its clock. An agent is
+when revoking); a demotion or sign-out of its inviter ends every one they
+opened, for good, even if they administer again. Expiry is the server's alone: no device can check its clock. An agent is
 signed in by its maker as `create-agent` makes it. Every removal of a person is
 an `append-log(member)` signing them out, by an administrator, with the signed
-revocations of their grants; an agent's is `delete-agent`, signed out where the
+revocations of their grants. A sign-out names no keys (`Member::identity` is
+none), so one of a person no record signed in (the server added them) takes
+nothing from the server's word; an agent's is `delete-agent`, signed out where the
 log names it (the personal organization has no log). A proof path keeps every
 invitation record whole, so a member's own record checks on theirs.
 
@@ -1018,7 +1021,11 @@ change. It cannot sign anyone into an organization: a person signs in with the
 key of an invitation an administrator opened, derived from a code it never
 sees, once; it still decides when an invitation expires, and can list as a
 member someone no record names, whom devices then treat as no member
-(`unsigned-members`).
+(`unsigned-members`). A member record it makes up is caught only by whoever is
+served the organization's whole log (administrators, and members with Edit or
+above anywhere): a reader below Edit is served a path that reduces other
+members' records, so it cannot tell a forged member from a real one, though it
+seals nothing to either.
 
 It can make an account forget a contact, by a made-up `letter.removed`,
 which connecting again by a link recovers. What it cannot do is make the

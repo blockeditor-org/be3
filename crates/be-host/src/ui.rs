@@ -298,7 +298,7 @@ pub(crate) struct MemberRow {
     pub(crate) administrator: bool,
     pub(crate) me: bool,
     pub(crate) agent: bool,
-    /// No record in the organization's log signed them in: the server added them on its own.
+    /// A person no record in the organization's log signed in: the server added them on its own.
     pub(crate) unsigned: bool,
 }
 
