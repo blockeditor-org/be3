@@ -42,10 +42,14 @@ fn a_root_wants_frames_until_its_app_presents_and_wakes_its_host_for_them() {
         woken.load(Ordering::Relaxed) > 0,
         "what the app sent rang the host as well as the root"
     );
-    // The triangle asked for a frame more as it started, which the root asks for in turn.
+    // The triangle asked for a frame more as it started, which the root asks for in turn. Past
+    // its app's wants, the root wants only the frame its own document's timer is due at
+    // (be-sdk-root-testing's `LATER`), which it does not owe.
+    let timer = u64::try_from(be_sdk_root_testing::LATER.as_nanos()).expect("in range") + 1;
     let mut time = 2;
     let mut next = shown_at_last.next;
-    while let Some(at) = next {
+    let mut owed = shown_at_last.owed;
+    while let Some(at) = next.filter(|at| *at < timer) {
         assert!(time < 5, "the root keeps wanting frames from {at}");
         time += 1;
         let again = root
@@ -53,9 +57,15 @@ fn a_root_wants_frames_until_its_app_presents_and_wakes_its_host_for_them() {
             .expect("the root draws");
         assert_eq!(shown(&again).len(), 2, "the screen stays shown");
         next = again.next;
+        owed = again.owed;
         assert!(
-            next.is_some() || !again.owed,
+            next.is_some() || !owed,
             "a root that wants nothing owes nothing"
         );
     }
+    assert_eq!(
+        (next, owed),
+        (Some(timer), false),
+        "once its app wants nothing more, the root wants only its document's timer, and owes it nothing"
+    );
 }
