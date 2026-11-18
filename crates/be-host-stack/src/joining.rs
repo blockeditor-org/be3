@@ -82,6 +82,8 @@ struct Joined {
     attempt: u64,
     /// Who holds the lease, as the server last said.
     host: Option<SessionHost>,
+    /// This connection, as the session names it once joined.
+    client: Option<u64>,
     state: State,
     /// What the editor told the host, sealed, not yet taken by the server: the first is being
     /// sent.
@@ -140,6 +142,7 @@ pub fn want(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: &Tasks,
                 Joined {
                     attempt: 0,
                     host: None,
+                    client: None,
                     state: State::Unjoined,
                     outbox: VecDeque::new(),
                     sending: false,
@@ -204,6 +207,7 @@ fn join(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: &Tasks, blo
                 return;
             };
             current.host = joined.host;
+            current.client = Some(joined.client);
         }
         handshake(&peer, &shared, &tasks, block, attempt);
     });
@@ -211,10 +215,12 @@ fn join(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: &Tasks, blo
 
 /// Sends the handshake's first message to whoever hosts `block`, when anyone does.
 fn handshake(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: &Tasks, block: Uuid, attempt: u64) {
+    // No one hosts, or this connection does (an editor of the block that joined it as a
+    // participant may hold its lease): no channel until another does.
     let Some(host) = lock(shared)
         .joining
         .current(block, attempt)
-        .and_then(|joined| joined.host)
+        .and_then(|joined| joined.host.filter(|host| Some(host.client) != joined.client))
     else {
         return;
     };

@@ -11,45 +11,60 @@ fn channel_until(what: &str, block: Uuid, ready: impl Fn(usize) -> bool) -> Vec<
     take_channel_events(block)
 }
 
-/// The next message on `block`'s host channel `host` hears.
+/// The next message on `block`'s host channel that `events` hear.
 async fn next_hosted(
     events: &mut tokio::sync::broadcast::Receiver<Event>,
     block: Uuid,
 ) -> (u64, Vec<u8>) {
     loop {
-        if let Event::Hosted {
-            block: of,
-            from,
-            payload,
-            ..
-        } = events.recv().await.expect("the events go on")
-            && of == block
-        {
-            return (from, payload);
+        match events.recv().await {
+            Ok(Event::Hosted {
+                block: of,
+                from,
+                payload,
+                ..
+            }) if of == block => return (from, payload),
+            Ok(_) | Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {}
+            Err(closed) => panic!("the events ended: {closed}"),
         }
     }
 }
 
-/// Holds `block`'s lease as `host` and admits the member that handshakes with it: the member's
-/// client and the channel to it.
-fn host_and_admit(host: &Member, block: Uuid) -> (u64, Admitted) {
+/// Joins `block`'s session as `host`, an editor, claiming its lease if `claim`, and answers
+/// what it hears there.
+fn join_as_editor(host: &Member, block: Uuid, claim: bool) -> tokio::sync::broadcast::Receiver<Event> {
     let peer = &host.peer;
     let organization = peer.organization();
     host.runtime.block_on(async {
-        let mut events = peer.connection().subscribe();
+        let events = peer.connection().subscribe();
         peer.refresh_keys(None).await.expect("the host's keys arrive");
         peer.connection()
             .join(organization, block, be_block_store::Hash::from_bytes([3; 32]))
             .await
             .expect("the host joins");
-        peer.connection().claim(block).await.expect("the host claims the lease");
-        let (member, first) = next_hosted(&mut events, block).await;
+        if claim {
+            peer.connection().claim(block).await.expect("the host claims the lease");
+        }
+        events
+    })
+}
+
+/// Admits, as `host`, which holds `block`'s lease, the member that handshakes with it: the
+/// member's client and the channel to it.
+fn admit(
+    host: &Member,
+    events: &mut tokio::sync::broadcast::Receiver<Event>,
+    block: Uuid,
+) -> (u64, Admitted) {
+    let peer = &host.peer;
+    host.runtime.block_on(async {
+        let (member, first) = next_hosted(events, block).await;
         let (admitting, answer) = peer.admit(block, &first).await.expect("the member checks");
         peer.connection()
             .send_host(block, Some(member), answer)
             .await
             .expect("the answer goes");
-        let (from, confirming) = next_hosted(&mut events, block).await;
+        let (from, confirming) = next_hosted(events, block).await;
         assert_eq!(from, member);
         let (admitted, said) = admitting
             .confirm(&confirming)
@@ -86,9 +101,13 @@ fn a_joined_channel_opens_to_its_host_and_again_to_the_next() {
     flush_and_send();
     assert_eq!(status().error, None);
 
+    // The first holds the lease and the second stands by; this device, an editor too, joins
+    // after both, so the lease passes to the second when the first goes.
+    let mut first_events = join_as_editor(&first, block, true);
+    let mut second_events = join_as_editor(&second, block, false);
     let joiner = Owner::Editor(1);
     want_channel(joiner, Some(block));
-    let (member, mut admitted) = host_and_admit(&first, block);
+    let (member, mut admitted) = admit(&first, &mut first_events, block);
     first.runtime.block_on(async {
         first
             .peer
@@ -107,13 +126,12 @@ fn a_joined_channel_opens_to_its_host_and_again_to_the_next() {
     );
     assert_eq!(channel_host(block), Some(first.account()));
 
-    let mut events = first.peer.connection().subscribe();
     tell_host(block, b"open the door".to_vec());
     tell_host(block, b"go through".to_vec());
     let told = first.runtime.block_on(async {
         let mut told = Vec::new();
         while told.len() < 2 {
-            let (from, payload) = next_hosted(&mut events, block).await;
+            let (from, payload) = next_hosted(&mut first_events, block).await;
             assert_eq!(from, member);
             told.push(admitted.channel.open(&payload).expect("in order, and sealed"));
         }
@@ -133,7 +151,7 @@ fn a_joined_channel_opens_to_its_host_and_again_to_the_next() {
     assert_eq!(heard, vec![ChannelEvent::Closed]);
     assert_eq!(channel_host(block), None);
 
-    host_and_admit(&second, block);
+    admit(&second, &mut second_events, block);
     let heard = channel_until("heard the second host", block, |count| count >= 1);
     assert_eq!(
         heard,
