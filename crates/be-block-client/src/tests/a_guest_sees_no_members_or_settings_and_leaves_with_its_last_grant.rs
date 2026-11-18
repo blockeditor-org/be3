@@ -39,6 +39,7 @@ async fn a_guest_sees_no_members_or_settings_and_leaves_with_its_last_grant() {
         outsider.keys().identity(),
         outsider.account(),
         &code,
+        None,
     )
     .await
     .unwrap();

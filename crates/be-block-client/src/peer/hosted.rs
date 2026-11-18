@@ -270,8 +270,9 @@ impl<S: ObjectStore> Peer<S> {
     /// `checked_access` checks it; or, with none pinned (a Join member is sealed no key that
     /// would carry one), from the root of the log as served, taken only when that log holds a
     /// grant to this account signed with a key this device verified for the contact that
-    /// signed it, or one this account signed itself through a share link, whose hash chain
-    /// fixes every entry before it, the root included. That root
+    /// signed it, whose hash chain fixes every entry before it, the root included; or when the
+    /// root is the one a share link this account opened handed it (`KeptShare::root`), which
+    /// the link's maker pinned. That root
     /// is then pinned as weakly as a member's escrow wrap pins one (`KeyBook::pin_vouched`), so
     /// a log rooted elsewhere later is refused for the rest of the run.
     async fn joined_log(&self, block: Uuid) -> Result<Checked, ClientError> {
@@ -280,6 +281,14 @@ impl<S: ObjectStore> Peer<S> {
         }
         let entries = self.served_log(block).await?;
         let root = entries.first().ok_or(ClientError::Forged(block))?.hash();
+        // The root a share link this account opened handed it, which its maker pinned: the log
+        // must start there, whatever the server serves.
+        let linked = self
+            .kept_shares()
+            .await
+            .unwrap_or_default()
+            .into_iter()
+            .any(|(_, kept)| kept.block == block && !kept.made && kept.root == root);
         let around = match cites(&entries) {
             true => self.logs_around(block, &entries).await?,
             false => Around::default(),
@@ -288,24 +297,16 @@ impl<S: ObjectStore> Peer<S> {
             .check(self.organization, block, root, &entries)
             .ok_or(ClientError::Forged(block))?;
         let me = self.account.into_bytes();
-        let signing = self.keys.identity().signing();
-        let vouched = entries.iter().filter_map(Step::entry).any(|entry| {
-            let by_contact = matches!(&entry.record, Record::Grant(grant) if grant.grantee == me)
-                && self
-                    .refs
-                    .signers(Uuid::from_bytes(entry.signer))
-                    .iter()
-                    .filter(|signer| signer.verified)
-                    .any(|signer| entry.signed_by(&be_block_keys::SigningPublic(signer.key)));
-            // A grant this account signed itself through a share link: its endorsement covers
-            // the entry before it, which the check above took, so its chain to the root is this
-            // account's own word (guides/blocks/keys.md, "Share links").
-            let own = matches!(
-                &entry.record,
-                Record::Opened(opened) if opened.grantee == me && opened.identity.signing == signing
-            );
-            by_contact || own
-        });
+        let vouched = linked
+            || entries.iter().filter_map(Step::entry).any(|entry| {
+                matches!(&entry.record, Record::Grant(grant) if grant.grantee == me)
+                    && self
+                        .refs
+                        .signers(Uuid::from_bytes(entry.signer))
+                        .iter()
+                        .filter(|signer| signer.verified)
+                        .any(|signer| entry.signed_by(&be_block_keys::SigningPublic(signer.key)))
+            });
         if !vouched {
             return Err(ClientError::Forged(block));
         }
