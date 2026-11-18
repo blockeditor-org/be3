@@ -78,7 +78,7 @@ on its own OS thread and in the browser in its own web worker, so it may wait on
    be-wasm-sandbox-host's `web` half serves an app's workers, each in a web worker of its own.
    Each app's editors share one worker, and an app's tests serve its workers in their own
    instance (`BeuiTest::serve_worker`).
-3. Built: every guest, and the C libraries guests link (wasi-libc, libc++, PDFium, FreeType,
+3. Built: every guest (roots included, decisions/a_root_links_beui_as_an_app_does.md), and the C libraries guests link (wasi-libc, libc++, PDFium, FreeType,
    HarfBuzz, libghostty-vt), is built for `wasm32-wasip1` on the `wasi_guest` platform, without
    `-pthread`; programs in the browser stay `wasm32-wasip1-threads`. A guest imports an unshared
    memory, which be-wasm-host and `web/app.js` link its libraries into with no thread-local
@@ -88,7 +88,8 @@ on its own OS thread and in the browser in its own web worker, so it may wait on
    - the linker's thread-local rewriting (`be-wasm-link`'s `tls.rs`) and the loader's
      thread-local blocks (`thread_local_slot` in `be-wasm-dylink`, `be-wasm-host/src/dylink.rs`,
      `be-host/web/dylink.js`);
-   - `thread-spawn` (`be-wasm-host/src/threads.rs`, `be-host/web/threads.js` and `thread.js`);
+   - `thread-spawn` (`be-wasm-host/src/threads.rs`, `be-host/web/threads.js` and `thread.js`),
+     and with it `App::refuse_threads`, which be-wasm-root-host's `Root::start` sets;
    - the thread-local diamond crates (`crates/be-tool-tls-diamond-*`) and their tests;
    - what is left of `be-wasm-threads` (`initialize_page`, `initialize_worker`, `may_wait`) and
      the page's refusal of a thread (`refuseThreads` in `be-host/web/threads.js`);

@@ -1,6 +1,7 @@
 # Pure guests in the apps' plan
 
-Depends on: plans/single_threaded_guests.md, step 3 (every guest built for `wasm32-wasip1`).
+Depends on: none. It needed plans/single_threaded_guests.md's step 3 (every guest built for
+`wasm32-wasip1`), which is built.
 plans/host_as_platform_adapter.md's step 4g2 settled that a root is built as an app is, in
 `wasi-guest` already (decisions/a_root_links_beui_as_an_app_does.md).
 
@@ -17,9 +18,9 @@ same features:
   `be-lib-ui-types` and `be-wasm-guest-abi`;
 - 49 third-party crates, among them serde, postcard, ciborium, toml_edit, sha2 and hashbrown.
 
-The type crates change with most app work, so each such change compiles them twice. Until step
-3, the two triples differ (`wasm32-wasip1-threads` and `wasm32-unknown-unknown`), so they cannot
-share a plan at all.
+The type crates change with most app work, so each such change compiles them twice. Before
+plans/single_threaded_guests.md's step 3 the apps' triple was `wasm32-wasip1-threads`, which a
+pure guest could not be built for, so they could not share a plan at all.
 
 ## What changes for a pure guest
 
