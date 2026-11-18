@@ -159,6 +159,23 @@ impl Root {
         self
     }
 
+    /// The fonts the host bundles, which the root's `host.fonts` answers: none unless set.
+    pub fn with_fonts(self, fonts: Vec<be_wasm_root_api::FontFace>) -> Self {
+        self.shared.core.borrow_mut().fonts = fonts;
+        self
+    }
+
+    /// Asks the root what its own surfaces painted, which it answers as it steps through the
+    /// next frame (`take_paintings`). A root that stopped says why.
+    pub fn ask_paintings(&self) -> Result<(), String> {
+        self.shared.core.borrow_mut().ask_paintings()
+    }
+
+    /// What the root answered `ask_paintings` with, once it did: be3:root's `paintings`.
+    pub fn take_paintings(&self) -> Option<Vec<u8>> {
+        self.shared.core.borrow_mut().take_paintings()
+    }
+
     /// Hands the root `window`'s input since the last call, in the window's points: `events` is
     /// be-lib-ui-types' `input::encode`, and `window` the layer list's `WindowId`, by its number
     /// (`None`: the page's one window). The root takes it in with the frame being drawn, on its

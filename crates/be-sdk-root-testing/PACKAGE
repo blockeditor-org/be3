@@ -17,13 +17,8 @@ write_package_value("be3.cargo", {
         "android-arm64": {
             "binaries": {},
             "deps": [
-                "//crates/be-lib-geometry:be-lib-geometry",
                 "//crates/be-lib-layers:be-lib-layers",
                 "//crates/be-sdk-api:be-sdk-api",
-                "//crates/be-sdk-root:be-sdk-root",
-                "//crates/be-wasm-guest-abi:be-wasm-guest-abi",
-                "//crates/be-wasm-ops:be-wasm-ops",
-                "//crates/be-wasm-root-api:be-wasm-root-api",
             ],
             "examples": {},
             "features": [],
@@ -33,13 +28,8 @@ write_package_value("be3.cargo", {
         "linux-arm64": {
             "binaries": {},
             "deps": [
-                "//crates/be-lib-geometry:be-lib-geometry",
                 "//crates/be-lib-layers:be-lib-layers",
                 "//crates/be-sdk-api:be-sdk-api",
-                "//crates/be-sdk-root:be-sdk-root",
-                "//crates/be-wasm-guest-abi:be-wasm-guest-abi",
-                "//crates/be-wasm-ops:be-wasm-ops",
-                "//crates/be-wasm-root-api:be-wasm-root-api",
             ],
             "examples": {},
             "features": [],
@@ -49,13 +39,8 @@ write_package_value("be3.cargo", {
         "linux-x86_64": {
             "binaries": {},
             "deps": [
-                "//crates/be-lib-geometry:be-lib-geometry",
                 "//crates/be-lib-layers:be-lib-layers",
                 "//crates/be-sdk-api:be-sdk-api",
-                "//crates/be-sdk-root:be-sdk-root",
-                "//crates/be-wasm-guest-abi:be-wasm-guest-abi",
-                "//crates/be-wasm-ops:be-wasm-ops",
-                "//crates/be-wasm-root-api:be-wasm-root-api",
             ],
             "examples": {},
             "features": [],
@@ -65,13 +50,8 @@ write_package_value("be3.cargo", {
         "macos-arm64": {
             "binaries": {},
             "deps": [
-                "//crates/be-lib-geometry:be-lib-geometry",
                 "//crates/be-lib-layers:be-lib-layers",
                 "//crates/be-sdk-api:be-sdk-api",
-                "//crates/be-sdk-root:be-sdk-root",
-                "//crates/be-wasm-guest-abi:be-wasm-guest-abi",
-                "//crates/be-wasm-ops:be-wasm-ops",
-                "//crates/be-wasm-root-api:be-wasm-root-api",
             ],
             "examples": {},
             "features": [],
@@ -81,29 +61,27 @@ write_package_value("be3.cargo", {
         "macos-x86_64": {
             "binaries": {},
             "deps": [
-                "//crates/be-lib-geometry:be-lib-geometry",
                 "//crates/be-lib-layers:be-lib-layers",
                 "//crates/be-sdk-api:be-sdk-api",
-                "//crates/be-sdk-root:be-sdk-root",
-                "//crates/be-wasm-guest-abi:be-wasm-guest-abi",
-                "//crates/be-wasm-ops:be-wasm-ops",
-                "//crates/be-wasm-root-api:be-wasm-root-api",
             ],
             "examples": {},
             "features": [],
             "test_deps": [],
             "test_features": [],
         },
-        "wasm32": {
+        "wasi-guest": {
             "binaries": {},
             "deps": [
                 "//crates/be-lib-geometry:be-lib-geometry",
                 "//crates/be-lib-layers:be-lib-layers",
                 "//crates/be-sdk-api:be-sdk-api",
+                "//crates/be-sdk-beui-root:be-sdk-beui-root",
                 "//crates/be-sdk-root:be-sdk-root",
+                "//crates/be-wasm-gpu-guest:be-wasm-gpu-guest",
                 "//crates/be-wasm-guest-abi:be-wasm-guest-abi",
                 "//crates/be-wasm-ops:be-wasm-ops",
                 "//crates/be-wasm-root-api:be-wasm-root-api",
+                "//crates/beui:beui",
             ],
             "examples": {},
             "features": [],
@@ -113,13 +91,8 @@ write_package_value("be3.cargo", {
         "windows-arm64": {
             "binaries": {},
             "deps": [
-                "//crates/be-lib-geometry:be-lib-geometry",
                 "//crates/be-lib-layers:be-lib-layers",
                 "//crates/be-sdk-api:be-sdk-api",
-                "//crates/be-sdk-root:be-sdk-root",
-                "//crates/be-wasm-guest-abi:be-wasm-guest-abi",
-                "//crates/be-wasm-ops:be-wasm-ops",
-                "//crates/be-wasm-root-api:be-wasm-root-api",
             ],
             "examples": {},
             "features": [],
@@ -129,13 +102,8 @@ write_package_value("be3.cargo", {
         "windows-x86_64": {
             "binaries": {},
             "deps": [
-                "//crates/be-lib-geometry:be-lib-geometry",
                 "//crates/be-lib-layers:be-lib-layers",
                 "//crates/be-sdk-api:be-sdk-api",
-                "//crates/be-sdk-root:be-sdk-root",
-                "//crates/be-wasm-guest-abi:be-wasm-guest-abi",
-                "//crates/be-wasm-ops:be-wasm-ops",
-                "//crates/be-wasm-root-api:be-wasm-root-api",
             ],
             "examples": {},
             "features": [],

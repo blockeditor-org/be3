@@ -197,7 +197,9 @@ the smallest. The host refuses any other import and caps its memory. The echo
 guest is also built as a staged app linked against the base library (`:app`),
 which the sandbox's tests spawn by its id, with crates/be-sdk-worker-echo as
 its worker. A worker module (`be_sdk_worker::worker!`) is an ordinary guest
-linked as an app is, exporting `app_start` and `app_step` like any other.
+linked as an app is, exporting `app_start` and `app_step` like any other, and so is a root
+guest, which links base and beui to draw with beui
+(decisions/a_root_links_beui_as_an_app_does.md).
 
 ### The host half
 

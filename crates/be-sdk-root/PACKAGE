@@ -128,6 +128,25 @@ write_package_value("be3.cargo", {
             "test_deps": [],
             "test_features": [],
         },
+        "wasi-guest": {
+            "binaries": {},
+            "deps": [
+                "//crates/be-lib-geometry:be-lib-geometry",
+                "//crates/be-lib-input-router:be-lib-input-router",
+                "//crates/be-lib-layers:be-lib-layers",
+                "//crates/be-lib-stable-hash:be-lib-stable-hash",
+                "//crates/be-lib-ui-types:be-lib-ui-types",
+                "//crates/be-sdk-api:be-sdk-api",
+                "//crates/be-sdk-app-host:be-sdk-app-host",
+                "//crates/be-wasm-gpu-abi:be-wasm-gpu-abi",
+                "//crates/be-wasm-ops:be-wasm-ops",
+                "//crates/be-wasm-sandbox-api:be-wasm-sandbox-api",
+            ],
+            "examples": {},
+            "features": [],
+            "test_deps": [],
+            "test_features": [],
+        },
         "wasm32": {
             "binaries": {},
             "deps": [

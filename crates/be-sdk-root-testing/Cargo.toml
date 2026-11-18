@@ -1,6 +1,6 @@
 [package]
 name = "be-sdk-root-testing"
-description = "A root guest built on be-sdk-root, which be-wasm-root-host's tests run: it embeds the triangle's editor and shows its screen"
+description = "A root guest built on be-sdk-root, which be-wasm-root-host's tests and a host test run: it embeds the triangle's editor, shows its screen, and draws its own surface with beui"
 edition.workspace = true
 version.workspace = true
 license.workspace = true
@@ -8,17 +8,20 @@ license.workspace = true
 [lib]
 crate-type = ["cdylib", "rlib"]
 
+# Only the guest needs more than its constants, which the tests that run it read natively.
 [dependencies]
-be-lib-geometry = { path = "../be-lib-geometry" }
 be-lib-layers = { path = "../be-lib-layers" }
 be-sdk-api = { path = "../be-sdk-api" }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+be-lib-geometry = { path = "../be-lib-geometry" }
+be-sdk-beui-root = { path = "../be-sdk-beui-root" }
 be-sdk-root = { path = "../be-sdk-root" }
+be-wasm-gpu-guest = { path = "../be-wasm-gpu-guest" }
 be-wasm-guest-abi = { path = "../be-wasm-guest-abi" }
 be-wasm-ops = { path = "../be-wasm-ops" }
 be-wasm-root-api = { path = "../be-wasm-root-api" }
-
-[features]
-module = []
+beui = { path = "../beui" }
 
 [lints]
 workspace = true
