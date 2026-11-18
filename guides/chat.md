@@ -129,7 +129,10 @@ imported messages, and none of the chat's own names one of them. The editor
 shows it above the chat's own messages, read-only, under "Imported by
 {importer} from an export", with no verdict on when a message arrived (the
 file's word). An entry that may not be history here (`Bad`: not the log's
-leading run, or not appended by the chat's creator) is hidden.
+leading run, or not appended by the chat's creator) is hidden. An export
+carries only the chat's own messages, since a file's log holds what was
+written in its block alone: exporting a chat with imported history leaves
+that history out (plans/backlog.md, "Imported history in a re-export").
 
 ## Search
 
