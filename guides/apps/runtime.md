@@ -181,9 +181,10 @@ tests read one their build made, crates/be-host-tests/apps.bzl). Each guest thre
   surface edits is `frame-done`'s `ime`. Choosing and saving files are the
   platform's own dialogs, which `be3:root` does not carry yet. `frame-request` carries the frame clock's
   time and the host's wall clock (`wall-clock`), the only clocks a root reads.
-  A root may start no threads (`App::refuse_threads`, which `Root::start`
-  sets): it runs on the host's frame thread, which must never wait on a lock
-  another thread holds, and on the page such a wait traps. The root's
+  A root may start no threads: it runs on the host's frame thread, which must
+  never wait on a lock another thread holds, and on the page such a wait
+  traps. Built single-threaded as every guest is, it cannot ask for one, and
+  `Root::start` refuses any it would (`App::refuse_threads`). The root's
   `paintings` export answers what its own surfaces painted, in
   beui-paint-format's `ScreenPaintings` keyed by surface id
   (`Root::ask_paintings`, answered with the next frame's steps as
