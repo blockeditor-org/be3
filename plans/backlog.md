@@ -425,15 +425,6 @@ Depends on #686 (session catch-ups replaced by server ordering).
 
 ## 18. Keys
 
-- **An agent follows no key change sealed to a key it replaced.** An account
-  keeps each identity secret a new phrase replaced in its own block
-  (`AccountBlock::retired`), so a contact's key change sealed to the old key
-  still opens; an agent has no such block, so a change its maker seals to the
-  agent's old key, when the two take new phrases at once, breaks the chain until
-  the maker makes the agent again. Done: an agent keeps its retired secrets
-  where its maker's devices and its own read them, with a test where an agent
-  and its maker take new phrases at once.
-
 - **Keys a contact seals to a key the reader replaced.** A key a contact seals
   to this account while it still holds the account's old key (`reseal_from`,
   `ResealKeys`, and every seal between the two moves) opens only with the
