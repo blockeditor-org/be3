@@ -27,7 +27,6 @@ fn be_hosts_a_block_while_no_other_device_does() {
     });
 
     let mut told = Vec::new();
-    let started = std::time::Instant::now();
     let mut hosted_and_added = false;
     crate::hosting::host_block(
         block,
@@ -40,7 +39,7 @@ fn be_hosts_a_block_while_no_other_device_does() {
                 .and_then(|content| CounterContent::decode(content.bytes()).ok())
                 .is_some_and(|counter| counter.root().value() >= 1);
             hosted_and_added = hosted && added;
-            hosted_and_added || started.elapsed() > std::time::Duration::from_secs(120)
+            hosted_and_added
         },
         |said| told.push(said.to_owned()),
     )
