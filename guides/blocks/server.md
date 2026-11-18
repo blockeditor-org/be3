@@ -558,7 +558,9 @@ exactly its parent's access and takes no grants (guides/blocks/host.md, "Search"
   only its own shell's blocks (an owner-only `Settings` at the top and what lies in it,
   `require_guest_shell`; decisions/a_guest_makes_only_its_own_shell.md), and leaves once it
   holds no grant on a block it did not make (`share_links::drop_idle_guest`, from
-  `write_grant`, so every path that removes a grant), its shell's blocks deleted with it. A guest reads none of the organization's settings and is
+  `write_grant`, so every path that removes a grant), its shell's blocks forgotten with it
+  (`ServerStore::forget_blocks`: their commits and objects released, their payer uncharged,
+  every row of them deleted, and the objects nothing holds then deleted once that is kept). A guest reads none of the organization's settings and is
   served its log as a proof path, so it learns no member. Narrowing the policy refuses new links
   and openings only: guests and grants made through links before stay. Anyone may revoke their
   own grant. `ListAccess` never lists the rest of the membership. `query.names`

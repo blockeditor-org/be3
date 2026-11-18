@@ -106,10 +106,6 @@ pub(crate) struct RootSettings {
     /// Each reads kind's layer blocks as `reads_moved` last read them, and whether it sent
     /// their content (none of a layer was loaded yet, otherwise).
     reads: RefCell<HashMap<Uuid, (Vec<Uuid>, bool)>>,
-    /// The account is a guest of the organization open, which keeps only its shell there: its
-    /// settings, readable by it alone, and no My files or Unfiled
-    /// (decisions/a_guest_makes_only_its_own_shell.md).
-    guest: bool,
 }
 
 impl RootSettings {
@@ -126,13 +122,7 @@ impl RootSettings {
             set_up: None,
             cache: RefCell::default(),
             reads: RefCell::default(),
-            guest: false,
         }
-    }
-
-    /// Whether the account is a guest of the organization open (`RootSettings::guest`).
-    pub(crate) fn set_guest(&mut self, guest: bool) {
-        self.guest = guest;
     }
 
     /// Forgets what it read of what the host stack changed.
@@ -185,7 +175,8 @@ impl RootSettings {
                 BlockParent::Root,
                 BlockMetadata::default(),
                 Some(SettingsContent::default().encode()),
-                self.guest,
+                // A guest's settings only it reads (`be_host_stack::guest`).
+                be_host_stack::guest(),
             );
             self.created = Some(block);
         }
@@ -209,7 +200,8 @@ impl RootSettings {
     }
 
     pub(crate) fn ensure_my_files(&mut self) -> Option<Uuid> {
-        if self.guest {
+        // A guest keeps no files of its own here (`be_host_stack::guest`).
+        if be_host_stack::guest() {
             return None;
         }
         if self.my_files().is_none()
@@ -254,7 +246,8 @@ impl RootSettings {
     /// Makes the account's Unfiled once the server has said it has none. It has no content:
     /// it holds every block whose parent names it.
     pub(crate) fn ensure_unfiled(&mut self) -> Option<Uuid> {
-        if self.guest {
+        // A guest keeps no files of its own here (`be_host_stack::guest`).
+        if be_host_stack::guest() {
             return None;
         }
         if self.unfiled().is_none()

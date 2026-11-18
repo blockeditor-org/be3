@@ -2853,8 +2853,7 @@ impl HostCore {
     }
 
     fn ensure_shell(&mut self) -> Option<Uuid> {
-        self.root_settings
-            .set_guest(self.role() == be_sdk_api::AccountRole::Guest);
+        be_host_stack::set_guest(self.role() == be_sdk_api::AccountRole::Guest);
         self.root_settings.ensure_my_files();
         self.root_settings.ensure_unfiled();
         let class = root_settings::device_class();
@@ -3782,8 +3781,7 @@ impl HostCore {
         self.publish_push_device();
         self.load_organizations_if_needed();
         if self.choosing_session {
-            self.root_settings
-                .set_guest(self.role() == be_sdk_api::AccountRole::Guest);
+            be_host_stack::set_guest(self.role() == be_sdk_api::AccountRole::Guest);
             self.root_settings.ensure();
             performance::end_frame();
             return;
@@ -3940,10 +3938,13 @@ impl HostCore {
     }
 
     fn publish_role(&self) {
-        be_host_base::watches::publish::<be_sdk_api::RoleWatch>(&self.role());
+        be_host_base::watches::publish::<be_sdk_api::RoleWatch>(
+            &self.organization.as_ref().map(|_| self.role()),
+        );
     }
 
-    /// The account's role in the organization open: an administrator only of a company.
+    /// The account's role in the organization open, a member while none is: an administrator
+    /// only of a company.
     fn role(&self) -> be_sdk_api::AccountRole {
         match self.organization.as_ref() {
             Some(organization) if organization.role == OrganizationRole::Guest => {
