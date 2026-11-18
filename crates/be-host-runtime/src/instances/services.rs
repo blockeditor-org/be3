@@ -42,6 +42,40 @@ struct Work {
 pub(super) struct Services {
     serving: HashMap<OpId, Work>,
     pub(super) answers: Vec<(OpId, Outcome)>,
+    /// What an app without `sharing` asked to open to anyone inside on a block it made, held
+    /// until the server takes the create (`Instances::settle_openings`).
+    openings: Vec<Opening>,
+}
+
+/// A `set-access` held until the block it opens is the server's (`Services::openings`).
+struct Opening {
+    block: Uuid,
+    access: be_block_graph::Access,
+    created_by: Option<String>,
+    answering: Answering<Result<(), Failure>>,
+}
+
+/// Where a block an app made stands for opening it: the server's and still the app's, only
+/// this device's so far, or not the app's (the host dropped the create, or the server's own
+/// block took its place).
+enum Made {
+    Taken,
+    Waiting,
+    Lost,
+}
+
+fn made_state(block: Uuid, created_by: &Option<String>) -> Made {
+    let Some(node) = be_host_stack::node(block) else {
+        return Made::Lost;
+    };
+    let ours = node.metadata.get(&be_block_content::CREATED_BY) == *created_by
+        && node.author.is_some()
+        && node.author == be_host_stack::account();
+    match (ours, node.changed > 0) {
+        (false, _) => Made::Lost,
+        (true, true) => Made::Taken,
+        (true, false) => Made::Waiting,
+    }
 }
 
 struct Answering<T, E = wire::Plain> {
@@ -248,16 +282,13 @@ impl Instances {
                 let opening = Uuid::from_bytes(*account) == be_block_graph::ANYONE_INSIDE
                     && be_host_stack::app_graph::access_of(*access) > be_block_graph::Access::None
                     && be_host_stack::app_graph::access_of(*access) <= be_block_graph::Access::View;
-                // Made by this instance, and still held as this app made it: a create the
-                // host dropped, or one the server's own block took the place of, opens nothing.
                 let block = Uuid::from_bytes(*block);
+                // Whether the server took it, and the block is still the app's, the call
+                // waits on (`made_state`).
                 let made = self
                     .entries
                     .get(&instance)
-                    .is_some_and(|entry| entry.made.contains(&block))
-                    && be_host_stack::node(block).is_some_and(|node| {
-                        node.metadata.get(&be_block_content::CREATED_BY) == self.created_by()
-                    });
+                    .is_some_and(|entry| entry.made.contains(&block));
                 !(opening && made)
             }
             Call::ListAccess { .. }
@@ -267,6 +298,30 @@ impl Instances {
             | Call::RevokeShareLink { .. }
             | Call::MakeContactLink { .. } => true,
             _ => false,
+        }
+    }
+
+    /// Each opening held for a block an app made (`Services::openings`) once the graph moved:
+    /// made once the server took the create and the block is still the app's, refused once it
+    /// is not, held while the create is this device's alone.
+    pub(super) fn settle_openings(&mut self) {
+        for opening in std::mem::take(&mut self.services.openings) {
+            if opening.answering.withdrawn() {
+                continue;
+            }
+            match made_state(opening.block, &opening.created_by) {
+                Made::Waiting => self.services.openings.push(opening),
+                Made::Lost => opening.answering.send(Err(Failure::Denied)),
+                Made::Taken => {
+                    let answering = opening.answering;
+                    be_host_stack::set_access(
+                        opening.block,
+                        be_block_graph::ANYONE_INSIDE,
+                        opening.access,
+                        move |set| answering.send_or_fail(set),
+                    );
+                }
+            }
         }
     }
 
@@ -627,10 +682,33 @@ impl Instances {
                 access,
             } => {
                 let answering = self.answering(instance, reply);
-                be_host_stack::set_access(
+                let (block, access) = (
                     Uuid::from_bytes(block),
-                    Uuid::from_bytes(account),
                     be_host_stack::app_graph::access_of(access),
+                );
+                // An app without `sharing` gets here only to open a block it made: that waits
+                // for the server to take the create, so a block it named that the server
+                // already holds, unseen here, is never opened.
+                if !self.sharing {
+                    let created_by = self.created_by();
+                    match made_state(block, &created_by) {
+                        Made::Taken => {}
+                        Made::Waiting => {
+                            self.services.openings.push(Opening {
+                                block,
+                                access,
+                                created_by,
+                                answering,
+                            });
+                            return;
+                        }
+                        Made::Lost => return answering.send(Err(Failure::Denied)),
+                    }
+                }
+                be_host_stack::set_access(
+                    block,
+                    Uuid::from_bytes(account),
+                    access,
                     move |set| answering.send_or_fail(set),
                 );
             }
