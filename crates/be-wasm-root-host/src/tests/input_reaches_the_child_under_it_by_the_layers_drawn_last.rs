@@ -28,8 +28,11 @@ fn input_reaches_the_child_under_it_by_the_layers_drawn_last() {
         pos2(CHILD_ORIGIN.0, CHILD_ORIGIN.1)
     );
 
-    root.input(None, encode(&[Input::PointerMoved(pos2(50.0, 50.0)).into()]))
-        .expect("the root takes input");
+    root.input(
+        None,
+        encode(&[Input::PointerMoved(pos2(50.0, 50.0)).into()]),
+    )
+    .expect("the root takes input");
     let done = frame(&mut root, 2);
     assert_eq!(
         layer(&done, HEARD_LAYER),

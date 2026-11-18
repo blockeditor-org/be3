@@ -12,7 +12,10 @@ fn the_focused_layer_that_asks_holds_the_pointer_lock_until_it_stops_asking() {
         "the screen asks, but has no focus, which the lock needs"
     );
 
-    windows.route(None, vec![button(150.0, true).into(), button(150.0, false).into()]);
+    windows.route(
+        None,
+        vec![button(150.0, true).into(), button(150.0, false).into()],
+    );
     windows.lock(screen_asks);
     assert_eq!(
         windows.locked(None).map(|layer| layer.id),
@@ -28,7 +31,10 @@ fn the_focused_layer_that_asks_holds_the_pointer_lock_until_it_stops_asking() {
     );
 
     windows.lock(screen_asks);
-    windows.route(None, vec![button(50.0, true).into(), button(50.0, false).into()]);
+    windows.route(
+        None,
+        vec![button(50.0, true).into(), button(50.0, false).into()],
+    );
     windows.lock(screen_asks);
     assert_eq!(
         windows.locked(None),

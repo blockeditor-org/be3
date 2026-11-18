@@ -54,11 +54,11 @@ _program_flags = _guest_exports + [
 #   run through wasm-bindgen, such as be-host's web bundle.
 # - html, the same with the `html` constraint: a program on beui's HTML core.
 WASM_ROLES = {
+    "bindgen": struct(link_flags = [], platform = "root//buck/platforms:wasm32_bindgen", setting = "root//buck/platforms:wasm32_bindgen_setting"),
     "guest": struct(link_flags = _guest_exports, platform = "root//buck/platforms:wasi_guest", setting = "root//buck/platforms:wasi_guest_setting"),
     "html": struct(link_flags = _program_flags, platform = "root//buck/platforms:wasi_html", setting = "root//buck/platforms:wasi_html_setting"),
     "program": struct(link_flags = _program_flags, platform = "root//buck/platforms:wasi", setting = "root//buck/platforms:wasi_setting"),
     "wasm32": struct(link_flags = [], platform = "root//buck/platforms:wasm32", setting = "root//buck/platforms:wasm32_setting"),
-    "bindgen": struct(link_flags = [], platform = "root//buck/platforms:wasm32_bindgen", setting = "root//buck/platforms:wasm32_bindgen_setting"),
 }
 
 # WebAssembly modules, depended on from targets that are not WebAssembly: the
