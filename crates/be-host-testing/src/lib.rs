@@ -70,6 +70,29 @@ impl Harness {
         }
     }
 
+    /// Stops the server, as a device losing its connection finds it: the stack keeps what it
+    /// does until `start_server` brings it back at the same address.
+    pub fn stop_server(&mut self) {
+        self.server = None;
+    }
+
+    /// Starts the server again on the same data and address after `stop_server`.
+    pub fn start_server(&mut self) {
+        let address = self
+            .url
+            .trim_start_matches("http://")
+            .trim_end_matches('/')
+            .to_owned();
+        self.server = Some(
+            be_host_server::start_embedded_server_at(
+                &address,
+                self.directory.join("server"),
+                be_server::push::PushConfig::DEFAULT,
+            )
+            .expect("the embedded block server starts again"),
+        );
+    }
+
     pub fn connect(&self) {
         be_host_stack::start(Config {
             local: false,

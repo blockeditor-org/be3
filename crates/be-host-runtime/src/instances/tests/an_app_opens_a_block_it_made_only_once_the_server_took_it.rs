@@ -7,18 +7,19 @@ use be_sdk_api::{
 use be_type_example_counter::CounterContent;
 
 /// An app whose manifest does not set `sharing` opens a block it just made to anyone inside,
-/// as the editor framework does for a settings kind. The opening waits for the server to take
-/// the create, and goes to the server only then (which answers it, here refusing a kind that
-/// is no settings kind), so an id the app named that the server already held, unseen here,
-/// could never be opened by it.
+/// as the editor framework does for a settings kind, while the server is out of reach. The
+/// opening waits for the server to take the create, and goes to the server only then (which
+/// answers it, here refusing a kind that is no settings kind), so an id the app named that the
+/// server already held, unseen here, could never be opened by it.
 #[test]
 fn an_app_opens_a_block_it_made_only_once_the_server_took_it() {
-    let harness = be_host_testing::Harness::start();
+    let mut harness = be_host_testing::Harness::start();
     harness.connect();
     be_host_stack::wait_until("knew the counter type", |_| {
         be_host_stack::is_known(CounterContent::CONTENT_TYPE).then_some(())
     });
     let mut instances = placed_on(Uuid::new_v4(), CounterContent::CONTENT_TYPE);
+    harness.stop_server();
     let made = Uuid::now_v7();
     call(
         &mut instances,
@@ -52,6 +53,7 @@ fn an_app_opens_a_block_it_made_only_once_the_server_took_it() {
         "the opening was answered before the server took the create"
     );
 
+    harness.start_server();
     be_host_stack::flush_and_send();
     be_host_stack::wait_until("the server took the create", |shared| {
         shared
