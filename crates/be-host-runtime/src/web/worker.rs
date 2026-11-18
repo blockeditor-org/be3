@@ -89,9 +89,10 @@ impl WorkerChannel {
         &mut self,
         placements: Vec<Placement>,
         layers: Option<Overlay>,
+        retained: &[u32],
     ) -> Result<(), String> {
         let mut canvases = std::mem::take(&mut self.canvases);
-        let placed = canvases.place(self, placements);
+        let placed = canvases.place(self, placements, retained);
         self.canvases = canvases;
         let mut shown = self.overlay.take();
         let layered = overlay::show(self, &mut shown, layers);

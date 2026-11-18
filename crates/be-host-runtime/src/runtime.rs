@@ -341,10 +341,11 @@ impl From<Heard> for Answer {
     }
 }
 
-/// Whether the host holds the textures of what an app presented, so it keeps the last frame of a
-/// view its app stops drawing and waits for a present's pixels (`Shown`). On the web a surface is
-/// the app worker's canvas, which goes when the app's layout leaves it out.
-const HOLDS_TEXTURES: bool = cfg!(not(target_arch = "wasm32"));
+/// Whether a present's pixels show only once the host draws a frame (natively, where it holds the
+/// app's textures), so a kept or closing frame waits for that frame (`Shown`). On the web the app's
+/// worker shows each present on its canvases as it makes it, and the page keeps a hidden view's
+/// canvas (`web::canvases`).
+const DRAWS_PRESENTS: bool = cfg!(not(target_arch = "wasm32"));
 
 pub(super) struct Placed {
     pub(super) rect: Rect,
@@ -402,7 +403,7 @@ impl Runtime {
         Self {
             app: app.clone(),
             backend,
-            run: Run::new(session(), HOLDS_TEXTURES, host::preferences()),
+            run: Run::new(session(), DRAWS_PRESENTS, host::preferences()),
             taking_in: false,
             held_frame: None,
             instances,
@@ -1457,7 +1458,10 @@ pub fn place_screens(
         for runtime in host.borrow_mut().runtimes.values_mut() {
             let slot = u64::from(runtime.surface);
             let placements = placed.remove(&slot).unwrap_or_default();
-            runtime.backend.place(placements, layers.remove(&slot));
+            let retained = runtime.run.retained_surfaces();
+            runtime
+                .backend
+                .place(placements, layers.remove(&slot), &retained);
         }
     });
 }

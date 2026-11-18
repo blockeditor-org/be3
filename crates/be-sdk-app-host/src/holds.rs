@@ -232,7 +232,8 @@ struct Kept {
 enum Back {
     /// Laid out again; waits for this many present commits taken in.
     Laid(u64),
-    /// That present came, with the sequence of its frame if it painted.
+    /// That present came, with the sequence of its frame if it painted one the host draws
+    /// (`Shown::draws_presents`).
     Presented(Option<u64>),
 }
 
@@ -249,10 +250,11 @@ pub struct Release {
 /// the frame that closed them is drawn, and the last frames of views it left out while the host
 /// still holds them.
 pub struct Shown {
-    /// Whether the host holds the textures of what the app presented (natively), so it can keep
-    /// a frame and wait for a present's pixels; in the browser a surface is the app worker's
-    /// canvas, which goes when the app's layout leaves it out.
-    holds_textures: bool,
+    /// Whether a present's pixels show only once the host draws the frame that shows them
+    /// (natively, where it holds the app's textures), so a kept or closing frame waits for that
+    /// frame; in the browser the app's worker shows each present on its canvases as it makes it,
+    /// so it shows once the present is taken in.
+    draws_presents: bool,
     /// Present commits taken in, in the order the app sent them among its other answers.
     presents_taken: u64,
     closing: Option<Closing>,
@@ -262,9 +264,9 @@ pub struct Shown {
 }
 
 impl Shown {
-    pub fn new(holds_textures: bool) -> Self {
+    pub fn new(draws_presents: bool) -> Self {
         Self {
-            holds_textures,
+            draws_presents,
             presents_taken: 0,
             closing: None,
             kept: HashMap::default(),
@@ -317,17 +319,17 @@ impl Shown {
     /// go.
     pub fn presented(&mut self, painted: Option<u64>, shown: u64) -> Release {
         self.presents_taken += 1;
-        let holds_textures = self.holds_textures;
+        let draws_presents = self.draws_presents;
         if let Some(closing) = &mut self.closing
             && self.presents_taken == closing.presented_by
         {
-            closing.drawn_by = painted.filter(|_| holds_textures);
+            closing.drawn_by = painted.filter(|_| draws_presents);
         }
         for kept in self.kept.values_mut() {
             if let Some(Back::Laid(presented_by)) = kept.back
                 && self.presents_taken >= presented_by
             {
-                kept.back = Some(Back::Presented(painted));
+                kept.back = Some(Back::Presented(painted.filter(|_| draws_presents)));
             }
         }
         self.release(shown)
@@ -365,9 +367,6 @@ impl Shown {
         layout: &ScreenLayout,
         holds: impl Fn(&ScreenPlacement) -> bool,
     ) {
-        if !self.holds_textures {
-            return;
-        }
         for placement in &old.screens {
             if !holds(placement) || layout.placement(placement.screen).is_some() {
                 continue;
