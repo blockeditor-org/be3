@@ -3,6 +3,7 @@
 //! past it.
 
 use std::{
+    collections::BTreeMap,
     sync::{Arc, Condvar, Mutex},
     time::{Duration, Instant},
 };
@@ -18,6 +19,10 @@ use crate::{Core, Inline, Progress};
 pub struct Root {
     core: Core<App>,
     bell: Arc<Bell>,
+    /// What each of the root's own surfaces showed when it last presented it, kept until the
+    /// root lets the surface go: one it configured afresh (a new size) shows its last frame
+    /// until it presents again.
+    own: BTreeMap<u32, PresentedTexture>,
 }
 
 impl Inline for App {
@@ -103,6 +108,7 @@ impl Root {
         Ok(Self {
             core: Core::new(app, sandbox)?,
             bell,
+            own: BTreeMap::new(),
         })
     }
 
@@ -142,10 +148,7 @@ impl Root {
             let since = self.bell.rung();
             match self.core.advance(None) {
                 Progress::Drawn(drawn) => {
-                    // What the root presented or let go of is read by surface (`own_surface`),
-                    // so the lists of them are not kept.
-                    self.core.guest.take_presented();
-                    self.core.guest.take_released();
+                    self.presented();
                     return drawn;
                 }
                 // Pending: wait until what the root waits on has something for it.
@@ -181,15 +184,33 @@ impl Root {
     /// What the root's own surface `surface` shows, as its layer list names it
     /// (be-lib-layers' `Surface::Root`): the texture it presented last to that surface of its
     /// gpu (`be3:gpu`'s `surface`), on the host's device, which the root drew on as an app
-    /// draws. None for a surface it never presented, or a root loaded with no device
-    /// (`be_wasm_host::Host::with_display`).
-    pub fn own_surface(&self, surface: u32) -> Option<PresentedTexture> {
-        let (texture, generation) = self.core.guest.surface(surface)?;
-        Some(PresentedTexture {
-            surface,
-            texture,
-            generation,
-        })
+    /// draws, until it lets the surface go. One it configured afresh shows that texture still,
+    /// until it presents again. None for a surface it never presented or let go of, or a root
+    /// loaded with no device (`be_wasm_host::Host::with_display`).
+    pub fn own_surface(&self, surface: u32) -> Option<&PresentedTexture> {
+        self.own.get(&surface)
+    }
+
+    /// Takes what the root let go of and presented during the frame drawn, as the sandbox
+    /// keeps what its instances present. A surface let go of and presented again is presented
+    /// after, so it is kept.
+    fn presented(&mut self) {
+        let guest = &mut self.core.guest;
+        for surface in guest.take_released() {
+            self.own.remove(&surface);
+        }
+        for surface in guest.take_presented() {
+            if let Some((texture, generation)) = guest.surface(surface) {
+                self.own.insert(
+                    surface,
+                    PresentedTexture {
+                        surface,
+                        texture,
+                        generation,
+                    },
+                );
+            }
+        }
     }
 }
 

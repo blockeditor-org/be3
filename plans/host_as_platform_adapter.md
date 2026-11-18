@@ -806,7 +806,9 @@ Each step lands on its own.
          draws its screens, through `be3:gpu`'s surfaces; its layer list names each as
          `Surface::Root(id)`, which `Root::own_surface` resolves to the texture it presented
          last (its generation changing only when it presents again), and be-host's `--root`
-         draws it as it draws a screen. be-sdk-root's `OwnSurface` configures one, draws it
+         draws it as it draws a screen. `Root` keeps what each own surface showed when last
+         presented, as the sandbox keeps a child's, so one configured afresh (resized) shows its
+         last frame until it presents again, and one never presented shows nothing. be-sdk-root's `OwnSurface` configures one, draws it
          (`fill`, or `acquire` and `present`) and names it as a layer. be-sdk-root-testing
          fills its own with `ROOT_COLOR`, under the triangle's screen; be-wasm-root-host's
          `a_root_draws_its_own_surface_on_the_hosts_device` and the host test
@@ -828,7 +830,12 @@ Each step lands on its own.
          lock granted to the focused screen that asks in `Embedding::drew`, through
          `Windows::lock`), sends an app's input with its time (`TimedInput::time_micros`) and
          every sample while its screen asks, and be-host sets them as beui's window requests
-         after the document it shows the frame in. There is no intercepted-chord list in
+         after the document it shows the frame in. A sample's time is real time from the frame
+         clock's origin, so under drive's stopped clock it can be later than the frame's. A lock
+         the platform released (Esc, or the system taking it back) or a focus change took away
+         is granted again only once the screen stops asking and asks anew, as a browser wants a
+         fresh request, so the stale request of an app that has not laid out since does not
+         take the lock back from the user (`Windows::lock`). There is no intercepted-chord list in
          `be3:root`: the root takes every key before beui sees it, so its own `Router` holds
          its chords (Input, Keys). be-sdk-root tests the times, the lock and the requests
          (`each_delivery_carries_the_time_its_input_was_sampled`,

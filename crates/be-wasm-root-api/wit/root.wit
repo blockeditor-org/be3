@@ -19,7 +19,10 @@ interface input {
     /// time it was sampled at when the platform said, in its encoding
     /// (`input::encode`), as the layer list is be-lib-layers'. A pointer's
     /// moves within a frame are merged to the last unless the root asked for
-    /// every sample (`frame-done`'s `every-sample`). `window` names the window as the
+    /// every sample (`frame-done`'s `every-sample`). A sample's time is real
+    /// time measured from the frame clock's origin, so while the host's clock
+    /// is stopped (drive's) it can be later than the frame's `time`.
+    /// `window` names the window as the
     /// layer list does: none for the host's one window. The root routes each
     /// event to the surface it is for, by the layers it drew last, and answers
     /// as soon as it has routed, not once its children heard: the host keeps

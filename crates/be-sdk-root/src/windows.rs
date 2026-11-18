@@ -22,6 +22,10 @@ struct Window {
     layers: WindowLayers,
     /// The last list drawn left it out: it went, and is forgotten once nothing holds it.
     gone: bool,
+    /// The layer whose pointer lock the window's input took away (the platform released it,
+    /// or the focus moved), which is not granted it again until it stops asking for it, so a
+    /// lock the user let go of is not taken back at once from a request not yet withdrawn.
+    unlocked: Option<LayerId>,
 }
 
 /// A router per window over the layers drawn last.
@@ -69,15 +73,21 @@ impl Windows {
     }
 
     /// Grants the pointer lock in each window to its focused layer if `wants` says it asks for
-    /// it, and releases it from a layer that no longer asks or lost the focus. Answers what
-    /// that tells the layer that lost it.
+    /// it, and releases it from a layer that no longer asks or lost the focus. A layer whose
+    /// lock the window's input took away (the platform released it) is granted it again only
+    /// once it stopped asking and asks anew. Answers what that tells the layer that lost it.
     pub fn lock(&mut self, wants: impl Fn(&Layer) -> bool) -> Vec<Delivery> {
         let mut deliveries = Vec::new();
         for routing in &mut self.windows {
-            let asking = routing
-                .router
-                .focused()
-                .filter(|focused| routing.layers.layer(*focused).is_some_and(&wants));
+            if let Some(unlocked) = routing.unlocked
+                && !routing.layers.layer(unlocked).is_some_and(&wants)
+            {
+                routing.unlocked = None;
+            }
+            let asking = routing.router.focused().filter(|focused| {
+                routing.unlocked != Some(*focused)
+                    && routing.layers.layer(*focused).is_some_and(&wants)
+            });
             if routing.router.locked().is_some() && routing.router.locked() != asking {
                 let released = routing.router.unlock();
                 deliveries.extend(delivered(&routing.layers, released, None));
@@ -122,6 +132,7 @@ impl Windows {
                     router: Router::new(self.compositor),
                     layers,
                     gone: false,
+                    unlocked: None,
                 }),
             }
         }
@@ -146,6 +157,7 @@ impl Windows {
                         layers: Vec::new(),
                     },
                     gone: true,
+                    unlocked: None,
                 });
                 self.windows.len() - 1
             }
@@ -153,7 +165,11 @@ impl Windows {
         let routing = &mut self.windows[at];
         let mut deliveries = Vec::new();
         for Timed { input, time } in events {
+            let locked = routing.router.locked();
             let routed = routing.router.route(&routing.layers, input);
+            if locked.is_some() && routing.router.locked().is_none() {
+                routing.unlocked = locked;
+            }
             deliveries.extend(delivered(&routing.layers, routed, time));
         }
         deliveries.extend(self.prune());

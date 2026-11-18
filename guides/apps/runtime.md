@@ -158,7 +158,9 @@ tests read one their build made, crates/be-host-tests/apps.bzl). Each guest thre
   call only when it was loaded on a host given that device
   (`be_wasm_host::Host::with_display`, which gives a pure guest the gpu); its
   layer list names each as `Surface::Root(id)`, and `Root::own_surface`
-  answers the texture it presented last. be-host runs a root in place
+  answers the texture it presented last, kept from each frame's presents and
+  releases, so a surface configured afresh shows its last frame until it is
+  presented again. be-host runs a root in place
   of its own UI with `--root=APP` (`crates/be-host/src/root.rs`): the staged
   app `APP`, whose manifest says `"root": true`, starts as a pure guest on the
   window's device, which it draws on too; each host frame hands it the
@@ -201,7 +203,9 @@ tests read one their build made, crates/be-host-tests/apps.bzl). Each guest thre
   them. `Embedding::requests` is what a window asks for the screens it shows:
   the cursor of the one under the pointer, the pointer lock while the focused
   one holds it (`Embedding::drew` grants it to the focused screen that asks
-  and takes it back from one that stops or loses the focus), and every sample
+  and takes it back from one that stops or loses the focus; one whose lock
+  the platform released gets it again only once it stops asking and asks
+  anew), and every sample
   while one shown asks for them. `OwnSurface` is a surface of the root's own,
   which it configures, draws (`fill`, or `acquire` and `present`) and names
   as a layer.

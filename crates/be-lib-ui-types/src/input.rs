@@ -55,6 +55,8 @@ impl CursorIcon {
         CursorIcon::None,
     ];
 
+    /// Its CSS `cursor` keyword, but `Touch`'s, which CSS has none of (a page draws it as an
+    /// image, `crosshair` its fallback): `touch`, so every cursor has a name of its own.
     pub fn name(self) -> &'static str {
         match self {
             CursorIcon::Default => "default",
@@ -92,12 +94,15 @@ impl CursorIcon {
             CursorIcon::ZoomIn => "zoom-in",
             CursorIcon::ZoomOut => "zoom-out",
             CursorIcon::None => "none",
-            CursorIcon::Touch => "crosshair",
+            CursorIcon::Touch => "touch",
         }
     }
 
     pub fn from_name(name: &str) -> Option<CursorIcon> {
-        Self::ALL.into_iter().find(|icon| icon.name() == name)
+        Self::ALL
+            .into_iter()
+            .chain([CursorIcon::Touch])
+            .find(|icon| icon.name() == name)
     }
 }
 
@@ -119,7 +124,8 @@ pub struct Timed {
     pub input: Input,
     /// When it was sampled, in nanoseconds on the frame clock the host and its guest share
     /// (be3:root's `frame-request` `time`), if the platform said: pens and touches mostly do,
-    /// so a stroke drawn from every sample keeps its pace.
+    /// so a stroke drawn from every sample keeps its pace. It is real time from the clock's
+    /// origin, so while the clock is stopped (drive's) it can be later than the frame's time.
     pub time: Option<u64>,
 }
 
