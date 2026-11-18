@@ -33,6 +33,9 @@ const RETIREMENT_INFO: &[u8] = b"be3.access.retirement.v1";
 /// What an accepter's signing key signs to show it holds the keys an invitation signs it in with
 /// comes after this (`Invited::endorsement`).
 const INVITED_INFO: &[u8] = b"be3.access.invited.v1";
+/// What an opener's signing key signs to show it holds the keys a share link grants to comes
+/// after this (`Opened::endorsement`).
+const OPENED_INFO: &[u8] = b"be3.access.opened.v1";
 
 /// The hash of an access log entry, by which the next entry and a device's pin name it.
 pub type EntryHash = [u8; 32];
@@ -66,6 +69,13 @@ pub enum Record {
     /// (guides/blocks/keys.md, "Owner records"): the new owner holds what authorship gives, Manage,
     /// and the former keeps Edit.
     Owner(Owner),
+    /// A share link made, or revoked, by a member who may give access (guides/blocks/keys.md,
+    /// "Share links"): its key, derived from the link's code, signs the grant of whoever opens
+    /// it (`Opened`).
+    ShareLink(ShareLink),
+    /// An account granted itself access through an open share link: signed with the link's key,
+    /// which only a holder of the code has, and endorsed by the account's own keys.
+    Opened(Opened),
 }
 
 impl Record {
@@ -75,6 +85,7 @@ impl Record {
             Record::Grant(grant) => Some(&grant.authority),
             Record::Opening(opening) => Some(&opening.authority),
             Record::Parent(parent) => Some(&parent.authority),
+            Record::ShareLink(link) => Some(&link.authority),
             _ => None,
         }
     }
@@ -94,6 +105,63 @@ pub struct Opening {
 pub struct Owner {
     pub account: [u8; 16],
     pub identity: PublicIdentity,
+}
+
+/// Who may open a share link, as its maker chose within the organization's policy. The server
+/// alone checks it: no device can tell who is on the server or in an organization it is not in.
+#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, Hash, PartialEq, Serialize)]
+pub enum Admits {
+    /// Members of the block's organization (in the personal organization, every account).
+    #[default]
+    Members,
+    /// Any account on the server; one from outside the organization joins it as a guest.
+    Anyone,
+}
+
+/// A share link on the block: `key`, derived from the link's code
+/// (`InviteCode::share_key`), signs the grant of whoever opens it, at `level` at most, while it
+/// is `open`. Made and revoked by a member with Manage, as `authority` says; revoking it lowers
+/// everyone granted through it.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct ShareLink {
+    pub key: SigningPublic,
+    pub level: Level,
+    pub admits: Admits,
+    pub open: bool,
+    pub authority: Authority,
+}
+
+/// `grantee`'s access through the share link whose key is `key`, with the keys it holds, which
+/// endorse the record (`Entry::opened`): the server never holds the code, so it grants no one,
+/// nor can a holder of the code grant keys it does not hold.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct Opened {
+    pub grantee: [u8; 16],
+    pub identity: PublicIdentity,
+    pub level: Level,
+    pub key: SigningPublic,
+    #[serde(with = "serde_bytes")]
+    pub endorsement: Vec<u8>,
+}
+
+fn opened(
+    block: [u8; 16],
+    grantee: [u8; 16],
+    identity: &PublicIdentity,
+    key: &SigningPublic,
+    level: Level,
+) -> Vec<u8> {
+    let level = postcard::to_stdvec(&level).expect("a level encodes");
+    [
+        OPENED_INFO,
+        &block,
+        &grantee,
+        &identity.public.0,
+        &identity.signing.0,
+        &key.0,
+        &level,
+    ]
+    .concat()
 }
 
 /// What the former owner keeps once an owner record moves ownership on: they may still edit, but
@@ -450,6 +518,36 @@ impl Entry {
         Self::invitation_signed(&key, organization, previous, account, record)
     }
 
+    /// The entry after `previous` in the log of `block` that grants `account`, with the keys of
+    /// `secret`, `level` through the share link `code` made (`ShareLink`): signed with the link's
+    /// key, so only whoever holds the code can make it, and endorsed by `secret`.
+    pub fn opened(
+        code: &InviteCode,
+        block: [u8; 16],
+        previous: EntryHash,
+        account: [u8; 16],
+        secret: &RecoverySecret,
+        level: Level,
+    ) -> Self {
+        use ed25519_dalek::Signer;
+        let key = code.share_signing(block);
+        let public = SigningPublic(key.verifying_key().to_bytes());
+        let identity = secret.identity();
+        let endorsement = secret
+            .signing_key()
+            .sign(&opened(block, account, &identity, &public, level))
+            .to_bytes()
+            .to_vec();
+        let record = Record::Opened(Opened {
+            grantee: account,
+            identity,
+            level,
+            key: public,
+            endorsement,
+        });
+        Self::invitation_signed(&key, block, previous, account, record)
+    }
+
     /// `record`, the member record signing `account` in, signed with an invitation's `key` after
     /// `previous` in the log of `organization`.
     pub(crate) fn invitation_signed(
@@ -701,7 +799,10 @@ pub fn proof_path(
         Record::Member(member) => Some(member.account),
         Record::Retirement(retirement) => Some(retirement.account),
         Record::Owner(owner) => Some(owner.account),
-        Record::Opening(_) | Record::Parent(_) | Record::Invitation(_) => None,
+        Record::Opened(opened) => Some(opened.grantee),
+        Record::Opening(_) | Record::Parent(_) | Record::Invitation(_) | Record::ShareLink(_) => {
+            None
+        }
     };
     let always = |entry: &Entry| match &entry.record {
         Record::Root(_)
@@ -709,10 +810,11 @@ pub fn proof_path(
         | Record::Administrator(_)
         | Record::Parent(_)
         | Record::Owner(_)
-        | Record::Invitation(_) => true,
+        | Record::Invitation(_)
+        | Record::ShareLink(_) => true,
         Record::Member(member) => administrators.contains(&member.account),
         Record::Retirement(retirement) => administrators.contains(&retirement.account),
-        Record::Grant(_) => false,
+        Record::Grant(_) | Record::Opened(_) => false,
     };
     let mut accounts: HashSet<[u8; 16]> = sealers.into_iter().collect();
     accounts.insert(reader);
@@ -837,6 +939,12 @@ pub struct Checked {
     /// For an organization's log: each invitation key its records named, with who opened it
     /// while it is open, and none once it signed someone in or was ended (`Invitation`).
     pub invitations: HashMap<SigningPublic, Option<[u8; 16]>>,
+    /// For a block's log: each share link's key its records named, with the most it grants while
+    /// it is open, and none once revoked (`ShareLink`).
+    pub share_links: HashMap<SigningPublic, Option<Level>>,
+    /// For a block's log: whom a share link granted their access, by the link's key, while that
+    /// grant is their last (a grant a manager signed after it takes them out).
+    pub linked: HashMap<[u8; 16], SigningPublic>,
     /// For a block's log: who owns the block (holds what authorship gives), its creator until
     /// an owner record moves it on. None for an organization's log, and on a proof path after
     /// an owner record served reduced, which hides whom it named.
@@ -931,9 +1039,15 @@ impl Checked {
             }
             // The owner always holds Manage, and keeps less.
             Record::Owner(_) => true,
-            Record::Root(_) | Record::Retirement(_) | Record::Parent(_) | Record::Invitation(_) => {
-                false
+            // Revoking a link lowers everyone it granted.
+            Record::ShareLink(link) => {
+                !link.open && self.linked.values().any(|key| *key == link.key)
             }
+            Record::Root(_)
+            | Record::Retirement(_)
+            | Record::Parent(_)
+            | Record::Invitation(_)
+            | Record::Opened(_) => false,
         }
     }
 
@@ -1198,6 +1312,7 @@ pub fn check_log(
                     .grants
                     .insert(grant.grantee, (grant.level, grant.identity));
                 state.set_level(grant.grantee, grant.level);
+                state.linked.remove(&grant.grantee);
             }
             Record::Opening(opening) => {
                 // Open to view, or closed: no other level, so the record has one meaning.
@@ -1246,6 +1361,76 @@ pub fn check_log(
                     .insert(owner.account, (Level::Manage, owner.identity));
                 state.set_level(owner.account, Level::Manage);
                 state.owner = Some(owner.account);
+                state.linked.remove(&owner.account);
+            }
+            Record::ShareLink(link) => {
+                // Made once, by a key never named before, granting View or Edit; revoked only
+                // while open.
+                let held = state.share_links.get(&link.key).copied();
+                let well_formed = match link.open {
+                    true => held.is_none() && matches!(link.level, Level::View | Level::Edit),
+                    false => held.is_some_and(|open| open.is_some()),
+                };
+                if kind != LogKind::Block || !well_formed {
+                    return Err(KeyError::Record);
+                }
+                state.granting(entry, own, &link.authority, Level::Manage, false, outside)?;
+                state
+                    .share_links
+                    .insert(link.key, link.open.then_some(link.level));
+                if !link.open {
+                    let fallen: Vec<[u8; 16]> = state
+                        .linked
+                        .iter()
+                        .filter(|(_, key)| **key == link.key)
+                        .map(|(account, _)| *account)
+                        .collect();
+                    for account in fallen {
+                        state.linked.remove(&account);
+                        if let Some((level, _)) = state.grants.get_mut(&account) {
+                            *level = Level::None;
+                        }
+                        state.set_level(account, Level::None);
+                    }
+                }
+            }
+            Record::Opened(opened) => {
+                // Granted by the link's key to its signer alone, at most what the link grants,
+                // raising them, and endorsed by the keys it names.
+                let most = state.share_links.get(&opened.key).copied().flatten();
+                let before = state
+                    .grants
+                    .get(&opened.grantee)
+                    .map_or(Level::None, |(level, _)| *level);
+                let may = kind == LogKind::Block
+                    && entry.signer == opened.grantee
+                    && state.owner != Some(opened.grantee)
+                    && opened.level >= Level::View
+                    && most.is_some_and(|most| opened.level <= most)
+                    && opened.level > before
+                    && entry.signed_by(&opened.key)
+                    && verify_signature(
+                        &opened.identity.signing.0,
+                        &self::opened(
+                            log,
+                            opened.grantee,
+                            &opened.identity,
+                            &opened.key,
+                            opened.level,
+                        ),
+                        &opened.endorsement,
+                    );
+                if !may {
+                    return Err(KeyError::Record);
+                }
+                state
+                    .signers
+                    .insert(opened.grantee, opened.identity.signing);
+                state
+                    .grants
+                    .insert(opened.grantee, (opened.level, opened.identity));
+                state.set_level(opened.grantee, opened.level);
+                state.linked.insert(opened.grantee, opened.key);
             }
             Record::Administrator(administrator) => {
                 if !administrator.administrator {
