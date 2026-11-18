@@ -186,9 +186,13 @@ tests read one their build made, crates/be-host-tests/apps.bzl). Each guest thre
   why the last password was refused, whose session, the power actions offered;
   `Root::show_lock`), `host.lock-session` and `host.lock-power` ask the host to
   lock or to do a power action, and `host.unlock` hands over what was typed
-  and answers only whether it unlocked: the host takes it (`Root::take_unlocks`,
-  a `Password` zeroed when dropped), checks it and answers (`answer_unlock`),
-  and nothing of it crosses back. The input method
+  (be-wasm-password's `Password`, the type the login session's lock and PAM
+  take too) and answers nothing: the host takes one at a time
+  (`Root::take_unlock`), only into a locked session and not while one is
+  checked or it makes the person wait after failures (`retry-at`, its rate
+  limit, the guard against guessing), checks it, drops it, which zeroes it,
+  and shows the lock as it then stands. The call's arguments and the frames
+  that carried it are zeroed once read; the guest's own buffers are not. The input method
   needs nothing more: the platform's input-method events reach the root as
   input, which its router hands the focused surface, and the field that
   surface edits is `frame-done`'s `ime`. Choosing and saving files are the

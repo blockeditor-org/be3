@@ -240,20 +240,14 @@ impl Root {
         self.shared.core.borrow_mut().take_lock_asked()
     }
 
-    /// The passwords the root handed over to unlock the session (`host.unlock`) since the last
-    /// call, oldest first, each with the id `answer_unlock` names. The host checks each against
-    /// the platform and drops it, which zeroes it. Only a locked session's are handed over.
-    pub fn take_unlocks(&self) -> Vec<(u64, Password)> {
-        self.shared.core.borrow_mut().take_unlocks()
-    }
-
-    /// Answers the password `id` handed over with whether it unlocked the session: all the root
-    /// hears of it. If the root waits on it, it is stepped for it.
-    pub fn answer_unlock(&self, id: u64, unlocked: bool) {
-        let answered = self.shared.core.borrow_mut().answer_unlock(id, unlocked);
-        if answered {
-            ring(self.shared.id);
-        }
+    /// The password the root handed over to unlock the session (`host.unlock`) since the last
+    /// call, if it did: one at a time, only while the session is locked, nothing is being
+    /// checked and the host makes no one wait (`retry-at`). The host checks it against the
+    /// platform, drops it, which zeroes it, and shows the lock as it then stands
+    /// (`show_lock`): unlocked, or refused with why, and the wait it imposes after a failure.
+    /// That is all the root hears of it.
+    pub fn take_unlock(&self) -> Option<Password> {
+        self.shared.core.borrow_mut().take_unlock()
     }
 
     /// What the root chose on its lock screen besides unlocking (`host.lock-power`) since the

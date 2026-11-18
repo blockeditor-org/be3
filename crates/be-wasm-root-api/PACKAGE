@@ -19,6 +19,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-wasm-ops-bindgen:be-wasm-ops-bindgen",
                 "//crates/be-wasm-ops:be-wasm-ops",
+                "//crates/be-wasm-password:be-wasm-password",
                 "//third-party/rust:serde-1.0.228",
             ],
             "examples": {},
@@ -31,6 +32,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-wasm-ops-bindgen:be-wasm-ops-bindgen",
                 "//crates/be-wasm-ops:be-wasm-ops",
+                "//crates/be-wasm-password:be-wasm-password",
                 "//third-party/rust:serde-1.0.228",
             ],
             "examples": {},
@@ -43,6 +45,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-wasm-ops-bindgen:be-wasm-ops-bindgen",
                 "//crates/be-wasm-ops:be-wasm-ops",
+                "//crates/be-wasm-password:be-wasm-password",
                 "//third-party/rust:serde-1.0.228",
             ],
             "examples": {},
@@ -55,6 +58,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-wasm-ops-bindgen:be-wasm-ops-bindgen",
                 "//crates/be-wasm-ops:be-wasm-ops",
+                "//crates/be-wasm-password:be-wasm-password",
                 "//third-party/rust:serde-1.0.228",
             ],
             "examples": {},
@@ -67,6 +71,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-wasm-ops-bindgen:be-wasm-ops-bindgen",
                 "//crates/be-wasm-ops:be-wasm-ops",
+                "//crates/be-wasm-password:be-wasm-password",
                 "//third-party/rust:serde-1.0.228",
             ],
             "examples": {},
@@ -79,6 +84,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-wasm-ops-bindgen:be-wasm-ops-bindgen",
                 "//crates/be-wasm-ops:be-wasm-ops",
+                "//crates/be-wasm-password:be-wasm-password",
                 "//third-party/rust:serde-1.0.228",
             ],
             "examples": {},
@@ -91,6 +97,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-wasm-ops-bindgen:be-wasm-ops-bindgen",
                 "//crates/be-wasm-ops:be-wasm-ops",
+                "//crates/be-wasm-password:be-wasm-password",
                 "//third-party/rust:serde-1.0.228",
             ],
             "examples": {},
@@ -103,6 +110,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-wasm-ops-bindgen:be-wasm-ops-bindgen",
                 "//crates/be-wasm-ops:be-wasm-ops",
+                "//crates/be-wasm-password:be-wasm-password",
                 "//third-party/rust:serde-1.0.228",
             ],
             "examples": {},
@@ -115,6 +123,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-wasm-ops-bindgen:be-wasm-ops-bindgen",
                 "//crates/be-wasm-ops:be-wasm-ops",
+                "//crates/be-wasm-password:be-wasm-password",
                 "//third-party/rust:serde-1.0.228",
             ],
             "examples": {},
@@ -127,6 +136,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-wasm-ops-bindgen:be-wasm-ops-bindgen",
                 "//crates/be-wasm-ops:be-wasm-ops",
+                "//crates/be-wasm-password:be-wasm-password",
                 "//third-party/rust:serde-1.0.228",
             ],
             "examples": {},

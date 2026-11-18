@@ -26,6 +26,7 @@ use std::time::{Duration, Instant};
 
 use be_wasm_guest_host::STEP_TIMEOUT;
 use be_wasm_ops::{Connection, Incoming, OpError, OpId, Outcome, Reply, Side, Ticket};
+pub use be_wasm_password::Password;
 use be_wasm_root_api::{
     FrameDone, FrameRequest, embed, host::HostStatistics, host::LockState, host::Notice,
     host::PowerAction, host::ShownNotices, host::StatisticRow,
@@ -131,44 +132,16 @@ struct Core<G> {
     /// Whether the root asked to lock the session (`host.lock-session`) since the host last took
     /// it.
     lock_asked: bool,
-    /// The passwords the root handed over (`host.unlock`), by id, until the host takes them to
-    /// check.
-    unlocks: Vec<(u64, Password)>,
-    /// The root's `host.unlock` calls waiting for the host's answer, by id.
-    unlocking: Vec<(u64, Reply<bool>)>,
-    /// The id the next password handed over is given.
-    next_unlock: u64,
+    /// The password the root handed over (`host.unlock`), until the host takes it to check.
+    unlock: Option<Password>,
+    /// Whether the host took a password to check and has not shown the lock since: until it
+    /// does, it says nothing of `checking`, so another is dropped meanwhile.
+    taken: bool,
     /// What the root chose on its lock screen besides unlocking (`host.lock-power`), until the
     /// host takes it.
     lock_powers: Vec<PowerAction>,
 }
 
-/// A password the root handed over to check (`host.unlock`): its bytes as typed, zeroed when it
-/// is dropped, and never printed.
-pub struct Password(Vec<u8>);
-
-impl Password {
-    /// The bytes as typed, which the host checks and drops.
-    pub fn as_bytes(&self) -> &[u8] {
-        &self.0
-    }
-}
-
-// unsafe(memory)
-impl Drop for Password {
-    fn drop(&mut self) {
-        for byte in self.0.iter_mut() {
-            // Volatile, so the zeroing is not optimised away as a dead store.
-            unsafe { std::ptr::write_volatile(byte, 0) };
-        }
-    }
-}
-
-impl std::fmt::Debug for Password {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter.write_str("Password(..)")
-    }
-}
 
 impl<G: Inline> Core<G> {
     /// Takes over `guest`, the root, which has started, and what it sent while it started.
@@ -212,12 +185,12 @@ impl<G: Inline> Core<G> {
                 refused: None,
                 user: String::new(),
                 power: Vec::new(),
+                retry_at: None,
             },
             lock_watchers: Vec::new(),
             lock_asked: false,
-            unlocks: Vec::new(),
-            unlocking: Vec::new(),
-            next_unlock: 0,
+            unlock: None,
+            taken: false,
             lock_powers: Vec::new(),
         };
         core.received()?;
@@ -348,6 +321,8 @@ impl<G: Inline> Core<G> {
             generation,
             ..shown.clone()
         } != self.lock;
+        // The host has said how the password it took stands.
+        self.taken = false;
         if !changed {
             return false;
         }
@@ -368,21 +343,12 @@ impl<G: Inline> Core<G> {
         std::mem::take(&mut self.lock_asked)
     }
 
-    /// The passwords the root handed over since the last call, oldest first, each with the id
-    /// `answer_unlock` names.
-    fn take_unlocks(&mut self) -> Vec<(u64, Password)> {
-        std::mem::take(&mut self.unlocks)
-    }
-
-    /// Answers the password `id` handed over: whether it unlocked the session. Answers whether
-    /// the root waited for it.
-    fn answer_unlock(&mut self, id: u64, unlocked: bool) -> bool {
-        let Some(at) = self.unlocking.iter().position(|(asked, _)| *asked == id) else {
-            return false;
-        };
-        let (_, reply) = self.unlocking.remove(at);
-        reply.send(&mut self.connection, &unlocked);
-        true
+    /// The password the root handed over since the last call, if it did, which the host checks
+    /// and then shows the lock as it stands (`show_lock`).
+    fn take_unlock(&mut self) -> Option<Password> {
+        let unlock = self.unlock.take();
+        self.taken |= unlock.is_some();
+        unlock
     }
 
     /// What the root chose on its lock screen besides unlocking since the last call.
@@ -495,10 +461,12 @@ impl<G: Inline> Core<G> {
 
     /// Takes the frames the root sent.
     fn received(&mut self) -> Result<(), String> {
-        for frame in self.guest.take_outbound() {
+        for mut frame in self.guest.take_outbound() {
             self.connection
                 .receive(&frame)
                 .map_err(|error| format!("the root sent a frame the host cannot read: {error}"))?;
+            // What it carried (a password) lives on only in what it was decoded into.
+            be_wasm_ops::scrub(&mut frame);
         }
         Ok(())
     }
@@ -538,13 +506,6 @@ impl<G: Inline> Core<G> {
                         self.lock_watchers
                             .remove(at)
                             .fail(&mut self.connection, OpError::Canceled);
-                    } else if let Some(at) =
-                        self.unlocking.iter().position(|(_, reply)| reply.op() == op)
-                    {
-                        let (id, reply) = self.unlocking.remove(at);
-                        // Unchecked, its password goes with it.
-                        self.unlocks.retain(|(asked, _)| *asked != id);
-                        reply.fail(&mut self.connection, OpError::Canceled);
                     } else if let Some(at) = self
                         .statistics_watchers
                         .iter()
@@ -636,17 +597,14 @@ impl<G: Inline> Core<G> {
                 reply.send(&mut self.connection, &());
             }
             embed::Call::Host(embed::host::Call::Unlock { password, reply }) => {
-                let password = Password(password);
-                // Only a locked session is unlocked: anything else is a no, and its password
-                // is dropped unchecked.
-                if !self.lock.locked {
-                    reply.send(&mut self.connection, &false);
-                    return;
+                reply.send(&mut self.connection, &());
+                // One at a time, and only into a locked session the host is not making wait: any
+                // other is dropped unchecked, which zeroes it. The host's wait after failed
+                // checks (`retry-at`) it keeps itself.
+                let busy = self.unlock.is_some() || self.taken || self.lock.checking;
+                if self.lock.locked && !busy && self.lock.retry_at.is_none() {
+                    self.unlock = Some(password);
                 }
-                let id = self.next_unlock;
-                self.next_unlock += 1;
-                self.unlocks.push((id, password));
-                self.unlocking.push((id, reply));
             }
             embed::Call::Host(embed::host::Call::LockPower { action, reply }) => {
                 self.lock_powers.push(action);

@@ -10,6 +10,9 @@ pub use be_wasm_ops as ops;
 be_wasm_ops_bindgen::generate!({
     path: "wit",
     world: "root",
+    with: {
+        "password": ::be_wasm_password::Password,
+    },
 });
 
 pub use frames::{FrameDone, FrameRequest};

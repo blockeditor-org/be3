@@ -21,6 +21,7 @@ use be_sdk_beui_root::{BeuiRoot, BeuiSurface};
 use be_sdk_root::{Delivery, Embedded, Embedding, OwnSurface, Spawn};
 use be_wasm_guest_abi::{Flow, Guest, Waker};
 use be_wasm_ops::guest::{Executor, LocalFuture};
+use be_wasm_password::Password;
 use be_wasm_root_api::{
     FrameDone, FrameRequest, HostStatistics, LockState, Notice, PowerAction, StatisticRow,
     guest::{
@@ -36,7 +37,7 @@ use beui::{Align, Align2, Direction, KeyPhase, NodeId, Overflow, Pos2, Rect, Tex
 
 use crate::{
     APP, APP_ENTRY, CLOSES, DIALOG_LAYER, DIALOG_ORIGIN, DIALOG_SIZE, DIALOG_SURFACE, DIALOG_TITLE,
-    LATE_LAYER, LATER, LATER_TEXT, LOCK_LAYER, LOCK_SURFACE, LOCKS_SESSION, OPENS_DIALOG, OPENS_STATISTICS, ORIGIN, RASTER, RESIZED,
+    LATE_LAYER, LATER, STRAY_PASSWORD, UNLOCKS_TWICE, LATER_TEXT, LOCK_LAYER, LOCK_SURFACE, LOCKS_SESSION, OPENS_DIALOG, OPENS_STATISTICS, ORIGIN, RASTER, RESIZED,
     RESIZES, ROOT_COLOR, ROOT_LAYER, ROOT_SURFACE, SCREEN, SCREEN_SIZE, SCRIM_COLOR, SCRIM_LAYER,
     SCRIM_SURFACE, SIZE, STATISTICS_AREA, STATISTICS_LAYER, STATISTICS_ORIGIN, STATISTICS_SURFACE,
     STATISTICS_TITLE, TEXT, TEXT_LAYER, TEXT_STRIP, TEXT_SURFACE, TOAST_AREA, TOAST_LAYER,
@@ -110,6 +111,8 @@ struct Locked {
     surface: BeuiSurface,
     /// The lock as its document shows it.
     shown: Signal<LockState>,
+    /// The host's frame time when it was shown, from which the document counts down a wait.
+    shown_at: Signal<Duration>,
     /// The layer focused when it locked, which gets the focus back once unlocked.
     had: Option<LayerId>,
     /// Whether it took the focus yet: once it has been drawn.
@@ -254,9 +257,17 @@ impl Root {
             }
             return Ok(());
         }
+        let time = self
+            .beui
+            .borrow()
+            .as_ref()
+            .map_or(Duration::ZERO, BeuiRoot::time);
         if let Some(locked) = &mut *self.lock.borrow_mut() {
-            let shown = locked.shown;
-            locked.surface.enter(|| shown.set(state));
+            let (shown, shown_at) = (locked.shown, locked.shown_at);
+            locked.surface.enter(|| {
+                shown_at.set(time);
+                shown.set(state);
+            });
             return Ok(());
         }
         let Some(beui) = self.beui.borrow().clone() else {
@@ -272,19 +283,21 @@ impl Root {
             move || waker.wake(),
             move || {
                 let state = create_signal(state);
-                made.set(Some(state));
+                let shown_at = create_signal(time);
+                made.set(Some((state, shown_at)));
                 view! {
                     <Root>
-                        <LockCard state={state} />
+                        <LockCard state={state} shown_at={shown_at} />
                     </Root>
                 }
             },
         )?;
-        let shown = shown.get().ok_or("the lock screen's document made its state")?;
+        let (shown, shown_at) = shown.get().ok_or("the lock screen's document made its state")?;
         let had = self.embedding.borrow().focused(None).map(|layer| layer.id);
         *self.lock.borrow_mut() = Some(Locked {
             surface,
             shown,
+            shown_at,
             had,
             focused: false,
         });
@@ -326,6 +339,11 @@ impl Root {
                 Input::Key(stroke) if stroke.pressed && !stroke.repeat => match stroke.key {
                     Some(key) if key == OPENS_DIALOG && !open => Some(Asked::Open),
                     Some(key) if key == OPENS_STATISTICS => Some(Asked::ToggleStatistics),
+                    Some(key) if key == UNLOCKS_TWICE => {
+                        unlock(STRAY_PASSWORD.to_owned());
+                        unlock(STRAY_PASSWORD.to_owned());
+                        None
+                    }
                     Some(key) if key == LOCKS_SESSION => {
                         be_wasm_ops::guest::spawn(async {
                             // A host that cannot hear it has stopped, which the root hears from
@@ -461,7 +479,15 @@ impl Root {
             self.heard(&told);
             return Ok(());
         }
-        if asked != Some(Asked::Open) || self.dialog.borrow().is_some() {
+        // No dialog opens while the session is locked, so the focus the lock gives back is the
+        // one it took.
+        let locked = self.lock.borrow().is_some()
+            || self
+                .lock_state
+                .borrow()
+                .as_ref()
+                .is_some_and(|state| state.locked);
+        if asked != Some(Asked::Open) || self.dialog.borrow().is_some() || locked {
             return Ok(());
         }
         let Some(beui) = self.beui.borrow().clone() else {
@@ -511,6 +537,7 @@ fn chords(escape: bool) -> Vec<KeyChord> {
         KeyChord::new(OPENS_DIALOG, Modifiers::NONE),
         KeyChord::new(OPENS_STATISTICS, Modifiers::NONE),
         KeyChord::new(LOCKS_SESSION, Modifiers::NONE),
+        KeyChord::new(UNLOCKS_TWICE, Modifiers::NONE),
     ];
     if escape {
         chords.push(KeyChord::new(Key::Escape, Modifiers::NONE));
@@ -706,12 +733,13 @@ fn StatisticCell(value: Memo<String>, weight: Memo<Weight>) -> NodeId {
 /// was refused, and what the host offers besides unlocking. What is typed is handed to the host
 /// to check, and the field cleared as it is.
 #[component]
-fn LockCard(state: Signal<LockState>) -> NodeId {
+fn LockCard(state: Signal<LockState>, shown_at: Signal<Duration>) -> NodeId {
     let password = create_signal(String::new());
     let user = create_memo(move || state.with(|state| state.user.clone()));
     let checking = create_memo(move || state.with(|state| state.checking));
     let refused = create_memo(move || state.with(|state| state.refused.clone()));
     let powers = create_memo(move || state.with(|state| state.power.clone()));
+    let wait = retry_wait(state, shown_at);
     let slots = create_memo(move || (0..powers.with(Vec::len)).collect::<Vec<usize>>());
     let submit = move |typed: String| {
         if typed.is_empty() || checking.get_untracked() {
@@ -739,6 +767,9 @@ fn LockCard(state: Signal<LockState>) -> NodeId {
                 <Show value={refused}>|reason: ReadSignal<String>|
                     <Text style=TextStyle::CAPTION color=TextColor::Danger>{reason}</Text>
                 </Show>
+                <Show value={wait}>|left: ReadSignal<String>|
+                    <Text style=TextStyle::CAPTION>{left}</Text>
+                </Show>
                 <List direction=Direction::Horizontal spacing=Space::Xs>
                     <ForEach value={slots}>|index: usize| {
                         let action = create_memo(move || {
@@ -765,12 +796,43 @@ fn LockCard(state: Signal<LockState>) -> NodeId {
     }
 }
 
+/// "Try again in N s" while the host makes the person wait after failed passwords (`retry-at`,
+/// on the host's frame clock), counted down a second at a time by a timer on beui's clock, which
+/// the root pins to the host's: `shown_at` is the host's frame time when the state was shown.
+/// None once the wait is over.
+fn retry_wait(state: Signal<LockState>, shown_at: Signal<Duration>) -> Memo<Option<String>> {
+    let retry_at = create_memo(move || state.with(|state| state.retry_at));
+    let left = create_signal(None::<u64>);
+    // When the wait was last shown, on beui's clock and on the host's.
+    let from = StoredCell::new((now(), Duration::ZERO));
+    let tick = create_timer(move || {
+        let at = retry_at.get_untracked()?;
+        let (since, host) = from.get();
+        let host_now = host + now().saturating_duration_since(since);
+        let host_now = u64::try_from(host_now.as_nanos()).unwrap_or(u64::MAX);
+        let seconds = at.saturating_sub(host_now).div_ceil(1_000_000_000);
+        left.set((seconds > 0).then_some(seconds));
+        (seconds > 0).then_some(Duration::from_secs(1))
+    });
+    create_effect(move || {
+        retry_at.get();
+        let host = shown_at.get();
+        untrack(|| {
+            from.set((now(), host));
+            left.set(None);
+            tick.restart(Duration::ZERO);
+        });
+    });
+    create_memo(move || left.get().map(|seconds| format!("Try again in {seconds} s")))
+}
+
 /// Hands `typed` to the host to check (`host.unlock`), keeping no copy: whether it unlocked the
 /// session reaches the root as the lock's next change, and why it was refused with it.
 fn unlock(typed: String) {
+    let password = Password::from(typed);
     be_wasm_ops::guest::spawn(async move {
         // A host that cannot hear it has stopped, which the root hears from its frames.
-        let _ = host::unlock(typed.into_bytes()).await;
+        let _ = host::unlock(password).await;
     });
 }
 
@@ -932,7 +994,14 @@ impl frames::Guest for Root {
             // with no toast over it: it shows nothing it would not show a stranger.
             let locked = root.lock.borrow().is_some();
             if let Some(locked) = &*root.lock.borrow() {
-                layers.push(locked.surface.layer(LOCK_LAYER, pos2(0.0, 0.0)));
+                let mut layer = locked.surface.layer(LOCK_LAYER, pos2(0.0, 0.0));
+                layer.input = LayerInput {
+                    hit: Area::Whole,
+                    captures: true,
+                    focuses: true,
+                    ..LayerInput::default()
+                };
+                layers.push(layer);
             }
             // Over everything, while a toast shows: hit only where one is, and never taking the
             // focus from what the person works in.
@@ -974,7 +1043,7 @@ impl frames::Guest for Root {
             let outside = root.dialog.borrow().is_some()
                 && embedding.focused(None).map(|layer| layer.id) != Some(DIALOG_LAYER);
             embedding.intercept(match locked {
-                true => Vec::new(),
+                true => vec![KeyChord::new(UNLOCKS_TWICE, Modifiers::NONE)],
                 false => chords(outside),
             });
             drop(embedding);

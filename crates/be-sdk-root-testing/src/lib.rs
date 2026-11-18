@@ -188,6 +188,14 @@ pub const STATISTICS_TITLE: &str = "Performance";
 /// locked.
 pub const LOCKS_SESSION: Key = Key::F4;
 
+/// A key that makes the root hand its host `STRAY_PASSWORD` twice at once (`host.unlock`),
+/// whatever the lock says, as a root gone wrong might: what the tests check the host's guards
+/// against. The root intercepts it always, while locked too.
+pub const UNLOCKS_TWICE: Key = Key::F5;
+
+/// What `UNLOCKS_TWICE` hands over.
+pub const STRAY_PASSWORD: &str = "stray";
+
 /// The layer showing `LOCK_SURFACE` while the session is locked: over everything, toasts too,
 /// which it hides, taking every press and the focus.
 pub const LOCK_LAYER: LayerId = LayerId(7);

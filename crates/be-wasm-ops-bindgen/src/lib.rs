@@ -1579,7 +1579,11 @@ impl Generator {
             started_methods.push(quote!(crate::__args::#constant));
             arms.push(quote! {
                 crate::__args::#constant => {
-                    match ::be_wasm_ops::decode::<crate::__args::#args>(&started.args) {
+                    // The arguments are zeroed once decoded, so what they held (a password)
+                    // lives on only in the call.
+                    let decoded = ::be_wasm_ops::decode::<crate::__args::#args>(&started.args);
+                    ::be_wasm_ops::scrub(&mut started.args);
+                    match decoded {
                         ::core::option::Option::Some(crate::__args::#args { #(#names),* }) => {
                             Call::#case { #(#this_started,)* #(#value,)* #(#names,)* }
                         }
@@ -1620,6 +1624,7 @@ impl Generator {
                 ::core::option::Option::None
             },
             false => quote! {
+                let mut started = started;
                 let op = started.op;
                 ::core::option::Option::Some(match started.method {
                     #(#arms)*

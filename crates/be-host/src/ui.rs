@@ -550,7 +550,7 @@ pub(crate) enum UiCommand {
     /// Cycles the theme setting through the system's, light and dark.
     CycleTheme,
     #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
-    Unlock(be_host_base::password::Password),
+    Unlock(be_wasm_password::Password),
     #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
     LockPower(be_sdk_api::PowerAction),
 }

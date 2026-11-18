@@ -547,14 +547,11 @@ fn statistic_row(row: be_host_base::performance::PerformanceRow) -> StatisticRow
 
 /// Answers what the root asked of the session's screen lock: `--root` runs no screen lock (it
 /// is refused as a login session), so the lock is unavailable, as `be3:root` answers by default,
-/// and asking to lock, a power action from the lock screen and a password handed over change
-/// nothing. A password is dropped unchecked, which zeroes it.
+/// and asking to lock or a power action from the lock screen changes nothing. `be3:root` drops
+/// a password handed over while the session is not locked, so none reaches here.
 fn refuse_lock(root: &mut Root) {
     root.take_lock_asked();
     root.take_lock_powers();
-    for (id, _password) in root.take_unlocks() {
-        root.answer_unlock(id, false);
-    }
 }
 
 /// The host's notices as `be3:root` carries them, oldest first.
