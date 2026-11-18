@@ -1711,20 +1711,32 @@ impl Checked {
         if self.partial || self.positions.is_empty() {
             return check_log(kind, log, self.root, served, outside);
         }
+        if !self.reaches(served) {
+            return Err(KeyError::Record);
+        }
         let held = self.positions.len();
-        let prefix = served.get(..held).ok_or(KeyError::Record)?;
+        self.extend(kind, log, &served[held..], outside)
+    }
+
+    /// Whether `served`, a log from its root, holds this whole log as its prefix: each of its
+    /// entries up to this head names the one before, and the last hashes to this head. No
+    /// signature is verified.
+    pub fn reaches(&self, served: &[impl Logged]) -> bool {
+        if self.partial || self.positions.is_empty() {
+            return false;
+        }
+        let Some(prefix) = served.get(..self.positions.len()) else {
+            return false;
+        };
         let mut previous = None;
         for step in prefix {
             let step = step.step();
             if step.previous() != previous {
-                return Err(KeyError::Record);
+                return false;
             }
             previous = Some(step.hash());
         }
-        if previous != Some(self.head) {
-            return Err(KeyError::Record);
-        }
-        self.extend(kind, log, &served[held..], outside)
+        previous == Some(self.head)
     }
 }
 
