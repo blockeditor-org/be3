@@ -21,6 +21,14 @@ pub(crate) fn copy(clip: crate::types::Clip) {
     with_document(|document| document.copy(clip));
 }
 
+pub(crate) fn share(clip: crate::types::Clip) {
+    with_document(|document| document.share(clip));
+}
+
+pub(crate) fn use_share_sheet() -> ReadSignal<bool> {
+    with_document(|document| document.watch_share_sheet())
+}
+
 pub(crate) fn request_paste() {
     with_document(Document::request_paste);
 }

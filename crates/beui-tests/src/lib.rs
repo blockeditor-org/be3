@@ -12,7 +12,9 @@
 //! `roles ROLE COUNT` and
 //! `elements CSS COUNT`, for scripts that run only there (crates/beui-demo-html's), and
 //! `attribute CSS NAME VALUE|none`, `history LENGTH`, `history-state marker|none`, `loads COUNT`,
-//! `reload` and `css TEXT` (adds a stylesheet, to stand in for a browser without a feature), which
+//! `reload`, `css TEXT` (adds a stylesheet, to stand in for a browser without a feature),
+//! `share-sheet` (gives the page a `navigator.share` that keeps what it is handed, and reloads)
+//! and `shared TEXT` (waits until it was handed TEXT), which
 //! a script both cores
 //! run gives as `#web COMMAND` lines (comments natively).
 //!
@@ -99,6 +101,9 @@ pub fn Fixture(name: String) -> Root {
         },
         "paste" => view! {
             <PasteFixture />
+        },
+        "share" => view! {
+            <ShareFixture />
         },
         "text_hooks" => view! {
             <TextHooksFixture />
@@ -638,6 +643,27 @@ fn PasteFixture() -> NodeId {
                 <Frame width=160.0 height=30.0 fill={BLUE} />
             </Interactive>
             <Text color={INK}>{report}</Text>
+        </List>
+    }
+}
+
+#[component]
+fn ShareFixture() -> NodeId {
+    let sheet = use_share_sheet();
+    let report = create_memo(move || match sheet.get() {
+        true => "A share sheet".to_owned(),
+        false => "No share sheet".to_owned(),
+    });
+    view! {
+        <List spacing=12.0>
+            <Text color={INK}>{report}</Text>
+            <Show value={sheet}>||
+                <Button
+                    id="share.button"
+                    label="Share"
+                    on_click={Callback::new(|()| share(beui::Clip::text("https://be3.example/invite")))}
+                />
+            </Show>
         </List>
     }
 }

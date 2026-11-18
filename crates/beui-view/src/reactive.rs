@@ -171,6 +171,18 @@ pub fn copy(clip: crate::types::Clip) {
     core::copy(clip);
 }
 
+/// Hands `clip` to the platform's share sheet (the web's `navigator.share`, Android's send
+/// intent), from the press that asks for it: a browser shares only within a user gesture.
+/// Does nothing where `use_share_sheet` says the platform has none.
+pub fn share(clip: crate::types::Clip) {
+    core::share(clip);
+}
+
+/// Whether the platform has a share sheet for `share`: show a Share control only while it does.
+pub fn use_share_sheet() -> ReadSignal<bool> {
+    core::use_share_sheet()
+}
+
 pub fn request_paste() {
     core::request_paste();
 }

@@ -7,3 +7,6 @@ mod agent;
 
 #[cfg(target_arch = "wasm32")]
 pub use agent::text_agent;
+
+#[cfg(target_arch = "wasm32")]
+pub mod share;

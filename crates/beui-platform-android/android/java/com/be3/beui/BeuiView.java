@@ -3,6 +3,7 @@ package com.be3.beui;
 import android.app.Activity;
 import android.app.KeyguardManager;
 import android.content.Context;
+import android.content.Intent;
 import android.content.res.AssetManager;
 import android.content.res.Configuration;
 import android.graphics.Insets;
@@ -450,6 +451,15 @@ public final class BeuiView extends SurfaceView implements SurfaceHolder.Callbac
 
     public void setLightBars(boolean light) {
         post(() -> ((BeuiActivity) getContext()).setLightBars(light));
+    }
+
+    public void share(String text) {
+        post(() -> {
+            Intent send = new Intent(Intent.ACTION_SEND);
+            send.setType("text/plain");
+            send.putExtra(Intent.EXTRA_TEXT, text);
+            getContext().startActivity(Intent.createChooser(send, null));
+        });
     }
 
     public void finishActivity() {

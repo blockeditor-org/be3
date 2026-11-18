@@ -815,8 +815,9 @@ in the account's block (`Peer::save_pin`); an unverifiable newer key is not used
   inviter's account's block keeps its code (`contacts::kept_links`), so they
   copy the link again; any administrator
   revokes an open one (`delete-link`), and an expired one offers a fresh link.
-  The Invite member dialog makes a link at once and ends on it, with copy and
-  a QR code (`be-host/src/qr.rs`).
+  The Invite member dialog makes a link at once and ends on it, with copy, a
+  QR code (`be-host/src/qr.rs`) and, where the platform has a share sheet, Share
+  (guides/beui/platforms.md, "Share sheet").
 - **Adding a device**: the new device shows an eight-character code, typed on a
   device of the same account; the two run SPAKE2 over the server's relay
   (`Pair`, `Paired`), and the open device seals the identity secret under the
