@@ -30,9 +30,10 @@ impl Running {
 
     pub async fn with_mail(
         directory: PathBuf,
-        config: ServerConfig,
+        mut config: ServerConfig,
         mail: Arc<dyn mail::Delivery>,
     ) -> Self {
+        config.lies.get_or_insert_with(crate::Lies::default);
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let address = listener.local_addr().unwrap();
         let mut running = Self {
@@ -61,6 +62,20 @@ impl Running {
         }));
     }
 
+    /// Makes this server lie to `account`: every block summary it sends that account's devices
+    /// is rewritten by `lie` (`Lies`), as a server that changes what it says would.
+    pub fn lie(
+        &self,
+        account: Uuid,
+        lie: impl Fn(&mut be_block_protocol::BlockSummary) + Send + Sync + 'static,
+    ) {
+        self.config
+            .lies
+            .as_ref()
+            .expect("a running test server can lie")
+            .to(account, lie);
+    }
+
     pub async fn register(&self, email: &str, name: &str) -> String {
         ServerStore::open(&self.directory)
             .unwrap()
@@ -72,7 +87,8 @@ impl Running {
 
     /// Restarts the server on the same data with `config`, as an operator changing its flags.
     pub async fn restart_with(&mut self, config: ServerConfig) {
-        self.config = config;
+        let lies = self.config.lies.take();
+        self.config = ServerConfig { lies, ..config };
         self.restart().await;
     }
 

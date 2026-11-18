@@ -193,6 +193,62 @@ pub struct ServerConfig {
     pub push: push::PushConfig,
     /// The OpenID Connect providers people may sign in with (`--oidc-providers`).
     pub providers: Cow<'static, [oidc::Provider]>,
+    /// For tests only: what a server that lies would change in the summaries it answers
+    /// (`Lies`). None for every real server.
+    pub lies: Option<Lies>,
+}
+
+/// What a server that lies changes in the block summaries it answers one account (`query.blocks`,
+/// with or without contents, and listings), set by a test (`Running::lie`) to show a client
+/// refuses what "the server alone" could say: a block's parent, its current key, its history.
+#[derive(Clone, Default)]
+pub struct Lies(Arc<std::sync::Mutex<Vec<Lie>>>);
+
+/// One rewrite: the account it lies to, and what it does to each summary that account is sent.
+type Lie = (
+    uuid::Uuid,
+    Arc<dyn Fn(&mut be_block_protocol::BlockSummary) + Send + Sync>,
+);
+
+impl std::fmt::Debug for Lies {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("Lies")
+    }
+}
+
+impl Lies {
+    /// Rewrites every summary sent to `account` with `lie`, from now on.
+    pub fn to(
+        &self,
+        account: uuid::Uuid,
+        lie: impl Fn(&mut be_block_protocol::BlockSummary) + Send + Sync + 'static,
+    ) {
+        self.0.lock().unwrap().push((account, Arc::new(lie)));
+    }
+
+    /// `summaries`, as sent to `account`.
+    pub(crate) fn apply<'a>(
+        &self,
+        account: uuid::Uuid,
+        summaries: impl IntoIterator<Item = &'a mut be_block_protocol::BlockSummary>,
+    ) {
+        let lies: Vec<_> = self
+            .0
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|(to, _)| *to == account)
+            .map(|(_, lie)| Arc::clone(lie))
+            .collect();
+        if lies.is_empty() {
+            return;
+        }
+        for summary in summaries {
+            for lie in &lies {
+                lie(summary);
+            }
+        }
+    }
 }
 
 impl ServerConfig {
@@ -215,6 +271,7 @@ impl ServerConfig {
         public_url: None,
         push: push::PushConfig::DEFAULT,
         providers: Cow::Borrowed(&[]),
+        lies: None,
     };
 
     pub const OPEN: Self = Self {
