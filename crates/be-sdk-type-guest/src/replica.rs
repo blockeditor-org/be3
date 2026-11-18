@@ -2611,6 +2611,13 @@ where
             self.sealed = journal.base.sequence;
             for entry in journal.entries {
                 if entry.sequence <= self.applied {
+                    self.passed_over(
+                        OpId {
+                            origin: entry.origin,
+                            counter: entry.counter,
+                        },
+                        entry.sequence,
+                    );
                     continue;
                 }
                 let op = SessionOp {
@@ -2753,10 +2760,23 @@ where
         }
     }
 
+    /// An entry numbered at or before what this replica applied, which it passes over: one it
+    /// applied comes again, as a replay does. One of its own edits still waiting to be
+    /// numbered never does: the order that numbered it is behind the replica's, and the edit
+    /// would wait for good, so it says so.
+    fn passed_over(&mut self, id: OpId, sequence: u64) {
+        if id.origin == self.origin && self.pending.iter().any(|sent| sent.id == id) {
+            self.error(format!(
+                "its own submission {} came back numbered {sequence}, behind the {} it applied",
+                id.counter, self.applied
+            ));
+        }
+    }
+
     /// The order's next entry: applied in order, held when it arrives early.
     fn ordered(&mut self, op: SessionOp) {
         if op.sequence <= self.applied {
-            return;
+            return self.passed_over(op.id, op.sequence);
         }
         if op.sequence > self.applied + 1 {
             self.ahead.insert(op.sequence, op);

@@ -196,7 +196,13 @@ arrives.
   Every join, first or again, makes it the journal joining answered
   (`Peer::keep_journal`, `replicas::mirror`): with no copy, the device would
   number offline from sequence zero, behind entries its replica opened on, and
-  the replica would pass its own entries over as ones it applied.
+  the replica would pass its own entries over as ones it applied (it reports
+  an error when one of its pending submissions comes back so). A block whose
+  journal holds entries this device numbered offline, their only copy, does
+  not join on opening: it opens on that journal, seals, and joins once a drain
+  sent the seal (`Replicas::created`), as a block made offline does. A seal made
+  offline (`SealedThrough::offline`) counts the device's own order, so on the
+  server's journal it is a head to merge, never a seal the journal reaches.
 - **A seal on its way.** The holder goes on applying the order while its seal
   waits on the server. The seal's commit records the last sequence it holds
   (`Commit::sealed_through`), and the server trims the journal to it as the

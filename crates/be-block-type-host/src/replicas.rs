@@ -1419,11 +1419,14 @@ impl<H: Host> Replicas<H> {
         let known = peer
             .known_summary(block)
             .is_some_and(|summary| summary.content_type == content_type);
-        let uncreated = cannot_join(peer, block);
+        // What this device numbered offline is in its journal alone, which joining would replace
+        // with the server's: as a block made offline does, it opens on that journal, seals it,
+        // and joins once a drain sent the seal (`created`).
+        let joins_later = cannot_join(peer, block) || numbered_here(peer, block);
         let tag = self.tag_of(content_type);
         let joined = if known
             && peer.is_attached()
-            && !uncreated
+            && !joins_later
             && !(owned && H::reshaped(shared, block, &kind.schema))
         {
             let joining = joining(peer, block, content_type, tag);
@@ -1475,7 +1478,7 @@ impl<H: Host> Replicas<H> {
                 // Until the drain sends its creation the server does not know the block, and
                 // without access to it the server refuses its session: it opens as offline does
                 // and joins once that changes (`created`).
-                if !peer.is_attached() || uncreated {
+                if !peer.is_attached() || joins_later {
                     let client = unjoined_client();
                     return Ok((client, session_of(client), None, true, None));
                 }
@@ -1500,7 +1503,7 @@ impl<H: Host> Replicas<H> {
         };
         let (client, session, head, offline, journal) = match joined {
             Ok((client, _, _, true, _)) => {
-                if uncreated {
+                if joins_later {
                     self.uncreated.insert(block);
                 }
                 let head = known_head_of(peer, block);
@@ -1539,7 +1542,9 @@ impl<H: Host> Replicas<H> {
             true => head,
             false => ahead(peer, block).or(head),
         };
-        mirror(peer, block, journal.as_ref(), !offline, head);
+        if let Err(error) = mirror(peer, block, journal.as_ref(), !offline, head) {
+            H::record(shared, error);
+        }
         let (journal, journal_kept, load_at, sealed_head) = journal_for(
             peer,
             block,
@@ -1934,6 +1939,9 @@ impl<H: Host> Replicas<H> {
             false => head,
         };
         open.marked = peer.discarded(block);
+        if let Err(error) = mirror(peer, block, journal.as_ref(), true, from) {
+            H::record(shared, error);
+        }
         let loads = reopening(open, peer, journal, true, from);
         let from = loads.2;
         let commits_kept = match ahead.is_some() {
@@ -3749,6 +3757,9 @@ impl<H: Host> Replicas<H> {
             .collect();
         // The join answered whether this account may edit it (`Peer::join_session`).
         open.marked = peer.discarded(block);
+        if let Err(error) = mirror(peer, block, journal.as_ref(), true, open.status.head) {
+            H::record(shared, error);
+        }
         let loads = reopening(open, peer, journal, true, open.status.head);
         let known = loads.2;
         let (ordered, early): (Vec<Replayed>, Vec<Replayed>) = early
@@ -4895,6 +4906,13 @@ fn cannot_join<S: be_block_store::ObjectStore>(peer: &Peer<S>, block: Uuid) -> b
             .is_some_and(|summary| !summary.access.can_view())
 }
 
+/// Whether this device's journal of `block` holds entries it numbered offline, which the
+/// server lacks.
+fn numbered_here<S: be_block_store::ObjectStore>(peer: &Peer<S>, block: Uuid) -> bool {
+    peer.sealed_journal(block)
+        .is_some_and(|journal| journal.entries.iter().any(|entry| entry.received.is_none()))
+}
+
 /// Joins `block`'s session, for a replica that shows before it has (`Replicas::open`).
 fn joining<S: be_block_store::ObjectStore + 'static>(
     peer: &Arc<Peer<S>>,
@@ -5112,7 +5130,11 @@ pub fn journal_for<S: be_block_store::ObjectStore>(
             break;
         };
         if journal.base.commit == parent {
+            // A seal made offline counts the device's own order: the server's numbers other
+            // entries there (another device's), so it is a head to merge on the server's
+            // journal, as `sealed_here` takes it.
             let reaches = through.restarts == restarts
+                && !(from_server && through.offline)
                 && be_block_session::reaches_seal(
                     journal.base.sequence,
                     journal.entries.iter().map(|entry| entry.sequence),
@@ -5171,24 +5193,48 @@ fn sealed_on<S: be_block_store::ObjectStore>(
 }
 
 /// Makes this device's copy of `block`'s order the server's journal as joining answered it, or
-/// starts it afresh at `head` when the server holds none (`mirror_afresh`). However a replica
-/// joined, its first join or a rejoin, the device then numbers what the replica submits
-/// offline after what it opened on: a device with no copy would start its own order at 0,
-/// behind the replica, which would take its entries for ones it applied and never hear them.
+/// starts it afresh at `head` when the server holds none (`mirror_afresh`), before a replica is
+/// opened on it (`reopening`). However a replica joined, its first join or a rejoin, the device
+/// then numbers what the replica submits offline after what it opened on: a device with no
+/// copy would start its own order at 0, behind the replica, which would take its entries for
+/// ones it applied and never hear them. A copy that already matches is not written again.
 fn mirror<S: be_block_store::ObjectStore>(
     peer: &Peer<S>,
     block: Uuid,
     server: Option<&ServerJournal>,
     online: bool,
     head: Option<CommitId>,
-) {
+) -> Result<(), ClientError> {
     match server {
-        Some((sealed, _)) => {
-            let _ = peer.keep_journal(block, sealed);
+        Some((sealed, _)) if !kept_already(peer, block, sealed) => {
+            peer.keep_journal(block, sealed)
         }
+        Some(_) => Ok(()),
         None if online => mirror_afresh(peer, block, head),
-        None => {}
+        None => Ok(()),
     }
+}
+
+/// Whether this device's journal of `block` is `server`'s already: on the same base, holding
+/// the same entries.
+fn kept_already<S: be_block_store::ObjectStore>(
+    peer: &Peer<S>,
+    block: Uuid,
+    server: &be_block_protocol::Journal,
+) -> bool {
+    let numbered = |journal: &be_block_protocol::Journal| {
+        journal
+            .entries
+            .iter()
+            .map(|entry| (entry.sequence, entry.origin, entry.counter))
+            .collect::<Vec<_>>()
+    };
+    peer.sealed_journal(block).is_some_and(|kept| {
+        kept.tag == server.tag
+            && kept.base.commit == server.base.commit
+            && kept.base.sequence == server.base.sequence
+            && numbered(&kept) == numbered(server)
+    })
 }
 
 /// Starts this device's copy of the order afresh at `head` when the server holds no journal,
@@ -5198,12 +5244,12 @@ fn mirror_afresh<S: be_block_store::ObjectStore>(
     peer: &Peer<S>,
     block: Uuid,
     head: Option<CommitId>,
-) {
+) -> Result<(), ClientError> {
     let Some(mut mirror) = peer.sealed_journal(block) else {
-        return;
+        return Ok(());
     };
     if mirror.entries.iter().any(|entry| entry.received.is_none()) {
-        return;
+        return Ok(());
     }
     mirror.base = be_block_protocol::JournalBase {
         commit: head,
@@ -5211,7 +5257,7 @@ fn mirror_afresh<S: be_block_store::ObjectStore>(
         state: Vec::new(),
     };
     mirror.entries.clear();
-    let _ = peer.keep_journal(block, &mirror);
+    peer.keep_journal(block, &mirror)
 }
 
 /// For a server with no journal of `block`: when this device's journal is on the server's head
@@ -5425,7 +5471,6 @@ fn reopening<S: be_block_store::ObjectStore>(
     online: bool,
     head: Option<CommitId>,
 ) -> Loads {
-    mirror(peer, open.block, server.as_ref(), online, head);
     open.reported_clean(open.journaled_taken);
     journal_for(
         peer,

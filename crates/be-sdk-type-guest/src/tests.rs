@@ -113,6 +113,7 @@ mod an_entry_no_build_can_read_is_passed_over_by_every_replica;
 mod an_external_publish_merges_into_a_live_replica;
 mod an_hour_of_steady_edits_makes_about_twelve_commits;
 mod an_operation_adds_a_part_by_its_hash;
+mod an_own_edit_numbered_behind_what_the_replica_applied_is_an_error;
 mod arrivals;
 mod cancelling_one_of_two_drags_keeps_the_other;
 mod child_changes_become_edits_of_the_parent;
