@@ -339,10 +339,14 @@ fn ShareLinkDialog(view: HostUiStore) -> NodeId {
                     ]}
                     on_dismiss={|| send(UiCommand::DeclineShareLink)}
                 >
-                    <Text style=TextStyle::PARAGRAPH @test_id={"host.share-link.offer"}>{offer}</Text>
+                    <Text style=TextStyle::PARAGRAPH @test_id={"host.share-link.offer"}>
+                        {offer}
+                    </Text>
                 </Dialog>
                 <Show value={move || !opened.with(String::is_empty)}>
-                    <Text style=TextStyle::PARAGRAPH @test_id={"host.share-link.opened"}>{opened}</Text>
+                    <Text style=TextStyle::PARAGRAPH @test_id={"host.share-link.opened"}>
+                        {opened}
+                    </Text>
                 </Show>
                 <ErrorText text={error} />
             </List>

@@ -523,7 +523,11 @@ impl<S: ObjectStore> Peer<S> {
         })
     }
 
-    pub(crate) async fn keep_share(&self, link: Uuid, kept: Option<KeptShare>) -> Result<(), ClientError> {
+    pub(crate) async fn keep_share(
+        &self,
+        link: Uuid,
+        kept: Option<KeptShare>,
+    ) -> Result<(), ClientError> {
         let bytes = kept.map(|kept| kept.encode());
         self.records()
             .await?

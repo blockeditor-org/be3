@@ -1,5 +1,5 @@
-use be_sdk_beui::{AccessGrant, AccessLevel, AccessListing, LinkAdmits, ShareLink};
 use be_sdk_beui::be_block::LinkSharing;
+use be_sdk_beui::{AccessGrant, AccessLevel, AccessListing, LinkAdmits, ShareLink};
 use uuid::Uuid;
 
 /// What the share dialog offers. `KnowExists` is not among them: a reference
@@ -266,10 +266,11 @@ impl Share {
     /// What the next share link grants: what the person chose, else Join on a hosted block
     /// (plans/hosted_blocks.md, "The share dialog") and View on any other.
     pub(crate) fn link_access(&self, listing: Option<&AccessListing>) -> AccessLevel {
-        self.chosen_link_access.unwrap_or(match listing.is_some_and(|listing| listing.hosted) {
-            true => AccessLevel::Join,
-            false => AccessLevel::View,
-        })
+        self.chosen_link_access
+            .unwrap_or(match listing.is_some_and(|listing| listing.hosted) {
+                true => AccessLevel::Join,
+                false => AccessLevel::View,
+            })
     }
 
     /// Whether `me` manages the block as `listing` lists it: only a manager sees and makes its

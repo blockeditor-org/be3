@@ -130,9 +130,7 @@ impl ShareLinks {
                 self.landed = Some(opened.organization);
                 self.opened = Some(opened);
             }
-            Reply::Previewed(_, Err(error)) | Reply::Opened(Err(error)) => {
-                self.error = Some(error)
-            }
+            Reply::Previewed(_, Err(error)) | Reply::Opened(Err(error)) => self.error = Some(error),
         }
     }
 
