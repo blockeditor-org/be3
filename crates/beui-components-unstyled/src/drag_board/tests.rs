@@ -2,7 +2,7 @@ use be_lib_stable_hash::HashMap;
 
 use super::*;
 use beui_view::reactive::{NodeRef, Scope};
-use beui_view::types::{Direction, Modifiers, Pos2, pos2, vec2};
+use beui_view::types::{Modifiers, Pos2, pos2, vec2};
 
 #[derive(Default)]
 struct Flat {
@@ -91,9 +91,10 @@ impl Fixture {
         let id = self.board.register_scroller(EdgeScroller {
             id: 0,
             node: self.node(rect, order),
-            axis: Rc::new(|| Direction::Vertical),
-            movable: Rc::new(|| [true, true]),
-            scroll: Rc::new(move |depth| log.push(format!("{name} scrolls {depth:?}"))),
+            movable: Rc::new(|| [[false, false], [true, true]]),
+            scroll: Rc::new(move |depth: Option<Vec2>| {
+                log.push(format!("{name} scrolls {:?}", depth.map(|depth| depth.y)))
+            }),
         });
         self.sync();
         id

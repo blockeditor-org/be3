@@ -235,6 +235,9 @@ pub(crate) enum Gesture {
         points: Vec<CanvasPoint>,
         additive: bool,
     },
+    /// Moving the selection, carried on the drag board (`lift_move`): its site chooses
+    /// `current` from the point, and the drop or put-down ends it. `carried` once the board
+    /// holds it.
     Move {
         start: CanvasPoint,
         current: CanvasPoint,
@@ -242,6 +245,7 @@ pub(crate) enum Gesture {
         duplicate: bool,
         rasters: Rasters,
         snapped: bool,
+        carried: bool,
     },
     Resize {
         handle: ResizeHandle,
@@ -540,6 +544,8 @@ struct CanvasCells {
     stage: Cell<Rect>,
     stroke: RefCell<Option<Stroke>>,
     drawing_tool: Cell<PixelTool>,
+    /// The drag board the canvas's moves are carried on.
+    board: std::rc::Rc<beui::unstyled::Board>,
 }
 
 #[derive(Clone, Copy)]
@@ -571,6 +577,8 @@ pub(crate) struct CanvasState {
     peer_carets: Memo<Vec<(CanvasCaret, PresenceColor)>>,
     peers: ReadSignal<Vec<(u64, CanvasCursor)>>,
     own_stroke: Memo<Option<Uuid>>,
+    /// What this viewer carries mid-move, as its presence shows it to peers.
+    carried: Memo<Vec<(Uuid, CanvasPoint)>>,
     strokes: Memo<Vec<Uuid>>,
 }
 
@@ -680,6 +688,7 @@ impl CanvasState {
             stage: Cell::new(Rect::ZERO),
             stroke: RefCell::new(None),
             drawing_tool: Cell::new(PixelTool::Pencil),
+            board: beui::unstyled::drag_board(),
         });
 
         let peers = editor.peers::<CanvasCursor>();
@@ -687,6 +696,21 @@ impl CanvasState {
             gesture.with(|gesture| match gesture {
                 Some(Gesture::Pen { id, .. }) => Some(*id),
                 _ => None,
+            })
+        });
+        let carried = create_memo(move || {
+            gesture.with(|gesture| match gesture {
+                Some(
+                    moved @ Gesture::Move {
+                        carried: true,
+                        duplicate: false,
+                        ..
+                    },
+                ) => gesture_entities(moved)
+                    .into_iter()
+                    .map(|entity| (entity.id, entity.transform.center))
+                    .collect(),
+                _ => Vec::new(),
             })
         });
         let strokes = create_memo(move || {
@@ -724,6 +748,7 @@ impl CanvasState {
             peer_carets,
             peers,
             own_stroke,
+            carried,
             strokes,
         };
         content.on_gesture_ended(move |ended| state.gesture_ended(ended));
@@ -1094,16 +1119,25 @@ impl CanvasState {
     }
 
     /// The replica ended a gesture the canvas holds open: an undo cancelled the tentative
-    /// layer, or what it moved was replaced. A drag on the canvas lets go of what it carried;
+    /// layer, or what it moved was replaced. A drag on the canvas lets go of what it carried,
+    /// and the board puts down a move it carries;
     /// a sidebar drag keeps its handle, whose later writes are dropped, until it ends.
     fn gesture_ended(&self, ended: ContentGesture) {
         let cells = self.cells.value();
+        let carried = self.carries();
         if cells.holding.get() == Some(ended) && !cells.dragging_value.get() {
             cells.holding.set(None);
             self.take_gesture();
         }
         if cells.writing.get() == Some(ended) {
             cells.writing.set(None);
+            if carried {
+                self.take_gesture();
+            }
+        }
+        // A move the board carries ends on the board too: it is put down, dropping nothing.
+        if carried && !self.carries() {
+            self.board().cancel();
         }
     }
 
@@ -1438,6 +1472,10 @@ impl CanvasState {
 
     pub(crate) fn finish_text(&self) {
         self.edit_text(None);
+    }
+
+    pub(crate) fn board(&self) -> std::rc::Rc<beui::unstyled::Board> {
+        std::rc::Rc::clone(&self.cells.value().board)
     }
 
     pub(crate) fn surface(&self) -> NodeRef {
@@ -1902,6 +1940,7 @@ impl CanvasState {
             duplicate,
             rasters,
             snapped: self.snaps.get_untracked(),
+            carried: false,
         }));
     }
 
@@ -3085,6 +3124,7 @@ impl CanvasState {
                 state.caret.track();
                 state.selection.track();
                 state.own_stroke.track();
+                state.carried.track();
             },
             move |_, _| state.publish_presence(),
         );
@@ -3228,6 +3268,7 @@ impl CanvasState {
                 selection: self.selection.get_untracked().iter().copied().collect(),
                 caret: self.caret.get_untracked(),
                 drawing: self.own_stroke.get_untracked(),
+                carried: self.carried.get_untracked(),
                 color,
             }
         });
@@ -3240,14 +3281,25 @@ impl CanvasState {
 
     fn read_presence(&self) {
         let mut presence = Presence::default();
-        for (_, cursor) in self.peers.get_untracked() {
+        let peers = self.peers.get_untracked();
+        let carried: HashMap<Uuid, CanvasPoint> = peers
+            .iter()
+            .flat_map(|(_, cursor)| cursor.carried.iter().copied())
+            .collect();
+        self.entities.carry_for_peers(&carried);
+        for (_, cursor) in peers {
             let color = cursor.color;
             if !cursor.selection.is_empty()
                 && let Some(bounds) = cursor
                     .selection
                     .iter()
                     .filter_map(|id| self.entities.get_untracked(*id))
-                    .map(|entity| entity_bounds(&entity))
+                    .map(|mut entity| {
+                        if let Some(center) = carried.get(&entity.id) {
+                            entity.transform.center = *center;
+                        }
+                        entity_bounds(&entity)
+                    })
                     .reduce(WorldRect::union)
             {
                 presence.selections.push(RemoteSelection {

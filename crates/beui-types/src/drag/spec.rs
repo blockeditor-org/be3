@@ -23,6 +23,9 @@ pub const REACH: f32 = 96.0;
 pub const SNAP_RADIUS: f32 = 48.0;
 /// The release speed, in points a second, at which a `thrown` drag carries on along its path.
 pub const THROW_SPEED: f32 = 600.0;
+/// How far, in points, a keyboard step moves an item that has no fixed place that way and
+/// a `free` place to move in.
+pub const FREE_STEP: f32 = 16.0;
 /// How long, in seconds, a thrown drag is carried on along its path to choose where it lands.
 pub const THROW_SECONDS: f32 = 0.15;
 
@@ -88,11 +91,13 @@ pub enum DragSpec<D> {
     Fixed(Candidate<D>),
     /// The nearest of several, holding on to the one chosen until another is `sticky` nearer.
     Closest { of: Vec<DragSpec<D>>, sticky: f32 },
-    /// Anywhere in `area`: the pointer minus the grab, clamped to it; `drop` names the rect, in
-    /// `area`'s own coordinates as a `Candidate`'s are.
+    /// Anywhere in `area`: the pointer minus the grab, clamped to it while `bounded`; `drop`
+    /// names the rect, in `area`'s own coordinates as a `Candidate`'s are (beyond its edges
+    /// when unbounded).
     Free {
         area: NodeRef,
         drop: Rc<dyn Fn(Rect) -> D>,
+        bounded: bool,
     },
     /// `near` while the item is within `reach` of where `near` puts it, else `far`, as when
     /// `near` chooses no place.
@@ -172,6 +177,7 @@ pub fn free<D>(area: NodeRef, drop: impl Fn(Rect) -> D + 'static) -> DragSpec<D>
     DragSpec::Free {
         area,
         drop: Rc::new(drop),
+        bounded: true,
     }
 }
 
@@ -297,6 +303,19 @@ impl<D> DragSpec<D> {
         }
     }
 
+    /// A `free` whose item is not kept inside its area: an infinite canvas, whose area is a
+    /// window onto its world that the edge band scrolls.
+    pub fn unbounded(self) -> Self {
+        match self {
+            DragSpec::Free { area, drop, .. } => DragSpec::Free {
+                area,
+                drop,
+                bounded: false,
+            },
+            other => other,
+        }
+    }
+
     /// A `snap_radius` that chains: entering it asks for the places again.
     pub fn chained(self) -> Self {
         match self {
@@ -330,9 +349,14 @@ impl<D: 'static> DragSpec<D> {
                     .collect(),
                 sticky,
             },
-            DragSpec::Free { area, drop: named } => DragSpec::Free {
+            DragSpec::Free {
+                area,
+                drop: named,
+                bounded,
+            } => DragSpec::Free {
                 area,
                 drop: Rc::new(move |rect| drop(named(rect))),
+                bounded,
             },
             DragSpec::WhenFar { near, far, reach } => DragSpec::WhenFar {
                 near: Box::new(near.map(Rc::clone(&drop))),
@@ -743,9 +767,16 @@ fn walk<'s, D: Clone>(
                 (None, None) => floats,
             }
         }
-        DragSpec::Free { area, drop } => {
+        DragSpec::Free {
+            area,
+            drop,
+            bounded,
+        } => {
             let (area, scale) = (evaluation.placed)(area.try_get()?)?;
-            let item = clamp_into(carried, area);
+            let item = match bounded {
+                true => clamp_into(carried, area),
+                false => carried,
+            };
             let local = Rect::from_min_size(
                 Pos2::ZERO + (item.min - area.min) / scale,
                 item.size() / scale,
@@ -1007,6 +1038,28 @@ pub fn rests<D>(spec: &DragSpec<D>, placed: &dyn Fn(NodeId) -> Option<(Rect, f32
     let mut into = Vec::new();
     walk(spec, placed, &mut 0, &mut into);
     into
+}
+
+/// Whether `spec` has a `free` place: a keyboard carry with no fixed place the way it steps
+/// moves its item by a step instead.
+pub fn moves_freely<D>(spec: &DragSpec<D>) -> bool {
+    match spec {
+        DragSpec::Free { .. } => true,
+        DragSpec::Closest { of, .. } => of.iter().any(moves_freely),
+        DragSpec::WhenFar { near, far, .. } => moves_freely(near) || moves_freely(far),
+        DragSpec::WhenHeld {
+            held, otherwise, ..
+        } => moves_freely(held) || moves_freely(otherwise),
+        DragSpec::SnapRadius { spec, .. }
+        | DragSpec::Thrown { spec, .. }
+        | DragSpec::Following { spec, .. }
+        | DragSpec::Shaped { spec, .. }
+        | DragSpec::Open { spec, .. } => moves_freely(spec),
+        DragSpec::Fixed(_)
+        | DragSpec::Floating
+        | DragSpec::Into { .. }
+        | DragSpec::Custom { .. } => false,
+    }
 }
 
 /// Every node `spec` places relative to, in the spec's order: what a board needs to know the

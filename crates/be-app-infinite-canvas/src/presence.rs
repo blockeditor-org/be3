@@ -12,6 +12,9 @@ pub struct CanvasCursor {
     pub selection: Vec<Uuid>,
     pub caret: Option<CanvasCaret>,
     pub drawing: Option<Uuid>,
+    /// What the peer carries mid-move: each entity's centre where a drop now would put it.
+    /// The move is held until it is dropped, so this is how others see it as it goes.
+    pub carried: Vec<(Uuid, CanvasPoint)>,
     pub color: PresenceColor,
 }
 

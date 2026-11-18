@@ -15,6 +15,7 @@ use uuid::Uuid;
 
 pub(crate) mod actions;
 pub(crate) mod canvas;
+pub(crate) mod carry;
 pub(crate) mod components;
 pub(crate) mod entities;
 pub(crate) mod export;

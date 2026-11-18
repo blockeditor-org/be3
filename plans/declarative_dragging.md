@@ -322,21 +322,37 @@ through the drag and Escape rebuilds nothing; drawn invisible, it is the gap, at
      carry cannot step into it yet (plans/backlog.md, Keyboard steps into a custom site).
    - **logic-grid's hotbar (done):** slots carry onto other slots and folders, each a place from
      `place_on`, which offers a node's whole area.
-   - **infinite canvas:** item moves become `free`. A move holds its writes in a tentative
-     gesture already (`CanvasState::open_hold`, guides/canvas.md, Gestures), so bound lines
-     and every view on the device follow it while peers see it only on drop; on the board it
-     applies the place it gets from `over` through that hold, and the board publishing the
-     carry gives peers the move back while it is dragged. The board cancels a carry whose
-     gesture the replica ended (`CanvasState::gesture_ended` lets go of the canvas's own
-     gesture today). `free` also clamps the item into its area, which would keep a selection
-     from being moved past the viewport's edge; a canvas site wants its area unbounded (the
-     camera's world, scrolled by the edge band).
+   - **infinite canvas (done):** a move of the selection is a `free(..).unbounded()` site
+     over the canvas's surface (`root/carry.rs`), whose place is the world point under the
+     pointer; `Gesture::Move` applies it through the canvas's hold (`CanvasState::open_hold`),
+     so bound lines and every view on the device follow it. A press on the selection still
+     begins the move (`press_select`); `drag` lifts it past the threshold, drawn by the site.
+     The board's drop commits the hold; a put-down (Escape, a cancelled press) drops it, and
+     `gesture_ended` puts down the board's carry when the replica ends the hold (an undo
+     mid-move). Peers see the move again as it goes: the canvas's presence carries the
+     carried entities' centres (`CanvasCursor::carried`), which a peer's `Entities` draws them
+     at (`carry_for_peers`, a `drawn` memo beside `stored` that edits never read), with what
+     they are bound to following. The surface is an edge scroller that pans the camera, and
+     the site chooses again as the camera moves (`Board::retrack`). From the keyboard, Space
+     lifts the selection and the arrows step it by `FREE_STEP` points. Where it differs:
+     the board publishes nothing itself, as its frame is in the mover's window points,
+     so each site publishes its `over` in its own terms; `EdgeScroller` scrolls along both
+     axes; the board commits a drop before it tells the site it is over nothing, so a site
+     that previews by writing knows a put-down from a drop; an `Interactive` given `drag`
+     holds a press's moves short of the threshold and hands them to `on_drag` once `drag`
+     declines it, or as it ends short of the threshold (a pen stroke keeps its first
+     points); and the source's face lays its child out as a plain `Interactive` does, so a
+     canvas fills it (a video clip now fits its lane). The canvas holds one carry at a
+     time, as the board does until step 7 (below). Lines: the hand-written move drag was
+     `drag`'s `Move` arm and the release path (3 lines); what is new does what the canvas
+     did not: the site with its keyboard lift and edge scrolling (`carry.rs`, 194 lines) and
+     peers drawing a carry (about 110 lines in `entities.rs` and `state.rs`).
    - **game editor (done):** each `Gesture::Drag { from, to }` is a place at `to`'s spot,
      zoned to it, with the item drawn there the size it was lifted at; `drag` answers
      `None` off a piece, so the same press pans. The site draws the lifted piece from the
      board's frame (`drawn_by_site`); Space lifts the selected piece from the keyboard. Its presses are caught by an `Interactive` laid over
-     the table rather than around it: a drag source's face takes its child's own size, so
-     a child that fills whatever it is given collapses inside one (plans/backlog.md).
+     the table rather than around it, from when a drag source's face took its child's own
+     size; since the canvas step the face lays its child out as a plain `Interactive` does.
    - **between blocks (a step of its own, after the canvas):** an item dragged into another block of a type that takes it (canvas to
      canvas, list to list) moves on a plain drop and copies with a modifier, through the
      clipboard's typed formats, so a drop is a paste. Without write access to the source it copies.
@@ -367,6 +383,9 @@ through the drag and Escape rebuilds nothing; drawn invisible, it is the gap, at
      `Reorder`'s tree-only `hover`, `part`, `shut` and `resting` go. The dock has no app boundary, so it stays one level.
 7. **Several carries at once.** Allow more than one carry, one per pointer, when the VR layer's two
    controllers (or touch) need it; steps 1 to 6 key carries by pointer but carry one at a time.
+   The canvas holds one move in one `holding` cell and one `Gesture`: several carries in one
+   canvas join one tentative gesture, committed when the last ends (the decision), so its hold
+   counts the carries in it and each carry keeps its own `Gesture::Move`.
 8. **Continuous drags.** Sliders, scrollbars, splitters and the colour area as `free` along an axis,
    quantised. Move each only if it is as good as today.
 9. **Remove the rest.** Delete the old API. Rewrite components.md's Drag and drop, docking.md's

@@ -290,9 +290,9 @@ a carry whose gesture ended, so the item glides home and the site stops previewi
      sets the system's volume rather than any block.
    - The test store (`be-sdk-test` `store.rs`) follows `Holds` as the host does, so
      `take_written` and `applied` count a held edit only once its layer commits.
-   - Peers no longer see a canvas move, resize, rotation or erase until it is dropped: the
-     canvas's presence carries no held frames, and its drags are not on the drag board yet
-     (plans/declarative_dragging.md, step 5's canvas).
+   - Peers no longer see a canvas resize, rotation or erase until it is dropped: the
+     canvas's presence carries no held frames. A move is on the drag board since
+     plans/declarative_dragging.md step 5, and its presence carries the moved centres.
    - Left as they are:
      - Tagging the mirror's pending edits by gesture: a drag sends one edit per frame, but a
        snapshot answers only an edit the replica drops in a gesture it ended (an undo mid-drag

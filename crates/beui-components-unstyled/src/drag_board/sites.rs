@@ -220,7 +220,7 @@ impl Board {
             })
             .collect();
         let Some(at) = beui_view::drag::step_toward(&aims, from, toward) else {
-            return false;
+            return self.step_free(toward, last);
         };
         let target = &rests[at];
         // A zoned place is chosen while the pointer is in its zone; any other while the item
@@ -236,6 +236,33 @@ impl Board {
             }
         };
         self.place(DragPoint { pos, ..last }, false);
+        let said = match self.over_chosen() {
+            Some(over) => format!("{}{}", over[..1].to_uppercase(), &over[1..]),
+            None => "Over no place".to_owned(),
+        };
+        self.say(said);
+        true
+    }
+
+    /// Moves a keyboard carry that has no fixed place `toward` by `FREE_STEP` that way, where
+    /// it has a `free` place to move in (a canvas, a display's arrangement).
+    fn step_free(&self, toward: beui_view::types::Vec2, last: DragPoint) -> bool {
+        let free = self
+            .placing
+            .borrow()
+            .as_ref()
+            .is_some_and(|placing| beui_view::drag::moves_freely(&placing.spec));
+        if !free {
+            return false;
+        }
+        let step = toward / toward.length().max(f32::EPSILON) * beui_view::drag::FREE_STEP;
+        self.place(
+            DragPoint {
+                pos: last.pos + step,
+                ..last
+            },
+            false,
+        );
         let said = match self.over_chosen() {
             Some(over) => format!("{}{}", over[..1].to_uppercase(), &over[1..]),
             None => "Over no place".to_owned(),
@@ -280,14 +307,20 @@ impl Board {
         self.placing.borrow().is_some()
     }
 
+    /// Where the carry was last placed, if one is held.
+    pub(crate) fn placing_last(&self) -> Option<DragPoint> {
+        self.placing.borrow().as_ref()?.last
+    }
+
     /// The payload carried, if any: tracked, so a site or row reading it follows the lift.
     pub fn carried(&self) -> Option<Erased> {
         self.lifted.get()
     }
 
-    /// The frame the carry shows: where its item draws and whether it floats; tracked. It is
-    /// also what peers are shown: a host publishes it as presence from an effect over it
-    /// (peers drawing a remote carry wait for plans/declarative_dragging.md, step 5).
+    /// The frame the carry shows: where its item draws and whether it floats; tracked. Peers
+    /// are shown a carry by its site, which publishes the place chosen in it (its `over`) as
+    /// presence in its own terms, so their copy of the site draws it in their view (a
+    /// canvas's carried shapes at their world place).
     pub fn frame(&self) -> Option<DragFrame> {
         self.shown.get()
     }
@@ -448,12 +481,14 @@ impl Board {
             .map(|site| (site.id, Rc::clone(&site.over), Rc::clone(&site.commit)))
             .collect();
         let over_site = placing.told.map(|(site, _)| site);
+        // The site commits before it hears it is over nothing, so a site that previews by
+        // writing (a canvas's held move) knows on hearing nothing chosen that no drop came.
         for (id, over, commit_to) in sites {
             if Some(id) == over_site {
-                over(None);
                 if commit && let Some((_, drop)) = &placing.chosen {
                     commit_to(Rc::clone(&placing.carry.payload), Rc::clone(drop));
                 }
+                over(None);
             }
         }
         if let Some((outside, last)) = outside {

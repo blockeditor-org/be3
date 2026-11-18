@@ -18,6 +18,12 @@ use be_type_infinite_canvas::CanvasContent;
 pub(crate) struct EntitySignals {
     held: Memo<Option<CanvasEntity>>,
     stored: Memo<Option<CanvasEntity>>,
+    /// Where a peer carrying the entity mid-move would drop it: its centre there.
+    carried: Signal<Option<CanvasPoint>>,
+    /// `held` at the place a peer carries it to, loosed from what the peer leaves behind.
+    placed: Memo<Option<CanvasEntity>>,
+    /// What the stage draws: `stored`, with what peers carry where they carry it.
+    drawn: Memo<Option<CanvasEntity>>,
     frame: Memo<bool>,
     embeds: Memo<bool>,
     raster: Memo<Option<CanvasRaster>>,
@@ -26,6 +32,10 @@ pub(crate) struct EntitySignals {
 impl EntitySignals {
     pub(crate) fn stored(&self) -> Memo<Option<CanvasEntity>> {
         self.stored
+    }
+
+    pub(crate) fn drawn(&self) -> Memo<Option<CanvasEntity>> {
+        self.drawn
     }
 
     pub(crate) fn raster(&self) -> Memo<Option<CanvasRaster>> {
@@ -44,6 +54,8 @@ struct Slots {
     owner: ScopeContext,
     slots: RefCell<HashMap<Uuid, Slot>>,
     released: RefCell<HashSet<Uuid>>,
+    /// The entities peers carry now (`carry_for_peers`).
+    carried: RefCell<HashSet<Uuid>>,
     catalog: RefCell<Catalog>,
 }
 
@@ -348,6 +360,7 @@ impl Entities {
             owner: owner_scope().expect("the canvas entities are made in a scope"),
             slots: RefCell::new(HashMap::new()),
             released: RefCell::new(HashSet::new()),
+            carried: RefCell::new(HashSet::new()),
             catalog: RefCell::new(Catalog::default()),
         });
         let entities = Self {
@@ -465,6 +478,26 @@ impl Entities {
         })
     }
 
+    /// Draws what peers carry mid-move where they carry it: `centers` names each carried
+    /// entity's centre; the rest are drawn where they are stored.
+    pub(crate) fn carry_for_peers(&self, centers: &HashMap<Uuid, CanvasPoint>) {
+        let slots = self.slots.value();
+        let was = std::mem::replace(
+            &mut *slots.carried.borrow_mut(),
+            centers.keys().copied().collect(),
+        );
+        for id in was.into_iter().filter(|id| !centers.contains_key(id)) {
+            let carried = self.signals(id).carried;
+            carried.set(None);
+        }
+        for (id, center) in centers {
+            let carried = self.signals(*id).carried;
+            if carried.get_untracked() != Some(*center) {
+                carried.set(Some(*center));
+            }
+        }
+    }
+
     pub(crate) fn embedding_untracked(&self) -> Vec<Uuid> {
         self.embedding.get_untracked()
     }
@@ -523,6 +556,26 @@ impl Entities {
                 let stored = create_memo(move || {
                     Some(entities.followed(held.get()?, |signals| signals.held))
                 });
+                let carried = create_signal(None::<CanvasPoint>);
+                let placed = create_memo(move || {
+                    let mut entity = held.get()?;
+                    if let Some(center) = carried.get() {
+                        entity.transform.center = center;
+                        // A line carried away from what it is bound to lets go of it, as
+                        // the move would.
+                        for binding in &mut entity.bindings {
+                            if binding.is_some_and(|binding| {
+                                entities.watch(binding.entity).carried.get().is_none()
+                            }) {
+                                *binding = None;
+                            }
+                        }
+                    }
+                    Some(entity)
+                });
+                let drawn = create_memo(move || {
+                    Some(entities.followed(placed.get()?, |signals| signals.placed))
+                });
                 let frame = create_memo(move || {
                     held.with(|entity| entity.as_ref().is_some_and(CanvasEntity::is_frame))
                 });
@@ -539,6 +592,9 @@ impl Entities {
                 EntitySignals {
                     held,
                     stored,
+                    carried,
+                    placed,
+                    drawn,
                     frame,
                     embeds,
                     raster,
