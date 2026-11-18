@@ -424,7 +424,8 @@ impl<T: Copy + Eq + Debug> Router<T> {
                     // the release of a key that moved the focus (an Escape that closed a dialog,
                     // a Tab) never reaches the surface the focus went to. A release whose press
                     // the router never saw goes to the focus.
-                    (Some(key), false) => match self.keys.iter().position(|(held, _)| *held == key) {
+                    (Some(key), false) => match self.keys.iter().position(|(held, _)| *held == key)
+                    {
                         Some(index) => self.keys.remove(index).1,
                         None => self.focused,
                     },

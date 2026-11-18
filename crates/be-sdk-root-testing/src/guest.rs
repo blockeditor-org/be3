@@ -22,7 +22,7 @@ use be_sdk_root::{Delivery, Embedded, Embedding, OwnSurface, Spawn};
 use be_wasm_guest_abi::{Flow, Guest, Waker};
 use be_wasm_ops::guest::{Executor, LocalFuture};
 use be_wasm_root_api::{
-    FrameDone, FrameRequest, Notice, StatisticRow, HostStatistics,
+    FrameDone, FrameRequest, HostStatistics, Notice, StatisticRow,
     guest::{
         exports::{frames, input, paintings},
         host,
@@ -35,12 +35,11 @@ use beui::{Align2, Direction, KeyPhase, NodeId, Overflow, Pos2, Rect, TextAlign,
 
 use crate::{
     APP, APP_ENTRY, CLOSES, DIALOG_LAYER, DIALOG_ORIGIN, DIALOG_SIZE, DIALOG_SURFACE, DIALOG_TITLE,
-    LATE_LAYER, LATER, LATER_TEXT, OPENS_DIALOG, OPENS_STATISTICS, ORIGIN, RASTER, RESIZED, RESIZES,
-    ROOT_COLOR, STATISTICS_AREA, STATISTICS_LAYER, STATISTICS_ORIGIN, STATISTICS_SURFACE,
-    STATISTICS_TITLE,
-    ROOT_LAYER, ROOT_SURFACE, SCREEN, SCREEN_SIZE, SCRIM_COLOR, SCRIM_LAYER, SCRIM_SURFACE, SIZE,
-    TEXT, TEXT_LAYER, TEXT_STRIP, TEXT_SURFACE, TOAST_AREA, TOAST_LAYER, TOAST_SURFACE,
-    UNPRESENTED_SURFACE,
+    LATE_LAYER, LATER, LATER_TEXT, OPENS_DIALOG, OPENS_STATISTICS, ORIGIN, RASTER, RESIZED,
+    RESIZES, ROOT_COLOR, ROOT_LAYER, ROOT_SURFACE, SCREEN, SCREEN_SIZE, SCRIM_COLOR, SCRIM_LAYER,
+    SCRIM_SURFACE, SIZE, STATISTICS_AREA, STATISTICS_LAYER, STATISTICS_ORIGIN, STATISTICS_SURFACE,
+    STATISTICS_TITLE, TEXT, TEXT_LAYER, TEXT_STRIP, TEXT_SURFACE, TOAST_AREA, TOAST_LAYER,
+    TOAST_SURFACE, UNPRESENTED_SURFACE,
 };
 
 /// The triangle's editor, by its manifest's id.
@@ -544,13 +543,15 @@ fn StatisticsPanel(statistics: Signal<HostStatistics>) -> NodeId {
             <Frame padding=Space::Md>
                 <List spacing=Space::Xs>
                     <Text style=TextStyle::TITLE>{STATISTICS_TITLE}</Text>
-                    <StatisticLine row={create_memo(|| Some(StatisticRow {
-                        heading: true,
-                        name: "Measurement".to_owned(),
-                        current: "Latest".to_owned(),
-                        average: "Average".to_owned(),
-                        peak: "Peak".to_owned(),
-                    }))} />
+                    <StatisticLine
+                        row={create_memo(|| Some(StatisticRow {
+                            heading: true,
+                            name: "Measurement".to_owned(),
+                            current: "Latest".to_owned(),
+                            average: "Average".to_owned(),
+                            peak: "Peak".to_owned(),
+                        }))}
+                    />
                     <ForEach value={keys}>|index: usize| {
                         let row = create_memo(move || rows.with(|rows| rows.get(index).cloned()));
                         view! {
@@ -575,12 +576,13 @@ fn StatisticLine(row: Memo<Option<StatisticRow>>) -> NodeId {
     let current = cell(|row| row.current.clone());
     let average = cell(|row| row.average.clone());
     let peak = cell(|row| row.peak.clone());
-    let weight = create_memo(move || {
-        match row.with(|row| row.as_ref().is_some_and(|row| row.heading)) {
-            true => Weight::Bold,
-            false => Weight::Normal,
-        }
-    });
+    let weight =
+        create_memo(
+            move || match row.with(|row| row.as_ref().is_some_and(|row| row.heading)) {
+                true => Weight::Bold,
+                false => Weight::Normal,
+            },
+        );
     view! {
         <List direction=Direction::Horizontal spacing=Space::Sm>
             <ListItem grow=1.0>

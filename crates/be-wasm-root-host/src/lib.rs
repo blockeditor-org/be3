@@ -27,8 +27,8 @@ use std::time::{Duration, Instant};
 use be_wasm_guest_host::STEP_TIMEOUT;
 use be_wasm_ops::{Connection, Incoming, OpError, OpId, Outcome, Reply, Side, Ticket};
 use be_wasm_root_api::{
-    FrameDone, FrameRequest, embed, host::Notice, host::ShownNotices, host::StatisticRow,
-    host::HostStatistics,
+    FrameDone, FrameRequest, embed, host::HostStatistics, host::Notice, host::ShownNotices,
+    host::StatisticRow,
 };
 use be_wasm_sandbox_host::Server;
 pub use be_wasm_sandbox_host::{Loader, Staged};

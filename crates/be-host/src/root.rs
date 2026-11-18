@@ -499,10 +499,16 @@ fn show_statistics(root: &mut Root, memory: &mut Option<MemoryRows>) {
     #[cfg(target_os = "linux")]
     {
         let generation = crate::memory::generation();
-        if memory.as_ref().is_none_or(|shown| shown.generation != generation) {
+        if memory
+            .as_ref()
+            .is_none_or(|shown| shown.generation != generation)
+        {
             let (rows, file) = crate::memory::view()
                 .map(|view| {
-                    let rows = view.rows.into_iter().map(|memory| statistic_row(memory.row));
+                    let rows = view
+                        .rows
+                        .into_iter()
+                        .map(|memory| statistic_row(memory.row));
                     (rows.collect(), view.file)
                 })
                 .unwrap_or_default();

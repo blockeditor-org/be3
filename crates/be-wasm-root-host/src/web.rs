@@ -212,7 +212,11 @@ impl Root {
         memory: Vec<StatisticRow>,
         memory_file: Option<String>,
     ) {
-        let answered = self.shared.core.borrow_mut().show_statistics(performance, memory, memory_file);
+        let answered =
+            self.shared
+                .core
+                .borrow_mut()
+                .show_statistics(performance, memory, memory_file);
         if answered {
             ring(self.shared.id);
         }
