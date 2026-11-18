@@ -25,6 +25,7 @@ fn a_root_wants_frames_until_its_app_presents_and_wakes_its_host_for_them() {
          unless the app wakes it first: {:?}",
         early.next
     );
+    assert!(early.owed, "an app starting owes its hello, so the root owes work");
 
     let shown_at_last = root
         .frame(FrameRequest { time: 2 }, Instant::now() + PATIENT)
@@ -49,5 +50,6 @@ fn a_root_wants_frames_until_its_app_presents_and_wakes_its_host_for_them() {
             .expect("the root draws");
         assert_eq!(shown(&again).len(), 2, "the screen stays shown");
         next = again.next;
+        assert!(next.is_some() || !again.owed, "a root that wants nothing owes nothing");
     }
 }

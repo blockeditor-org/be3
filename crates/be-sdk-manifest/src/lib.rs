@@ -190,7 +190,7 @@ pub enum ManifestError {
     InvalidNetworkHost,
     UnknownExtension,
     NoEditors,
-    RootWithEditors,
+    RootWithComponents,
     DuplicateEditor,
     DuplicateBlockType,
     SeveralTypeModules,
@@ -222,7 +222,7 @@ impl fmt::Display for ManifestError {
             Self::NoEditors => {
                 formatter.write_str("the app declares no editors and no block types")
             }
-            Self::RootWithEditors => formatter
+            Self::RootWithComponents => formatter
                 .write_str("a root declares no editors, block types or host components"),
             Self::InvalidWorker => formatter.write_str(
                 "a worker is not a plain .wasm file name, is named twice, or is the entry point",
@@ -267,7 +267,7 @@ impl AppManifest {
         }
         if self.root {
             if !self.editors.is_empty() || !self.block_types.is_empty() || !self.hosts.is_empty() {
-                return Err(ManifestError::RootWithEditors);
+                return Err(ManifestError::RootWithComponents);
             }
         } else if self.editors.is_empty() && self.block_types.is_empty() {
             return Err(ManifestError::NoEditors);

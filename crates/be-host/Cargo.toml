@@ -84,6 +84,7 @@ tokio = { version = "1", features = ["net", "rt", "rt-multi-thread", "sync", "ti
 # `--root=APP` (src/root.rs): a root guest in place of the host's own UI.
 be-lib-layers = { path = "../be-lib-layers" }
 be-lib-ui-types = { path = "../be-lib-ui-types" }
+be-sdk-app-host = { path = "../be-sdk-app-host" }
 be-wasm-host = { path = "../be-wasm-host" }
 be-wasm-root-api = { path = "../be-wasm-root-api" }
 be-wasm-root-host = { path = "../be-wasm-root-host" }

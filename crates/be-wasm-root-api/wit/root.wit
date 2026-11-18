@@ -45,8 +45,13 @@ interface frames {
         /// The frame clock's time, in nanoseconds, the root wants its next frame drawn for:
         /// at once if it is not after this frame's, and none while it wants no frame until its
         /// input or something it spawned wakes it, which wakes its host too. A host that draws
-        /// only on demand draws that frame; one that draws every frame may ignore it.
+        /// only on demand draws that frame; one that draws every frame may ignore it. Wanting a
+        /// frame is not owing one (`owed`).
         next: option<u64>,
+        /// Whether the root owes work now: something it spawned is starting, or has a frame
+        /// due or in flight. A frame it wants only later, or for an animation, is not owed, so
+        /// a host waiting for its root to settle waits only while this is set.
+        owed: bool,
     }
 
     /// Draws a frame. The host steps the root until it answers: between

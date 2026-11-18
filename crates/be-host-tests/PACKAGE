@@ -30,7 +30,9 @@ write_package_value("be3.cargo", {
             ],
             "examples": {},
             "features": [],
-            "test_deps": [],
+            "test_deps": [
+                "//crates/be-sdk-root-testing:be-sdk-root-testing",
+            ],
             "test_features": [],
         },
         "linux-arm64": {
@@ -49,7 +51,9 @@ write_package_value("be3.cargo", {
             ],
             "examples": {},
             "features": [],
-            "test_deps": [],
+            "test_deps": [
+                "//crates/be-sdk-root-testing:be-sdk-root-testing",
+            ],
             "test_features": [],
         },
         "linux-x86_64": {
@@ -68,7 +72,9 @@ write_package_value("be3.cargo", {
             ],
             "examples": {},
             "features": [],
-            "test_deps": [],
+            "test_deps": [
+                "//crates/be-sdk-root-testing:be-sdk-root-testing",
+            ],
             "test_features": [],
         },
         "macos-arm64": {
@@ -87,7 +93,9 @@ write_package_value("be3.cargo", {
             ],
             "examples": {},
             "features": [],
-            "test_deps": [],
+            "test_deps": [
+                "//crates/be-sdk-root-testing:be-sdk-root-testing",
+            ],
             "test_features": [],
         },
         "macos-x86_64": {
@@ -106,7 +114,9 @@ write_package_value("be3.cargo", {
             ],
             "examples": {},
             "features": [],
-            "test_deps": [],
+            "test_deps": [
+                "//crates/be-sdk-root-testing:be-sdk-root-testing",
+            ],
             "test_features": [],
         },
         "windows-arm64": {
@@ -125,7 +135,9 @@ write_package_value("be3.cargo", {
             ],
             "examples": {},
             "features": [],
-            "test_deps": [],
+            "test_deps": [
+                "//crates/be-sdk-root-testing:be-sdk-root-testing",
+            ],
             "test_features": [],
         },
         "windows-x86_64": {
@@ -144,7 +156,9 @@ write_package_value("be3.cargo", {
             ],
             "examples": {},
             "features": [],
-            "test_deps": [],
+            "test_deps": [
+                "//crates/be-sdk-root-testing:be-sdk-root-testing",
+            ],
             "test_features": [],
         },
     },
