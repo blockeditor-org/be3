@@ -2309,6 +2309,7 @@ dependencies = [
 name = "be-sdk-root-testing"
 version = "0.1.0"
 dependencies = [
+ "be-host-accounts-ui",
  "be-lib-geometry",
  "be-lib-layers",
  "be-lib-ui-types",
