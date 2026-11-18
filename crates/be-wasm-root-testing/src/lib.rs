@@ -204,7 +204,8 @@ impl Frames {
     /// Keeps `list` as the layers drawn last, and answers it.
     fn drew(&self, list: LayerList) -> FrameDone {
         let layers = list.encode();
-        self.windows.borrow_mut().drew(list);
+        // The child hears nothing of a window that went: the root draws one window always.
+        let _lost = self.windows.borrow_mut().drew(list);
         FrameDone { layers }
     }
 

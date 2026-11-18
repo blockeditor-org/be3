@@ -164,11 +164,16 @@ tests read one their build made, crates/be-host-tests/apps.bzl). Each guest thre
   each window's input (`Windows`: a `Router` per window over the layers drawn
   last) and sends what lands on a screen to its app as `AppCall::Input`.
   Input for a window the last list leaves out is still routed, against the
-  layers it had last, until its presses lift, and only then its router goes;
-  one never drawn routes against none. It refuses what it serves no app yet
-  (block calls, host services, the network, the shell but `tell`), and
-  restarts nothing. be-sdk-root-testing is a root built on it, which
-  be-wasm-root-host's tests run with the triangle on a stand-in device.
+  layers it had last, until its presses lift, and only then its router goes,
+  the surface it focused hearing `Focus(false)`; one never drawn routes
+  against none. A screen that went still hears what ends a press. When the
+  last `Embedded` of an app goes (`Embedding::remove`), its instance stops. It
+  refuses what it serves no app yet (`Wire::refuse_unserved`: block calls,
+  host services, the network, the shell but `tell`), and restarts nothing.
+  be3:root cannot yet ask the host for a frame, so an embedded app that
+  animates draws only when the host asks the root for one. be-sdk-root-testing
+  is a root built on it, which be-wasm-root-host's tests run with the
+  triangle on a stand-in device.
 - **V8's heap.** No guest may declare garbage-collected types (structs,
   arrays) or more than one table, and a table holds at most a million entries
   (`engine::Shape::bounded`): V8 stops delivering a termination once an

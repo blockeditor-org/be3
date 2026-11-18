@@ -26,7 +26,7 @@ struct Window {
 /// Input for a window is never dropped, even one the last list leaves out, since a release
 /// dropped would leave its press held: a window the root never drew routes against no layers,
 /// and one that went routes against the layers it had last until every press on it lifts. Then
-/// its router goes.
+/// its router goes, and the surface it had focused hears it lost the focus.
 pub struct Windows {
     compositor: LayerId,
     windows: Vec<Window>,
@@ -47,8 +47,9 @@ impl Windows {
     }
 
     /// Takes `list` as the layers drawn last. A window it leaves out has gone: its router goes
-    /// once nothing is pressed on it.
-    pub fn drew(&mut self, list: LayerList) {
+    /// once nothing is pressed on it. Answers what that tells the surfaces those windows
+    /// focused.
+    pub fn drew(&mut self, list: LayerList) -> Vec<Delivery> {
         for routing in &mut self.windows {
             routing.gone = true;
         }
@@ -67,7 +68,7 @@ impl Windows {
                 }),
             }
         }
-        self.prune();
+        self.prune()
     }
 
     /// Routes `window`'s `events` by its layers, and answers each delivery with the surface it
@@ -111,13 +112,28 @@ impl Windows {
                 });
             }
         }
-        self.prune();
+        deliveries.extend(self.prune());
         deliveries
     }
 
-    fn prune(&mut self) {
-        self.windows
-            .retain(|routing| !routing.gone || routing.router.holding());
+    /// Forgets the windows that went and hold no press, and answers the focus each lost.
+    fn prune(&mut self) -> Vec<Delivery> {
+        let mut lost = Vec::new();
+        self.windows.retain(|routing| {
+            let keep = !routing.gone || routing.router.holding();
+            if !keep
+                && let Some(target) = routing.router.focused()
+                && let Some(layer) = routing.layers.layers.iter().find(|layer| layer.id == target)
+            {
+                lost.push(Delivery {
+                    target,
+                    surface: layer.surface,
+                    input: Input::Focus(false),
+                });
+            }
+            keep
+        });
+        lost
     }
 }
 

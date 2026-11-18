@@ -2,7 +2,9 @@
 //! instance's channel.
 
 use std::{
-    cell::RefCell,
+    cell::{Cell, RefCell},
+    future::Future,
+    pin::pin,
     rc::{Rc, Weak},
     task::{Poll, Waker},
     time::Duration,
@@ -11,18 +13,17 @@ use std::{
 use be_lib_geometry::{Pos2, Rect, pos2, vec2};
 use be_lib_layers::{Affine, Layer, LayerId, LayerInput, Surface};
 use be_lib_stable_hash::HashMap;
-use be_lib_ui_types::input::Input;
+use be_lib_ui_types::input::{Input, PenPhase, TouchPhase};
 use be_sdk_api::{
     InputBatch, Opening, Preferences, ScreenId, ScreenPlacement, ScreenRequest, SurfaceSpec,
     embed::shell::Call as ShellCall,
-    ops::{OpError, Outcome},
 };
 use be_sdk_app_host::{
     calls::{AppCall, Heard, Outbound},
     pacing::{Ask, Asking},
     run::Run,
     session::{Session, SessionFailure, SessionState},
-    wire::{Service, Wire},
+    wire::Wire,
 };
 use be_wasm_sandbox_api::{
     guest::sandbox::Instance,
@@ -50,7 +51,7 @@ pub struct Spawn {
 }
 
 /// An app the root spawned and runs as its host. Clones are the same app. It stops when the
-/// last clone goes and the app next sends anything, or with the root.
+/// last clone goes (`Embedding::remove` lets go of the embedding's), or with the root.
 #[derive(Clone)]
 pub struct Embedded {
     state: Rc<RefCell<State>>,
@@ -68,14 +69,34 @@ struct State {
     now: Duration,
     /// The root's frames so far, the pass the app's pacing counts.
     pass: u64,
-    /// A `Draw` was sent and the app has yet to present it.
-    drawing: bool,
     /// What each screen showed when the app last painted it.
     painted: HashMap<ScreenId, ScreenPlacement>,
+    /// The screen each surface showed when last painted, kept once the screen goes, so the
+    /// release of a press on it still reaches the app.
+    surfaces: HashMap<u32, ScreenPlacement>,
     /// Why the app stopped, once it did: it is asked for nothing again.
     failure: Option<String>,
     /// The frames waiting for the app to say hello or present.
     waiting: Vec<Waker>,
+    /// Stops the task hearing the app once the state goes.
+    stop: Rc<Stop>,
+}
+
+/// Tells the task hearing an app that its last `Embedded` went, so it lets go of the instance,
+/// which stops it, even while the app sends nothing.
+#[derive(Default)]
+struct Stop {
+    stopped: Cell<bool>,
+    waker: RefCell<Option<Waker>>,
+}
+
+impl Drop for State {
+    fn drop(&mut self) {
+        self.stop.stopped.set(true);
+        if let Some(waker) = self.stop.waker.take() {
+            waker.wake();
+        }
+    }
 }
 
 impl Embedded {
@@ -107,18 +128,20 @@ impl Embedded {
         ]);
         run.pacing.need();
         let handle = instance.op();
+        let stop = Rc::new(Stop::default());
         let state = Rc::new(RefCell::new(State {
             instance: Rc::clone(&instance),
             wire: Wire::default(),
             run,
             now,
             pass: 0,
-            drawing: false,
             painted: HashMap::default(),
+            surfaces: HashMap::default(),
             failure: None,
             waiting: Vec::new(),
+            stop: Rc::clone(&stop),
         }));
-        be_wasm_ops::guest::spawn(hear(Rc::downgrade(&state), instance));
+        be_wasm_ops::guest::spawn(hear(Rc::downgrade(&state), instance, stop));
         Self {
             state,
             instance: handle,
@@ -149,23 +172,21 @@ impl Embedded {
             state.run.session.tick(millis(now));
             state.failed_session();
         }
-        let mut asked = false;
+        // Asked once the session runs, and again while the app has yet to take in its input.
+        let mut asked = None;
         std::future::poll_fn(|context| {
             let mut state = self.state.borrow_mut();
             if state.failure.is_some() {
                 return Poll::Ready(());
             }
             if state.run.session.running() {
-                if state.drawing {
-                    asked = true;
-                } else if asked {
+                if matches!(asked, None | Some(Ask::AfterInput)) {
+                    asked = Some(state.ask());
+                }
+                // The pacing says whether a frame is in flight, this one's or an earlier one's
+                // (asked again past `FRAME_TIMEOUT`).
+                if asked != Some(Ask::AfterInput) && !state.run.pacing.in_flight() {
                     return Poll::Ready(());
-                } else {
-                    match state.ask() {
-                        Ask::Draw => asked = true,
-                        Ask::AfterInput => {}
-                        Ask::Nothing | Ask::Later => return Poll::Ready(()),
-                    }
                 }
             }
             if !state
@@ -206,17 +227,21 @@ impl Embedded {
 
     /// Sends the app `input` routed to its surface `surface`, its positions in the surface's
     /// pixels: the screen showing it hears it in its own points, and the app is asked for a
-    /// frame.
+    /// frame. Once the screen went, only what ends a press or the focus still reaches it, so
+    /// the app holds nothing pressed.
     pub(crate) fn input(&self, surface: u32, input: Input) {
         let mut state = self.state.borrow_mut();
         if state.failure.is_some() {
             return;
         }
-        let Some(placement) = state
+        let shown = state
             .painted
             .values()
-            .find(|placement| placement.surface == surface)
-        else {
+            .any(|placement| placement.surface == surface);
+        if !shown && !ends(&input) {
+            return;
+        }
+        let Some(placement) = state.surfaces.get(&surface) else {
             return;
         };
         let mut batch = InputBatch::new(placement.screen, false);
@@ -248,7 +273,6 @@ impl State {
                 wall_micros: micros,
                 seen: true,
             });
-            self.drawing = true;
             self.flush();
         }
         ask
@@ -275,6 +299,20 @@ impl State {
     }
 
     fn heard(&mut self, heard: Heard) {
+        // What the root serves no app yet is refused at once, so nothing the app asks waits on
+        // it, but the shell's `tell`, which it takes and does nothing with. Blocks wait for a
+        // store in the root (step 5).
+        let heard = match heard {
+            Heard::Shell(ShellCall::Tell { reply, .. }) => {
+                let (op, outcome) = reply.answer(&());
+                self.wire.answer(op, outcome);
+                return;
+            }
+            heard => match self.wire.refuse_unserved(heard) {
+                Some(heard) => heard,
+                None => return,
+            },
+        };
         match heard {
             Heard::Hello(hello) => {
                 let accepted = self.run.session.connect(&hello, self.run.preferences());
@@ -304,6 +342,7 @@ impl State {
                 if let Some(presented) = commit.presented {
                     self.run.holds.heard_painted(presented.sequence);
                     for placement in presented.painted {
+                        self.surfaces.insert(placement.surface, placement.clone());
                         self.painted.insert(placement.screen, placement);
                     }
                 }
@@ -313,7 +352,6 @@ impl State {
                     commit.repaint_after_micros.map(Duration::from_micros),
                     commit.input_waiting,
                 );
-                self.drawing = false;
             }
             Heard::FrameNeeded => self.run.pacing.need(),
             Heard::ShutDown => self.run.session.shut_down(),
@@ -323,36 +361,6 @@ impl State {
                     .fail(SessionFailure::Protocol(failure.clone()));
                 self.fail(failure);
             }
-            // What the root serves no app yet: each is refused at once, so nothing the app asks
-            // waits on it. Blocks wait for a store in the root (step 5).
-            Heard::Shell(ShellCall::Tell { reply, .. }) => {
-                let (op, outcome) = reply.answer(&());
-                self.wire.answer(op, outcome);
-            }
-            Heard::Shell(call) => {
-                let (op, outcome) = call.refuse(OpError::Unsupported);
-                self.wire.answer(op, outcome);
-            }
-            Heard::Blocks(_, call) => {
-                let (op, outcome) = call.refuse(OpError::Unsupported);
-                self.wire.answer(op, outcome);
-            }
-            Heard::Service(Service { call, .. }) => {
-                let (op, outcome) = call.refuse(OpError::Unsupported);
-                self.wire.answer(op, outcome);
-            }
-            Heard::Network(_, call) => {
-                let (op, outcome) = call.refuse(OpError::Unsupported);
-                self.wire.answer(op, outcome);
-            }
-            Heard::Debug(_, call) => {
-                let (op, outcome) = call.refuse(OpError::Unsupported);
-                self.wire.answer(op, outcome);
-            }
-            Heard::Published(_, started) => {
-                self.wire
-                    .answer(started.op, Outcome::Err(OpError::Unsupported));
-            }
             // The root bundles no fonts, offers no published values and asks for no paintings
             // yet; a watch it never sets waits until the app drops it.
             Heard::MissingCharacters(_)
@@ -361,7 +369,13 @@ impl State {
             | Heard::Ended(_)
             | Heard::Withdrawn(_)
             | Heard::Answer(..)
-            | Heard::Paintings(_) => {}
+            | Heard::Paintings(_)
+            | Heard::Shell(_)
+            | Heard::Blocks(..)
+            | Heard::Service(_)
+            | Heard::Network(..)
+            | Heard::Debug(..)
+            | Heard::Published(..) => {}
         }
     }
 
@@ -377,7 +391,6 @@ impl State {
 
     fn fail(&mut self, failure: String) {
         self.failure.get_or_insert(failure);
-        self.drawing = false;
         self.wake();
     }
 
@@ -397,11 +410,22 @@ impl State {
     }
 }
 
-/// Hears the app until it stops or the last `Embedded` of it goes.
-async fn hear(state: Weak<RefCell<State>>, instance: Rc<Instance>) {
+/// Hears the app until it stops or the last `Embedded` of it goes: then it lets go of the
+/// instance, which stops it.
+async fn hear(state: Weak<RefCell<State>>, instance: Rc<Instance>, stop: Rc<Stop>) {
     loop {
-        let next = instance.next().await;
-        let Some(state) = state.upgrade() else {
+        let next = {
+            let mut next = pin!(instance.next());
+            std::future::poll_fn(|context| {
+                if stop.stopped.get() {
+                    return Poll::Ready(None);
+                }
+                *stop.waker.borrow_mut() = Some(context.waker().clone());
+                next.as_mut().poll(context).map(Some)
+            })
+            .await
+        };
+        let (Some(next), Some(state)) = (next, state.upgrade()) else {
             return;
         };
         let mut state = state.borrow_mut();
@@ -417,6 +441,25 @@ async fn hear(state: Weak<RefCell<State>>, instance: Rc<Instance>) {
             }
         }
     }
+}
+
+/// Whether `input` ends a press or the focus: what a screen that went still hears.
+fn ends(input: &Input) -> bool {
+    matches!(
+        input,
+        Input::PointerButton { pressed: false, .. }
+            | Input::Touch {
+                phase: TouchPhase::End | TouchPhase::Cancel,
+                ..
+            }
+            | Input::Pen {
+                phase: PenPhase::Up(_) | PenPhase::Gone,
+                ..
+            }
+            | Input::PointersCancelled
+            | Input::PointerLeft
+            | Input::Focus(false)
+    )
 }
 
 /// The pixels per point a screen is painted at.

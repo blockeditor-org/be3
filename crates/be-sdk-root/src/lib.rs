@@ -52,6 +52,12 @@ impl Embedding {
         self.apps.push(app);
     }
 
+    /// Lets go of the app with the handle `instance`: once no other `Embedded` of it is left,
+    /// its instance stops.
+    pub fn remove(&mut self, instance: u64) {
+        self.apps.retain(|app| app.instance() != instance);
+    }
+
     /// The apps embedded, in the order they were.
     pub fn apps(&self) -> &[Embedded] {
         &self.apps
@@ -62,8 +68,27 @@ impl Embedding {
     /// to the app; what lands on the root's own surfaces is answered, for the root to take in.
     pub fn input(&mut self, window: Option<u64>, events: &[u8]) -> Result<Vec<Delivery>, String> {
         let events = input::decode(events)?;
+        let routed = self.windows.route(window, events);
+        Ok(self.forward(routed))
+    }
+
+    /// Takes `list` as the layers drawn last, which input is routed by from now on, and answers
+    /// it as `be3:root`'s `frame-done` carries it (`LayerList::encode`). An app focused in a
+    /// window the list leaves out hears it lost the focus; the root's own surfaces are answered
+    /// what they hear of it.
+    pub fn drew(&mut self, list: LayerList) -> Drawn {
+        let layers = list.encode();
+        let lost = self.windows.drew(list);
+        Drawn {
+            layers,
+            own: self.forward(lost),
+        }
+    }
+
+    /// Sends each app what is for its screens, and answers the rest.
+    fn forward(&self, deliveries: Vec<Delivery>) -> Vec<Delivery> {
         let mut own = Vec::new();
-        for delivery in self.windows.route(window, events) {
+        for delivery in deliveries {
             let Surface::Screen { instance, surface } = delivery.surface else {
                 own.push(delivery);
                 continue;
@@ -72,14 +97,14 @@ impl Embedding {
                 app.input(surface, delivery.input);
             }
         }
-        Ok(own)
+        own
     }
+}
 
-    /// Takes `list` as the layers drawn last, which input is routed by from now on, and answers
-    /// it as `be3:root`'s `frame-done` carries it (`LayerList::encode`).
-    pub fn drew(&mut self, list: LayerList) -> Vec<u8> {
-        let layers = list.encode();
-        self.windows.drew(list);
-        layers
-    }
+/// A frame the root drew, as `Embedding::drew` takes it.
+pub struct Drawn {
+    /// The layer list, as `be3:root`'s `frame-done` carries it.
+    pub layers: Vec<u8>,
+    /// What the root's own surfaces hear of it: the focus a window that went took with it.
+    pub own: Vec<Delivery>,
 }
