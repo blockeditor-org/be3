@@ -14,14 +14,14 @@ fn a_watched_value_that_changes_wakes_the_editor_to_draw_it() {
     }));
     woken.store(0, Ordering::SeqCst);
 
-    host.set_watched::<be_sdk_api::AdministratorWatch>(&true);
+    host.set_watched::<be_sdk_api::RoleWatch>(&be_sdk_api::AccountRole::Administrator);
     assert_eq!(
         woken.load(Ordering::SeqCst),
         1,
         "a value that changed wakes the editor"
     );
 
-    host.set_watched::<be_sdk_api::AdministratorWatch>(&true);
+    host.set_watched::<be_sdk_api::RoleWatch>(&be_sdk_api::AccountRole::Administrator);
     assert_eq!(
         woken.load(Ordering::SeqCst),
         1,
