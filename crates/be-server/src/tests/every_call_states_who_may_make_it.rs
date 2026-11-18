@@ -447,7 +447,7 @@ impl TestClient {
             .write(Op::OpenShareLink {
                 link: other,
                 signed: sealed(),
-                key: other,
+                key: Some(other),
                 sealed: sealed(),
             })
             .await;

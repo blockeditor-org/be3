@@ -144,8 +144,12 @@ pub struct Opened {
     pub endorsement: Vec<u8>,
 }
 
+/// What an opener's keys endorse: the grant, and the entry it follows, so the opener's own
+/// signature fixes the log's chain back to its root (`Opened::endorsement`), which a Join
+/// member, holding no key that carries a root, checks a host by (`Peer::joined_log`).
 fn opened(
     block: [u8; 16],
+    previous: Option<EntryHash>,
     grantee: [u8; 16],
     identity: &PublicIdentity,
     key: &SigningPublic,
@@ -155,6 +159,7 @@ fn opened(
     [
         OPENED_INFO,
         &block,
+        previous.as_ref().map_or(&[][..], |previous| &previous[..]),
         &grantee,
         &identity.public.0,
         &identity.signing.0,
@@ -537,7 +542,14 @@ impl Entry {
         let identity = secret.identity();
         let endorsement = secret
             .signing_key()
-            .sign(&opened(block, account, &identity, &public, level))
+            .sign(&opened(
+                block,
+                Some(previous),
+                account,
+                &identity,
+                &public,
+                level,
+            ))
             .to_bytes()
             .to_vec();
         let record = Record::Opened(Opened {
@@ -1433,11 +1445,13 @@ pub fn check_log(
                 state.linked.remove(&owner.account);
             }
             Record::ShareLink(link) => {
-                // Made once, by a key never named before, granting View or Edit; revoked only
+                // Made once, by a key never named before, granting Join, View or Edit; revoked only
                 // while open.
                 let held = state.share_links.get(&link.key).copied();
                 let well_formed = match link.open {
-                    true => held.is_none() && matches!(link.level, Level::View | Level::Edit),
+                    true => {
+                        held.is_none() && matches!(link.level, Level::Join | Level::View | Level::Edit)
+                    }
                     false => held.is_some_and(|open| open.is_some()),
                 };
                 if kind != LogKind::Block || !well_formed {
@@ -1483,7 +1497,7 @@ pub fn check_log(
                     && known
                     && entry.signer == opened.grantee
                     && state.owner != Some(opened.grantee)
-                    && opened.level >= Level::View
+                    && opened.level >= Level::Join
                     && most.is_some_and(|most| opened.level <= most)
                     && opened.level > before
                     && entry.signed_by(&opened.key)
@@ -1491,6 +1505,7 @@ pub fn check_log(
                         &opened.identity.signing.0,
                         &self::opened(
                             log,
+                            entry.previous,
                             opened.grantee,
                             &opened.identity,
                             &opened.key,
