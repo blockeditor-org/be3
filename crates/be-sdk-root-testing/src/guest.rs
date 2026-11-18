@@ -23,7 +23,8 @@ use be_wasm_guest_abi::{Flow, Guest, Waker};
 use be_wasm_ops::guest::{Executor, LocalFuture};
 use be_wasm_password::Password;
 use be_wasm_root_api::{
-    AccountRow, AgentRow, CoreCommand, CoreSecret, MemberRole, MemberRow, RoleChange, SecretCommand, CoreView, CoreWait, DiscardReason, InvitationRow,
+    AccountRow, AgentRow, ContactCard, ContactMismatch, ContactRow, ShareAccess, SharePreview,
+    CoreCommand, CoreSecret, MemberRole, MemberRow, RoleChange, SecretCommand, CoreView, CoreWait, DiscardReason, InvitationRow,
     InvitationState, OrganizationRow, OrganizationsListed, ProfileRow,
     SessionRow, DisplayQuestion, FrameDone, FrameRequest, HostStatistics, LockState,
     NewAccount, Notice, PowerAction, Refusal, SavingState, ServerAccount, SetAside, StatisticRow, SyncState, UnsentEdit,
@@ -41,7 +42,8 @@ use beui::{
 };
 
 use crate::{
-    AGENTS_TITLE, DISCARD_TITLE, INVITATIONS_TITLE, MEMBERS_TITLE, OPENS_AGENTS, OPENS_MEMBERS,
+    AGENTS_TITLE, CONTACTS_TITLE, LEAVE_TITLE, OPENS_CONTACTS, OPENS_SHARE_LINKS,
+    REMOVE_CONTACT_TITLE, SHARE_LINK_TITLE, DISCARD_TITLE, INVITATIONS_TITLE, MEMBERS_TITLE, OPENS_AGENTS, OPENS_MEMBERS,
     REMOVE_MEMBER_TITLE, OPENS_INVITATIONS, REAUTH_TITLE, ONBOARDING_LAYER,
     ONBOARDING_SURFACE, ORGANIZATIONS_TITLE, SESSIONS_TITLE, ADD_ACCOUNT_TITLE, FORGET_ACCOUNT_TITLE, SIGN_IN_TITLE,
     APP, APP_ENTRY, CLOSES, DIALOG_LAYER, DISCARD_UNSENT_TITLE, OPENS_UNSENT, UNSENT_TITLE, DIALOG_ORIGIN, KEEP_DISPLAY_TITLE, DIALOG_SIZE, DIALOG_SURFACE, DIALOG_TITLE,
@@ -186,6 +188,8 @@ enum HostAsks {
     Reauth,
     /// Discarding unsaved changes, for this.
     Discard(DiscardReason),
+    /// Leaving the block of this id, which an editor asked to leave.
+    Leave([u8; 16]),
 }
 
 /// Which dialog to open.
@@ -213,6 +217,10 @@ enum Asking {
     Members,
     /// The organization's agents.
     Agents,
+    /// The person's contacts.
+    Contacts,
+    /// Opening a share link.
+    ShareLinks,
 }
 
 /// The root's accounts while the block stack waits for the person to open or add one.
@@ -245,6 +253,8 @@ enum Asked {
     OpenInvitations,
     OpenMembers,
     OpenAgents,
+    OpenContacts,
+    OpenShareLinks,
     Close,
     ToggleStatistics,
 }
@@ -590,6 +600,8 @@ impl Root {
                     Some(key) if key == OPENS_INVITATIONS && !open => Some(Asked::OpenInvitations),
                     Some(key) if key == OPENS_MEMBERS && !open => Some(Asked::OpenMembers),
                     Some(key) if key == OPENS_AGENTS && !open => Some(Asked::OpenAgents),
+                    Some(key) if key == OPENS_CONTACTS && !open => Some(Asked::OpenContacts),
+                    Some(key) if key == OPENS_SHARE_LINKS && !open => Some(Asked::OpenShareLinks),
                     Some(key) if key == OPENS_STATISTICS => Some(Asked::ToggleStatistics),
                     Some(key) if key == UNLOCKS_TWICE => {
                         unlock(STRAY_PASSWORD.to_owned());
@@ -744,17 +756,20 @@ impl Root {
             .borrow()
             .as_ref()
             .and_then(|dialog| dialog.host_asks);
-        let (reauthenticating, signing_in, discarding) = {
+        let (reauthenticating, signing_in, discarding, leaving) = {
             let core = self.core.borrow();
             (
                 core.reauthenticating.is_some(),
                 core.signing_in.is_some(),
                 core.discarding.clone(),
+                core.leaving.as_ref().map(|leaving| leaving.block),
             )
         };
-        // The host's question, the discard first: it answers what the person just did.
+        // The host's question, the discard first, then leaving: each answers what the person
+        // just did.
         let host_asks = discarding
             .map(HostAsks::Discard)
+            .or(leaving.map(HostAsks::Leave))
             .or(reauthenticating.then_some(HostAsks::Reauth));
         // A secret the host answered with goes to the invitations that asked, or is dropped.
         if let Some(secret) = self.secret.borrow_mut().take()
@@ -848,6 +863,15 @@ impl Root {
             _ if !locked && asked == Some(Asked::OpenAgents) && self.dialog.borrow().is_none() => {
                 Some(Asking::Agents)
             }
+            _ if !locked && asked == Some(Asked::OpenContacts) && self.dialog.borrow().is_none() => {
+                Some(Asking::Contacts)
+            }
+            _ if !locked
+                && asked == Some(Asked::OpenShareLinks)
+                && self.dialog.borrow().is_none() =>
+            {
+                Some(Asking::ShareLinks)
+            }
             _ if !locked && self.dialog.borrow().is_none() && self.resuming.take() => self
                 .core
                 .borrow()
@@ -873,6 +897,7 @@ impl Root {
         if closing && !replaced && !withdrawn && !matches!(closed, Some(Closed::Confirmed)) {
             match open_host {
                 Some(HostAsks::Discard(_)) => ask_core(CoreCommand::CancelDiscard),
+                Some(HostAsks::Leave(_)) => ask_core(CoreCommand::CancelLeave),
                 Some(HostAsks::Reauth) if !matches!(opening, Some(Asking::AddAccount { .. })) => {
                     ask_core(CoreCommand::SwitchAccount)
                 }
@@ -942,18 +967,24 @@ impl Root {
             | Asking::Host(_)
             | Asking::Invitations
             | Asking::Members
-            | Asking::Agents => None,
+            | Asking::Agents
+            | Asking::Contacts
+            | Asking::ShareLinks => None,
         };
         let host_asks = match &opening {
             Asking::Host(asks) => Some(*asks),
             _ => None,
         };
-        let receives_secret = matches!(opening, Asking::Invitations | Asking::Agents);
+        let receives_secret =
+            matches!(opening, Asking::Invitations | Asking::Agents | Asking::Contacts);
         let holds_while_pending = matches!(opening, Asking::Agents);
         match opening {
             Asking::Invitations => ask_core(CoreCommand::ListInvitations),
             Asking::Members => ask_core(CoreCommand::ListMembers),
             Asking::Agents => ask_core(CoreCommand::ListAgents),
+            // Each starts afresh: what an earlier opening left offered, done or failed goes.
+            Asking::Contacts => ask_core(CoreCommand::ForgetContactLink),
+            Asking::ShareLinks => ask_core(CoreCommand::ForgetShareLink),
             _ => {}
         }
         let secret_shown = Rc::clone(&self.secret_shown);
@@ -1009,6 +1040,25 @@ impl Root {
                         view! {
                             <ReauthDialog core={core} done={done} />
                         }
+                    }
+                    Asking::Host(HostAsks::Leave(_)) => {
+                        let core = create_signal(core);
+                        core_shown.set(Some(core));
+                        view! { <LeaveDialog core={core} done={done} /> }
+                    }
+                    Asking::Contacts => {
+                        let core = create_signal(core);
+                        core_shown.set(Some(core));
+                        let (link, pending, ask) =
+                            secret_asker(&secret_shown, &answered, &wakes, &closes);
+                        view! {
+                            <ContactsDialog core={core} link={link} pending={pending} ask={ask} done={done} />
+                        }
+                    }
+                    Asking::ShareLinks => {
+                        let core = create_signal(core);
+                        core_shown.set(Some(core));
+                        view! { <ShareLinkDialog core={core} done={done} /> }
                     }
                     Asking::Host(HostAsks::Discard(reason)) => {
                         view! {
@@ -1089,6 +1139,8 @@ fn chords(escape: bool) -> Vec<KeyChord> {
         KeyChord::new(OPENS_INVITATIONS, Modifiers::NONE),
         KeyChord::new(OPENS_MEMBERS, Modifiers::NONE),
         KeyChord::new(OPENS_AGENTS, Modifiers::NONE),
+        KeyChord::new(OPENS_CONTACTS, Modifiers::NONE),
+        KeyChord::new(OPENS_SHARE_LINKS, Modifiers::NONE),
     ];
     if escape {
         chords.push(KeyChord::new(Key::Escape, Modifiers::NONE));
@@ -2717,6 +2769,416 @@ fn agent_bundle(agent: &be_wasm_root_api::AgentCredentials) -> String {
         quoted(&agent.server),
         quoted(agent.token.as_str().unwrap_or_default())
     )
+}
+
+/// The host's question before leaving a block an editor asked to leave: Leave, which asks the
+/// host to and stays, busy, until the host no longer asks (it left, or why it could not shows),
+/// or Stay (Escape, or closing it).
+#[component]
+fn LeaveDialog(core: Signal<CoreView>, done: Callback<Closed>) -> NodeId {
+    let asked = create_memo(move || core.with(|view| view.leaving.clone()));
+    let question = create_memo(move || {
+        asked.with(|asked| match asked {
+            Some(leaving) => match &leaving.within {
+                Some(within) => format!(
+                    "Leave {} in {within}? You lose access to it until someone shares it again.",
+                    leaving.name
+                ),
+                None => format!(
+                    "Leave {}? You lose access to it until someone shares it again.",
+                    leaving.name
+                ),
+            },
+            None => String::new(),
+        })
+    });
+    let busy = create_memo(move || asked.with(|asked| asked.as_ref().is_some_and(|it| it.busy)));
+    let refused = create_memo(move || asked.with(|asked| asked.as_ref()?.refused.clone()));
+    let leave = move || {
+        if let Some(block) = asked.with_untracked(|asked| asked.as_ref().map(|it| it.block)) {
+            ask_core(CoreCommand::ConfirmLeave(block));
+        }
+    };
+    escape_dismisses(done);
+    view! {
+        <Frame
+            width=Length::FILL
+            height=Length::FILL
+            fill=ColorRole::Surface
+            border={Border::DEFAULT}
+            radius=Radius::Lg
+        >
+            <DialogBody
+                kind=DialogKind::Alert
+                title=LEAVE_TITLE
+                scrolls=false
+                actions={vec![
+                    DialogAction::destructive("Leave", leave).busy(busy),
+                    DialogAction::cancel("Stay"),
+                ]}
+                on_dismiss={move || done.call(Closed::Dismissed)}
+            >
+                <Text style=TextStyle::PARAGRAPH>{question}</Text>
+                <be_host_accounts_ui::ErrorText text={refused} />
+            </DialogBody>
+        </Frame>
+    }
+}
+
+/// A line saying how something went, while there is one: unlike an error, in the text's own
+/// colour.
+#[component]
+fn Note(text: Memo<Option<String>>) -> NodeId {
+    view! {
+        <List spacing=Space::None>
+            <Show value={text}>|text: ReadSignal<String>|
+                <Text style=TextStyle::PARAGRAPH>{text}</Text>
+            </Show>
+        </List>
+    }
+}
+
+/// Who a card names, as be-host words it: their name and email, or what they gave.
+fn card_named(card: &ContactCard) -> String {
+    match (card.name.trim().is_empty(), card.email.is_empty()) {
+        (true, _) => card.email.clone(),
+        (false, true) => card.name.clone(),
+        (false, false) => format!("{} ({})", card.name, card.email),
+    }
+}
+
+/// The person's contacts: each with Remove, which asks first in the list's place; a contact
+/// link to make, which comes back once as `make-secret`'s answer and shows with Copy and Done;
+/// and a pasted contact link to open, handed over as a secret and cleared, then who it is from,
+/// to connect with or not.
+#[component]
+fn ContactsDialog(
+    core: Signal<CoreView>,
+    link: Signal<Option<Held>>,
+    pending: Signal<bool>,
+    ask: Callback<SecretCommand>,
+    done: Callback<Closed>,
+) -> NodeId {
+    let area = create_memo(move || core.with(|view| view.contacts.clone()));
+    let contacts = create_memo(move || area.with(|area| area.contacts.clone()));
+    let busy = create_memo(move || pending.get() || area.with(|area| area.busy));
+    let error = create_memo(move || area.with(|area| area.error.clone()));
+    let offer = create_memo(move || {
+        area.with(|area| {
+            area.offered
+                .as_ref()
+                .map(|card| format!("Connect with {}?", card_named(card)))
+        })
+    });
+    let offered = create_memo(move || offer.with(Option::is_some));
+    let offer = create_memo(move || offer.get().unwrap_or_default());
+    let connected = create_memo(move || {
+        area.with(|area| {
+            area.connected
+                .as_ref()
+                .map(|card| format!("You are connected with {}.", card_named(card)))
+        })
+    });
+    let showing = create_memo(move || link.with(|link| link.as_ref().and_then(Held::link).is_some()));
+    let removing = create_signal(None::<[u8; 16]>);
+    let asked = create_memo(move || {
+        let account = removing.get()?;
+        contacts.with(|contacts| contacts.iter().find(|it| it.account == account).cloned())
+    });
+    let asks = create_memo(move || asked.with(Option::is_some));
+    let listing = create_memo(move || !showing.get() && !asks.get());
+    let question = create_memo(move || {
+        asked.with(|asked| {
+            let name = asked
+                .as_ref()
+                .map(|contact| card_named(&ContactCard { name: contact.name.clone(), email: contact.email.clone() }))
+                .unwrap_or_default();
+            format!("Remove {name}? Whatever you and they have shared with each other is unshared.")
+        })
+    });
+    let shown = create_memo(move || {
+        link.with(|link| link.as_ref().and_then(Held::link).unwrap_or_default().to_owned())
+    });
+    let copy = move || {
+        let text = shown.get_untracked();
+        if !text.is_empty() {
+            be_wasm_ops::guest::spawn(async move {
+                let item = be_lib_ui_types::ClipItem::text(text);
+                let _ = host::copy(vec![be_wasm_ops::encode(&item)]).await;
+            });
+        }
+    };
+    let pasted = create_signal(String::new());
+    let open_link = move || {
+        // The link is a bearer secret: shown as typed, it leaves the field as it is handed over.
+        let typed = pasted.get_untracked();
+        pasted.set(String::new());
+        if !typed.trim().is_empty() {
+            ask_core(CoreCommand::OpenContactLink(Password::from(typed)));
+        }
+    };
+    on_key(
+        KeyAt::Node(component_node()),
+        KeyPhase::Bubble,
+        KeyReveal::Focus,
+        move |event| {
+            let closes = event
+                .press()
+                .is_some_and(|press| press.pressed && !press.repeat && press.key == Key::Escape);
+            if closes {
+                match asks.get_untracked() {
+                    true => removing.set(None),
+                    false => done.call(Closed::Dismissed),
+                }
+            }
+            closes
+        },
+    );
+    view! {
+        <Frame
+            width=Length::FILL
+            height=Length::FILL
+            fill=ColorRole::Surface
+            border={Border::DEFAULT}
+            radius=Radius::Lg
+        >
+            <List spacing=Space::None>
+                <Show value={listing}>
+                    <DialogBody
+                        title=CONTACTS_TITLE
+                        actions={vec![
+                            DialogAction::cancel("Close"),
+                            DialogAction::primary("New link", move || ask.call(SecretCommand::ContactLink))
+                                .busy(busy)
+                                .disabled(move || pending.get()),
+                        ]}
+                        on_dismiss={move || done.call(Closed::Dismissed)}
+                    >
+                        <be_host_accounts_ui::ErrorText text={error} />
+                        <Note text={connected} />
+                        <Show value={offered}>
+                            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
+                                <ListItem grow=1.0>
+                                    <Text>{offer}</Text>
+                                </ListItem>
+                                <Button
+                                    label="Not now"
+                                    variant=ButtonVariant::Secondary
+                                    on_click={|| ask_core(CoreCommand::ForgetContactLink)}
+                                />
+                                <Button
+                                    label="Connect"
+                                    variant=ButtonVariant::Primary
+                                    disabled={busy}
+                                    on_click={|| ask_core(CoreCommand::AcceptContact)}
+                                />
+                            </List>
+                        </Show>
+                        <ForEach
+                            value={contacts}
+                            key={|contact: &ContactRow| contact.account}
+                        >|contact: ReadSignal<ContactRow>| {
+                            let account = contact.with_untracked(|contact| contact.account);
+                            let name = create_memo(move || contact.with(|it| card_named(&ContactCard { name: it.name.clone(), email: it.email.clone() })));
+                            let detail = create_memo(move || contact.with(contact_detail));
+                            view! {
+                                <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
+                                    <ListItem grow=1.0>
+                                        <List spacing=Space::Xs2>
+                                            <Text>{name}</Text>
+                                            <Text style=TextStyle::CAPTION>{detail}</Text>
+                                        </List>
+                                    </ListItem>
+                                    <Button
+                                        icon_only=true
+                                        glyph=ICON_TRASH
+                                        label="Remove"
+                                        on_click={move || removing.set(Some(account))}
+                                    />
+                                </List>
+                            }
+                        }</ForEach>
+                        <List direction=Direction::Horizontal align=Align::End spacing=Space::Md>
+                            <ListItem grow=1.0>
+                                <TextInput
+                                    value={pasted}
+                                    label="Contact link"
+                                    placeholder="Contact link"
+                                    on_submit={move |_: String| open_link()}
+                                />
+                            </ListItem>
+                            <Button label="Open" disabled={busy} on_click={open_link} />
+                        </List>
+                    </DialogBody>
+                </Show>
+                <Show value={showing}>
+                    <DialogBody
+                        title="Contact link"
+                        actions={vec![
+                            DialogAction::secondary("Done", move || link.set(None)),
+                            DialogAction::primary("Copy", copy),
+                        ]}
+                        on_dismiss={move || done.call(Closed::Dismissed)}
+                    >
+                        <Text style=TextStyle::CAPTION>
+                            "Whoever has this link can connect with you."
+                        </Text>
+                        <Text>{shown}</Text>
+                    </DialogBody>
+                </Show>
+                <Show value={asks}>
+                    <DialogBody
+                        kind=DialogKind::Alert
+                        title=REMOVE_CONTACT_TITLE
+                        scrolls=false
+                        actions={vec![
+                            DialogAction::destructive("Remove", move || {
+                                if let Some(contact) = asked.get_untracked() {
+                                    ask_core(CoreCommand::RemoveContact(contact.account));
+                                }
+                                removing.set(None);
+                            }),
+                            DialogAction::cancel("Keep"),
+                        ]}
+                        on_dismiss={move || removing.set(None)}
+                    >
+                        <Text style=TextStyle::PARAGRAPH>{question}</Text>
+                    </DialogBody>
+                </Show>
+            </List>
+        </Frame>
+    }
+}
+
+/// Whether a contact's key is held, and how the server's record of it differed, in words.
+fn contact_detail(contact: &ContactRow) -> String {
+    match (&contact.mismatch, contact.verified) {
+        (Some(ContactMismatch::Older), _) => {
+            "The server served an older record of this contact: this device keeps its own.".to_owned()
+        }
+        (Some(ContactMismatch::Unreadable), _) => {
+            "The server's record of this contact can't be read here: this device keeps its own.".to_owned()
+        }
+        (None, true) => "Verified".to_owned(),
+        (None, false) => "Not verified yet".to_owned(),
+    }
+}
+
+/// What a share link opens, as be-host's own dialog asks it: the block, where, what it lets
+/// the person do, and whether they join its organization as a guest.
+fn share_offered(preview: &SharePreview) -> String {
+    let can = match preview.access {
+        ShareAccess::Edit => "view and edit it",
+        ShareAccess::Join => "join it while someone hosts it",
+        ShareAccess::View => "view it",
+    };
+    let named = share_named(preview);
+    let organization = share_organization(preview);
+    let guest = match preview.guest {
+        true => format!(" You will join {organization} as a guest: you see only what links share with you there."),
+        false => String::new(),
+    };
+    format!("{named}, in {organization}, is shared with you: you can {can}.{guest}")
+}
+
+/// A shared block's name as one line, cut short, in quotes; its maker's words.
+fn share_named(preview: &SharePreview) -> String {
+    let name: String = preview
+        .name
+        .split(|character: char| character.is_whitespace() || character.is_control())
+        .filter(|word| !word.is_empty())
+        .collect::<Vec<_>>()
+        .join(" ");
+    match name.chars().count() {
+        0 => "The block".to_owned(),
+        count if count > 60 => format!("“{}…”", name.chars().take(60).collect::<String>()),
+        _ => format!("“{name}”"),
+    }
+}
+
+fn share_organization(preview: &SharePreview) -> String {
+    match preview.organization.trim().is_empty() {
+        true => "its organization".to_owned(),
+        false => preview.organization.clone(),
+    }
+}
+
+/// Opening a share link someone sent: the pasted link, handed over as a secret and cleared;
+/// then what it shares, to open or not; then what it opened.
+#[component]
+fn ShareLinkDialog(core: Signal<CoreView>, done: Callback<Closed>) -> NodeId {
+    let area = create_memo(move || core.with(|view| view.share_links.clone()));
+    let busy = create_memo(move || area.with(|area| area.busy));
+    let error = create_memo(move || area.with(|area| area.error.clone()));
+    let offer = create_memo(move || area.with(|area| area.offered.as_ref().map(share_offered)));
+    let offered = create_memo(move || offer.with(Option::is_some));
+    let opened = create_memo(move || {
+        area.with(|area| {
+            area.opened.as_ref().map(|preview| {
+                format!(
+                    "{} is open to you: you find it under Shared with me in {}.",
+                    share_named(preview),
+                    share_organization(preview)
+                )
+            })
+        })
+    });
+    let pasting = create_memo(move || !offered.get());
+    let offer = create_memo(move || offer.get().unwrap_or_default());
+    let pasted = create_signal(String::new());
+    let open_link = move || {
+        let typed = pasted.get_untracked();
+        pasted.set(String::new());
+        if !typed.trim().is_empty() {
+            ask_core(CoreCommand::OpenShareLink(Password::from(typed)));
+        }
+    };
+    escape_dismisses(done);
+    view! {
+        <Frame
+            width=Length::FILL
+            height=Length::FILL
+            fill=ColorRole::Surface
+            border={Border::DEFAULT}
+            radius=Radius::Lg
+        >
+            <List spacing=Space::None>
+                <Show value={pasting}>
+                    <DialogBody
+                        title=SHARE_LINK_TITLE
+                        actions={vec![
+                            DialogAction::cancel("Close"),
+                            DialogAction::primary("Open", open_link).busy(busy),
+                        ]}
+                        on_dismiss={move || done.call(Closed::Dismissed)}
+                    >
+                        <be_host_accounts_ui::ErrorText text={error} />
+                        <Note text={opened} />
+                        <TextInput
+                            value={pasted}
+                            label="Share link"
+                            placeholder="Share link"
+                            focused=true
+                            on_submit={move |_: String| open_link()}
+                        />
+                    </DialogBody>
+                </Show>
+                <Show value={offered}>
+                    <DialogBody
+                        title=SHARE_LINK_TITLE
+                        actions={vec![
+                            DialogAction::secondary("Not now", || ask_core(CoreCommand::ForgetShareLink)),
+                            DialogAction::primary("Open it", || ask_core(CoreCommand::AcceptShareLink))
+                                .busy(busy),
+                        ]}
+                        on_dismiss={move || done.call(Closed::Dismissed)}
+                    >
+                        <Text style=TextStyle::PARAGRAPH>{offer}</Text>
+                    </DialogBody>
+                </Show>
+            </List>
+        </Frame>
+    }
 }
 
 /// A member's email and role, in words.
