@@ -48,7 +48,10 @@ async fn a_log_appended_offline_is_sent_in_order_once_the_device_reconnects() {
         })
         .collect();
     assert_eq!(
-        appended.iter().map(|(id, seq, _)| (*id, *seq)).collect::<Vec<_>>(),
+        appended
+            .iter()
+            .map(|(id, seq, _)| (*id, *seq))
+            .collect::<Vec<_>>(),
         kept.iter().copied().zip(1..).collect::<Vec<_>>(),
         "the entries went in the order they were made: {drained:?}"
     );

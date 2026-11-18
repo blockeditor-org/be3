@@ -19,15 +19,15 @@ pub use connection::{Answer, Connection, Credentials, Event, ask};
 pub use contacts::{Contact, GrantOffer};
 pub use keys::{EscrowWarning, KeyBook};
 pub use peer::account_block::AccountRecords;
+pub use peer::log::{Appended, LogRead, LoggedEntry};
 pub use peer::{
     BlockRead, Drained, Listed, MAX_NOTIFICATION_AGE_MILLISECONDS, MAX_NOTIFICATION_TEXT,
     Notification, OpenedNotification, Peer, PeerConfig, PendingRotation, Reconciled, Resolver,
     Saved, Sealed, SealsJournal, Signer, Write,
 };
-pub use peer::log::{Appended, LogRead, LoggedEntry};
 pub use refs::{
-    Aside, KeptChange, KeptEdit, KeptLogHead, KeptSubmission, ListedBlock, OpenEdits, PendingCounts, RefsDb,
-    SetAside, UnsentBlock,
+    Aside, KeptChange, KeptEdit, KeptLogHead, KeptSubmission, ListedBlock, OpenEdits,
+    PendingCounts, RefsDb, SetAside, UnsentBlock,
 };
 #[cfg(not(target_arch = "wasm32"))]
 pub use transport::tls_config;

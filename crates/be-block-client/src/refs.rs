@@ -1508,7 +1508,11 @@ impl Refs {
         let mut rows = vec![row(Table::LogHead, block.as_bytes().to_vec(), &head)];
         let kept = state.log_entries.entry(block).or_default();
         for entry in entries {
-            rows.push(row(Table::LogEntry, journal_entry_key(block, entry.seq), &entry));
+            rows.push(row(
+                Table::LogEntry,
+                journal_entry_key(block, entry.seq),
+                &entry,
+            ));
             kept.insert(entry.seq, entry);
         }
         state.log_heads.insert(block, head);
@@ -2156,12 +2160,9 @@ impl Refs {
 
     pub fn has_structural(&self, block: Uuid) -> bool {
         let state = self.state.lock().unwrap();
-        state
-            .outbox
-            .values()
-            .any(|op| {
-                op.block() == block && !matches!(op, Op::Publish(_) | Op::Hold(_) | Op::Append(_))
-            })
+        state.outbox.values().any(|op| {
+            op.block() == block && !matches!(op, Op::Publish(_) | Op::Hold(_) | Op::Append(_))
+        })
     }
 
     pub fn below(&self, root: Uuid) -> HashSet<Uuid> {
@@ -2263,7 +2264,12 @@ impl Refs {
                 }
                 // A log's entries go, its head stays: a log served later still has to extend
                 // what this device saw.
-                for seq in state.log_entries.remove(block).unwrap_or_default().into_keys() {
+                for seq in state
+                    .log_entries
+                    .remove(block)
+                    .unwrap_or_default()
+                    .into_keys()
+                {
                     rows.push(Row {
                         table: Table::LogEntry,
                         key: journal_entry_key(*block, seq),

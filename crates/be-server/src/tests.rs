@@ -1816,7 +1816,11 @@ fn verifies(page: &be_block_protocol::LogPage, from: u64) -> bool {
             page.head.size,
             from,
             &leaves,
-            &page.proof.iter().map(|hash| *hash.as_bytes()).collect::<Vec<_>>(),
+            &page
+                .proof
+                .iter()
+                .map(|hash| *hash.as_bytes())
+                .collect::<Vec<_>>(),
         ) == Some(*page.head.root.as_bytes())
 }
 

@@ -55,7 +55,10 @@ async fn a_log_numbers_stamps_and_tells_appends_and_takes_an_entry_once() {
     );
     assert_eq!(told.entries[0].author, owner.id());
     assert_eq!(told.entries[0].arrival, logged[0].arrival);
-    assert_eq!(told.entries[1].payload.as_deref(), Some(&b"how are you"[..]));
+    assert_eq!(
+        told.entries[1].payload.as_deref(),
+        Some(&b"how are you"[..])
+    );
     assert!(verifies(
         &be_block_protocol::LogPage {
             head: told.head,
@@ -71,10 +74,21 @@ async fn a_log_numbers_stamps_and_tells_appends_and_takes_an_entry_once() {
     let told = guest.appended().await;
     assert_eq!((told.previous, told.head.size), (2, 3));
     assert_eq!(told.entries[0].author, guest_id);
-    let held = |hashes: &[Hash]| hashes.iter().map(|hash| *hash.as_bytes()).collect::<Vec<_>>();
+    let held = |hashes: &[Hash]| {
+        hashes
+            .iter()
+            .map(|hash| *hash.as_bytes())
+            .collect::<Vec<_>>()
+    };
     let kept = *first_head.root.as_bytes();
     assert!(
-        merkle::consistent(2, &kept, 3, told.head.root.as_bytes(), &held(&told.consistency)),
+        merkle::consistent(
+            2,
+            &kept,
+            3,
+            told.head.root.as_bytes(),
+            &held(&told.consistency)
+        ),
         "the append's head extends the one before it"
     );
 
@@ -115,7 +129,9 @@ async fn a_log_numbers_stamps_and_tells_appends_and_takes_an_entry_once() {
     );
 
     // An unfollowed log tells nothing more.
-    let unfollowed = guest.call(|peer| peer.unfollow(Topic::BlockLog(chat))).await;
+    let unfollowed = guest
+        .call(|peer| peer.unfollow(Topic::BlockLog(chat)))
+        .await;
     assert!(unfollowed.is_ok(), "{unfollowed:?}");
     owner.append(chat, vec![log_entry(b"bye")]).await.unwrap();
     guest.round_trip().await;

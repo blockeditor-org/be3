@@ -20,20 +20,34 @@ async fn a_commit_naming_a_head_its_log_never_had_is_refused() {
 
     let author = Author::new(owner_id);
     let (head, chunks) = author.compose(b"settings\n", 1_000, None);
-    owner.upload(&author.store, &author.objects_of(head, &chunks)).await;
-    let past = publish(&mut owner, chat, head, &chunks, be_block_protocol::LogHead {
-        size: 4,
-        root: three.root,
-    })
+    owner
+        .upload(&author.store, &author.objects_of(head, &chunks))
+        .await;
+    let past = publish(
+        &mut owner,
+        chat,
+        head,
+        &chunks,
+        be_block_protocol::LogHead {
+            size: 4,
+            root: three.root,
+        },
+    )
     .await;
     assert!(
         matches!(&past, Err(error) if error.code == ErrorCode::InvalidRequest),
         "a head past the log was taken: {past:?}"
     );
-    let wrong = publish(&mut owner, chat, head, &chunks, be_block_protocol::LogHead {
-        size: 1,
-        root: three.root,
-    })
+    let wrong = publish(
+        &mut owner,
+        chat,
+        head,
+        &chunks,
+        be_block_protocol::LogHead {
+            size: 1,
+            root: three.root,
+        },
+    )
     .await;
     assert!(
         matches!(&wrong, Err(error) if error.code == ErrorCode::InvalidRequest),

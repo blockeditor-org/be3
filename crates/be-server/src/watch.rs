@@ -290,7 +290,11 @@ impl WatchHub {
             ));
         }
         follows.insert(place);
-        joined.log_followers.entry(place).or_default().insert(client);
+        joined
+            .log_followers
+            .entry(place)
+            .or_default()
+            .insert(client);
         Ok(())
     }
 

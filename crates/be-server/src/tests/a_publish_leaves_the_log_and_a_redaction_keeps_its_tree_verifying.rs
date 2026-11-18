@@ -27,13 +27,22 @@ async fn a_publish_leaves_the_log_and_a_redaction_keeps_its_tree_verifying() {
 
     let author = Author::new(owner_id);
     let (head, chunks) = author.compose(b"the chat's settings\n", 1_000, None);
-    let published = owner.publish(&author, chat, head, chunks, None, 1_000).await;
+    let published = owner
+        .publish(&author, chat, head, chunks, None, 1_000)
+        .await;
     assert!(published.is_ok(), "{published:?}");
     let after = owner.log_page(chat, 0, None, false).await.unwrap();
     assert_eq!(after, before, "a publish changed the log");
     let held = owner.storage().await.unwrap().held;
 
-    let redacted = owner.call(|peer| peer.write::<()>(Op::Redact { block: chat, seq: 1 })).await;
+    let redacted = owner
+        .call(|peer| {
+            peer.write::<()>(Op::Redact {
+                block: chat,
+                seq: 1,
+            })
+        })
+        .await;
     assert!(redacted.is_ok(), "{redacted:?}");
     let page = owner.log_page(chat, 0, Some(3), false).await.unwrap();
     assert_eq!(page.head, before.head, "a redaction moved the head");
@@ -47,9 +56,23 @@ async fn a_publish_leaves_the_log_and_a_redaction_keeps_its_tree_verifying() {
         "a redacted payload is still charged"
     );
     // Redacting it again is no refusal.
-    let again = owner.call(|peer| peer.write::<()>(Op::Redact { block: chat, seq: 1 })).await;
+    let again = owner
+        .call(|peer| {
+            peer.write::<()>(Op::Redact {
+                block: chat,
+                seq: 1,
+            })
+        })
+        .await;
     assert!(again.is_ok(), "{again:?}");
-    let missing = owner.call(|peer| peer.write::<()>(Op::Redact { block: chat, seq: 3 })).await;
+    let missing = owner
+        .call(|peer| {
+            peer.write::<()>(Op::Redact {
+                block: chat,
+                seq: 3,
+            })
+        })
+        .await;
     assert!(
         matches!(&missing, Err(error) if error.code == ErrorCode::InvalidRequest),
         "{missing:?}"

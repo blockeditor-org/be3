@@ -24,8 +24,14 @@ async fn only_an_editor_appends_and_only_an_author_or_manager_redacts() {
     assert!(owner.grant(chat, editor_id, Access::Edit).await.is_ok());
     assert!(owner.grant(chat, viewer_id, Access::View).await.is_ok());
 
-    owner.append(chat, vec![log_entry(b"the owner's")]).await.unwrap();
-    editor.append(chat, vec![log_entry(b"the editor's")]).await.unwrap();
+    owner
+        .append(chat, vec![log_entry(b"the owner's")])
+        .await
+        .unwrap();
+    editor
+        .append(chat, vec![log_entry(b"the editor's")])
+        .await
+        .unwrap();
     let refused = viewer.append(chat, vec![log_entry(b"the viewer's")]).await;
     assert!(
         matches!(&refused, Err(error) if error.code == ErrorCode::PermissionDenied),

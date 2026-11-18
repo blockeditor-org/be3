@@ -15,7 +15,9 @@ fn reference(leaves: &[TreeHash]) -> TreeHash {
 }
 
 fn leaves(count: u64) -> Vec<TreeHash> {
-    (0..count).map(|index| leaf_hash(&index.to_be_bytes())).collect()
+    (0..count)
+        .map(|index| leaf_hash(&index.to_be_bytes()))
+        .collect()
 }
 
 fn tree(leaves: &[TreeHash]) -> Tree {
@@ -108,16 +110,31 @@ fn any_range_and_any_newer_head_of_a_merkle_tree_verify_with_log_n_hashes() {
     let size = (1u64 << 17) + 3;
     let many = leaves(size);
     let big = tree(&many);
-    for (from, to) in [(0, 50), (size / 2 - 25, size / 2 + 25), (7, size - 9), (size - 50, size)] {
+    for (from, to) in [
+        (0, 50),
+        (size / 2 - 25, size / 2 + 25),
+        (7, size - 9),
+        (size - 50, size),
+    ] {
         let proof = big.range_proof(size, from, to);
-        assert!(proof.len() <= 2 * 18, "{} hashes for {from}..{to}", proof.len());
+        assert!(
+            proof.len() <= 2 * 18,
+            "{} hashes for {from}..{to}",
+            proof.len()
+        );
         let range = &many[from as usize..to as usize];
         assert_eq!(range_root(size, from, range, &proof), Some(big.root()));
     }
     for old in [1, size / 2 + 7, size - 1] {
         let proof = big.consistency_proof(old, size);
         assert!(proof.len() <= 2 * 18, "{} hashes from {old}", proof.len());
-        assert!(consistent(old, &big.root_at(old), size, &big.root(), &proof));
+        assert!(consistent(
+            old,
+            &big.root_at(old),
+            size,
+            &big.root(),
+            &proof
+        ));
     }
 
     // A frontier appends as the whole tree does, from any size it is read at.

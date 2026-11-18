@@ -49,7 +49,11 @@ async fn a_local_accounts_log_is_numbered_on_the_device() {
     );
     let four = peer.append(notes, b"four").await.unwrap();
     assert!(matches!(four, Appended::Logged { seq: 3, .. }), "{four:?}");
-    tree.push(peer.read_log(notes, 3, 1).await.unwrap().entries[0].entry.leaf());
+    tree.push(
+        peer.read_log(notes, 3, 1).await.unwrap().entries[0]
+            .entry
+            .leaf(),
+    );
     assert_eq!(
         peer.log_head(notes).map(|head| *head.root.as_bytes()),
         Some(tree.root())

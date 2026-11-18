@@ -202,7 +202,11 @@ pub(crate) fn visibility(identity: Identity) -> Visibility {
     Visibility::of(identity)
 }
 
-pub(crate) fn require_edit(graph: &BlockGraph, seen: &Visibility, block: Uuid) -> Result<(), ServerError> {
+pub(crate) fn require_edit(
+    graph: &BlockGraph,
+    seen: &Visibility,
+    block: Uuid,
+) -> Result<(), ServerError> {
     require(graph, seen, block, Access::Edit, "editable")
 }
 

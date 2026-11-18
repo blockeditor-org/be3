@@ -6,9 +6,7 @@
 //! `block_log_heads` each log's size, root and the bytes it is charged.
 
 use be_block_keys::merkle::{self, Frontier, TreeHash};
-use be_block_protocol::{
-    ErrorCode, LogEntry, LogHead, LogPage, Logged, MAX_FRAME_BYTES, NewEntry,
-};
+use be_block_protocol::{ErrorCode, LogEntry, LogHead, LogPage, Logged, MAX_FRAME_BYTES, NewEntry};
 use be_block_store::Hash;
 use rusqlite::{Connection, OptionalExtension, params};
 use uuid::Uuid;
@@ -54,10 +52,9 @@ fn node(
             "SELECT hash FROM block_log_nodes
              WHERE organization_id = ?1 AND block_id = ?2 AND level = ?3 AND position = ?4",
         )?
-        .query_row(
-            params![organization, block, level, index as i64],
-            |row| row.get(0),
-        )
+        .query_row(params![organization, block, level, index as i64], |row| {
+            row.get(0)
+        })
         .optional()?;
     hash_of(hash.ok_or(ServerError::Corrupt)?)
 }
@@ -106,7 +103,11 @@ pub fn bytes(database: &Connection, organization: Uuid, block: Uuid) -> Result<u
 }
 
 /// A block's log's head.
-pub fn head(database: &Connection, organization: Uuid, block: Uuid) -> Result<LogHead, ServerError> {
+pub fn head(
+    database: &Connection,
+    organization: Uuid,
+    block: Uuid,
+) -> Result<LogHead, ServerError> {
     Ok(head_of(&kept(
         database,
         &organization.to_string(),
@@ -313,7 +314,11 @@ fn write_kept(
 
 /// What an entry is charged: its payload while it has one, and what every entry keeps.
 fn charged(entry: &LogEntry) -> u64 {
-    entry.payload.as_ref().map_or(0, |payload| payload.len() as u64) + ENTRY_OVERHEAD_BYTES
+    entry
+        .payload
+        .as_ref()
+        .map_or(0, |payload| payload.len() as u64)
+        + ENTRY_OVERHEAD_BYTES
 }
 
 /// Checks an append's entries against the limits, before anything is written.
@@ -403,7 +408,9 @@ pub fn page(
     let mut node = |level, index| node(database, &org, &id, level, index);
     let proof = merkle::range_proof(kept.size, from, to, &mut node)?;
     let consistency = match known {
-        Some(known) if known <= kept.size => merkle::consistency_proof(known, kept.size, &mut node)?,
+        Some(known) if known <= kept.size => {
+            merkle::consistency_proof(known, kept.size, &mut node)?
+        }
         _ => Vec::new(),
     };
     Ok(LogPage {
@@ -506,7 +513,14 @@ impl ServerStore {
                 entries,
                 be_block_commit::now_milliseconds(),
             )?;
-            store.charge_log(graph, &transaction, organization, block, appended.grew, true)?;
+            store.charge_log(
+                graph,
+                &transaction,
+                organization,
+                block,
+                appended.grew,
+                true,
+            )?;
             let told = match appended.entries.is_empty() {
                 true => None,
                 false => {
@@ -563,7 +577,13 @@ impl ServerStore {
     ) -> Result<(), ServerError> {
         self.with_graph(identity.organization, move |store, graph, database| {
             let seen = visibility(identity);
-            crate::blocks::require(graph, &seen, block, be_block_graph::Access::View, "viewable")?;
+            crate::blocks::require(
+                graph,
+                &seen,
+                block,
+                be_block_graph::Access::View,
+                "viewable",
+            )?;
             let organization = identity.organization;
             let (author, length) = redactable(database, organization, block, seq)?;
             if author != identity.account && !seen.can_manage(graph, block) {

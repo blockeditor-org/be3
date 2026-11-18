@@ -211,8 +211,8 @@ impl<S: ObjectStore> Peer<S> {
             0 => None,
             size => self.refs.log_entries(block, size - 1, 1).pop(),
         };
-        let arrival = be_block_commit::now_milliseconds()
-            .max(last.map_or(i64::MIN, |last| last.arrival));
+        let arrival =
+            be_block_commit::now_milliseconds().max(last.map_or(i64::MIN, |last| last.arrival));
         let entry = LogEntry {
             seq: frontier.size(),
             id: appending.id,
@@ -271,7 +271,10 @@ impl<S: ObjectStore> Peer<S> {
             let entries = self.refs.log_entries(block, from, limit as usize);
             return Ok(LogRead {
                 head,
-                entries: entries.into_iter().map(|entry| self.opened(block, entry)).collect(),
+                entries: entries
+                    .into_iter()
+                    .map(|entry| self.opened(block, entry))
+                    .collect(),
                 proof_hashes: 0,
             });
         }

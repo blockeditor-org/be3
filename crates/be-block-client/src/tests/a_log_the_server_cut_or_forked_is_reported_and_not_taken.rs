@@ -15,7 +15,11 @@ async fn a_log_the_server_cut_or_forked_is_reported_and_not_taken() {
     let kept = owner.read_log(chat, 0, 10).await.unwrap();
     assert_eq!(kept.head.size, 3);
     let past = owner.read_log(chat, 10, 5).await.unwrap();
-    assert_eq!((past.head, past.entries.len()), (kept.head, 0), "a read past the end is empty");
+    assert_eq!(
+        (past.head, past.entries.len()),
+        (kept.head, 0),
+        "a read past the end is empty"
+    );
     // A push told late, of a head as long as the kept one with another root, is a fork too.
     let told = be_block_protocol::Appended {
         organization: owner.organization(),

@@ -23,7 +23,9 @@ async fn an_entry_signed_with_a_replaced_key_after_its_replacement_answers_repla
     let fresh = be_block_keys::RecoveryPhrase::generate().secret();
     take_phrase(&owner.connection(), owner.account(), &old, &fresh).await;
     guest.refresh_contacts().await.unwrap();
-    let now = guest.server_now().expect("the guest measured the server's clock");
+    let now = guest
+        .server_now()
+        .expect("the guest measured the server's clock");
 
     let owner = Peer::connect(
         PeerConfig::new(
@@ -37,7 +39,10 @@ async fn an_entry_signed_with_a_replaced_key_after_its_replacement_answers_repla
     )
     .await
     .unwrap();
-    owner.append(team, b"after, with the new key").await.unwrap();
+    owner
+        .append(team, b"after, with the new key")
+        .await
+        .unwrap();
     // The owner's phone, never told of the new phrase, still signs with the old key, and the
     // server takes its entry two minutes after the guest learned of the new one.
     let payload = b"sealed by the phone".to_vec();
