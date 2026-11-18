@@ -11,7 +11,7 @@ use crate::types::Outline;
 use crate::types::Sides;
 use crate::types::Vec2;
 use beui_core_html::css;
-use beui_core_html::document::{append, create, set_style};
+use beui_core_html::document::{append, create, set_attribute, set_style};
 
 use super::bind;
 
@@ -39,6 +39,7 @@ pub(crate) fn frame(
     fade_edges: Prop<Sides>,
     raised: Prop<bool>,
     collapsed: Prop<bool>,
+    accessibility_hidden: Prop<bool>,
     children: Option<Child>,
 ) -> NodeId {
     let frame = create("Frame", "div");
@@ -49,6 +50,9 @@ pub(crate) fn frame(
             false => "grid",
         };
         set_style(frame, "display", Some(display.to_owned()));
+    });
+    bind(accessibility_hidden, move |hidden| {
+        set_attribute(frame, "aria-hidden", hidden.then(|| "true".to_owned()));
     });
     set_style(
         frame,
