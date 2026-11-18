@@ -152,7 +152,10 @@ interface host {
     /// The host's memory over time, once it differs from the generation
     /// `seen`, as `statistics` answers; the host measures it only while the
     /// root watches the statistics, and turning the watch off answers a call
-    /// still waiting with it as it is.
+    /// still waiting with it as it is. Each sample (every 10 seconds) moves
+    /// `now`, so it sends the whole history again, up to 2880
+    /// points (two days), about 115 KB: small for a debug panel watched only
+    /// while open, so no deltas.
     memory-history: async func(seen: u64) -> memory-minutes;
 
     /// Whether the root shows the host's statistics now. The host measures

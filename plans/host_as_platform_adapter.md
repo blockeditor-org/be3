@@ -1089,9 +1089,10 @@ Each step lands on its own.
        zeroed by the host, never in the view. Each area adds its field and its commands with
        the slice that moves it; be-host's `--root` answers what it has, which is nothing before
        it runs the core (4g7): nothing to save, no display waiting, no accounts. be-host's own
-       `SlowSave` is a copy of the root's slow save's toast until the root becomes the default
-       (4g7), which deletes be-host's UI and the copy with it; a crate shared for one interim
-       duplicate is not worth it. The slices: 4g6b saving (the slow save's toast); 4g6c keep
+       `SlowSave` is a copy of the root's slow save's toast, and be-sdk-root-testing's
+       `MemoryGraph` and `draw_memory` a copy of be-host's memory graph, until the root becomes
+       the default (4g7), which deletes be-host's UI and the copies with it; a crate shared
+       for interim duplicates is not worth it. The slices: 4g6b saving (the slow save's toast); 4g6c keep
        changes (the display's countdown); 4g6d the core's view and commands with the changes
        not yet sent and discarding them (the unsent dialog); 4g6e accounts and adding one
        (onboarding); 4g6f organizations, sessions and their dialogs; 4g6g recovery and the
