@@ -96,9 +96,9 @@ export default async function (test) {
     }
 
     // A focused caret blinks for ten seconds after it last moved, asking for frames as it should
-    // (CARET_BLINKS_FOR, 10.6 s, which a page cannot read); the spell starts after that. Moving
-    // the keyboard off the text instead would mean clicking somewhere with no caret, and a click
-    // on the tree's selected row starts a rename, so the test waits it out.
+    // (CARET_BLINKS_FOR, 10.6 s, which a page cannot read); the spell starts after that. The
+    // test waits it out rather than moving the keyboard off the text, so the idle spell is the
+    // page as a person left it, with a text open and focused.
     await drive("pause", "11000");
     await page.evaluate(`(() => {
         window.animationFrames = 0;
