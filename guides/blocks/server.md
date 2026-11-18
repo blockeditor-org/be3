@@ -1025,13 +1025,16 @@ text's length reaches the push service.
   neither.
 - **Mutes.** Each account's mode per block (table `mutes`: `all` keeps no
   row, `mentions`, `off`), deleted with the block, the member or the
-  organization. The server reads them to send a muted block's pushes to
-  nobody, so a muted block wakes no phone, which is why these rows are their
-  one copy and not kept in the account's own block. `op.set-mute` sets one
-  (`all` unmutes) and tells `topic.mutes` to the account's other connections;
-  `query.mutes` lists an account's, which a device reads, following them,
-  when it connects and again on that topic (be-host-stack `Shared::mutes`,
-  published to apps as `MutesWatch`).
+  organization. The server reads them to leave a muted account out of a
+  block's pushes (`mentions` still hears what mentions it), so a muted block
+  wakes no phone of theirs; these rows are their one copy, not also kept in
+  the account's own block (decisions/mutes_are_read_by_the_server.md).
+  `op.set-mute` sets one (`all` unmutes) and tells `topic.mutes` to the
+  account's other connections; `query.mutes` lists an account's, which a
+  device reads, following them, when it connects and again on that topic
+  (be-host-stack `Shared::mutes`, published to apps as `MutesWatch`). The
+  list may name blocks the account can no longer view, which is harmless:
+  it is not filtered.
 - **`target.push`** (a `send`; Edit; at most `MAX_NOTIFICATION_BYTES` and `MAX_MENTIONS`,
   `MAX_NOTIFICATIONS_PER_MINUTE` per account and `MAX_NOTIFICATIONS_PER_BLOCK`
   per account and block) goes to every viewer of the block

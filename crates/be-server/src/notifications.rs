@@ -33,7 +33,7 @@ fn service_of(name: &str) -> Result<PushService, ServerError> {
     }
 }
 
-fn mode_name(mode: NotifyMode) -> &'static str {
+fn mute_name(mode: NotifyMode) -> &'static str {
     match mode {
         NotifyMode::All => "all",
         NotifyMode::Mentions => "mentions",
@@ -41,7 +41,7 @@ fn mode_name(mode: NotifyMode) -> &'static str {
     }
 }
 
-fn mode_of(name: &str) -> Result<NotifyMode, ServerError> {
+fn mute_of(name: &str) -> Result<NotifyMode, ServerError> {
     match name {
         "all" => Ok(NotifyMode::All),
         "mentions" => Ok(NotifyMode::Mentions),
@@ -50,7 +50,7 @@ fn mode_of(name: &str) -> Result<NotifyMode, ServerError> {
     }
 }
 
-/// Forgets what a member removed from `organization` kept there: their endpoints, modes and
+/// Forgets what a member removed from `organization` kept there: their endpoints, mutes and
 /// what they told.
 pub(crate) fn forget_member(
     database: &Connection,
@@ -304,15 +304,15 @@ impl ServerStore {
                 ],
                 |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
             )?;
-            let mut modes = Vec::new();
+            let mut mutes = Vec::new();
             for row in rows {
                 let (block, mode) = row?;
-                modes.push(BlockMute {
+                mutes.push(BlockMute {
                     block: crate::store::parse_uuid(&block)?,
-                    mode: mode_of(&mode)?,
+                    mode: mute_of(&mode)?,
                 });
             }
-            Ok(modes)
+            Ok(mutes)
         })
         .await
     }
@@ -342,7 +342,7 @@ impl ServerStore {
                      VALUES (?1, ?2, ?3, ?4)
                      ON CONFLICT (organization_id, block_id, account_id)
                      DO UPDATE SET mode = excluded.mode",
-                    params![organization, block, account, mode_name(mode)],
+                    params![organization, block, account, mute_name(mode)],
                 )?,
             };
             Ok(())
@@ -366,12 +366,12 @@ impl ServerStore {
             }
             let mut viewers: BTreeSet<Uuid> = graph.viewers(block);
             viewers.remove(&identity.account);
-            let modes = modes_of(database, identity.organization, block)?;
+            let mutes = mutes_of(database, identity.organization, block)?;
             let mentioned: BTreeSet<Uuid> = mentions.into_iter().collect();
             let mut wanted: HashMap<Uuid, bool> = HashMap::new();
             for account in viewers {
                 let mentions = mentioned.contains(&account);
-                let wants = match modes.get(&account).copied().unwrap_or(NotifyMode::All) {
+                let wants = match mutes.get(&account).copied().unwrap_or(NotifyMode::All) {
                     NotifyMode::All => true,
                     NotifyMode::Mentions => mentions,
                     NotifyMode::Off => false,
@@ -404,7 +404,7 @@ impl ServerStore {
     }
 }
 
-fn modes_of(
+fn mutes_of(
     database: &Connection,
     organization: Uuid,
     block: Uuid,
@@ -416,12 +416,12 @@ fn modes_of(
         params![organization.to_string(), block.to_string()],
         |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
     )?;
-    let mut modes = HashMap::new();
+    let mut mutes = HashMap::new();
     for row in rows {
         let (account, mode) = row?;
-        modes.insert(crate::store::parse_uuid(&account)?, mode_of(&mode)?);
+        mutes.insert(crate::store::parse_uuid(&account)?, mute_of(&mode)?);
     }
-    Ok(modes)
+    Ok(mutes)
 }
 
 /// Every endpoint registered in `organization`, with its account, oldest first: one query for a

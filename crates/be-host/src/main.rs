@@ -3836,18 +3836,18 @@ impl HostCore {
         be_host_base::watches::publish::<be_sdk_api::StorageUsageWatch>(&usage);
     }
 
-    /// Publishes the account's notification modes, which the host stack read anew.
+    /// Publishes the account's mutes, which the host stack read anew.
     fn publish_mutes(&mut self) {
-        let modes = be_host_stack::mutes().map(|modes| {
-            modes
+        let mutes = be_host_stack::mutes().map(|mutes| {
+            mutes
                 .into_iter()
                 .map(|(block, mode)| be_sdk_api::BlockMute {
                     block: block.into_bytes(),
-                    mode: be_host_stack::app_graph::notify_mode_to(mode),
+                    mode: be_host_stack::app_graph::mute_to(mode),
                 })
                 .collect::<Vec<_>>()
         });
-        be_host_base::watches::publish::<be_sdk_api::MutesWatch>(&modes);
+        be_host_base::watches::publish::<be_sdk_api::MutesWatch>(&mutes);
     }
 
     /// Publishes whether this device shows pushes whenever it changed.

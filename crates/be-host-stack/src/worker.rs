@@ -2912,10 +2912,10 @@ impl Ran<'_> {
                     let set = peer.set_mute(block, mode).await;
                     if set.is_ok() {
                         let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
-                        if let Some(modes) = held.mutes.as_mut() {
+                        if let Some(mutes) = held.mutes.as_mut() {
                             match mode {
-                                be_block_protocol::NotifyMode::All => modes.remove(&block),
-                                mode => modes.insert(block, mode),
+                                be_block_protocol::NotifyMode::All => mutes.remove(&block),
+                                mode => mutes.insert(block, mode),
                             };
                             crate::changes::post(crate::Changes {
                                 mutes: true,

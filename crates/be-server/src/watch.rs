@@ -68,7 +68,7 @@ pub enum Push {
     KeysChanged {
         organization: Uuid,
     },
-    /// The account's notification modes in the organization changed through another of its
+    /// The account's mutes in the organization changed through another of its
     /// connections (`topic.mutes`).
     MutesChanged {
         organization: Uuid,

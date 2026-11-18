@@ -605,7 +605,7 @@ impl Instances {
                 let answering = self.answering(instance, reply);
                 be_host_stack::set_mute(
                     Uuid::from_bytes(block),
-                    be_host_stack::app_graph::notify_mode_of(mode),
+                    be_host_stack::app_graph::mute_of(mode),
                     move |set| answering.send_or_fail(set),
                 );
             }

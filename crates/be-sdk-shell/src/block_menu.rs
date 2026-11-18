@@ -111,7 +111,7 @@ fn notifications(workspace: Workspace, info: &TabInfo) -> Option<MenuNode> {
         return None;
     }
     let id = info.item.id;
-    let mode = workspace.notify_mode(id)?;
+    let mode = workspace.mute(id)?;
     let modes = [
         (NotifyMode::All, "all", "All"),
         (NotifyMode::Mentions, "mentions", "Mentions only"),
