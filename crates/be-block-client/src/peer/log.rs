@@ -34,6 +34,22 @@ pub struct LoggedEntry {
     pub opened: Option<Vec<u8>>,
 }
 
+/// An entry of a block's signed log as an export carries it (`transfer::Saved::log`): opened,
+/// with what its author signed, so it verifies against the block it was written in
+/// (`Peer::verify_exported`) wherever the file goes.
+#[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
+pub struct ExportedEntry {
+    pub seq: u64,
+    pub id: Uuid,
+    pub author: Uuid,
+    pub arrival: i64,
+    /// The payload as the app wrote it.
+    #[serde(with = "serde_bytes")]
+    pub said: Vec<u8>,
+    #[serde(with = "serde_bytes")]
+    pub signature: Vec<u8>,
+}
+
 /// A run of a block's signed log, verified against `head`.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct LogRead {
@@ -59,10 +75,16 @@ fn tree_hashes(hashes: &[Hash]) -> Vec<TreeHash> {
 }
 
 impl<S: ObjectStore> Peer<S> {
-    /// Appends `payload` to `block`'s signed log: sealed under the block's key, signed by this
-    /// account, and kept in the outbox until the server takes it. Online with nothing of the
-    /// block waiting ahead of it, it is sent at once, with any entries of the block that wait.
-    pub async fn append(&self, block: Uuid, payload: &[u8]) -> Result<Appended, ClientError> {
+    /// Appends `payload`, which the app `app` wrote, to `block`'s signed log: signed by this
+    /// account as that app's (`log_signed` over `by_app(app, payload)`), sealed under the block's
+    /// key, and kept in the outbox until the server takes it. Online with nothing of the block
+    /// waiting ahead of it, it is sent at once, with any entries of the block that wait.
+    pub async fn append(
+        &self,
+        block: Uuid,
+        app: &str,
+        payload: &[u8],
+    ) -> Result<Appended, ClientError> {
         let key = self.sealing_key(block).await?;
         let sealed = self.commits.vault().seal(key, payload)?;
         if sealed.len() > be_block_protocol::MAX_LOG_ENTRY_BYTES {
@@ -76,8 +98,8 @@ impl<S: ObjectStore> Peer<S> {
             ));
         }
         let id = Uuid::new_v4();
-        let signature =
-            self.sign_authored(block, &be_block_protocol::log_signed(id, Hash::of(&sealed)));
+        let said = Hash::of(&super::by_app(app, payload));
+        let signature = self.sign_authored(block, &be_block_protocol::log_signed(id, said));
         self.refs.push(Op::Append(Appending {
             block,
             id,
@@ -332,7 +354,17 @@ impl<S: ObjectStore> Peer<S> {
         let size = kept.as_ref().map_or(0, |kept| kept.size);
         if appended.head.size <= size {
             // Told late, of what this device read since: still, nothing it names may differ
-            // from what this device holds.
+            // from what this device holds, once it is proved to be what the head it names holds.
+            let leaves: Vec<TreeHash> = appended.entries.iter().map(LogEntry::leaf).collect();
+            if merkle::range_root(
+                appended.head.size,
+                appended.previous,
+                &leaves,
+                &tree_hashes(&appended.proof),
+            ) != Some(*appended.head.root.as_bytes())
+            {
+                return Err(ClientError::Tampered(appended.head.root));
+            }
             let forked = kept.as_ref().is_some_and(|kept| {
                 appended.head.size == kept.size && *appended.head.root.as_bytes() != kept.root
             }) || appended.entries.iter().any(|entry| {
@@ -426,17 +458,24 @@ impl<S: ObjectStore> Peer<S> {
             return Err(ClientError::Tampered(head.root));
         }
         // Consistent, the head is at least as long as the kept one.
-        let kept_now = self.refs.keep_entries(
-            block,
-            kept,
-            KeptLogHead {
-                size: head.size,
-                root,
-                frontier: None,
-            },
-            entries.clone(),
-        )?;
-        Ok(kept_now.then_some(entries))
+        let taken = KeptLogHead {
+            size: head.size,
+            root,
+            frontier: None,
+        };
+        if self.refs.keep_entries(block, kept, taken.clone(), entries.clone())? {
+            return Ok(Some(entries));
+        }
+        // The kept head moved meanwhile: to this very head (another read of it), its entries are
+        // as good as proved against it.
+        let now = self.refs.log_head(block);
+        let same = now
+            .as_ref()
+            .is_some_and(|now| now.size == head.size && now.root == root);
+        match same && self.refs.keep_entries(block, now.as_ref(), taken, entries.clone())? {
+            true => Ok(Some(entries)),
+            false => Ok(None),
+        }
     }
 
     /// `entries` opened, the block's keys asked for once when one of them is sealed under a key
@@ -477,16 +516,68 @@ impl<S: ObjectStore> Peer<S> {
         LoggedEntry { entry, opened }
     }
 
-    /// Who signed an entry of `block`'s log (`verify_authored`), judged by when the server took
-    /// it: its arrival, which no author steers, so one signed with a contact's replaced key that
-    /// arrived after this device learned of the new key answers `Replaced`.
-    pub async fn verify_entry(&self, block: Uuid, entry: &LogEntry) -> Result<Signer, ClientError> {
-        self.verify_authored(
+    /// Who signed an entry of `block`'s log that says `said` (its payload opened) as the app
+    /// `app`'s (`verify_authored`), judged by when the server took it: its arrival, which no
+    /// author steers, so one signed with a contact's replaced key that arrived after this device
+    /// learned of the new key answers `Replaced`. Another app's entry answers `Bad`.
+    pub async fn verify_entry(
+        &self,
+        block: Uuid,
+        app: &str,
+        author: Uuid,
+        id: Uuid,
+        arrival: i64,
+        said: &[u8],
+        signature: &[u8],
+    ) -> Result<Signer, ClientError> {
+        let signed = be_block_protocol::log_signed(id, Hash::of(&super::by_app(app, said)));
+        self.verify_authored(author, block, &signed, signature, Some(arrival))
+            .await
+    }
+
+    /// Every entry of `block`'s log, opened, as an export carries them: read a page at a time
+    /// and verified as any read is. An entry whose payload is gone or does not open is left out.
+    pub async fn export_log(&self, block: Uuid) -> Result<Vec<ExportedEntry>, ClientError> {
+        let mut exported = Vec::new();
+        let mut from = 0;
+        loop {
+            let read = self.read_log(block, from, u32::MAX).await?;
+            if read.entries.is_empty() {
+                return Ok(exported);
+            }
+            from += read.entries.len() as u64;
+            exported.extend(read.entries.into_iter().filter_map(|logged| {
+                Some(ExportedEntry {
+                    seq: logged.entry.seq,
+                    id: logged.entry.id,
+                    author: logged.entry.author,
+                    arrival: logged.entry.arrival,
+                    said: logged.opened?,
+                    signature: logged.entry.signature,
+                })
+            }));
+            if from >= read.head.size {
+                return Ok(exported);
+            }
+        }
+    }
+
+    /// Who signed `entry` of an export of the block `original` as the app `app`'s: an export's
+    /// entries verify against the block they were written in, wherever the file went.
+    pub async fn verify_exported(
+        &self,
+        original: Uuid,
+        app: &str,
+        entry: &ExportedEntry,
+    ) -> Result<Signer, ClientError> {
+        self.verify_entry(
+            original,
+            app,
             entry.author,
-            block,
-            &entry.signed(),
+            entry.id,
+            entry.arrival,
+            &entry.said,
             &entry.signature,
-            Some(entry.arrival),
         )
         .await
     }

@@ -259,6 +259,49 @@ Tests:
 flow), be-host-stack's `a_part_an_editor_puts_is_held_for_its_block_once_the_server_has_it`
 and be-server's `a_part_held_until_committed_lasts_until_a_commit_takes_it_or_its_grace_passes`.
 
+### Signed logs
+
+A type with `type-info.log` keeps a signed log beside its content
+(plans/signed_logs.md; guides/blocks/client.md, "Signed logs"): content is
+what anyone with Edit may rewrite, a log what its authors add. A types crate
+says so with `be_block_types![T { log }]` (`Registration::log`), and the
+content implements `be_block_content::LogFold`: how an entry
+(`be_block_content::LogItem`: place, id, author, arrival, the app's bytes and
+who signed them, `LogSigner`) changes what the content shows.
+
+- **Appending.** An editor sends `FromEditor::Append` (`EditorMirror::append`,
+  `ContentProjection::append` in be-sdk); the replica calls `host.append`
+  with the bytes alone and answers `ToEditor::Appended`. The host signs them
+  for the person as the module's app (`be_block_client::by_app` with the
+  module's source name, `Modules::name`) and hands them to `Peer::append`, so
+  a module never holds a signature: it cannot skip signing, sign as anyone
+  else, or make an entry another app's `verify` takes.
+- **Hearing.** A replica reads its first entries as it loads (`host.read-log`,
+  which follows the log) and hears the rest through `replica.logged`, every
+  device's own included, which the host takes from `Event::Appended` once
+  `Peer::logged` proved it (`Replicas::appended`) and hands on with who signed
+  each, judged by its arrival (`Peer::verify_entry`). Neither is kept for a
+  replica opened again, which reads the log afresh. An editor hears each as
+  `ToEditor::Logged` and reads more with `FromEditor::ReadLog`
+  (`ToEditor::LogRead`).
+- **Folding.** The replica and each `EditorMirror` keep the entries they
+  heard or read by place, each id once at its first place
+  (`editor::take_logged`), so an entry a server serves again under its id is
+  never shown twice. The replica describes its content with the log folded
+  onto a copy of it, in the log's order; what it commits never holds the
+  fold. Search does not fold the log yet (plans/signed_logs.md, step 5).
+- **Export.** An export carries a type's log opened, each entry with its
+  author's signature (`transfer::Saved::log`, `Peer::export_log`), which
+  verifies against the block it was written in wherever the file goes
+  (`Peer::verify_exported`); a duplicate (`transfer::renumber`) starts its
+  own log.
+
+Hosts: be-block-type-host's `Replicas`, be-sdk-test's store (one device, so
+every entry is its own and verified) and be-sdk-type-guest's `Sim`. Tests:
+`two_replicas_append_to_one_log_and_fold_it_in_one_order` (be-sdk-type-guest)
+and be-block-type-host's
+`what_a_module_appends_reaches_the_server_signed_by_the_host_as_its_apps`.
+
 ### Whole bytes
 
 `type-info.whole-bytes` (`BlockContent::WHOLE_BYTES`, true unless a type says otherwise) says the

@@ -17,7 +17,7 @@ async fn an_entry_signed_with_a_replaced_key_after_its_replacement_answers_repla
         .share(team, guest.account(), Access::Edit, &public)
         .await
         .unwrap();
-    let before = owner.append(team, b"before the new phrase").await.unwrap();
+    let before = owner.append(team, "test.app", b"before the new phrase").await.unwrap();
     assert!(matches!(before, Appended::Logged { seq: 0, .. }));
     let old = owner.keys().identity().clone();
     let fresh = be_block_keys::RecoveryPhrase::generate().secret();
@@ -40,16 +40,22 @@ async fn an_entry_signed_with_a_replaced_key_after_its_replacement_answers_repla
     .await
     .unwrap();
     owner
-        .append(team, b"after, with the new key")
+        .append(team, "test.app", b"after, with the new key")
         .await
         .unwrap();
     // The owner's phone, never told of the new phrase, still signs with the old key, and the
     // server takes its entry two minutes after the guest learned of the new one.
+    // (Its payload is not sealed here, so the guest opens nothing of it: it is judged by what
+    // the phone said.)
     let payload = b"sealed by the phone".to_vec();
+    let from_phone = b"from the phone";
     let id = Uuid::new_v4();
     let signature = old.sign_authored(
         team.into_bytes(),
-        &be_block_protocol::log_signed(id, be_block_store::Hash::of(&payload)),
+        &be_block_protocol::log_signed(
+            id,
+            be_block_store::Hash::of(&crate::by_app("test.app", from_phone)),
+        ),
     );
     let database = harness.database();
     be_server::log::append(
@@ -71,7 +77,22 @@ async fn an_entry_signed_with_a_replaced_key_after_its_replacement_answers_repla
     assert_eq!(read.head.size, 3);
     let mut signers = Vec::new();
     for logged in &read.entries {
-        signers.push(guest.verify_entry(team, &logged.entry).await.unwrap());
+        let said = logged.opened.as_deref().unwrap_or(from_phone);
+        let entry = &logged.entry;
+        signers.push(
+            guest
+                .verify_entry(
+                    team,
+                    "test.app",
+                    entry.author,
+                    entry.id,
+                    entry.arrival,
+                    said,
+                    &entry.signature,
+                )
+                .await
+                .unwrap(),
+        );
     }
     assert_eq!(
         signers,

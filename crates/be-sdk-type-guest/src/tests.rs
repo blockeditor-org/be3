@@ -137,6 +137,7 @@ mod two_drags_in_one_block_commit_as_one_step_when_the_second_ends;
 mod two_editors_typing_at_once_keep_their_own_undo_steps;
 mod two_edits_one_submission_held_go_again_as_it_once_both_are_given_again;
 mod two_oversized_edits_in_a_row_land_in_order;
+mod two_replicas_append_to_one_log_and_fold_it_in_one_order;
 mod typing_behind_an_unconfirmed_edit_goes_out_as_one_edit;
 mod typing_while_a_seal_waits_for_the_server_shows_at_once;
 mod undo_mid_drag_cancels_it;
@@ -377,6 +378,78 @@ fn counter_module() -> Module {
     ])
 }
 
+/// A counter with a signed log, whose name is what its log says, in the log's order.
+#[derive(Clone, Debug, Default, PartialEq)]
+struct Logbook {
+    counter: CounterContent,
+    said: Vec<String>,
+}
+
+impl BlockContent for Logbook {
+    const CONTENT_TYPE: Uuid = Uuid::from_u128(0x6c6f_6762_6f6f_6b2d_626c_6f63_6b2d_0001);
+
+    fn encode(&self) -> Vec<u8> {
+        self.counter.encode()
+    }
+
+    fn decode(bytes: &[u8]) -> Result<Self, be_block_content::ContentError> {
+        Ok(Self {
+            counter: CounterContent::decode(bytes)?,
+            said: Vec::new(),
+        })
+    }
+
+    fn name(&self) -> Option<String> {
+        (!self.said.is_empty()).then(|| self.said.join(" "))
+    }
+}
+
+impl LiveEdit for Logbook {
+    type Op = Edit;
+
+    fn apply(&mut self, operation: &Edit) {
+        self.counter.apply(operation);
+    }
+}
+
+impl be_block_content::Merge for Logbook {
+    fn merge3(base: &Self, ours: &Self, theirs: &Self) -> be_block_commit::MergeResult<Self> {
+        match CounterContent::merge3(&base.counter, &ours.counter, &theirs.counter) {
+            be_block_commit::MergeResult::Clean(counter) => {
+                be_block_commit::MergeResult::Clean(Self {
+                    counter,
+                    said: Vec::new(),
+                })
+            }
+            be_block_commit::MergeResult::Conflicted { value, conflicts } => {
+                be_block_commit::MergeResult::Conflicted {
+                    value: Self {
+                        counter: value,
+                        said: Vec::new(),
+                    },
+                    conflicts,
+                }
+            }
+        }
+    }
+}
+
+impl be_block_content::LogFold for Logbook {
+    fn fold(&mut self, item: &be_block_content::LogItem) {
+        let said = item
+            .payload
+            .as_deref()
+            .map_or("(redacted)".to_owned(), |payload| {
+                String::from_utf8_lossy(payload).into_owned()
+            });
+        self.said.push(said);
+    }
+}
+
+fn logbook_module() -> Module {
+    Module::new(vec![Registration::of::<Logbook>().log::<Logbook>()])
+}
+
 fn announced_counter_module() -> Module {
     Module::new(vec![Registration::of::<AnnouncedCounter>()])
 }
@@ -598,6 +671,9 @@ struct Sim<C: LiveEdit + Clone + Default> {
     written: u64,
     journal: Option<Journal>,
     journal_tag: SessionTag,
+    /// The block's signed log, as the server numbers and stamps it: each device's client is its
+    /// author, and every entry verified.
+    log: Vec<be_sdk_type_api::LogItem>,
     make: fn() -> Module,
 }
 
@@ -672,6 +748,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             written: 0,
             journal: None,
             journal_tag: TAG,
+            log: Vec::new(),
             make,
         }
     }
@@ -1000,6 +1077,11 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
         self.editors[&(device, editor)]
             .content()
             .expect("the editor was sent its content")
+    }
+
+    /// The entries of the block's log `editor` holds, in order.
+    fn mirror_log(&self, device: usize, editor: EditorId) -> Vec<be_block_content::LogItem> {
+        self.editors[&(device, editor)].log().cloned().collect()
     }
 
     fn take_received(&mut self, device: usize, editor: EditorId) -> Vec<ToEditor> {
@@ -1462,6 +1544,41 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                     .map_err(|error| error.to_string());
                 self.to(device, |host| reply.send(host, &result));
             }
+            Call::Append { reply, bytes } => {
+                let seq = self.log.len() as u64;
+                let item = be_sdk_type_api::LogItem {
+                    seq,
+                    id: Uuid::from_u64_pair(client, seq),
+                    author: Uuid::from_u64_pair(0, client),
+                    arrival: self.now as i64,
+                    payload: Some(bytes),
+                    signer: be_sdk_type_api::Signer::Verified,
+                };
+                let place = be_sdk_type_api::host::LogPlace {
+                    seq,
+                    arrival: item.arrival,
+                };
+                self.to(device, |host| {
+                    reply.send(
+                        host,
+                        &Ok(be_sdk_type_api::host::Appended::Logged(place)),
+                    )
+                });
+                self.log_item(item);
+            }
+            Call::ReadLog { reply, from, limit } => {
+                let page = be_sdk_type_api::LogPage {
+                    size: self.log.len() as u64,
+                    items: self
+                        .log
+                        .iter()
+                        .skip(from as usize)
+                        .take(limit as usize)
+                        .cloned()
+                        .collect(),
+                };
+                self.to(device, |host| reply.send(host, &Ok(page)));
+            }
             call @ Call::PutPart { .. } if self.stalled => self.held.push((device, call)),
             Call::PutPart { reply, bytes } => {
                 self.parts_put += 1;
@@ -1581,6 +1698,17 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
 
     /// As the server: numbers `submission` from `device` (unless the journal holds its id),
     /// keeps it in the journal and hands it to every participant, `device` too.
+    /// Takes `item` into the block's log, as the server would, and tells every open device's
+    /// replica.
+    fn log_item(&mut self, item: be_sdk_type_api::LogItem) {
+        self.log.push(item.clone());
+        for device in self.open_devices() {
+            self.with_replica(device, |replica, host| {
+                replica.logged(host, vec![item.clone()])
+            });
+        }
+    }
+
     fn number(&mut self, device: usize, submission: be_sdk_type_api::Submission) {
         self.largest_relay = self.largest_relay.max(submission.payload.len());
         let held = self.journal.as_ref().is_some_and(|journal| {

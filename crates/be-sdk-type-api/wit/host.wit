@@ -6,8 +6,8 @@ package be3:block-type@0.1.0;
 /// request has that request as its parent (only `read-part`).
 interface host {
     use types.{
-        announcement, byte-range, commit-id, description, journal-base, loaded, merging, submission,
-        part-ref, recipients, resume, status, written,
+        announcement, byte-range, commit-id, description, journal-base, loaded, log-page, merging,
+        submission, part-ref, recipients, resume, status, written,
     };
 
     /// The frame clock in milliseconds. The module starts it once; the host
@@ -75,6 +75,30 @@ interface host {
 
     /// Writes a commit that moves no head.
     stash: async func(parent: option<commit-id>, content: written) -> result<commit-id, string>;
+
+    /// Appends `bytes` to the block's signed log (a type with `type-info.log`):
+    /// the host signs them as this app's, for the person, so a module can neither
+    /// skip signing nor sign as anyone else or for another app, seals them and
+    /// keeps them until the server takes them. Every replica of the block hears
+    /// the entry through `replica.logged` once it is in the log, this one too.
+    append: async func(bytes: list<u8>) -> result<appended, string>;
+
+    variant appended {
+        /// The server took it: its place and arrival.
+        logged(log-place),
+        /// It waits on this device for the server.
+        kept,
+    }
+
+    record log-place {
+        seq: u64,
+        arrival: s64,
+    }
+
+    /// At most `limit` entries of the block's signed log from `from`, verified
+    /// against the head the device holds; reading follows the log, so what is
+    /// appended after reaches the replica through `replica.logged`.
+    read-log: async func(%from: u64, limit: u32) -> result<log-page, string>;
 
     /// The host fetches both histories and runs `be_session::resume`.
     resume-session: async func(local: option<commit-id>) -> result<resume, string>;

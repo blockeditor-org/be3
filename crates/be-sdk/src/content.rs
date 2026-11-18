@@ -229,6 +229,34 @@ impl<C: LiveEdit + Clone + Default + 'static> LiveContent<C> {
         })
     }
 
+    /// Appends `bytes` to the block's signed log (a type with a log): the host signs them as
+    /// this app's, for the person. Where it went is taken with `take_appended` under the token
+    /// this answers; the entry joins `log` as it reaches the log, which moves the revision.
+    pub fn append(&self, bytes: Vec<u8>) -> u64 {
+        let (token, message) = self.0.mirror.borrow_mut().append(bytes);
+        self.0.host.send_to_replica(self.0.block, message);
+        token
+    }
+
+    /// Where the entries `append` asked for went, by token, since this was last asked: their
+    /// place and arrival, none while one waits on the device, or why it was refused.
+    pub fn take_appended(&self) -> Vec<(u64, Result<Option<(u64, i64)>, String>)> {
+        self.0.mirror.borrow_mut().take_appended()
+    }
+
+    /// Asks for at most `limit` entries of the block's signed log from `from`, which join `log`
+    /// as they arrive.
+    pub fn read_log(&self, from: u64, limit: u32) {
+        let (_, message) = self.0.mirror.borrow_mut().read_log(from, limit);
+        self.0.host.send_to_replica(self.0.block, message);
+    }
+
+    /// The entries of the block's signed log this editor heard or read, in the log's order,
+    /// each id once at its first place.
+    pub fn log(&self) -> Vec<be_block_content::LogItem> {
+        self.0.mirror.borrow().log().cloned().collect()
+    }
+
     /// Makes an edit outside any gesture.
     pub fn operate(&self, operation: C::Op) {
         if !self.0.host.editable() || !self.loaded() {

@@ -11,7 +11,7 @@ async fn a_log_appended_offline_is_sent_in_order_once_the_device_reconnects() {
     let store = MemoryStore::new();
     let laptop = harness.device(&owner, &refs, &store).await;
     let chat = workspace(&laptop, "Chat").await;
-    let first = laptop.append(chat, b"sent online").await.unwrap();
+    let first = laptop.append(chat, "test.app", b"sent online").await.unwrap();
     assert!(
         matches!(first, Appended::Logged { seq: 0, .. }),
         "{first:?}"
@@ -21,7 +21,7 @@ async fn a_log_appended_offline_is_sent_in_order_once_the_device_reconnects() {
     let offline = harness.offline(&owner, &refs, &store);
     let mut kept = Vec::new();
     for text in ["one", "two", "three"] {
-        match offline.append(chat, text.as_bytes()).await.unwrap() {
+        match offline.append(chat, "test.app", text.as_bytes()).await.unwrap() {
             Appended::Kept { id } => kept.push(id),
             logged => panic!("an entry made offline was logged: {logged:?}"),
         }
@@ -70,7 +70,18 @@ async fn a_log_appended_offline_is_sent_in_order_once_the_device_reconnects() {
     for logged in &read.entries {
         assert_eq!(logged.entry.author, owner.account());
         assert_eq!(
-            offline.verify_entry(chat, &logged.entry).await.unwrap(),
+            offline
+                .verify_entry(
+                    chat,
+                    "test.app",
+                    logged.entry.author,
+                    logged.entry.id,
+                    logged.entry.arrival,
+                    logged.opened.as_deref().unwrap(),
+                    &logged.entry.signature,
+                )
+                .await
+                .unwrap(),
             Signer::Verified
         );
     }
@@ -83,7 +94,7 @@ async fn a_log_appended_offline_is_sent_in_order_once_the_device_reconnects() {
     assert_eq!(page.head, read.head);
     assert_eq!(page.entries.len(), 1);
     assert_eq!(page.entries[0].opened.as_deref(), Some(&b"two"[..]));
-    offline.append(chat, b"four").await.unwrap();
+    offline.append(chat, "test.app", b"four").await.unwrap();
     let appended = loop {
         if let Ok(crate::Event::Appended(appended)) = events.recv().await {
             break appended;

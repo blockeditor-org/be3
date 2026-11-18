@@ -31,6 +31,8 @@ pub struct Kind {
     pub merges_parts: bool,
     /// The stored form read whole decodes to the content (`BlockContent::WHOLE_BYTES`).
     pub whole_bytes: bool,
+    /// Keeps a signed log beside its content (`type-info.log`): an export carries it.
+    pub log: bool,
     pub blank: Vec<u8>,
     pub described: Description,
 }
@@ -587,6 +589,12 @@ impl Modules {
         self.modules[module].tag
     }
 
+    /// The module's source's name: its app's id, which what the module writes in a block's
+    /// signed log is signed as (`be_block_client::by_app`).
+    pub fn name(&self, module: usize) -> &str {
+        &self.modules[module].source.name
+    }
+
     pub fn generation(&self, module: usize) -> u64 {
         self.modules[module].generation
     }
@@ -653,6 +661,7 @@ impl Modules {
                 first_part: info.first_part,
                 merges_parts: info.merges_parts,
                 whole_bytes: info.whole_bytes,
+                log: info.log,
                 blank: info.blank,
                 described: info.blank_description,
             });

@@ -15,6 +15,7 @@ pub mod block_url;
 pub mod editor_view;
 pub mod history;
 pub mod layered;
+pub mod log;
 pub mod metadata;
 pub mod model;
 pub mod plain;
@@ -29,6 +30,7 @@ pub use blob::{Blob, BlobKind, BlobOp};
 pub use editor_view::{
     EditorView, EditorViewContent, VIEW_TYPE, ViewRef, ViewState, ViewStateKind,
 };
+pub use log::{LogFold, LogItem, LogSigner};
 pub use layered::{Follows, KindRule, KindVisibility, Layered, layered};
 pub use metadata::{
     ARTIFACT, Artifact, BlockMetadata, CREATED_BY, DELETED_FROM, Definition, DeletedFrom,
