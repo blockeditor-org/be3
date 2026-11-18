@@ -87,14 +87,18 @@ async fn a_reader_granted_from_above_checks_its_grant_on_the_ancestors_path() {
         "the reader's grant checks against the workspace's path"
     );
 
-    let served = crate::ask(be_block_protocol::read::<Vec<Vec<u8>>, _>(
+    let served = crate::ask(be_block_protocol::read::<be_block_protocol::AccessLogPage, _>(
         &reader.connection(),
         Some(reader.organization()),
-        be_block_protocol::Query::Log(Some(team)),
+        be_block_protocol::Query::Log {
+            log: Some(team),
+            held: None,
+        },
     ))
     .await
     .unwrap();
     let path: Vec<Step> = served
+        .entries
         .iter()
         .map(|step| Step::decode(step).unwrap())
         .collect();

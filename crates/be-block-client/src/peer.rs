@@ -392,6 +392,9 @@ pub struct Peer<S: ObjectStore> {
     /// Each commit waiting in the outbox that was sealed again in this run (`Peer::reseal`),
     /// with the one in its place: a write on the first goes on the second.
     resealed: Mutex<HashMap<CommitId, CommitId>>,
+    /// The whole access logs served in this run, by log (the organization's under its id): a
+    /// read names the last entry held and is sent only the entries after it (`served_access`).
+    served_logs: Mutex<HashMap<Uuid, Vec<be_block_keys::Step>>>,
 }
 
 /// How long a read of an access log before a write may take before what was kept of it is
@@ -559,6 +562,7 @@ impl<S: ObjectStore> Peer<S> {
             current: Mutex::new(HashMap::new()),
             tried: Arc::default(),
             unsigned: Mutex::new(Vec::new()),
+            served_logs: Mutex::default(),
             pending_rotations: Mutex::new(HashMap::new()),
             keys_arrived: Arc::default(),
             moved_heads: Mutex::new(HashMap::new()),
@@ -935,8 +939,12 @@ impl<S: ObjectStore> Peer<S> {
             let Ok(around) = self.logs_around(escrowed.block, &entries).await else {
                 continue;
             };
+            let kept = self
+                .keys
+                .kept_checked(escrowed.block, pinned)
+                .filter(|kept| kept.positions.len() <= entries.len());
             let checked = around
-                .check(self.organization, escrowed.block, pinned, None, &entries)
+                .check(self.organization, escrowed.block, pinned, kept, &entries)
                 // A log short of what an earlier check kept is withheld: the key waits.
                 .and_then(|checked| match self.keys.served(escrowed.block, &checked) {
                     crate::keys::Served::Take => Some(checked),
@@ -967,12 +975,7 @@ impl<S: ObjectStore> Peer<S> {
     /// invitation it joined by. The personal organization has none. Whole to an administrator or
     /// a member with Edit or above on any of its blocks, else a proof path.
     pub async fn organization_log(&self) -> Result<Vec<be_block_keys::Step>, ClientError> {
-        let served = crate::ask(be_block_protocol::read::<Vec<Vec<u8>>, _>(
-            &self.connection(),
-            Some(self.organization),
-            be_block_protocol::Query::Log(None),
-        ))
-        .await?;
+        let served = self.served_access(None).await?;
         let organization = self.organization;
         let Some(pinned) = self.keys.organization_root() else {
             return match served.is_empty() {
@@ -980,12 +983,20 @@ impl<S: ObjectStore> Peer<S> {
                 false => Err(ClientError::Locked(organization)),
             };
         };
-        checked_log(
-            be_block_keys::LogKind::Organization,
-            organization,
-            pinned,
-            &served,
-        )
+        // Checked on from what this device kept, as `checked_organization` does.
+        let kept = self
+            .keys
+            .kept_checked(organization, pinned)
+            .filter(|kept| kept.positions.len() <= served.len());
+        kept.unwrap_or_else(|| be_block_keys::Checked::unchecked(pinned))
+            .resume(
+                be_block_keys::LogKind::Organization,
+                organization.into_bytes(),
+                &served,
+                &|_| None,
+            )
+            .map_err(|_| ClientError::Forged(organization))?;
+        Ok(served)
     }
 
     pub(crate) fn adopt_contacts(&self, contacts: &[crate::Contact]) {
@@ -2563,17 +2574,66 @@ impl<S: ObjectStore> Peer<S> {
     /// The block's log as the server serves it to this account: whole to a member with Edit or
     /// above, else a proof path (`be_block_keys::proof_path`).
     async fn served_log(&self, block: Uuid) -> Result<Vec<be_block_keys::Step>, ClientError> {
-        let served = crate::ask(be_block_protocol::read::<Vec<Vec<u8>>, _>(
+        self.served_access(Some(block)).await
+    }
+
+    /// The access log of `log` (the organization's with none) as the server serves it now, root
+    /// first, not yet checked. A whole log read before in this run is asked for after its last
+    /// entry, and the entries sent after it must name it as the one before: the device keeps the
+    /// prefix, so the server neither sends it again nor can rewrite it unseen. A log sent from its
+    /// root (the server no longer holds that entry there, or serves this reader a proof path)
+    /// replaces what was held, and a check from the kept state (`Checked::resume`) refuses one
+    /// whose prefix was rewritten.
+    async fn served_access(
+        &self,
+        log: Option<Uuid>,
+    ) -> Result<Vec<be_block_keys::Step>, ClientError> {
+        let id = log.unwrap_or(self.organization);
+        let held = self.served_logs.lock().unwrap().get(&id).cloned();
+        let held_entry = held.as_ref().and_then(|steps| {
+            Some(be_block_protocol::HeldEntry {
+                place: steps.len().checked_sub(1)? as u64,
+                hash: steps.last()?.hash(),
+            })
+        });
+        let page = crate::ask(be_block_protocol::read::<be_block_protocol::AccessLogPage, _>(
             &self.connection(),
             Some(self.organization),
-            be_block_protocol::Query::Log(Some(block)),
+            be_block_protocol::Query::Log {
+                log,
+                held: held_entry,
+            },
         ))
         .await?;
-        served
+        let sent = page
+            .entries
             .iter()
             .map(|step| be_block_keys::Step::decode(step))
             .collect::<Result<Vec<_>, _>>()
-            .map_err(|_| ClientError::Forged(block))
+            .map_err(|_| ClientError::Forged(id))?;
+        let steps = match page.from {
+            0 => sent,
+            from => {
+                let mut steps = held
+                    .filter(|steps| steps.len() as u64 == from)
+                    .ok_or(ClientError::Forged(id))?;
+                let head = steps.last().map(be_block_keys::Step::hash);
+                if sent
+                    .first()
+                    .is_some_and(|first| first.entry().and_then(|entry| entry.previous) != head)
+                {
+                    return Err(ClientError::Forged(id));
+                }
+                steps.extend(sent);
+                steps
+            }
+        };
+        let mut served = self.served_logs.lock().unwrap();
+        match steps.iter().all(|step| step.entry().is_some()) {
+            true => served.insert(id, steps.clone()),
+            false => served.remove(&id),
+        };
+        Ok(steps)
     }
 
     /// The logs a record in `block`'s log may name its authority in, as far as this device is
@@ -4640,24 +4700,6 @@ fn about(listing: Listing) -> Option<Uuid> {
         | Listing::Children(BlockParent::Block(block)) => Some(block),
         Listing::Children(_) | Listing::Shared | Listing::Deleted => None,
     }
-}
-
-/// The log of `log` as the server served it, once it checks from the pinned root to its head
-/// (`be_block_keys::check_log`).
-fn checked_log(
-    kind: be_block_keys::LogKind,
-    log: Uuid,
-    pinned: be_block_keys::EntryHash,
-    served: &[Vec<u8>],
-) -> Result<Vec<be_block_keys::Step>, ClientError> {
-    let entries = served
-        .iter()
-        .map(|step| be_block_keys::Step::decode(step))
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|_| ClientError::Forged(log))?;
-    be_block_keys::check_log(kind, log.into_bytes(), pinned, &entries, &|_| None)
-        .map_err(|_| ClientError::Forged(log))?;
-    Ok(entries)
 }
 
 /// `access` as an access log's level.

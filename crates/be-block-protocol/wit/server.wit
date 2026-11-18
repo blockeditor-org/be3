@@ -21,7 +21,7 @@ package be3:server@0.1.0;
 interface server {
     use types.{
         access-level, account-id, block-id, block-parent, client-id, commit-id,
-        content-type-id, error, escrow-key, hash, journal, journal-seal, key-id, key-set,
+        content-type-id, entry-hash, error, escrow-key, hash, journal, journal-seal, key-id, key-set,
         link-id, listing, organization-id, organization-role, public-key, sealed-key,
         key-change, block-summary, member-kind, session-host, session-state,
     };
@@ -96,8 +96,10 @@ interface server {
         /// record, needing View on the block or a block below it; the
         /// organization's, whole to an administrator or a member with Edit or
         /// above on any block, else a proof path, empty for the personal
-        /// organization.
-        log(option<block-id>),
+        /// organization. Served whole, a caller that names the entry it holds
+        /// the log up to (`held`) is sent only the entries after it, when the
+        /// log holds that entry at that place (`access-log-page.from`).
+        log(access-log-query),
         /// A page of a block's signed log: at most `limit` entries (and
         /// `be_server::log::MAX_PAGE_ENTRIES`, and what fits half a frame)
         /// from `from`, with the hashes that tie them to the log's head, and
@@ -225,6 +227,26 @@ interface server {
         tag: hash,
     }
 
+    record access-log-query {
+        /// The block, or with none the organization.
+        log: option<block-id>,
+        held: option<held-entry>,
+    }
+
+    /// The entry a caller holds an access log up to: its place, root 0, and
+    /// its hash.
+    record held-entry {
+        place: u64,
+        hash: entry-hash,
+    }
+
+    /// An access log as served: its entries from place `from`, which is one
+    /// past the held entry when only those after it are sent, else 0.
+    record access-log-page {
+        %from: u64,
+        entries: list<list<u8>>,
+    }
+
     record block-log-query {
         block: block-id,
         %from: u64,
@@ -239,7 +261,7 @@ interface server {
         listed(listed),
         tree(changed-page),
         history(list<history-entry>),
-        log(list<list<u8>>),
+        log(access-log-page),
         block-log(log-page),
         access(access-list),
         names(list<account-name>),

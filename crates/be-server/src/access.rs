@@ -205,7 +205,8 @@ pub(crate) fn log_of(
 /// the reader's own right, that of each account that sealed it a key of the block (or, in the
 /// organization's log, any key), which it judges a seal by, and that of each of `also` (for a
 /// block above the reader's, whoever signs below on authority from it), reducing every other
-/// entry.
+/// entry. Served whole, a reader that holds the log up to `held` (its place and hash) is sent
+/// only the entries after it, when the log holds that entry there; else the log from its root.
 pub(crate) fn served_log(
     connection: &Connection,
     kind: LogKind,
@@ -213,8 +214,23 @@ pub(crate) fn served_log(
     log: Uuid,
     reader: Option<Uuid>,
     also: Vec<Uuid>,
-) -> Result<Vec<Vec<u8>>, ServerError> {
-    let entries = entries(connection, kind, organization, log)?;
+    held: Option<be_block_protocol::HeldEntry>,
+) -> Result<be_block_protocol::AccessLogPage, ServerError> {
+    let mut entries = entries(connection, kind, organization, log)?;
+    let after = held.and_then(|held| {
+        let place = usize::try_from(held.place).ok()?;
+        (reader.is_none() && entries.get(place)?.hash() == held.hash).then_some(place + 1)
+    });
+    if let Some(after) = after {
+        return Ok(be_block_protocol::AccessLogPage {
+            from: after as u64,
+            entries: entries
+                .split_off(after)
+                .into_iter()
+                .map(|entry| Step::from(entry).encode())
+                .collect(),
+        });
+    }
     let steps: Vec<Step> = match reader {
         None => entries.into_iter().map(Step::from).collect(),
         Some(reader) => be_block_keys::proof_path(
@@ -227,7 +243,10 @@ pub(crate) fn served_log(
                 .map(Uuid::into_bytes),
         ),
     };
-    Ok(steps.iter().map(Step::encode).collect())
+    Ok(be_block_protocol::AccessLogPage {
+        from: 0,
+        entries: steps.iter().map(Step::encode).collect(),
+    })
 }
 
 /// Each block whose log holds a record signed on authority from `above`
