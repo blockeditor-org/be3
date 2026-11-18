@@ -626,6 +626,14 @@ decisions/tentative_edits_wait_for_release.md) left as it was.
   whose answer has made no progress for `IDLE_TIMEOUT`, with a be-server test
   where a client that stops reading a GetObject answer is disconnected.
 
+- **Imported history in a re-export.** An export carries only a block's own
+  log entries (`Peer::export_log`), and `transfer::decode` refuses an entry
+  written in another block, so exporting a chat with imported history drops
+  that history from the file. Done: a file carries a block's history as its
+  own run, each entry naming the block it was written in and verifying
+  there, and an import of it shows that history again, with a
+  be-block-client test exporting and importing a chat twice.
+
 - **One bad log entry refuses its whole batch.** `Peer::send_appends` sends
   a block's waiting entries in batches (`ENTRIES_PER_SEND`), and the server
   refuses an append whole, so one entry it would refuse (over a limit, a
