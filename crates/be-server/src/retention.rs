@@ -5,7 +5,8 @@
 
 use be_block::OrganizationPolicies;
 use be_block_commit::RetentionPolicy;
-use be_block_commit::retention::{Bucket, DAY, HOUR, MINUTE};
+use be_block_commit::retention::Bucket;
+use be_block_commit::{DAY, HOUR, MINUTE};
 use be_block_graph::SEARCH_INDEX_TYPE;
 use uuid::Uuid;
 

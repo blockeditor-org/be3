@@ -7,7 +7,7 @@ fn a_restore_on_a_peer_keeps_the_state_it_replaced() {
     // History keeps a state per minute: each saved state below is a minute after the last.
     let start = be_block_commit::now_milliseconds();
     let at = |milliseconds: i64| be_block_commit::pin_now(Some(start + milliseconds));
-    let minutes = |minutes: i64| at(minutes * be_block_commit::retention::MINUTE);
+    let minutes = |minutes: i64| at(minutes * be_block_commit::MINUTE);
     minutes(0);
     let block = Uuid::new_v4();
     let mut outside = Outside::counter(&harness, block);
@@ -30,7 +30,7 @@ fn a_restore_on_a_peer_keeps_the_state_it_replaced() {
     assert_ne!(first, replaced);
 
     // The restore lands in the same minute as the state it replaces, a second later.
-    at(be_block_commit::retention::MINUTE + 1_000);
+    at(be_block_commit::MINUTE + 1_000);
     harness.connect();
     open(block, CounterContent::CONTENT_TYPE);
     wait_for_count(block, 7);

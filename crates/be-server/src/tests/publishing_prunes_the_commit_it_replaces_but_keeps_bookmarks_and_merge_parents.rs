@@ -1,6 +1,6 @@
 use super::*;
 
-use be_block_commit::retention::MINUTE;
+use be_block_commit::MINUTE;
 
 #[tokio::test]
 async fn publishing_prunes_the_commit_it_replaces_but_keeps_bookmarks_and_merge_parents() {
