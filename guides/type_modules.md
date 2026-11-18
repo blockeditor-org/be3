@@ -241,10 +241,7 @@ part). A type's part is put by an editor: `EditorMirror::put_part`
 (`FromEditor::PutPart`, answered `ToEditor::PartPut` under its token), which
 the replica turns into its `Effect::PutPart`. `LiveEdit` has no hook for a
 replica to put a part of its own; the replica puts only an oversized operation's
-bytes. (Chat closes a segment without one: the operation carries the segment's
-bytes, which every replica keeps in memory, as it holds the operation, until the content is dropped or
-reloaded from a save; there is no hook yet that turns them into a saved part, so a replica
-holds a closed segment's bytes once per clone, guides/chat.md.) The
+bytes. The
 block must be on the server: a block made offline, or one whose replica has
 not joined yet, is refused.
 
@@ -284,7 +281,12 @@ who signed them, `LogSigner`) changes what the content shows.
 
 - **Appending.** An editor sends `FromEditor::Append` (`EditorMirror::append`,
   `ContentProjection::append` in be-sdk); the replica calls `host.append`
-  with the bytes alone and answers `ToEditor::Appended`. The host signs them
+  with the bytes alone and what goes along with them (`be_block_content::Along`:
+  the push the entry announces, an entry it takes back), and answers
+  `ToEditor::Appended` with the entry's id and, once the server took it, its
+  place. What goes along waits in the device's outbox with the entry and is
+  done once the server takes it (`Peer::append`): the push is sent, several
+  from one drain as one, and the entry taken back is redacted. The host signs them
   for the person as the module's app (`be_block_client::Said::hash` with the
   module's source name, `Modules::name`) and hands them to `Peer::append`, so
   a module never holds a signature: it cannot skip signing, sign as anyone
@@ -294,8 +296,11 @@ who signed them, `LogSigner`) changes what the content shows.
   other app's editor is answered with an error and goes no further. The
   module is sent each message as the host decoded it, so it acts on what the
   host checked, and a message the host cannot decode goes no further.
-- **Hearing.** A replica reads its first 256 entries as it loads
-  (`host.read-log`, which follows the log) and hears the rest through
+- **Hearing.** A replica of a type whose content folds its log
+  (`LogFold::FOLDS`) reads it as it loads, a page at a time to its end
+  (`host.read-log`, which follows the log); one whose content folds nothing
+  (chat) reads and keeps none of it, and its editors read what they show. It
+  hears what is appended through
   `replica.logged`, every device's own included, which the host takes from
   `Event::Appended` once `Peer::logged` proved it (`Replicas::appended`) and
   hands on with who signed each, judged by its arrival (`Peer::verify_entry`,
@@ -305,8 +310,13 @@ who signed them, `LogSigner`) changes what the content shows.
   and the replica drops what it holds. Neither is kept for a replica opened again, which
   reads the log afresh; a first read that fails (a restart, offline) is no
   error, and the replica describes its content without the log until it
-  hears entries. An editor hears each as `ToEditor::Logged` and reads more
-  with `FromEditor::ReadLog` (`ToEditor::LogRead`).
+  hears entries. A follow ends with its connection, and a read made offline
+  makes none: as the device connects, the host reads each open replica's log
+  on from the head it kept (`Replicas::follow_logs`), which follows it again
+  and hands on what was appended meanwhile. An editor hears each entry as
+  `ToEditor::Logged` and reads more with `FromEditor::ReadLog`
+  (`ToEditor::LogRead`, whose `LogPage::kept` also names the entries this
+  device appended that the server has not taken, read from its outbox).
 - **Folding.** The replica and each `EditorMirror` keep the entries they
   heard or read by place, each id once at its first place
   (`editor::take_logged`), so an entry a server serves again under its id is
@@ -317,13 +327,15 @@ who signed them, `LogSigner`) changes what the content shows.
   `ContentProjection::with_log`. The replica describes its content with the
   log folded onto a copy of it, in the log's order: the run of entries from
   the log's start it holds, up to the first place it lacks (stepping over
-  skipped ones), so entries heard past a
-  gap (a long log read only from its start) wait until it is filled, and
-  never an entry signed as nobody's (`Bad`); a type decides what the other
+  skipped ones), reading on past a gap it hears entries beyond, and never an
+  entry signed as nobody's (`Bad`); a type decides what the other
   verdicts count for. It keeps the folded copy and folds entries that follow
   on onto it, folding from the start again only when the content changed or
   an entry it folded is told better. What it commits never holds the fold.
-  Search does not fold the log yet (plans/signed_logs.md, step 5).
+  Search does not read logs yet (plans/signed_logs.md, step 5b).
+- **Unread.** A type that counts what is unread (`Unread::count_unread`) is
+  handed its log's latest entries, `UNREAD_ENTRIES` at most, with its content
+  and place (`replicas.unread`'s `log`).
 - **Export.** An export carries a type's log opened, each entry with its
   salt and its author's signature (`transfer::Saved::log`,
   `Peer::export_log`), which verifies against the block it was written in
@@ -331,12 +343,13 @@ who signed them, `LogSigner`) changes what the content shows.
   a redacted entry, or one this device could not open, is carried without
   what it said. A duplicate (`transfer::renumber`) starts its own log, and
   nothing reads an imported block's exported entries yet
-  (plans/signed_logs.md, step 5).
+  (plans/signed_logs.md, step 5b).
 
 Hosts: be-block-type-host's `Replicas`, be-sdk-test's store (one device, so
 every entry is its own and verified) and be-sdk-type-guest's `Sim`. Tests:
-`two_replicas_append_to_one_log_and_fold_it_in_one_order` (be-sdk-type-guest)
-and be-block-type-host's
+`two_replicas_append_to_one_log_and_fold_it_in_one_order` and
+`a_log_longer_than_a_page_is_folded_whole` (be-sdk-type-guest), chat's
+(guides/chat.md), and be-block-type-host's
 `what_a_module_appends_reaches_the_server_signed_by_the_host_as_its_apps` and
 `only_the_types_own_app_writes_in_its_blocks_log`.
 
@@ -345,8 +358,8 @@ and be-block-type-host's
 `type-info.whole-bytes` (`BlockContent::WHOLE_BYTES`, true unless a type says otherwise) says the
 stored form read whole decodes to the content, so the host copies such a block through its
 bytes: Duplicate, export, `be` transfer, version control's re-listing, a revision's preview or
-restore. A type that loads only its first part and keeps parts its first part cannot rebuild (chat's
-closed segments) sets it false, and the host refuses those paths for a block that has parts after
+restore. A type that loads only its first part and keeps parts its first part cannot rebuild sets
+it false (none does now; plans/signed_logs.md, step 6), and the host refuses those paths for a block that has parts after
 its first (`has_later_parts`).
 
 ### Merging by parts
@@ -390,7 +403,7 @@ once with `Merge::merge3` on the values it loaded, so one that loads only its fi
 `merge3` over what it holds (`Sections` settles a part unloaded on a side by refs where they
 settle it, and otherwise keeps ours with a conflict, never read). `merge_parts` must agree with
 `merge3` wherever `merge3` decides without a conflict (`Sections` shares one function, `by_refs`,
-between them; chat's `merge3` is the union that `merge_parts` then settles by reading).
+between them).
 
 **What a replica reaches.** A module serves every block of its type and may be
 another app's code, so a replica's `read-part`, and the parts its `publish` and
@@ -582,13 +595,14 @@ order: presence and channel messages. The rules an agent most needs:
 ## Announcements
 
 An edit made on this device can tell the block's members who are not connected
-about itself once the server holds it (chat: each message it sends). The type
-names what it tells with `LiveEdit::announcements`, asked as the edit is made,
-of content that holds it: `be_block_content::Announcement`'s text, the accounts it
-mentions, a `key` naming what it announces (chat: the message), unique in the
-block and the same when the edit is made again, and `several`, the text for
-several sent together with `{count}` for how many (chat: "{count} new
-messages"). The notification is tied to the edit, never to an editor or a
+about itself once the server holds it. (An entry of a signed log announces
+itself with what goes along with it instead: "Signed logs", above; chat's
+messages do.) The type names what it tells with `LiveEdit::announcements`,
+asked as the edit is made, of content that holds it:
+`be_block_content::Announcement`'s text, the accounts it mentions, a `key`
+naming what it announces, unique in the block and the same when the edit is
+made again, and `several`, the text for several sent together with `{count}`
+for how many. The notification is tied to the edit, never to an editor or a
 replica:
 
 - The replica keeps the announcements with the edit in its lacking list
@@ -633,10 +647,11 @@ nobody (the edit is lost too); and a submission the server took whose answer
 was lost to a crash stays waiting on this device and is never sent (the server
 holds the edit, but nothing tells this device so).
 
-Tests: be-host-stack's `a_chat_message_*` (through `Peer::notify`, the server's
-recipient selection and a Web Push service on loopback whose device key is the
-P-256 generator, so a test opens each push and checks its text) and chat's
-editor tests over be-sdk-test's store. That store keeps announcements as a
+Tests: be-host-stack's `a_chat_message_*` (for what a chat message's entry
+announces: through `Peer::notify`, the server's recipient selection and a Web
+Push service on loopback whose device key is the P-256 generator, so a test
+opens each push and checks its text) and chat's editor tests over
+be-sdk-test's store. That store keeps announcements as a
 simpler host: one device, so every rebase is on its own commit; every
 announced key remembered, with no cap; and announcements of a refused kept
 commit dropped by block.
