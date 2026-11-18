@@ -1,7 +1,8 @@
 use be_sdk_beui::be_block::OrganizationPolicies;
 use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::icons::{
-    ICON_CAST, ICON_CROWN, ICON_LINK, ICON_LOCK, ICON_TRIANGLE_ALERT, ICON_USER, ICON_USER_PLUS, ICON_X,
+    ICON_CAST, ICON_CROWN, ICON_LINK, ICON_LOCK, ICON_TRIANGLE_ALERT, ICON_USER, ICON_USER_PLUS,
+    ICON_X,
 };
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
