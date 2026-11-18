@@ -144,6 +144,7 @@ fn op_case(op: &Op) -> &'static str {
         Op::RevokeShareLink { .. } => "revoke-share-link",
         Op::RemoveContact { .. } => "remove-contact",
         Op::SetRecoveryKey { .. } => "set-recovery-key",
+        Op::StageRecoveryKey(_) => "stage-recovery-key",
         Op::PublishName(_) => "publish-name",
         Op::SetPushEndpoint(PushEndpointChange::Register(_)) => "set-push-endpoint (register)",
         Op::SetPushEndpoint(PushEndpointChange::Forget(_)) => "set-push-endpoint (forget)",
@@ -183,6 +184,7 @@ const OPS: &[&str] = &[
     "revoke-share-link",
     "remove-contact",
     "set-recovery-key",
+    "stage-recovery-key",
     "publish-name",
     "set-push-endpoint (register)",
     "set-push-endpoint (forget)",
@@ -625,6 +627,14 @@ impl TestClient {
             })
             .await;
         calls.read(Query::SigningKeys(vec![other])).await;
+        calls
+            .write(Op::StageRecoveryKey(be_block_protocol::RecoveryKeyPart {
+                public: [7; 32],
+                signing: [7; 32],
+                sealed: Vec::new(),
+                retirements: Vec::new(),
+            }))
+            .await;
         calls.write(Op::PublishName(Vec::new())).await;
         calls.write(Op::PutKeys(PutKeys::Reseal(Vec::new()))).await;
         calls
