@@ -23,9 +23,10 @@ use be_wasm_guest_abi::{Flow, Guest, Waker};
 use be_wasm_ops::guest::{Executor, LocalFuture};
 use be_wasm_password::Password;
 use be_wasm_root_api::{
-    AccountRow, CoreCommand, CoreView, CoreWait, OrganizationRow, OrganizationsListed, ProfileRow,
-    SessionRow, DisplayQuestion, FrameDone, FrameRequest, HostStatistics, LockState,
-    NewAccount, Notice, PowerAction, Refusal, SavingState, ServerAccount, SetAside, StatisticRow, SyncState, UnsentEdit,
+    AccountRow, CoreCommand, CoreView, CoreWait, DisplayQuestion, FrameDone, FrameRequest,
+    HostStatistics, LockState, NewAccount, Notice, OrganizationRow, OrganizationsListed,
+    PowerAction, ProfileRow, Refusal, SavingState, ServerAccount, SessionRow, SetAside,
+    StatisticRow, SyncState, UnsentEdit,
     guest::{
         exports::{frames, input, paintings},
         host,
@@ -35,17 +36,21 @@ use beui::icons::{Glyph, ICON_LOG_OUT, ICON_MOON, ICON_POWER, ICON_ROTATE_CCW, I
 use beui::native::painting::{Frame as PaintFrame, Painting, ScreenPaintings};
 use beui::reactive::*;
 use beui::styled::*;
-use beui::{Align, Align2, Direction, Justify, KeyPhase, NodeId, Overflow, Pos2, Rect, TextAlign, vec2};
+use beui::{
+    Align, Align2, Direction, Justify, KeyPhase, NodeId, Overflow, Pos2, Rect, TextAlign, vec2,
+};
 
 use crate::{
-    ONBOARDING_LAYER, ONBOARDING_SURFACE, ORGANIZATIONS_TITLE, SESSIONS_TITLE, ADD_ACCOUNT_TITLE, FORGET_ACCOUNT_TITLE, SIGN_IN_TITLE,
-    APP, APP_ENTRY, CLOSES, DIALOG_LAYER, DISCARD_UNSENT_TITLE, OPENS_UNSENT, UNSENT_TITLE, DIALOG_ORIGIN, KEEP_DISPLAY_TITLE, DIALOG_SIZE, DIALOG_SURFACE, DIALOG_TITLE,
-    LATE_LAYER, LATER, LATER_TEXT, LOCK_LAYER, LOCK_SURFACE, LOCKS_SESSION, OPENS_DIALOG,
-    OPENS_STATISTICS, ORIGIN, RASTER, RESIZED, RESIZES, ROOT_COLOR, ROOT_LAYER, ROOT_SURFACE,
-    SCREEN, SCREEN_SIZE, SCRIM_COLOR, SCRIM_LAYER, SCRIM_SURFACE, SIZE, SLOW_SAVE, SLOW_SAVE_TITLE,
-    SLOW_SAVE_TOAST, STATISTICS_AREA, STATISTICS_LAYER, STATISTICS_ORIGIN, STATISTICS_SURFACE,
-    STATISTICS_TITLE, STRAY_PASSWORD, TEXT, TEXT_LAYER, TEXT_STRIP, TEXT_SURFACE, TOAST_AREA,
-    TOAST_LAYER, TOAST_SURFACE, UNLOCKS_TWICE, UNPRESENTED_SURFACE,
+    ADD_ACCOUNT_TITLE, APP, APP_ENTRY, CLOSES, DIALOG_LAYER, DIALOG_ORIGIN, DIALOG_SIZE,
+    DIALOG_SURFACE, DIALOG_TITLE, DISCARD_UNSENT_TITLE, FORGET_ACCOUNT_TITLE, KEEP_DISPLAY_TITLE,
+    LATE_LAYER, LATER, LATER_TEXT, LOCK_LAYER, LOCK_SURFACE, LOCKS_SESSION, ONBOARDING_LAYER,
+    ONBOARDING_SURFACE, OPENS_DIALOG, OPENS_STATISTICS, OPENS_UNSENT, ORGANIZATIONS_TITLE, ORIGIN,
+    RASTER, RESIZED, RESIZES, ROOT_COLOR, ROOT_LAYER, ROOT_SURFACE, SCREEN, SCREEN_SIZE,
+    SCRIM_COLOR, SCRIM_LAYER, SCRIM_SURFACE, SESSIONS_TITLE, SIGN_IN_TITLE, SIZE, SLOW_SAVE,
+    SLOW_SAVE_TITLE, SLOW_SAVE_TOAST, STATISTICS_AREA, STATISTICS_LAYER, STATISTICS_ORIGIN,
+    STATISTICS_SURFACE, STATISTICS_TITLE, STRAY_PASSWORD, TEXT, TEXT_LAYER, TEXT_STRIP,
+    TEXT_SURFACE, TOAST_AREA, TOAST_LAYER, TOAST_SURFACE, UNLOCKS_TWICE, UNPRESENTED_SURFACE,
+    UNSENT_TITLE,
 };
 
 /// The triangle's editor, by its manifest's id.
@@ -362,9 +367,10 @@ impl Root {
         while let Ok(view) = host::core(seen).await {
             seen = view.generation;
             *self.core.borrow_mut() = view.clone();
-            if let (Some(accounts), Some(shown)) =
-                (&mut *self.onboarding.borrow_mut(), self.onboarding_shown.get())
-            {
+            if let (Some(accounts), Some(shown)) = (
+                &mut *self.onboarding.borrow_mut(),
+                self.onboarding_shown.get(),
+            ) {
                 let view = view.clone();
                 accounts.surface.enter(|| shown.set(view));
             }
@@ -1546,7 +1552,9 @@ fn OrganizationsCard(core: Signal<CoreView>) -> NodeId {
             <Show value={failed}>
                 <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                     <ListItem grow=1.0>
-                        <Text style=TextStyle::CAPTION>"The organizations could not be listed."</Text>
+                        <Text style=TextStyle::CAPTION>
+                            "The organizations could not be listed."
+                        </Text>
                     </ListItem>
                     <Button
                         label="Try again"
@@ -1583,7 +1591,11 @@ fn OrganizationsCard(core: Signal<CoreView>) -> NodeId {
                 <Card>
                     <List spacing=Space::Md>
                         <Text>{invited}</Text>
-                        <List direction=Direction::Horizontal justify=Justify::End spacing=Space::Md>
+                        <List
+                            direction=Direction::Horizontal
+                            justify=Justify::End
+                            spacing=Space::Md
+                        >
                             <Button
                                 label="Not now"
                                 variant=ButtonVariant::Secondary
