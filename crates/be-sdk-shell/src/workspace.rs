@@ -72,12 +72,12 @@ pub struct Workspace {
     views: Signal<HashMap<TabId, Uuid>>,
     pub(crate) titles: Signal<HashMap<TabId, String>>,
     simulated: Signal<HashMap<Uuid, AccessLevel>>,
-    /// The account's notification modes as the host publishes them (`MutesWatch`), none
+    /// The account's mutes as the host publishes them (`MutesWatch`), none
     /// until the server has said.
     mutes: Memo<Option<HashMap<Uuid, NotifyMode>>>,
     /// Modes this workspace set, shown until the host publishes them: each with whether the
-    /// host has answered, after which the next published modes take its place.
-    setting_modes: Signal<HashMap<Uuid, (NotifyMode, bool)>>,
+    /// host has answered, after which the next published mutes take its place.
+    setting_mutes: Signal<HashMap<Uuid, (NotifyMode, bool)>>,
     routes: Trigger,
     pub(crate) phone: Signal<bool>,
     focus: Signal<Focus>,
@@ -170,9 +170,9 @@ impl Workspace {
             mutes: {
                 let watched = editor.watch::<MutesWatch>();
                 create_memo(move || {
-                    watched.with(|modes| {
-                        modes.as_ref().map(|modes| {
-                            modes
+                    watched.with(|mutes| {
+                        mutes.as_ref().map(|mutes| {
+                            mutes
                                 .iter()
                                 .map(|row| (Uuid::from_bytes(row.block), row.mode))
                                 .collect()
@@ -180,7 +180,7 @@ impl Workspace {
                     })
                 })
             },
-            setting_modes: create_signal(HashMap::new()),
+            setting_mutes: create_signal(HashMap::new()),
             routes,
             phone,
             focus: create_signal(Focus::default()),
@@ -205,13 +205,13 @@ impl Workspace {
         create_effect(move || {
             workspace.place_windows();
         });
-        // Modes the host answered for give way to the next modes it publishes, which hold them.
+        // Mutes the host answered for give way to the next mutes it publishes, which hold them.
         create_effect_on(
             move || workspace.mutes.track(),
             move |_, _| {
                 workspace
-                    .setting_modes
-                    .update(|modes| modes.retain(|_, (_, answered)| !*answered));
+                    .setting_mutes
+                    .update(|mutes| mutes.retain(|_, (_, answered)| !*answered));
             },
         );
         workspace.list_programs_for_placeholders();
@@ -1195,36 +1195,36 @@ impl Workspace {
 
     /// How the account is notified about `block`: a change not yet answered, else what the host
     /// publishes, none until the server has said.
-    pub(crate) fn notify_mode(&self, block: Uuid) -> Option<NotifyMode> {
-        if let Some((setting, _)) = self.setting_modes.with(|modes| modes.get(&block).copied()) {
+    pub(crate) fn mute(&self, block: Uuid) -> Option<NotifyMode> {
+        if let Some((setting, _)) = self.setting_mutes.with(|mutes| mutes.get(&block).copied()) {
             return Some(setting);
         }
-        self.mutes.with(|modes| {
-            modes
+        self.mutes.with(|mutes| {
+            mutes
                 .as_ref()
-                .map(|modes| modes.get(&block).copied().unwrap_or(NotifyMode::All))
+                .map(|mutes| mutes.get(&block).copied().unwrap_or(NotifyMode::All))
         })
     }
 
     /// Sets how the account is notified about `block`, showing it until the host answers; a
     /// change the host refuses goes back to what it publishes, and says why.
     pub(crate) fn set_mute(&self, block: Uuid, mode: NotifyMode) {
-        self.setting_modes.update(|modes| {
-            modes.insert(block, (mode, false));
+        self.setting_mutes.update(|mutes| {
+            mutes.insert(block, (mode, false));
         });
         let workspace = *self;
         let asked = self.host().set_mute(block, mode);
         let task = self.editor.then(asked, move |set| match set {
-            Ok(()) => workspace.setting_modes.update(|modes| {
-                if let Some((shown, answered)) = modes.get_mut(&block)
+            Ok(()) => workspace.setting_mutes.update(|mutes| {
+                if let Some((shown, answered)) = mutes.get_mut(&block)
                     && *shown == mode
                 {
                     *answered = true;
                 }
             }),
             Err(failure) => {
-                workspace.setting_modes.update(|modes| {
-                    modes.remove(&block);
+                workspace.setting_mutes.update(|mutes| {
+                    mutes.remove(&block);
                 });
                 workspace.host().report_failure(format!(
                     "The notifications setting could not be changed. {failure}"
