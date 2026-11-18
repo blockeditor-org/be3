@@ -11,7 +11,7 @@ use be_sdk_beui::{
 };
 use uuid::Uuid;
 
-use super::share::{GRANTABLE, Member, Person, Share, ShareAction};
+use super::share::{Member, Offered, Person, Share, ShareAction};
 use super::workspace::Workspace;
 use be_sdk_beui::beui::TextAlign;
 use be_sdk_beui::beui::text::Phrase;
@@ -238,14 +238,25 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
             .map(|person| person.id)
             .collect::<Vec<_>>()
     });
+    // The levels the block offers and their names: its type's own on a hosted block.
+    let offered = create_memo(move || {
+        listing.with(|listing| listing.as_ref().map(Offered::of).unwrap_or_default())
+    });
+    let grantable = create_memo(move || offered.with(Offered::grantable));
     let pending_access = create_memo(move || {
-        state.with(|share| {
-            Some(
+        listing.with(|listing| {
+            state.with(|share| {
                 share
                     .as_ref()
-                    .map_or(AccessLevel::Edit, |share| share.pending_access),
-            )
+                    .map(|share| share.pending_access(listing.as_ref().ok()))
+            })
         })
+    });
+    let pending_line = create_memo(move || {
+        pending_access
+            .get()
+            .map(|access| offered.with(|offered| offered.line(access)))
+            .unwrap_or_default()
     });
     let name_of = move |id: Uuid| {
         workspace
@@ -409,8 +420,11 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
                                 })}
                                 label="Access to grant"
                                 options={view! {
-                                    <ForEach value={GRANTABLE.to_vec()}>|level: AccessLevel|
-                                        <ChoiceOption value=level label={level.label()} />
+                                    <ForEach value={grantable}>|level: AccessLevel|
+                                        <ChoiceOption
+                                            value=level
+                                            label={move || offered.with(|offered| offered.name(level))}
+                                        />
                                     </ForEach>
                                 }}
                             />
@@ -423,6 +437,11 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
                                 on_click={move || act.call(ShareAction::AddPending)}
                             />
                         </List>
+                        <Show value={move || !pending_line.with(String::is_empty)}>
+                            <Text style=TextStyle::CAPTION @test_id={"share.access.line"}>
+                                {pending_line}
+                            </Text>
+                        </Show>
                     </List>
                 </Show>
                 <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
@@ -499,6 +518,7 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
                     <LinksSection
                         links
                         listing
+                        offered
                         choices={admits_choices}
                         company
                         state
@@ -535,7 +555,7 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
                                 members.get().into_iter().find(|member| member.id == id)
                             });
                             view! {
-                                <MemberRow member act={act} />
+                                <MemberRow member offered act={act} />
                             }
                         }</ForEach>
                     </Scroll>
@@ -551,6 +571,7 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
 fn LinksSection(
     links: ReadSignal<Vec<ShareLink>>,
     listing: Memo<Ready<AccessListing>>,
+    offered: Memo<Offered>,
     choices: Memo<Vec<LinkAdmits>>,
     company: Memo<bool>,
     state: Signal<Option<Share>>,
@@ -562,9 +583,7 @@ fn LinksSection(
     });
     let allowed = create_memo(move || choices.with(|choices| !choices.is_empty()));
     let several = create_memo(move || choices.with(|choices| choices.len() > 1));
-    let levels = create_memo(move || {
-        listing.with(|listing| listing.as_ref().map(Share::link_levels).unwrap_or_default())
-    });
+    let levels = create_memo(move || offered.with(Offered::link_levels));
     let access = create_memo(move || {
         listing.with(|listing| {
             state.with(|share| {
@@ -573,6 +592,12 @@ fn LinksSection(
                     .map(|share| share.link_access(listing.as_ref().ok()))
             })
         })
+    });
+    let access_line = create_memo(move || {
+        access
+            .get()
+            .map(|access| offered.with(|offered| offered.line(access)))
+            .unwrap_or_default()
     });
     let admits = create_memo(move || {
         Some(state.with(|share| {
@@ -610,7 +635,7 @@ fn LinksSection(
                     }
                 });
                 view! {
-                    <LinkRow link company pending me act={act} />
+                    <LinkRow link company offered pending me act={act} />
                 }
             }</ForEach>
             <Show value={revoking}>
@@ -662,7 +687,10 @@ fn LinksSection(
                         label="Access the link grants"
                         options={view! {
                             <ForEach value={levels}>|level: AccessLevel|
-                                <ChoiceOption value=level label={level.label()} />
+                                <ChoiceOption
+                                    value=level
+                                    label={move || offered.with(|offered| offered.name(level))}
+                                />
                             </ForEach>
                         }}
                     />
@@ -694,6 +722,11 @@ fn LinksSection(
                         on_click={move || act.call(ShareAction::MakeLink)}
                     />
                 </List>
+                <Show value={move || !access_line.with(String::is_empty)}>
+                    <Text style=TextStyle::CAPTION @test_id={"share.links.access.line"}>
+                        {access_line}
+                    </Text>
+                </Show>
             </Show>
         </List>
     }
@@ -703,13 +736,14 @@ fn LinksSection(
 fn LinkRow(
     link: Memo<Option<ShareLink>>,
     company: Memo<bool>,
+    offered: Memo<Offered>,
     pending: Memo<bool>,
     me: Uuid,
     act: ShareAct,
 ) -> NodeId {
     let described = create_memo(move || {
         link.get()
-            .map(|link| Share::describe_link(&link, company.get(), me))
+            .map(|link| offered.with(|offered| Share::describe_link(&link, company.get(), me, offered)))
             .unwrap_or_default()
     });
     let url = create_memo(move || link.get().map(|link| link.url).unwrap_or_default());
@@ -780,7 +814,7 @@ fn SuggestionButton(person: Memo<Option<Person>>, act: ShareAct) -> NodeId {
 }
 
 #[component]
-fn MemberRow(member: Memo<Option<Member>>, act: ShareAct) -> NodeId {
+fn MemberRow(member: Memo<Option<Member>>, offered: Memo<Offered>, act: ShareAct) -> NodeId {
     let name = create_memo(move || member.get().map(|member| member.name).unwrap_or_default());
     let email = create_memo(move || member.get().map(|member| member.email).unwrap_or_default());
     let fixed = create_memo(move || member.get().and_then(|member| member.fixed));
@@ -789,13 +823,13 @@ fn MemberRow(member: Memo<Option<Member>>, act: ShareAct) -> NodeId {
     let access_label = move || {
         member
             .get()
-            .map(|member| member.access.label().to_owned())
+            .map(|member| offered.with(|offered| offered.name(member.access)))
             .unwrap_or_default()
     };
     let choices = create_memo(move || {
         member
             .get()
-            .map(|member| member.choices())
+            .map(|member| offered.with(|offered| member.choices(offered)))
             .unwrap_or_default()
     });
     let selected = create_memo(move || Some(member.get()?.access));
@@ -851,7 +885,10 @@ fn MemberRow(member: Memo<Option<Member>>, act: ShareAct) -> NodeId {
                                 label="Access"
                                 options={view! {
                                     <ForEach value={choices}>|level: AccessLevel|
-                                        <ChoiceOption value=level label={level.label()} />
+                                        <ChoiceOption
+                                            value=level
+                                            label={move || offered.with(|offered| offered.name(level))}
+                                        />
                                     </ForEach>
                                 }}
                             />

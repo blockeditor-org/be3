@@ -613,10 +613,11 @@ impl Instances {
             Call::ListAccess { reply, block } => {
                 let answering = self.answering(instance, reply);
                 let block = Uuid::from_bytes(block);
-                let hosted = be_host_stack::node(block)
-                    .is_some_and(|node| be_host_stack::discovery::hosted(node.content_type));
+                let levels = be_host_stack::node(block)
+                    .map(|node| be_host_stack::discovery::offered_levels(node.content_type))
+                    .unwrap_or_default();
                 be_host_stack::list_access(block, move |listed| {
-                    answering.listed(be_host_stack::app_graph::grants_of(listed, hosted));
+                    answering.listed(be_host_stack::app_graph::grants_of(listed, levels));
                 });
             }
             Call::SetAccess {

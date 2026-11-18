@@ -1,15 +1,79 @@
 use be_sdk_beui::be_block::LinkSharing;
-use be_sdk_beui::{AccessGrant, AccessLevel, AccessListing, LinkAdmits, ShareLink};
+use be_sdk_beui::{AccessGrant, AccessLevel, AccessListing, LinkAdmits, OfferedLevel, ShareLink};
 use uuid::Uuid;
 
 /// What the share dialog offers. `KnowExists` is not among them: a reference
 /// gives it, and a grant of it is never what a person sharing means.
-pub(crate) const GRANTABLE: [AccessLevel; 3] =
+const GRANTABLE: [AccessLevel; 3] =
     [AccessLevel::Manage, AccessLevel::Edit, AccessLevel::View];
 
-/// What a share link offers: never Manage, which a link holder could then hand on; Join only on
-/// a hosted block.
-const LINK_GRANTABLE: [AccessLevel; 3] = [AccessLevel::Edit, AccessLevel::View, AccessLevel::Join];
+/// What a share link offers on a block that is not hosted: never Manage, which a link holder
+/// could then hand on, nor Join, which only a hosted block offers.
+const LINK_GRANTABLE: [AccessLevel; 2] = [AccessLevel::Edit, AccessLevel::View];
+
+/// The levels the share dialog offers on a block, and what it calls each: a hosted type's own
+/// levels, names and lines from its manifest (plans/hosted_blocks.md, "The share dialog"), or
+/// the core levels by their own names.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub(crate) struct Offered(Vec<OfferedLevel>);
+
+impl Offered {
+    pub(crate) fn of(listing: &AccessListing) -> Self {
+        Self(listing.levels.clone())
+    }
+
+    /// Whether the block is hosted, so it offers its type's levels.
+    pub(crate) fn hosted(&self) -> bool {
+        !self.0.is_empty()
+    }
+
+    /// What the dialog grants people, in the order to list them.
+    pub(crate) fn grantable(&self) -> Vec<AccessLevel> {
+        match self.hosted() {
+            true => self.0.iter().map(|level| level.access).collect(),
+            false => GRANTABLE.to_vec(),
+        }
+    }
+
+    /// What a share link offers: never Manage; on a hosted block its levels with Join first.
+    pub(crate) fn link_levels(&self) -> Vec<AccessLevel> {
+        if !self.hosted() {
+            return LINK_GRANTABLE.to_vec();
+        }
+        let mut levels: Vec<AccessLevel> = self
+            .grantable()
+            .into_iter()
+            .filter(|level| *level != AccessLevel::Manage)
+            .collect();
+        levels.sort_by_key(|level| *level != AccessLevel::Join);
+        levels
+    }
+
+    /// What the dialog calls `level`: the type's name for it, or the core one.
+    pub(crate) fn name(&self, level: AccessLevel) -> String {
+        self.0
+            .iter()
+            .find(|offered| offered.access == level)
+            .map_or_else(|| level.label().to_owned(), |offered| offered.name.clone())
+    }
+
+    /// The type's line saying what `level` means; empty for the core levels.
+    pub(crate) fn line(&self, level: AccessLevel) -> String {
+        self.0
+            .iter()
+            .find(|offered| offered.access == level)
+            .map(|offered| offered.line.clone())
+            .unwrap_or_default()
+    }
+
+    /// Where the dialog starts: Join on a hosted block, the least it offers; else `core`.
+    fn first(&self, core: AccessLevel) -> AccessLevel {
+        match self.hosted() {
+            true => AccessLevel::Join,
+            false => core,
+        }
+    }
+}
 
 const MAX_SUGGESTIONS: usize = 6;
 
@@ -39,8 +103,9 @@ impl Member {
     /// The levels this member's row offers: those the dialog grants, at or
     /// above what they inherit, and the one they hold if the dialog doesn't
     /// grant it (a `KnowExists` made by another route), so the row shows it.
-    pub(crate) fn choices(&self) -> Vec<AccessLevel> {
-        let mut choices: Vec<AccessLevel> = GRANTABLE
+    pub(crate) fn choices(&self, offered: &Offered) -> Vec<AccessLevel> {
+        let mut choices: Vec<AccessLevel> = offered
+            .grantable()
             .into_iter()
             .filter(|level| *level >= self.inherited)
             .collect();
@@ -99,7 +164,8 @@ pub(crate) struct Share {
     /// Enter was pressed before the members were listed: the listing carries it out.
     pub(crate) submit_waiting: bool,
     pub(crate) pending: Vec<Person>,
-    pub(crate) pending_access: AccessLevel,
+    /// What the people being added are granted, once the person chose (`Share::pending_access`).
+    pub(crate) chosen_access: Option<AccessLevel>,
     pub(crate) inviting: Option<u64>,
     pub(crate) invite_link: Option<String>,
     /// The member whom the person asked to give ownership to, until they confirm or cancel.
@@ -124,7 +190,7 @@ impl Share {
             query: String::new(),
             submit_waiting: false,
             pending: Vec::new(),
-            pending_access: AccessLevel::Edit,
+            chosen_access: None,
             inviting: None,
             invite_link: None,
             transferring: None,
@@ -183,9 +249,9 @@ impl Share {
                 }
             }
             ShareAction::Unpick(id) => self.pending.retain(|person| person.id != id),
-            ShareAction::PendingAccess(access) => self.pending_access = access,
+            ShareAction::PendingAccess(access) => self.chosen_access = Some(access),
             ShareAction::AddPending => {
-                let access = self.pending_access;
+                let access = self.pending_access(listing);
                 grants.extend(self.pending.drain(..).map(|person| (person.id, access)));
                 self.query.clear();
             }
@@ -250,27 +316,26 @@ impl Share {
             .collect()
     }
 
-    /// The levels a share link on the block offers: Join only on a hosted block, which offers it
-    /// first.
-    pub(crate) fn link_levels(listing: &AccessListing) -> Vec<AccessLevel> {
-        let mut levels: Vec<AccessLevel> = LINK_GRANTABLE
-            .into_iter()
-            .filter(|level| *level != AccessLevel::Join || listing.hosted)
-            .collect();
-        if listing.hosted {
-            levels.rotate_right(1);
-        }
-        levels
+    /// What the people being added are granted: what the person chose, else Join on a hosted
+    /// block and Edit on any other.
+    pub(crate) fn pending_access(&self, listing: Option<&AccessListing>) -> AccessLevel {
+        self.chosen_access.unwrap_or_else(|| {
+            listing
+                .map(Offered::of)
+                .unwrap_or_default()
+                .first(AccessLevel::Edit)
+        })
     }
 
     /// What the next share link grants: what the person chose, else Join on a hosted block
     /// (plans/hosted_blocks.md, "The share dialog") and View on any other.
     pub(crate) fn link_access(&self, listing: Option<&AccessListing>) -> AccessLevel {
-        self.chosen_link_access
-            .unwrap_or(match listing.is_some_and(|listing| listing.hosted) {
-                true => AccessLevel::Join,
-                false => AccessLevel::View,
-            })
+        self.chosen_link_access.unwrap_or_else(|| {
+            listing
+                .map(Offered::of)
+                .unwrap_or_default()
+                .first(AccessLevel::View)
+        })
     }
 
     /// Whether `me` manages the block as `listing` lists it: only a manager sees and makes its
@@ -300,17 +365,24 @@ impl Share {
         }
     }
 
-    /// What a share link lets whoever opens it do, in a sentence.
-    pub(crate) fn describe_link(link: &ShareLink, company: bool, me: Uuid) -> String {
+    /// What a share link lets whoever opens it do, in a sentence: on a hosted block, the level
+    /// by its type's name.
+    pub(crate) fn describe_link(
+        link: &ShareLink,
+        company: bool,
+        me: Uuid,
+        offered: &Offered,
+    ) -> String {
         let who = match (link.admits, company) {
             (LinkAdmits::Members, true) => "Anyone in the organization with the link",
             (LinkAdmits::Anyone, true) => "Anyone with the link and an account on this server",
             (_, false) => "Anyone with the link",
         };
-        let what = match link.access {
-            AccessLevel::Edit => "can edit",
-            AccessLevel::Join => "can join",
-            _ => "can view",
+        let what = match (offered.hosted(), link.access) {
+            (true, access) => format!("gets {}", offered.name(access)),
+            (false, AccessLevel::Edit) => "can edit".to_owned(),
+            (false, AccessLevel::Join) => "can join".to_owned(),
+            (false, _) => "can view".to_owned(),
         };
         match (link.maker == me.into_bytes(), link.maker_name.is_empty()) {
             (true, _) => format!("{who} {what}. Made by you."),
