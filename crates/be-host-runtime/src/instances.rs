@@ -179,8 +179,9 @@ struct Instance {
     content: Option<ContentLink>,
     watched: HashMap<Uuid, ContentLink>,
     shown: be_lib_stable_hash::HashSet<(Uuid, Uuid)>,
-    replicas: HashMap<Uuid, be_sdk_api::ops::OpId>,
-    watches: HashMap<be_sdk_api::ops::OpId, blocks::Watch>,
+    /// Its block watches and replicas, which the library's dispatcher keeps
+    /// (`be_sdk_app_host::blocks`).
+    held: be_sdk_app_host::blocks::EditorBlocks,
     shows: Vec<be_sdk_api::blocks::ShowRequest>,
     /// Whether the answers to its block queries may have changed since they were offered.
     blocks_due: bool,
@@ -288,7 +289,7 @@ struct ArtifactState {
 
 mod blocks;
 use be_sdk_api::blocks::BlockValue;
-use blocks::Subject;
+use be_sdk_app_host::blocks::Subject;
 
 impl Instance {
     fn new(role: InstanceRole) -> Self {
@@ -330,8 +331,7 @@ impl Instance {
             next_render: 0,
             watched: HashMap::default(),
             shown: be_lib_stable_hash::HashSet::default(),
-            replicas: HashMap::default(),
-            watches: HashMap::default(),
+            held: be_sdk_app_host::blocks::EditorBlocks::default(),
             shows: Vec::new(),
             blocks_due: true,
             searches: std::collections::BTreeMap::new(),
@@ -362,6 +362,7 @@ impl Instance {
             return;
         }
         let queries: Vec<_> = self
+            .held
             .watching()
             .filter_map(|watched| match watched {
                 Subject::Blocks(query) => Some(query),
@@ -384,7 +385,7 @@ impl Instance {
                     }
                 });
             }
-            self.offer(Subject::Blocks(query), &BlockValue::Blocks(answer));
+            self.held.offer(Subject::Blocks(query), &BlockValue::Blocks(answer));
         }
     }
 
@@ -419,7 +420,7 @@ impl Instance {
                 complete: found.complete,
             };
             Instances::translated(scope, false, |visit| results.visit_block_ids(visit));
-            self.offer_search(op, &results);
+            self.held.offer_search(op, &results);
         }
     }
 
@@ -432,6 +433,7 @@ impl Instance {
 
     fn wants(&self) -> Vec<be_host_stack::Query> {
         let mut wants: Vec<be_host_stack::Query> = self
+            .held
             .watching()
             .filter_map(|watched| match watched {
                 Subject::Blocks(query) => Some(be_host_stack::app_graph::query_of(query)),
@@ -454,7 +456,7 @@ impl Instance {
         match self.role {
             InstanceRole::Editor(_, block)
                 if be_host_stack::is_versioned(block.block_type)
-                    && self.watching().any(|watched| watched == Subject::Version) =>
+                    && self.held.watching().any(|watched| watched == Subject::Version) =>
             {
                 vec![(block.id, block.block_type)]
             }
@@ -463,7 +465,7 @@ impl Instance {
     }
 
     fn offer_version(&mut self) {
-        if !self.watching().any(|watched| watched == Subject::Version) {
+        if !self.held.watching().any(|watched| watched == Subject::Version) {
             return;
         }
         if let InstanceRole::Editor(_, block) = self.role
@@ -472,7 +474,7 @@ impl Instance {
                 be_host_stack::version_since(block.id, self.version_sent)
         {
             self.version_sent = Some(revision);
-            self.offer(Subject::Version, &BlockValue::Version(status));
+            self.held.offer(Subject::Version, &BlockValue::Version(status));
         }
     }
 
@@ -563,7 +565,7 @@ impl Instance {
         frame: &Vec<u8>,
         send: &mut impl FnMut(be_sdk_api::ops::OpId, &Vec<u8>) -> bool,
     ) -> bool {
-        let Some(replica) = self.replicas.get(&block).copied() else {
+        let Some(replica) = self.held.replica(block) else {
             return true;
         };
         if self.link_mut(block).is_none() {
@@ -591,6 +593,7 @@ impl Instance {
             own.id == block || be_host_stack::revisions::source(own.id) == Some(block)
         }) || self.watched.contains_key(&block)
             || self
+                .held
                 .watching()
                 .any(|watched| watched == Subject::History(block))
             || self.heads.follows(block)
@@ -600,6 +603,7 @@ impl Instance {
 impl Instance {
     fn offer_histories(&mut self) {
         let blocks: Vec<Uuid> = self
+            .held
             .watching()
             .filter_map(|watched| match watched {
                 Subject::History(block) => Some(block),
@@ -608,7 +612,7 @@ impl Instance {
             .collect();
         for block in blocks {
             let history = self.history(block);
-            self.offer(Subject::History(block), &BlockValue::History(history));
+            self.held.offer(Subject::History(block), &BlockValue::History(history));
         }
     }
 
@@ -2053,8 +2057,7 @@ impl Instances {
                 *instance,
                 InstanceEvent::ArtifactWatch(Vec::new()),
             );
-            entry.watches.clear();
-            entry.replicas.clear();
+            entry.held.clear();
             entry.shows.clear();
             entry.reported_size = None;
             entry.blocks_due = true;
@@ -2291,7 +2294,7 @@ impl Instances {
                     },
                 );
                 for (block, head) in heads {
-                    entry.offer(Subject::Head(block), &head_value(head));
+                    entry.held.offer(Subject::Head(block), &head_value(head));
                 }
             }
             if stale || graph_moved {
@@ -3579,7 +3582,7 @@ impl Instances {
             && let Some(entry) = self.entries.get_mut(&instance)
             && entry.heads.wants(block, commit)
         {
-            entry.offer(Subject::Head(block), &head_value(head));
+            entry.held.offer(Subject::Head(block), &head_value(head));
         }
     }
 

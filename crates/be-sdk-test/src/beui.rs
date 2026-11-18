@@ -937,7 +937,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
 
     /// Each block watch the editor holds open, by its op, with what it follows.
     #[cfg(test)]
-    pub(crate) fn block_watches(&self) -> Vec<(be_sdk_api::ops::OpId, crate::link::Subject)> {
+    pub(crate) fn block_watches(&self) -> Vec<(be_sdk_api::ops::OpId, be_sdk_app_host::blocks::Subject)> {
         self.link.watching()
     }
 

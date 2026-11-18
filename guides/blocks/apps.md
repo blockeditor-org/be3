@@ -207,6 +207,19 @@ On the app side `editor.watch_blocks(query)` and `editor.blocks()`, held while
 anything holds the `BlockList`; be-sdk's `link.rs` keeps one watch per subject
 the editor asks for and drops a value that is not of its subject.
 
+On the host side every `be3:blocks` call goes through one dispatcher,
+`be-sdk-app-host/src/blocks.rs` (`call`, `ended`, `answers`), over a `BlockStore`:
+be-host-runtime's `Instances` (`instances/blocks.rs`, over be-host-stack) and
+be-sdk-test's `link.rs` (over its `ContentStore`). The dispatcher keeps each
+editor's watches and replicas (`EditorBlocks`): a store offers a `Subject` its
+latest value (`EditorBlocks::offer`), and a waiting watch is answered it only when
+it differs from what that watch was last answered; frames go to the latest replica
+of a block, and the store hears a replica end once no replica holds the block. The
+shows watch is a queue the store hands over (`take_shows`). The host's policy stays
+in its store: `admit` translates a call's ids through the checkout's scope and
+refuses what a preview or a host component may not do, and each method checks and
+does the call or answers the error.
+
 Full-text search is a query of its own, not a `BlockQuery`: a `search-watch`
 (text and an optional `within` block) answers hits of block, document key,
 snippet and match ranges, again whenever an index it read changes
@@ -237,7 +250,7 @@ again, or for a detached block puts it back where `DELETED_FROM` metadata says
 block is one call, `blocks.act(block, block-command)`: undo and redo, history,
 artifact, unlink, delete, move, reorder, place, restore, version control
 (`version`, for the editor's own block), `share`, `leave`, `close-editor`,
-`set-parent` and `define`. be-host-runtime's `Instances::act` matches on the
+`set-parent` and `define`. be-host-runtime's `BlockStore::act` matches on the
 command: it checks and does `version`, `set-parent` and `define` itself and
 hands the rest to be-host (`EditorAction::Command`). `move` takes a block out of
 one container's content and into another's through their editors, and sets its

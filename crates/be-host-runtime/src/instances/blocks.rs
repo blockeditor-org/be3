@@ -1,108 +1,21 @@
 use be_sdk_api::{
-    BlockCommand, BlockIdRole, BlockQuery, VersionCommand,
-    blocks::{BlockHistory, BlockSubject, BlockValue, OpenRequest, ShowRequest},
+    BlockCommand, BlockIdRole, VersionCommand,
+    blocks::{BlockHistory, BlockValue, OpenRequest, ShowRequest},
     embed::blocks::Call,
-    ops::{OpError, OpId, Outcome, Reply, Serialize, encode},
+    ops::{OpError, OpId},
 };
+use be_sdk_app_host::blocks::{self as dispatch, BlockStore, Created, EditorBlocks, Subject, Written};
 use uuid::Uuid;
 
 use super::{ContentLink, EditorInstanceId, Instance, Instances};
 use crate::{EditorAction, events::InstanceEvent};
 
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub(super) enum Subject {
-    Blocks(BlockQuery),
-    History(Uuid),
-    Head(Uuid),
-    Artifact(Uuid),
-    Version,
-    Shows,
-    /// A full-text search, named by its watch: `Instance::searches` holds what it asks.
-    Search(OpId),
-}
-
-impl From<BlockSubject> for Subject {
-    fn from(subject: BlockSubject) -> Self {
-        match subject {
-            BlockSubject::Blocks(query) => Self::Blocks(query),
-            BlockSubject::History(block) => Self::History(Uuid::from_bytes(block)),
-            BlockSubject::Head(block) => Self::Head(Uuid::from_bytes(block)),
-            BlockSubject::Artifact(block) => Self::Artifact(Uuid::from_bytes(block)),
-            BlockSubject::Version => Self::Version,
-        }
-    }
-}
-
-impl Subject {
-    /// Whether `value` is of this subject's variant.
-    fn answered_by(self, value: &BlockValue) -> bool {
-        matches!(
-            (self, value),
-            (Self::Blocks(_), BlockValue::Blocks(_))
-                | (Self::History(_), BlockValue::History(_))
-                | (Self::Head(_), BlockValue::Head(_))
-                | (Self::Artifact(_), BlockValue::Artifact(_))
-                | (Self::Version, BlockValue::Version(_))
-        )
-    }
-}
-
-pub(super) struct Watch {
-    pub(super) watched: Subject,
-    answered: Option<Vec<u8>>,
-    latest: Option<Vec<u8>>,
-}
-
-impl Watch {
-    fn new(watched: Subject) -> Self {
-        Self {
-            watched,
-            answered: None,
-            latest: None,
-        }
-    }
-
-    pub(super) fn offer(&mut self, value: &impl Serialize) {
-        let bytes = encode(value);
-        self.latest = (self.answered.as_ref() != Some(&bytes)).then_some(bytes);
-    }
-
-    fn take(&mut self) -> Option<Vec<u8>> {
-        let bytes = self.latest.take()?;
-        self.answered = Some(bytes.clone());
-        Some(bytes)
-    }
-}
-
 pub(super) type Translate<'a> = dyn FnMut(BlockIdRole, &mut [u8; 16]) + 'a;
 
 impl Instance {
-    pub(super) fn watching(&self) -> impl Iterator<Item = Subject> + '_ {
-        self.watches.values().map(|watch| watch.watched)
-    }
-
-    /// Offers the block watches of `watched` its latest value, a `BlockValue` of the
-    /// variant of the same name.
-    pub(super) fn offer(&mut self, watched: Subject, value: &BlockValue) {
-        debug_assert!(watched.answered_by(value), "{watched:?} offered {value:?}");
-        self.offer_encoded(watched, value);
-    }
-
-    /// Offers the search watch `op` its latest results.
-    pub(super) fn offer_search(&mut self, op: OpId, results: &be_sdk_api::SearchResults) {
-        self.offer_encoded(Subject::Search(op), results);
-    }
-
-    fn offer_encoded(&mut self, watched: Subject, value: &impl Serialize) {
-        for watch in self.watches.values_mut() {
-            if watch.watched == watched {
-                watch.offer(value);
-            }
-        }
-    }
-
     fn artifact_blocks(&self) -> Vec<Uuid> {
         let mut blocks: Vec<Uuid> = self
+            .held
             .watching()
             .filter_map(|watched| match watched {
                 Subject::Artifact(block) => Some(block),
@@ -161,195 +74,27 @@ impl Instances {
         });
     }
 
-    pub fn blocks_call(&mut self, instance: EditorInstanceId, mut call: Call) -> bool {
-        let mut carries = false;
-        call.visit_block_ids(&mut |_, _| carries = true);
-        if carries {
-            let scope = self.scope(instance);
-            Self::translated(scope, true, |visit| call.visit_block_ids(visit));
+    /// One `be3:blocks` call, through the library's dispatcher (`be_sdk_app_host::blocks`) over
+    /// this runtime's `BlockStore`. Whether it changed what the host shows.
+    pub fn blocks_call(&mut self, instance: EditorInstanceId, call: Call) -> bool {
+        let dispatched = dispatch::call(self, instance, call);
+        match dispatched.reply {
+            Some(dispatch::Reply::Answer(op, outcome)) => self.services.answers.push((op, outcome)),
+            Some(dispatch::Reply::Accepted(op)) => self.accepted.push(op),
+            None => {}
         }
-        let preview = self
-            .entries
-            .get(&instance)
-            .and_then(|entry| entry.role.block())
-            .is_some_and(|block| be_host_stack::revisions::source(block.id).is_some());
-        if preview && call.changes() {
-            self.services.answers.push(call.refuse(OpError::Denied));
-            return false;
-        }
-        if let Some(own) = self.hosting(instance) {
-            // A host component runs unattended: it reaches only its own block and the blocks
-            // below it, and shows nothing (guides/apps/host_services.md, "Host components").
-            let mut outside = !call.may_be_made_by_a_host();
-            call.visit_block_ids(&mut |role, id| {
-                let block = Uuid::from_bytes(*id);
-                outside |= role == BlockIdRole::Existing
-                    && block != own
-                    && !be_host_stack::with_graph(|graph| graph.is_within(block, own))
-                        .unwrap_or(false);
-            });
-            if outside {
-                self.services.answers.push(call.refuse(OpError::Denied));
-                return false;
-            }
-        }
-        match call {
-            Call::OpenBlock { reply, request } => {
-                let Some(entry) = self.entries.get_mut(&instance) else {
-                    return self.acknowledge(reply, None);
-                };
-                let open = super::OpenRequest {
-                    id: Uuid::from_bytes(request.block_id),
-                    block_type: Uuid::from_bytes(request.block_type),
-                    via: request.via.map(Uuid::from_bytes),
-                    editor: request.editor.map(Uuid::from_bytes),
-                    at: request.at,
-                };
-                let _ = entry;
-                crate::events::emit(
-                    &self.app_id,
-                    instance,
-                    InstanceEvent::Action(EditorAction::OpenBlock(open)),
-                );
-                self.acknowledge(reply, Some(true))
-            }
-            Call::Act {
-                reply,
-                block,
-                command,
-            } => self.act(instance, reply, Uuid::from_bytes(block), command),
-            Call::WriteContent {
-                reply,
-                block,
-                content_type,
-                bytes,
-                replace,
-            } => {
-                let block = Uuid::from_bytes(block);
-                let content_type = Uuid::from_bytes(content_type);
-                let allowed = match replace {
-                    true => self.editable(block),
-                    false => self
-                        .entries
-                        .get(&instance)
-                        .is_some_and(|entry| entry.holds(block)),
-                };
-                if !allowed || !be_host_stack::is_known(content_type) {
-                    return self.acknowledge(reply, None);
-                }
-                match replace {
-                    true => be_host_stack::replace(block, content_type, bytes),
-                    false => be_host_stack::seed(block, content_type, bytes),
-                }
-                self.acknowledge(reply, Some(false))
-            }
-            Call::CreateBlock {
-                reply,
-                block,
-                block_type,
-                parent,
-                defined,
-                content,
-                owner_only,
-            } => {
-                let block = Uuid::from_bytes(block);
-                let Some(parent) = be_host_stack::app_graph::parent_of(parent) else {
-                    self.refuse_block_gift(instance, block);
-                    return self.acknowledge(reply, None);
-                };
-                if parent.block().is_some_and(|parent| !self.editable(parent))
-                    || (owner_only && !own_settings(parent))
-                    || be_host_stack::node(block).is_some()
-                {
-                    self.refuse_block_gift(instance, block);
-                    return self.acknowledge(reply, None);
-                }
-                let mut defined = be_host_stack::app_graph::entries_of(defined);
-                defined.remove(&be_block_content::LOCAL_ID.id);
-                let mut metadata = be_block_content::BlockMetadata {
-                    defined,
-                    ..be_block_content::BlockMetadata::default()
-                };
-                metadata.put(&be_block_content::CREATED_BY, self.created_by().as_ref());
-                be_host_stack::create(
-                    block,
-                    Uuid::from_bytes(block_type),
-                    parent,
-                    metadata,
-                    content,
-                    owner_only,
-                );
-                self.acknowledge(reply, Some(true))
-            }
-            Call::ReplicaNew {
-                resource,
-                block,
-                content_type,
-            } => self.hold_replica(
-                instance,
-                resource.op(),
-                Uuid::from_bytes(block),
-                Uuid::from_bytes(content_type),
-            ),
-            Call::ReplicaSend { reply, this, frame } => {
-                self.accepted.push(reply.into_op());
-                let block = self.entries.get(&instance).and_then(|entry| {
-                    entry
-                        .replicas
-                        .iter()
-                        .find(|(_, op)| **op == this.op())
-                        .map(|(block, _)| *block)
-                });
-                match block {
-                    Some(block) => self.replica_frame(instance, block, frame),
-                    None => false,
-                }
-            }
-            Call::BlockWatchNew { resource, subject } => {
-                self.watch(instance, resource.op(), subject.into())
-            }
-            Call::SearchWatchNew {
-                resource,
-                text,
-                within,
-            } => {
-                let op = resource.op();
-                if let Some(entry) = self.entries.get_mut(&instance) {
-                    entry.searches.insert(
-                        op,
-                        be_host_stack::SearchAsk {
-                            text,
-                            within: within.map(Uuid::from_bytes),
-                        },
-                    );
-                }
-                self.watch(instance, op, Subject::Search(op))
-            }
-            Call::ShowRequestsNew { resource } => {
-                self.watch(instance, resource.op(), Subject::Shows)
-            }
-            call @ (Call::ReplicaFrames { .. }
-            | Call::BlockWatchNext { .. }
-            | Call::SearchWatchNext { .. }
-            | Call::ShowRequestsNext { .. }) => {
-                self.services
-                    .answers
-                    .push(call.refuse(OpError::Unsupported));
-                false
-            }
-        }
+        dispatched.changed
     }
 
     /// One `blocks.act`. Permission checks are a match on the command: version control, a
     /// parent and metadata are checked and done here; the rest go to be-host, which checks
     /// what it does.
-    fn act(
+    fn act_on(
         &mut self,
         instance: EditorInstanceId,
-        reply: Reply<()>,
         block: Uuid,
         command: BlockCommand,
-    ) -> bool {
+    ) -> Result<bool, OpError> {
         match command {
             BlockCommand::Version(command) => {
                 let own = self
@@ -358,27 +103,27 @@ impl Instances {
                     .and_then(|entry| entry.role.block())
                     .is_some_and(|own| own.id == block);
                 if !own || !self.editable(block) {
-                    return self.acknowledge(reply, None);
+                    return Err(OpError::Denied);
                 }
                 if let VersionCommand::Adopt { block_id } = &command
                     && !self.editable(Uuid::from_bytes(*block_id))
                 {
-                    return self.acknowledge(reply, None);
+                    return Err(OpError::Denied);
                 }
                 be_host_stack::version(block, command);
-                self.acknowledge(reply, Some(true))
+                Ok(true)
             }
             BlockCommand::SetParent(parent) => {
                 let Some(parent) = be_host_stack::app_graph::parent_of(parent) else {
-                    return self.acknowledge(reply, None);
+                    return Err(OpError::Denied);
                 };
                 if !self.editable(block)
                     || parent.block().is_some_and(|parent| !self.editable(parent))
                 {
-                    return self.acknowledge(reply, None);
+                    return Err(OpError::Denied);
                 }
                 be_host_stack::set_parent(block, parent);
-                self.acknowledge(reply, Some(true))
+                Ok(true)
             }
             BlockCommand::Define { key, value } => {
                 let key = Uuid::from_bytes(key);
@@ -386,173 +131,35 @@ impl Instances {
                     || key == be_block_content::LOCAL_ID.id
                     || key == be_block_content::CREATED_BY.id
                 {
-                    return self.acknowledge(reply, None);
+                    return Err(OpError::Denied);
                 }
                 be_host_stack::define(block, vec![(key, value)]);
-                self.acknowledge(reply, Some(true))
+                Ok(true)
             }
             command => {
                 if !self.entries.contains_key(&instance) {
-                    return self.acknowledge(reply, None);
+                    return Err(OpError::Denied);
                 }
                 crate::events::emit(
                     &self.app_id,
                     instance,
                     InstanceEvent::Action(EditorAction::Command { id: block, command }),
                 );
-                self.acknowledge(reply, Some(true))
+                Ok(true)
             }
         }
-    }
-
-    fn acknowledge(&mut self, reply: Reply<()>, changed: Option<bool>) -> bool {
-        self.services.answers.push(match changed {
-            Some(_) => reply.answer(&()),
-            None => (reply.into_op(), Outcome::Err(OpError::Denied)),
-        });
-        changed.unwrap_or(false)
-    }
-
-    fn watch(&mut self, instance: EditorInstanceId, op: OpId, watched: Subject) -> bool {
-        let Some(entry) = self.entries.get_mut(&instance) else {
-            return false;
-        };
-        self.owners.insert(op, instance);
-        entry.watches.insert(op, Watch::new(watched));
-        match watched {
-            Subject::Blocks(_) => entry.blocks_due = true,
-            Subject::Search(_) => entry.searches_due = true,
-            Subject::Head(block) => entry.heads.watch(block),
-            Subject::Artifact(_) => crate::events::emit(
-                &self.app_id,
-                instance,
-                InstanceEvent::ArtifactWatch(entry.artifact_blocks()),
-            ),
-            Subject::Version => entry.version_sent = None,
-            Subject::History(_) | Subject::Shows => {}
-        }
-        entry.stale = true;
-        true
-    }
-
-    fn hold_replica(
-        &mut self,
-        instance: EditorInstanceId,
-        op: OpId,
-        block: Uuid,
-        content_type: Uuid,
-    ) -> bool {
-        let allowed = be_host_stack::provided(content_type) && be_host_stack::may_load(block);
-        let Some(entry) = self.entries.get_mut(&instance) else {
-            return false;
-        };
-        self.owners.insert(op, instance);
-        entry.replicas.insert(block, op);
-        if entry.role.block().is_some_and(|own| own.id == block) || !allowed {
-            return true;
-        }
-        let kept = entry
-            .watched
-            .get(&block)
-            .is_some_and(|link| link.content_type == content_type);
-        if !kept {
-            if let Some(mut link) = entry.watched.remove(&block) {
-                let shown = entry.shown_on(block);
-                link.detach(instance, block, &shown);
-                entry.shown.retain(|(on, _)| *on != block);
-            }
-            entry.watched.insert(block, ContentLink::new(content_type));
-        }
-        entry.stale = true;
-        true
     }
 
     pub fn ended(&mut self, op: OpId) {
         if self.fetch_ended(op) || self.preview_ended(op) {
             return;
         }
-        let Some(instance) = self.owners.remove(&op) else {
-            return;
-        };
-        let Some(entry) = self.entries.get_mut(&instance) else {
-            return;
-        };
-        if let Some(watch) = entry.watches.remove(&op) {
-            match watch.watched {
-                Subject::Head(block) => {
-                    if !entry
-                        .watching()
-                        .any(|watched| watched == Subject::Head(block))
-                    {
-                        entry.heads.unwatch(block);
-                    }
-                }
-                Subject::Artifact(_) => crate::events::emit(
-                    &self.app_id,
-                    instance,
-                    InstanceEvent::ArtifactWatch(entry.artifact_blocks()),
-                ),
-                Subject::Search(op) => {
-                    entry.searches.remove(&op);
-                }
-                Subject::Blocks(_) | Subject::History(_) | Subject::Version | Subject::Shows => {}
-            }
-            return;
-        }
-        let Some(block) = entry
-            .replicas
-            .iter()
-            .find(|(_, held)| **held == op)
-            .map(|(block, _)| *block)
-        else {
-            return;
-        };
-        entry.replicas.remove(&block);
-        if let Some(mut link) = entry.watched.remove(&block) {
-            let shown = entry.shown_on(block);
-            link.detach(instance, block, &shown);
-            entry.shown.retain(|(on, _)| *on != block);
-        }
+        dispatch::ended(self, op);
+        self.owners.remove(&op);
     }
 
     pub fn answers(&mut self, waiting: &[OpId]) -> Vec<(OpId, Vec<u8>)> {
-        let mut answers = Vec::new();
-        for op in waiting {
-            let Some(instance) = self.owners.get(op).copied() else {
-                continue;
-            };
-            let scope = match self.entries.get(&instance) {
-                Some(entry) if !entry.shows.is_empty() => self.scope(instance),
-                _ => None,
-            };
-            let Some(entry) = self.entries.get_mut(&instance) else {
-                continue;
-            };
-            let Some(watch) = entry.watches.get_mut(op) else {
-                continue;
-            };
-            if watch.watched != Subject::Shows {
-                answers.extend(watch.take().map(|bytes| (*op, bytes)));
-                continue;
-            }
-            if entry.shows.is_empty() {
-                continue;
-            }
-            let mut shows = std::mem::take(&mut entry.shows);
-            Self::translated(scope, false, |visit| {
-                for show in &mut shows {
-                    match show {
-                        ShowRequest::Block(request) => request.visit_block_ids(visit),
-                        ShowRequest::History(request) => {
-                            visit(BlockIdRole::Existing, &mut request.block_id)
-                        }
-                        ShowRequest::Panel(_) => {}
-                    }
-                }
-            });
-            answers.push((*op, encode(&shows)));
-        }
-        answers
+        dispatch::answers(self, waiting)
     }
 
     pub fn relay(&mut self, mut send: impl FnMut(OpId, &Vec<u8>) -> bool) {
@@ -625,8 +232,283 @@ impl Instances {
             if let Some(state) = &mut state {
                 Self::translated(scope, false, |visit| state.visit_block_ids(visit));
             }
-            entry.offer(Subject::Artifact(block), &BlockValue::Artifact(state));
+            entry.held.offer(Subject::Artifact(block), &BlockValue::Artifact(state));
         }
+    }
+}
+
+/// be-host's blocks, to the library's dispatcher: its scope, permission and event policy, over
+/// be-host-stack.
+impl BlockStore for Instances {
+    fn held(&mut self, instance: EditorInstanceId) -> Option<&mut EditorBlocks> {
+        self.entries.get_mut(&instance).map(|entry| &mut entry.held)
+    }
+
+    fn holder(&self, op: OpId) -> Option<EditorInstanceId> {
+        self.owners.get(&op).copied()
+    }
+
+    fn admit(&mut self, instance: EditorInstanceId, call: &mut Call) -> Result<(), OpError> {
+        let mut carries = false;
+        call.visit_block_ids(&mut |_, _| carries = true);
+        if carries {
+            let scope = self.scope(instance);
+            Self::translated(scope, true, |visit| call.visit_block_ids(visit));
+        }
+        let preview = self
+            .entries
+            .get(&instance)
+            .and_then(|entry| entry.role.block())
+            .is_some_and(|block| be_host_stack::revisions::source(block.id).is_some());
+        if preview && call.changes() {
+            return Err(OpError::Denied);
+        }
+        if let Some(own) = self.hosting(instance) {
+            // A host component runs unattended: it reaches only its own block and the blocks
+            // below it, and shows nothing (guides/apps/host_services.md, "Host components").
+            let mut outside = !call.may_be_made_by_a_host();
+            call.visit_block_ids(&mut |role, id| {
+                let block = Uuid::from_bytes(*id);
+                outside |= role == BlockIdRole::Existing
+                    && block != own
+                    && !be_host_stack::with_graph(|graph| graph.is_within(block, own))
+                        .unwrap_or(false);
+            });
+            if outside {
+                return Err(OpError::Denied);
+            }
+        }
+        Ok(())
+    }
+
+    fn open_block(
+        &mut self,
+        instance: EditorInstanceId,
+        request: OpenRequest,
+    ) -> Result<bool, OpError> {
+        if !self.entries.contains_key(&instance) {
+            return Err(OpError::Denied);
+        }
+        let open = super::OpenRequest {
+            id: Uuid::from_bytes(request.block_id),
+            block_type: Uuid::from_bytes(request.block_type),
+            via: request.via.map(Uuid::from_bytes),
+            editor: request.editor.map(Uuid::from_bytes),
+            at: request.at,
+        };
+        crate::events::emit(
+            &self.app_id,
+            instance,
+            InstanceEvent::Action(EditorAction::OpenBlock(open)),
+        );
+        Ok(true)
+    }
+
+    fn act(
+        &mut self,
+        instance: EditorInstanceId,
+        block: Uuid,
+        command: BlockCommand,
+    ) -> Result<bool, OpError> {
+        self.act_on(instance, block, command)
+    }
+
+    fn create_block(
+        &mut self,
+        instance: EditorInstanceId,
+        created: Created,
+    ) -> Result<bool, OpError> {
+        let Created {
+            block,
+            block_type,
+            parent,
+            defined,
+            content,
+            owner_only,
+        } = created;
+        let Some(parent) = be_host_stack::app_graph::parent_of(parent) else {
+            self.refuse_block_gift(instance, block);
+            return Err(OpError::Denied);
+        };
+        if parent.block().is_some_and(|parent| !self.editable(parent))
+            || (owner_only && !own_settings(parent))
+            || be_host_stack::node(block).is_some()
+        {
+            self.refuse_block_gift(instance, block);
+            return Err(OpError::Denied);
+        }
+        let mut defined = be_host_stack::app_graph::entries_of(defined);
+        defined.remove(&be_block_content::LOCAL_ID.id);
+        let mut metadata = be_block_content::BlockMetadata {
+            defined,
+            ..be_block_content::BlockMetadata::default()
+        };
+        metadata.put(&be_block_content::CREATED_BY, self.created_by().as_ref());
+        be_host_stack::create(block, block_type, parent, metadata, content, owner_only);
+        Ok(true)
+    }
+
+    fn write_content(
+        &mut self,
+        instance: EditorInstanceId,
+        written: Written,
+    ) -> Result<bool, OpError> {
+        let Written {
+            block,
+            content_type,
+            bytes,
+            replace,
+        } = written;
+        let allowed = match replace {
+            true => self.editable(block),
+            false => self
+                .entries
+                .get(&instance)
+                .is_some_and(|entry| entry.holds(block)),
+        };
+        if !allowed || !be_host_stack::is_known(content_type) {
+            return Err(OpError::Denied);
+        }
+        match replace {
+            true => be_host_stack::replace(block, content_type, bytes),
+            false => be_host_stack::seed(block, content_type, bytes),
+        }
+        Ok(false)
+    }
+
+    fn replica_opened(
+        &mut self,
+        instance: EditorInstanceId,
+        op: OpId,
+        block: Uuid,
+        content_type: Uuid,
+    ) -> bool {
+        let allowed = be_host_stack::provided(content_type) && be_host_stack::may_load(block);
+        let Some(entry) = self.entries.get_mut(&instance) else {
+            return false;
+        };
+        self.owners.insert(op, instance);
+        if entry.role.block().is_some_and(|own| own.id == block) || !allowed {
+            return true;
+        }
+        let kept = entry
+            .watched
+            .get(&block)
+            .is_some_and(|link| link.content_type == content_type);
+        if !kept {
+            if let Some(mut link) = entry.watched.remove(&block) {
+                let shown = entry.shown_on(block);
+                link.detach(instance, block, &shown);
+                entry.shown.retain(|(on, _)| *on != block);
+            }
+            entry.watched.insert(block, ContentLink::new(content_type));
+        }
+        entry.stale = true;
+        true
+    }
+
+    fn replica_sent(&mut self, instance: EditorInstanceId, block: Uuid, frame: Vec<u8>) -> bool {
+        self.replica_frame(instance, block, frame)
+    }
+
+    fn replica_ended(&mut self, instance: EditorInstanceId, block: Uuid) {
+        let Some(entry) = self.entries.get_mut(&instance) else {
+            return;
+        };
+        if let Some(mut link) = entry.watched.remove(&block) {
+            let shown = entry.shown_on(block);
+            link.detach(instance, block, &shown);
+            entry.shown.retain(|(on, _)| *on != block);
+        }
+    }
+
+    fn watch_opened(&mut self, instance: EditorInstanceId, op: OpId, subject: Subject) -> bool {
+        let Some(entry) = self.entries.get_mut(&instance) else {
+            return false;
+        };
+        self.owners.insert(op, instance);
+        match subject {
+            Subject::Blocks(_) => entry.blocks_due = true,
+            Subject::Search(_) => entry.searches_due = true,
+            Subject::Head(block) => entry.heads.watch(block),
+            Subject::Artifact(_) => crate::events::emit(
+                &self.app_id,
+                instance,
+                InstanceEvent::ArtifactWatch(entry.artifact_blocks()),
+            ),
+            Subject::Version => entry.version_sent = None,
+            Subject::History(_) | Subject::Shows => {}
+        }
+        entry.stale = true;
+        true
+    }
+
+    fn search_opened(
+        &mut self,
+        instance: EditorInstanceId,
+        op: OpId,
+        text: String,
+        within: Option<Uuid>,
+    ) -> bool {
+        if let Some(entry) = self.entries.get_mut(&instance) {
+            entry
+                .searches
+                .insert(op, be_host_stack::SearchAsk { text, within });
+        }
+        self.watch_opened(instance, op, Subject::Search(op))
+    }
+
+    fn watch_ended(&mut self, instance: EditorInstanceId, subject: Subject) {
+        let Some(entry) = self.entries.get_mut(&instance) else {
+            return;
+        };
+        match subject {
+            Subject::Head(block) => {
+                if !entry
+                    .held
+                    .watching()
+                    .any(|watched| watched == Subject::Head(block))
+                {
+                    entry.heads.unwatch(block);
+                }
+            }
+            Subject::Artifact(_) => crate::events::emit(
+                &self.app_id,
+                instance,
+                InstanceEvent::ArtifactWatch(entry.artifact_blocks()),
+            ),
+            Subject::Search(op) => {
+                entry.searches.remove(&op);
+            }
+            Subject::Blocks(_) | Subject::History(_) | Subject::Version | Subject::Shows => {}
+        }
+    }
+
+    fn take_shows(&mut self, instance: EditorInstanceId) -> Vec<ShowRequest> {
+        if self
+            .entries
+            .get(&instance)
+            .is_none_or(|entry| entry.shows.is_empty())
+        {
+            return Vec::new();
+        }
+        let scope = self.scope(instance);
+        let Some(entry) = self.entries.get_mut(&instance) else {
+            return Vec::new();
+        };
+        let mut shows = std::mem::take(&mut entry.shows);
+        Self::translated(scope, false, |visit| {
+            for show in &mut shows {
+                match show {
+                    ShowRequest::Block(request) => request.visit_block_ids(visit),
+                    ShowRequest::History(request) => {
+                        visit(BlockIdRole::Existing, &mut request.block_id)
+                    }
+                    ShowRequest::Panel(_) => {}
+                }
+            }
+        });
+        shows
     }
 }
 

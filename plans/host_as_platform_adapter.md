@@ -561,11 +561,19 @@ Each step lands on its own.
          `AppSandbox` over `Server`, an editor test's in-process workers) and tells one published
          watch its value (`set_published`). The generated calls name their op (`Call::op`).
          `link.rs` stays be-sdk-test's store, now answering through the wire.
-       - 4e3b. The store trait: be-sdk-app-host gains `blocks`, the host side of `be3:blocks`
-         (`Subject`, a watch's dedup, a dispatcher over a `BlockStore` trait and the answers to
-         watches that wait). be-host-runtime's `Instances` implements it over be-host-stack,
-         keeping its scope, permission and event policy in its implementation, and be-sdk-test's
-         `link.rs` over its `ContentStore`, so its own watch bookkeeping goes.
+       - 4e3b. Built: the store trait: be-sdk-app-host gains `blocks`, the host side of
+         `be3:blocks` (`Subject`, a watch's dedup, a dispatcher, `call`, `ended` and `answers`,
+         over a `BlockStore` trait, and the answers to watches that wait), and every
+         `be3:blocks` call goes through it. be-host-runtime's `Instances` implements it over
+         be-host-stack, keeping its scope, permission and event policy in its implementation
+         (`admit` translates and refuses before dispatch), and be-sdk-test's `link.rs` over its
+         `ContentStore`, so its own watch bookkeeping goes. Where it differs: the watches and
+         replicas an editor holds are a library type (`EditorBlocks`) that the store keeps where
+         it likes (be-host on each instance's entry) and hands the dispatcher (`held`), and the
+         store says which instance holds an op (`holder`), since be-host already keeps that map
+         for its previews; frames go to the latest replica of a block, and a replica ends only
+         once no replica holds its block. be-sdk-test's watches now drop a value they were
+         answered already, as be-host's did.
      - 4e4. be-host-runtime's orchestration in the library: pacing, settling against the
        deadline, the layout and present holds (`Laid`, `Kept`), restarts and grafting the
        accessibility trees, on be-lib-geometry rather than beui's geometry, with be-host-runtime

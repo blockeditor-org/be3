@@ -346,7 +346,9 @@ its own (guest: `EditorHost::tell` queues each in the order the editor made it, 
   resource. A value delivered outside a runtime step (a watch's `next`) has to
   wake the session's waker, or nothing asks for a frame while a driven host's
   clock is stopped.
-- Host side: `crates/be-sdk-app-host/src/wire.rs` takes the generated `Call`s.
+- Host side: `crates/be-sdk-app-host/src/wire.rs` takes the generated `Call`s;
+  a `be3:blocks` call goes on to `be-sdk-app-host/src/blocks.rs`'s dispatcher over
+  the host's `BlockStore` (guides/blocks/apps.md, "The graph on the app protocol").
   Answer every call where it is handled; a dropped `Reply` answers
   `Unanswered`. Block ids a call carries go through the checkout's scope
   (`calls::BlockIds`).

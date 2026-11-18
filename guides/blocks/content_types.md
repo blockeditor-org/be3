@@ -274,8 +274,8 @@ Helpers in `crates/be-block-content/src/tests/` and `crates/be-block/src/tests/`
 `crates/be-block-model/src/tests/`. An editor's tests use
 `be_sdk_test::BeuiTest`, whose `ContentStore` hosts every block through one
 in-process `be_sdk_type_guest::Module` (`hold::<C>` registers a type it does
-not know), plays the host's side of `be3:app/blocks` over be-wasm-ops
-(`be-sdk-test/src/link.rs`), and uses the test's frame clock. `edit` and
+not know), plays the host's side of `be3:app/blocks` over be-wasm-ops as a
+`BlockStore` for be-sdk-app-host's dispatcher (`be-sdk-test/src/link.rs`), and uses the test's frame clock. `edit` and
 `apply_elsewhere` are another participant's edits, `set_peers` and
 `receive_from_peer` its presence and messages, `keep_history::<C>` turns on
 undo, and `store()` hands a fixture the same store.

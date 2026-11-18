@@ -337,8 +337,8 @@ fn answered<T: be_sdk_api::ops::DeserializeOwned>(
 
 fn replica_of(instances: &mut Instances, block: Uuid) -> Option<OpId> {
     let entry = instances.entries.get(&INSTANCE)?;
-    if let Some(op) = entry.replicas.get(&block) {
-        return Some(*op);
+    if let Some(op) = entry.held.replica(block) {
+        return Some(op);
     }
     let own = entry.role.block().filter(|own| own.id == block)?;
     let content_type = entry
@@ -366,7 +366,7 @@ fn from_replica(instances: &mut Instances, block: Uuid) -> Vec<ToEditor> {
     let replica = instances
         .entries
         .get(&INSTANCE)
-        .and_then(|entry| entry.replicas.get(&block).copied());
+        .and_then(|entry| entry.held.replica(block));
     let mut frames = Vec::new();
     instances.relay(|op, frame| {
         if Some(op) == replica {

@@ -3,6 +3,7 @@
 //! guest (plans/host_as_platform_adapter.md, step 4e). It knows no GUI framework, as the protocol
 //! does not (AGENTS.md, Apps), and no block stack.
 
+pub mod blocks;
 pub mod calls;
 pub mod docks;
 pub mod published;
