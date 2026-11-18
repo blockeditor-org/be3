@@ -234,14 +234,15 @@ opened as the outbox drained), and a join's answer waits (`Replicas::settling`) 
 or answered and not yet reported, since its head is moving past the reported
 one, and while a submission of it is unanswered (`Open::submitting`), and
 when, after it sealed once, the order holds journaled edits no seal holds and
-no seal would take them (`rejoin_held`: it diverged, or its seal backs off or
-cannot merge), until a status says one would. A block closed or reopened
+no seal would take them (`rejoin_held`: a reload of its own is on its way, or
+its seal backs off), until a status says one would. A block closed or reopened
 meanwhile lets go of that join instead (`Replicas::let_go_if_held`): its
 replica ends in its made-up session, sealing there as it closes, and one
-reopened opens afresh. A replica that diverged, or whose seal cannot merge,
-seals nothing as it closes: its journaled edits are then only in this device's
-journal, which a replica opened online passes over when the server has a
-journal of the block. What the
+reopened opens afresh. A seal in a made-up session goes to the outbox without
+merging (`merge_diverged` merges it after a drain), and a made-up session speaks
+the replica's own build, so a replica's journaled edits reach a commit before it
+joins a session of another build and diverges
+(decisions/journaled_edits_reach_the_outbox_before_a_join.md). What the
 order numbered while the join was on its way reaches the replica it opens
 before its edits are given again, so one the order took meanwhile is not
 submitted twice: the join's journal may predate it, and each opening numbers

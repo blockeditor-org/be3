@@ -72,9 +72,6 @@ Fixed items are removed as they land.
 
 ## 7. Sessions
 
-- **A diverged replica's journaled edits after it closes.** Decided: kept, given
-  again, and a conflict where they no longer apply; plans/journaled_edits_kept.md.
-
 - **A seal of its own during a join that holds kept edits.** `rejoined` seals
   and waits only for a join begun on a settled made-up session
   (`Open::joined_settled`). One that joins holding kept or doubtful edits takes
