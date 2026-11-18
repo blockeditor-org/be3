@@ -2,9 +2,9 @@ use super::*;
 
 use be_block_keys::Entry;
 
-/// A device that read an organization's log whole reads it again by naming the last entry it
-/// holds: the server sends only the entries after it, and the device keeps the prefix it
-/// checked. A server that rewrote the entry the device holds sends the log from its root, which
+/// A device that read an organization's log, or a block's, whole reads it again by naming the
+/// last entry it holds: the server sends only the entries after it, and the device keeps the
+/// prefix it checked. A server that rewrote the entry the device holds sends the log from its root, which
 /// is refused as forged.
 #[tokio::test]
 async fn an_organizations_log_read_again_sends_only_what_was_appended() {
@@ -20,7 +20,7 @@ async fn an_organizations_log_read_again_sends_only_what_was_appended() {
         hash: first.last().unwrap().hash(),
     };
 
-    let _member = harness.member(&owner, "member@example.com").await;
+    let member = harness.member(&owner, "member@example.com").await;
     let page = crate::ask(be_block_protocol::read::<be_block_protocol::AccessLogPage, _>(
         &owner.connection(),
         Some(organization),
@@ -51,7 +51,7 @@ async fn an_organizations_log_read_again_sends_only_what_was_appended() {
     ))
     .await
     .unwrap();
-    assert_eq!(page.from, first.len() as u64);
+    assert_eq!(fresh.from, 0, "a read naming nothing held is sent from the root");
     assert_eq!(
         fresh
             .entries
@@ -62,6 +62,33 @@ async fn an_organizations_log_read_again_sends_only_what_was_appended() {
         "the log kept and extended is the log the server holds"
     );
     owner.checked_organization().await.unwrap();
+
+    // A block's log, as `checked_access` reads it, is read again the same way.
+    let shared = workspace(&owner, "Shared").await;
+    let before = owner.checked_access(shared).await.unwrap().0;
+    let held = be_block_protocol::HeldEntry {
+        place: before.len() as u64 - 1,
+        hash: before.last().unwrap().hash(),
+    };
+    owner
+        .grant(shared, member.account(), be_block_graph::Access::Edit)
+        .await
+        .unwrap();
+    let page = crate::ask(be_block_protocol::read::<be_block_protocol::AccessLogPage, _>(
+        &owner.connection(),
+        Some(organization),
+        be_block_protocol::Query::Log {
+            log: Some(shared),
+            held: Some(held),
+        },
+    ))
+    .await
+    .unwrap();
+    assert_eq!(page.from, before.len() as u64);
+    assert_eq!(page.entries.len(), 1, "the grant alone");
+    let after = owner.checked_access(shared).await.unwrap().0;
+    assert_eq!(after.len(), before.len() + 1);
+    assert_eq!(hashes(&after[..before.len()]), hashes(&before));
 
     // The server rewrites the last entry the device holds: it no longer holds that entry there,
     // so it sends the log from its root, whose prefix is not what the device checked.

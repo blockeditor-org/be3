@@ -394,7 +394,7 @@ pub struct Peer<S: ObjectStore> {
     resealed: Mutex<HashMap<CommitId, CommitId>>,
     /// The whole access logs served in this run, by log (the organization's under its id): a
     /// read names the last entry held and is sent only the entries after it (`served_access`).
-    served_logs: Mutex<HashMap<Uuid, Vec<be_block_keys::Step>>>,
+    served_logs: Mutex<HashMap<Uuid, Arc<Vec<be_block_keys::Step>>>>,
 }
 
 /// How long a read of an access log before a write may take before what was kept of it is
@@ -2611,26 +2611,11 @@ impl<S: ObjectStore> Peer<S> {
             .map(|step| be_block_keys::Step::decode(step))
             .collect::<Result<Vec<_>, _>>()
             .map_err(|_| ClientError::Forged(id))?;
-        let steps = match page.from {
-            0 => sent,
-            from => {
-                let mut steps = held
-                    .filter(|steps| steps.len() as u64 == from)
-                    .ok_or(ClientError::Forged(id))?;
-                let head = steps.last().map(be_block_keys::Step::hash);
-                if sent
-                    .first()
-                    .is_some_and(|first| first.entry().and_then(|entry| entry.previous) != head)
-                {
-                    return Err(ClientError::Forged(id));
-                }
-                steps.extend(sent);
-                steps
-            }
-        };
+        let steps = extended(held.as_deref().map(Vec::as_slice), page.from, sent)
+            .ok_or(ClientError::Forged(id))?;
         let mut served = self.served_logs.lock().unwrap();
         match steps.iter().all(|step| step.entry().is_some()) {
-            true => served.insert(id, steps.clone()),
+            true => served.insert(id, Arc::new(steps.clone())),
             false => served.remove(&id),
         };
         Ok(steps)
@@ -4720,6 +4705,30 @@ fn grant_level(access: Access) -> be_block_keys::Level {
 struct Around {
     organization: Option<(be_block_keys::EntryHash, Vec<be_block_keys::Step>)>,
     held: HashMap<Uuid, Vec<be_block_keys::Step>>,
+}
+
+/// An access log as served (`Peer::served_access`): `sent`, the log from its root when `from` is
+/// 0, else the entries after `held`, the whole log this device holds, which must be `from` long:
+/// every one whole, as only a log served whole is sent so, the first naming its last as the one
+/// before. None for a log the server made up otherwise.
+pub(crate) fn extended(
+    held: Option<&[be_block_keys::Step]>,
+    from: u64,
+    sent: Vec<be_block_keys::Step>,
+) -> Option<Vec<be_block_keys::Step>> {
+    if from == 0 {
+        return Some(sent);
+    }
+    let held = held.filter(|held| held.len() as u64 == from)?;
+    let head = held.last().map(be_block_keys::Step::hash);
+    if sent.iter().any(|step| step.entry().is_none())
+        || sent
+            .first()
+            .is_some_and(|first| first.entry().and_then(|entry| entry.previous) != head)
+    {
+        return None;
+    }
+    Some(held.iter().cloned().chain(sent).collect())
 }
 
 /// Whether a log names its signers' right outside itself: then the logs around it are read to

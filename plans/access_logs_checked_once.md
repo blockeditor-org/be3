@@ -60,7 +60,8 @@ entry once. It need not see each again.
    (the first entry sent names the held one) ties them as a consistency proof
    would; a Merkle tree buys nothing until a reader is sent less than every
    entry, which is step 3. Left for later steps:
-   - The prefix is held in memory for a run (`Peer::served_logs`): after a
+   - The prefix is held in memory for a run (`Peer::served_logs`), every
+     whole log read, so memory grows with the logs a run reads; after a
      restart the first read is whole, and only hashed, not checked, against
      `KeptLog::checked`. Keeping the entries with the refs would drop that.
    - `Checked::positions` grows by an entry's hash for each entry: epochs name
