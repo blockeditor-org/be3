@@ -79,8 +79,8 @@ pub fn roles_revision() -> u64 {
 pub(super) struct Instances {
     entries: HashMap<EditorInstanceId, Instance>,
     /// The stack's count of member events queued for host components as this pass last took
-    /// them (`be_host_stack::member_events_revision`): taken again only when it moved.
-    member_events: u64,
+    /// them (`be_host_stack::news_revision`): taken again only when it moved.
+    news: u64,
     focus: Focus,
     connection: Option<Connection>,
     next_screen: u64,
@@ -2183,8 +2183,8 @@ impl Instances {
         self.touch(&changes);
         let graph_moved = changes.graph;
         let contacts_moved = changes.contacts;
-        let member_events = be_host_stack::member_events_revision();
-        let members_moved = std::mem::replace(&mut self.member_events, member_events) != member_events;
+        let news = be_host_stack::news_revision();
+        let news_moved = std::mem::replace(&mut self.news, news) != news;
         let mut opened = Vec::new();
         let mut screens = Vec::new();
         self.relaying.clear();
@@ -2362,7 +2362,7 @@ impl Instances {
             // A host component hears its block's host channel members come, speak and go
             // (plans/hosted_blocks.md, "Hosting"), as the stack admits them.
             if let InstanceRole::Host(_, block) = entry.role
-                && members_moved
+                && news_moved
             {
                 for event in be_host_stack::take_member_events(block.id) {
                     opened.push(Outbound::Event(instance, EditorEvent::Member(event)));

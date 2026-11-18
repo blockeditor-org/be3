@@ -379,7 +379,71 @@ pub struct Seen, delta SeenDelta {
     /// The block types the worker's modules know (`crate::is_known`): each declared one, with
     /// what the page reads of it once a module described it.
     pub kinds: imbl::OrdMap<Uuid, Option<KnownKind>>,
+    /// The blocks whose session's lease this device's replica holds, so a host component may
+    /// run on them here (`crate::hosting`).
+    pub hosted: imbl::OrdSet<Uuid>,
+    /// Counts each change of `hosted`.
+    pub leases_changed: u64,
+    /// What each block's host component has yet to hear of its host channel's members
+    /// (`crate::hosting`, `Edit::TookMemberNews`).
+    pub member_news: imbl::OrdMap<Uuid, Vec<News<MemberNews>>>,
+    /// The number the last news got: it moves whenever there is news.
+    pub news_queued: u64,
 }
+}
+
+/// News of a hosted block's channel the worker queued, numbered so the page can say which it
+/// took (`Edit::TookMemberNews`).
+#[derive(Clone, Debug, PartialEq, serde::Deserialize, serde::Serialize)]
+pub struct News<T> {
+    pub number: u64,
+    pub news: T,
+}
+
+/// What a host component hears of a member of its block's host channel (`member-event`).
+#[derive(Clone, Debug, PartialEq, serde::Deserialize, serde::Serialize)]
+pub enum MemberNews {
+    Joined {
+        member: u64,
+        account: Uuid,
+        level: be_block_keys::Level,
+    },
+    Said {
+        member: u64,
+        #[serde(with = "serde_bytes")]
+        payload: Vec<u8>,
+    },
+    Left(u64),
+}
+
+/// Queues `news` for `block` in `queues`, numbered after the last news.
+pub(crate) fn queue_news<T: Clone>(
+    queues: &mut imbl::OrdMap<Uuid, Vec<News<T>>>,
+    queued: &mut u64,
+    block: Uuid,
+    news: T,
+) {
+    *queued += 1;
+    let number = *queued;
+    let mut held = queues.get(&block).cloned().unwrap_or_default();
+    held.push(News { number, news });
+    queues.insert(block, held);
+    crate::changes::wake();
+}
+
+/// Drops what of `block`'s news was taken, up to and including `upto`.
+fn took_news<T: Clone>(queues: &mut imbl::OrdMap<Uuid, Vec<News<T>>>, block: Uuid, upto: u64) {
+    let Some(held) = queues.get(&block) else {
+        return;
+    };
+    if held.first().is_none_or(|news| news.number > upto) {
+        return;
+    }
+    let kept: Vec<News<T>> = held.iter().filter(|news| news.number > upto).cloned().collect();
+    match kept.is_empty() {
+        true => queues.remove(&block),
+        false => queues.insert(block, kept),
+    };
 }
 
 /// What the page reads of a block type a module described (`crate::kind_of`).
@@ -645,6 +709,12 @@ pub(crate) enum Edit {
         editor: EditorId,
         upto: u64,
     },
+    /// The page took a host component's news of its block's channel members up to and
+    /// including `upto` (`crate::take_member_events`).
+    TookMemberNews {
+        block: Uuid,
+        upto: u64,
+    },
 }
 
 impl Edit {
@@ -805,6 +875,9 @@ impl Edit {
                     crate::changes::stale();
                     return vec![*block];
                 }
+            }
+            Edit::TookMemberNews { block, upto } => {
+                took_news(&mut seen.member_news, *block, *upto);
             }
             Edit::TookFrames { editor, upto } => {
                 let Some(frames) = seen.editor_frames.get(editor) else {
