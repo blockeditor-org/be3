@@ -591,6 +591,7 @@ answers!(FromPage, from_page, Page {
     History => Vec<HistoryEntry>,
     Log => AccessLogPage,
     BlockLog => LogPage,
+    LogRedactions => Vec<LogRedactions>,
     Access => AccessList,
     Names => Vec<AccountName>,
     Keys => KeyPage,
