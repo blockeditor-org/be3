@@ -605,6 +605,50 @@ Where it acts first, a device signs after:
   it seal those wraps again from itself (`ServerKey::reseal_from`), and an
   administrator's device sharing the settings again replaces its seal.
 
+### Share links
+
+"Anyone with the link" on a block (`be_block_client::share_links`,
+`be-server/src/share_links.rs`). A link is the out-of-band start every sharing relationship
+needs (decisions/share_links_are_an_out_of_band_start.md): it grants one block to whoever
+opens it and makes nobody a contact, so it is no `link-kind` of the contact link family.
+
+- **Making one** (`Peer::make_share_link`, by a manager): an `InviteCode` whose lookup id is
+  the link's id (`{server}/#share/{CODE}`, `invite_link::share_link`), a key pair it derives
+  for the block (`InviteCode::share_key`), and what the link hands its opener
+  (`share_links::Handed`: the block's scope key as it travels, with its log's root, and the
+  organization log's root), sealed with the code (`InviteCode::seal_share`). The block becomes
+  a scope of its own, as for `Peer::offer`. A share link record (`Record::ShareLink`: the
+  link's key, its level, View or Edit, whom it admits, `Admits`, and its signer's authority)
+  opens it in the block's log, signed with Manage. The maker's account block keeps the code
+  (`AccountBlock::shares`) until the link is revoked, so the share dialog shows the link again.
+- **Opening one** (`share_links::open_share_link`, the account's own call): the opener reads
+  the link (`query.share-link`), opens what it hands with the code, seals the scope key to
+  itself, and signs its own grant with the link's key (`Record::Opened`, `Entry::opened`),
+  endorsed by its own signing key, after the head of the block's log; the server appends it
+  and applies the grant. `check_log` takes such a grant only for its signer, at most the
+  link's level, raising them, while the link is open; the server never holds the code, so it
+  grants no one. `Checked::linked` names whom a link granted, and the access list marks them.
+- **Keys after a rotation.** The scope key a link carries opens the epochs current when it
+  was made. Later epochs reach an opener through key work's `unsealed`, as any grantee: their
+  grant names their keys, so an editor's `tend` seals to them by the block's log. Their
+  device takes that seal by the keys the block's log names for its sender, when no contact or
+  organization log names them (`KeyBook::log_names_editor`, then `Peer::settle_escrowed`
+  checks the sender's Edit in the log); `refresh_keys` reads such a block's log first. An
+  opener after a rotation so waits for an editor to come online.
+- **Revoking one** (`Peer::revoke_share_link`): a share link record closing it, by a manager.
+  Every grant made through it falls in the log (`check_log`), the server revokes their rows,
+  and the block rotates as for any lost access. On a proof path the grants a link made may be
+  reduced, so whether the closing lowered anyone is the record's signed `lowers`.
+- **Guests.** A link admits members of the block's organization (in the personal organization,
+  every account) or, where the policy allows it, any account on the server. One from outside
+  the organization joins it as a guest (`OrganizationRole::Guest`): a member row holding only
+  grants made through links, which may not make blocks, agents or links, move or grant
+  (`client::guest_may_write`), is no member for a grant or a pending grant
+  (`store::is_member_of`), and leaves when its last grant falls
+  (`share_links::drop_idle_guest`). Accepting an invitation makes it a member.
+  A guest pins the organization log's root the link hands it, when it pinned none, so it checks
+  records an administrator signed.
+
 ### Escrow (company organizations)
 
 The escrow key (`be_block_keys::EscrowSecret`) is both an X25519 key and,

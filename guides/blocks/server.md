@@ -475,7 +475,15 @@ exactly its parent's access and takes no grants (guides/blocks/host.md, "Search"
   block's log as for a grant (`access::append_parent`); `create-block` carries
   the creator's after the root.
 - `SetAccess` needs `Manage`, and a grant above `None` must name a member who
-  is a contact of the granter (guides/blocks/keys.md). Anyone may revoke their
+  is a contact of the granter (guides/blocks/keys.md). A share link stands in for the contact
+  check: its opener signs its own grant with the link's key (guides/blocks/keys.md, "Share
+  links"). Who a link may admit is the organization's `link_sharing` policy
+  (`OrganizationPolicies::link_sharing`: members, the default; anyone with an account, only
+  while it shares outside; or no links), checked as a link is made and again as it is read and
+  opened; the access list names the most a link may admit (`links-admit`). An account a link
+  admits from outside joins as a guest (`OrganizationRole::Guest`), which `is_member_of` does
+  not count, makes no blocks, agents or links and grants nothing (`client::guest_may_write`),
+  and leaves once it holds no grant (`share_links::drop_idle_guest`). Anyone may revoke their
   own grant. `ListAccess` never lists the rest of the membership. Carrying an
   owner record, it moves ownership (`transfer_owner`): only from the owner, to
   a member who is their contact, and the block counts against the new owner's
