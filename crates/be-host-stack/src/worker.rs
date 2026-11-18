@@ -1255,7 +1255,11 @@ pub(super) async fn serve<S: Fn() -> Result<Store, String>>(
         (false, None) => first_connect(&config, &make_store, &mut nudged, &shared, &changed).await,
     };
     if let Some((peer, open)) = started {
-        shared.lock().unwrap_or_else(PoisonError::into_inner).peer = Some(Arc::clone(&peer));
+        {
+            let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+            held.peer = Some(Arc::clone(&peer));
+            held.graph.organized(peer.organization());
+        }
         // The blocks discarded before a restart stay marked from the start, not only once a
         // replica of each opens: graph commands are capped by the mark too (`crate::access`).
         for block in peer.all_discarded() {
