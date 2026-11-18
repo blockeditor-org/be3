@@ -25,7 +25,33 @@ use crate::watch::{Place, Push, WatchHub};
 pub struct SessionRegistry {
     sessions: Arc<Mutex<Sessions>>,
     hub: Arc<WatchHub>,
+    /// Each block's order, held from numbering a submission until every participant was sent it
+    /// (`ordering`), so they hear entries in the order they were numbered. One per block, not
+    /// the registry's lock, which every session shares.
+    orders: std::sync::Mutex<Orders>,
 }
+
+/// The blocks' order locks, each held weakly while someone submits to its block, and how many
+/// were made since the last that nobody holds were let go of.
+#[derive(Default)]
+struct Orders {
+    locks: HashMap<Place, std::sync::Weak<Mutex<()>>>,
+    made: usize,
+}
+
+/// A test's stand-in for a slow store: the push of each order's first entry waits this many
+/// turns of the runtime (`hold_first_push`), so one numbered after it would go first were the
+/// order not held.
+#[cfg(test)]
+static HELD_FIRST_PUSH: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+#[cfg(test)]
+pub(crate) fn hold_first_push(turns: usize) {
+    HELD_FIRST_PUSH.store(turns, std::sync::atomic::Ordering::SeqCst);
+}
+
+/// A block's order held (`SessionRegistry::ordering`).
+pub struct Ordering(#[allow(dead_code)] tokio::sync::OwnedMutexGuard<()>);
 
 /// The registry held while a trim with no new commit is written by the lease holder, so no
 /// membership entry moves the lease meanwhile (`SessionRegistry::holding`). It is held only
@@ -233,7 +259,38 @@ impl SessionRegistry {
         Self {
             sessions: Arc::new(Mutex::new(Sessions::default())),
             hub,
+            orders: std::sync::Mutex::default(),
         }
+    }
+
+    /// Holds `block`'s order: a submission is numbered (`journal::submit`) and sent to the
+    /// participants (`sequenced`) with it held, so two numbered at once go out in their order.
+    /// It also has one block's submissions wait on each other's store job, which the store
+    /// would have run one at a time anyway; other blocks' go on beside them.
+    pub async fn ordering(&self, block: Place) -> Ordering {
+        let order = {
+            let mut orders = self
+                .orders
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            match orders.locks.get(&block).and_then(std::sync::Weak::upgrade) {
+                Some(order) => order,
+                None => {
+                    // The orders of blocks nobody submits to any more are let go of once as many
+                    // were made since as the map held then, so it holds about as many as are in use
+                    // and the sweeps cost nothing on the whole.
+                    orders.made += 1;
+                    if orders.made > orders.locks.len() {
+                        orders.locks.retain(|_, order| order.strong_count() > 0);
+                        orders.made = 0;
+                    }
+                    let order = Arc::new(Mutex::new(()));
+                    orders.locks.insert(block, Arc::downgrade(&order));
+                    order
+                }
+            }
+        };
+        Ordering(order.lock_owned().await)
     }
 
     /// `client`, signed in as `account` and running the build `tag`, joins `block`'s session:
@@ -383,6 +440,12 @@ impl SessionRegistry {
 
     /// The order numbered `entry`: every participant hears it, its author too.
     pub async fn sequenced(&self, block: Place, entry: JournalEntry) {
+        #[cfg(test)]
+        if entry.sequence == 1 {
+            for _ in 0..HELD_FIRST_PUSH.load(std::sync::atomic::Ordering::SeqCst) {
+                tokio::task::yield_now().await;
+            }
+        }
         let mut sessions = self.sessions.lock().await;
         let Some(session) = sessions.sessions.get_mut(&block) else {
             return;

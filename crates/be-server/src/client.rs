@@ -2613,6 +2613,9 @@ impl Client {
                             barrier: submission.barrier,
                             payload,
                         };
+                        // Numbered and sent with the block's order held, so the participants hear
+                        // two submissions numbered at once in the order they were numbered.
+                        let _ordering = connection.registry.ordering(place).await;
                         let numbered = connection
                             .store
                             .submit_journal(place.organization, place.block, tag, submission)
