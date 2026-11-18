@@ -89,6 +89,7 @@ fn access_of(level: Level) -> Access {
     match level {
         Level::None => Access::None,
         Level::KnowExists => Access::KnowExists,
+        Level::Join => Access::Join,
         Level::View => Access::View,
         Level::Edit => Access::Edit,
         Level::Manage => Access::Manage,
