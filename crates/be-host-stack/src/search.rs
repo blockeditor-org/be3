@@ -1617,14 +1617,19 @@ async fn puts_of(
             body: Some(String::new()),
         });
     }
-    // The type answered every document, so one it no longer answers is removed.
+    // The type answered every document of its content, so one it no longer answers is removed;
+    // its log's documents are the log's (`log_puts`).
     let answers: HashSet<&str> = documents
         .iter()
         .map(|document| document.key.as_str())
         .collect();
-    let removed = held
+    let mut removed: Vec<(DocId, be_lib_search::Commit)> = held
         .iter()
-        .filter(|entry| !entry.is_removed() && !answers.contains(entry.doc.key.as_str()))
+        .filter(|entry| {
+            !entry.is_removed()
+                && !entry.doc.key.starts_with(LOG_KEY)
+                && !answers.contains(entry.doc.key.as_str())
+        })
         .map(|entry| (entry.doc.clone(), at))
         .collect();
     let puts = documents
@@ -1656,7 +1661,90 @@ async fn puts_of(
             }
         })
         .collect();
+    let mut puts: Vec<Put> = puts;
+    let (logged, gone) = log_puts(peer, shared, replicas, block, content_type, held).await?;
+    puts.extend(logged);
+    removed.extend(gone);
     Some((puts, removed))
+}
+
+/// The prefix of a log document's key, which the place of the entry it is follows.
+const LOG_KEY: &str = "log.";
+
+/// How many entries of a block's log one indexing round reads at most; past them the block
+/// is queued again.
+const LOG_PER_ROUND: u64 = 4 * be_block_type_host::LOG_SEARCHED as u64;
+
+/// The documents a block's signed log changes (`Replicas::search_log`), for a type with one: a
+/// document per entry its type says is searchable, keyed by its place (`LOG_KEY`), put or
+/// removed as of the entry that last changed it (when the server took it, which a later entry
+/// never precedes). It reads on from the furthest place the index holds a document of, a
+/// round at a time, so nothing the index holds is read again but the entries since. None when
+/// the log could not be read now (offline with nothing kept), held back as a commit is.
+async fn log_puts(
+    peer: &Arc<Peer<Store>>,
+    shared: &Arc<Mutex<Shared>>,
+    replicas: &mut Replicas,
+    block: Uuid,
+    content_type: Uuid,
+    held: &[be_lib_search::Entry],
+) -> Option<(Vec<Put>, Vec<(DocId, be_lib_search::Commit)>)> {
+    if !be_block_type_host::kind_of(content_type).is_some_and(|kind| kind.log) {
+        return Some((Vec::new(), Vec::new()));
+    }
+    let mut from = held
+        .iter()
+        .filter_map(|entry| entry.doc.key.strip_prefix(LOG_KEY)?.parse::<u64>().ok())
+        .max()
+        .unwrap_or(0);
+    let start = from;
+    let (mut puts, mut removed) = (Vec::new(), Vec::new());
+    loop {
+        let searched = match replicas
+            .search_log((peer, shared), block, content_type, from)
+            .await
+        {
+            Ok(searched) => searched,
+            Err(be_block_type_host::NotSearched::Read(_)) => return None,
+            Err(_) => return Some((puts, removed)),
+        };
+        for change in searched.changes {
+            let doc = DocId {
+                block: block.as_bytes().to_vec(),
+                key: format!("{LOG_KEY}{}", change.place),
+            };
+            let commit = be_lib_search::Commit {
+                time: change.arrival,
+                id: *be_block_store::Hash::of(change.id.as_bytes()).as_bytes(),
+            };
+            match change.text {
+                Some(text) => puts.push(Put {
+                    doc,
+                    commit,
+                    source: None,
+                    text: Some(Text {
+                        name: String::new(),
+                        body: capped(text),
+                    }),
+                    partial: false,
+                }),
+                None => removed.push((doc, commit)),
+            }
+        }
+        if searched.next <= from || searched.next >= searched.size {
+            return Some((puts, removed));
+        }
+        from = searched.next;
+        // The rest waits for the next round.
+        if from - start >= LOG_PER_ROUND {
+            shared
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .search
+                .sealed(block);
+            return Some((puts, removed));
+        }
+    }
 }
 
 /// Whether this device has a module for `content_type`, running or not; a test can say it has
@@ -1754,6 +1842,30 @@ async fn text_of(
     content_type: Uuid,
     key: &str,
 ) -> Result<Option<String>, ()> {
+    // A log document's text is its entry's as the entries after it left it.
+    if let Some(place) = key
+        .strip_prefix(LOG_KEY)
+        .and_then(|place| place.parse::<u64>().ok())
+    {
+        let mut text = None;
+        let mut from = place;
+        while from - place < LOG_PER_ROUND {
+            let searched = replicas
+                .search_log((peer, shared), block, content_type, from)
+                .await
+                .map_err(drop)?;
+            for change in searched.changes {
+                if change.place == place {
+                    text = change.text;
+                }
+            }
+            if searched.next <= from || searched.next >= searched.size {
+                break;
+            }
+            from = searched.next;
+        }
+        return Ok(text);
+    }
     let Some(head) = head else {
         return Ok(None);
     };

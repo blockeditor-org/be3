@@ -8,8 +8,8 @@ interface replicas {
     use types.{
         account-id, block-id, block-place, change, client-id, commit-id, content-type-id, description, editor-id,
         endpoint, failure, journal, loaded, merged, merged-parts, organization-id, part-ref, plain-file,
-        journal-entry, log-item, refused-entry, search-document, session-state, session-tag,
-        type-info,
+        journal-entry, log-item, log-search, refused-entry, search-document, session-state,
+        session-tag, type-info,
     };
 
     record opening {
@@ -251,6 +251,14 @@ interface replicas {
         content-type: content-type-id,
         reads: list<list<u8>>,
     ) -> result<list<block-place>, failure>;
+
+    /// What each of `items`, entries of a block's signed log, changes in the
+    /// type's searchable text (`be_block_content::LogFold::search`), for a type
+    /// with `type-info.log`: one change at most per entry, in order.
+    search-log: async func(
+        content-type: content-type-id,
+        items: list<log-item>,
+    ) -> result<list<log-search>, failure>;
 
     /// How many things in `content` and `log` the account has not read, by its
     /// `place` from `places` (none: the default place). `content` is a commit of
