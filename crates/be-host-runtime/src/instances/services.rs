@@ -732,7 +732,7 @@ impl Instances {
                 }
                 be_host_stack::authorship::sign(
                     block,
-                    by_app(&self.app_id, &bytes),
+                    be_block_client::by_app(&self.app_id, &bytes),
                     move |signed| answering.send_or_fail(signed),
                 );
             }
@@ -751,7 +751,7 @@ impl Instances {
                     return answering.send(Err(Failure::Denied));
                 }
                 let account = Uuid::from_bytes(account);
-                let bytes = by_app(&self.app_id, &bytes);
+                let bytes = be_block_client::by_app(&self.app_id, &bytes);
                 be_host_stack::authorship::verify(
                     account,
                     block,
@@ -890,11 +890,3 @@ fn signer(signer: be_host_stack::authorship::Signer) -> Signer {
 /// The most an app may ask the host to sign at once (`sign`): a record's bytes, not a file.
 const MAX_SIGNED_BYTES: usize = 64 * 1024;
 
-/// `bytes` as `app_id` signs or checks them: its manifest id, framed, ahead of them, so one app
-/// cannot make a signature another app's `verify` accepts, even in a block both are shown.
-fn by_app(app_id: &str, bytes: &[u8]) -> Vec<u8> {
-    let mut bound = (app_id.len() as u64).to_be_bytes().to_vec();
-    bound.extend_from_slice(app_id.as_bytes());
-    bound.extend_from_slice(bytes);
-    bound
-}

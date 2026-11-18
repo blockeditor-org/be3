@@ -1440,6 +1440,9 @@ impl EditorHost {
             | ToEditor::Operations(_)
             | ToEditor::Range { .. }
             | ToEditor::PartPut { .. }
+            | ToEditor::Appended { .. }
+            | ToEditor::Logged(_)
+            | ToEditor::LogRead { .. }
             | ToEditor::Lacking { .. }
             | ToEditor::Failed(_)) => {
                 if self.followed.borrow().contains_key(&block) {
@@ -1511,6 +1514,8 @@ impl EditorHost {
             }
             message @ (FromEditor::Read { .. }
             | FromEditor::PutPart { .. }
+            | FromEditor::Append { .. }
+            | FromEditor::ReadLog { .. }
             | FromEditor::FollowLacking
             | FromEditor::DismissLacking(_)) => {
                 self.content_operations.borrow_mut().push((block, message));

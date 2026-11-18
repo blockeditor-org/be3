@@ -71,6 +71,17 @@ pub enum FromEditor {
         #[serde(with = "serde_bytes")]
         bytes: Vec<u8>,
     },
+    /// Appends `bytes` to the block's signed log (a type with a log): the host signs them as
+    /// this app's, for the person, and the replica answers `ToEditor::Appended` with the same
+    /// `token`. Every editor hears the entry as `ToEditor::Logged` once it is in the log.
+    Append {
+        token: u64,
+        #[serde(with = "serde_bytes")]
+        bytes: Vec<u8>,
+    },
+    /// Asks for at most `limit` entries of the block's signed log from `from`; the replica
+    /// answers `ToEditor::LogRead` with the same `token`.
+    ReadLog { token: u64, from: u64, limit: u32 },
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -156,6 +167,20 @@ pub enum ToEditor {
         token: u64,
         result: Result<be_block_content::PartRef, String>,
     },
+    /// Where an entry `FromEditor::Append` asked for went: its place and arrival, or none while
+    /// it waits on this device for the server.
+    Appended {
+        token: u64,
+        result: Result<Option<(u64, i64)>, String>,
+    },
+    /// Entries of the block's signed log, in order: what the replica heard appended, every
+    /// editor's own too.
+    Logged(Vec<be_block_content::LogItem>),
+    /// The answer to `FromEditor::ReadLog`: the log's length and the entries asked for.
+    LogRead {
+        token: u64,
+        result: Result<(u64, Vec<be_block_content::LogItem>), String>,
+    },
     /// Edits made on this device that the server lacks, for an editor that asked
     /// (`FromEditor::FollowLacking`): with `reset`, every one; otherwise those added or changed
     /// since, and the ids of those the server now holds.
@@ -206,6 +231,26 @@ mod range_result {
             Read::Ok(bytes) => Ok(bytes),
             Read::Err(error) => Err(error),
         })
+    }
+}
+
+/// Keeps `item` in a log held by place, unless its id is held at an earlier place: a log
+/// read in pieces keeps the first place of each id (an entry served again under its id later
+/// in the log is never the one shown), and one heard at a later place first is moved back.
+pub(crate) fn take_logged(
+    log: &mut BTreeMap<u64, be_block_content::LogItem>,
+    ids: &mut BTreeMap<Uuid, u64>,
+    item: be_block_content::LogItem,
+) {
+    match ids.get(&item.id) {
+        Some(seq) if *seq <= item.seq => {}
+        held => {
+            if let Some(later) = held.copied() {
+                log.remove(&later);
+            }
+            ids.insert(item.id, item.seq);
+            log.insert(item.seq, item);
+        }
     }
 }
 
@@ -275,6 +320,14 @@ pub struct EditorMirror<C: LiveEdit> {
     reads: u64,
     ranges: Vec<(u64, Result<Vec<u8>, String>)>,
     puts: Vec<(u64, Result<be_block_content::PartRef, String>)>,
+    /// What `ToEditor::Appended` answered, by token, until taken.
+    appended: Vec<(u64, Result<Option<(u64, i64)>, String>)>,
+    /// The entries of the block's signed log this editor heard or read, by place, each id once
+    /// at its first place.
+    log: BTreeMap<u64, be_block_content::LogItem>,
+    log_ids: BTreeMap<Uuid, u64>,
+    /// The log's length as last read.
+    log_size: u64,
     lacking: BTreeMap<u64, (Vec<u8>, bool)>,
     lacking_revision: u64,
     failed: Option<String>,
@@ -305,6 +358,10 @@ impl<C: LiveEdit + Clone + Default> Default for EditorMirror<C> {
             reads: 0,
             ranges: Vec::new(),
             puts: Vec::new(),
+            appended: Vec::new(),
+            log: BTreeMap::new(),
+            log_ids: BTreeMap::new(),
+            log_size: 0,
             lacking: BTreeMap::new(),
             lacking_revision: 0,
             failed: None,
@@ -416,6 +473,46 @@ impl<C: LiveEdit + Clone + Default> EditorMirror<C> {
 
     pub fn take_parts_put(&mut self) -> Vec<(u64, Result<be_block_content::PartRef, String>)> {
         std::mem::take(&mut self.puts)
+    }
+
+    /// Asks the replica to append `bytes` to the block's signed log; where it went comes back
+    /// from `receive` and is taken with `take_appended` under the token this returns, and the
+    /// entry itself as it reaches the log (`log`).
+    pub fn append(&mut self, bytes: Vec<u8>) -> (u64, FromEditor) {
+        self.reads += 1;
+        let token = self.reads;
+        (token, FromEditor::Append { token, bytes })
+    }
+
+    pub fn take_appended(&mut self) -> Vec<(u64, Result<Option<(u64, i64)>, String>)> {
+        std::mem::take(&mut self.appended)
+    }
+
+    /// Asks the replica for at most `limit` entries of the block's signed log from `from`,
+    /// which join `log` as they come back.
+    pub fn read_log(&mut self, from: u64, limit: u32) -> (u64, FromEditor) {
+        self.reads += 1;
+        let token = self.reads;
+        (token, FromEditor::ReadLog { token, from, limit })
+    }
+
+    /// The entries of the block's signed log this editor heard or read, in the log's order,
+    /// each id once at its first place: what an editor folds (`be_block_content::LogFold`).
+    pub fn log(&self) -> impl Iterator<Item = &be_block_content::LogItem> {
+        self.log.values()
+    }
+
+    /// The log's length as this editor last heard it.
+    pub fn log_size(&self) -> u64 {
+        self.log_size
+    }
+
+    fn take_log(&mut self, items: Vec<be_block_content::LogItem>) {
+        for item in items {
+            self.log_size = self.log_size.max(item.seq + 1);
+            take_logged(&mut self.log, &mut self.log_ids, item);
+        }
+        self.revision += 1;
     }
 
     pub fn pending(&self) -> usize {
@@ -534,6 +631,21 @@ impl<C: LiveEdit + Clone + Default> EditorMirror<C> {
             }
             ToEditor::PartPut { token, result } => {
                 self.puts.push((token, result));
+                None
+            }
+            ToEditor::Appended { token, result } => {
+                self.appended.push((token, result));
+                None
+            }
+            ToEditor::Logged(items) => {
+                self.take_log(items);
+                None
+            }
+            ToEditor::LogRead { token: _, result } => {
+                if let Ok((size, items)) = result {
+                    self.log_size = self.log_size.max(size);
+                    self.take_log(items);
+                }
                 None
             }
             ToEditor::Lacking {

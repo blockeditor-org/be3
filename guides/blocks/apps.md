@@ -87,6 +87,14 @@ segment by the range its index gives (`ChatContent::segment_ranges`, from the
 header it holds: a snapshot's `length` goes stale as segments close) and checks
 the bytes against the index (`read_segment`).
 
+### Signed logs
+
+A type with a signed log (guides/type_modules.md, "Signed logs") is appended
+to and read through the same projection: `ContentProjection::append(bytes)`,
+which the host signs as the app's, `take_appended` for where each went,
+`read_log(from, limit)`, and `log()`, the entries heard or read in the log's
+order, each with who signed it; each moves the revision.
+
 ### Sending
 
 An editor that shows what is still sending sends `FromEditor::FollowLacking`

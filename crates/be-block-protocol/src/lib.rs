@@ -501,14 +501,16 @@ pub fn read_hello(frame: &[u8]) -> Option<Hello<'_>> {
 pub const MAX_LOG_ENTRY_BYTES: usize = 64 * 1024;
 
 /// What an entry's author signs (`sign_authored`, which binds it to its block): the entry's id
-/// and the hash of its sealed payload, so the signature still verifies once a redaction drops
-/// the payload, and the server can neither move it to another id nor replay it under a new one
-/// (an id the log holds is answered, not appended again).
-pub fn log_signed(id: Uuid, payload_hash: be_block_store::Hash) -> Vec<u8> {
+/// and the hash of what it says, its payload as the app wrote it framed by the app's id
+/// (`be_block_client::by_app`), not sealed: so it verifies wherever its plaintext goes (an
+/// export), only in the app that wrote it, and the server can neither move it to another id nor
+/// replay it under a new one (an id the log holds is answered, not appended again). The leaf
+/// commits to the sealed bytes, so who wrote a redacted entry is still the log's word.
+pub fn log_signed(id: Uuid, said: be_block_store::Hash) -> Vec<u8> {
     let mut signed = Vec::with_capacity(LOG_SIGNED_DOMAIN.len() + 16 + 32);
     signed.extend_from_slice(LOG_SIGNED_DOMAIN);
     signed.extend_from_slice(id.as_bytes());
-    signed.extend_from_slice(payload_hash.as_bytes());
+    signed.extend_from_slice(said.as_bytes());
     signed
 }
 
@@ -529,11 +531,6 @@ impl LogEntry {
         // RFC 6962's leaf hash, `be_block_keys::merkle::leaf_hash`, which this crate does not
         // depend on so that apps' wasm need not build the key crate.
         *be_block_store::Hash::of_parts(&[&[0], &data]).as_bytes()
-    }
-
-    /// What its author signed (`log_signed`).
-    pub fn signed(&self) -> Vec<u8> {
-        log_signed(self.id, self.payload_hash)
     }
 }
 

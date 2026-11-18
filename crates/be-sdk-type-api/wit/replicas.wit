@@ -8,7 +8,7 @@ interface replicas {
     use types.{
         account-id, block-id, block-place, change, client-id, commit-id, content-type-id, description, editor-id,
         endpoint, failure, journal, loaded, merged, merged-parts, organization-id, part-ref, plain-file,
-        journal-entry, search-document, session-state, session-tag, type-info,
+        journal-entry, log-item, search-document, session-state, session-tag, type-info,
     };
 
     record opening {
@@ -166,6 +166,10 @@ interface replicas {
 
         /// False when it did not apply.
         change: async func(change: change) -> bool;
+
+        /// Entries appended to the block's signed log since the replica read it,
+        /// in order: those the device heard of from the server, its own too.
+        logged: async func(items: list<log-item>);
 
         /// The visible bytes, for export and duplication; none while unreadable.
         content: async func() -> option<list<u8>>;

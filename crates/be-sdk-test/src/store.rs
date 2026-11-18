@@ -59,6 +59,9 @@ struct Block {
     held: BTreeMap<u64, Vec<u8>>,
     /// The block's session's order, as the server would number it.
     order: be_block_session::Sequencer,
+    /// The block's signed log, as the server would number and stamp it: one device, so every
+    /// entry is this account's and verified.
+    log: Vec<be_sdk_type_guest::api::LogItem>,
 }
 
 impl Block {
@@ -95,6 +98,7 @@ impl Block {
             holds: Holds::default(),
             held: BTreeMap::new(),
             order: be_block_session::Sequencer::starting(0),
+            log: Vec::new(),
         }
     }
 }
@@ -480,6 +484,50 @@ impl Inner {
                     .read_part(part.into(), range.offset, range.length)
                     .map_err(|error| error.to_string());
                 reply.send(&mut self.host, &result);
+            }
+            Call::Append { reply, bytes } => {
+                let Some(held) = block.and_then(|block| self.blocks.get_mut(&block)) else {
+                    return reply.send(&mut self.host, &Err("no such block".to_owned()));
+                };
+                let seq = held.log.len() as u64;
+                let arrival = seq as i64;
+                let item = be_sdk_type_guest::api::LogItem {
+                    seq,
+                    id: uuid::Uuid::from_u64_pair(0, seq),
+                    author: uuid::Uuid::nil(),
+                    arrival,
+                    payload: Some(bytes),
+                    signer: be_sdk_type_guest::api::Signer::Verified,
+                };
+                held.log.push(item.clone());
+                let replica = held.replica;
+                let place = be_sdk_type_guest::api::host::LogPlace { seq, arrival };
+                reply.send(
+                    &mut self.host,
+                    &Ok(be_sdk_type_guest::api::host::Appended::Logged(place)),
+                );
+                if let Some(replica) = replica {
+                    self.on_replica(replica, |replica, host| {
+                        replica.logged(host, vec![item]);
+                    });
+                }
+            }
+            Call::ReadLog { reply, from, limit } => {
+                let log = block
+                    .and_then(|block| self.blocks.get(&block))
+                    .map(|held| held.log.clone())
+                    .unwrap_or_default();
+                let items = log
+                    .iter()
+                    .skip(from as usize)
+                    .take(limit as usize)
+                    .cloned()
+                    .collect();
+                let page = be_sdk_type_guest::api::LogPage {
+                    size: log.len() as u64,
+                    items,
+                };
+                reply.send(&mut self.host, &Ok(page));
             }
             Call::PutPart { reply, .. } => {
                 reply.send(

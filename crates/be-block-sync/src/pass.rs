@@ -1102,6 +1102,7 @@ impl<S: ObjectStore> Pass<'_, S> {
                         metadata: defined,
                         references: folder.references,
                         content: Some(folder.content),
+                        log: Vec::new(),
                     }
                 }
                 _ => {
@@ -1133,6 +1134,7 @@ impl<S: ObjectStore> Pass<'_, S> {
                         metadata: defined,
                         references: block.references,
                         content: Some(block.content),
+                        log: Vec::new(),
                     }
                 }
             };
