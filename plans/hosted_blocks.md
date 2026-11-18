@@ -181,7 +181,7 @@ a role inside the app, since the share dialog grants no roles. A game:
    again on each access change (as `Peer::admit` checks it) and drop one that
    no longer holds Join, and make a participant that falls to Join (the server
    takes it out and it joins again as a Join member) handshake again.
-4. **Hosting.** The host component, starting and stopping it with the editor,
+4. **Hosting** (done). The host component, starting and stopping it with the editor,
    Keep hosting and the shell's list, lease handoff and reconnecting, ban
    records; then `be BLOCK host`. In reviewed pieces:
    - a. Ban records (done): `Record::Ban`, `append-log(ban)`, `Peer::ban`;
@@ -269,9 +269,13 @@ a role inside the app, since the share dialog grants no roles. A game:
      component headless, while no other device hosts the block;
      `be_hosts_a_block_while_no_other_device_does`.
    Done: a be-host-tests test with two editor devices and two players as raw
-   peers, where the first host closes the world and the second carries on;
-   and a be-host-stack test where Keep hosting outlives the editor and Stop
-   ends it.
+   peers, where the first host closes the world and the second carries on
+   (`players_carry_on_with_the_next_host_once_the_first_closes_the_world`:
+   each player is answered by the first host, then hears the second and is
+   answered by it); and Keep hosting outliving the editor until Stop
+   (`keep_hosting_outlives_the_editor_until_stop`). Untested end to end: what
+   the second host's component hears of the players (the counter's ignores
+   them; step 6's game will not).
 5. **The share dialog.**
    - a. The offered levels, names and lines from the manifest (above) (done):
      a host component's `levels` (`HostManifest::levels`, Join required, on a
