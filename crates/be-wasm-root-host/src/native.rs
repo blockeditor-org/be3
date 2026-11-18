@@ -98,6 +98,8 @@ impl Root {
         device: wgpu::Device,
         queue: wgpu::Queue,
     ) -> Result<Self, String> {
+        // It runs on the calling thread, which it may never make wait on another of its own.
+        app.refuse_threads();
         let bell = Arc::new(Bell::default());
         let ringer = Arc::clone(&bell);
         app.on_wake(move || ringer.ring());
@@ -118,8 +120,10 @@ impl Root {
         self
     }
 
-    /// The fonts the host bundles, which the root's `host.fonts` answers: none unless set.
-    pub fn with_fonts(mut self, fonts: Vec<be_wasm_root_api::FontFace>) -> Self {
+    /// The fonts the host bundles, which the root's `host.fonts` answers: be-sdk-api's `Fonts`
+    /// in be-wasm-ops' encoding (`be_wasm_ops::encode`), as be-wasm crates use only be-wasm ones;
+    /// none unless set.
+    pub fn with_fonts(mut self, fonts: Vec<u8>) -> Self {
         self.core.fonts = fonts;
         self
     }

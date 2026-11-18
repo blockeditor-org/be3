@@ -4,7 +4,7 @@ use super::*;
 fn a_root_names_what_its_child_presented_only_by_handle() {
     let mut root = root();
     let done = root
-        .frame(FrameRequest { time: PAINTS }, Instant::now() + PATIENT)
+        .frame(FrameRequest { time: PAINTS, wall_clock: 0 }, Instant::now() + PATIENT)
         .expect("the root draws");
     assert_eq!(
         shown(&done),

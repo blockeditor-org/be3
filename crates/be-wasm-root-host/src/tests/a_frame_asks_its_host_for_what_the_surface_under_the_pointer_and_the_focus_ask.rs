@@ -8,7 +8,7 @@ use super::*;
 fn a_frame_asks_its_host_for_what_the_surface_under_the_pointer_and_the_focus_ask() {
     let mut root = root();
     let frame = |root: &mut Root, time| {
-        root.frame(FrameRequest { time }, Instant::now() + PATIENT)
+        root.frame(FrameRequest { time, wall_clock: 0 }, Instant::now() + PATIENT)
             .expect("the root draws")
     };
     let done = frame(&mut root, 1);

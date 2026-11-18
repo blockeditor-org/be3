@@ -749,6 +749,13 @@ impl App {
         self.call(Call::Step)
     }
 
+    /// Refuses every thread the app asks to start (`wasi.thread-spawn`), which stops it saying
+    /// so: a root guest, run inline on its host's frame thread, may start none, since a lock
+    /// another thread held would make that thread wait (and trap on the web page's).
+    pub fn refuse_threads(&self) {
+        self.state().threads.refuse();
+    }
+
     pub fn on_wake(&self, notify: impl Fn() + Send + Sync + 'static) {
         self.wake.notify(notify);
     }

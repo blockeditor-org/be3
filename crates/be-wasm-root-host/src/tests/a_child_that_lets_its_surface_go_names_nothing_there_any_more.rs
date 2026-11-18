@@ -5,7 +5,7 @@ fn a_child_that_lets_its_surface_go_names_nothing_there_any_more() {
     let mut root = root();
     let painted = |root: &mut Root| {
         let done = root
-            .frame(FrameRequest { time: PAINTS }, Instant::now() + PATIENT)
+            .frame(FrameRequest { time: PAINTS, wall_clock: 0 }, Instant::now() + PATIENT)
             .expect("the root draws");
         let list = LayerList::decode(&done.layers).expect("the frame is a layer list");
         match list.windows[0].layers[1].surface {

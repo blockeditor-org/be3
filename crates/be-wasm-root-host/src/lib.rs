@@ -26,7 +26,7 @@ use std::time::{Duration, Instant};
 
 use be_wasm_guest_host::STEP_TIMEOUT;
 use be_wasm_ops::{Connection, Incoming, OpError, OpId, Outcome, Reply, Side, Ticket};
-use be_wasm_root_api::{FontFace, FrameDone, FrameRequest, embed};
+use be_wasm_root_api::{FrameDone, FrameRequest, embed};
 use be_wasm_sandbox_host::Server;
 pub use be_wasm_sandbox_host::{Loader, Staged};
 
@@ -89,8 +89,8 @@ struct Core<G> {
     failure: Option<String>,
     /// How long past a frame's deadline the root itself may take before it counts as stopped.
     patience: Duration,
-    /// The fonts the host bundles, which `host.fonts` answers.
-    fonts: Vec<FontFace>,
+    /// The fonts the host bundles, which `host.fonts` answers: be-sdk-api's `Fonts`, encoded.
+    fonts: Vec<u8>,
     /// The paintings asked of the root and not answered yet.
     painting: Option<Ticket<Vec<u8>, be_wasm_ops::wire::Bytes>>,
     /// What the root answered it painted, until the host takes it.

@@ -1,39 +1,13 @@
-use be_sdk_root_testing::{ORIGIN, ROOT_COLOR, ROOT_SURFACE, TEXT_ORIGIN};
-use beui_paint_format::{Content, Primitive, ScreenPaintings};
+use be_sdk_root_testing::{ORIGIN, ROOT_COLOR, TEXT_ORIGIN};
 
 use super::*;
-
-/// Every glyph `primitives` paint, in groups too.
-fn glyphs(primitives: &[Primitive]) -> Vec<[f32; 4]> {
-    primitives
-        .iter()
-        .flat_map(|primitive| match &primitive.content {
-            Content::Glyph(glyph) => vec![glyph.rect],
-            Content::Group(group) => glyphs(&group.primitives),
-            _ => Vec::new(),
-        })
-        .collect()
-}
 
 #[test]
 fn a_root_paints_its_own_surface_with_beui_in_the_hosts_fonts() {
     let mut root = embedding();
-    root.frame(FrameRequest { time: 1 }, Instant::now() + PATIENT)
+    root.frame(FrameRequest { time: 1, wall_clock: 0 }, Instant::now() + PATIENT)
         .expect("the root draws");
-    root.ask_paintings().expect("the root runs");
-    root.frame(FrameRequest { time: 2 }, Instant::now() + PATIENT)
-        .expect("the root draws");
-    let painted = root
-        .take_paintings()
-        .expect("the root answered with the frame it stepped through");
-    let painted = ScreenPaintings::decode(&painted).expect("the root's paintings decode");
-    let [(surface, painting)] = &painted.screens[..] else {
-        panic!(
-            "the root paints its one surface of its own, not {:?}",
-            painted.screens.len()
-        );
-    };
-    assert_eq!(*surface, u64::from(ROOT_SURFACE));
+    let painting = own_painting(&mut root, 1);
     let own = ROOT_COLOR.map(|channel| (channel * 255.0).round() as u8);
     assert_eq!(
         painting.frame.background,

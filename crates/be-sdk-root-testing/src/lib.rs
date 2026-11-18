@@ -7,7 +7,8 @@
 //! the triangle's screen over it at `ORIGIN`, by handle, once the app painted it, and
 //! `LATE_LAYER` when the deadline came first.
 //! Its own surface (`ROOT_SURFACE`) it draws with beui (be-sdk-beui-root): cleared to
-//! `ROOT_COLOR`, with `TEXT` at its top left in the host's fonts.
+//! `ROOT_COLOR`, with `TEXT` at its top left in the host's fonts, and `LATER_TEXT` in its place
+//! from `LATER` on.
 //! A frame at `CLOSES` lets go of the app, which stops it. The window's input is routed by the
 //! library over the layers it drew last, and what lands on its own surface its beui document
 //! hears.
@@ -78,6 +79,14 @@ pub const TEXT_ORIGIN: (f32, f32) = (3.0, 3.0);
 
 /// The size of `TEXT`'s font, in points: small enough that its line stays above the screen.
 pub const TEXT_SIZE: f32 = 12.0;
+
+/// How long after its first frame, by its host's frame clock, the root's document shows
+/// `LATER_TEXT` in place of `TEXT`: a timer of its own, which only a frame drawn when it is due
+/// shows.
+pub const LATER: std::time::Duration = std::time::Duration::from_secs(1);
+
+/// What the root's own surface shows from `LATER` on.
+pub const LATER_TEXT: &str = "The root draws this line with beui, and redraws it on time";
 
 #[cfg(target_arch = "wasm32")]
 mod guest;
