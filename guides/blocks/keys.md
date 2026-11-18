@@ -996,8 +996,14 @@ cannot sign as a contact: a contact's signing key comes from its card or a key
 change.
 
 It can make an account forget a contact, by a made-up `letter.removed`,
-which connecting again by a link recovers; it cannot make it take back an
-older card, since a removal is kept with the newest record it ended.
+which connecting again by a link recovers. What it cannot do is make the
+account take back an older card than one it held: a removal is kept with the
+newest record it ended. That is the guarantee, not that a removal never comes
+back. A contact made and removed before any device of the account took the
+record is the case left: a server that withholds the `letter.contact` until
+after the `letter.removed` leaves a tombstone that never saw the record, so a
+device takes the record when it arrives, and the removed contact comes back,
+with the card the account itself accepted.
 
 A contact's key changes reach a device only through the mailbox the server
 keeps, so it can also withhold or drop them, or put one there that does not
