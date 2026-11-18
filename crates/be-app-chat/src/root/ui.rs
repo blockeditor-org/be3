@@ -65,6 +65,8 @@ enum State {
     /// Deleted by its author, with a deletion whose key is worth saying: an old one, or one
     /// that changed. Deleted with a trusted key, a message shows no row.
     Deleted(LogSigner),
+    /// Redacted by someone other than its author (a manager, the server).
+    Removed,
     /// Waits on this device for the server.
     Sending,
     /// The server refused it, saying why: the token of the append that sent it.
@@ -579,13 +581,14 @@ pub fn Chat(editor: Editor) -> NodeId {
             </List>
         }
     };
-    // A message replied to, being edited or reacted to can be deleted, here or elsewhere.
+    // A message replied to, being edited or reacted to can be deleted or removed, here or
+    // elsewhere.
     create_effect(move || {
         log.with(|log| {
             let gone = |seq: Option<u64>| {
                 seq.is_some_and(|seq| {
                     log.message(seq)
-                        .is_none_or(|shown| shown.deleted.is_some())
+                        .is_none_or(|shown| shown.deleted.is_some() || shown.removed)
                 })
             };
             if gone(composer.replying.get_untracked()) {
@@ -830,9 +833,24 @@ fn unread_count(
 }
 
 /// The row of a message in the log, or none for one that shows no row: deleted by its author
-/// with a key worth nothing to say about, or one no key this device holds opens.
+/// with a key worth nothing to say about, or one no key this device holds opens. An entry
+/// someone else redacted shows in its place, saying so.
 fn row(log: &ChatLog, shown: &Shown, me: Uuid, today: i64) -> Option<Row> {
     let mine = shown.author == me;
+    if shown.removed {
+        return Some(Row {
+            author: shown.author,
+            mine,
+            time: time(shown.arrival, today),
+            arrived: None,
+            body: "Removed, not by its author".to_owned(),
+            edited: false,
+            reply: None,
+            reactions: Vec::new(),
+            attachments: Vec::new(),
+            state: State::Removed,
+        });
+    }
     if let Some((_, signer)) = shown.deleted {
         return matches!(
             signer,
@@ -1086,13 +1104,14 @@ fn delete(chat: Chat, log: Memo<ChatLog>, me: Uuid, seq: u64) {
 fn toggle_reaction(chat: Chat, log: Memo<ChatLog>, me: Uuid, seq: u64, reaction: &str) {
     let held = log.with_untracked(|log| log.reaction(seq, me, reaction));
     let kept = !held.is_some_and(|(_, kept)| kept);
+    let redacts = held.filter(|(_, kept)| *kept).map(|(place, _)| place);
     let entry = ChatEntry::React {
         message: seq,
         reaction: reaction.to_owned(),
         kept,
+        takes_back: redacts,
         time: now(),
     };
-    let redacts = held.filter(|(_, kept)| *kept).map(|(place, _)| place);
     chat.append(
         entry.encode(),
         Along {
@@ -1132,7 +1151,7 @@ fn MessageRow(
     let state = create_memo(move || row.with(|row| row.state.clone()));
     let signer = create_memo(move || match state.get() {
         State::Logged(signer) | State::Deleted(signer) => Some(signer),
-        State::Sending | State::NotSent(..) => None,
+        State::Removed | State::Sending | State::NotSent(..) => None,
     });
     let unverified = create_memo(move || signer.get() == Some(LogSigner::Unverified));
     let changed = create_memo(move || signer.get() == Some(LogSigner::Changed));
@@ -1153,7 +1172,7 @@ fn MessageRow(
     let body = create_memo(move || row.with(|row| row.body.clone()));
     let edited = create_memo(move || row.with(|row| row.edited));
     let mine = create_memo(move || row.with(|row| row.mine));
-    let deleted = create_memo(move || matches!(state.get(), State::Deleted(_)));
+    let deleted = create_memo(move || matches!(state.get(), State::Deleted(_) | State::Removed));
     // Only a message in the log takes a reply, a reaction, an edit or a deletion.
     let logged = match key {
         RowKey::Logged(seq) => Some(seq),

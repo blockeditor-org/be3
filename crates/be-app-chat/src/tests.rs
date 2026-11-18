@@ -20,6 +20,7 @@ mod a_made_block_moved_out_of_the_chat_survives_the_composer;
 mod a_message_carries_the_blocks_attached_to_it;
 mod a_message_deleted_with_an_old_key_says_so_in_its_place;
 mod a_message_kept_offline_tells_the_other_members_only_once_it_reaches_the_server;
+mod a_message_removed_by_someone_else_says_so_in_its_place;
 mod a_message_sent_offline_shows_when_it_arrived;
 mod a_message_shows_as_sending_until_it_is_delivered;
 mod a_message_shows_who_signed_it;
@@ -163,8 +164,11 @@ impl Harness {
                 id: item.id,
                 author: item.author,
                 arrival: item.arrival,
+                signer: match item.payload {
+                    Some(_) => LogSigner::Verified,
+                    None => LogSigner::Redacted,
+                },
                 payload: item.payload,
-                signer: LogSigner::Verified,
             })
             .collect();
         ChatLog::of(&items)

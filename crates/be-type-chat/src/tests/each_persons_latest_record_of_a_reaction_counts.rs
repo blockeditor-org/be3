@@ -8,6 +8,7 @@ fn each_persons_latest_record_of_a_reaction_counts() {
         message: 0,
         reaction: "heart".to_owned(),
         kept,
+        takes_back: None,
         time: 0,
     };
     let entries = [

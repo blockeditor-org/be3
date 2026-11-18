@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use be_block_content::{Announcement, LogItem, LogSigner};
 use be_block_model::BlockRef;
@@ -21,11 +21,13 @@ pub enum ChatEntry {
     /// What the message says now: only its author's count.
     Edit { message: u64, time: i64, body: String },
     /// A reaction kept or taken back, `reaction` naming a Lucide icon: each person's latest
-    /// record of each reaction counts.
+    /// record of each reaction counts. Taking one back names the record that kept it
+    /// (`takes_back`), which is redacted, so the log says who took it out.
     React {
         message: u64,
         reaction: String,
         kept: bool,
+        takes_back: Option<u64>,
         time: i64,
     },
     /// Its author's deletion of the message, whose payload is then redacted: only the
@@ -81,6 +83,9 @@ pub struct Shown {
     pub signer: LogSigner,
     /// Its author's deletion: when, and who signed it.
     pub deleted: Option<(i64, LogSigner)>,
+    /// Redacted by someone else (a manager, the server), not taken back by its author: what it
+    /// was is gone, so it may not have been a message at all.
+    pub removed: bool,
 }
 
 /// What the entries of a chat's log an editor holds show: each message by its place, as its
@@ -94,6 +99,9 @@ pub struct ChatLog {
     reactions: BTreeMap<(u64, Uuid, String), (u64, bool)>,
     /// Entries with no payload to read, by place.
     unopened: BTreeMap<u64, LogItem>,
+    /// The places of redacted entries a later entry of their author's names, deleting or taking
+    /// them back: any other redacted entry was removed by someone else, and shows so.
+    taken_back: BTreeSet<u64>,
 }
 
 impl ChatLog {
@@ -103,6 +111,7 @@ impl ChatLog {
         for item in items {
             log.take(item);
         }
+        log.show_removed();
         log.group_reactions();
         log
     }
@@ -131,11 +140,13 @@ impl ChatLog {
                         reactions: Vec::new(),
                         signer: item.signer,
                         deleted: None,
+                        removed: false,
                     },
                 );
             }
-            // Redacted (a deleted message, a reaction taken back), or not opened here: kept
-            // by place, and shown only as the message its author's deletion names.
+            // Redacted (a deleted message, a reaction taken back, or removed by someone else),
+            // or not opened here: kept by place, and shown as the message its author's deletion
+            // names, or as removed (`show_removed`).
             None | Some(None) => {
                 self.unopened.insert(item.seq, item.clone());
             }
@@ -151,14 +162,19 @@ impl ChatLog {
                 message,
                 reaction,
                 kept,
+                takes_back,
                 ..
             })) => {
+                if let Some(taken) = takes_back {
+                    self.take_back(taken, item);
+                }
                 if self.messages.contains_key(&message) {
                     self.reactions
                         .insert((message, item.author, reaction), (item.seq, kept));
                 }
             }
             Some(Some(ChatEntry::Delete { message, time })) => {
+                self.take_back(message, item);
                 if let Some(gone) = self
                     .unopened
                     .get(&message)
@@ -179,6 +195,7 @@ impl ChatLog {
                             reactions: Vec::new(),
                             signer: gone.signer,
                             deleted: None,
+                            removed: false,
                         },
                     );
                 }
@@ -187,6 +204,50 @@ impl ChatLog {
                     shown.attachments.clear();
                 }
             }
+        }
+    }
+
+    /// Notes that `item` names the redacted entry at `seq` as its author's to take back; one
+    /// naming another author's entry counts for nothing.
+    fn take_back(&mut self, seq: u64, item: &LogItem) {
+        if seq < item.seq
+            && self
+                .unopened
+                .get(&seq)
+                .is_some_and(|taken| taken.author == item.author)
+        {
+            self.taken_back.insert(seq);
+        }
+    }
+
+    /// Shows each entry redacted by someone other than its author in its place: no later entry
+    /// of its author's takes it back.
+    fn show_removed(&mut self) {
+        for (seq, gone) in &self.unopened {
+            if gone.signer != LogSigner::Redacted
+                || self.taken_back.contains(seq)
+                || self.messages.contains_key(seq)
+            {
+                continue;
+            }
+            self.messages.insert(
+                *seq,
+                Shown {
+                    seq: *seq,
+                    id: gone.id,
+                    author: gone.author,
+                    arrival: gone.arrival,
+                    time: gone.arrival,
+                    body: None,
+                    edited: false,
+                    reply_to: None,
+                    attachments: Vec::new(),
+                    reactions: Vec::new(),
+                    signer: gone.signer,
+                    deleted: None,
+                    removed: true,
+                },
+            );
         }
     }
 
@@ -240,12 +301,13 @@ impl ChatLog {
 
     /// How many messages others sent that `me` has not read: those after the furthest place
     /// read (`place`, the last place read) and after `me`'s own last message, since answering
-    /// is reading. Deleted ones count for nothing.
+    /// is reading. Deleted and removed ones count for nothing, nor do forged ones (`Bad`), which
+    /// answer nothing either.
     pub fn unread(&self, place: Option<u64>, me: Uuid) -> usize {
         let own = self
             .messages
             .values()
-            .filter(|shown| shown.author == me)
+            .filter(|shown| shown.author == me && !shown.removed && shown.signer != LogSigner::Bad)
             .map(|shown| shown.seq)
             .next_back();
         let from = match (place, own) {
@@ -255,7 +317,10 @@ impl ChatLog {
         self.messages
             .range(from.map_or(0, |from| from + 1)..)
             .filter(|(_, shown)| {
-                shown.author != me && shown.deleted.is_none() && shown.body.is_some()
+                shown.author != me
+                    && shown.deleted.is_none()
+                    && shown.body.is_some()
+                    && shown.signer != LogSigner::Bad
             })
             .count()
     }
