@@ -24,7 +24,9 @@ fn an_unread_count_that_failed_offline_is_tried_again_on_reconnecting() {
         false,
     );
     open(held, ChatContent::CONTENT_TYPE);
-    wait_until("knew the chat type", |_| is_known(ChatContent::CONTENT_TYPE));
+    wait_until("knew the chat type", |_| {
+        is_known(ChatContent::CONTENT_TYPE)
+    });
     flush_and_send();
     let address = harness.address();
     harness.stop_server();

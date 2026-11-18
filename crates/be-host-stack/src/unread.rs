@@ -114,7 +114,11 @@ pub(crate) struct Counting {
 
 impl Counting {
     pub(crate) fn set_reads(&mut self, kind: Uuid, layers: Vec<Vec<u8>>) {
-        if self.reads.get(&kind).is_some_and(|(_, held)| *held == layers) {
+        if self
+            .reads
+            .get(&kind)
+            .is_some_and(|(_, held)| *held == layers)
+        {
             return;
         }
         self.changes += 1;
@@ -129,7 +133,8 @@ impl Counting {
 
     /// The device connected again: what failed, perhaps for being offline, is tried again.
     pub(crate) fn reconnected(&mut self) {
-        self.dirty.extend(self.failed.drain().map(|(block, _)| block));
+        self.dirty
+            .extend(self.failed.drain().map(|(block, _)| block));
     }
 
     fn forget(&mut self, block: Uuid) {
@@ -185,7 +190,13 @@ pub(crate) async fn step(
     } in to_count
     {
         let counted = replicas
-            .unread((peer, shared), content_type, content, place.clone(), peer.account())
+            .unread(
+                (peer, shared),
+                content_type,
+                content,
+                place.clone(),
+                peer.account(),
+            )
             .await;
         let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
         #[cfg(test)]
@@ -198,7 +209,11 @@ pub(crate) async fn step(
                 held.counting
                     .counted
                     .insert(block, Counted { head, place, count });
-                if held.graph.get(block).is_some_and(|node| node.head == Some(head)) {
+                if held
+                    .graph
+                    .get(block)
+                    .is_some_and(|node| node.head == Some(head))
+                {
                     held.graph.set_unread(block, count);
                     held.progressed += 1;
                     moved = true;
@@ -216,7 +231,11 @@ pub(crate) async fn step(
 /// Has each counting type's module pick each block's place out of its reads kind's layers, when
 /// they or the known kinds moved: the blocks whose place moved are looked at again, and every
 /// node once a type has its first places.
-async fn pick_places(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, replicas: &mut Replicas) -> bool {
+async fn pick_places(
+    peer: &Arc<Peer<Store>>,
+    shared: &Arc<Mutex<Shared>>,
+    replicas: &mut Replicas,
+) -> bool {
     let to_place: Vec<(Uuid, u64, Vec<Vec<u8>>)> = {
         let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
         let counting = &mut held.counting;
@@ -275,7 +294,11 @@ async fn pick_places(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, repli
 /// count, and nothing started it yet.
 fn take_dirty(
     shared: &Arc<Mutex<Shared>>,
-) -> (Vec<(Uuid, Uuid, CommitId, Option<Vec<u8>>)>, Vec<ToCount>, Vec<Uuid>) {
+) -> (
+    Vec<(Uuid, Uuid, CommitId, Option<Vec<u8>>)>,
+    Vec<ToCount>,
+    Vec<Uuid>,
+) {
     let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
     let state = &mut *held;
     let counting = &mut state.counting;

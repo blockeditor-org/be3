@@ -115,4 +115,3 @@ fn an_editor_hears_a_member_go_when_their_access_is_revoked_with_a_publish() {
         [me]
     );
 }
-

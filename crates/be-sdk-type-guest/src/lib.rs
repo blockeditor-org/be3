@@ -7,13 +7,13 @@ use std::{
 
 use be_block_commit::MergeResult;
 use be_block_content::{
-    BlockContent, LiveEdit, Loads, Merge, MergeParts, PartReader, Undo, Unread,
-    history::History,
+    BlockContent, LiveEdit, Loads, Merge, MergeParts, PartReader, Undo, Unread, history::History,
 };
 use be_sdk_type_api::{
-    BlockPlace, Change, ChildChange, ClientId, CommitId, Description, EditorId, Endpoint, FileChange, Journal,
-    JournalEntry, Loaded, Merged, MergedParts, Opening, PartRef, Plain, PlainFile, PublishOutcome,
-    ReorderChild, ReplaceChild, ReplicaId, SearchDocument, SessionState, TypeInfo, Written,
+    BlockPlace, Change, ChildChange, ClientId, CommitId, Description, EditorId, Endpoint,
+    FileChange, Journal, JournalEntry, Loaded, Merged, MergedParts, Opening, PartRef, Plain,
+    PlainFile, PublishOutcome, ReorderChild, ReplaceChild, ReplicaId, SearchDocument, SessionState,
+    TypeInfo, Written,
     guest::{exports::replicas, host},
     ops::guest::{self as ops, Executor, LocalFuture, Pending, Sender},
     types::Failure,
@@ -300,7 +300,11 @@ fn places<C: Unread>(reads: &[Vec<u8>]) -> Result<Vec<(Uuid, Vec<u8>)>, String> 
         .collect()
 }
 
-fn count_unread<C: Unread>(content: Content, place: Option<&[u8]>, me: Uuid) -> Result<u32, String> {
+fn count_unread<C: Unread>(
+    content: Content,
+    place: Option<&[u8]>,
+    me: Uuid,
+) -> Result<u32, String> {
     let content = match content {
         Content::Loaded(loaded) => {
             let stored = loaded

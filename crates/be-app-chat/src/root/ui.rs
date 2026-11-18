@@ -576,7 +576,9 @@ pub fn Chat(editor: Editor) -> NodeId {
         let (author, body) = quoted.with(|row| (row.author, excerpt(&row.body)));
         Some(format!(
             "Replying to {}: {body}",
-            author.map(|author| names.inline(author)).unwrap_or_default()
+            author
+                .map(|author| names.inline(author))
+                .unwrap_or_default()
         ))
     });
     let editing = create_memo(move || composer.editing.get().is_some());
@@ -1761,7 +1763,12 @@ fn MessageRow(
     let altered = create_memo(move || signer.get() == Ok(Trust::Altered));
     let forged = create_memo(move || signer.get() == Ok(Trust::Forged));
     let account = create_memo(move || row.with(|row| row.author));
-    let author = create_memo(move || account.get().map(|author| names.name(author)).unwrap_or_default());
+    let author = create_memo(move || {
+        account
+            .get()
+            .map(|author| names.name(author))
+            .unwrap_or_default()
+    });
     let name_unverified =
         create_memo(move || account.get().is_some_and(|author| names.unverified(author)));
     // A name the server gave says so already; one caption is enough for a key not verified too.
@@ -1775,7 +1782,12 @@ fn MessageRow(
     let actionable = create_memo(move || row.with(|row| !row.deleted));
     let deleted = create_memo(move || !actionable.get());
     let quote = create_memo(move || {
-        row.with(|row| row.reply.as_ref().map(|quote| names.quote(quote)).unwrap_or_default())
+        row.with(|row| {
+            row.reply
+                .as_ref()
+                .map(|quote| names.quote(quote))
+                .unwrap_or_default()
+        })
     });
     let replies = create_memo(move || row.with(|row| row.reply.is_some()));
     let reactions = create_memo(move || {

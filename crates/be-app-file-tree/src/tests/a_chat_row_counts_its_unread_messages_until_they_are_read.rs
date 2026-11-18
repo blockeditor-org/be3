@@ -18,7 +18,11 @@ fn a_chat_row_counts_its_unread_messages_until_they_are_read() {
         let (_, send) = lunch.send(chat, Message::new(ROSA, at, body));
         lunch.apply(&send.into());
     }
-    let mut info = BlockInfo::new(chat, ChatContent::CONTENT_TYPE, BlockParent::Block(MY_FILES));
+    let mut info = BlockInfo::new(
+        chat,
+        ChatContent::CONTENT_TYPE,
+        BlockParent::Block(MY_FILES),
+    );
     info.set_name("Lunch");
     let mut notes = BlockInfo::new(
         Uuid::new_v4(),
@@ -26,7 +30,10 @@ fn a_chat_row_counts_its_unread_messages_until_they_are_read() {
         BlockParent::Block(MY_FILES),
     );
     notes.set_name("Notes");
-    store.add_block(files_workspace(&fixture.host, &[info.clone(), notes.clone()]));
+    store.add_block(files_workspace(
+        &fixture.host,
+        &[info.clone(), notes.clone()],
+    ));
     store.add_block(info);
     store.add_block(notes);
     fixture.test.hold(Some(chat), lunch.clone());
