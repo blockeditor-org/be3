@@ -249,7 +249,17 @@ pub(crate) struct StatusView {
     pub(crate) administrator: bool,
     pub(crate) escrow_warning: Option<String>,
     /// The blocks this device keeps hosting with no editor open (Keep hosting), by name.
-    pub(crate) hosting: Vec<(Uuid, String)>,
+    pub(crate) hosting: Vec<KeptHost>,
+}
+
+/// A block this device keeps hosting (`hosting::Hosts::keep`), and whether it hosts it now:
+/// its component runs and the server names this device host, rather than standing by while
+/// another device hosts it.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub(crate) struct KeptHost {
+    pub(crate) block: Uuid,
+    pub(crate) name: String,
+    pub(crate) now: bool,
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
