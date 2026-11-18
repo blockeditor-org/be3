@@ -359,8 +359,9 @@ own. The component hears its block's host channel members as `editor-event.membe
 (`member-event`: `joined` with the member's number, account and level, `said`,
 `left`), which be-host-stack admits and checks (`crates/be-host-stack/src/hosting.rs`,
 guides/blocks/keys.md, "Hosted channels") and the runtime passes on
-(`be_host_stack::take_member_events`, read when `member_events_revision`
-moves), and answers one with the block command `tell-member`, which only a
+(`be_host_stack::take_member_events`, read on each pass; the worker queues
+them in `Seen::member_news`, which reaches the page on the web too), and
+answers one with the block command `tell-member`, which only a
 host component of its own block may send. A member goes (`left`) when it
 leaves the session, when a message of its does not open (taken then as its new
 handshake), when the component falls too far behind to hear it, and when the

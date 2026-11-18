@@ -940,10 +940,8 @@ pub(crate) fn banned(
     block: Uuid,
     account: Uuid,
 ) -> Result<bool, ServerError> {
-    let entries = log_of(connection, organization, block)?
-        .iter()
-        .map(|entry| Entry::decode(entry).map_err(|_| ServerError::Corrupt))
-        .collect::<Result<Vec<_>, _>>()?;
+    // Checked on from where the server last checked the log (`CHECKED`).
+    let entries = entries(connection, LogKind::Block, organization, block)?;
     if entries.is_empty() {
         return Ok(false);
     }

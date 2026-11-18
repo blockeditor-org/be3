@@ -1376,12 +1376,19 @@ impl Client {
             .registry
             .join(place, connection.client, identity.account, may_edit, tag)
             .await;
-        // A view lost since the check ran leaves the session again.
+        // A view lost, or a ban made against one below Edit, since the checks ran leaves the
+        // session again.
         let journal = async {
             connection
                 .store
                 .require_access(identity, vec![block], Access::View)
                 .await?;
+            if barred().await? {
+                return Err(ServerError::Refused(
+                    ErrorCode::PermissionDenied,
+                    format!("this account is barred from joining block {block}'s host"),
+                ));
+            }
             connection
                 .store
                 .read_journal(identity.organization, block)
