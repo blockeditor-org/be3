@@ -4621,20 +4621,47 @@ async fn read_references(
     use futures_util::StreamExt;
     let mut reads = futures_util::stream::iter(blocks)
         .map(|(block, head)| async move {
+            // Gone from the mirror, or moved past this head, while it waited its turn.
+            let current = shared
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .graph
+                .get(block)
+                .is_some_and(|node| node.head == Some(head));
+            if !current {
+                return (block, head, None);
+            }
             let read = async {
                 let commit = peer.load_head(block, head).await?;
                 peer.references_of(block, &commit).await
             };
-            (block, head, read.await)
+            (block, head, Some(read.await))
         })
         .buffer_unordered(READS_AT_ONCE);
     while let Some((block, head, read)) = reads.next().await {
         let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
         match read {
-            Ok(references) => held.graph.read_references(block, head, references),
-            Err(_) => held.graph.read_failed(block, head),
+            None => held.graph.read_skipped(block),
+            Some(Ok(references)) => held.graph.read_references(block, head, references),
+            Some(Err(error)) => held.graph.read_failed(block, head, lasting(&error)),
         }
     }
+}
+
+/// Whether a read failed for a reason that reading again at the same head will not change: no
+/// key opens it (new keys clear it, `Graph::keys_changed`), it was forged or tampered with, it
+/// does not decode, or the server refuses it.
+fn lasting(error: &ClientError) -> bool {
+    matches!(
+        error,
+        ClientError::Locked(_)
+            | ClientError::Forged(_)
+            | ClientError::Tampered(_)
+            | ClientError::Withheld(_)
+            | ClientError::Content(_)
+            | ClientError::Encoding(_)
+            | ClientError::Refused(..)
+    )
 }
 
 fn take_follows(shared: &Arc<Mutex<Shared>>) -> (Vec<(Uuid, u64)>, Vec<Uuid>) {

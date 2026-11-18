@@ -41,9 +41,23 @@ fn a_blocks_references_are_read_from_its_head_not_its_summary() {
     assert_eq!(graph.take_to_read(), [(folder, one)]);
     assert!(graph.take_to_read().is_empty(), "read once at a time");
 
-    // Its content cannot be read (offline, not kept here): the server's listing answers, in the
-    // order of ids, and it is not tried again on this connection.
-    graph.read_failed(folder, one);
+    // A failure that may pass (a fetch cut off) is tried again once the server next answers,
+    // and pinned after `READ_ATTEMPTS`.
+    for _ in 1..READ_ATTEMPTS {
+        graph.read_failed(folder, one, false);
+        assert!(graph.take_to_read().is_empty(), "waits for the server's next answer");
+        graph.listed(
+            Listing::References(folder),
+            vec![child(first), child(second)],
+            1,
+        );
+        assert_eq!(graph.take_to_read(), [(folder, one)], "tried again");
+    }
+
+    // Its content cannot be read for a reason that lasts (no key opens it, or the attempts ran
+    // out): the server's listing answers, in the order of ids, and it is not tried again on this
+    // connection.
+    graph.read_failed(folder, one, false);
     assert!(graph.ready(Query::References(folder)));
     assert_eq!(ids(graph.query(Query::References(folder))), [first, second]);
     assert!(graph.take_to_read().is_empty());

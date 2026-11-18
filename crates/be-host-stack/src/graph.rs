@@ -248,6 +248,11 @@ pub struct Graph {
     /// the worker with nothing new to read does not scan the nodes.
     #[serde(skip)]
     to_read_changed: bool,
+    /// Reads of a head that failed for a reason that may pass (a fetch cut off, a timeout), with
+    /// how many times, and whether it waits for the next answer from the server (a listing or a
+    /// tree's page) before it is tried again: at `READ_ATTEMPTS` it is `unread`.
+    #[serde(skip)]
+    retrying: HashMap<Uuid, Retry>,
     /// Heads whose references could not be read (offline and not kept on this device, or not
     /// opened by a key yet): not read again at that head until a new connection (`relist_all`)
     /// or new keys (`keys_changed`). What was known before shows meanwhile, or else what the
@@ -321,6 +326,7 @@ impl Diff for Graph {
             read,
             reading: _,
             to_read_changed: _,
+            retrying: _,
             unread,
             reported,
             placing,
@@ -454,6 +460,7 @@ impl PartialEq for Graph {
             read,
             reading: _,
             to_read_changed: _,
+            retrying: _,
             unread,
             reported,
             placing,
@@ -475,6 +482,21 @@ impl PartialEq for Graph {
             && *reported == other.reported
             && *placing == other.placing
     }
+}
+
+/// How many times a head's references are read before a failure that may pass pins it
+/// (`Graph::read_failed`).
+const READ_ATTEMPTS: u8 = 3;
+
+/// How many heads one `Graph::take_to_read` takes, so what is asked for later is not queued
+/// behind a long tail.
+const READS_TAKEN: usize = 64;
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct Retry {
+    head: CommitId,
+    attempts: u8,
+    waiting: bool,
 }
 
 /// How many placed children `Graph::placed_recently` remembers.
@@ -654,6 +676,7 @@ impl Graph {
 
     /// A listing's answer, read at the organization's `sequence`.
     pub fn listed(&mut self, listing: Listing, nodes: Vec<Node>, sequence: u64) {
+        self.retry_reads();
         let Some(listed) = self.listings.get_mut(&listing) else {
             return;
         };
@@ -807,6 +830,7 @@ impl Graph {
         // dropped is read again.
         self.unread.clear();
         self.reading.clear();
+        self.retrying.clear();
         self.to_read_changed = true;
         let entries: Vec<Uuid> = self.follows.keys().copied().collect();
         for entry in entries {
@@ -1082,6 +1106,7 @@ impl Graph {
         removed: &[Uuid],
         sequence: u64,
     ) -> Vec<Uuid> {
+        self.retry_reads();
         if let Some(follow) = self.follows.get_mut(&entry) {
             follow.cursor = follow.cursor.max(sequence);
             follow.fetch = match std::mem::take(&mut follow.again) {
@@ -1226,6 +1251,7 @@ impl Graph {
         };
         self.read.remove(&block);
         self.unread.remove(&block);
+        self.retrying.remove(&block);
         self.nodes_moved.insert(block);
         self.count_entry(removed.entry, 0, false);
         true
@@ -1462,7 +1488,9 @@ impl Graph {
     }
 
     /// Whether a block's references may wait to be read from its head (`take_to_read`): asked
-    /// first, since taking changes the graph.
+    /// first, since taking changes the graph. Any change to the graph (`moved`, which a
+    /// replica's report, a listing's answer or a read sets off) makes the next pass of the
+    /// worker scan every node once, O(nodes).
     pub fn has_to_read(&self) -> bool {
         self.to_read_changed
     }
@@ -1470,19 +1498,55 @@ impl Graph {
     /// The blocks whose references to read from their head, with that head: every node held
     /// that this account may read, that no replica reports and no read so far covers, so what
     /// shows a block (a file tree's row, a link) knows what it holds, whether shown open or not.
-    /// Marked as being read until `read_references` or `read_failed`.
+    /// What is asked for comes first (its references, its children or the block itself), and
+    /// at most `READS_TAKEN` are taken, so a folder just opened does not wait behind a long
+    /// tail. Marked as being read until `read_references`, `read_failed` or `read_skipped`.
     pub fn take_to_read(&mut self) -> Vec<(Uuid, CommitId)> {
         self.to_read_changed = false;
-        let found: Vec<(Uuid, CommitId)> = self
+        let mut found: Vec<(bool, Uuid, CommitId)> = self
             .nodes
             .values()
             .filter(|node| self.wants_read(node))
-            .filter_map(|node| Some((node.id, node.head?)))
+            .filter_map(|node| {
+                let asked = [
+                    Listing::References(node.id),
+                    Listing::Children(BlockParent::Block(node.id)),
+                    Listing::Block(node.id),
+                ]
+                .iter()
+                .any(|listing| self.listings.contains_key(listing));
+                Some((!asked, node.id, node.head?))
+            })
             .collect();
-        for (block, _) in &found {
+        found.sort_by_key(|(later, _, _)| *later);
+        if found.len() > READS_TAKEN {
+            found.truncate(READS_TAKEN);
+            self.to_read_changed = true;
+        }
+        for (_, block, _) in &found {
             self.reading.insert(*block);
         }
         found
+            .into_iter()
+            .map(|(_, block, head)| (block, head))
+            .collect()
+    }
+
+    /// A read taken was not made: the block left the mirror or its head moved on meanwhile.
+    pub fn read_skipped(&mut self, block: Uuid) {
+        self.reading.remove(&block);
+        self.to_read_changed = true;
+    }
+
+    /// The server answered (a listing, a tree's page): reads that failed for a reason that may
+    /// pass are tried again.
+    fn retry_reads(&mut self) {
+        if self.retrying.values().any(|retry| retry.waiting) {
+            for retry in self.retrying.values_mut() {
+                retry.waiting = false;
+            }
+            self.to_read_changed = true;
+        }
     }
 
     /// Whether `node`'s references are what its content holds now: reported by its replica,
@@ -1510,6 +1574,10 @@ impl Graph {
             && !self.reading.contains(&node.id)
             && self.read.get(&node.id).is_none_or(|(at, _)| *at != head)
             && self.unread.get(&node.id) != Some(&head)
+            && self
+                .retrying
+                .get(&node.id)
+                .is_none_or(|retry| retry.head != head || !retry.waiting)
     }
 
     /// What `block`'s content references at `head`, read by the worker: its node takes them while
@@ -1522,6 +1590,7 @@ impl Graph {
             return;
         }
         self.unread.remove(&block);
+        self.retrying.remove(&block);
         self.read.insert(block, (head, references.clone()));
         if self.referenced.contains_key(&block) {
             return;
@@ -1544,15 +1613,34 @@ impl Graph {
         }
     }
 
-    /// `block`'s content at `head` could not be read: it is not tried again at that head until
-    /// a new connection or new keys, and what shows it answers from what was known before, or
-    /// the server's listings, meanwhile.
-    pub fn read_failed(&mut self, block: Uuid, head: CommitId) {
+    /// `block`'s content at `head` could not be read. For a reason that lasts (`lasting`: no key
+    /// opens it, it was forged or tampered with, it does not decode) or after `READ_ATTEMPTS`,
+    /// it is not tried again at that head until a new connection or new keys; otherwise it is
+    /// tried again once the server next answers. What shows it answers from what was known
+    /// before, or the server's listings, meanwhile.
+    pub fn read_failed(&mut self, block: Uuid, head: CommitId, lasting: bool) {
         self.reading.remove(&block);
         self.to_read_changed = true;
-        if self.nodes.contains_key(&block) {
+        if !self.nodes.contains_key(&block) {
+            return;
+        }
+        let attempts = match self.retrying.get(&block) {
+            Some(retry) if retry.head == head => retry.attempts + 1,
+            _ => 1,
+        };
+        if lasting || attempts >= READ_ATTEMPTS {
+            self.retrying.remove(&block);
             self.unread.insert(block, head);
             self.moved();
+        } else {
+            self.retrying.insert(
+                block,
+                Retry {
+                    head,
+                    attempts,
+                    waiting: true,
+                },
+            );
         }
     }
 

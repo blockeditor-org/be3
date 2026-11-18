@@ -502,8 +502,10 @@ else read from its head by the worker (`read_references` in worker.rs,
 `Peer::references_of`) and kept per head (`Graph::read`, which a replica's last
 report joins as it closes), or for a block with no content yet its metadata's.
 They are `None` until read. The worker reads them for every node it holds that
-this account may read (`Graph::take_to_read`, `READS_AT_ONCE` at a time, only
-after something changed), so a folder's order, and whether a collapsed row in a
+this account may read (`Graph::take_to_read`: what is asked for first, at most
+`READS_TAKEN` a take, `READS_AT_ONCE` at a time, skipping a head that moved on
+while it waited, and only after something changed, which costs one scan of the
+nodes), so a folder's order, and whether a collapsed row in a
 file tree or picker has anything to expand (`BlockInfo::references`), are read
 without opening it; `ready(Query::References | Query::Children)` waits for the
 first read. Until then a child is held as the server says (`block-summary.held`,
@@ -511,9 +513,11 @@ first read. Until then a child is held as the server says (`block-summary.held`,
 references read at the last one show until it is read, and a child the server
 says is held counts as held meanwhile, so one another device just added never
 reads as deleted. Offline the read answers from content this device kept (the
-vault holds the commits it read); a head it cannot read is not tried again
-until a new connection or new keys (`Graph::read_failed`, `unread`,
-`keys_changed`), and its `References` query answers the server's listing
+vault holds the commits it read); a read that failed for a reason that may pass
+(a fetch cut off) is tried again on the server's next answer, `READ_ATTEMPTS`
+times; then, or at once for one that lasts (no key, forged, undecodable), the
+head is not tried again until a new connection or new keys
+(`Graph::read_failed`, `unread`, `keys_changed`), and its `References` query answers the server's listing
 meanwhile, in the order of ids.
 
 The stack tells the host what changed rather than being polled: it pushes a
