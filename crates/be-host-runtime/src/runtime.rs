@@ -1097,10 +1097,7 @@ impl Runtime {
                 instances.view_request_of(screen).is_some()
             });
         self.shared.borrow_mut().kept = self.run.shown.kept_placements();
-        presenter::keep(
-            self.surface,
-            &self.run.retained_surfaces(),
-        );
+        presenter::keep(self.surface, &self.run.retained_surfaces());
     }
 
     /// The placement a screen is drawn from: its kept last frame while it has one, else the
@@ -2454,7 +2451,9 @@ pub fn running() -> Vec<RuntimeStatus> {
                 steps: runtime.steps,
                 frames: runtime.frames,
                 uptime: runtime.backend.uptime(),
-                instances: runtime.instances.statuses(runtime.run.layout(), runtime.pass),
+                instances: runtime
+                    .instances
+                    .statuses(runtime.run.layout(), runtime.pass),
             })
             .collect();
         running.sort_by(|left, right| left.app_id.cmp(&right.app_id));

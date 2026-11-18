@@ -23,7 +23,7 @@ use std::{
 };
 
 use be_lib_geometry::{Pos2, Rect, pos2, vec2};
-use be_lib_input_router::{Router, Routed};
+use be_lib_input_router::{Routed, Router};
 use be_lib_layers::{Affine, Layer, LayerId, LayerInput, LayerList, Surface, WindowLayers};
 use be_lib_ui_types::input::{self as ui_input, Input};
 use be_wasm_guest_abi::{Flow, Guest, Waker};

@@ -91,7 +91,11 @@ fn presented(serial: u64, sequence: Option<u64>) -> Heard {
 
 fn lifted_shown() -> bool {
     with(APP, |runtime| {
-        runtime.run.layout().placement(ScreenId::opened(1)).is_some()
+        runtime
+            .run
+            .layout()
+            .placement(ScreenId::opened(1))
+            .is_some()
             && !runtime
                 .instances
                 .shown_anchored(INSTANCE, ViewId::MAIN)

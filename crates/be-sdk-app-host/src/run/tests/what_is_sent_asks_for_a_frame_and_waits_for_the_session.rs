@@ -29,7 +29,8 @@ fn what_is_sent_asks_for_a_frame_and_waits_for_the_session() {
     );
     assert!(
         matches!(
-            run.queue([Outbound::App(AppCall::Describe(false))]).as_slice(),
+            run.queue([Outbound::App(AppCall::Describe(false))])
+                .as_slice(),
             [Outbound::App(AppCall::Describe(false))]
         ),
         "and what is queued after goes at once"
