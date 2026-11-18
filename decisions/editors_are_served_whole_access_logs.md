@@ -7,7 +7,10 @@ blocks above it they may view; members with Edit on any block of a company
 organization, and its administrators, are served the organization's whole log.
 Everyone else with access (View, Join) is served a proof path: the entries
 that prove their own right and that of whoever sealed them a key, the rest
-reduced to what chains them.
+reduced to what chains them. A whole log costs an editor each entry once:
+devices keep what they checked and read only what was appended
+(guides/blocks/keys.md, "Access logs"); a path stays one step per entry
+(decisions/proof_paths_stay_one_step_per_entry.md).
 
 ## Why
 
