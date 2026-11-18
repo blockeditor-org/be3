@@ -1262,41 +1262,22 @@ pub(crate) fn AppView(
 
 /// Fills the view with the color its app clears it to, under its children: space the app leaves
 /// for a child shows that color, never what is behind the view, before the child draws there and
-/// after it goes. A turned or faded view gets none, which would show through it twice.
+/// after it goes. It fills the view's laid box, not its last placement, so a view growing before
+/// its app reports the new size shows that color beyond its last frame too. A turned or faded
+/// view gets none, which would show through it twice.
 #[component]
 fn Backdrop(state: Memo<PlacedView>, radius: Memo<f32>, upright: Memo<bool>) -> NodeId {
-    let backdrop = create_memo(move || {
-        let color = state.with(|view| view.backdrop)?;
-        upright.get().then(|| {
-            state.with(|view| {
-                let shown = view
-                    .rect
-                    .intersect(view.clip)
-                    .translate(-view.rect.min.to_vec2());
-                (shown, color)
-            })
-        })
-    });
-    let rect = create_memo(move || backdrop.get().map_or(Rect::ZERO, |(rect, _)| rect));
     let fill = create_memo(move || {
+        let color = upright
+            .get()
+            .then(|| state.with(|view| view.backdrop))
+            .flatten();
         ColorRole::Custom(beui::color::Color::literal(
-            backdrop
-                .get()
-                .map_or(beui::color::Color32::TRANSPARENT, |(_, color)| color),
+            color.unwrap_or(beui::color::Color32::TRANSPARENT),
         ))
     });
     view! {
-        <Canvas>
-            <CanvasItem
-                x={create_memo(move || rect.get().min.x)}
-                y={create_memo(move || rect.get().min.y)}
-                width={create_memo(move || rect.get().width().max(0.0))}
-                height={create_memo(move || rect.get().height().max(0.0))}
-                pointer=false
-            >
-                <Frame fill={fill} radius={move || Radius::Custom(radius.get())} />
-            </CanvasItem>
-        </Canvas>
+        <Frame fill={fill} radius={move || Radius::Custom(radius.get())} />
     }
 }
 
