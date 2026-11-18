@@ -7,7 +7,11 @@ use super::*;
 /// time it opened at, to `revert-at`, when the host reverts them itself; reaching it, it closes
 /// answering not kept, a courtesy the host does not wait for. Escape reverts at once.
 #[component]
-pub(super) fn KeepDisplayDialog(asked: DisplayQuestion, shown_at: Duration, done: Callback<Closed>) -> NodeId {
+pub(super) fn KeepDisplayDialog(
+    asked: DisplayQuestion,
+    shown_at: Duration,
+    done: Callback<Closed>,
+) -> NodeId {
     let round = asked.round;
     let within = Duration::from_nanos(asked.revert_at).saturating_sub(shown_at);
     let deadline = now() + within;

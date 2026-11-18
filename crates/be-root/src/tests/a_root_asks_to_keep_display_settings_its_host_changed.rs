@@ -1,5 +1,5 @@
-use be_lib_ui_types::{Key, Modifiers};
 use crate::{DIALOG_LAYER, DIALOG_SURFACE, LOCK_LAYER, SCRIM_LAYER};
+use be_lib_ui_types::{Key, Modifiers};
 use be_wasm_root_api::{DisplayQuestion, LockState};
 
 use super::*;

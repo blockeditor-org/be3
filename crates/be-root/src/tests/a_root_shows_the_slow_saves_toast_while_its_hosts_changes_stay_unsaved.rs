@@ -1,5 +1,5 @@
-use be_lib_geometry::pos2;
 use crate::{LOCK_LAYER, SLOW_SAVE, TOAST_AREA, TOAST_LAYER, TOAST_SURFACE};
+use be_lib_geometry::pos2;
 use be_wasm_root_api::{LockState, SavingState, SyncState};
 
 use super::*;

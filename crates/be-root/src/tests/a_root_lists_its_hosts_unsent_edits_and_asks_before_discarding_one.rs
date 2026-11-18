@@ -1,5 +1,5 @@
-use be_lib_ui_types::{Key, Modifiers};
 use crate::{DIALOG_LAYER, DIALOG_SURFACE};
+use be_lib_ui_types::{Key, Modifiers};
 use be_wasm_root_api::{CoreCommand, CoreView, Refusal, SetAside, UnsentEdit};
 
 use super::*;

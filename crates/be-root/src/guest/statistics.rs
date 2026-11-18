@@ -5,7 +5,10 @@ use super::*;
 /// The host's statistics as its debug panels show them: a row a measurement, under headings,
 /// its performance first and then its memory, scrolling.
 #[component]
-pub(super) fn StatisticsPanel(statistics: Signal<HostStatistics>, history: Signal<MemoryMinutes>) -> NodeId {
+pub(super) fn StatisticsPanel(
+    statistics: Signal<HostStatistics>,
+    history: Signal<MemoryMinutes>,
+) -> NodeId {
     let rows = create_memo(move || {
         statistics.with(|statistics| {
             let mut rows = statistics.performance.clone();
