@@ -23,6 +23,7 @@ const REACHING_PAST: &[&str] = &[
     "move",
     "append-log (grant)",
     "access",
+    "names",
     "set-recovery-key",
     "signing-keys",
     "put-keys (escrow)",

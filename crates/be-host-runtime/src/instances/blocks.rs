@@ -489,7 +489,7 @@ impl BlockStore for Instances {
                 InstanceEvent::ArtifactWatch(entry.artifact_blocks()),
             ),
             Subject::Version => entry.version_sent = None,
-            Subject::History(_) | Subject::Shows => {}
+            Subject::History(_) | Subject::Members | Subject::Shows => {}
         }
         entry.stale = true;
         true
@@ -532,7 +532,11 @@ impl BlockStore for Instances {
             Subject::Search(op) => {
                 entry.searches.remove(&op);
             }
-            Subject::Blocks(_) | Subject::History(_) | Subject::Version | Subject::Shows => {}
+            Subject::Blocks(_)
+            | Subject::History(_)
+            | Subject::Version
+            | Subject::Members
+            | Subject::Shows => {}
         }
     }
 

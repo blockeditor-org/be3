@@ -587,6 +587,19 @@ impl Editor {
         })
     }
 
+    /// The accounts that may view the editor's own block, each named by its contact card or by
+    /// what the server says (`BlockMember::verified`), loading until the host answers and
+    /// answered again as they change.
+    pub fn members(&self) -> Memo<Ready<Vec<be_sdk::BlockMember>>> {
+        let host = self.host();
+        host.watch_members();
+        answered(self.pushed(Pushed::Members), move || match host.members() {
+            None => Err(Pending::Loading),
+            Some(Ok(members)) => Ok(members),
+            Some(Err(failure)) => Err(Pending::Failed(failure.to_string())),
+        })
+    }
+
     pub fn version(&self, command: be_sdk::VersionCommand) {
         self.state().core.version(command);
     }

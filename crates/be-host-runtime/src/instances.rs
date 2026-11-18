@@ -32,6 +32,7 @@ use super::{
     calls::{self, AppCall, BlockIds, EditorAnswer, EditorCall, Outbound},
     events::InstanceEvent,
     heads::{HeadRead, Heads},
+    members::{Members, NamesRead},
     input::{BlockDrag, DragEvent, InputForwarder, viewport_metrics},
     pieces,
     published::{Published, Watched},
@@ -101,6 +102,7 @@ pub(super) struct Instances {
 struct Mail {
     desk: host::Desk<Instances>,
     head_reads: (host::Mailbox, host::Post<HeadRead>),
+    names_reads: (host::Mailbox, host::Post<NamesRead>),
     audio_changes: (host::Mailbox, host::Post<EditorInstanceId>),
     answers: (host::Mailbox, host::Post<services::Delivered>),
     fetched: (host::Mailbox, host::Post<network::Arrived>),
@@ -112,6 +114,7 @@ impl Default for Mail {
         Self {
             desk,
             head_reads: desk.mailbox(Instances::head_read),
+            names_reads: desk.mailbox(Instances::names_read),
             audio_changes: desk.mailbox(Instances::audio_changed),
             answers: desk.mailbox(Instances::service_answered),
             fetched: desk.mailbox(Instances::arrived),
@@ -155,6 +158,7 @@ struct Instance {
     /// reported yet is filled with.
     backdrop: Option<be_sdk_api::accessibility::Color>,
     heads: Heads,
+    members: Members,
     revision_previews: HashMap<be_sdk_api::ops::OpId, services::RevisionPreview>,
     drag_accepted: bool,
     intrinsic: Option<Vec2>,
@@ -315,6 +319,7 @@ impl Instance {
             menu_picked: None,
             backdrop: None,
             heads: Heads::default(),
+            members: Members::default(),
             revision_previews: HashMap::default(),
             drag_accepted: false,
             intrinsic: None,
@@ -489,6 +494,26 @@ impl Instance {
             self.version_sent = Some(revision);
             self.held
                 .offer(Subject::Version, &BlockValue::Version(status));
+        }
+    }
+
+    fn watches_members(&self) -> bool {
+        self.held
+            .watching()
+            .any(|watched| watched == Subject::Members)
+    }
+
+    /// Asks the server to name its block's members, when it watches them and they may have
+    /// changed, and offers the watch what is known, named from the contacts as they are now.
+    fn offer_members(&mut self, instance: EditorInstanceId, epoch: u64, reads: &host::Post<NamesRead>) {
+        if !self.watches_members() {
+            return;
+        }
+        if let InstanceRole::Editor(_, block) = self.role {
+            self.members.request(instance, epoch, block.id, reads);
+        }
+        if let Some(value) = self.members.value() {
+            self.held.offer(Subject::Members, &value);
         }
     }
 
@@ -2069,6 +2094,7 @@ impl Instances {
             entry.reported_presenting = false;
             entry.published.forget_reported();
             entry.heads = Heads::default();
+            entry.members = Members::default();
             // The old app's previews close with it: the new one numbers its ops afresh, so a
             // preview kept here could answer to an op of the new app's.
             for (_, preview) in entry.revision_previews.drain() {
@@ -2127,6 +2153,7 @@ impl Instances {
         let changes = self.stack_changes.take();
         self.touch(&changes);
         let graph_moved = changes.graph;
+        let contacts_moved = changes.contacts;
         let mut opened = Vec::new();
         let mut screens = Vec::new();
         self.relaying.clear();
@@ -2305,6 +2332,9 @@ impl Instances {
             entry.offer_searches(scope);
             if stale {
                 entry.offer_version();
+            }
+            if stale || graph_moved || contacts_moved {
+                entry.offer_members(instance, self.epoch, &self.mail.names_reads.1);
             }
             if stale || graph_moved {
                 entry.offer_histories();
@@ -3607,6 +3637,19 @@ impl Instances {
             && entry.heads.wants(block, commit)
         {
             entry.held.offer(Subject::Head(block), &head_value(head));
+        }
+    }
+
+    fn names_read(&mut self, read: NamesRead) {
+        if let Some((instance, named)) = read.opened(self.epoch)
+            && let Some(entry) = self.entries.get_mut(&instance)
+        {
+            entry.members.named(named);
+            if entry.watches_members()
+                && let Some(value) = entry.members.value()
+            {
+                entry.held.offer(Subject::Members, &value);
+            }
         }
     }
 

@@ -210,6 +210,16 @@ guides/blocks/client.md). What is not built yet is in plans/chat.md.
   chat's editor tests cover it, and a host test sends a message with the
   server cut (`HostTest::offline`) and sees it show as sending until the
   device is back.
+- **Names.** Each message shows its author by the name the host gives
+  (`editor.members()`, guides/apps/host_services.md, "Naming a block's
+  members"): "You", a contact by its card's name, anyone else by the name the
+  server gave, marked "unverified name". A reply's quote names its author the
+  same way. An account the host has not named (before it answers, offline, or
+  one that may no longer view the chat) shows as "Member" and its account's
+  first digits. Rows keep the author's account and resolve the name as they
+  show, so a name arriving or changing touches only the labels. Mentioning
+  members by name in the composer is not built yet: a notification mentions
+  only the author a reply answers.
 - **Authorship.** It signs each message, edit, deletion and reaction record
   (kept or taken back) through the host's `sign` before writing it, and marks
   a message whose records `verify` does not answer verified: "not verified",

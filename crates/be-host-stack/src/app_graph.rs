@@ -119,6 +119,34 @@ pub fn link_admits(admits: be_sdk_api::LinkAdmits) -> be_block_keys::Admits {
     }
 }
 
+/// Names a block's members for an editor (`block-subject.members`) from what the server named
+/// (`list_names`): a contact by the name on its card this device verified, the signed-in account
+/// by its own, and anyone else by the name the server gave, which the server could have changed,
+/// so unverified. Read again as the contacts change, without asking the server.
+pub fn members_of(named: &[be_block_protocol::AccountName]) -> Vec<be_sdk_api::BlockMember> {
+    let contacts = crate::contacts();
+    let me = crate::account();
+    named
+        .iter()
+        .map(|named| {
+            let card = contacts.iter().find(|contact| {
+                contact.account == named.account
+                    && contact.public.is_some()
+                    && !contact.display_name.is_empty()
+            });
+            let (name, verified) = match card {
+                Some(contact) => (contact.display_name.clone(), true),
+                None => (named.display_name.clone(), me == Some(named.account)),
+            };
+            be_sdk_api::BlockMember {
+                account: named.account.into_bytes(),
+                name,
+                verified,
+            }
+        })
+        .collect()
+}
+
 pub fn level_of(access: be_block_graph::Access) -> AccessLevel {
     match access {
         be_block_graph::Access::None => AccessLevel::None,

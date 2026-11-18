@@ -11,7 +11,8 @@ Rust on both sides is generated from it into this crate. The world imports:
   `missing-characters`) and the watches of preferences, the UTC offset, fonts
   and input;
 - `blocks` (`blocks.wit`): the blocks an editor reads and changes, its replicas,
-  the graph, history, heads, artifact states and version control;
+  the graph, history, heads, artifact states, version control and who may
+  view the editor's block, named;
 - `shell` (`shell.wit`, with its shapes in `shell-types`): what an editor tells
   the shell around it, its menus, children, audio, web views and creations.
   Everything one way is a `shell-message` in a `tell`, sent once a pass in
