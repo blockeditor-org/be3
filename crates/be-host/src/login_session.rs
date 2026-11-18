@@ -10,7 +10,7 @@ mod sleep;
 use std::time::Duration;
 
 use be_host_base::host::{Desk, Mailbox, Post};
-use be_host_base::password::Password;
+use be_wasm_password::Password;
 use be_host_desktop::desktop_host::{DesktopHost, Host};
 pub(crate) use environment::export as export_environment;
 pub(crate) use install::{apply_elevated as apply_install_changes, install, uninstall};
@@ -151,7 +151,11 @@ impl Authenticate for Pam {
             .name("authenticate".to_owned())
             .spawn(move || {
                 let checked = be_host_base::panic_guard::contain(|| {
-                    pam::authenticate(service, &user, password.as_str())
+                    match password.as_str() {
+                        Some(typed) => pam::authenticate(service, &user, typed),
+                        // PAM checks text: a password that is not is no one's.
+                        None => Verdict::Failed("the password is not text".to_owned()),
+                    }
                 });
                 let verdict = checked.unwrap_or_else(|_| {
                     Verdict::Failed("the check stopped unexpectedly".to_owned())

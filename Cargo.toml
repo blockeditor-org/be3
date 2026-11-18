@@ -1,5 +1,6 @@
 [workspace]
 members = [
+    "crates/be-wasm-password",
     "crates/be-lib-quoted-name",
     "crates/be-block-repository",
     "crates/be-block-input",

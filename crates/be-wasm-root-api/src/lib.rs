@@ -10,7 +10,12 @@ pub use be_wasm_ops as ops;
 be_wasm_ops_bindgen::generate!({
     path: "wit",
     world: "root",
+    with: {
+        "password": ::be_wasm_password::Password,
+    },
+    secret: ["password"],
 });
 
 pub use frames::{FrameDone, FrameRequest};
-pub use host::{HostStatistics, Notice, NoticeAction, ShownNotices, StatisticRow};
+pub use host::{
+    LockState, PowerAction,HostStatistics, Notice, NoticeAction, ShownNotices, StatisticRow};

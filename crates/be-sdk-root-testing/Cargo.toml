@@ -21,6 +21,7 @@ be-sdk-root = { path = "../be-sdk-root" }
 be-wasm-gpu-guest = { path = "../be-wasm-gpu-guest" }
 be-wasm-guest-abi = { path = "../be-wasm-guest-abi" }
 be-wasm-ops = { path = "../be-wasm-ops" }
+be-wasm-password = { path = "../be-wasm-password" }
 be-wasm-root-api = { path = "../be-wasm-root-api" }
 beui = { path = "../beui" }
 

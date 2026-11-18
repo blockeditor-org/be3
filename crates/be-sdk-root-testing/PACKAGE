@@ -86,6 +86,7 @@ write_package_value("be3.cargo", {
                 "//crates/be-wasm-gpu-guest:be-wasm-gpu-guest",
                 "//crates/be-wasm-guest-abi:be-wasm-guest-abi",
                 "//crates/be-wasm-ops:be-wasm-ops",
+                "//crates/be-wasm-password:be-wasm-password",
                 "//crates/be-wasm-root-api:be-wasm-root-api",
                 "//crates/beui:beui",
             ],

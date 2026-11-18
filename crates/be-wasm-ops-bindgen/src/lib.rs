@@ -30,6 +30,7 @@ struct Options {
     ordered: BTreeSet<String>,
     deps: Vec<String>,
     local: BTreeSet<String>,
+    secret: BTreeSet<String>,
     network: bool,
 }
 
@@ -76,7 +77,7 @@ impl Parse for Options {
                     }
                 }
                 "copy" | "default" | "inline" | "lenient" | "ordered" | "deps" | "own_debug"
-                | "local" => {
+                | "local" | "secret" => {
                     let names;
                     bracketed!(names in content);
                     let names: Punctuated<LitStr, Token![,]> =
@@ -91,6 +92,7 @@ impl Parse for Options {
                         "ordered" => options.ordered = set(),
                         "own_debug" => options.own_debug = set(),
                         "local" => options.local = set(),
+                        "secret" => options.secret = set(),
                         _ => options.default = set(),
                     }
                 }
@@ -131,6 +133,9 @@ mod tests;
 ///   non-`Copy` types that derive `Ord` and `Hash`. `own_debug`: types whose crate writes
 ///   `Debug` itself.
 /// - `encodings` (map): the `be_wasm_ops::wire` encoding of a `with` type holding bytes.
+/// - `secret`: types holding a secret (a password): a call taking one, at any depth, has its encoded
+///   arguments zeroed once decoded (`be_wasm_ops::scrub`), so the secret lives on only in the
+///   decoded value, whose type zeroes itself. No other call pays for it.
 /// - `local`: interfaces answered synchronously on the guest's own thread (the GPU);
 ///   only these may have plain `func`s.
 /// - `network: true`: a client and server over a socket instead of a guest and host.
@@ -794,6 +799,38 @@ impl Generator {
                 }
             }
         })
+    }
+
+    /// Whether `ty` holds a type the options name as a secret, at any depth: itself, or in a
+    /// record's field, a list, an option, a tuple, a result or a variant's case.
+    fn holds_secret(&self, ty: &Type) -> bool {
+        let Type::Id(id) = ty else {
+            return false;
+        };
+        let def = &self.resolve.types[*id];
+        if def
+            .name
+            .as_ref()
+            .is_some_and(|name| self.options.secret.contains(name))
+        {
+            return true;
+        }
+        let holds = |ty: &Type| self.holds_secret(ty);
+        match &def.kind {
+            TypeDefKind::Type(inner) | TypeDefKind::List(inner) | TypeDefKind::Option(inner) => {
+                holds(inner)
+            }
+            TypeDefKind::Record(record) => record.fields.iter().any(|field| holds(&field.ty)),
+            TypeDefKind::Tuple(tuple) => tuple.types.iter().any(holds),
+            TypeDefKind::Variant(variant) => variant
+                .cases
+                .iter()
+                .any(|case| case.ty.as_ref().is_some_and(holds)),
+            TypeDefKind::Result(result) => {
+                result.ok.as_ref().is_some_and(holds) || result.err.as_ref().is_some_and(holds)
+            }
+            _ => false,
+        }
     }
 
     fn is_local(&self, interface: InterfaceId) -> bool {
@@ -1486,6 +1523,7 @@ impl Generator {
         let mut cases = Vec::new();
         let mut started_methods: Vec<TokenStream> = Vec::new();
         let mut arms = Vec::new();
+        let mut scrubs = false;
         let mut refusals = Vec::new();
         let mut ops = Vec::new();
         let mut handles = BTreeSet::new();
@@ -1577,9 +1615,16 @@ impl Generator {
                 (Shape::Stream(_), _, _) => quote!(Call::#case { stream, .. } => stream.op()),
             });
             started_methods.push(quote!(crate::__args::#constant));
+            // A call taking a secret has its arguments zeroed once decoded, so the secret lives on
+            // only in the call.
+            let secret = method.params.iter().any(|(_, ty)| self.holds_secret(ty));
+            scrubs |= secret;
+            let scrub = secret.then(|| quote!(::be_wasm_ops::scrub(&mut started.args);));
             arms.push(quote! {
                 crate::__args::#constant => {
-                    match ::be_wasm_ops::decode::<crate::__args::#args>(&started.args) {
+                    let decoded = ::be_wasm_ops::decode::<crate::__args::#args>(&started.args);
+                    #scrub
+                    match decoded {
                         ::core::option::Option::Some(crate::__args::#args { #(#names),* }) => {
                             Call::#case { #(#this_started,)* #(#value,)* #(#names,)* }
                         }
@@ -1611,6 +1656,7 @@ impl Generator {
                 }
             }
         });
+        let mutable = scrubs.then(|| quote!(let mut started = started;));
         let accept = match arms.is_empty() {
             true => quote! {
                 connection.complete(
@@ -1620,6 +1666,7 @@ impl Generator {
                 ::core::option::Option::None
             },
             false => quote! {
+                #mutable
                 let op = started.op;
                 ::core::option::Option::Some(match started.method {
                     #(#arms)*

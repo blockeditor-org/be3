@@ -21,8 +21,9 @@ use be_sdk_beui_root::{BeuiRoot, BeuiSurface};
 use be_sdk_root::{Delivery, Embedded, Embedding, OwnSurface, Spawn};
 use be_wasm_guest_abi::{Flow, Guest, Waker};
 use be_wasm_ops::guest::{Executor, LocalFuture};
+use be_wasm_password::Password;
 use be_wasm_root_api::{
-    FrameDone, FrameRequest, HostStatistics, Notice, StatisticRow,
+    FrameDone, FrameRequest, HostStatistics, LockState, Notice, PowerAction, StatisticRow,
     guest::{
         exports::{frames, input, paintings},
         host,
@@ -31,11 +32,12 @@ use be_wasm_root_api::{
 use beui::native::painting::{Frame as PaintFrame, Painting, ScreenPaintings};
 use beui::reactive::*;
 use beui::styled::*;
-use beui::{Align2, Direction, KeyPhase, NodeId, Overflow, Pos2, Rect, TextAlign, vec2};
+use beui::icons::{Glyph, ICON_LOG_OUT, ICON_MOON, ICON_POWER, ICON_ROTATE_CCW};
+use beui::{Align, Align2, Direction, KeyPhase, NodeId, Overflow, Pos2, Rect, TextAlign, vec2};
 
 use crate::{
     APP, APP_ENTRY, CLOSES, DIALOG_LAYER, DIALOG_ORIGIN, DIALOG_SIZE, DIALOG_SURFACE, DIALOG_TITLE,
-    LATE_LAYER, LATER, LATER_TEXT, OPENS_DIALOG, OPENS_STATISTICS, ORIGIN, RASTER, RESIZED,
+    LATE_LAYER, LATER, STRAY_PASSWORD, UNLOCKS_TWICE, LATER_TEXT, LOCK_LAYER, LOCK_SURFACE, LOCKS_SESSION, OPENS_DIALOG, OPENS_STATISTICS, ORIGIN, RASTER, RESIZED,
     RESIZES, ROOT_COLOR, ROOT_LAYER, ROOT_SURFACE, SCREEN, SCREEN_SIZE, SCRIM_COLOR, SCRIM_LAYER,
     SCRIM_SURFACE, SIZE, STATISTICS_AREA, STATISTICS_LAYER, STATISTICS_ORIGIN, STATISTICS_SURFACE,
     STATISTICS_TITLE, TEXT, TEXT_LAYER, TEXT_STRIP, TEXT_SURFACE, TOAST_AREA, TOAST_LAYER,
@@ -85,6 +87,10 @@ struct Root {
     shown_statistics: Rc<Cell<Option<Signal<HostStatistics>>>>,
     /// Counts the panel's openings, so a watch begun for an earlier one stops.
     statistics_opened: Rc<Cell<u64>>,
+    /// The session's screen lock as the host said last, until a frame shows it.
+    lock_state: Rc<RefCell<Option<LockState>>>,
+    /// Its lock screen, while the session is locked.
+    lock: Rc<RefCell<Option<Locked>>>,
     /// Wakes the root, and so its host, for a frame its beui document wants.
     waker: Waker,
 }
@@ -95,6 +101,19 @@ struct Dialog {
     /// How the person closed it from inside, which its document sets: with a name, or none.
     closed: Rc<RefCell<Option<Option<String>>>>,
     /// The layer focused when it opened, which gets the focus back when it closes.
+    had: Option<LayerId>,
+    /// Whether it took the focus yet: once it has been drawn.
+    focused: bool,
+}
+
+/// The root's lock screen while the session is locked.
+struct Locked {
+    surface: BeuiSurface,
+    /// The lock as its document shows it.
+    shown: Signal<LockState>,
+    /// The host's frame time when it was shown, from which the document counts down a wait.
+    shown_at: Signal<Duration>,
+    /// The layer focused when it locked, which gets the focus back once unlocked.
     had: Option<LayerId>,
     /// Whether it took the focus yet: once it has been drawn.
     focused: bool,
@@ -127,6 +146,8 @@ impl Root {
             statistics: Rc::default(),
             shown_statistics: Rc::default(),
             statistics_opened: Rc::default(),
+            lock_state: Rc::default(),
+            lock: Rc::default(),
             waker,
         }
     }
@@ -192,6 +213,7 @@ impl Root {
         *self.text.borrow_mut() = Some(text);
         *self.toasts.borrow_mut() = Some(toasts);
         be_wasm_ops::guest::spawn(self.clone().hear_notices());
+        be_wasm_ops::guest::spawn(self.clone().hear_lock());
         Ok(())
     }
 
@@ -207,6 +229,79 @@ impl Root {
                 surface.enter(|| shown.set(toasts));
             }
         }
+    }
+
+    /// Keeps the session's screen lock as each change of it comes, for the next frame to show,
+    /// until the host stops answering.
+    async fn hear_lock(self) {
+        let mut seen = 0;
+        while let Ok(lock) = host::lock(seen).await {
+            seen = lock.generation;
+            *self.lock_state.borrow_mut() = Some(lock);
+            self.waker.wake();
+        }
+    }
+
+    /// Shows the lock as the host said last: the lock screen while the session is locked, made
+    /// when it locks and gone once it is unlocked, giving the focus back to the layer that had
+    /// it.
+    fn settle_lock(&self) -> Result<(), String> {
+        let Some(state) = self.lock_state.borrow_mut().take() else {
+            return Ok(());
+        };
+        if !state.locked {
+            let unlocked = self.lock.borrow_mut().take();
+            if let Some(locked) = unlocked {
+                let told = self.embedding.borrow_mut().focus(None, locked.had);
+                self.heard(&told);
+            }
+            return Ok(());
+        }
+        let time = self
+            .beui
+            .borrow()
+            .as_ref()
+            .map_or(Duration::ZERO, BeuiRoot::time);
+        if let Some(locked) = &mut *self.lock.borrow_mut() {
+            let (shown, shown_at) = (locked.shown, locked.shown_at);
+            locked.surface.enter(|| {
+                shown_at.set(time);
+                shown.set(state);
+            });
+            return Ok(());
+        }
+        let Some(beui) = self.beui.borrow().clone() else {
+            return Ok(());
+        };
+        let shown = Rc::new(Cell::new(None));
+        let made = Rc::clone(&shown);
+        let waker = self.waker.clone();
+        let surface = BeuiSurface::new(
+            &beui,
+            OwnSurface::new(LOCK_SURFACE, SIZE),
+            1.0,
+            move || waker.wake(),
+            move || {
+                let state = create_signal(state);
+                let shown_at = create_signal(time);
+                made.set(Some((state, shown_at)));
+                view! {
+                    <Root>
+                        <LockCard state={state} shown_at={shown_at} />
+                    </Root>
+                }
+            },
+        )?;
+        let (shown, shown_at) = shown.get().ok_or("the lock screen's document made its state")?;
+        let had = self.embedding.borrow().focused(None).map(|layer| layer.id);
+        *self.lock.borrow_mut() = Some(Locked {
+            surface,
+            shown,
+            shown_at,
+            had,
+            focused: false,
+        });
+        Ok(())
     }
 
     /// The triangle, spawned the first time.
@@ -244,6 +339,19 @@ impl Root {
                 Input::Key(stroke) if stroke.pressed && !stroke.repeat => match stroke.key {
                     Some(key) if key == OPENS_DIALOG && !open => Some(Asked::Open),
                     Some(key) if key == OPENS_STATISTICS => Some(Asked::ToggleStatistics),
+                    Some(key) if key == UNLOCKS_TWICE => {
+                        unlock(STRAY_PASSWORD.to_owned());
+                        unlock(STRAY_PASSWORD.to_owned());
+                        None
+                    }
+                    Some(key) if key == LOCKS_SESSION => {
+                        be_wasm_ops::guest::spawn(async {
+                            // A host that cannot hear it has stopped, which the root hears from
+                            // its frames.
+                            let _ = host::lock_session().await;
+                        });
+                        None
+                    }
                     Some(Key::Escape) if open => Some(Asked::Close),
                     _ => None,
                 },
@@ -272,6 +380,9 @@ impl Root {
         }
         if let Some(statistics) = &mut *self.statistics.borrow_mut() {
             statistics.input(own);
+        }
+        if let Some(locked) = &mut *self.lock.borrow_mut() {
+            locked.surface.input(own);
         }
     }
 
@@ -368,7 +479,15 @@ impl Root {
             self.heard(&told);
             return Ok(());
         }
-        if asked != Some(Asked::Open) || self.dialog.borrow().is_some() {
+        // No dialog opens while the session is locked, so the focus the lock gives back is the
+        // one it took.
+        let locked = self.lock.borrow().is_some()
+            || self
+                .lock_state
+                .borrow()
+                .as_ref()
+                .is_some_and(|state| state.locked);
+        if asked != Some(Asked::Open) || self.dialog.borrow().is_some() || locked {
             return Ok(());
         }
         let Some(beui) = self.beui.borrow().clone() else {
@@ -408,14 +527,17 @@ impl Root {
     }
 }
 
-/// The chords the root takes ahead of the focus: F2, which opens the dialog, F3, which opens and
-/// closes the statistics panel, and Escape while
+/// The chords the root takes ahead of the focus, while the session is not locked: F2, which
+/// opens the dialog, F3, which opens and closes the statistics panel, F4, which locks the
+/// session, and Escape while
 /// the dialog is open but the focus is outside it. With the focus in the dialog, Escape is its
 /// document's, which closes it once nothing in it (a popup) took the key first.
 fn chords(escape: bool) -> Vec<KeyChord> {
     let mut chords = vec![
         KeyChord::new(OPENS_DIALOG, Modifiers::NONE),
         KeyChord::new(OPENS_STATISTICS, Modifiers::NONE),
+        KeyChord::new(LOCKS_SESSION, Modifiers::NONE),
+        KeyChord::new(UNLOCKS_TWICE, Modifiers::NONE),
     ];
     if escape {
         chords.push(KeyChord::new(Key::Escape, Modifiers::NONE));
@@ -607,6 +729,141 @@ fn StatisticCell(value: Memo<String>, weight: Memo<Weight>) -> NodeId {
     }
 }
 
+/// The lock screen: whose session it is, a password field it focuses, why the last password
+/// was refused, and what the host offers besides unlocking. What is typed is handed to the host
+/// to check, and the field cleared as it is.
+#[component]
+fn LockCard(state: Signal<LockState>, shown_at: Signal<Duration>) -> NodeId {
+    let password = create_signal(String::new());
+    let user = create_memo(move || state.with(|state| state.user.clone()));
+    let checking = create_memo(move || state.with(|state| state.checking));
+    let refused = create_memo(move || state.with(|state| state.refused.clone()));
+    let powers = create_memo(move || state.with(|state| state.power.clone()));
+    let wait = retry_wait(state, shown_at);
+    let slots = create_memo(move || (0..powers.with(Vec::len)).collect::<Vec<usize>>());
+    let submit = move |typed: String| {
+        if typed.is_empty() || checking.get_untracked() {
+            return;
+        }
+        password.set(String::new());
+        unlock(typed);
+    };
+    view! {
+        <Frame width=Length::FILL height=Length::FILL align=Align2::CENTER padding=Space::Lg>
+            <List spacing=Space::Md align=Align::Center>
+                <Text style=TextStyle::TITLE>{user}</Text>
+                <TextInput
+                    value={password}
+                    placeholder="Password"
+                    label="Password"
+                    kind={InputKind::Password}
+                    disabled={checking}
+                    focused=true
+                    on_submit={submit}
+                />
+                <Show value={move || checking.get() && refused.with(Option::is_none)}>
+                    <Text style=TextStyle::CAPTION>"Checking…"</Text>
+                </Show>
+                <Show value={refused}>|reason: ReadSignal<String>|
+                    <Text style=TextStyle::CAPTION color=TextColor::Danger>{reason}</Text>
+                </Show>
+                <Show value={wait}>|left: ReadSignal<String>|
+                    <Text style=TextStyle::CAPTION>{left}</Text>
+                </Show>
+                <List direction=Direction::Horizontal spacing=Space::Xs>
+                    <ForEach value={slots}>|index: usize| {
+                        let action = create_memo(move || {
+                            powers.with(|powers| powers.get(index).copied())
+                        });
+                        let label = create_memo(move || action.get().map(power_label).unwrap_or_default());
+                        let glyph = create_memo(move || action.get().map(power_glyph));
+                        view! {
+                            <Button
+                                icon_only=true
+                                glyph
+                                label
+                                on_click={move || {
+                                    if let Some(action) = action.get_untracked() {
+                                        lock_power(action);
+                                    }
+                                }}
+                            />
+                        }
+                    }</ForEach>
+                </List>
+            </List>
+        </Frame>
+    }
+}
+
+/// "Try again in N s" while the host makes the person wait after failed passwords (`retry-at`,
+/// on the host's frame clock), counted down a second at a time by a timer on beui's clock, which
+/// the root pins to the host's: `shown_at` is the host's frame time when the state was shown.
+/// None once the wait is over.
+fn retry_wait(state: Signal<LockState>, shown_at: Signal<Duration>) -> Memo<Option<String>> {
+    let retry_at = create_memo(move || state.with(|state| state.retry_at));
+    let left = create_signal(None::<u64>);
+    // When the wait was last shown, on beui's clock and on the host's.
+    let from = StoredCell::new((now(), Duration::ZERO));
+    let tick = create_timer(move || {
+        let at = retry_at.get_untracked()?;
+        let (since, host) = from.get();
+        let host_now = host + now().saturating_duration_since(since);
+        let host_now = u64::try_from(host_now.as_nanos()).unwrap_or(u64::MAX);
+        let seconds = at.saturating_sub(host_now).div_ceil(1_000_000_000);
+        left.set((seconds > 0).then_some(seconds));
+        (seconds > 0).then_some(Duration::from_secs(1))
+    });
+    create_effect(move || {
+        retry_at.get();
+        let host = shown_at.get();
+        untrack(|| {
+            from.set((now(), host));
+            left.set(None);
+            tick.restart(Duration::ZERO);
+        });
+    });
+    create_memo(move || left.get().map(|seconds| format!("Try again in {seconds} s")))
+}
+
+/// Hands `typed` to the host to check (`host.unlock`), keeping no copy: whether it unlocked the
+/// session reaches the root as the lock's next change, and why it was refused with it.
+fn unlock(typed: String) {
+    let password = Password::from(typed);
+    be_wasm_ops::guest::spawn(async move {
+        // A host that cannot hear it has stopped, which the root hears from its frames.
+        let _ = host::unlock(password).await;
+    });
+}
+
+/// Tells the host the person chose `action` on the lock screen.
+fn lock_power(action: PowerAction) {
+    be_wasm_ops::guest::spawn(async move {
+        // A host that cannot hear it has stopped, which the root hears from its frames.
+        let _ = host::lock_power(action).await;
+    });
+}
+
+fn power_label(action: PowerAction) -> String {
+    match action {
+        PowerAction::Suspend => "Suspend",
+        PowerAction::Restart => "Restart",
+        PowerAction::PowerOff => "Power off",
+        PowerAction::LogOut => "Log out",
+    }
+    .to_owned()
+}
+
+fn power_glyph(action: PowerAction) -> Glyph {
+    match action {
+        PowerAction::Suspend => ICON_MOON,
+        PowerAction::Restart => ICON_ROTATE_CCW,
+        PowerAction::PowerOff => ICON_POWER,
+        PowerAction::LogOut => ICON_LOG_OUT,
+    }
+    .to_owned()
+}
+
 /// The strip of text: `TEXT`, and `LATER_TEXT` from `LATER` on, or the `name` the dialog gave.
 #[component]
 fn Strip(name: Signal<Option<String>>) -> NodeId {
@@ -638,6 +895,8 @@ impl frames::Guest for Root {
                 .expect("the root's host gives it fonts and a device to draw its own surface on");
             root.settle_dialog()
                 .expect("the root draws its dialog with beui");
+            root.settle_lock()
+                .expect("the root draws its lock screen with beui");
             if request.time == RESIZES {
                 if let Some(own) = &mut *root.own.borrow_mut() {
                     own.resize(RESIZED);
@@ -672,6 +931,12 @@ impl frames::Guest for Root {
                 statistics
                     .frame()
                     .expect("the root draws its statistics with beui");
+            }
+            if let Some(locked) = &mut *root.lock.borrow_mut() {
+                locked
+                    .surface
+                    .frame()
+                    .expect("the root draws its lock screen with beui");
             }
             // The dialog's own actions closed it: gone from this frame already.
             root.settle_dialog()
@@ -725,9 +990,23 @@ impl frames::Guest for Root {
                         .layer(DIALOG_LAYER, pos2(DIALOG_ORIGIN.0, DIALOG_ORIGIN.1)),
                 );
             }
+            // While the session is locked, its lock screen over everything, taking every press,
+            // with no toast over it: it shows nothing it would not show a stranger.
+            let locked = root.lock.borrow().is_some();
+            if let Some(locked) = &*root.lock.borrow() {
+                let mut layer = locked.surface.layer(LOCK_LAYER, pos2(0.0, 0.0));
+                layer.input = LayerInput {
+                    hit: Area::Whole,
+                    captures: true,
+                    focuses: true,
+                    ..LayerInput::default()
+                };
+                layers.push(layer);
+            }
             // Over everything, while a toast shows: hit only where one is, and never taking the
             // focus from what the person works in.
             if let Some(toasts) = &*root.toasts.borrow()
+                && !locked
                 && let hit @ Area::Region(_) = toasts.overlay_area()
             {
                 let mut layer = toasts.layer(TOAST_LAYER, pos2(0.0, 0.0));
@@ -747,18 +1026,26 @@ impl frames::Guest for Root {
             let mut embedding = root.embedding.borrow_mut();
             let wants = embedding.wants();
             let drawn = embedding.drew(list);
-            // The dialog drawn for the first time takes the focus.
-            let focus = match &mut *root.dialog.borrow_mut() {
-                Some(dialog) if !dialog.focused => {
+            // The lock screen, or else the dialog, drawn for the first time takes the focus.
+            let focus = match (&mut *root.lock.borrow_mut(), &mut *root.dialog.borrow_mut()) {
+                (Some(locked), _) if !locked.focused => {
+                    locked.focused = true;
+                    embedding.focus(None, Some(LOCK_LAYER))
+                }
+                (None, Some(dialog)) if !dialog.focused => {
                     dialog.focused = true;
                     embedding.focus(None, Some(DIALOG_LAYER))
                 }
                 _ => Vec::new(),
             };
-            // Escape is the root's while its dialog is open and the focus is outside it.
+            // While locked, the root takes no key ahead of the lock screen. Otherwise Escape is
+            // the root's while its dialog is open and the focus is outside it.
             let outside = root.dialog.borrow().is_some()
                 && embedding.focused(None).map(|layer| layer.id) != Some(DIALOG_LAYER);
-            embedding.intercept(chords(outside));
+            embedding.intercept(match locked {
+                true => vec![KeyChord::new(UNLOCKS_TWICE, Modifiers::NONE)],
+                false => chords(outside),
+            });
             drop(embedding);
             root.heard(&drawn.own);
             root.heard(&focus);
@@ -778,20 +1065,30 @@ impl frames::Guest for Root {
                 .borrow()
                 .as_ref()
                 .and_then(BeuiSurface::next);
+            let lock = root
+                .lock
+                .borrow()
+                .as_ref()
+                .and_then(|locked| locked.surface.next());
             let next = wants
                 .next
                 .into_iter()
                 .chain(documents)
                 .chain(dialog)
                 .chain(statistics)
+                .chain(lock)
                 .min();
             // The input method is where the focused surface edits: an app's screen, or the
             // field of its dialog.
             let ime = embedding.ime(None).or_else(|| {
                 let focused = embedding.focused(None)?;
                 let dialog = root.dialog.borrow();
-                let dialog = dialog.as_ref().filter(|_| focused.id == DIALOG_LAYER)?;
-                dialog.surface.ime(focused)
+                let lock = root.lock.borrow();
+                match focused.id {
+                    DIALOG_LAYER => dialog.as_ref()?.surface.ime(focused),
+                    LOCK_LAYER => lock.as_ref()?.surface.ime(focused),
+                    _ => None,
+                }
             });
             FrameDone {
                 layers: drawn.layers,
@@ -872,8 +1169,13 @@ impl paintings::Guest for Root {
             };
             Some((u64::from(scrim.id()), painting))
         });
-        // Its statistics panel only while it is open.
+        // Its statistics panel only while it is open, and its lock screen while locked.
         let statistics = self.statistics.borrow().as_ref().and_then(painted);
+        let lock = self
+            .lock
+            .borrow()
+            .as_ref()
+            .and_then(|locked| painted(&locked.surface));
         let painted = ScreenPaintings {
             screens: own
                 .into_iter()
@@ -882,6 +1184,7 @@ impl paintings::Guest for Root {
                 .chain(scrim)
                 .chain(dialog)
                 .chain(toasts)
+                .chain(lock)
                 .collect(),
             overflows: Vec::new(),
         };
