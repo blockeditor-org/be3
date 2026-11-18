@@ -578,7 +578,9 @@ order: presence and channel messages. The rules an agent most needs:
   `RESTART_CEILING` times the limit, the holder submits a restart `Reload` of
   the seal, once a seal holds everything the order numbered (a restart applies
   nothing again on top of its commit, so one on a seal the order has moved past
-  would lose what came after; it waits for the next), a barrier: every replica
+  would lose what came after; it waits for the next, and meanwhile the holder
+  holds its own edits back and seals again once what it submitted is numbered,
+  which alone gives it one within a round trip), a barrier: every replica
   reloads the commit, moves what it has not had numbered onto it with
   `LiveEdit::carry_over` and submits it again, and undo stops there
   (decisions/sessions_restart_when_their_state_outgrows_the_content.md). A

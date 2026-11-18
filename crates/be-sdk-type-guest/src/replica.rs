@@ -634,6 +634,12 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     /// Reloads waiting for the part their state goes by (`submit_reloads`): seals wait for
     /// them as for those in `reloading`.
     reloads_putting: VecDeque<PendingReload>,
+    /// A restart is due and the last seal fell short of what the order numbered: this
+    /// holder's own edits wait (`flush`), and it seals again once what it submitted is numbered
+    /// (`seal_for_restart`).
+    restart_short: bool,
+    /// Said once that a due restart was put off past `RESTART_CEILING` times the limit.
+    restart_overdue: bool,
     /// The last barrier applied.
     replaced_at: u64,
     /// The counter of this replica's last submission, from a random start: ids never repeat.
@@ -982,6 +988,8 @@ where
             keep: Vec::new(),
             reloading: Vec::new(),
             reloads_putting: VecDeque::new(),
+            restart_short: false,
+            restart_overdue: false,
             replaced_at: 0,
             // Leaves room for 2^48 submissions after it.
             counter: Uuid::new_v4().as_u64_pair().0 >> 16,
@@ -2620,9 +2628,32 @@ where
                 }
                 // The restart reloads this seal's commit afresh and applies nothing on top of it:
                 // what the order numbered after the seal would be lost, so it waits for a seal
-                // that holds everything numbered (the next, which this one owes).
-                if self.restart_due() && self.applied == through {
-                    self.submit_reload(head, true, true, Vec::new(), None);
+                // that holds everything numbered.
+                // Nothing of its own may be on its way either: numbered before the restart, it
+                // would be in neither the commit nor what the restart carries.
+                let own_on_its_way = self.pending.iter().any(|sent| sent.operation.is_some());
+                match self.restart_due() {
+                    true if self.applied == through && !own_on_its_way => {
+                        self.restart_short = false;
+                        self.submit_reload(head, true, true, Vec::new(), None);
+                    }
+                    // Short: this holder holds its own edits back and seals again as soon as
+                    // what it submitted is numbered, which, alone, holds everything.
+                    true => {
+                        self.restart_short = true;
+                        let state = self.confirmed.session_state().len();
+                        if state > restart_limit().saturating_mul(RESTART_CEILING)
+                            && !std::mem::replace(&mut self.restart_overdue, true)
+                        {
+                            self.error(format!(
+                                "a restart is overdue: the session state is {state} bytes, and \
+                                 every seal falls short of what the order numbered (others are \
+                                 writing; plans/restart_carries_numbered_entries.md)"
+                            ));
+                        }
+                        self.seal_for_restart();
+                    }
+                    false => self.restart_short = false,
                 }
             }
             AfterPublish::Merged { through, state } => {
@@ -3063,6 +3094,7 @@ where
                 self.rebuild_visible();
             }
             self.cover_if_settled();
+            self.seal_for_restart();
             return self.take_heard_seal();
         }
         if mine {
@@ -3239,6 +3271,30 @@ where
         if self.waiting.is_none() || self.sealing_out() {
             self.flush();
         }
+    }
+
+    /// While a restart waits for a seal holding everything numbered (`restart_short`), seals
+    /// once this holder has nothing of its own on its way: with no other writer, that seal holds
+    /// everything, and the restart follows it. One that is no longer holder, or whose restart is
+    /// no longer due, lets its edits go again.
+    fn seal_for_restart(&mut self) {
+        if !self.restart_short {
+            return;
+        }
+        if !self.is_holder() || !self.restart_due() {
+            self.restart_short = false;
+            self.jobs.push_back(Job::Unblocked);
+            return;
+        }
+        let queued = self.jobs.iter().any(|job| matches!(job, Job::Seal { .. }));
+        if self.pending.iter().any(|sent| sent.operation.is_some()) || queued || self.sealing {
+            return;
+        }
+        self.sealing = true;
+        self.jobs.push_back(Job::Seal {
+            sealing: Sealing::Once,
+            reply: None,
+        });
     }
 
     /// A stash the order keeps, or a reload, is sealed at once: what it changed reaches the
@@ -3517,7 +3573,8 @@ where
             self.submit_reloads();
         }
         // A put that failed goes again on its timer (`tick`), whatever asks meanwhile.
-        if !self.loaded
+        if self.restart_short
+            || !self.loaded
             || self.released
             || self.put_retry_at.is_some()
             || self.diverged
@@ -4731,6 +4788,10 @@ where
             self.show_presence_to(client);
         }
         if was_holder && !self.is_holder() {
+            // Its edits held for a restart go again: the restart is the new holder's.
+            if std::mem::take(&mut self.restart_short) {
+                self.jobs.push_back(Job::Unblocked);
+            }
             // A merge that was failing is the new holder's to do.
             self.merge_failures = 0;
             self.merge_retry_at = None;

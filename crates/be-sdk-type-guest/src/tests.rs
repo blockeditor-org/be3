@@ -152,6 +152,7 @@ mod undo_reverts_only_this_devices_edit;
 mod what_is_typed_while_a_seal_waits_on_the_server_is_journaled_at_once;
 mod what_is_typed_while_a_seal_waits_survives_a_crash_before_the_seal_is_answered;
 mod a_restart_waits_for_a_seal_holding_everything_the_order_numbered;
+mod a_holder_streaming_alone_restarts_once_its_own_edits_are_numbered;
 
 #[derive(Clone, Debug, Default, Eq, Model, PartialEq)]
 struct Checklist {
