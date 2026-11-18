@@ -23,7 +23,7 @@ use be_wasm_guest_abi::{Flow, Guest, Waker};
 use be_wasm_ops::guest::{Executor, LocalFuture};
 use be_wasm_password::Password;
 use be_wasm_root_api::{
-    FrameDone, FrameRequest, HostStatistics, LockState, Notice, PowerAction, Saving,
+    FrameDone, FrameRequest, HostStatistics, LockState, Notice, PowerAction, SavingState,
     StatisticRow, SyncState,
     guest::{
         exports::{frames, input, paintings},
@@ -72,9 +72,9 @@ struct Root {
     toasts: Rc<RefCell<Option<BeuiSurface>>>,
     /// The toasts that document shows, which the host's notices set.
     shown: Rc<Cell<Option<Signal<Vec<Toast>>>>>,
-    /// Whether its host's changes are saved, as its core said last, which the toasts' document
+    /// Whether its host's changes are saved, as its host said last, which the toasts' document
     /// shows (the slow save's toast).
-    saving: Rc<Cell<Option<Signal<Saving>>>>,
+    saving: Rc<Cell<Option<Signal<SavingState>>>>,
     /// The surface a `RESIZES` frame configures and never presents.
     unpresented: Rc<RefCell<Option<OwnSurface>>>,
     /// The scrim under its dialog, filled with `SCRIM_COLOR` on its first frame.
@@ -203,7 +203,8 @@ impl Root {
             move || {
                 let toasts = create_signal(Vec::<Toast>::new());
                 shown.set(Some(toasts));
-                let saving = create_signal(Saving {
+                let saving = create_signal(SavingState {
+                    generation: 0,
                     unsaved: false,
                     saves: 0,
                     unsent: 0,
@@ -228,7 +229,7 @@ impl Root {
         *self.toasts.borrow_mut() = Some(toasts);
         be_wasm_ops::guest::spawn(self.clone().hear_notices());
         be_wasm_ops::guest::spawn(self.clone().hear_lock());
-        be_wasm_ops::guest::spawn(self.clone().hear_core());
+        be_wasm_ops::guest::spawn(self.clone().hear_saving());
         Ok(())
     }
 
@@ -246,16 +247,16 @@ impl Root {
         }
     }
 
-    /// Shows what its host's core shows as each change of it comes, until the host stops
-    /// answering: whether its changes are saved, in the toasts' document.
-    async fn hear_core(self) {
+    /// Shows whether its host's changes are saved as each change of it comes, until the host
+    /// stops answering: the slow save's toast, in the toasts' document.
+    async fn hear_saving(self) {
         let mut seen = 0;
-        while let Ok(core) = host::core(seen).await {
-            seen = core.generation;
-            if let (Some(surface), Some(saving)) =
+        while let Ok(saving) = host::saving(seen).await {
+            seen = saving.generation;
+            if let (Some(surface), Some(shown)) =
                 (&mut *self.toasts.borrow_mut(), self.saving.get())
             {
-                surface.enter(|| saving.set(core.saving));
+                surface.enter(|| shown.set(saving));
             }
         }
     }
@@ -653,7 +654,7 @@ fn answer(id: u64, action: Option<String>) {
 /// Its host's notices as toasts at the top right of its surface, each gone at once from here
 /// when dismissed, as its host lets go of it.
 #[component]
-fn Notices(toasts: Signal<Vec<Toast>>, saving: Signal<Saving>) -> NodeId {
+fn Notices(toasts: Signal<Vec<Toast>>, saving: Signal<SavingState>) -> NodeId {
     let (width, height) = TOAST_AREA;
     let area = Rect::from_min_size(Pos2::ZERO, vec2(width as f32, height as f32));
     let slow = slow_save(saving);
@@ -701,7 +702,7 @@ struct SlowSave {
     dismissed: Signal<bool>,
 }
 
-fn slow_save(saving: Signal<Saving>) -> SlowSave {
+fn slow_save(saving: Signal<SavingState>) -> SlowSave {
     let saved = create_memo(move || !saving.with(|saving| saving.unsaved));
     let saves = create_memo(move || saving.with(|saving| saving.saves));
     let slow = create_signal(false);

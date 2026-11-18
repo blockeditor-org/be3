@@ -203,12 +203,12 @@ its own (a `v8::SharedIsolate`, locked by the thread that runs it):
   the lock again with none once the wait is over), checks it, drops it, which zeroes it,
   and shows the lock as it then stands. The call's arguments are zeroed once
   decoded (the bindings' `secret` option, for this call alone) and the frames
-  that carried it once read; the guest's own buffers are not. `host.core` is a
-  watch of what be-host's core shows (its accounts, organizations, displays
-  and the block stack's status, until step 5 moves the core into the root):
-  one `core-view` record, a field per area (`saving` so far), answered once
-  anything in it changed (`Root::show_core`); the core's commands will come
-  back through one call beside it (plans/host_as_platform_adapter.md, 4g6).
+  that carried it once read; the guest's own buffers are not. `host.saving` is a
+  watch of whether the person's changes are saved (unsaved, the saves finished,
+  the changes not yet sent, the sync's state; `Root::show_saving`), apart from
+  anything slower since it moves at the rate the person types
+  (plans/host_as_platform_adapter.md, 4g6, has how the rest of be-host's core
+  reaches the root).
   The input method
   needs nothing more: the platform's input-method events reach the root as
   input, which its router hands the focused surface, and the field that

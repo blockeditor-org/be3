@@ -1053,40 +1053,52 @@ Each step lands on its own.
        be-host-accounts-ui, over the block stack's messages and the password check the host
        grants.
        How the rest reaches the root (the design, before the slices). Onboarding, saving,
-       keep changes, organization and be-host-accounts-ui show what be-host's core decides
-       today: its accounts and sign-in, the keys, its organizations and sessions, its displays
-       and the block stack's status, which `App::view` gathers into one `HostUi` each frame and
-       whose commands come back as `UiCommand`s. That core leaves be-host only with the block
-       stack (step 5), so until then the root shows it over two calls of `be3:root`, data and
-       nothing beui's:
-       - `host.core(seen)`, a watch as `host.notices` is, answering one `core-view` record
-         whenever any of it changed from the generation the root saw. It holds a field per area
-         (saving, the display awaiting keep or revert, the accounts, the organizations, the
-         sessions, invitations, contacts, members, recovery), each the plain data be-host's
-         `HostUi` holds for it, with block ids as UUIDs and no labels the root can word itself.
-       - `host.core-command(command)`, a `core-command` variant with a case per `UiCommand` the
-         area sends, answering at once; what it changes reaches `core`.
-       One watch and one command call, rather than a pair per area, because they are one
-       thing that moves whole: step 5 makes the core the root's own, and these two calls go,
-       while the platform's own capabilities (notices, the lock, statistics, the clipboard)
-       stay host calls of their own. A secret the person types (the recovery phrase) crosses as
-       `host.unlock`'s password does, once, inside a command, zeroed by the host, never in the
-       view. Each area adds its field and its commands with the slice that moves it; be-host's
-       `--root` answers what its core has, which is nothing before it runs the core (4g7):
-       nothing to save, no display waiting, no accounts. The slices: 4g6b the watch with saving
-       (the slow save's toast); 4g6c the command call with keep changes (the display's
-       countdown); 4g6d accounts and adding one (onboarding); 4g6e organizations, sessions and
-       their dialogs; 4g6f recovery and the phrase.
-       - 4g6b. Built: `host.core`, the core's view as one watch (`core-view`), with its first
-         area, saving (`saving`: whether some change is unsaved, the saves finished so far, the
-         changes not yet sent, and the sync's state), from which the root shows the slow save's
-         toast as be-host's own UI does (be-wasm-root-host's `Root::show_core`). be-host's
-         `--root` runs no core, so the view stays as `be3:root` starts it: all saved.
+       keep changes, organization and be-host-accounts-ui show what be-host decides today,
+       which `App::view` gathers into one `HostUi` each frame and whose commands come back as
+       `UiCommand`s. Two kinds of it go two ways, all data and nothing beui's:
+       - The platform's own, which stays the host's after step 5, gets a capability of its own,
+         as notices, the lock and statistics have: keep changes (the display settings waiting
+         to be kept or reverted) is a watch and a keep-or-revert call. Displays never enter
+         the core's view.
+       - The core's, which leaves be-host only with the block stack in step 5 (its accounts and
+         sign-in, the keys, its organizations and sessions, the block stack's status), crosses
+         as one watch, `host.core(seen)` answering a `core-view` record with a field per area
+         (each the plain data `HostUi` holds for it, block ids as UUIDs, no labels the root can
+         word itself), and one command call, `host.ask-core(command)`, a `core-command` variant
+         with a case per `UiCommand` an area sends; what it changes reaches `core`. One pair
+         rather than a pair per area, since the core moves whole: step 5 makes it the root's
+         own and the pair goes.
+       What changes often gets a watch of its own, apart from `core-view`: saving (whether a
+       change is unsaved, the saves finished), which moves at the rate the person types, is
+       `host.saving`. Were it a field of `core-view`, every keystroke would resend the whole
+       view (the accounts, the organizations, each one's sessions) and wake every area's
+       document; apart, a change of saving costs only itself, and `core-view` changes only at
+       the rate its slow areas do. The root splits `core-view` into one memo per area, so an
+       area whose field did not change does not render again. A secret the person types (the
+       recovery phrase) crosses as `host.unlock`'s password does, once, inside a command,
+       zeroed by the host, never in the view. Each area adds its field and its commands with
+       the slice that moves it; be-host's `--root` answers what it has, which is nothing before
+       it runs the core (4g7): nothing to save, no display waiting, no accounts. be-host's own
+       `SlowSave` is a copy of the root's slow save's toast until the root becomes the default
+       (4g7), which deletes be-host's UI and the copy with it; a crate shared for one interim
+       duplicate is not worth it. The slices: 4g6b saving (the slow save's toast); 4g6c keep
+       changes (the display's countdown); 4g6d the core's view and commands with the changes
+       not yet sent and discarding them (the unsent dialog); 4g6e accounts and adding one
+       (onboarding); 4g6f organizations, sessions and their dialogs; 4g6g recovery and the
+       phrase.
+       - 4g6b. Built: `host.saving`, a watch of whether the person's changes are saved
+         (`saving-state`: whether some change is unsaved, the saves finished so far, the changes
+         not yet sent, and the sync's state), from which the root shows the slow save's toast
+         as be-host's own UI does (be-wasm-root-host's `Root::show_saving`). be-host's `--root`
+         runs no block stack, so it stays as `be3:root` starts it: all saved. The count of
+         unsent changes is a `u32`, which 4g7's host saturates from its `usize`.
          be-sdk-root-testing shows the slow save's toast among its notices once changes stay
          unsaved for `SLOW_SAVE` by the host's frame clock, a finished save starting the wait
-         afresh, until they are saved or it is dismissed; be-wasm-root-host's
-         `a_root_shows_the_slow_saves_toast_while_its_hosts_core_has_changes_unsaved` checks
-         it and snapshots the toast.
+         afresh, until they are saved or it is dismissed, and hides it with every toast while
+         locked; be-wasm-root-host's
+         `a_root_shows_the_slow_saves_toast_while_its_hosts_changes_stay_unsaved` checks the
+         wait, a save restarting it, a dismissed toast staying dismissed while still unsaved,
+         and the toast hidden while locked, and snapshots the toast.
        - 4g6a. Built: the lock screen, over the screen lock and password check the host grants.
          The lock is the host's (the platform's, a login session's): `be3:root` carries it as
          data, nothing beui's. `host.lock` is a watch, as `host.notices` is, answering the lock

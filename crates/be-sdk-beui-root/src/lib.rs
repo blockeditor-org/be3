@@ -346,10 +346,13 @@ impl BeuiSurface {
         }
     }
 
-    /// Runs `change` in the document, as its own code runs, so it may set the signals the
-    /// document reads: what the root tells it from outside, such as its host's notices. Its
+    /// Runs `change` in the document, as its own code runs, at the host's frame clock's time the
+    /// root was handed last, so it may set the signals the document reads: what the root tells it from outside, such as its host's notices. Its
     /// next frame is due at once, and the root is woken for it.
     pub fn enter<R>(&mut self, change: impl FnOnce() -> R) -> R {
+        // At the host's time now, as the document's own code runs in a frame: a timer `change`
+        // starts counts from it, not from the document's last frame.
+        self.root.pin(self.runner.context());
         let program: &mut dyn Any = self.runner.program_mut();
         let showing = program
             .downcast_mut::<Showing>()

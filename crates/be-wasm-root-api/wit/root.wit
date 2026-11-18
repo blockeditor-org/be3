@@ -222,33 +222,29 @@ interface host {
     }
 
     /// Whether the person's changes are saved: what the root shows while they
-    /// are not, and when saving takes long (the slow save's toast).
-    record saving {
+    /// are not, and when saving takes long (the slow save's toast). It changes
+    /// at the rate the person types, so it is a watch of its own rather than a
+    /// field of anything slower.
+    record saving-state {
+        /// Which change of it this is, which the next `saving` call names as
+        /// `seen`: never 0.
+        generation: u64,
         /// Whether some change is not saved to this device yet.
         unsaved: bool,
         /// Counts the saves finished so far: a save that finishes while others
         /// are still unsaved still moves it, so a wait for saving starts afresh.
         saves: u64,
-        /// How many saved changes are not sent to the server yet.
+        /// How many saved changes are not sent to the server yet; a host with
+        /// more says as many as fit.
         unsent: u32,
+        /// How the block stack's sync with its server stands.
         sync: sync-state,
     }
 
-    /// What be-host's core shows the person (plans/host_as_platform_adapter.md,
-    /// step 4g6): its accounts and sign-in, its organizations and sessions, its
-    /// displays and the block stack's status, which leave the host with the
-    /// block stack (step 5). One record, a field per area, each the area's
-    /// plain data.
-    record core-view {
-        /// Which change of the view this is, which the next `core` call names
-        /// as `seen`: never 0.
-        generation: u64,
-        saving: saving,
-    }
-
-    /// The core's view, once it differs from the generation `seen`, as
-    /// `notices` answers: at once for any other generation, such as 0.
-    core: async func(seen: u64) -> core-view;
+    /// Whether the person's changes are saved, once it differs from the
+    /// generation `seen`, as `notices` answers: at once for any other
+    /// generation, such as 0.
+    saving: async func(seen: u64) -> saving-state;
 }
 
 /// The window's input, which the host hands the root inline on its frame thread
