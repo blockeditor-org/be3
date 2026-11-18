@@ -370,12 +370,6 @@ Depends on #686 (session catch-ups replaced by server ordering).
   draining. Whether it counted 1 (the edit lost) or 21 (ordered twice) was not recorded;
   `wait_for_count` now says what it last counted. Done: the cause found from that output and
   fixed at its source, with a test that shows it.
-- **A retried listing sent late.** be-host-runtime's
-  `a_listing_the_host_could_not_load_reaches_the_app_as_failed` failed once in a full verify
-  (`once a retry loads it, the answer is sent again`: nothing was sent) and passes alone. A
-  suspect: after `refetch`, `loaded` finds the graph's query ready before the refetch has
-  marked it loading, so the test reads the app's answers before the new listing is sent.
-  Done: the test waits on the refetched listing itself, and passes 100 runs under load.
 - **A restarted app's editor that is never sent its snapshot.** When an app restarts,
   be-host-runtime marks each content link undelivered (`instances.rs`, where it reopens), but
   if the host attaches the editor again (`attaching`) it does not forward the app's `Resend`
