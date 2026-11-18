@@ -34,5 +34,8 @@ fn a_surface_shows_what_was_presented_until_it_is_presented_again() {
     let (shown, _) = gpu.presented_surface(0).expect("the surface was presented");
     assert_eq!(shown.width(), 640, "presented again, it shows its new size");
     gpu.detach_surface(0);
-    assert!(gpu.presented_surface(0).is_none(), "let go of, it shows nothing");
+    assert!(
+        gpu.presented_surface(0).is_none(),
+        "let go of, it shows nothing"
+    );
 }
