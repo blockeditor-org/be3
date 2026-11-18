@@ -370,13 +370,6 @@ Depends on #686 (session catch-ups replaced by server ordering).
   gives no fixed places, so a keyboard carry cannot step into it. Done: a
   custom site offers stepping points (a frame grid along the timeline), shown
   by a test that carries a clip there from the keyboard.
-- **A fixed list's carried row is listed twice.** A `fixed` `Reorder` keeps
-  its own row's slot open at opacity 0 while the list draws the row's preview
-  at its root, and an opacity-0 frame stays in the accessibility tree, so a
-  screen reader finds the row twice. Nothing on either core hides a subtree
-  from accessibility (aria-hidden on HTML). Done: the hidden row leaves the
-  tree on both cores, shown by a drive step on a fixed list that finds the
-  carried row once.
 - **A floating row's announcements.** The live region that says a carry's
   places (`Interactive`'s `CarryStatus`) is inside the source, so a `Reorder`
   row carried off its list, collapsed, says nothing more until it lands, when
