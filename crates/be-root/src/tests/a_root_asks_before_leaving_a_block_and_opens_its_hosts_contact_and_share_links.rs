@@ -1,7 +1,7 @@
 use be_lib_geometry::pos2;
 use be_lib_ui_types::input::{ImeEvent, Input};
 use be_lib_ui_types::{Key, Modifiers};
-use be_sdk_root_testing::{DIALOG_LAYER, DIALOG_SURFACE, OPENS_CONTACTS, OPENS_SHARE_LINKS};
+use crate::{DIALOG_LAYER, DIALOG_SURFACE};
 use be_wasm_root_api::{
     ContactCard, ContactMismatch, ContactRow, ContactsArea, CoreCommand, CoreSecret, CoreView,
     Leaving, SecretCommand, ShareAccess, ShareLinksArea, SharePreview,
@@ -152,7 +152,7 @@ fn a_root_asks_before_leaving_a_block_and_opens_its_hosts_contact_and_share_link
     let _ = asks(&mut root, &mut time, Vec::new());
 
     // F12 opens the contacts afresh; New link makes a contact link, which comes back once.
-    let commands = asks(&mut root, &mut time, key(OPENS_CONTACTS));
+    let commands = menu(&mut root, &mut time, Entry::Contacts);
     assert!(
         matches!(commands.as_slice(), [CoreCommand::ForgetContactLink]),
         "opening them starts afresh: {commands:?}"
@@ -185,7 +185,7 @@ fn a_root_asks_before_leaving_a_block_and_opens_its_hosts_contact_and_share_link
     let _ = asks(&mut root, &mut time, key(Key::Escape));
 
     // A contact link opened: who it is from, to connect with.
-    let _ = asks(&mut root, &mut time, key(OPENS_CONTACTS));
+    let _ = menu(&mut root, &mut time, Entry::Contacts);
     root.show_core(contacts(Some(ContactCard {
         name: "Ada".to_owned(),
         email: "ada@example.com".to_owned(),
@@ -218,7 +218,7 @@ fn a_root_asks_before_leaving_a_block_and_opens_its_hosts_contact_and_share_link
     let _ = asks(&mut root, &mut time, key(Key::Escape));
 
     // F8 opens a share link: the pasted link crosses as typed, inside the command alone.
-    let commands = asks(&mut root, &mut time, key(OPENS_SHARE_LINKS));
+    let commands = menu(&mut root, &mut time, Entry::ShareLink);
     assert!(
         matches!(commands.as_slice(), [CoreCommand::ForgetShareLink]),
         "opening it starts afresh: {commands:?}"

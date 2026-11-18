@@ -1,6 +1,6 @@
 use be_lib_geometry::pos2;
 use be_lib_ui_types::{Key, Modifiers};
-use be_sdk_root_testing::{DIALOG_LAYER, DIALOG_SURFACE, OPENS_INVITATIONS};
+use crate::{DIALOG_LAYER, DIALOG_SURFACE};
 use be_wasm_root_api::{
     BrowserSignIn, CoreCommand, CoreSecret, CoreView, DiscardReason, InvitationRow,
     InvitationState, InvitationsArea, Reauthenticating, SecretCommand, SigningIn,
@@ -211,7 +211,7 @@ fn a_root_asks_its_hosts_questions_and_shows_an_invitations_link_only_once() {
     let _ = settle(&mut root, &mut time);
 
     // F9 lists the invitations, which hold no link.
-    let commands = press(&mut root, &mut time, OPENS_INVITATIONS);
+    let commands = menu(&mut root, &mut time, Entry::Invitations);
     assert!(
         matches!(commands.as_slice(), [CoreCommand::ListInvitations]),
         "opening them lists them: {commands:?}"
@@ -325,12 +325,12 @@ fn a_root_asks_its_hosts_questions_and_shows_an_invitations_link_only_once() {
         "a request cancelled before the host took it is never made"
     );
     assert!(!shows_dialog(&mut root, &mut time));
-    let _ = press(&mut root, &mut time, OPENS_INVITATIONS);
+    let _ = menu(&mut root, &mut time, Entry::Invitations);
 
     // Closed, the link goes: opened again, the invitations show without it.
     let _ = press(&mut root, &mut time, Key::Escape);
     assert!(!shows_dialog(&mut root, &mut time));
-    let commands = press(&mut root, &mut time, OPENS_INVITATIONS);
+    let commands = menu(&mut root, &mut time, Entry::Invitations);
     assert!(matches!(
         commands.as_slice(),
         [CoreCommand::ListInvitations]

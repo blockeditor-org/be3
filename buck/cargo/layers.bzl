@@ -12,6 +12,7 @@ FAMILIES = [
     "be-block",
     "be-host",
     "be-lib",
+    "be-root",
     "be-sdk",
     "be-server",
     "be-tool",
@@ -35,6 +36,7 @@ LAYERS = {
     "be-block": ["be-block", "be-lib", "be-wasm", "be-sdk-type"],
     "be-host": [
         "be-host",
+        "be-root",
         "be-sdk",
         "be-type",
         "be-block",
@@ -46,6 +48,9 @@ LAYERS = {
         "tabletop",
     ],
     "be-lib": ["be-lib", "be-wasm"],
+    # The root be-host runs in place of its own UI, a guest on the apps' platform as an app is,
+    # and what it shares with be-host's own UI (be-root-accounts-ui).
+    "be-root": ["be-root", "be-sdk", "beui", "be-lib", "be-wasm"],
     "be-sdk": ["be-sdk", "be-block", "be-type", "beui", "be-lib", "be-wasm"],
     "be-server": ["be-server", "be-block", "be-lib", "be-wasm"],
     "be-type": ["be-type", "be-sdk-type", "be-block", "be-lib", "be-wasm", "logicgame", "tabletop"],

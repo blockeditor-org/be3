@@ -1,7 +1,7 @@
 use be_lib_geometry::pos2;
 use be_lib_ui_types::input::{ImeEvent, Input};
 use be_lib_ui_types::{Key, Modifiers};
-use be_sdk_root_testing::{DIALOG_LAYER, DIALOG_SURFACE, OPENS_AGENTS, OPENS_MEMBERS};
+use crate::{DIALOG_LAYER, DIALOG_SURFACE};
 use be_wasm_root_api::{
     AgentCredentials, AgentRow, AgentsArea, CoreCommand, CoreSecret, CoreView, MemberRole,
     MemberRow, MembersArea, RoleChange, SecretCommand,
@@ -91,7 +91,7 @@ fn a_root_lists_its_hosts_members_and_agents_and_shows_an_agents_credentials_onc
     step(&mut root, time);
 
     // F10 lists the members.
-    let commands = asks(&mut root, &mut time, key(OPENS_MEMBERS));
+    let commands = menu(&mut root, &mut time, Entry::Members);
     assert!(
         matches!(commands.as_slice(), [CoreCommand::ListMembers]),
         "opening them lists them: {commands:?}"
@@ -141,7 +141,7 @@ fn a_root_lists_its_hosts_members_and_agents_and_shows_an_agents_credentials_onc
     );
 
     // F11 lists the agents; a name makes one, whose credentials come back once.
-    let commands = asks(&mut root, &mut time, key(OPENS_AGENTS));
+    let commands = menu(&mut root, &mut time, Entry::Agents);
     assert!(
         matches!(commands.as_slice(), [CoreCommand::ListAgents]),
         "opening them lists them: {commands:?}"
@@ -185,7 +185,7 @@ fn a_root_lists_its_hosts_members_and_agents_and_shows_an_agents_credentials_onc
 
     // Closed, they go: opened again, the agents show without them.
     let _ = asks(&mut root, &mut time, key(Key::Escape));
-    let _ = asks(&mut root, &mut time, key(OPENS_AGENTS));
+    let _ = menu(&mut root, &mut time, Entry::Agents);
     assert_eq!(
         painting(&mut root, &mut time),
         listed,
@@ -253,7 +253,7 @@ fn a_root_lists_its_hosts_members_and_agents_and_shows_an_agents_credentials_onc
     root.show_core(agents());
     let _ = asks(&mut root, &mut time, Vec::new());
 
-    let _ = asks(&mut root, &mut time, key(OPENS_AGENTS));
+    let _ = menu(&mut root, &mut time, Entry::Agents);
     let _ = root.take_core_commands();
     let commands = asks(&mut root, &mut time, click(pos2(297.0, 122.0)));
     assert!(

@@ -55,7 +55,7 @@ be-host-base = { path = "../be-host-base" }
 be-host-desktop = { path = "../be-host-desktop" }
 be-host-runtime = { path = "../be-host-runtime" }
 be-host-stack = { path = "../be-host-stack" }
-be-host-accounts-ui = { path = "../be-host-accounts-ui" }
+be-root-accounts-ui = { path = "../be-root-accounts-ui" }
 be-sdk-api = { path = "../be-sdk-api" }
 be-sdk-manifest = { path = "../be-sdk-manifest" }
 be-block-type-host = { path = "../be-block-type-host" }

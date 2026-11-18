@@ -29,6 +29,9 @@ library is `//crates/NAME:NAME`, abbreviated `//crates/NAME`, with its other tar
   installed programs and icons) only beui's types; `be-host-runtime` runs apps;
   `be-host-desktop` holds the desktop hosts; `be-host-testing` and `be-host-tests` are its test
   harness and host tests.
+- `be-root-*`: the root be-host runs in place of its own UI (`be-root`), a guest on the apps'
+  platform (guides/apps/runtime.md), and what it shares with be-host's own UI
+  (`be-root-accounts-ui`, the account picker).
 - `be-block-*`: the block stack (guides/the_new_block_stack.md). `be-server-*`: the server and
   its account portal. `be-wasm-*`: running wasm guests.
 - `be-lib-*`: libraries that know nothing of blocks, apps or beui. `be-lib-stable-hash` is the

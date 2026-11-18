@@ -290,8 +290,11 @@ its own (a `v8::SharedIsolate`, locked by the thread that runs it):
   shows its surface (the app screens it embeds are not in the painting yet).
   It runs none of the host's core (no data directory, block
   stack, screen lock or OS services), so it is refused as a login session; a
-  root that stops closes the window and be-host exits saying why. No host ships a root yet; the host
-  tests `a_root_in_place_of_the_hosts_ui_*` stage be-sdk-root-testing as
+  root that stops closes the window and be-host exits saying why. No host ships a root yet: be-host's
+  own UI stays the default until be-root passes the host tests that exercise it
+  (plans/host_as_platform_adapter.md, 4g7). The host test
+  `be_root_in_place_of_the_hosts_ui_shows_its_onboarding` stages be-root and runs it with
+  `--root=be3.root`; the host tests `a_root_in_place_of_the_hosts_ui_*` stage be-sdk-root-testing as
   one, and see a press, a key and a touch reach the triangle it embeds, which
   tints its screen by what it heard, and its dialog take drive's input method
   and the window's clipboard and give the focus back to the triangle. Tests also run a root natively in
@@ -368,10 +371,14 @@ its own (a `v8::SharedIsolate`, locked by the thread that runs it):
   triangle's screen, its host's notices as styled `Toasts` over
   everything, on a layer listed only while one shows, hit only where they are
   and never taking the focus, a dialog F2 opens over a scrim, and a panel of
-  its host's statistics F3 opens and closes, its host's lock screen while the
-  session is locked, the slow save's toast, and the question of keeping display
-  settings its host asks, and which be-wasm-root-host's tests run with the
-  triangle on a stand-in device, and be-host's host test with `--root`. A root is
+  its host's statistics F3 opens and closes, and its host's lock screen while the
+  session is locked: a fixture, which be-wasm-root-host's tests run with the
+  triangle on a stand-in device, and be-host's host test with `--root`. be-root
+  (decisions/the_real_root_is_its_own_crate_not_the_testing_root.md) is the root be-host is to
+  run in place of its own UI: the same pieces as the product needs them, the slow save's toast,
+  the question of keeping display settings, the block stack's onboarding and its dialogs, which
+  a menu at the window's top right opens in place of the fixture's keys; its own tests run it
+  as be-wasm-root-host's run the fixture. A root is
   built as an app is (`app_module`, in the `wasi-guest` plan, linked against
   base and beui; decisions/a_root_links_beui_as_an_app_does.md); only
   be-wasm-root-testing, which draws no UI, is a pure guest in the `wasm32`

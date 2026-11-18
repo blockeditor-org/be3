@@ -6,7 +6,7 @@ use beui::reactive::*;
 use beui::styled::*;
 use beui::text::Phrase;
 
-use be_host_accounts_ui::ErrorText;
+use be_root_accounts_ui::ErrorText;
 
 use super::{
     AgentRow, ContactRow, HostUiStore, InvitationRow, MemberRow, UiCommand, UnsentRow, send,

@@ -1,7 +1,7 @@
 use be_lib_geometry::pos2;
 use be_lib_ui_types::input::{ImeEvent, Input};
 use be_lib_ui_types::{Key, Modifiers};
-use be_sdk_root_testing::{DIALOG_LAYER, DIALOG_SURFACE, ONBOARDING_LAYER, ONBOARDING_SURFACE};
+use crate::{DIALOG_LAYER, DIALOG_SURFACE, ONBOARDING_LAYER, ONBOARDING_SURFACE};
 use be_wasm_root_api::{
     CoreCommand, CoreFailure, CoreSecret, CoreView, CoreWait, PairingRequest, RecoveryArea,
     SecretCommand, UnlockArea,

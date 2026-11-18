@@ -15,7 +15,6 @@ be-lib-ui-types = { path = "../be-lib-ui-types" }
 be-sdk-api = { path = "../be-sdk-api" }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-be-host-accounts-ui = { path = "../be-host-accounts-ui" }
 be-lib-geometry = { path = "../be-lib-geometry" }
 be-sdk-beui-root = { path = "../be-sdk-beui-root" }
 be-sdk-root = { path = "../be-sdk-root" }

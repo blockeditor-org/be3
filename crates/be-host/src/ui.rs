@@ -113,7 +113,7 @@ pub(crate) struct ErrorView {
     pub(crate) unsaved: usize,
 }
 
-pub(crate) use be_host_accounts_ui::AccountRow;
+pub(crate) use be_root_accounts_ui::AccountRow;
 
 pub(crate) fn account_row(
     account: &SavedAccount,

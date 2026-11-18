@@ -1,3 +1,5 @@
+//! A test fixture: the root be-host is to run is be-root
+//! (decisions/the_real_root_is_its_own_crate_not_the_testing_root.md).
 //! A root guest built on be-sdk-root, which be-wasm-root-host's tests and the host test
 //! `a_root_in_place_of_the_hosts_ui_shows_the_editor_it_embeds` run
 //! (plans/host_as_platform_adapter.md, steps 4e5b and 4g2). On its first frame it asks its host
@@ -26,18 +28,14 @@
 //! F3 (`OPENS_STATISTICS`), which it always intercepts too, opens and closes a debug panel
 //! (`STATISTICS_LAYER`, drawn with beui on `STATISTICS_SURFACE`) of its host's statistics: it
 //! watches them while the panel is open (`be3:root`'s `host.watch-statistics`) and shows each
-//! change of them (`host.statistics`) as rows, never taking the focus.
+//! change of them (`host.statistics`) as rows, with its memory over time graphed
+//! (`host.memory-history`), never taking the focus.
 //! It shows its host's screen lock (`host.lock`): while the session is locked, a lock screen
 //! (`LOCK_LAYER`, drawn with beui on `LOCK_SURFACE`) over everything, toasts hidden, which takes
 //! the focus for its password field and gives it back once unlocked; it intercepts none of its
 //! own keys then, only the F5 test fixture (`UNLOCKS_TWICE`).
 //! Its field hands what was typed to the host to check (`host.unlock`), cleared as it does, and
 //! shows why the host refused it. F4 (`LOCKS_SESSION`) asks the host to lock the session.
-//! It shows whether its host's changes are saved (`host.saving`): while they stay unsaved for
-//! `SLOW_SAVE`, the slow save's toast among its toasts, until they are saved or it is
-//! dismissed; and while its core asks to keep display settings that just changed, that question
-//! in its dialog's place (`KEEP_DISPLAY_TITLE`), counting down to reverting them, answered
-//! through `host.core-command`, which Escape or a press on the scrim answers with revert.
 //! A frame at `CLOSES` lets go of the app, which stops it. The window's input is routed by the
 //! library over the layers it drew last; what lands on `TEXT_SURFACE` its beui document hears,
 //! and what lands on its own surface beside the strip nothing does.
@@ -168,10 +166,6 @@ pub const DIALOG_ORIGIN: (f32, f32) = (
 /// The dialog's title.
 pub const DIALOG_TITLE: &str = "Rename";
 
-/// The title of the question of keeping display settings that just changed, which the root
-/// asks in its dialog's place while its host asks it (`host.displays`).
-pub const KEEP_DISPLAY_TITLE: &str = "Keep these display settings?";
-
 /// The key that opens the root's statistics panel, and closes it again, pressed with no
 /// modifiers: the root intercepts it wherever the focus is.
 pub const OPENS_STATISTICS: Key = Key::F3;
@@ -212,123 +206,6 @@ pub const LOCK_LAYER: LayerId = LayerId(7);
 
 /// A surface of the root's own the size of the window that beui draws its lock screen on.
 pub const LOCK_SURFACE: u32 = 8;
-
-/// How long its host's changes stay unsaved, by the host's frame clock, before the root shows
-/// the slow save's toast, as be-host's own UI does.
-pub const SLOW_SAVE: std::time::Duration = std::time::Duration::from_secs(4);
-
-/// The slow save's toast's id among the toasts, which no notice of the host's has.
-pub const SLOW_SAVE_TOAST: u64 = u64::MAX;
-
-/// The slow save's toast's title.
-pub const SLOW_SAVE_TITLE: &str = "Saving changes…";
-
-/// The key that opens the root's list of the block stack's unsent edits (`host.core`), in its
-/// dialog's place, pressed with no modifiers: the root intercepts it wherever the focus is, but
-/// not while the session is locked.
-pub const OPENS_UNSENT: Key = Key::F7;
-
-/// The title of the list of unsent edits.
-pub const UNSENT_TITLE: &str = "Unsent edits";
-
-/// The title of the question the list asks before discarding a block's unsent edits.
-pub const DISCARD_UNSENT_TITLE: &str = "Discard edits?";
-
-/// The layer showing `ONBOARDING_SURFACE` while the block stack waits for the person before it
-/// opens an organization's blocks (`core-view`'s `waits-for`): over the app and the statistics
-/// panel, under the dialog, the lock screen and the toasts, taking every press and, once drawn,
-/// the focus.
-pub const ONBOARDING_LAYER: LayerId = LayerId(8);
-
-/// A surface of the root's own the size of the window that beui draws what the block stack waits
-/// for on: the accounts (be-host-accounts-ui's `AccountsScreen`), the organizations or the
-/// sessions.
-pub const ONBOARDING_SURFACE: u32 = 9;
-
-/// The title of the organizations while the block stack waits for one to be chosen.
-pub const ORGANIZATIONS_TITLE: &str = "Organizations";
-
-/// The title of the sessions while the block stack waits for one to be chosen.
-pub const SESSIONS_TITLE: &str = "Sessions";
-
-/// The title of the dialog that adds an account, before it knows where.
-pub const ADD_ACCOUNT_TITLE: &str = "Add account";
-
-/// The title of the dialog while the person signs in in their browser.
-pub const SIGN_IN_TITLE: &str = "Sign in with your browser";
-
-/// The title of the question the root asks before removing an account kept on this device
-/// alone, whose blocks go with it.
-pub const FORGET_ACCOUNT_TITLE: &str = "Remove account?";
-
-/// The title of the question the host asks before signing in again to an account whose sign-in
-/// ended (`core-view`'s `reauthenticating`).
-pub const REAUTH_TITLE: &str = "Sign in again";
-
-/// The title of the question the host asks before discarding unsaved changes (`core-view`'s
-/// `discarding`).
-pub const DISCARD_TITLE: &str = "Discard unsaved changes?";
-
-/// The key that opens the root's list of the organization's invitations, in its dialog's place,
-/// pressed with no modifiers: the root intercepts it wherever the focus is, but not while the
-/// session is locked.
-pub const OPENS_INVITATIONS: Key = Key::F9;
-
-/// The title of the organization's invitations.
-pub const INVITATIONS_TITLE: &str = "Invitations";
-
-/// The key that opens the root's list of the organization's members, in its dialog's place,
-/// pressed with no modifiers: the root intercepts it wherever the focus is, but not while the
-/// session is locked.
-pub const OPENS_MEMBERS: Key = Key::F10;
-
-/// The title of the organization's members.
-pub const MEMBERS_TITLE: &str = "Members";
-
-/// The title of the question the members ask before removing one.
-pub const REMOVE_MEMBER_TITLE: &str = "Remove member?";
-
-/// The key that opens the root's list of the organization's agents, in its dialog's place,
-/// pressed with no modifiers: the root intercepts it wherever the focus is, but not while the
-/// session is locked.
-pub const OPENS_AGENTS: Key = Key::F11;
-
-/// The title of the organization's agents.
-pub const AGENTS_TITLE: &str = "Agents";
-
-/// The key that opens the root's contacts, in its dialog's place, pressed with no modifiers:
-/// the root intercepts it wherever the focus is, but not while the session is locked.
-pub const OPENS_CONTACTS: Key = Key::F12;
-
-/// The title of the person's contacts.
-pub const CONTACTS_TITLE: &str = "Contacts";
-
-/// The title of the question the contacts ask before removing one.
-pub const REMOVE_CONTACT_TITLE: &str = "Remove contact?";
-
-/// The key that opens the root's dialog for opening a share link, in its dialog's place,
-/// pressed with no modifiers: the root intercepts it wherever the focus is, but not while the
-/// session is locked.
-pub const OPENS_SHARE_LINKS: Key = Key::F8;
-
-/// The title of the dialog opening a share link.
-pub const SHARE_LINK_TITLE: &str = "Open a share link";
-
-/// The title of the question the host asks before leaving a block an editor asked to leave
-/// (`core-view`'s `leaving`).
-pub const LEAVE_TITLE: &str = "Leave this block?";
-
-/// The title of the recovery phrase while the person writes it down.
-pub const RECOVERY_TITLE: &str = "Your recovery phrase";
-
-/// The title of unlocking the account's keys on this device.
-pub const UNLOCK_TITLE: &str = "Unlock your keys";
-
-/// The title of what the block stack's failure leaves the person to do.
-pub const FAILURE_TITLE: &str = "Something went wrong";
-
-/// The title of the question another device's pairing request asks (`core-view`'s `pairing`).
-pub const PAIRING_TITLE: &str = "Pair a device?";
 
 #[cfg(target_arch = "wasm32")]
 mod guest;
