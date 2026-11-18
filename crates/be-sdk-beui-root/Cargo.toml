@@ -1,0 +1,23 @@
+[package]
+name = "be-sdk-beui-root"
+description = "beui on a root guest's own surfaces: a beui document drawn with beui's wgpu renderer over be3:gpu into one of be-sdk-root's OwnSurfaces, hearing the input the root's router lands there, with text in the fonts its host gives it"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+be-lib-geometry = { path = "../be-lib-geometry" }
+be-lib-layers = { path = "../be-lib-layers" }
+be-sdk-root = { path = "../be-sdk-root" }
+be-wasm-gpu-guest = { path = "../be-wasm-gpu-guest" }
+be-wasm-root-api = { path = "../be-wasm-root-api" }
+beui-core = { path = "../beui-core" }
+beui-font-freetype = { path = "../beui-font-freetype" }
+beui-host = { path = "../beui-host" }
+beui-renderer-wgpu = { path = "../beui-renderer-wgpu" }
+beui-runner = { path = "../beui-runner" }
+beui-types = { path = "../beui-types" }
+wgpu = { version = "29", default-features = false }
+
+[lints]
+workspace = true

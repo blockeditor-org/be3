@@ -16,6 +16,7 @@ mod a_frame_waits_for_its_child_and_shows_it;
 mod a_root_built_on_the_library_shows_the_editor_it_embeds;
 mod a_root_draws_its_own_surface_on_the_hosts_device;
 mod a_root_names_what_its_child_presented_only_by_handle;
+mod a_root_paints_its_own_surface_with_beui_in_the_hosts_fonts;
 mod a_root_that_keeps_waking_itself_without_answering_stops_at_its_patience;
 mod a_root_wants_frames_until_its_app_presents_and_wakes_its_host_for_them;
 mod input_reaches_the_child_under_it_by_the_layers_drawn_last;
@@ -28,9 +29,12 @@ const ECHO_APP: &[u8] = include_bytes!(env!("GUEST_ECHO_APP_WASM"));
 
 const BASE_LIBRARY: &[u8] = include_bytes!(env!("BASE_LIBRARY_WASM"));
 
+const BEUI_LIBRARY: &[u8] = include_bytes!(env!("BEUI_LIBRARY_WASM"));
+
 const ECHO_ENTRY: &str = be_wasm_root_testing::CHILD_ENTRY;
 
-/// The root built on be-sdk-root, which embeds the triangle's editor.
+/// The root built on be-sdk-root, which embeds the triangle's editor and draws its own surface
+/// with beui, linked against the base and beui libraries.
 const EMBEDDING_ROOT: &[u8] = include_bytes!(env!("EMBEDDING_ROOT_WASM"));
 
 /// The triangle as a staged app, linked against the base library.
@@ -81,8 +85,8 @@ fn root() -> Root {
     start(ROOT)
 }
 
-/// The root `module`, started on this thread, it and its children drawing on a stand-in for the
-/// host's device, which takes their work and draws nothing.
+/// The pure root `module`, started on this thread, it and its children drawing on a stand-in for
+/// the host's device, which takes their work and draws nothing.
 fn start(module: &[u8]) -> Root {
     let (device, queue) = wgpu::Device::noop(&wgpu::DeviceDescriptor::default());
     let app = Host::pure()
@@ -92,6 +96,48 @@ fn start(module: &[u8]) -> Root {
         })
         .expect("the root loads");
     Root::start(app, Box::new(staged), device, queue).expect("the root starts")
+}
+
+/// The embedding root, linked against the base and beui libraries and loaded as be-host loads
+/// a root, as an app is, started on this thread with the fonts beui bundles, it and its
+/// children drawing on a stand-in for the host's device.
+fn embedding() -> Root {
+    let (device, queue) = wgpu::Device::noop(&wgpu::DeviceDescriptor::default());
+    let base = be_wasm_dylink::identity(BASE_LIBRARY);
+    let beui = be_wasm_dylink::identity(BEUI_LIBRARY);
+    let app = Host::new(device.clone(), queue.clone())
+        .and_then(|host| {
+            host.load_bytes_with_libraries(EMBEDDING_ROOT, |identity| match identity {
+                _ if identity == base => Ok(BASE_LIBRARY.to_vec()),
+                _ if identity == beui => Ok(BEUI_LIBRARY.to_vec()),
+                _ => Err(format!("no library {identity} is staged")),
+            })
+        })
+        .expect("the root loads, linked against its libraries");
+    Root::start(app, Box::new(staged), device, queue)
+        .expect("the root starts")
+        .with_fonts(bundled_fonts())
+}
+
+/// The fonts beui bundles, as be-host hands them to its root.
+fn bundled_fonts() -> Vec<be_wasm_root_api::FontFace> {
+    use be_wasm_root_api::{FontFace, FontRole};
+    let sources = beui_font_freetype::FontSources::bundled();
+    [
+        (FontRole::Text, &sources.proportional),
+        (FontRole::Monospace, &sources.monospace),
+        (FontRole::Fallback, &sources.fallback),
+        (FontRole::Icons, &sources.icons),
+    ]
+    .into_iter()
+    .flat_map(|(role, fonts)| {
+        fonts.iter().map(move |font| FontFace {
+            role,
+            index: font.index,
+            data: font.bytes.to_vec(),
+        })
+    })
+    .collect()
 }
 
 /// The ids of the layers a frame shows, bottom first.

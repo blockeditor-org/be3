@@ -153,17 +153,26 @@ tests read one their build made, crates/be-host-tests/apps.bzl). Each guest thre
   A frame also says what the root asks of the host's one window: its input
   method's area (`ime`), the cursor shape by its CSS name (`cursor`), the
   pointer lock (`pointer-locked`) and every sample of the pointer's moves
-  (`every-sample`). The root draws surfaces of its own as an app draws its
-  screens, through `be3:gpu`'s surfaces on the host's device, which it may
-  call only when it was loaded on a host given that device
-  (`be_wasm_host::Host::with_display`, which gives a pure guest the gpu); its
+  (`every-sample`). `host.fonts` answers the fonts the host bundles
+  (`Root::with_fonts`; be-host's `be_host_runtime::bundled_fonts`, which it
+  tells its apps), which a root asks once and draws its text in. The root's
+  `paintings` export answers what its own surfaces painted, in
+  beui-paint-format's `ScreenPaintings` keyed by surface id
+  (`Root::ask_paintings`, answered with the next frame's steps as
+  `Root::take_paintings`), for the host's tests. The root draws surfaces of
+  its own as an app draws its screens, through `be3:gpu`'s surfaces on the
+  host's device, which it may call only when it was loaded on a host given
+  that device (`be_wasm_host::Host::new`, as an app is, or
+  `Host::with_display`, which gives a pure guest the gpu); its
   layer list names each as `Surface::Root(id)`, and `Root::own_surface`
   answers the texture it presented last, kept from each frame's presents and
   releases, so a surface configured afresh shows its last frame until it is
   presented again. be-host runs a root in place
   of its own UI with `--root=APP` (`crates/be-host/src/root.rs`): the staged
-  app `APP`, whose manifest says `"root": true`, starts as a pure guest on the
-  window's device, which it draws on too; each host frame hands it the
+  app `APP`, whose manifest says `"root": true`, is loaded as an app is,
+  linked against the libraries it names, and starts on the window's device,
+  which it draws on too, with the host's fonts
+  (decisions/a_root_links_beui_as_an_app_does.md); each host frame hands it the
   window's input as the platform delivered it, in points and with its time,
   which beui's document never hears (`Program::input`), asks it for a frame
   by the deadline its own UI keeps (`FrameClock`) and draws each
@@ -174,7 +183,10 @@ tests read one their build made, crates/be-host-tests/apps.bzl). Each guest thre
   `set_cursor_icon`, `set_pointer_locked`, `want_every_sample`), set after the
   document it shows the frame in, whose own the root's replace. The host keeps
   no list of chords the root intercepts: the root takes every key before beui
-  sees it and gives its own `Router` its chords (`Router::intercept`). It runs none of the host's core (no data directory, block
+  sees it and gives its own `Router` its chords (`Router::intercept`). `drive
+  paint` asks the root for its paintings and places each where its layer
+  shows its surface (the app screens it embeds are not in the painting yet).
+  It runs none of the host's core (no data directory, block
   stack, screen lock or OS services), so it is refused as a login session; a
   root that stops closes the window and be-host exits saying why. No host ships a root yet; the host
   tests `a_root_in_place_of_the_hosts_ui_*` stage be-sdk-root-testing as
@@ -208,7 +220,13 @@ tests read one their build made, crates/be-host-tests/apps.bzl). Each guest thre
   anew), and every sample
   while one shown asks for them. `OwnSurface` is a surface of the root's own,
   which it configures, draws (`fill`, or `acquire` and `present`) and names
-  as a layer.
+  as a layer. `crates/be-sdk-beui-root`'s `BeuiSurface` draws one with beui:
+  a beui document run by beui's runner as a program of its own, whose one
+  window is the surface, drawn with beui's wgpu renderer over `be3:gpu`'s
+  `custom` backend (`be_wasm_gpu_guest::texture` of the surface's texture),
+  its text in the fonts `host.fonts` gave, hearing what the router lands on
+  the surface (`BeuiSurface::input`, from `Embedding::input` and `drew`) in
+  its points, and painting what it drew (`BeuiSurface::painting`).
   Input for a window the last list leaves out is still routed, against the
   layers it had last, until its presses lift, and only then its router goes,
   the surface it focused hearing `Focus(false)`; one never drawn routes
@@ -222,12 +240,13 @@ tests read one their build made, crates/be-host-tests/apps.bzl). Each guest thre
   that runs and draws owes a frame due or in flight, and wants one at once
   while one is due or it animates, or when its pacing says; one with no
   surface or that closed wants and owes nothing. be-sdk-root-testing is a root built on it, which
-  fills its own surface with `ROOT_COLOR` under the triangle's screen, and
-  which be-wasm-root-host's tests run with the triangle on a stand-in device,
-  and be-host's host test with `--root`. Root guests are built for wasm32 in
-  a plan of their own with the other pure guests: the browser's gpu shim, which
-  imports JavaScript, has another (`wasm32-bindgen`), since a pure guest that
-  links its wgpu or web-sys cannot load.
+  draws its own surface with beui, `ROOT_COLOR` with a line of text, under the
+  triangle's screen, and which be-wasm-root-host's tests run with the triangle
+  on a stand-in device, and be-host's host test with `--root`. A root is
+  built as an app is (`app_module`, in the `wasi-guest` plan, linked against
+  base and beui; decisions/a_root_links_beui_as_an_app_does.md); only
+  be-wasm-root-testing, which draws no UI, is a pure guest in the `wasm32`
+  plan.
 - **V8's heap.** No guest may declare garbage-collected types (structs,
   arrays) or more than one table, and a table holds at most a million entries
   (`engine::Shape::bounded`): V8 stops delivering a termination once an

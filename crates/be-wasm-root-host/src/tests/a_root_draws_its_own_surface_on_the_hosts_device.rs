@@ -6,7 +6,7 @@ use super::*;
 
 #[test]
 fn a_root_draws_its_own_surface_on_the_hosts_device() {
-    let mut root = start(EMBEDDING_ROOT);
+    let mut root = embedding();
     assert!(
         root.own_surface(ROOT_SURFACE).is_none(),
         "the root has drawn nothing of its own before its first frame"

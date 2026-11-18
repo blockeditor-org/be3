@@ -35,7 +35,7 @@ fn shown_screen(root: &mut Root, time: u64) -> Layer {
 
 #[test]
 fn a_root_built_on_the_library_shows_the_editor_it_embeds() {
-    let mut root = start(EMBEDDING_ROOT);
+    let mut root = embedding();
     let screen = shown_screen(&mut root, 1);
     let Surface::Screen { instance, surface } = screen.surface else {
         panic!(

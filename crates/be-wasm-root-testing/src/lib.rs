@@ -34,7 +34,7 @@ use be_wasm_ops::guest::{Executor, LocalFuture};
 use be_wasm_root_api::{
     FrameDone, FrameRequest,
     guest::{
-        exports::{frames, input},
+        exports::{frames, input, paintings},
         host,
     },
 };
@@ -201,6 +201,13 @@ impl input::Guest for Frames {
         // Answered once routed: what is for the child goes ahead of the next frame's ask.
         self.routed.borrow_mut().extend(routed);
         Box::pin(async {})
+    }
+}
+
+impl paintings::Guest for Frames {
+    /// It draws no surface of its own, so it paints nothing.
+    fn paintings(&self) -> LocalFuture<Vec<u8>> {
+        Box::pin(async { Vec::new() })
     }
 }
 

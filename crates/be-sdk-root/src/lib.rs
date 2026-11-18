@@ -24,7 +24,8 @@
 //! A root links it as any guest links a be-sdk crate: be-wasm crates may depend only on be-wasm
 //! ones (buck/cargo/layers.bzl), but a root is not one. A root that links this is an app's
 //! module (be-app, for be-host's own root) or, for tests, a be-sdk crate's
-//! (be-sdk-root-testing); both families may link be-sdk.
+//! (be-sdk-root-testing); both families may link be-sdk. A root draws its own surfaces with
+//! beui through be-sdk-beui-root, beside this.
 
 mod embedded;
 mod own;

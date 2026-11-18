@@ -2168,6 +2168,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "be-sdk-beui-root"
+version = "0.1.0"
+dependencies = [
+ "be-lib-geometry",
+ "be-lib-layers",
+ "be-sdk-root",
+ "be-wasm-gpu-guest",
+ "be-wasm-root-api",
+ "beui-core",
+ "beui-font-freetype",
+ "beui-host",
+ "beui-renderer-wgpu",
+ "beui-runner",
+ "beui-types",
+ "wgpu",
+]
+
+[[package]]
 name = "be-sdk-database"
 version = "0.1.0"
 dependencies = [
@@ -2243,10 +2261,13 @@ dependencies = [
  "be-lib-geometry",
  "be-lib-layers",
  "be-sdk-api",
+ "be-sdk-beui-root",
  "be-sdk-root",
+ "be-wasm-gpu-guest",
  "be-wasm-guest-abi",
  "be-wasm-ops",
  "be-wasm-root-api",
+ "beui",
 ]
 
 [[package]]
@@ -3218,6 +3239,8 @@ dependencies = [
  "be-wasm-root-testing",
  "be-wasm-sandbox-api",
  "be-wasm-sandbox-host",
+ "beui-font-freetype",
+ "beui-paint-format",
  "js-sys",
  "wasm-bindgen",
  "wasm-bindgen-futures",

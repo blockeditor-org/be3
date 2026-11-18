@@ -95,6 +95,7 @@ members = [
     "crates/be-sdk-beui",
     "crates/be-sdk-beui-platform",
     "crates/be-sdk-beui-platform-api",
+    "crates/be-sdk-beui-root",
     "crates/be-sdk-database",
     "crates/be-sdk-library-base",
     "crates/be-sdk-library-beui",
