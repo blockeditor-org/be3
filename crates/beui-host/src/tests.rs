@@ -7,6 +7,7 @@ use crate::reactive::Painter;
 use crate::{CanvasView, FontId};
 
 mod a_screen_reader_steps_a_sheet_handle_between_its_stops;
+mod a_fixed_lists_carried_row_is_read_once_as_its_preview;
 mod a_keyboard_step_to_a_place_a_scroll_hides_scrolls_it_into_view;
 mod the_arrow_keys_step_a_focused_sheet_handle_between_its_stops;
 mod a_back_gesture_lowers_a_sheet_and_it_slides_away_from_there;
