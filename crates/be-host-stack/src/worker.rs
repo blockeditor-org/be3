@@ -178,8 +178,11 @@ pub(super) enum Command {
         block: Uuid,
         said: be_sdk_api::blocks::MemberSaid,
     },
-    /// A host component starts on a block (`crate::hosting::restart`).
+    /// A host component starts on a block (`crate::hosting::start`).
     RestartHost(Uuid),
+    /// A host component stops on a block while its replica stays open: the replica joins the
+    /// session again, which drops this device's claim (`crate::release_host`).
+    ReleaseHost(Uuid),
     /// The blocks whose host channel an editor here joins as a Join member
     /// (`crate::joining::want`).
     WantChannels(std::collections::HashSet<Uuid>),
@@ -466,6 +469,7 @@ impl Command {
             Command::Detach { .. } => "detach",
             Command::TellMember { .. } => "tell member",
             Command::RestartHost(..) => "restart host",
+            Command::ReleaseHost(..) => "release host",
             Command::WantChannels(..) => "want channels",
             Command::TellHost { .. } => "tell host",
             Command::FromEditor { .. } => "from editor",
@@ -667,6 +671,7 @@ impl Command {
             | Command::OfflineChoices(_)
             | Command::Reads(..)
             | Command::RestartHost(_)
+            | Command::ReleaseHost(_)
             | Command::WantChannels(_)
             | Command::TellHost { .. } => None,
         }
@@ -4157,7 +4162,18 @@ async fn apply(
             false
         }
         Command::RestartHost(block) => {
-            crate::hosting::restart(shared, block);
+            crate::hosting::start(peer, shared, tasks, block);
+            false
+        }
+        Command::ReleaseHost(block) => {
+            let hosted = shared
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .hosted
+                .contains(&block);
+            if hosted {
+                replicas.rejoin_block((peer, shared), block);
+            }
             false
         }
         Command::WantChannels(blocks) => {

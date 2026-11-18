@@ -379,9 +379,13 @@ pub struct Seen, delta SeenDelta {
     /// The block types the worker's modules know (`crate::is_known`): each declared one, with
     /// what the page reads of it once a module described it.
     pub kinds: imbl::OrdMap<Uuid, Option<KnownKind>>,
-    /// The blocks whose session's lease this device's replica holds, so a host component may
-    /// run on them here (`crate::hosting`).
+    /// The blocks this device hosts: those whose session's host (its claimed holder) is this
+    /// device's connection (`crate::hosting`).
     pub hosted: imbl::OrdSet<Uuid>,
+    /// The sessions this device's replicas are in, each with whether someone hosts it and
+    /// whether that is this device: a host component may start where no one hosts
+    /// (`crate::may_host`).
+    pub session_hosts: imbl::OrdMap<Uuid, Option<bool>>,
     /// Counts each change of `hosted`.
     pub leases_changed: u64,
     /// What each block's host component has yet to hear of its host channel's members

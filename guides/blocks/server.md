@@ -436,9 +436,13 @@ counts and records nothing: `reserve-uploads` did before it signed.
   `left` entry, and sends to it with `send` (`ordered` submissions, `ephemeral`
   relays, `claim`, `host`). Joining needs `Join`, and claiming a session's
   lease needs `Edit` (a viewer's claim is refused, and the replica host ignores
-  the refusal). Each answer and `session-event.host` name the lease holder and
-  its account (`SessionRegistry::host`), which `query.log` then proves to a
-  reader below Edit.
+  the refusal). Each answer and `session-event.host` name the host and its
+  account (`SessionRegistry::host`): the lease holder only by a claim
+  (`Membership::claimed_holder`), never the first editor the lease falls to
+  with none, since a device claims as its host component starts
+  (plans/hosted_blocks.md, step 4d2); the lease, who seals, is unchanged.
+  `query.log` then proves the host to a reader below Edit. The claimant is
+  not told of its own claim.
 - **Join members** (plans/hosted_blocks.md): a caller below `View` joins as one
   (`joined-session.joined-as`, `member-kind.join`). It is in no membership, so
   no participant learns of it; it hears only `session-event.host` and what the

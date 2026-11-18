@@ -361,11 +361,15 @@ hosted block's host runs (plans/hosted_blocks.md), in be-host or headless in
 
 be-host runs a block's host component while it hosts the block
 (`crates/be-host/src/hosting.rs`, every frame): an editor of the block is open
-on the device, the account may edit it, and the device's replica holds the
-block's session lease (`be_host_stack::holds_lease`); it stops it otherwise.
-Whoever holds the lease hosts and other editors stand by: the lease follows the
-session's order, so when the holder leaves the next editor's device starts its
-own. The component hears its block's host channel members as `editor-event.member`
+on the device, the account may edit it, and no other device hosts the block's
+session (`be_host_stack::may_host`, from `Seen::session_hosts`, which follows
+`session-event.host` and the host each join answers); it stops it otherwise.
+Starting it claims the session's lease (`restart_host`), which makes this device
+the host, the server's claimed holder; a later claim elsewhere makes that device
+the host, and this one stops its component. When the host leaves, no one hosts
+until a device with an editor open starts its component and claims. One that
+stops while its replica stays open (a preview) has the replica join the session
+again (`release_host`, `Replicas::rejoin_block`), which drops the claim. The component hears its block's host channel members as `editor-event.member`
 (`member-event`: `joined` with the member's number, account and level, `said`,
 `left`), which be-host-stack admits and checks (`crates/be-host-stack/src/hosting.rs`,
 guides/blocks/keys.md, "Hosted channels") and the runtime passes on
