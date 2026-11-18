@@ -118,6 +118,8 @@ pub struct BeuiSurface {
     raster: f32,
     /// Set by the document's waker: it wants a frame now.
     woken: Arc<AtomicBool>,
+    /// Wakes the root, and so its host, for a frame of the document.
+    wake: Arc<dyn Fn() + Send + Sync>,
     /// The frame clock's time the document wants its next frame at: none until it hears
     /// input or is woken.
     due: Option<Duration>,
@@ -186,6 +188,8 @@ impl BeuiSurface {
         runner.reports().scaled(raster);
         let woken = Arc::new(AtomicBool::new(false));
         let waking = Arc::clone(&woken);
+        let wake: Arc<dyn Fn() + Send + Sync> = Arc::new(wake);
+        let waker = Arc::clone(&wake);
         runner
             .start(
                 Loaded {
@@ -200,7 +204,7 @@ impl BeuiSurface {
                 },
                 Setup::new(Waker::new(move || {
                     waking.store(true, Ordering::Release);
-                    wake();
+                    waker();
                 })),
             )
             .map_err(|error| error.to_string())?;
@@ -210,6 +214,7 @@ impl BeuiSurface {
             drawn,
             raster,
             woken,
+            wake,
             due: Some(Duration::ZERO),
             overlays,
         })
@@ -284,7 +289,7 @@ impl BeuiSurface {
 
     /// Runs `change` in the document, as its own code runs, so it may set the signals the
     /// document reads: what the root tells it from outside, such as its host's notices. Its
-    /// next frame is due at once.
+    /// next frame is due at once, and the root is woken for it.
     pub fn enter<R>(&mut self, change: impl FnOnce() -> R) -> R {
         let program: &mut dyn Any = self.runner.program_mut();
         let showing = program
@@ -292,6 +297,8 @@ impl BeuiSurface {
             .expect("a root's surface runs only the program that shows its document");
         let changed = beui_core::current::enter(&mut showing.document, change);
         self.due = Some(Duration::ZERO);
+        self.woken.store(true, Ordering::Release);
+        (self.wake)();
         changed
     }
 

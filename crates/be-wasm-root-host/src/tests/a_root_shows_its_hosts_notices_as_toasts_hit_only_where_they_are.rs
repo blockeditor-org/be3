@@ -1,6 +1,7 @@
 use be_lib_geometry::pos2;
 use be_lib_layers::{Area, Layer};
-use be_sdk_root_testing::{TOAST_AREA, TOAST_LAYER, TOAST_SURFACE};
+use be_lib_ui_types::input::{Input, PointerButton, encode};
+use be_sdk_root_testing::{TEXT_LAYER, TOAST_AREA, TOAST_LAYER, TOAST_SURFACE};
 use be_wasm_root_api::{Notice, NoticeAction};
 
 use super::*;
@@ -74,6 +75,27 @@ fn a_root_shows_its_hosts_notices_as_toasts_hit_only_where_they_are() {
         !hit(10.0, 10.0) && !hit(width as f32 - 40.0, 230.0),
         "past the toasts, a press reaches what lies under them: {rects:?}"
     );
+    // As the root's router hits its layers: the strip of text under the toasts' surface takes
+    // a press beside them, and the toasts one on them.
+    let windows = LayerList::decode(&drawn.layers).expect("the frame is a layer list");
+    let layers = &windows.windows[0].layers;
+    let under = |x: f32, y: f32| {
+        layers
+            .iter()
+            .rev()
+            .find(|layer| layer.shown && layer.takes(pos2(x, y)))
+            .map(|layer| layer.id)
+    };
+    assert_eq!(
+        under(10.0, 10.0),
+        Some(TEXT_LAYER),
+        "a press beside the toasts reaches the strip of text under them"
+    );
+    assert_eq!(under(width as f32 - 40.0, 40.0), Some(TOAST_LAYER));
+    // The first toast, the failure, is at the top right: its close button at its top right,
+    // its action under it, where the accepted painting shows them.
+    let close = pos2(width as f32 - 40.0, 36.0);
+    let copy = pos2(width as f32 - 84.0, 72.0);
 
     // What beui drew: the failure as an alert with its action, the refusal under it.
     let painting = own_paintings(&mut root, 11)
@@ -88,6 +110,47 @@ fn a_root_shows_its_hosts_notices_as_toasts_hit_only_where_they_are() {
     assert!(
         root.take_answers().is_empty(),
         "nothing answered the notices yet"
+    );
+
+    // Pressed through the root's router: the failure's action, then its close button.
+    let mut time = 12;
+    let mut press = |root: &mut Root, at| {
+        root.input(
+            None,
+            encode(&[
+                Input::PointerMoved(at).into(),
+                Input::PointerButton {
+                    pos: at,
+                    button: PointerButton::Primary,
+                    pressed: true,
+                }
+                .into(),
+                Input::PointerButton {
+                    pos: at,
+                    button: PointerButton::Primary,
+                    pressed: false,
+                }
+                .into(),
+            ]),
+        )
+        .expect("the root takes input");
+        (0..5)
+            .flat_map(|_| {
+                time += 1;
+                draw(root, time);
+                root.take_answers()
+            })
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(
+        press(&mut root, copy),
+        vec![(1, Some("copy-report".to_owned()))],
+        "pressing the failure's action tells the host which, for it to do"
+    );
+    assert_eq!(
+        press(&mut root, close),
+        vec![(1, None)],
+        "pressing its close button dismisses it"
     );
 
     // The refusal goes when its time is up, which the root tells its host; the failure stays

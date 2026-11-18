@@ -111,6 +111,8 @@ struct RootShell {
     painting: bool,
     /// Wakes the window for a frame, which asks the root for what drive asked.
     waker: Option<beui::native::Waker>,
+    /// The generation of the host's notices the root was last handed.
+    notices: Option<u64>,
 }
 
 /// What a root's frame asks of its window (`frame-done`'s `cursor`, `pointer-locked` and
@@ -152,6 +154,7 @@ impl RootShell {
             paintings: Rc::default(),
             painting: false,
             waker: None,
+            notices: None,
         }
     }
 
@@ -215,7 +218,7 @@ impl RootShell {
             + self
                 .clock
                 .deadline(self.pass, context.clock_stopped(), since(Instant::now()));
-        root.show_notices(shown_notices());
+        show_notices(root, &mut self.notices);
         let request = FrameRequest {
             time: nanos(time),
             wall_clock: nanos(beui::reactive::wall_clock()),
@@ -229,7 +232,7 @@ impl RootShell {
             answer_notices(context, answers);
             // Dismissing one changes them: the root hears it with its next frame, which this
             // wakes the host for.
-            root.show_notices(shown_notices());
+            show_notices(root, &mut self.notices);
         }
         if let Some(painted) = root.take_paintings() {
             self.painting = false;
@@ -436,6 +439,15 @@ fn start(app: &str, setup: &beui::native::Setup) -> Result<Root, String> {
     let waker = setup.waker.clone();
     root.on_wake(move || waker.wake());
     Ok(root)
+}
+
+/// Hands `root` the host's notices if they changed since the generation it was handed, `seen`.
+fn show_notices(root: &mut Root, seen: &mut Option<u64>) {
+    let generation = notices::generation();
+    if *seen != Some(generation) {
+        *seen = Some(generation);
+        root.show_notices(shown_notices());
+    }
 }
 
 /// The host's notices as `be3:root` carries them, oldest first.

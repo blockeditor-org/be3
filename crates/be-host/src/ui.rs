@@ -32,7 +32,24 @@ thread_local! {
     static COMMANDS: RefCell<Vec<UiCommand>> = const { RefCell::new(Vec::new()) };
 }
 
+thread_local! {
+    /// The host's notices as toasts, and the notices' generation they were made at.
+    static NOTICE_TOASTS: RefCell<(Option<u64>, Vec<Toast>)> = const { RefCell::new((None, Vec::new())) };
+}
+
+/// The host's notices as toasts, made again only once the notices changed.
 pub(crate) fn notice_toasts() -> Vec<Toast> {
+    let generation = be_host_base::notices::generation();
+    NOTICE_TOASTS.with(|made| {
+        let mut made = made.borrow_mut();
+        if made.0 != Some(generation) {
+            *made = (Some(generation), make_notice_toasts());
+        }
+        made.1.clone()
+    })
+}
+
+fn make_notice_toasts() -> Vec<Toast> {
     be_host_base::notices::shown()
         .into_iter()
         .map(|notice| Toast {

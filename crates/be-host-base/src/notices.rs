@@ -41,6 +41,8 @@ impl Notice {
 
 struct Notices {
     next: u64,
+    /// Counts the changes to `shown`, so a reader skips reading them again while it saw them.
+    generation: u64,
     shown: Vec<Notice>,
     /// Account notices dismissed on this device, which stay hidden here though the server
     /// keeps them for the account's other devices.
@@ -49,6 +51,7 @@ struct Notices {
 
 static NOTICES: Mutex<Notices> = Mutex::new(Notices {
     next: 0,
+    generation: 0,
     shown: Vec::new(),
     dismissed: Vec::new(),
 });
@@ -89,12 +92,14 @@ fn show(message: String, report: Option<String>, link: Option<String>, refusal: 
             .iter_mut()
             .find(|notice| notice.message == message)
         {
-            if report.is_some() {
+            if report.is_some() && notice.report != report {
                 notice.report = report;
+                notices.generation += 1;
             }
             return;
         }
         notices.next += 1;
+        notices.generation += 1;
         let id = notices.next;
         notices.shown.push(Notice {
             id,
@@ -117,7 +122,11 @@ pub fn dismiss(id: u64) -> Option<u64> {
         .iter()
         .find(|notice| notice.id == id)
         .and_then(|notice| notice.account);
+    let before = notices.shown.len();
     notices.shown.retain(|notice| notice.id != id);
+    if notices.shown.len() != before {
+        notices.generation += 1;
+    }
     if let Some(account) = account {
         notices.dismissed.push(account);
     }
@@ -129,6 +138,8 @@ pub fn dismiss(id: u64) -> Option<u64> {
 pub fn account_notices(listed: Vec<(u64, String)>) {
     {
         let mut notices = notices();
+        let before = notices.shown.len();
+        let next_before = notices.next;
         notices.shown.retain(|notice| {
             notice
                 .account
@@ -157,6 +168,10 @@ pub fn account_notices(listed: Vec<(u64, String)>) {
                 account: Some(account),
             });
         }
+        // Notices only go or come here; none changes in place.
+        if notices.shown.len() != before || notices.next != next_before {
+            notices.generation += 1;
+        }
     }
     crate::host::wake();
 }
@@ -175,6 +190,11 @@ pub fn link_of(id: u64) -> Option<String> {
         .iter()
         .find(|notice| notice.id == id)
         .and_then(|notice| notice.link.clone())
+}
+
+/// Counts the changes to the notices shown: while it reads the same, `shown` does too.
+pub fn generation() -> u64 {
+    notices().generation
 }
 
 pub fn shown() -> Vec<Notice> {

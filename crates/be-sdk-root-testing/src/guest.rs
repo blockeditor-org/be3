@@ -12,8 +12,9 @@ use std::{
 use be_lib_geometry::pos2;
 use be_lib_layers::{Area, LayerInput, LayerList, Surface, WindowLayers};
 use be_sdk_api::{
-    EditorInstanceId, Fonts, OpenBlock, Opening, OpeningKind, ParentView, Pos2 as ViewPos2, ScreenRequest,
-    SurfaceFormat, SurfaceSpec, Vec2 as ViewVec2, ViewId, ViewPlacement, ViewportMetrics,
+    EditorInstanceId, Fonts, OpenBlock, Opening, OpeningKind, ParentView, Pos2 as ViewPos2,
+    ScreenRequest, SurfaceFormat, SurfaceSpec, Vec2 as ViewVec2, ViewId, ViewPlacement,
+    ViewportMetrics,
 };
 use be_sdk_beui_root::{BeuiRoot, BeuiSurface};
 use be_sdk_root::{Delivery, Embedded, Embedding, OwnSurface, Spawn};
@@ -363,11 +364,11 @@ impl input::Guest for Root {
 }
 
 impl paintings::Guest for Root {
-    /// Its own surface's painting, all `ROOT_COLOR`, and what beui painted of its strip and its
-    /// toasts. After a
-    /// `RESIZES` frame the painting has the surface's new size while the host still shows the
-    /// first fill at the old one: the root never presents it again, which is what that frame
-    /// tests (the host keeps a surface's last frame until it is presented anew).
+    /// Its own surface's painting, all `ROOT_COLOR`, and what beui painted of its strip and,
+    /// while one shows, its toasts. After a `RESIZES` frame the painting has the surface's new
+    /// size while the host still shows the first fill at the old one: the root never presents
+    /// it again, which is what that frame tests (the host keeps a surface's last frame until it
+    /// is presented anew).
     fn paintings(&self) -> LocalFuture<Vec<u8>> {
         let own = self.own.borrow().as_ref().map(|own| {
             let (width, height) = own.size();

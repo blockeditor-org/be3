@@ -197,7 +197,8 @@ tests read one their build made, crates/be-host-tests/apps.bzl). Each guest thre
   document it shows the frame in, whose own the root's replace. The host keeps
   no list of chords the root intercepts: the root takes every key before beui
   sees it and gives its own `Router` its chords (`Router::intercept`). It hands
-  the root be-host-base's notices each frame and does what the root answers:
+  the root be-host-base's notices whenever they changed (`notices::generation`)
+  and does what the root answers:
   dismisses a notice, copies its report or opens its link. `drive
   paint` asks the root for its paintings and places each where its layer
   shows its surface (the app screens it embeds are not in the painting yet).

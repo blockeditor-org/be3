@@ -9,10 +9,10 @@
 //! Its own surface (`ROOT_SURFACE`) it fills with `ROOT_COLOR` through `be3:gpu`; over it, the
 //! strip `TEXT_SURFACE` it draws with beui (be-sdk-beui-root): `TEXT` in the host's fonts, and
 //! `LATER_TEXT` in its place from `LATER` on.
-//! It tells the app the fonts its host gave. Over everything it shows its host's notices (`be3:root`'s `host.notices`) as toasts, drawn
-//! with beui on `TOAST_SURFACE` at the window's top right and shown by `TOAST_LAYER` while any
-//! show, hit only where they are and never taking the focus; what the person answers it tells
-//! its host (`answer-notice`).
+//! It tells the app the fonts its host gave. Over everything it shows its host's notices
+//! (`be3:root`'s `host.notices`) as toasts, drawn with beui on `TOAST_SURFACE` at the window's
+//! top right and shown by `TOAST_LAYER` while any show, hit only where they are and never
+//! taking the focus; what the person answers it tells its host (`answer-notice`).
 //! A frame at `CLOSES` lets go of the app, which stops it. The window's input is routed by the
 //! library over the layers it drew last; what lands on `TEXT_SURFACE` its beui document hears,
 //! and what lands on its own surface beside the strip nothing does.
