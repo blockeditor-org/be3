@@ -13,8 +13,7 @@
 //! the lease up. A component that starts hears every member already admitted join again
 //! (`restart`), and nothing a component before it left untaken.
 
-use std::collections::{HashMap, HashSet, VecDeque};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex, PoisonError};
 
 use be_block_client::{Admitted, Admitting, Event, Peer};
@@ -22,36 +21,18 @@ use be_block_protocol::{ClientId, JoinerChange, MembershipChange};
 use be_sdk_api::blocks::{JoinedMember, MemberEvent, MemberSaid};
 use uuid::Uuid;
 
+use crate::seen::{MemberNews, queue_news};
 use crate::worker::{Shared, Store, Tasks};
 
 /// What a host component may leave untaken: a member that says more while it is this far behind
 /// has its channel broken (it handshakes again) rather than an event dropped.
 const EVENTS_KEPT: usize = 4096;
 
-/// Counts every event queued for any host component, so the runtime reads them only when there
-/// are new ones (`events_revision`).
-static EVENTS: AtomicU64 = AtomicU64::new(0);
-/// Counts every change of which blocks this device holds the lease of (`lease_revision`).
-static LEASES: AtomicU64 = AtomicU64::new(0);
-
-/// How many events were ever queued for host components.
-pub fn events_revision() -> u64 {
-    EVENTS.load(Ordering::Acquire)
-}
-
-/// How many times the blocks whose lease this device holds changed.
-pub fn lease_revision() -> u64 {
-    LEASES.load(Ordering::Acquire)
-}
-
 #[derive(Default)]
 pub struct Hosting {
-    /// The blocks whose session's lease this device's replica holds.
-    held: HashSet<Uuid>,
-    /// Each held block's members, by the client they speak from.
+    /// Each held block's members, by the client they speak from. Which blocks are held is
+    /// `Seen::hosted`, which the page reads.
     channels: HashMap<Uuid, HashMap<ClientId, Member>>,
-    /// What each block's host component has yet to hear.
-    events: HashMap<Uuid, VecDeque<MemberEvent>>,
     /// A check of the members against the signed logs is running, and whether another was
     /// asked for meanwhile, which it runs once more rather than start beside it.
     rechecking: bool,
@@ -66,49 +47,73 @@ enum Member {
     Admitted(Box<Admitted>),
 }
 
-impl Hosting {
-    /// Whether this device's replica holds `block`'s lease.
-    pub fn holds(&self, block: Uuid) -> bool {
-        self.held.contains(&block)
-    }
+/// What `block`'s host component has yet to take.
+#[cfg(test)]
+pub fn queued(shared: &Shared, block: Uuid) -> Vec<MemberEvent> {
+    shared
+        .member_news
+        .get(&block)
+        .into_iter()
+        .flatten()
+        .map(|news| event_of(&news.news))
+        .collect()
+}
 
-    /// What `block`'s host component has yet to take.
-    #[cfg(test)]
-    pub fn queued(&self, block: Uuid) -> Vec<MemberEvent> {
-        self.events
-            .get(&block)
-            .map(|events| events.iter().cloned().collect())
-            .unwrap_or_default()
+/// The member event the app hears for `news`.
+pub fn event_of(news: &MemberNews) -> MemberEvent {
+    match news {
+        MemberNews::Joined {
+            member,
+            account,
+            level,
+        } => MemberEvent::Joined(JoinedMember {
+            member: *member,
+            account: account.into_bytes(),
+            level: access_of(*level),
+        }),
+        MemberNews::Said { member, payload } => MemberEvent::Said(MemberSaid {
+            member: *member,
+            payload: payload.clone(),
+        }),
+        MemberNews::Left(member) => MemberEvent::Left(*member),
     }
+}
 
-    fn tell(&mut self, block: Uuid, event: MemberEvent) {
-        self.events.entry(block).or_default().push_back(event);
-        EVENTS.fetch_add(1, Ordering::AcqRel);
-        crate::changes::wake();
+fn queue(shared: &mut Shared, block: Uuid, news: MemberNews) {
+    let seen = &mut shared.seen;
+    queue_news(&mut seen.member_news, &mut seen.news_queued, block, news);
+}
+
+/// Tells the host component what `member` said, unless it is too far behind to: then the
+/// member's channel breaks, and it hears the member go.
+fn said(shared: &mut Shared, block: Uuid, member: ClientId, payload: Vec<u8>) {
+    let behind = shared
+        .member_news
+        .get(&block)
+        .is_some_and(|news| news.len() >= EVENTS_KEPT);
+    match behind {
+        true => drop_member(shared, block, member),
+        false => queue(shared, block, MemberNews::Said { member, payload }),
     }
+}
 
-    /// Tells the host component what `member` said, unless it is too far behind to: then the
-    /// member's channel breaks, and it hears the member go.
-    fn said(&mut self, block: Uuid, member: ClientId, payload: Vec<u8>) {
-        let behind = self
-            .events
-            .get(&block)
-            .is_some_and(|events| events.len() >= EVENTS_KEPT);
-        match behind {
-            true => self.drop_member(block, member),
-            false => self.tell(block, MemberEvent::Said(MemberSaid { member, payload })),
-        }
+/// Drops `member`'s channel on `block`, telling the host component it left once it was in.
+fn drop_member(shared: &mut Shared, block: Uuid, member: ClientId) {
+    let gone = shared
+        .hosting
+        .channels
+        .get_mut(&block)
+        .and_then(|channels| channels.remove(&member));
+    if let Some(Member::Admitted(_)) = gone {
+        queue(shared, block, MemberNews::Left(member));
     }
+}
 
-    /// Drops `member`'s channel on `block`, telling the host component it left once it was in.
-    fn drop_member(&mut self, block: Uuid, member: ClientId) {
-        let gone = self
-            .channels
-            .get_mut(&block)
-            .and_then(|channels| channels.remove(&member));
-        if let Some(Member::Admitted(_)) = gone {
-            self.tell(block, MemberEvent::Left(member));
-        }
+fn joined(member: ClientId, admitted: &Admitted) -> MemberNews {
+    MemberNews::Joined {
+        member,
+        account: admitted.account,
+        level: admitted.level,
     }
 }
 
@@ -120,55 +125,38 @@ fn lock(shared: &Arc<Mutex<Shared>>) -> std::sync::MutexGuard<'_, Shared> {
 /// with the lease, and what no component took of it.
 pub fn holding(shared: &Arc<Mutex<Shared>>, block: Uuid, holder: bool) {
     let mut held = lock(shared);
-    let hosting = &mut held.hosting;
     let changed = match holder {
-        true => hosting.held.insert(block),
+        true => held.seen.hosted.insert(block).is_none(),
         false => {
-            let changed = hosting.held.remove(&block);
-            hosting.channels.remove(&block);
-            hosting.events.remove(&block);
-            changed
+            held.hosting.channels.remove(&block);
+            held.seen.member_news.remove(&block);
+            held.seen.hosted.remove(&block).is_some()
         }
     };
     if changed {
-        LEASES.fetch_add(1, Ordering::AcqRel);
+        held.seen.leases_changed += 1;
         crate::changes::wake();
     }
 }
 
-/// A host component starts on `block`: it hears every member already admitted join, and none
-/// of what an earlier component left untaken.
+/// A host component starts on `block`: it hears every member already admitted join. The page
+/// dropped what an earlier component left untaken (`crate::restart_host`).
 pub fn restart(shared: &Arc<Mutex<Shared>>, block: Uuid) {
     let mut held = lock(shared);
-    let hosting = &mut held.hosting;
-    hosting.events.remove(&block);
-    let joined: Vec<MemberEvent> = hosting
+    let again: Vec<MemberNews> = held
+        .hosting
         .channels
         .get(&block)
         .into_iter()
         .flatten()
         .filter_map(|(member, held)| match held {
-            Member::Admitted(admitted) => Some(MemberEvent::Joined(JoinedMember {
-                member: *member,
-                account: admitted.account.into_bytes(),
-                level: access_of(admitted.level),
-            })),
+            Member::Admitted(admitted) => Some(joined(*member, admitted)),
             _ => None,
         })
         .collect();
-    for event in joined {
-        hosting.tell(block, event);
+    for news in again {
+        queue(&mut held, block, news);
     }
-}
-
-/// What the host component of `block` has yet to hear, taken.
-pub fn take_events(shared: &Arc<Mutex<Shared>>, block: Uuid) -> Vec<MemberEvent> {
-    lock(shared)
-        .hosting
-        .events
-        .remove(&block)
-        .map(Vec::from)
-        .unwrap_or_default()
 }
 
 /// Seals `payload` on `member`'s channel and sends it: nothing when it is no admitted member.
@@ -216,10 +204,10 @@ pub fn heard(
         Some(Event::Joiner {
             block,
             change: JoinerChange::Left(member),
-        }) => lock(shared).hosting.drop_member(*block, *member),
+        }) => drop_member(&mut lock(shared), *block, *member),
         Some(Event::Membership { block, entry }) => {
             if matches!(entry.change, MembershipChange::Left) {
-                lock(shared).hosting.drop_member(*block, entry.client);
+                drop_member(&mut lock(shared), *block, entry.client);
             }
         }
         Some(Event::KeysChanged | Event::Roots | Event::TreeAdvanced { .. }) | None => {
@@ -237,12 +225,12 @@ fn hosted(
     from: ClientId,
     payload: &[u8],
 ) {
-    let mut held = lock(shared);
-    let hosting = &mut held.hosting;
-    if !hosting.holds(block) {
+    let mut guard = lock(shared);
+    let held = &mut *guard;
+    if !held.seen.hosted.contains(&block) {
         return;
     }
-    let channels = hosting.channels.entry(block).or_default();
+    let channels = held.hosting.channels.entry(block).or_default();
     match channels.remove(&from) {
         None => {}
         // Still being checked: what it sends before its answer is dropped.
@@ -252,15 +240,11 @@ fn hosted(
         }
         Some(Member::Admitting(admitting)) => match admitting.confirm(payload) {
             Ok((admitted, said)) => {
-                let joined = MemberEvent::Joined(JoinedMember {
-                    member: from,
-                    account: admitted.account.into_bytes(),
-                    level: access_of(admitted.level),
-                });
+                let news = joined(from, &admitted);
                 channels.insert(from, Member::Admitted(Box::new(admitted)));
-                hosting.tell(block, joined);
+                queue(held, block, news);
                 if !said.is_empty() {
-                    hosting.said(block, from, said);
+                    self::said(held, block, from, said);
                 }
                 return;
             }
@@ -270,12 +254,12 @@ fn hosted(
         Some(Member::Admitted(mut admitted)) => match admitted.channel.open(payload) {
             Ok(said) => {
                 channels.insert(from, Member::Admitted(admitted));
-                hosting.said(block, from, said);
+                self::said(held, block, from, said);
                 return;
             }
             // Out of place or forged: the channel is broken, and what came is most likely the
             // member's new handshake, taken below.
-            Err(_) => hosting.tell(block, MemberEvent::Left(from)),
+            Err(_) => queue(held, block, MemberNews::Left(from)),
         },
     }
     held.hosting
@@ -283,7 +267,7 @@ fn hosted(
         .entry(block)
         .or_default()
         .insert(from, Member::Answering);
-    drop(held);
+    drop(guard);
     let (peer, shared, payload) = (Arc::clone(peer), Arc::clone(shared), payload.to_vec());
     tasks.spawn(async move {
         let admitted = peer.admit(block, &payload).await;
@@ -328,7 +312,7 @@ pub fn recheck(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: &Tas
             for (block, member, account, public) in members {
                 // Unreachable, the member stays until the logs can be read.
                 if let Ok(None) = peer.still_admits(block, account, &public).await {
-                    lock(&shared).hosting.drop_member(block, member);
+                    drop_member(&mut lock(&shared), block, member);
                 }
             }
             let mut held = lock(&shared);

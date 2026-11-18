@@ -178,6 +178,8 @@ pub(super) enum Command {
         block: Uuid,
         said: be_sdk_api::blocks::MemberSaid,
     },
+    /// A host component starts on a block (`crate::hosting::restart`).
+    RestartHost(Uuid),
     FromEditor {
         block: Uuid,
         editor: EditorId,
@@ -455,6 +457,7 @@ impl Command {
             Command::Attach { .. } => "attach",
             Command::Detach { .. } => "detach",
             Command::TellMember { .. } => "tell member",
+            Command::RestartHost(..) => "restart host",
             Command::FromEditor { .. } => "from editor",
             Command::HoldClock(..) => "hold clock",
             Command::OfflineChoices(..) => "offline choices",
@@ -654,7 +657,8 @@ impl Command {
             | Command::Edit(..)
             | Command::HoldClock(_)
             | Command::OfflineChoices(_)
-            | Command::Reads(..) => None,
+            | Command::Reads(..)
+            | Command::RestartHost(_) => None,
         }
     }
 
@@ -4062,6 +4066,10 @@ async fn apply(
         }
         Command::TellMember { block, said } => {
             crate::hosting::tell(peer, shared, tasks, block, said);
+            false
+        }
+        Command::RestartHost(block) => {
+            crate::hosting::restart(shared, block);
             false
         }
         Command::FromEditor {
