@@ -1,8 +1,9 @@
 //! The account's own block (guides/blocks/keys.md, "Contacts"): owner-only, at the top of the
 //! personal organization at an id derived from the account (`be_block::account_block`), holding
 //! what the account keeps for itself. Any peer reaches it through a peer of the personal
-//! organization of its own, which holds this block's keys alone and keeps nothing on the device:
-//! the block is small, and read again as each pass needs it.
+//! organization of its own, which holds this block's keys alone and keeps nothing on the device,
+//! opened once per connection and identity: the block is small, and read again as each pass
+//! needs it.
 
 use std::sync::Arc;
 
@@ -41,10 +42,59 @@ pub struct Held {
     pub content: AccountBlockContent,
 }
 
+/// The account's block as each connection opened it, by account and identity, so every pass
+/// that reads or writes it (contacts, links, pins) reuses one peer rather than reading its keys
+/// again; one for a connection that closed goes as the next is opened, and a new phrase forgets
+/// the connection's (`forget`).
+type Opened = Vec<(Arc<Connection>, Uuid, [u8; 32], Option<Arc<AccountRecords>>)>;
+
+static OPENED: std::sync::Mutex<Opened> = std::sync::Mutex::new(Vec::new());
+
 impl AccountRecords {
     /// The account's block, reached over `connection`; none for an account in no personal
-    /// organization (an agent), which keeps what it is sent in its mailbox instead.
+    /// organization (an agent), which keeps what it is sent in its mailbox instead. Opened once
+    /// per connection and identity.
     pub fn open<'a>(
+        connection: &'a Arc<Connection>,
+        account: Uuid,
+        identity: &'a RecoverySecret,
+    ) -> Sent<'a, Option<Arc<Self>>> {
+        Box::pin(async move {
+            let public = identity.public().0;
+            let held = |opened: &Opened| {
+                opened
+                    .iter()
+                    .find(|(of, held, key, _)| {
+                        Arc::ptr_eq(of, connection) && *held == account && *key == public
+                    })
+                    .map(|(.., records)| records.clone())
+            };
+            {
+                let mut opened = OPENED.lock().unwrap();
+                opened.retain(|(of, ..)| !of.is_closed());
+                if let Some(records) = held(&opened) {
+                    return Ok(records);
+                }
+            }
+            let records = Self::reach(connection, account, identity).await?.map(Arc::new);
+            let mut opened = OPENED.lock().unwrap();
+            if let Some(records) = held(&opened) {
+                return Ok(records);
+            }
+            opened.push((Arc::clone(connection), account, public, records.clone()));
+            Ok(records)
+        })
+    }
+
+    /// Lets go of what `connection` opened, as its account takes a new phrase.
+    pub fn forget(connection: &Arc<Connection>) {
+        OPENED
+            .lock()
+            .unwrap()
+            .retain(|(of, ..)| !Arc::ptr_eq(of, connection));
+    }
+
+    fn reach<'a>(
         connection: &'a Arc<Connection>,
         account: Uuid,
         identity: &'a RecoverySecret,

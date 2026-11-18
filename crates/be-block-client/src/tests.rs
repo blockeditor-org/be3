@@ -199,6 +199,7 @@ mod an_import_under_the_id_of_a_block_someone_else_made_is_set_aside;
 mod an_invitation_finished_halfway_signs_its_accepter_in_on_the_next_finish;
 mod an_offline_edit_merges_against_the_head_it_left_after_the_server_pruned_it;
 mod an_offline_save_under_a_key_named_between_the_last_lowering_and_the_head_goes_through;
+mod an_older_pin_the_server_sends_again_is_not_taken;
 mod an_organization_whose_root_the_server_swaps_is_refused;
 mod an_organizations_policies_are_read_by_its_members_and_enforced_by_the_server;
 mod an_owner_only_block_is_read_by_its_author_alone;
@@ -312,6 +313,7 @@ impl Harness {
             &crate::contacts::Pinned {
                 root: admin.keys().organization_root(),
                 escrow,
+                made: 0,
             },
         )
         .await
