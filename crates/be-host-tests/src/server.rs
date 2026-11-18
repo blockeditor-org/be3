@@ -108,10 +108,9 @@ impl Server {
     /// records keeps the ones it pinned, and says it cannot read the server's copy
     /// (plans/crypto_audit.md, 4). Every contact's record is spoiled alike, `contact`'s with them.
     pub fn spoil_contact(&self, of: &Account, _contact: &Account) {
-        let database = be_block_sqlite_schema::open(
-            self.inner.running.directory.join("metadata.sqlite"),
-        )
-        .unwrap_or_else(|error| panic!("the test server's database did not open: {error}"));
+        let database =
+            be_block_sqlite_schema::open(self.inner.running.directory.join("metadata.sqlite"))
+                .unwrap_or_else(|error| panic!("the test server's database did not open: {error}"));
         let of = of.id.to_string();
         database
             .execute(
