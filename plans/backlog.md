@@ -342,6 +342,13 @@ Depends on #686 (session catch-ups replaced by server ordering).
   that latency. Not seen in 100 runs at 8 at a time and
   `--latency 75` on a 4-core VM after be-host-runtime counted an app starting for a
   view the host asked of it as busy.
+- **The search index's test connecting, once under verify.** be-host-stack's
+  `what_is_typed_is_found_through_the_workspaces_search_index` failed once in a
+  full `./scripts/verify` after 304 s, connected: false and "connecting to the
+  server timed out", waiting to reconnect; it passed alone in 2 s and in the
+  verify rerun. Done: the cause found (the test's server under the build
+  server's load, or a reconnect that never comes back) from a failing run's
+  output and fixed at its source, with a test that shows it.
 
 ## 16. Host test tools
 
