@@ -57,17 +57,21 @@ fn a_device_hosts_only_once_its_component_claims_the_lease() {
         "the component's claim makes this device the host"
     );
 
-    let peer = &other.peer;
-    other.runtime.block_on(async {
-        peer.refresh_keys(None).await.expect("the keys arrive");
-        let joined = peer
-            .connection()
-            .join(peer.organization(), block, be_block_store::Hash::from_bytes([3; 32]))
+    // Another editor's device opens the block's replica, running the type's build as this
+    // device does, and claims the lease.
+    let Member { runtime, peer, .. } = other;
+    let local = tokio::task::LocalSet::new();
+    let session = local.block_on(&runtime, async move {
+        be_tool_cli::replica::Session::open(peer, block, super::types::sources().await)
             .await
-            .expect("the other editor joins");
-        assert_eq!(joined.host.map(|host| host.account), Some(harness.account));
-        peer.connection().claim(block).await.expect("it claims");
+            .expect("the other editor opens the world")
     });
+    let mut outside = Outside {
+        runtime,
+        local,
+        session: Some(session),
+    };
+    outside.claim();
     wait_until("hosts no longer", |shared| {
         !shared.hosted.contains(&block) && shared.session_hosts.get(&block) == Some(&Some(false))
     });
