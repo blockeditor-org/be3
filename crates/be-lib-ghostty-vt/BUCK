@@ -116,7 +116,11 @@ genrule(
                 echo "crt_dir=$sdk/sdk/lib/ucrt/$arch"
                 echo "msvc_lib_dir=$sdk/crt/lib/$arch"
                 echo "kernel32_lib_dir=$sdk/sdk/lib/um/$arch"
-                echo "gcc_dir="
+                # Zig 0.17 also checks the file against the host, Linux,
+                # whose build runner and tools link no libc but must still
+                # name a cc_dir.
+                echo "cc_dir=$sdk/crt/lib/$arch"
+                echo "darwin_sdk_dir="
             } > "$GHOSTTY_ZIG_LIBC"
         fi
         bash $(location //scripts/internal:build-ghostty-vt.sh) --triple "$triple" \\
