@@ -231,6 +231,49 @@ async fn connect_to(settings: &Settings, url: String) -> Result<Peer<FileStore>,
     .map_err(explain)
 }
 
+/// What be-host-stack signs in with to run this account's blocks as be-host does (`be BLOCK
+/// host`, plans/headless_apps.md, step 2): the account the token names, its organization and its
+/// recovery secret, checked as `connect` checks them, and a directory of its own under the cache.
+pub async fn stack_config(settings: &Settings) -> Result<be_host_stack::Config, String> {
+    let url = be_block_client::socket_url(&settings.server);
+    authorize(&url, settings.authorization.clone());
+    if !secure_or_local(&url) {
+        return Err(format!(
+            "{} is not https, so BE3_TOKEN would cross the network unencrypted",
+            settings.server
+        ));
+    }
+    let (connection, be_block_protocol::Authenticated { account, token, .. }) =
+        Connection::connect(
+            &url,
+            &be_block_client::Clock::real(),
+            &settings.credentials(),
+        )
+        .await
+        .map_err(explain)?;
+    let organization = match settings.organization {
+        Some(organization) => organization,
+        None => only_organization(&connection).await?,
+    };
+    let identity = identity(&connection, &settings.phrase).await?;
+    connection.close();
+    Ok(be_host_stack::Config {
+        local: false,
+        server_url: settings.server.clone(),
+        token,
+        account,
+        organization,
+        identity: identity.to_bytes(),
+        display_name: "be".to_owned(),
+        email: String::new(),
+        data_dir: settings
+            .cache
+            .join("host")
+            .join(organization.simple().to_string()),
+        clock: be_block_client::Clock::real(),
+    })
+}
+
 async fn only_organization(connection: &Arc<Connection>) -> Result<Uuid, String> {
     let organizations =
         be_block_client::ask(be_block_protocol::read::<
