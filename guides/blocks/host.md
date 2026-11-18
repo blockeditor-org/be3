@@ -163,6 +163,11 @@ clock (`Clock::driven`, which be-host-testing's harness uses) also has its
 waits move the clock on to the stack's next reconnect, and all the stack's
 time with it, so a failed connect never strands on a clock nobody moves. A
 test that moves its clock itself uses `Clock::manual`, which no wait moves.
+A test whose stack frames take (`take_updates_in_frame`, as be-host-runtime's
+`next_screens` does) and that waits on a reply's callback (a served command's
+answer, which `wait_until` does not see as progress) steps with
+`take_updates_or_wait(what, done)`: it takes the updates and, unless `done`
+holds, waits for the worker's next hand-over and takes that.
 Commit times and an embedded server's history follow `be_block_commit::now_milliseconds`, which a
 test pins with `pin_now` to step history a minute at a time (be-host pins it to
 its wall clock while that is pinned, so `drive pause` moves it).
