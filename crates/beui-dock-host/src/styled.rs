@@ -835,6 +835,12 @@ fn DockStrip(handle: DockStripHandle) -> NodeId {
     // strip ends in a menu of every tab.
     let clipped = create_signal(false);
     let all_tabs = format!("{test_prefix}.all-tabs");
+    // A gap between the strip's cut edge and the menu, so a tab cut there never reads as part
+    // of the button.
+    let apart = match direction {
+        Direction::Horizontal => Padding::new(Space::Xs, Space::None, Space::None, Space::None),
+        Direction::Vertical => Padding::new(Space::None, Space::Xs, Space::None, Space::None),
+    };
     view! {
         <List direction align=Align::Center spacing=Space::None>
             <ListItem grow=1.0 shrink=1.0>
@@ -851,6 +857,7 @@ fn DockStrip(handle: DockStripHandle) -> NodeId {
                 </Scroll>
             </ListItem>
             <Show value={clipped}>
+                <Frame padding={apart}>
                 <MenuButton
                     icon_only=true
                     variant=ButtonVariant::Ghost
@@ -863,6 +870,7 @@ fn DockStrip(handle: DockStripHandle) -> NodeId {
                         <MenuNodes nodes={menu} test_prefix={all_tabs.clone()} />
                     }}
                 />
+                </Frame>
             </Show>
         </List>
     }

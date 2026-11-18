@@ -1264,7 +1264,10 @@ pub(crate) fn AppView(
 /// for a child shows that color, never what is behind the view, before the child draws there and
 /// after it goes. It fills the view's laid box, not its last placement, so a view growing before
 /// its app reports the new size shows that color beyond its last frame too. A turned or faded
-/// view gets none, which would show through it twice.
+/// view gets none, which would show through it twice. It needs no clip of its own: the
+/// placement's `clip` is the painter's clip where the view's embed paints
+/// (`EmbedPlacement`), and this frame is painted under the same ancestors, so it is clipped
+/// there already.
 #[component]
 fn Backdrop(state: Memo<PlacedView>, radius: Memo<f32>, upright: Memo<bool>) -> NodeId {
     let fill = create_memo(move || {
