@@ -858,10 +858,12 @@ impl<S: ObjectStore> Peer<S> {
         .await;
         match response {
             Ok(summary) => {
+                // Taken before its row goes, so a listing laid over between the two never
+                // misses it (`Peer::with_outbox`).
+                self.taken(block);
                 self.refs.remove(&[sequence])?;
                 self.keys.made_taken(block);
                 self.note(&summary);
-                self.taken(block);
                 self.escrow_created(&creation.keys).await;
                 Ok(Drained::Created { block })
             }
@@ -870,9 +872,9 @@ impl<S: ObjectStore> Peer<S> {
             // it is not the block, and is set aside, its root and log let go.
             Err(ClientError::Refused(ErrorCode::BlockAlreadyExists, _)) => {
                 if self.made_here(&creation).await? {
+                    self.taken(block);
                     self.refs.remove(&[sequence])?;
                     self.keys.made_taken(block);
-                    self.taken(block);
                     return Ok(Drained::Created { block });
                 }
                 let why = crate::refs::Aside::Refused(ErrorCode::BlockAlreadyExists);
@@ -922,8 +924,8 @@ impl<S: ObjectStore> Peer<S> {
         let block = moving.block;
         match self.send_parent(block, moving.parent).await {
             Ok(()) => {
-                self.refs.remove(&[sequence])?;
                 self.taken(block);
+                self.refs.remove(&[sequence])?;
                 let _ = self
                     .follow_prefixes(block, moving.from, moving.parent)
                     .await;
