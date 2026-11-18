@@ -1,12 +1,13 @@
 use be_sdk_beui::be_block_content::BlockContent;
-use be_sdk_beui::{AccessGrant, AccessLevel, AccessListing, BlockInfo, ShellDialog};
+use be_sdk_beui::{AccessGrant, AccessLevel, AccessListing, BlockInfo, OfferedLevel, ShellDialog};
 use be_sdk_test::HostCall;
 use be_type_workspace::FolderContent;
 
 use super::*;
 
-/// On a hosted block a share link grants Join unless the person chooses more
-/// (plans/hosted_blocks.md, "The share dialog").
+/// A hosted block's dialog offers its type's levels by their names, each said in a line, and
+/// a share link grants Join unless the person chooses more (plans/hosted_blocks.md, "The share
+/// dialog"): a game's Join game, Host and Manage.
 #[test]
 fn the_share_dialog_makes_a_join_link_on_a_hosted_block() {
     let (mut fixture, block) = editor_sized(Some(Vec2::new(900.0, 800.0)));
@@ -38,7 +39,23 @@ fn the_share_dialog_makes_a_join_link_on_a_hosted_block() {
                     }],
                     company: false,
                     set_inside: 0,
-                    hosted: true,
+                    levels: vec![
+                        OfferedLevel {
+                            access: AccessLevel::Join,
+                            name: "Join game".to_owned(),
+                            line: "Connect to whoever hosts the world.".to_owned(),
+                        },
+                        OfferedLevel {
+                            access: AccessLevel::Edit,
+                            name: "Host".to_owned(),
+                            line: "Can run the world, and so read and change anything in it, outside the game's rules.".to_owned(),
+                        },
+                        OfferedLevel {
+                            access: AccessLevel::Manage,
+                            name: "Manage".to_owned(),
+                            line: "Can also share the world.".to_owned(),
+                        },
+                    ],
                 }),
             ),
             HostCall::ListShareLinks { reply, .. } => fixture.test.answer(reply, Ok(Vec::new())),
@@ -47,8 +64,16 @@ fn the_share_dialog_makes_a_join_link_on_a_hosted_block() {
     }
     fixture.settle();
     assert!(
-        fixture.says(AccessLevel::Join.label()),
-        "a hosted block's link offers Join first"
+        fixture.says("Join game"),
+        "a hosted block's link offers its type's Join first, by its name"
+    );
+    assert!(
+        fixture.says("Connect to whoever hosts the world."),
+        "with the line saying what it means"
+    );
+    assert!(
+        !fixture.says(AccessLevel::Join.label()),
+        "never by the core name"
     );
     fixture
         .test

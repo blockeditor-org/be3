@@ -56,6 +56,31 @@ pub struct HostManifest {
     pub name: String,
     /// The block type it runs on.
     pub edits: [u8; 16],
+    /// The levels a block of the type is shared at, each named and said in a line for what
+    /// it adds for the type's stored content (plans/hosted_blocks.md, "The share dialog"):
+    /// Join always, in the order the share dialog lists them.
+    pub levels: Vec<OfferedLevel>,
+}
+
+/// A level a hosted type offers in the share dialog.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct OfferedLevel {
+    pub access: OfferedAccess,
+    /// What the dialog calls it ("Join game", "Host").
+    pub name: String,
+    /// One line saying what it lets someone do with the stored block.
+    pub line: String,
+}
+
+/// The core levels a hosted type may offer: every one a grant may give.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum OfferedAccess {
+    Join,
+    View,
+    Edit,
+    Manage,
 }
 
 pub const EXTENSIONS: &[&str] = &["be3:desktop"];
@@ -200,6 +225,7 @@ pub enum ManifestError {
     TemplateWithoutBlockType,
     ServiceWithTemplates,
     DuplicateHost,
+    InvalidLevels,
     InvalidWorker,
 }
 
@@ -231,6 +257,9 @@ impl fmt::Display for ManifestError {
             ),
             Self::DuplicateHost => formatter.write_str(
                 "a host component shares an id or name with an editor or another host, or two run on one type",
+            ),
+            Self::InvalidLevels => formatter.write_str(
+                "a host component's levels must offer Join, and each level once",
             ),
             Self::DuplicateBlockType => {
                 formatter.write_str("two block types are declared with the same id or name")
@@ -309,6 +338,22 @@ impl AppManifest {
                 .any(|editor| editor.id == host.id || editor.name == host.name)
             {
                 return Err(ManifestError::DuplicateHost);
+            }
+            if !host
+                .levels
+                .iter()
+                .any(|level| level.access == OfferedAccess::Join)
+                || host.levels.iter().enumerate().any(|(index, level)| {
+                    host.levels[..index]
+                        .iter()
+                        .any(|other| other.access == level.access)
+                })
+            {
+                return Err(ManifestError::InvalidLevels);
+            }
+            for level in &host.levels {
+                manifest_string("level name", &level.name)?;
+                manifest_string("level line", &level.line)?;
             }
         }
         manifest_string("entry point", &self.entry_point)?;

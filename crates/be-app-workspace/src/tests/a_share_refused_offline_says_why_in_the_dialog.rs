@@ -46,7 +46,7 @@ fn a_share_refused_offline_says_why_in_the_dialog() {
             ],
             company: false,
             set_inside: 0,
-            hosted: false,
+            levels: Vec::new(),
         }),
     );
     fixture.settle();

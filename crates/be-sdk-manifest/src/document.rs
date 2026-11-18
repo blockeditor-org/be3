@@ -63,6 +63,9 @@ pub struct HostDocument {
     pub id: String,
     /// The `CONTENT_TYPE` of the type it runs on.
     pub edits: String,
+    /// The levels the share dialog offers on a block of the type, in its order, Join among
+    /// them (`HostManifest::levels`).
+    pub levels: Vec<crate::OfferedLevel>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -284,6 +287,7 @@ impl ManifestDocument {
                             .into_bytes(),
                         name,
                         edits: block_type(&host.edits)?,
+                        levels: host.levels,
                     })
                 })
                 .collect::<Result<_, ManifestError>>()?,

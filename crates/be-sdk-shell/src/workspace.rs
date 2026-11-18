@@ -572,7 +572,9 @@ impl Workspace {
                 share.error = None;
                 let ask = self.ask_number();
                 let workspace = *self;
-                let asked = self.host().contact_link(share.block, share.pending_access);
+                let listing = self.share_members.get_untracked().ok();
+                let access = share.pending_access(listing.as_ref());
+                let asked = self.host().contact_link(share.block, access);
                 let task = self.editor.then(asked, move |made| {
                     workspace.contact_made(ask, made);
                 });

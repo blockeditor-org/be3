@@ -677,8 +677,10 @@ opens it and makes nobody a contact, so it is no `link-kind` of the contact link
   root only weakly (from another member's escrow) makes no link: it would vouch for a root
   never verified. The opener's endorsement also
   covers the entry its grant follows, so the grant stands only where it was signed. A hosted
-  block (an app's manifest runs a host component on its type, `discovery::hosted`) offers
-  Join in the share dialog's link row, first and by default; any other block never does.
+  block (an app's manifest runs a host component on its type) offers the levels that
+  component's `levels` name, by their names (`discovery::offered_levels`, the access
+  listing's `levels`), with Join first and by default in the link row; any other block never
+  offers Join.
 - **Keys after a rotation.** The scope key a link carries opens the epochs current when it
   was made. Later epochs reach an opener through key work's `unsealed`, as any grantee: their
   grant names their keys, so an editor's `tend` seals to them by the block's log. Their
