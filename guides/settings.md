@@ -87,6 +87,11 @@ profile keeps it, and belongs to one organization. Losing the recovery phrase lo
 the Settings list says in a company organization (`ONLY_YOURS` in `root/ui.rs`); an app holding
 a key just asks to connect again.
 
+A guest's `Settings` (guides/blocks/keys.md, "Share links") is itself owner-only, at the top
+of the organization it is a guest of: be-host makes it so (`RootSettings::set_guest`), and the
+server lets a guest make no other block but what lies in it
+(decisions/a_guest_makes_only_its_own_shell.md).
+
 ## Prefixes and tags
 
 `PrefixRegistry` is the only way a row id resolves
