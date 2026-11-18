@@ -1094,10 +1094,14 @@ who lost access. Cited from code by these names.
   database, so a backup together with the backup key opens the settings keys
   sealed to the server, the storage credentials and every push `auth` secret
   (guides/hosting.md).
-- **A new phrase grows with the account.** `set-recovery-key` carries one
-  retirement (300 to 400 bytes) per log the account signed in, so past roughly
-  20,000 blocks it no longer fits in one frame (`MAX_FRAME_BYTES`) and the
-  account cannot take a new phrase. Not fixed yet (plans/backlog.md, 18).
+- **A new phrase grows with the account.** A move carries one retirement (300
+  to 400 bytes) per log the account signed in, and every key sealed to it
+  again. Past a quarter of a frame (`RECOVERY_PART_BYTES`) the device sends the
+  rest ahead in parts (`stage-recovery-key`), which the server holds for those
+  keys and the last write (`set-recovery-key`) checks with its own as one, so
+  any account takes a new phrase. The server still reads every log the account
+  signed in to serve `recovery-key` (each one's head) and to check the
+  retirements, so a move costs time in the number of blocks the account made.
 
 ## Contacts
 

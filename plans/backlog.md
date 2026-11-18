@@ -439,18 +439,6 @@ Depends on #686 (session catch-ups replaced by server ordering).
   showed per contact in its refs and shows no card dated before it, with a
   client test where a lying server serves the older card.
 
-- **A new phrase grows with the account.** `set-recovery-key` carries one
-  retirement (about 300 to 400 bytes) per access log the account signed in,
-  which is every block it ever made, beside the resealed keys that grow the
-  same way, and `get-recovery-key` decodes each of those logs to serve its
-  head. Past roughly 20,000 blocks a new phrase no longer fits in one frame
-  (`MAX_FRAME_BYTES`), which locks a heavy user out of the one answer to a
-  stolen phrase. Either send the change in parts committed by a last call
-  that keeps the all-or-nothing check, or keep one account-level keys log
-  holding the retirement once, which a block's check looks the signer's
-  current key up in. Done: an account with more blocks than one frame's worth
-  of retirements takes a new phrase, and every log is retired.
-
 ## 19. Local accounts
 
 - **Share and Access offered with no server.** A local account's block menus
