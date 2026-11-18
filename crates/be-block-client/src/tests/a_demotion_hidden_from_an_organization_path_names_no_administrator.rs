@@ -88,15 +88,17 @@ fn a_demotion_hidden_from_an_organization_path_names_no_administrator() {
                 key,
                 wrapped_by: WrappedBy::Account(reader_id),
                 sender: deputy_id,
-                sealed: deputy.seal_for(
-                    deputy_id.into_bytes(),
-                    &Party {
-                        account: reader_id.into_bytes(),
-                        public: reader.public(),
-                    },
-                    key.as_bytes(),
-                    &carried.encode(),
-                ).unwrap(),
+                sealed: deputy
+                    .seal_for(
+                        deputy_id.into_bytes(),
+                        &Party {
+                            account: reader_id.into_bytes(),
+                            public: reader.public(),
+                        },
+                        key.as_bytes(),
+                        &carried.encode(),
+                    )
+                    .unwrap(),
             }],
         }
     };

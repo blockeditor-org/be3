@@ -13,7 +13,10 @@ fn what_an_account_seals_for_itself_opens_only_with_its_secret() {
     let sealed = mine.seal_own(Own::Contact, &card.encode());
     assert_eq!(mine.open_own(Own::Contact, &sealed).unwrap(), card.encode());
     let other = RecoveryPhrase::generate().secret();
-    assert_eq!(other.open_own(Own::Contact, &sealed), Err(KeyError::Corrupt));
+    assert_eq!(
+        other.open_own(Own::Contact, &sealed),
+        Err(KeyError::Corrupt)
+    );
     let to_itself = mine
         .seal_for(
             [3; 16],
@@ -34,7 +37,10 @@ fn what_an_account_seals_for_itself_opens_only_with_its_secret() {
     // organization's pin as another's.
     let pin = mine.seal_own(Own::Pin([5; 16]), b"escrow");
     assert_eq!(mine.open_own(Own::Pin([5; 16]), &pin).unwrap(), b"escrow");
-    assert_eq!(mine.open_own(Own::Pin([6; 16]), &pin), Err(KeyError::Corrupt));
+    assert_eq!(
+        mine.open_own(Own::Pin([6; 16]), &pin),
+        Err(KeyError::Corrupt)
+    );
     assert_eq!(mine.open_own(Own::Contact, &pin), Err(KeyError::Corrupt));
     assert_eq!(
         mine.open_own(Own::Pin([5; 16]), &sealed),

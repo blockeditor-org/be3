@@ -92,15 +92,19 @@ async fn a_key_the_server_or_a_stranger_seals_to_a_member_is_never_used() {
         victim.account(),
         stranger.account(),
         |key| {
-            stranger.keys().identity().seal_for(
-                stranger.account().into_bytes(),
-                &Party {
-                    account: victim.account().into_bytes(),
-                    public: victim_public,
-                },
-                key.as_bytes(),
-                &known_to_the_server,
-            ).unwrap()
+            stranger
+                .keys()
+                .identity()
+                .seal_for(
+                    stranger.account().into_bytes(),
+                    &Party {
+                        account: victim.account().into_bytes(),
+                        public: victim_public,
+                    },
+                    key.as_bytes(),
+                    &known_to_the_server,
+                )
+                .unwrap()
         },
     );
 

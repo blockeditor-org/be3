@@ -995,9 +995,8 @@ impl Head {
             .iter()
             .find(|header| header.name.eq_ignore_ascii_case("content-length"))
         {
-            Some(header) => content_length(header.value).ok_or_else(|| {
-                ServerError::Socket("the content length is not a number".into())
-            })?,
+            Some(header) => content_length(header.value)
+                .ok_or_else(|| ServerError::Socket("the content length is not a number".into()))?,
             None => 0,
         };
         let session = header(SESSION_HEADER).map(str::to_owned);

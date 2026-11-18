@@ -13,15 +13,19 @@ fn plant(
     carried: &be_block_keys::CarriedKey,
 ) {
     let organization = sender.organization();
-    let sealed = sender.keys().identity().seal_for(
-        sender.account().into_bytes(),
-        &be_block_keys::Party {
-            account: to.account().into_bytes(),
-            public: to.keys().identity().public(),
-        },
-        key.as_bytes(),
-        &carried.encode(),
-    ).unwrap();
+    let sealed = sender
+        .keys()
+        .identity()
+        .seal_for(
+            sender.account().into_bytes(),
+            &be_block_keys::Party {
+                account: to.account().into_bytes(),
+                public: to.keys().identity().public(),
+            },
+            key.as_bytes(),
+            &carried.encode(),
+        )
+        .unwrap();
     let database = harness.database();
     database
         .execute(

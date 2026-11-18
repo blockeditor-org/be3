@@ -191,7 +191,10 @@ pub fn normalize_code(code: &str) -> String {
 }
 
 fn code_hash(attempt: &str, code: &str) -> String {
-    hash_token(TokenKind::Code, &format!("{attempt}:{}", normalize_code(code)))
+    hash_token(
+        TokenKind::Code,
+        &format!("{attempt}:{}", normalize_code(code)),
+    )
 }
 
 fn refused(message: &str) -> ServerError {
@@ -310,7 +313,11 @@ pub(crate) fn open_browser_session(
     let token = issue_token(database, account)?;
     database.execute(
         "UPDATE sessions SET kind = 'browser', expires = ?2, proved = ?3 WHERE token_hash = ?1",
-        params![hash_token(TokenKind::Session, &token), now + 30 * 86400, now],
+        params![
+            hash_token(TokenKind::Session, &token),
+            now + 30 * 86400,
+            now
+        ],
     )?;
     Ok(token)
 }
@@ -619,7 +626,8 @@ impl ServerStore {
     }
 }
 
-const NOT_FRESH: &str = "Confirm it is you first, with a code to your email, a passkey or a provider you sign in with.";
+const NOT_FRESH: &str =
+    "Confirm it is you first, with a code to your email, a passkey or a provider you sign in with.";
 
 /// Refuses unless the browser session hashed as `browser` is `account`'s and proved it is the
 /// owner in the last `FRESH_PROOF`; checked in the transaction of the change it allows, so a

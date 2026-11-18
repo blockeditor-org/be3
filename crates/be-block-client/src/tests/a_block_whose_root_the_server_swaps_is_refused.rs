@@ -109,15 +109,19 @@ async fn a_block_whose_root_the_server_swaps_is_refused() {
         root: Some(forged.hash()),
         heads: be_block_keys::Heads::default(),
     };
-    let sealed = owner.keys().identity().seal_for(
-        owner.account().into_bytes(),
-        &be_block_keys::Party {
-            account: member.account().into_bytes(),
-            public: member.keys().identity().public(),
-        },
-        other.as_bytes(),
-        &carried.encode(),
-    ).unwrap();
+    let sealed = owner
+        .keys()
+        .identity()
+        .seal_for(
+            owner.account().into_bytes(),
+            &be_block_keys::Party {
+                account: member.account().into_bytes(),
+                public: member.keys().identity().public(),
+            },
+            other.as_bytes(),
+            &carried.encode(),
+        )
+        .unwrap();
     let database = harness.database();
     database
         .execute(

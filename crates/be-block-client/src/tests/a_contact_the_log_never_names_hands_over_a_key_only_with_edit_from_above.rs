@@ -72,15 +72,19 @@ async fn a_contact_the_log_never_names_hands_over_a_key_only_with_edit_from_abov
                 organization: None,
             },
         };
-        sender.keys().identity().seal_for(
-            sender.account().into_bytes(),
-            &Party {
-                account: owner.account().into_bytes(),
-                public: owner.keys().identity().public(),
-            },
-            key.as_bytes(),
-            &carried.encode(),
-        ).unwrap()
+        sender
+            .keys()
+            .identity()
+            .seal_for(
+                sender.account().into_bytes(),
+                &Party {
+                    account: owner.account().into_bytes(),
+                    public: owner.keys().identity().public(),
+                },
+                key.as_bytes(),
+                &carried.encode(),
+            )
+            .unwrap()
     };
     let mut planted = Vec::new();
     let mut seals = Vec::new();
@@ -96,15 +100,19 @@ async fn a_contact_the_log_never_names_hands_over_a_key_only_with_edit_from_abov
                 organization: None,
             },
         };
-        let sealed = sender.keys().identity().seal_for(
-            sender.account().into_bytes(),
-            &Party {
-                account: owner.account().into_bytes(),
-                public: owner.keys().identity().public(),
-            },
-            key.as_bytes(),
-            &carried.encode(),
-        ).unwrap();
+        let sealed = sender
+            .keys()
+            .identity()
+            .seal_for(
+                sender.account().into_bytes(),
+                &Party {
+                    account: owner.account().into_bytes(),
+                    public: owner.keys().identity().public(),
+                },
+                key.as_bytes(),
+                &carried.encode(),
+            )
+            .unwrap();
         plant(
             &harness,
             organization,
@@ -183,15 +191,19 @@ async fn a_contact_the_log_never_names_hands_over_a_key_only_with_edit_from_abov
                 organization: None,
             },
         };
-        stranger.keys().identity().seal_for(
-            stranger.account().into_bytes(),
-            &Party {
-                account: owner.account().into_bytes(),
-                public: owner.keys().identity().public(),
-            },
-            planted[0].as_bytes(),
-            &carried.encode(),
-        ).unwrap()
+        stranger
+            .keys()
+            .identity()
+            .seal_for(
+                stranger.account().into_bytes(),
+                &Party {
+                    account: owner.account().into_bytes(),
+                    public: owner.keys().identity().public(),
+                },
+                planted[0].as_bytes(),
+                &carried.encode(),
+            )
+            .unwrap()
     };
     harness
         .database()

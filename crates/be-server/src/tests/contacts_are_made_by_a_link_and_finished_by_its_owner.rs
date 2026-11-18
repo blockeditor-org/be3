@@ -105,7 +105,12 @@ async fn contacts_are_made_by_a_link_and_finished_by_its_owner() {
     };
     assert_eq!(*from, owner_id);
     assert_eq!(
-        ContactCard::decode(&other_secret.open_own(be_block_keys::Own::Contact, record).unwrap()).unwrap(),
+        ContactCard::decode(
+            &other_secret
+                .open_own(be_block_keys::Own::Contact, record)
+                .unwrap()
+        )
+        .unwrap(),
         owner_card
     );
 

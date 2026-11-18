@@ -34,7 +34,6 @@ async fn every_secret_the_server_hands_out_is_256_random_bits() {
     let sessions = crate::browser_auth::Sessions::default();
     let (_, secret, _, _) = sessions.begin(std::net::IpAddr::from([192, 0, 2, 1]));
     assert!(is_secret(&secret), "{secret}");
-    let secrets: std::collections::HashSet<String> =
-        (0..64).map(|_| crate::new_secret()).collect();
+    let secrets: std::collections::HashSet<String> = (0..64).map(|_| crate::new_secret()).collect();
     assert_eq!(secrets.len(), 64);
 }

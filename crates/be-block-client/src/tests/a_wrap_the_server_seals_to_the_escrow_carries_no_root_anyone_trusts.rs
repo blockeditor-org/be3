@@ -120,16 +120,20 @@ async fn a_wrap_the_server_seals_to_the_escrow_carries_no_root_anyone_trusts() {
         10,
         escrow.id,
         stranger.account(),
-        stranger.keys().identity().seal_for(
-            stranger.account().into_bytes(),
-            &to,
-            key.as_bytes(),
-            &CarriedKey {
-                label: crate::tests::planted(key, "scope", 10),
-                ..carrying_real
-            }
-            .encode(),
-        ).unwrap(),
+        stranger
+            .keys()
+            .identity()
+            .seal_for(
+                stranger.account().into_bytes(),
+                &to,
+                key.as_bytes(),
+                &CarriedKey {
+                    label: crate::tests::planted(key, "scope", 10),
+                    ..carrying_real
+                }
+                .encode(),
+            )
+            .unwrap(),
         key,
     );
 
@@ -150,16 +154,20 @@ async fn a_wrap_the_server_seals_to_the_escrow_carries_no_root_anyone_trusts() {
         11,
         escrow.id,
         added.account(),
-        added.keys().identity().seal_for(
-            added.account().into_bytes(),
-            &to,
-            key.as_bytes(),
-            &CarriedKey {
-                label: crate::tests::planted(key, "scope", 11),
-                ..carried
-            }
-            .encode(),
-        ).unwrap(),
+        added
+            .keys()
+            .identity()
+            .seal_for(
+                added.account().into_bytes(),
+                &to,
+                key.as_bytes(),
+                &CarriedKey {
+                    label: crate::tests::planted(key, "scope", 11),
+                    ..carried
+                }
+                .encode(),
+            )
+            .unwrap(),
         key,
     );
 
@@ -198,16 +206,20 @@ async fn a_wrap_the_server_seals_to_the_escrow_carries_no_root_anyone_trusts() {
         12,
         escrow.id,
         stranger.account(),
-        stranger.keys().identity().seal_for(
-            stranger.account().into_bytes(),
-            &to,
-            key.as_bytes(),
-            &CarriedKey {
-                label: crate::tests::planted(key, "scope", 12),
-                ..carried
-            }
-            .encode(),
-        ).unwrap(),
+        stranger
+            .keys()
+            .identity()
+            .seal_for(
+                stranger.account().into_bytes(),
+                &to,
+                key.as_bytes(),
+                &CarriedKey {
+                    label: crate::tests::planted(key, "scope", 12),
+                    ..carried
+                }
+                .encode(),
+            )
+            .unwrap(),
         key,
     );
     let again = harness.second(&admin).await;

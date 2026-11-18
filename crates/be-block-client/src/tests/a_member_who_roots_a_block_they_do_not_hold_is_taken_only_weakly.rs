@@ -89,12 +89,16 @@ async fn a_member_who_roots_a_block_they_do_not_hold_is_taken_only_weakly() {
                 key.to_string(),
                 escrow.id.to_string(),
                 intruder.account().to_string(),
-                intruder.keys().identity().seal_for(
-                    intruder.account().into_bytes(),
-                    &to,
-                    key.as_bytes(),
-                    &carried.encode()
-                ).unwrap()
+                intruder
+                    .keys()
+                    .identity()
+                    .seal_for(
+                        intruder.account().into_bytes(),
+                        &to,
+                        key.as_bytes(),
+                        &carried.encode()
+                    )
+                    .unwrap()
             ],
         )
         .unwrap();

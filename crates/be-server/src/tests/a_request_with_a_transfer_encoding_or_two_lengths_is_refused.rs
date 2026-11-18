@@ -45,11 +45,6 @@ async fn a_request_with_a_transfer_encoding_or_two_lengths_is_refused() {
         b"Content-Length: +5\r\n",
         b"Content-Length: \r\n",
     ] {
-        assert_eq!(
-            status(odd).await,
-            "400",
-            "{}",
-            String::from_utf8_lossy(odd)
-        );
+        assert_eq!(status(odd).await, "400", "{}", String::from_utf8_lossy(odd));
     }
 }

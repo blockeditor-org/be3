@@ -1,7 +1,7 @@
 use be_block_graph::Access;
 use be_block_keys::{
-    CardRole, ContactCard, InviteCode, Own, Party, PublicIdentity, RecoveryPublic,
-    RecoverySecret, SigningPublic,
+    CardRole, ContactCard, InviteCode, Own, Party, PublicIdentity, RecoveryPublic, RecoverySecret,
+    SigningPublic,
 };
 use std::collections::HashMap;
 

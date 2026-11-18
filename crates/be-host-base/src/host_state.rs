@@ -80,10 +80,7 @@ impl std::fmt::Debug for SavedAccount {
             .field("name", &self.name)
             .field("token", &"..")
             .field("last_organization_id", &self.last_organization_id)
-            .field(
-                "authorization",
-                &self.authorization.as_ref().map(|_| ".."),
-            )
+            .field("authorization", &self.authorization.as_ref().map(|_| ".."))
             .finish()
     }
 }

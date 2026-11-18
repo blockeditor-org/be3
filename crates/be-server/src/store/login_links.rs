@@ -17,7 +17,9 @@ use uuid::Uuid;
 use super::codes::{
     Identity, account_of, make_account, open_browser_session, recover_account, unregistered,
 };
-use super::{ServerStore, TokenKind, hash_token, invite_codes, normalize_email, parse_uuid, portal::now};
+use super::{
+    ServerStore, TokenKind, hash_token, invite_codes, normalize_email, parse_uuid, portal::now,
+};
 use crate::ServerError;
 
 fn refused(message: &str) -> ServerError {

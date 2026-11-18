@@ -112,7 +112,8 @@ pub(crate) fn start_check(browser: &str) -> String {
 /// Whether `given` is the browser's `start_check`. It compares their hashes, so how long the
 /// comparison takes says nothing about the check itself.
 pub(crate) fn is_start_check(browser: &str, given: &str) -> bool {
-    hash_token(TokenKind::ProviderStart, given) == hash_token(TokenKind::ProviderStart, &start_check(browser))
+    hash_token(TokenKind::ProviderStart, given)
+        == hash_token(TokenKind::ProviderStart, &start_check(browser))
 }
 
 /// A provider identity's subject: the configured issuer and the token's `sub`.
@@ -319,8 +320,11 @@ impl ServerStore {
         state: &str,
         attempt: &str,
     ) -> Result<Begun, ServerError> {
-        let (provider, state, attempt) =
-            (provider.to_owned(), hash_token(TokenKind::ProviderState, state), hash_token(TokenKind::Attempt, attempt));
+        let (provider, state, attempt) = (
+            provider.to_owned(),
+            hash_token(TokenKind::ProviderState, state),
+            hash_token(TokenKind::Attempt, attempt),
+        );
         self.with_database(move |_, database| {
             let transaction = be_block_sqlite_schema::write_transaction(database)?;
             #[allow(clippy::type_complexity)]
@@ -420,7 +424,8 @@ impl ServerStore {
                 }
                 let allow_registration = config.allow_registration;
                 let (provider_id, name) = (provider.id.clone(), verified.name.clone());
-                let (pending_attempt, device_code) = (hash_token(TokenKind::Attempt, attempt), begun.device_code);
+                let (pending_attempt, device_code) =
+                    (hash_token(TokenKind::Attempt, attempt), begun.device_code);
                 let found = self
                     .with_database(move |_, database| {
                         let transaction = be_block_sqlite_schema::write_transaction(database)?;

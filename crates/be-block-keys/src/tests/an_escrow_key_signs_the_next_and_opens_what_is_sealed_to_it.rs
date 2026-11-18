@@ -19,11 +19,10 @@ fn an_escrow_key_signs_the_next_and_opens_what_is_sealed_to_it() {
             .signing()
             .verifies_escrow(&chained, &signature)
     );
-    assert!(
-        !maker
-            .signing()
-            .verifies_escrow(&[b"next".as_slice(), &first.public().0].concat(), &signature)
-    );
+    assert!(!maker.signing().verifies_escrow(
+        &[b"next".as_slice(), &first.public().0].concat(),
+        &signature
+    ));
     assert!(
         !maker
             .signing()

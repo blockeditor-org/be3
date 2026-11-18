@@ -27,15 +27,20 @@ async fn an_escrow_wrap_from_a_revoked_editor_waits_on_a_log_short_of_what_was_k
             organization: None,
         },
     };
-    let sealed = revoked.bob.keys().identity().seal_for(
-        revoked.bob.account().into_bytes(),
-        &Party {
-            account: escrow.id.into_bytes(),
-            public: RecoveryPublic(escrow.public),
-        },
-        made_up.as_bytes(),
-        &carried.encode(),
-    ).unwrap();
+    let sealed = revoked
+        .bob
+        .keys()
+        .identity()
+        .seal_for(
+            revoked.bob.account().into_bytes(),
+            &Party {
+                account: escrow.id.into_bytes(),
+                public: RecoveryPublic(escrow.public),
+            },
+            made_up.as_bytes(),
+            &carried.encode(),
+        )
+        .unwrap();
     plant_sealed(
         &harness,
         &revoked,

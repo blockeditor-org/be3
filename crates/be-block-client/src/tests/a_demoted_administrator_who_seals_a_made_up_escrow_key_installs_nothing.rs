@@ -48,15 +48,19 @@ async fn a_demoted_administrator_who_seals_a_made_up_escrow_key_installs_nothing
         root: None,
         heads: Heads::default(),
     };
-    let sealed = deputy.keys().identity().seal_for(
-        deputy.account().into_bytes(),
-        &Party {
-            account: member.account().into_bytes(),
-            public: member.keys().identity().public(),
-        },
-        forged.id.as_bytes(),
-        &carried.encode(),
-    ).unwrap();
+    let sealed = deputy
+        .keys()
+        .identity()
+        .seal_for(
+            deputy.account().into_bytes(),
+            &Party {
+                account: member.account().into_bytes(),
+                public: member.keys().identity().public(),
+            },
+            forged.id.as_bytes(),
+            &carried.encode(),
+        )
+        .unwrap();
     harness
         .database()
         .execute(

@@ -58,14 +58,18 @@ async fn contacts_keep_sharing_after_one_of_them_takes_a_new_recovery_phrase() {
     assert_eq!(text(&owner, from_guest).await, "from the guest");
 
     let fresh = be_block_keys::RecoveryPhrase::generate().secret();
-    let forged = stranger.keys().identity().seal_key_change(
-        owner.account().into_bytes(),
-        &Party {
-            account: guest.account().into_bytes(),
-            public: guest.keys().identity().public(),
-        },
-        stranger.keys().identity().identity(),
-    ).unwrap();
+    let forged = stranger
+        .keys()
+        .identity()
+        .seal_key_change(
+            owner.account().into_bytes(),
+            &Party {
+                account: guest.account().into_bytes(),
+                public: guest.keys().identity().public(),
+            },
+            stranger.keys().identity().identity(),
+        )
+        .unwrap();
     // A forged change ahead of the real one in the guest's mailbox, as the owner's.
     harness
         .database()

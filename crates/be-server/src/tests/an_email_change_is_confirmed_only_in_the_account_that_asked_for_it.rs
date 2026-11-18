@@ -30,14 +30,24 @@ async fn an_email_change_is_confirmed_only_in_the_account_that_asked_for_it() {
     // The stranger opens the link signed out, or signed in as another account.
     let mut signed_out = Browser::default();
     let (status, page) = signed_out
-        .submit(&harness, "/auth/verify", "/auth/verify", &[("token", &token)])
+        .submit(
+            &harness,
+            "/auth/verify",
+            "/auth/verify",
+            &[("token", &token)],
+        )
         .await;
     assert_eq!(status, 400, "{page}");
     assert!(page.contains("Sign in as the account"), "{page}");
     let mut other = Browser::default();
     other.sign_in_by_code(&harness, "other@example.com").await;
     let (status, page) = other
-        .submit(&harness, "/auth/verify", "/auth/verify", &[("token", &token)])
+        .submit(
+            &harness,
+            "/auth/verify",
+            "/auth/verify",
+            &[("token", &token)],
+        )
         .await;
     assert_eq!(status, 400, "{page}");
     assert_eq!(email(other.cookie.clone()).await, "other@example.com");
@@ -45,7 +55,12 @@ async fn an_email_change_is_confirmed_only_in_the_account_that_asked_for_it() {
 
     // Neither spent the link: the account that asked still confirms it.
     let (status, page) = asker
-        .submit(&harness, "/auth/verify", "/auth/verify", &[("token", &token)])
+        .submit(
+            &harness,
+            "/auth/verify",
+            "/auth/verify",
+            &[("token", &token)],
+        )
         .await;
     assert_eq!(status, 303, "{page}");
     assert_eq!(email(asker.cookie.clone()).await, "stranger@example.com");

@@ -8,9 +8,11 @@ async fn a_secret_derived_from_the_servers_own_is_hkdf_of_it() {
     harness.member("ada@example.com").await;
     let database = metadata_database(&harness.directory);
     let secret: Vec<u8> = database
-        .query_row("SELECT secret FROM server_account WHERE id = 1", [], |row| {
-            row.get(0)
-        })
+        .query_row(
+            "SELECT secret FROM server_account WHERE id = 1",
+            [],
+            |row| row.get(0),
+        )
         .unwrap();
     let key = crate::organization::ServerKey::load_or_create(&database).unwrap();
     for purpose in ["s3 access key", "s3 secret key"] {

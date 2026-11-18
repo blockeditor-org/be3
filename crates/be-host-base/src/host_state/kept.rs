@@ -95,12 +95,14 @@ impl std::fmt::Debug for Write {
                 .field(saved)
                 .field(&"..")
                 .finish(),
-            Write::SetInputSettings(bytes) => {
-                formatter.debug_tuple("SetInputSettings").field(bytes).finish()
-            }
-            Write::SetDisplaySettings(bytes) => {
-                formatter.debug_tuple("SetDisplaySettings").field(bytes).finish()
-            }
+            Write::SetInputSettings(bytes) => formatter
+                .debug_tuple("SetInputSettings")
+                .field(bytes)
+                .finish(),
+            Write::SetDisplaySettings(bytes) => formatter
+                .debug_tuple("SetDisplaySettings")
+                .field(bytes)
+                .finish(),
             Write::SetRemapper(bytes) => formatter.debug_tuple("SetRemapper").field(bytes).finish(),
         }
     }

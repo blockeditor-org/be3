@@ -91,15 +91,17 @@ async fn a_key_the_server_labels_as_the_organizations_settings_never_seals_anoth
         scope,
         format!("account:{}", victim.account()),
         server,
-        secret.seal_for(
-            server.into_bytes(),
-            &Party {
-                account: victim.account().into_bytes(),
-                public: victim.keys().identity().public(),
-            },
-            scope.as_bytes(),
-            &scope_plain,
-        ).unwrap(),
+        secret
+            .seal_for(
+                server.into_bytes(),
+                &Party {
+                    account: victim.account().into_bytes(),
+                    public: victim.keys().identity().public(),
+                },
+                scope.as_bytes(),
+                &scope_plain,
+            )
+            .unwrap(),
     );
     let data = insert_key(&database, organization, note, "data");
     insert_wrap(&database, organization, data, scope.to_string(), server, {

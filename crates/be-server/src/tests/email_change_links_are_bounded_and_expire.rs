@@ -52,6 +52,11 @@ async fn email_change_links_are_bounded_and_expire() {
     database
         .execute("UPDATE sessions SET expires = 0 WHERE kind = 'browser'", [])
         .unwrap();
-    assert!(store.confirm_mail(&first.token, profile.account).await.is_err());
+    assert!(
+        store
+            .confirm_mail(&first.token, profile.account)
+            .await
+            .is_err()
+    );
     assert!(store.browser_profile(&browser).await.is_err());
 }
