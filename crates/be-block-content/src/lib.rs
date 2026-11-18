@@ -31,7 +31,7 @@ pub use editor_view::{
     EditorView, EditorViewContent, VIEW_TYPE, ViewRef, ViewState, ViewStateKind,
 };
 pub use layered::{Follows, KindRule, KindVisibility, Layered, layered};
-pub use log::{Along, LogAppended, LogFold, LogItem, LogPage, LogSigner};
+pub use log::{Along, LogAppended, LogFold, LogItem, LogPage, LogSearch, LogSigner};
 pub use metadata::{
     ARTIFACT, Artifact, BlockMetadata, CREATED_BY, DELETED_FROM, Definition, DeletedFrom,
     EXECUTABLE, Entries, ICON, ICON_COLOR, INTRINSIC_NAME, LOCAL_ID, MATERIAL_ICON, MY_FILES,

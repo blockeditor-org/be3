@@ -288,9 +288,20 @@ impl Undo for ChatContent {
 }
 
 /// The chat's log is folded by its editors (`ChatLog`), never by its content: a chat's
-/// children are its content's, and its description its name.
+/// children are its content's, and its description its name. Each message is a searchable
+/// document, which its author's edit replaces and deletion drops.
 impl be_block_content::LogFold for ChatContent {
     const FOLDS: bool = false;
 
     fn fold(&mut self, _: &LogItem) {}
+
+    fn search(item: &LogItem) -> Option<be_block_content::LogSearch> {
+        let (place, text) = match crate::ChatEntry::decode(item.payload.as_deref()?)? {
+            crate::ChatEntry::Message { body, .. } => (item.seq, Some(body)),
+            crate::ChatEntry::Edit { message, body, .. } => (message, Some(body)),
+            crate::ChatEntry::Delete { message, .. } => (message, None),
+            crate::ChatEntry::React { .. } => return None,
+        };
+        Some(be_block_content::LogSearch { place, text })
+    }
 }

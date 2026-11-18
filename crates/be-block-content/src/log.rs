@@ -46,6 +46,22 @@ pub trait LogFold: crate::BlockContent {
     const FOLDS: bool = true;
 
     fn fold(&mut self, item: &LogItem);
+
+    /// What `item` changes in the type's searchable text, if anything: the document of the
+    /// entry at `LogSearch::place` (its own place, for an entry that adds one) says `text` now,
+    /// or is gone. The host applies a change to another entry's document only when that entry
+    /// has the same author, so nobody changes what someone else wrote.
+    fn search(_item: &LogItem) -> Option<LogSearch> {
+        None
+    }
+}
+
+/// What an entry of a block's signed log changes in its searchable text (`LogFold::search`).
+#[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
+pub struct LogSearch {
+    pub place: u64,
+    /// None: the document is gone.
+    pub text: Option<String>,
 }
 
 /// What goes with an entry an editor appends, which the device keeps with the entry until the

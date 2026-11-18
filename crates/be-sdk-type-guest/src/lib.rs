@@ -95,6 +95,9 @@ pub struct Registration {
     /// The type's fold of its signed log, a `replica::Fold` of its content, if it has a log
     /// that what its content shows folds (`LogFold::FOLDS`).
     fold: Option<std::rc::Rc<dyn std::any::Any>>,
+    /// What an entry of the type's signed log changes in its searchable text
+    /// (`LogFold::search`), if it has a log.
+    search_log: Option<fn(&be_block_content::LogItem) -> Option<be_block_content::LogSearch>>,
     describe: fn(&[u8], Uuid) -> Result<Description, String>,
     search_text: SearchTextFn,
     unread: Option<UnreadFns>,
@@ -134,6 +137,7 @@ impl Registration {
             merge_parts: None,
             replica_merge: None,
             fold: None,
+            search_log: None,
             describe: describe_bytes::<C>,
             search_text: search_text::<C>,
             unread: None,
@@ -189,6 +193,7 @@ impl Registration {
     pub fn log<C: be_block_content::LogFold + LiveEdit>(mut self) -> Self {
         assert_eq!(self.info.content_type, C::CONTENT_TYPE);
         self.info.log = true;
+        self.search_log = Some(C::search);
         self.fold = C::FOLDS.then(|| {
             std::rc::Rc::new(fold::<C> as replica::Fold<C>) as std::rc::Rc<dyn std::any::Any>
         });
@@ -1199,6 +1204,32 @@ impl replicas::Guest for Module {
                 .map_err(Failure::Malformed),
             Err(failure) => Err(failure),
         }))
+    }
+
+    fn search_log(
+        &self,
+        content_type: Uuid,
+        items: Vec<be_sdk_type_api::LogItem>,
+    ) -> LocalFuture<Result<Vec<be_sdk_type_api::LogSearch>, Failure>> {
+        let search = match self.with_kind(content_type, |kind| kind.search_log) {
+            None => Err(Failure::UnknownType),
+            Some(None) => Err(Failure::Malformed("this type keeps no log".to_owned())),
+            Some(Some(search)) => Ok(search),
+        };
+        Box::pin(ready(search.map(|search| {
+            items
+                .into_iter()
+                .map(log_item)
+                .filter_map(|item| {
+                    let change = search(&item)?;
+                    Some(be_sdk_type_api::LogSearch {
+                        seq: item.seq,
+                        place: change.place,
+                        text: change.text,
+                    })
+                })
+                .collect()
+        })))
     }
 
     fn unread(

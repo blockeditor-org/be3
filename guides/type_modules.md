@@ -332,7 +332,12 @@ who signed them, `LogSigner`) changes what the content shows.
   verdicts count for. It keeps the folded copy and folds entries that follow
   on onto it, folding from the start again only when the content changed or
   an entry it folded is told better. What it commits never holds the fold.
-  Search does not read logs yet (plans/signed_logs.md, step 5b).
+- **Search.** What each entry changes in the type's searchable text is the
+  type's (`LogFold::search`, `replicas.search-log`): the document of an
+  entry, its own or one it names, now says some text or is gone. The host
+  keeps a change to another entry's document only when both have the same
+  author (`Replicas::search_log`), and indexes them as documents of their own
+  (guides/blocks/host.md, "Search").
 - **Unread.** A type that counts what is unread (`Unread::count_unread`) is
   handed its log's latest entries, `UNREAD_ENTRIES` at most, with its content
   and place (`replicas.unread`'s `log`).

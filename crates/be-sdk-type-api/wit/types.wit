@@ -145,6 +145,15 @@ interface types {
         kept: list<kept-entry>,
     }
 
+    /// What an entry of a signed log changes in its block's searchable text:
+    /// the entry it is (`seq`), and the document of the entry at `place` now
+    /// says `text`, or is gone.
+    record log-search {
+        seq: u64,
+        place: u64,
+        text: option<string>,
+    }
+
     /// An entry this device appended that waits for the server: its id and
     /// the bytes the app appended.
     record kept-entry {
