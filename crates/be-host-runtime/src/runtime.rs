@@ -8,9 +8,10 @@ use std::{
 };
 
 use be_sdk_api::{
-    AnchorSpace, ArtifactDescription, BlockPick, ChildPreview, EditorInstanceId, FrameSpec, HostPanel, HostTransform, LayoutCommit, OpeningKind,
-    PresentCommit, PreviewImage, ScreenDamage, ScreenId, ScreenLayout,
-    ScreenPlacement, ScreenRequest, SurfaceFormat, SurfaceSpec, View, ViewId, WindowRequest,
+    AnchorSpace, ArtifactDescription, BlockPick, ChildPreview, EditorInstanceId, FrameSpec,
+    HostPanel, HostTransform, LayoutCommit, OpeningKind, PresentCommit, PreviewImage, ScreenDamage,
+    ScreenId, ScreenLayout, ScreenPlacement, ScreenRequest, SurfaceFormat, SurfaceSpec, View,
+    ViewId, WindowRequest,
 };
 use be_sdk_app_host::{
     holds::{Held, Holds, Laid, Presents, Shown},
