@@ -34,6 +34,11 @@ pub trait Membership {
         self.holder() == Some(client)
     }
 
+    /// Who hosts the block (plans/hosted_blocks.md, "Hosting"): the holder, but only by a
+    /// claim, never by having joined first, since a device claims as its host component
+    /// starts. None while no such participant claimed.
+    fn claimed_holder(&self) -> Option<ClientId>;
+
     /// The build of the block's type the session speaks: its first participant's.
     fn tag(&self) -> Option<Hash>;
 
@@ -126,6 +131,19 @@ impl Membership for SessionState {
             .filter(|participant| participant.claimed.is_some())
             .max_by_key(|participant| participant.claimed)
             .or_else(|| editors().next())
+            .map(|participant| participant.client)
+    }
+
+    fn claimed_holder(&self) -> Option<ClientId> {
+        let tag = self.tag();
+        self.participants
+            .iter()
+            .filter(|participant| {
+                participant.may_edit
+                    && Some(participant.tag) == tag
+                    && participant.claimed.is_some()
+            })
+            .max_by_key(|participant| participant.claimed)
             .map(|participant| participant.client)
     }
 

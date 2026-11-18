@@ -1235,8 +1235,9 @@ pub fn lease_revision() -> u64 {
     with_seen(|seen| seen.leases_changed).unwrap_or_default()
 }
 
-/// A host component starts on `block`: it hears every member already admitted join, and none of
-/// what an earlier component left untaken.
+/// A host component starts on `block`: it claims the session's lease, so this device hosts it,
+/// and hears every member already admitted join, and none of what an earlier component left
+/// untaken.
 pub fn restart_host(block: Uuid) {
     // The worker drops the rest and replays the joins in one step; the page drops what it holds
     // now, so the new component takes none of it before that step reaches it. The replayed
@@ -1248,10 +1249,18 @@ pub fn restart_host(block: Uuid) {
     send(Command::RestartHost(block));
 }
 
-/// Whether this device's replica holds `block`'s session's lease, so a host component may run
-/// on it here.
-pub fn holds_lease(block: Uuid) -> bool {
-    with_seen(|seen| seen.hosted.contains(&block)).unwrap_or_default()
+/// A host component stopped on `block`: if this device hosts it and its replica stays open (a
+/// preview, a child), the replica joins the session again, which drops the claim, so another
+/// device may host (plans/hosted_blocks.md, step 4d2). A replica that closes drops it anyway.
+pub fn release_host(block: Uuid) {
+    send(Command::ReleaseHost(block));
+}
+
+/// Whether a host component may start on `block` here: this device's replica is in its session
+/// and no one hosts it, or this device does. Starting one claims the lease (`restart_host`).
+pub fn may_host(block: Uuid) -> bool {
+    with_seen(|seen| matches!(seen.session_hosts.get(&block), Some(None | Some(true))))
+        .unwrap_or_default()
 }
 
 /// Names the block whose host channel `owner`, an editor opened as a Join member, joins

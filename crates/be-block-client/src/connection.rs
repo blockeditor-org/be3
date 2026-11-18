@@ -104,10 +104,12 @@ pub enum Event {
         payload: Vec<u8>,
         received: i64,
     },
-    /// Who holds the lease of a block's session now (`session-event.host`).
+    /// Who hosts a block's session now (`session-event.host`), and whether it is this
+    /// connection. Told too as each join of the session is answered, with the host as of it.
     Host {
         block: Uuid,
         host: Option<be_block_protocol::SessionHost>,
+        ours: bool,
     },
     /// A Join member came to or left a block's session this connection holds the lease of
     /// (`session-event.joiner`).
@@ -149,6 +151,8 @@ struct Registry {
     /// The session events of each block being joined, held until the join is answered, so a
     /// subscriber hears none before it.
     joining: HashMap<Uuid, Vec<Event>>,
+    /// This connection in each session it is in, as the session names it.
+    clients: HashMap<Uuid, ClientId>,
 }
 
 /// What a connection signs in with, in its greeting.
@@ -404,7 +408,12 @@ impl Connection {
                         payload,
                         received,
                     },
-                    SessionEvent::Host(host) => Event::Host { block, host },
+                    SessionEvent::Host(host) => {
+                        let ours = host.is_some_and(|host| {
+                            self.registry().clients.get(&block) == Some(&host.client)
+                        });
+                        Event::Host { block, host, ours }
+                    }
                     SessionEvent::Joiner(change) => Event::Joiner { block, change },
                 };
                 let mut registry = self.registry();
@@ -463,16 +472,24 @@ impl Connection {
                 let mut registry = connection.registry();
                 let held = registry.joining.remove(&block).unwrap_or_default();
                 match &joined {
-                    Ok(Ok(_)) => {
+                    Ok(Ok(joined)) => {
                         registry.sessions.insert(block, organization);
+                        registry.clients.insert(block, joined.client);
                     }
                     _ => {
                         registry.sessions.remove(&block);
+                        registry.clients.remove(&block);
                     }
                 }
                 held
             };
             let joined = joined??;
+            // Who hosts as of the join, before anything that changed it since.
+            let _ = connection.events.send(Event::Host {
+                block,
+                host: joined.host,
+                ours: joined.host.is_some_and(|host| host.client == joined.client),
+            });
             for event in held {
                 let _ = connection.events.send(event);
             }
@@ -495,7 +512,11 @@ impl Connection {
     }
 
     pub fn leave_session(&self, block: Uuid) -> Answer<()> {
-        let organization = self.registry().sessions.remove(&block);
+        let organization = {
+            let mut registry = self.registry();
+            registry.clients.remove(&block);
+            registry.sessions.remove(&block)
+        };
         let left = organization.map(|organization| {
             client::server::unfollow(&self.peer, Some(organization), Topic::Session(block))
         });
