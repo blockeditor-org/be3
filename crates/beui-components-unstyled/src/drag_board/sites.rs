@@ -374,7 +374,12 @@ impl Board {
     /// but for a keyboard carry stepped to a labelled place, at that place wherever it is now,
     /// so a scroll or pan under it keeps it on the place it said.
     pub(crate) fn placing_again(&self) -> Vec<DragPoint> {
-        let held: Vec<(PointerId, DragPoint, Option<(CandidateId, String)>, Option<Rect>)> = self
+        let held: Vec<(
+            PointerId,
+            DragPoint,
+            Option<(CandidateId, String)>,
+            Option<Rect>,
+        )> = self
             .placing
             .borrow()
             .iter()

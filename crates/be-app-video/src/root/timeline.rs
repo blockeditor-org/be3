@@ -6,8 +6,7 @@ use std::rc::Rc;
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{
-    CursorIcon, NodeId, PointerId, PointerPress, Pos2, Rect, ScrollGesture, Vec2, accesskit,
-    drag,
+    CursorIcon, NodeId, PointerId, PointerPress, Pos2, Rect, ScrollGesture, Vec2, accesskit, drag,
 };
 use be_sdk_beui::{ChildBlock, ChildMode, Drag};
 use uuid::Uuid;
@@ -44,19 +43,21 @@ fn keyboard_stops(
     (0..lanes)
         .flat_map(|lane| {
             let y = RULER_HEIGHT + lane as f32 * (LANE_HEIGHT + LANE_GAP) + LANE_HEIGHT / 2.0;
-            (0..=frames).step_by(stride as usize).filter_map(move |frame| {
-                let at = Pos2::new(content.left() + frame as f32 * scale, y);
-                timeline::drop_target_at(video, rows, content, scale, at, Some(dragged))?;
-                let start = frame.saturating_sub(dragged.grab);
-                Some(drag::Stop::new(
-                    Rect::from_center_size(at, Vec2::new(width, LANE_HEIGHT)),
-                    format!(
-                        "lane {}, {}",
-                        lane + 1,
-                        timeline::timecode(frame_rate, start)
-                    ),
-                ))
-            })
+            (0..=frames)
+                .step_by(stride as usize)
+                .filter_map(move |frame| {
+                    let at = Pos2::new(content.left() + frame as f32 * scale, y);
+                    timeline::drop_target_at(video, rows, content, scale, at, Some(dragged))?;
+                    let start = frame.saturating_sub(dragged.grab);
+                    Some(drag::Stop::new(
+                        Rect::from_center_size(at, Vec2::new(width, LANE_HEIGHT)),
+                        format!(
+                            "lane {}, {}",
+                            lane + 1,
+                            timeline::timecode(frame_rate, start)
+                        ),
+                    ))
+                })
         })
         .collect()
 }
@@ -430,35 +431,35 @@ fn Clip(
     );
 
     let face = view! {
-                <Interactive on_press={move |press: PointerPress| grabbing.set(Some(press.local))}>
+        <Interactive on_press={move |press: PointerPress| grabbing.set(Some(press.local))}>
+            <Frame
+                fill={move || match attached.get() {
+                    true => ColorRole::Hover,
+                    false => ColorRole::Pressed,
+                }}
+                radius=CLIP_RADIUS
+                border={move || selected.get().then_some(Border::FOCUS)}
+                padding=THUMBNAIL_MARGIN
+            >
+                <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
                     <Frame
-                        fill={move || match attached.get() {
-                            true => ColorRole::Hover,
-                            false => ColorRole::Pressed,
-                        }}
-                        radius=CLIP_RADIUS
-                        border={move || selected.get().then_some(Border::FOCUS)}
-                        padding=THUMBNAIL_MARGIN
+                        width={Size::Custom((LANE_HEIGHT - THUMBNAIL_MARGIN.px() * 2.0) * 1.4)}
+                        height={Size::Custom(LANE_HEIGHT - THUMBNAIL_MARGIN.px() * 2.0)}
                     >
-                        <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
-                            <Frame
-                                width={Size::Custom((LANE_HEIGHT - THUMBNAIL_MARGIN.px() * 2.0) * 1.4)}
-                                height={Size::Custom(LANE_HEIGHT - THUMBNAIL_MARGIN.px() * 2.0)}
-                            >
-                                <ChildBlock
-                                    editor={editor}
-                                    block={block}
-                                    mode=ChildMode::Preview
-                                    on_state={move |_| {}}
-                                />
-                            </Frame>
-                            <ListItem grow=1.0>
-                                <Text overflow=Overflow::Ellipsis>{name}</Text>
-                            </ListItem>
-                            <TrimHandle state={state} id={id} scale={scale} />
-                        </List>
+                        <ChildBlock
+                            editor={editor}
+                            block={block}
+                            mode=ChildMode::Preview
+                            on_state={move |_| {}}
+                        />
                     </Frame>
-                </Interactive>
+                    <ListItem grow=1.0>
+                        <Text overflow=Overflow::Ellipsis>{name}</Text>
+                    </ListItem>
+                    <TrimHandle state={state} id={id} scale={scale} />
+                </List>
+            </Frame>
+        </Interactive>
     };
     view! {
         <CanvasItem x={x} y={y} width={width} height=LANE_HEIGHT>
@@ -512,7 +513,6 @@ fn ClipControl(
         </Interactive>
     }
 }
-
 
 /// How far inside its edge the timeline keeps the place a keyboard carry is over.
 const FOLLOW_MARGIN: f32 = 24.0;

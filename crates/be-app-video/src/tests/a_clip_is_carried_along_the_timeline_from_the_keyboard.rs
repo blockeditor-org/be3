@@ -26,9 +26,7 @@ fn a_clip_is_carried_along_the_timeline_from_the_keyboard() {
     fixture.settle();
     let first = format!("video.clip.{}", clips[0]);
     let timeline = fixture.editor.rect_of("video.timeline");
-    let second_at = fixture
-        .editor
-        .rect_of(&format!("video.clip.{}", clips[1]));
+    let second_at = fixture.editor.rect_of(&format!("video.clip.{}", clips[1]));
     assert!(
         second_at.right() > timeline.right(),
         "the second clip runs past the timeline's edge"
@@ -69,9 +67,7 @@ fn a_clip_is_carried_along_the_timeline_from_the_keyboard() {
         "the timeline follows the carry: its marker at {marker:?} is shown in {timeline:?}"
     );
     assert_ne!(
-        fixture
-            .editor
-            .rect_of(&format!("video.clip.{}", clips[1])),
+        fixture.editor.rect_of(&format!("video.clip.{}", clips[1])),
         second_at,
         "panned to show it"
     );
