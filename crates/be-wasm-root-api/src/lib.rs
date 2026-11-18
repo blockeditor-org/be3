@@ -16,13 +16,16 @@ be_wasm_ops_bindgen::generate!({
         "password": ::be_wasm_password::Password,
     },
     copy: ["uuid"],
-    default: ["core-view", "organizations-area", "organizations-listed", "sessions-area"],
+    default: [
+        "core-view", "invitations-area", "organizations-area", "organizations-listed", "sessions-area",
+    ],
     secret: ["password"],
 });
 
 pub use frames::{FrameDone, FrameRequest};
 pub use host::{
-    AccountRow, BrowserSignIn, CoreCommand, CoreView, CoreWait, Invitation, OrganizationRow,
+    AccountRow, BrowserSignIn, CoreCommand, CoreSecret, CoreView, CoreWait, DiscardReason,
+    InvitationRow, InvitationState, InvitationsArea, Reauthenticating, Invitation, OrganizationRow,
     OrganizationsArea, OrganizationsListed, ProfileRow, SessionKind, SessionRow, SessionsArea, DisplayQuestion, DisplayState, HostStatistics, LockState, Notice, NoticeAction, PowerAction, SavingState, ShownNotices,
     NewAccount, Refusal, ServerAccount, SetAside, SigningIn, StatisticRow, SyncState, UnsentEdit,
 };

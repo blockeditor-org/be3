@@ -261,5 +261,21 @@ pub const SIGN_IN_TITLE: &str = "Sign in with your browser";
 /// alone, whose blocks go with it.
 pub const FORGET_ACCOUNT_TITLE: &str = "Remove account?";
 
+/// The title of the question the host asks before signing in again to an account whose sign-in
+/// ended (`core-view`'s `reauthenticating`).
+pub const REAUTH_TITLE: &str = "Sign in again";
+
+/// The title of the question the host asks before discarding unsaved changes (`core-view`'s
+/// `discarding`).
+pub const DISCARD_TITLE: &str = "Discard unsaved changes?";
+
+/// The key that opens the root's list of the organization's invitations, in its dialog's place,
+/// pressed with no modifiers: the root intercepts it wherever the focus is, but not while the
+/// session is locked.
+pub const OPENS_INVITATIONS: Key = Key::F9;
+
+/// The title of the organization's invitations.
+pub const INVITATIONS_TITLE: &str = "Invitations";
+
 #[cfg(target_arch = "wasm32")]
 mod guest;

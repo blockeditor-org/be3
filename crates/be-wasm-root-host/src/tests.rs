@@ -14,6 +14,7 @@ mod a_dialog_shows_over_its_scrim_which_captures_a_press_beside_it_and_closes_it
 mod a_frame_asks_its_host_for_what_the_surface_under_the_pointer_and_the_focus_ask;
 mod a_frame_past_its_deadline_draws_without_the_child_it_waits_for;
 mod a_frame_waits_for_its_child_and_shows_it;
+mod a_root_asks_its_hosts_questions_and_shows_an_invitations_link_only_once;
 mod a_root_asks_to_keep_display_settings_its_host_changed;
 mod a_root_built_on_the_library_shows_the_editor_it_embeds;
 mod a_root_draws_its_own_surface_on_the_hosts_device;
@@ -286,6 +287,15 @@ fn until(
         }
     }
     panic!("within a few frames, {what}");
+}
+
+/// The commands the root asked of the block stack since the last call, without the ids the
+/// host answers them by.
+fn asked_core(root: &mut Root) -> Vec<be_wasm_root_api::CoreCommand> {
+    root.take_core_commands()
+        .into_iter()
+        .map(|asked| asked.command)
+        .collect()
 }
 
 /// Opens the embedding root's dialog with the key it intercepts, from the frame clock's `*time`,

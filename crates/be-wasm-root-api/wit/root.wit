@@ -446,6 +446,76 @@ interface host {
         profiles: list<profile-row>,
     }
 
+    /// An account whose sign-in ended, which the person signs in to again.
+    record reauthenticating {
+        /// The account's key, which `forget-account` names it by.
+        key: string,
+        name: string,
+        /// Whether its sign-in is under way.
+        busy: bool,
+        /// Why signing in again failed, in words.
+        error: option<string>,
+    }
+
+    /// What discarding the changes not saved to this device yet would be for,
+    /// which the host asks the person to confirm before it does it.
+    enum discard-reason {
+        /// Switching organizations.
+        switch-organization,
+        /// Closing the host.
+        close,
+    }
+
+    /// How an invitation into the organization stands.
+    enum invitation-state {
+        /// Made, not opened yet.
+        waiting,
+        /// Opened by someone, not accepted yet.
+        opened,
+        accepted,
+        expired,
+        revoked,
+    }
+
+    /// An invitation into the organization, without its link, a secret that
+    /// `invitation-link` hands over.
+    record invitation-row {
+        id: uuid,
+        state: invitation-state,
+        /// Who made it.
+        inviter: string,
+        /// Who accepted it, once someone did.
+        accepter: option<string>,
+        /// When it was made, opened, expires and ended (accepted or revoked),
+        /// in milliseconds since the Unix epoch.
+        created: s64,
+        opened: option<s64>,
+        expires: s64,
+        ended: option<s64>,
+        /// Whether its link can be had again (one of the person's own, still
+        /// open).
+        has-link: bool,
+    }
+
+    /// The organization's invitations, once the root asked for them.
+    record invitations-area {
+        /// Whether they are listed yet since `list-invitations` last asked.
+        listed: bool,
+        rows: list<invitation-row>,
+        /// Whether inviting, listing or revoking is under way.
+        busy: bool,
+        /// Why it failed last, in words.
+        error: option<string>,
+    }
+
+    /// A secret the host hands the person once, as the answer to the command
+    /// that made it, never in `core-view`: the root holds it only while it
+    /// shows it.
+    variant core-secret {
+        /// An invitation's link, which whoever holds it may join by.
+        link(password),
+    }
+
     /// What the block stack shows the person, a field per area, each the
     /// plain data its area shows; the root words it, and holds what is open
     /// and what is being asked itself. It changes at the rate its slowest
@@ -470,6 +540,14 @@ interface host {
         organizations: organizations-area,
         /// The organization's sessions.
         sessions: sessions-area,
+        /// An account whose sign-in ended, while the host asks the person to
+        /// sign in to it again.
+        reauthenticating: option<reauthenticating>,
+        /// What discarding unsaved changes would be for, while the host asks
+        /// the person to confirm it.
+        discarding: option<discard-reason>,
+        /// The organization's invitations.
+        invitations: invitations-area,
     }
 
     /// What the block stack shows the person, once it differs from the
@@ -548,14 +626,36 @@ interface host {
         use-profile(uuid),
         /// Make a new profile, and use it on this device.
         new-profile,
+        /// Sign in again to the account `reauthenticating` names, which
+        /// `signing-in` shows until it is done.
+        reauthenticate,
+        /// Choose another organization, which the host may first ask to
+        /// discard unsaved changes for (`discarding`).
+        switch-organization,
+        /// Discard the unsaved changes, and do what `discarding` named.
+        confirm-discard,
+        /// Keep the unsaved changes, and do nothing.
+        cancel-discard,
+        /// List the organization's invitations.
+        list-invitations,
+        /// Make an invitation into the organization, answered with its link.
+        invite-member,
+        /// Hand over the link of the invitation of this id again, answered
+        /// with it while it is one of the person's own and still open.
+        invitation-link(uuid),
+        /// Revoke the invitation of this id.
+        revoke-invitation(uuid),
     }
 
     /// The person asked `command` of the block stack, which the host does. It
     /// answers at once; what changes reaches `core`. A command naming a block
     /// or an account the view no longer lists (it went while the person was
     /// asked) changes nothing. A secret in it (`add-account`'s gateway token)
-    /// is zeroed once decoded, as `unlock`'s password is.
-    ask-core: async func(command: core-command);
+    /// is zeroed once decoded, as `unlock`'s password is. It answers once the
+    /// command is taken, with nothing, but for a command making a secret
+    /// (`invite-member`, `invitation-link`), which it answers once made: with
+    /// the secret, or nothing if it failed, why reaching `core`.
+    ask-core: async func(command: core-command) -> option<core-secret>;
 }
 
 /// The window's input, which the host hands the root inline on its frame thread

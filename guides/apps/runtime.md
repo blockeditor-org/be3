@@ -216,7 +216,9 @@ its own (a `v8::SharedIsolate`, locked by the thread that runs it):
   (restoring or discarding unsent changes; opening, forgetting and adding
   accounts and the browser sign-in; listing, opening, creating and joining
   organizations; choosing and making sessions and profiles;
-  `Root::take_core_commands`); the root
+  `Root::take_core_commands`, each with an id). A command making a secret the
+  host hands the person (an invitation's link) is answered with it, once, by
+  `Root::answer_core`, never in the view; any other is answered at once. The root
   holds what it has open and what it asks the person itself. A secret the
   person types into a command (an account's gateway token, an invitation's
   link) is a `password`,
