@@ -1,4 +1,4 @@
 # The SHA-256 of the Cargo.toml files, Cargo.lock, third-party/rust/downloads.bzl and
 # the cargo that last brought them into step (crates/be-tool-bootstrap/src/lock.rs).
 # ./scripts/verify brings them up to date again when it differs.
-eaf9ba99db7c2b0649428c662ea90ec7b12ff92b781eabc074b296a062b6b242
+dc0babae66ad9af4e050534f97725d9ab05e25d3e69e2774f41361bf6d7c2600
