@@ -7,14 +7,14 @@ use super::*;
 fn only_the_types_own_app_writes_in_its_blocks_log() {
     with_test_types(|peer, shared, mut replicas| async move {
         let block = peer
-            .create::<Tally>(BlockParent::Root)
+            .create::<Ledger>(BlockParent::Root)
             .await
-            .expect("the tally is made");
-        peer.save(block, &Tally::default(), None)
+            .expect("the ledger is made");
+        peer.save(block, &Ledger::default(), None)
             .await
-            .expect("the empty tally is published");
+            .expect("the empty ledger is published");
         replicas
-            .open((&peer, &shared), block, Tally::CONTENT_TYPE, true)
+            .open((&peer, &shared), block, Ledger::CONTENT_TYPE, true)
             .await
             .expect("the block opens");
         while replicas.joining() {
@@ -22,10 +22,10 @@ fn only_the_types_own_app_writes_in_its_blocks_log() {
             replicas.pump((&peer, &shared)).await;
         }
         let other = 8;
-        let mut held = attach_mirror::<Tally>(&peer, &shared, &mut replicas, block, other).await;
+        let mut held = attach_mirror::<Ledger>(&peer, &shared, &mut replicas, block, other).await;
         let own = 7;
-        let mut mirror = attach_mirror::<Tally>(&peer, &shared, &mut replicas, block, own).await;
-        let (_, message) = held.append(b"as tally".to_vec());
+        let mut mirror = attach_mirror::<Ledger>(&peer, &shared, &mut replicas, block, own).await;
+        let (_, message) = held.append(b"as ledger".to_vec());
         replicas.relay_from_app(
             &shared,
             block,
@@ -39,7 +39,7 @@ fn only_the_types_own_app_writes_in_its_blocks_log() {
             &shared,
             block,
             own,
-            "test.tally",
+            "test.ledger",
             message.encode(),
             std::time::Instant::now(),
         );
