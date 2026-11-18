@@ -5,7 +5,7 @@ use std::rc::Rc;
 
 use beui_macros::{component, view};
 
-use beui_text_editor_core::{ListMarker, SynHlColorScope, SynHlStyle, TextLanguage};
+use beui_text_editor_core::{ListMarker, SynHlColorScope, SynHlStyle};
 use beui_view::components::overlay::Overlay;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::OverlayAnchor;
@@ -21,7 +21,7 @@ use beui_view::primitives::*;
 use beui_view::reactive::*;
 
 use super::colors::TextAreaColors;
-use super::hooks::{MARGIN_MIN_WIDTH_EM, Margin, MarkerKind, TextLeaf, TextLine, TextMarker};
+use super::hooks::{MarkerKind, TextLeaf, TextLine, TextMarker};
 use super::rows::{
     Inline, InlineItem, Row, RowInputs, RowKey, RowOptions, SpanKind, TableColumns, build_row,
     line_range, row_key, table_columns,
@@ -258,29 +258,6 @@ fn AreaRow(cx: Context, line: ReadSignal<usize>) -> NodeId {
             }</Dynamic>
         </List>
     };
-    let content = cx.state.content();
-    let margin = create_memo(move || {
-        content.track();
-        let document = cx.state.with_snapshot(|snapshot| {
-            matches!(
-                snapshot.language,
-                TextLanguage::Markdown | TextLanguage::RichText
-            )
-        });
-        if !document || cx.prose.with(Option::is_some) || cx.single_line {
-            return Margin::default();
-        }
-        let size = cx.font_size.get();
-        let padding = cx.padding.get();
-        let width = cx.view_width.get() - cx.gutter.get() - padding.left - padding.right;
-        // Beside the gutter, markers do not hang into a margin of their own: the gutter is the
-        // room at the text's side.
-        Margin::centered(
-            width,
-            size,
-            cx.gutter.get() == 0.0 && cx.view_width.get() >= size * MARGIN_MIN_WIDTH_EM,
-        )
-    });
     let wrapped = cx.line.call(TextLine {
         state: cx.state,
         line: create_memo(move || model.get().line),
@@ -288,7 +265,7 @@ fn AreaRow(cx: Context, line: ReadSignal<usize>) -> NodeId {
         look,
         padding,
         size: cx.font_size,
-        margin,
+        margin: cx.margin,
         outdent: create_memo(move || model.get().outdent),
         space: create_memo(move || model.get().space),
         table: create_memo(move || model.get().table.clone()),
@@ -519,6 +496,7 @@ fn bytes_hash(bytes: &[u8]) -> u64 {
 
 fn row_model(cx: Context, line: impl Fn() -> usize + 'static) -> Memo<Rc<Row>> {
     let content = cx.state.content();
+    let code_padding = create_memo(move || cx.margin.get().code_padding(cx.font_size.get()));
     create_memo(move || {
         content.track();
         let line = line();
@@ -535,6 +513,7 @@ fn row_model(cx: Context, line: impl Fn() -> usize + 'static) -> Memo<Rc<Row>> {
                 single_line: cx.single_line,
                 prose: cx.prose.get(),
                 geometry: cx.geometry.get(),
+                code_padding: code_padding.get(),
             },
             client_colors: cx.client_colors.get(),
         };

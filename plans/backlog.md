@@ -7,17 +7,6 @@ Fixed items are removed as they land.
 
 ## 1. Text
 
-- **A quoted code block's prefix.** A fenced code block inside a quote
-  (`> ```) keeps its `> ` in a zero-width marker, so its caret positions and
-  selection have no room there, unlike every other quoted line, whose row lays
-  the prefix over the quote's gutter (`quote_in_text`). Its text sits inside
-  the block's background frame in the line hook, and the code padding inside
-  that frame depends on the margin, which the row cannot see. Done: the line
-  hook draws the code background apart from the text, starting past the
-  gutter, the row lays the quoted code line's prefix over the gutter with the
-  code inset after it, and a text app painting shows carets at each prefix
-  offset of a quoted code line.
-
 - **A long text's first row heights.** Opening a long Markdown text far from
   its top (a restored scroll), the rows around a fenced code block above the
   view are first placed tens of points apart from where they settle a layout
