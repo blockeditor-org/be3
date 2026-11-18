@@ -138,28 +138,33 @@ pub(crate) fn Timeline(state: VideoState) -> NodeId {
                 })
             })
             // From the keyboard the clip steps along a grid of frames on each lane, stopping
-            // only where it would land: worked out once, at the first ask, in the timeline's
-            // content, and placed where its pan shows them at each.
+            // only where it would land: worked out at the first ask, and again only once the
+            // zoom changes, in the timeline's content, and placed where its pan shows them.
             .stepping({
-                let found: Rc<RefCell<Option<Vec<drag::Stop>>>> = Rc::default();
+                let found: Rc<RefCell<Option<(f32, Vec<drag::Stop>)>>> = Rc::default();
                 move |_| {
                     let mut found = found.borrow_mut();
-                    let stops = found.get_or_insert_with(|| {
+                    let scale = pixels_per_frame.get_untracked();
+                    if found.as_ref().is_some_and(|(at, _)| *at != scale) {
+                        *found = None;
+                    }
+                    let (_, stops) = found.get_or_insert_with(|| {
                         let Some(dragged) = state.drag.get_untracked() else {
-                            return Vec::new();
+                            return (scale, Vec::new());
                         };
-                        untrack(|| {
+                        let stops = untrack(|| {
                             edit.with(|video| {
                                 keyboard_stops(
                                     video,
                                     &timeline::lane_rows(video),
                                     content.get(),
-                                    pixels_per_frame.get(),
+                                    scale,
                                     (lanes.get(), state.frame_rate.get()),
                                     &dragged,
                                 )
                             })
-                        })
+                        });
+                        (scale, stops)
                     });
                     let offset = offset.get_untracked();
                     stops
@@ -210,7 +215,7 @@ pub(crate) fn Timeline(state: VideoState) -> NodeId {
             return;
         };
         untrack(|| {
-            if !state.drag.get().is_some_and(|drag| drag.keyboard) {
+            if !state.drag.get_untracked().is_some_and(|drag| drag.keyboard) {
                 return;
             }
             let Some(marked) = marked(over, pixels_per_frame.get()) else {

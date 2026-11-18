@@ -170,7 +170,8 @@ pub enum DragSpec<D> {
 
 /// A point a keyboard carry steps to in a `custom` site, as a `Rest` of a fixed place: `rect`,
 /// in the site node's own points, is where the pointer is aimed (at its middle) and what a
-/// step reveals, and `label` is what the carry says it is over ("lane 2, 0:01:12").
+/// step reveals, and `label` is what the carry says it is over ("lane 2, 0:01:12"). The board
+/// knows a stop by its label, so each of a site's stops has its own.
 #[derive(Clone, PartialEq, Debug)]
 pub struct Stop {
     pub rect: Rect,
