@@ -131,10 +131,13 @@ impl Counting {
         }
     }
 
-    /// The device connected again: what failed, perhaps for being offline, is tried again.
+    /// The device connected again: what failed, perhaps for being offline, is tried again,
+    /// places a module could not pick among them (only the types whose places are not current
+    /// are asked again).
     pub(crate) fn reconnected(&mut self) {
         self.dirty
             .extend(self.failed.drain().map(|(block, _)| block));
+        self.placed = None;
     }
 
     fn forget(&mut self, block: Uuid) {
