@@ -1,6 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 
-use be_block_commit::{merge::join_lines, merge_lines, merge_slices, render_conflicts};
+use be_block_commit::merge::{changed_regions, join_lines, split_lines};
+use be_block_commit::{merge_lines, merge_slices, render_conflicts};
 
 use be_lib_sequence::marks::{Rich, Scope, Seed};
 
@@ -73,7 +74,8 @@ pub(crate) fn merge3(root: fn() -> Kind, base: &Tree, ours: &Tree, theirs: &Tree
     restore_ancestors(&mut kept, [ours, theirs, base], &mut conflicts);
     let mut merged = Tree::from_objects(kept);
     rebuild_lists(root, &mut merged, base, ours, theirs, &mut conflicts);
-    merged.refresh_sequences();
+    // Its sequences keep ours's identities where the merge left them as they were (`spliced`):
+    // an edit made on ours and applied after the merge still lands.
     (merged, conflicts)
 }
 
@@ -126,7 +128,14 @@ fn merge_object(
     conflicts: &mut usize,
 ) -> Option<Object> {
     if ours == base {
-        return theirs.cloned();
+        // Their change, made into ours field by field: our sequences keep their identities
+        // (`spliced`), which the session's edits name.
+        return match (base, ours, theirs) {
+            (Some(base), Some(ours), Some(theirs)) => {
+                Some(merge_fields(base, ours, theirs, conflicts))
+            }
+            _ => theirs.cloned(),
+        };
     }
     if theirs == base || theirs == ours {
         return ours.cloned();
@@ -210,23 +219,64 @@ fn merge_fields(base: &Object, ours: &Object, theirs: &Object, conflicts: &mut u
     }
 }
 
+/// The client a merge's own insertions are made under (`spliced`): no session numbers a
+/// participant this high.
+const MERGED: u64 = u64::MAX;
+
+/// `ours` made into `merged` by splicing in only where they differ, compared a unit (a line, an
+/// entry) at a time: what they share keeps its identities in `ours`, which the session's edits
+/// name, so an edit made on it before the merge, applied after, still lands. Rebuilt from its
+/// items instead, every item would be new, and such an edit would apply as nothing.
+fn spliced<T: Clone, U: Eq + std::hash::Hash + Ord>(
+    ours: &Sequence<T>,
+    ours_units: &[U],
+    merged_units: &[U],
+    length: impl Fn(&U) -> usize,
+    items: impl Fn(&[U]) -> Vec<T>,
+) -> Sequence<T> {
+    let mut starts = Vec::with_capacity(ours_units.len() + 1);
+    let mut at = 0;
+    for unit in ours_units {
+        starts.push(at);
+        at += length(unit);
+    }
+    starts.push(at);
+    let mut sequence = ours.clone();
+    // From the end, so the regions before each keep their places.
+    for (old, new) in changed_regions(ours_units, merged_units).into_iter().rev() {
+        let range = starts[old.start]..starts[old.end];
+        let replacement = items(&merged_units[new]);
+        let operation = match replacement.is_empty() {
+            true => sequence.delete(range),
+            false => sequence.replace(MERGED, range, replacement),
+        };
+        if let Some(operation) = operation {
+            sequence.apply(&operation);
+        }
+    }
+    sequence
+}
+
 fn merge_series(
     base: &Sequence<Vec<u8>>,
     ours: &Sequence<Vec<u8>>,
     theirs: &Sequence<Vec<u8>>,
     conflicts: &mut usize,
 ) -> Sequence<Vec<u8>> {
-    let (base, ours, theirs) = (base.items(), ours.items(), theirs.items());
-    if ours.len() > base.len()
+    let (base, mine, theirs) = (base.items(), ours.items(), theirs.items());
+    let merged = match mine.len() > base.len()
         && theirs.len() > base.len()
-        && ours.starts_with(&base)
+        && mine.starts_with(&base)
         && theirs.starts_with(&base)
     {
-        let mut merged = ours;
-        merged.extend_from_slice(&theirs[base.len()..]);
-        return Sequence::from_items(merged);
-    }
-    Sequence::from_items(pick(&base, &ours, &theirs, conflicts))
+        true => {
+            let mut merged = mine.clone();
+            merged.extend_from_slice(&theirs[base.len()..]);
+            merged
+        }
+        false => pick(&base, &mine, &theirs, conflicts),
+    };
+    spliced(ours, &mine, &merged, |_| 1, <[Vec<u8>]>::to_vec)
 }
 
 fn merge_text(
@@ -236,11 +286,20 @@ fn merge_text(
     conflicts: &mut usize,
 ) -> Sequence<u8> {
     let outcome = merge_lines(&base.items(), &ours.items(), &theirs.items());
-    if outcome.is_clean() {
-        return Sequence::from_items(join_lines(&outcome.merged));
-    }
-    *conflicts += outcome.conflicts.len();
-    Sequence::from_items(render_conflicts(&outcome, "local", "remote"))
+    let merged = match outcome.is_clean() {
+        true => outcome.merged,
+        false => {
+            *conflicts += outcome.conflicts.len();
+            split_lines(&render_conflicts(&outcome, "local", "remote"))
+        }
+    };
+    spliced(
+        ours,
+        &split_lines(&ours.items()),
+        &merged,
+        Vec::len,
+        |lines| join_lines(lines),
+    )
 }
 
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
@@ -317,10 +376,29 @@ fn join_rich(lines: &[RichLine]) -> Rich {
     Rich::load(bytes, &seeds)
 }
 
+/// `merged`'s lines as `ours`'s text made into them by splicing (`spliced`), formatted as
+/// `merged` is.
+fn spliced_rich(ours: &Rich, ours_lines: &[RichLine], merged: &[RichLine]) -> Rich {
+    let text = spliced(
+        &ours.text,
+        &rich_lines_bytes(ours_lines),
+        &rich_lines_bytes(merged),
+        Vec::len,
+        |lines| join_lines(lines),
+    );
+    let marks = be_lib_sequence::marks::Marks::loaded(&text, &join_rich(merged).seeds());
+    Rich { text, marks }
+}
+
+fn rich_lines_bytes(lines: &[RichLine]) -> Vec<Vec<u8>> {
+    lines.iter().map(|line| line.bytes.clone()).collect()
+}
+
 fn merge_rich(base: &Rich, ours: &Rich, theirs: &Rich, conflicts: &mut usize) -> Rich {
-    let outcome = merge_slices(&rich_lines(base), &rich_lines(ours), &rich_lines(theirs));
+    let ours_lines = rich_lines(ours);
+    let outcome = merge_slices(&rich_lines(base), &ours_lines, &rich_lines(theirs));
     if outcome.is_clean() {
-        return join_rich(&outcome.merged);
+        return spliced_rich(ours, &ours_lines, &outcome.merged);
     }
     *conflicts += outcome.conflicts.len();
     let ended = |lines: &[RichLine]| {
@@ -344,7 +422,7 @@ fn merge_rich(base: &Rich, ours: &Rich, theirs: &Rich, conflicts: &mut usize) ->
         cursor = conflict.at + conflict.ours.len();
     }
     rendered.extend_from_slice(&outcome.merged[cursor..]);
-    join_rich(&rendered)
+    spliced_rich(ours, &ours_lines, &rendered)
 }
 
 fn blank_like(object: &Object) -> Object {

@@ -129,6 +129,9 @@ mod undoing_an_edit_to_a_card_removed_since_changes_nothing;
 mod undoing_an_insert_removes_the_card_and_redo_puts_it_back;
 mod undoing_paint_and_a_crop_restores_only_what_nobody_changed_since;
 mod undoing_the_removal_of_several_cards_restores_their_order;
+mod an_edit_made_on_our_series_before_a_clean_merge_lands_on_the_merge;
+mod an_edit_made_on_our_rich_text_before_a_clean_merge_lands_on_the_merge;
+mod an_edit_made_on_our_text_before_a_clean_merge_lands_on_the_merge;
 
 #[derive(Clone, Debug, Default, Model, PartialEq)]
 struct Board {
