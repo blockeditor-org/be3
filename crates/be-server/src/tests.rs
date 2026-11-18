@@ -3264,28 +3264,51 @@ impl TestPushService {
         let (sending, received) = tokio::sync::mpsc::unbounded_channel();
         let answer = Arc::new(answer);
         tokio::spawn(async move {
-            while let Ok((mut stream, _)) = listener.accept().await {
+            while let Ok((stream, _)) = listener.accept().await {
                 let (sending, answer) = (sending.clone(), Arc::clone(&answer));
-                tokio::spawn(async move {
-                    let Some(request) = read_request(&mut stream).await else {
-                        return;
-                    };
-                    let (status, body) = answer(&request.path);
-                    if status == 0 {
-                        // A service that takes the request and never answers.
-                        // The task, and its stream with it, waits forever.
-                        let _ = sending.send(request);
-                        return std::future::pending::<()>().await;
-                    }
-                    let response = format!(
-                        "HTTP/1.1 {status} Answered\r\nContent-Type: application/json\r\n\
-                         Content-Length: {}\r\nConnection: close\r\n\r\n{body}",
-                        body.len()
-                    );
-                    let _ = stream.write_all(response.as_bytes()).await;
-                    let _ = stream.shutdown().await;
-                    let _ = sending.send(request);
-                });
+                let service = hyper::service::service_fn(
+                    move |request: ::http::Request<hyper::body::Incoming>| {
+                        let (sending, answer) = (sending.clone(), Arc::clone(&answer));
+                        async move {
+                            let (parts, body) = request.into_parts();
+                            let body = axum::body::to_bytes(axum::body::Body::new(body), usize::MAX)
+                                .await
+                                .unwrap_or_default();
+                            let request = PushRequest {
+                                path: parts.uri.to_string(),
+                                headers: parts
+                                    .headers
+                                    .iter()
+                                    .map(|(name, value)| {
+                                        (
+                                            name.as_str().to_owned(),
+                                            String::from_utf8_lossy(value.as_bytes()).into_owned(),
+                                        )
+                                    })
+                                    .collect(),
+                                body: body.to_vec(),
+                            };
+                            let (status, body) = answer(&request.path);
+                            let _ = sending.send(request);
+                            if status == 0 {
+                                // A service that takes the request and never answers.
+                                std::future::pending::<()>().await;
+                            }
+                            Ok::<_, std::convert::Infallible>(
+                                ::http::Response::builder()
+                                    .status(status)
+                                    .header("content-type", "application/json")
+                                    .header("connection", "close")
+                                    .body(axum::body::Body::from(body))
+                                    .unwrap(),
+                            )
+                        }
+                    },
+                );
+                tokio::spawn(
+                    hyper::server::conn::http1::Builder::new()
+                        .serve_connection(hyper_util::rt::TokioIo::new(stream), service),
+                );
             }
         });
         Self { url, received }
@@ -3299,49 +3322,6 @@ impl TestPushService {
     }
 }
 
-async fn read_request(stream: &mut tokio::net::TcpStream) -> Option<PushRequest> {
-    let mut bytes = Vec::new();
-    let mut buffer = [0; 8192];
-    loop {
-        let read = stream.read(&mut buffer).await.ok()?;
-        if read == 0 {
-            return None;
-        }
-        bytes.extend_from_slice(&buffer[..read]);
-        let mut headers = [httparse::EMPTY_HEADER; 64];
-        let mut request = httparse::Request::new(&mut headers);
-        let httparse::Status::Complete(start) = request.parse(&bytes).ok()? else {
-            continue;
-        };
-        let headers: std::collections::HashMap<String, String> = request
-            .headers
-            .iter()
-            .map(|header| {
-                (
-                    header.name.to_ascii_lowercase(),
-                    String::from_utf8_lossy(header.value).into_owned(),
-                )
-            })
-            .collect();
-        let length: usize = headers
-            .get("content-length")
-            .and_then(|length| length.parse().ok())
-            .unwrap_or(0);
-        let path = request.path?.to_owned();
-        while bytes.len() < start + length {
-            let read = stream.read(&mut buffer).await.ok()?;
-            if read == 0 {
-                return None;
-            }
-            bytes.extend_from_slice(&buffer[..read]);
-        }
-        return Some(PushRequest {
-            path,
-            headers,
-            body: bytes[start..start + length].to_vec(),
-        });
-    }
-}
 
 /// A device taking pushes: its P-256 key and authentication secret (RFC 8291). Its key is
 /// ring's ephemeral kind, so it decrypts one push.

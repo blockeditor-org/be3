@@ -28,13 +28,10 @@ use futures_util::{
 };
 use tokio::{
     io::{AsyncRead, AsyncWrite},
-    net::{TcpListener, TcpStream},
+    net::TcpListener,
     sync::{Notify, Semaphore, mpsc},
 };
-use tokio_tungstenite::{
-    WebSocketStream, accept_async_with_config,
-    tungstenite::{Message, protocol::WebSocketConfig},
-};
+use tokio_tungstenite::{WebSocketStream, tungstenite::Message};
 
 pub mod backup;
 pub mod blocks;
@@ -495,6 +492,7 @@ pub async fn serve_with_mail(
         )),
     };
     let slots = Arc::new(Semaphore::new(MAX_CONNECTIONS));
+    let routes = http::Routes::new(&services);
     let upkeep = tokio::spawn(upkeep(services.clone()));
     tokio::pin!(shutdown);
     loop {
@@ -535,13 +533,12 @@ pub async fn serve_with_mail(
                     },
                 };
                 let _ = stream.set_nodelay(true);
-                let services = services.clone();
+                let (routes, services) = (routes.clone(), services.clone());
                 tokio::spawn(async move {
-                    let admitted = Admitted { place, anonymous, eviction };
-                    if let Err(error) = handle_connection(stream, peer, admitted, services).await {
+                    let admitted = http::Admitted { place, anonymous, eviction, slot };
+                    if let Err(error) = http::serve(stream, peer, admitted, routes, services).await {
                         tracing::debug!(%peer, %error, "a connection ended with an error");
                     }
-                    drop(slot);
                 });
             }
         }
@@ -627,67 +624,11 @@ pub(crate) struct Services {
     log_entries: Arc<address::Rate<uuid::Uuid>>,
 }
 
-/// What a connection was let in with: its place among its address's connections and among
-/// those not signed in, both taken later for a trusted proxy's, and what tells it it was let go
-/// of to make room.
-pub(crate) struct Admitted {
-    place: Option<address::Held>,
-    anonymous: Option<address::Anonymous>,
-    eviction: Arc<address::Eviction>,
-}
-
 impl Services {
     /// The address a request comes from; see [`address::client_address`].
     pub(crate) fn client_address(&self, peer: IpAddr, forwarded: Option<&str>) -> IpAddr {
         address::client_address(peer, forwarded, &self.config.trusted_proxies)
     }
-}
-
-async fn handle_connection(
-    stream: TcpStream,
-    peer: SocketAddr,
-    admitted: Admitted,
-    services: Services,
-) -> Result<(), ServerError> {
-    let eviction = Arc::clone(&admitted.eviction);
-    let routed = tokio::select! {
-        routed = http::route(stream, peer, admitted, &services) => routed?,
-        () = eviction.wait() => return Ok(()),
-    };
-    let Some(http::Upgrade {
-        stream,
-        client,
-        authorization,
-        place: _place,
-        anonymous,
-    }) = routed
-    else {
-        return Ok(());
-    };
-    let (stream, heard) = Watched::new(stream);
-    let handshake = accept_async_with_config(
-        stream,
-        Some(WebSocketConfig {
-            max_frame_size: Some(MAX_FRAME_BYTES),
-            max_message_size: Some(MAX_FRAME_BYTES),
-            ..WebSocketConfig::default()
-        }),
-    );
-    let socket = tokio::select! {
-        socket = tokio::time::timeout(HANDSHAKE_TIMEOUT, handshake) => socket
-            .map_err(|_| ServerError::Socket("the websocket handshake timed out".into()))??,
-        () = eviction.wait() => return Ok(()),
-    };
-    tracing::debug!(%client, "connected");
-    serve_socket(
-        socket,
-        &heard,
-        &services,
-        client,
-        authorization,
-        (anonymous, eviction),
-    )
-    .await
 }
 
 /// When a connection last read any bytes, so a message still arriving is not taken for silence.
