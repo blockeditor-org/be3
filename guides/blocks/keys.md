@@ -883,7 +883,10 @@ keys the granter verified that way, which every device then seals to.
   of contacts only that two accounts are (`contacts`, two columns): no call
   lists them and nothing it holds names a contact's keys. An account in no
   personal organization (an agent) has no block, and keeps the letters its
-  records arrive in.
+  records arrive in. It follows its contacts' key changes from them on every
+  read, so once its maker takes more than `MAX_LETTERS_FROM_ONE` new phrases
+  the oldest change goes and the chain breaks for good: the maker makes the
+  agent again.
 - **A contact's record** (`contacts::OwnContact`) is the card the account
   verified, `verified`, a sequence set when it verified the card or followed a
   key change, and `through`, the newest mailbox message it reflects. Records
@@ -893,7 +896,10 @@ keys the granter verified that way, which every device then seals to.
   `remove-contact`); each pass of `contacts::contacts` takes them into the
   block in mailbox order, then deletes them, and a letter up to a record's
   `through` is taken already, so a device that stops between the two never
-  takes back a removal nor follows a change twice. The server cannot read or
+  takes back a removal nor follows a change twice. A removal is kept as such
+  (`contacts::KeptContact::Removed`, with the newest `verified` and `through`
+  the record had reached), so a record letter the server replays afterwards is
+  taken only if newer, as a new link's always is. The server cannot read or
   make a record, but it could serve an older version of the block to bring
   back a key the contact replaced, so each device pins the newest record of
   each contact it has seen (refs' `Contacts`), refuses an older one, keeps
@@ -972,6 +978,10 @@ are sealed with codes it never sees; a device wraps only under keys it trusts;
 escrow keys are used only when pinned or signed down from a pinned one. It
 cannot sign as a contact: a contact's signing key comes from its card or a key
 change.
+
+It can make an account forget a contact, by a made-up `letter.removed`,
+which connecting again by a link recovers; it cannot make it take back an
+older card, since a removal is kept with the newest record it ended.
 
 A contact's key changes reach a device only through the mailbox the server
 keeps, so it can also withhold or drop them, or put one there that does not
