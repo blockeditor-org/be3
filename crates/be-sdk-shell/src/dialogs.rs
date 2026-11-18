@@ -5,12 +5,12 @@ use be_sdk_beui::beui::icons::{
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::{
-    AccessLevel, BlockParent, ChildId, ChildMode, ChildState, DialogAnswer, Subregion,
-    SubregionContent,
+    AccessLevel, BlockParent, ChildId, ChildMode, ChildState, DialogAnswer, LinkAdmits, ShareLink,
+    Subregion, SubregionContent,
 };
 use uuid::Uuid;
 
-use super::share::{GRANTABLE, Member, Person, Share, ShareAction};
+use super::share::{GRANTABLE, LINK_GRANTABLE, Member, Person, Share, ShareAction};
 use super::workspace::Workspace;
 use be_sdk_beui::beui::TextAlign;
 use be_sdk_beui::beui::text::Phrase;
@@ -301,6 +301,18 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
             workspace.share_action(block, action);
         }
     });
+    // Share links show to a manager once both the people and the links are listed.
+    let links = create_memo(move || {
+        let manages = listing.with(|listing| matches!(listing, Ok(listing) if Share::manages(listing, me)));
+        manages.then(|| workspace.share_links.get()).flatten()
+    });
+    // Whom a link may admit, as the organization's policy allows: none where it allows no links.
+    let admits_choices = create_memo(move || {
+        listing.with(|listing| match listing {
+            Ok(listing) => Share::link_choices(listing),
+            Err(_) => Vec::new(),
+        })
+    });
     // Whom the person asked to give ownership to, as the question to confirm it.
     let transferring = create_memo(move || {
         let id = state.with(|share| share.as_ref()?.transferring)?;
@@ -476,6 +488,15 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
                         </List>
                     </Card>
                 </Show>
+                <Show value={links}>|links: ReadSignal<Vec<ShareLink>>|
+                    <LinksSection
+                        links
+                        choices={admits_choices}
+                        company
+                        state
+                        act={act}
+                    />
+                </Show>
                 <Text style=TextStyle::HEADING>"People with access"</Text>
                 <Show value={loading}>
                     <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
@@ -512,6 +533,143 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
                 </Frame>
             </List>
         </Dialog>
+    }
+}
+
+/// "Anyone with the link": the share links open on the block, each with the link to copy when
+/// this account keeps it and a way to revoke it, and the choices for making one.
+#[component]
+fn LinksSection(
+    links: ReadSignal<Vec<ShareLink>>,
+    choices: Memo<Vec<LinkAdmits>>,
+    company: Memo<bool>,
+    state: Signal<Option<Share>>,
+    act: ShareAct,
+) -> NodeId {
+    let ids = create_memo(move || {
+        links.with(|links| links.iter().map(|link| link.id.clone()).collect::<Vec<_>>())
+    });
+    let allowed = create_memo(move || choices.with(|choices| !choices.is_empty()));
+    let several = create_memo(move || choices.with(|choices| choices.len() > 1));
+    let access = create_memo(move || {
+        Some(state.with(|share| share.as_ref().map_or(AccessLevel::View, |share| share.link_access)))
+    });
+    let admits = create_memo(move || {
+        Some(state.with(|share| {
+            share
+                .as_ref()
+                .map_or(LinkAdmits::Members, |share| share.link_admits)
+        }))
+    });
+    let making = create_memo(move || {
+        state.with(|share| share.as_ref().is_some_and(|share| share.making_link.is_some()))
+    });
+    view! {
+        <List spacing=Space::Sm>
+            <Text style=TextStyle::HEADING>"Anyone with the link"</Text>
+            <ForEach value={ids}>|id: String| {
+                let link = create_memo({
+                    let id = id.clone();
+                    move || links.with(|links| links.iter().find(|link| link.id == id).cloned())
+                });
+                view! {
+                    <LinkRow link company act={act} />
+                }
+            }</ForEach>
+            <Show
+                value={allowed}
+                fallback={|| view! {
+                    <Text style=TextStyle::CAPTION @test_id={"share.links.off"}>
+                        "This organization's policy allows no share links."
+                    </Text>
+                }}
+            >
+                <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md wrap=true>
+                    <Select
+                        selected={Binding::new(access, move |access: Option<AccessLevel>| {
+                            if let Some(access) = access {
+                                act.call(ShareAction::LinkAccess(access));
+                            }
+                        })}
+                        label="Access the link grants"
+                        options={view! {
+                            <ForEach value={LINK_GRANTABLE.to_vec()}>|level: AccessLevel|
+                                <ChoiceOption value=level label={level.label()} />
+                            </ForEach>
+                        }}
+                    />
+                    <Show value={several}>
+                        <Select
+                            selected={Binding::new(admits, move |admits: Option<LinkAdmits>| {
+                                if let Some(admits) = admits {
+                                    act.call(ShareAction::LinkAdmits(admits));
+                                }
+                            })}
+                            label="Who can open it"
+                            options={view! {
+                                <ForEach value={choices}>|admits: LinkAdmits|
+                                    <ChoiceOption value=admits label={Share::admits_label(admits)} />
+                                </ForEach>
+                            }}
+                        />
+                    </Show>
+                    <Spacer />
+                    <Button
+                        label="Make link"
+                        glyph=ICON_LINK
+                        variant=ButtonVariant::Secondary
+                        busy={making}
+                        @test_id={"share.links.make"}
+                        on_click={move || act.call(ShareAction::MakeLink)}
+                    />
+                </List>
+            </Show>
+        </List>
+    }
+}
+
+#[component]
+fn LinkRow(link: Memo<Option<ShareLink>>, company: Memo<bool>, act: ShareAct) -> NodeId {
+    let described = create_memo(move || {
+        link.get()
+            .map(|link| Share::describe_link(&link, company.get()))
+            .unwrap_or_default()
+    });
+    let url = create_memo(move || link.get().map(|link| link.url).unwrap_or_default());
+    let kept = create_memo(move || url.with(|url| !url.is_empty()));
+    view! {
+        <Card>
+            <List spacing=Space::Sm>
+                <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
+                    <Text align=TextAlign::Center>
+                        <Icon glyph=ICON_LINK />
+                    </Text>
+                    <ListItem grow=1.0>
+                        <Text style=TextStyle::CAPTION>{described}</Text>
+                    </ListItem>
+                    <Button
+                        label="Revoke"
+                        glyph=ICON_X
+                        variant=ButtonVariant::Secondary
+                        size=ButtonSize::Small
+                        @test_id={"share.links.revoke"}
+                        on_click={move || {
+                            if let Some(link) = link.get_untracked() {
+                                act.call(ShareAction::RevokeLink(link.id));
+                            }
+                        }}
+                    />
+                </List>
+                <Show value={kept}>
+                    <TextInput
+                        value={Binding::new(url, Callback::empty())}
+                        label="Share link"
+                        copyable=true
+                        @test_id={"share.links.url"}
+                    />
+                </Show>
+            </List>
+        </Card>
     }
 }
 

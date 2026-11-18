@@ -44,8 +44,8 @@ interface objects {
 interface blocks {
     use types.{
         access-level, account-id, block-id, block-parent, block-summary, commit-id,
-        content-type-id, error, hash, journal, journal-seal, key-id, key-set, listing,
-        organization-role,
+        content-type-id, error, hash, journal, journal-seal, key-id, key-set, link-admits,
+        listing, organization-role,
     };
 
     variant publish-outcome {
@@ -158,6 +158,9 @@ interface blocks {
         entries: list<access-entry>,
         company: bool,
         set-inside: u32,
+        /// The most a share link on the block may admit as the organization's
+        /// policy stands; none where it allows no links.
+        links-admit: option<link-admits>,
     }
 }
 

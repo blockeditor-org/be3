@@ -35,6 +35,29 @@ interface host-services {
         /// The block whose grant or authorship gave `effective`.
         source: option<block-id>,
         waiting: bool,
+        /// Their grant came through a share link they opened.
+        through-link: bool,
+    }
+
+    /// Who a share link admits.
+    enum link-admits {
+        /// Members of the block's organization.
+        members,
+        /// Any account on the server, which joins the organization as a
+        /// guest.
+        anyone,
+    }
+
+    /// A share link open on a block, as its managers see it.
+    record share-link {
+        /// The link's id, which revoking it names.
+        id: string,
+        access: access-level,
+        admits: link-admits,
+        /// The link to send, when the signed-in account made it and keeps
+        /// its code; empty otherwise.
+        url: string,
+        maker-name: string,
     }
 
     /// Who has access to a block, whether its organization is a company, and
@@ -43,6 +66,9 @@ interface host-services {
         grants: list<access-grant>,
         company: bool,
         set-inside: u32,
+        /// The most a share link on the block may admit, as the
+        /// organization's policy stands; none where it allows no links.
+        links-admit: option<link-admits>,
     }
 
     /// A block a file was imported into.
@@ -123,6 +149,18 @@ interface host-services {
     /// with access to it listed: they manage it as its owner from then on, and the account keeps
     /// Edit. Fails, with the message to show, as `set-access` does.
     transfer-ownership: async func(block: block-id, account: account-id) -> result<_, failure>;
+
+    /// The share links open on the block ("anyone with the link"), for its
+    /// managers.
+    list-share-links: async func(block: block-id) -> result<list<share-link>, failure>;
+
+    /// Makes a share link granting `access` (view or edit) to the block to
+    /// whoever `admits` lets open it, and answers the link to send.
+    make-share-link: async func(block: block-id, access: access-level, admits: link-admits) -> result<string, failure>;
+
+    /// Revokes the share link `link` on the block: everyone it granted loses
+    /// that access.
+    revoke-share-link: async func(block: block-id, link: string) -> result<_, failure>;
 
     /// A contact link whose taker is granted `access` to the block.
     make-contact-link: async func(block: block-id, access: access-level) -> result<string, failure>;

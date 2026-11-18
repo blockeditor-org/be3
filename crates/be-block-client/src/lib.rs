@@ -11,6 +11,7 @@ pub mod http;
 pub mod keys;
 pub mod peer;
 pub mod refs;
+pub mod share_links;
 pub mod transfer;
 mod transport;
 

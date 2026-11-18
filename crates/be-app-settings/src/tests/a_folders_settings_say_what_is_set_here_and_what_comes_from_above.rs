@@ -106,9 +106,11 @@ fn a_folders_settings_say_what_is_set_here_and_what_comes_from_above() {
                 effective: AccessLevel::View,
                 source: Some(hotbar.into_bytes()),
                 waiting: false,
+                through_link: false,
             }],
             company: false,
             set_inside: 0,
+            links_admit: None,
         }),
     );
     editor.run();

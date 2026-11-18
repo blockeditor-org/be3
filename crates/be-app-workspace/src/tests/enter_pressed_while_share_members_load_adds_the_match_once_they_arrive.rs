@@ -43,6 +43,7 @@ fn enter_pressed_while_share_members_load_adds_the_match_once_they_arrive() {
         effective: granted.unwrap_or(AccessLevel::None),
         source: granted.map(|_| block.into_bytes()),
         waiting: false,
+        through_link: false,
     };
     fixture.test.answer(
         listing,
@@ -53,6 +54,7 @@ fn enter_pressed_while_share_members_load_adds_the_match_once_they_arrive() {
             ],
             company: false,
             set_inside: 0,
+            links_admit: None,
         }),
     );
     fixture.settle();

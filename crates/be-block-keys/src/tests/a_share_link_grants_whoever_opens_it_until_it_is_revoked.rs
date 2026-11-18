@@ -92,6 +92,17 @@ fn a_share_link_grants_whoever_opens_it_until_it_is_revoked() {
         "revoking the link takes back every grant made through it"
     );
     assert!(checked.outdates(&joined.hash()), "and outdates the epochs before");
+    let path = proof_path(
+        LogKind::Block,
+        &[root.clone(), made.clone(), joined.clone(), revoked.clone()],
+        viewer_id,
+        [],
+    );
+    let partial = check_log(LogKind::Block, block, pinned, &path, &none).unwrap();
+    assert!(
+        partial.outdates(&joined.hash()),
+        "a path that hides whom a revoked link granted still outdates the epochs before"
+    );
     let late = Entry::opened(&code, block, revoked.hash(), viewer_id, &viewer, Level::View);
     assert!(
         check(&[root.clone(), made, joined, revoked, late]).is_err(),

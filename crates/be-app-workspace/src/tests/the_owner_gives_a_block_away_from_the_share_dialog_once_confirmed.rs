@@ -37,6 +37,7 @@ fn the_owner_gives_a_block_away_from_the_share_dialog_once_confirmed() {
         effective: granted,
         source: Some(block.into_bytes()),
         waiting: false,
+        through_link: false,
     };
     fixture.test.answer(
         listing,
@@ -51,11 +52,13 @@ fn the_owner_gives_a_block_away_from_the_share_dialog_once_confirmed() {
                 grant(colleague, "Ada", AccessLevel::Edit),
                 AccessGrant {
                     waiting: true,
+                    through_link: false,
                     ..grant(stranger, "Grace", AccessLevel::View)
                 },
             ],
             company: false,
             set_inside: 0,
+            links_admit: None,
         }),
     );
     fixture.settle();

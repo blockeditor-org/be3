@@ -1174,7 +1174,41 @@ impl<S: ObjectStore> Peer<S> {
                 let _ = self.refs.keep_log(block, kept);
             }
         }
+        // A seal from a sender no contact or organization log vouches for (an editor sealing a
+        // newer epoch to a share link's opener; guides/blocks/keys.md, "Share links") opens by
+        // the keys the block's own log names, so that log is read first, then taken again.
+        let mut named_by_log: Vec<Uuid> = keys
+            .wrapped
+            .iter()
+            .filter(|wrap| {
+                wrap.wrapped_by == WrappedBy::Account(self.account)
+                    && wrap.sender != self.account
+                    && self.keys.sender(wrap.sender).is_none()
+                    && !self.keys.member_named(wrap.sender)
+                    && !self.keys.trusted(wrap.key)
+            })
+            .filter_map(|wrap| {
+                keys.keys
+                    .iter()
+                    .find(|row| row.id == wrap.key)
+                    .copied()
+                    .or_else(|| self.keys.row(wrap.key))
+            })
+            .filter(|row| row.kind == KeyKind::Scope)
+            .map(|row| row.block)
+            .collect();
+        named_by_log.sort();
+        named_by_log.dedup();
         opened += self.keys.absorb(keys);
+        let mut read = false;
+        for block in named_by_log {
+            if matches!(self.keys.root_pin(block), crate::keys::RootPin::Pinned(_)) {
+                read |= self.checked_access(block).await.is_ok();
+            }
+        }
+        if read {
+            opened += self.keys.absorb(KeySet::default());
+        }
         self.settle_escrowed().await;
         // Each scope's log, once, so a write offline later is judged by what was kept of it
         // (`Peer::outdated`) rather than refused.
@@ -2422,7 +2456,7 @@ impl<S: ObjectStore> Peer<S> {
     /// Where this account's `level` on the block `checked` is the log of comes from outside
     /// that log: administering the organization, as of its log's head, else the nearest block
     /// above that gives it (`held_above`).
-    async fn authority_outside(
+    pub(crate) async fn authority_outside(
         &self,
         block: Uuid,
         checked: &be_block_keys::Checked,

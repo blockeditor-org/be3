@@ -34,6 +34,7 @@ fn a_share_refused_offline_says_why_in_the_dialog() {
         effective: granted.unwrap_or(AccessLevel::None),
         source: granted.map(|_| block.into_bytes()),
         waiting: false,
+        through_link: false,
     };
     fixture.test.answer(
         listing,
@@ -44,6 +45,7 @@ fn a_share_refused_offline_says_why_in_the_dialog() {
             ],
             company: false,
             set_inside: 0,
+            links_admit: None,
         }),
     );
     fixture.settle();

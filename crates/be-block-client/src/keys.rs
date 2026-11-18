@@ -1272,6 +1272,20 @@ impl KeyBook {
         Some(kept.clone())
     }
 
+    /// The identity key `block`'s log, as this device checked it this run, names for `account`
+    /// while granting it Edit or above: whom a key of the block may come from when no contact
+    /// or organization log vouches for them (`Peer::settle_escrowed` then checks the log again).
+    fn log_names_editor(&self, block: Uuid, account: Uuid) -> Option<be_block_keys::RecoveryPublic> {
+        let roots = self.roots.lock().unwrap();
+        let (level, identity) = roots.logs.get(&block)?.grants.get(&account.into_bytes())?;
+        (*level >= Level::Edit).then_some(identity.public)
+    }
+
+    /// Whether the organization's log, as this device checked it, names `account` a member.
+    pub fn member_named(&self, account: Uuid) -> bool {
+        self.escrow.lock().unwrap().members.contains_key(&account)
+    }
+
     /// Whether `block`'s log, as this device checked or kept it, names `account` at all.
     pub fn names(&self, block: Uuid, account: Uuid) -> bool {
         let roots = self.roots.lock().unwrap();
@@ -1620,19 +1634,22 @@ impl KeyBook {
                     return None;
                 }
                 let Some(public) = self.sender(wrap.sender) else {
-                    // A member the organization's log names who is not a contact: opened with
-                    // the keys the log names, then held for `Peer::settle_escrowed`, as an
-                    // escrow wrap is.
+                    // A member the organization's log names who is not a contact, or an editor
+                    // the block's own log grants (a share link's opener reaches the block only
+                    // so, and in the personal organization there is no organization log):
+                    // opened with the keys the log names, then held for
+                    // `Peer::settle_escrowed`, as an escrow wrap is.
                     if vouched {
                         return None;
                     }
-                    let public = self
+                    let member = self
                         .escrow
                         .lock()
                         .unwrap()
                         .members
-                        .get(&wrap.sender)?
-                        .public;
+                        .get(&wrap.sender)
+                        .map(|member| member.public);
+                    let public = member.or_else(|| self.log_names_editor(row?.block, wrap.sender))?;
                     let from = Party {
                         account: wrap.sender.into_bytes(),
                         public,
