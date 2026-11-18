@@ -54,8 +54,8 @@ pub const JOURNAL_BYTES: usize = 1024 * 1024;
 
 /// The holder restarts its session at a commit once the session state passes this and outgrows
 /// the visible content: tombstones and positions kept for concurrent edits, which a reload from
-/// the commit drops. It waits for a commit it makes alone, so nobody's edits need carrying over,
-/// until the state passes `RESTART_CEILING` times this.
+/// the commit drops. It waits for a seal it makes alone, so few edits need carrying over, until
+/// the state passes `RESTART_CEILING` times this.
 pub const RESTART_STATE_BYTES: usize = 1024 * 1024;
 
 /// How far past `RESTART_STATE_BYTES` session state grows before a holder with others in the
@@ -72,6 +72,11 @@ pub(crate) const LARGEST_RELAYED_OPERATION: usize = 1024 * 1024;
 /// How many operations a replica keeps of the order since its last seal, to apply again on top of
 /// a reload: past this a reload applies what it kept.
 const LOG_LIMIT: usize = 65_536;
+/// The clients the entries a restart carries are made under (`carried_from_seal`), each its
+/// entry's number with these top bits: no participant is numbered this high, nor a merge's own
+/// (its top bit alone, with the next derived), apart from one in four.
+const CARRIED_CLIENTS: u64 = 0b11 << 62;
+
 /// How many contents shown before a reload a replica keeps for its editors' late edits
 /// (`Replica::shown_before`).
 const SHOWN_BEFORE_KEPT: usize = 4;
@@ -634,13 +639,9 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     /// Reloads waiting for the part their state goes by (`submit_reloads`): seals wait for
     /// them as for those in `reloading`.
     reloads_putting: VecDeque<PendingReload>,
-    /// A restart is due, the last seal fell short of what the order numbered, and this holder is
-    /// alone: its own edits wait (`flush`), unsubmitted (so in the host's kept edits, not the
-    /// journal), and it seals again once what it submitted is numbered (`seal_for_restart`). A
-    /// seal that fails lets them go until the next comes back short.
-    restart_short: bool,
-    /// Said once that a due restart was put off past `RESTART_CEILING` times the limit.
-    restart_overdue: bool,
+    /// While a journal is replayed (`loaded`): its base under its state and afresh, and its
+    /// number, which a restart in it carries what came after over (`carried_from_seal`).
+    replay_seal: Option<(C, C, u64)>,
     /// The last barrier applied.
     replaced_at: u64,
     /// The counter of this replica's last submission, from a random start: ids never repeat.
@@ -989,8 +990,7 @@ where
             keep: Vec::new(),
             reloading: Vec::new(),
             reloads_putting: VecDeque::new(),
-            restart_short: false,
-            restart_overdue: false,
+            replay_seal: None,
             replaced_at: 0,
             // Leaves room for 2^48 submissions after it.
             counter: Uuid::new_v4().as_u64_pair().0 >> 16,
@@ -2285,10 +2285,6 @@ where
     /// passes, `seal_retry_at` stays set until a seal settles or fails again: `commit_at` makes
     /// the retry due, and `sealing` keeps a second one from starting while it is on its way.
     fn seal_failed(&mut self) {
-        // Its own held for a restart go meanwhile (`restart_short`).
-        if std::mem::take(&mut self.restart_short) {
-            self.jobs.push_back(Job::Unblocked);
-        }
         let wait = (SEAL_RETRY_INTERVAL << self.seal_failures.min(4)).min(SEAL_RETRY_CEILING);
         self.seal_failures = self.seal_failures.saturating_add(1);
         self.seal_retry_at = Some(self.now + wait);
@@ -2631,27 +2627,12 @@ where
                 if let Some(id) = reply {
                     self.reply(id, Answer::Sealed);
                 }
-                // The restart reloads this seal's commit afresh and applies nothing on top of it:
-                // what the order numbered after the seal would be lost, so it waits for a seal
-                // that holds everything numbered.
-                // Nothing of its own may be on its way either: numbered before the restart, it
-                // would be in neither the commit nor what the restart carries.
-                let own_on_its_way = self.pending.iter().any(|sent| sent.operation.is_some());
-                match self.due_restart_state() {
-                    Some(_) if self.applied == through && !own_on_its_way => {
-                        self.restart_short = false;
-                        self.submit_reload(head, true, true, Vec::new(), None);
-                    }
-                    // Short. Alone, this holder holds its own edits back and seals again as soon as
-                    // what it submitted is numbered, which holds everything. With others in the
-                    // session the shortfall may be theirs, which holding its own would not end:
-                    // its edits go on, and the restart waits for a seal that holds everything.
-                    Some(state) => {
-                        self.restart_short = self.alone();
-                        self.report_overdue_restart(state);
-                        self.seal_for_restart();
-                    }
-                    None => self.restart_short = false,
+                // The restart names the seal (its base) and carries its state: every replica
+                // carries what the order numbered after the seal over it (`carried_from_seal`),
+                // so it goes on whatever seal it came due on.
+                if self.restart_due() {
+                    let state = self.sealed_state.clone();
+                    self.submit_reload_based(head, true, true, state, None, through);
                 }
             }
             AfterPublish::Merged { through, state } => {
@@ -2770,6 +2751,18 @@ where
             .filter(|journal| journal.base.commit == self.base);
         let sealed_head = self.sealed_head.take();
         if let Some(journal) = journal {
+            // A restart in the journal carries what came after its seal, the journal's base,
+            // over it, as applying it does: the base afresh and under its state are kept for it.
+            let restarts_in_it = journal.entries.iter().any(|entry| {
+                matches!(
+                    Submitted::decode(&entry.payload),
+                    Some(Submitted {
+                        entry: Entry::Reload { restart: true, .. },
+                        ..
+                    })
+                )
+            });
+            let fresh = restarts_in_it.then(|| self.confirmed.clone());
             match self.adopt_base_state(&journal.base.state, journal.base.sequence) {
                 Some(state) if !state.is_empty() => {
                     if self.confirmed.adopt_session_state(&state).is_err() {
@@ -2782,6 +2775,8 @@ where
             }
             self.applied = journal.base.sequence;
             self.sealed = journal.base.sequence;
+            self.replay_seal =
+                fresh.map(|fresh| (self.confirmed.clone(), fresh, journal.base.sequence));
             for entry in journal.entries {
                 if entry.sequence <= self.applied {
                     self.passed_over(
@@ -2814,6 +2809,7 @@ where
                 }
             }
         }
+        self.replay_seal = None;
         // Local edits kept across a stop were made before a restart the order had since: what
         // they were made on is gone.
         if self.restarts > self.kept_restart {
@@ -2882,7 +2878,24 @@ where
                         }
                     }
                     Entry::Operation(_) => {}
-                    Entry::Reload { restart: true, .. } => self.restarts += 1,
+                    Entry::Reload {
+                        restart: true,
+                        commit,
+                        ..
+                    } => {
+                        self.restarts += 1;
+                        // On the journal's base, which it names: what came after carries over it.
+                        if let Some((at_seal, fresh, _)) = self
+                            .replay_seal
+                            .take()
+                            .filter(|(_, _, base)| Some(commit) == self.base && *base == op.base)
+                        {
+                            let (carried, _) =
+                                self.carried_from_seal(at_seal, fresh, op.base, sequence);
+                            self.confirmed = carried;
+                            self.log.clear();
+                        }
+                    }
                     Entry::Keep { commit }
                     | Entry::Reload {
                         commit,
@@ -3092,7 +3105,6 @@ where
                 self.rebuild_visible();
             }
             self.cover_if_settled();
-            self.seal_for_restart();
             return self.take_heard_seal();
         }
         if mine {
@@ -3162,7 +3174,17 @@ where
         // What the editors showed, which their edits sent before they were shown the reload
         // were made on (`carried_over_a_reload`).
         let shown = (!replace && !self.editors.is_empty()).then(|| self.visible.clone());
+        // A restart's state is its seal's, which the content it loads afresh does not take: it
+        // is what the entries numbered after the seal were made on (`carried_from_seal`).
+        let mut at_seal = None;
         match self.adopt_base_state(&state, op.sequence) {
+            Some(state) if restart => {
+                let mut old = content.clone();
+                if old.adopt_session_state(&state).is_err() {
+                    self.incompatible = true;
+                }
+                at_seal = Some(old);
+            }
             Some(state) if !state.is_empty() => {
                 if content.adopt_session_state(&state).is_err() {
                     self.incompatible = true;
@@ -3173,7 +3195,6 @@ where
         }
         if restart {
             self.restarts += 1;
-            self.restart_overdue = false;
         }
         let sent = match mine {
             true => self.forget_sent(op.id),
@@ -3193,6 +3214,13 @@ where
                 content.apply(&logged.operation);
                 reapplied = true;
             }
+        }
+        // What the order numbered after the restart's seal (its base), which its commit does not
+        // hold, goes on top of it, carried from what it was made on; every replica does alike.
+        if let Some(at_seal) = at_seal {
+            let (carried, any) = self.carried_from_seal(at_seal, content, op.base, op.sequence);
+            content = carried;
+            reapplied = any;
         }
         self.applied = op.sequence;
         self.confirmed = content;
@@ -3272,51 +3300,28 @@ where
         }
     }
 
-    /// While a restart waits for a seal holding everything numbered (`restart_short`), seals
-    /// once this holder has nothing of its own on its way: with no other writer, that seal holds
-    /// everything, and the restart follows it. One that is no longer holder, or whose restart is
-    /// no longer due, lets its edits go again.
-    fn seal_for_restart(&mut self) {
-        if !self.restart_short {
-            return;
-        }
-        if !self.is_holder() || !self.alone() || !self.restart_due() {
-            self.restart_short = false;
-            self.jobs.push_back(Job::Unblocked);
-            return;
-        }
-        let queued = self.jobs.iter().any(|job| matches!(job, Job::Seal { .. }));
-        if self.pending.iter().any(|sent| sent.operation.is_some()) || queued || self.sealing {
-            return;
-        }
-        self.sealing = true;
-        self.jobs.push_back(Job::Seal {
-            sealing: Sealing::Once,
-            reply: None,
-        });
-    }
-
-    /// Says once, until a restart lands, that a due restart was put off past `RESTART_CEILING`
-    /// times the limit with the session state `state` bytes: with others in the session, their
-    /// writing keeps every seal short (plans/restart_carries_numbered_entries.md); alone, its own
-    /// seals do not settle (they fail, or edits stay on their way).
-    fn report_overdue_restart(&mut self, state: usize) {
-        if state <= restart_limit().saturating_mul(RESTART_CEILING)
-            || std::mem::replace(&mut self.restart_overdue, true)
+    /// `fresh`, a seal's commit loaded afresh, with what the order numbered after the seal
+    /// (`through`) and before `until` on top: each entry is carried from what it was made on,
+    /// `at_seal` (the commit under the session's identities as of the seal) with the entries
+    /// before it, as what it visibly did there (`LiveEdit::carry_over`), under a client derived
+    /// from its number, so every replica, holding the same entries, makes the same content.
+    /// Whether any was carried.
+    fn carried_from_seal(&self, at_seal: C, fresh: C, through: u64, until: u64) -> (C, bool) {
+        let (mut old, mut new) = (at_seal, fresh);
+        let mut any = false;
+        for logged in self
+            .log
+            .iter()
+            .filter(|logged| logged.sequence > through && logged.sequence < until)
         {
-            return;
-        }
-        let cause = match self.alone() {
-            false => {
-                "others are writing, and a restart waits for a seal holding everything \
-                 (plans/restart_carries_numbered_entries.md)"
+            let client = CARRIED_CLIENTS | logged.sequence;
+            if let Some(moved) = C::carry_over(&logged.operation, &old, &new, client) {
+                new.apply(&moved);
             }
-            true => "this holder's own seals do not settle",
-        };
-        self.error(format!(
-            "a restart is overdue: the session state is {state} bytes, and every seal falls short \
-             of what the order numbered: {cause}"
-        ));
+            old.apply(&logged.operation);
+            any = true;
+        }
+        (new, any)
     }
 
     /// A stash the order keeps, or a reload, is sealed at once: what it changed reaches the
@@ -3595,13 +3600,7 @@ where
             self.submit_reloads();
         }
         // A put that failed goes again on its timer (`tick`), whatever asks meanwhile.
-        // Its own held for a restart (`restart_short`) go again once the restart is no longer
-        // due (a gesture opened) or others joined.
-        if self.restart_short && !(self.restart_due() && self.alone()) {
-            self.restart_short = false;
-        }
-        if self.restart_short
-            || !self.loaded
+        if !self.loaded
             || self.released
             || self.put_retry_at.is_some()
             || self.diverged
@@ -4815,10 +4814,6 @@ where
             self.show_presence_to(client);
         }
         if was_holder && !self.is_holder() {
-            // Its edits held for a restart go again: the restart is the new holder's.
-            if std::mem::take(&mut self.restart_short) {
-                self.jobs.push_back(Job::Unblocked);
-            }
             // A merge that was failing is the new holder's to do.
             self.merge_failures = 0;
             self.merge_retry_at = None;
@@ -4920,20 +4915,14 @@ where
     }
 
     fn restart_due(&self) -> bool {
-        self.due_restart_state().is_some()
-    }
-
-    /// The session state's size, when it makes a restart due (`restart_due`).
-    fn due_restart_state(&self) -> Option<usize> {
         if self.history.gesture_open() || self.holds.holding() {
-            return None;
+            return false;
         }
         let state = self.confirmed.session_state().len();
         let limit = restart_limit();
-        (state > limit
+        state > limit
             && state > self.confirmed.encode().len()
-            && (self.alone() || state > limit.saturating_mul(RESTART_CEILING)))
-        .then_some(state)
+            && (self.alone() || state > limit.saturating_mul(RESTART_CEILING))
     }
 
     /// An edit `editor` made on what it showed before a reload it has not said it was shown
