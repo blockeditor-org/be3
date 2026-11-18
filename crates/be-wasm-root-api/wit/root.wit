@@ -138,7 +138,7 @@ interface host {
     /// The host's memory over time, a point a minute: its own watch apart
     /// from `statistics`, whose rows change every frame while these change
     /// once a minute.
-    record memory-history {
+    record memory-minutes {
         /// Which change of it this is, which the next `memory-history` call
         /// names as `seen`: never 0.
         generation: u64,
@@ -153,7 +153,7 @@ interface host {
     /// `seen`, as `statistics` answers; the host measures it only while the
     /// root watches the statistics, and turning the watch off answers a call
     /// still waiting with it as it is.
-    memory-history: async func(seen: u64) -> memory-history;
+    memory-history: async func(seen: u64) -> memory-minutes;
 
     /// Whether the root shows the host's statistics now. The host measures
     /// what only they need (its memory, sampled every few seconds) only while
