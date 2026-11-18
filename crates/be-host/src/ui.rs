@@ -456,7 +456,7 @@ pub(crate) struct HostUi {
     pub(crate) lock: LockView,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub(crate) enum UiCommand {
     Restart,
     AskErrorAction(ErrorAction),
