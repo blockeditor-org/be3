@@ -4,7 +4,9 @@ use be_sdk_api::{
     embed::blocks::Call,
     ops::{OpError, OpId},
 };
-use be_sdk_app_host::blocks::{self as dispatch, BlockStore, Created, EditorBlocks, Subject, Written};
+use be_sdk_app_host::blocks::{
+    self as dispatch, BlockStore, Created, EditorBlocks, Subject, Written,
+};
 use uuid::Uuid;
 
 use super::{ContentLink, EditorInstanceId, Instance, Instances};
@@ -232,7 +234,9 @@ impl Instances {
             if let Some(state) = &mut state {
                 Self::translated(scope, false, |visit| state.visit_block_ids(visit));
             }
-            entry.held.offer(Subject::Artifact(block), &BlockValue::Artifact(state));
+            entry
+                .held
+                .offer(Subject::Artifact(block), &BlockValue::Artifact(state));
         }
     }
 }

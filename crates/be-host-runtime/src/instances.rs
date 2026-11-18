@@ -390,7 +390,8 @@ impl Instance {
                     }
                 });
             }
-            self.held.offer(Subject::Blocks(query), &BlockValue::Blocks(answer));
+            self.held
+                .offer(Subject::Blocks(query), &BlockValue::Blocks(answer));
         }
     }
 
@@ -461,7 +462,10 @@ impl Instance {
         match self.role {
             InstanceRole::Editor(_, block)
                 if be_host_stack::is_versioned(block.block_type)
-                    && self.held.watching().any(|watched| watched == Subject::Version) =>
+                    && self
+                        .held
+                        .watching()
+                        .any(|watched| watched == Subject::Version) =>
             {
                 vec![(block.id, block.block_type)]
             }
@@ -470,7 +474,11 @@ impl Instance {
     }
 
     fn offer_version(&mut self) {
-        if !self.held.watching().any(|watched| watched == Subject::Version) {
+        if !self
+            .held
+            .watching()
+            .any(|watched| watched == Subject::Version)
+        {
             return;
         }
         if let InstanceRole::Editor(_, block) = self.role
@@ -479,7 +487,8 @@ impl Instance {
                 be_host_stack::version_since(block.id, self.version_sent)
         {
             self.version_sent = Some(revision);
-            self.held.offer(Subject::Version, &BlockValue::Version(status));
+            self.held
+                .offer(Subject::Version, &BlockValue::Version(status));
         }
     }
 
@@ -623,7 +632,8 @@ impl Instance {
             .collect();
         for block in blocks {
             let history = self.history(block);
-            self.held.offer(Subject::History(block), &BlockValue::History(history));
+            self.held
+                .offer(Subject::History(block), &BlockValue::History(history));
         }
     }
 

@@ -5,8 +5,8 @@ use be_sdk_api::{
     ops::{Connection, Side, decode},
 };
 
-mod frames_go_to_the_latest_replica_of_a_block_and_the_earlier_resumes;
 mod a_watch_is_not_answered_again_what_it_was_answered;
+mod frames_go_to_the_latest_replica_of_a_block_and_the_earlier_resumes;
 mod the_store_refuses_a_call_before_it_is_dispatched;
 
 const INSTANCE: EditorInstanceId = EditorInstanceId(1);
@@ -66,7 +66,8 @@ impl BlockStore for Recorded {
     }
 
     fn replica_resumed(&mut self, _: EditorInstanceId, op: OpId, block: Uuid, content_type: Uuid) {
-        self.heard.push(format!("resumed {op} {block} {content_type}"));
+        self.heard
+            .push(format!("resumed {op} {block} {content_type}"));
     }
 
     fn replica_ended(&mut self, _: EditorInstanceId, block: Uuid) {

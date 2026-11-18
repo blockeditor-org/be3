@@ -297,10 +297,7 @@ pub fn call(store: &mut impl BlockStore, instance: EditorInstanceId, mut call: C
             reply,
             block,
             command,
-        } => done(
-            reply,
-            store.act(instance, Uuid::from_bytes(block), command),
-        ),
+        } => done(reply, store.act(instance, Uuid::from_bytes(block), command)),
         Call::WriteContent {
             reply,
             block,
@@ -366,7 +363,10 @@ pub fn call(store: &mut impl BlockStore, instance: EditorInstanceId, mut call: C
                 && held.is_some_and(|held| held.replica(block) != Some(this.op()))
             {
                 return Dispatched {
-                    reply: Some(Reply::Answer(reply.into_op(), Outcome::Err(OpError::Denied))),
+                    reply: Some(Reply::Answer(
+                        reply.into_op(),
+                        Outcome::Err(OpError::Denied),
+                    )),
                     changed: false,
                 };
             }
@@ -388,15 +388,16 @@ pub fn call(store: &mut impl BlockStore, instance: EditorInstanceId, mut call: C
             within,
         } => {
             let op = resource.op();
-            changed(watch(store, instance, op, Subject::Search(op)).is_some_and(|op| {
-                store.search_opened(instance, op, text, within.map(Uuid::from_bytes))
-            }))
+            changed(
+                watch(store, instance, op, Subject::Search(op)).is_some_and(|op| {
+                    store.search_opened(instance, op, text, within.map(Uuid::from_bytes))
+                }),
+            )
         }
-        Call::ShowRequestsNew { resource } => {
-            changed(watch(store, instance, resource.op(), Subject::Shows).is_some_and(|op| {
-                store.watch_opened(instance, op, Subject::Shows)
-            }))
-        }
+        Call::ShowRequestsNew { resource } => changed(
+            watch(store, instance, resource.op(), Subject::Shows)
+                .is_some_and(|op| store.watch_opened(instance, op, Subject::Shows)),
+        ),
         // The wire holds a replica's stream and each watch's `next` itself.
         call @ (Call::ReplicaFrames { .. }
         | Call::BlockWatchNext { .. }

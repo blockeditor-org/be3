@@ -102,7 +102,13 @@ impl BlockStore for Linked<'_> {
         Ok(true)
     }
 
-    fn replica_opened(&mut self, instance: EditorInstanceId, _: OpId, block: Uuid, _: Uuid) -> bool {
+    fn replica_opened(
+        &mut self,
+        instance: EditorInstanceId,
+        _: OpId,
+        block: Uuid,
+        _: Uuid,
+    ) -> bool {
         self.store.watch_content(instance, block, true);
         true
     }
@@ -217,8 +223,7 @@ impl Link {
         self.watch_store(store);
         let held = &self.held;
         let outgoing = store.outgoing(self.instance, |block, frame| {
-            held.replica(block)
-                .is_none_or(|op| wire.relay(op, frame))
+            held.replica(block).is_none_or(|op| wire.relay(op, frame))
         });
         for (block, head) in outgoing.heads {
             self.held.offer(
