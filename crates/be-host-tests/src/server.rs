@@ -103,28 +103,28 @@ impl Server {
         }
     }
 
-    /// Has the server serve `of` a record of `contact` that does not open, as one rolling the
-    /// contact's key back would serve an older one: what a device that saw the newer one
-    /// refuses (plans/crypto_audit.md, 4).
-    pub fn spoil_contact(&self, of: &Account, contact: &Account) {
-        let store = &self.inner.store;
-        self.inner
-            .runtime
-            .block_on(async {
-                let held = store
-                    .list_contacts(of.id)
-                    .await?
-                    .into_iter()
-                    .find(|row| row.account == contact.id)
-                    .map(|row| row.sealed)
-                    .unwrap_or_default();
-                store
-                    .put_contact(of.id, contact.id, vec![7; 64], held)
-                    .await
-            })
-            .unwrap_or_else(|error| {
-                panic!("the test server could not change the contact: {error}")
-            });
+    /// Has the server serve `of` its account's block, which holds its contacts' records, with
+    /// keys that do not open, as a server tampering with them would: a device that saw the
+    /// records keeps the ones it pinned, and says it cannot read the server's copy
+    /// (plans/crypto_audit.md, 4). Every contact's record is spoiled alike, `contact`'s with them.
+    pub fn spoil_contact(&self, of: &Account, _contact: &Account) {
+        let database = be_block_sqlite_schema::open(
+            self.inner.running.directory.join("metadata.sqlite"),
+        )
+        .unwrap_or_else(|error| panic!("the test server's database did not open: {error}"));
+        let of = of.id.to_string();
+        database
+            .execute(
+                "UPDATE wrapped_keys SET sealed = x'07070707070707070707070707070707'
+                 WHERE wrapped_by = 'account:' || ?1 AND key_id IN (
+                    SELECT keys.id FROM keys JOIN blocks
+                        ON blocks.organization_id = keys.organization_id
+                        AND blocks.id = keys.block_id
+                    WHERE blocks.author = ?1 AND blocks.owner_only = 1
+                        AND blocks.parent_kind = 1)",
+                [of.as_str()],
+            )
+            .unwrap_or_else(|error| panic!("the test server could not spoil the keys: {error}"));
     }
 
     /// A network of its own for one device, carrying its connections to the server.

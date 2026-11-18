@@ -29,7 +29,11 @@ const TRIES: usize = 4;
 /// block, and its peer reads contacts when keys arrive from a sender it does not know, so these
 /// futures nest in each other's types; boxed with their bounds stated here, each is checked once,
 /// where its types are known, and a caller spawning one is not asked to prove more.
+/// On the web nothing is sent between threads, and the browser's futures are not `Send`.
+#[cfg(not(target_arch = "wasm32"))]
 pub type Sent<'a, T> = std::pin::Pin<Box<dyn Future<Output = Result<T, ClientError>> + Send + 'a>>;
+#[cfg(target_arch = "wasm32")]
+pub type Sent<'a, T> = std::pin::Pin<Box<dyn Future<Output = Result<T, ClientError>> + 'a>>;
 
 pub struct AccountRecords {
     peer: Peer<MemoryStore>,
@@ -78,8 +82,7 @@ impl AccountRecords {
                 let Some((organization, name)) = reached.personal else {
                     return Ok(None);
                 };
-                let records =
-                    Self::assemble(connection, account, identity, organization, name)?;
+                let records = Self::assemble(connection, account, identity, organization, name)?;
                 records.peer.refs.add_keys(&reached.keys)?;
                 records.peer.keys.absorb(reached.keys);
                 return Ok(Some(Arc::new(records)));
@@ -88,9 +91,9 @@ impl AccountRecords {
             *connection.account_block.lock().unwrap() = Some(Reached {
                 account,
                 public,
-                personal: records.as_ref().map(|records| {
-                    (records.peer.organization(), records.name.clone())
-                }),
+                personal: records
+                    .as_ref()
+                    .map(|records| (records.peer.organization(), records.name.clone())),
                 keys: records
                     .as_ref()
                     .map(|records| records.peer.refs.keys())
@@ -146,22 +149,24 @@ impl AccountRecords {
         identity: &'a RecoverySecret,
     ) -> Sent<'a, Option<Self>> {
         Box::pin(async move {
-        let organizations = crate::ask(be_block_protocol::read::<
-            Vec<be_block_protocol::Organization>,
-            _,
-        >(
-            connection, None, be_block_protocol::Query::Organizations
-        ))
-        .await?;
-        let Some(personal) = organizations
-            .into_iter()
-            .find(|organization| organization.kind == OrganizationKind::Personal)
-        else {
-            return Ok(None);
-        };
-        let records = Self::assemble(connection, account, identity, personal.id, personal.name)?;
-        records.peer.refresh_keys(Some(vec![records.block])).await?;
-        Ok(Some(records))
+            let organizations =
+                crate::ask(be_block_protocol::read::<
+                    Vec<be_block_protocol::Organization>,
+                    _,
+                >(
+                    connection, None, be_block_protocol::Query::Organizations
+                ))
+                .await?;
+            let Some(personal) = organizations
+                .into_iter()
+                .find(|organization| organization.kind == OrganizationKind::Personal)
+            else {
+                return Ok(None);
+            };
+            let records =
+                Self::assemble(connection, account, identity, personal.id, personal.name)?;
+            records.peer.refresh_keys(Some(vec![records.block])).await?;
+            Ok(Some(records))
         })
     }
 
@@ -177,23 +182,25 @@ impl AccountRecords {
     /// open on this device, as after a new phrase taken on another device.
     pub fn read(&self) -> Sent<'_, Held> {
         Box::pin(async move {
-        match self.peer.summary(self.block).await {
-            Err(ClientError::Refused(ErrorCode::BlockNotFound, _)) => {
-                return Ok(Held {
-                    head: None,
-                    content: AccountBlockContent::default(),
-                });
+            match self.peer.summary(self.block).await {
+                Err(ClientError::Refused(ErrorCode::BlockNotFound, _)) => {
+                    return Ok(Held {
+                        head: None,
+                        content: AccountBlockContent::default(),
+                    });
+                }
+                Err(error) => return Err(error),
+                Ok(_) => {}
             }
-            Err(error) => return Err(error),
-            Ok(_) => {}
-        }
-        let content = self.peer.open::<AccountBlockContent>(self.block)
-            .await?
-            .unwrap_or_default();
-        Ok(Held {
-            head: self.peer.local_head(self.block),
-            content,
-        })
+            let content = self
+                .peer
+                .open::<AccountBlockContent>(self.block)
+                .await?
+                .unwrap_or_default();
+            Ok(Held {
+                head: self.peer.local_head(self.block),
+                content,
+            })
         })
     }
 
@@ -204,15 +211,15 @@ impl AccountRecords {
         change: impl Fn(&AccountBlock) -> Vec<Edit> + Send + Sync + 'a,
     ) -> Sent<'a, ()> {
         Box::pin(async move {
-        for _ in 0..TRIES {
-            let held = self.read().await?;
-            let edits = change(&held.content.root());
-            match self.save(held, &edits).await {
-                Err(ClientError::Contended) => continue,
-                saved => return saved,
+            for _ in 0..TRIES {
+                let held = self.read().await?;
+                let edits = change(&held.content.root());
+                match self.save(held, &edits).await {
+                    Err(ClientError::Contended) => continue,
+                    saved => return saved,
+                }
             }
-        }
-        Err(ClientError::Contended)
+            Err(ClientError::Contended)
         })
     }
 
@@ -220,54 +227,56 @@ impl AccountRecords {
     /// `ClientError::Contended` when another device saved first: the caller reads again.
     pub fn save<'a>(&'a self, held: Held, edits: &'a [Edit]) -> Sent<'a, ()> {
         Box::pin(async move {
-        if edits.is_empty() {
-            return Ok(());
-        }
-        let Held { head, mut content } = held;
-        // Made just now, it holds nothing; made by another device since it was read, the save
-        // on no head is rejected and read again.
-        if head.is_none() && self.ensure().await? {
-            content = AccountBlockContent::default();
-        }
-        for edit in edits {
-            content.apply(edit);
-        }
-        match self.peer.save(self.block, &content, head).await? {
-            Saved::Published(_) | Saved::Unchanged(_) => Ok(()),
-            Saved::Rejected { .. } => Err(ClientError::Contended),
-            Saved::Kept(_) => Err(ClientError::Disconnected(
-                "the account's block is saved only with the server".into(),
-            )),
-        }
+            if edits.is_empty() {
+                return Ok(());
+            }
+            let Held { head, mut content } = held;
+            // Made just now, it holds nothing; made by another device since it was read, the save
+            // on no head is rejected and read again.
+            if head.is_none() && self.ensure().await? {
+                content = AccountBlockContent::default();
+            }
+            for edit in edits {
+                content.apply(edit);
+            }
+            match self.peer.save(self.block, &content, head).await? {
+                Saved::Published(_) | Saved::Unchanged(_) => Ok(()),
+                Saved::Rejected { .. } => Err(ClientError::Contended),
+                Saved::Kept(_) => Err(ClientError::Disconnected(
+                    "the account's block is saved only with the server".into(),
+                )),
+            }
         })
     }
 
     /// Makes the block if the server has none: whether this made it.
     fn ensure(&self) -> Sent<'_, bool> {
         Box::pin(async move {
-        match self.peer.summary(self.block).await {
-            Ok(_) => return Ok(false),
-            Err(ClientError::Refused(ErrorCode::BlockNotFound, _)) => {}
-            Err(error) => return Err(error),
-        }
-        let metadata = BlockMetadata::default();
-        match self.peer.create_block(
-            self.block,
-            AccountBlock::CONTENT_TYPE,
-            BlockParent::Root,
-            &metadata,
-            true,
-        )
-        .await
-        {
-            Ok(_) => Ok(true),
-            // Another device of the account made it first: its keys are read for it.
-            Err(ClientError::Refused(ErrorCode::BlockAlreadyExists, _)) => {
-                self.peer.refresh_keys(Some(vec![self.block])).await?;
-                Ok(false)
+            match self.peer.summary(self.block).await {
+                Ok(_) => return Ok(false),
+                Err(ClientError::Refused(ErrorCode::BlockNotFound, _)) => {}
+                Err(error) => return Err(error),
             }
-            Err(error) => Err(error),
-        }
+            let metadata = BlockMetadata::default();
+            match self
+                .peer
+                .create_block(
+                    self.block,
+                    AccountBlock::CONTENT_TYPE,
+                    BlockParent::Root,
+                    &metadata,
+                    true,
+                )
+                .await
+            {
+                Ok(_) => Ok(true),
+                // Another device of the account made it first: its keys are read for it.
+                Err(ClientError::Refused(ErrorCode::BlockAlreadyExists, _)) => {
+                    self.peer.refresh_keys(Some(vec![self.block])).await?;
+                    Ok(false)
+                }
+                Err(error) => Err(error),
+            }
         })
     }
 
@@ -278,29 +287,29 @@ impl AccountRecords {
     /// never made.
     pub fn epoch_for<'a>(&'a self, fresh: &'a RecoverySecret) -> Sent<'a, Option<KeySet>> {
         Box::pin(async move {
-        match self.peer.summary(self.block).await {
-            Err(ClientError::Refused(ErrorCode::BlockNotFound, _)) => return Ok(None),
-            Err(error) => return Err(error),
-            Ok(_) => {}
-        }
-        let keys = &self.peer.keys;
-        let (scope, mut minted) = keys.mint_own_scope(self.block)?;
-        let plain = keys.carried_plain(scope)?;
-        let account = self.peer.account();
-        let mine = Party {
-            account: account.into_bytes(),
-            public: fresh.public(),
-        };
-        minted.wrapped = vec![WrappedKey {
-            key: scope,
-            wrapped_by: WrappedBy::Account(account),
-            sender: account,
-            sealed: fresh.seal_for(account.into_bytes(), &mine, scope.as_bytes(), &plain),
-        }];
-        let (_, data) = keys.mint_data(self.block, scope)?;
-        minted.keys.extend(data.keys);
-        minted.wrapped.extend(data.wrapped);
-        Ok(Some(minted))
+            match self.peer.summary(self.block).await {
+                Err(ClientError::Refused(ErrorCode::BlockNotFound, _)) => return Ok(None),
+                Err(error) => return Err(error),
+                Ok(_) => {}
+            }
+            let keys = &self.peer.keys;
+            let (scope, mut minted) = keys.mint_own_scope(self.block)?;
+            let plain = keys.carried_plain(scope)?;
+            let account = self.peer.account();
+            let mine = Party {
+                account: account.into_bytes(),
+                public: fresh.public(),
+            };
+            minted.wrapped = vec![WrappedKey {
+                key: scope,
+                wrapped_by: WrappedBy::Account(account),
+                sender: account,
+                sealed: fresh.seal_for(account.into_bytes(), &mine, scope.as_bytes(), &plain),
+            }];
+            let (_, data) = keys.mint_data(self.block, scope)?;
+            minted.keys.extend(data.keys);
+            minted.wrapped.extend(data.wrapped);
+            Ok(Some(minted))
         })
     }
 }
