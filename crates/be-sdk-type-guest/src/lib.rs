@@ -11,7 +11,7 @@ use be_block_content::{
     history::History,
 };
 use be_sdk_type_api::{
-    Change, ChildChange, ClientId, CommitId, Description, EditorId, Endpoint, FileChange, Journal,
+    BlockPlace, Change, ChildChange, ClientId, CommitId, Description, EditorId, Endpoint, FileChange, Journal,
     JournalEntry, Loaded, Merged, MergedParts, Opening, PartRef, Plain, PlainFile, PublishOutcome,
     ReorderChild, ReplaceChild, ReplicaId, SearchDocument, SessionState, TypeInfo, Written,
     guest::{exports::replicas, host},
@@ -66,9 +66,14 @@ type ToFileFn = fn(&[u8]) -> Result<Option<PlainFile>, String>;
 
 type ReplayFn = fn(Option<&[u8]>, &Journal) -> Result<Vec<u8>, String>;
 
-/// `Unread::count_unread` of content as a host loads it (`Loaded`) or of whole content bytes,
-/// with the account's layers of the type's reads kind, lowest first.
-type UnreadFn = fn(Content, &[Vec<u8>], Uuid, Uuid) -> Result<u32, String>;
+/// A type's `Unread`: `places` of the account's layers of its reads kind, lowest first, each
+/// block's place in postcard bytes; and `count_unread` of content as a host loads it (`Loaded`)
+/// or of whole content bytes, with a block's place (none: the default place).
+#[derive(Clone, Copy)]
+struct UnreadFns {
+    places: fn(&[Vec<u8>]) -> Result<Vec<(Uuid, Vec<u8>)>, String>,
+    count: fn(Content, Option<&[u8]>, Uuid) -> Result<u32, String>,
+}
 
 /// Content handed to a stateless request: as a host loads a commit, or whole bytes.
 pub enum Content<'a> {
@@ -89,7 +94,7 @@ pub struct Registration {
     replica_merge: Option<std::rc::Rc<dyn std::any::Any>>,
     describe: fn(&[u8], Uuid) -> Result<Description, String>,
     search_text: SearchTextFn,
-    unread: Option<UnreadFn>,
+    unread: Option<UnreadFns>,
     replay: ReplayFn,
     child: ChildFn,
     to_file: Option<ToFileFn>,
@@ -167,7 +172,10 @@ impl Registration {
     pub fn unread<C: Unread>(mut self) -> Self {
         assert_eq!(self.info.content_type, C::CONTENT_TYPE);
         self.info.reads = Some(<C::Reads as be_block_content::Root>::CONTENT_TYPE);
-        self.unread = Some(count_unread::<C>);
+        self.unread = Some(UnreadFns {
+            places: places::<C>,
+            count: count_unread::<C>,
+        });
         self
     }
 
@@ -273,12 +281,26 @@ fn search_text<C: BlockContent>(
     })
 }
 
-fn count_unread<C: Unread>(
-    content: Content,
-    reads: &[Vec<u8>],
-    block: Uuid,
-    me: Uuid,
-) -> Result<u32, String> {
+fn places<C: Unread>(reads: &[Vec<u8>]) -> Result<Vec<(Uuid, Vec<u8>)>, String> {
+    let layers = reads
+        .iter()
+        .map(|bytes| {
+            be_block_content::be_block_model::Document::<C::Reads>::decode(bytes)
+                .map(|document| document.root())
+                .map_err(|error| error.to_string())
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    C::places(&be_block_content::layered(layers))
+        .into_iter()
+        .map(|(block, place)| {
+            postcard::to_stdvec(&place)
+                .map(|bytes| (block, bytes))
+                .map_err(|error| error.to_string())
+        })
+        .collect()
+}
+
+fn count_unread<C: Unread>(content: Content, place: Option<&[u8]>, me: Uuid) -> Result<u32, String> {
     let content = match content {
         Content::Loaded(loaded) => {
             let stored = loaded
@@ -289,15 +311,11 @@ fn count_unread<C: Unread>(
         Content::Bytes(bytes) => C::decode(bytes),
     }
     .map_err(|error| error.to_string())?;
-    let layers = reads
-        .iter()
-        .map(|bytes| {
-            be_block_content::be_block_model::Document::<C::Reads>::decode(bytes)
-                .map(|document| document.root())
-                .map_err(|error| error.to_string())
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    Ok(content.count_unread(block, &be_block_content::layered(layers), me))
+    let place = match place {
+        Some(bytes) => postcard::from_bytes(bytes).map_err(|error| error.to_string())?,
+        None => C::Place::default(),
+    };
+    Ok(content.count_unread(&place, me))
 }
 
 /// Content as a commit writes it: its parts, unchanged ones by their refs, and what it
@@ -483,8 +501,8 @@ impl Module {
         self.with_kind(content_type, |kind| kind.info.reads)?
     }
 
-    /// `replicas.unread` of whole content bytes, at once, for a host in process: none for a type
-    /// that counts nothing unread, or content that does not decode.
+    /// `replicas.places` and then `replicas.unread` of whole content bytes, at once, for a host
+    /// in process: none for a type that counts nothing unread, or content that does not decode.
     pub fn unread_of_bytes(
         &self,
         content_type: Uuid,
@@ -493,8 +511,23 @@ impl Module {
         block: Uuid,
         account: Uuid,
     ) -> Option<u32> {
-        let count = self.with_kind(content_type, |kind| kind.unread)??;
-        count(Content::Bytes(bytes), reads, block, account).ok()
+        let fns = self.with_kind(content_type, |kind| kind.unread)??;
+        let places = (fns.places)(reads).ok()?;
+        let place = places
+            .iter()
+            .find(|(of, _)| *of == block)
+            .map(|(_, place)| place.as_slice());
+        (fns.count)(Content::Bytes(bytes), place, account).ok()
+    }
+
+    fn unread_fns(&self, content_type: Uuid) -> Result<UnreadFns, Failure> {
+        match self.with_kind(content_type, |kind| kind.unread) {
+            None => Err(Failure::UnknownType),
+            Some(None) => Err(Failure::Malformed(
+                "this type counts nothing unread".to_owned(),
+            )),
+            Some(Some(fns)) => Ok(fns),
+        }
     }
 
     fn with_kind<R>(&self, content_type: Uuid, run: impl FnOnce(&Registration) -> R) -> Option<R> {
@@ -1057,24 +1090,36 @@ impl replicas::Guest for Module {
         })
     }
 
+    fn places(
+        &self,
+        content_type: Uuid,
+        reads: Vec<Vec<u8>>,
+    ) -> LocalFuture<Result<Vec<BlockPlace>, Failure>> {
+        Box::pin(ready(match self.unread_fns(content_type) {
+            Ok(fns) => (fns.places)(&reads)
+                .map(|places| {
+                    places
+                        .into_iter()
+                        .map(|(block, place)| BlockPlace { block, place })
+                        .collect()
+                })
+                .map_err(Failure::Malformed),
+            Err(failure) => Err(failure),
+        }))
+    }
+
     fn unread(
         &self,
         content_type: Uuid,
         content: Loaded,
-        reads: Vec<Vec<u8>>,
-        block: Uuid,
+        place: Option<Vec<u8>>,
         account: Uuid,
     ) -> LocalFuture<Result<u32, Failure>> {
-        Box::pin(ready(
-            match self.with_kind(content_type, |kind| kind.unread) {
-                None => Err(Failure::UnknownType),
-                Some(None) => Err(Failure::Malformed(
-                    "this type counts nothing unread".to_owned(),
-                )),
-                Some(Some(count)) => count(Content::Loaded(content), &reads, block, account)
-                    .map_err(Failure::Malformed),
-            },
-        ))
+        Box::pin(ready(match self.unread_fns(content_type) {
+            Ok(fns) => (fns.count)(Content::Loaded(content), place.as_deref(), account)
+                .map_err(Failure::Malformed),
+            Err(failure) => Err(failure),
+        }))
     }
 
     fn claims(

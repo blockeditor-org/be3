@@ -130,15 +130,18 @@ content's description), and seeds the module's randomness, since a pure guest
 has none.
 
 Stateless requests (`merge3`, `merge-parts`, `describe`, `to-file`,
-`search-text`, `unread`, `claims`, `apply`) are answered in the step that asks,
+`search-text`, `places`, `unread`, `claims`, `apply`) are answered in the step that asks,
 except `merge-parts`, `search-text` and `unread`, which may read parts first
 (below, "Merging by parts").
 
 `unread` counts what the account has not read in a commit
 (`be_block_content::Unread`, registered with the type's `unread` part in
 `be_block_types!`): the type names the owner-only settings kind it keeps the
-account's read places in (`type-info.reads`) and is handed the commit as it
-loads it with the account's layers of that kind, lowest first. Its manifest
+account's read places in (`type-info.reads`). `places` picks each block's own
+place out of the account's layers of that kind, lowest first, in bytes only the
+type reads (`Unread::Place` in postcard), and `unread` is handed the commit as
+the type loads it with that block's place alone, so the host counts a block
+again only when its head or its place's bytes move. Its manifest
 says `counts_unread`, so the host starts the module for a row before anything
 else asks it; be-tool-cli's
 `a_manifest_says_which_of_its_types_count_what_is_unread` holds the two in

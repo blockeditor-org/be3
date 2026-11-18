@@ -235,6 +235,9 @@ pub struct Graph {
     /// Nodes added, changed or removed since the worker last took them (`take_nodes_moved`).
     #[serde(skip)]
     nodes_moved: imbl::OrdSet<Uuid>,
+    /// The same, since the unread counts last took them (`take_to_count`).
+    #[serde(skip)]
+    to_count: imbl::OrdSet<Uuid>,
     /// Nodes a change copied because a `Seen` handed over still shared them (`node_mut`), for a
     /// test to count.
     #[cfg(test)]
@@ -324,6 +327,7 @@ impl Diff for Graph {
             unfollowed: _,
             unpublished,
             nodes_moved: _,
+            to_count: _,
             #[cfg(test)]
                 copied_on_write: _,
             derived,
@@ -458,6 +462,7 @@ impl PartialEq for Graph {
             unfollowed: _,
             unpublished,
             nodes_moved: _,
+            to_count: _,
             #[cfg(test)]
                 copied_on_write: _,
             derived,
@@ -1259,6 +1264,7 @@ impl Graph {
         self.unreadable.remove(&block);
         self.retrying.remove(&block);
         self.nodes_moved.insert(block);
+        self.to_count.insert(block);
         self.count_entry(removed.entry, 0, false);
         true
     }
@@ -1273,11 +1279,21 @@ impl Graph {
         std::mem::take(&mut self.nodes_moved)
     }
 
+    /// Takes the nodes added, changed or removed since the unread counts last took them
+    /// (`crate::unread`), so a pass of theirs looks at those alone.
+    pub(crate) fn take_to_count(&mut self) -> imbl::OrdSet<Uuid> {
+        if self.to_count.is_empty() {
+            return imbl::OrdSet::new();
+        }
+        std::mem::take(&mut self.to_count)
+    }
+
     fn node_mut(&mut self, block: Uuid) -> Option<&mut Node> {
         if !self.nodes.contains_key(&block) {
             return None;
         }
         self.nodes_moved.insert(block);
+        self.to_count.insert(block);
         let node = self.nodes.get_mut(&block)?;
         #[cfg(test)]
         if Arc::strong_count(node) > 1 {
@@ -1740,6 +1756,7 @@ impl Graph {
             let before = self.nodes.get(&node.id).map(|known| known.entry);
             let entry = node.entry;
             self.nodes_moved.insert(node.id);
+            self.to_count.insert(node.id);
             self.nodes.insert(node.id, Arc::new(node));
             if before != Some(entry) {
                 if let Some(before) = before {

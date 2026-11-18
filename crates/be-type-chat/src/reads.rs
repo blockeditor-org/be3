@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use be_block_content::Root;
 use be_block_content::layered::{KindVisibility, Layered, union};
 use be_block_model::{Document, Edit, Map, Model, ObjectId};
@@ -79,11 +81,30 @@ pub type ChatReadsContent = Document<ChatReads>;
 
 impl be_block_content::Unread for crate::ChatContent {
     type Reads = ChatReads;
+    /// The messages each device read the chat up to, in order, so the same places are the
+    /// same bytes.
+    type Place = Vec<ObjectId>;
+
+    fn places(reads: &ChatReads) -> Vec<(Uuid, Vec<ObjectId>)> {
+        let mut places: BTreeMap<Uuid, Vec<ObjectId>> = BTreeMap::new();
+        for (key, message) in reads.read.iter() {
+            if let Some(chat) = key.split('/').next().and_then(|chat| chat.parse().ok()) {
+                places.entry(chat).or_default().push(*message);
+            }
+        }
+        places
+            .into_iter()
+            .map(|(chat, mut messages)| {
+                messages.sort();
+                messages.dedup();
+                (chat, messages)
+            })
+            .collect()
+    }
 
     /// The messages others sent since the furthest place any of the account's devices read
     /// the chat up to (`ChatContent::unread`), from the header alone.
-    fn count_unread(&self, block: Uuid, reads: &ChatReads, me: Uuid) -> u32 {
-        let places = reads.places(block).into_iter().map(|place| place.message);
-        u32::try_from(self.unread(places, me)).unwrap_or(u32::MAX)
+    fn count_unread(&self, place: &Vec<ObjectId>, me: Uuid) -> u32 {
+        u32::try_from(self.unread(place.iter().copied(), me)).unwrap_or(u32::MAX)
     }
 }

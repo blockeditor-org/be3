@@ -2870,17 +2870,44 @@ impl<H: Host> Replicas<H> {
         })
     }
 
-    /// How many things in a commit of `block` the account has not read, by its layers of the
-    /// type's reads kind (`reads`, each a layer's content bytes, lowest first):
-    /// `be_block_content::Unread`. `content` is the commit as the type loads it
-    /// (`Kind::load`), which a caller reads beforehand, away from the replicas.
+    /// Each block's place in the account's layers of the reads kind `content_type` counts from
+    /// (`reads`, each a layer's content bytes, lowest first): `be_block_content::Unread::places`,
+    /// in bytes only the type reads.
+    pub async fn places(
+        &mut self,
+        ctx: Ctx<'_, H>,
+        content_type: Uuid,
+        reads: Vec<Vec<u8>>,
+    ) -> Result<Vec<be_sdk_type_api::BlockPlace>, NotSearched> {
+        let no_module =
+            || NotSearched::Type(format!("no type module has the block type {content_type}"));
+        self.kind(content_type).await.ok_or_else(no_module)?;
+        let module = self.modules.module_of(content_type).ok_or_else(no_module)?;
+        match self
+            .ask(ctx, module, |connection| {
+                replicas::places(connection, content_type, reads)
+            })
+            .await
+        {
+            Ok(Ok(places)) => Ok(places),
+            Ok(Err(be_sdk_type_api::Failure::Malformed(error))) => Err(NotSearched::Type(error)),
+            Ok(Err(be_sdk_type_api::Failure::UnknownType)) => Err(no_module()),
+            Err(error) => Err(NotSearched::Type(format!(
+                "the type module answered: {error}"
+            ))),
+        }
+    }
+
+    /// How many things in a commit of a block the account has not read, by the block's place
+    /// (`places`; none: the type's default place): `be_block_content::Unread`. `content` is
+    /// the commit as the type loads it (`Kind::load`), which a caller reads beforehand, away
+    /// from the replicas.
     pub async fn unread(
         &mut self,
         ctx: Ctx<'_, H>,
         content_type: Uuid,
         content: be_sdk_type_api::Loaded,
-        reads: Vec<Vec<u8>>,
-        block: Uuid,
+        place: Option<Vec<u8>>,
         account: Uuid,
     ) -> Result<u32, NotSearched> {
         let no_module =
@@ -2890,7 +2917,7 @@ impl<H: Host> Replicas<H> {
         let scope = types::Scope::of([&content]);
         let (answer, mut scope) = self
             .ask_reading(ctx, module, scope, |connection| {
-                replicas::unread(connection, content_type, content, reads, block, account)
+                replicas::unread(connection, content_type, content, place, account)
             })
             .await;
         if let Some(failed) = scope.take_failure() {

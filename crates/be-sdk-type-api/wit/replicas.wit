@@ -6,7 +6,7 @@ package be3:block-type@0.1.0;
 /// the parts of the `loaded` content the request was handed.
 interface replicas {
     use types.{
-        account-id, block-id, change, client-id, commit-id, content-type-id, description, editor-id,
+        account-id, block-id, block-place, change, client-id, commit-id, content-type-id, description, editor-id,
         endpoint, failure, journal, loaded, merged, merged-parts, organization-id, part-ref, plain-file,
         journal-entry, search-document, session-state, session-tag, type-info,
     };
@@ -233,15 +233,22 @@ interface replicas {
         indexed: list<part-ref>,
     ) -> result<list<search-document>, failure>;
 
-    /// How many things in `content` the account has not read (`be_block_content::Unread`),
-    /// for a type with `type-info.reads`. `content` is a commit of `block` as `host.load`
-    /// answers it (only its first part for a type with `first-part`), and `reads` the
-    /// account's layers of the `reads` kind, each its content's bytes, lowest first.
+    /// Each block's place in the account's reads (`be_block_content::Unread`), for a
+    /// type with `type-info.reads`: `reads` is the account's layers of the `reads`
+    /// kind, each its content's bytes, lowest first. A block left out has the type's
+    /// default place; a block is counted again only when its place's bytes change.
+    places: async func(
+        content-type: content-type-id,
+        reads: list<list<u8>>,
+    ) -> result<list<block-place>, failure>;
+
+    /// How many things in `content` the account has not read, by its `place` from
+    /// `places` (none: the default place). `content` is a commit of the block as
+    /// `host.load` answers it (only its first part for a type with `first-part`).
     unread: async func(
         content-type: content-type-id,
         content: loaded,
-        reads: list<list<u8>>,
-        block: block-id,
+        place: option<list<u8>>,
         account: account-id,
     ) -> result<u32, failure>;
 
