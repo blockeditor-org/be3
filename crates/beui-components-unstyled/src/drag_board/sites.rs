@@ -46,8 +46,8 @@ pub(crate) struct Placing {
     velocity: Velocity,
     last: Option<DragPoint>,
     /// The labelled place a keyboard step last aimed at, by its id and label: the one of
-    /// several sharing an id (a `custom` site's stops) the carry is at, and where `retrack`
-    /// aims again once what is under it has moved.
+    /// several sharing an id (a `custom` site's stops, whose labels must each be its own) the
+    /// carry is at, and where `retrack` aims again once what is under it has moved.
     aimed: Option<(CandidateId, String)>,
     /// The pointer that lifted it: only it moves and releases the carry.
     pub(crate) pointer: PointerId,
