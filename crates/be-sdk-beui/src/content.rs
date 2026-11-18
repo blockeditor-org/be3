@@ -216,6 +216,71 @@ impl<C: LiveEdit + Clone + Default + 'static> ContentProjection<C> {
         projection.arrived.track();
     }
 
+    /// Appends `bytes` to the block's signed log, with what goes `along` with it
+    /// (`LiveContent::append`): where it went is taken with `take_appended` under the token
+    /// this answers.
+    pub fn append(&self, bytes: Vec<u8>, along: be_block_content::Along) -> u64 {
+        self.inner().live.append(bytes, along)
+    }
+
+    /// Where the entries `append` asked for went since this was last asked, by token: their
+    /// place and arrival, none while one waits on the device, or why it was refused. Each
+    /// answer moves the revision, so an effect that tracks the content takes them.
+    pub fn take_appended(&self) -> Vec<(u64, Result<be_block_content::LogAppended, String>)> {
+        self.inner().live.take_appended()
+    }
+
+    /// Asks for at most `limit` entries of the block's signed log from `from`, which join
+    /// `with_log` as they come back.
+    pub fn read_log(&self, from: u64, limit: u32) {
+        self.inner().live.read_log(from, limit);
+    }
+
+    /// Reads the entries of the block's signed log this editor holds, in the log's order
+    /// (`LiveContent::with_log`), subscribing the running computation to them.
+    pub fn with_log<R>(
+        &self,
+        read: impl FnOnce(&mut dyn Iterator<Item = &be_block_content::LogItem>) -> R,
+    ) -> R {
+        let projection = self.inner();
+        projection.announced.track();
+        projection.live.with_log(read)
+    }
+
+    /// The log's length as this editor last heard it, subscribing the running computation.
+    pub fn log_size(&self) -> u64 {
+        let projection = self.inner();
+        projection.announced.track();
+        projection.live.log_size()
+    }
+
+    /// Reads the entries this device appended that the server has not taken yet
+    /// (`LiveContent::with_kept`), subscribing the running computation to them.
+    pub fn with_kept<R>(
+        &self,
+        read: impl FnOnce(&mut dyn Iterator<Item = (uuid::Uuid, &[u8])>) -> R,
+    ) -> R {
+        let projection = self.inner();
+        projection.announced.track();
+        projection.live.with_kept(read)
+    }
+
+    /// Reads the entries the host refused to append (`LiveContent::with_refused`), subscribing
+    /// the running computation to them.
+    pub fn with_refused<R>(
+        &self,
+        read: impl FnOnce(&mut dyn Iterator<Item = (u64, &[u8], &str)>) -> R,
+    ) -> R {
+        let projection = self.inner();
+        projection.announced.track();
+        projection.live.with_refused(read)
+    }
+
+    /// Lets go of a refused entry: sent again as a new one, or given up.
+    pub fn dismiss_refused(&self, token: u64) {
+        self.inner().live.dismiss_refused(token);
+    }
+
     pub fn revision(&self) -> Ready<u64> {
         let projection = self.inner();
         projection.announced.track();
