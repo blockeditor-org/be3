@@ -30,6 +30,7 @@ fn every_block_id_a_message_carries_is_visited() {
             source: Some([1; 16]),
             waiting: false,
             through_link: false,
+            guest: false,
         }],
         company: false,
         set_inside: 0,

@@ -37,6 +37,7 @@ fn the_share_dialog_grants_no_knows_it_exists_but_shows_one_held() {
         source: granted.map(|_| block.into_bytes()),
         waiting: false,
         through_link: false,
+        guest: false,
     };
     fixture.test.answer(
         listing,

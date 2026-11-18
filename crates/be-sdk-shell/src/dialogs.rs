@@ -494,6 +494,7 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
                         choices={admits_choices}
                         company
                         state
+                        me
                         act={act}
                     />
                 </Show>
@@ -544,6 +545,7 @@ fn LinksSection(
     choices: Memo<Vec<LinkAdmits>>,
     company: Memo<bool>,
     state: Signal<Option<Share>>,
+    me: Uuid,
     act: ShareAct,
 ) -> NodeId {
     let ids = create_memo(move || {
@@ -564,6 +566,9 @@ fn LinksSection(
     let making = create_memo(move || {
         state.with(|share| share.as_ref().is_some_and(|share| share.making_link.is_some()))
     });
+    let revoking = create_memo(move || {
+        state.with(|share| share.as_ref().is_some_and(|share| share.revoking.is_some()))
+    });
     view! {
         <List spacing=Space::Sm>
             <Text style=TextStyle::HEADING>"Anyone with the link"</Text>
@@ -572,10 +577,46 @@ fn LinksSection(
                     let id = id.clone();
                     move || links.with(|links| links.iter().find(|link| link.id == id).cloned())
                 });
+                let pending = create_memo({
+                    let id = id.clone();
+                    move || {
+                        state.with(|share| {
+                            share
+                                .as_ref()
+                                .is_some_and(|share| share.revoking_now.contains(&id))
+                        })
+                    }
+                });
                 view! {
-                    <LinkRow link company act={act} />
+                    <LinkRow link company pending me act={act} />
                 }
             }</ForEach>
+            <Show value={revoking}>
+                <Card>
+                    <List spacing=Space::Md>
+                        <Text size=TextSize::Lg>"Revoke this link?"</Text>
+                        <Text style=TextStyle::CAPTION @test_id={"share.links.revoke.help"}>
+                            "Everyone who opened it loses the access it gave them, even a lower access someone gave them here before. The link stops working. This can't be undone."
+                        </Text>
+                        <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
+                            <Spacer />
+                            <Button
+                                label="Cancel"
+                                variant=ButtonVariant::Secondary
+                                @test_id={"share.links.revoke.cancel"}
+                                on_click={move || act.call(ShareAction::CancelRevoke)}
+                            />
+                            <Button
+                                label="Revoke link"
+                                glyph=ICON_X
+                                variant=ButtonVariant::Primary
+                                @test_id={"share.links.revoke.confirm"}
+                                on_click={move || act.call(ShareAction::ConfirmRevoke)}
+                            />
+                        </List>
+                    </List>
+                </Card>
+            </Show>
             <Show
                 value={allowed}
                 fallback={|| view! {
@@ -629,10 +670,16 @@ fn LinksSection(
 }
 
 #[component]
-fn LinkRow(link: Memo<Option<ShareLink>>, company: Memo<bool>, act: ShareAct) -> NodeId {
+fn LinkRow(
+    link: Memo<Option<ShareLink>>,
+    company: Memo<bool>,
+    pending: Memo<bool>,
+    me: Uuid,
+    act: ShareAct,
+) -> NodeId {
     let described = create_memo(move || {
         link.get()
-            .map(|link| Share::describe_link(&link, company.get()))
+            .map(|link| Share::describe_link(&link, company.get(), me))
             .unwrap_or_default()
     });
     let url = create_memo(move || link.get().map(|link| link.url).unwrap_or_default());
@@ -652,10 +699,11 @@ fn LinkRow(link: Memo<Option<ShareLink>>, company: Memo<bool>, act: ShareAct) ->
                         glyph=ICON_X
                         variant=ButtonVariant::Secondary
                         size=ButtonSize::Small
+                        busy={pending}
                         @test_id={"share.links.revoke"}
                         on_click={move || {
                             if let Some(link) = link.get_untracked() {
-                                act.call(ShareAction::RevokeLink(link.id));
+                                act.call(ShareAction::OfferRevoke(link.id));
                             }
                         }}
                     />

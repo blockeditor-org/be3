@@ -244,7 +244,12 @@ impl ServerKey {
         account: Uuid,
     ) -> Result<(), ServerError> {
         let settings = settings_of(organization);
-        if account == self.account || !graph.contains(settings) {
+        // A guest reads no settings: it holds only what links granted it.
+        if account == self.account
+            || !graph.contains(settings)
+            || crate::contacts::role_in(connection, account, organization)?
+                == Some(be_block_protocol::OrganizationRole::Guest)
+        {
             return Ok(());
         }
         let Some(public) = recovery_key_of(connection, account)? else {

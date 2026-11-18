@@ -96,6 +96,7 @@ pub fn grants_of(
                 source: entry.source.map(Uuid::into_bytes),
                 waiting: entry.waiting,
                 through_link: entry.through_link,
+                guest: matches!(entry.role, be_block_protocol::OrganizationRole::Guest),
             })
             .collect(),
         company: list.company,
