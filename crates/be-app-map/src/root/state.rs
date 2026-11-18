@@ -8,7 +8,7 @@ use be_sdk_beui::be_sdk_ui::BlockLabel;
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::{Image, Pos2, Rect, Vec2};
 use be_sdk_beui::beui::unstyled::ValueDrag;
-use be_sdk_beui::{BlockFilter, ContentProjection, Drag, DragHold, Editor, FileDrop, Waker};
+use be_sdk_beui::{BlockFilter, Drag, DragHold, Editor, FileDrop, Waker};
 use be_sdk_beui::{BlockInfo, BlockParent, BlockQuery};
 use be_type_map::{Map, MapColor, MapContent, MapCoordinate, MapPoint, MapRegion};
 use uuid::Uuid;
@@ -46,7 +46,6 @@ impl TileState {
 }
 
 struct MapInner {
-    block: ContentProjection<MapContent>,
     /// What a sidebar control's drag writes, held until it is kept (`drag_value`).
     hold: DragHold<MapContent>,
     worker: RefCell<Option<TileWorker>>,
@@ -115,7 +114,6 @@ impl MapState {
             reloads,
             anchor,
             inner: store(MapInner {
-                block,
                 hold: DragHold::new(block),
                 worker: RefCell::new(None),
                 tiles: RefCell::new(HashMap::new()),
