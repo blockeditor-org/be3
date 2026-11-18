@@ -154,17 +154,25 @@ pub trait BlockContent: Sized + Send + Sync + 'static {
 /// Content that counts what the account has not read in it yet (a chat's messages from
 /// others), so a row showing the block can carry the count without opening it. Where the
 /// account read up to is never in the content, where others would see it, but in an owner-only
-/// settings kind of the type's own (`Reads`, `KindVisibility::Owner`): the host hands the
-/// count the account's layers of it, combined, with the content as the type loads it (only its
-/// first part for a type that loads only that), and keeps the answer on the block's row
-/// (guides/blocks/host.md, "Unread counts"). Registered with the type's `unread` part
-/// (`be_block_types!`).
+/// settings kind of the type's own (`Reads`, `KindVisibility::Owner`). The host has the type
+/// pick each block's own place out of the account's layers of it, combined (`places`), and
+/// counts a block with its content as the type loads it (only its first part for a type that
+/// loads only that) and its place alone, again only when its head or its place moved; it keeps
+/// the answer on the block's row (guides/blocks/host.md, "Unread counts"). Registered with the
+/// type's `unread` part (`be_block_types!`).
 pub trait Unread: BlockContent {
     type Reads: Layered;
+    /// Where the account read one block up to: all `count_unread` reads of `Reads`. A block
+    /// `places` leaves out has the default place.
+    type Place: Serialize + DeserializeOwned + Default;
 
-    /// How many of the things in this content `me` has not read, by `reads`. Counted from what
+    /// Each block's place in `reads`. Each block at most once, and its place the same for the
+    /// same reads, since the host recounts a block when the place's bytes change.
+    fn places(reads: &Self::Reads) -> Vec<(Uuid, Self::Place)>;
+
+    /// How many of the things in this content `me` has not read, by `place`. Counted from what
     /// is loaded alone: a type that loads only its first part reads no other part for it.
-    fn count_unread(&self, block: Uuid, reads: &Self::Reads, me: Uuid) -> u32;
+    fn count_unread(&self, place: &Self::Place, me: Uuid) -> u32;
 }
 
 /// A searchable document of a block's content (`BlockContent::search_text`).

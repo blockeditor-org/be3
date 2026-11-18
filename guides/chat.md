@@ -311,8 +311,9 @@ account (guides/blocks/server.md, "Notifications"). Tests: be-host-stack's
   above the message box, which scrolls to the end.
 - Outside the editor, chat counts through the host's type-agnostic unread
   counts (guides/blocks/host.md, "Unread counts"): `ChatContent` implements
-  `be_block_content::Unread` with `ChatReads` as its reads kind, so the host
-  counts each listed chat from its head's header and the account's
-  `ChatReads`, and the files pane shows the count as a badge on the chat's row
+  `be_block_content::Unread` with `ChatReads` as its reads kind and the
+  messages each device read a chat up to as its place (`Unread::places` groups
+  the keys by their chat), so the host counts each listed chat from its head's
+  header and its own place, again only when one of those moves, and the files pane shows the count as a badge on the chat's row
   (`BlockInfo::unread`, `CountBadge`). A message counts there once its session
   seals it.

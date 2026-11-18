@@ -914,10 +914,14 @@ impl Shared {
     }
 
     /// What apps are told of a block depends on whether the host is connected
-    /// (`BlockInfo::out_of_reach`), so they ask again when that changes.
+    /// (`BlockInfo::out_of_reach`), so they ask again when that changes. An unread count that
+    /// failed, perhaps offline, is tried again once connected (`Counting::reconnected`).
     fn set_connected(&mut self, connected: bool) {
         if self.connected != connected {
             self.connected = connected;
+            if connected {
+                self.counting.reconnected();
+            }
             self.graph.revision += 1;
             crate::changes::post(crate::Changes {
                 graph: true,

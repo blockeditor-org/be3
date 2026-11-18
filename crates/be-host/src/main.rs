@@ -3712,7 +3712,7 @@ impl HostCore {
         self.root_settings.heard(&changes);
         self.input.heard(&changes);
         self.display.heard(&changes);
-        self.sync_local_settings();
+        self.sync_local_settings(&changes);
         self.programs.frame();
         self.sync_be_stack();
         self.notice_reconnect();
@@ -3894,7 +3894,7 @@ impl HostCore {
         );
     }
 
-    fn sync_local_settings(&mut self) {
+    fn sync_local_settings(&mut self, changes: &be_host_stack::Changes) {
         if self.root_settings.loaded() {
             let settings = &self.root_settings;
             let company = self
@@ -3909,10 +3909,10 @@ impl HostCore {
                 settings.workspaces(),
                 company.is_none(),
             );
-            for kind in be_host_stack::unread::kinds() {
-                if let Some(layers) = settings.layer_contents(kind, self.client_id) {
-                    be_host_stack::unread::publish(kind, layers);
-                }
+            for (kind, layers) in
+                settings.reads_moved(be_host_stack::unread::kinds, changes, self.client_id)
+            {
+                be_host_stack::unread::publish(kind, layers);
             }
             self.input
                 .set_layers(settings.layers(InputSettings::CONTENT_TYPE, self.client_id));

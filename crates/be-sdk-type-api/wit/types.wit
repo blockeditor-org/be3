@@ -365,6 +365,13 @@ interface types {
         conflicts: u32,
     }
 
+    /// Where the account read one block up to (`be_block_content::Unread::places`),
+    /// in bytes only the type reads.
+    record block-place {
+        block: block-id,
+        place: list<u8>,
+    }
+
     /// A searchable document of a block (`be_block::SearchDocument`).
     record search-document {
         /// Stable across edits: empty for a block that is one document.
