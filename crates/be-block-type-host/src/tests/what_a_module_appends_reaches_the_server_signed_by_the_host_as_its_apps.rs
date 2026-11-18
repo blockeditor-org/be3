@@ -23,7 +23,8 @@ fn what_a_module_appends_reaches_the_server_signed_by_the_host_as_its_apps() {
             replicas.pump((&peer, &shared)).await;
         }
         let editor = 7;
-        let mut mirror = attach_mirror::<Ledger>(&peer, &shared, &mut replicas, block, editor).await;
+        let mut mirror =
+            attach_mirror::<Ledger>(&peer, &shared, &mut replicas, block, editor).await;
         for said in [&b"hello"[..], b"forged"] {
             let (_, message) = mirror.append(said.to_vec());
             replicas.relay_from_editor(block, editor, message.encode(), std::time::Instant::now());
@@ -35,7 +36,9 @@ fn what_a_module_appends_reaches_the_server_signed_by_the_host_as_its_apps() {
             answered.extend(mirror.take_appended());
         }
         assert!(
-            answered.iter().all(|(_, result)| matches!(result, Ok(Some(_)))),
+            answered
+                .iter()
+                .all(|(_, result)| matches!(result, Ok(Some(_)))),
             "{answered:?}"
         );
         let heard: Vec<_> = mirror.log().cloned().collect();
@@ -45,8 +48,14 @@ fn what_a_module_appends_reaches_the_server_signed_by_the_host_as_its_apps() {
                 .map(|item| (item.payload.clone(), item.signer))
                 .collect::<Vec<_>>(),
             [
-                (Some(b"hello".to_vec()), be_block_content::LogSigner::Verified),
-                (Some(b"forged".to_vec()), be_block_content::LogSigner::Verified),
+                (
+                    Some(b"hello".to_vec()),
+                    be_block_content::LogSigner::Verified
+                ),
+                (
+                    Some(b"forged".to_vec()),
+                    be_block_content::LogSigner::Verified
+                ),
             ],
             "the editor hears its entries, signed as its app's"
         );

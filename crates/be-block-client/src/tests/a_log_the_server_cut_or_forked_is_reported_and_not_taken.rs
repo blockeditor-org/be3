@@ -10,7 +10,10 @@ async fn a_log_the_server_cut_or_forked_is_reported_and_not_taken() {
     let owner = harness.owner("owner@example.com").await;
     let chat = workspace(&owner, "Chat").await;
     for text in ["one", "two", "three"] {
-        owner.append(chat, "test.app", text.as_bytes()).await.unwrap();
+        owner
+            .append(chat, "test.app", text.as_bytes())
+            .await
+            .unwrap();
     }
     let kept = owner.read_log(chat, 0, 10).await.unwrap();
     assert_eq!(kept.head.size, 3);
@@ -51,7 +54,10 @@ async fn a_log_the_server_cut_or_forked_is_reported_and_not_taken() {
         "a push of another head as long as the kept one was let pass"
     );
     assert!(
-        matches!(owner.logged(told(Vec::new())).await, Err(ClientError::Tampered(_))),
+        matches!(
+            owner.logged(told(Vec::new())).await,
+            Err(ClientError::Tampered(_))
+        ),
         "a push whose proof does not tie it to its head was taken for a fork or let pass"
     );
     // The server keeps only the first two entries, made anew.

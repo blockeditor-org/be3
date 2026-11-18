@@ -188,9 +188,7 @@ impl Registration {
     pub fn log<C: be_block_content::LogFold + LiveEdit>(mut self) -> Self {
         assert_eq!(self.info.content_type, C::CONTENT_TYPE);
         self.info.log = true;
-        self.fold = Some(std::rc::Rc::new(
-            fold::<C> as replica::Fold<C>,
-        ));
+        self.fold = Some(std::rc::Rc::new(fold::<C> as replica::Fold<C>));
         self
     }
 
@@ -924,9 +922,7 @@ impl Module {
                     token,
                     result: result
                         .and_then(|read| read)
-                        .map(|page| {
-                            (page.size, page.items.into_iter().map(log_item).collect())
-                        }),
+                        .map(|page| (page.size, page.items.into_iter().map(log_item).collect())),
                 });
             }
             Effect::Resume {

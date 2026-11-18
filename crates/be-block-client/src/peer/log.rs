@@ -514,7 +514,10 @@ impl<S: ObjectStore> Peer<S> {
             root,
             frontier: None,
         };
-        if self.refs.keep_entries(block, kept, taken.clone(), entries.clone())? {
+        if self
+            .refs
+            .keep_entries(block, kept, taken.clone(), entries.clone())?
+        {
             return Ok(Some(entries));
         }
         // The kept head moved meanwhile: to this very head (another read of it), its entries are
@@ -523,7 +526,11 @@ impl<S: ObjectStore> Peer<S> {
         let same = now
             .as_ref()
             .is_some_and(|now| now.size == head.size && now.root == root);
-        match same && self.refs.keep_entries(block, now.as_ref(), taken, entries.clone())? {
+        match same
+            && self
+                .refs
+                .keep_entries(block, now.as_ref(), taken, entries.clone())?
+        {
             true => Ok(Some(entries)),
             false => Ok(None),
         }

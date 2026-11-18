@@ -28,7 +28,10 @@ fn two_replicas_append_to_one_log_and_fold_it_in_one_order() {
     let mut answers: BTreeMap<usize, Vec<(u64, Result<Option<(u64, i64)>, String>)>> =
         BTreeMap::new();
     for device in 0..2 {
-        answers.insert(device, sim.editors.get_mut(&(device, 1)).unwrap().take_appended());
+        answers.insert(
+            device,
+            sim.editors.get_mut(&(device, 1)).unwrap().take_appended(),
+        );
     }
     for (device, token) in appended {
         assert!(
@@ -50,7 +53,11 @@ fn two_replicas_append_to_one_log_and_fold_it_in_one_order() {
     };
     for device in 0..2 {
         let log: Vec<_> = sim.mirror_log(device, 1);
-        assert_eq!(said(&log), order, "device {device}'s editor heard another order");
+        assert_eq!(
+            said(&log),
+            order,
+            "device {device}'s editor heard another order"
+        );
         assert_eq!(
             sim.devices[device]
                 .described

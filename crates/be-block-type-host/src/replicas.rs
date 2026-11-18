@@ -4778,12 +4778,11 @@ impl<H: Host> Replicas<H> {
                 let app = self.modules.name(module).to_owned();
                 self.answer_later(replica, module, async move {
                     let appended = match peer.append(block, &app, &bytes).await {
-                        Ok(be_block_client::Appended::Logged { seq, arrival, .. }) => Ok(
-                            be_sdk_type_api::host::Appended::Logged(be_sdk_type_api::host::LogPlace {
-                                seq,
-                                arrival,
-                            }),
-                        ),
+                        Ok(be_block_client::Appended::Logged { seq, arrival, .. }) => {
+                            Ok(be_sdk_type_api::host::Appended::Logged(
+                                be_sdk_type_api::host::LogPlace { seq, arrival },
+                            ))
+                        }
                         Ok(be_block_client::Appended::Kept { .. }) => {
                             Ok(be_sdk_type_api::host::Appended::Kept)
                         }
