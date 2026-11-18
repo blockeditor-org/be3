@@ -1842,7 +1842,8 @@ impl EditorHost {
     /// The block dragged over the editor, positioned in the view it is over. The host offers
     /// a block only to the view holding the editor's content (its main view, or the dock view
     /// given its frame), so this is that view's, whichever view asks: a docked editor steps
-    /// its bars' views too.
+    /// its bars' views too. At most one view holds a drag: the session sets it for the view
+    /// the drag is over and clears it when it moves on or ends.
     pub fn drag(&self) -> Option<BlockDrag> {
         self.read();
         self.drops
