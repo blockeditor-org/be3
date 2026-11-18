@@ -107,25 +107,43 @@ pub fn context() -> beui::native::Context {
     be_sdk_beui_platform_api::runtime().context()
 }
 
-/// An editor an app's manifest declares: `beui_app!` implements it for each root it names, so
-/// whatever runs the root (be-sdk-test's `BeuiTest`) reads what the manifest says of it, such as
-/// the camera limits the host gives it.
+/// A root an app's manifest declares editors of: `beui_app!` implements it for each root it
+/// names, so whatever runs the root (be-sdk-test's `BeuiTest`) reads what the manifest says of
+/// it, such as the camera limits the host gives it.
 pub trait AppEditor {
     /// The app's `manifest.json`.
     const MANIFEST: &'static str;
-    /// The editor's key under the manifest's `editors`.
-    const EDITOR: &'static str;
+    /// The keys under the manifest's `editors` this root is the editor of.
+    const EDITORS: &'static [&'static str];
 }
 
+/// The app's entry point: `name => Root` for each editor of the manifest, or
+/// `first | second => Root` for one root several editors share.
 #[macro_export]
 macro_rules! beui_app {
-    ($manifest:expr, { $($name:ident => $root:ty),+ $(,)? }) => {
-        $crate::be_sdk::app!($manifest, { $($name => $crate::BeuiApp<$root>),+ });
+    ($manifest:expr, { $($($name:ident)|+ => $root:ty),+ $(,)? }) => {
+        $crate::__beui_app_entries!($manifest; []; $($($name)|+ => $root),+);
         $(
             impl $crate::AppEditor for $root {
                 const MANIFEST: &'static str = APP_MANIFEST;
-                const EDITOR: &'static str = stringify!($name);
+                const EDITORS: &'static [&'static str] = &[$(stringify!($name)),+];
             }
         )+
+    };
+}
+
+/// `beui_app!`'s entries, one per editor name.
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __beui_app_entries {
+    ($manifest:expr; [$($done:tt)*];) => {
+        $crate::be_sdk::app!($manifest, { $($done)* });
+    };
+    ($manifest:expr; [$($done:tt)*]; $($name:ident)|+ => $root:ty $(, $($rest:tt)*)?) => {
+        $crate::__beui_app_entries!(
+            $manifest;
+            [$($done)* $($name => $crate::BeuiApp<$root>,)+];
+            $($($rest)*)?
+        );
     };
 }

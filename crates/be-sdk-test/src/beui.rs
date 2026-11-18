@@ -234,7 +234,11 @@ impl<A: BeuiRoot + AppEditor> BeuiTest<A> {
         Self::new(editor)
     }
 
-    pub fn rename_beside<B: BeuiRoot + AppEditor>(beside: &BeuiTest<B>, host: EditorHost, block: Uuid) -> Self {
+    pub fn rename_beside<B: BeuiRoot + AppEditor>(
+        beside: &BeuiTest<B>,
+        host: EditorHost,
+        block: Uuid,
+    ) -> Self {
         beside.store.forget_answers();
         SHARED_STORE.with(|shared| *shared.borrow_mut() = Some(beside.store.clone()));
         let editor = OwnedEditor::new(host, Uuid::nil());
@@ -2279,19 +2283,32 @@ fn roundtrip<T: serde::Serialize + serde::de::DeserializeOwned>(value: T, what: 
 }
 
 /// The deepest the host zooms the editor `A`: its manifest's `max_zoom`, or be-host's default.
+/// A root several editors share must be given the same by each.
 fn max_zoom<A: AppEditor>() -> f32 {
     let manifest =
         be_sdk_manifest::ManifestDocument::parse(A::MANIFEST).expect("the app's manifest parses");
-    let (_, document) = manifest
-        .editors
-        .0
+    let zooms: Vec<f32> = A::EDITORS
         .iter()
-        .find(|(name, _)| name == A::EDITOR)
-        .unwrap_or_else(|| panic!("the app's manifest names no editor {:?}", A::EDITOR));
-    document
-        .capabilities
-        .max_zoom
-        .map_or(MAXIMUM_ZOOM, |zoom| zoom as f32)
+        .map(|editor| {
+            let (_, document) = manifest
+                .editors
+                .0
+                .iter()
+                .find(|(name, _)| name == editor)
+                .unwrap_or_else(|| panic!("the app's manifest names no editor {editor:?}"));
+            document
+                .capabilities
+                .max_zoom
+                .map_or(MAXIMUM_ZOOM, |zoom| zoom as f32)
+        })
+        .collect();
+    let first = zooms[0];
+    assert!(
+        zooms.iter().all(|zoom| *zoom == first),
+        "the editors {:?} share a root but not a max_zoom",
+        A::EDITORS
+    );
+    first
 }
 
 struct Viewport {

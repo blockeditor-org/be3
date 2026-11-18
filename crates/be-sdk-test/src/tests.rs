@@ -1,6 +1,6 @@
 use be_sdk_beui::{
-    AppEditor, BeuiRoot, ChildBlock, ChildBlockHandle, ChildContent, ChildMode, ChildState, ChildTarget,
-    Editor, EditorHost, OwnedEditor,
+    AppEditor, BeuiRoot, ChildBlock, ChildBlockHandle, ChildContent, ChildMode, ChildState,
+    ChildTarget, Editor, EditorHost, OwnedEditor,
 };
 use beui::NodeId;
 use beui::reactive::*;
@@ -8,6 +8,7 @@ use beui::styled::*;
 use uuid::Uuid;
 
 use crate::BeuiTest;
+use crate::test_editor;
 use crate::prelude::*;
 use be_sdk_beui::be_block::DisplaySettings;
 use be_sdk_beui::be_block::{
@@ -135,7 +136,10 @@ fn undoable_editor() -> (BeuiTest<ChildRoot>, Uuid) {
     (test, block)
 }
 
-fn settings_here<A: BeuiRoot + AppEditor>(test: &mut BeuiTest<A>, display: DisplaySettingsContent) -> Uuid {
+fn settings_here<A: BeuiRoot + AppEditor>(
+    test: &mut BeuiTest<A>,
+    display: DisplaySettingsContent,
+) -> Uuid {
     let client = test.host().client_id();
     let (settings, profile, held) = (Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
     let store = test.store();
@@ -239,33 +243,6 @@ fn kept_dock<A: BeuiRoot + AppEditor>(test: &BeuiTest<A>, display: Uuid) -> (Str
         .next()
         .expect("the editor keeps its dock's layout on this device")
 }
-
-/// The manifest the test roots here are editors of.
-const TEST_MANIFEST: &str = r#"{
-    "id": "be3.test",
-    "name": "Test",
-    "version": "0.1.0",
-    "editors": {
-        "test": {
-            "id": "00000000-0000-4000-8000-000000000001",
-            "display_name": "Test",
-            "icon": "\ue110",
-            "views": ["Main"]
-        }
-    },
-    "entry_point": "test.wasm"
-}"#;
-
-/// Makes `$root` the editor of `TEST_MANIFEST`, as `beui_app!` does an app's roots.
-macro_rules! test_editor {
-    ($root:ty) => {
-        impl be_sdk_beui::AppEditor for $root {
-            const MANIFEST: &'static str = crate::tests::TEST_MANIFEST;
-            const EDITOR: &'static str = "test";
-        }
-    };
-}
-use test_editor;
 
 test_editor!(ChildRoot);
 test_editor!(StandaloneRoot);

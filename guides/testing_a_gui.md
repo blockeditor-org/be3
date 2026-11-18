@@ -117,8 +117,9 @@ change it (a phone, a high-density screen, a VR panel drawn finer than it is lai
 editor whose manifest claims `pan_and_zoom` calls `in_viewport()`, and the harness then holds
 a zoom and offset and answers pan, zoom and fit as the host does (guides/pan_and_zoom.md),
 within the `max_zoom` the manifest gives the editor: `beui_app!` implements `AppEditor` for
-each root it names, which tells the harness the app's manifest and the editor's name in it. A
-root the SDK's own tests define implements it with `test_editor!`.
+each root it names (`a | b => Root` for one root two editors share), which tells the harness
+the app's manifest and the root's editors in it. A root a test defines for itself becomes an
+editor of a bare test manifest with `be_sdk_test::test_editor!(Root)`.
 
 ## 4. Snapshots of the painting
 
