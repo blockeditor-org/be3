@@ -1742,23 +1742,31 @@ async fn documents_of(
     }
 }
 
-/// A document's text at a block's head, for a snippet.
+/// A document's text at `head`, the block's head the mirror holds, for a snippet: `Ok(None)` when
+/// the block has no head or no such text, and `Err` when it could not be read now (the commit, a
+/// part, or its type module: `NotSearched::Type` is as often a module busy or starting under load
+/// as one that cannot answer, so it is not taken for an answer), which a later show tries again.
 async fn text_of(
     peer: &Arc<Peer<Store>>,
     shared: &Arc<Mutex<Shared>>,
     replicas: &mut Replicas,
-    block: Uuid,
+    (block, head): (Uuid, Option<CommitId>),
     content_type: Uuid,
     key: &str,
-) -> Option<String> {
-    let head = peer.newest_head(block).await.ok().flatten()?;
-    let commit = peer.load_head(block, head).await.ok()?;
+) -> Result<Option<String>, ()> {
+    let Some(head) = head else {
+        return Ok(None);
+    };
+    let commit = peer.load_head(block, head).await.map_err(drop)?;
     let keys = Some(vec![key.to_owned()]);
-    documents_of(peer, shared, replicas, content_type, &commit, keys, &[])
-        .await??
+    let documents = documents_of(peer, shared, replicas, content_type, &commit, keys, &[])
+        .await
+        .flatten()
+        .ok_or(())?;
+    Ok(documents
         .into_iter()
-        .find(|document| document.key == key)?
-        .body
+        .find(|document| document.key == key)
+        .and_then(|document| document.body))
 }
 
 /// Makes `root`'s index, empty: in a task, beside the worker's loop, offline-first like any
@@ -2888,7 +2896,11 @@ async fn cached_text(
     {
         return text.clone();
     }
-    let text = text_of(peer, shared, replicas, block, content_type, key).await;
+    // One that could not be read is not kept: kept, it would leave the hit's snippet empty until
+    // the block's head moves.
+    let Ok(text) = text_of(peer, shared, replicas, (block, head), content_type, key).await else {
+        return None;
+    };
     let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
     if held.search.texts.len() >= TEXTS {
         held.search.texts.clear();
