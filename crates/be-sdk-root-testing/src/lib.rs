@@ -23,6 +23,10 @@
 //! or on its own actions, and gives the focus back to the layer that
 //! had it. Rename shows the name in the strip of text in place of `TEXT`. Its documents copy to
 //! and paste from their host's clipboard (`be3:root`'s `host.copy` and `host.paste`).
+//! F3 (`OPENS_STATISTICS`), which it always intercepts too, opens and closes a debug panel
+//! (`STATISTICS_LAYER`, drawn with beui on `STATISTICS_SURFACE`) of its host's statistics: it
+//! watches them while the panel is open (`be3:root`'s `host.watch-statistics`) and shows each
+//! change of them (`host.statistics`) as rows, never taking the focus.
 //! A frame at `CLOSES` lets go of the app, which stops it. The window's input is routed by the
 //! library over the layers it drew last; what lands on `TEXT_SURFACE` its beui document hears,
 //! and what lands on its own surface beside the strip nothing does.
@@ -152,6 +156,27 @@ pub const DIALOG_ORIGIN: (f32, f32) = (
 
 /// The dialog's title.
 pub const DIALOG_TITLE: &str = "Rename";
+
+/// The key that opens the root's statistics panel, and closes it again, pressed with no
+/// modifiers: the root intercepts it wherever the focus is.
+pub const OPENS_STATISTICS: Key = Key::F3;
+
+/// The layer showing `STATISTICS_SURFACE` while the panel is open: over everything but the
+/// dialog and the toasts, taking presses (it scrolls) but never the focus.
+pub const STATISTICS_LAYER: LayerId = LayerId(6);
+
+/// A surface of the root's own that beui draws the host's statistics on, as its debug panels
+/// show them: its performance and memory rows.
+pub const STATISTICS_SURFACE: u32 = 7;
+
+/// `STATISTICS_SURFACE`'s size, a pixel to a point, at the window's top right.
+pub const STATISTICS_AREA: (u32, u32) = (320, 240);
+
+/// Where the panel's top left sits in the window: at its right edge.
+pub const STATISTICS_ORIGIN: (f32, f32) = ((SIZE.0 - STATISTICS_AREA.0) as f32, 0.0);
+
+/// The panel's title.
+pub const STATISTICS_TITLE: &str = "Performance";
 
 #[cfg(target_arch = "wasm32")]
 mod guest;

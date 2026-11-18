@@ -26,7 +26,10 @@ use std::time::{Duration, Instant};
 
 use be_wasm_guest_host::STEP_TIMEOUT;
 use be_wasm_ops::{Connection, Incoming, OpError, OpId, Outcome, Reply, Side, Ticket};
-use be_wasm_root_api::{FrameDone, FrameRequest, embed, host::Notice, host::ShownNotices};
+use be_wasm_root_api::{
+    FrameDone, FrameRequest, embed, host::Notice, host::ShownNotices, host::StatisticRow,
+    host::HostStatistics,
+};
 use be_wasm_sandbox_host::Server;
 pub use be_wasm_sandbox_host::{Loader, Staged};
 
@@ -115,6 +118,12 @@ struct Core<G> {
     next_paste: u64,
     /// Whether the host delivers the paste shortcut as a paste itself (`host.paste-shortcut`).
     paste_shortcut: bool,
+    /// Whether the root watches the host's statistics (`host.watch-statistics`).
+    watching_statistics: bool,
+    /// The host's statistics, which `host.statistics` answers: the generation counts each change.
+    statistics: HostStatistics,
+    /// The root's `host.statistics` calls waiting for them to change from those it saw.
+    statistics_watchers: Vec<Reply<HostStatistics>>,
 }
 
 impl<G: Inline> Core<G> {
@@ -143,6 +152,14 @@ impl<G: Inline> Core<G> {
             pasting: Vec::new(),
             next_paste: 0,
             paste_shortcut: false,
+            watching_statistics: false,
+            statistics: HostStatistics {
+                generation: 1,
+                performance: Vec::new(),
+                memory: Vec::new(),
+                memory_file: None,
+            },
+            statistics_watchers: Vec::new(),
         };
         core.received()?;
         Ok(core)
@@ -231,6 +248,36 @@ impl<G: Inline> Core<G> {
         let (_, reply) = self.pasting.remove(at);
         reply.send(&mut self.connection, &item);
         true
+    }
+
+    /// Shows the root the host's statistics, in place of those shown before: its
+    /// `host.statistics` calls waiting for a change answer. Answers whether any did, so the host
+    /// steps the root for them.
+    fn show_statistics(
+        &mut self,
+        performance: Vec<StatisticRow>,
+        memory: Vec<StatisticRow>,
+        memory_file: Option<String>,
+    ) -> bool {
+        let shown = &self.statistics;
+        if shown.performance == performance
+            && shown.memory == memory
+            && shown.memory_file == memory_file
+        {
+            return false;
+        }
+        self.statistics = HostStatistics {
+            generation: self.statistics.generation + 1,
+            performance,
+            memory,
+            memory_file,
+        };
+        let watching = std::mem::take(&mut self.statistics_watchers);
+        let answered = !watching.is_empty();
+        for reply in watching {
+            reply.send(&mut self.connection, &self.statistics);
+        }
+        answered
     }
 
     /// Asks the root for a frame for `request`, drawn by `deadline`, or says why the root drew
@@ -375,6 +422,14 @@ impl<G: Inline> Core<G> {
                         self.watching
                             .remove(at)
                             .fail(&mut self.connection, OpError::Canceled);
+                    } else if let Some(at) = self
+                        .statistics_watchers
+                        .iter()
+                        .position(|reply| reply.op() == op)
+                    {
+                        self.statistics_watchers
+                            .remove(at)
+                            .fail(&mut self.connection, OpError::Canceled);
                     } else if let Some(at) =
                         self.pasting.iter().position(|(_, reply)| reply.op() == op)
                     {
@@ -429,6 +484,23 @@ impl<G: Inline> Core<G> {
             embed::Call::Host(embed::host::Call::Copy { items, reply }) => {
                 self.copies.push(items);
                 reply.send(&mut self.connection, &());
+            }
+            embed::Call::Host(embed::host::Call::WatchStatistics { watching, reply }) => {
+                self.watching_statistics = watching;
+                reply.send(&mut self.connection, &());
+                // No change comes while nothing watches: a call still waiting for one hears
+                // the statistics as they are, so the root's task waiting on it ends.
+                if !watching {
+                    for reply in std::mem::take(&mut self.statistics_watchers) {
+                        reply.send(&mut self.connection, &self.statistics);
+                    }
+                }
+            }
+            embed::Call::Host(embed::host::Call::Statistics { seen, reply }) => {
+                match seen == self.statistics.generation {
+                    true => self.statistics_watchers.push(reply),
+                    false => reply.send(&mut self.connection, &self.statistics),
+                }
             }
             embed::Call::Host(embed::host::Call::PasteShortcut { reply }) => {
                 reply.send(&mut self.connection, &self.paste_shortcut);

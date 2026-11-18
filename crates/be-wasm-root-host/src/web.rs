@@ -17,7 +17,7 @@ use std::{
 };
 
 use be_wasm_guest_host::Wake;
-use be_wasm_root_api::{FrameDone, FrameRequest, host::Notice};
+use be_wasm_root_api::{FrameDone, FrameRequest, host::Notice, host::StatisticRow};
 use be_wasm_sandbox_host::{Loader, Server};
 use js_sys::{Function, Object, Reflect, Uint8Array, WebAssembly};
 use wasm_bindgen::{JsCast, prelude::*};
@@ -168,7 +168,8 @@ impl Root {
     }
 
     /// Whether the page delivers the paste shortcut as a paste itself, as input, from the
-    /// browser's paste event (`host.paste-shortcut`), which a page does: false unless set.
+    /// browser's paste event (`host.paste-shortcut`), which a page does, so every page that
+    /// runs a root sets it (be-wasm-root-web-testing's does): false unless set.
     pub fn with_paste_shortcut(self, delivers: bool) -> Self {
         self.shared.core.borrow_mut().paste_shortcut = delivers;
         self
@@ -190,6 +191,28 @@ impl Root {
     /// on that.
     pub fn show_notices(&self, shown: Vec<Notice>) {
         let answered = self.shared.core.borrow_mut().show_notices(shown);
+        if answered {
+            ring(self.shared.id);
+        }
+    }
+
+    /// Whether the root watches the host's statistics now (`host.watch-statistics`): while it
+    /// does, the host measures them and shows them to it (`show_statistics`) as they change.
+    pub fn watching_statistics(&self) -> bool {
+        self.shared.core.borrow().watching_statistics
+    }
+
+    /// Shows the root the host's statistics (`host.statistics`), in place of those shown before:
+    /// its debug panels' rows of the host's frames and steps (`performance`) and memory
+    /// (`memory`), and the file the memory statistics are written to. If the root waits on them
+    /// and they changed, it is stepped for them.
+    pub fn show_statistics(
+        &self,
+        performance: Vec<StatisticRow>,
+        memory: Vec<StatisticRow>,
+        memory_file: Option<String>,
+    ) {
+        let answered = self.shared.core.borrow_mut().show_statistics(performance, memory, memory_file);
         if answered {
             ring(self.shared.id);
         }
