@@ -31,12 +31,7 @@ pub fn CountBadge(count: Prop<u32>) -> NodeId {
     let text = create_memo(move || count_badge_text(count.get()));
     view! {
         <Show value={move || count.get() > 0}>
-            <Frame
-                width=LEAST_WIDTH
-                fill=ColorRole::Accent
-                radius=Radius::Full
-                padding=PADDING
-            >
+            <Frame width=LEAST_WIDTH fill=ColorRole::Accent radius=Radius::Full padding=PADDING>
                 <Text
                     size=TextSize::Xs
                     weight=Weight::Bold

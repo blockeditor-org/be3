@@ -80,7 +80,13 @@ fn a_blocks_members_are_named_by_their_contact_cards_and_others_by_the_server_un
         .expect("the server named the members");
     let mut members: Vec<(Uuid, String, bool)> = crate::app_graph::members_of(&named)
         .into_iter()
-        .map(|member| (Uuid::from_bytes(member.account), member.name, member.verified))
+        .map(|member| {
+            (
+                Uuid::from_bytes(member.account),
+                member.name,
+                member.verified,
+            )
+        })
         .collect();
     members.sort();
     let mut expected = vec![
@@ -91,4 +97,3 @@ fn a_blocks_members_are_named_by_their_contact_cards_and_others_by_the_server_un
     expected.sort();
     assert_eq!(members, expected);
 }
-

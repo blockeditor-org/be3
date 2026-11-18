@@ -32,8 +32,8 @@ use super::{
     calls::{self, AppCall, BlockIds, EditorAnswer, EditorCall, Outbound},
     events::InstanceEvent,
     heads::{HeadRead, Heads},
-    members::{Members, NamesRead},
     input::{BlockDrag, DragEvent, InputForwarder, viewport_metrics},
+    members::{Members, NamesRead},
     pieces,
     published::{Published, Watched},
     sent::Sent,
@@ -505,7 +505,12 @@ impl Instance {
 
     /// Asks the server to name its block's members, when it watches them and they may have
     /// changed, and offers the watch what is known, named from the contacts as they are now.
-    fn offer_members(&mut self, instance: EditorInstanceId, epoch: u64, reads: &host::Post<NamesRead>) {
+    fn offer_members(
+        &mut self,
+        instance: EditorInstanceId,
+        epoch: u64,
+        reads: &host::Post<NamesRead>,
+    ) {
         if !self.watches_members() {
             return;
         }

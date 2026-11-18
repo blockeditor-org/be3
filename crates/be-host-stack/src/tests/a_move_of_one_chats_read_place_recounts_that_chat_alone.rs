@@ -60,7 +60,11 @@ fn a_move_of_one_chats_read_place_recounts_that_chat_alone() {
     let mut read = ChatReadsContent::default();
     read.apply(&ChatReads::set_read(lunch, Uuid::new_v4(), newest, &[]));
     crate::unread::publish(reads, vec![read.encode()]);
-    counts(lunch, 0, "counted nothing in the lunch chat once it was read");
+    counts(
+        lunch,
+        0,
+        "counted nothing in the lunch chat once it was read",
+    );
     flush();
     let after = with_shared(|shared| shared.counting.made).unwrap_or_default();
     assert_eq!(

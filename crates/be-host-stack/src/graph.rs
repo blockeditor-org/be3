@@ -1305,7 +1305,10 @@ impl Graph {
     /// Sets how many things in `block`'s content the account has not read (`crate::unread`),
     /// when that changes it.
     pub fn set_unread(&mut self, block: Uuid, unread: u32) {
-        if self.nodes.get(&block).is_some_and(|node| node.unread != unread)
+        if self
+            .nodes
+            .get(&block)
+            .is_some_and(|node| node.unread != unread)
             && let Some(node) = self.node_mut(block)
         {
             node.unread = unread;

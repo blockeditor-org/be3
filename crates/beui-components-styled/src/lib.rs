@@ -14,9 +14,9 @@ pub mod chip;
 pub mod color_input;
 pub mod color_picker;
 pub mod color_wheel;
-pub mod count_badge;
 pub mod command_palette;
 pub mod context_menu;
+pub mod count_badge;
 pub mod date_time_field;
 pub mod dialog;
 pub mod focus_ring;
@@ -105,9 +105,9 @@ pub use chip::Chip;
 pub use color_input::ColorInput;
 pub use color_picker::{ColorPicker, DEFAULT_SWATCHES, PICKER_WIDTH};
 pub use color_wheel::{ColorWheel, WHEEL_SIZE, WheelModel};
-pub use count_badge::{COUNT_BADGE_MOST, CountBadge, count_badge_text};
 pub use command_palette::CommandPalette;
 pub use context_menu::{ContextMenu, MenuPopup, MenuRows};
+pub use count_badge::{COUNT_BADGE_MOST, CountBadge, count_badge_text};
 pub use date_time_field::DateTimeField;
 pub use dialog::{
     DIALOG_WIDTH, Dialog, DialogBody, DialogCard, DialogFrame, Modal, ModalMotion, SHEET_BELOW,

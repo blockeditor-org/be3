@@ -54,9 +54,9 @@ async fn a_viewer_reads_the_names_of_who_may_view_a_block_and_nothing_more() {
     for (asking, who) in [(&mut knower, "knower"), (&mut outsider, "outsider")] {
         let named = asking
             .call(|peer| {
-                peer.read::<Vec<be_block_protocol::AccountName>>(
-                    be_block_protocol::Query::Names(chat),
-                )
+                peer.read::<Vec<be_block_protocol::AccountName>>(be_block_protocol::Query::Names(
+                    chat,
+                ))
             })
             .await;
         assert!(

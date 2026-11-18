@@ -4489,12 +4489,14 @@ impl<S: ObjectStore> Peer<S> {
         &self,
         block: Uuid,
     ) -> Result<Vec<be_block_protocol::AccountName>, ClientError> {
-        Ok(be_block_protocol::read::<Vec<be_block_protocol::AccountName>, _>(
-            &self.connection(),
-            Some(self.organization),
-            be_block_protocol::Query::Names(block),
+        Ok(
+            be_block_protocol::read::<Vec<be_block_protocol::AccountName>, _>(
+                &self.connection(),
+                Some(self.organization),
+                be_block_protocol::Query::Names(block),
+            )
+            .await??,
         )
-        .await??)
     }
 
     pub async fn relay(
