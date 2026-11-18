@@ -1068,11 +1068,15 @@ pub(crate) fn AppView(
     // site's place is the window point and what the keys held make of the drop, which the
     // app hears as the drag moves and on the drop.
     let area = NodeRef::new();
+    // Only the view holding the editor's content takes it (its main view, or the dock view
+    // given its frame), never one of its bars: the editor hears the drag over that view.
     let site = use_drop_site(
-        Func::new(|_: BlockDrag| true),
+        Func::new(move |_: BlockDrag| region.is_main() || frame.get_untracked().is_some()),
         Func::new(move |drag: BlockDrag| {
             // Only inside the view: `takes` reads a point already known to be in it, as a
-            // press is, and says only which parts of it are the app's.
+            // press is, and says only which parts of it are the app's. Both it and the runtime
+            // read window points against the view's rect, not the node's own (scaled) points,
+            // so the place reads the pointer's window point rather than the local one.
             drag::custom(area, move |_: Pos2, point: DragPoint| {
                 let rect = state.with_untracked(|view| view.rect);
                 (rect.contains(point.pos) && takes(point.pos - rect.min.to_vec2()))
@@ -1624,15 +1628,19 @@ fn edge_of(edge: be_sdk_api::WindowEdge) -> beui::WindowEdge {
     }
 }
 
-/// Lifts a block an app began to drag onto the board, where the pointer pressing in it is:
-/// from there the app views it is carried over hear it (`drag_over_view`).
+/// Lifts a block an app began to drag onto the board, at the pointer pressing in it: from
+/// there the app views it is carried over hear it (`drag_over_view`). A drag that arrives once
+/// nothing presses (the app's message came after the release) lifts nothing.
 pub(super) fn carry(drag: BlockDrag) {
-    let Some(pointer) = try_with_document(|document| document.last_pointer).flatten() else {
+    let Some(pressing) = try_with_document(|document| document.last_pointer).flatten() else {
         return;
     };
-    let point = DragPoint::at(pointer.pos, Modifiers::NONE)
-        .in_window(pointer.window)
-        .by(pointer.pointer);
+    let Some(pointer) = pressing.pointer else {
+        return;
+    };
+    let point = DragPoint::at(pressing.pos, Modifiers::NONE)
+        .in_window(pressing.window)
+        .by(pointer);
     beui::unstyled::drag_board().lift(drag::Carry::new(drag).drawn_by_site(), point);
 }
 

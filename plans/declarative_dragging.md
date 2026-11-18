@@ -466,13 +466,17 @@ through the drag and Escape rebuilds nothing; drawn invisible, it is the gap, at
    `end`, `held`, `holds`, `hides_preview`, `floating`) are deleted. Their last in-process
    user was the host's block drag, which moved onto the board as an intermediate: an app's
    `Editor::drag` lifts a `Carry` of the block at the pointer pressing in it
-   (`PointerSample::pointer`), and each app view is a `custom` site over itself, its place
+   (`PointerSample::pointer`, none once nothing presses, when nothing is lifted), and the
+   view holding each editor's content (its main view, or the dock view given its frame;
+   never its bars) is a `custom` site over itself, which its editor's `drag()` reads from
+   whichever of its views asks, its place
    the window point where the view takes the pointer and the `DropAction` the keys held make
    (`custom`'s `place` now gets the pointer's `DragPoint` too), which the app hears as it moves and on
    the drop (`drag_over_view`). The guides the step names are rewritten, and
    decisions/beui_drags_are_reachable_places.md records the decision. The beui-demo page's
    bins and beui-tests' drag screen are carries onto sites now; the old API's host tests are
-   gone, three ported (across windows, a cancelled touch, edge scrolling).
+   gone, three ported (across windows, a cancelled touch, edge scrolling), and a host test
+   drags a checklist from the files onto a canvas.
    Left for step 6, which needs the host adapter's cross-app session:
    - **`Editor::drag` and `accept_drag` as the handoff.** Each app view is a `custom` site
      that only forwards points; it becomes an `Into` candidate whose app runs the engine over

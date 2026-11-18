@@ -208,8 +208,9 @@ pub struct PointerSample {
     pub pos: Pos2,
     pub window: be_lib_ui_types::window::WindowId,
     pub touch: bool,
-    /// The pointer pressing, or the mouse while none is.
-    pub pointer: PointerId,
+    /// The pointer pressing, whose place `pos` and `window` then are; none while nothing
+    /// presses, when they are the pointer's last place.
+    pub pointer: Option<PointerId>,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
