@@ -41,6 +41,18 @@ async fn a_log_numbers_stamps_and_tells_appends_and_takes_an_entry_once() {
     let first_head = told.head;
     assert_eq!((told.block, told.previous, told.head.size), (chat, 0, 2));
     assert_eq!(told.entries.len(), 2);
+    let mut data = Vec::new();
+    data.extend_from_slice(&told.entries[0].seq.to_be_bytes());
+    data.extend_from_slice(&told.entries[0].arrival.to_be_bytes());
+    data.extend_from_slice(told.entries[0].author.as_bytes());
+    data.extend_from_slice(told.entries[0].id.as_bytes());
+    data.extend_from_slice(told.entries[0].payload_hash.as_bytes());
+    data.extend_from_slice(&told.entries[0].signature);
+    assert_eq!(
+        told.entries[0].leaf(),
+        merkle::leaf_hash(&data),
+        "an entry's leaf is RFC 6962's, as the tree hashes leaves"
+    );
     assert_eq!(told.entries[0].author, owner.id());
     assert_eq!(told.entries[0].arrival, logged[0].arrival);
     assert_eq!(told.entries[1].payload.as_deref(), Some(&b"how are you"[..]));
