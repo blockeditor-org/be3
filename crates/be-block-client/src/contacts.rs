@@ -227,14 +227,28 @@ pub fn card(
 
 /// What an account pins for a company organization from somewhere the server cannot write
 /// (making it, an invitation, an agent's maker), sealed to itself (`seal_pin`): the hash of the
-/// organization's access log root and its escrow key.
+/// organization's access log root and its escrow key, and when it was pinned (`made`), a
+/// sequence that only grows: the server keeps every pin a letter brought and can send an old one
+/// again, so a device takes a pin only over an older one.
 #[derive(Clone, Debug, Default, serde::Deserialize, Eq, PartialEq, serde::Serialize)]
 pub struct Pinned {
     pub root: Option<be_block_keys::EntryHash>,
     pub escrow: Option<EscrowKey>,
+    pub made: u64,
 }
 
 impl Pinned {
+    /// This pin made now, after any pin made at `after`.
+    pub fn stamped(self, after: u64) -> Self {
+        let now = Uuid::now_v7()
+            .get_timestamp()
+            .map_or(0, |time| time.to_unix().0);
+        Self {
+            made: now.max(after.saturating_add(1)),
+            ..self
+        }
+    }
+
     pub fn encode(&self) -> Vec<u8> {
         postcard::to_stdvec(self).expect("a pin always encodes")
     }
@@ -254,6 +268,22 @@ impl Pinned {
 pub struct KeptLink {
     pub code: Vec<u8>,
     pub kind: LinkKind,
+    /// When it was made, in milliseconds since the epoch.
+    pub made: u64,
+}
+
+/// The most links the account's block keeps: the server keeps at most a thousand contact links
+/// open per account (`MAX_CONTACT_LINKS_PER_ACCOUNT`), so past it the oldest goes.
+pub const MAX_KEPT_LINKS: usize = 1_000;
+
+/// How long the block keeps an invitation's code: its link lasts a week, and an accepted one
+/// waits for its inviter's device to finish it, which this leaves weeks for.
+pub const KEPT_INVITATION: u64 = 30 * 86_400_000;
+
+fn now_milliseconds() -> u64 {
+    Uuid::now_v7()
+        .get_timestamp()
+        .map_or(0, |time| time.to_unix().0 * 1000)
 }
 
 impl KeptLink {
@@ -310,45 +340,73 @@ async fn keep_link(
     };
     let bytes = kept.encode();
     block
-        .update(move |_| vec![be_block::AccountBlock::set_link(link, Some(bytes.clone()))])
+        .update(move |current| {
+            let mut edits = vec![be_block::AccountBlock::set_link(link, Some(bytes.clone()))];
+            // Invitations long past their life go, and past the bound the oldest links, so the
+            // block holds no codes for links the server no longer keeps.
+            let now = now_milliseconds();
+            let mut held: Vec<(u64, Uuid)> = current
+                .links
+                .iter()
+                .filter(|(id, _)| **id != link)
+                .filter_map(|(id, bytes)| Some((*id, KeptLink::decode(bytes)?)))
+                .filter_map(|(id, kept)| {
+                    let stale = matches!(kept.kind, LinkKind::Invitation(_))
+                        && kept.made.saturating_add(KEPT_INVITATION) < now;
+                    match stale {
+                        true => {
+                            edits.push(be_block::AccountBlock::set_link(id, None));
+                            None
+                        }
+                        false => Some((kept.made, id)),
+                    }
+                })
+                .collect();
+            held.sort();
+            let over = (held.len() + 1).saturating_sub(MAX_KEPT_LINKS);
+            edits.extend(
+                held[..over]
+                    .iter()
+                    .map(|(_, id)| be_block::AccountBlock::set_link(*id, None)),
+            );
+            edits
+        })
         .await
 }
 
-/// What the account pins for `organization`: from its block, or from a letter not yet taken
-/// into it (an agent, which has no block, keeps the one its maker left). The newest letter wins
-/// over the block, as it came with the account joining or making the organization.
+/// What the account pins for `organization`: the newest of what its block keeps and the letters
+/// not yet taken into it (an agent, which has no block, keeps the one its maker left), by when
+/// each was pinned, never by mailbox order, so an old letter the server sends again is not taken.
 pub async fn pinned(
     connection: &Arc<Connection>,
     account: Uuid,
     identity: &RecoverySecret,
     organization: Uuid,
 ) -> Result<Option<Pinned>, ClientError> {
-    let lettered = mailbox(connection)
+    let mut found: Vec<Pinned> = mailbox(connection)
         .await?
         .into_iter()
-        .rev()
-        .find_map(|message| match message.letter {
+        .filter_map(|message| match message.letter {
             be_block_protocol::Letter::Pinned {
                 organization: of,
                 sealed,
             } if of == organization => open_pin(identity, organization, &sealed),
             _ => None,
-        });
-    if lettered.is_some() {
-        return Ok(lettered);
+        })
+        .collect();
+    if let Some(block) = AccountRecords::open(connection, account, identity).await? {
+        match block.read().await {
+            Ok(held) => found.extend(
+                held.content
+                    .root()
+                    .pin(organization)
+                    .and_then(Pinned::decode),
+            ),
+            Err(ClientError::Locked(_)) => {}
+            Err(error) => return Err(error),
+        }
     }
-    let Some(block) = AccountRecords::open(connection, account, identity).await? else {
-        return Ok(None);
-    };
-    Ok(match block.read().await {
-        Ok(held) => held
-            .content
-            .root()
-            .pin(organization)
-            .and_then(Pinned::decode),
-        Err(ClientError::Locked(_)) => None,
-        Err(error) => return Err(error),
-    })
+    Ok(found.into_iter().max_by_key(|pinned| pinned.made))
 }
 
 /// Keeps `pinned` for `organization` in the account's block; an account with no block keeps
@@ -363,9 +421,18 @@ pub async fn keep_pin(
     let Some(block) = AccountRecords::open(connection, account, identity).await? else {
         return Ok(());
     };
-    let bytes = pinned.encode();
     block
-        .update(move |_| vec![be_block::AccountBlock::set_pin(organization, Some(bytes.clone()))])
+        .update(move |current| {
+            let after = current
+                .pin(organization)
+                .and_then(Pinned::decode)
+                .map_or(0, |held| held.made);
+            let pinned = pinned.clone().stamped(after);
+            vec![be_block::AccountBlock::set_pin(
+                organization,
+                Some(pinned.encode()),
+            )]
+        })
         .await
 }
 
@@ -390,7 +457,9 @@ pub async fn create_organization(
     let pinned = Pinned {
         root: Some(root.hash()),
         escrow: None,
-    };
+        made: 0,
+    }
+    .stamped(0);
     crate::ask(
         be_block_protocol::write::<be_block_protocol::Organization, _>(
             connection,
@@ -504,7 +573,7 @@ pub async fn contacts(
     let block = AccountRecords::open(connection, account, identity).await?;
     let mut tries = 0;
     loop {
-        match contacts_once(connection, account, identity, pinned, block.as_ref()).await {
+        match contacts_once(connection, account, identity, pinned, block.as_deref()).await {
             Err(ClientError::Contended) if tries < 3 => tries += 1,
             listed => return listed,
         }
@@ -550,7 +619,20 @@ async fn contacts_once(
     };
     let mailbox = mailbox(connection).await?;
     let mut taken = Vec::new();
-    let mut pins = Vec::new();
+    let mut pins: HashMap<Uuid, Pinned> = HashMap::new();
+    let mut newest_pin: HashMap<Uuid, u64> = held
+        .as_ref()
+        .map(|held| {
+            held.content
+                .root()
+                .pins
+                .iter()
+                .filter_map(|(organization, bytes)| {
+                    Some((*organization, Pinned::decode(bytes)?.made))
+                })
+                .collect()
+        })
+        .unwrap_or_default();
     let mut changes: HashMap<Uuid, Vec<(u64, Vec<u8>)>> = HashMap::new();
     for message in &mailbox {
         let Some(from) = message.from else {
@@ -584,11 +666,14 @@ async fn contacts_once(
                 organization,
                 sealed,
             } => {
-                if let Some(pinned) = open_pin(identity, *organization, sealed) {
-                    pins.push(be_block::AccountBlock::set_pin(
-                        *organization,
-                        Some(pinned.encode()),
-                    ));
+                // Taken only over an older pin, whatever its place in the mailbox.
+                if let Some(pinned) = open_pin(identity, *organization, sealed)
+                    && newest_pin
+                        .get(organization)
+                        .is_none_or(|made| *made < pinned.made)
+                {
+                    newest_pin.insert(*organization, pinned.made);
+                    pins.insert(*organization, pinned);
                 }
                 taken.push(message.id);
             }
@@ -671,7 +756,12 @@ async fn contacts_once(
         });
     }
     if let (Some(block), Some(held), true) = (block, held, keeps) {
-        let mut edits = pins;
+        let mut edits: Vec<_> = pins
+            .into_iter()
+            .map(|(organization, pinned)| {
+                be_block::AccountBlock::set_pin(organization, Some(pinned.encode()))
+            })
+            .collect();
         for (contact, record) in &records {
             if read.get(contact) != Some(record) {
                 edits.push(be_block::AccountBlock::set_contact(
@@ -1007,12 +1097,15 @@ pub async fn set_recovery_key(
             },
         ));
     }
-    crate::ask(be_block_protocol::write_all::<(), _>(
+    let written = crate::ask(be_block_protocol::write_all::<(), _>(
         connection,
         organization,
         ops,
     ))
-    .await?;
+    .await;
+    // Opened with the old phrase, the block's peer holds the keys this write sealed elsewhere.
+    AccountRecords::forget(connection);
+    written?;
     Ok(Ok(()))
 }
 
@@ -1040,6 +1133,7 @@ pub async fn make_link(
         KeptLink {
             code: code.to_bytes().to_vec(),
             kind: kind.clone(),
+            made: now_milliseconds(),
         },
     )
     .await?;
@@ -1168,7 +1262,8 @@ pub async fn accept_link(
                 .ok()
                 .and_then(|bytes| Pinned::decode(&bytes))
                 .ok_or_else(tampered)?;
-            seal_pin(identity, invitation.organization, &opened)
+            // Pinned as it is taken, so it outranks any older pin a letter brought.
+            seal_pin(identity, invitation.organization, &opened.stamped(0))
         }
     };
     let mut ops = vec![be_block_protocol::Op::AcceptLink {
@@ -1350,6 +1445,7 @@ pub async fn invite(
         KeptLink {
             code: code.to_bytes().to_vec(),
             kind: kind.clone(),
+            made: now_milliseconds(),
         },
     )
     .await?;

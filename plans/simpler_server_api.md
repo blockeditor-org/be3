@@ -369,11 +369,15 @@ two describe.
   `accept-link`, `create-agent`), taken into the block as records are, and an
   agent keeps its letter. `finish_links` works from the `letter.accepted`
   letters and the codes the block keeps, and drops a link's code once it is
-  finished; an invitation that expires or is revoked unaccepted keeps its code
-  in the block (plans/backlog.md has no entry yet: it is small). Bootstrapping:
-  `Peer::open_session` reads its pin from the block (`contacts::pinned`).
-  Tests: be-block-client's
-  `a_new_device_opens_a_company_organization_from_the_pin_in_the_accounts_block`.
+  finished; an invitation's code goes 30 days after it was made, and the block
+  keeps at most `MAX_KEPT_LINKS`, the oldest going first. A pin carries when it
+  was pinned (`Pinned::made`), and is taken only over an older one, so an old
+  pin letter the server sends again is not. `AccountRecords` is opened once per
+  connection and identity, and forgotten as the account takes a new phrase.
+  Bootstrapping: `Peer::open_session` reads its pin from the block
+  (`contacts::pinned`). Tests: be-block-client's
+  `a_new_device_opens_a_company_organization_from_the_pin_in_the_accounts_block`
+  and `an_older_pin_the_server_sends_again_is_not_taken`.
 - **An owner-only block** in the personal organization holds what the account
   seals for itself: contact records, its cards and link codes, the escrow keys
   it pinned per organization. `put-contact`, `list-contacts`, `list-links`,

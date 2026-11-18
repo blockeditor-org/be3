@@ -11,7 +11,9 @@ async fn a_new_phrase_leaves_the_old_one_unable_to_read_the_accounts_next_commit
     befriend(&rosa, &guest).await;
 
     let old = rosa.keys().identity().clone();
-    let held = crate::AccountRecords::open(&rosa.connection(), rosa.account(), &old)
+    // Another device of Rosa's, which keeps the old phrase.
+    let kept = harness.second(&rosa).await;
+    let held = crate::AccountRecords::open(&kept.connection(), rosa.account(), &old)
         .await
         .unwrap()
         .expect("a person's account has its own block");

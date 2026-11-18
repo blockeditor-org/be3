@@ -37,6 +37,7 @@ fn every_record_reads_back_with_each_option_none_and_some() {
             pinned: crate::contacts::Pinned {
                 root: some.then_some([4; 32]),
                 escrow: some.then_some(escrow()),
+                made: 0,
             },
             server: some.then_some(be_block_protocol::ServerAccount {
                 account: Uuid::new_v4(),

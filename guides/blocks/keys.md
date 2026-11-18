@@ -287,7 +287,10 @@ carries it sealed with the code, and an agent from its maker. Each arrives
 sealed by the account for itself (`seal_pin`) as a `letter.pinned` left by the
 write it came with (`create-organization`, the invitation's `accept-link`,
 `create-agent`), which a device takes into the block; an agent, which has no
-block, keeps the letter. A device working in a company organization reads its
+block, keeps the letter. A pin carries when it was pinned (`Pinned::made`,
+stamped as it is taken or saved), and a device takes one only over an older,
+whatever its place in the mailbox, so an old pin the server sends again is
+never taken. A device working in a company organization reads its
 pin from there as its session opens (`Peer::open_session`), so a new device
 needs only the identity secret to open the organization's escrow chain. `Peer::organization_log` refuses a log whose root
 is not the pinned one. The personal organization has no log.
@@ -881,10 +884,12 @@ keys the granter verified that way, which every device then seals to.
 - **The account's block** (`be_block::account_block`, `AccountBlock`) holds the
   account's records of its contacts, the code and kind of each link it made
   until it is finished (`contacts::KeptLink`, kept before `create-link`, so a
-  code is never lost), and what it pins per organization: an owner-only block (guides/settings.md,
+  code is never lost; an invitation's goes 30 days after it was made, and past
+  `MAX_KEPT_LINKS` the oldest), and what it pins per organization: an owner-only block (guides/settings.md,
   Owner only) at the top of the personal organization, at an id derived from
   the account, made by its first device that has a record to keep
-  (`be_block_client::AccountRecords`, a peer of the personal organization that
+  (`be_block_client::AccountRecords`, opened once per connection and identity:
+  a peer of the personal organization that
   reaches this block alone and keeps nothing on the device). The server makes
   it only there, owner-only, of its type (`require_account_block`), and keeps
   of contacts only that two accounts are (`contacts`, two columns): no call

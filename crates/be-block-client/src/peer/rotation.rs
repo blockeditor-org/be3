@@ -335,6 +335,7 @@ impl<S: ObjectStore> Peer<S> {
         let pinned = crate::contacts::Pinned {
             root: self.keys.organization_root(),
             escrow: Some(escrow),
+            made: 0,
         };
         crate::contacts::keep_pin(
             &self.connection(),
