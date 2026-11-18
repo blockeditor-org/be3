@@ -85,6 +85,10 @@ BEUI_LAYERS=space ./scripts/buck run //crates/be-host:dev
 
 # `be` running an app's host component headless, with no window, presenter or gpu: the counter's
 ./scripts/test be_runs_an_apps_host_component_with_no_display
+
+# Host a hosted block (its type's host component) from this machine until Ctrl-C, as the
+# account BE3_TOKEN and BE3_RECOVERY_PHRASE name, which needs Edit on it
+./scripts/buck run //crates/be-tool-cli:dev -- BLOCK host
 ```
 
 An agent shows a visual change with a painting (guides/testing_a_gui.md).

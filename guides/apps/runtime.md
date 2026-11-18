@@ -678,9 +678,16 @@ app, if it could not start. `run_until` steps it until a condition holds or a ti
 passes, and dropping it closes the instance and steps once more so it stops cleanly. Its
 graph calls and host services are answered by be-host-stack as be-host answers them,
 within a host component's reach (guides/apps/host_services.md, "Host components"), so
-nothing it may call needs a person or a screen. No command starts one yet (`be BLOCK host` is
-plans/headless_apps.md's step 2); be-tool-cli's
+nothing it may call needs a person or a screen. be-tool-cli's
 `be_runs_an_apps_host_component_with_no_display` runs the counter's.
+
+`be BLOCK host` hosts a block from the command line (`be_tool_cli::hosting::host_block`):
+it signs be-host-stack in as the account `be` signs in as (`session::stack_config`), holds
+the block's replica open (`be_host_stack::open`) so the device is in its session, and runs
+one `Headless` for as long as it runs, until Ctrl-C. Whenever no other device hosts the block
+(`be_host_stack::may_host`) it starts the type's host component, which claims the lease
+(`restart_host`, plans/hosted_blocks.md, step 4d2); while another device hosts it, it closes
+the component and stands by. be-tool-cli's `be_hosts_a_block_while_no_other_device_does`.
 
 `be` finds its apps as be-host does (`be_tool_cli::release`), through
 `be_host_stack::discovery`: the manifests, the type modules it reads blocks through
