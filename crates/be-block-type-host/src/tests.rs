@@ -52,6 +52,8 @@ mod an_editor_attached_when_its_replica_reopens_is_sent_the_content_again;
 mod an_editor_of_a_replica_that_cannot_open_again_is_told_it_failed_and_the_block_released;
 mod an_editor_reads_no_part_of_another_block_its_replica_was_not_handed;
 mod an_editor_reattached_across_joining_is_sent_a_snapshot_holding_what_was_given_again;
+mod edits_typed_offline_into_a_session_of_another_build_are_sealed_before_the_replica_diverges;
+mod edits_typed_offline_while_a_reload_of_the_replicas_own_is_on_its_way_reach_the_server;
 mod news_of_a_block_whose_head_stayed_moves_no_replica;
 mod only_the_types_own_app_writes_in_its_blocks_log;
 mod search_text_of_a_type_that_loads_whole_is_narrowed_to_the_keys_asked_for;
@@ -782,4 +784,97 @@ async fn opened_again(
         replicas.pump((peer, shared)).await;
     }
     replicas.pump((peer, shared)).await;
+}
+
+/// A text block published as "base", opened offline (`peer` detached) on a manual clock, so no
+/// seal comes due, and typed in three times ("a", "b", "c", each at the start): its replica
+/// journals the three edits in its made-up session, and no seal holds them. Returns the block, its
+/// published head and what reconnects `peer` (`Peer::attach`).
+async fn text_typed_offline(
+    peer: &Arc<Peer<MemoryStore>>,
+    shared: &Arc<Mutex<Quiet>>,
+    replicas: &mut Replicas<Quiet>,
+) -> (Uuid, CommitId, Arc<be_block_client::Connection>, String) {
+    use be_type_text::{TextBlock, TextContent};
+
+    let block = peer
+        .create::<TextContent>(BlockParent::Root)
+        .await
+        .expect("the text is made");
+    let base = match peer.save(block, &TextBlock::of("base"), None).await {
+        Ok(be_block_client::Saved::Published(head)) => head,
+        saved => panic!("the text publishes: {saved:?}"),
+    };
+    let (connection, token) = (peer.connection(), peer.token());
+    peer.detach();
+    replicas
+        .open((peer, shared), block, TextContent::CONTENT_TYPE, true)
+        .await
+        .expect("the block opens");
+    replicas.pump((peer, shared)).await;
+    let editor = 7;
+    let mut mirror = attach_mirror::<TextContent>(peer, shared, replicas, block, editor).await;
+    for word in ["a", "b", "c"] {
+        type_at_start(replicas, block, editor, &mut mirror, word);
+        replicas.pump((peer, shared)).await;
+        replicas.modules.tick_due();
+        replicas.pump((peer, shared)).await;
+        receive_frames(shared, editor, &mut mirror);
+    }
+    assert_eq!(text_of(peer, shared, replicas, block).await, "cbabase");
+    let status = replicas.status(block).expect("the replica reported");
+    assert!(
+        status.journaled_taken > status.sealed_taken,
+        "the edits are journaled, and no seal holds them"
+    );
+    (block, base, connection, token)
+}
+
+/// Drains the outbox until it is empty, merging what the drain finds diverged, as the worker's
+/// loop does.
+async fn drain_all(
+    peer: &Arc<Peer<MemoryStore>>,
+    shared: &Arc<Mutex<Quiet>>,
+    replicas: &mut Replicas<Quiet>,
+    block: Uuid,
+) {
+    for _ in 0..4 {
+        if peer.pending_commits(block).is_empty() {
+            break;
+        }
+        let drained = peer.drain(|_| false).await.expect("the outbox drains");
+        for outcome in drained {
+            if let be_block_client::Drained::Diverged { remote, .. } = outcome {
+                replicas
+                    .merge_diverged((peer, shared), block, remote)
+                    .await
+                    .expect("the block merges");
+            }
+        }
+    }
+    assert!(
+        peer.pending_commits(block).is_empty(),
+        "everything this device kept is sent"
+    );
+}
+
+/// The text of the server's head of `block`.
+async fn text_on_the_server(peer: &Peer<MemoryStore>, block: Uuid) -> String {
+    use be_type_text::{TextBlock, TextContent};
+
+    let head = peer
+        .remote_head(block)
+        .await
+        .expect("the head is read")
+        .expect("the block has a head");
+    let manifest = peer
+        .load_reached(head)
+        .await
+        .expect("the head is read")
+        .manifest;
+    let stored = peer
+        .load_manifest(&manifest)
+        .await
+        .expect("the head's content is read");
+    TextBlock::text(&TextContent::from_stored(&stored).expect("the text decodes"))
 }
