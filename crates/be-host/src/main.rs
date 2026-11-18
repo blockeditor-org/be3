@@ -5,6 +5,7 @@ mod android_push;
 mod arguments;
 mod compositor;
 mod contacts;
+mod share_link;
 mod debug;
 mod display;
 mod editors;
@@ -275,6 +276,11 @@ pub async fn run_web(canvas_id: String) -> Result<(), wasm_bindgen::JsValue> {
     }
     if location.hash()?.starts_with("#invite/") {
         core.open_invite(&location.href()?);
+        page.set_hash("");
+        location.replace(&page.href())?;
+    }
+    if location.hash()?.starts_with("#share/") {
+        core.share_links.open_from_address(&location.href()?);
         page.set_hash("");
         location.replace(&page.href())?;
     }
@@ -668,6 +674,9 @@ struct HostCore {
     agents: Vec<be_block_protocol::Agent>,
     agent_created: Option<accounts::AgentCredentials>,
     contacts: contacts::Contacts,
+    share_links: share_link::ShareLinks,
+    /// An organization a share link opened into, which the host opens once it lists it.
+    opening_after_link: Option<Uuid>,
     /// What the host stack changed since the last frame.
     stack_changes: be_host_stack::ChangeWatch,
     /// The `be_host_base::push_device::revision` the push device watch last published.
@@ -1054,6 +1063,8 @@ impl HostCore {
             agents: Vec::new(),
             agent_created: None,
             contacts: contacts::Contacts::default(),
+            share_links: share_link::ShareLinks::default(),
+            opening_after_link: None,
             stack_changes: be_host_stack::ChangeWatch::new(),
             push_device_published: None,
             #[cfg(any(target_arch = "wasm32", target_os = "android"))]
@@ -3721,6 +3732,26 @@ impl HostCore {
         });
         self.contacts
             .poll(&accounts::link_base(&self.server_url), ready);
+        self.share_links
+            .poll(&accounts::link_base(&self.server_url), ready);
+        let current = self.organization.as_ref().map(|organization| organization.id);
+        if let Some(elsewhere) = self.share_links.take_elsewhere(current) {
+            // Listed again, so a guest's new organization is among them, then opened.
+            self.opening_after_link = Some(elsewhere);
+            self.organizations_loaded = false;
+            self.begin_organization_request(OrganizationOperation::Load);
+        }
+        if self.organizations_loaded
+            && let Some(wanted) = self.opening_after_link
+            && let Some(organization) = self
+                .organizations
+                .iter()
+                .find(|organization| organization.id == wanted)
+                .cloned()
+        {
+            self.opening_after_link = None;
+            self.open_organization(organization);
+        }
         if changes.contacts {
             self.contacts.publish();
         }
@@ -4178,6 +4209,13 @@ impl HostCore {
                 .paste(&text, &accounts::link_base(&self.server_url)),
             UiCommand::AcceptContact => self.contacts.accept(),
             UiCommand::DeclineContact => self.contacts.decline(),
+            UiCommand::OpenShareLinks => self.share_links.show(),
+            UiCommand::CloseShareLinks => self.share_links.close(),
+            UiCommand::OpenShareLink(text) => self
+                .share_links
+                .paste(&text, &accounts::link_base(&self.server_url)),
+            UiCommand::AcceptShareLink => self.share_links.accept(),
+            UiCommand::DeclineShareLink => self.share_links.decline(),
             UiCommand::RemoveContact(account) => self.contacts.ask_remove(account),
             UiCommand::ConfirmRemoveContact => self.contacts.confirm_remove(),
             UiCommand::CancelRemoveContact => self.contacts.cancel_remove(),
@@ -4431,6 +4469,7 @@ impl HostCore {
                 created: self.agent_created.clone(),
             }),
             contacts: self.contacts.view(),
+            share_link: self.share_links.view(),
             members: self.members.view(self.account.id),
             invite: self.invitations.invite_view(organization_name),
             invitations: self.invitations.view(),

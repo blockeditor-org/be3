@@ -342,6 +342,16 @@ pub(crate) struct ContactsView {
     pub(crate) error: Option<String>,
 }
 
+/// The dialog opening a share link someone sent: what it would open, asked first, what it
+/// opened, and why it could not.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub(crate) struct ShareLinkView {
+    pub(crate) offer: Option<String>,
+    pub(crate) opened: Option<String>,
+    pub(crate) busy: bool,
+    pub(crate) error: Option<String>,
+}
+
 /// Leaves out the link, a bearer secret, so no log ever holds it.
 impl std::fmt::Debug for ContactsView {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -441,6 +451,7 @@ pub(crate) struct HostUi {
     pub(crate) invitations: Option<InvitationsView>,
     pub(crate) agents: Option<AgentsView>,
     pub(crate) contacts: Option<ContactsView>,
+    pub(crate) share_link: Option<ShareLinkView>,
     pub(crate) members: Option<MembersView>,
     pub(crate) about: bool,
     pub(crate) unsent: Option<UnsentView>,
@@ -517,6 +528,11 @@ pub(crate) enum UiCommand {
     OpenContactLink(String),
     AcceptContact,
     DeclineContact,
+    OpenShareLinks,
+    CloseShareLinks,
+    OpenShareLink(String),
+    AcceptShareLink,
+    DeclineShareLink,
     /// Leave the block the dialog showed, unless another one is pending by then.
     ConfirmLeave(Uuid),
     CancelLeave,
