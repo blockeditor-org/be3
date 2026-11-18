@@ -3071,13 +3071,12 @@ impl<H: Host> Replicas<H> {
         }
     }
 
-    /// How many things in a commit of a block the account has not read, by the block's place
-    /// (`places`; none: the type's default place): `be_block_content::Unread`. `content` is
-    /// the commit as the type loads it (`Kind::load`), which a caller reads beforehand, away
-    /// from the replicas.
-    /// How many things in `block` the account has not read, by its place: its type counts its
-    /// commit's `content` and, for a type with a signed log, the log's latest entries
-    /// (`be_block_content::UNREAD_ENTRIES`), read here.
+    /// How many things in `block` the account has not read, by its place (`places`; none: the
+    /// type's default place): `be_block_content::Unread`. Its type counts its commit's
+    /// `content`, as the type loads it (`Kind::load`), which a caller reads beforehand, away
+    /// from the replicas, and, for a type with a signed log, the log's latest entries
+    /// (`be_block_content::UNREAD_ENTRIES`), read and verified here, so one signed as nobody's
+    /// is told so (`Bad`).
     pub async fn unread(
         &mut self,
         ctx: Ctx<'_, H>,
@@ -3090,26 +3089,19 @@ impl<H: Host> Replicas<H> {
         let no_module =
             || NotSearched::Type(format!("no type module has the block type {content_type}"));
         let kind = self.kind(content_type).await.ok_or_else(no_module)?;
+        let module = self.modules.module_of(content_type).ok_or_else(no_module)?;
         let log = match kind.log {
-            true => ctx
-                .0
-                .read_log_tail(block, be_block_content::UNREAD_ENTRIES)
-                .await
-                .map_err(NotSearched::Read)?
-                .entries
-                .into_iter()
-                .map(|logged| be_sdk_type_api::LogItem {
-                    seq: logged.entry.seq,
-                    id: logged.entry.id,
-                    author: logged.entry.author,
-                    arrival: logged.entry.arrival,
-                    payload: logged.opened.map(|said| said.bytes),
-                    signer: be_sdk_type_api::Signer::Unknown,
-                })
-                .collect(),
+            true => {
+                let app = self.modules.name(module).to_owned();
+                let tail = ctx
+                    .0
+                    .read_log_tail(block, be_block_content::UNREAD_ENTRIES)
+                    .await
+                    .map_err(NotSearched::Read)?;
+                log_items(ctx.0, block, &app, tail.entries).await
+            }
             false => Vec::new(),
         };
-        let module = self.modules.module_of(content_type).ok_or_else(no_module)?;
         let scope = types::Scope::of([&content]);
         let (answer, mut scope) = self
             .ask_reading(ctx, module, scope, |connection| {
@@ -3553,14 +3545,11 @@ impl<H: Host> Replicas<H> {
         }
     }
 
-    /// Takes an append to the signed log of an open block (`Peer::logged`, which proves it
-    /// extends the head this device holds) and hands the replica the entries it verified, as
-    /// the app that wrote them.
     /// Follows the signed log of each open block of a type with one again, as the device
     /// connects: a follow ends with the connection it was made on, and one a replica's editors
-    /// asked for offline was never made. Each reads on from the head this device kept, so what
-    /// was appended meanwhile (this device's own entries the outbox drained among them) reaches
-    /// the replica as appends told do.
+    /// asked for offline was never made. Each reads on from the head this device kept to the
+    /// log's head, a page at a time, so what was appended meanwhile (this device's own entries
+    /// the outbox drained among them) reaches the replica as appends told do.
     pub fn follow_logs(&mut self, (peer, _): Ctx<'_, H>) {
         for open in self.open.values() {
             if !crate::kind_of(open.content_type).is_some_and(|kind| kind.log) {
@@ -3569,19 +3558,31 @@ impl<H: Host> Replicas<H> {
             let (block, app) = (open.block, self.modules.name(open.module).to_owned());
             let (peer, io) = (Arc::clone(peer), self.io.clone());
             H::spawn(async move {
-                let from = peer.log_head(block).map_or(0, |head| head.size);
-                let Ok(read) = peer.read_log(block, from, u32::MAX).await else {
-                    return;
-                };
-                let items = log_items(&peer, block, &app, read.entries).await;
-                if !items.is_empty() {
-                    let _ = io.send(Io::Logged { block, items });
-                    H::wake();
+                // A page at a time on to the head, which a read names: the server caps a page.
+                let mut from = peer.log_head(block).map_or(0, |head| head.size);
+                loop {
+                    let Ok(read) = peer.read_log(block, from, u32::MAX).await else {
+                        return;
+                    };
+                    let size = read.head.size;
+                    let read_to = from + read.entries.len() as u64;
+                    let items = log_items(&peer, block, &app, read.entries).await;
+                    if !items.is_empty() {
+                        let _ = io.send(Io::Logged { block, items });
+                        H::wake();
+                    }
+                    if read_to >= size || read_to == from {
+                        return;
+                    }
+                    from = read_to;
                 }
             });
         }
     }
 
+    /// Takes an append to the signed log of an open block (`Peer::logged`, which proves it
+    /// extends the head this device holds) and hands the replica the entries it verified, as
+    /// the app that wrote them.
     fn appended(&mut self, peer: &Arc<Peer<H::Store>>, appended: be_block_protocol::Appended) {
         let block = appended.block;
         let Some(module) = self

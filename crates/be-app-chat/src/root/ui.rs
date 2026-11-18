@@ -1,4 +1,3 @@
-use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
@@ -388,11 +387,6 @@ fn PendingChip(editor: Editor, pending: Pending, link_id: String) -> NodeId {
 }
 
 
-/// The sends waiting for their entry's id, by the token of the append: when the message was
-/// written and what it carries, which the chat's content lists as the message's once its id is
-/// known (`ChatContent::send`).
-type Sends = Stored<RefCell<HashMap<u64, (i64, Vec<BlockRef>)>>>;
-
 #[component]
 pub fn Chat(editor: Editor) -> NodeId {
     let chat: Chat = editor.block_content::<ChatContent>();
@@ -473,26 +467,50 @@ pub fn Chat(editor: Editor) -> NodeId {
     let ids = rows.keys();
     let empty = create_memo(move || ids.with(Vec::is_empty));
 
-    // What a send carries is the message's once its entry's id is known.
-    let sends: Sends = store(RefCell::new(HashMap::new()));
-    {
-        create_effect(move || {
-            chat.track();
-            for (token, appended) in untrack(|| chat.take_appended()) {
-                let Some((time, attachments)) = sends.with(|sends| sends.borrow_mut().remove(&token)) else {
-                    continue;
-                };
-                let Ok(appended) = appended else {
-                    continue;
-                };
-                if let Ok(Some(edit)) =
-                    chat.read(|content| content.send(appended.id, me, time, &attachments))
+    // Where each append went shows in the log and in what is sending or not sent, so its
+    // answers are let go.
+    create_effect(move || {
+        chat.track();
+        untrack(|| chat.take_appended());
+    });
+    // What a message of this account's carries is listed as the message's once its entry has an
+    // id (`ChatContent::send`): in the log, or waiting on the device. One sent by an editor that
+    // closed before its append was answered is listed by the next one open.
+    create_effect(move || {
+        let Ok(drafts) = chat.read(|content| content.drafts_of(me)) else {
+            return;
+        };
+        if drafts.is_empty() {
+            return;
+        }
+        let drafted = |attachments: &[BlockRef]| {
+            attachments
+                .iter()
+                .any(|attachment| drafts.contains(&attachment.0))
+        };
+        let mut sent: Vec<(Uuid, i64, Vec<BlockRef>)> = log.with(|log| {
+            log.messages()
+                .filter(|shown| shown.author == me && drafted(&shown.attachments))
+                .map(|shown| (shown.id, shown.time, shown.attachments.clone()))
+                .collect()
+        });
+        chat.with_kept(|kept| {
+            for (id, bytes) in kept {
+                if let Some(ChatEntry::Message {
+                    time, attachments, ..
+                }) = ChatEntry::decode(bytes)
+                    && drafted(&attachments)
                 {
-                    untrack(|| chat.operate(edit));
+                    sent.push((id, time, attachments));
                 }
             }
         });
-    }
+        for (id, time, attachments) in sent {
+            if let Ok(Some(edit)) = chat.read(|content| content.send(id, me, time, &attachments)) {
+                untrack(|| chat.operate(edit));
+            }
+        }
+    });
 
     let composer = Composer {
         draft: create_signal(String::new()),
@@ -603,7 +621,7 @@ pub fn Chat(editor: Editor) -> NodeId {
             }
         });
     });
-    let send = move || submit(chat, log, me, composer, attached, sends);
+    let send = move || submit(chat, log, me, composer, attached);
     let scroll = ComponentRef::<ScrollApi>::new();
     let at_end = create_signal(true);
     let unread = unread_count(editor, chat, log, block, me, at_end);
@@ -631,7 +649,6 @@ pub fn Chat(editor: Editor) -> NodeId {
                     composer
                     log
                     attached
-                    sends
                 />
             }
         }
@@ -996,14 +1013,9 @@ fn announcement_key(me: Uuid, time: i64) -> String {
 
 /// Appends a message, which the host signs as the person's, telling the chat's members who
 /// are away, and mentioning the author of the message it replies to. What it carries is listed
-/// as the message's once its entry's id is known (`Sends`).
-fn send_message(chat: Chat, log: Memo<ChatLog>, me: Uuid, entry: ChatEntry, sends: Sends) {
-    let ChatEntry::Message {
-        time,
-        reply_to,
-        attachments,
-        ..
-    } = &entry
+/// as the message's once its entry has an id.
+fn send_message(chat: Chat, log: Memo<ChatLog>, me: Uuid, entry: ChatEntry) {
+    let ChatEntry::Message { time, reply_to, .. } = &entry
     else {
         return;
     };
@@ -1018,11 +1030,7 @@ fn send_message(chat: Chat, log: Memo<ChatLog>, me: Uuid, entry: ChatEntry, send
         announcement: entry.announcement(announcement_key(me, *time), mentions),
         redacts: None,
     };
-    let (time, attachments) = (*time, attachments.clone());
-    let token = chat.append(entry.encode(), along);
-    if !attachments.is_empty() {
-        sends.with(|sends| sends.borrow_mut().insert(token, (time, attachments)));
-    }
+    chat.append(entry.encode(), along);
 }
 
 /// Sends the draft, or saves the edit.
@@ -1032,7 +1040,6 @@ fn submit(
     me: Uuid,
     composer: Composer,
     attached: Attached,
-    sends: Sends,
 ) {
     let body = composer.draft.get_untracked().trim().to_owned();
     let editing = composer.editing.get_untracked();
@@ -1071,7 +1078,7 @@ fn submit(
                 reply_to: composer.replying.get_untracked(),
                 attachments,
             };
-            send_message(chat, log, me, message, sends);
+            send_message(chat, log, me, message);
             composer.replying.set(None);
             composer.attaching.set(Vec::new());
         }
@@ -1132,7 +1139,6 @@ fn MessageRow(
     composer: Composer,
     log: Memo<ChatLog>,
     attached: Attached,
-    sends: Sends,
 ) -> NodeId {
     let attachment_ids = create_memo(move || row.with(|row| row.attachments.clone()));
     let has_attachments = create_memo(move || attachment_ids.with(|ids| !ids.is_empty()));
@@ -1217,7 +1223,7 @@ fn MessageRow(
                 None
             });
             if let Some(entry) = entry {
-                send_message(chat, log, me, entry, sends);
+                send_message(chat, log, me, entry);
             }
         }
         chat.dismiss_refused(token);
