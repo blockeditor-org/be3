@@ -35,6 +35,7 @@ mod a_reply_quotes_the_message_it_answers;
 mod a_sent_message_tells_the_chats_other_members_once_the_server_holds_it;
 mod an_image_pasted_into_the_composer_is_made_in_the_chat_and_attached;
 mod earlier_messages_are_read_a_page_at_a_time;
+mod imported_history_shows_apart_and_read_only;
 mod members_show_by_their_names_and_a_name_the_server_gave_is_marked;
 mod messages_are_sent_edited_reacted_to_and_deleted;
 mod reactions_show_under_a_message_with_their_counts;
@@ -174,6 +175,11 @@ impl Harness {
                     None => LogSigner::Redacted,
                 },
                 payload: item.payload,
+                imported: item.imported.map(|from| be_sdk_beui::be_block_content::LogImport {
+                    block: from.block,
+                    seq: from.seq,
+                    importer: from.importer,
+                }),
             })
             .collect();
         ChatLog::of(&items)

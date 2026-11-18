@@ -392,6 +392,9 @@ pub struct Peer<S: ObjectStore> {
     /// a hash of the bytes and signature, for the connection that answered: asked again, they
     /// cost no round trip until the device reconnects (`authorship::Forged`).
     forged: Mutex<authorship::Forged>,
+    /// How long each block's leading run of imported history is, once an entry of its own
+    /// ended it (`Peer::verify_imported`): it never changes after that.
+    imported_runs: Mutex<HashMap<Uuid, u64>>,
     /// The server's clock as measured when the session opened, which commits are stamped by
     /// (`commit_time`, `server_now`).
     server_clock: Mutex<ServerClock>,
@@ -652,6 +655,7 @@ impl<S: ObjectStore> Peer<S> {
             draining: std::sync::atomic::AtomicUsize::new(0),
             whole: Mutex::new(HashSet::new()),
             forged: Mutex::new(authorship::Forged::default()),
+            imported_runs: Mutex::new(HashMap::new()),
             server_clock: Mutex::new(ServerClock {
                 anchor: None,
                 offset: session.as_ref().and_then(|session| session.server_offset),

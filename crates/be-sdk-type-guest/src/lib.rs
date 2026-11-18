@@ -253,6 +253,11 @@ fn log_item(item: be_sdk_type_api::LogItem) -> be_block_content::LogItem {
             be_sdk_type_api::Signer::Unknown => LogSigner::Unknown,
             be_sdk_type_api::Signer::Redacted => LogSigner::Redacted,
         },
+        imported: item.imported.map(|imported| be_block_content::LogImport {
+            block: imported.block,
+            seq: imported.seq,
+            importer: imported.importer,
+        }),
     }
 }
 

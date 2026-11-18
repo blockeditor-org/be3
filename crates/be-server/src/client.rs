@@ -1270,6 +1270,7 @@ impl Client {
                 from,
                 limit,
                 known,
+                redactions_after,
             } => {
                 let identity = admitted.identity()?;
                 let connection = &self.connection;
@@ -1281,7 +1282,7 @@ impl Client {
                 connection.hub.follow_log(connection.client, place).await?;
                 let page = connection
                     .store
-                    .read_log(identity, block, from, limit, known)
+                    .read_log(identity, block, from, limit, known, redactions_after)
                     .await;
                 if page.is_err() {
                     connection.hub.unfollow_log(connection.client, place).await;
@@ -1524,9 +1525,17 @@ impl Client {
                 from,
                 limit,
                 known,
+                redactions_after,
             } => Page::BlockLog(
                 store
-                    .read_log(admitted.identity()?, block, from, limit, known)
+                    .read_log(
+                        admitted.identity()?,
+                        block,
+                        from,
+                        limit,
+                        known,
+                        redactions_after,
+                    )
                     .await?,
             ),
             Query::Log {

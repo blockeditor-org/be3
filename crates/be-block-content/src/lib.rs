@@ -32,7 +32,7 @@ pub use editor_view::{
 };
 pub use layered::{Follows, KindRule, KindVisibility, Layered, layered};
 pub use log::{
-    Along, LogAppended, LogFold, LogItem, LogNotAppended, LogPage, LogSearch, LogSigner,
+    Along, LogAppended, LogFold, LogImport, LogItem, LogNotAppended, LogPage, LogSearch, LogSigner,
 };
 pub use metadata::{
     ARTIFACT, Artifact, BlockMetadata, CREATED_BY, DELETED_FROM, Definition, DeletedFrom,

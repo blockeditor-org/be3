@@ -733,6 +733,7 @@ impl Inner {
             arrival,
             payload: Some(bytes),
             signer: self.signer_of(author),
+            imported: None,
         };
         let held = self.blocks.get_mut(&key)?;
         held.log.push(item.clone());
@@ -1367,6 +1368,35 @@ impl ContentStore {
         let place = inner.log_entry(block, id, author, bytes, along, arrival);
         inner.deliver_logged();
         place.map_or(0, |(seq, _)| seq)
+    }
+
+    /// Puts an entry of history an import brought in `block`'s signed log, as `importer`
+    /// appended it: written by `author` at `original`'s place in the block `from`, verified
+    /// there. Its place here.
+    pub fn log_imported(
+        &self,
+        block: Option<Uuid>,
+        author: Uuid,
+        bytes: Vec<u8>,
+        importer: Uuid,
+        (from, original): (Uuid, u64),
+    ) -> u64 {
+        let seq = self.log_entry(block, importer, bytes, None);
+        let key = self.key(block);
+        let mut inner = self.0.borrow_mut();
+        if let Some(item) = inner
+            .blocks
+            .get_mut(&key)
+            .and_then(|held| held.log.get_mut(seq as usize))
+        {
+            item.author = author;
+            item.imported = Some(be_sdk_type_guest::api::LogImport {
+                block: from,
+                seq: original,
+                importer,
+            });
+        }
+        seq
     }
 
     /// `block`'s signed log as the server holds it.

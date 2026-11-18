@@ -14,6 +14,7 @@ fn an_entry_told_better_replaces_the_one_held_and_unknown_never_does() {
         arrival: 1_000,
         payload: payload.map(<[u8]>::to_vec),
         signer,
+        imported: None,
     };
     let mut log = HeldLog::default();
     let mut take = |taken: LogItem| log.take(taken);
