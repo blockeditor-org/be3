@@ -344,11 +344,15 @@ prefix only when every entry names the one before and the last kept hashes to
 the kept head, verifying no signature there, and refuses the log as forged
 otherwise, as it does a log at least as long that does not reach the kept
 head (one shorter is checked whole, and withheld). Within a run, a device
-reads a whole log again by naming its last entry (`Peer::served_access`): the
-server sends only the entries after it, and the first must name it as the one
-before. A proof path is read and checked whole each time
-(plans/access_logs_checked_once.md has what is left: proof paths, authority
-from another log, keeping the entries across restarts, and the server).
+reads a whole log again by naming its last entry (`Peer::served_access`,
+holding the `SERVED_LOGS` logs it read last): the server sends only the entries
+after it while its stored log chains to that entry, and the first must name it
+as the one before. The server checks each log once too (`access::checked`): an
+append is checked against the head it kept alone. A proof path is read and
+checked whole each time ("Proof paths"). Authority from another log (`answer`)
+is still checked from that log's root as of the entry a record names, and a
+device's first read after a restart is whole (plans/backlog.md, "Server
+protocol").
 
 **Who is served what.** A sealer must see every entry up to the head, since
 an entry reduced to its hash could be the revocation of whom it seals to, or of
@@ -367,7 +371,10 @@ open. Readers below Edit never seal and are served proof paths
 references: the log names every grantee. A `Join` member is served a proof
 path of its own right and of the session's lease holder's ("Hosted channels").
 
-**Proof paths.** A log is
+**Proof paths.** A path keeps a step for every entry, and a reader reads and
+checks it whole each time: serving only its whole entries with Merkle proofs
+would leave the entries left out on the server's word, unless a tree commits
+what each says (decisions/proof_paths_stay_one_step_per_entry.md). A log is
 served whole to a member with Edit or above (on the block or a block below it;
 for the organization's, on any block, or administering it), who seals, and to
 anyone else as a proof path (`be_block_keys::proof_path`): `Step`s, each an

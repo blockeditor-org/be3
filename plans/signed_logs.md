@@ -196,7 +196,7 @@ carries a consistency proof from the head before it, so a follower holding
 that head takes it with no round trip; the server checks no signature (a
 device not yet told of its account's new phrase signs with the old key, which
 devices judge by arrival); and the Merkle tree is `be_block_keys::merkle`,
-which access logs will use too (plans/access_logs_checked_once.md). The log
+which access logs may use too (plans/deferred/proof_paths_with_inclusion_proofs.md). The log
 is not yet "deleted with the block": blocks are never deleted for good, so
 `log::forget` waits for that. The server answers an entry id it holds again
 only for the same author and payload, but an entry the server replays under a

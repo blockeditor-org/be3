@@ -2,7 +2,7 @@
 //! log's head is its size and the root hash of the tree over its leaves, so any range of
 //! entries is tied to a head by O(log n) hashes (`range_proof`), and a newer head to an older
 //! one by O(log n) more (`consistency_proof`). Signed logs (plans/signed_logs.md) use it, and
-//! access logs will (plans/access_logs_checked_once.md).
+//! access logs may (plans/deferred/proof_paths_with_inclusion_proofs.md).
 //!
 //! Hashes are SHA-256 with RFC 6962's prefixes: a leaf is `H(0x00 || data)`, a node
 //! `H(0x01 || left || right)`, and the tree over `n` leaves splits at the largest power of two

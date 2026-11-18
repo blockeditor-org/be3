@@ -820,8 +820,8 @@ is what its authors add, and only they (or a manager) may take back.
   hash of its sealed payload, the signature, and the payload until it is
   redacted), `block_log_nodes` every perfect subtree of its tree by level and
   position, and `block_log_heads` the log's size, root and charged bytes. The
-  tree is RFC 6962's (`be_block_keys::merkle`, shared with access logs to come,
-  plans/access_logs_checked_once.md): an entry's leaf is
+  tree is RFC 6962's (`be_block_keys::merkle`, which access logs may share,
+  plans/deferred/proof_paths_with_inclusion_proofs.md): an entry's leaf is
   `be_block_protocol::LogEntry::leaf` (place, arrival, author, id, payload
   hash, signature, not the payload), so a redacted entry still verifies. A
   proof for any page or any older head is O(log n) lookups of perfect
