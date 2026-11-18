@@ -424,16 +424,8 @@ pub fn page(
         _ => Vec::new(),
     };
     let redacted = match redactions_after {
-        Some(after) if after < kept.redactions => database
-            .prepare_cached(
-                "SELECT seq FROM block_logs
-                 WHERE organization_id = ?1 AND block_id = ?2 AND redaction > ?3
-                 ORDER BY redaction",
-            )?
-            .query_map(params![org, id, after as i64], |row| row.get::<_, i64>(0))?
-            .map(|seq| seq.map(|seq| seq as u64))
-            .collect::<Result<Vec<u64>, _>>()?,
-        _ => Vec::new(),
+        Some(after) => redacted_since(database, organization, block, after)?.1,
+        None => Vec::new(),
     };
     Ok(LogPage {
         head: head_of(&kept),
@@ -443,6 +435,31 @@ pub fn page(
         redactions: kept.redactions,
         redacted,
     })
+}
+
+/// How many of `block`'s log entries were redacted, and the places of those redacted after
+/// the first `after`, in the order they were.
+fn redacted_since(
+    database: &Connection,
+    organization: Uuid,
+    block: Uuid,
+    after: u64,
+) -> Result<(u64, Vec<u64>), ServerError> {
+    let (org, id) = (organization.to_string(), block.to_string());
+    let redactions = kept(database, &org, &id)?.redactions;
+    if after >= redactions {
+        return Ok((redactions, Vec::new()));
+    }
+    let redacted = database
+        .prepare_cached(
+            "SELECT seq FROM block_logs
+             WHERE organization_id = ?1 AND block_id = ?2 AND redaction > ?3
+             ORDER BY redaction",
+        )?
+        .query_map(params![org, id, after as i64], |row| row.get::<_, i64>(0))?
+        .map(|seq| seq.map(|seq| seq as u64))
+        .collect::<Result<Vec<u64>, _>>()?;
+    Ok((redactions, redacted))
 }
 
 /// Who appended the entry at `seq`, and the bytes redacting its payload frees: none when it
@@ -598,6 +615,41 @@ impl ServerStore {
                 known,
                 redactions_after,
             )
+        })
+        .await
+    }
+
+    /// For each log asked of that `identity` may view, its redactions after the count asked
+    /// (`page`'s `redactions_after`), in one read.
+    pub(crate) async fn log_redactions(
+        &self,
+        identity: Identity,
+        asked: Vec<be_block_protocol::LogRedactionsQuery>,
+    ) -> Result<Vec<be_block_protocol::LogRedactions>, ServerError> {
+        self.with_graph(identity.organization, move |_, graph, database| {
+            let seen = visibility(identity);
+            let mut answered = Vec::new();
+            for ask in asked {
+                let viewable = crate::blocks::require(
+                    graph,
+                    &seen,
+                    ask.block,
+                    be_block_graph::Access::View,
+                    "viewable",
+                )
+                .is_ok();
+                if !viewable {
+                    continue;
+                }
+                let (redactions, redacted) =
+                    redacted_since(database, identity.organization, ask.block, ask.after)?;
+                answered.push(be_block_protocol::LogRedactions {
+                    block: ask.block,
+                    redactions,
+                    redacted,
+                });
+            }
+            Ok(answered)
         })
         .await
     }

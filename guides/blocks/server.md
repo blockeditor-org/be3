@@ -868,6 +868,10 @@ is what its authors add, and only they (or a manager) may take back.
   only those who may still view the block (`Connection::logged`). A
   redaction that took a payload (`Op::Redact`, by the entry's author or a
   manager) tells them the same way as `event.redacted`, naming its place.
+  Each log numbers its redactions (`block_log_heads.redactions`,
+  `block_logs.redaction`, indexed): `block-log` with `redactions-after`, and
+  `query.log-redactions` for many logs at once, name the places redacted
+  since a count, so a device away for the pushes catches up in one read.
 - **Commits name a log head.** `new-commit.log-through` names the head of the
   block's log a commit was made on, and a publish naming a head the log never
   had (past its size, or another root for that prefix) is refused
