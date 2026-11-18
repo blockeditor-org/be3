@@ -9,11 +9,21 @@ use std::sync::mpsc;
 /// run.
 #[test]
 fn a_take_returns_once_an_earlier_take_has_told_what_it_took() {
-    let _harness = Harness::start();
+    let harness = Harness::start();
+    harness.connect();
+    let block = Uuid::new_v4();
+    create(
+        block,
+        CounterContent::CONTENT_TYPE,
+        be_block_graph::BlockParent::Root,
+        be_block_content::BlockMetadata::default(),
+        None,
+        false,
+    );
     let (entered, entering) = mpsc::channel();
     let (release, released) = mpsc::channel::<()>();
     let told = Arc::new(AtomicBool::new(false));
-    export(Uuid::new_v4(), {
+    export(block, {
         let told = Arc::clone(&told);
         move |_| {
             let _ = entered.send(());
