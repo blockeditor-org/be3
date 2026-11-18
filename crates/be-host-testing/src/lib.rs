@@ -74,8 +74,8 @@ impl Harness {
     /// does until `start_server` brings it back at the same address.
     pub fn stop_server(&mut self) {
         // Dropped, the server is told to stop and its thread joined, so its listener is closed
-        // before this returns, and `start_server` can bind the address again at once: std's
-        // listeners set SO_REUSEADDR on Unix, so connections it left in TIME_WAIT hold nothing.
+        // before this returns; std's listeners set SO_REUSEADDR on Unix, so connections it left
+        // in TIME_WAIT hold nothing, and `start_server` retries a bind the kernel still refuses.
         self.server = None;
     }
 
@@ -86,14 +86,29 @@ impl Harness {
             .trim_start_matches("http://")
             .trim_end_matches('/')
             .to_owned();
-        self.server = Some(
-            be_host_server::start_embedded_server_at(
+        // The address can still read as taken just after the stop: the bind is tried again
+        // until it is free, as it is once the kernel lets go of the old listener.
+        let mut tries = 0;
+        let server = loop {
+            match be_host_server::start_embedded_server_at(
                 &address,
                 self.directory.join("server"),
                 be_server::push::PushConfig::DEFAULT,
-            )
-            .expect("the embedded block server starts again"),
-        );
+            ) {
+                Ok(server) => break server,
+                Err(error)
+                    if tries < 100_000
+                        && error.downcast_ref::<std::io::Error>().is_some_and(|error| {
+                            error.kind() == std::io::ErrorKind::AddrInUse
+                        }) =>
+                {
+                    tries += 1;
+                    std::thread::yield_now();
+                }
+                Err(error) => panic!("the embedded block server starts again: {error}"),
+            }
+        };
+        self.server = Some(server);
     }
 
     /// A block this account made on the server from another device, in the organization, under
