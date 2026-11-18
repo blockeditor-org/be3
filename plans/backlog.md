@@ -653,3 +653,19 @@ Depends on #686 (session catch-ups replaced by server ordering).
   for each tile. Done when the renderer keeps the last document it opened, by the block's
   revision, behind an Open and a Render message, and a job sends the bytes only when the revision
   is new, with a be-worker-pdf-render test that renders twice from one Open.
+
+## 24. Build tooling
+
+- **Restarting buck2's daemon after a lost blob.** buck2 keeps a 12-hour record
+  of what `FindMissingBlobs` answered (its gRPC client's `FindMissingCache`,
+  which no buckconfig option bounds) and never forgets an entry when an
+  `Execute` is refused, so after the server loses a blob every retry against
+  the same daemon fails with "Action ... is missing from CAS" until someone runs
+  `./scripts/buck kill` (guides/build_server.md). re-relay already forgets such
+  blobs. Done: when an attempt fails that way, `retrying` in
+  crates/be-tool-bootstrap/src/buck.rs runs `buck2 kill` before the next
+  attempt, and the guide's first step goes. First check that buck2 exits 2
+  (which `retrying` retries) rather than 3 on an `Execute` FAILED_PRECONDITION,
+  and that the failure can be seen: the output is not captured when the
+  command is not quiet, so the wrapper may need another sign, such as a
+  `forgot` line re-relay wrote to `target/re-relay.log` during the attempt.
