@@ -4209,12 +4209,7 @@ async fn apply(
             false
         }
         Command::ReleaseHost(block) => {
-            let hosted = shared
-                .lock()
-                .unwrap_or_else(PoisonError::into_inner)
-                .hosted
-                .contains(&block);
-            if hosted {
+            if crate::hosting::release(shared, block) {
                 replicas.rejoin_block((peer, shared), block);
             }
             false

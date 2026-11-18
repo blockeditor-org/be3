@@ -262,9 +262,11 @@ a role inside the app, since the share dialog grants no roles. A game:
        drops it by leaving.
      - be-host-stack's `Seen::hosted` follows `session-event.host` naming this
        connection, rather than the replica's holder status.
-     Done: `a_device_hosts_only_once_its_component_claims_the_lease`. Left:
-     a claim the server refuses leaves the component running unhosted until
-     the block stops being one this device should host.
+     Done: `a_device_hosts_only_once_its_component_claims_the_lease`, a claim
+     made just before another device's and the stale claim that leaves once
+     that device goes included. Left: a claim the server refuses leaves the
+     component running unhosted, with no Keep hosting offered, until the block
+     stops being one this device should host.
    - e. `be BLOCK host` (plans/headless_apps.md, step 2).
    Done: a be-host-tests test with two editor devices and two players as raw
    peers, where the first host closes the world and the second carries on;

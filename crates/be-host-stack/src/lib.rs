@@ -1249,15 +1249,25 @@ pub fn restart_host(block: Uuid) {
     send(Command::RestartHost(block));
 }
 
-/// A host component stopped on `block`: if this device hosts it and its replica stays open (a
-/// preview, a child), the replica joins the session again, which drops the claim, so another
-/// device may host (plans/hosted_blocks.md, step 4d2). A replica that closes drops it anyway.
+/// A host component stopped on `block`: if this device claimed its session since its replica
+/// last joined it, and the replica stays open (a preview, a child), the replica joins the
+/// session again, which drops the claim, so another device may host and this one is never
+/// named host again by that claim once a later claimant goes (plans/hosted_blocks.md, step
+/// 4d2). A replica that closes drops it anyway.
 pub fn release_host(block: Uuid) {
     send(Command::ReleaseHost(block));
 }
 
+/// The blocks this device hosts now, by the server's word (`session-event.host` naming this
+/// device): each has a component running here, or one that should not (a claim since let go),
+/// which `release_host` drops.
+pub fn hosted() -> std::collections::HashSet<Uuid> {
+    with_seen(|seen| seen.hosted.iter().copied().collect()).unwrap_or_default()
+}
+
 /// Whether a host component may start on `block` here: this device's replica is in its session
-/// and no one hosts it, or this device does. Starting one claims the lease (`restart_host`).
+/// and no one hosts it, or this device does, by the last word the server sent of who hosts.
+/// Starting one claims the lease (`restart_host`).
 pub fn may_host(block: Uuid) -> bool {
     with_seen(|seen| matches!(seen.session_hosts.get(&block), Some(None | Some(true))))
         .unwrap_or_default()

@@ -353,11 +353,15 @@ impl Harness {
 
     /// A new account's connection, the account's recovery key set to its test keys.
     async fn member(&self, email: &str) -> TestClient {
-        let (_, token) = ServerStore::open(&self.directory)
-            .unwrap()
+        // Under load this has failed once, panicking on an unwrap that named nothing
+        // (plans/backlog.md, 15): each step now says which failed and why.
+        let store = ServerStore::open(&self.directory).unwrap_or_else(|error| {
+            panic!("the test server's data did not open to register {email}: {error}")
+        });
+        let (_, token) = store
             .register(email, email)
             .await
-            .unwrap();
+            .unwrap_or_else(|error| panic!("the test server could not register {email}: {error}"));
         let mut client = self.signed_in(&token).await;
         let identity = test_secret(client.id()).identity();
         let response = client

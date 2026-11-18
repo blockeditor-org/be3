@@ -42,6 +42,10 @@ pub struct Hosting {
     snapshots: u64,
     /// Numbers each admit, so an answer reaches only the handshake it answers.
     admits: u64,
+    /// The blocks whose session this device claimed since its replica last joined it: the claim
+    /// stays in the session's membership, so the server names this device host again once a
+    /// later claimant goes, until the replica joins again (`release`) or leaves.
+    claimed: std::collections::HashSet<Uuid>,
 }
 
 enum Member {
@@ -169,9 +173,11 @@ pub fn host_heard(shared: &Arc<Mutex<Shared>>, block: Uuid, host: Option<bool>) 
     }
 }
 
-/// This device's replica of `block` left its session: it hosts it no longer.
+/// This device's replica of `block` left its session: it hosts it no longer, and its claim went
+/// with it.
 pub fn left(shared: &Arc<Mutex<Shared>>, block: Uuid) {
     let mut held = lock(shared);
+    held.hosting.claimed.remove(&block);
     let mut changed = held.seen.session_hosts.remove(&block).is_some();
     changed |= stop_hosting(&mut held, block);
     if changed {
@@ -187,21 +193,33 @@ fn stop_hosting(held: &mut Shared, block: Uuid) -> bool {
 }
 
 /// A host component starts on `block`: it claims the session's lease (plans/hosted_blocks.md,
-/// step 4d2), so this device hosts it, and hears every member already admitted.
+/// step 4d2), so this device hosts it, and hears every member already admitted. That it hosts
+/// comes as every change of host does, on the session's events (`heard`), in order with a
+/// claim another device makes after it; the answer only records the claim. Refused (it left
+/// the session, or may no longer edit), nothing changes.
 pub fn start(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: &Tasks, block: Uuid) {
     restart(shared, block);
     if lock(shared).seen.hosted.contains(&block) {
         return;
     }
+    // Recorded as it is sent, so a component that stops before the answer still lets it go,
+    // and again once answered, for a join the answer came after. A claim refused needs no
+    // release; one more join of the session is all the record costs then.
+    lock(shared).hosting.claimed.insert(block);
     let claimed = peer.connection().claim(block);
     let shared = Arc::clone(shared);
     tasks.spawn(async move {
-        // The claimant is not told of its own claim, so it takes the answer as the word that
-        // it hosts. Refused (it left the session, or may no longer edit), nothing changes.
         if claimed.await.is_ok() {
-            host_heard(&shared, block, Some(true));
+            lock(&shared).hosting.claimed.insert(block);
         }
     });
+}
+
+/// No component runs on `block` here any more: whether its replica must join the session again
+/// to drop a claim it made since it last joined (`Replicas::rejoin_block`), which it then has
+/// no longer.
+pub fn release(shared: &Arc<Mutex<Shared>>, block: Uuid) -> bool {
+    lock(shared).hosting.claimed.remove(&block)
 }
 
 /// A host component starts on `block`: it hears every member already admitted join, and none of
@@ -270,7 +288,15 @@ pub fn heard(
             payload,
             ..
         }) => hosted(peer, shared, tasks, *block, *from, payload),
-        Some(Event::Host { block, host, ours }) => {
+        Some(Event::Host {
+            block,
+            host,
+            ours,
+            joined,
+        }) => {
+            if *joined {
+                lock(shared).hosting.claimed.remove(block);
+            }
             host_heard(shared, *block, host.map(|_| *ours));
         }
         Some(Event::Joiner {
