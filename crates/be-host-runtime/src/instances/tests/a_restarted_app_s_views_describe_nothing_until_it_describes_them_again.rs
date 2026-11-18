@@ -70,7 +70,12 @@ fn a_restarted_app_s_views_describe_nothing_until_it_describes_them_again() {
     let mut instances = placed();
     instances.next_screens(PASS);
     describe(&mut instances);
-    let described = || (vec!["App".to_owned(), "Save".to_owned()], vec!["Save".to_owned()]);
+    let described = || {
+        (
+            vec!["App".to_owned(), "Save".to_owned()],
+            vec!["Save".to_owned()],
+        )
+    };
     assert_eq!(labels(&mut instances), described());
 
     instances.reopen();

@@ -55,5 +55,9 @@ fn a_layout_s_children_wait_for_the_present_that_follows_it() {
         released.as_slice(),
         [Held::Laid(_), Held::Answer("an answer after it")]
     ));
-    assert_eq!(holds.laid().count(), 1, "the third layout waits for its own present");
+    assert_eq!(
+        holds.laid().count(),
+        1,
+        "the third layout waits for its own present"
+    );
 }

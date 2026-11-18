@@ -20,7 +20,11 @@ fn an_app_tree_update_sends_only_what_changed() {
     graft.update(update(vec![(2, checked)], None, 1));
     let grafted = graft.grafted(placing(Some("Tasks"), Vec2::ZERO), false, false);
     assert_eq!(grafted.nodes.len(), 1, "only the node that changed");
-    assert_eq!(sent(&grafted, "Milk").unwrap().0, milk, "under the same host id");
+    assert_eq!(
+        sent(&grafted, "Milk").unwrap().0,
+        milk,
+        "under the same host id"
+    );
 
     let grafted = graft.grafted(placing(Some("Tasks"), vec2(0.0, 10.0)), false, false);
     assert_eq!(

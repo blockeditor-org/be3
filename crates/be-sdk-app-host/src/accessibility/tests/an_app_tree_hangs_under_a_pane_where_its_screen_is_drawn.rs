@@ -25,7 +25,11 @@ fn an_app_tree_hangs_under_a_pane_where_its_screen_is_drawn() {
 
     let (pane, pane_node) = sent(&grafted, "Checklist").expect("the pane is sent");
     assert_eq!(pane, grafted.root);
-    assert_eq!(pane.0 >> DOCUMENT_SHIFT, 7, "host ids are in the graft's document");
+    assert_eq!(
+        pane.0 >> DOCUMENT_SHIFT,
+        7,
+        "host ids are in the graft's document"
+    );
     assert_eq!(pane_node.role(), Role::Pane);
     assert_eq!(
         pane_node.bounds(),

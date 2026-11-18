@@ -21,11 +21,8 @@ fn an_app_tree_that_is_not_a_tree_is_cut_into_one() {
     ));
     let grafted = graft.grafted(placing(Some("Broken"), Vec2::ZERO), true, true);
 
-    let nodes: HashMap<NodeId, &Node> = grafted
-        .nodes
-        .iter()
-        .map(|(id, node)| (*id, node))
-        .collect();
+    let nodes: HashMap<NodeId, &Node> =
+        grafted.nodes.iter().map(|(id, node)| (*id, node)).collect();
     assert_eq!(nodes.len(), 4);
     let mut parented = HashSet::default();
     for node in nodes.values() {

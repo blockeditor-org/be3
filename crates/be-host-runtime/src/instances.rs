@@ -16,8 +16,8 @@ use be_sdk_api::{
         ChildCreation, ChildMenuChoice, ClipOffer, DragStart, MenuSet, ShellMessage, ViewEnd,
     },
 };
-use be_sdk_type_guest::editor::{FromEditor, Gesture, ToEditor};
 use be_sdk_app_host::accessibility::Graft;
+use be_sdk_type_guest::editor::{FromEditor, Gesture, ToEditor};
 use beui::{ImeArea, Pos2, Rect, Vec2, pos2, vec2};
 use std::{
     collections::{BTreeMap, VecDeque},

@@ -5,9 +5,9 @@
 //! takes the host's ids back to the app's for the actions the host is asked for
 //! (`Graft::app_node`). It knows no GUI framework: the host puts the pane under its own tree.
 
-use be_sdk_api::accesskit::{Affine, Node, NodeId, Rect as AccessRect, Role, TreeUpdate};
 use be_lib_geometry::{Rect, Vec2};
 use be_lib_stable_hash::{HashMap, HashSet};
+use be_sdk_api::accesskit::{Affine, Node, NodeId, Rect as AccessRect, Role, TreeUpdate};
 
 /// A host id is `document << DOCUMENT_SHIFT | local`: each grafted screen numbers its nodes in a
 /// document of its own, which the host gives it (`Graft::new`) from the same space as its own
