@@ -8,12 +8,12 @@ fn a_deep_tile_is_cut_from_its_source() {
         y: 83,
     };
     let source = TileId {
-        zoom: SOURCE_MAX_ZOOM,
+        zoom: 14,
         x: 10,
         y: 20,
     };
 
-    assert_eq!(deep.source(), source);
+    assert_eq!(deep.source(14), source);
     assert_eq!(
         window(deep, source),
         Window {

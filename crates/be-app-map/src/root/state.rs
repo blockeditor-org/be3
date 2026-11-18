@@ -433,7 +433,9 @@ impl MapState {
         let region = view.region(visible);
         self.visible_region.set(region);
         inner.view_center.set(view.coordinate(visible.center()));
-        if self.sized()
+        // The fit waits for the map's place: until then its world is the whole editor's, and the
+        // region it fits would move once the map is laid out.
+        if self.editor.placed().get_untracked().is_positive()
             && self.host_camera().is_some()
             && self.fit_requested.get_untracked()
             && let Some(preview) = self.preview_region.get_untracked()
@@ -450,7 +452,9 @@ impl MapState {
         let available = (clip.size() - Vec2::splat(24.0)).max(Vec2::new(1.0, 1.0));
         let factor =
             (available.x / shown.width().max(0.01)).min(available.y / shown.height().max(0.01));
-        self.editor.zoom(factor);
+        // About the map's own centre, which the pan below assumes: the host zooms about the
+        // editor's, which an inspector beside the map moves off it.
+        self.editor.zoom_at(factor, clip.center());
         self.editor.pan((clip.center() - shown.center()) * factor);
     }
 

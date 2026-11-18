@@ -1,5 +1,5 @@
 use be_sdk_worker::Hosted;
-use be_worker_map::{SOURCE_MAX_ZOOM, TILE_PIXELS};
+use be_worker_map::TILE_PIXELS;
 
 use super::*;
 

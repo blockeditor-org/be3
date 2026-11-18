@@ -114,7 +114,12 @@ fn RegionInspector(state: MapState) -> NodeId {
             >
                 <List spacing=Space::Sm>
                     <RegionEdges state={state} />
-                    <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
+                    <List
+                        direction=Direction::Horizontal
+                        align=Align::Center
+                        spacing=Space::Sm
+                        wrap=true
+                    >
                         <Button
                             label="Use current view"
                             variant=ButtonVariant::Secondary

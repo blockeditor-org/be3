@@ -60,6 +60,7 @@ mod desk;
 const SIZE: Vec2 = Vec2::new(800.0, 600.0);
 const HOST_ROUNDS: usize = 8;
 const MINIMUM_ZOOM: f32 = 1.0 / 64.0;
+/// The deepest the host zooms an editor whose manifest names no `max_zoom`, as be-host does.
 const MAXIMUM_ZOOM: f32 = 32.0;
 const INSTANCE: EditorInstanceId = EditorInstanceId(1);
 
@@ -128,6 +129,8 @@ pub struct BeuiTest<A: BeuiRoot> {
     drew: bool,
     recording: Recording,
     viewport: Option<Viewport>,
+    /// The deepest the viewport zooms: the manifest's `max_zoom` once `with_manifest` read it.
+    max_zoom: f32,
     children: Vec<ChildPlacement>,
     views_children: Vec<(ViewId, Vec<ChildPlacement>)>,
     occluders: Vec<Occluder>,
@@ -415,6 +418,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
             drew: false,
             recording: Recording::default(),
             viewport: None,
+            max_zoom: MAXIMUM_ZOOM,
             children: Vec::new(),
             views_children: Vec::new(),
             occluders: Vec::new(),
@@ -849,8 +853,29 @@ impl<A: BeuiRoot> BeuiTest<A> {
         self.exited
     }
 
+    /// Gives the editor the camera limits the host gives `editor` of the app whose manifest is
+    /// `manifest` (its crate's `APP_MANIFEST`): the deepest zoom its `capabilities` allow.
+    pub fn with_manifest(mut self, manifest: &str, editor: &str) -> Self {
+        let manifest =
+            be_sdk_manifest::ManifestDocument::parse(manifest).expect("the manifest parses");
+        let (_, document) = manifest
+            .editors
+            .0
+            .iter()
+            .find(|(name, _)| name == editor)
+            .unwrap_or_else(|| panic!("the manifest names no editor {editor:?}"));
+        self.max_zoom = document
+            .capabilities
+            .max_zoom
+            .map_or(MAXIMUM_ZOOM, |zoom| zoom as f32);
+        if let Some(viewport) = &mut self.viewport {
+            viewport.max_zoom = self.max_zoom;
+        }
+        self
+    }
+
     pub fn in_viewport(mut self) -> Self {
-        self.viewport = Some(Viewport::new());
+        self.viewport = Some(Viewport::new(self.max_zoom));
         self.run();
         self
     }
@@ -860,7 +885,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
             zoom,
             pan,
             moved: true,
-            ..Viewport::new()
+            ..Viewport::new(self.max_zoom)
         });
         self.run();
         self
@@ -2276,6 +2301,7 @@ fn roundtrip<T: serde::Serialize + serde::de::DeserializeOwned>(value: T, what: 
 
 struct Viewport {
     zoom: f32,
+    max_zoom: f32,
     pan: Vec2,
     moved: bool,
     world: Option<Vec2>,
@@ -2284,9 +2310,10 @@ struct Viewport {
 }
 
 impl Viewport {
-    fn new() -> Self {
+    fn new(max_zoom: f32) -> Self {
         Self {
             zoom: 1.0,
+            max_zoom,
             pan: Vec2::ZERO,
             moved: false,
             world: None,
@@ -2363,7 +2390,7 @@ impl Viewport {
         if let Some(area) = self.fitted.filter(|_| drawn && !self.moved) {
             let content = self.content(region, intrinsic);
             let (scale, centre) = area.fit(content, region.size());
-            self.zoom = scale.clamp(MINIMUM_ZOOM, MAXIMUM_ZOOM);
+            self.zoom = scale.clamp(MINIMUM_ZOOM, self.max_zoom);
             self.pan = (content * 0.5 - centre.to_vec2()) * self.zoom;
         }
     }
@@ -2381,7 +2408,7 @@ impl Viewport {
     }
 
     fn zoom_at(&mut self, factor: f32, anchor: Pos2, region: Rect) {
-        let zoom = (self.zoom * factor).clamp(MINIMUM_ZOOM, MAXIMUM_ZOOM);
+        let zoom = (self.zoom * factor).clamp(MINIMUM_ZOOM, self.max_zoom);
         let anchor = anchor - region.center();
         self.pan = anchor - (anchor - self.pan) * (zoom / self.zoom);
         self.zoom = zoom;
