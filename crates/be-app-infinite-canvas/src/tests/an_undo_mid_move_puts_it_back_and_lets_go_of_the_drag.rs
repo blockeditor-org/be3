@@ -32,4 +32,16 @@ fn an_undo_mid_move_puts_it_back_and_lets_go_of_the_drag() {
     );
     assert_eq!(entities(&editor), vec![shape]);
     assert!(editor.store().take_written(None).is_empty());
+
+    // Pressed apart from the last press, so it is not a double click.
+    let again = from + Vec2::new(30.0, 20.0);
+    let to = again + Vec2::new(60.0, 0.0);
+    editor.pen(PenPhase::Down(PointerButton::Primary), again, 0.5);
+    editor.pen(PenPhase::Move, to, 0.5);
+    editor.pen(PenPhase::Up(PointerButton::Primary), to, 0.0);
+    assert_eq!(
+        editor.rect_of(&item).center(),
+        resting.center() + Vec2::new(60.0, 0.0),
+        "the board put the carry down, so the next drag carries the shape again"
+    );
 }

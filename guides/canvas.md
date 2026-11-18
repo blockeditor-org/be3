@@ -122,12 +122,26 @@ gesture that chooses one result (`Gesture::chooses`: moving, resizing, rotating,
 dragging a line's end or bend, the eraser's dimming) holds its writes in a
 tentative gesture (`open_hold`), as do the sidebar's value controls while one is
 dragged or typed into (`drag_value` follows their `ValueDrag`, `type_value`): every view of the block on
-this device previews them, and peers see nothing until the release writes them
-as one undo step. `commit_writes` commits both; Escape, a second finger or
+this device previews them, and peers see nothing of them but a carried move
+(below) until the release writes them as one undo step. `commit_writes` commits both; Escape, a second finger or
 another tool calls it off with `cancel_writes`, leaving nothing written or to
 undo. The eraser drops its held dimming on release and writes the removal alone.
 When the replica ends the hold (an undo mid-drag), `gesture_ended` lets go of
 the drag.
+
+Moving the selection is a drag board carry (`root/carry.rs`;
+guides/beui/components.md, Drag and drop): a press on the selection begins
+`Gesture::Move`, and the surface's `drag` lifts it once the press passes the
+threshold, or Space lifts it from the keyboard and the arrows step it. The
+canvas is a `free(..).unbounded()` site whose place is the world point under the
+pointer, applied to the move through the hold; the board's drop commits it, and
+a put-down (Escape, a cancelled press) drops it. While the board carries a move
+the release leaves it to the board, and `gesture_ended` puts the carry down. The
+surface is an edge scroller: a carry held in its band pans the camera, and the
+site chooses again as the camera moves. A move held in the hold reaches peers as
+presence instead: `CanvasCursor::carried` names each carried entity's centre,
+and a peer's `Entities` draws it there (`carry_for_peers`, the `drawn` memo the
+stage reads; edits read `stored`), with lines bound to it following.
 
 ## Input
 

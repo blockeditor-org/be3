@@ -433,7 +433,8 @@ impl CanvasState {
                     points.push(world);
                 }
             }
-            Gesture::Move { current, .. } => *current = world,
+            // The board carries a move (`lift_move`).
+            Gesture::Move { .. } => {}
             Gesture::Bend { current, grab, .. } => {
                 *current = CanvasPoint::new(world.x + grab.x, world.y + grab.y);
             }
@@ -500,8 +501,12 @@ impl CanvasState {
             self.hover(None);
         }
         self.hold_pointer(false);
-        let gesture = self.take_gesture();
         let retapped = self.take_retap();
+        // The board drops or puts down a move it carries.
+        if self.carries() {
+            return;
+        }
+        let gesture = self.take_gesture();
         if let (Some((id, at)), Some(Gesture::Move { start, current, .. })) = (retapped, &gesture)
             && start == current
         {
@@ -524,7 +529,9 @@ impl CanvasState {
             return false;
         }
         if press.key == Key::Escape {
-            if matches!(
+            if self.carries() {
+                self.board().cancel();
+            } else if matches!(
                 self.gesture.get_untracked(),
                 Some(Gesture::Erase { .. } | Gesture::Raster { .. })
             ) {

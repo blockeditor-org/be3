@@ -477,13 +477,6 @@ Depends on #686 (session catch-ups replaced by server ordering).
   beui-core-html's `watch()` seeds the signal synchronously the first time it
   is made, and those eager `measure` calls at build go.
 
-- **A drag source's face sizes its child as no `Interactive` does.** An
-  `Interactive` given `drag` wraps its children in a list (`CarriedFace`), so
-  its child takes its own height rather than the source's; a child that fills
-  whatever it is given (a canvas) collapses, and the game's stage lays its
-  `Interactive` over the table instead. Making the child grow moves the dock
-  tabs' labels, which rely on the list. Done: the face lays its child out as a
-  plain `Interactive` does, the dock tabs keeping their look.
 - **Selecting a game piece from the keyboard.** Space lifts the selected
   piece and the arrows step it between its squares, but only a click selects
   one, so a game cannot be played from the keyboard alone. Done: the arrows
