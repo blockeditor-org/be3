@@ -318,5 +318,17 @@ pub const SHARE_LINK_TITLE: &str = "Open a share link";
 /// (`core-view`'s `leaving`).
 pub const LEAVE_TITLE: &str = "Leave this block?";
 
+/// The title of the recovery phrase while the person writes it down.
+pub const RECOVERY_TITLE: &str = "Your recovery phrase";
+
+/// The title of unlocking the account's keys on this device.
+pub const UNLOCK_TITLE: &str = "Unlock your keys";
+
+/// The title of what the block stack's failure leaves the person to do.
+pub const FAILURE_TITLE: &str = "Something went wrong";
+
+/// The title of the question another device's pairing request asks (`core-view`'s `pairing`).
+pub const PAIRING_TITLE: &str = "Pair a device?";
+
 #[cfg(target_arch = "wasm32")]
 mod guest;

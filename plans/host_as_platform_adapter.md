@@ -1352,6 +1352,41 @@ Each step lands on its own.
            command, the link handed over as typed, the root's every-type choice asking
            nothing, the onboarding gone once nothing waits, and snapshots the organizations,
            the invitation, a failed listing and the sessions.
+       - 4g6g. Built: recovery, unlocking and pairing, and the block stack's failure, which
+         end 4g6's areas. `core-wait` gains `recovery`, `unlock` and `failure` (be-host's
+         `Screen::Recovery`, `Unlock` and `Error`). `core-view` gains `recovery` (a
+         `recovery-area`: how many words the phrase has, the `checked` positions the person
+         types back, whether it `replacing` one, busy and error; be-host-stack's
+         `RecoveryView`, without its words), `unlock` (an `unlock-area`: the account's name,
+         whether a pairing code is out, error; its `UnlockView`, without the code), `pairing`
+         (each `pairing-request` another device made: its id, device name and why approving
+         was refused; be-host's `PairingRow`) and `failure` (a `core-failure`: the message and
+         the changes not saved; its `ErrorView`, whose pending action is the root's). The
+         phrase's words and a pairing code are secrets the host hands the person, so they come
+         from `make-secret` (`recovery-phrase`, which the host keeps until confirmed, so it may
+         be had again, and `pairing-code`), answered with `core-secret`'s `phrase` and `code`;
+         what the person types crosses as a `password` inside a command:
+         `confirm-recovery` (the checked words, in order, separated by spaces; be-host's
+         `ConfirmRecovery`), `unlock-with-phrase` and `approve-pairing` (a `pairing-approval`,
+         the request's id and the code its device shows). The rest: `new-recovery-phrase`,
+         `cancel-recovery`, `cancel-pairing`, and after a failure `restart`,
+         `delete-client-database` (be-host's `ConfirmErrorAction`; its `AskErrorAction` and
+         `CancelErrorAction` are the root's) and `exit`. be-host's `--root` waits for none of
+         them. be-sdk-root-testing's onboarding shows the recovery phrase (`RECOVERY_TITLE`:
+         asked for as it shows, numbered, held only while it shows; a field for the checked
+         words; Confirm, New phrase, and Keep the old one while replacing), unlocking
+         (`UNLOCK_TITLE`: the phrase to type, Unlock, Pair with another device, whose code shows
+         with Cancel) and the failure (`FAILURE_TITLE`: Restart, Quit, and Delete local copy,
+         asked first with the changes it loses). Secrets the onboarding asks for reach it as
+         the dialogs' do, through `secret_asker`, held by its own `Closing`. Another device's
+         request is a question of the host's (`PAIRING_TITLE`), after leaving a block: the code
+         typed approves it, and Not now puts it aside, the root asking about it no more.
+         be-wasm-root-host's
+         `a_root_shows_its_hosts_recovery_phrase_and_unlocks_and_pairs_handing_over_only_what_was_typed`
+         answers the phrase asked for, hands over the checked words, the phrase and a pairing
+         approval's code as typed, shows a pairing code answered, restarts, quits and asks
+         before deleting, puts a request aside, and snapshots the phrase, unlocking, the code,
+         the failure, its question and the pairing request.
        - 4g6a. Built: the lock screen, over the screen lock and password check the host grants.
          The lock is the host's (the platform's, a login session's): `be3:root` carries it as
          data, nothing beui's. `host.lock` is a watch, as `host.notices` is, answering the lock

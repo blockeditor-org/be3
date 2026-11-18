@@ -216,9 +216,11 @@ its own (a `v8::SharedIsolate`, locked by the thread that runs it):
   (restoring or discarding unsent changes; opening, forgetting and adding
   accounts and the browser sign-in; listing, opening, creating and joining
   organizations; choosing and making sessions and profiles; the invitations,
-  members and agents; contacts, share links and leaving a block;
+  members and agents; contacts, share links and leaving a block; recovery,
+  unlocking, pairing and the stack's failure;
   `Root::take_core_commands`). A secret the host hands the person (an
-  invitation's link, a new agent's credentials) comes from a call of its own,
+  invitation's link, a new agent's credentials, the recovery phrase, a
+  pairing code) comes from a call of its own,
   `host.make-secret`, answered
   once with it (`Root::take_secret_requests`, `Root::answer_secret`), never in
   the view. The root

@@ -364,6 +364,14 @@ interface host {
         organization,
         /// Choose a session in the organization.
         session,
+        /// Write down the account's recovery phrase and confirm some of its
+        /// words, which it needs before its keys are kept.
+        recovery,
+        /// Unlock the account's keys on this device: with the recovery phrase,
+        /// or by pairing with a device that holds them.
+        unlock,
+        /// Decide what to do after the block stack failed (`failure`).
+        failure,
     }
 
     /// An organization the account belongs to.
@@ -660,6 +668,57 @@ interface host {
         refused: option<string>,
     }
 
+    /// The account's recovery phrase, while the person writes it down: its
+    /// words themselves are a secret `make-secret`'s `recovery-phrase` hands
+    /// over.
+    record recovery-area {
+        /// How many words the phrase has.
+        words: u32,
+        /// The positions, from 1, of the words the person types back to show
+        /// they wrote it down.
+        checked: list<u32>,
+        /// Whether a new phrase replaces one the account had.
+        replacing: bool,
+        busy: bool,
+        error: option<string>,
+    }
+
+    /// Unlocking the account's keys on this device.
+    record unlock-area {
+        /// The account's name, which a device it pairs with shows.
+        account: string,
+        /// Whether a pairing code is out, waiting for a device to approve it
+        /// (the code itself is `make-secret`'s `pairing-code`).
+        pairing: bool,
+        error: option<string>,
+    }
+
+    /// Another device asking to pair, which shows a code its person types
+    /// here to approve it.
+    record pairing-request {
+        /// The host's number for the request.
+        id: u64,
+        /// The device, as it names itself.
+        device: string,
+        /// Why approving it was refused (it needs the server), in words.
+        refused: option<string>,
+    }
+
+    /// Approving a pairing request with the code its device shows: a secret.
+    record pairing-approval {
+        id: u64,
+        code: password,
+    }
+
+    /// The block stack failed and cannot go on as it is.
+    record core-failure {
+        /// What failed, in words.
+        message: string,
+        /// How many changes are not saved, which deleting this device's copy
+        /// of the blocks loses.
+        unsaved: u32,
+    }
+
     /// A secret the host hands the person once, as the answer to the command
     /// that made it, never in `core-view`: the root holds it only while it
     /// shows it.
@@ -669,6 +728,11 @@ interface host {
         link(password),
         /// A new agent's credentials.
         agent(agent-credentials),
+        /// The account's recovery phrase, its words separated by spaces.
+        phrase(password),
+        /// A pairing code, which a device holding the account's keys
+        /// approves.
+        code(password),
     }
 
     /// What the block stack shows the person, a field per area, each the
@@ -713,6 +777,14 @@ interface host {
         share-links: share-links-area,
         /// A block an editor asked to leave, while the host asks to confirm.
         leaving: option<leaving>,
+        /// The recovery phrase, while it is written down.
+        recovery: recovery-area,
+        /// Unlocking the account's keys on this device.
+        unlock: unlock-area,
+        /// Other devices asking to pair with this one, oldest first.
+        pairing: list<pairing-request>,
+        /// The block stack's failure, while it has failed.
+        failure: option<core-failure>,
     }
 
     /// What the block stack shows the person, once it differs from the
@@ -840,6 +912,26 @@ interface host {
         confirm-leave(block-id),
         /// Stay in it.
         cancel-leave,
+        /// Confirm the recovery phrase with the words at `checked`, typed in
+        /// that order and separated by spaces: a secret.
+        confirm-recovery(password),
+        /// Make a new recovery phrase in place of the one shown.
+        new-recovery-phrase,
+        /// Keep the recovery phrase the account had, making no new one.
+        cancel-recovery,
+        /// Unlock the account's keys with its recovery phrase: a secret.
+        unlock-with-phrase(password),
+        /// Withdraw the pairing code out.
+        cancel-pairing,
+        /// Approve a device's pairing request with the code it shows.
+        approve-pairing(pairing-approval),
+        /// Start the block stack again after it failed.
+        restart,
+        /// Delete this device's copy of the blocks, losing the changes not
+        /// saved, after it failed: the root asks the person first.
+        delete-client-database,
+        /// Quit, after it failed.
+        exit,
     }
 
     /// The person asked `command` of the block stack, which the host does. It
@@ -862,6 +954,11 @@ interface host {
         /// Make a contact link, which whoever holds it may connect with the
         /// person by.
         contact-link,
+        /// The recovery phrase being written down, which the host keeps until
+        /// it is confirmed, so it may be had again.
+        recovery-phrase,
+        /// A pairing code for this device, putting one out.
+        pairing-code,
     }
 
     /// The person asked `command` of the block stack, which makes a secret:
