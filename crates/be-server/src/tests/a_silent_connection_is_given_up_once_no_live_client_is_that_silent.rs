@@ -35,7 +35,10 @@ async fn a_silent_connection_is_given_up_once_no_live_client_is_that_silent() {
     let silent = tokio::time::Instant::now();
     let messages = reading.await.unwrap();
 
-    assert_eq!(messages, 4, "a client that pings is read for as long as it pings");
+    assert_eq!(
+        messages, 4,
+        "a client that pings is read for as long as it pings"
+    );
     assert_eq!(
         silent.elapsed(),
         IDLE_TIMEOUT,
