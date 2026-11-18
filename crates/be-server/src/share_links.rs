@@ -326,7 +326,7 @@ impl ServerStore {
         caller: Uuid,
         link: Uuid,
         signed: Vec<u8>,
-        key: Uuid,
+        key: Option<Uuid>,
         sealed: Vec<u8>,
     ) -> Result<Opened, ServerError> {
         crate::limits::at_most(
@@ -343,13 +343,31 @@ impl ServerStore {
         self.with_graph(organization, move |store, graph, database| {
             let found = stored(database, link)?.ok_or_else(not_found)?;
             let role = store.may_open(graph, database, caller, &found)?;
-            let key_row = key_row(database, organization, key)?;
-            if !key_row.is_some_and(|row| row.block == found.block && row.kind == KeyKind::Scope) {
-                return Err(ServerError::Refused(
-                    ErrorCode::InvalidRequest,
-                    "a share link carries its block's own scope key".into(),
-                ));
-            }
+            // A Join link carries no key (plans/hosted_blocks.md): its opener reads nothing
+            // stored. Any other carries the block's own scope key, which the opener seals to
+            // itself.
+            let carried = match (found.access, key) {
+                (Access::Join, None) if sealed.is_empty() => None,
+                (Access::Join, _) => {
+                    return Err(ServerError::Refused(
+                        ErrorCode::InvalidRequest,
+                        "a Join link carries no key".into(),
+                    ));
+                }
+                (_, Some(key))
+                    if key_row(database, organization, key)?.is_some_and(|row| {
+                        row.block == found.block && row.kind == KeyKind::Scope
+                    }) =>
+                {
+                    Some(key)
+                }
+                _ => {
+                    return Err(ServerError::Refused(
+                        ErrorCode::InvalidRequest,
+                        "a share link carries its block's own scope key".into(),
+                    ));
+                }
+            };
             let before = graph.audience(found.block);
             let transaction = be_block_sqlite_schema::write_transaction(database)?;
             if role.is_none() {
@@ -386,7 +404,9 @@ impl ServerStore {
                     found.access,
                 )?;
             }
-            if !sealed.is_empty() {
+            if let Some(key) = carried
+                && !sealed.is_empty()
+            {
                 transaction.execute(
                     "INSERT OR REPLACE INTO wrapped_keys
                         (organization_id, key_id, wrapped_by, sender, sealed)

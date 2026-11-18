@@ -656,8 +656,8 @@ interface server {
         link: link-id,
         signed: list<u8>,
         /// The block's scope key the link carries, and its seal by the caller
-        /// to itself.
-        key: key-id,
+        /// to itself; none for a Join link, which carries no key.
+        key: option<key-id>,
         sealed: list<u8>,
     }
 
