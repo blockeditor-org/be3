@@ -1,12 +1,10 @@
 //! Frame pacing and settling: when a host asks an app for a frame, how long it waits for the
 //! answers before drawing its own, and which app waits for another's layout
-//! (guides/apps/runtime.md, Frames and pacing). Times are the host's frame clock (`now`), except
-//! the deadline, which is the display's real time.
+//! (guides/apps/runtime.md, Frames and pacing). `Pacing`'s times are the host's frame clock,
+//! which a driven host may stop; `FrameClock`'s are real time, which the host reads (a
+//! `Duration` since an origin of its choosing) and interprets, so the library reads no clock.
 
-use std::{
-    collections::VecDeque,
-    time::{Duration, Instant},
-};
+use std::{collections::VecDeque, hash::Hash, time::Duration};
 
 use be_lib_stable_hash::HashSet;
 
@@ -49,6 +47,23 @@ pub struct Pacing {
 }
 
 /// What `Pacing::ask` decided for this host frame.
+/// What `Pacing::ask` decides from.
+#[derive(Clone, Copy, Debug)]
+pub struct Asking {
+    /// The app has a surface to draw to.
+    pub drawing: bool,
+    /// The host frame will be seen.
+    pub seen: bool,
+    /// The host's frame clock.
+    pub now: Duration,
+    /// The host frame.
+    pub pass: u64,
+    /// Its placer lays out first (`held_behind`).
+    pub held: bool,
+    /// Input sent to it is still in flight.
+    pub holds_input: bool,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Ask {
     /// No frame is due.
@@ -132,18 +147,16 @@ impl Pacing {
         }
     }
 
-    /// Decides whether to ask an app that draws (`drawing`) for a frame in host frame `pass`,
-    /// and records the request when it does. `held` says its placer lays out first;
-    /// `holds_input` that input sent to it is still in flight.
-    pub fn ask(
-        &mut self,
-        drawing: bool,
-        seen: bool,
-        now: Duration,
-        pass: u64,
-        held: bool,
-        holds_input: bool,
-    ) -> Ask {
+    /// Decides whether to ask an app for a frame, and records the request when it does.
+    pub fn ask(&mut self, asking: Asking) -> Ask {
+        let Asking {
+            drawing,
+            seen,
+            now,
+            pass,
+            held,
+            holds_input,
+        } = asking;
         self.need_if(seen && self.unseen);
         let due = drawing && self.due(false, now, pass);
         if !due {
@@ -210,10 +223,10 @@ impl Pacing {
 /// after settling has been taking, and settling against it.
 #[derive(Default)]
 pub struct FrameClock {
-    present: Option<(Instant, Duration)>,
-    settled_at: Option<Instant>,
+    present: Option<(Duration, Duration)>,
+    settled_at: Option<Duration>,
     composites: VecDeque<Duration>,
-    deadline: Option<(u64, Instant)>,
+    deadline: Option<(u64, Duration)>,
     waited: Duration,
     over_budget: u64,
 }
@@ -223,9 +236,9 @@ impl FrameClock {
     /// the last frame was ready to present at `prepared`.
     pub fn begin_frame(
         &mut self,
-        next_present: Option<Instant>,
+        next_present: Option<Duration>,
         refresh: Option<Duration>,
-        prepared: Option<Instant>,
+        prepared: Option<Duration>,
     ) {
         if let (Some(settled), Some(prepared)) = (self.settled_at.take(), prepared)
             && prepared > settled
@@ -238,38 +251,38 @@ impl FrameClock {
         self.present = next_present.map(|at| (at, refresh.unwrap_or(UNKNOWN_REFRESH)));
     }
 
-    /// When settling in host frame `pass` must end: the same for every settle of one frame, and
-    /// with the host's clock stopped, `STOPPED_CLOCK_FRAME_BUDGET` after the first.
-    pub fn deadline(&mut self, pass: u64, clock_stopped: bool) -> Instant {
+    /// When settling in host frame `pass` must end, read at `now`: the same for every settle of
+    /// one frame, and with the host's clock stopped, `STOPPED_CLOCK_FRAME_BUDGET` after the first.
+    pub fn deadline(&mut self, pass: u64, clock_stopped: bool, now: Duration) -> Duration {
         let deadline = match self.deadline {
             Some((at, deadline)) if at == pass => deadline,
-            _ => self.next_deadline(clock_stopped),
+            _ => self.next_deadline(clock_stopped, now),
         };
         self.deadline = Some((pass, deadline));
         deadline
     }
 
-    fn next_deadline(&self, clock_stopped: bool) -> Instant {
-        let now = Instant::now();
+    fn next_deadline(&self, clock_stopped: bool, now: Duration) -> Duration {
         if clock_stopped {
             return now + STOPPED_CLOCK_FRAME_BUDGET;
         }
         let origin = self.present.map_or(now, |(at, _)| at.min(now));
         let present = self
             .present
-            .map(|(at, interval)| (at.duration_since(origin), interval));
-        now + frame_wait(now.duration_since(origin), present, &self.composites)
+            .map(|(at, interval)| (at - origin, interval));
+        now + frame_wait(now - origin, present, &self.composites)
     }
 
     /// Waits for every asked app's answer at once, until `deadline` (`settle`); true when an
     /// answer changes what the host lays out. What follows until the frame is prepared is the
     /// host's own work.
-    pub fn settle(&mut self, apps: &mut impl Settling, deadline: Instant) -> bool {
-        let started = Instant::now();
+    pub fn settle(&mut self, apps: &mut impl Settling, deadline: Duration) -> bool {
+        let started = apps.now();
         let settled = settle(apps, deadline);
-        self.waited += started.elapsed();
+        let ended = apps.now();
+        self.waited += ended.saturating_sub(started);
         self.over_budget += u64::from(settled == Settled::OutOfTime);
-        self.settled_at = Some(Instant::now());
+        self.settled_at = Some(ended);
         settled == Settled::Relaid
     }
 
@@ -302,19 +315,19 @@ fn frame_wait(
 /// child an active app places in another (or the other way round, where the placer fits to its
 /// child), ordered by `key`: the second of each pair, unless the pair closes a cycle with those
 /// before it, so two apps placing each other are never both held.
-pub fn held_behind<K: Ord>(mut edges: Vec<(K, &str, &str)>) -> HashSet<String> {
+pub fn held_behind<K: Ord, I: Ord + Hash + Clone>(mut edges: Vec<(K, I, I)>) -> HashSet<I> {
     edges.sort();
     edges.dedup();
-    let mut kept: Vec<(&str, &str)> = Vec::new();
+    let mut kept: Vec<(I, I)> = Vec::new();
     for (_, first, then) in edges {
-        if !reaches(&kept, then, first) {
+        if !reaches(&kept, &then, &first) {
             kept.push((first, then));
         }
     }
-    kept.into_iter().map(|(_, then)| then.to_owned()).collect()
+    kept.into_iter().map(|(_, then)| then).collect()
 }
 
-fn reaches(edges: &[(&str, &str)], from: &str, to: &str) -> bool {
+fn reaches<I: Eq + Hash>(edges: &[(I, I)], from: &I, to: &I) -> bool {
     let mut seen = HashSet::default();
     let mut next = vec![from];
     while let Some(at) = next.pop() {
@@ -325,8 +338,8 @@ fn reaches(edges: &[(&str, &str)], from: &str, to: &str) -> bool {
             next.extend(
                 edges
                     .iter()
-                    .filter(|(placer, _)| *placer == at)
-                    .map(|(_, placed)| *placed),
+                    .filter(|(placer, _)| placer == at)
+                    .map(|(_, placed)| placed),
             );
         }
     }
@@ -342,10 +355,12 @@ pub trait Settling {
     /// Whether an asked app still owes an answer.
     fn outstanding(&self) -> bool;
     /// Waits until an app may have sent something since `rung` (the bell's count before the
-    /// last `pump`); false once `deadline` passed.
-    fn wait(&mut self, rung: u64, deadline: Instant) -> bool;
+    /// last `pump`); false once `deadline` (real time, as `now` reads it) passed.
+    fn wait(&mut self, rung: u64, deadline: Duration) -> bool;
     /// The bell's count, read before pumping.
     fn rung(&self) -> u64;
+    /// Real time, since an origin of the host's choosing.
+    fn now(&self) -> Duration;
 }
 
 /// How settling ended.
@@ -360,7 +375,7 @@ pub enum Settled {
 }
 
 /// Waits for every asked app's answer at once, until `deadline`.
-pub fn settle(apps: &mut impl Settling, deadline: Instant) -> Settled {
+pub fn settle(apps: &mut impl Settling, deadline: Duration) -> Settled {
     loop {
         let rung = apps.rung();
         if apps.pump() {
