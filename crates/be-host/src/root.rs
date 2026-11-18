@@ -552,12 +552,15 @@ fn statistic_row(row: be_host_base::performance::PerformanceRow) -> StatisticRow
 ///   the lock screen changes nothing. `be3:root` drops a password handed over while the session
 ///   is not locked, so none reaches here.
 /// - Displays (the desktop's): it asks to keep none, and an answer changes nothing.
-/// - The block stack: it shows nothing (no unsent changes), so it asks nothing of it.
+/// - The block stack: it shows nothing and waits for nothing, so a command changes nothing,
+///   and one making a secret is answered with none.
 fn refuse_unserved(root: &mut Root) {
     root.take_lock_asked();
     root.take_lock_powers();
     root.take_display_answers();
-    root.take_core_commands();
+    for asked in root.take_core_commands() {
+        root.answer_core(asked.id, None);
+    }
 }
 
 /// The host's notices as `be3:root` carries them, oldest first.

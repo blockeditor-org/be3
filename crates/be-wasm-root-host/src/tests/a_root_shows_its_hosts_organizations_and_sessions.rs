@@ -95,7 +95,7 @@ fn asks(
         *time += 1;
         step(root, *time);
     }
-    root.take_core_commands()
+    asked_core(root)
 }
 
 /// `text` committed through the input method into the focused field.

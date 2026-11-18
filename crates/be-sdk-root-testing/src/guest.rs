@@ -23,10 +23,10 @@ use be_wasm_guest_abi::{Flow, Guest, Waker};
 use be_wasm_ops::guest::{Executor, LocalFuture};
 use be_wasm_password::Password;
 use be_wasm_root_api::{
-    AccountRow, CoreCommand, CoreView, CoreWait, DisplayQuestion, FrameDone, FrameRequest,
-    HostStatistics, LockState, NewAccount, Notice, OrganizationRow, OrganizationsListed,
-    PowerAction, ProfileRow, Refusal, SavingState, ServerAccount, SessionRow, SetAside,
-    StatisticRow, SyncState, UnsentEdit,
+    AccountRow, CoreCommand, CoreSecret, CoreView, CoreWait, DiscardReason, InvitationRow,
+    InvitationState, OrganizationRow, OrganizationsListed, ProfileRow,
+    SessionRow, DisplayQuestion, FrameDone, FrameRequest, HostStatistics, LockState,
+    NewAccount, Notice, PowerAction, Refusal, SavingState, ServerAccount, SetAside, StatisticRow, SyncState, UnsentEdit,
     guest::{
         exports::{frames, input, paintings},
         host,
@@ -41,16 +41,15 @@ use beui::{
 };
 
 use crate::{
-    ADD_ACCOUNT_TITLE, APP, APP_ENTRY, CLOSES, DIALOG_LAYER, DIALOG_ORIGIN, DIALOG_SIZE,
-    DIALOG_SURFACE, DIALOG_TITLE, DISCARD_UNSENT_TITLE, FORGET_ACCOUNT_TITLE, KEEP_DISPLAY_TITLE,
-    LATE_LAYER, LATER, LATER_TEXT, LOCK_LAYER, LOCK_SURFACE, LOCKS_SESSION, ONBOARDING_LAYER,
-    ONBOARDING_SURFACE, OPENS_DIALOG, OPENS_STATISTICS, OPENS_UNSENT, ORGANIZATIONS_TITLE, ORIGIN,
-    RASTER, RESIZED, RESIZES, ROOT_COLOR, ROOT_LAYER, ROOT_SURFACE, SCREEN, SCREEN_SIZE,
-    SCRIM_COLOR, SCRIM_LAYER, SCRIM_SURFACE, SESSIONS_TITLE, SIGN_IN_TITLE, SIZE, SLOW_SAVE,
-    SLOW_SAVE_TITLE, SLOW_SAVE_TOAST, STATISTICS_AREA, STATISTICS_LAYER, STATISTICS_ORIGIN,
-    STATISTICS_SURFACE, STATISTICS_TITLE, STRAY_PASSWORD, TEXT, TEXT_LAYER, TEXT_STRIP,
-    TEXT_SURFACE, TOAST_AREA, TOAST_LAYER, TOAST_SURFACE, UNLOCKS_TWICE, UNPRESENTED_SURFACE,
-    UNSENT_TITLE,
+    DISCARD_TITLE, INVITATIONS_TITLE, OPENS_INVITATIONS, REAUTH_TITLE, ONBOARDING_LAYER,
+    ONBOARDING_SURFACE, ORGANIZATIONS_TITLE, SESSIONS_TITLE, ADD_ACCOUNT_TITLE, FORGET_ACCOUNT_TITLE, SIGN_IN_TITLE,
+    APP, APP_ENTRY, CLOSES, DIALOG_LAYER, DISCARD_UNSENT_TITLE, OPENS_UNSENT, UNSENT_TITLE, DIALOG_ORIGIN, KEEP_DISPLAY_TITLE, DIALOG_SIZE, DIALOG_SURFACE, DIALOG_TITLE,
+    LATE_LAYER, LATER, LATER_TEXT, LOCK_LAYER, LOCK_SURFACE, LOCKS_SESSION, OPENS_DIALOG,
+    OPENS_STATISTICS, ORIGIN, RASTER, RESIZED, RESIZES, ROOT_COLOR, ROOT_LAYER, ROOT_SURFACE,
+    SCREEN, SCREEN_SIZE, SCRIM_COLOR, SCRIM_LAYER, SCRIM_SURFACE, SIZE, SLOW_SAVE, SLOW_SAVE_TITLE,
+    SLOW_SAVE_TOAST, STATISTICS_AREA, STATISTICS_LAYER, STATISTICS_ORIGIN, STATISTICS_SURFACE,
+    STATISTICS_TITLE, STRAY_PASSWORD, TEXT, TEXT_LAYER, TEXT_STRIP, TEXT_SURFACE, TOAST_AREA,
+    TOAST_LAYER, TOAST_SURFACE, UNLOCKS_TWICE, UNPRESENTED_SURFACE,
 };
 
 /// The triangle's editor, by its manifest's id.
@@ -105,6 +104,11 @@ struct Root {
     /// Whether the host's question of keeping display settings replaced the dialog adding an
     /// account mid sign-in, which reopens once no dialog is open if the sign-in goes on.
     resuming: Rc<Cell<bool>>,
+    /// A secret the host answered a command with (an invitation's link), until the next frame
+    /// hands it to the dialog that asked, or drops it, zeroed, if that dialog closed.
+    secret: Rc<RefCell<Option<Option<CoreSecret>>>>,
+    /// The link its invitations show, while they are its open dialog.
+    link_shown: Rc<Cell<Option<Signal<Option<Held>>>>>,
     /// The surface a `RESIZES` frame configures and never presents.
     unpresented: Rc<RefCell<Option<OwnSurface>>>,
     /// The scrim under its dialog, filled with `SCRIM_COLOR` on its first frame.
@@ -140,6 +144,11 @@ struct Dialog {
     keep: Option<u64>,
     /// Whether it adds an account: closing it, unless the account was added, stops adding.
     signs_in: bool,
+    /// The question of the host's it asks, if it is one: it closes once the host no longer
+    /// asks it.
+    host_asks: Option<HostAsks>,
+    /// Whether it lists the invitations, to which an invitation's link is handed.
+    invitations: bool,
     /// The layer focused when it opened, which gets the focus back when it closes.
     had: Option<LayerId>,
     /// Whether it took the focus yet: once it has been drawn.
@@ -158,6 +167,17 @@ enum Closed {
     Reverted(u64),
     /// An account was added, which closed the dialog adding it.
     Added,
+    /// The host's question was answered yes (discarding unsaved changes).
+    Confirmed,
+}
+
+/// A question of the host's that the root asks in its dialog's place while the host asks it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum HostAsks {
+    /// Signing in again to an account whose sign-in ended.
+    Reauth,
+    /// Discarding unsaved changes, for this.
+    Discard(DiscardReason),
 }
 
 /// Which dialog to open.
@@ -177,6 +197,10 @@ enum Asking {
         key: String,
         name: String,
     },
+    /// A question of the host's.
+    Host(HostAsks),
+    /// The organization's invitations.
+    Invitations,
 }
 
 /// The root's accounts while the block stack waits for the person to open or add one.
@@ -206,6 +230,7 @@ struct Locked {
 enum Asked {
     Open,
     OpenUnsent,
+    OpenInvitations,
     Close,
     ToggleStatistics,
 }
@@ -230,6 +255,8 @@ impl Root {
             onboarding_shown: Rc::default(),
             wanted: Rc::default(),
             resuming: Rc::default(),
+            secret: Rc::default(),
+            link_shown: Rc::default(),
             unpresented: Rc::default(),
             scrim: Rc::default(),
             dialog: Rc::default(),
@@ -546,6 +573,7 @@ impl Root {
                 Input::Key(stroke) if stroke.pressed && !stroke.repeat => match stroke.key {
                     Some(key) if key == OPENS_DIALOG && !open => Some(Asked::Open),
                     Some(key) if key == OPENS_UNSENT && !open => Some(Asked::OpenUnsent),
+                    Some(key) if key == OPENS_INVITATIONS && !open => Some(Asked::OpenInvitations),
                     Some(key) if key == OPENS_STATISTICS => Some(Asked::ToggleStatistics),
                     Some(key) if key == UNLOCKS_TWICE => {
                         unlock(STRAY_PASSWORD.to_owned());
@@ -681,6 +709,28 @@ impl Root {
             .as_ref()
             .is_some_and(|dialog| dialog.signs_in);
         let wanted = self.wanted.borrow_mut().take();
+        let open_host = self.dialog.borrow().as_ref().and_then(|dialog| dialog.host_asks);
+        let (reauthenticating, signing_in, discarding) = {
+            let core = self.core.borrow();
+            (
+                core.reauthenticating.is_some(),
+                core.signing_in.is_some(),
+                core.discarding.clone(),
+            )
+        };
+        // The host's question, the discard first: it answers what the person just did.
+        let host_asks = discarding
+            .map(HostAsks::Discard)
+            .or(reauthenticating.then_some(HostAsks::Reauth));
+        // A secret the host answered with goes to the invitations that asked, or is dropped.
+        if let Some(secret) = self.secret.borrow_mut().take()
+            && let Some(dialog) = &mut *self.dialog.borrow_mut()
+            && dialog.invitations
+            && let Some(shown) = self.link_shown.get()
+        {
+            let link = secret.map(|CoreSecret::Link(link)| Held(Rc::new(link)));
+            dialog.surface.enter(|| shown.set(link));
+        }
         match &closed {
             Some(Closed::Renamed(name)) => {
                 if let (Some(text), Some(shown)) = (&mut *self.text.borrow_mut(), self.named.get())
@@ -697,6 +747,7 @@ impl Root {
                     self.answer_display(round, false);
                 }
             }
+            Some(Closed::Confirmed) => ask_core(CoreCommand::ConfirmDiscard),
             Some(Closed::Added) | None => {}
         }
         // Escape or a press on the scrim closes it, which for the question reverts at once.
@@ -714,7 +765,8 @@ impl Root {
             .filter(|asking| self.keep_answered.get() != Some(asking.round));
         let keep_round = keep.as_ref().map(|asking| asking.round);
         // The host no longer asks the round shown (answered, or reverted on its own): it goes.
-        let withdrawn = open_keep.is_some() && open_keep != keep_round;
+        let withdrawn = (open_keep.is_some() && open_keep != keep_round)
+            || (open_host.is_some() && open_host != host_asks);
         // No dialog opens while the session is locked, so the focus the lock gives back is the
         // one it took; a question the host asks meanwhile shows once it is unlocked.
         let locked = self.lock.borrow().is_some()
@@ -731,6 +783,27 @@ impl Root {
             }
             _ if !locked && asked == Some(Asked::OpenUnsent) && self.dialog.borrow().is_none() => {
                 Some(Asking::Unsent)
+            }
+            // Signing in again goes on as adding an account does, showing its sign-in.
+            _ if !locked
+                && reauthenticating
+                && signing_in
+                && (open_host == Some(HostAsks::Reauth) || self.dialog.borrow().is_none()) =>
+            {
+                Some(Asking::AddAccount { resumed: true })
+            }
+            _ if !locked
+                && self.dialog.borrow().is_none()
+                && let Some(asks) = host_asks
+                && !(asks == HostAsks::Reauth && signing_in) =>
+            {
+                Some(Asking::Host(asks))
+            }
+            _ if !locked
+                && asked == Some(Asked::OpenInvitations)
+                && self.dialog.borrow().is_none() =>
+            {
+                Some(Asking::Invitations)
             }
             _ if !locked && self.dialog.borrow().is_none() && self.resuming.take() => self
                 .core
@@ -749,6 +822,18 @@ impl Root {
         let replaced = closed.is_none()
             && asked != Some(Asked::Close)
             && matches!(opening, Some(Asking::KeepDisplay(_)));
+        // Closing the host's question other than by answering yes, unless the display question
+        // replaced it or the host withdrew it, answers no: keeping the changes, or leaving the
+        // account for the accounts, as be-host's own dialogs do.
+        if closing && !replaced && !withdrawn && !matches!(closed, Some(Closed::Confirmed)) {
+            match open_host {
+                Some(HostAsks::Discard(_)) => ask_core(CoreCommand::CancelDiscard),
+                Some(HostAsks::Reauth) if !matches!(opening, Some(Asking::AddAccount { .. })) => {
+                    ask_core(CoreCommand::SwitchAccount)
+                }
+                _ => {}
+            }
+        }
         if closing && signs_in {
             match replaced && self.core.borrow().signing_in.is_some() {
                 true => self.resuming.set(true),
@@ -784,6 +869,7 @@ impl Root {
             return;
         };
         self.core_shown.set(None);
+        self.link_shown.set(None);
         let mut embedding = self.embedding.borrow_mut();
         embedding.intercept(chords(false));
         let told = embedding.focus(None, dialog.had);
@@ -806,8 +892,21 @@ impl Root {
             Asking::Rename
             | Asking::Unsent
             | Asking::AddAccount { .. }
-            | Asking::ForgetAccount { .. } => None,
+            | Asking::ForgetAccount { .. }
+            | Asking::Host(_)
+            | Asking::Invitations => None,
         };
+        let host_asks = match &opening {
+            Asking::Host(asks) => Some(*asks),
+            _ => None,
+        };
+        let invitations = matches!(opening, Asking::Invitations);
+        if invitations {
+            ask_core(CoreCommand::ListInvitations);
+        }
+        let link_shown = Rc::clone(&self.link_shown);
+        let answered = Rc::clone(&self.secret);
+        let wakes = self.waker.clone();
         let signs_in = matches!(opening, Asking::AddAccount { .. });
         // Adding an account starts afresh, unless resumed: whatever was being added, and why it
         // failed, goes.
@@ -850,6 +949,32 @@ impl Root {
                             <AddAccountDialog core={core} known done={done} />
                         }
                     }
+                    Asking::Host(HostAsks::Reauth) => {
+                        let core = create_signal(core);
+                        core_shown.set(Some(core));
+                        view! { <ReauthDialog core={core} done={done} /> }
+                    }
+                    Asking::Host(HostAsks::Discard(reason)) => {
+                        view! { <DiscardDialog reason done={done} /> }
+                    }
+                    Asking::Invitations => {
+                        let core = create_signal(core);
+                        core_shown.set(Some(core));
+                        let link = create_signal(None::<Held>);
+                        link_shown.set(Some(link));
+                        // Asked of the host, answered with a secret the next frame hands over.
+                        let ask = Callback::new(move |command: CoreCommand| {
+                            let answered = Rc::clone(&answered);
+                            let wakes = wakes.clone();
+                            be_wasm_ops::guest::spawn(async move {
+                                if let Ok(secret) = host::ask_core(command).await {
+                                    *answered.borrow_mut() = Some(secret);
+                                    wakes.wake();
+                                }
+                            });
+                        });
+                        view! { <InvitationsDialog core={core} link={link} ask={ask} done={done} /> }
+                    }
                     Asking::ForgetAccount { key, name } => {
                         view! {
                             <ForgetAccountDialog key name done={done} />
@@ -871,6 +996,8 @@ impl Root {
             closed,
             keep,
             signs_in,
+            host_asks,
+            invitations,
             had,
             focused: false,
         });
@@ -890,6 +1017,7 @@ fn chords(escape: bool) -> Vec<KeyChord> {
         KeyChord::new(LOCKS_SESSION, Modifiers::NONE),
         KeyChord::new(UNLOCKS_TWICE, Modifiers::NONE),
         KeyChord::new(OPENS_UNSENT, Modifiers::NONE),
+        KeyChord::new(OPENS_INVITATIONS, Modifiers::NONE),
     ];
     if escape {
         chords.push(KeyChord::new(Key::Escape, Modifiers::NONE));
@@ -1833,6 +1961,18 @@ fn AddAccountDialog(core: Signal<CoreView>, known: Vec<String>, done: Callback<C
             done.call(Closed::Added);
         }
     });
+    // A sign-in it showed that ends with no error signed in: an account signed in to again
+    // (reauthenticating) is no account added, but closes it all the same.
+    let showed = StoredCell::new(false);
+    create_effect(move || {
+        let signing = core.with(|view| view.signing_in.is_some());
+        let failed = core.with(|view| view.account_error.is_some());
+        match signing {
+            true => showed.set(true),
+            false if showed.get() && !failed => done.call(Closed::Added),
+            false => {}
+        }
+    });
     let keeping = create_signal(None::<Keeping>);
     let url = create_signal(String::new());
     let gateway = create_signal(String::new());
@@ -2041,6 +2181,267 @@ fn ForgetAccountDialog(key: String, name: String, done: Callback<Closed>) -> Nod
             </DialogBody>
         </Frame>
     }
+}
+
+/// The host's question of signing in again to an account whose sign-in ended: Continue in
+/// browser, which starts the sign-in the dialog adding an account then shows; Log out, which
+/// forgets the account; or closing it, which leaves the account for the accounts, as be-host's
+/// own does.
+#[component]
+fn ReauthDialog(core: Signal<CoreView>, done: Callback<Closed>) -> NodeId {
+    let asked = create_memo(move || core.with(|view| view.reauthenticating.clone()));
+    let lead = create_memo(move || {
+        asked.with(|asked| {
+            let name = asked.as_ref().map(|asked| asked.name.as_str()).unwrap_or_default();
+            format!("{name}'s sign-in ended. Sign in again to go on.")
+        })
+    });
+    let error = create_memo(move || asked.with(|asked| asked.as_ref()?.error.clone()));
+    let busy = create_memo(move || asked.with(|asked| asked.as_ref().is_some_and(|it| it.busy)));
+    let log_out = move || {
+        if let Some(key) = asked.with_untracked(|asked| asked.as_ref().map(|it| it.key.clone())) {
+            ask_core(CoreCommand::ForgetAccount(key));
+        }
+    };
+    escape_dismisses(done);
+    view! {
+        <Frame
+            width=Length::FILL
+            height=Length::FILL
+            fill=ColorRole::Surface
+            border={Border::DEFAULT}
+            radius=Radius::Lg
+        >
+            <DialogBody
+                title=REAUTH_TITLE
+                actions={vec![
+                    DialogAction::secondary("Log out", log_out),
+                    DialogAction::primary("Continue in browser", || ask_core(CoreCommand::Reauthenticate))
+                        .busy(busy),
+                ]}
+                on_dismiss={move || done.call(Closed::Dismissed)}
+            >
+                <Text style=TextStyle::PARAGRAPH>{lead}</Text>
+                <be_host_accounts_ui::ErrorText text={error} />
+            </DialogBody>
+        </Frame>
+    }
+}
+
+/// The host's question before discarding the changes not saved to this device yet, for
+/// `reason`: discarding them, or keeping them (Escape, or closing it).
+#[component]
+fn DiscardDialog(reason: DiscardReason, done: Callback<Closed>) -> NodeId {
+    let (message, button) = match reason {
+        DiscardReason::SwitchOrganization => (
+            "Switching organizations discards changes not saved on this device yet. Changes waiting to sync are kept.",
+            "Discard and switch",
+        ),
+        DiscardReason::Close => (
+            "Closing discards changes not saved on this device yet. Changes waiting to sync are kept.",
+            "Discard and close",
+        ),
+    };
+    escape_dismisses(done);
+    view! {
+        <Frame
+            width=Length::FILL
+            height=Length::FILL
+            fill=ColorRole::Surface
+            border={Border::DEFAULT}
+            radius=Radius::Lg
+        >
+            <DialogBody
+                kind=DialogKind::Alert
+                title=DISCARD_TITLE
+                scrolls=false
+                actions={vec![
+                    DialogAction::destructive(button, move || done.call(Closed::Confirmed)),
+                    DialogAction::cancel("Keep"),
+                ]}
+                on_dismiss={move || done.call(Closed::Dismissed)}
+            >
+                <Text style=TextStyle::PARAGRAPH>{message}</Text>
+            </DialogBody>
+        </Frame>
+    }
+}
+
+/// The organization's invitations: each with how it stands, its link again for one of the
+/// person's own still open, and Revoke while open; and New link, which makes one. A link comes
+/// back once, as the answer to the command that made it (`ask`), and `link` holds it only while
+/// it shows: Done, or closing the dialog, drops it, zeroed.
+#[component]
+fn InvitationsDialog(
+    core: Signal<CoreView>,
+    link: Signal<Option<Held>>,
+    ask: Callback<CoreCommand>,
+    done: Callback<Closed>,
+) -> NodeId {
+    let area = create_memo(move || core.with(|view| view.invitations.clone()));
+    let rows = create_memo(move || area.with(|area| area.rows.clone()));
+    let busy = create_memo(move || area.with(|area| area.busy || !area.listed));
+    let error = create_memo(move || area.with(|area| area.error.clone()));
+    let showing = create_memo(move || link.with(Option::is_some));
+    let listing = create_memo(move || !showing.get());
+    // What it shows of the link, the one copy it keeps beside the link itself.
+    let shown = create_memo(move || {
+        link.with(|link| {
+            link.as_ref()
+                .and_then(|link| link.0.as_str())
+                .unwrap_or_default()
+                .to_owned()
+        })
+    });
+    let copy = move || {
+        if let Some(text) = link.with_untracked(|link| {
+            link.as_ref().and_then(|link| link.0.as_str()).map(str::to_owned)
+        }) {
+            be_wasm_ops::guest::spawn(async move {
+                let item = be_lib_ui_types::ClipItem::text(text);
+                let _ = host::copy(vec![be_wasm_ops::encode(&item)]).await;
+            });
+        }
+    };
+    escape_dismisses(done);
+    view! {
+        <Frame
+            width=Length::FILL
+            height=Length::FILL
+            fill=ColorRole::Surface
+            border={Border::DEFAULT}
+            radius=Radius::Lg
+        >
+            <List spacing=Space::None>
+                <Show value={listing}>
+                    <DialogBody
+                        title=INVITATIONS_TITLE
+                        actions={vec![
+                            DialogAction::cancel("Close"),
+                            DialogAction::primary("New link", move || ask.call(CoreCommand::InviteMember))
+                                .busy(busy),
+                        ]}
+                        on_dismiss={move || done.call(Closed::Dismissed)}
+                    >
+                        <be_host_accounts_ui::ErrorText text={error} />
+                        <ForEach
+                            value={rows}
+                            key={|row: &InvitationRow| row.id}
+                            fallback={|| view! {
+                                <Text style=TextStyle::CAPTION>"No invitations yet."</Text>
+                            }}
+                        >|row: ReadSignal<InvitationRow>| {
+                            let id = row.with_untracked(|row| row.id);
+                            let title = create_memo(move || row.with(invitation_title));
+                            let open = create_memo(move || {
+                                row.with(|row| matches!(row.state, InvitationState::Waiting | InvitationState::Opened))
+                            });
+                            let has_link = create_memo(move || row.with(|row| row.has_link));
+                            view! {
+                                <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
+                                    <ListItem grow=1.0>
+                                        <Text style=TextStyle::CAPTION>{title}</Text>
+                                    </ListItem>
+                                    <Show value={has_link}>
+                                        <Button
+                                            label="Link"
+                                            variant=ButtonVariant::Secondary
+                                            on_click={move || ask.call(CoreCommand::InvitationLink(id))}
+                                        />
+                                    </Show>
+                                    <Show value={open}>
+                                        <Button
+                                            label="Revoke"
+                                            variant=ButtonVariant::Secondary
+                                            on_click={move || ask_core(CoreCommand::RevokeInvitation(id))}
+                                        />
+                                    </Show>
+                                </List>
+                            }
+                        }</ForEach>
+                    </DialogBody>
+                </Show>
+                <Show value={showing}>
+                    <DialogBody
+                        title="Invitation link"
+                        actions={vec![
+                            DialogAction::secondary("Done", move || link.set(None)),
+                            DialogAction::primary("Copy", copy),
+                        ]}
+                        on_dismiss={move || done.call(Closed::Dismissed)}
+                    >
+                        <Text style=TextStyle::CAPTION>
+                            "Whoever has this link can join the organization."
+                        </Text>
+                        <Text>{shown}</Text>
+                    </DialogBody>
+                </Show>
+            </List>
+        </Frame>
+    }
+}
+
+/// A secret a dialog shows, compared by identity alone: a secret's bytes are never compared.
+#[derive(Clone)]
+struct Held(Rc<Password>);
+
+impl PartialEq for Held {
+    fn eq(&self, other: &Self) -> bool {
+        Rc::ptr_eq(&self.0, &other.0)
+    }
+}
+
+/// How an invitation stands, who made it and when, in words.
+fn invitation_title(row: &InvitationRow) -> String {
+    let state = match row.state {
+        InvitationState::Waiting => "Waiting",
+        InvitationState::Opened => "Opened",
+        InvitationState::Accepted => "Accepted",
+        InvitationState::Expired => "Expired",
+        InvitationState::Revoked => "Revoked",
+    };
+    let made = format!("{state} · made by {} on {}", row.inviter, date(row.created));
+    match (&row.state, &row.accepter, row.ended) {
+        (InvitationState::Accepted, Some(by), Some(on)) => format!("{made} · by {by} on {}", date(on)),
+        (InvitationState::Revoked, _, Some(on)) => format!("{made} · revoked {}", date(on)),
+        _ => format!("{made} · expires {}", date(row.expires)),
+    }
+}
+
+/// A day in UTC, from milliseconds since the epoch, as `2026-11-15`.
+fn date(milliseconds: i64) -> String {
+    let days = milliseconds.div_euclid(86_400_000);
+    // Howard Hinnant's civil_from_days.
+    let z = days + 719_468;
+    let era = z.div_euclid(146_097);
+    let day_of_era = z - era * 146_097;
+    let year_of_era =
+        (day_of_era - day_of_era / 1460 + day_of_era / 36524 - day_of_era / 146_096) / 365;
+    let day_of_year = day_of_era - (365 * year_of_era + year_of_era / 4 - year_of_era / 100);
+    let shifted = (5 * day_of_year + 2) / 153;
+    let day = day_of_year - (153 * shifted + 2) / 5 + 1;
+    let month = if shifted < 10 { shifted + 3 } else { shifted - 9 };
+    let year = year_of_era + era * 400 + i64::from(month <= 2);
+    format!("{year}-{month:02}-{day:02}")
+}
+
+/// Makes Escape close the component's dialog, as dismissed, once nothing inside it took the
+/// key first.
+fn escape_dismisses(done: Callback<Closed>) {
+    on_key(
+        KeyAt::Node(component_node()),
+        KeyPhase::Bubble,
+        KeyReveal::Focus,
+        move |event| {
+            let closes = event
+                .press()
+                .is_some_and(|press| press.pressed && !press.repeat && press.key == Key::Escape);
+            if closes {
+                done.call(Closed::Dismissed);
+            }
+            closes
+        },
+    );
 }
 
 /// An unsent block's name, or what the root calls one with none.
