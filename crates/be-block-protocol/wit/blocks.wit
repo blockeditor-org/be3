@@ -158,6 +158,10 @@ interface blocks {
         entries: list<access-entry>,
         company: bool,
         set-inside: u32,
+        /// The account whose device holds the lease of the block's live
+        /// session now: who hosts it, for a hosted block. None when no one is
+        /// in a session of it with edit access.
+        host: option<account-id>,
     }
 
     /// An account that may view a block, with the name it gave the server
