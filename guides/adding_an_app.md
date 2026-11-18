@@ -254,6 +254,11 @@ The `be_sdk_manifest` types document every field. What is easy to get wrong:
 - `"block_agents": true` lets the app make agents bound to one block
   (guides/apps/host_services.md, Asking and answering); the host denies those calls
   to any other app.
+- `"sharing": true` lets the app grant or reveal access (`set-access`,
+  `list-access`, `transfer-ownership`, and the share and contact link calls),
+  as the workspace, desktop and settings apps do; the host denies those to any
+  other app but for opening a settings kind of its own block to anyone inside,
+  which the editor framework does for every app.
 - `block_types` belong to the type, not an editor (adding_a_block.md, Declare
   it in the manifest).
 - `workers` names the app's worker modules by file name (`"tiles.wasm"`),

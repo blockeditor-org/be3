@@ -229,6 +229,48 @@ impl Instances {
         }
     }
 
+    /// Granting or revealing access is only for an app whose manifest sets `sharing`, so an app
+    /// the person opened cannot share what it shows, or read who has it or its links, unasked.
+    /// Any app may open a settings kind of its own block to anyone inside, or close it
+    /// (`set-access` of `ANYONE_INSIDE` at View or none, on the block it shows or one below
+    /// it), as the editor framework does for a kind every member reads: that names no one.
+    fn refuses_sharing(&self, instance: EditorInstanceId, call: &Call) -> bool {
+        if self.sharing {
+            return false;
+        }
+        match call {
+            Call::SetAccess {
+                block,
+                account,
+                access,
+                ..
+            } => {
+                let opening = Uuid::from_bytes(*account) == be_block_graph::ANYONE_INSIDE
+                    && be_host_stack::app_graph::access_of(*access)
+                        <= be_block_graph::Access::View;
+                let own = self
+                    .entries
+                    .get(&instance)
+                    .and_then(|entry| entry.role.block())
+                    .map(|own| own.id);
+                let block = Uuid::from_bytes(*block);
+                let within = own.is_some_and(|own| {
+                    block == own
+                        || be_host_stack::with_graph(|graph| graph.is_within(block, own))
+                            .unwrap_or(false)
+                });
+                !(opening && within)
+            }
+            Call::ListAccess { .. }
+            | Call::TransferOwnership { .. }
+            | Call::ListShareLinks { .. }
+            | Call::MakeShareLink { .. }
+            | Call::RevokeShareLink { .. }
+            | Call::MakeContactLink { .. } => true,
+            _ => false,
+        }
+    }
+
     /// The block whose signatures `instance` makes and checks: the one it shows, or for a
     /// revision preview the block the revision is of.
     fn signed_in(&self, instance: EditorInstanceId) -> Option<Uuid> {
@@ -291,7 +333,7 @@ impl Instances {
         if !self.entries.contains_key(&instance) {
             return self.refuse(call, OpError::Canceled);
         }
-        if self.refuses_block_agents(instance, &call) {
+        if self.refuses_block_agents(instance, &call) || self.refuses_sharing(instance, &call) {
             return self.refuse(call, OpError::Denied);
         }
         match call {

@@ -88,6 +88,8 @@ pub(super) struct Instances {
     network: Vec<String>,
     /// Whether the app's manifest sets `block_agents`.
     block_agents: bool,
+    /// Whether the app's manifest sets `sharing`.
+    sharing: bool,
     app_id: String,
     services: services::Services,
     fetches: network::Fetches,
@@ -2094,6 +2096,10 @@ impl Instances {
 
     pub(super) fn allow_network(&mut self, hosts: Vec<String>) {
         self.network = hosts;
+    }
+
+    pub(super) fn allow_sharing(&mut self, allowed: bool) {
+        self.sharing = allowed;
     }
 
     pub(super) fn allow_block_agents(&mut self, allowed: bool) {
