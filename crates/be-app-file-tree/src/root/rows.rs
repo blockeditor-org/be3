@@ -293,6 +293,9 @@ impl Tree {
             },
         );
 
+        // A guest keeps nothing of its own here but its settings: Shared with me is all its
+        // files pane shows (decisions/a_guest_makes_only_its_own_shell.md).
+        let role = editor.watch::<be_sdk_beui::RoleWatch>();
         let build = Rc::clone(&watched);
         let host = editor.host();
         let building = client.clone();
@@ -349,7 +352,52 @@ impl Tree {
                 .as_ref()
                 .map(|_| own_system(held.clone(), host.account_id()))
                 .map_err(Clone::clone);
-            let loose = clock.listed(&shared).map(shared_with_me);
+            let guest = role.get() == be_sdk_beui::AccountRole::Guest;
+            let loose = clock.listed(&shared).map(|shared| match guest {
+                // What is shared at the top shows there too, as everything else a guest reaches.
+                true => {
+                    let mut all = shared;
+                    all.extend(
+                        held.iter()
+                            .filter(|block| all.iter().all(|shared| shared.id != block.id))
+                            .cloned()
+                            .collect::<Vec<_>>(),
+                    );
+                    shared_with_me(all)
+                }
+                false => shared_with_me(shared),
+            });
+            if guest {
+                let mut builder = Builder {
+                    account: host.account_id(),
+                    client: &building,
+                    types: types.as_ref(),
+                    watched: &mut watched,
+                    clock,
+                    rows: Vec::new(),
+                    pinned: HashMap::new(),
+                    seen: HashSet::new(),
+                    used: HashSet::new(),
+                    entered: entered.get(),
+                };
+                builder.push_shared(loose, !shared_closed);
+                let due = builder.clock.due;
+                let seen = std::mem::take(&mut builder.seen);
+                let used = std::mem::take(&mut builder.used);
+                let built = builder.rows;
+                watched.shown.retain(|id, _| seen.contains(id));
+                watched.used_by.retain(|id, _| used.contains(id));
+                watched.sections.clear();
+                watched.workspaces.clear();
+                watched.unfiled = None;
+                watched.orphans = None;
+                drop(watched);
+                if let Some(due) = due {
+                    timer.start(due.saturating_duration_since(clock.now));
+                }
+                rows.set(built);
+                return;
+            }
             match unfiled_open {
                 true if watched.unfiled.is_none() => {
                     watched.unfiled = Some(Listing::watch(&building, BlockQuery::Unfiled));

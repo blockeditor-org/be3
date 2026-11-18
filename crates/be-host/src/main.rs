@@ -2140,7 +2140,7 @@ impl HostCore {
                     .host_state
                     .set_last_organization_details(&self.account, &listed);
                 self.organization = Some(listed);
-                self.publish_administrator();
+                self.publish_role();
             }
             None => {
                 let mut account = self.account.clone();
@@ -2853,6 +2853,8 @@ impl HostCore {
     }
 
     fn ensure_shell(&mut self) -> Option<Uuid> {
+        self.root_settings
+            .set_guest(self.role() == be_sdk_api::AccountRole::Guest);
         self.root_settings.ensure_my_files();
         self.root_settings.ensure_unfiled();
         let class = root_settings::device_class();
@@ -3780,6 +3782,8 @@ impl HostCore {
         self.publish_push_device();
         self.load_organizations_if_needed();
         if self.choosing_session {
+            self.root_settings
+                .set_guest(self.role() == be_sdk_api::AccountRole::Guest);
             self.root_settings.ensure();
             performance::end_frame();
             return;
@@ -3871,7 +3875,7 @@ impl HostCore {
             accounts::link_base(&self.server_url)
         };
         be_host_base::watches::publish::<be_sdk_api::LinkBaseWatch>(&link_base);
-        self.publish_administrator();
+        self.publish_role();
         be_host_stack::start(be_host_stack::Config {
             local: self.account.server == ServerLocation::Local,
             server_url: self.server_url.clone(),
@@ -3935,13 +3939,24 @@ impl HostCore {
         );
     }
 
-    fn publish_administrator(&self) {
-        be_host_base::watches::publish::<be_sdk_api::AdministratorWatch>(
-            &self.organization.as_ref().is_some_and(|organization| {
-                organization.kind == be_block_protocol::OrganizationKind::Company
-                    && organization.role == OrganizationRole::Administrator
-            }),
-        );
+    fn publish_role(&self) {
+        be_host_base::watches::publish::<be_sdk_api::RoleWatch>(&self.role());
+    }
+
+    /// The account's role in the organization open: an administrator only of a company.
+    fn role(&self) -> be_sdk_api::AccountRole {
+        match self.organization.as_ref() {
+            Some(organization) if organization.role == OrganizationRole::Guest => {
+                be_sdk_api::AccountRole::Guest
+            }
+            Some(organization)
+                if organization.kind == be_block_protocol::OrganizationKind::Company
+                    && organization.role == OrganizationRole::Administrator =>
+            {
+                be_sdk_api::AccountRole::Administrator
+            }
+            _ => be_sdk_api::AccountRole::Member,
+        }
     }
 
     fn sync_local_settings(&mut self, changes: &be_host_stack::Changes) {

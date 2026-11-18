@@ -1,4 +1,4 @@
-use be_sdk_api::{AdministratorWatch, Watched, ops::guest::with_parent};
+use be_sdk_api::{RoleWatch, Watched, ops::guest::with_parent};
 
 use super::a_watch_of_an_extension_the_manifest_does_not_grant_is_denied::{exchange, opened};
 use super::*;
@@ -7,8 +7,8 @@ use super::*;
 fn closing_the_last_watch_of_a_kind_unwatches_it() {
     let mut wire = Wire::default();
     let (guest, editor, mut heard) = opened(&mut wire);
-    let first = guest.enter(|| with_parent(editor, AdministratorWatch::open));
-    let second = guest.enter(|| with_parent(editor, AdministratorWatch::open));
+    let first = guest.enter(|| with_parent(editor, RoleWatch::open));
+    let second = guest.enter(|| with_parent(editor, RoleWatch::open));
     exchange(&mut wire, &guest, &mut heard);
     heard.clear();
 
@@ -22,7 +22,7 @@ fn closing_the_last_watch_of_a_kind_unwatches_it() {
     guest.enter(|| drop(second));
     exchange(&mut wire, &guest, &mut heard);
     assert!(
-        matches!(heard.as_slice(), [Heard::Unwatch(_, open)] if *open == AdministratorWatch::OPEN),
+        matches!(heard.as_slice(), [Heard::Unwatch(_, open)] if *open == RoleWatch::OPEN),
         "{heard:?}"
     );
 }
