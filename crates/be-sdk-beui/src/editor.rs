@@ -1179,6 +1179,22 @@ impl Editor {
         self.core().host().tell_host(self.block_id(), payload);
     }
 
+    /// Whether this device hosts the block (plans/hosted_blocks.md, "Hosting"): runs its host
+    /// component, and keeps hosting it after its editors here close (`keep_hosting`).
+    pub fn hosting(&self) -> Memo<be_sdk_api::blocks::HostingHere> {
+        let core = self.core();
+        let changed = self.pushed(Pushed::Hosting);
+        create_memo(move || {
+            changed.track();
+            core.host().hosting()
+        })
+    }
+
+    /// Keeps this device hosting the block after its last editor here closes, or no longer.
+    pub fn keep_hosting(&self, keep: bool) {
+        self.core().host().keep_hosting(self.block_id(), keep);
+    }
+
     pub fn presence_visible(&self) -> ReadSignal<bool> {
         self.state().shown.presence_visible.read_only()
     }

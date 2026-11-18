@@ -75,6 +75,30 @@ pub fn roles_revision() -> u64 {
     ROLES.load(std::sync::atomic::Ordering::Acquire)
 }
 
+thread_local! {
+    /// The blocks this device hosts, and whether it keeps hosting each (`set_hosting`).
+    static HOSTING: std::cell::RefCell<HashMap<Uuid, be_sdk_api::blocks::HostingHere>> =
+        std::cell::RefCell::new(HashMap::default());
+}
+
+/// Says this device hosts `block` (plans/hosted_blocks.md, "Hosting"), keeps hosting it, or no
+/// longer hosts it (`HostingHere::No`): its editors hear it as `editor-event.hosting`.
+pub fn set_hosting(block: Uuid, hosting: be_sdk_api::blocks::HostingHere) {
+    HOSTING.with(|held| match hosting {
+        be_sdk_api::blocks::HostingHere::No => held.borrow_mut().remove(&block),
+        hosting => held.borrow_mut().insert(block, hosting),
+    });
+}
+
+fn hosting_of(block: Uuid) -> be_sdk_api::blocks::HostingHere {
+    HOSTING.with(|held| {
+        held.borrow()
+            .get(&block)
+            .copied()
+            .unwrap_or(be_sdk_api::blocks::HostingHere::No)
+    })
+}
+
 #[derive(Default)]
 pub(super) struct Instances {
     entries: HashMap<EditorInstanceId, Instance>,
@@ -162,6 +186,8 @@ struct Instance {
     deferred: Vec<Outbound>,
     reported_focus: Option<Focus>,
     reported_editable: Option<bool>,
+    /// Whether this device hosts its block, as last told (`editor-event.hosting`).
+    reported_hosting: Option<be_sdk_api::blocks::HostingHere>,
     /// The actions each view last described (`frame-report.actions`), kept while nothing asks
     /// the app to describe.
     actions: HashMap<ViewId, Vec<DescribedAction>>,
@@ -334,6 +360,7 @@ impl Instance {
             deferred: Vec::new(),
             reported_focus: None,
             reported_editable: None,
+            reported_hosting: None,
             joined: false,
             actions: HashMap::default(),
             menu_picked: None,
@@ -406,6 +433,7 @@ fn forget_opened(
     entry.deferred.clear();
     entry.reported_focus = None;
     entry.reported_editable = None;
+    entry.reported_hosting = None;
     entry.reported_view = None;
     entry.reported_presenting = false;
     entry.published.forget_reported();
@@ -2478,6 +2506,18 @@ impl Instances {
             if let InstanceRole::Host(_, block) = entry.role {
                 for event in be_host_stack::take_member_events(block.id) {
                     opened.push(Outbound::Event(instance, EditorEvent::Member(event)));
+                }
+            }
+            // An editor hears whether this device hosts its block, once it is anything but `no`
+            // and whenever it changes after.
+            if let InstanceRole::Editor(_, block) = entry.role {
+                let hosting = hosting_of(block.id);
+                let told = entry
+                    .reported_hosting
+                    .unwrap_or(be_sdk_api::blocks::HostingHere::No);
+                if told != hosting {
+                    entry.reported_hosting = Some(hosting);
+                    opened.push(Outbound::Event(instance, EditorEvent::Hosting(hosting)));
                 }
             }
             // A Join member hears its block's host channel open, close and carry what the host
