@@ -73,8 +73,8 @@ enum Quote {
 }
 
 /// What the chat calls each account: "You", or a member by the name the host gives
-/// (`Editor::members`): its contact card's, or the one the server gave, which the row marks as
-/// unverified. An account the host has not named (before it answers, offline, or one that may no
+/// (`Editor::members`): its contact card's, or the one the server gave, which the row marks with
+/// an "unverified name" caption and a quote or "Replying to" with "(unverified name)" after it. An account the host has not named (before it answers, offline, or one that may no
 /// longer view the chat) shows as "Member" and its account's first digits.
 #[derive(Clone, Copy)]
 struct Names {
@@ -117,9 +117,19 @@ impl Names {
                 .with(|members| members.get(&account).is_some_and(|(_, verified)| !verified))
     }
 
+    /// The name a line of text calls `account` by, as a reply's quote and the composer's
+    /// "Replying to" do: a name the server gave says so in it, as no caption follows it there.
+    fn inline(&self, account: Uuid) -> String {
+        let name = self.name(account);
+        match self.unverified(account) {
+            true => format!("{name} (unverified name)"),
+            false => name,
+        }
+    }
+
     fn quote(&self, quote: &Quote) -> String {
         match quote {
-            Quote::Message(author, excerpt) => format!("{}: {excerpt}", self.name(*author)),
+            Quote::Message(author, excerpt) => format!("{}: {excerpt}", self.inline(*author)),
             Quote::Deleted => "A deleted message".to_owned(),
         }
     }
@@ -566,7 +576,7 @@ pub fn Chat(editor: Editor) -> NodeId {
         let (author, body) = quoted.with(|row| (row.author, excerpt(&row.body)));
         Some(format!(
             "Replying to {}: {body}",
-            author.map(|author| names.name(author)).unwrap_or_default()
+            author.map(|author| names.inline(author)).unwrap_or_default()
         ))
     });
     let editing = create_memo(move || composer.editing.get().is_some());
