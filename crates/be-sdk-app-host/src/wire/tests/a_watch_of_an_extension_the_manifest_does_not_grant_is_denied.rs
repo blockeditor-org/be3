@@ -1,7 +1,7 @@
 use std::{cell::RefCell, rc::Rc};
 
 use be_sdk_api::{
-    RoleWatch, PowerAction, PowerWatch, Watched,
+    PowerAction, PowerWatch, RoleWatch, Watched,
     guest::desktop::power,
     ops::{
         OpError,

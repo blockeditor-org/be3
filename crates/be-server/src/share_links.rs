@@ -377,7 +377,7 @@ impl ServerStore {
                 .and_then(|node| node.grants.get(&caller).copied())
                 .unwrap_or(Access::None);
             if found.access > held {
-                revoke_or_grant(store, 
+                revoke_or_grant(store,
                     graph,
                     &transaction,
                     organization,
@@ -498,7 +498,7 @@ impl ServerStore {
                 })
                 .collect();
             for account in &fallen {
-                revoke_or_grant(store, 
+                revoke_or_grant(store,
                     graph,
                     &transaction,
                     identity.organization,
