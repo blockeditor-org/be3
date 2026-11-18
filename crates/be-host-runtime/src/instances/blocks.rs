@@ -402,7 +402,7 @@ impl BlockStore for Instances {
         if !kept {
             if let Some(mut link) = entry.watched.remove(&block) {
                 let shown = entry.shown_on(block);
-                link.detach(instance, block, &shown);
+                link.detach(instance, &self.app_id, block, &shown);
                 entry.shown.retain(|(on, _)| *on != block);
             }
             entry.watched.insert(block, ContentLink::new(content_type));
@@ -469,7 +469,7 @@ impl BlockStore for Instances {
         };
         if let Some(mut link) = entry.watched.remove(&block) {
             let shown = entry.shown_on(block);
-            link.detach(instance, block, &shown);
+            link.detach(instance, &self.app_id, block, &shown);
             entry.shown.retain(|(on, _)| *on != block);
         }
     }
