@@ -37,15 +37,9 @@ const PING_FRAME_BYTES: usize = 32;
 /// The socket plus the greeting. Once connected no request has a deadline of its own: each is
 /// answered or fails with `Disconnected` when the connection closes.
 pub const CONNECT_TIMEOUT: Duration = Duration::from_secs(15);
-/// Silence after which the connection calls `connection.ping` ahead of anything queued. It is a
-/// protocol call because a browser cannot send websocket pings; any frame from the server
-/// proves it alive.
-pub const PING_INTERVAL: Duration = Duration::from_secs(15);
-/// How long after a ping is actually written, with nothing heard, before the connection closes
-/// itself; a write still stuck this long after the ping fell due closes it too. Only an
-/// unanswered ping closes it, so a process suspended for longer keeps a live connection when it
-/// wakes.
-pub const PONG_WAIT: Duration = Duration::from_secs(20);
+/// The client's ping timing, in be-block-protocol because the server's idle limit is derived
+/// from it.
+pub use be_block_protocol::{PING_INTERVAL, PONG_WAIT};
 /// Silence after something was sent that the connection takes as a sign the server may be gone:
 /// it pings then rather than at `PING_INTERVAL`, so a link that went silent under a request is
 /// noticed in `ANSWER_WAIT` plus `PONG_WAIT`. The ping waits as long as any, so a server that
@@ -703,6 +697,10 @@ async fn carry(
     let mut sending: Option<(Sending, Duration)> = None;
     let mut queued: VecDeque<(Out, bool)> = VecDeque::new();
     let mut heard = opened;
+    // When anything was last written: a client that keeps hearing frames still pings once it has
+    // sent nothing for PING_INTERVAL, so the server, which gives up on a connection it has not
+    // heard from (be-block-protocol's `CLIENT_SILENCE`), hears it.
+    let mut wrote = opened;
     let mut owed = false;
     let mut pinged: Option<Duration> = None;
     // When something other than a ping was written with nothing heard since.
@@ -713,7 +711,8 @@ async fn carry(
     loop {
         let now = clock.now();
         let early = asked.is_some_and(|at| now >= at + ANSWER_WAIT);
-        if !owed && pinged.is_none() && (now >= heard + PING_INTERVAL || early) {
+        let quiet = heard.min(wrote);
+        if !owed && pinged.is_none() && (now >= quiet + PING_INTERVAL || early) {
             ping = Some(client::server::ping(&peer));
             owed = true;
         }
@@ -736,8 +735,8 @@ async fn carry(
             }
             (None, Some(stuck)) if owed => stuck,
             (None, _) => match (owed, asked) {
-                (false, Some(at)) => (heard + PING_INTERVAL).min(at + ANSWER_WAIT),
-                _ => heard + PING_INTERVAL,
+                (false, Some(at)) => (quiet + PING_INTERVAL).min(at + ANSWER_WAIT),
+                _ => quiet + PING_INTERVAL,
             },
         };
         due.send_if_modified(|due| std::mem::replace(due, next) != next);
@@ -781,6 +780,7 @@ async fn carry(
             Woke::Wrote(idle, is_ping, Ok(())) => {
                 writer = Some(idle);
                 sending = None;
+                wrote = clock.now();
                 if is_ping {
                     owed = false;
                     pinged = Some(clock.now());
