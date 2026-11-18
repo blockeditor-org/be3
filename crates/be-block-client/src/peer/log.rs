@@ -610,6 +610,23 @@ impl<S: ObjectStore> Peer<S> {
             .collect())
     }
 
+    /// The entries this device appended to `block`'s log that the server has not taken yet, in
+    /// the order they wait in the outbox: each id with the bytes its app appended. One no key
+    /// this device holds opens is left out.
+    pub fn kept_entries(&self, block: Uuid) -> Vec<(Uuid, Vec<u8>)> {
+        self.refs
+            .pending_for(block)
+            .into_iter()
+            .filter_map(|(_, op)| {
+                let Op::Append(appending) = op else {
+                    return None;
+                };
+                let plain = self.open_for(block, &appending.payload).ok()?;
+                Some((appending.id, Said::opened(plain)?.bytes))
+            })
+            .collect()
+    }
+
     /// The latest `count` entries of `block`'s signed log, read as `read_log` reads (and
     /// following the log): a page from past its end names its length, then the page before it.
     pub async fn read_log_tail(&self, block: Uuid, count: u32) -> Result<LogRead, ClientError> {

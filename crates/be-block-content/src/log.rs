@@ -60,3 +60,21 @@ pub struct Along {
     /// redacted: the entry's author's, or a manager's, as the server checks.
     pub redacts: Option<u64>,
 }
+
+/// Where an entry appended to a block's signed log went: its id, and its place and arrival once
+/// the server took it, none while it waits on the device for the server.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
+pub struct LogAppended {
+    pub id: Uuid,
+    pub place: Option<(u64, i64)>,
+}
+
+/// A run of a block's signed log read: the log's length as the device verified it, the entries
+/// asked for, and the entries the device appended that the server has not taken yet, each with
+/// its id and the bytes the app appended.
+#[derive(Clone, Debug, Default, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
+pub struct LogPage {
+    pub size: u64,
+    pub items: Vec<LogItem>,
+    pub kept: Vec<(Uuid, Vec<u8>)>,
+}

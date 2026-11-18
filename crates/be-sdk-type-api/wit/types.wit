@@ -140,6 +140,16 @@ interface types {
     record log-page {
         size: u64,
         items: list<log-item>,
+        /// The entries this device appended that the server has not taken
+        /// yet, in order: they wait in its outbox, and reach the log later.
+        kept: list<kept-entry>,
+    }
+
+    /// An entry this device appended that waits for the server: its id and
+    /// the bytes the app appended.
+    record kept-entry {
+        id: uuid,
+        payload: list<u8>,
     }
 
     record description {
