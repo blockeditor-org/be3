@@ -253,8 +253,11 @@ within one page: step 4's fold takes the first occurrence of an id.
    not searchable; both land on the integration branch before it merges, so
    that gap never reaches main.
 
-   5a is built (guides/chat.md). Where it differs from the design below:
-   - **Search** comes in 5b.
+   5a and 5b are built (guides/chat.md). Where they differ from the design
+   below:
+   - **Search** is 5b's: one document per entry, by place. A redaction is
+     pushed to the log's followers (`event.redacted`), so a removed message
+     leaves the index and the open chat at once, whoever removed it.
    - **Others' edits and deletions** show nothing.
    - **Deleted messages** show no row, unless the deletion's key is worth
      saying ("deleted with an old key"). An entry redacted by anyone but its
