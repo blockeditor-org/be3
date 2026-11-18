@@ -84,7 +84,10 @@ impl Driven {
     }
 
     pub fn log_report(&self) -> String {
-        log_report(&std::fs::read_to_string(&self.log).unwrap_or_default())
+        log_report(
+            &self.name(),
+            &std::fs::read_to_string(&self.log).unwrap_or_default(),
+        )
     }
 
     pub fn request(&self, words: &[&str]) -> Result<Reply, String> {
@@ -123,7 +126,8 @@ impl Driven {
     }
 }
 
-pub fn log_report(log: &str) -> String {
+/// The panics in `log`, the log of the program `name`, and its last lines.
+pub fn log_report(name: &str, log: &str) -> String {
     let lines: Vec<&str> = log.lines().collect();
     let mut panics: Vec<(usize, usize)> = Vec::new();
     for (start, line) in lines.iter().enumerate() {
@@ -143,11 +147,14 @@ pub fn log_report(log: &str) -> String {
         .filter(|(start, _)| *start < tail)
         .map(|&(start, end)| lines[start..end.min(tail)].join("\n"))
         .collect();
-    let end = format!("The end of the app's log:\n{}", lines[tail..].join("\n"));
+    let end = match lines.is_empty() {
+        true => format!("{name} logged nothing."),
+        false => format!("The end of {name}'s log:\n{}", lines[tail..].join("\n")),
+    };
     match before.is_empty() {
         true => end,
         false => format!(
-            "The app's panics before that:\n{}\n\n{end}",
+            "{name}'s panics before that:\n{}\n\n{end}",
             before.join("\n\n")
         ),
     }
@@ -196,13 +203,50 @@ fn backtrace_line(line: &str) -> bool {
         })
 }
 
+/// Where a program that ends in a failing test leaves its whole logs (every start's), when set:
+/// a test's failure carries only the end of the last one. `stress` sets it for each run.
+const KEEP_LOGS: &str = "BE_DRIVE_KEEP_LOGS";
+
 impl Drop for Driven {
     fn drop(&mut self) {
         if let Some(mut child) = self.child.take() {
             launch::kill(child.id());
             let _ = child.wait();
         }
+        if std::thread::panicking()
+            && let Some(keep) = std::env::var_os(KEEP_LOGS)
+        {
+            self.keep_logs(Path::new(&keep));
+        }
         let _ = std::fs::remove_dir_all(&self.dir);
+    }
+}
+
+impl Driven {
+    /// The program's file name, which its log is reported under.
+    fn name(&self) -> String {
+        Path::new(&self.start.program)
+            .file_name()
+            .map_or_else(|| "the program".to_owned(), |name| name.to_string_lossy().into_owned())
+    }
+
+    /// Copies every log this program wrote into `keep`, named after it and the directory it ran in.
+    fn keep_logs(&self, keep: &Path) {
+        let _ = std::fs::create_dir_all(keep);
+        let Ok(entries) = std::fs::read_dir(&self.dir) else {
+            return;
+        };
+        let run = self
+            .dir
+            .file_name()
+            .map_or_else(String::new, |run| run.to_string_lossy().into_owned());
+        for entry in entries.flatten() {
+            let name = entry.file_name().to_string_lossy().into_owned();
+            if name.ends_with(".log") {
+                let kept = keep.join(format!("{}.{run}.{name}", self.name()));
+                let _ = std::fs::copy(entry.path(), kept);
+            }
+        }
     }
 }
 
