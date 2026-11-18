@@ -1,7 +1,8 @@
 use super::*;
 
 /// The accepter removes the link's owner as a contact before the owner's device finished the
-/// link: the link goes with the card it left in the owner's mailbox, so nothing is left to finish.
+/// link: the link goes with the card it left in the owner's mailbox, so nothing is left to finish,
+/// and each is left word that the other is no longer a contact.
 #[tokio::test]
 async fn a_link_accepted_then_unmade_as_a_contact_leaves_no_link_or_card() {
     let harness = Harness::start().await;
@@ -18,7 +19,8 @@ async fn a_link_accepted_then_unmade_as_a_contact_leaves_no_link_or_card() {
             })
             .unwrap()
     };
-    let cards = "SELECT count(*) FROM mailbox WHERE account_id = ?1 AND sender_id = ?2";
+    let cards =
+        "SELECT count(*) FROM mailbox WHERE account_id = ?1 AND sender_id = ?2 AND kind = 'accepted'";
     let links = "SELECT count(*) FROM links WHERE owner_id = ?1 AND accepter_id = ?2";
     assert_eq!((count(cards), count(links)), (1, 1));
 
@@ -28,6 +30,16 @@ async fn a_link_accepted_then_unmade_as_a_contact_leaves_no_link_or_card() {
         (0, 0),
         "a link or its card was left to finish"
     );
+    for (to, from) in [(owner_id, other_id), (other_id, owner_id)] {
+        let letters: Vec<String> = database
+            .prepare("SELECT kind FROM mailbox WHERE account_id = ?1 AND sender_id = ?2")
+            .unwrap()
+            .query_map([to.to_string(), from.to_string()], |row| row.get(0))
+            .unwrap()
+            .map(Result::unwrap)
+            .collect();
+        assert_eq!(letters, ["removed"], "what each is left of the other");
+    }
     let listed = owner
         .call(|peer| peer.read::<Vec<be_block_protocol::OwnLink>>(be_block_protocol::Query::Links))
         .await

@@ -3269,6 +3269,13 @@ async fn create_agent(
         None => None,
     };
     let member = peer.agent_record(account, secret.identity()).await?;
+    let card = be_block_keys::ContactCard {
+        account: account.into_bytes(),
+        public,
+        signing: secret.signing(),
+        display_name: name.trim().to_owned(),
+        email: be_block_protocol::agent_email(account),
+    };
     let be_block_protocol::CreatedAgent { agent, token } = ask(be_block_protocol::write::<
         be_block_protocol::CreatedAgent,
         _,
@@ -3281,6 +3288,7 @@ async fn create_agent(
             recovery: public.0,
             signing: secret.signing().0,
             contact: be_block_client::contacts::OwnContact::new(me.clone(), 0).seal(&secret),
+            record: be_block_client::contacts::OwnContact::new(card, 0).seal(identity),
             escrow: be_block_client::contacts::seal_pin(
                 &secret,
                 organization,
@@ -3294,25 +3302,10 @@ async fn create_agent(
         },
     ))
     .await?;
-    let card = be_block_keys::ContactCard {
-        account: agent.account.into_bytes(),
-        public,
-        signing: secret.signing(),
-        display_name: agent.name.clone(),
-        email: agent.email.clone(),
-    };
     let finished = async {
-        ask(be_block_protocol::write::<(), _>(
-            &peer.connection(),
-            None,
-            be_block_protocol::Op::PutContact {
-                contact: agent.account,
-                sealed: be_block_client::contacts::OwnContact::new(card.clone(), 0).seal(identity),
-                // Made with the agent, the record is still empty.
-                replaces: Vec::new(),
-            },
-        ))
-        .await?;
+        // The maker's record of the agent arrives in its mailbox, left by the same write: taken
+        // into the account's block, the agent is a verified contact to seal its block's key to.
+        peer.refresh_contacts().await?;
         if let Some(block) = bound_to {
             peer.seal_share(block, agent.account, &public).await?;
         }
@@ -4393,10 +4386,11 @@ async fn heard(
         Some(Event::Paired(be_block_protocol::PairingMessage { from, payload })) => {
             asked_to_pair(shared, from, &payload);
         }
-        Some(Event::ContactsChanged) => tasks.contacts(peer, shared),
         Some(Event::KeysChanged) => tasks.relearn_locked(peer, shared),
         Some(Event::NotifyModesChanged) => tasks.notify_modes(peer, shared),
-        // A notice to show, or a contact's key change or an accepted link's card to take.
+        // A notice to show, or a contact's key change, a record of a contact made or removed,
+        // or an accepted link's card to take; or another device took one into the account's
+        // block.
         Some(Event::MailboxChanged) => {
             tasks.account_notices(peer);
             tasks.contacts(peer, shared);

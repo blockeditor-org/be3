@@ -384,6 +384,31 @@ fn require_own_settings(
     }
 }
 
+/// The account's own block (`be_block::account_block`) is made only at its id in the personal
+/// organization, owner-only and at the top, so it holds the account's records alone and no one
+/// else reads it (guides/blocks/keys.md, "Contacts").
+fn require_account_block(
+    connection: &rusqlite::Connection,
+    identity: Identity,
+    content_type: Uuid,
+    parent: BlockParent,
+    owner_only: bool,
+) -> Result<(), ServerError> {
+    let personal = crate::keys::organization_kind(connection, identity.organization)?
+        == be_block_protocol::OrganizationKind::Personal;
+    match personal
+        && owner_only
+        && parent == BlockParent::Root
+        && content_type == <be_block::AccountBlock as be_block_content::Root>::CONTENT_TYPE
+    {
+        true => Ok(()),
+        false => Err(ServerError::Refused(
+            ErrorCode::PermissionDenied,
+            "an account's own block is made only by it, readable by it alone, at the top of the personal organization".into(),
+        )),
+    }
+}
+
 /// Only the author of an owner-only block, or of the one it lies in, moves or shares it, whatever
 /// access anyone else is given (decisions/owner_only_settings_are_never_escrowed.md).
 fn require_owner_of_owner_only(
@@ -482,7 +507,10 @@ impl ServerStore {
             if let BlockParent::Block(target) = parent {
                 require_parent_of(graph, &visibility(identity), content_type, target)?;
             }
-            if owner_only {
+            let account_block = block == be_block::account_block(identity.organization, identity.account);
+            if account_block {
+                require_account_block(database, identity, content_type, parent, owner_only)?;
+            } else if owner_only {
                 require_own_settings(graph, identity, parent)?;
             }
             if content_type == SEARCH_INDEX_TYPE {

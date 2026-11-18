@@ -71,7 +71,9 @@ the server included (decisions/owner_only_settings_are_never_escrowed.md). Its b
 `ensure_block_kind` pass `owner_only` to `Blocks::create_at`, the app protocol's `create-block`
 carries the flag, and the host passes it to `Peer::create_block`. It is made only in the
 author's own `Settings` or `SettingsProfile` (`be_block::holds_owner_only`, checked by the host
-and the server), nothing moves into it, block files leave it out, and collecting a detached
+and the server), or as the account's own block (`be_block::account_block`, at the top of the
+personal organization, where the account keeps its contacts' records: guides/blocks/keys.md,
+"Contacts"), nothing moves into it, block files leave it out, and collecting a detached
 subtree takes it with its parent. The block protocol's
 `create-block` stores it on the block for its whole life (`BlockNode::owner_only`), and the
 block is a scope root of its own whose key is sealed to its author alone (guides/blocks/keys.md,

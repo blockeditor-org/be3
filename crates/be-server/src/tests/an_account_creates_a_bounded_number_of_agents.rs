@@ -19,6 +19,7 @@ async fn an_account_creates_a_bounded_number_of_agents() {
                 [index as u8; 32],
                 Vec::new(),
                 Vec::new(),
+                Vec::new(),
                 None,
                 None,
             )
@@ -35,6 +36,7 @@ async fn an_account_creates_a_bounded_number_of_agents() {
                 "One more",
                 [200; 32],
                 [200; 32],
+                Vec::new(),
                 Vec::new(),
                 Vec::new(),
                 None,
@@ -65,6 +67,7 @@ async fn an_account_creates_a_bounded_number_of_agents() {
             "Replacement",
             [201; 32],
             [201; 32],
+            Vec::new(),
             Vec::new(),
             Vec::new(),
             None,

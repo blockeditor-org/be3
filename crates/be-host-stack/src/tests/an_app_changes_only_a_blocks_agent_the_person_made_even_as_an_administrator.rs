@@ -60,6 +60,7 @@ fn an_app_changes_only_a_blocks_agent_the_person_made_even_as_an_administrator()
                 recovery: identity.public.0,
                 signing: identity.signing.0,
                 contact: Vec::new(),
+                record: Vec::new(),
                 escrow: Vec::new(),
                 bound_to: None,
                 member: signed,

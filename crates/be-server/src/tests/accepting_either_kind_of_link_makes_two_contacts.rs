@@ -5,8 +5,7 @@ async fn knows(client: &mut TestClient, account: Uuid) -> bool {
     client
         .contacts()
         .await
-        .iter()
-        .any(|contact| contact.account == account)
+        .contains(&account)
 }
 
 #[tokio::test]

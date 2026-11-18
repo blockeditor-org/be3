@@ -58,7 +58,6 @@ pub enum Push {
         entry: std::sync::Arc<be_block_protocol::JournalEntry>,
     },
     Paired(PairingMessage),
-    ContactsChanged,
     /// A message arrived in the account's mailbox, or was deleted (`store/mailbox.rs`).
     MailboxChanged,
     /// The account's key work in the organization may have changed (`topic.key-work`).

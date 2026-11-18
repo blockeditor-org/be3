@@ -464,12 +464,10 @@ pub async fn keys(server_url: String, token: String) -> Result<Keys, AccountErro
     })
 }
 
-/// Moves the account to `fresh`, resealing with `old` everything sealed to it or for itself
-/// (`contacts::new_identity`); with no `old`, only an account with nothing sealed yet. The
-/// contacts' waiting key changes are followed first, checked against the device's `pins`, so
-/// the changes this sends seal to each contact's newest key, which the contact's devices can
-/// open. That is best-effort: a contact's mailbox that will not read never holds up a new
-/// phrase. The server seals again what the account sealed to it (`ServerKey::reseal_from`).
+/// Moves the account to `fresh` (`be_block_client::contacts::set_recovery_key`), resealing with
+/// `old` everything sealed to it or for itself; with no `old`, only an account with nothing
+/// sealed yet. The contacts' waiting key changes are followed first, checked against the
+/// device's `pins`.
 pub async fn set_recovery_key(
     server_url: String,
     token: String,
@@ -479,55 +477,12 @@ pub async fn set_recovery_key(
     pins: std::collections::HashMap<Uuid, be_block_client::contacts::OwnContact>,
 ) -> Result<(), AccountError> {
     let connection = authenticated(&server_url, token).await?;
-    if let Some(old) = &old
-        && let Err(error) =
-            be_block_client::contacts::contacts(&connection, account, old, &pins).await
-    {
-        eprintln!(
-            "be-host: a new phrase goes on without following the contacts' key changes: {error}"
-        );
-    }
-    let be_block_protocol::RecoveryKey {
-        sealed, own, logs, ..
-    } = ask(
-        be_block_protocol::read::<be_block_protocol::RecoveryKey, _>(
-            &connection,
-            None,
-            be_block_protocol::Query::RecoveryKey,
-        ),
-    )
-    .await?;
-    let resealed = match (sealed.is_empty() && own.is_empty() && logs.is_empty(), &old) {
-        (true, _) => Some(be_block_client::contacts::NewIdentity {
-            sealed: Vec::new(),
-            own: Vec::new(),
-            changes: Vec::new(),
-            retirements: Vec::new(),
-        }),
-        (false, None) => None,
-        (false, Some(old)) => {
-            be_block_client::contacts::new_identity(account, old, &fresh, sealed, own, logs)
-        }
-    };
-    let resealed = resealed.ok_or_else(|| AccountError {
+    be_block_client::contacts::set_recovery_key(&connection, account, old.as_ref(), &fresh, &pins)
+        .await?
+        .map_err(|_| AccountError {
         message: CANNOT_RESEAL.to_owned(),
         invalid_token: false,
-    })?;
-    let public = fresh.identity();
-    ask(be_block_protocol::write::<(), _>(
-        &connection,
-        None,
-        be_block_protocol::Op::SetRecoveryKey {
-            public: public.public.0,
-            signing: public.signing.0,
-            sealed: resealed.sealed,
-            own: resealed.own,
-            changes: resealed.changes,
-            retirements: resealed.retirements,
-        },
-    ))
-    .await?;
-    Ok(())
+    })
 }
 
 /// Why a new phrase can't be taken on a device without the old one.

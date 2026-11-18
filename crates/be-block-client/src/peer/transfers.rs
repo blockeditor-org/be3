@@ -47,12 +47,16 @@ impl<S: ObjectStore> Peer<S> {
         for batch in missing.chunks(MAX_OBJECT_URLS) {
             let urls = self.download_urls(batch).await?;
             let mut downloads =
-                futures_util::stream::iter(batch.iter().zip(urls).map(|(hash, url)| async move {
-                    match url {
-                        Some(url) => download(*hash, &url).await.map(|bytes| (*hash, bytes)),
-                        None => Ok((*hash, None)),
-                    }
-                }))
+                // Owned hashes, so the stream's future is sent between threads whatever lifetimes
+                // its callers hold it with.
+                futures_util::stream::iter(batch.iter().copied().zip(urls).map(
+                    |(hash, url)| async move {
+                        match url {
+                            Some(url) => download(hash, &url).await.map(|bytes| (hash, bytes)),
+                            None => Ok((hash, None)),
+                        }
+                    },
+                ))
                 .buffer_unordered(TRANSFERS);
             while let Some(downloaded) = downloads.next().await {
                 match downloaded? {
@@ -112,19 +116,19 @@ impl<S: ObjectStore> Peer<S> {
             let wanted: Vec<_> = batch
                 .iter()
                 .zip(urls)
-                .filter_map(|(hash, url)| Some((hash, url?)))
+                .filter_map(|(hash, url)| Some((*hash, url?)))
                 .collect();
             // What the server lacks goes up only if no log this device holds shows its key
             // outdated: whatever path asks (an outbox commit, a snapshot, a fork), what was
             // sealed offline under such a key never leaves it.
             for (hash, _) in &wanted {
-                if let Some(block) = Box::pin(self.sealed_outdated(**hash)).await {
+                if let Some(block) = Box::pin(self.sealed_outdated(*hash)).await {
                     return Err(ClientError::Outdated(block));
                 }
             }
             let mut uploads =
                 futures_util::stream::iter(wanted.into_iter().map(|(hash, url)| async move {
-                    let bytes = store.get(*hash)?.ok_or(ClientError::MissingObject(*hash))?;
+                    let bytes = store.get(hash)?.ok_or(ClientError::MissingObject(hash))?;
                     let headers: Vec<(String, String)> = url
                         .headers
                         .into_iter()

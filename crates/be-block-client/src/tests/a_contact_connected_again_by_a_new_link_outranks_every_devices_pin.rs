@@ -3,7 +3,7 @@ use super::*;
 /// A contact connects again by a new link, as one who lost their phrase must, and one device
 /// accepts it; a device of the same account that pinned a record dated by a clock running
 /// ahead takes the new record all the same, as a record a link makes follows the newest the
-/// server holds
+/// account's block holds
 /// (plans/crypto_audit.md, 4).
 #[tokio::test]
 async fn a_contact_connected_again_by_a_new_link_outranks_every_devices_pin() {
@@ -24,24 +24,18 @@ async fn a_contact_connected_again_by_a_new_link_outranks_every_devices_pin() {
         verified: pinned.verified + 10_000_000,
         ..pinned
     };
-    crate::ask(be_block_protocol::write::<(), _>(
-        &ahead.connection(),
-        None,
-        be_block_protocol::Op::PutContact {
-            contact: rosa.account(),
-            sealed: dated_ahead.seal(ahead.keys().identity()),
-            replaces: harness
-                .database()
-                .query_row(
-                    "SELECT sealed FROM contacts WHERE account_id = ?1 AND contact_id = ?2",
-                    [ahead.account().to_string(), rosa.account().to_string()],
-                    |row| row.get(0),
-                )
-                .unwrap(),
-        },
-    ))
-    .await
-    .unwrap();
+    crate::AccountRecords::open(&ahead.connection(), ahead.account(), ahead.keys().identity())
+        .await
+        .unwrap()
+        .expect("a person's account has its own block")
+        .update(|_| {
+            vec![be_block::AccountBlock::set_contact(
+                rosa.account(),
+                Some(dated_ahead.encode()),
+            )]
+        })
+        .await
+        .unwrap();
     ahead.refresh_contacts().await.unwrap();
 
     // Rosa sends a new link, as one who lost her phrase would, and the other device takes it.

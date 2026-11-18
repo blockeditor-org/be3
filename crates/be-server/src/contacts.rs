@@ -2,7 +2,7 @@ use std::collections::BTreeSet;
 
 use be_block_graph::Access;
 use be_block_protocol::{
-    ContactRow, ErrorCode, Invitation, InvitationPreview, InvitationRow, InvitationState, KeyKind,
+    ErrorCode, Invitation, InvitationPreview, InvitationRow, InvitationState, KeyKind,
     Letter, Link, LinkKind, OrganizationRole, OwnKind, OwnLink, OwnSealed, PendingGrant, WrappedBy,
 };
 use rusqlite::{Connection, OptionalExtension, params};
@@ -51,24 +51,6 @@ pub(crate) fn is_contact(
         .is_some())
 }
 
-pub(crate) fn is_verified_contact(
-    connection: &Connection,
-    account: Uuid,
-    contact: Uuid,
-) -> Result<bool, ServerError> {
-    Ok(connection
-        .prepare_cached(
-            "SELECT 1 FROM contacts
-             WHERE account_id = ?1 AND contact_id = ?2 AND length(sealed) > 0",
-        )?
-        .query_row(
-            params![account.to_string(), contact.to_string()],
-            |_| Ok(()),
-        )
-        .optional()?
-        .is_some())
-}
-
 pub(crate) fn contacts_of(
     connection: &Connection,
     account: Uuid,
@@ -83,17 +65,21 @@ pub(crate) fn contacts_of(
     Ok(contacts)
 }
 
+/// Makes `owner` and `other` contacts, both ways, leaving `other`'s record of `owner`, sealed by
+/// `other` for itself, in `other`'s mailbox (`letter.contact`) and, given one, `owner`'s record
+/// of `other` in `owner`'s: the server keeps only that the two are contacts, and each device
+/// keeps its records in the account's block.
 pub(crate) fn befriend(
     connection: &Connection,
     owner: Uuid,
-    owner_sealed: &[u8],
+    owner_record: &[u8],
     other: Uuid,
-    other_sealed: &[u8],
+    other_record: &[u8],
 ) -> Result<(), ServerError> {
-    for (account, contact, sealed) in [(owner, other, owner_sealed), (other, owner, other_sealed)] {
+    for (account, contact, record) in [(owner, other, owner_record), (other, owner, other_record)] {
         crate::limits::at_most(
-            "a contact card",
-            sealed.len(),
+            "a contact record",
+            record.len(),
             crate::limits::MAX_SEALED_BYTES,
         )?;
         let (known, count): (bool, i64) = connection
@@ -111,12 +97,17 @@ pub(crate) fn befriend(
             ));
         }
         connection.execute(
-            "INSERT INTO contacts (account_id, contact_id, sealed) VALUES (?1, ?2, ?3)
-             ON CONFLICT (account_id, contact_id)
-             DO UPDATE SET sealed = CASE WHEN length(excluded.sealed) > 0
-                 THEN excluded.sealed ELSE contacts.sealed END",
-            params![account.to_string(), contact.to_string(), sealed],
+            "INSERT OR IGNORE INTO contacts (account_id, contact_id) VALUES (?1, ?2)",
+            params![account.to_string(), contact.to_string()],
         )?;
+        if !record.is_empty() {
+            crate::store::mailbox::leave(
+                connection,
+                account,
+                Some(contact),
+                &Letter::Contact(record.to_vec()),
+            )?;
+        }
     }
     Ok(())
 }
@@ -127,10 +118,6 @@ pub(crate) fn own_sealed(
 ) -> Result<Vec<OwnSealed>, ServerError> {
     let mut own = Vec::new();
     for (kind, query) in [
-        (
-            OwnKind::Contact,
-            "SELECT contact_id, sealed FROM contacts WHERE account_id = ?1 AND length(sealed) > 0",
-        ),
         (
             OwnKind::Link,
             "SELECT id, code FROM links WHERE owner_id = ?1 AND length(code) > 0",
@@ -163,12 +150,6 @@ pub(crate) fn reseal_own(
 ) -> Result<(), ServerError> {
     let (account, id) = (account.to_string(), resealed.id.to_string());
     match resealed.kind {
-        OwnKind::Contact => {
-            connection.execute(
-                "UPDATE contacts SET sealed = ?3 WHERE account_id = ?1 AND contact_id = ?2",
-                params![account, id, resealed.sealed],
-            )?;
-        }
         OwnKind::Link => {
             connection.execute(
                 "UPDATE links SET code = ?3 WHERE owner_id = ?1 AND id = ?2",
@@ -804,7 +785,7 @@ impl ServerStore {
     ) -> Result<Accepted, ServerError> {
         for (what, bytes) in [
             ("a contact card", &card),
-            ("a sealed contact", &contact),
+            ("a contact record", &contact),
             ("a sealed key", &key),
         ] {
             crate::limits::at_most(what, bytes.len(), crate::limits::MAX_SEALED_BYTES)?;
@@ -1007,79 +988,6 @@ impl ServerStore {
         .await
     }
 
-    /// Replaces the caller's record of `contact` while it is `replaces`.
-    pub async fn put_contact(
-        &self,
-        caller: Uuid,
-        contact: Uuid,
-        sealed: Vec<u8>,
-        replaces: Vec<u8>,
-    ) -> Result<(), ServerError> {
-        crate::limits::at_most(
-            "a contact card",
-            sealed.len(),
-            crate::limits::MAX_SEALED_BYTES,
-        )?;
-        self.with_database(move |_, database| {
-            let held: Option<Vec<u8>> = database
-                .query_row(
-                    "SELECT sealed FROM contacts WHERE account_id = ?1 AND contact_id = ?2",
-                    params![caller.to_string(), contact.to_string()],
-                    |row| row.get(0),
-                )
-                .optional()?;
-            match held {
-                None => Err(ServerError::Refused(
-                    ErrorCode::NotAContact,
-                    "that account is not one of your contacts".into(),
-                )),
-                Some(held) if held != replaces => Err(ServerError::Refused(
-                    ErrorCode::RecordChanged,
-                    "that contact's record changed since it was read".into(),
-                )),
-                Some(_) => {
-                    database.execute(
-                        "UPDATE contacts SET sealed = ?3 WHERE account_id = ?1 AND contact_id = ?2",
-                        params![caller.to_string(), contact.to_string(), sealed],
-                    )?;
-                    Ok(())
-                }
-            }
-        })
-        .await
-    }
-
-    pub async fn list_contacts(&self, caller: Uuid) -> Result<Vec<ContactRow>, ServerError> {
-        self.with_database(move |_, database| {
-            let mut statement = database.prepare(
-                "SELECT accounts.id, COALESCE(accounts.email, ''), accounts.display_name, contacts.sealed
-                 FROM contacts JOIN accounts ON accounts.id = contacts.contact_id
-                 WHERE contacts.account_id = ?1
-                 ORDER BY accounts.display_name, accounts.email",
-            )?;
-            let rows = statement.query_map([caller.to_string()], |row| {
-                Ok((
-                    row.get::<_, String>(0)?,
-                    row.get::<_, String>(1)?,
-                    row.get::<_, String>(2)?,
-                    row.get::<_, Vec<u8>>(3)?,
-                ))
-            })?;
-            let mut contacts = Vec::new();
-            for row in rows {
-                let (account, email, display_name, sealed) = row?;
-                contacts.push(ContactRow {
-                    account: parse_uuid(&account)?,
-                    email,
-                    display_name,
-                    sealed,
-                });
-            }
-            Ok(contacts)
-        })
-        .await
-    }
-
     /// The grants in `organization` that removing `other` as `caller`'s contact revokes, named
     /// in their blocks' logs (`query.revocations`).
     pub async fn contact_revocations(
@@ -1131,6 +1039,10 @@ impl ServerStore {
                     params![caller.to_string(), other.to_string()],
                 )?;
                 crate::store::mailbox::forget_between(&transaction, caller, other)?;
+                // Each one's devices drop their record of the other from the account's block.
+                for (to, from) in [(caller, other), (other, caller)] {
+                    crate::store::mailbox::leave(&transaction, to, Some(from), &Letter::Removed)?;
+                }
                 transaction.execute(
                     "DELETE FROM links WHERE (owner_id = ?1 AND accepter_id = ?2)
                         OR (owner_id = ?2 AND accepter_id = ?1)",

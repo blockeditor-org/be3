@@ -69,7 +69,7 @@ async fn contacts_are_made_by_a_link_and_finished_by_its_owner() {
     assert!(
         matches!(
             owners_device.next_notification().await,
-            Notice::ContactsChanged
+            Notice::MailboxChanged
         ),
         "the owner's other device was not told"
     );
@@ -80,18 +80,32 @@ async fn contacts_are_made_by_a_link_and_finished_by_its_owner() {
         .await;
     assert!(refused_as(&again, ErrorCode::LinkNotFound), "{again:?}");
 
-    let theirs = other.contacts().await;
-    assert_eq!(theirs.len(), 1);
-    assert_eq!(theirs[0].account, owner_id);
+    // The server keeps only that the two are contacts; the accepter's record of the owner waits
+    // in its own mailbox, for a device to keep in its block.
+    assert_eq!(other.contacts().await, vec![owner_id]);
+    assert_eq!(owners_device.contacts().await, vec![other_id]);
+    let Ok(theirs) = other
+        .call(|peer| {
+            peer.read::<Vec<be_block_protocol::Message>>(be_block_protocol::Query::Mailbox)
+        })
+        .await
+    else {
+        panic!("reading the mailbox failed");
+    };
+    let [
+        be_block_protocol::Message {
+            from: Some(from),
+            letter: be_block_protocol::Letter::Contact(record),
+            ..
+        },
+    ] = &theirs[..]
+    else {
+        panic!("the accepter's mailbox holds no record alone: {theirs:?}");
+    };
+    assert_eq!(*from, owner_id);
     assert_eq!(
-        ContactCard::decode(&other_secret.open_own(&theirs[0].sealed).unwrap()).unwrap(),
+        ContactCard::decode(&other_secret.open_own(record).unwrap()).unwrap(),
         owner_card
-    );
-    let mine = owners_device.contacts().await;
-    assert_eq!(mine.len(), 1);
-    assert!(
-        mine[0].sealed.is_empty(),
-        "the owner's row was written for it"
     );
 
     let Ok(links) = owners_device
@@ -127,31 +141,6 @@ async fn contacts_are_made_by_a_link_and_finished_by_its_owner() {
     let accepted = ContactCard::open(&code, CardRole::Accepter, card).unwrap();
     let letter = *letter;
     assert_eq!(accepted, other_card);
-    // A record is written only over the one the device read: here, none yet.
-    let sealed = owner_secret.seal_own(&accepted.encode());
-    let response = owners_device
-        .call(|peer| {
-            peer.write::<()>(be_block_protocol::Op::PutContact {
-                contact: other_id,
-                sealed: sealed.clone(),
-                replaces: vec![1],
-            })
-        })
-        .await;
-    assert!(
-        refused_as(&response, ErrorCode::RecordChanged),
-        "{response:?}"
-    );
-    let response = owners_device
-        .call(|peer| {
-            peer.write::<()>(be_block_protocol::Op::PutContact {
-                contact: other_id,
-                sealed: sealed.clone(),
-                replaces: Vec::new(),
-            })
-        })
-        .await;
-    assert!(matches!(response, Ok(())), "{response:?}");
     let _ = owners_device
         .call(|peer| {
             peer.write_all::<()>(vec![
@@ -167,11 +156,7 @@ async fn contacts_are_made_by_a_link_and_finished_by_its_owner() {
         panic!("listing links failed");
     };
     assert!(links.is_empty());
-    let mine = owner.contacts().await;
-    assert_eq!(
-        ContactCard::decode(&owner_secret.open_own(&mine[0].sealed).unwrap()).unwrap(),
-        other_card
-    );
+    assert_eq!(owner.contacts().await, vec![other_id]);
 
     harness.stop().await;
 }

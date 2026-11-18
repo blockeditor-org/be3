@@ -60,7 +60,6 @@ fn query_case(query: &Query) -> &'static str {
         Query::Invitations => "invitations",
         Query::Storage => "storage",
         Query::Mailbox => "mailbox",
-        Query::Contacts => "contacts",
         Query::Links => "links",
         Query::Link(_) => "link",
         Query::Invitation(_) => "invitation",
@@ -90,7 +89,6 @@ const QUERIES: &[&str] = &[
     "invitations",
     "storage",
     "mailbox",
-    "contacts",
     "links",
     "link",
     "invitation",
@@ -132,7 +130,6 @@ fn op_case(op: &Op) -> &'static str {
         } => "create-link (invitation)",
         Op::AcceptLink { .. } => "accept-link",
         Op::DeleteLink(_) => "delete-link",
-        Op::PutContact { .. } => "put-contact",
         Op::RemoveContact { .. } => "remove-contact",
         Op::SetRecoveryKey { .. } => "set-recovery-key",
         Op::PinEscrow(_) => "pin-escrow",
@@ -166,7 +163,6 @@ const OPS: &[&str] = &[
     "create-link (invitation)",
     "accept-link",
     "delete-link",
-    "put-contact",
     "remove-contact",
     "set-recovery-key",
     "pin-escrow",
@@ -215,7 +211,6 @@ fn topic_case(topic: &Topic) -> &'static str {
         Topic::Roots => "unfollow roots",
         Topic::Storage => "unfollow storage",
         Topic::Mailbox => "unfollow mailbox",
-        Topic::Contacts => "unfollow contacts",
         Topic::NotifyModes => "unfollow notify-modes",
     }
 }
@@ -228,7 +223,6 @@ const TOPICS: &[&str] = &[
     "unfollow roots",
     "unfollow storage",
     "unfollow mailbox",
-    "unfollow contacts",
     "unfollow notify-modes",
 ];
 
@@ -384,6 +378,7 @@ impl TestClient {
                 recovery: [7; 32],
                 signing: [7; 32],
                 contact: sealed(),
+                record: sealed(),
                 escrow: sealed(),
                 bound_to: None,
                 member: None,
@@ -411,14 +406,6 @@ impl TestClient {
             .await;
         calls.read(Query::Links).await;
         calls.write(Op::DeleteLink(other)).await;
-        calls
-            .write(Op::PutContact {
-                contact: other,
-                sealed: sealed(),
-                replaces: Vec::new(),
-            })
-            .await;
-        calls.read(Query::Contacts).await;
         calls
             .write(Op::RemoveContact {
                 account: other,
@@ -647,7 +634,6 @@ impl TestClient {
             Topic::Roots,
             Topic::Storage,
             Topic::Mailbox,
-            Topic::Contacts,
             Topic::NotifyModes,
         ] {
             calls.unfollow(topic).await;
