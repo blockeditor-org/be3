@@ -45,10 +45,12 @@ entry once. It need not see each again.
 
 ## Steps
 
-1. **`Checked::extend` and kept checked state.** Done: a test checks a log of
-   100,000 entries once, appends one entry, and the second check verifies one
-   signature; a kept state that does not match the served prefix's hashes is
-   refused as a forged log.
+1. Landed: `Checked::extend` and `Checked::resume`; a whole log's checked
+   state is kept in `KeptLog::checked`, and `checked_access` and
+   `checked_organization` check on from it (be-block-keys
+   `a_kept_log_checks_only_what_was_appended_and_refuses_a_rewritten_prefix`).
+   The device still reads the whole log and hashes its prefix: step 2 drops
+   that. A proof path is checked whole each time until step 3.
 2. **Access logs as Merkle trees, consistency proofs on read.** Done: a client
    test reads the organization's log twice and the second read fetches only
    the new entries and a proof; a server that served a rewritten prefix is
