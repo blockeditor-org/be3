@@ -4,6 +4,11 @@
 //! time, and races that whole exchange against the frame's deadline. Its layer list shows its own
 //! surface, and over it the child's screen only when the child echoed in time.
 //!
+//! It routes the window's input (`input.deliver`) as the compositor will, with be-lib-input-router's
+//! `Router` over the layers it drew last: what lands on the child's screen goes to the child, in
+//! the child's own coordinates, and the child echoes it back. A frame then shows `HEARD_LAYER`
+//! at the last point the child heard.
+//!
 //! A frame at `PAINTS` instead spawns a child that paints (`PAINTER`), asks it for a frame, and
 //! shows the surface it presented, named only by the instance's handle (its `instance` resource's
 //! op) and the surface's id: the root never sees the pixels, which stay on the host's device.
@@ -16,13 +21,18 @@ use std::{
     task::Poll,
 };
 
-use be_lib_geometry::{Rect, pos2};
+use be_lib_geometry::{Pos2, Rect, pos2, vec2};
+use be_lib_input_router::{Router, Routed};
 use be_lib_layers::{Affine, Layer, LayerId, LayerInput, LayerList, Surface, WindowLayers};
+use be_lib_ui_types::input::{self as ui_input, Input};
 use be_wasm_guest_abi::{Flow, Guest, Waker};
 use be_wasm_ops::guest::{Executor, LocalFuture};
 use be_wasm_root_api::{
     FrameDone, FrameRequest,
-    guest::{exports::frames, host},
+    guest::{
+        exports::{frames, input},
+        host,
+    },
 };
 use be_wasm_sandbox_api::{
     guest::sandbox::Instance,
@@ -68,14 +78,31 @@ pub const ROOT_LAYER: LayerId = LayerId(0);
 /// The child's screen, which a frame shows when the child echoed in time.
 pub const CHILD_LAYER: LayerId = LayerId(1);
 
+/// Marks the last point the child heard input at, in the child's own coordinates: its
+/// transform's origin is that point. A frame shows it once the child heard any.
+pub const HEARD_LAYER: LayerId = LayerId(3);
+
 /// The window's size, in points.
-const SIZE: (u32, u32) = (200, 100);
+pub const SIZE: (u32, u32) = (200, 100);
+
+/// Where the child's screen sits in the window: its right half.
+pub const CHILD_ORIGIN: (f32, f32) = (SIZE.0 as f32 / 2.0, 0.0);
+
+/// What starts a frame the root sends the child with input routed to it; the rest is the
+/// input, in postcard.
+const ROUTED: &[u8] = b"routed:";
 
 #[derive(Clone, Default)]
 struct Frames {
     child: Rc<RefCell<Option<Rc<Instance>>>>,
     painter: Rc<RefCell<Option<Rc<Instance>>>>,
     spinning: Rc<Cell<bool>>,
+    /// The layers the root drew last, which it routes input by.
+    drawn: Rc<RefCell<LayerList>>,
+    /// A router per window: who holds the pointer, the hover and the focus.
+    routers: Rc<RefCell<Vec<(Option<u64>, Router<LayerId>)>>>,
+    /// The last point the child heard input at, in its own coordinates.
+    heard: Rc<Cell<Option<Pos2>>>,
 }
 
 impl Frames {
@@ -114,23 +141,97 @@ impl frames::Guest for Frames {
                     First::Left(painter) => painter,
                     First::Right(_) => None,
                 };
-                FrameDone {
-                    layers: painted_layers(painter).encode(),
-                }
+                frames.drew(painted_layers(painter))
             });
         }
         Box::pin(async move {
             let deadline = pin!(host::deadline());
             let exchange = pin!(frames.exchange(request.time));
             let echoed = matches!(first(exchange, deadline).await, First::Left(true));
-            FrameDone {
-                layers: layers(echoed).encode(),
+            let mut list = layers(echoed);
+            if let Some(heard) = frames.heard.get() {
+                list.windows[0].layers.push(heard_layer(heard));
+            }
+            frames.drew(list)
+        })
+    }
+}
+
+impl input::Guest for Frames {
+    fn deliver(&self, window: Option<u64>, events: Vec<u8>) -> LocalFuture<()> {
+        let routed = match ui_input::decode(&events) {
+            Ok(events) => self.route(window, events),
+            Err(_) => Vec::new(),
+        };
+        let child = self.child.borrow().clone();
+        Box::pin(async move {
+            if let Some(child) = child
+                && !routed.is_empty()
+            {
+                let _ = child.send(routed).await;
             }
         })
     }
 }
 
 impl Frames {
+    /// Routes `events` by the layers drawn last for `window`, and answers the frames that send
+    /// the child what is for it.
+    fn route(&self, window: Option<u64>, events: Vec<Input>) -> Vec<Vec<u8>> {
+        let drawn = self.drawn.borrow();
+        let Some(layers) = drawn
+            .windows
+            .iter()
+            .find(|layers| layers.window.map(|window| window.raw()) == window)
+        else {
+            return Vec::new();
+        };
+        let mut routers = self.routers.borrow_mut();
+        let at = match routers.iter().position(|(of, _)| *of == window) {
+            Some(at) => at,
+            None => {
+                routers.push((window, Router::new(ROOT_LAYER)));
+                routers.len() - 1
+            }
+        };
+        let router = &mut routers[at].1;
+        let mut frames = Vec::new();
+        for event in events {
+            for routed in router.route(layers, event) {
+                if let Routed::Input {
+                    target: CHILD_LAYER,
+                    input,
+                } = routed
+                {
+                    let mut frame = ROUTED.to_vec();
+                    frame.extend(postcard::to_allocvec(&input).expect("input serializes"));
+                    frames.push(frame);
+                }
+            }
+        }
+        frames
+    }
+
+    /// Keeps `list` as the layers drawn last, and answers it.
+    fn drew(&self, list: LayerList) -> FrameDone {
+        let layers = list.encode();
+        *self.drawn.borrow_mut() = list;
+        FrameDone { layers }
+    }
+
+    /// Notes where an echoed frame of input routed to the child says the child heard it.
+    fn heard(&self, frame: &[u8]) {
+        let Some(input) = frame
+            .strip_prefix(ROUTED)
+            .and_then(|input| postcard::from_bytes::<Input>(input).ok())
+        else {
+            return;
+        };
+        if let Input::PointerMoved(at) | Input::PointerButton { pos: at, .. } = input {
+            self.heard.set(Some(at));
+        }
+    }
+
     /// Asks the child to echo `time`, spawning it first if need be, and answers whether it did.
     async fn exchange(&self, time: u64) -> bool {
         let child = self.child();
@@ -143,8 +244,14 @@ impl Frames {
         }
         loop {
             match child.next().await {
-                Ok(Ok(frames)) if frames.contains(&asked) => return true,
-                Ok(Ok(_)) => {}
+                Ok(Ok(frames)) => {
+                    for frame in &frames {
+                        self.heard(frame);
+                    }
+                    if frames.contains(&asked) {
+                        return true;
+                    }
+                }
                 // It stopped, or the host stopped answering for it.
                 _ => return false,
             }
@@ -216,14 +323,20 @@ fn layer(id: LayerId, surface: Surface, size: (u32, u32)) -> Layer {
 fn layers(echoed: bool) -> LayerList {
     let mut layers = vec![layer(ROOT_LAYER, Surface::Root(0), SIZE)];
     if echoed {
-        layers.push(layer(
+        let mut child = layer(
             CHILD_LAYER,
             Surface::Screen {
                 instance: 0,
                 surface: 0,
             },
             (SIZE.0 / 2, SIZE.1),
-        ));
+        );
+        child.transform = Affine::from_axes(
+            vec2(1.0, 0.0),
+            vec2(0.0, 1.0),
+            pos2(CHILD_ORIGIN.0, CHILD_ORIGIN.1),
+        );
+        layers.push(child);
     }
     LayerList {
         windows: vec![WindowLayers {
@@ -231,6 +344,14 @@ fn layers(echoed: bool) -> LayerList {
             layers,
         }],
     }
+}
+
+/// Marks `heard`, a point in the child's coordinates, with a layer of its own whose origin it is.
+fn heard_layer(heard: Pos2) -> Layer {
+    let mut marker = layer(HEARD_LAYER, Surface::Root(1), (1, 1));
+    marker.transform = Affine::from_axes(vec2(1.0, 0.0), vec2(0.0, 1.0), heard);
+    marker.input.hit = be_lib_layers::Area::Nowhere;
+    marker
 }
 
 /// The root's own surface, and over it the painter's surface, by the painter's handle, once it

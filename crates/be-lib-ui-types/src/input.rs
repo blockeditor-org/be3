@@ -113,6 +113,17 @@ impl TouchpadGesture {
     }
 }
 
+/// `events` as bytes, as a host hands a root guest its window's input (be3:root's
+/// `input.deliver`, crates/be-wasm-root-api), which `decode` reads back.
+pub fn encode(events: &[Input]) -> Vec<u8> {
+    postcard::to_allocvec(events).expect("input always serializes")
+}
+
+/// The events `encode` wrote.
+pub fn decode(bytes: &[u8]) -> Result<Vec<Input>, String> {
+    postcard::from_bytes(bytes).map_err(|error| format!("the input could not be read: {error}"))
+}
+
 impl Input {
     pub fn translated(mut self, by: Vec2) -> Self {
         match &mut self {

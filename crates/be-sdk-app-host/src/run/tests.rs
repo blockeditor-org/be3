@@ -10,6 +10,7 @@ use crate::accessibility::Placing;
 
 mod a_restart_forgets_what_the_old_run_held_and_tells_the_new_one_again;
 mod a_restarted_app_s_views_describe_nothing_and_offer_no_actions;
+mod what_is_sent_asks_for_a_frame_and_waits_for_the_session;
 
 fn running() -> Run<()> {
     let mut run = Run::new(Session::new("Test", None), true, Preferences::default());

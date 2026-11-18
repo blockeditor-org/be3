@@ -11,6 +11,19 @@ interface host {
     deadline: async func();
 }
 
+/// The window's input, which the host hands the root inline on its frame thread
+/// (plans/host_as_platform_adapter.md, Input).
+interface input {
+    /// The window's input since the last call, in order, in the window's
+    /// points: be-lib-ui-types' `Input`s, in its encoding (`input::encode`),
+    /// as the layer list is be-lib-layers'. `window` names the window as the
+    /// layer list does: none for the host's one window. The root routes each
+    /// event to the surface it is for, by the layers it drew last, and answers
+    /// once it has. The host calls it ahead of the frame it is input for, and
+    /// steps the root through it with that frame.
+    deliver: async func(window: option<u64>, events: list<u8>);
+}
+
 /// The root's frame entry, which the host calls inline on its frame thread.
 interface frames {
     /// What the host asks a frame for.
@@ -40,5 +53,6 @@ interface frames {
 /// and serves the sandbox (`be3:sandbox/spawner`) and `host`.
 world root {
     import host;
+    export input;
     export frames;
 }

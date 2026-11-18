@@ -2,7 +2,7 @@
 //! its module last started, which a restart forgets (guides/apps/runtime.md, When an app stops).
 //! A host keeps one `Run` per app and drives its pieces; `restart` is the one place that says
 //! what a restart keeps, resends and drops.
-use be_sdk_api::{Fonts, Preferences, ScreenRequest};
+use be_sdk_api::{Fonts, Preferences, ScreenId, ScreenLayout, ScreenPlacement, ScreenRequest};
 
 use crate::{
     accessibility::Graft,
@@ -17,13 +17,16 @@ use crate::{
 pub struct Run<A> {
     pub session: Session,
     /// What the host has to send the app once its session runs.
-    pub queued: Vec<Outbound>,
+    queued: Vec<Outbound>,
     pub holds: Holds<A>,
     pub shown: Shown,
     pub presents: Presents,
     pub pacing: Pacing,
     /// The screens last sent (`AppCall::Screens`).
     pub screens: Vec<ScreenRequest>,
+    /// The app's screens as the host lays them out: its last layout, with the anchored views it
+    /// closed kept until the frame that closed them is drawn (`place`, `lay_out`).
+    layout: ScreenLayout,
     /// The host asked for the app's paintings and has yet to hear them.
     pub painting: bool,
     told: Told,
@@ -79,8 +82,78 @@ impl<A> Run<A> {
             presents: Presents::default(),
             pacing: Pacing::default(),
             screens: Vec::new(),
+            layout: ScreenLayout::default(),
             painting: false,
             told: Told::new(preferences),
+        }
+    }
+
+    /// The app's screens as the host lays them out.
+    pub fn layout(&self) -> &ScreenLayout {
+        &self.layout
+    }
+
+    /// Takes the app's new screens: answers what to lay out now (`lay_out`). An anchored view
+    /// (`anchored`) they leave out stays, showing its last frame, until the frame that closed it
+    /// is drawn (`Shown::place`).
+    pub fn place(
+        &mut self,
+        layout: ScreenLayout,
+        anchored: impl Fn(ScreenId) -> bool,
+    ) -> ScreenLayout {
+        self.shown.place(&self.layout, layout, anchored)
+    }
+
+    /// Lays the app's screens out as `layout`, keeping the last frame of each view it leaves out
+    /// that the host still holds (`holds`; `Shown::keep_left_out`).
+    pub fn lay_out(&mut self, layout: ScreenLayout, holds: impl Fn(&ScreenPlacement) -> bool) {
+        self.shown.keep_left_out(&self.layout, &layout, holds);
+        self.layout = layout;
+    }
+
+    /// The placement a screen is drawn from: its kept last frame while it has one, else the
+    /// layout's.
+    pub fn placement(&self, screen: ScreenId) -> Option<&ScreenPlacement> {
+        self.shown.placement(&self.layout, screen)
+    }
+
+    /// The surfaces the layout and the kept frames hold.
+    pub fn retained_surfaces(&self) -> Vec<u32> {
+        self.shown.retained_surfaces(&self.layout)
+    }
+
+    /// Sends the app `messages` it answers with a frame (input, an action, a change it shows):
+    /// asks it for one if there are any (`Pacing::need_if`), and queues them as `ready` readies
+    /// them for the wire (be-host translates their ids and holds what waits for a report), or
+    /// drops them where it answers None (an app that failed). Answers what to send now
+    /// (`queue`).
+    pub fn send_for_frame(
+        &mut self,
+        messages: Vec<Outbound>,
+        ready: impl FnOnce(Vec<Outbound>) -> Option<Vec<Outbound>>,
+    ) -> Vec<Outbound> {
+        self.pacing.need_if(!messages.is_empty());
+        if messages.is_empty() {
+            return Vec::new();
+        }
+        match ready(messages) {
+            Some(messages) => self.queue(messages),
+            None => Vec::new(),
+        }
+    }
+
+    /// Queues `messages` for the app. Answers what to send now: everything queued, once its
+    /// session runs (`deliverable`).
+    pub fn queue(&mut self, messages: impl IntoIterator<Item = Outbound>) -> Vec<Outbound> {
+        self.queued.extend(messages);
+        self.deliverable()
+    }
+
+    /// What is queued, taken once the session runs: until then it waits.
+    pub fn deliverable(&mut self) -> Vec<Outbound> {
+        match self.session.running() {
+            true => std::mem::take(&mut self.queued),
+            false => Vec::new(),
         }
     }
 
@@ -117,8 +190,8 @@ impl<A> Run<A> {
 
     /// Starts a new run of `app` in `session`, told `preferences` with its hello. What the old
     /// run was sent or held goes: its session, the calls queued for it, the answers held and
-    /// what they wait for, the views it closed or left out (`Shown`), its presents, its frames
-    /// in flight, the screens and paintings it was asked for, and what its instances' docks
+    /// what they wait for, its layout and the views it closed or left out (`Shown`), its
+    /// presents, its frames in flight, the screens and paintings it was asked for, and what its instances' docks
     /// declared. Its views' accessibility panes stay, empty, and offer no actions until the new
     /// run describes them. It is told the fonts, whether to describe and the UTC offset again
     /// once it runs (`tell`); the host sends its instances' content again itself.
@@ -137,6 +210,7 @@ impl<A> Run<A> {
         self.presents = Presents::default();
         self.pacing.reset();
         self.screens.clear();
+        self.layout = ScreenLayout::default();
         self.painting = false;
         self.told = Told::new(preferences);
         docks.restarted(app);
