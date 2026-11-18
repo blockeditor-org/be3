@@ -23,6 +23,7 @@ use beui_view::types::Color;
 use beui_view::types::Direction;
 use beui_view::types::ScrollPosition;
 use beui_view::types::{BackGesture, CursorIcon, DragGesture, PointerPress, ScrollGesture};
+use beui_view::types::{Key, KeyPress};
 use beui_view::types::{Measured, Modifiers, Rect, Vec2, pos2, vec2};
 
 const CLOSE_SHARE: f32 = 0.4;
@@ -1008,6 +1009,37 @@ impl Motion {
         }
     }
 
+    /// Moves the sheet to the next stop up or down from its height, as a release there
+    /// would settle; the lowest stop is as far down as a key takes it (Escape closes).
+    /// Whether there was one that way.
+    fn step_stop(&self, up: bool) -> bool {
+        if self.held.borrow().travel.is_some() {
+            return false;
+        }
+        let shape = self.shape();
+        let height = self.height();
+        let next = match up {
+            true => shape
+                .stops
+                .iter()
+                .find(|(stop, _)| *stop > height + EPSILON),
+            false => shape
+                .stops
+                .iter()
+                .rev()
+                .find(|(stop, _)| *stop < height - EPSILON),
+        };
+        let Some((_, rest)) = next else {
+            return false;
+        };
+        self.start(Phase::Snap {
+            target: *rest,
+            velocity: 0.0,
+            closes: false,
+        });
+        true
+    }
+
     fn handle_active(&self, active: bool) {
         if active || self.held.borrow_mut().handle.take().is_none() {
             return;
@@ -1296,6 +1328,15 @@ pub fn Sheet(
                                             <List spacing=0.0>
                                                 <Interactive
                                                     @test_id={"sheet.handle"}
+                                                    focusable=true
+                                                    on_key={move |press: KeyPress| {
+                                                        let up = match press.key {
+                                                            Key::ArrowUp => true,
+                                                            Key::ArrowDown => false,
+                                                            _ => return false,
+                                                        };
+                                                        press.pressed && motion.value().step_stop(up)
+                                                    }}
                                                     cursor=CursorIcon::ResizeVertical
                                                     on_pointer={gestures::scroll_drag(axis, move |gesture: DragGesture| motion.value().outside_drag(gesture))}
                                                     on_press={move |press: PointerPress| motion.value().handle_press(press)}
