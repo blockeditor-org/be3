@@ -432,7 +432,6 @@ pub struct Keys {
     pub account: Uuid,
     pub recovery: Option<be_block_keys::RecoveryPublic>,
     pub sealed: Vec<be_block_protocol::SealedKey>,
-    pub own: Vec<be_block_protocol::OwnSealed>,
     pub logs: Vec<be_block_protocol::SignedLog>,
 }
 
@@ -445,7 +444,6 @@ pub async fn keys(server_url: String, token: String) -> Result<Keys, AccountErro
     let be_block_protocol::RecoveryKey {
         public,
         sealed,
-        own,
         logs,
     } = ask(
         be_block_protocol::read::<be_block_protocol::RecoveryKey, _>(
@@ -459,7 +457,6 @@ pub async fn keys(server_url: String, token: String) -> Result<Keys, AccountErro
         account,
         recovery: public.map(be_block_keys::RecoveryPublic),
         sealed,
-        own,
         logs,
     })
 }

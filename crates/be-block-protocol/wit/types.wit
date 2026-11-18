@@ -185,19 +185,6 @@ interface types {
         sealed: list<u8>,
     }
 
-    enum own-kind {
-        link,
-        escrow,
-    }
-
-    /// What an account sealed for itself outside its block: a link's code, a
-    /// pinned escrow key.
-    record own-sealed {
-        kind: own-kind,
-        id: uuid,
-        sealed: list<u8>,
-    }
-
     /// A key change sealed for one contact, after an account took a new
     /// recovery phrase.
     record key-change {

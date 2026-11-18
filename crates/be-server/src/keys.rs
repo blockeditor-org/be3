@@ -4,7 +4,7 @@ use std::ops::Bound;
 use be_block_graph::BlockGraph;
 use be_block_protocol::{
     ErrorCode, EscrowKey, KeyChange, KeyKind, KeyPage, KeyRow, KeySet, KeyWork, OrganizationKind,
-    OwnKind, OwnSealed, SealedKey, SigningKey, Unsealed, WrappedBy, WrappedKey,
+    SealedKey, SigningKey, Unsealed, WrappedBy, WrappedKey,
 };
 use rusqlite::{Connection, OptionalExtension, params};
 use uuid::Uuid;
@@ -526,9 +526,12 @@ pub(crate) fn current_escrow(
     Ok(escrow_chain(connection, organization)?.pop())
 }
 
+/// Leaves what `account` pins for `organization`, sealed by it for itself, in its mailbox from
+/// `from` (`letter.pinned`), for a device to keep in the account's block.
 pub(crate) fn pin_escrow(
     connection: &Connection,
     account: Uuid,
+    from: Uuid,
     organization: Uuid,
     sealed: &[u8],
 ) -> Result<(), ServerError> {
@@ -540,12 +543,15 @@ pub(crate) fn pin_escrow(
         sealed.len(),
         crate::limits::MAX_SEALED_BYTES,
     )?;
-    connection.execute(
-        "INSERT OR REPLACE INTO pinned_escrows (account_id, organization_id, sealed)
-         VALUES (?1, ?2, ?3)",
-        params![account.to_string(), organization.to_string(), sealed],
-    )?;
-    Ok(())
+    crate::store::mailbox::leave(
+        connection,
+        account,
+        Some(from),
+        &be_block_protocol::Letter::Pinned {
+            organization,
+            sealed: sealed.to_vec(),
+        },
+    )
 }
 
 pub(crate) fn organization_kind(
@@ -1397,13 +1403,6 @@ impl ServerStore {
         .await
     }
 
-    pub async fn pin_escrow(&self, identity: Identity, sealed: Vec<u8>) -> Result<(), ServerError> {
-        self.with_database(move |_, database| {
-            pin_escrow(&database, identity.account, identity.organization, &sealed)
-        })
-        .await
-    }
-
     /// The signing keys of those of `accounts` the caller may know: itself, its contacts and
     /// the members of the organization open. A key the server holds is only what the account
     /// sent; a device trusts it only on first use (plans/deferred/authorship.md).
@@ -1443,7 +1442,7 @@ impl ServerStore {
     pub async fn recovery_key(
         &self,
         account: Uuid,
-    ) -> Result<(Option<[u8; 32]>, Vec<SealedKey>, Vec<OwnSealed>), ServerError> {
+    ) -> Result<(Option<[u8; 32]>, Vec<SealedKey>), ServerError> {
         let (public, memberships) = {
             self.with_database(move |_, database| {
                 let public = recovery_key_of(&database, account)?;
@@ -1522,10 +1521,7 @@ impl ServerStore {
                 .await?;
             sealed.extend(found);
         }
-        let own = self
-            .with_database(move |_, database| crate::contacts::own_sealed(database, account))
-            .await?;
-        Ok((public, sealed, own))
+        Ok((public, sealed))
     }
 
     /// Every access log `account` signed a record in, at its head (`recovery-key`'s `logs`).
@@ -1543,14 +1539,10 @@ impl ServerStore {
         public: [u8; 32],
         signing: [u8; 32],
         sealed: Vec<SealedKey>,
-        own: Vec<OwnSealed>,
         changes: Vec<KeyChange>,
         retirements: Vec<be_block_protocol::Retirement>,
     ) -> Result<(), ServerError> {
-        let (previous, held, mut held_own) = self.recovery_key(account).await?;
-        if previous.is_none() {
-            held_own.clear();
-        }
+        let (_, held) = self.recovery_key(account).await?;
         let by = encode_wrapped_by(WrappedBy::Account(account));
         self.with_database(move |store, database| {
             let resealed: BTreeMap<(Uuid, Uuid), &SealedKey> = sealed
@@ -1571,19 +1563,6 @@ impl ServerStore {
                     missing.key
                 )));
             }
-            let resealed_own: BTreeMap<(OwnKind, Uuid), &OwnSealed> = own
-                .iter()
-                .map(|sealed| ((sealed.kind, sealed.id), sealed))
-                .collect();
-            if let Some(missing) = held_own
-                .iter()
-                .find(|held| !resealed_own.contains_key(&(held.kind, held.id)))
-            {
-                return Err(refused(format!(
-                    "a new recovery key must reseal every link and pinned escrow key the old one did, and {} is missing",
-                    missing.id
-                )));
-            }
             for change in &changes {
                 if !crate::contacts::is_contact(&database, account, change.contact)? {
                     return Err(ServerError::Refused(
@@ -1599,13 +1578,6 @@ impl ServerStore {
                     change.contact,
                     Some(account),
                     &be_block_protocol::Letter::KeyChange(change.sealed),
-                )?;
-            }
-            for held in &held_own {
-                crate::contacts::reseal_own(
-                    &transaction,
-                    account,
-                    resealed_own[&(held.kind, held.id)],
                 )?;
             }
             crate::access::append_retirements(

@@ -837,7 +837,9 @@ needs code of its own for any method.
   `set-recovery-key`), and the account's records of contacts made
   (`letter.contact`, sealed by the account for itself, left by `accept-link`
   and `create-agent`) or removed (`letter.removed`, left to both by
-  `remove-contact`), which a device takes into the account's block
+  `remove-contact`), and what it pins for an organization (`letter.pinned`,
+  left by `create-organization`, an invitation's `accept-link` and
+  `create-agent`), which a device takes into the account's block
   (guides/blocks/keys.md, "Contacts"). The server leaves each in the
   transaction of the change it tells, so none is lost between the two, and
   tells the account's connections that follow the topic; a device deletes what
@@ -949,7 +951,8 @@ approves a device's code. `Be3-Gateway-Authorization` is left to a gateway in
 front.
 
 Contact links and invitations are one table, `links`, and one set of calls
-(`create-link`, `query.link`, `accept-link`, `query.links`, `delete-link`;
+(`create-link`, `query.link`, `accept-link`, `delete-link`; the owner's
+block keeps each link's code;
 guides/blocks/keys.md, "Contacts"). An administrator invites with a link of
 kind `invitation` under an id the inviting client picks, bound to no email: any
 account that opens it may accept it, once, before `INVITATION_LIFETIME`, and

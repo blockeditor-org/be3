@@ -330,7 +330,6 @@ impl Harness {
                     public: identity.public.0,
                     signing: identity.signing.0,
                     sealed: Vec::new(),
-                    own: Vec::new(),
                     changes: Vec::new(),
                     retirements: Vec::new(),
                 })
@@ -577,6 +576,13 @@ impl At {
     }
 }
 
+/// A link as the server holds it for its owner (`TestClient::links`).
+#[derive(Debug)]
+struct OwnLink {
+    id: Uuid,
+    accepter: Option<Uuid>,
+}
+
 struct TestClient {
     directory: Option<PathBuf>,
     peer: At,
@@ -629,7 +635,6 @@ async fn signed_organization(
                 account,
                 identity.public.0,
                 identity.signing.0,
-                Vec::new(),
                 Vec::new(),
                 Vec::new(),
                 Vec::new(),
@@ -1156,7 +1161,6 @@ impl TestClient {
                     public: identity.public.0,
                     signing: identity.signing.0,
                     sealed: Vec::new(),
-                    own: Vec::new(),
                     changes: Vec::new(),
                     retirements: retirements,
                 })
@@ -1845,7 +1849,6 @@ impl TestClient {
             peer.write::<()>(be_block_protocol::Op::CreateLink {
                 link: link,
                 card: b"the owner's card".to_vec(),
-                code: b"the code, sealed for the owner".to_vec(),
                 kind: kind,
             })
         })
@@ -1866,12 +1869,36 @@ impl TestClient {
         .map(|()| link)
     }
 
-    async fn links(&mut self) -> Vec<be_block_protocol::OwnLink> {
-        self.call(|peer| {
-            peer.read::<Vec<be_block_protocol::OwnLink>>(be_block_protocol::Query::Links)
-        })
-        .await
-        .expect("listing links failed")
+    /// This account's links the server holds still to act on, read from its database: no call
+    /// lists them, as each device keeps its links' codes in the account's block.
+    async fn links(&mut self) -> Vec<OwnLink> {
+        let database = metadata_database(self.directory.as_ref().expect("signed in"));
+        let mut statement = database
+            .prepare(
+                "SELECT id, accepter_id FROM links WHERE owner_id = ?1
+                    AND (invite_organization = ''
+                         OR (invite_finished = 0 AND invite_revoked = 0
+                             AND (accepter_id != '' OR invite_expires > ?2)))
+                 ORDER BY id",
+            )
+            .unwrap();
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as i64;
+        statement
+            .query_map(rusqlite::params![self.id().to_string(), now], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+            })
+            .unwrap()
+            .map(|row| {
+                let (id, accepter) = row.unwrap();
+                OwnLink {
+                    id: Uuid::parse_str(&id).unwrap(),
+                    accepter: Uuid::parse_str(&accepter).ok(),
+                }
+            })
+            .collect()
     }
 
     async fn accept(&mut self, link: Uuid, key: &[u8]) -> Result<(), Error> {

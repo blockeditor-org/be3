@@ -3184,18 +3184,26 @@ async fn list_invitations(
     ))
     .await?;
     let base = crate::accounts::link_base(&config.server_url);
-    let identity = peer.keys().identity();
+    // The codes of the person's own, which the account's block keeps.
+    let kept = be_block_client::contacts::kept_links(
+        &peer.connection(),
+        peer.account(),
+        peer.keys().identity(),
+    )
+    .await?;
     let mut own = Vec::new();
     let listed = rows
         .into_iter()
         .map(|row| crate::Invite {
-            link: be_block_client::contacts::invitation_link_code(identity, &row.code).map(
-                |code| {
+            link: kept
+                .get(&row.id)
+                .filter(|_| row.inviter == peer.account())
+                .and_then(|kept| kept.code())
+                .map(|code| {
                     let link = crate::invite_link::link(&base, &code);
                     own.push(code);
                     link
-                },
-            ),
+                }),
             id: row.id,
             inviter: row.inviter_name,
             state: row.state,

@@ -44,6 +44,7 @@ fn kind(letter: &Letter) -> &'static str {
         Letter::KeyChange(_) => "key-change",
         Letter::Contact(_) => "contact",
         Letter::Removed => "removed",
+        Letter::Pinned { .. } => "pinned",
     }
 }
 

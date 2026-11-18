@@ -12,7 +12,6 @@ async fn an_invitation_is_read_before_sign_in_and_listed_as_it_goes() {
             peer.write::<()>(be_block_protocol::Op::CreateLink {
                 link: link,
                 card: b"the inviter's sealed card".to_vec(),
-                code: b"the code sealed to the inviter".to_vec(),
                 kind: be_block_protocol::LinkKind::Invitation(be_block_protocol::Invitation {
                     organization,
                     escrow: b"the sealed escrow key".to_vec(),
@@ -36,7 +35,6 @@ async fn an_invitation_is_read_before_sign_in_and_listed_as_it_goes() {
             .unwrap(),
     );
     assert_eq!(row.state, InvitationState::Waiting);
-    assert_eq!(row.code, b"the code sealed to the inviter");
     assert_eq!(
         row.expires - row.created,
         crate::limits::INVITATION_LIFETIME * 1000

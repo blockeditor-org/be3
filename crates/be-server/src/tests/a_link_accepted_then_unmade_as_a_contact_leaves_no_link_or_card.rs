@@ -40,9 +40,6 @@ async fn a_link_accepted_then_unmade_as_a_contact_leaves_no_link_or_card() {
             .collect();
         assert_eq!(letters, ["removed"], "what each is left of the other");
     }
-    let listed = owner
-        .call(|peer| peer.read::<Vec<be_block_protocol::OwnLink>>(be_block_protocol::Query::Links))
-        .await
-        .unwrap();
+    let listed = owner.links().await;
     assert!(listed.is_empty(), "{listed:?}");
 }

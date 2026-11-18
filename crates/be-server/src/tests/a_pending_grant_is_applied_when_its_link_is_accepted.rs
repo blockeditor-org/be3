@@ -22,7 +22,6 @@ async fn a_pending_grant_is_applied_when_its_link_is_accepted() {
             peer.write::<()>(be_block_protocol::Op::CreateLink {
                 link: Uuid::new_v4(),
                 card: Vec::new(),
-                code: Vec::new(),
                 kind: be_block_protocol::LinkKind::Contact(Some(pending(other_root.scope))),
             })
         })

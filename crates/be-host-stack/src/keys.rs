@@ -171,7 +171,7 @@ impl KeyState {
             .map(|keys| {
                 (
                     keys.account,
-                    !(keys.sealed.is_empty() && keys.own.is_empty() && keys.logs.is_empty()),
+                    !(keys.sealed.is_empty() && keys.logs.is_empty()),
                 )
             })
             .unwrap_or_default();
