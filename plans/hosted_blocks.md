@@ -242,7 +242,13 @@ a role inside the app, since the share dialog grants no roles. A game:
      start at Join. `the_share_dialog_makes_a_join_link_on_a_hosted_block` paints
      a game's dialog: Join game on the link with its line, Ada's row at Host,
      mine at Manage; a text block's paintings are unchanged.
-   - b. Who is hosting now, in the dialog. Depends on step 4's lease (4b).
+   - b. Who is hosting now, in the dialog (done): the access list names the
+     account holding the lease of the block's live session (`access-list.host`,
+     `access-listing.host`), and a hosted block's dialog says who that is, or
+     that no one hosts it, under "People with access"; member notes use the
+     type's names too. `the_access_list_names_who_hosts_the_block_now`; the
+     game's painting shows "Ada is hosting it now." As of listing: the dialog
+     lists again on each change it makes, not when the lease moves meanwhile.
 6. **A first hosted type**: a small game world in the logic game's spirit,
    with secret state, or a hosted variant of an existing game. Done: a host
    test where an editor hosts and a Join member plays.

@@ -438,7 +438,8 @@ counts and records nothing: `reserve-uploads` did before it signed.
   lease needs `Edit` (a viewer's claim is refused, and the replica host ignores
   the refusal). Each answer and `session-event.host` name the lease holder and
   its account (`SessionRegistry::host`), which `query.log` then proves to a
-  reader below Edit.
+  reader below Edit, and `query.access` names to a manager as who hosts the
+  block now (`access-list.host`, the share dialog's line on a hosted block).
 - **Join members** (plans/hosted_blocks.md): a caller below `View` joins as one
   (`joined-session.joined-as`, `member-kind.join`). It is in no membership, so
   no participant learns of it; it hears only `session-event.host` and what the

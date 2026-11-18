@@ -2355,6 +2355,7 @@ impl ServerStore {
                 entries,
                 company,
                 set_inside: u32::try_from(graph.set_inside(block)).unwrap_or(u32::MAX),
+                host: None,
             })
         })
         .await
