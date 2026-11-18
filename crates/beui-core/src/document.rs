@@ -3095,17 +3095,17 @@ fn verifying_paint() -> bool {
     cfg!(test) || VERIFY_PAINT.load(std::sync::atomic::Ordering::Relaxed)
 }
 
-static FAIL_UNSETTLED_LAYOUT: std::sync::atomic::AtomicBool =
-    std::sync::atomic::AtomicBool::new(false);
-
 /// Panics when a frame's layout has not settled after eight layouts, instead of
 /// painting the last one and asking for another frame (debug builds log what kept
-/// changing). Always on in beui-core's tests; be-sdk-test turns it on.
+/// changing). Always on in beui-core's tests; be-sdk-test turns it on. It holds for
+/// documents laid out on the calling thread only, so a test turning it on or off
+/// leaves the tests running beside it alone.
 pub fn fail_unsettled_layout(enabled: bool) {
-    FAIL_UNSETTLED_LAYOUT.store(enabled, std::sync::atomic::Ordering::Relaxed);
+    FAIL_UNSETTLED_LAYOUT.set(enabled);
 }
 
 thread_local! {
+    static FAIL_UNSETTLED_LAYOUT: Cell<bool> = const { Cell::new(false) };
     static DELAY_MEASUREMENT: Cell<bool> =
         Cell::new(std::env::var_os("BEUI_DELAY_MEASUREMENT").is_some_and(|value| value == "1"));
 }
@@ -3122,7 +3122,7 @@ fn delaying_measurement() -> bool {
 }
 
 fn failing_unsettled_layout() -> bool {
-    cfg!(test) || FAIL_UNSETTLED_LAYOUT.load(std::sync::atomic::Ordering::Relaxed)
+    cfg!(test) || FAIL_UNSETTLED_LAYOUT.get()
 }
 
 const LAYOUTS_PER_FRAME: usize = 8;
