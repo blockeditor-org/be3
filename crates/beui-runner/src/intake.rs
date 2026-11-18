@@ -260,7 +260,7 @@ impl Intake {
                         scale => input.scaled(1.0 / scale),
                     };
                     if (drain.take)(window, &input) {
-                        self.taken(window, &input, drain);
+                        self.taken(&input, drain);
                         continue;
                     }
                     if window != self.window && points_into_window(&input) {
@@ -271,7 +271,7 @@ impl Intake {
                 }
                 Entry::Layer { window, input, .. } => {
                     if (drain.take)(window, &input) {
-                        self.taken(window, &input, drain);
+                        self.taken(&input, drain);
                         continue;
                     }
                     if window != self.window && points_into_window(&input) {
@@ -289,13 +289,12 @@ impl Intake {
         }
     }
 
-    /// Keeps what the intake tracks across inputs (the window the pointer is in, where it is,
-    /// the buttons held, the modifiers) as `input`, which the program took, says, so input it
-    /// leaves after it is read the same, though the document hears no events of it.
-    fn taken(&mut self, window: WindowId, input: &Input, drain: &Drain<'_>) {
-        if points_into_window(input) {
-            self.window = window;
-        }
+    /// Keeps what the intake tracks across inputs (where the pointer is, the buttons held, the
+    /// modifiers) as `input`, which the program took, says, so the input it leaves after it is
+    /// read the same, though the document hears no events of it. The window the document last
+    /// heard the pointer in stays as it was, so the next pointer input it hears from another
+    /// window still comes with a `PointerWindow`.
+    fn taken(&mut self, input: &Input, drain: &Drain<'_>) {
         let mut unheard = Vec::new();
         // A press the program took is no emulated finger the document must later see lifted.
         let mut take = |_: WindowId, _: &Input| false;

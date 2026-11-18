@@ -133,7 +133,7 @@ impl Embedding {
 
 /// `area`, an input method's area in a screen's points, in the window's points: the screen's
 /// surface is painted at `raster` pixels per point and shown by `layer`.
-pub fn ime_in_window(area: ImeArea, raster: f32, layer: &Layer) -> ImeArea {
+pub(crate) fn ime_in_window(area: ImeArea, raster: f32, layer: &Layer) -> ImeArea {
     let pixels = |rect: Rect| {
         layer.to_window(Rect::from_min_max(
             pos2(rect.min.x * raster, rect.min.y * raster),

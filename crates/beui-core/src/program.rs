@@ -55,6 +55,12 @@ pub trait Program: std::any::Any {
     /// pointer, its buttons and the modifiers through it. A program that routes its windows'
     /// input itself (be-host's root) takes all of it: IME composition, touches and pens as the
     /// platform reported them, and every window's.
+    ///
+    /// A program that takes only part of a stream leaves its document's view of it
+    /// inconsistent: under touch emulation, a press the document heard whose release or
+    /// `PointersCancelled` the program took leaves the emulated finger down with no end or
+    /// cancel; and a taken `Modifiers` or `Focus(false)` leaves the document's modifiers as
+    /// they were until it next hears them change.
     fn input(&mut self, _window: WindowId, _input: &Input) -> bool {
         false
     }
