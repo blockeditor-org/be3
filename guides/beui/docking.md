@@ -305,9 +305,11 @@ alone even inside another dock's tab.
   (`{block type}/{key}` across apps), so every canvas's `tools` bar shares one placement and one
   popped-out window. The dock offers no way to show a hidden bar again: its owner must.
   A bar of a tab that hosts a joined dock (its dock's own bars, which the joined dock lends that
-  tab) shows on the joined dock's first pane until it is dropped on another of its panes
-  (`DockState::bar_panes`, `place_bar_on`, saved with the layout, and kept while a frame child
-  parks it). A bar stays with its pane, not with a tab: when the tab that names its pane leaves
+  tab) shows on the joined dock's first pane until it is dropped on any edge of another of its
+  panes, those of docks joined inside it included (`DockState::bar_panes`, `place_bar_on`, saved
+  with the layout, and kept while a frame child parks it). Only a pane of the bar's own layer is
+  saved: each layer's snapshot drops the docks joined inside it, so a bar left on a deeper
+  layer's pane comes back on its joined dock's first pane. A bar stays with its pane, not with a tab: when the tab that names its pane leaves
   that pane (moved or closed), another tab still there names it; on one pane, bars of outer
   layers start nearer the edge, and a bar dropped among another layer's lands where it was dropped.
   Dragged by its grip (`unstyled/bars.rs`), a bar is a carry on the drag board, lifted by the
