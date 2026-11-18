@@ -102,8 +102,6 @@ pub enum Event {
         entry: JournalEntry,
     },
     Paired(PairingMessage),
-    /// The account's contacts changed through another connection (`topic.contacts`).
-    ContactsChanged,
     /// Keys this account may open were stored through another connection (`topic.keys`), or
     /// opened here by any path (`KeyBook::on_opened`: a fetch, a contact verified since, escrow):
     /// `Peer::keys_changed`, then reading again what was locked, opens what they unlock.
@@ -112,7 +110,9 @@ pub enum Event {
     /// (`topic.notify-modes`).
     NotifyModesChanged,
     /// A message arrived in the account's mailbox, or another connection deleted one
-    /// (`topic.mailbox`): a notice, an accepted link's card or a contact's key change.
+    /// (`topic.mailbox`): a notice, an accepted link's card, a contact's key change, or a record
+    /// of a contact made or removed. A device that takes a record into the account's block
+    /// deletes its letter, so this tells the account's other devices that the block changed too.
     MailboxChanged,
     /// The organization's key work for this account may have changed (`topic.key-work`): read it
     /// again.
@@ -323,7 +323,6 @@ impl Connection {
                 Topic::Roots => Event::Roots,
                 Topic::Keys => Event::KeysChanged,
                 Topic::KeyWork => Event::KeyWorkChanged,
-                Topic::Contacts => Event::ContactsChanged,
                 Topic::NotifyModes => Event::NotifyModesChanged,
                 Topic::Mailbox => Event::MailboxChanged,
                 Topic::Storage => Event::StorageChanged,

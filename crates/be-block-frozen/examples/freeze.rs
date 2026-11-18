@@ -410,6 +410,13 @@ async fn write_scene(url: &str, data: &Path) -> Result<Written, String> {
         &agent_phrase.secret().identity(),
     ));
     let agent_public = agent_phrase.secret().public();
+    let agent_card = be_block_keys::ContactCard {
+        account: agent_account.into_bytes(),
+        public: agent_public,
+        signing: agent_phrase.secret().signing(),
+        display_name: scene::AGENT_NAME.into(),
+        email: be_block_protocol::agent_email(agent_account),
+    };
     let be_block_protocol::CreatedAgent {
         agent,
         token: agent_token,
@@ -424,6 +431,8 @@ async fn write_scene(url: &str, data: &Path) -> Result<Written, String> {
                 signing: agent_phrase.secret().signing().0,
                 contact: be_block_client::contacts::OwnContact::new(owner_card.clone(), 0)
                     .seal(&agent_phrase.secret()),
+                record: be_block_client::contacts::OwnContact::new(agent_card, 0)
+                    .seal(owner.keys().identity()),
                 escrow: be_block_client::contacts::seal_pin(
                     &agent_phrase.secret(),
                     organization,
@@ -437,24 +446,6 @@ async fn write_scene(url: &str, data: &Path) -> Result<Written, String> {
             },
         ),
     )
-    .await?;
-    let agent_card = be_block_keys::ContactCard {
-        account: agent.account.into_bytes(),
-        public: agent_public,
-        signing: agent_phrase.secret().signing(),
-        display_name: agent.name.clone(),
-        email: agent.email.clone(),
-    };
-    ask(be_block_protocol::write::<(), _>(
-        &owner.connection(),
-        None,
-        be_block_protocol::Op::PutContact {
-            contact: agent.account,
-            sealed: be_block_client::contacts::OwnContact::new(agent_card, 0)
-                .seal(owner.keys().identity()),
-            replaces: Vec::new(),
-        },
-    ))
     .await?;
     owner.refresh_contacts().await.map_err(text)?;
 
@@ -785,38 +776,16 @@ async fn write_scene(url: &str, data: &Path) -> Result<Written, String> {
     .map_err(text)?;
 
     let fresh = RecoveryPhrase::generate();
-    let be_block_protocol::RecoveryKey {
-        sealed, own, logs, ..
-    } = ask(
-        be_block_protocol::read::<be_block_protocol::RecoveryKey, _>(
-            &friend.connection(),
-            None,
-            be_block_protocol::Query::RecoveryKey,
-        ),
-    )
-    .await?;
-    let resealed = be_block_client::contacts::new_identity(
-        friend.account(),
-        friend.keys().identity(),
-        &fresh.secret(),
-        sealed,
-        own,
-        logs,
-    )
-    .ok_or("the friend's old phrase did not open what was sealed to it")?;
-    ask(be_block_protocol::write::<(), _>(
+    be_block_client::contacts::set_recovery_key(
         &friend.connection(),
-        None,
-        be_block_protocol::Op::SetRecoveryKey {
-            public: fresh.secret().public().0,
-            signing: fresh.secret().signing().0,
-            sealed: resealed.sealed,
-            own: resealed.own,
-            changes: resealed.changes,
-            retirements: resealed.retirements,
-        },
-    ))
-    .await?;
+        friend.account(),
+        Some(friend.keys().identity()),
+        &fresh.secret(),
+        &friend.contact_pins(),
+    )
+    .await
+    .map_err(text)?
+    .map_err(|_| "the friend's old phrase did not open what was sealed to it")?;
 
     let upload = ask(be_block_protocol::write::<
         Vec<Option<be_block_protocol::UploadUrl>>,

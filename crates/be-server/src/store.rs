@@ -451,6 +451,7 @@ impl ServerStore {
         recovery: [u8; 32],
         signing: [u8; 32],
         contact: Vec<u8>,
+        record: Vec<u8>,
         escrow: Vec<u8>,
         bound: Option<be_block_protocol::BoundAgent>,
         member: Option<Vec<u8>>,
@@ -458,11 +459,6 @@ impl ServerStore {
         let bound_to = bound.as_ref().map(|bound| bound.block);
         let role = self.membership(caller, organization).await?;
         let name = crate::limits::name("an agent's name", name)?.to_owned();
-        crate::limits::at_most(
-            "a contact card",
-            contact.len(),
-            crate::limits::MAX_SEALED_BYTES,
-        )?;
         crate::limits::at_most(
             "a pinned escrow",
             escrow.len(),
@@ -480,7 +476,7 @@ impl ServerStore {
                 "an agent's account id is derived from its maker and its keys".into(),
             ));
         }
-        let email = format!("agent-{}@agents.invalid", account.simple());
+        let email = be_block_protocol::agent_email(account);
         self.with_graph(organization, move |_, graph, database| {
             let mut before = std::collections::BTreeSet::new();
             if let Some(block) = bound_to {
@@ -584,7 +580,7 @@ impl ServerStore {
                 "INSERT INTO recovery_keys (account_id, public, signing) VALUES (?1, ?2, ?3)",
                 params![account.to_string(), recovery.to_vec(), signing.to_vec()],
             )?;
-            crate::contacts::befriend(&transaction, caller, &[], account, &contact)?;
+            crate::contacts::befriend(&transaction, caller, &record, account, &contact)?;
             crate::keys::pin_escrow(&transaction, account, organization, &escrow)?;
             // Its access comes only from the grant its creator signed.
             if let Some(bound) = &bound {

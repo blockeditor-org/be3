@@ -4,6 +4,7 @@
 //! editors read are crates of their own (be-block-input, be-block-repository,
 //! be-block-search-index).
 
+pub mod account_block;
 pub mod device_class;
 pub mod display_settings;
 pub mod organization;
@@ -12,6 +13,7 @@ pub mod resolution;
 pub mod settings;
 pub mod workspace_settings;
 
+pub use account_block::{AccountBlock, AccountBlockContent, account_block, account_block_of};
 pub use be_block_graph::{ANYONE_INSIDE, WORKSPACE_TYPE};
 pub use device_class::{ClassDefault, DeviceClass};
 pub use display_settings::{DisplaySettings, DisplaySettingsContent, Motion, ThemeKind};

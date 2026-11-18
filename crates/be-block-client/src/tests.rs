@@ -83,6 +83,7 @@ mod a_connection_outlives_a_stall_of_this_process;
 mod a_contact_connected_again_by_a_new_link_outranks_every_devices_pin;
 mod a_contact_is_named_by_the_card_it_verified_not_the_servers_row;
 mod a_contact_link_revoked_before_it_is_finished_grants_nothing;
+mod a_contact_made_on_one_device_is_read_by_another_from_the_accounts_block;
 mod a_contact_the_log_never_names_hands_over_a_key_only_with_edit_from_above;
 mod a_contact_the_server_lists_as_granted_with_no_record_is_sealed_nothing;
 mod a_contact_whose_key_changes_outran_the_mailbox_is_not_confirmed_until_linked_again;
@@ -137,6 +138,7 @@ mod a_member_with_view_is_served_no_other_members_grant;
 mod a_merge_left_waiting_is_sent_once_the_device_reconnects;
 mod a_merge_on_a_local_commit_under_a_made_up_key_is_set_aside_not_uploaded;
 mod a_move_refused_to_an_editor_drops_only_the_move;
+mod a_new_phrase_leaves_the_old_one_unable_to_read_the_accounts_next_commit;
 mod a_notification_opens_only_for_the_blocks_members;
 mod a_notification_sealed_under_another_blocks_key_is_refused;
 mod a_part_put_for_an_operation_is_saved_by_another_member_without_uploading_it;
@@ -522,33 +524,27 @@ async fn new_phrase(
     old: &be_block_keys::RecoverySecret,
 ) -> be_block_keys::RecoverySecret {
     let fresh = be_block_keys::RecoveryPhrase::generate().secret();
-    let be_block_protocol::RecoveryKey {
-        sealed, own, logs, ..
-    } = crate::ask(
-        be_block_protocol::read::<be_block_protocol::RecoveryKey, _>(
-            connection,
-            None,
-            be_block_protocol::Query::RecoveryKey,
-        ),
+    take_phrase(connection, account, old, &fresh).await;
+    fresh
+}
+
+/// Moves `account` from `old` to `fresh` as a device does (`contacts::set_recovery_key`).
+async fn take_phrase(
+    connection: &std::sync::Arc<crate::Connection>,
+    account: Uuid,
+    old: &be_block_keys::RecoverySecret,
+    fresh: &be_block_keys::RecoverySecret,
+) {
+    crate::contacts::set_recovery_key(
+        connection,
+        account,
+        Some(old),
+        fresh,
+        &std::collections::HashMap::new(),
     )
     .await
-    .unwrap();
-    let resealed = crate::contacts::new_identity(account, old, &fresh, sealed, own, logs).unwrap();
-    crate::ask(be_block_protocol::write::<(), _>(
-        connection,
-        None,
-        be_block_protocol::Op::SetRecoveryKey {
-            public: fresh.public().0,
-            signing: fresh.signing().0,
-            sealed: resealed.sealed,
-            own: resealed.own,
-            changes: resealed.changes,
-            retirements: resealed.retirements,
-        },
-    ))
-    .await
-    .expect("a new phrase never waits on a contact's mailbox");
-    fresh
+    .expect("a new phrase never waits on a contact's mailbox")
+    .expect("the old phrase opens everything it sealed");
 }
 
 fn identity(email: &str) -> be_block_keys::RecoverySecret {

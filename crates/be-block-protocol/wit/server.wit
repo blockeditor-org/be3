@@ -10,7 +10,7 @@ package be3:server@0.1.0;
 ///
 /// Five calls and one stream carry everything: `read`, `unfollow`, `write`,
 /// `send` and `events`, beside `ping` and the one-shot browser sign-in. Each names its organization: none for what is the account's own
-/// (its contacts, links, mailbox, recovery key and storage), else one the
+/// (its links, mailbox, recovery key and storage), else one the
 /// account is a member of. No organization is open on a connection: one
 /// connection works in any of its account's organizations at once.
 ///
@@ -32,7 +32,7 @@ interface server {
         publish-outcome, reference-change,
     };
     use sessions.{session-event};
-    use contacts.{contact-row, invitation-preview, invitation-row, link, link-kind, own-link};
+    use contacts.{invitation-preview, invitation-row, link, link-kind, own-link};
     use keys.{key-page, key-work, recovery-key, retirement, revocation, signing-key};
     use members.{bound-agent, created-agent, member};
     use organizations.{organization, server-info};
@@ -115,8 +115,10 @@ interface server {
         /// sends them with the removal.
         revocations(revocations-query),
         /// The account's recovery key, what is sealed to it, what it sealed for
-        /// itself (contact cards, link codes, the escrow key it pinned in each
-        /// organization) and the logs it signed in. The account's own.
+        /// itself outside its block (link codes, the escrow key it pinned in
+        /// each organization) and the logs it signed in. The account's own.
+        /// Its contacts' records are in its block in the personal organization
+        /// (`be_block::account_block`), whose key is sealed to it.
         recovery-key,
         /// The signing keys of those of `accounts` that are the caller, its
         /// contacts or members of the organization (in the personal
@@ -137,15 +139,11 @@ interface server {
         /// the connection hears `storage` as the bytes it pays for change.
         storage,
         /// The account's mailbox, oldest first: the server's notices, its
-        /// accepted links' cards and its contacts' key changes, each kept
-        /// until a device deletes it. The account's own; followed, the
-        /// connection hears `mailbox` when a message arrives or is deleted
-        /// through another connection.
+        /// accepted links' cards, its contacts' key changes, and its records of
+        /// contacts made or removed, each kept until a device deletes it. The
+        /// account's own; followed, the connection hears `mailbox` when a
+        /// message arrives or is deleted through another connection.
         mailbox,
-        /// The account's contacts. The account's own; followed, the
-        /// connection hears `contacts` when its contacts changed through
-        /// another connection.
-        contacts,
         /// The caller's links, outstanding or accepted and not yet finished;
         /// an invitation expired or revoked is not one. The account's own.
         links,
@@ -228,7 +226,6 @@ interface server {
         invitations(list<invitation-row>),
         storage(account-storage),
         mailbox(list<message>),
-        contacts(list<contact-row>),
         links(list<own-link>),
         link(link),
         invitation(invitation-preview),
@@ -260,7 +257,6 @@ interface server {
         roots,
         storage,
         mailbox,
-        contacts,
         notify-modes,
     }
 
@@ -326,8 +322,10 @@ interface server {
         /// Makes the agent account `account` in the organization (the id
         /// derived from the caller and the agent's keys,
         /// be_block_keys::agent_account), with the recovery key `recovery` and
-        /// the signing key `signing` derived with it, a contact card for the
-        /// caller, and its escrow key sealed for it. With `bound-to`, which
+        /// the signing key `signing` derived with it, its record of the caller as
+        /// a contact (`contact`, left in its mailbox as `letter.contact`), the
+        /// caller's record of it (`record`, left in the caller's), and its
+        /// escrow key sealed for it. With `bound-to`, which
         /// needs Manage on that block, the agent is granted Edit on it by the
         /// signed grant and reaches nothing else.
         create-agent(create-agent),
@@ -341,8 +339,8 @@ interface server {
         /// bounded number outstanding.
         create-link(create-link),
         /// Accepts a link, leaving the caller's `card` in its owner's mailbox
-        /// (`letter.accepted`) and its contact card for the owner sealed to
-        /// itself (`contact`). `key` is,
+        /// (`letter.accepted`) and its record of the owner, sealed to itself,
+        /// in its own (`contact`, as `letter.contact`). `key` is,
         /// for a contact link with a grant, the granted key sealed to the
         /// caller; for an invitation, the escrow key it pins sealed to
         /// itself; otherwise empty. The account's own.
@@ -352,14 +350,9 @@ interface server {
         /// list. The caller's own, or with an organization, an invitation into
         /// it, which the caller administers.
         delete-link(link-id),
-        /// Replaces the account's record of a contact, sealed to itself, only
-        /// while the record it holds is `replaces` (empty for none), so a device
-        /// that read an older record, or fewer of the contact's key changes,
-        /// never writes over a newer one: refused `record-changed`, it reads
-        /// again. The account's own.
-        put-contact(put-contact),
         /// Removes a contact, revoking each one's grants on blocks the other
-        /// manages. `revocations` are the signed revocations of those grants
+        /// manages, and leaving each a `letter.removed` from the other.
+        /// `revocations` are the signed revocations of those grants
         /// in the organization the write names (`revocations` with
         /// `contact`), each needed; those in other organizations wait in key
         /// work's unsigned revocations.
@@ -368,7 +361,10 @@ interface server {
         /// with it, with everything sealed to the old one sealed again, a key
         /// change for each contact, left in its mailbox (`letter.key-change`), and an entry retiring the old keys in
         /// every access log the account signed in
-        /// (`be_block_keys::Entry::retirement`). The account's own.
+        /// (`be_block_keys::Entry::retirement`). The account's own; a write
+        /// naming the personal organization carries beside it the new key
+        /// epoch of the account's block (`be_block::account_block`), sealed to
+        /// the new key alone, as a `put-keys` rotation.
         set-recovery-key(set-recovery-key),
         /// Keeps the escrow key the caller pinned for the organization, sealed
         /// to itself.
@@ -522,6 +518,7 @@ interface server {
         recovery: public-key,
         signing: public-key,
         contact: list<u8>,
+        %record: list<u8>,
         escrow: list<u8>,
         bound-to: option<bound-agent>,
         /// In a company organization, the member record signing the agent
@@ -541,12 +538,6 @@ interface server {
         card: list<u8>,
         contact: list<u8>,
         key: list<u8>,
-    }
-
-    record put-contact {
-        contact: account-id,
-        sealed: list<u8>,
-        replaces: list<u8>,
     }
 
     record remove-contact {

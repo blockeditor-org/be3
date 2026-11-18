@@ -24,7 +24,7 @@ async fn a_grantee_who_never_signed_retires_its_old_key_too() {
 
     let fresh = be_block_keys::RecoveryPhrase::generate().secret();
     let RecoveryKey {
-        sealed, own, logs, ..
+        logs, ..
     } = crate::ask(
         be_block_protocol::read::<be_block_protocol::RecoveryKey, _>(
             &member.connection(),
@@ -38,22 +38,7 @@ async fn a_grantee_who_never_signed_retires_its_old_key_too() {
         logs.iter().any(|log| log.log == team),
         "the member is granted in the workspace's log, so retires its key there: {logs:?}"
     );
-    let resealed =
-        crate::contacts::new_identity(member.account(), &old, &fresh, sealed, own, logs).unwrap();
-    crate::ask(be_block_protocol::write::<(), _>(
-        &member.connection(),
-        None,
-        be_block_protocol::Op::SetRecoveryKey {
-            public: fresh.public().0,
-            signing: fresh.signing().0,
-            sealed: resealed.sealed,
-            own: resealed.own,
-            changes: resealed.changes,
-            retirements: resealed.retirements,
-        },
-    ))
-    .await
-    .unwrap();
+    take_phrase(&member.connection(), member.account(), &old, &fresh).await;
 
     let laptop = harness.second(&owner).await;
     let retired = laptop.access_log(team).await.unwrap();

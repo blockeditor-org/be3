@@ -46,6 +46,7 @@ async fn an_agent_reads_and_writes_the_rows_shared_with_it() {
                 0,
             )
             .seal(&phrase.secret()),
+            record: Vec::new(),
             escrow: be_block_client::contacts::seal_pin(
                 &phrase.secret(),
                 organization,

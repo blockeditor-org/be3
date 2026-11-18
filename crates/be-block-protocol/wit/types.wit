@@ -40,9 +40,6 @@ interface types {
         /// A commit's time is more than `MAX_COMMIT_AHEAD` past the server's
         /// clock: its device stamped it by a clock running fast.
         commit-ahead,
-        /// A record changed since the caller read it (`put-contact`): read it
-        /// again.
-        record-changed,
     }
 
     /// A connection, as the server numbers them; a session's participants and
@@ -189,12 +186,11 @@ interface types {
     }
 
     enum own-kind {
-        contact,
         link,
         escrow,
     }
 
-    /// What an account sealed for itself: a contact's card, a link's code, a
+    /// What an account sealed for itself outside its block: a link's code, a
     /// pinned escrow key.
     record own-sealed {
         kind: own-kind,

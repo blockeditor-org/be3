@@ -832,12 +832,18 @@ needs code of its own for any method.
   `topic.mailbox`) holds what an account is told while none of its devices
   may be connected, each `message` kept until a device of the account deletes
   it: the server's notices (`letter.notice`, from no one), an accepted link's
-  card (`letter.accepted`, from the accepter, left by `accept-link`) and a
+  card (`letter.accepted`, from the accepter, left by `accept-link`), a
   contact's key change (`letter.key-change`, from the contact, left by
-  `set-recovery-key`). The server leaves each in the transaction of the change
-  it tells, so none is lost between the two, and tells the account's
-  connections that follow the topic. Removing a contact deletes what each left
-  the other, with the links between them. An account holds at most
+  `set-recovery-key`), and the account's records of contacts made
+  (`letter.contact`, sealed by the account for itself, left by `accept-link`
+  and `create-agent`) or removed (`letter.removed`, left to both by
+  `remove-contact`), which a device takes into the account's block
+  (guides/blocks/keys.md, "Contacts"). The server leaves each in the
+  transaction of the change it tells, so none is lost between the two, and
+  tells the account's connections that follow the topic; a device deletes what
+  it took, which tells the account's other devices that its block changed.
+  Removing a contact deletes what each left the other, with the links between
+  them, before leaving each its `letter.removed`. An account holds at most
   `MAX_LETTERS_FROM_ONE` letters of each kind from one sender (so at most that
   many times `MAX_CONTACTS_PER_ACCOUNT`). Past it, accepting another link is
   refused, but a key change never is, since a new phrase is what an account
@@ -970,7 +976,10 @@ Only its creator rotates its token (`RotateAgentToken`, which revokes every
 older one). One `bound-to` a block is that block's agent (guides/tracker.md, A
 block's agent): `Identity::bound` limits what it reaches, `client::bound_may`
 what it may call, and `WatchHub::go_live` keeps one connection of it open.
-Accepting a link, or creating an agent, makes the two accounts contacts.
+Accepting a link, or creating an agent, makes the two accounts contacts: the
+server keeps only that they are (`contacts`), and each account keeps its record
+of the other in its own block (`be_block::account_block`, owner-only at the top
+of the personal organization, made only there by `blocks::require_account_block`).
 
 ### Notifications
 

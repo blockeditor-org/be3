@@ -202,7 +202,6 @@ const SCHEMA: &str = "
     CREATE TABLE contacts (
         account_id      TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
         contact_id      TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
-        sealed          BLOB NOT NULL DEFAULT x'',
         PRIMARY KEY (account_id, contact_id)
     );
 

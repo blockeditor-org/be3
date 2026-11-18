@@ -94,7 +94,6 @@ pub(crate) fn query_rule(query: &Query) -> Rule {
         | Query::Organizations
         | Query::Storage
         | Query::Mailbox
-        | Query::Contacts
         | Query::Links
         | Query::Link(_)
         | Query::ServerInfo => Rule::Account,
@@ -144,12 +143,12 @@ pub(crate) fn op_rule(op: &Op) -> Rule {
         | Op::CreateOrganization { .. }
         | Op::AcceptLink { .. }
         | Op::DeleteLink(_)
-        | Op::PutContact { .. }
-        | Op::SetRecoveryKey { .. }
         | Op::DeleteMessage(_)
         | Op::RevokeToken(_) => Rule::Account,
         // With an organization, the revocations of the grants in it go with the removal.
         Op::RemoveContact { .. } => Rule::Anywhere,
+        // In the personal organization, the account's block's new epoch goes with it.
+        Op::SetRecoveryKey { .. } => Rule::Anywhere,
         Op::SetNotifyMode { block: of, .. } => block(*of, Access::View),
     }
 }
@@ -175,7 +174,7 @@ pub(crate) fn topic_rule(topic: &Topic) -> Rule {
         | Topic::KeyWork
         | Topic::Roots
         | Topic::NotifyModes => Rule::Member,
-        Topic::Storage | Topic::Mailbox | Topic::Contacts => Rule::Account,
+        Topic::Storage | Topic::Mailbox => Rule::Account,
     }
 }
 
@@ -197,7 +196,6 @@ pub(crate) fn bound_may_read(query: &Query, follow: bool) -> bool {
         | Query::KeyWork
         | Query::RecoveryKey
         | Query::Organizations
-        | Query::Contacts
         | Query::Mailbox
         | Query::DownloadUrls(_)
         | Query::ServerInfo
@@ -244,7 +242,6 @@ pub(crate) fn bound_may_write(op: &Op, root: Uuid) -> bool {
         | Op::CreateLink { .. }
         | Op::AcceptLink { .. }
         | Op::DeleteLink(_)
-        | Op::PutContact { .. }
         | Op::RemoveContact { .. }
         | Op::SetRecoveryKey { .. }
         | Op::SetPushEndpoint(_)
@@ -328,7 +325,6 @@ enum Followed {
     NotifyModes(Uuid),
     Storage,
     Mailbox,
-    Contacts,
 }
 
 impl Followed {
@@ -340,7 +336,6 @@ impl Followed {
             (Topic::NotifyModes, Some(organization)) => Self::NotifyModes(organization),
             (Topic::Storage, None) => Self::Storage,
             (Topic::Mailbox, None) => Self::Mailbox,
-            (Topic::Contacts, None) => Self::Contacts,
             _ => return None,
         })
     }
@@ -353,7 +348,6 @@ impl Followed {
             Self::NotifyModes(organization) => (Some(organization), Topic::NotifyModes),
             Self::Storage => (None, Topic::Storage),
             Self::Mailbox => (None, Topic::Mailbox),
-            Self::Contacts => (None, Topic::Contacts),
         };
         Event::TopicChanged {
             organization,
@@ -375,7 +369,6 @@ fn topic_of(query: &Query) -> Option<Topic> {
         } => Topic::Roots,
         Query::Storage => Topic::Storage,
         Query::Mailbox => Topic::Mailbox,
-        Query::Contacts => Topic::Contacts,
         Query::NotifyModes => Topic::NotifyModes,
         _ => return None,
     })
@@ -520,7 +513,8 @@ enum After {
         organization: Uuid,
         accounts: BTreeSet<Uuid>,
     },
-    ContactsChanged(Vec<Uuid>),
+    /// The accounts' mailboxes changed: a contact made or removed leaves its records there.
+    MailboxChanged(Vec<Uuid>),
     Regranted {
         organization: Uuid,
         block: Uuid,
@@ -796,10 +790,6 @@ impl Client {
                 }
             }
             Push::Paired(message) => Event::Paired(message),
-            Push::ContactsChanged => match self.follows(Followed::Contacts) {
-                true => Followed::Contacts.told(),
-                false => return Ok(()),
-            },
             Push::MailboxChanged => match self.follows(Followed::Mailbox) {
                 true => Followed::Mailbox.told(),
                 false => return Ok(()),
@@ -1383,7 +1373,6 @@ impl Client {
                 Page::Storage(usage)
             }
             Query::Mailbox => Page::Mailbox(store.mailbox(admitted.account()?).await?),
-            Query::Contacts => Page::Contacts(store.list_contacts(admitted.account()?).await?),
             Query::Links => Page::Links(store.links(admitted.account()?).await?),
             Query::Link(link) => Page::Link(store.link(admitted.account()?, link).await?),
             Query::Invitation(link) => Page::Invitation(store.read_invitation(link).await?),
@@ -1972,6 +1961,7 @@ impl Client {
                 recovery,
                 signing,
                 contact,
+                record,
                 escrow,
                 bound_to,
                 member,
@@ -1988,6 +1978,7 @@ impl Client {
                         recovery,
                         signing,
                         contact,
+                        record,
                         escrow,
                         bound_to,
                         member,
@@ -2003,7 +1994,7 @@ impl Client {
                         .await;
                 }
                 connection
-                    .after(After::ContactsChanged(vec![identity.account]))
+                    .after(After::MailboxChanged(vec![identity.account, agent.account]))
                     .await;
                 Ok(Done::Agent(CreatedAgent { agent, token }))
             }
@@ -2058,13 +2049,7 @@ impl Client {
                         .await;
                 }
                 connection
-                    .after(After::ContactsChanged(vec![account, accepted.owner]))
-                    .await;
-                connection
-                    .after(After::Tell {
-                        account: accepted.owner,
-                        push: Push::MailboxChanged,
-                    })
+                    .after(After::MailboxChanged(vec![account, accepted.owner]))
                     .await;
                 Ok(Done::Nothing)
             }
@@ -2073,21 +2058,6 @@ impl Client {
                     .store
                     .delete_link(admitted.account()?, link)
                     .await?;
-                Ok(Done::Nothing)
-            }
-            Op::PutContact {
-                contact,
-                sealed,
-                replaces,
-            } => {
-                let account = admitted.account()?;
-                connection
-                    .store
-                    .put_contact(account, contact, sealed, replaces)
-                    .await?;
-                connection
-                    .after(After::ContactsChanged(vec![account]))
-                    .await;
                 Ok(Done::Nothing)
             }
             Op::RemoveContact {
@@ -2107,7 +2077,7 @@ impl Client {
                     })
                     .await;
                 connection
-                    .after(After::ContactsChanged(vec![caller, account]))
+                    .after(After::MailboxChanged(vec![caller, account]))
                     .await;
                 Ok(Done::Nothing)
             }
@@ -2437,7 +2407,7 @@ impl Connection {
                 organization,
                 accounts,
             } => self.keys_changed(organization, accounts).await,
-            After::ContactsChanged(accounts) => self.contacts_changed(&accounts).await,
+            After::MailboxChanged(accounts) => self.mailbox_changed(&accounts).await,
             After::Regranted {
                 organization,
                 block,
@@ -2703,10 +2673,10 @@ impl Connection {
         }
     }
 
-    async fn contacts_changed(&self, accounts: &[Uuid]) {
+    async fn mailbox_changed(&self, accounts: &[Uuid]) {
         for account in accounts {
             self.hub
-                .send_account(*account, self.client, None, &Push::ContactsChanged)
+                .send_account(*account, self.client, None, &Push::MailboxChanged)
                 .await;
         }
     }

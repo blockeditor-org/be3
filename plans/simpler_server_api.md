@@ -278,9 +278,10 @@ guides/blocks/keys.md, guides/tracker.md (`be`'s header sign-in).
 
 ### 4. The account's own block, and one mailbox
 
-In two pieces, each landing whole: the mailbox first (4a, done), then the
-account's own block and bootstrapping (4b), which the bullets below the first
-describe.
+In pieces, each landing whole: the mailbox first (4a, done), the account's own
+block with its contacts' records (4b1, done), then its cards and link codes, the
+escrow keys it pins, and bootstrapping (4b2), which the bullets below the first
+two describe.
 
 - **4a. The mailbox (done).** `query.mailbox`, `topic.mailbox` and
   `op.delete-message` (crates/be-server/src/store/mailbox.rs): each `message`
@@ -323,6 +324,35 @@ describe.
   be-server's `a_key_change_past_the_bound_lets_the_oldest_go_but_an_accepted_card_is_refused`
   and `a_link_accepted_then_unmade_as_a_contact_leaves_no_link_or_card`, and
   `every_call_states_who_may_make_it`'s `mailbox` and `delete-message`.
+- **4b1. The account's block, with contacts (done).** `be_block::account_block`
+  (`AccountBlock`), owner-only at the top of the personal organization at an id
+  derived from the account, made only there and so by the server
+  (`blocks::require_account_block`), holds the account's contact records; a
+  device reaches it through `be_block_client::AccountRecords`, a peer of the
+  personal organization of its own that holds this block's keys alone and
+  keeps nothing on the device. `put-contact`, `query.contacts`,
+  `topic.contacts`, `contact-row`, `own-kind.contact` and `record-changed` are
+  gone; `contacts` keeps two columns. Where it differs: the server can no
+  longer write a record, so a record arrives as a letter the account sealed for
+  itself (`letter.contact`, left by `accept-link` for the accepter and by
+  `create-agent`, now with the maker's `record` of the agent, for both) and a
+  removal as `letter.removed` (left to both by `remove-contact`); a device
+  takes them into the block in mailbox order and then deletes them, which
+  tells its other devices (`topic.mailbox`) that the block changed, so no
+  `Mailbox(account)` target was needed. A record's `through` names the newest
+  letter it reflects, so a device that stops between writing the block and
+  deleting the letters never follows a change twice nor takes back a removal;
+  the block is written only over the head read, which replaces `put-contact`'s
+  `replaces`. An agent, in no personal organization, has no block and keeps its
+  letters. A new phrase (`contacts::set_recovery_key`) reseals the block's keys
+  with the rest and, in the same write in the personal organization
+  (`set-recovery-key` is now `Rule::Anywhere`), starts its new epoch sealed to
+  the new phrase alone (`AccountRecords::epoch_for`); the server now checks
+  only that what the account sealed for itself is resealed, as it cannot read
+  which contacts' keys a device reaches. Tests: be-block-client's
+  `a_contact_made_on_one_device_is_read_by_another_from_the_accounts_block` and
+  `a_new_phrase_leaves_the_old_one_unable_to_read_the_accounts_next_commit`;
+  the rollback and slow-device tests now serve or write an older block.
 - **An owner-only block** in the personal organization holds what the account
   seals for itself: contact records, its cards and link codes, the escrow keys
   it pinned per organization. `put-contact`, `list-contacts`, `list-links`,
