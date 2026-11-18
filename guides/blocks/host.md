@@ -233,9 +233,11 @@ unsealed work (one opened offline that replayed this device's journal, one
 opened as the outbox drained), and a join's answer waits (`Replicas::settling`) while a seal of the replica is asked, on its way,
 or answered and not yet reported, since its head is moving past the reported
 one, and while a submission of it is unanswered (`Open::submitting`), and
-when, after it sealed once, the order holds journaled edits no seal holds and
-no seal would take them (`rejoin_held`: a reload of its own is on its way, or
-its seal backs off), until a status says one would. A block closed or reopened
+when, after a seal was asked of it (by `reconnect` as the join began, or once
+by the join itself), the order holds journaled edits no seal holds and no seal
+would take them (`rejoin_held`: a reload of its own is on its way, its seal
+failed and backs off, or a merge cannot read its parts), until a status says
+one would. A block closed or reopened
 meanwhile lets go of that join instead (`Replicas::let_go_if_held`): its
 replica ends in its made-up session, sealing there as it closes, and one
 reopened opens afresh. A seal in a made-up session goes to the outbox without

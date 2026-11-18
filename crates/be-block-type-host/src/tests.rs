@@ -54,6 +54,7 @@ mod an_editor_reads_no_part_of_another_block_its_replica_was_not_handed;
 mod an_editor_reattached_across_joining_is_sent_a_snapshot_holding_what_was_given_again;
 mod edits_typed_offline_into_a_session_of_another_build_are_sealed_before_the_replica_diverges;
 mod edits_typed_offline_while_a_reload_of_the_replicas_own_is_on_its_way_reach_the_server;
+mod edits_typed_offline_whose_seal_before_joining_fails_reach_the_server;
 mod news_of_a_block_whose_head_stayed_moves_no_replica;
 mod only_the_types_own_app_writes_in_its_blocks_log;
 mod search_text_of_a_type_that_loads_whole_is_narrowed_to_the_keys_asked_for;
@@ -786,22 +787,30 @@ async fn opened_again(
     replicas.pump((peer, shared)).await;
 }
 
-/// A text block published as "base", opened offline (`peer` detached) on a manual clock, so no
-/// seal comes due, and typed in three times ("a", "b", "c", each at the start): its replica
-/// journals the three edits in its made-up session, and no seal holds them. Returns the block, its
-/// published head and what reconnects `peer` (`Peer::attach`).
+/// A text block published as `base`, opened offline (`peer` detached) on a manual clock, so no
+/// seal comes due, and typed in three times ("a", "b", "c", each at the start) by editor 7: its
+/// replica journals the three edits in its made-up session, and no seal holds them. Returns the
+/// block, its published head, what reconnects `peer` (`Peer::attach`) and the editor's mirror.
 async fn text_typed_offline(
     peer: &Arc<Peer<MemoryStore>>,
     shared: &Arc<Mutex<Quiet>>,
     replicas: &mut Replicas<Quiet>,
-) -> (Uuid, CommitId, Arc<be_block_client::Connection>, String) {
+    base: &str,
+) -> (
+    Uuid,
+    CommitId,
+    Arc<be_block_client::Connection>,
+    String,
+    be_sdk_type_guest::editor::EditorMirror<be_type_text::TextContent>,
+) {
     use be_type_text::{TextBlock, TextContent};
 
     let block = peer
         .create::<TextContent>(BlockParent::Root)
         .await
         .expect("the text is made");
-    let base = match peer.save(block, &TextBlock::of("base"), None).await {
+    let published = base;
+    let base = match peer.save(block, &TextBlock::of(published), None).await {
         Ok(be_block_client::Saved::Published(head)) => head,
         saved => panic!("the text publishes: {saved:?}"),
     };
@@ -821,13 +830,16 @@ async fn text_typed_offline(
         replicas.pump((peer, shared)).await;
         receive_frames(shared, editor, &mut mirror);
     }
-    assert_eq!(text_of(peer, shared, replicas, block).await, "cbabase");
+    assert_eq!(
+        text_of(peer, shared, replicas, block).await,
+        format!("cba{published}")
+    );
     let status = replicas.status(block).expect("the replica reported");
     assert!(
         status.journaled_taken > status.sealed_taken,
         "the edits are journaled, and no seal holds them"
     );
-    (block, base, connection, token)
+    (block, base, connection, token, mirror)
 }
 
 /// Drains the outbox until it is empty, merging what the drain finds diverged, as the worker's

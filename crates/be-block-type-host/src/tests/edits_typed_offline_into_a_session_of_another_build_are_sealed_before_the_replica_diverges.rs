@@ -13,8 +13,8 @@ fn edits_typed_offline_into_a_session_of_another_build_are_sealed_before_the_rep
         be_block_client::Clock::manual(),
         |peer, another, shared, mut replicas| async move {
             let another = another.expect("another device signed in");
-            let (block, _, connection, token) =
-                text_typed_offline(&peer, &shared, &mut replicas).await;
+            let (block, _, connection, token, _) =
+                text_typed_offline(&peer, &shared, &mut replicas, "base").await;
             another
                 .join_session(block, be_block_store::Hash::of(b"another build"))
                 .await

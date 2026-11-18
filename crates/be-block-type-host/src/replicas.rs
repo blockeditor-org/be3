@@ -685,6 +685,10 @@ struct Open {
     joined_settled: bool,
     /// A seal its join's answer waits for, of what its made-up session took meanwhile.
     sealed_joining: bool,
+    /// Whether a seal of what its made-up session held past its head was asked as its join began
+    /// (`reconnect`): the join's answer waits until one holds its journaled edits, as for
+    /// `sealed_joining`, since opening on the server's journal would drop them.
+    sealed_before_joining: bool,
     /// Its local edits were discarded and no join has said since that this account may edit
     /// it (`Peer::discarded`): its editors attach read-only, as nothing they made would be kept.
     marked: bool,
@@ -1028,6 +1032,10 @@ pub struct Replicas<H: Host> {
     /// submission and keeping its edits, as a crash there would.
     #[cfg(test)]
     pub(crate) hold_kept_edits: bool,
+    /// How many seals to come fail as a store write refused for a missing key would
+    /// (`ClientError::Locked` from `Peer::seal`), so a test can make a seal really fail.
+    #[cfg(test)]
+    pub(crate) failing_seals: usize,
     /// Each opening of a replica, as `(block, kept_restart, through of each kept submission)`.
     #[cfg(test)]
     pub(crate) openings: Vec<(Uuid, u64, Vec<u64>)>,
@@ -1094,6 +1102,8 @@ impl<H: Host> Replicas<H> {
             key_searches: 0,
             #[cfg(test)]
             hold_kept_edits: false,
+            #[cfg(test)]
+            failing_seals: 0,
             #[cfg(test)]
             openings: Vec::new(),
             #[cfg(test)]
@@ -1867,6 +1877,7 @@ impl<H: Host> Replicas<H> {
                 joined_settled: false,
                 marked: peer.discarded(block),
                 sealed_joining: false,
+                sealed_before_joining: false,
                 made_up,
                 reach: Arc::default(),
                 early: Vec::new(),
@@ -3740,9 +3751,10 @@ impl<H: Host> Replicas<H> {
     /// from its journal, or sequenced for a follower): neither that head's journal nor `replay`
     /// holds them (`reopening`).
     ///
-    /// A rejoin that sealed once and still holds journaled edits no seal holds, which a seal
-    /// cannot take now (`owes_seal` is false: a reload is on its way, or its seal backs off), is
-    /// settling too: its answer stays held, asking nothing, until a status says a seal would take
+    /// A rejoin whose seal `reconnect` asked as it began (`sealed_before_joining`), or that
+    /// sealed once, and still holds journaled edits no seal holds, which a seal
+    /// cannot take now (`owes_seal` is false: a reload is on its way, its seal backs off, or a
+    /// merge cannot read its parts), is settling too: its answer stays held, asking nothing, until a status says a seal would take
     /// them (`rejoined`), or its block closes. A replica in its made-up session never diverges
     /// (the session speaks its own build), and its seal goes to the outbox without merging
     /// (`merge_diverged` merges it once a drain sends it), so neither holds a rejoin.
@@ -3839,6 +3851,8 @@ impl<H: Host> Replicas<H> {
             && !open.unreported()
             && peer.pending_commits(open.block).is_empty();
         open.sealed_joining = false;
+        open.sealed_before_joining =
+            open.made_up && (!open.status.clean || open.unreported()) && !open.joined_settled;
         open.held = None;
         open.early.clear();
         let block = open.block;
@@ -3896,14 +3910,14 @@ impl<H: Host> Replicas<H> {
         // asked only while some are left and a seal would take them; while none would, the
         // answer stays held (`settling`). An edit it has not submitted (it waits for the order to
         // number the one before) is not journaled: `replay` gives it again, and no seal commits
-        // it, so asking again for it would never end.
-        let unsealed = open.joined_settled
-            && match open.sealed_joining {
-                false => !open.status.clean || open.unreported(),
-                true => journaled_unsealed(open) && open.status.owes_seal,
-            };
+        // it, so asking again for it would never end. A join whose seal `reconnect` asked as it
+        // began (`sealed_before_joining`) waits alike while that seal failed and backs off.
+        let unsealed = match open.sealed_joining || open.sealed_before_joining {
+            false => open.joined_settled && (!open.status.clean || open.unreported()),
+            true => journaled_unsealed(open) && open.status.owes_seal,
+        };
         if unsealed {
-            open.sealed_joining = true;
+            open.sealed_joining |= open.joined_settled;
             self.seal_later(block, false);
         }
         if self.settling(replica) {
@@ -4876,6 +4890,16 @@ impl<H: Host> Replicas<H> {
                         publishing: Arc::clone(&publishing),
                     },
                 );
+                #[cfg(test)]
+                let failing = match self.failing_seals.checked_sub(1) {
+                    Some(left) => {
+                        self.failing_seals = left;
+                        true
+                    }
+                    None => false,
+                };
+                #[cfg(not(test))]
+                let failing = false;
                 let peer = Arc::clone(peer);
                 let io = self.io.clone();
                 H::spawn(async move {
@@ -4914,6 +4938,7 @@ impl<H: Host> Replicas<H> {
                     }
                     let saved = match reach::reaches_all(&reach, &peer, block, &content.parts).await
                     {
+                        Ok(true) if failing => Some(Err(ClientError::Locked(block))),
                         Ok(true) => Some(
                             commit::<H>(&peer, block, write, local, &publishing, move || {
                                 let _ = sealed.send(Io::Sealed);
@@ -5707,7 +5732,7 @@ fn journaled_unsealed(open: &Open) -> bool {
 /// are left, and no seal would take them now (`settling`).
 fn rejoin_held(open: &Open) -> bool {
     open.rejoining.is_some()
-        && open.sealed_joining
+        && (open.sealed_joining || open.sealed_before_joining)
         && journaled_unsealed(open)
         && !open.status.owes_seal
 }
