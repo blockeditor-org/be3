@@ -21,7 +21,7 @@ mod quote;
 mod rule;
 mod table;
 
-pub use quote::quote_in_text;
+pub use quote::{quote_in_text, quoted_nesting_em};
 
 pub use table::{CellAlign, RowTable, TableColumns, table_columns};
 
@@ -846,13 +846,22 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
     builder.row.look = look.clone();
     let mut marker = look.marker.start.clamp(start, end)..look.marker.end.clamp(start, end);
     let mut marked = look.list.is_some() || !marker.is_empty();
+    // A code line's prefix and marker take its code's monospace, so they make it no taller.
+    let lead = match look.code_block && look.list.is_none() {
+        true => SpanStyle {
+            font: builder.span_style(style_at(marker.end)).font,
+            ..body
+        },
+        false => body,
+    };
     // A quote laid over its gutter by the row: what its marker held past the prefix is a list's
-    // marker (or a continuation's spaces) as before, else text as wide as it is.
+    // marker (or a continuation's or code line's list spaces) as before, else text as wide as
+    // it is.
     let mut index = start;
     let mut gutter = 0.0;
     if quote_in_text(&look) && !options.mask {
-        (index, gutter) = builder.quote_prefix(&look, start..end, body);
-        let listed = look.list.is_some() || look.continues;
+        (index, gutter) = builder.quote_prefix(&look, start..end, lead);
+        let listed = look.list.is_some() || look.continues || look.code_block;
         marker = match listed {
             true => index..marker.end.max(index),
             false => index..index,
@@ -899,7 +908,7 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
     }
     while index < end || marked {
         if marked && index >= marker.start {
-            builder.marker(&look, marker.clone(), body);
+            builder.marker(&look, marker.clone(), lead);
             marked = false;
             index = marker.end;
             continue;
