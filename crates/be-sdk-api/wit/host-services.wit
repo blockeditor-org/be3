@@ -75,6 +75,9 @@ interface host-services {
         /// default, and only its links offer Join. Empty for any other block,
         /// which offers the core levels by their own names.
         levels: list<offered-level>,
+        /// On a hosted block, the account hosting it now: the one whose device
+        /// holds its live session's lease. None when no one hosts it.
+        host: option<account-id>,
     }
 
     /// A level a hosted type offers in the share dialog, with its name and

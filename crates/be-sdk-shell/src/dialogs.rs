@@ -1,7 +1,7 @@
 use be_sdk_beui::be_block::OrganizationPolicies;
 use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::icons::{
-    ICON_CROWN, ICON_LINK, ICON_LOCK, ICON_TRIANGLE_ALERT, ICON_USER, ICON_USER_PLUS, ICON_X,
+    ICON_CAST, ICON_CROWN, ICON_LINK, ICON_LOCK, ICON_TRIANGLE_ALERT, ICON_USER, ICON_USER_PLUS, ICON_X,
 };
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
@@ -283,6 +283,12 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
     let company = create_memo(move || {
         listing.with(|listing| matches!(listing, Ok(listing) if listing.company))
     });
+    let hosting = create_memo(move || {
+        listing.with(|listing| match listing {
+            Ok(listing) => Share::hosting_note(listing, me),
+            _ => None,
+        })
+    });
     let inside = create_memo(move || {
         listing.with(|listing| match listing {
             Ok(listing) => Share::inside_note(listing),
@@ -527,6 +533,14 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
                     />
                 </Show>
                 <Text style=TextStyle::HEADING>"People with access"</Text>
+                <Show value={hosting}>|hosting: ReadSignal<String>|
+                    <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
+                        <Text size=TextSize::Sm align=TextAlign::Center>
+                            <Icon glyph=ICON_CAST />
+                        </Text>
+                        <Text style=TextStyle::CAPTION @test_id={"share.hosting"}>{hosting}</Text>
+                    </List>
+                </Show>
                 <Show value={loading}>
                     <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                         <Progress width=INLINE_PROGRESS_WIDTH />
