@@ -53,9 +53,8 @@ pub const MAX_STREAMS_PER_CONNECTION: usize = 16_384;
 /// on display names.
 pub const MAX_NAME_BYTES: usize = 200;
 /// A block's metadata. It is kept in memory in the graph and sent in every summary, so it is
-/// small next to a frame: one summary, with `MAX_REFERENCES` references too, fits a frame, and
-/// calls answering many summaries split their answers by bytes rather than by count, sending a
-/// large one alone.
+/// small next to a frame: one summary fits a frame many times over, and calls answering many
+/// summaries split their answers by bytes rather than by count, sending a large one alone.
 pub const MAX_METADATA_BYTES: usize = 64 * 1024;
 pub use be_block_protocol::MAX_REFERENCES;
 /// The bytes of keys, with their wraps, one `query.keys` page holds.

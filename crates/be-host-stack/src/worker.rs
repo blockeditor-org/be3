@@ -867,9 +867,7 @@ impl Shared {
                 parent = dropped.parent,
                 by = dropped.by,
                 head = parent.and_then(|node| node.head),
-                references = parent
-                    .map(|node| node.references.clone())
-                    .unwrap_or_default(),
+                references = parent.and_then(|node| node.references.clone()),
                 open = self.blocks.contains_key(&dropped.parent),
                 connected = self.connected,
             );
@@ -4460,17 +4458,17 @@ async fn export(
     }
     let summaries: Vec<BlockSummary> = found.iter().map(|(summary, _)| summary.clone()).collect();
     peer.learn(&summaries).await?;
-    let mut blocks: Vec<be_block_client::transfer::Saved> = found
-        .into_iter()
-        .map(|(summary, parent)| be_block_client::transfer::Saved {
+    let mut blocks: Vec<be_block_client::transfer::Saved> = Vec::with_capacity(found.len());
+    for (summary, parent) in found {
+        blocks.push(be_block_client::transfer::Saved {
             id: summary.id,
             block_type: summary.content_type,
             parent,
             metadata: node_of(peer, &summary).metadata,
-            references: summary.references,
+            references: peer.content_references(&summary).await?,
             content: None,
-        })
-        .collect();
+        });
+    }
     let heads: HashMap<Uuid, Option<be_block_commit::CommitId>> = summaries
         .iter()
         .map(|summary| (summary.id, summary.head))
@@ -4542,13 +4540,19 @@ pub(super) async fn fetch_listings(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<S
     }
 }
 
-/// Reads what the graph wants in a task of its own: the listings, and the trees followed that
-/// advanced; and unfollows the entry points nothing lies in any more.
+/// Reads what the graph wants in a task of its own: the listings, the trees followed that
+/// advanced, and what the blocks shown with what they hold reference; and unfollows the entry
+/// points nothing lies in any more.
 pub(super) fn spawn_listings(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: &Tasks) {
     let wanted = take_listings(shared);
     if !wanted.is_empty() {
         let (peer, shared) = (Arc::clone(peer), Arc::clone(shared));
         tasks.spawn(async move { list(&peer, &shared, wanted).await });
+    }
+    let reads = take_reads(shared);
+    if !reads.is_empty() {
+        let (peer, shared) = (Arc::clone(peer), Arc::clone(shared));
+        tasks.spawn(async move { read_references(&peer, &shared, reads).await });
     }
     let (trees, unfollowed) = take_follows(shared);
     if !trees.is_empty() || !unfollowed.is_empty() {
@@ -4581,6 +4585,37 @@ async fn reread_known_only(
             // Not one made or changed here that the server has yet to hear of.
             None if held.graph.unsettled(block) => {}
             None => held.graph.forget(block),
+        }
+    }
+}
+
+fn take_reads(shared: &Arc<Mutex<Shared>>) -> Vec<(Uuid, CommitId)> {
+    let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+    if !held.graph.has_to_read() {
+        return Vec::new();
+    }
+    held.graph.take_to_read()
+}
+
+/// Reads what each block references from its content at `head` (`Graph::take_to_read`), as no
+/// summary names it: a folder's order, its children's liveness and its links. Offline, only
+/// content this device kept answers; what cannot be read is answered from the server's listings
+/// until a new connection (`Graph::read_failed`).
+async fn read_references(
+    peer: &Arc<Peer<Store>>,
+    shared: &Arc<Mutex<Shared>>,
+    blocks: Vec<(Uuid, CommitId)>,
+) {
+    let read = futures_util::future::join_all(blocks.iter().map(|(block, head)| async move {
+        let commit = peer.load_head(*block, *head).await?;
+        peer.references_of(*block, &commit).await
+    }))
+    .await;
+    let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+    for ((block, head), read) in blocks.into_iter().zip(read) {
+        match read {
+            Ok(references) => held.graph.read_references(block, head, references),
+            Err(_) => held.graph.read_failed(block, head),
         }
     }
 }
@@ -5214,7 +5249,7 @@ pub(super) fn node_of(peer: &Peer<Store>, summary: &BlockSummary) -> Node {
         author: summary.author,
         parent: summary.parent,
         access: summary.access,
-        references: summary.references.clone(),
+        references: None,
         metadata: metadata.unwrap_or_default(),
         head: peer.head_of(summary),
         held: summary.held,

@@ -46,7 +46,8 @@ async fn a_long_listing_is_read_page_by_page() {
     made.sort();
     assert_eq!(listed, made);
 
-    // References in an order of their own, not of their ids.
+    // References listed page by page too, in the order of their ids: their own order is in
+    // the block's content, which no summary names.
     let referrer = author
         .create::<TextContent>(BlockParent::Block(workspace))
         .await
@@ -89,7 +90,8 @@ async fn a_long_listing_is_read_page_by_page() {
         .iter()
         .map(|summary| summary.id)
         .collect();
-    assert_eq!(references, order, "references in the block's order");
+    order.sort();
+    assert_eq!(references, order, "every reference, in the order of their ids");
 
     harness.stop().await;
 }

@@ -13,7 +13,6 @@ pub struct Entry {
     pub parent: BlockParent,
     pub name: Option<String>,
     pub prefix: Option<String>,
-    pub references: Vec<Uuid>,
     pub access: Access,
     pub head: Option<be_block_commit::CommitId>,
     pub deleted: bool,

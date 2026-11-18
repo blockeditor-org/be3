@@ -524,7 +524,7 @@ impl Instances {
                             self.editable(*holder)
                                 && be_host_stack::node(*holder).is_some_and(|holder| {
                                     holder.parent != Some(be_block_graph::BlockParent::Detached)
-                                        && holder.references.contains(&block)
+                                        && holder.refers_to(block) == Some(true)
                                 })
                         })
                         .map(|holder| self.local(instance, holder.into_bytes()));

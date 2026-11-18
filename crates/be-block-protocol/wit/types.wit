@@ -89,7 +89,9 @@ interface types {
     }
 
     /// What a connection may know of a block. One it may only know exists
-    /// carries only its id, type and access, with `held` set.
+    /// carries only its id, type and access, with `held` set. What a block
+    /// references is in its content, which a reader decrypts; the server keeps
+    /// references only for liveness (`held`), `know-exists` and backrefs.
     record block-summary {
         id: block-id,
         content-type: content-type-id,
@@ -97,7 +99,6 @@ interface types {
         author: option<account-id>,
         parent: option<block-parent>,
         head: option<commit-id>,
-        references: list<block-id>,
         metadata: list<u8>,
         version: option<u64>,
         key: option<key-id>,

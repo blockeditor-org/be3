@@ -252,8 +252,7 @@ nothing for a field missing from an older record.
 `Peer::list(listing)` reads any `Listing` (`Peer::listing` with the sequence
 it was read at; `children` is its only shorthand, and `summary` reads one
 block): every page of a long one (`listed.next`, in the order of
-block ids, so a `References` listing is put back in the block's own order),
-and the summaries
+block ids, a `References` listing too), and the summaries
 of each page's `rest` with `read-summaries`, `MAX_SUMMARIES_ASKED` at a time,
 keeping each block once and leaving out a summary read later that the listing
 would no longer hold (`still_in`). A block's references past
@@ -263,9 +262,10 @@ winning, and a listing is the ids it held: a copy kept per listing went stale of
 before another device's seal, or the copy a parent's listing held). Offline, a
 listing answers as the summaries place its blocks now:
 
-- a block's `References` are what its summary references, so a seal or an
-  offline commit after the listing was fetched shows;
-- its `Backrefs` are the summaries that reference it;
+- a block's `References` are what the content it kept references
+  (`Peer::references_here`), so a seal or an offline commit after the listing
+  was fetched shows, or the listing as fetched when it kept none;
+- its `Backrefs` are the listing as fetched;
 - a block's `Children`, and the `Deleted` blocks, are those the listing held
   that their summaries still put there, then those whose summaries put them
   there and changed after the sequence the server answered the listing at
@@ -273,7 +273,12 @@ listing answers as the summaries place its blocks now:
   or pushed since the listing was fetched shows, and one moved away does not.
 
 A summary is dropped only with the blocks `forget` drops, so one the server no
-longer lists stays until then.
+longer lists stays until then. No summary names what its block references:
+`Peer::content_references` reads it from the block's newest commit this device
+has (one in the outbox first, else the summary's head), with its parts'
+(`references_of`), or from its metadata for a block with no content yet, in
+the content's order. A local account answers `References` and `Backrefs` from
+it too, having no server that keeps references.
 
 `Peer::cached` builds a peer from it with no network, and `Peer::attach` hands
 it a signed-in connection later (after every reconnect), which opens the

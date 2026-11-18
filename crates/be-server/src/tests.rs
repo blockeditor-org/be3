@@ -128,6 +128,7 @@ mod a_stale_seal_from_an_earlier_run_publishes_and_trims_nothing;
 mod a_stored_key_is_told_only_to_who_may_open_it;
 mod a_stranger_cannot_read_a_block_in_an_organization_it_is_not_in;
 mod a_submission_from_a_build_the_session_does_not_speak_is_refused;
+mod a_summary_names_no_references_and_a_referenced_block_still_reads_as_known;
 mod a_trashed_block_reaches_its_reader_as_detached;
 mod a_trim_by_another_build_marks_the_journal_lost_until_the_next_commit;
 mod a_trim_from_other_than_the_holder_is_not_kept;
@@ -294,6 +295,16 @@ impl Harness {
 
     fn socket(&self) -> String {
         format!("ws://{}", self.server.address)
+    }
+
+    /// The references the server keeps for `block`, in its order, read from its database:
+    /// no summary names them (a reader takes them from the block's content).
+    async fn kept_references(&self, organization: Uuid, block: Uuid) -> Vec<Uuid> {
+        ServerStore::open(&self.directory)
+            .expect("the store opens beside the server")
+            .with_graph(organization, move |_, graph, _| Ok(graph.references(block)))
+            .await
+            .expect("the organization's graph reads")
     }
 
     /// A connection its greeting signs in with `token`, or the server's refusal, the connection

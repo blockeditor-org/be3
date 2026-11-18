@@ -433,7 +433,6 @@ impl<S: ObjectStore> Tracker<S> {
                     parent,
                     name: metadata.name(),
                     prefix: metadata.get(&be_block_content::ROW_PREFIX),
-                    references: summary.references,
                     access: summary.access,
                     head: summary.head,
                     deleted: false,

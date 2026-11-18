@@ -718,13 +718,20 @@ refused while the journal holds another build's entries, and bounded by
 quarter of a frame.
 
 **Answers that fit a frame.** A summary carries metadata of up to
-`MAX_METADATA_BYTES` and at most `MAX_REFERENCES` references (as many as an
-account may author blocks, so a folder of all of them still fits; refused past
-it by `create-block` and `publish`, which also refuses a
-`ReferenceChange` `between` never makes, naming an added reference twice or
-with indices that do not increase; `apply` is one pass, and moves an added
-reference the list already holds, since a client diffs against its own view), so one summary fits a
-frame on its own (`LARGEST_SUMMARY_BYTES`, held by a const assertion).
+`MAX_METADATA_BYTES` and none of the block's references: a reader takes those
+from the block's content (its commit's `references` and its parts', or its
+metadata's for a block with no content yet), which it decrypts, and the server
+keeps them only for liveness (`held`), `KnowExists` and backrefs, so one
+summary fits a frame many times over (`LARGEST_SUMMARY_BYTES`, held by a const
+assertion). A block references at most `MAX_REFERENCES` blocks (as many as an
+account may author, so a folder of all of them still fits; refused past it by
+`create-block` and `publish`, whose adding that many still fits a frame, and
+`publish` also refuses a `ReferenceChange` `between` never makes, naming an
+added reference twice or with indices that do not increase; `apply` is one
+pass, and moves an added reference the list already holds, since a client
+diffs against its own view). The server keeps their order
+(`block_edges.position`) for that diff alone: a `references` listing comes in
+the order of ids, as every listing does.
 Answers of many summaries bound them by encoded size
 (`be_block_protocol::encoded_len`), not by count, and always take at least one,
 so a summary larger than the budget goes alone: `list-blocks` and

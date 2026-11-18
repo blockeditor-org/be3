@@ -639,7 +639,6 @@ fn placed(id: u128, parent: BlockParent, changed: u64) -> be_block_protocol::Blo
         author: None,
         parent: Some(parent),
         head: None,
-        references: Vec::new(),
         metadata: Vec::new(),
         version: None,
         key: None,

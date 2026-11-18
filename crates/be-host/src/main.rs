@@ -2510,7 +2510,7 @@ impl HostCore {
             RestoreTo::Into(destination) => destination,
         };
         let listed = be_host_stack::node(destination)
-            .is_some_and(|parent| parent.references.contains(&root));
+            .is_some_and(|parent| parent.refers_to(root) == Some(true));
         match listed {
             true => be_host_stack::set_parent(root, BlockParent::Block(destination)),
             false => self.queue_move(

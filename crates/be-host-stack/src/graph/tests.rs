@@ -5,6 +5,7 @@ mod a_block_placed_in_another_is_listed_as_its_reference_before_the_server_hears
 mod a_block_s_children_leave_out_what_its_metadata_points_to;
 mod a_block_under_a_deleted_one_is_deleted_with_it;
 mod a_blocks_references_are_listed_in_one_request;
+mod a_blocks_references_are_read_from_its_head_not_its_summary;
 mod a_blocks_references_listed_before_the_block_itself_are_kept;
 mod a_drained_head_moves_only_a_block_no_replica_reports_for;
 mod a_folders_blocks_leave_once_nothing_lists_it;
@@ -24,7 +25,7 @@ fn node(id: Uuid) -> Node {
         author: None,
         parent: Some(BlockParent::Root),
         access: Access::Edit,
-        references: Vec::new(),
+        references: None,
         metadata: BlockMetadata::default(),
         head: None,
         locked: false,

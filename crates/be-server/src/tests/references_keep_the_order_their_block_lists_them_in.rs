@@ -52,7 +52,7 @@ async fn references_keep_the_order_their_block_lists_them_in() {
             "{response:?}"
         );
         assert_eq!(
-            client.read_block(deck).await.references,
+            harness.kept_references(organization, deck).await,
             *references,
             "the server did not keep the order the block listed its references in"
         );
@@ -65,8 +65,9 @@ async fn references_keep_the_order_their_block_lists_them_in() {
     drop(client);
     let harness = harness.restart().await;
     let mut client = harness.second_connection(&token, organization).await;
+    assert!(client.read_block(deck).await.head.is_some());
     assert_eq!(
-        client.read_block(deck).await.references,
+        harness.kept_references(organization, deck).await,
         moved,
         "the order of references was lost when the server reopened"
     );

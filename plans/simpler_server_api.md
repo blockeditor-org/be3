@@ -407,23 +407,28 @@ read from the mailbox, are built.) Guides: guides/blocks/keys.md
 ("Contacts", "Identity, new phrases and devices"), guides/blocks/server.md
 ("Accounts"), guides/settings.md (owner only).
 
-### 5. References leave summaries
+### 5. References leave summaries (done)
 
-The server keeps references for liveness, `KnowExists` and backrefs, and
-`Publish` still carries the reference change. Summaries stop carrying them:
-clients take links and a folder's order from decrypted content and the tree's
-shape from parents. About 68 sites read `.references` in be-block-client and
-be-host-stack, among them `Graph::holds_in` and the mirror's `References`
-query. The risk is a view that shows a folder's children in order without
-opening the folder's content, which must now decrypt it, and an offline
-device, which has only the content it kept. `LARGEST_SUMMARY_BYTES` loses
-`MAX_REFERENCES` ids, and the page budgets sized around it shrink.
-
-Done: a be-host-stack test where a folder's order comes from its content with
-the server's summaries carrying no references; a be-server test that a summary
-names none and a referenced block still reads as `KnowExists`; the host tests
-that list, reorder and link blocks pass. Guides: guides/blocks/server.md
-("Answers that fit a frame"), guides/blocks/host.md ("The graph mirror").
+`block-summary.references` is gone: the server keeps references for liveness
+(`held`), `KnowExists` and backrefs, and `publish` and `create-block` still
+carry them, while a reader takes a block's references, in their order, from
+its decrypted content (`Peer::content_references`: the commit's and its parts',
+or the metadata's for a block with no content yet) and the tree's shape from
+parents. The host's mirror reads them per head for the blocks it shows with
+what they hold (`Graph::take_to_read`, `read_references` in the worker), so a
+folder's order is read without opening it; until read, a child is held as the
+server says (`held`) and backrefs are the server's listing, and a head whose
+content cannot be read offline answers the server's listing until a new
+connection. A `references` listing comes in the order of ids. A local account
+answers `references` and `backrefs` listings from content. Where it differs:
+`LARGEST_SUMMARY_BYTES` lost the `MAX_REFERENCES` ids, but the page budgets
+stay as they were, since nothing about them was sized for the references
+alone and a frame must still carry a publish adding `MAX_REFERENCES`. Tests:
+be-server's
+`a_summary_names_no_references_and_a_referenced_block_still_reads_as_known`,
+be-host-stack's `a_folders_order_is_read_from_its_content_online_and_offline`
+and `a_blocks_references_are_read_from_its_head_not_its_summary`; the server's
+order tests read its kept references from its database.
 
 ## Decisions for the user
 

@@ -8,7 +8,7 @@ async fn a_publish_with_no_commit_changes_the_metadata_and_leaves_the_head() {
     let harness = Harness::start().await;
     let mut connection = harness.member("author@example.com").await;
     let account = connection.id();
-    connection.personal().await;
+    let organization = connection.personal().await;
     let block = connection.create_block(BlockParent::Root).await;
     let linked = connection.create_block(BlockParent::Root).await;
     let author = Author::new(account);
@@ -49,8 +49,12 @@ async fn a_publish_with_no_commit_changes_the_metadata_and_leaves_the_head() {
     );
     let read = connection.read_block(block).await;
     assert_eq!(
-        (read.head, read.metadata, read.references),
-        (Some(head), b"described".to_vec(), vec![linked])
+        (read.head, read.metadata),
+        (Some(head), b"described".to_vec())
+    );
+    assert_eq!(
+        harness.kept_references(organization, block).await,
+        vec![linked]
     );
 
     harness.stop().await;

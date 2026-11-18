@@ -80,7 +80,7 @@ fn a_block_a_shared_one_links_to_shows_as_no_access_and_nowhere_else() {
                 && held
                     .graph
                     .get(shared)
-                    .is_some_and(|node| node.references.contains(&linked))
+                    .is_some_and(|node| node.refers_to(linked) == Some(true))
                 && held
                     .graph
                     .query(Query::Shared)

@@ -40,10 +40,11 @@ async fn a_reordered_reference_list_keeps_its_new_order() {
             targets,
             "the commit did not keep the order the content listed"
         );
+        let summary = author.summary(deck).await.unwrap();
         assert_eq!(
-            author.summary(deck).await.unwrap().references,
+            author.content_references(&summary).await.unwrap(),
             targets,
-            "the graph did not keep the order the content listed"
+            "a reader did not take the order the content listed"
         );
     }
 
