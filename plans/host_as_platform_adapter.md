@@ -1451,6 +1451,38 @@ Each step lands on its own.
        root guest says. Then be-host brings back under `--root` what the host keeps, and the
        root becomes the default. A real root shows a lock layer per window or display,
        each the size of it, as be-host's lock screen does per display today.
+       Proposed slices (to be agreed before any is built). The compositor is about 7,000
+       lines of `src/compositor` (app views 2,200, editors and the camera 2,400, desktop
+       windows 1,200, anchored views 500, the palette 500), over be-host-runtime's
+       orchestration; each slice moves one area and its tests, and be-host keeps running its
+       own until the last.
+       - 4g7a. The real root's crate. be-sdk-root-testing is a test fixture and stays one:
+         its keys (F2 to F12) and its fixed 152-point dialog exist for tests. The real root is
+         a new guest crate (`crates/be-root`, a cdylib on be-sdk-root and be-sdk-beui-root),
+         which be-host's `--root` runs when it is given no other, and which starts with what
+         4g6 built in the test root, moved rather than copied: the lock screen, notices and
+         the slow save's toast, keep changes, the core's areas and their dialogs, and the
+         statistics panel, worded and laid out as be-host's own UI (its `src/ui`), on
+         be-host-accounts-ui moved into a crate a root may use. be-sdk-root-testing keeps
+         only what its own tests check (a dialog, the lock, a notice, the statistics), and
+         be-wasm-root-host's area tests move to the real root's crate, run on the same host.
+       - 4g7b. App views: be-host-runtime's orchestration (pacing, settle, restarts, grafting
+         the accessibility trees) as a guest library the root links, and `app_view`'s views
+         in the root, each declaring its layer's hit and gesture areas and placer.
+       - 4g7c. Anchored views placed outside groups (`anchored`).
+       - 4g7d. Editors and the camera (`editors`, `editors/camera`), and the chords along the
+         focus: Tab and F6 between surfaces, and the palette's (`palette`, `intercept`).
+       - 4g7e. Desktop windows (`desktop`): program windows as tabs, over the Wayland and
+         win32 hosts' surfaces, which stay the host's.
+       - 4g7f. drive's commands split as The root guest says: `tree`, `find`, `paint`,
+         `settle`, `synced` and `offline` to the root as messages, the clock and the
+         platform's in the host.
+       - 4g7g. be-host brings back under `--root` what the host keeps, each answering the
+         capability 4g6 gave it: the block stack's `core-view` and its commands and
+         secrets (until step 5 moves the stack), the login session's lock and PAM, the
+         displays' keep changes, and the clipboard and notices already wired; then the root
+         becomes the default and be-host's `src/ui` and `src/compositor` go, with the copies
+         noted above (`SlowSave`, the memory graph).
 5. The block stack as an instance the root guest spawns, behind capabilities, building on the
    web's stack worker with a memory of its own, and sending smaller updates.
 6. Space as a guest, offscreen windows, and the host's OpenXR part, with late latching.
