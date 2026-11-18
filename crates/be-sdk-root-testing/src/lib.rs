@@ -33,7 +33,7 @@
 //! own keys then, only the F5 test fixture (`UNLOCKS_TWICE`).
 //! Its field hands what was typed to the host to check (`host.unlock`), cleared as it does, and
 //! shows why the host refused it. F4 (`LOCKS_SESSION`) asks the host to lock the session.
-//! It shows what its host's core shows (`host.core`): while its changes stay unsaved for
+//! It shows whether its host's changes are saved (`host.saving`): while they stay unsaved for
 //! `SLOW_SAVE`, the slow save's toast among its toasts, until they are saved or it is
 //! dismissed.
 //! A frame at `CLOSES` lets go of the app, which stops it. The window's input is routed by the

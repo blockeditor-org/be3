@@ -28,7 +28,7 @@ use be_wasm_guest_host::STEP_TIMEOUT;
 use be_wasm_ops::{Connection, Incoming, OpError, OpId, Outcome, Reply, Side, Ticket};
 pub use be_wasm_password::Password;
 use be_wasm_root_api::{
-    FrameDone, FrameRequest, embed, host::CoreView, host::HostStatistics, host::LockState, host::Notice,
+    FrameDone, FrameRequest, embed, host::HostStatistics, host::LockState, host::Notice,
     host::PowerAction, host::ShownNotices, host::StatisticRow,
 };
 use be_wasm_sandbox_host::Server;
@@ -140,10 +140,11 @@ struct Core<G> {
     /// What the root chose on its lock screen besides unlocking (`host.lock-power`), until the
     /// host takes it.
     lock_powers: Vec<PowerAction>,
-    /// What be-host's core shows, which `host.core` answers: the generation counts each change.
-    core: CoreView,
-    /// The root's `host.core` calls waiting for it to change from what they saw.
-    core_watchers: Vec<Reply<CoreView>>,
+    /// Whether the person's changes are saved, which `host.saving` answers: the generation
+    /// counts each change.
+    saving: be_wasm_root_api::SavingState,
+    /// The root's `host.saving` calls waiting for it to change from what they saw.
+    saving_watchers: Vec<Reply<be_wasm_root_api::SavingState>>,
 }
 
 impl<G: Inline> Core<G> {
@@ -195,16 +196,14 @@ impl<G: Inline> Core<G> {
             unlock: None,
             taken: false,
             lock_powers: Vec::new(),
-            core: CoreView {
+            saving: be_wasm_root_api::SavingState {
                 generation: 1,
-                saving: be_wasm_root_api::Saving {
-                    unsaved: false,
-                    saves: 0,
-                    unsent: 0,
-                    sync: be_wasm_root_api::SyncState::Saved,
-                },
+                unsaved: false,
+                saves: 0,
+                unsent: 0,
+                sync: be_wasm_root_api::SyncState::Saved,
             },
-            core_watchers: Vec::new(),
+            saving_watchers: Vec::new(),
         };
         core.received()?;
         Ok(core)
@@ -351,26 +350,26 @@ impl<G: Inline> Core<G> {
         answered
     }
 
-    /// Shows the root what be-host's core shows (`host.core`), in place of what it showed:
-    /// `shown`'s generation is the host's own counting. Answers whether a root's call waited for
-    /// it.
-    fn show_core(&mut self, shown: CoreView) -> bool {
-        let CoreView { generation, .. } = self.core;
-        if (CoreView {
+    /// Shows the root whether the person's changes are saved (`host.saving`), in place of what
+    /// it showed: `shown`'s generation is the host's own counting. Answers whether a root's call
+    /// waited for it.
+    fn show_saving(&mut self, shown: be_wasm_root_api::SavingState) -> bool {
+        let generation = self.saving.generation;
+        if (be_wasm_root_api::SavingState {
             generation,
             ..shown.clone()
-        }) == self.core
+        }) == self.saving
         {
             return false;
         }
-        self.core = CoreView {
+        self.saving = be_wasm_root_api::SavingState {
             generation: generation + 1,
             ..shown
         };
-        let watching = std::mem::take(&mut self.core_watchers);
+        let watching = std::mem::take(&mut self.saving_watchers);
         let answered = !watching.is_empty();
         for reply in watching {
-            reply.send(&mut self.connection, &self.core);
+            reply.send(&mut self.connection, &self.saving);
         }
         answered
     }
@@ -538,9 +537,9 @@ impl<G: Inline> Core<G> {
                             .remove(at)
                             .fail(&mut self.connection, OpError::Canceled);
                     } else if let Some(at) =
-                        self.core_watchers.iter().position(|reply| reply.op() == op)
+                        self.saving_watchers.iter().position(|reply| reply.op() == op)
                     {
-                        self.core_watchers
+                        self.saving_watchers
                             .remove(at)
                             .fail(&mut self.connection, OpError::Canceled);
                     } else if let Some(at) =
@@ -635,10 +634,10 @@ impl<G: Inline> Core<G> {
                     false => reply.send(&mut self.connection, &self.lock),
                 }
             }
-            embed::Call::Host(embed::host::Call::Core { seen, reply }) => {
-                match seen == self.core.generation {
-                    true => self.core_watchers.push(reply),
-                    false => reply.send(&mut self.connection, &self.core),
+            embed::Call::Host(embed::host::Call::Saving { seen, reply }) => {
+                match seen == self.saving.generation {
+                    true => self.saving_watchers.push(reply),
+                    false => reply.send(&mut self.connection, &self.saving),
                 }
             }
             embed::Call::Host(embed::host::Call::LockSession { reply }) => {
