@@ -53,6 +53,7 @@ fn offline_a_block_is_out_of_reach_while_this_device_lacks_every_head() {
             tree_size: 0,
             changed: 0,
             entry: None,
+            unread: 0,
         }],
         u64::MAX - 1,
     );

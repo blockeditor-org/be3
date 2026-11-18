@@ -2152,6 +2152,7 @@ impl HostCore {
         self.dynamic_artifact_settings_open = None;
         self.root_settings = RootSettings::new(self.root_settings.shell());
         offline_choice::forget();
+        be_host_stack::unread::forget();
         self.choosing_session = false;
         self.shell = None;
         self.input.set_layers(Default::default());
@@ -2288,6 +2289,7 @@ impl HostCore {
         self.members.close();
         self.root_settings = RootSettings::new(self.root_settings.shell());
         offline_choice::forget();
+        be_host_stack::unread::forget();
         self.choosing_session = false;
         self.shell = None;
         self.input.set_layers(Default::default());
@@ -3907,6 +3909,11 @@ impl HostCore {
                 settings.workspaces(),
                 company.is_none(),
             );
+            for kind in be_host_stack::unread::kinds() {
+                if let Some(layers) = settings.layer_contents(kind, self.client_id) {
+                    be_host_stack::unread::publish(kind, layers);
+                }
+            }
             self.input
                 .set_layers(settings.layers(InputSettings::CONTENT_TYPE, self.client_id));
             self.display

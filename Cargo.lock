@@ -1001,6 +1001,7 @@ dependencies = [
  "be-sdk-beui",
  "be-sdk-database",
  "be-sdk-test",
+ "be-type-chat",
  "be-type-workspace",
  "beui",
  "serde",

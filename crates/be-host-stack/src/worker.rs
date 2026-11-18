@@ -79,6 +79,9 @@ pub(super) struct Start {
     /// What the settings choose to keep offline as the stack started, then each change as a
     /// command (`offline_choice::publish`).
     pub(super) offline_choices: Option<crate::offline_choice::Choices>,
+    /// The account's layers of each reads kind as the stack started, then each change as a
+    /// command (`unread::publish`).
+    pub(super) reads: std::collections::BTreeMap<Uuid, Vec<Vec<u8>>>,
     /// The app list the page read, so its host's worker does not read it again (`discovery`).
     #[cfg(target_arch = "wasm32")]
     pub(super) apps: Option<crate::discovery::Read>,
@@ -179,6 +182,9 @@ pub(super) enum Command {
     HoldClock(#[serde(with = "crate::seen::moment::option")] Option<Instant>),
     /// What the organization's settings choose to keep offline (`offline_choice::publish`).
     OfflineChoices(Option<crate::offline_choice::Choices>),
+    /// The account's layers of a settings kind a type counts what is unread from
+    /// (`unread::publish`): the kind, and each layer's content bytes, lowest first.
+    Reads(Uuid, Vec<Vec<u8>>),
     Duplicate {
         from: Uuid,
         to: Uuid,
@@ -426,6 +432,7 @@ impl Command {
             Command::FromEditor { .. } => "from editor",
             Command::HoldClock(..) => "hold clock",
             Command::OfflineChoices(..) => "offline choices",
+            Command::Reads(..) => "reads",
             Command::Duplicate { .. } => "duplicate",
             Command::Seed { .. } => "seed",
 
@@ -499,6 +506,7 @@ impl Command {
                 | Command::FromEditor { .. }
                 | Command::HoldClock(_)
                 | Command::OfflineChoices(_)
+                | Command::Reads(..)
                 | Command::Attach { .. }
                 | Command::Detach { .. }
                 | Command::Open { .. }
@@ -528,6 +536,7 @@ impl Command {
                 | Command::FromEditor { .. }
                 | Command::HoldClock(_)
                 | Command::OfflineChoices(_)
+                | Command::Reads(..)
                 | Command::Attach { .. }
                 | Command::Detach { .. }
                 | Command::Open { .. }
@@ -609,7 +618,8 @@ impl Command {
             | Command::WantSearches(..)
             | Command::Edit(..)
             | Command::HoldClock(_)
-            | Command::OfflineChoices(_) => None,
+            | Command::OfflineChoices(_)
+            | Command::Reads(..) => None,
         }
     }
 
@@ -801,6 +811,8 @@ pub struct Shared {
     pub discarded: Vec<Uuid>,
     pub wall: Wall,
     pub search: super::search::Searching,
+    /// The account's reads and the unread counts made with them (`crate::unread`).
+    pub(crate) counting: crate::unread::Counting,
     /// The `Searching::shown_revision` that `Seen::searched` was made at.
     pub(crate) searched_at: Option<u64>,
     /// The `be_block_type_host::known_revision` that `Seen::kinds` was made at.
@@ -1060,6 +1072,7 @@ pub(super) async fn serve<S: Fn() -> Result<Store, String>>(
         config,
         held_clock,
         offline_choices,
+        reads,
         ..
     }: Start,
     make_store: S,
@@ -1073,6 +1086,11 @@ pub(super) async fn serve<S: Fn() -> Result<Store, String>>(
     changed: Arc<Condvar>,
 ) {
     crate::offline_choice::set(offline_choices);
+    shared
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .counting
+        .set_all(reads);
     let _worker = crate::seen::Worker::enter(&shared, &handover);
     let closing = Arc::clone(&shared);
     platform::spawn_local(async move {
@@ -1791,6 +1809,8 @@ impl Session<'_> {
                 &self.config.clock,
             )
             .await;
+            step(shared, Some("unread counts"));
+            moved |= crate::unread::step(peer, shared, self.replicas, &self.tasks.0).await;
             spawn_listings(peer, shared, &self.tasks.0);
             if !after_order.is_empty() && !order_pending(self.replicas) {
                 let mut ran = Ran {
@@ -3895,6 +3915,14 @@ async fn apply(
             crate::offline_choice::set(choices);
             false
         }
+        Command::Reads(kind, layers) => {
+            shared
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .counting
+                .set_reads(kind, layers);
+            true
+        }
         Command::HoldClock(at) => {
             replicas.modules.hold_clock(at);
             // A clock moved on may have reached timers that are now due.
@@ -5306,6 +5334,7 @@ pub(super) fn node_of(peer: &Peer<Store>, summary: &BlockSummary) -> Node {
         tree_size: summary.tree_size,
         changed: summary.changed,
         entry: summary.entry,
+        unread: 0,
     }
 }
 

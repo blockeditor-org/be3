@@ -433,6 +433,8 @@ fn TreeRow(
         true => format!("  {}", detail.get()),
         false => String::new(),
     });
+    let unread = create_memo(move || row.with(|row| row.as_ref().map_or(0, |row| row.unread)));
+    let unread_test_id = format!("{}.unread", row_test_id(&face.key));
     let generated_color = TextColor::Muted;
     let access_color = TextColor::Muted;
     let muted = move || {
@@ -483,6 +485,17 @@ fn TreeRow(
                     <Text size={glyph_size} color={generated_color} align=TextAlign::Center>
                         <Icon glyph=ICON_SPARKLES />
                     </Text>
+                </Tooltip>
+            </Show>
+            <Show value={move || unread.get() > 0}>
+                <Tooltip
+                    label={move || match unread.get() {
+                        1 => "1 unread".to_owned(),
+                        count => format!("{count} unread"),
+                    }}
+                    @test_id={unread_test_id.clone()}
+                >
+                    <CountBadge count={unread} />
                 </Tooltip>
             </Show>
             <Show value={move || access.with(Option::is_some)}>
