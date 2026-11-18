@@ -127,9 +127,10 @@ tests read one their build made, crates/be-host-tests/apps.bzl). Each guest thre
   outside a frame or after it) and waits on a bell
   that the root's instances, compiles and own wakes ring, giving up on a root
   still busy `with_patience` (`STEP_TIMEOUT`) past the deadline.
-  `Root::input` starts the root's `input.deliver` op with the window's input
-  (be-lib-ui-types' `input::encode`, since be-wasm crates use only be-wasm
-  ones), which the root takes in with the frame being drawn (on the page, at
+  `Root::input` starts the root's `input.deliver` op with the window's input,
+  each with the frame clock's time it was sampled at when the platform said
+  (be-lib-ui-types' `Timed`s in `input::encode`, since be-wasm crates use only
+  be-wasm ones), which the root takes in with the frame being drawn (on the page, at
   its next resume), or else ahead of the next frame, so it routes by the
   layers it drew last; the host does not await the answer, which the root
   gives once it has routed. The stepping is `Core`, shared with the
@@ -148,17 +149,30 @@ tests read one their build made, crates/be-host-tests/apps.bzl). Each guest thre
   none) and whether it owes work now (`owed`: a child starting, or a frame
   due or in flight; not an animation or a frame wanted later), and natively
   `Root::on_wake` tells the host whenever the bell rings, so a host that
-  draws on demand draws for both and counts as busy only while one is owed. be-host runs a root in place
+  draws on demand draws for both and counts as busy only while one is owed.
+  A frame also says what the root asks of the host's one window: its input
+  method's area (`ime`), the cursor shape by its CSS name (`cursor`), the
+  pointer lock (`pointer-locked`) and every sample of the pointer's moves
+  (`every-sample`). The root draws surfaces of its own as an app draws its
+  screens, through `be3:gpu`'s surfaces on the host's device, which it may
+  call only when it was loaded on a host given that device
+  (`be_wasm_host::Host::with_display`, which gives a pure guest the gpu); its
+  layer list names each as `Surface::Root(id)`, and `Root::own_surface`
+  answers the texture it presented last. be-host runs a root in place
   of its own UI with `--root=APP` (`crates/be-host/src/root.rs`): the staged
   app `APP`, whose manifest says `"root": true`, starts as a pure guest on the
-  window's device; each host frame hands it the window's input as the
-  platform delivered it, in points, which beui's document never hears
-  (`Program::input`), asks it for a frame by the deadline its own UI keeps (`FrameClock`) and draws each
-  `Surface::Screen` of its list from the texture `Root::surface` resolves, as
-  `compose::quad` places it, with the root's own surfaces the window's plain
-  background; the IME area its frame names (`frame-done`'s `ime`, which
-  `Embedding::ime` answers from the focused screen's window requests through
-  its layer) is the window's. It runs none of the host's core (no data directory, block
+  window's device, which it draws on too; each host frame hands it the
+  window's input as the platform delivered it, in points and with its time,
+  which beui's document never hears (`Program::input`), asks it for a frame
+  by the deadline its own UI keeps (`FrameClock`) and draws each
+  `Surface::Screen` of its list from the texture `Root::surface` resolves, and
+  each `Surface::Root` from `Root::own_surface`, as `compose::quad` places it,
+  with the window's plain background where the root draws nothing; what the
+  frame asks of the window is beui's window requests (`set_ime_area`,
+  `set_cursor_icon`, `set_pointer_locked`, `want_every_sample`), set after the
+  document it shows the frame in, whose own the root's replace. The host keeps
+  no list of chords the root intercepts: the root takes every key before beui
+  sees it and gives its own `Router` its chords (`Router::intercept`). It runs none of the host's core (no data directory, block
   stack, screen lock or OS services), so it is refused as a login session; a
   root that stops closes the window and be-host exits saying why. No host ships a root yet; the host
   tests `a_root_in_place_of_the_hosts_ui_*` stage be-sdk-root-testing as
@@ -182,7 +196,15 @@ tests read one their build made, crates/be-host-tests/apps.bzl). Each guest thre
   `host.deadline`; `Embedded::layer` names a screen the app painted as a
   `Surface::Screen`, scaled from its pixels to its points. `Embedding` routes
   each window's input (`Windows`: a `Router` per window over the layers drawn
-  last) and sends what lands on a screen to its app as `AppCall::Input`.
+  last) and sends what lands on a screen to its app as `AppCall::Input`, at
+  the time it was sampled and with every sample while the screen asks for
+  them. `Embedding::requests` is what a window asks for the screens it shows:
+  the cursor of the one under the pointer, the pointer lock while the focused
+  one holds it (`Embedding::drew` grants it to the focused screen that asks
+  and takes it back from one that stops or loses the focus), and every sample
+  while one shown asks for them. `OwnSurface` is a surface of the root's own,
+  which it configures, draws (`fill`, or `acquire` and `present`) and names
+  as a layer.
   Input for a window the last list leaves out is still routed, against the
   layers it had last, until its presses lift, and only then its router goes,
   the surface it focused hearing `Focus(false)`; one never drawn routes
@@ -196,8 +218,12 @@ tests read one their build made, crates/be-host-tests/apps.bzl). Each guest thre
   that runs and draws owes a frame due or in flight, and wants one at once
   while one is due or it animates, or when its pacing says; one with no
   surface or that closed wants and owes nothing. be-sdk-root-testing is a root built on it, which
-  be-wasm-root-host's tests run with the triangle on a stand-in device, and
-  be-host's host test with `--root`.
+  fills its own surface with `ROOT_COLOR` under the triangle's screen, and
+  which be-wasm-root-host's tests run with the triangle on a stand-in device,
+  and be-host's host test with `--root`. Root guests are built for wasm32 in
+  a plan of their own with the other pure guests: the browser's gpu shim, which
+  imports JavaScript, has another (`wasm32-bindgen`), since a pure guest that
+  links its wgpu or web-sys cannot load.
 - **V8's heap.** No guest may declare garbage-collected types (structs,
   arrays) or more than one table, and a table holds at most a million entries
   (`engine::Shape::bounded`): V8 stops delivering a termination once an

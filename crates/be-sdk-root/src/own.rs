@@ -56,7 +56,8 @@ impl OwnSurface {
         self.surface.present();
     }
 
-    /// Fills the whole surface with `rgba`, sRGB-encoded with straight alpha, and presents it.
+    /// Fills the whole surface with `rgba`, sRGB-encoded as an app's screens hold their pixels,
+    /// and presents it.
     pub fn fill(&self, rgba: [f64; 4]) -> Result<(), String> {
         let texture = self.acquire()?;
         let view = texture
