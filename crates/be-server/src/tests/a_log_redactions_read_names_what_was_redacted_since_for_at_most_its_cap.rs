@@ -31,7 +31,11 @@ async fn a_log_redactions_read_names_what_was_redacted_since_for_at_most_its_cap
         .unwrap();
     assert_eq!(since_none.len(), 1);
     assert_eq!(since_none[0].redactions, 2);
-    assert_eq!(since_none[0].redacted, [2, 0], "in the order they were redacted");
+    assert_eq!(
+        since_none[0].redacted,
+        [2, 0],
+        "in the order they were redacted"
+    );
     let since_one = owner
         .call(|peer| {
             peer.read::<Vec<be_block_protocol::LogRedactions>>(Query::LogRedactions(vec![ask(1)]))
@@ -42,7 +46,9 @@ async fn a_log_redactions_read_names_what_was_redacted_since_for_at_most_its_cap
 
     let at_cap = vec![ask(2); be_block_protocol::MAX_LOG_REDACTIONS_ASKED];
     let read = owner
-        .call(|peer| peer.read::<Vec<be_block_protocol::LogRedactions>>(Query::LogRedactions(at_cap)))
+        .call(|peer| {
+            peer.read::<Vec<be_block_protocol::LogRedactions>>(Query::LogRedactions(at_cap))
+        })
         .await;
     assert!(read.is_ok(), "{read:?}");
     let past_cap = vec![ask(2); be_block_protocol::MAX_LOG_REDACTIONS_ASKED + 1];

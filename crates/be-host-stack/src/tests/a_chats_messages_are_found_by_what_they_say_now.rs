@@ -68,8 +68,16 @@ fn a_chats_messages_are_found_by_what_they_say_now() {
         reply_to: None,
         attachments: Vec::new(),
     };
-    append(&mut editor, &said("Pizza at the corner place"), Default::default());
-    append(&mut editor, &said("Bring the plumber's number"), Default::default());
+    append(
+        &mut editor,
+        &said("Pizza at the corner place"),
+        Default::default(),
+    );
+    append(
+        &mut editor,
+        &said("Bring the plumber's number"),
+        Default::default(),
+    );
     editor.until("heard both messages", |editor| editor.messages().len() == 2);
     finds("pizza", &[chat]);
     finds("plumber", &[chat]);
@@ -102,13 +110,21 @@ fn a_chats_messages_are_found_by_what_they_say_now() {
 
     // An entry redacted with no deletion naming it, as a manager removes one, is told to the
     // log's followers: its text leaves the index, and the open editor holds it redacted.
-    append(&mut editor, &said("The spare key is under the mat"), Default::default());
-    editor.until("heard the new message", |editor| editor.messages().len() == 2);
+    append(
+        &mut editor,
+        &said("The spare key is under the mat"),
+        Default::default(),
+    );
+    editor.until("heard the new message", |editor| {
+        editor.messages().len() == 2
+    });
     finds("spare key", &[chat]);
     let spare = editor
         .mirror
         .log()
-        .find(|item| item.payload.as_deref() == Some(&said("The spare key is under the mat").encode()[..]))
+        .find(|item| {
+            item.payload.as_deref() == Some(&said("The spare key is under the mat").encode()[..])
+        })
         .map(|item| item.seq)
         .expect("the editor holds the message");
     append(

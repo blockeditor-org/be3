@@ -3251,14 +3251,16 @@ impl<H: Host> Replicas<H> {
         // Imported history is searched apart, by its places in the block it was written in, so
         // none of it changes the block's own documents nor theirs it.
         let mut history = HashMap::new();
-        let (own, imported): (Vec<_>, Vec<_>) = items
-            .into_iter()
-            .partition(|item| item.imported.is_none());
+        let (own, imported): (Vec<_>, Vec<_>) =
+            items.into_iter().partition(|item| item.imported.is_none());
         let imported: Vec<be_sdk_type_api::LogItem> = imported
             .into_iter()
             .filter_map(|item| {
                 let original = item.imported?;
-                history.insert(original.seq, (item.seq, item.author, item.payload.is_none()));
+                history.insert(
+                    original.seq,
+                    (item.seq, item.author, item.payload.is_none()),
+                );
                 Some(be_sdk_type_api::LogItem {
                     seq: original.seq,
                     ..item
@@ -3281,23 +3283,25 @@ impl<H: Host> Replicas<H> {
             // edit brings back, and whether it is imported history, which none of the block's
             // own entries names.
             let named = match entries.get(&change.place) {
-                Some((named, _, _, gone)) => Some((*named, *gone, history_place(&history, change.place))),
+                Some((named, _, _, gone)) => {
+                    Some((*named, *gone, history_place(&history, change.place)))
+                }
                 None => match named_elsewhere.get(&change.place) {
                     Some(named) => *named,
                     None => {
-                        let named = peer
-                            .read_log(block, change.place, 1)
-                            .await
-                            .ok()
-                            .and_then(|read| {
-                                read.entries.first().map(|logged| {
-                                    (
-                                        logged.entry.author,
-                                        logged.entry.payload.is_none(),
-                                        logged.imported.is_some(),
-                                    )
-                                })
-                            });
+                        let named =
+                            peer.read_log(block, change.place, 1)
+                                .await
+                                .ok()
+                                .and_then(|read| {
+                                    read.entries.first().map(|logged| {
+                                        (
+                                            logged.entry.author,
+                                            logged.entry.payload.is_none(),
+                                            logged.imported.is_some(),
+                                        )
+                                    })
+                                });
                         named_elsewhere.insert(change.place, named);
                         named
                     }

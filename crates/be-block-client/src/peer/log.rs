@@ -463,11 +463,12 @@ impl<S: ObjectStore> Peer<S> {
             // pushes: told to whoever listens as the pushes would have been (`Peer::redacted`).
             if caught_up.is_some() {
                 for &seq in &page.redacted {
-                    self.connection().redaction_read(be_block_protocol::Redacted {
-                        organization: self.organization,
-                        block,
-                        seq,
-                    });
+                    self.connection()
+                        .redaction_read(be_block_protocol::Redacted {
+                            organization: self.organization,
+                            block,
+                            seq,
+                        });
                 }
             }
             self.refs.set_log_redactions(block, page.redactions)?;
@@ -771,13 +772,18 @@ impl<S: ObjectStore> Peer<S> {
             };
             for log in answered {
                 for seq in log.redacted {
-                    self.connection().redaction_read(be_block_protocol::Redacted {
-                        organization: self.organization,
-                        block: log.block,
-                        seq,
-                    });
+                    self.connection()
+                        .redaction_read(be_block_protocol::Redacted {
+                            organization: self.organization,
+                            block: log.block,
+                            seq,
+                        });
                 }
-                if self.refs.set_log_redactions(log.block, log.redactions).is_err() {
+                if self
+                    .refs
+                    .set_log_redactions(log.block, log.redactions)
+                    .is_err()
+                {
                     return;
                 }
             }
@@ -826,7 +832,6 @@ impl<S: ObjectStore> Peer<S> {
             imported_at: None,
         }
     }
-
 
     /// Who signed an entry of `block`'s log that says `said` (its payload opened, with its salt)
     /// as the app `app`'s (`verify_authored`), judged by when the server took it: its arrival, which no

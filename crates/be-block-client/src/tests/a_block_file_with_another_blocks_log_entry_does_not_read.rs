@@ -25,7 +25,10 @@ fn a_block_file_with_another_blocks_log_entry_does_not_read() {
             log: vec![entry(written_in)],
         }])
     };
-    assert_eq!(crate::transfer::decode(&file(block)).unwrap()[0].log.len(), 1);
+    assert_eq!(
+        crate::transfer::decode(&file(block)).unwrap()[0].log.len(),
+        1
+    );
     assert!(
         crate::transfer::decode(&file(Uuid::from_u128(0xe15e))).is_err(),
         "an entry of another block's is refused"
