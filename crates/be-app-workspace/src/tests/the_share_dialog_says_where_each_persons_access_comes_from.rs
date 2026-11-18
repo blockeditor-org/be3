@@ -69,7 +69,7 @@ fn the_share_dialog_says_where_each_persons_access_comes_from() {
             ],
             company: true,
             set_inside: 3,
-            hosted: false,
+            levels: Vec::new(),
         }),
     );
     fixture.settle();

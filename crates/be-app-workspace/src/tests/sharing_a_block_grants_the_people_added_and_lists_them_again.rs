@@ -54,7 +54,7 @@ fn sharing_a_block_grants_the_people_added_and_lists_them_again() {
             ],
             company: false,
             set_inside: 0,
-            hosted: false,
+            levels: Vec::new(),
         }),
     );
     fixture.settle();

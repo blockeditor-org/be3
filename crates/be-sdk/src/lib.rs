@@ -49,6 +49,7 @@ pub use be_sdk_api::accesskit;
 pub use be_sdk_api::guest::desktop;
 pub use be_sdk_api::{
     AccessGrant, AccessLevel, AccessListing, AccountStorage, AdministratorWatch, ArtifactAction,
+    OfferedLevel,
     AudioCommand, AudioOutput, AudioSource, AudioStatus, BlockAgent, BlockCommand, BlockFilter,
     BlockLocation, BlockMute, BlockPick, BlockTypeDescriptor, CapturedChord, CapturedTrigger,
     Catalog, ChildContent, ChildId, ChildLayer, ChildMode, ChildOperations, ChildPlacement,

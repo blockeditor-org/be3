@@ -76,7 +76,7 @@ pub fn mute_to(mode: be_block_protocol::NotifyMode) -> be_sdk_api::NotifyMode {
 
 pub fn grants_of(
     listed: Result<be_block_protocol::AccessList, String>,
-    hosted: bool,
+    levels: Vec<be_sdk_manifest::OfferedLevel>,
 ) -> Result<be_sdk_api::AccessListing, String> {
     listed.map(|list| be_sdk_api::AccessListing {
         grants: list
@@ -102,7 +102,19 @@ pub fn grants_of(
             .collect(),
         company: list.company,
         set_inside: list.set_inside,
-        hosted,
+        levels: levels
+            .into_iter()
+            .map(|level| be_sdk_api::OfferedLevel {
+                access: match level.access {
+                    be_sdk_manifest::OfferedAccess::Join => be_sdk_api::AccessLevel::Join,
+                    be_sdk_manifest::OfferedAccess::View => be_sdk_api::AccessLevel::View,
+                    be_sdk_manifest::OfferedAccess::Edit => be_sdk_api::AccessLevel::Edit,
+                    be_sdk_manifest::OfferedAccess::Manage => be_sdk_api::AccessLevel::Manage,
+                },
+                name: level.name,
+                line: level.line,
+            })
+            .collect(),
     })
 }
 
