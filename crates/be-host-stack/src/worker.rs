@@ -1009,9 +1009,9 @@ impl Shared {
         }
     }
 
-    /// Logs each listing whose answer left out blocks this device held as belonging in it
-    /// (`Graph::take_unlisted_held`): a list then shows fewer entries than this device made or
-    /// heard of, and the line says which listing, at which sequence, and whether the answer was
+    /// Logs each listing that places blocks whose answer left out blocks this device held as
+    /// belonging in it (`Graph::take_unlisted_held`): a list then shows fewer entries than this
+    /// device made or heard of, and the line says which listing, at which sequence, and whether the answer was
     /// to a request from before the change that asked for it again.
     pub(crate) fn log_unlisted_held(&mut self) {
         for unlisted in self.graph.take_unlisted_held() {

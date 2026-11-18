@@ -2612,7 +2612,9 @@ fn read_history(
 
 /// The tables that keep rows of one block by `block_id`, which `forget_blocks` deletes: every
 /// one that does not cascade from `blocks`, and those that do, so nothing outlives the block.
-const BLOCK_ROWS: &[&str] = &[
+/// A new table with a `block_id` column goes here, or in `BLOCK_ROWS_APART` with how it is
+/// handled; `every_block_table_is_forgotten_with_its_block` fails until it is in one of them.
+pub(crate) const BLOCK_ROWS: &[&str] = &[
     "access_log",
     "access_log_names",
     "access_log_authorities",
@@ -2629,6 +2631,20 @@ const BLOCK_ROWS: &[&str] = &[
     "mutes",
     "told_keys",
     "share_links",
+];
+
+/// The tables with a `block_id` column that `forget_blocks` does not delete by it alone:
+/// `block_commits`, `commit_objects` and `block_objects` release what they hold first, `keys`
+/// takes the `wrapped_keys` sealed under them, `block_edges` goes by either end, and
+/// `block_departures` outlives the block on purpose, so a reader catching up still hears it left.
+#[cfg(test)]
+pub(crate) const BLOCK_ROWS_APART: &[&str] = &[
+    "block_commits",
+    "commit_objects",
+    "block_objects",
+    "keys",
+    "block_edges",
+    "block_departures",
 ];
 
 impl ServerStore {

@@ -18,6 +18,7 @@ mod a_listing_whose_request_got_no_answer_is_asked_for_again;
 mod a_placed_child_its_parent_drops_again_is_noted;
 mod a_tree_is_followed_while_the_mirror_holds_what_lies_in_it;
 mod an_older_announcement_never_undoes_a_newer_one;
+mod no_loss_is_logged_for_the_settings_at_the_top_or_what_links_to_a_block;
 mod what_is_asked_for_is_read_before_what_is_only_held;
 
 fn node(id: Uuid) -> Node {

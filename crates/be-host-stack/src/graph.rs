@@ -5,7 +5,7 @@ use std::{
 
 use be_block_commit::CommitId;
 use be_block_content::{BlockMetadata, Entries};
-use be_block_graph::{Access, BlockParent};
+use be_block_graph::{Access, BlockParent, SETTINGS_TYPE};
 use be_block_repository::{local_id, masked, scope_mask};
 use be_sdk_api::BlockIdRole;
 use uuid::Uuid;
@@ -522,9 +522,10 @@ pub struct Dropped {
     pub by: String,
 }
 
-/// Blocks the server's answer to a listing left out while this device held each as belonging
-/// in it, with the sequence the answer was read at and whether it answered a request made
-/// before a change asked for the listing again.
+/// Blocks the server's answer to a listing that places blocks (a block's children, or the
+/// deleted) left out while this device held each as belonging in it, with the sequence the
+/// answer was read at and whether it answered a request made before a change asked for the
+/// listing again.
 #[derive(Clone, Debug, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
 pub struct UnlistedHeld {
     pub listing: Listing,
@@ -734,13 +735,21 @@ impl Graph {
                 .filter(|node| member(listing, node, &self.nodes) == Some(true))
                 .map(|node| node.id),
         );
+        // Told only of the listings that place blocks: what links to a block, or what it links
+        // to, follows content this device may hold ahead of the server's, and a loss there
+        // loses no file. Nor of settings at the top: the organization's sit there but are in no
+        // answer for it (a guest's shell's are, and go untold too).
+        let places = matches!(listing, Listing::Children(_) | Listing::Deleted);
         let unlisted: Vec<Uuid> = before
             .into_iter()
+            .filter(|_| places)
             .filter(|block| !listed.members.contains(block))
             .filter(|block| {
-                self.nodes
-                    .get(block)
-                    .is_some_and(|node| member(listing, node, &self.nodes) == Some(true))
+                self.nodes.get(block).is_some_and(|node| {
+                    member(listing, node, &self.nodes) == Some(true)
+                        && !(listing == Listing::Children(BlockParent::Root)
+                            && node.content_type == SETTINGS_TYPE)
+                })
             })
             .collect();
         if !unlisted.is_empty() {
