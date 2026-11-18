@@ -1,319 +1,112 @@
 # Chat
 
 A chat block: a group conversation that is an ordinary block, made and shared
-like any other (`crates/be-type-chat`, `crates/be-app-chat`). Chat grows
-forever, so it loads only what is on screen (a type can load only its first
-part, guides/blocks/content_types.md "Parts"), and it is edited by many people
-at once, so it saves less often than it is edited (the journal,
-guides/blocks/client.md). What is not built yet is in plans/chat.md.
+like any other (`crates/be-type-chat`, `crates/be-app-chat`). Its messages are
+its signed log's (guides/type_modules.md, "Signed logs";
+plans/signed_logs.md): each is an entry its author appended, which the server
+ordered and stamped and the host signed as the chat app's, so a chat grows
+without its content growing, and nobody but a message's author edits or
+deletes it. What is not built yet is in plans/chat.md.
+
+## The log
+
+`ChatEntry` (postcard) is what an entry says; who wrote it, when the server
+took it (its arrival) and who signed it are the log's (`LogItem`). A message
+is named by its place in the log (its seq).
+
+- `Message { time, body, reply_to, attachments }`: `time` is when its author
+  says it was written; a message that arrived well after it (`OFFLINE_AFTER`,
+  five minutes, in the editor) was written offline, and says when it arrived.
+- `Edit { message, time, body }`: what the message says now; only its author's
+  count, the latest by place.
+- `React { message, reaction, kept, time }`: each person's latest record of
+  each reaction (a Lucide icon name) counts; taking one back appends a record
+  that keeps nothing and redacts the one that kept it.
+- `Delete { message, time }`: only the message's author's counts; it redacts
+  the message's entry, so its body is gone everywhere while the log still
+  proves it existed and who wrote it.
+
+`ChatLog::of` folds the entries an editor holds into what it shows (`Shown`):
+each message with its author's latest edit, its kept reactions and its
+author's deletion. A row's verdict is the least trusted of the entries it
+shows (`least_trusted`); an entry signed as nobody's (`LogSigner::Bad`)
+changes nothing, though a message so signed still shows, marked "forged". A
+redacted entry shows only as the message its author's deletion names.
 
 ## The content
 
-- **Written by hand**, as `Blob` is: `ChatContent` wraps the header
-  `Document<ChatHeader>` (its first part, `Loads::FirstPart`) and the segment
-  parts, and forwards `LiveEdit`, `Merge` and `Undo` to the header. It is not a
-  derived `Document`, since a `Document` loads whole.
-- **The header** holds the recent messages (a `merge_appends` list), `edits`,
-  `deletions` and `reactions` (`LatestMap`s keyed by message, on recent and
-  older messages alike, kept apart from the messages so closing a segment never
-  drops one; edits and reactions are chains, below), and the `segments` index of the closed segments.
-- **A message** is an object of registers, not `Text`: author, claimed time,
-  body, the message it replies to, attachments (child blocks), its author's
-  signature and when the server took it (`arrival`, below). Its id is its
-  `ObjectId`. It names, by id and hash (`Prior`), the last message its author
-  saw (`seen`) and its author's own message before it (`own_previous`), both
-  signed; a message's hash is SHA-256 over its signed bytes.
-  `Message::signed_bytes`, `MessageEdit::signed_bytes`,
-  `Deletion::signed_bytes` and `ReactionKey::signed_bytes` (`src/signed.rs`)
-  define what a signature covers.
-- **Records chain**: edits and reactions are `LatestMap`s whose writes are
-  ranked (guides/blocks/content_types.md), one record per slot: an edit slot is
-  a message and an author (`EditSlot`; only the message's author's counts), a
-  reaction slot its `ReactionKey`. Each record signs its count (`seq`, one past
-  the slot's rank) and the key of the record it replaces (`previous`;
-  `MessageEdit::key`, `Reaction::key`, hashes of the record's fields that need
-  no chat id), and is written ranked by that count. So a record put back
-  counts lower and never takes a later one's place, and a later record from
-  another device always does, whichever stamps later; two devices writing one
-  count keep the later stamp, either genuine. A slot's `Head` is its record,
-  taking the slot's author, so one filed under another author fails its
-  signature. Its history was altered (`Head::cut`) when it holds a removal, or
-  a record whose count is not its rank (put above the latest, the only way to
-  replace it), or its rank reached `MAX_SEQ - 1` (2^32 - 1), which no author
-  reaches and where a record put back over another at one rank leaves no
-  trace. A next count saturates, so a made-up rank never overflows it and the
-  author's records still land; a record past a removal outranks it and heals
-  the slot. A reaction taken back stays a signed record (`Reaction::kept`
-  false), not a removal; a deletion removes the message's edits and reactions
-  a rank above them; `Deletion::after` is signed too. The header holds one
-  entry per slot. Only a commit rewriting the whole state lowers a rank: a
-  whole rollback (plans/authorship.md).
-- Sending and deleting are not undoable; an edit by anyone but the message's
-  author is ignored. Deleting removes the message with its edit and reactions
-  and records the `Deletion`; the message stays in version history.
-- **Access.** Posting needs Edit, which also allows changing others' messages.
-  A grant must name a contact, so a chat only ever reaches contacts.
-
-## Arrival time
-
-- A message keeps when the server took the operation that sent it
-  (`Message::arrival`), as the session's order stamped it: `ChatOp::Edit`
-  carries the stamp slot (`LiveEdit::arrival`, guides/type_modules.md
-  "Arrival time"), which every replica fills from the entry's `received` as it
-  applies it. Applying an edit (`stamped` in `src/chat.rs`) writes the slot's
-  stamp into each message it inserts, inside the insert, so it lands only when
-  the insert does, and drops any change that sets a message's `arrival`. So a
-  member in a live session cannot choose an arrival: not by sending a message
-  holding one, setting one after, or sending again under an existing message's
-  id. A closed segment keeps each message's stamp.
-- The guarantee holds only for operations the server orders. A merge keeps
-  whatever `arrival` a commit holds, so a member who commits directly (or seals
-  as the lease holder) can write any arrival; accepted, as for any content a
-  dishonest member alters (plans/authorship.md).
-- Unstamped means unknown: what a device numbered offline, and what a device
-  commits outside a live session. Operations fold
-  (`absorb_operation`) only when their stamps are equal, carrying one over a
-  restart keeps its own stamp, never another's, and undo makes unstamped
-  operations (`ChatOp::from`).
-- The editor shows a message's claimed time and, when it arrived
-  `OFFLINE_AFTER` (5 minutes) or more after it (`Message::arrived_late`),
-  "sent offline, arrived" and when. A message without a stamp shows no
-  arrival, never its claimed time as one.
-
-## Segments
-
-- **Segments** are the parts after the header: about 64 to 256 KiB of encoded
-  messages each, one part per segment, never changed once closed
-  (`src/segment.rs`). The stored form is the header, then the segments in the
-  order of the index; each index entry (`Segment`) holds the segment's first and
-  last message, their times, its count, its part's length and SHA-256, and a
-  Bloom filter of its message ids (`may_hold`), so an editor finds a segment's
-  byte range from the index alone (`ChatContent::segment_ranges`) and checks
-  what it read against it (`read_segment`). A replica holds a segment as bytes
-  while it has them unsaved, or as the part it was saved as (`from_stored`
-  takes the refs of the header's siblings); an editor sent only the header
-  holds neither.
-- **Closing a segment** is an operation, `ChatOp::Close`: the header's change
-  (the oldest recent messages leave `messages`, the index gains an entry) and
-  the segment's bytes, which every replica that applies it keeps, so whichever
-  replica holds the lease saves the part like any other. The bytes ride in
-  the operation (at most 256 KiB, or one larger message, which closes alone)
-  rather than being put as a part named by hash: they are messages the session
-  already relayed, so nothing is uploaded early and no hold is needed. Any
-  attached editor proposes it (`ChatContent::closing`) once the recent messages
-  pass 96 KiB, taking the oldest ones the server holds (not the sending ones),
-  at least 64 KiB of them and leaving at least 32 KiB recent. A segment closes
-  once, since the messages it names must be the oldest recent ones as written;
-  a second proposal, or one over a message deleted meanwhile, is ignored by
-  every replica alike. A chat nobody has open does not close segments.
-- **Closing offline.** An editor proposes a `Close` only while every edit of
-  its replica is confirmed (its lacking set is empty), so a device holds at most
-  one unconfirmed close. A replica applies a `Close` only when its index entry
-  is the one its bytes give (count, first and last message, length and hash)
-  and its edit does no more than remove those messages and add the entry. The
-  journal bounds how many closes a session carries (`MAX_JOURNAL_BYTES`, 4 MiB:
-  about a dozen).
-- **Search** (`search-text`): a document of the recent messages (key
-  `recent`) and one per closed segment, keyed by its hash, each message as it
-  reads now on a line. A segment's source is its saved part only while no edit
-  or deletion in the header may name one of its messages (its Bloom filter
-  says), so the index keeps an untouched segment's text and reads an edited
-  one again. Since the header keeps the edit, an edited segment is read at
-  every reindex of the chat (once per seal) until a segment rewrite exists
-  (plans/deferred/chat_segment_rewrite.md). Content holding a segment neither
-  as bytes nor as a part answers an error, so the index keeps what it has.
-- **Limits.** A segment's Bloom filter can name a message it does not hold
-  (unread counts may read one segment too many, never too few). A replica
-  holds a closed segment's bytes in memory until it reloads
-  (guides/type_modules.md, "Parts named by hash"; plans/deferred/chat.md). A deleted message's body stays
-  in its closed segment (plans/deferred/chat_segment_rewrite.md). A chat
-  rebuilt from the header's bytes (a view) saves the header alone, never a
-  placeholder part. Duplicate, export, `be` transfer, version control's
-  re-listing of a parent and revision preview or restore refuse a block of a
-  first-part type that has parts after its first, until a copy of parts exists.
-
-## Merging
-
-- **Messages.** A `List` merge puts an insert after the sibling it was made
-  after, except in a `merge_appends` list such as chat's messages, which keeps
-  the published side as it is and puts what only the merging device added after
-  it, in its order (guides/blocks/content_types.md). In a live session the server
-  orders each send, an insert at the end, so a message lands after those
-  ordered before it, the same order. Edits, deletions and reactions are
-  `LatestMap`s, so the later write of a key wins and none conflicts.
-  Publishing is a compare-and-swap on the head: a device whose publish is
-  rejected merges again on the new head, so a merge never has to give the same
-  result from both sides.
-- **By parts** (`MergeParts`): the header merges as a document and each segment
-  of the merged index keeps the part of the side that has it, reused as saved,
-  so a merge reads none. A segment closed on one side while the other reacted
-  to, edited or deleted a message in it merges clean, since those are kept by
-  message id.
-- **Closes on both sides.** A segment both sides closed is one; when we closed
-  segments they did not, ours stand and theirs that differ leave the index,
-  their messages that are not in ours' segments (and not deleted) returning to
-  the recent messages in front of them. That needs the parts of both, so it is
-  `merge_parts`, which every merge of a chat takes (outside a session, `be
-  sync`, and the replica's resume: guides/type_modules.md, "Merging by parts"),
-  waiting while the parts are read; when a part cannot be read it is left undone
-  and tried again on a timer, never resolving without it. `merge3`, which only a
-  context with no parts runs, is the union: entries that differ stay, each with
-  its own part, and can overlap, which loses nothing; the editor shows each
-  message once, in its place (`ChatContent::weave`). Closing is not undone by a
-  later merge. The index keeps entries sorted by where they end (then where
-  they open), so the entry nearest the recent messages is read first and what
-  shows stays contiguous while history is partly read.
+`ChatHeader` keeps what anyone with Edit may rewrite: the blocks the chat
+lists as its children. `drafts` holds the blocks made for a message not sent
+yet, with their author; `carried` the blocks sent messages carry, with the
+message's entry id. Both are `LatestMap`s, so two devices' changes never
+conflict, and neither undoes. A chat's children always come from its content,
+never its log, so the chat's `LogFold` folds nothing (`FOLDS` false): its
+replica neither reads nor keeps the log, and each editor reads what it shows.
 
 ## The editor
 
-- It opens the header and shows the recent messages. Scrolled to its first
-  message, or on "Earlier messages", it reads the newest segment it has not read
-  (`FromEditor::Read` by the index's byte range; guides/blocks/apps.md,
-  "Reading a range"), checks it against the index and shows its messages above
-  the recent ones; what was read follows the edits, deletions and reactions
-  made since.
-- It sends, replies, edits and deletes its own messages and toggles reactions
-  (Lucide icon names). A draft stays in the editor until sent.
+- It opens on the newest page of the log (`PAGE`, 100 entries): a read from
+  past the log's end names its length (`ContentProjection::log_size`), then it
+  reads the page before it. Scrolled to its first message, "Earlier messages"
+  reads the page before what it holds. It keeps the latest
+  `editor::LOG_HELD` entries.
+- It sends, replies, edits and deletes its own messages and toggles reactions,
+  each an `append` the host signs as the person's
+  (`ContentProjection::append`). A draft stays in the editor until sent.
+- **Sending.** A message the device has not sent shows as "Sending": the
+  editor's own appends answered `kept`, and those a read of the log names
+  (`LogPage::kept`), so it still shows after the chat or the host opens
+  again. One the server refused shows "Not sent", with Send again (a new
+  append) and Discard (`dismiss_refused`); neither survives the editor.
+- **Who signed it.** Each row shows its verdict: "not verified" (a key no
+  contact card vouches for), "key changed", "sent with an old key" (a key its
+  author replaced before the server took it), "forged". A message its author
+  deleted shows no row, unless the deletion's key is worth saying: "deleted
+  with an old key".
 - **Attachments** (decisions/chat_attachments_are_references.md). Attach opens
   the picker (`pick_block`, with templates, never the chat itself): an
   existing block it picks (`linked`) is a reference, left where it is with its
   own access; a block made in the picker is made in the chat, as is an image
   pasted into the composer (`TextInput`'s `on_image_paste`, `create_child`).
-  A made block is listed at once in the header's `drafts` with its author
+  A made block is listed at once in the content's `drafts` with its author
   (`make_draft`), so it is a live child before it is sent: every member sees
   it. The draft shows each with its type's icon and name, marks made ones as
   new, says so when what it carries is made here, and sends a made block only
-  once it is one of the chat's children (`BlockQuery::Children`). Sending
-  moves a block from `drafts` into the message (`send_drafted`); the message
-  lists it in `attachments` (signed with it), and a message may be
-  attachments alone, which has no text to edit. A closed segment's index entry
-  keeps its messages' `attachments`, so the chat still lists them. Each shows
-  as a `BlockLink` under the message, typed from the chat's children and
-  references; one this account cannot read shows a lock and "No access", not
-  a link. The editor shows this account's `drafts_of` as chips when it opens,
-  so they survive a reload, and drops a chip whose block left the drafts.
-  Closing it deletes nothing. Removing a made chip takes the block out of
-  `drafts` (`drop_draft`, which deletes it) only while it is still the chat's
-  child; the chat's `child_edit` deletes a draft and refuses a block a
-  message carries. Deleting a message (Discard on a Not-sent one) unlists what
-  it alone carried; Send again carries it. A referenced block is never
-  deleted. A copy of the chat copies its children, not the blocks it
-  references. Attach is off while editing.
-- **Sending state.** A message shows "Sending" while the server lacks the edit
-  that sent it, and "Not sent", with Send again and Discard, once the server
-  refused the commit holding it (`ContentProjection::lacking`,
-  guides/blocks/apps.md "Sending"): the replica keeps those edits until the
-  server holds them, across editors and replicas: online, a round trip.
-  After a host or type module restart, the messages the device's own
-  commits in the outbox add over the server's last head show as sending
-  (`ChatContent::unsent_over`) until they drain. be-host-stack tests and
-  chat's editor tests cover it, and a host test sends a message with the
-  server cut (`HostTest::offline`) and sees it show as sending until the
-  device is back.
-- **Names.** Each message shows its author by the name the host gives
-  (`editor.members()`, guides/apps/host_services.md, "Naming a block's
-  members"): "You", a contact by its card's name, anyone else by the name the
-  server gave, marked "unverified name" (which stands in for "not verified"
-  too, so a message by someone who is not a contact carries one caption). A
-  reply's quote and the composer's "Replying to" name the author the same way,
-  with "(unverified name)" after a name the server gave, as no caption follows
-  it there and a server could name someone as one of the reader's contacts. An account the host has not named (before it answers, offline, or
-  one that may no longer view the chat) shows as "Member" and its account's
-  first digits. Rows keep the author's account and resolve the name as they
-  show, so a name arriving or changing touches only the labels. Mentioning
-  members by name in the composer is not built yet: a notification mentions
-  only the author a reply answers.
-- **Authorship.** It signs each message, edit, deletion and reaction record
-  (kept or taken back) through the host's `sign` before writing it, and marks
-  a message whose records `verify` does not answer verified: "not verified",
-  "key changed", "sent with an old key", "history altered" or "forged" (guides/blocks/keys.md,
-  "Signing what a person writes"). A message is forged when a record's
-  signature is not its author's (an edit is checked against the message's
-  author, whoever it names). Its history is altered when an edit or reaction
-  chain was cut or its deletion removed outright (written, now empty): a
-  removal is signed by nobody, so anyone with Edit can fake one, and it says
-  nothing against the records shown (`Trust::Altered`). Only a message's
-  author deletes it. A message's signature covers what it says only as a
-  commitment under a random salt of its own (`Message::content`: body, reply
-  and attachments), so a deletion of a recent message keeps what its author
-  signed of it (`Deletion::message`, a `Sent`: author, time, the commitment,
-  its priors and signature) and signs that message's hash: the message and its
-  salt are gone, yet its author is proven and nothing of what it said can be
-  guessed back. A closed message's deletion keeps nothing, the segment still
-  holding it. A deletion is forged when its own signature is, when it keeps a
-  message by someone else or one its author did not sign, when what it keeps
-  is not the message a later message cites (`ChatContent::cited`,
-  `Deletion::kept_matches`), when it keeps nothing of a recent message, or,
-  once the segment is read, when it is not by the closed message's author
-  (`Deletion::by_author`). A deletion of a message nothing cites yet (the
-  latest) can keep a made-up message of its author's unnoticed until a later
-  message cites the real one, by `seen` from anyone who saw it. The other way
-  round, a member who cites a deleted message by a made-up hash makes its
-  honest deletion show as forged: nobody can tell which is true without the
-  message, but the citer signed the lie, so the dispute is theirs and the
-  deleter's, not the deleter's alone. It is asked about once when it
-  appears (`forged_deletions`); a forged one keeps a muted, italic "Message
-  deleted" row, marked forged, in the message's place (after
-  `Deletion::after` among the recent messages, where it was in a closed
-  segment read back), while one by the author leaves none. A recent message
-  removed outright, which no deletion records, is told by the later messages
-  that name it (`seen`, `own_previous`; `ChatContent::gaps`): a muted, italic
-  "A message that was here is no longer in the chat" row takes its place,
-  before the first message naming it (`missing_messages`). A gap shows only
-  once the naming message's signature verifies, so a forged message claims
-  none. When a closed segment's filter says it may hold the missing message,
-  the gap waits for that segment to be read and shows only if it is not there;
-  the first recent message usually names the newest closed one, so an open
-  chat with segments reads that segment once. A filter more than three
-  quarters full (`Segment::over_full`) excuses nothing, since anyone with Edit
-  can write one. A part whose bytes fail their length or hash check against
-  the index counts as not holding it, so breaking a segment's entry hides no
-  gap; a part that cannot be read at all (offline, an error) shows nothing
-  until it can. Rows read back from closed segments are not checked, and the
-  newest messages removed together, after their authors' last ones, are named
-  by none, so they show nothing.
+  once it is one of the chat's children (`BlockQuery::Children`). Once the
+  host answers the message's entry id, what it carries moves from `drafts` to
+  `carried` (`ChatContent::send`); a message may be attachments alone, which
+  has no text to edit. Each shows as a `BlockLink` under the message, typed
+  from the chat's children and references; one this account cannot read shows
+  a lock and "No access", not a link. The editor shows this account's
+  `drafts_of` as chips when it opens, so they survive a reload, and drops a
+  chip whose block left the drafts. Removing a made chip takes the block out
+  of `drafts` (`drop_draft`, which deletes it) only while it is still the
+  chat's child; the chat's `child_edit` deletes a draft and refuses a block a
+  message carries. Deleting a message unlists what it carried
+  (`ChatContent::delete`). A referenced block is never deleted.
 
 ## Notifications
 
-Each message sent from this device tells the chat's other members once the
-server holds it, exactly once, tied to the edit rather than to an editor or
-replica (guides/type_modules.md, "Announcements"): `LiveEdit::announcements`
-names, as the message is sent, its body and the author of the message it
-replies to as a mention, keyed by the message. So it goes once however many
-editors are open, or none (a chat closed while its outbox drains), after a
-restart with the message unsent, and not again after a restart once told; a
-message the server refused, or one discarded, tells nobody. Editing tells
-nobody. A burst drained from the outbox is one notification, "N new messages".
-The server tells only members with no connection open, none whose mode for the
-chat is "off" (and for "mentions only", only mentions), and not the sender's
-account (guides/blocks/server.md, "Notifications"). Tests: be-host-stack's
-`a_chat_message_*`, chat's editor tests and be-server's.
+A message sent tells the chat's members who are away: the editor appends it
+with its announcement (`ChatEntry::announcement`, `Along::announcement`),
+which waits in the device's outbox with the entry and goes once the server
+takes it, mentioning the author of the message it replies to. Several taken in
+one drain go as one ("{count} new messages"). Edits, reactions and deletions
+tell nobody, nor does a message the server refused.
 
 ## Unread counts
 
-- Where the account read each chat up to is theirs, never in the chat, where it
-  would be a read receipt: the owner-only settings kind `ChatReads`
-  (guides/settings.md, Owner only), one place per device, so a device behind or
-  offline never takes another's reading back. The furthest place counts, by
-  message order: a deleted message's `Deletion` names the one before it. Each
-  place is a key of its own (`chat/device/message`), and a device moving on
-  drops only places it has seen that are not further than its new one.
-- `ChatContent::unread` counts others' messages after it and after my own
-  newest message (answering is reading), reading only their authors. The newest
-  message and the counts come from the header, so a list of chats reads one
-  small part per chat. A place that is not recent, not a deleted message's, but
-  may be in a closed segment is before every recent message, so each recent
-  message from others counts as unread; a replica does not read a segment to
-  count the unread messages inside it. A place in none of them is one this
-  replica has not received yet: all read.
-- The editor reads the chat while it is shown, its view has the keyboard and
-  it is scrolled to its newest message; otherwise it shows "N new messages"
-  above the message box, which scrolls to the end.
-- Outside the editor, chat counts through the host's type-agnostic unread
-  counts (guides/blocks/host.md, "Unread counts"): `ChatContent` implements
-  `be_block_content::Unread` with `ChatReads` as its reads kind and the
-  messages each device read a chat up to as its place (`Unread::places` groups
-  the keys by their chat), so the host counts each listed chat from its head's
-  header and its own place, again only when one of those moves, and the files pane shows the count as a badge on the chat's row
-  (`BlockInfo::unread`, `CountBadge`). A message counts there once its session
-  seals it.
+Each device keeps where it read each chat up to, the place of the last entry
+read, in the owner-only `ChatReads` (guides/settings.md), under its own key,
+so devices moving on at once never meet and the furthest place counts. What
+is unread is the messages others sent after that place and after the
+account's own last message, since answering is reading (`ChatLog::unread`).
+The editor moves its device's place while the chat is shown at its newest
+message with the keyboard. The host counts a chat it is not showing from the
+log's latest entries (`be_block_content::UNREAD_ENTRIES`, guides/blocks/host.md,
+"Unread counts") and counts again as the log grows.
+
+## Search
+
+Not built yet: a chat's messages are not searchable until search reads logs
+(plans/signed_logs.md, step 5b).
