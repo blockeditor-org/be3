@@ -11,6 +11,15 @@ Fixed items are removed as they land.
   past its edge with no cue that more lie there (the inspector at its default
   width hides its last tabs). Done: a clipped edge fades, or an overflow menu
   lists the hidden tabs, shown by a painting.
+- **A bar on a deeper layer's pane, saved.** A joined dock's bar dropped on a
+  pane of a dock joined below its own layer goes back to its joined dock's
+  first pane after a save and restore: `DockingLayout::snapshot` unhosts the
+  joined groups first, and `extract`/`graft` (beui-dock-state `joined.rs`) map
+  a bar's `pane` through its own layer's tabs, so a deeper tab saves as `None`.
+  Bars from several layers on one pane also come back outer layers first
+  (`layer_place`), not in the order dropped. Needs a decision on the saved
+  form (a path through the hosting tab, or each bar's slot across layers).
+  Done: both survive a save and restore, shown by a beui-host dock test.
 
 ## 3. beui platforms
 
