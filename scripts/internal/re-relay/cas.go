@@ -433,7 +433,7 @@ type answerWatch struct {
 	cache   *casCache
 	path    string
 	request []byte // the call's one request message
-	named   bool   // already forgot what an Operation named
+	named   bool   // already forgot what an Operation or the status named: once is enough
 }
 
 func (c *casCache) watch(path string, body []byte) *answerWatch {
@@ -508,7 +508,7 @@ func (a *answerWatch) status(status []byte, where string) {
 
 // The call's end, the headers or trailers that carry its grpc-status.
 func (a *answerWatch) ended(h http.Header) {
-	if a == nil {
+	if a == nil || a.named {
 		return
 	}
 	code, err := strconv.Atoi(h.Get("Grpc-Status"))
@@ -518,6 +518,7 @@ func (a *answerWatch) ended(h http.Header) {
 	why := fmt.Sprintf("%s answered %s: %s", shortPath(a.path), codeName(code), h.Get("Grpc-Message"))
 	switch {
 	case code == codeFailedPrecondition && (a.path == executePath || a.path == waitPath):
+		a.named = true
 		var details [][]byte
 		if bin := h.Get("Grpc-Status-Details-Bin"); bin != "" {
 			if status, err := base64.RawStdEncoding.DecodeString(strings.TrimRight(bin, "=")); err == nil {

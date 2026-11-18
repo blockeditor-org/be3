@@ -445,3 +445,46 @@ func TestOnlyWholeUploadsAreRemembered(t *testing.T) {
 		t.Fatalf("asked about %s, want b/1,c/1: c/1 left out of the answer must not hold its waiters back either", got)
 	}
 }
+
+// Details that cannot be read do not stop the relay forgetting: it forgets everything.
+func TestUnreadableDetailsForgetAll(t *testing.T) {
+	for name, details := range map[string]string{
+		"not base64":      "%%% not base64 %%%",
+		"not a Status":    base64.RawStdEncoding.EncodeToString([]byte{0xff, 0xff, 0xff}),
+		"a bad Any":       base64.RawStdEncoding.EncodeToString(appendBytesField(nil, 3, []byte{0x0a, 0x7f})),
+		"a bad violation": base64.RawStdEncoding.EncodeToString(appendBytesField(nil, 3, appendBytesField(appendBytesField(nil, 1, []byte("type.googleapis.com/google.rpc.PreconditionFailure")), 2, []byte{0x0a, 0x03, 0x12, 0x7f}))),
+	} {
+		cache, log := cacheHolding("a/1", "b/2")
+		through(cache, executePath, executeRequest(digest("act", 142)), func(r *http.Request) *http.Response {
+			return grpcResponse(http.Header{"Grpc-Status": {"9"}, "Grpc-Status-Details-Bin": {details}}, nil)
+		})
+		if got := strings.Join(askedAfter(t, cache, "a/1", "b/2"), ","); got != "a/1,b/2" || len(*log) != 1 {
+			t.Errorf("%s: asked about %s, log %q: want everything forgotten, once", name, got, *log)
+		}
+	}
+}
+
+// An Operation that named what was missing, then a call ending FAILED_PRECONDITION: the second forgets nothing more.
+func TestATargetedForgetIsNotFollowedByForgettingAll(t *testing.T) {
+	cache, log := cacheHolding("dir/40", "other/3")
+	operation := appendBytesField(nil, 4, missingStatus("dir/40"))
+	through(cache, executePath, executeRequest(digest("act", 142)), func(r *http.Request) *http.Response {
+		return grpcResponse(http.Header{}, http.Header{"Grpc-Status": {"9"}}, operation)
+	})
+	if got := strings.Join(askedAfter(t, cache, "dir/40", "other/3"), ","); got != "dir/40" || len(*log) != 1 {
+		t.Fatalf("asked about %s, log %q: want only dir/40 forgotten", got, *log)
+	}
+}
+
+// A Read that began answering, then ended NOT_FOUND in its trailers.
+func TestAReadEndingNotFoundInItsTrailersForgetsIt(t *testing.T) {
+	cache, _ := cacheHolding("out/9", "other/3")
+	request := frame(appendBytesField(nil, 1, []byte("main/blobs/out/9")))
+	through(cache, readPath, request, func(r *http.Request) *http.Response {
+		return grpcResponse(http.Header{}, http.Header{"Grpc-Status": {"5"}, "Grpc-Message": {"not found"}},
+			appendBytesField(nil, 10, []byte("part")))
+	})
+	if got := strings.Join(askedAfter(t, cache, "out/9", "other/3"), ","); got != "out/9" {
+		t.Fatalf("asked about %s, want out/9", got)
+	}
+}
