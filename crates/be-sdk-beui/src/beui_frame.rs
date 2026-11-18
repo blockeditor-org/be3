@@ -1,10 +1,11 @@
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
+use be_sdk_api::blocks::HostingHere;
 use be_sdk_api::{MenuCheck, MenuCommand, MenuEntry, MenuPin, MenuSubmenu};
 use beui::NodeId;
 use beui::icons::{
-    ICON_INFO, ICON_PENCIL_LINE, ICON_REDO_2, ICON_SHARE_2, ICON_TERMINAL, ICON_UNDO_2, ICON_X,
+    ICON_INFO, ICON_PENCIL_LINE, ICON_RADIO_TOWER, ICON_REDO_2, ICON_SHARE_2, ICON_TERMINAL, ICON_UNDO_2, ICON_X,
 };
 use beui::native::{Embed, EmbedSlot};
 use beui::reactive::*;
@@ -405,6 +406,7 @@ struct FrameActions {
     rename: Action,
     share: Action,
     details: Action,
+    keep_hosting: Action,
     close: Action,
 }
 
@@ -418,6 +420,7 @@ fn frame_actions(
 ) -> FrameActions {
     let id = editor.block_id();
     let can = |read: fn(&BarState) -> bool| create_memo(move || live.get() && state.with(read));
+    let hosting = editor.hosting();
     FrameActions {
         undo: Action::new("editor.undo", "Undo", move || {
             watched.with(|watched| watched.try_step(false));
@@ -455,6 +458,13 @@ fn frame_actions(
             editor.host().show_details()
         })
         .glyph(ICON_INFO)
+        .register(),
+        // Shown only while this device hosts the block (plans/hosted_blocks.md, "Hosting").
+        keep_hosting: Action::new("editor.keep-hosting", "Keep hosting", move || {
+            editor.keep_hosting(hosting.get_untracked() != HostingHere::Kept);
+        })
+        .glyph(ICON_RADIO_TOWER)
+        .checked(create_memo(move || hosting.get() == HostingHere::Kept))
         .register(),
         close: Action::new("editor.close", "Close", move || on_exit.call(()))
             .glyph(ICON_X)
@@ -529,8 +539,10 @@ pub(crate) fn FrameMenu(
         rename,
         share,
         details,
+        keep_hosting,
         close,
     } = actions;
+    let hosting = editor.hosting();
     let menu = create_memo(move || {
         if !live.get() {
             return Vec::new();
@@ -543,6 +555,9 @@ pub(crate) fn FrameMenu(
         listed.extend(items.get());
         listed.push(MenuNode::Separator);
         listed.push(MenuNode::action(&details));
+        if hosting.get() != HostingHere::No {
+            listed.push(MenuNode::action(&keep_hosting));
+        }
         if closable.get() {
             listed.push(MenuNode::action(&close));
         }

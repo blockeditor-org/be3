@@ -384,6 +384,16 @@ when a lease (`be_host_stack::lease_revision`), the instances running
 failed one again until the block stops being one it should host. In
 be-sdk-beui, `Editor::on_member` and `Editor::tell_member`.
 
+An editor hears whether this device hosts its block as `editor-event.hosting`
+(`hosting-here`: `no`, `yes`, `kept`), told by be-host's `Hosts` through
+`be_host_runtime::set_hosting`, and be-sdk-beui's frame menu offers Keep
+hosting while it is anything but `no` (`Editor::hosting`,
+`Editor::keep_hosting`). It sends the block command `keep-hosting`: be-host
+then counts the block as edited here once its editors close, so its component
+runs on, and lists it in the host menu with Stop (`UiCommand::StopHosting`).
+What is kept lives in memory only; it is dropped when the lease or the access
+goes, and quitting be-host stops it.
+
 The other end of the channel is an ordinary editor. An editor opened on a
 block whose access is Join opens with `opening-kind.join` (block, type), is
 given no content (`Instance::connect_join`, `EditorHost::joined`), and speaks
