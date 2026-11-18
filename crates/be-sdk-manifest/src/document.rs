@@ -42,6 +42,11 @@ pub struct ManifestDocument {
     /// rest); the host denies those calls to any other.
     #[serde(default)]
     pub block_agents: bool,
+    /// Whether the app may grant or reveal access (`set-access`, `list-access`,
+    /// `transfer-ownership`, the share and contact link calls); the host denies those to any
+    /// other, but for opening a settings kind of its own block to anyone inside.
+    #[serde(default)]
+    pub sharing: bool,
     /// The app's host components, by name: each a component of the app's wasm with no frame
     /// that the host runs on a block of one type (`HostManifest`).
     #[serde(default)]
@@ -273,6 +278,7 @@ impl ManifestDocument {
             network: self.network,
             extensions: self.extensions,
             block_agents: self.block_agents,
+            sharing: self.sharing,
             hosts: self
                 .hosts
                 .0
