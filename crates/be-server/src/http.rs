@@ -96,6 +96,9 @@ struct Link {
 }
 
 struct Places {
+    /// The client the places are held for: the peer, or on a trusted proxy's connection the
+    /// address its latest request forwarded.
+    client: Option<IpAddr>,
     place: Option<Held>,
     anonymous: Option<Anonymous>,
     /// Whether a post on the connection signed its session in: its later requests no longer
@@ -182,6 +185,7 @@ pub(crate) async fn serve(
         peer,
         eviction: Arc::clone(&eviction),
         places: std::sync::Mutex::new(Places {
+            client: None,
             place,
             anonymous,
             signed_in: false,
@@ -244,8 +248,18 @@ async fn front(
     let route = Route::of(request.method(), request.uri().path(), routes.s3.is_some());
     {
         let mut places = link.places.lock().unwrap();
-        // A proxy speaks for many clients: its connection takes its places for the address its
-        // first request forwards.
+        // A proxy speaks for many clients, and a pooled connection of its carries one client's
+        // requests after another's: its places are taken for the address each request forwards,
+        // and given back when the next is another client's.
+        if places.client.is_some_and(|held| held != client) {
+            *places = Places {
+                client: None,
+                place: None,
+                anonymous: None,
+                signed_in: false,
+            };
+        }
+        places.client = Some(client);
         if places.place.is_none() {
             places.place = services.addresses.take(client);
         }
@@ -314,14 +328,23 @@ fn closing(mut response: Response) -> Response {
     response
 }
 
-/// The answer to a request whose handling failed: a refusal says why, anything else only that
-/// it failed.
+/// The answer to a request whose handling failed: a refusal says why, a failure of the
+/// server's own storage only that it failed.
 fn failed(error: ServerError) -> Response {
+    let status = match error {
+        ServerError::Refused(..) | ServerError::Socket(_) => StatusCode::BAD_REQUEST,
+        _ => StatusCode::INTERNAL_SERVER_ERROR,
+    };
+    refuse(status, &said(error))
+}
+
+/// What a client is told of `error`: why it was refused, but nothing of the server's storage.
+fn said(error: ServerError) -> String {
     match error {
-        ServerError::Refused(_, message) => refuse(StatusCode::BAD_REQUEST, &message),
+        ServerError::Refused(_, message) | ServerError::Socket(message) => message,
         error => {
-            tracing::debug!(%error, "a request failed");
-            refuse(StatusCode::INTERNAL_SERVER_ERROR, "the request failed")
+            tracing::warn!(%error, "a request failed");
+            "the request failed".to_owned()
         }
     }
 }
@@ -712,7 +735,7 @@ async fn answer(
         if let Some(client) = held.client.take() {
             client.close().await;
         }
-        return Ok(Answer::refused(400, &error.to_string(), false));
+        return Ok(Answer::refused(400, &said(error), false));
     }
     let signed_in = client.connection.account.is_some();
     let closing = client.connection.closing;
