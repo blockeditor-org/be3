@@ -128,10 +128,18 @@ fn a_root_lists_its_hosts_unsent_edits_and_asks_before_discarding_one() {
 
     // A block that leaves the list while its question is asked takes the question with it.
     root.show_core(view(vec![plan()]));
+    let listed = dialog_painting(&mut root, &mut time);
     press(&mut root, &mut time, Key::Tab);
     press(&mut root, &mut time, Key::Tab);
     press(&mut root, &mut time, Key::Enter);
+    let asking = dialog_painting(&mut root, &mut time);
+    assert_ne!(listed, asking, "Discard asks about the block left");
     root.show_core(view(Vec::new()));
+    assert_ne!(
+        dialog_painting(&mut root, &mut time),
+        asking,
+        "its block gone, the question goes"
+    );
     press(&mut root, &mut time, Key::Enter);
     assert!(
         root.take_core_commands().is_empty(),
