@@ -1102,6 +1102,18 @@ keys the granter verified that way, which every device then seals to.
   (`RecoverySecret::seal_own`, `be_block_keys::Own`), so one never opens as
   another: sealing to the public key would let the server forge one the owner
   trusts.
+- **A name card** (`be_block_keys::NameCard`: account id, name, email, a date
+  that only grows) is how a rename reaches contacts. A name is changed in the
+  server's portal, where no device key can sign it, so each connection's
+  greeting names the account as its row does, and the device publishes that
+  as a name card its signing key signs when it differs from the one the
+  server holds (`Peer::publish_name`, run with each contacts sync). The server
+  keeps the newest that names the caller and its current signing key signs
+  (`publish-name`), drops it with a new recovery key, and serves it beside the
+  key (`signing-keys`). A device shows a verified contact by the card its
+  verified signing key signs, else by the card it verified
+  (`Peer::refresh_contacts`), so the server cannot rename anyone; it can only
+  withhold the newest card, or serve an older one the contact signed.
 - **The account's block** (`be_block::account_block`, `AccountBlock`) holds the
   account's records of its contacts, the code and kind of each link it made
   until it is finished (`contacts::KeptLink`, kept before `create-link`, so a

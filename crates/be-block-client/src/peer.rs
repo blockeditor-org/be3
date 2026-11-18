@@ -432,6 +432,58 @@ impl<S: ObjectStore> Peer<S> {
         Self::signed_in(connection, account, token, config, store).await
     }
 
+    /// Publishes the account's name card (`be_block_keys::NameCard`), signed here, when the
+    /// name and email the server greeted this connection with differ from the card the server
+    /// holds: a rename made in the server's portal then reaches the account's contacts, who
+    /// show the newest card its signing key signs (guides/blocks/keys.md, "Contacts"). Once per
+    /// connection; a failed attempt is made again by the next call.
+    pub async fn publish_name(&self) -> Result<(), ClientError> {
+        let connection = self.connection();
+        let Some((display_name, email)) = connection.greeted.lock().unwrap().take() else {
+            return Ok(());
+        };
+        let published = self.publish_greeted(&display_name, &email).await;
+        if published.is_err() {
+            *connection.greeted.lock().unwrap() = Some((display_name, email));
+        }
+        published
+    }
+
+    async fn publish_greeted(&self, display_name: &str, email: &str) -> Result<(), ClientError> {
+        let signing = self.keys.identity().signing();
+        let held = be_block_protocol::read::<Vec<be_block_protocol::SigningKey>, _>(
+            &self.connection(),
+            Some(self.organization),
+            be_block_protocol::Query::SigningKeys(vec![self.account]),
+        )
+        .await??
+        .into_iter()
+        .find(|served| served.account == self.account)
+        .and_then(|served| be_block_keys::NameCard::open(&served.name, &signing));
+        if held
+            .as_ref()
+            .is_some_and(|held| held.display_name == display_name && held.email == email)
+        {
+            return Ok(());
+        }
+        let now = Uuid::now_v7()
+            .get_timestamp()
+            .map_or(0, |time| time.to_unix().0 * 1000);
+        let card = be_block_keys::NameCard {
+            account: self.account.into_bytes(),
+            display_name: display_name.to_owned(),
+            email: email.to_owned(),
+            dated: now.max(held.map_or(0, |held| held.dated.saturating_add(1))),
+        };
+        be_block_protocol::write::<(), _>(
+            &self.connection(),
+            Some(self.organization),
+            be_block_protocol::Op::PublishName(card.sign(self.keys.identity())),
+        )
+        .await??;
+        Ok(())
+    }
+
     pub async fn signed_in(
         connection: Arc<Connection>,
         account: Uuid,

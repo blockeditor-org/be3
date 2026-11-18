@@ -591,6 +591,41 @@ impl ContactCard {
     }
 }
 
+/// The name and email an account goes by, signed by its signing key (`sign`), which its
+/// devices publish whenever its name changes: a contact shows the newest one the key it pinned
+/// signs (`open`), so a rename reaches the account's contacts without a new link, and a server,
+/// which renames accounts in its portal but holds no signing key, cannot rename one itself.
+/// `dated` only grows, so the server keeps the newest.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct NameCard {
+    pub account: [u8; 16],
+    pub display_name: String,
+    pub email: String,
+    pub dated: u64,
+}
+
+const NAME_CARD_DOMAIN: &[u8] = b"be3.name-card.v1\0";
+
+impl NameCard {
+    fn message(&self) -> Vec<u8> {
+        let card = postcard::to_stdvec(self).expect("a name card always encodes");
+        [NAME_CARD_DOMAIN, &card].concat()
+    }
+
+    /// This card, signed by `secret`'s signing key, as it travels.
+    pub fn sign(&self, secret: &RecoverySecret) -> Vec<u8> {
+        use ed25519_dalek::Signer;
+        let signature = secret.signing_key().sign(&self.message()).to_bytes().to_vec();
+        postcard::to_stdvec(&(self, signature)).expect("a signed name card always encodes")
+    }
+
+    /// The card `signed` carries, when `signing` signed it.
+    pub fn open(signed: &[u8], signing: &SigningPublic) -> Option<Self> {
+        let (card, signature): (Self, Vec<u8>) = postcard::from_bytes(signed).ok()?;
+        verify_signature(&signing.0, &card.message(), &signature).then_some(card)
+    }
+}
+
 impl fmt::Display for InviteCode {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         for index in 0..INVITE_LEN {

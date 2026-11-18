@@ -160,6 +160,7 @@ pub(crate) fn op_rule(op: &Op) -> Rule {
         Op::RemoveContact { .. } => Rule::Anywhere,
         // In the personal organization, the account's block's new epoch goes with it.
         Op::SetRecoveryKey { .. } => Rule::Anywhere,
+        Op::PublishName(_) => Rule::Anywhere,
         Op::SetMute { block: of, .. } => block(*of, Access::View),
     }
 }
@@ -286,6 +287,7 @@ pub(crate) fn bound_may_write(op: &Op, root: Uuid) -> bool {
         | Op::RevokeShareLink { .. }
         | Op::RemoveContact { .. }
         | Op::SetRecoveryKey { .. }
+        | Op::PublishName(_)
         | Op::SetPushEndpoint(_)
         | Op::SetMute { .. } => false,
     }
@@ -1206,14 +1208,8 @@ impl Client {
 
     /// `page` as a test's lying server sends it to `account` (`ServerConfig::lies`).
     fn lied(&self, account: Option<Uuid>, mut page: Page) -> Page {
-        let (Some(lies), Some(account)) = (&self.connection.config.lies, account) else {
-            return page;
-        };
-        match &mut page {
-            Page::Summaries(summaries) => lies.apply(account, summaries.iter_mut().flatten()),
-            Page::Contents(contents) => lies.apply(account, contents.blocks.iter_mut()),
-            Page::Listed(listed) => lies.apply(account, listed.blocks.iter_mut()),
-            _ => {}
+        if let (Some(lies), Some(account)) = (&self.connection.config.lies, account) {
+            lies.apply(account, &mut page);
         }
         page
     }
@@ -2465,6 +2461,13 @@ impl Client {
                         })
                         .await;
                 }
+                Ok(Done::Nothing)
+            }
+            Op::PublishName(signed) => {
+                connection
+                    .store
+                    .publish_name(admitted.account()?, signed)
+                    .await?;
                 Ok(Done::Nothing)
             }
             Op::SetPushEndpoint(change) => {

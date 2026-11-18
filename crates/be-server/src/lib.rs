@@ -193,25 +193,25 @@ pub struct ServerConfig {
     pub push: push::PushConfig,
     /// The OpenID Connect providers people may sign in with (`--oidc-providers`).
     pub providers: Cow<'static, [oidc::Provider]>,
-    /// For tests only: what a server that lies would change in the summaries it answers
-    /// (`Lies`). None for every real server.
+    /// For tests only: what a server that lies would change in the pages it answers (`Lies`).
+    /// None for every real server.
     pub lies: Option<Lies>,
 }
 
-/// What a server that lies changes in the block summaries it answers one account (`query.blocks`,
-/// with or without contents, and listings), set by a test (`Running::lie`) to show a client
-/// refuses what "the server alone" could say: a block's parent, its current key, its history.
-/// It rewrites read answers only, not the summaries pushed to a client that follows a tree, so
-/// a test that lies reads what it checks. A plain field rather than a test-only one: no flag
-/// or configuration sets it, only `Running` does (`with_mail`), so a deployed server, which
-/// leaves it None, never lies, and the harness other crates' tests share needs no feature.
+/// What a server that lies changes in the pages it answers one account, set by a test
+/// (`Running::lie`) to show a client refuses what "the server alone" could say: a block's
+/// parent, its current key, a contact's name. It rewrites read answers only, not the
+/// summaries pushed to a client that follows a tree, so a test that lies reads what it checks.
+/// A plain field rather than a test-only one: no flag or configuration sets it, only `Running`
+/// does (`with_mail`), so a deployed server, which leaves it None, never lies, and the harness
+/// other crates' tests share needs no feature.
 #[derive(Clone, Default)]
 pub struct Lies(Arc<std::sync::Mutex<Vec<Lie>>>);
 
-/// One rewrite: the account it lies to, and what it does to each summary that account is sent.
+/// One rewrite: the account it lies to, and what it does to each page that account is sent.
 type Lie = (
     uuid::Uuid,
-    Arc<dyn Fn(&mut be_block_protocol::BlockSummary) + Send + Sync>,
+    Arc<dyn Fn(&mut be_block_protocol::Page) + Send + Sync>,
 );
 
 impl std::fmt::Debug for Lies {
@@ -221,21 +221,17 @@ impl std::fmt::Debug for Lies {
 }
 
 impl Lies {
-    /// Rewrites every summary sent to `account` with `lie`, from now on.
+    /// Rewrites every page sent to `account` with `lie`, from now on.
     pub fn to(
         &self,
         account: uuid::Uuid,
-        lie: impl Fn(&mut be_block_protocol::BlockSummary) + Send + Sync + 'static,
+        lie: impl Fn(&mut be_block_protocol::Page) + Send + Sync + 'static,
     ) {
         self.0.lock().unwrap().push((account, Arc::new(lie)));
     }
 
-    /// `summaries`, as sent to `account`.
-    pub(crate) fn apply<'a>(
-        &self,
-        account: uuid::Uuid,
-        summaries: impl IntoIterator<Item = &'a mut be_block_protocol::BlockSummary>,
-    ) {
+    /// `page`, as sent to `account`.
+    pub(crate) fn apply(&self, account: uuid::Uuid, page: &mut be_block_protocol::Page) {
         let lies: Vec<_> = self
             .0
             .lock()
@@ -244,14 +240,22 @@ impl Lies {
             .filter(|(to, _)| *to == account)
             .map(|(_, lie)| Arc::clone(lie))
             .collect();
-        if lies.is_empty() {
-            return;
+        for lie in lies {
+            lie(page);
         }
-        for summary in summaries {
-            for lie in &lies {
-                lie(summary);
-            }
-        }
+    }
+}
+
+/// The block summaries `page` carries (`query.blocks`, with or without contents, and
+/// listings), for a lie that rewrites them (`Lies`).
+pub fn summaries_in(
+    page: &mut be_block_protocol::Page,
+) -> Vec<&mut be_block_protocol::BlockSummary> {
+    match page {
+        be_block_protocol::Page::Summaries(summaries) => summaries.iter_mut().flatten().collect(),
+        be_block_protocol::Page::Contents(contents) => contents.blocks.iter_mut().collect(),
+        be_block_protocol::Page::Listed(listed) => listed.blocks.iter_mut().collect(),
+        _ => Vec::new(),
     }
 }
 

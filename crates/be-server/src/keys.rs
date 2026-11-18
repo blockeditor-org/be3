@@ -1430,15 +1430,58 @@ impl ServerStore {
                 if !known {
                     continue;
                 }
-                let signing: Option<Vec<u8>> = database
-                    .prepare_cached("SELECT signing FROM recovery_keys WHERE account_id = ?1")?
-                    .query_row([account.to_string()], |row| row.get(0))
+                let signing: Option<(Vec<u8>, Vec<u8>)> = database
+                    .prepare_cached(
+                        "SELECT signing, name FROM recovery_keys WHERE account_id = ?1",
+                    )?
+                    .query_row([account.to_string()], |row| Ok((row.get(0)?, row.get(1)?)))
                     .optional()?;
-                if let Some(key) = signing.and_then(|key| <[u8; 32]>::try_from(key).ok()) {
-                    found.push(SigningKey { account, key });
+                if let Some((key, name)) = signing
+                    && let Ok(key) = <[u8; 32]>::try_from(key)
+                {
+                    found.push(SigningKey { account, key, name });
                 }
             }
             Ok(found)
+        })
+        .await
+    }
+
+    /// Keeps `signed`, `account`'s name card (`be_block_keys::NameCard`), when it names the
+    /// account, its current signing key signed it, and it is dated after the one kept.
+    pub async fn publish_name(&self, account: Uuid, signed: Vec<u8>) -> Result<(), ServerError> {
+        if signed.len() > crate::limits::MAX_NAME_CARD_BYTES {
+            return Err(crate::limits::too_many(
+                "bytes in a name card",
+                crate::limits::MAX_NAME_CARD_BYTES,
+            ));
+        }
+        self.with_database(move |_, database| {
+            let signing: Option<Vec<u8>> = database
+                .prepare_cached("SELECT signing FROM recovery_keys WHERE account_id = ?1")?
+                .query_row([account.to_string()], |row| row.get(0))
+                .optional()?;
+            let card = signing
+                .and_then(|key| <[u8; 32]>::try_from(key).ok())
+                .and_then(|key| {
+                    be_block_keys::NameCard::open(&signed, &be_block_keys::SigningPublic(key))
+                })
+                .filter(|card| card.account == account.into_bytes())
+                .ok_or_else(|| {
+                    ServerError::Refused(
+                        ErrorCode::InvalidRequest,
+                        "a name card names its account and is signed with its signing key".into(),
+                    )
+                })?;
+            let dated = i64::try_from(card.dated).map_err(|_| {
+                ServerError::Refused(ErrorCode::InvalidRequest, "a name card's date is too late".into())
+            })?;
+            database.execute(
+                "UPDATE recovery_keys SET name = ?2, name_dated = ?3
+                 WHERE account_id = ?1 AND name_dated < ?3",
+                params![account.to_string(), signed, dated],
+            )?;
+            Ok(())
         })
         .await
     }
