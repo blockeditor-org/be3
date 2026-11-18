@@ -2,7 +2,7 @@ use super::*;
 
 /// What is unread is the messages others sent after the furthest place read and after the
 /// reader's own last message: answering is reading. Edits, reactions and deleted messages count
-/// for nothing.
+/// for nothing, nor does a forged message (`Bad`), which answers nothing either.
 #[test]
 fn unread_counts_others_messages_after_the_furthest_place_and_the_readers_own() {
     let entries = [
@@ -30,4 +30,13 @@ fn unread_counts_others_messages_after_the_furthest_place_and_the_readers_own() 
     answered.push(item(6, ADA, &message("hi")));
     answered.push(item(7, BO, &message("five")));
     assert_eq!(ChatLog::of(&answered).unread(Some(0), ADA), 1);
+
+    let mut forged = entries.to_vec();
+    forged.push(signed(6, BO, &message("forged"), LogSigner::Bad));
+    forged.push(signed(7, ADA, &message("forged hi"), LogSigner::Bad));
+    assert_eq!(
+        ChatLog::of(&forged).unread(Some(0), ADA),
+        2,
+        "neither forged message counts, nor reads what came before it"
+    );
 }
