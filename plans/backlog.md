@@ -5,6 +5,17 @@ Depends on: none.
 The running to-do list, grouped. Every item says what "done" looks like.
 Fixed items are removed as they land.
 
+## 1. Text
+
+- **An unquoted list code block's continuation spaces.** A fenced code block in
+  a list outside a quote draws the list's continuation spaces as code text, so
+  its content sits about 8px right of its own fence (the fence's backticks at
+  x≈87, the code at x≈95 in be-app-text's markdown showcase, lines ~187-189),
+  where a quoted one now keeps them in its marker, unseen, and lays the nesting
+  as a gap (`quote_prefix`). Done: an unquoted list code line keeps the
+  continuation spaces in its marker the same way, so its code lines up with its
+  fence, shown by the showcase painting.
+
 ## 2. Docking
 
 - **Bar drops across layers.** A joined dock bar (guides/beui/docking.md,
