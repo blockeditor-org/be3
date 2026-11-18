@@ -424,11 +424,11 @@ through the drag and Escape rebuilds nothing; drawn invisible, it is the gap, at
    - **Several carries (done, step 7).**
    - **The dock's splitters (done).** A splitter is `free(canvas, ..)`, unbounded, lifted at
      the press and previewed by writing (`State::drag_edit`), its drop writing its place and a
-     put-down (Escape, a cancelled press) writing back the size at the lift; a release outside
-     every window keeps where it was. Outside every window the board chooses no place, so the
-     splitter holds the size at the last point inside it, where on `on_drag` it followed the
-     captured pointer out, clamped; following a `free` place outside the window waits for a
-     need, since outside is where a tab floats into a window of its own. Its arrows step it as before, and a keyboard carry steps
+     put-down (Escape, a cancelled press) writing back the size at the lift; its carry
+     `reads_outside` (`Carry::reads_outside`), so outside every window it still reads its place
+     at the captured pointer, clamped, and a release there drops it, as on `on_drag`; a carry
+     that does not (a tab, a bar, the canvas) chooses no place outside, where a tab floats
+     into a window of its own. Its arrows step it as before, and a keyboard carry steps
      `SPLIT_STEP` too. It gained Escape; it lost nothing the splitter tests pin. Lines:
      `DockSplitterView` was 91 and is 155. What it writes that the language should give, before
      the sliders move: the splitter's offset in the area, found to turn the item's rect into

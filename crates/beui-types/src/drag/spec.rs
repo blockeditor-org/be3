@@ -456,6 +456,9 @@ pub struct Carry {
     pub window: Option<crate::window::WindowId>,
     /// Whether the carry scrolls the edge scroller whose band holds it (`scrolls_nothing`).
     pub scrolls: bool,
+    /// Whether its places are still read with the pointer outside every window
+    /// (`reads_outside`).
+    pub reads_outside: bool,
 }
 
 /// What is drawn for a carried item.
@@ -480,6 +483,17 @@ impl Carry {
             outside: None,
             window: None,
             scrolls: true,
+            reads_outside: false,
+        }
+    }
+
+    /// Reads its places at the pointer's point in its window wherever the pointer is, also
+    /// outside every window, where a carry otherwise chooses no place and a release tells its
+    /// `outside`: a splitter, whose `free` place clamps a point beyond the window's edge.
+    pub fn reads_outside(self) -> Self {
+        Self {
+            reads_outside: true,
+            ..self
         }
     }
 

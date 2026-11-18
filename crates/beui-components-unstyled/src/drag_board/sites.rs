@@ -406,7 +406,8 @@ impl Board {
 
     /// The frame of the carry whose payload is `payload`: where its item draws and whether
     /// it floats; tracked. A component names its own carry by its payload, so two carries
-    /// of one type (two rows of lists of one key type, two splitters) are told apart. Peers
+    /// of one type (two rows of lists of one key type, two splitters) are told apart.
+    /// Payloads are names: two equal payloads carried at once are one name, the first lifted. Peers
     /// are shown a carry by its site, which publishes the place chosen in it (its `over`) as
     /// presence in its own terms, so their copy of the site draws it in their view (a
     /// canvas's carried shapes at their world place).
@@ -484,7 +485,8 @@ impl Board {
             // Outside every window no place is under the pointer: a release there is the
             // source's to hear (`Carry::outside`).
             let nowhere = DragSpec::Floating;
-            let spec = match self.outside.get() || unread {
+            let outside = self.outside.get() && !placing.carry.reads_outside;
+            let spec = match outside || unread {
                 true => &nowhere,
                 false => &placing.spec,
             };

@@ -3360,10 +3360,9 @@ fn DockSplitterView(dock: State, tree: Tree, split: SplitId) -> NodeId {
     });
     let carried = SplitterCarry { dock: dock.id, split };
     let handle = NodeRef::new();
-    // The size at the lift, written back unless the carry is kept: dropped, or let go
-    // outside every window.
+    // The size at the lift, written back unless the carry is dropped.
     let started = Rc::new(Cell::new(None::<SplitSize>));
-    let kept = Rc::new(Cell::new(false));
+    let dropped = Rc::new(Cell::new(false));
     // The splitter is carried on the board, lifted at a mouse's press: a `free` place over
     // its tree's canvas, the size the pointer moved it to, previewed by writing it.
     let site = use_drop_site(
@@ -3406,14 +3405,13 @@ fn DockSplitterView(dock: State, tree: Tree, split: SplitId) -> NodeId {
         }),
         // The drop writes the size it chose: the preview's effect may not have seen it yet.
         Callback::new({
-            let kept = Rc::clone(&kept);
+            let dropped = Rc::clone(&dropped);
             move |(_, next): (SplitterCarry, SplitSize)| {
-                kept.set(true);
+                dropped.set(true);
                 dock.drag_edit(move |state| state.set_split_size(split, next));
             }
         }),
     );
-    // Over nothing mid-carry (the pointer outside the window), the size holds.
     create_effect_on(
         move || site.over.get(),
         move |over: &Option<SplitSize>, _| {
@@ -3423,7 +3421,7 @@ fn DockSplitterView(dock: State, tree: Tree, split: SplitId) -> NodeId {
         },
     );
     {
-        let kept = Rc::clone(&kept);
+        let dropped = Rc::clone(&dropped);
         create_effect_on_change(
             move || drag_board().carries(&carried),
             move |held: &bool, _| {
@@ -3431,7 +3429,7 @@ fn DockSplitterView(dock: State, tree: Tree, split: SplitId) -> NodeId {
                     return;
                 }
                 if let Some(begun) = started.take()
-                    && !kept.replace(false)
+                    && !dropped.replace(false)
                 {
                     dock.drag_edit(move |state| state.set_split_size(split, begun));
                 }
@@ -3474,12 +3472,11 @@ fn DockSplitterView(dock: State, tree: Tree, split: SplitId) -> NodeId {
             on_hover_change={hovered}
             on_active_change={active}
             drag={move |_: PointerPress| {
-                let kept = Rc::clone(&kept);
                 Some(
                     Carry::new(carried)
                         .drawn_by_site()
                         .scrolls_nothing()
-                        .outside(move |_| kept.set(true)),
+                        .reads_outside(),
                 )
             }}
         >
