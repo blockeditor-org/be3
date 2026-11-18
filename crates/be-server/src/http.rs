@@ -326,20 +326,21 @@ fn closing(mut response: Response) -> Response {
     response
 }
 
-/// The answer to a request whose handling failed: a refusal says why, a failure of the
-/// server's own storage only that it failed.
+/// The answer to a request whose handling failed: a refusal says why, anything else (the
+/// server's storage, its build, a socket) only that it failed.
 fn failed(error: ServerError) -> Response {
     let status = match error {
-        ServerError::Refused(..) | ServerError::Socket(_) => StatusCode::BAD_REQUEST,
+        ServerError::Refused(..) => StatusCode::BAD_REQUEST,
         _ => StatusCode::INTERNAL_SERVER_ERROR,
     };
     refuse(status, &said(error))
 }
 
-/// What a client is told of `error`: why it was refused, but nothing of the server's storage.
+/// What a client is told of `error`: why it was refused, and nothing of the server's own
+/// failures, whose text may name its storage or build.
 fn said(error: ServerError) -> String {
     match error {
-        ServerError::Refused(_, message) | ServerError::Socket(message) => message,
+        ServerError::Refused(_, message) => message,
         error => {
             tracing::warn!(%error, "a request failed");
             "the request failed".to_owned()
