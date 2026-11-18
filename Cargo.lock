@@ -2886,8 +2886,6 @@ dependencies = [
  "pollster",
  "postcard",
  "serde",
- "serde_bytes",
- "sha2 0.10.9",
  "uuid",
 ]
 
