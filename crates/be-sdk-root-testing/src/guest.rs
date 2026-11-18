@@ -80,7 +80,10 @@ struct Root {
     keep_asking: Rc<RefCell<Option<DisplayQuestion>>>,
     /// The round of display settings the root answered last, which it does not ask again.
     keep_answered: Rc<Cell<Option<u64>>>,
-    /// What the block stack shows the person, as its host said last.
+    /// What the block stack shows the person, as its host said last: the one view of it the
+    /// root stores. An area's document is handed a signal of the whole view and splits off a
+    /// memo of its own field, so it renders again only when that field changed; no area keeps
+    /// a copy of its field apart from it.
     core: Rc<RefCell<CoreView>>,
     /// The core's view its list of unsent edits shows, while that list is its open dialog.
     core_shown: Rc<Cell<Option<Signal<CoreView>>>>,
@@ -1179,7 +1182,7 @@ fn KeepDisplayDialog(asked: DisplayQuestion, shown_at: Duration, done: Callback<
 #[component]
 fn UnsentDialog(core: Signal<CoreView>, done: Callback<Closed>) -> NodeId {
     // A memo per area of the core's view: this one changes only when the unsent edits do.
-    let edits = create_memo(move || core.get().unsent);
+    let edits = create_memo(move || core.with(|view| view.unsent.clone()));
     let discarding = create_signal(None::<[u8; 16]>);
     let asked = create_memo(move || {
         let block = discarding.get()?;
