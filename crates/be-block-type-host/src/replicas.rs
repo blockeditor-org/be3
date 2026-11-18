@@ -363,7 +363,7 @@ pub enum Io {
         kept: bool,
     },
     Relayed,
-    Left,
+    Left(Uuid),
     Sealed,
     /// A search for `key`, which relayed messages waited on, answered: how many keys it opened.
     Keyed {
@@ -1009,6 +1009,8 @@ pub struct Replicas<H: Host> {
     pending: Vec<Io>,
     relaying: usize,
     left: usize,
+    /// The blocks whose sessions those leaves are leaving, each with how many.
+    left_blocks: HashMap<Uuid, usize>,
     /// Per block, what was told behind a relayed message whose key is being searched for.
     unsealing: HashMap<Uuid, VecDeque<Told>>,
     /// Keys a search is on its way for, which relayed messages wait on.
@@ -1084,6 +1086,7 @@ impl<H: Host> Replicas<H> {
             pending: Vec::new(),
             relaying: 0,
             left: 0,
+            left_blocks: HashMap::new(),
             unsealing: HashMap::new(),
             searching: HashSet::new(),
             searched: HashSet::new(),
@@ -1128,14 +1131,20 @@ impl<H: Host> Replicas<H> {
         self.left > 0
     }
 
+    /// Whether a replica of `block` is about to leave its session, or leaving it.
+    pub fn is_leaving(&self, block: Uuid) -> bool {
+        self.left_blocks.contains_key(&block) || self.leaving.contains(&block)
+    }
+
     fn leave(&mut self, shared: &Arc<Mutex<H>>, peer: &Peer<H::Store>, block: Uuid) {
         let left = peer.connection().leave_session(block);
         self.left += 1;
+        *self.left_blocks.entry(block).or_insert(0) += 1;
         H::leaving(shared, true);
         let io = self.io.clone();
         H::spawn(async move {
             let _ = left.await;
-            let _ = io.send(Io::Left);
+            let _ = io.send(Io::Left(block));
             H::wake();
         });
     }
@@ -3640,8 +3649,14 @@ impl<H: Host> Replicas<H> {
                 }
             }
             Io::Relayed => self.relaying -= 1,
-            Io::Left => {
+            Io::Left(block) => {
                 self.left -= 1;
+                if let Some(count) = self.left_blocks.get_mut(&block) {
+                    *count -= 1;
+                    if *count == 0 {
+                        self.left_blocks.remove(&block);
+                    }
+                }
                 H::leaving(shared, self.left > 0);
             }
             Io::Sealed => self.release(),

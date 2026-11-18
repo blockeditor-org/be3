@@ -119,6 +119,7 @@ impl Cipher {
 }
 
 /// Noise's CipherState during the handshake.
+#[derive(Clone)]
 struct CipherState {
     key: Option<[u8; KEY_LEN]>,
     nonce: u64,
@@ -133,6 +134,7 @@ impl Drop for CipherState {
 }
 
 /// Noise's SymmetricState: the chaining key, the handshake hash, and the cipher keyed so far.
+#[derive(Clone)]
 struct Symmetric {
     cipher: Cipher,
     chaining: [u8; 32],
@@ -308,24 +310,22 @@ impl Initiator {
     }
 
     /// Reads the host's answer, `<- e, ee, se`: the channel and the answer's payload. Fails
-    /// unless it was made by the holder of the host's static key, for this handshake.
-    pub fn finish(mut self, message: &[u8]) -> Result<(Channel, Vec<u8>), KeyError> {
+    /// unless it was made by the holder of the host's static key, for this handshake; the
+    /// handshake is left as it was then, so a message that was not its answer (a stray one of
+    /// an earlier channel) does not end it.
+    pub fn finish(&self, message: &[u8]) -> Result<(Channel, Vec<u8>), KeyError> {
+        let mut symmetric = self.symmetric.clone();
         let mut rest = message;
         let theirs: [u8; 32] = take(&mut rest, 32)?
             .try_into()
             .map_err(|_| KeyError::Corrupt)?;
-        self.symmetric.mix_hash(&theirs);
-        self.symmetric.mix_dh(&self.ephemeral, &theirs);
-        self.symmetric.mix_dh(&self.own.0, &theirs);
-        let payload = self.symmetric.decrypt_and_hash(rest)?;
-        let (sending, receiving) = self.symmetric.split();
+        symmetric.mix_hash(&theirs);
+        symmetric.mix_dh(&self.ephemeral, &theirs);
+        symmetric.mix_dh(&self.own.0, &theirs);
+        let payload = symmetric.decrypt_and_hash(rest)?;
+        let (sending, receiving) = symmetric.split();
         Ok((
-            Channel::new(
-                self.symmetric.cipher,
-                sending,
-                receiving,
-                self.symmetric.hash,
-            ),
+            Channel::new(symmetric.cipher, sending, receiving, symmetric.hash),
             payload,
         ))
     }

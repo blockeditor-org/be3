@@ -1946,7 +1946,7 @@ impl Session<'_> {
             spawn_listings(peer, shared, &self.tasks.0);
             let replicas = &*self.replicas;
             crate::joining::step(peer, shared, &self.tasks.0, |block| {
-                replicas.is_open(block) || replicas.leaving()
+                replicas.is_open(block) || replicas.is_leaving(block)
             });
             if !after_order.is_empty() && !order_pending(self.replicas) {
                 let mut ran = Ran {

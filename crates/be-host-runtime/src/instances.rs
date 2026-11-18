@@ -2177,6 +2177,60 @@ impl Instances {
     /// Forgets what the old run had of its instances when the app restarts (`Runtime::restart`),
     /// so the new run is sent their content, blocks, keyboard focus and children's statuses
     /// again. What they described goes in `Run::restart` (`Descriptions`).
+    /// Opens an editor again as a Join member (`opening-kind.join`, no content) once its
+    /// block's access fell to Join, or as an ordinary editor once it rose from it: closed at the
+    /// app if it was open there, with all an app's close ends (its gifts, services, waiting
+    /// messages, early shows, the screens it announced) forgotten, as `remove` forgets them,
+    /// but the instance kept, so the next pass opens it again.
+    fn switch_kind(&mut self, instance: EditorInstanceId) -> Vec<Outbound> {
+        let Some(entry) = self.entries.get(&instance) else {
+            return Vec::new();
+        };
+        let InstanceRole::Editor(_, block) = entry.role else {
+            return Vec::new();
+        };
+        let joined = be_host_stack::access(block.id) == be_block_graph::Access::Join;
+        if joined == entry.joined {
+            return Vec::new();
+        }
+        let was_open = entry.opened;
+        let mut closed = Vec::new();
+        if was_open {
+            closed.push(Outbound::Close(instance));
+            self.end_gift(instance, gift::Keys::Drop);
+            self.withdraw_all(instance);
+            self.waiting.remove(&instance);
+            self.early_shows.remove(&instance);
+            self.owners.retain(|_, owner| *owner != instance);
+        }
+        let Some(entry) = self.entries.get_mut(&instance) else {
+            return closed;
+        };
+        if was_open {
+            for screen in entry.screens.values() {
+                self.announced.remove(&screen.request.screen);
+            }
+            forget_opened(
+                &self.app_id,
+                &self.heard,
+                &mut self.unannounced_input,
+                instance,
+                entry,
+            );
+        }
+        let shown = entry.shown_on(block.id);
+        if let Some(link) = entry.content.as_mut() {
+            link.detach(instance, &self.app_id, block.id, &shown);
+        }
+        entry.shown.retain(|(on, _)| *on != block.id);
+        entry.joined = joined;
+        entry.content = match joined {
+            true => None,
+            false => own_content_type(block).map(ContentLink::new),
+        };
+        closed
+    }
+
     pub(super) fn reopen(&mut self) {
         self.heard.forget();
         self.sent_block_types = None;
@@ -2233,38 +2287,20 @@ impl Instances {
             opened.push(Outbound::App(AppCall::BlockTypes(block_types)));
             opened.push(Outbound::App(AppCall::DebugTemplates(debug_templates)));
         }
+        // An editor whose block's access crossed between Join and View opens again as the
+        // other kind: closed at the app first, once, before anything else is sent it.
+        for instance in &instances {
+            opened.extend(self.switch_kind(*instance));
+        }
         for instance in instances {
             let scope = self.scope(instance);
             let Some(entry) = self.entries.get_mut(&instance) else {
                 continue;
             };
             if let InstanceRole::Editor(_, block) = entry.role {
-                let joined = be_host_stack::access(block.id) == be_block_graph::Access::Join;
-                if joined != entry.joined {
-                    if entry.opened {
-                        opened.push(Outbound::Close(instance));
-                        forget_opened(
-                            &self.app_id,
-                            &self.heard,
-                            &mut self.unannounced_input,
-                            instance,
-                            entry,
-                        );
-                    }
-                    let shown = entry.shown_on(block.id);
-                    if let Some(link) = entry.content.as_mut() {
-                        link.detach(instance, &self.app_id, block.id, &shown);
-                    }
-                    entry.shown.retain(|(on, _)| *on != block.id);
-                    entry.joined = joined;
-                    entry.content = match joined {
-                        true => None,
-                        false => own_content_type(block).map(ContentLink::new),
-                    };
-                }
                 be_host_stack::want_channel(
                     be_host_stack::Owner::Editor(instance.0),
-                    joined.then_some(block.id),
+                    entry.joined.then_some(block.id),
                 );
             }
             be_host_stack::want(be_host_stack::Owner::Editor(instance.0), entry.wants());
