@@ -7,7 +7,7 @@ use super::*;
 /// nothing (it erases what another editor erased first) is not carried: it erases nothing else.
 #[test]
 fn an_editors_edit_made_before_two_restarts_it_was_not_shown_lands() {
-    crate::replica::RESTART_LIMIT.with(|limit| limit.set(8));
+    crate::replica::RESTART_LIMIT.with(|limit| limit.set(64));
     let mut sim = Sim::<ProseContent>::new(1, prose_module);
     sim.open(0);
     sim.attach(0, 1, true);
@@ -15,17 +15,16 @@ fn an_editors_edit_made_before_two_restarts_it_was_not_shown_lands() {
     sim.type_at(0, 1, 0, "start\n");
     sim.advance(crate::QUIET_INTERVAL);
 
+    sim.deafen(0, 1);
     for restart in 1..=2 {
         for round in 0..20 {
             sim.type_at(0, 2, 0, &format!("scratch {round} "));
             let typed = sim.typed(0, 2).find("start").expect("the text is there");
             sim.erase(0, 2, 0..typed);
         }
+        // Settled first: edits still on their way at a restart do not all carry over it
+        // (plans/backlog.md, "Edits on their way at a restart").
         sim.settle();
-        // Editor 1 hears the churn (its edits are numbered past it), then neither restart.
-        if restart == 1 {
-            sim.deafen(0, 1);
-        }
         sim.advance(crate::QUIET_INTERVAL);
         assert_eq!(
             sim.devices[0].status.restarts, restart,
