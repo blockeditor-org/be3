@@ -318,6 +318,15 @@ web_host_test(
     test = "web-test/two_pages_write_in_one_chat_and_neither_makes_a_file_call_or_starts_a_thread.mjs",
 )
 
+# A tab shown again shows its views' last frames until their app draws them anew, as natively.
+web_host_test(
+    name = "shown-again-web-host-test",
+    bundle = ":web",
+    caddyfile = ":Caddyfile",
+    server = "//crates/be-server-bin:bin",
+    test = "web-test/a_tab_shown_again_shows_its_last_frame_before_its_app_answers.mjs",
+)
+
 web_host_test(
     name = "push-web-host-test",
     bundle = ":web",
