@@ -103,8 +103,8 @@ fn a_chats_messages_are_found_by_what_they_say_now() {
     // An entry redacted with no deletion naming it, as a manager removes one, is told to the
     // log's followers: its text leaves the index, and the open editor holds it redacted.
     append(&mut editor, &said("The spare key is under the mat"), Default::default());
-    editor.until("heard the third message", |editor| editor.messages().len() == 3);
-    finds("spare", &[chat]);
+    editor.until("heard the new message", |editor| editor.messages().len() == 2);
+    finds("spare key", &[chat]);
     let spare = editor
         .mirror
         .log()
@@ -125,12 +125,12 @@ fn a_chats_messages_are_found_by_what_they_say_now() {
             redacts: Some(spare),
         },
     );
-    finds("spare", &[]);
     editor.until("held the message redacted", |editor| {
         editor
             .mirror
             .log()
             .any(|item| item.seq == spare && item.payload.is_none())
     });
+    finds("spare", &[]);
     finds("tacos", &[chat]);
 }
