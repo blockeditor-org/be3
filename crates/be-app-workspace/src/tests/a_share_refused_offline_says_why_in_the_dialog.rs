@@ -35,6 +35,7 @@ fn a_share_refused_offline_says_why_in_the_dialog() {
         source: granted.map(|_| block.into_bytes()),
         waiting: false,
         through_link: false,
+        guest: false,
     };
     fixture.test.answer(
         listing,

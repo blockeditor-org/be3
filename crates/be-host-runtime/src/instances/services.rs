@@ -652,6 +652,7 @@ impl Instances {
                                 access: be_host_stack::app_graph::level_of(row.access),
                                 admits: be_host_stack::app_graph::admits_of(row.admits),
                                 url,
+                                maker: row.maker.into_bytes(),
                                 maker_name: row.maker_name,
                             })
                             .collect::<Vec<_>>()

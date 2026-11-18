@@ -480,6 +480,14 @@ impl ServerStore {
                 false,
                 &signed,
             )?;
+            let guests: Vec<Uuid> = fallen
+                .iter()
+                .copied()
+                .filter(|account| {
+                    role_in(database, *account, identity.organization)
+                        .is_ok_and(|role| role == Some(OrganizationRole::Guest))
+                })
+                .collect();
             for account in &fallen {
                 revoke_or_grant(
                     graph,
@@ -490,10 +498,11 @@ impl ServerStore {
                     Access::None,
                 )?;
             }
+            // Guests with no grant left went with them (`drop_idle_guest`, from `write_grant`).
             let mut left = Vec::new();
-            for account in &fallen {
-                if drop_idle_guest(&transaction, identity.organization, *account)? {
-                    left.push(*account);
+            for account in guests {
+                if role_in(&transaction, account, identity.organization)?.is_none() {
+                    left.push(account);
                 }
             }
             transaction.execute("DELETE FROM share_links WHERE id = ?1", [link.to_string()])?;
@@ -512,7 +521,8 @@ impl ServerStore {
 }
 
 /// Removes `account` from `organization` when it is a guest that holds no grant there any more:
-/// a guest is there only through what links granted it. Answers whether it went.
+/// a guest is there only through what links granted it. Answers whether it went. Every path that
+/// removes a grant calls it (`blocks::write_grant`).
 pub(crate) fn drop_idle_guest(
     connection: &Connection,
     organization: Uuid,

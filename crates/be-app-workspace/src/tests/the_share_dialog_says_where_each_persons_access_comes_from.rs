@@ -45,6 +45,7 @@ fn the_share_dialog_says_where_each_persons_access_comes_from() {
         source: Some(source.into_bytes()),
         waiting: false,
         through_link: false,
+        guest: false,
     };
     fixture.test.answer(
         listing,

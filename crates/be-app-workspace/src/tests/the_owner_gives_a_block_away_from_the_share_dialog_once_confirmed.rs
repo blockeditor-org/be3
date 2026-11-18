@@ -38,6 +38,7 @@ fn the_owner_gives_a_block_away_from_the_share_dialog_once_confirmed() {
         source: Some(block.into_bytes()),
         waiting: false,
         through_link: false,
+        guest: false,
     };
     fixture.test.answer(
         listing,
@@ -53,6 +54,7 @@ fn the_owner_gives_a_block_away_from_the_share_dialog_once_confirmed() {
                 AccessGrant {
                     waiting: true,
                     through_link: false,
+                    guest: false,
                     ..grant(stranger, "Grace", AccessLevel::View)
                 },
             ],

@@ -65,7 +65,7 @@ const POLICIES: [Policy<OrganizationPolicies>; 5] = [
     Policy {
         key: "share-links",
         label: "Who share links admit",
-        description: "Anyone with a block's link may open it as its maker chose, within this. Anyone with an account joins as a guest, who sees only what links share; it needs sharing outside allowed.",
+        description: "Anyone with a block's link may open it as its maker chose, within this. Anyone with an account joins as a guest, who sees only what links share; it needs sharing outside allowed. Narrowing this leaves grants already made.",
         options: &["Members", "Anyone with an account", "No share links"],
         get: |policies| {
             index_of(
