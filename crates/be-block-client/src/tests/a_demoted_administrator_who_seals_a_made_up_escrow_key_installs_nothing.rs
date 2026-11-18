@@ -36,7 +36,6 @@ async fn a_demoted_administrator_who_seals_a_made_up_escrow_key_installs_nothing
         id: Uuid::new_v4(),
         epoch: latest.epoch + 1,
         public: secret.public().0,
-        signing: secret.signing(),
         head: [0; 32],
         maker: deputy.account(),
         signature: vec![0; 64],
@@ -44,6 +43,7 @@ async fn a_demoted_administrator_who_seals_a_made_up_escrow_key_installs_nothing
     put_escrow(&harness, organization, &forged);
     let carried = CarriedKey {
         key: secret.to_bytes(),
+        label: crate::tests::planted(forged.id, "escrow", forged.epoch),
         block: organization.into_bytes(),
         root: None,
         heads: Heads::default(),
@@ -56,7 +56,7 @@ async fn a_demoted_administrator_who_seals_a_made_up_escrow_key_installs_nothing
         },
         forged.id.as_bytes(),
         &carried.encode(),
-    );
+    ).unwrap();
     harness
         .database()
         .execute(

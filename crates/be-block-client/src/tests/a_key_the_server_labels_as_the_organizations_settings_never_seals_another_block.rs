@@ -99,7 +99,7 @@ async fn a_key_the_server_labels_as_the_organizations_settings_never_seals_anoth
             },
             scope.as_bytes(),
             &scope_plain,
-        ),
+        ).unwrap(),
     );
     let data = insert_key(&database, organization, note, "data");
     insert_wrap(&database, organization, data, scope.to_string(), server, {

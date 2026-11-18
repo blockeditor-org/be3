@@ -1,6 +1,7 @@
 use super::*;
 
 mod a_change_names_what_it_keeps;
+mod a_debug_print_shows_no_token_or_identity_secret;
 mod active_account_round_trips;
 mod apps_in_use_persist_across_reopen;
 mod client_id_persists_across_reopen;

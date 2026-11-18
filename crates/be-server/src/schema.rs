@@ -364,7 +364,6 @@ const SCHEMA: &str = "
         epoch           INTEGER NOT NULL,
         created         INTEGER NOT NULL,
         public          BLOB NOT NULL DEFAULT x'',
-        signing         BLOB NOT NULL DEFAULT x'',
         -- An escrow key's maker, whose identity key made `signature`, and the
         -- head of the organization's log it was made under.
         maker           TEXT NOT NULL DEFAULT '',

@@ -65,7 +65,7 @@ async fn contacts_keep_sharing_after_one_of_them_takes_a_new_recovery_phrase() {
             public: guest.keys().identity().public(),
         },
         stranger.keys().identity().identity(),
-    );
+    ).unwrap();
     // A forged change ahead of the real one in the guest's mailbox, as the owner's.
     harness
         .database()

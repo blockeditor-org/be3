@@ -6,25 +6,36 @@ fn an_escrow_key_signs_the_next_and_opens_what_is_sealed_to_it() {
     let second = EscrowSecret::generate();
     let kept = EscrowSecret::from_bytes(first.to_bytes());
     assert_eq!(kept.public(), first.public());
-    assert_eq!(kept.signing(), first.signing());
-    assert_ne!(first.signing(), second.signing());
-    assert_ne!(first.signing(), first.public().0);
+    assert_ne!(first.public(), second.public());
 
-    let message = [b"next".as_slice(), &second.public().0, &second.signing()].concat();
-    let signature = first.sign(&message);
-    assert!(verify_signature(&first.signing(), &message, &signature));
-    assert!(!verify_signature(&second.signing(), &message, &signature));
-    assert!(!verify_signature(
-        &first.signing(),
-        &[b"next".as_slice(), &first.public().0].concat(),
-        &signature
-    ));
-    assert!(!verify_signature(&first.signing(), &message, &[]));
-    assert!(!verify_signature(
-        &first.signing(),
-        &message,
-        &second.sign(&message)
-    ));
+    // An epoch is signed by its maker's identity key, in the escrow chain's own domain.
+    let maker = RecoveryPhrase::generate().secret();
+    let chained = [b"next".as_slice(), &second.public().0].concat();
+    let signature = maker.sign_escrow(&chained);
+    assert!(maker.signing().verifies_escrow(&chained, &signature));
+    assert!(
+        !RecoveryPhrase::generate()
+            .secret()
+            .signing()
+            .verifies_escrow(&chained, &signature)
+    );
+    assert!(
+        !maker
+            .signing()
+            .verifies_escrow(&[b"next".as_slice(), &first.public().0].concat(), &signature)
+    );
+    assert!(
+        !maker
+            .signing()
+            .verifies_authored([0; 16], &chained, &signature),
+        "an escrow signature verified as something the account wrote"
+    );
+    assert!(
+        !maker
+            .signing()
+            .verifies_escrow(&chained, &maker.sign_authored([0; 16], &chained)),
+        "something the account wrote verified as an escrow epoch"
+    );
 
     let sender = RecoveryPhrase::generate().secret();
     let from = Party {
@@ -35,7 +46,9 @@ fn an_escrow_key_signs_the_next_and_opens_what_is_sealed_to_it() {
         account: [7; 16],
         public: first.public(),
     };
-    let sealed = sender.seal_for(from.account, &to, b"key", &[9u8; 32]);
+    let sealed = sender
+        .seal_for(from.account, &to, b"key", &[9u8; 32])
+        .unwrap();
     assert_eq!(
         first.open_from(&from, to.account, b"key", &sealed).unwrap(),
         [9u8; 32]
@@ -55,21 +68,4 @@ fn an_escrow_key_signs_the_next_and_opens_what_is_sealed_to_it() {
             .is_err(),
         "a wrap opens only as from the sender who sealed it"
     );
-    assert!(
-        first
-            .open_from(
-                &from,
-                to.account,
-                b"key",
-                &to.public.seal_anonymous(&[9u8; 32])
-            )
-            .is_err(),
-        "an anonymous wrap opens as from no one"
-    );
-
-    let organization = [5; 16];
-    let pinned = RecoveryPhrase::generate().secret();
-    let pin = pinned.seal_pin(organization, b"escrow");
-    assert_eq!(pinned.open_pin(organization, &pin).unwrap(), b"escrow");
-    assert!(pinned.open_pin([6; 16], &pin).is_err());
 }

@@ -68,6 +68,7 @@ fn a_demotion_hidden_from_an_organization_path_names_no_administrator() {
     let seal = |key: Uuid| {
         let carried = CarriedKey {
             key: [3; 32],
+            label: crate::tests::planted(key, "data", 1),
             block: Uuid::new_v4().into_bytes(),
             root: None,
             heads: Heads {
@@ -95,7 +96,7 @@ fn a_demotion_hidden_from_an_organization_path_names_no_administrator() {
                     },
                     key.as_bytes(),
                     &carried.encode(),
-                ),
+                ).unwrap(),
             }],
         }
     };

@@ -127,6 +127,8 @@ mod a_sync_error_clears_once_nothing_waits_to_be_sent;
 #[cfg(not(target_os = "android"))]
 mod a_terminal_host_answers_this_peer_through_the_blocks_session;
 #[cfg(not(target_os = "android"))]
+mod a_debug_print_shows_no_phrase_or_invite_link;
+mod a_server_that_says_the_account_has_no_key_never_has_a_device_replace_its_own;
 mod a_terminal_host_takes_the_lease_of_a_session_this_peer_opened_first;
 mod a_terminal_hosts_be_is_the_deployments_or_one_built_here;
 mod a_transient_version_failure_is_retried_on_the_backoff_and_on_reconnecting;

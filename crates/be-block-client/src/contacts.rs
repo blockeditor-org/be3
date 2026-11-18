@@ -1,7 +1,7 @@
 use be_block_graph::Access;
 use be_block_keys::{
-    CardRole, ContactCard, InviteCode, Party, PublicIdentity, RecoveryPublic, RecoverySecret,
-    SigningPublic,
+    CardRole, ContactCard, InviteCode, Own, Party, PublicIdentity, RecoveryPublic,
+    RecoverySecret, SigningPublic,
 };
 use std::collections::HashMap;
 
@@ -18,7 +18,7 @@ use crate::{AccountRecords, ClientError, connection::Connection};
 pub struct Contact {
     pub account: Uuid,
     /// The name and email on the card this account verified, never the server's row, which
-    /// could name one contact as another (plans/crypto_audit.md, 5). A contact whose card has
+    /// could name one contact as another (guides/blocks/keys.md, "Contacts"). A contact whose card has
     /// not opened keeps the row's, and has no key to seal to.
     pub email: String,
     pub display_name: String,
@@ -67,7 +67,7 @@ impl Contact {
 /// A contact as this account verified it, kept in the account's block (`AccountRecords`): the
 /// card, and when it was verified or its key last changed, a sequence that only grows. The server
 /// cannot read or make one; what it can do is serve an older version of the block, so each device
-/// pins the newest record it has seen and refuses any older (plans/crypto_audit.md, 4).
+/// pins the newest record it has seen and refuses any older (guides/blocks/keys.md, "Contacts").
 #[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct OwnContact {
     pub card: ContactCard,
@@ -95,12 +95,12 @@ impl OwnContact {
     /// Sealed for this account alone, as a letter carries it (`letter.contact`) to its own
     /// mailbox.
     pub fn seal(&self, identity: &RecoverySecret) -> Vec<u8> {
-        identity.seal_own(&self.encode())
+        identity.seal_own(Own::Contact, &self.encode())
     }
 
     /// The record sealed in `sealed`, if it opens and names `account`.
     pub fn open(identity: &RecoverySecret, sealed: &[u8], account: Uuid) -> Option<Self> {
-        Self::decode(&identity.open_own(sealed).ok()?, account)
+        Self::decode(&identity.open_own(Own::Contact, sealed).ok()?, account)
     }
 
     /// As the account's block holds it, sealed by the block's own keys.
@@ -186,7 +186,7 @@ fn records_of(block: &be_block::AccountBlock) -> HashMap<Uuid, OwnContact> {
         .collect()
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct GrantOffer {
     pub organization: Uuid,
     pub block: Uuid,
@@ -194,6 +194,19 @@ pub struct GrantOffer {
     pub key: Uuid,
     /// The scope key as it travels (`be_block_keys::CarriedKey`), with the block and its root.
     pub secret: Vec<u8>,
+}
+
+impl std::fmt::Debug for GrantOffer {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("GrantOffer")
+            .field("organization", &self.organization)
+            .field("block", &self.block)
+            .field("access", &self.access)
+            .field("key", &self.key)
+            .field("secret", &"..")
+            .finish()
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -510,7 +523,7 @@ pub async fn register_identity(
 pub fn seal_pin(identity: &RecoverySecret, organization: Uuid, pinned: &Pinned) -> Vec<u8> {
     match pinned.is_empty() {
         true => Vec::new(),
-        false => identity.seal_pin(organization.into_bytes(), &pinned.encode()),
+        false => identity.seal_own(Own::Pin(organization.into_bytes()), &pinned.encode()),
     }
 }
 
@@ -518,7 +531,11 @@ pub fn open_pin(identity: &RecoverySecret, organization: Uuid, sealed: &[u8]) ->
     if sealed.is_empty() {
         return None;
     }
-    Pinned::decode(&identity.open_pin(organization.into_bytes(), sealed).ok()?)
+    Pinned::decode(
+        &identity
+            .open_own(Own::Pin(organization.into_bytes()), sealed)
+            .ok()?,
+    )
 }
 
 fn link_id(code: &InviteCode) -> Uuid {
@@ -903,7 +920,9 @@ async fn reseal_from(
                 .open_from(&from, account.into_bytes(), key.key.as_bytes(), &key.sealed)
                 .ok()?;
             Some(SealedKey {
-                sealed: identity.seal_for(account.into_bytes(), &mine, key.key.as_bytes(), &plain),
+                sealed: identity
+                    .seal_for(account.into_bytes(), &mine, key.key.as_bytes(), &plain)
+                    .ok()?,
                 sender: account,
                 ..key.clone()
             })
@@ -976,17 +995,24 @@ pub fn new_identity(
                 )
                 .ok()?;
             Some(SealedKey {
-                sealed: fresh.seal_for(account.into_bytes(), &mine, key.key.as_bytes(), &plain),
+                sealed: fresh
+                    .seal_for(account.into_bytes(), &mine, key.key.as_bytes(), &plain)
+                    .ok()?,
                 sender: account,
                 ..key
             })
         })
         .collect();
+    // A contact whose verified key no change can be sealed to (a low-order point) is told none.
     let changes = contacts
         .iter()
-        .map(|(contact, party)| KeyChange {
-            contact: *contact,
-            sealed: old.seal_key_change(account.into_bytes(), party, fresh.identity()),
+        .filter_map(|(contact, party)| {
+            Some(KeyChange {
+                contact: *contact,
+                sealed: old
+                    .seal_key_change(account.into_bytes(), party, fresh.identity())
+                    .ok()?,
+            })
         })
         .collect();
     let retirements = logs
@@ -1263,7 +1289,9 @@ pub async fn accept_link(
                 account: me.account,
                 public: identity.public(),
             };
-            identity.seal_for(me.account, &mine, grant.key.as_bytes(), &secret)
+            identity
+                .seal_for(me.account, &mine, grant.key.as_bytes(), &secret)
+                .map_err(|_| tampered())?
         }
         LinkKind::Contact(None) => Vec::new(),
         LinkKind::Invitation(invitation) if invitation.escrow.is_empty() => Vec::new(),

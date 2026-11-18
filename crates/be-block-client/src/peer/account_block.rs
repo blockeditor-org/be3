@@ -16,7 +16,7 @@ use be_block_model::Edit;
 use be_block_protocol::{
     ErrorCode, KeySet, OrganizationKind, OrganizationRole, WrappedBy, WrappedKey,
 };
-use be_block_store::{ChunkerConfig, MemoryStore};
+use be_block_store::{ChunkerConfig, MemoryStore, StoreError};
 use uuid::Uuid;
 
 use super::{Peer, PeerConfig, Saved};
@@ -304,7 +304,9 @@ impl AccountRecords {
                 key: scope,
                 wrapped_by: WrappedBy::Account(account),
                 sender: account,
-                sealed: fresh.seal_for(account.into_bytes(), &mine, scope.as_bytes(), &plain),
+                sealed: fresh
+                    .seal_for(account.into_bytes(), &mine, scope.as_bytes(), &plain)
+                    .map_err(|_| StoreError::Corrupt)?,
             }];
             let (_, data) = keys.mint_data(self.block, scope)?;
             minted.keys.extend(data.keys);

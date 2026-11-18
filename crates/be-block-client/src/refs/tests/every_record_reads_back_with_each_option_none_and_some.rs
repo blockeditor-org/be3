@@ -16,7 +16,6 @@ fn escrow() -> EscrowKey {
         id: Uuid::new_v4(),
         epoch: 3,
         public: [1; 32],
-        signing: [2; 32],
         head: [4; 32],
         maker: Uuid::new_v4(),
         signature: vec![3; 64],

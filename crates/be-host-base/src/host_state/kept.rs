@@ -55,7 +55,7 @@ const SCHEMA: &str = "
 ";
 
 /// A change to the host state, made to the store's copy at once and kept by its `Keeper`.
-#[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
+#[derive(Clone, serde::Deserialize, serde::Serialize)]
 pub enum Write {
     SaveAccount(SavedAccount),
     /// Also forgets its identity and last organization, and stops it being the active one.
@@ -67,6 +67,43 @@ pub enum Write {
     SetInputSettings(Vec<u8>),
     SetDisplaySettings(Vec<u8>),
     SetRemapper(Option<Vec<u8>>),
+}
+
+/// Leaves out the identity secret, so no log ever holds it.
+impl std::fmt::Debug for Write {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Write::SaveAccount(saved) => formatter.debug_tuple("SaveAccount").field(saved).finish(),
+            Write::RemoveAccount(saved) => {
+                formatter.debug_tuple("RemoveAccount").field(saved).finish()
+            }
+            Write::SetSetting(key, value) => formatter
+                .debug_tuple("SetSetting")
+                .field(key)
+                .field(value)
+                .finish(),
+            Write::RemoveSettings(keys) => {
+                formatter.debug_tuple("RemoveSettings").field(keys).finish()
+            }
+            Write::SetLastOrganization(saved, organization) => formatter
+                .debug_tuple("SetLastOrganization")
+                .field(saved)
+                .field(organization)
+                .finish(),
+            Write::SetIdentity(saved, _) => formatter
+                .debug_tuple("SetIdentity")
+                .field(saved)
+                .field(&"..")
+                .finish(),
+            Write::SetInputSettings(bytes) => {
+                formatter.debug_tuple("SetInputSettings").field(bytes).finish()
+            }
+            Write::SetDisplaySettings(bytes) => {
+                formatter.debug_tuple("SetDisplaySettings").field(bytes).finish()
+            }
+            Write::SetRemapper(bytes) => formatter.debug_tuple("SetRemapper").field(bytes).finish(),
+        }
+    }
 }
 
 impl Write {

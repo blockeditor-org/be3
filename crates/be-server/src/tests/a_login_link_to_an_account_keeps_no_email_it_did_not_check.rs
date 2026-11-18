@@ -4,7 +4,7 @@ use crate::store::login_links::{self, LinkFor};
 /// An intruder moved the account's email to their own; the owner asks the operator, who makes
 /// a link to the account. Using it keeps no email, since the link vouched for none, so the
 /// intruder's address is no way back in and hears nothing of the recovery
-/// (plans/crypto_audit.md, 9).
+/// (guides/blocks/server.md, "Accounts").
 #[tokio::test]
 async fn a_login_link_to_an_account_keeps_no_email_it_did_not_check() {
     let harness = Harness::start().await;

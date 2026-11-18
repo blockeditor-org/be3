@@ -615,7 +615,7 @@ fn Register(page: Shown) -> NodeId {
 #[component]
 fn Approve(page: Shown) -> NodeId {
     // A browser signed in a while ago signs in again first: a cookie alone approves nothing
-    // (plans/crypto_audit.md, 8). Signing out keeps the code, so sign-in returns here.
+    // (guides/blocks/server.md, "Accounts"). Signing out keeps the code, so sign-in returns here.
     if !page.read(|page| page.fresh) {
         return view! {
             <Card>

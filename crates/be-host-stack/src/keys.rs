@@ -17,6 +17,8 @@ pub struct KeyState {
     pairing: Option<PairingWait>,
     error: Option<String>,
     derived: Cell<Option<([u8; 32], RecoveryPublic)>>,
+    /// The server says the account has no recovery key, though this device holds its secret.
+    lost: bool,
 }
 
 struct RecoverySetup {
@@ -36,13 +38,27 @@ pub enum KeyEvent {
     Unlocked([u8; 32]),
 }
 
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Default, PartialEq)]
 pub struct RecoveryView {
     pub words: Vec<String>,
     pub checked: Vec<usize>,
     pub busy: bool,
     pub replacing: bool,
     pub error: Option<String>,
+}
+
+/// Leaves out the phrase's words, so no log ever holds them.
+impl std::fmt::Debug for RecoveryView {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("RecoveryView")
+            .field("words", &self.words.len())
+            .field("checked", &self.checked)
+            .field("busy", &self.busy)
+            .field("replacing", &self.replacing)
+            .field("error", &self.error)
+            .finish()
+    }
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -52,9 +68,25 @@ pub struct UnlockView {
     pub error: Option<String>,
 }
 
+/// Why a device that holds an account's identity secret makes it no new phrase when the server
+/// says the account has none (guides/blocks/keys.md, "Identity, new phrases and devices").
+pub const SERVER_LOST_KEY: &str = "The server says this account has no recovery key, but this \
+     device holds one. Nothing was replaced: your phrase still works. Ask the server's operator \
+     to restore the account's data.";
+
 impl KeyState {
-    pub fn loaded(&mut self, keys: Keys) {
-        if keys.recovery.is_none() && self.setup.is_none() {
+    /// Takes the account's keys as the server answers them. `held` is the identity secret this
+    /// device keeps for the account: with one, a server saying the account has no key is never
+    /// taken as a reason to make a new phrase, which would replace the secret the device keeps
+    /// (a server could otherwise have every device of the account drop its key). Pass none for a
+    /// local account, whose server is this device.
+    pub fn loaded(&mut self, keys: Keys, held: Option<[u8; 32]>) {
+        self.lost = keys.recovery.is_none() && held.is_some();
+        if self.lost {
+            self.setup = None;
+            self.error = Some(SERVER_LOST_KEY.into());
+        }
+        if keys.recovery.is_none() && self.setup.is_none() && !self.lost {
             let phrase = RecoveryPhrase::generate();
             let checked = phrase.checked_positions();
             self.setup = Some(RecoverySetup {
@@ -70,9 +102,17 @@ impl KeyState {
     }
 
     pub fn needs_recovery(&self) -> bool {
-        self.keys
-            .as_ref()
-            .is_some_and(|keys| keys.recovery.is_none())
+        !self.lost
+            && self
+                .keys
+                .as_ref()
+                .is_some_and(|keys| keys.recovery.is_none())
+    }
+
+    /// Why the account's keys can't be used here: the server says it has none, while this device
+    /// holds one (`loaded`).
+    pub fn lost(&self) -> Option<&'static str> {
+        self.lost.then_some(SERVER_LOST_KEY)
     }
 
     pub fn needs_unlock(&self, identity: Option<[u8; 32]>) -> bool {

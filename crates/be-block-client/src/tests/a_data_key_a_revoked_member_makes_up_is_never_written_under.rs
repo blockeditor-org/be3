@@ -75,6 +75,7 @@ async fn a_data_key_a_revoked_member_makes_up_is_never_written_under() {
         let made_up = Uuid::new_v4();
         let carried = CarriedKey {
             key: [round as u8 + 1; 32],
+            label: crate::tests::planted(made_up, "data", newest + 10),
             block: note.into_bytes(),
             root: None,
             heads: Heads {

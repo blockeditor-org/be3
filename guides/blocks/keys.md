@@ -20,15 +20,23 @@ Design records: `decisions/deterministic_seal_nonce.md`,
   manifest nodes, commits) derives its nonce from the block and the plaintext;
   metadata, session traffic, journals, notifications and wrapped keys draw one
   (decisions/deterministic_seal_nonce.md). An unknown id is
-  `StoreError::MissingKey`.
-- **Keys travel with their block, root and heads**: what is sealed or wrapped
-  is `be_block_keys::CarriedKey`, the key, the block it is a key of (the
+  `StoreError::MissingKey`. What is sealed to an account, to itself, or with a
+  code or a pairing key has no such header: its key is the recipient's, and a
+  random nonce leads it (`be_block_keys`).
+- **Keys travel with their row, block, root and heads**: what is sealed or
+  wrapped is `be_block_keys::CarriedKey`, the key, its own row as its maker
+  made it (`Label`: id, kind and epoch), the block it is a key of (the
   organization, for an escrow key), the hash of that block's access log root
   when the sender holds it pinned, and the heads of the logs its epoch was made
-  under (`Heads`, below), so whoever opens it knows which block it is for
-  whatever the server's row says (`KeyBook::opened` drops a key whose block
-  differs), may pin the root, and seals it on only as far as the logs reach
-  those heads.
+  under (`Heads`, below), so whoever opens it knows which key and block it is
+  whatever the server's row says (`KeyBook::opened` drops a key whose row or
+  block differs: a server cannot serve a wrap of an old key as a new epoch),
+  may pin the root, and seals it on only as far as the logs reach those heads.
+- **Public keys are checked as they are used**: a seal to or from an X25519
+  key whose result is not contributory (a low-order point, which makes it the
+  same whatever the secret) is refused (`KeyError::Public`), so a contact or
+  an administrator who publishes one gets nothing sealed to it and nothing
+  taken from it.
 - **Data keys (DEKs)**: one per block, made at creation (`create-block` names
   it and a `put-keys(rows)` in the same write stores it, which the server
   checks at the write's end; `BlockSummary::key` is the current one). A block keeps every epoch, so its
@@ -607,9 +615,8 @@ Where it acts first, a device signs after:
 
 ### Escrow (company organizations)
 
-The escrow key (`be_block_keys::EscrowSecret`) is both an X25519 key and,
-through HKDF, an Ed25519 signing key: a key row of kind `escrow` on the
-organization id, sealed to each administrator. A device holds its secret apart
+The escrow key (`be_block_keys::EscrowSecret`) is an X25519 key: a key row of
+kind `escrow` on the organization id, sealed to each administrator. A device holds its secret apart
 from the content keyring (`KeyBook`'s escrow secrets), since it is never an
 AEAD key: an object whose header named the escrow's id opens with nothing. The
 first administrator device
@@ -619,7 +626,8 @@ removing an administrator records an escrow rotation, and tells every
 member's devices that key work changed, whose `tend` reads the organization's
 log and rotates every scope under the escrow it may edit (Outdated epochs
 above): the next epoch is signed
-over `EscrowKey::chained` by its maker's identity key, an administrator the
+over `EscrowKey::chained` by its maker's identity signing key, in the escrow
+chain's own domain (`RecoverySecret::sign_escrow`, `SigningPublic::verifies_escrow`), an administrator the
 device's checked organization log names at its current head, and covers the
 organization log's head it was made under (`EscrowKey::head`): the server
 takes it only at its head now, and a device takes an epoch only once its
@@ -661,7 +669,10 @@ in the account's block (`Peer::save_pin`); an unverifiable newer key is not used
   the account opens on the unlock screen (`be-host-stack/src/keys.rs`,
   `ui/keys.rs`). A local account (`ServerLocation::Local`) is never asked to
   save its phrase: its secret sits beside its database anyway, so be-host saves
-  the first phrase without the check screen, as the dev workspace does.
+  the first phrase without the check screen, as the dev workspace does. A
+  device that holds an account's secret, told by a remote server that the
+  account has no key, makes no new phrase, which would replace the secret it
+  keeps, and says so (`KeyState::loaded`, `SERVER_LOST_KEY`).
 - **A new phrase** (`contacts::set_recovery_key`) must reseal every row the
   account sealed for itself, which the server checks, so only a device with the
   old secret can make one; it reseals too every row a contact sealed to it that its
@@ -889,6 +900,20 @@ who lost access. Cited from code by these names.
   The thief who retires first wins those logs, and a retirement's endorsement
   is bound to no time, so an old phrase can be retired in any log where it is
   still current.
+- **Two key changes from one old phrase race.** Whoever holds an old phrase
+  can leave a contact a key change of their own, sealed with the old key as
+  the owner's is. A contact's device follows the first its mailbox holds; the
+  other then opens from no key it holds and breaks the chain, so the contact
+  is listed as not confirmed, with nothing sealed to them, until the two
+  connect again by a link. Like a retirement, the change is bound to no time,
+  so a thief who sends first is followed first.
+- **Secrets at rest.** A device keeps the identity secret in plain text beside
+  its vault and its token (`be_host_base::host_state`, `identity_secrets`), with
+  no operating-system keystore, so whoever takes the device unlocked or its
+  disk has the account. The server keeps its own account's secret plain in its
+  database, so a backup together with the backup key opens the settings keys
+  sealed to the server, the storage credentials and every push `auth` secret
+  (guides/hosting.md).
 - **A new phrase grows with the account.** `set-recovery-key` carries one
   retirement (300 to 400 bytes) per log the account signed in, so past roughly
   20,000 blocks it no longer fits in one frame (`MAX_FRAME_BYTES`) and the
@@ -904,8 +929,10 @@ keys the granter verified that way, which every device then seals to.
   key, signing key, name, email) is sealed with a link's code (`ContactCard::seal`, keyed by
   code and side). A contact link is `{server}/#contact/{CODE}`. What the account
   sends itself through the server (a record or a pin in a letter) is sealed with
-  a key derived from its identity secret (`RecoverySecret::seal_own`): sealing
-  to the public key would let the server forge one the owner trusts.
+  a key derived from its identity secret, under a context per kind
+  (`RecoverySecret::seal_own`, `be_block_keys::Own`), so one never opens as
+  another: sealing to the public key would let the server forge one the owner
+  trusts.
 - **The account's block** (`be_block::account_block`, `AccountBlock`) holds the
   account's records of its contacts, the code and kind of each link it made
   until it is finished (`contacts::KeptLink`, kept before `create-link`, so a
@@ -1046,7 +1073,8 @@ the server could already cause by withholding; it cannot forge a change, nor
 hide one beyond withholding it.
 
 It still decides, and devices trust it for: which held key is a block's current
-data key and which epoch is newest (so a server colluding with someone who lost
+data key and which epoch is newest, among the rows its keys name (a wrap names
+its own row, so it cannot pass an old key off as a new epoch) (so a server colluding with someone who lost
 access, or a demoted administrator, can keep a device writing under a key that
 person knows, for as long as it withholds from that device what outdates it);
 which blocks lie under a block, as listings and key work name
