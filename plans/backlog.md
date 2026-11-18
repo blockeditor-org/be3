@@ -72,6 +72,15 @@ Fixed items are removed as they land.
 
 ## 7. Sessions
 
+- **Hosted channel races without tests.** Three fixes in hosted blocks 4b
+  close races that land between two awaits, which no test forces yet: an
+  admit a recheck ran beside asks for another check (`Member::Answering`'s
+  `admit`, `Hosting::snapshots`), a recheck drops a member only while it speaks
+  with the account and key it checked (`hosting::drop_checked`), both in
+  be-host-stack's hosting.rs; and be-server's participant join re-checks the
+  ban after registering (`Client::join`). Done: a test-only pause between the
+  two awaits of each, and a test that changes access or bans in it.
+
 - **A diverged replica's journaled edits after it closes.** A replica that
   diverged, or whose seal cannot merge, seals nothing as it closes, so journaled
   edits no seal holds (as a held rejoin's, `rejoin_held`, be-block-type-host's
