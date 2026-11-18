@@ -132,6 +132,7 @@ mod undoing_the_removal_of_several_cards_restores_their_order;
 mod an_edit_made_on_our_series_before_a_clean_merge_lands_on_the_merge;
 mod an_edit_made_on_our_rich_text_before_a_clean_merge_lands_on_the_merge;
 mod an_edit_made_on_our_text_before_a_clean_merge_lands_on_the_merge;
+mod an_edit_made_on_one_merge_lands_on_no_item_another_merge_inserted;
 
 #[derive(Clone, Debug, Default, Model, PartialEq)]
 struct Board {

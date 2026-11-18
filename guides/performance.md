@@ -72,6 +72,10 @@ while working on it.
   1 ms in release.
 - `//crates/be-block-graph:example-access-bench` times the server's access queries on an
   organization of 100,000 blocks.
+- A head moved from elsewhere costs the holder a three-way merge over the whole content, a
+  fast-forward too, so the reload keeps the identities edits on their way name
+  (guides/type_modules.md, "Sealing"); only a holder alone, with no editor and nothing on its
+  way, loads the head as it is.
 - An editor's `examples/` are built for the host too (`app()` in buck/wasm/defs.bzl), which is
   how an editor gets a benchmark.
 

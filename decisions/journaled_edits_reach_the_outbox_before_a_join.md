@@ -41,7 +41,11 @@ is passed over for it. So each way the edits seemed to be lost reaches a commit:
   reload that still gives new identities (a restart) is carried over it
   (`carried_over_a_reload` in be-sdk-type-guest's replica.rs). Carrying the replica's unsent
   edits over a reload (`carry_unsent`) was dropped: every reload but a restart now keeps what
-  they name, and a restart carries them already (`carry_pending`).
+  they name, so they rely on the merge keeping identities, and a restart carries them already
+  (`carry_pending`). A merge names what it inserts under a client of its own, derived from its
+  sides, so an edit made on one device's merge names nothing in another's. A reload's state too
+  large to go inline goes by a part, and a reload the server refuses is let go, the merge made
+  again on its timer, so seals never wait on one for good.
 
 Edits of another build are lost by design: a journal of another build's tag is opened with none
 of its entries (`replayable`), and the replica says its edits were lost (`lost_edits`). That
