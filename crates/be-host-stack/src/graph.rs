@@ -255,14 +255,14 @@ pub struct Graph {
     to_read_changed: bool,
     /// Reads of a head that failed for a reason that may pass (a fetch cut off, a timeout), with
     /// how many times, and whether it waits for the next answer from the server (a listing or a
-    /// tree's page) before it is tried again: at `READ_ATTEMPTS` it is `unread`.
+    /// tree's page) before it is tried again: at `READ_ATTEMPTS` it is `unreadable`.
     #[serde(skip)]
     retrying: HashMap<Uuid, Retry>,
     /// Heads whose references could not be read (offline and not kept on this device, or not
     /// opened by a key yet): not read again at that head until a new connection (`relist_all`)
     /// or new keys (`keys_changed`). What was known before shows meanwhile, or else what the
     /// server's listing holds.
-    unread: imbl::OrdMap<Uuid, CommitId>,
+    unreadable: imbl::OrdMap<Uuid, CommitId>,
     /// The head an open block's replica last reported, which what the server lists of it does not
     /// outrun: a listing or an event made before the commit reached the server says the head
     /// it had, and the replica says nothing more until the head changes again.
@@ -298,7 +298,7 @@ pub(crate) struct GraphDelta {
     derived: Option<<imbl::OrdMap<Uuid, Entries> as Diff>::Delta>,
     referenced: Option<<imbl::OrdMap<Uuid, Vec<Uuid>> as Diff>::Delta>,
     read: Option<<imbl::OrdMap<Uuid, (CommitId, Vec<Uuid>)> as Diff>::Delta>,
-    unread: Option<<imbl::OrdMap<Uuid, CommitId> as Diff>::Delta>,
+    unreadable: Option<<imbl::OrdMap<Uuid, CommitId> as Diff>::Delta>,
     reported: Option<<imbl::OrdMap<Uuid, CommitId> as Diff>::Delta>,
     placing: Option<std::collections::HashSet<Uuid>>,
 }
@@ -332,7 +332,7 @@ impl Diff for Graph {
             reading: _,
             to_read_changed: _,
             retrying: _,
-            unread,
+            unreadable,
             reported,
             placing,
             placed_recently: _,
@@ -350,7 +350,7 @@ impl Diff for Graph {
             derived: Diff::diff(&old.derived, derived),
             referenced: Diff::diff(&old.referenced, referenced),
             read: Diff::diff(&old.read, read),
-            unread: Diff::diff(&old.unread, unread),
+            unreadable: Diff::diff(&old.unreadable, unreadable),
             reported: Diff::diff(&old.reported, reported),
             placing: changed(&old.placing, placing),
         };
@@ -365,7 +365,7 @@ impl Diff for Graph {
             derived,
             referenced,
             read,
-            unread,
+            unreadable,
             reported,
             placing,
         } = &delta;
@@ -379,7 +379,7 @@ impl Diff for Graph {
             || derived.is_some()
             || referenced.is_some()
             || read.is_some()
-            || unread.is_some()
+            || unreadable.is_some()
             || reported.is_some()
             || placing.is_some();
         changed.then_some(delta)
@@ -397,7 +397,7 @@ impl Diff for Graph {
             derived,
             referenced,
             read,
-            unread,
+            unreadable,
             reported,
             placing,
         } = delta;
@@ -431,8 +431,8 @@ impl Diff for Graph {
         if let Some(read) = read {
             self.read.apply(read);
         }
-        if let Some(unread) = unread {
-            self.unread.apply(unread);
+        if let Some(unreadable) = unreadable {
+            self.unreadable.apply(unreadable);
         }
         if let Some(reported) = reported {
             self.reported.apply(reported);
@@ -466,7 +466,7 @@ impl PartialEq for Graph {
             reading: _,
             to_read_changed: _,
             retrying: _,
-            unread,
+            unreadable,
             reported,
             placing,
             placed_recently: _,
@@ -483,7 +483,7 @@ impl PartialEq for Graph {
             && *derived == other.derived
             && *referenced == other.referenced
             && *read == other.read
-            && *unread == other.unread
+            && *unreadable == other.unreadable
             && *reported == other.reported
             && *placing == other.placing
     }
@@ -833,7 +833,7 @@ impl Graph {
         self.heard.clear();
         // Content that could not be read offline may be read now, and a read the connection
         // dropped is read again.
-        self.unread.clear();
+        self.unreadable.clear();
         self.reading.clear();
         self.retrying.clear();
         self.to_read_changed = true;
@@ -1256,7 +1256,7 @@ impl Graph {
             return false;
         };
         self.read.remove(&block);
-        self.unread.remove(&block);
+        self.unreadable.remove(&block);
         self.retrying.remove(&block);
         self.nodes_moved.insert(block);
         self.count_entry(removed.entry, 0, false);
@@ -1498,8 +1498,8 @@ impl Graph {
 
     /// New keys arrived: content no key opened before may open now.
     pub fn keys_changed(&mut self) {
-        if !self.unread.is_empty() {
-            self.unread.clear();
+        if !self.unreadable.is_empty() {
+            self.unreadable.clear();
             self.to_read_changed = true;
             self.moved();
         }
@@ -1591,7 +1591,7 @@ impl Graph {
             && !self.referenced.contains_key(&node.id)
             && !self.reading.contains(&node.id)
             && self.read.get(&node.id).is_none_or(|(at, _)| *at != head)
-            && self.unread.get(&node.id) != Some(&head)
+            && self.unreadable.get(&node.id) != Some(&head)
             && self
                 .retrying
                 .get(&node.id)
@@ -1607,7 +1607,7 @@ impl Graph {
         if !self.nodes.contains_key(&block) {
             return;
         }
-        self.unread.remove(&block);
+        self.unreadable.remove(&block);
         self.retrying.remove(&block);
         self.read.insert(block, (head, references.clone()));
         if self.referenced.contains_key(&block) {
@@ -1648,7 +1648,7 @@ impl Graph {
         };
         if lasting || attempts >= READ_ATTEMPTS {
             self.retrying.remove(&block);
-            self.unread.insert(block, head);
+            self.unreadable.insert(block, head);
             self.moved();
         } else {
             self.retrying.insert(

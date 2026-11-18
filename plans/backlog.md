@@ -761,3 +761,20 @@ decisions/tentative_edits_wait_for_release.md) left as it was.
   place until the client goes. Done: `http::serve` gives up on a connection
   whose answer has made no progress for `IDLE_TIMEOUT`, with a be-server test
   where a client that stops reading a GetObject answer is disconnected.
+
+## 27. Unread counts
+
+- **An open block counted live.** A block's unread count is counted from its
+  head (`crates/be-host-stack/src/unread.rs`), so a chat open elsewhere (a
+  background tab) counts a new message only once its session seals it, a few
+  seconds later. Done: while a replica of the block is open, the count comes
+  from the replica's confirmed content as operations land (throttled, one
+  module call per burst), falling back to the head when it closes, with a
+  be-host-stack test that sees a message relayed in an open session count
+  before any seal.
+- **Badges beyond the files pane.** Only file-tree rows show `CountBadge`.
+  Done: the block picker's rows and an editor tab's title carry the block's
+  `BlockInfo::unread` the same way, each with a painting.
+- **Unread rows in bold.** Done: a file-tree row whose block has an unread
+  count shows its name bold, as a messaging app's conversation list does, with
+  the file tree's painting showing it.
