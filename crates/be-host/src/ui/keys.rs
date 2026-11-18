@@ -3,7 +3,7 @@ use beui::reactive::*;
 use beui::styled::*;
 
 use super::{HostUiStore, UiCommand, send};
-use be_host_accounts_ui::{Column, ErrorText};
+use be_root_accounts_ui::{Column, ErrorText};
 use beui::{Align, Direction};
 
 #[component]

@@ -152,7 +152,7 @@ What moves into the compositor:
   and the palette.
 - `crates/be-host/src/ui`: the lock screen, onboarding, saving, keep changes, organization,
   dialogs, toasts and the debug panels.
-- be-host-accounts-ui.
+- be-root-accounts-ui.
 - be-host-runtime's orchestration, as a guest library: pacing, settle, restarts and grafting the
   accessibility trees. Routing between surfaces stays in the host (Input, below).
 - beui's inspector, and drive's commands. drive's socket (`beui-layer-drive/src/socket.rs`, a
@@ -795,7 +795,7 @@ Each step lands on its own.
        chords it takes as it moves into the root, whose `Router` already routes all raw input
        (4f1).
    - 4g. The compositor moves into the root: `src/compositor`, `src/ui`, the camera and
-     be-host-accounts-ui, talking to the native block stack by the messages it uses today
+     be-root-accounts-ui, talking to the native block stack by the messages it uses today
      (`ChangeWatch`) until step 5 moves the stack. drive's commands split as The root guest
      says. be-host runs the root through 4a's entry, draws its layer list (4b) and routes by
      its declared input, and its own beui UI goes. Each area brings its declared input as it
@@ -1060,10 +1060,10 @@ Each step lands on its own.
        - The panels as the shell's host panels (`HostPanel`), docked beside its editors: they
          move with the compositor (4g7); until then a root shows them as it likes.
      - 4g6. The lock screen, onboarding, saving, keep changes, organization and
-       be-host-accounts-ui, over the block stack's messages and the password check the host
+       be-root-accounts-ui, over the block stack's messages and the password check the host
        grants.
        How the rest reaches the root (the design, before the slices). Onboarding, saving,
-       keep changes, organization and be-host-accounts-ui show what be-host decides today,
+       keep changes, organization and be-root-accounts-ui show what be-host decides today,
        which `App::view` gathers into one `HostUi` each frame and whose commands come back as
        `UiCommand`s. Two kinds of it go two ways, all data and nothing beui's:
        - The platform's own, which stays the host's after step 5, gets a capability of its own,
@@ -1178,7 +1178,7 @@ Each step lands on its own.
          (be-host's `ReauthView`) waits for 4g6f, since it opens over the organizations.
          be-host's `--root` runs no block stack, so it waits for no account. be-sdk-root-testing
          shows the accounts while the stack waits for one (`ONBOARDING_LAYER` on
-         `ONBOARDING_SURFACE`, be-host-accounts-ui's `AccountsScreen`, over the app and under its
+         `ONBOARDING_SURFACE`, be-root-accounts-ui's `AccountsScreen`, over the app and under its
          dialog, taking every press and, once drawn, the focus, given back when they go), and
          adds an account in its dialog's place (`ADD_ACCOUNT_TITLE`: where to keep it, then the
          server's address and its gateway token, or a name; then `SIGN_IN_TITLE` with the code,
@@ -1188,7 +1188,7 @@ Each step lands on its own.
          question of keeping display settings replaces it without stopping a sign-in, and it
          reopens mid sign-in once the question goes if the sign-in goes on. Removing one kept
          on this device asks first (`FORGET_ACCOUNT_TITLE`). The accounts take back the focus's
-         earlier holder from when they took it. At 4g7 be-host-accounts-ui's `AccountsScreen`
+         earlier holder from when they took it. At 4g7 be-root-accounts-ui's `AccountsScreen`
          and `ErrorText` move to a crate a root may use (be-host's own UI goes then), rather
          than the root reaching into a crate named for be-host. be-wasm-root-host's
          `a_root_shows_its_hosts_accounts_and_adds_one_handing_over_only_what_was_typed` opens
@@ -1441,7 +1441,7 @@ Each step lands on its own.
          the countdown (snapshotted with the refusal), and the focus back in the dialog's field
          once unlocked.
          Left for later in 4g6: onboarding, saving, keep changes, organization and
-         be-host-accounts-ui, which need the block stack's messages through `be3:root`; the
+         be-root-accounts-ui, which need the block stack's messages through `be3:root`; the
          recovery phrase (`UnlockWithPhrase`), which crosses as a password does (all since
          built: 4g6b to 4g6g, and 4g5's memory graph).
      - 4g7. The compositor itself: app views (each declaring its layer's hit and gesture
@@ -1466,6 +1466,30 @@ Each step lands on its own.
          be-host-accounts-ui moved into a crate a root may use. be-sdk-root-testing keeps
          only what its own tests check (a dialog, the lock, a notice, the statistics), and
          be-wasm-root-host's area tests move to the real root's crate, run on the same host.
+         In two parts:
+         - 4g7a1 (built). `crates/be-root`, a family of its own (`be-root-*` in
+           buck/cargo/layers.bzl, which may use be-sdk, beui, be-lib and be-wasm, and which
+           be-host may use), holds 4g6's pieces moved from be-sdk-root-testing as they were:
+           its notices, the slow save's toast, the lock screen, keep changes, the core's
+           onboarding, areas and dialogs, and the statistics panel with its memory graph.
+           Its F-keys are gone: a menu at the window's top right (`MENU_LAYER`, beui's
+           `MenuButton` on `MENU_SURFACE`, shown while nothing waits, over the statistics
+           panel and under the dialog, hit only at its button, `MENU_BUTTON`, and where the
+           menu it opens shows) opens what be-host's organization menu does: unsent edits,
+           contacts, a share link, invitations, members, agents, sessions, switching
+           organization or account, a new recovery phrase, locking the session, and the
+           statistics. be-host-accounts-ui is be-root-accounts-ui. be-sdk-root-testing is
+           back to its fixture of before 4g6b (the triangle, the strip, the rename dialog,
+           toasts, the lock screen, the statistics panel with the memory graph, F2 to F5), and
+           be-wasm-root-host's area tests run be-root in its own crate (`BE_ROOT_WASM`), their
+           dialogs opened from the menu. be-host's `:native` stages be-root, and `--root`
+           alone runs it (`be_root_in_place_of_the_hosts_ui_shows_its_onboarding`).
+         - 4g7a2. be-host's wording and layout: the window's size rather than the fixture's
+           400 by 240 (`SIZE`) and the dialog's fixed 152 points, be-host's titles and
+           copy, and the menu's entries shown as be-host shows them (an organization's
+           administrator or company, unsent edits only when there are some), with the
+           core-view fields that needs (the organization, the role, the escrow warning,
+           sync).
        - 4g7b. App views: be-host-runtime's orchestration (pacing, settle, restarts, grafting
          the accessibility trees) as a guest library the root links, and `app_view`'s views
          in the root, each declaring its layer's hit and gesture areas and placer.

@@ -34,18 +34,24 @@ cargo_test(
 
 cargo_binary()
 
-# be-host with every app beside it: `./scripts/buck run //crates/be-host:native`
-# runs it. buck/program says how it is laid out.
+# The roots :native stages beside its apps, so `--root` finds be-root, which no
+# shipped host holds until it becomes the default
+# (plans/host_as_platform_adapter.md, 4g7g). :dev opens the dev workspace,
+# which a root replaces, so it stages none.
+dev_roots = ["crates/be-root"]
+
+# be-host with every app beside it, and be-root: `./scripts/buck run
+# //crates/be-host:native` runs it. buck/program says how it is laid out.
 program(
     name = "native",
-    app_types = ["//{}:types".format(package) for package in app_packages()],
+    app_types = ["//{}:types".format(package) for package in app_packages() + dev_roots],
     binary = ":bin",
-    data = ["//{}:data".format(package) for package in app_packages()],
+    data = ["//{}:data".format(package) for package in app_packages() + dev_roots],
     executable_name = "be-host",
     files = ["//buck/program:build-info.json"],
     index = True,
-    manifests = ["//{}:manifest".format(package) for package in app_packages()],
-    modules = ["//{}:module".format(package) for package in app_packages()],
+    manifests = ["//{}:manifest".format(package) for package in app_packages() + dev_roots],
+    modules = ["//{}:module".format(package) for package in app_packages() + dev_roots],
     visibility = ["//crates/be-tool-bench:", "//crates/be-tool-local:"],
 )
 

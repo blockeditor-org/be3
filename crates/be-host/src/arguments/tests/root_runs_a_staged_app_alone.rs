@@ -10,6 +10,14 @@ fn root_runs_a_staged_app_alone() {
         }),
         "--root=APP names the staged app whose entry point runs as the root"
     );
+    assert_eq!(
+        parse(&words("--root"), None, LINUX),
+        Ok(Arguments {
+            root: Some("be3.root".to_owned()),
+            ..Arguments::default()
+        }),
+        "--root alone runs be-root"
+    );
     assert!(
         parse(&words("--root="), None, LINUX).is_err(),
         "--root= names no app"

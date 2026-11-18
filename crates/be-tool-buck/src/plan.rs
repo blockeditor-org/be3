@@ -82,7 +82,7 @@ const HTML: &[Pick] = &[
     Named("beui-core-html"),
     Named("beui-components-unstyled"),
     Named("beui-components-styled"),
-    Named("be-host-accounts-ui"),
+    Named("be-root-accounts-ui"),
     Named("be-server-portal-ui"),
 ];
 
@@ -120,9 +120,9 @@ pub(crate) const PLANS: &[Plan] = &[
     },
     // The apps, the libraries apps are linked against (wasm_library in
     // buck/wasm/defs.bzl), the echo guest staged as an app and its worker, the apps' workers, beui's demo, the paint
-    // review, whose tests paint as an app's do, and the root guests linked as apps are
-    // (decisions/a_root_links_beui_as_an_app_does.md): a plan of their own, since they want a
-    // different wgpu.
+    // review, whose tests paint as an app's do, and the root guests linked as apps are, be-root
+    // and the testing root (decisions/a_root_links_beui_as_an_app_does.md): a plan of their
+    // own, since they want a different wgpu.
     Plan {
         name: "wasi-guest",
         mode: Mode::Test,
@@ -137,6 +137,7 @@ pub(crate) const PLANS: &[Plan] = &[
             Named("be-sdk-beui"),
             Named("beui-demo"),
             Named("be-tool-paint-review"),
+            Named("be-root"),
             Named("be-sdk-root-testing"),
         ]),
         html: false,

@@ -57,9 +57,10 @@ source ~/.cache/be3/dev/env
 # the desktop shell headless
 ./scripts/buck run //crates/be-host:dev -- --desktop
 
-# be-host with the root guest it runs in place of its own UI (`--root=APP`, a staged app whose
-# manifest says "root": true); no host ships one yet, so only this host test stages one
-./scripts/test a_root_in_place_of_the_hosts_ui_shows_the_editor_it_embeds
+# be-host in a window with be-root, the root guest it is to run in place of its own UI
+# (`--root=APP` runs another staged app whose manifest says "root": true); only :native stages
+# be-root, and no shipped host holds a root yet
+./scripts/buck run //crates/be-host:native -- --root
 
 # the VR simulator headless, with drive taps under space and the host: `drive --into=space ...`
 # walks and clicks through space, `drive xr left|right ...` works a headset's controllers

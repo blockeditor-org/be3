@@ -7,12 +7,12 @@ write_package_value("be3.cargo", {
     "edition": "2024",
     "examples": [],
     "library": {
-        "crate": "be_host_accounts_ui",
+        "crate": "be_root_accounts_ui",
         "crate_root": "src/lib.rs",
         "proc_macro": False,
     },
-    "name": "be-host-accounts-ui",
-    "package": "crates/be-host-accounts-ui",
+    "name": "be-root-accounts-ui",
+    "package": "crates/be-root-accounts-ui",
     "platforms": {
         "android-arm64": {
             "binaries": {},

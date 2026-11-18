@@ -1,6 +1,6 @@
 [package]
-name = "be-host-accounts-ui"
-description = "be-host's account picker, built from props and callbacks so that it runs on either of beui's cores"
+name = "be-root-accounts-ui"
+description = "The account picker of be-host and its root, built from props and callbacks so that it runs on either of beui's cores"
 edition.workspace = true
 version.workspace = true
 license.workspace = true

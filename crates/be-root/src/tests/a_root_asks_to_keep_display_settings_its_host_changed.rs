@@ -1,5 +1,5 @@
 use be_lib_ui_types::{Key, Modifiers};
-use be_sdk_root_testing::{DIALOG_LAYER, DIALOG_SURFACE, LOCK_LAYER, SCRIM_LAYER};
+use crate::{DIALOG_LAYER, DIALOG_SURFACE, LOCK_LAYER, SCRIM_LAYER};
 use be_wasm_root_api::{DisplayQuestion, LockState};
 
 use super::*;
@@ -231,15 +231,21 @@ fn a_root_asks_to_keep_display_settings_its_host_changed() {
         |done| layer_of(done, DIALOG_LAYER).is_none(),
     );
 
-    // A question replaces an open rename dialog, which closes without renaming; once the
-    // question goes, the focus is back where it was before the rename opened, outside any
-    // dialog, and the strip still shows its own text.
-    let strip = text_painting(&mut root, time);
-    open_dialog(&mut root, &mut time);
+    // A question replaces an open share link dialog, which closes opening nothing; once the
+    // question goes, no field has the focus, and the menu opens the dialog afresh: the root
+    // holds none closed underneath.
+    let _ = menu(&mut root, &mut time, Entry::ShareLink);
+    until(
+        &mut root,
+        &mut time,
+        Vec::new(),
+        "the share link dialog opens, its field taking the input method",
+        |done| layer_of(done, DIALOG_LAYER).is_some() && done.ime.is_some(),
+    );
     root.input(
         None,
         be_lib_ui_types::input::encode(&[be_lib_ui_types::input::Input::Ime(
-            be_lib_ui_types::input::ImeEvent::CommitText("Renamed".to_owned()),
+            be_lib_ui_types::input::ImeEvent::CommitText("https://example.com/s/1".to_owned()),
         )
         .into()]),
     )
@@ -249,13 +255,10 @@ fn a_root_asks_to_keep_display_settings_its_host_changed() {
         &mut root,
         &mut time,
         Vec::new(),
-        "the question replaces the rename dialog",
+        "the question replaces the share link dialog",
         |done| layer_of(done, DIALOG_LAYER).is_some() && done.ime.is_none(),
     );
-    assert!(
-        asked.ime.is_none(),
-        "the rename dialog's field went with it"
-    );
+    assert!(asked.ime.is_none(), "the dialog's field went with it");
     root.input(
         None,
         be_lib_ui_types::input::encode(&chord(Key::Escape, Modifiers::NONE)),
@@ -272,13 +275,21 @@ fn a_root_asks_to_keep_display_settings_its_host_changed() {
     );
     assert!(
         closed.ime.is_none(),
-        "no field has the focus: the rename dialog is gone"
+        "no field has the focus: the share link dialog is gone"
     );
-    assert_eq!(
-        text_painting(&mut root, time),
-        strip,
-        "replaced, the rename dialog renamed nothing"
+    let commands = root.take_core_commands();
+    assert!(
+        !commands
+            .iter()
+            .any(|command| matches!(command, be_wasm_root_api::CoreCommand::OpenShareLink(_))),
+        "replaced, the dialog opened no link: {commands:?}"
     );
-    // F2 opens a rename dialog afresh: the root holds none closed underneath.
-    open_dialog(&mut root, &mut time);
+    let _ = menu(&mut root, &mut time, Entry::ShareLink);
+    until(
+        &mut root,
+        &mut time,
+        Vec::new(),
+        "the menu opens the share link dialog afresh",
+        |done| layer_of(done, DIALOG_LAYER).is_some() && done.ime.is_some(),
+    );
 }

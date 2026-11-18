@@ -1,5 +1,5 @@
 use be_lib_ui_types::{Key, Modifiers};
-use be_sdk_root_testing::{DIALOG_LAYER, DIALOG_SURFACE, OPENS_UNSENT};
+use crate::{DIALOG_LAYER, DIALOG_SURFACE};
 use be_wasm_root_api::{CoreCommand, CoreView, Refusal, SetAside, UnsentEdit};
 
 use super::*;
@@ -70,12 +70,14 @@ fn a_root_lists_its_hosts_unsent_edits_and_asks_before_discarding_one() {
     step(&mut root, time);
     root.show_core(view(vec![notes(), plan()]));
 
-    // F7 opens the list, over its scrim, taking the focus.
+    // The menu's Unsent edits opens the list, over its scrim, taking the focus.
+    let opened = menu(&mut root, &mut time, Entry::Unsent);
+    assert!(opened.is_empty(), "opening it asks nothing: {opened:?}");
     until(
         &mut root,
         &mut time,
-        chord(OPENS_UNSENT, Modifiers::NONE),
-        "F7 opens the list of unsent edits",
+        Vec::new(),
+        "the menu opens the list of unsent edits",
         |done| layer_of(done, DIALOG_LAYER).is_some(),
     );
     beui_paint_snapshot::assert_painting(
