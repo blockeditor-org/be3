@@ -71,11 +71,19 @@ trap 'rm -rf "$scratch"' EXIT
 # Zig keeps packages in a global cache under $HOME, which a worker need not set.
 export ZIG_GLOBAL_CACHE_DIR="$scratch/zig-global-cache"
 
-# Applied before building. Ghostty's wuffs package exports weak calloc and free
-# stubs whenever libc is not linked into the library, meant only to satisfy a
-# freestanding link. Linked into an app against a shared libc, a weak
-# definition in the executable still beats the shared library's, so every
-# calloc in the app returned null. The patch keeps the stubs to freestanding.
+# Applied before building, for what linking into the app needs:
+# - Ghostty's wuffs package exports weak calloc and free stubs whenever libc is
+#   not linked into the library, meant only to satisfy a freestanding link.
+#   Linked into an app against a shared libc, a weak definition in the
+#   executable still beats the shared library's, so every calloc in the app
+#   returned null. The patch keeps the stubs to freestanding.
+# - wuffs is translated with Ghostty's minimal libc headers on Windows too
+#   (with the MSVC byte-swap builtins they lack), since a build for an MSVC
+#   target from Linux has no MSVC headers for translate-c to find.
+# - No compiler_rt bundled on Windows, where the program linking the library
+#   brings its own and COFF has no weak definitions to let two copies coexist.
+# - PIC objects for wasm too, which a module linked as a shared library (an
+#   app linked against the app SDK) needs.
 ghostty="$scratch/ghostty"
 mkdir -p "$ghostty"
 tar -xzf "$source" -C "$ghostty" --strip-components 1
@@ -104,19 +112,20 @@ echo 'pub fn build(_: *@import("std").Build) void {}' > "$shim/build.zig"
     index=0
     for package in "${packages[@]}"; do
         package="$(realpath "$package")"
-        # deps/packages.json is generated and formatted by prettier: each
-        # package is a key indented by two spaces, followed by its "url"
-        # indented by four.
-        hash="$(awk -v name="${package##*/}" '
-            /^  "[^"]*": \{/ { key = $0; sub(/^  "/, "", key); sub(/".*/, "", key) }
-            /^    "url": "/ {
-                url = $0
-                sub(/^    "url": "/, "", url)
-                sub(/",?[[:space:]]*$/, "", url)
-                sub(/.*\//, "", url)
-                if (url == name) { print key; exit }
+        # With every blank stripped (no URL or hash holds one), each package
+        # in deps/packages.json reads "HASH":{...,"url":"URL",...}: one
+        # record per closing brace, however the file is laid out.
+        hash="$(tr -d ' \t\r\n' < "$ghostty/deps/packages.json" | awk -v name="${package##*/}" '
+            BEGIN { RS = "}" }
+            match($0, /"[^"]*":\{/) {
+                key = substr($0, RSTART + 1, RLENGTH - 4)
+                if (match($0, /"url":"[^"]*"/)) {
+                    url = substr($0, RSTART + 7, RLENGTH - 8)
+                    sub(/.*\//, "", url)
+                    if (url == name) { print key; exit }
+                }
             }
-        ' "$ghostty/deps/packages.json")"
+        ')"
         if [[ -z "$hash" ]]; then
             echo "Ghostty's deps/packages.json has no package named ${package##*/}" >&2
             exit 1

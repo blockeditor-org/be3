@@ -180,7 +180,12 @@ impl Emulator {
 
     pub fn key(&mut self, key: &TerminalKey) -> Vec<u8> {
         let input = key_input(key);
-        self.keys.encode(&self.terminal, &input)
+        self.keys
+            .encode(&self.terminal, &input)
+            .unwrap_or_else(|error| {
+                eprintln!("be: could not encode a key for the terminal: {error}");
+                Vec::new()
+            })
     }
 
     pub fn paste(&mut self, text: &str) -> Vec<u8> {
@@ -193,13 +198,19 @@ impl Emulator {
         let mut bytes = Vec::new();
         for _ in 0..wheel.lines.unsigned_abs() {
             if self.terminal.mouse_tracking() {
-                bytes.extend(self.mouse.wheel(
+                match self.mouse.wheel(
                     &self.terminal,
                     up,
                     wheel.col,
                     wheel.row,
                     Mods::default(),
-                ));
+                ) {
+                    Ok(encoded) => bytes.extend(encoded),
+                    Err(error) => {
+                        eprintln!("be: could not encode a wheel turn for the terminal: {error}");
+                        return Vec::new();
+                    }
+                }
             } else if self.terminal.active_screen() == ActiveScreen::Alternate
                 && self.terminal.mode(Mode::ALTERNATE_SCROLL)
             {

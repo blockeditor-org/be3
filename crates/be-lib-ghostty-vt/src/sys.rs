@@ -86,6 +86,7 @@ pub const RENDER_STATE_DATA_COLORS: c_int = 19;
 
 pub const TERMINAL_OPT_USERDATA: c_int = 1;
 pub const TERMINAL_OPT_WRITE_PTY: c_int = 2;
+pub const TERMINAL_OPT_SCROLLBACK_MAX_BYTES: c_int = 28;
 pub const TERMINAL_OPT_SCROLLBACK_MAX_LINES: c_int = 29;
 
 pub type WritePtyFn =

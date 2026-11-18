@@ -18,8 +18,10 @@ configured_once(
 # Ghostty's source, at the commit libghostty-vt is built from: GitHub's
 # archive of it (github.com/ghostty-org/ghostty/archive/COMMIT.tar.gz),
 # mirrored to lfs.pfg.pw because cloud sessions cannot fetch GitHub archives,
-# and http_file takes a single URL. Bump this, and upload the new archive to
-# the mirror, to pick up a newer terminal emulator.
+# and http_file takes a single URL. To pick up a newer terminal emulator, ask
+# the maintainer to upload the new commit's GitHub archive to
+# lfs.pfg.pw/by-name/be3/zig/ first (agents cannot upload there), then bump
+# this and the hash and size below.
 ghostty_commit = "7a8ff4d992edd2aad7537e5bef73ec911aa126bf"
 
 configured_once(
@@ -65,14 +67,15 @@ zig_package_names = [url.split("/")[-1] for url, _, _ in zig_packages]
 [
     configured_once(
         http_file,
-        name = "zig-package-" + url.split("/")[-1],
-        out = url.split("/")[-1],
+        name = "zig-package-" + name,
+        out = name,
         sha256 = sha256,
         size_bytes = size_bytes,
         urls = [url],
     )
-    for url, sha256, size_bytes in zig_packages
+    for name, (url, sha256, size_bytes) in zip(zig_package_names, zig_packages)
 ]
+
 # libghostty-vt, be-launcher's terminal emulator: Zig, built by
 # scripts/internal/build-ghostty-vt.sh from the downloads above, with no
 # network. Zig cross-compiles, so every platform's archive comes from the same
@@ -117,8 +120,9 @@ genrule(
                 echo "msvc_lib_dir=$sdk/crt/lib/$arch"
                 echo "kernel32_lib_dir=$sdk/sdk/lib/um/$arch"
                 # Zig 0.17 also checks the file against the host, Linux,
-                # whose build runner and tools link no libc but must still
-                # name a cc_dir.
+                # which must name a cc_dir. Nothing in this build reads it:
+                # the build runner and the tools it runs on Linux link no
+                # libc, so any existing directory serves as a placeholder.
                 echo "cc_dir=$sdk/crt/lib/$arch"
                 echo "darwin_sdk_dir="
             } > "$GHOSTTY_ZIG_LIBC"

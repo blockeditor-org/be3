@@ -28,12 +28,12 @@ fn struct_layouts_match_the_library() {
 
     let reference = sys::GridRef::default();
     let base = std::ptr::from_ref(&reference).addr();
-    assert_offset(
-        types,
-        "GhosttyGridRef",
-        "x",
-        std::ptr::from_ref(&reference.x).addr() - base,
-    );
+    for (field, offset) in [
+        ("node", std::ptr::from_ref(&reference.node).addr() - base),
+        ("x", std::ptr::from_ref(&reference.x).addr() - base),
+    ] {
+        assert_offset(types, "GhosttyGridRef", field, offset);
+    }
 
     let point = sys::PointCoordinate::default();
     let base = std::ptr::from_ref(&point).addr();
@@ -72,7 +72,12 @@ fn struct_layouts_match_the_library() {
     let base = std::ptr::from_ref(&style).addr();
     for (field, offset) in [
         ("bg_color", std::ptr::from_ref(&style.bg_color).addr() - base),
+        (
+            "underline_color",
+            std::ptr::from_ref(&style.underline_color).addr() - base,
+        ),
         ("flags", std::ptr::from_ref(&style.flags).addr() - base),
+        ("reserved", std::ptr::from_ref(&style.reserved).addr() - base),
     ] {
         assert_offset(types, "GhosttyStyle", field, offset);
     }
