@@ -7,11 +7,12 @@ use super::*;
 
 /// A hosted block's dialog offers its type's levels by their names, each said in a line, and
 /// a share link grants Join unless the person chooses more (plans/hosted_blocks.md, "The share
-/// dialog"): a game's Join game, Host and Manage.
+/// dialog"): a game's Join game, Host and Manage. It says who is hosting the world now.
 #[test]
 fn the_share_dialog_makes_a_join_link_on_a_hosted_block() {
     let (mut fixture, block) = editor_sized(Some(Vec2::new(900.0, 800.0)));
     let me = fixture.host.account_id();
+    let ada = Uuid::from_u128(0x5a_0301);
     let store = fixture.test.store();
     let mut world = BlockInfo::new(block, FolderContent::CONTENT_TYPE, BlockParent::Root);
     world.set_name("World");
@@ -36,6 +37,19 @@ fn the_share_dialog_makes_a_join_link_on_a_hosted_block() {
                         waiting: false,
                         through_link: false,
                         guest: false,
+                    }, AccessGrant {
+                        account: ada.into_bytes(),
+                        email: "ada@example.org".to_owned(),
+                        display_name: "Ada".to_owned(),
+                        administrator: false,
+                        author: false,
+                        granted: Some(AccessLevel::Edit),
+                        inherited: AccessLevel::None,
+                        effective: AccessLevel::Edit,
+                        source: Some(block.into_bytes()),
+                        waiting: false,
+                        through_link: false,
+                        guest: false,
                     }],
                     company: false,
                     set_inside: 0,
@@ -56,6 +70,7 @@ fn the_share_dialog_makes_a_join_link_on_a_hosted_block() {
                             line: "Can also share the world.".to_owned(),
                         },
                     ],
+                    host: Some(ada.into_bytes()),
                 }),
             ),
             HostCall::ListShareLinks { reply, .. } => fixture.test.answer(reply, Ok(Vec::new())),
@@ -74,6 +89,10 @@ fn the_share_dialog_makes_a_join_link_on_a_hosted_block() {
     assert!(
         !fixture.says(AccessLevel::Join.label()),
         "never by the core name"
+    );
+    assert!(
+        fixture.says("Ada is hosting it now."),
+        "the dialog says who hosts the world now"
     );
     fixture
         .test

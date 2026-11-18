@@ -308,11 +308,12 @@ impl Share {
             .grants
             .iter()
             .any(|grant| grant.author && grant.account == me.into_bytes());
+        let offered = Offered::of(listing);
         listing
             .grants
             .iter()
             .filter(|grant| has_access(grant, me))
-            .map(|grant| member(grant, me, self.block, owner, &name_of))
+            .map(|grant| member(grant, me, self.block, owner, &offered, &name_of))
             .collect()
     }
 
@@ -391,6 +392,32 @@ impl Share {
         }
     }
 
+    /// Who hosts a hosted block now, in a sentence: none for a block that is not hosted.
+    pub(crate) fn hosting_note(listing: &AccessListing, me: Uuid) -> Option<String> {
+        if listing.levels.is_empty() {
+            return None;
+        }
+        let Some(host) = listing.host else {
+            return Some(
+                "No one is hosting it now: it runs while someone who can host has it open."
+                    .to_owned(),
+            );
+        };
+        if host == me.into_bytes() {
+            return Some("You are hosting it now.".to_owned());
+        }
+        let name = listing
+            .grants
+            .iter()
+            .find(|grant| grant.account == host)
+            .map(|grant| grant.display_name.trim())
+            .filter(|name| !name.is_empty());
+        Some(match name {
+            Some(name) => format!("{name} is hosting it now."),
+            None => "Someone is hosting it now.".to_owned(),
+        })
+    }
+
     pub(crate) fn inside_note(listing: &AccessListing) -> Option<String> {
         match listing.set_inside {
             0 => None,
@@ -430,6 +457,7 @@ fn member(
     me: Uuid,
     block: Uuid,
     owner: bool,
+    offered: &Offered,
     name_of: &impl Fn(Uuid) -> String,
 ) -> Member {
     let fixed = match (
@@ -450,9 +478,9 @@ fn member(
         }
         (false, false) if grant.author && source == Some(block) => None,
         (false, false) if grant.through_link && source == Some(block) => {
-            Some(format!("{}, through a share link", grant.effective.label()))
+            Some(format!("{}, through a share link", offered.name(grant.effective)))
         }
-        (false, false) => origin(grant.effective, source, block, name_of),
+        (false, false) => origin(grant.effective, source, block, offered, name_of),
     };
     // Someone there only through a link is no one to hand the block to: a guest, or a member
     // whose access is the link's alone.
@@ -488,9 +516,10 @@ fn origin(
     effective: AccessLevel,
     source: Option<Uuid>,
     block: Uuid,
+    offered: &Offered,
     name_of: &impl Fn(Uuid) -> String,
 ) -> Option<String> {
-    let level = effective.label();
+    let level = offered.name(effective);
     match source {
         _ if effective == AccessLevel::None => None,
         Some(source) if source == block => Some(format!("{level}, set here")),
