@@ -655,8 +655,11 @@ impl<G: Inline> Core<G> {
                         .iter()
                         .position(|(_, reply)| reply.op() == op)
                     {
-                        let (_, reply) = self.secret_replies.remove(at);
+                        let (id, reply) = self.secret_replies.remove(at);
                         reply.fail(&mut self.connection, OpError::Canceled);
+                        // Not taken yet, the host never hears of it, so it makes no secret
+                        // for nobody (an agent's credentials, which cannot be had again).
+                        self.secret_requests.retain(|(asked, _)| *asked != id);
                     } else if let Some(at) = self
                         .display_watchers
                         .iter()
