@@ -188,7 +188,12 @@ tests read one their build made, crates/be-host-tests/apps.bzl). Each guest thre
   lock or to do a power action, and `host.unlock` hands over what was typed
   and answers only whether it unlocked: the host takes it (`Root::take_unlocks`,
   a `Password` zeroed when dropped), checks it and answers (`answer_unlock`),
-  and nothing of it crosses back. The input method
+  and nothing of it crosses back. `host.core` is a watch of what be-host's
+  core shows (its accounts, organizations, displays and the block stack's
+  status, until step 5 moves the core into the root): one `core-view` record,
+  a field per area (`saving` so far), answered once anything in it changed
+  (`Root::show_core`); the core's commands will come back through one call
+  beside it (plans/host_as_platform_adapter.md, 4g6). The input method
   needs nothing more: the platform's input-method events reach the root as
   input, which its router hands the focused surface, and the field that
   surface edits is `frame-done`'s `ime`. Choosing and saving files are the
@@ -319,8 +324,8 @@ tests read one their build made, crates/be-host-tests/apps.bzl). Each guest thre
   triangle's screen, its host's notices as styled `Toasts` over
   everything, on a layer listed only while one shows, hit only where they are
   and never taking the focus, a dialog F2 opens over a scrim, and a panel of
-  its host's statistics F3 opens and closes, and its host's lock screen while
-  the session is locked, and which be-wasm-root-host's tests run with the
+  its host's statistics F3 opens and closes, its host's lock screen while the
+  session is locked, and the slow save's toast, and which be-wasm-root-host's tests run with the
   triangle on a stand-in device, and be-host's host test with `--root`. A root is
   built as an app is (`app_module`, in the `wasi-guest` plan, linked against
   base and beui; decisions/a_root_links_beui_as_an_app_does.md); only

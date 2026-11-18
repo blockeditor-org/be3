@@ -27,7 +27,7 @@ use std::time::{Duration, Instant};
 use be_wasm_guest_host::STEP_TIMEOUT;
 use be_wasm_ops::{Connection, Incoming, OpError, OpId, Outcome, Reply, Side, Ticket};
 use be_wasm_root_api::{
-    FrameDone, FrameRequest, embed, host::HostStatistics, host::LockState, host::Notice,
+    FrameDone, FrameRequest, embed, host::CoreView, host::HostStatistics, host::LockState, host::Notice,
     host::PowerAction, host::ShownNotices, host::StatisticRow,
 };
 use be_wasm_sandbox_host::Server;
@@ -141,6 +141,10 @@ struct Core<G> {
     /// What the root chose on its lock screen besides unlocking (`host.lock-power`), until the
     /// host takes it.
     lock_powers: Vec<PowerAction>,
+    /// What be-host's core shows, which `host.core` answers: the generation counts each change.
+    core: CoreView,
+    /// The root's `host.core` calls waiting for it to change from what they saw.
+    core_watchers: Vec<Reply<CoreView>>,
 }
 
 /// A password the root handed over to check (`host.unlock`): its bytes as typed, zeroed when it
@@ -219,6 +223,16 @@ impl<G: Inline> Core<G> {
             unlocking: Vec::new(),
             next_unlock: 0,
             lock_powers: Vec::new(),
+            core: CoreView {
+                generation: 1,
+                saving: be_wasm_root_api::Saving {
+                    unsaved: false,
+                    saves: 0,
+                    unsent: 0,
+                    sync: be_wasm_root_api::SyncState::Saved,
+                },
+            },
+            core_watchers: Vec::new(),
         };
         core.received()?;
         Ok(core)
@@ -359,6 +373,30 @@ impl<G: Inline> Core<G> {
         let answered = !watching.is_empty();
         for reply in watching {
             reply.send(&mut self.connection, &self.lock);
+        }
+        answered
+    }
+
+    /// Shows the root what be-host's core shows (`host.core`), in place of what it showed:
+    /// `shown`'s generation is the host's own counting. Answers whether a root's call waited for
+    /// it.
+    fn show_core(&mut self, shown: CoreView) -> bool {
+        let CoreView { generation, .. } = self.core;
+        if (CoreView {
+            generation,
+            ..shown.clone()
+        }) == self.core
+        {
+            return false;
+        }
+        self.core = CoreView {
+            generation: generation + 1,
+            ..shown
+        };
+        let watching = std::mem::take(&mut self.core_watchers);
+        let answered = !watching.is_empty();
+        for reply in watching {
+            reply.send(&mut self.connection, &self.core);
         }
         answered
     }
@@ -533,6 +571,12 @@ impl<G: Inline> Core<G> {
                             .remove(at)
                             .fail(&mut self.connection, OpError::Canceled);
                     } else if let Some(at) =
+                        self.core_watchers.iter().position(|reply| reply.op() == op)
+                    {
+                        self.core_watchers
+                            .remove(at)
+                            .fail(&mut self.connection, OpError::Canceled);
+                    } else if let Some(at) =
                         self.lock_watchers.iter().position(|reply| reply.op() == op)
                     {
                         self.lock_watchers
@@ -629,6 +673,12 @@ impl<G: Inline> Core<G> {
                 match seen == self.lock.generation {
                     true => self.lock_watchers.push(reply),
                     false => reply.send(&mut self.connection, &self.lock),
+                }
+            }
+            embed::Call::Host(embed::host::Call::Core { seen, reply }) => {
+                match seen == self.core.generation {
+                    true => self.core_watchers.push(reply),
+                    false => reply.send(&mut self.connection, &self.core),
                 }
             }
             embed::Call::Host(embed::host::Call::LockSession { reply }) => {

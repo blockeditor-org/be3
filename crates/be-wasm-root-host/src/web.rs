@@ -18,7 +18,7 @@ use std::{
 
 use be_wasm_guest_host::Wake;
 use be_wasm_root_api::{
-    FrameDone, FrameRequest, host::LockState, host::Notice, host::PowerAction, host::StatisticRow,
+    FrameDone, FrameRequest, host::CoreView, host::LockState, host::Notice, host::PowerAction, host::StatisticRow,
 };
 use be_wasm_sandbox_host::{Loader, Server};
 use js_sys::{Function, Object, Reflect, Uint8Array, WebAssembly};
@@ -219,6 +219,16 @@ impl Root {
                 .core
                 .borrow_mut()
                 .show_statistics(performance, memory, memory_file);
+        if answered {
+            ring(self.shared.id);
+        }
+    }
+
+    /// Shows the root what be-host's core shows (`host.core`), in place of what it showed (its
+    /// `generation` is ignored: the root counts the changes). If the root waits on it and it
+    /// changed, it is stepped for it.
+    pub fn show_core(&self, shown: CoreView) {
+        let answered = self.shared.core.borrow_mut().show_core(shown);
         if answered {
             ring(self.shared.id);
         }

@@ -14,4 +14,4 @@ be_wasm_ops_bindgen::generate!({
 
 pub use frames::{FrameDone, FrameRequest};
 pub use host::{
-    LockState, PowerAction,HostStatistics, Notice, NoticeAction, ShownNotices, StatisticRow};
+    CoreView, Saving, SyncState,    LockState, PowerAction,HostStatistics, Notice, NoticeAction, ShownNotices, StatisticRow};

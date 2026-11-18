@@ -10,7 +10,7 @@ use std::{
 
 use be_wasm_host::{App, PresentedTexture};
 use be_wasm_root_api::{
-    FrameDone, FrameRequest, host::LockState, host::Notice, host::PowerAction, host::StatisticRow,
+    FrameDone, FrameRequest, host::CoreView, host::LockState, host::Notice, host::PowerAction, host::StatisticRow,
 };
 use be_wasm_sandbox_host::{Loader, Server};
 
@@ -188,6 +188,16 @@ impl Root {
         memory_file: Option<String>,
     ) {
         let answered = self.core.show_statistics(performance, memory, memory_file);
+        if answered {
+            self.bell.ring();
+        }
+    }
+
+    /// Shows the root what be-host's core shows (`host.core`), in place of what it showed (its
+    /// `generation` is ignored: the root counts the changes). If the root waits on it and it
+    /// changed, it is stepped for it.
+    pub fn show_core(&mut self, shown: CoreView) {
+        let answered = self.core.show_core(shown);
         if answered {
             self.bell.ring();
         }

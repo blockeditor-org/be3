@@ -1053,6 +1053,41 @@ Each step lands on its own.
      - 4g6. The lock screen, onboarding, saving, keep changes, organization and
        be-host-accounts-ui, over the block stack's messages and the password check the host
        grants.
+       How the rest reaches the root (the design, before the slices). Onboarding, saving,
+       keep changes, organization and be-host-accounts-ui show what be-host's core decides
+       today: its accounts and sign-in, the keys, its organizations and sessions, its displays
+       and the block stack's status, which `App::view` gathers into one `HostUi` each frame and
+       whose commands come back as `UiCommand`s. That core leaves be-host only with the block
+       stack (step 5), so until then the root shows it over two calls of `be3:root`, data and
+       nothing beui's:
+       - `host.core(seen)`, a watch as `host.notices` is, answering one `core-view` record
+         whenever any of it changed from the generation the root saw. It holds a field per area
+         (saving, the display awaiting keep or revert, the accounts, the organizations, the
+         sessions, invitations, contacts, members, recovery), each the plain data be-host's
+         `HostUi` holds for it, with block ids as UUIDs and no labels the root can word itself.
+       - `host.core-command(command)`, a `core-command` variant with a case per `UiCommand` the
+         area sends, answering at once; what it changes reaches `core`.
+       One watch and one command call, rather than a pair per area, because they are one
+       thing that moves whole: step 5 makes the core the root's own, and these two calls go,
+       while the platform's own capabilities (notices, the lock, statistics, the clipboard)
+       stay host calls of their own. A secret the person types (the recovery phrase) crosses as
+       `host.unlock`'s password does, once, inside a command, zeroed by the host, never in the
+       view. Each area adds its field and its commands with the slice that moves it; be-host's
+       `--root` answers what its core has, which is nothing before it runs the core (4g7):
+       nothing to save, no display waiting, no accounts. The slices: 4g6b the watch with saving
+       (the slow save's toast); 4g6c the command call with keep changes (the display's
+       countdown); 4g6d accounts and adding one (onboarding); 4g6e organizations, sessions and
+       their dialogs; 4g6f recovery and the phrase.
+       - 4g6b. Built: `host.core`, the core's view as one watch (`core-view`), with its first
+         area, saving (`saving`: whether some change is unsaved, the saves finished so far, the
+         changes not yet sent, and the sync's state), from which the root shows the slow save's
+         toast as be-host's own UI does (be-wasm-root-host's `Root::show_core`). be-host's
+         `--root` runs no core, so the view stays as `be3:root` starts it: all saved.
+         be-sdk-root-testing shows the slow save's toast among its notices once changes stay
+         unsaved for `SLOW_SAVE` by the host's frame clock, a finished save starting the wait
+         afresh, until they are saved or it is dismissed; be-wasm-root-host's
+         `a_root_shows_the_slow_saves_toast_while_its_hosts_core_has_changes_unsaved` checks
+         it and snapshots the toast.
        - 4g6a. Built: the lock screen, over the screen lock and password check the host grants.
          The lock is the host's (the platform's, a login session's): `be3:root` carries it as
          data, nothing beui's. `host.lock` is a watch, as `host.notices` is, answering the lock
