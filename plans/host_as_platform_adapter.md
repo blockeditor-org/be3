@@ -253,7 +253,9 @@ The host applies the rules beui applies to its forwarding catchers today:
 - **Touch:** a finger that lands for a gesture an outer claim takes, such as a pinch begun on an
   app, cancels the earlier fingers in the app and gives them all to the claimant.
 - **Keys** go to the focused surface, except the chords the compositor declares
-  (`WindowRequests::intercepted_keys` today), which go to it first. A press focuses the surface it
+  (`Router::intercept`), which go to it first. Since the root takes every raw input before beui
+  sees it, the compositor gives its own router its chords, and be-host keeps no list of them:
+  `be3:root` carries none. A press focuses the surface it
   lands on unless its layer says otherwise, and the compositor can move the focus (Tab leaving an
   app's last field, the palette closing).
 - **IME:** the focused surface reports its field's area, which the host transforms by its layer.
@@ -297,11 +299,20 @@ Built (step 4f1): beui hands a program the platform's raw input (`Program::input
 be-host's `--root` hands all of it to the root, which routes it with `Router`; the root names
 the IME area of its focused surface (`frame-done`'s `ime`).
 
-What is left, with the compositor in the root (4f2, 4g): the host's input goes through `Router`
-over the last committed `WindowLayers` rather than through beui's document, with `AppView`
-declaring each layer's `LayerInput`, the host's UI its root's area, and the chords it takes
-along the focus (its actions, the palette, Tab and F6 between surfaces) as the router's
-intercepted chords.
+Built (step 4g1): what the root asks of the window and what its input carries. `frame-done`
+asks for every sample of the pointer's moves, a cursor shape (by its CSS name) and the pointer
+lock, which be-sdk-root answers from what its apps' screens ask (`Embedding::requests`: the
+cursor of the screen under the pointer, the lock while the focused screen holds it, every
+sample while a screen shown wants them) and be-host sets as beui's window requests; each input
+`input.deliver` carries has the frame clock's time it was sampled at, when the platform said
+(`Program::input` gained it), which an embedded app hears as its input's time.
+
+What is left, with the compositor in the root (4g): the host's UI routes through the root's
+`Router` as each area of it moves in, each declaring its layers' `LayerInput` (an app view's
+hit and gesture areas and placer, a scrim's `captures`, a popup's `focuses: false`) and the
+chords it takes along the focus (its actions, the palette, Tab and F6 between surfaces) as the
+router's intercepted chords. The host's own beui UI is never routed through `Router` while it
+still lives in be-host (4f2 merged into 4g).
 
 After a resize, input is routed against the list drawn at the old size until the next frame
 draws, though a press already held still reaches its holder.
@@ -749,14 +760,13 @@ Each step lands on its own.
          makes the root the default; until then `--root` is refused as a login session
          (`BEUI_PLATFORM=drm`), which would have no lock screen.
          Left for later:
-         - The root's own surfaces are not drawn.
          - A painting of what the root shows (Other moves, Paintings), so the test compares
            pixels rather than a snapshot.
          - The frame clock measures no composite time (`FrameClock::settle` is never called),
            so its deadline assumes the default.
          - A replaced device stops the root rather than moving it, so a replaced renderer
            (device loss) quits be-host under `--root`; and no host ships a root.
-   - 4f. The router over the layer list, in two sub-steps:
+   - 4f. The router over the layer list:
      - 4f1. Built: raw input to the root. beui's `Program` gained `input(window, &Input)`, which
        the runner offers each of the platform's inputs, in its window's points, after the
        layers' and before the intake makes the document's events of it, on every platform the
@@ -776,25 +786,83 @@ Each step lands on its own.
        `a_program_takes_the_platforms_input_before_its_document_hears_it` tests the hook;
        be-sdk-root tests the IME area's mapping (`ime_in_window`) and the focus, but no test
        shows an app's field reaching the window, since no app a root embeds edits text before
-       step 5. Left for later: input the root takes carries no timestamps, and its moves are
-       merged per frame, since the root cannot yet ask for every sample as a beui
-       `Interactive` does (`WindowRequests::every_sample`), which a pen stroke in an embedded
-       canvas needs.
-     - 4f2. The `HitTest` moves from beui's catchers to the last committed `WindowLayers` for
-       the host's own UI. `AppView`, anchored views, scrims and popups declare each layer's
-       `LayerInput` (hit and gesture areas, `captures`, `focuses`, `placer`), the host's UI its
-       root's area from beui's hit regions, and beui a chord list for the focus (its actions,
-       the palette, Tab and F6, the inspector's) as the router's intercepted chords; be-host's
-       input goes through `Router::route` before beui sees it, with the IME area transformed
-       by its layer, accessibility actions reaching a surface by node id and drive's presses
-       on the same path. It may land with 4g, once the compositor declares the layers itself.
+       step 5. (Its inputs' timestamps and every sample came with 4g1.)
+     - 4f2. Merged into 4g. It would have routed be-host's own beui UI through `Router` over
+       the last committed `WindowLayers` while that UI still lives in be-host, which 4g then
+       deletes, so most of it would be thrown away. Instead each area of the host's UI declares
+       its layers' `LayerInput` (hit and gesture areas, `captures`, `focuses`, `placer`) and the
+       chords it takes as it moves into the root, whose `Router` already routes all raw input
+       (4f1).
    - 4g. The compositor moves into the root: `src/compositor`, `src/ui`, the camera and
      be-host-accounts-ui, talking to the native block stack by the messages it uses today
      (`ChangeWatch`) until step 5 moves the stack. drive's commands split as The root guest
      says. be-host runs the root through 4a's entry, draws its layer list (4b) and routes by
-     its declared input (4f2), and its own beui UI goes. This is most of step 4 and may split
-     further by area: the lock screen and onboarding, dialogs and toasts, the debug panels,
-     the editors and the camera.
+     its declared input, and its own beui UI goes. Each area brings its declared input as it
+     moves (4f2 merged into this step). In sub-steps, an area at a time:
+     - 4g1. Built: what the root needs before any of the host's UI can move into it.
+       - The root's own surfaces. A pure guest may be given the host's device
+         (`be_wasm_host::Host::with_display`; be-wasm-host offers it the gpu imports then,
+         never fast ones, since its memory is its own), and the root draws on it as an app
+         draws its screens, through `be3:gpu`'s surfaces; its layer list names each as
+         `Surface::Root(id)`, which `Root::own_surface` resolves to the texture it presented
+         last (its generation changing only when it presents again), and be-host's `--root`
+         draws it as it draws a screen. be-sdk-root's `OwnSurface` configures one, draws it
+         (`fill`, or `acquire` and `present`) and names it as a layer. be-sdk-root-testing
+         fills its own with `ROOT_COLOR`, under the triangle's screen; be-wasm-root-host's
+         `a_root_draws_its_own_surface_on_the_hosts_device` and the host test
+         `a_root_in_place_of_the_hosts_ui_shows_the_editor_it_embeds` check it, the second by
+         the window's pixels: the root's colour beside the screen and through its clear
+         corner, the window's background past the root's surface. The root draws with
+         be3:gpu's raw bindings (be-wasm-gpu-abi), not wgpu: a root linking wgpu needs it
+         built for a pure guest, which is 4g2's to settle.
+       - The gpu shim got a plan and a platform of its own (`wasm32_bindgen`, the `bindgen`
+         constraint): in the shared wasm32 plan its `wgpu` feature reached be-wasm-gpu-abi, so
+         a root that called the gpu linked wgpu and web-sys, whose wasm-bindgen imports a pure
+         guest cannot load.
+       - `be3:root`'s input pieces, each the smallest form the protocol takes: `frame-done`
+         gained `every-sample`, `cursor` (a CSS cursor name, be-lib-ui-types'
+         `CursorIcon::name`) and `pointer-locked`; `input.deliver`'s events are
+         be-lib-ui-types' `Timed`, each with the frame clock's time it was sampled at, in
+         nanoseconds, when the platform said, which beui's `Program::input` now hands a
+         program. be-sdk-root answers them from its apps (`Embedding::requests`; the pointer
+         lock granted to the focused screen that asks in `Embedding::drew`, through
+         `Windows::lock`), sends an app's input with its time (`TimedInput::time_micros`) and
+         every sample while its screen asks, and be-host sets them as beui's window requests
+         after the document it shows the frame in. There is no intercepted-chord list in
+         `be3:root`: the root takes every key before beui sees it, so its own `Router` holds
+         its chords (Input, Keys). be-sdk-root tests the times, the lock and the requests
+         (`each_delivery_carries_the_time_its_input_was_sampled`,
+         `the_focused_layer_that_asks_holds_the_pointer_lock_until_it_stops_asking`,
+         `a_window_asks_for_what_the_screens_it_shows_ask_of_theirs`), and be-wasm-root-host
+         that they cross `be3:root` with be-wasm-root-testing's root, which asks for the
+         crosshair over its child, the lock while its child has the focus and every sample
+         while it shows it, and marks the time of the last input it routed to the child.
+       Left for later: no test shows be-host honouring the cursor, the lock or every sample,
+       since no app a root embeds asks for them before step 5 gives one content (the triangle
+       asks none); and the web's half of a root's own surfaces, since no page runs a root yet.
+     - 4g2. beui in the root: the root draws its own surfaces with beui (be-sdk-beui's
+       renderer over `be3:gpu`) and hands its document what the router delivers to them, with
+       text in the host's fonts. This settles how a root links beui: as a pure guest, which
+       then needs beui and wgpu's `custom` backend built for wasm32-unknown-unknown without
+       threads, or as a guest linked against the app libraries (guides/app_libraries.md),
+       which needs `Root` to run a linked module inline. Nothing of the host's UI moves yet;
+       be-sdk-root-testing draws a line of text, which the host test reads.
+     - 4g3. Toasts: shown over everything, on a layer of the root's own that is hit only where
+       a toast is and never focuses; they need nothing from the block stack.
+     - 4g4. Dialogs: a scrim layer that `captures` presses and dismisses, the dialog's layer
+       above it, Escape among the chords the root intercepts while one is open, and the
+       platform's own dialogs (files) still the host's.
+     - 4g5. The debug panels, over the read-only statistics the host grants (What the host
+       keeps).
+     - 4g6. The lock screen, onboarding, saving, keep changes, organization and
+       be-host-accounts-ui, over the block stack's messages and the password check the host
+       grants.
+     - 4g7. The compositor itself: app views (each declaring its layer's hit and gesture
+       areas and placer), anchored views placed outside groups (The layer list, Built
+       (step 4b)), editors, desktop windows, the camera and the palette, the chords along the
+       focus (Tab and F6 between surfaces, the palette's), and drive's commands split as The
+       root guest says. Then be-host brings back under `--root` what the host keeps, and the
+       root becomes the default.
 5. The block stack as an instance the root guest spawns, behind capabilities, building on the
    web's stack worker with a memory of its own, and sending smaller updates.
 6. Space as a guest, offscreen windows, and the host's OpenXR part, with late latching.

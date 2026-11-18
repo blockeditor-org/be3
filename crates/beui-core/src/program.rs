@@ -52,8 +52,8 @@ pub trait Program: std::any::Any {
     /// points, each offered once, in order, with `time`, when the platform sampled it if it said
     /// (pens and touches mostly do). It is the intake's queue, so a run of moves is merged to
     /// its last within a frame unless the window asks for every sample
-    /// (`Context::want_every_sample`). What it takes no document hears, though the intake still follows the
-    /// pointer, its buttons and the modifiers through it. A program that routes its windows'
+    /// (`Context::want_every_sample`). What it takes no document hears, though the intake still
+    /// follows the pointer, its buttons and the modifiers through it. A program that routes its windows'
     /// input itself (be-host's root) takes all of it: IME composition, touches and pens as the
     /// platform reported them, and every window's.
     ///

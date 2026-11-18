@@ -64,7 +64,8 @@ for that machine.
 | `android_arm64` | NDK r29, API 24 | lld |
 | `wasi` | the WASI sysroot | rust-lld (be-host on the web) |
 | `wasi_guest` | the WASI sysroot | crates/be-wasm-link (apps and their libraries) |
-| `wasm32` | nothing | rust-lld (games, the gpu shim) |
+| `wasm32` | nothing | rust-lld (games, type modules, root guests: pure guests) |
+| `wasm32_bindgen` | nothing | rust-lld (the gpu shim, through wasm-bindgen) |
 | `wasi_html`, `linux_x86_64_html` | as `wasi`, Linux x86_64 | crates on beui's HTML core |
 
 All build on the same Linux workers. Apple's SDK licence allows it on Apple hardware only, so
@@ -72,7 +73,9 @@ macOS releases must move to a Mac worker before anything ships.
 
 `wasi` and `wasi_guest` are the same triple: be-host links a real wgpu backend and an app only
 wgpu's `custom` one, so the `guest` constraint (`buck/constraints`) tells them apart and
-the facts have a plan for each. Likewise the `html` constraint makes `wasi_html` and
+the facts have a plan for each. `wasm32` and `wasm32_bindgen` are another such pair: the gpu
+shim's wgpu and web-sys import JavaScript, which a pure guest cannot load, so the `bindgen`
+constraint keeps them out of the pure guests' plan. Likewise the `html` constraint makes `wasi_html` and
 `linux_x86_64_html`, whose plans are run with `RUSTFLAGS="--cfg beui_html"` over the packages
 `HTML` in `crates/be-tool-buck/src/plan.rs` names (guides/beui/core.md, Cores). Code picks a core
 with `if CORE == Core::Html`; be-tool-fix-rust-source rejects `#[cfg(beui_html)]` outside beui,
@@ -302,7 +305,7 @@ the execution platform, so it is always checked.
   `buck2 run` and `:dev` download only that and unpack it into `target/apps/<name>-<hash>/`.
   The program's source files, such as `build-info.json`, are left out of it and copied in
   beside it on each run (`--beside`), so a new build id repacks nothing.
-- `:web` is be-host for `wasi` and the gpu shim for `wasm32` through wasm-bindgen, with the page
+- `:web` is be-host for `wasi` and the gpu shim for `wasm32_bindgen` through wasm-bindgen, with the page
   from crates/be-host/web; `buck2 run` serves it with Caddy and be-server
   (guides/running/web.md, guides/hosting.md).
 - The APK is assembled on a worker without Gradle (`be-tool-buck apk`), with the apps' `.wasm` as

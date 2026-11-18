@@ -106,7 +106,8 @@ or points (`Units`), a file drag (`Incoming::FileDrag`, which never crosses the
 app protocol: the app's host turns it into `drag-over`), a timestamp, or a
 window report. The intake is the one place input becomes `Event`s, after the
 program has taken what it routes itself (`Program::input`, offered each input
-in points just before it becomes events); drive's
+in points just before it becomes events, with the timestamp the platform gave
+it, if any); drive's
 gestures, the on-screen keyboard and typed pastes push `Input` there too, so
 they are normalized like a window's. At the start of each frame it converts to
 points, stamps keys and buttons with the held modifiers, drops a held
