@@ -65,7 +65,12 @@ impl Driven {
             starts: 1,
         };
         driven.log = driven.log_path();
-        driven.child = Some(launch::start(&driven.start, true, &driven.dir, &driven.log)?);
+        driven.child = Some(launch::start(
+            &driven.start,
+            true,
+            &driven.dir,
+            &driven.log,
+        )?);
         Ok(driven)
     }
 
@@ -242,9 +247,10 @@ impl Drop for Driven {
 impl Driven {
     /// The program's file name, which its log is reported under.
     fn name(&self) -> String {
-        Path::new(&self.start.program)
-            .file_name()
-            .map_or_else(|| "the program".to_owned(), |name| name.to_string_lossy().into_owned())
+        Path::new(&self.start.program).file_name().map_or_else(
+            || "the program".to_owned(),
+            |name| name.to_string_lossy().into_owned(),
+        )
     }
 }
 
