@@ -23,12 +23,11 @@ use be_wasm_guest_abi::{Flow, Guest, Waker};
 use be_wasm_ops::guest::{Executor, LocalFuture};
 use be_wasm_password::Password;
 use be_wasm_root_api::{
-    AccountRow, AgentRow, ContactCard, ContactMismatch, ContactRow, CoreCommand, CoreSecret,
-    CoreView, CoreWait, DiscardReason, DisplayQuestion, FrameDone, FrameRequest, HostStatistics,
-    InvitationRow, InvitationState, LockState, MemberRole, MemberRow, NewAccount, Notice,
-    OrganizationRow, OrganizationsListed, PowerAction, ProfileRow, Refusal, RoleChange,
-    SavingState, SecretCommand, ServerAccount, SessionRow, SetAside, ShareAccess, SharePreview,
-    StatisticRow, SyncState, UnsentEdit,
+    AccountRow, AgentRow, PairingApproval, ContactCard, ContactMismatch, ContactRow, ShareAccess, SharePreview,
+    CoreCommand, CoreSecret, MemberRole, MemberRow, RoleChange, SecretCommand, CoreView, CoreWait, DiscardReason, InvitationRow,
+    InvitationState, OrganizationRow, OrganizationsListed, ProfileRow,
+    SessionRow, DisplayQuestion, FrameDone, FrameRequest, HostStatistics, LockState,
+    NewAccount, Notice, PowerAction, Refusal, SavingState, ServerAccount, SetAside, StatisticRow, SyncState, UnsentEdit,
     guest::{
         exports::{frames, input, paintings},
         host,
@@ -43,15 +42,14 @@ use beui::{
 };
 
 use crate::{
-    ADD_ACCOUNT_TITLE, AGENTS_TITLE, APP, APP_ENTRY, CLOSES, CONTACTS_TITLE, DIALOG_LAYER,
-    DIALOG_ORIGIN, DIALOG_SIZE, DIALOG_SURFACE, DIALOG_TITLE, DISCARD_TITLE, DISCARD_UNSENT_TITLE,
-    FORGET_ACCOUNT_TITLE, INVITATIONS_TITLE, KEEP_DISPLAY_TITLE, LATE_LAYER, LATER, LATER_TEXT,
-    LEAVE_TITLE, LOCK_LAYER, LOCK_SURFACE, LOCKS_SESSION, MEMBERS_TITLE, ONBOARDING_LAYER,
-    ONBOARDING_SURFACE, OPENS_AGENTS, OPENS_CONTACTS, OPENS_DIALOG, OPENS_INVITATIONS,
-    OPENS_MEMBERS, OPENS_SHARE_LINKS, OPENS_STATISTICS, OPENS_UNSENT, ORGANIZATIONS_TITLE, ORIGIN,
-    RASTER, REAUTH_TITLE, REMOVE_CONTACT_TITLE, REMOVE_MEMBER_TITLE, RESIZED, RESIZES, ROOT_COLOR,
-    ROOT_LAYER, ROOT_SURFACE, SCREEN, SCREEN_SIZE, SCRIM_COLOR, SCRIM_LAYER, SCRIM_SURFACE,
-    SESSIONS_TITLE, SHARE_LINK_TITLE, SIGN_IN_TITLE, SIZE, SLOW_SAVE, SLOW_SAVE_TITLE,
+    AGENTS_TITLE, CONTACTS_TITLE, FAILURE_TITLE, PAIRING_TITLE, RECOVERY_TITLE, UNLOCK_TITLE, LEAVE_TITLE, OPENS_CONTACTS, OPENS_SHARE_LINKS,
+    REMOVE_CONTACT_TITLE, SHARE_LINK_TITLE, DISCARD_TITLE, INVITATIONS_TITLE, MEMBERS_TITLE, OPENS_AGENTS, OPENS_MEMBERS,
+    REMOVE_MEMBER_TITLE, OPENS_INVITATIONS, REAUTH_TITLE, ONBOARDING_LAYER,
+    ONBOARDING_SURFACE, ORGANIZATIONS_TITLE, SESSIONS_TITLE, ADD_ACCOUNT_TITLE, FORGET_ACCOUNT_TITLE, SIGN_IN_TITLE,
+    APP, APP_ENTRY, CLOSES, DIALOG_LAYER, DISCARD_UNSENT_TITLE, OPENS_UNSENT, UNSENT_TITLE, DIALOG_ORIGIN, KEEP_DISPLAY_TITLE, DIALOG_SIZE, DIALOG_SURFACE, DIALOG_TITLE,
+    LATE_LAYER, LATER, LATER_TEXT, LOCK_LAYER, LOCK_SURFACE, LOCKS_SESSION, OPENS_DIALOG,
+    OPENS_STATISTICS, ORIGIN, RASTER, RESIZED, RESIZES, ROOT_COLOR, ROOT_LAYER, ROOT_SURFACE,
+    SCREEN, SCREEN_SIZE, SCRIM_COLOR, SCRIM_LAYER, SCRIM_SURFACE, SIZE, SLOW_SAVE, SLOW_SAVE_TITLE,
     SLOW_SAVE_TOAST, STATISTICS_AREA, STATISTICS_LAYER, STATISTICS_ORIGIN, STATISTICS_SURFACE,
     STATISTICS_TITLE, STRAY_PASSWORD, TEXT, TEXT_LAYER, TEXT_STRIP, TEXT_SURFACE, TOAST_AREA,
     TOAST_LAYER, TOAST_SURFACE, UNLOCKS_TWICE, UNPRESENTED_SURFACE, UNSENT_TITLE,
@@ -103,6 +101,14 @@ struct Root {
     onboarding: Rc<RefCell<Option<Onboarding>>>,
     /// The core's view its accounts show, while they show.
     onboarding_shown: Rc<Cell<Option<Signal<CoreView>>>>,
+    /// The secret its onboarding shows (the recovery phrase, a pairing code), and whether it
+    /// waits for one, while it shows.
+    onboarding_secret: Rc<Cell<Option<(Signal<Option<Held>>, Signal<bool>)>>>,
+    /// A secret the host answered the onboarding's `make-secret` with, until the next frame
+    /// hands it over, or drops it, zeroed, if the onboarding went.
+    onboarding_answer: Rc<RefCell<Option<Option<CoreSecret>>>>,
+    /// The pairing requests the person put aside, which the root asks about no more.
+    pairing_dismissed: Rc<RefCell<Vec<u64>>>,
     /// A dialog one of its documents asked for (the accounts' add or remove), opened with the
     /// next frame unless another dialog is open.
     wanted: Rc<RefCell<Option<Asking>>>,
@@ -192,6 +198,8 @@ enum HostAsks {
     Discard(DiscardReason),
     /// Leaving the block of this id, which an editor asked to leave.
     Leave([u8; 16]),
+    /// Approving the pairing request of this id.
+    Pairing(u64),
 }
 
 /// Which dialog to open.
@@ -228,6 +236,8 @@ enum Asking {
 /// The root's accounts while the block stack waits for the person to open or add one.
 struct Onboarding {
     surface: BeuiSurface,
+    /// Rung as it goes, which stops a request for a secret it made waiting.
+    closing: Closing,
     /// The layer focused when they took the focus, which gets it back once they go.
     had: Option<LayerId>,
     /// Whether they took the focus yet: once drawn.
@@ -279,6 +289,9 @@ impl Root {
             core_shown: Rc::default(),
             onboarding: Rc::default(),
             onboarding_shown: Rc::default(),
+            onboarding_secret: Rc::default(),
+            onboarding_answer: Rc::default(),
+            pairing_dismissed: Rc::default(),
             wanted: Rc::default(),
             resuming: Rc::default(),
             secret: Rc::default(),
@@ -452,14 +465,27 @@ impl Root {
     /// when it starts waiting and gone once it stops, giving the focus back to the layer that
     /// had it.
     fn settle_onboarding(&self) -> Result<(), String> {
+        // A secret the host answered with goes to the onboarding that asked, or is dropped.
+        if let Some(answer) = self.onboarding_answer.borrow_mut().take()
+            && let Some(onboarding) = &mut *self.onboarding.borrow_mut()
+            && let Some((shown, pending)) = self.onboarding_secret.get()
+        {
+            let held = answer.map(|secret| Held(Rc::new(secret)));
+            onboarding.surface.enter(|| {
+                shown.set(held);
+                pending.set(false);
+            });
+        }
         let choosing = self.core.borrow().waits_for.is_some();
         if choosing == self.onboarding.borrow().is_some() {
             return Ok(());
         }
         if !choosing {
             self.onboarding_shown.set(None);
+            self.onboarding_secret.set(None);
             let gone = self.onboarding.borrow_mut().take();
             if let Some(gone) = gone {
+                gone.closing.close();
                 let told = self.embedding.borrow_mut().focus(None, gone.had);
                 self.heard(&told);
             }
@@ -473,6 +499,11 @@ impl Root {
         let wanted = Rc::clone(&self.wanted);
         let waker = self.waker.clone();
         let wakes = self.waker.clone();
+        let asks_wake = self.waker.clone();
+        let secret_shown = Rc::clone(&self.onboarding_secret);
+        let answered = Rc::clone(&self.onboarding_answer);
+        let closing = Closing::default();
+        let closes = closing.clone();
         let surface = BeuiSurface::new(
             &beui,
             OwnSurface::new(ONBOARDING_SURFACE, SIZE),
@@ -485,15 +516,18 @@ impl Root {
                     *wanted.borrow_mut() = Some(asking);
                     wakes.wake();
                 });
+                let (secret, pending, ask) =
+                    secret_asker(&secret_shown, &answered, &asks_wake, &closes);
                 view! {
                     <Root>
-                        <Onboarding core={core} want={want} />
+                        <Onboarding core={core} want={want} secret={secret} pending={pending} ask={ask} />
                     </Root>
                 }
             },
         )?;
         *self.onboarding.borrow_mut() = Some(Onboarding {
             surface,
+            closing,
             had: None,
             focused: false,
         });
@@ -758,13 +792,18 @@ impl Root {
             .borrow()
             .as_ref()
             .and_then(|dialog| dialog.host_asks);
-        let (reauthenticating, signing_in, discarding, leaving) = {
+        let (reauthenticating, signing_in, discarding, leaving, pairing) = {
             let core = self.core.borrow();
+            let dismissed = self.pairing_dismissed.borrow();
             (
                 core.reauthenticating.is_some(),
                 core.signing_in.is_some(),
                 core.discarding.clone(),
                 core.leaving.as_ref().map(|leaving| leaving.block),
+                core.pairing
+                    .iter()
+                    .map(|request| request.id)
+                    .find(|id| !dismissed.contains(id)),
             )
         };
         // The host's question, the discard first, then leaving: each answers what the person
@@ -772,6 +811,7 @@ impl Root {
         let host_asks = discarding
             .map(HostAsks::Discard)
             .or(leaving.map(HostAsks::Leave))
+            .or(pairing.map(HostAsks::Pairing))
             .or(reauthenticating.then_some(HostAsks::Reauth));
         // A secret the host answered with goes to the invitations that asked, or is dropped.
         if let Some(secret) = self.secret.borrow_mut().take()
@@ -903,6 +943,8 @@ impl Root {
             match open_host {
                 Some(HostAsks::Discard(_)) => ask_core(CoreCommand::CancelDiscard),
                 Some(HostAsks::Leave(_)) => ask_core(CoreCommand::CancelLeave),
+                // Not now: the root asks about that request no more.
+                Some(HostAsks::Pairing(id)) => self.pairing_dismissed.borrow_mut().push(id),
                 Some(HostAsks::Reauth) if !matches!(opening, Some(Asking::AddAccount { .. })) => {
                     ask_core(CoreCommand::SwitchAccount)
                 }
@@ -1047,6 +1089,11 @@ impl Root {
                         view! {
                             <ReauthDialog core={core} done={done} />
                         }
+                    }
+                    Asking::Host(HostAsks::Pairing(id)) => {
+                        let core = create_signal(core);
+                        core_shown.set(Some(core));
+                        view! { <PairingDialog core={core} id={id} done={done} /> }
                     }
                     Asking::Host(HostAsks::Leave(_)) => {
                         let core = create_signal(core);
@@ -1739,8 +1786,17 @@ fn UnsentDialog(core: Signal<CoreView>, done: Callback<Closed>) -> NodeId {
 /// What the block stack waits for the person to do: the accounts, the organizations or the
 /// sessions, each splitting its own memo off the one view.
 #[component]
-fn Onboarding(core: Signal<CoreView>, want: Callback<Asking>) -> NodeId {
+fn Onboarding(
+    core: Signal<CoreView>,
+    want: Callback<Asking>,
+    secret: Signal<Option<Held>>,
+    pending: Signal<bool>,
+    ask: Callback<SecretCommand>,
+) -> NodeId {
     let waits = create_memo(move || core.with(|view| view.waits_for.clone()));
+    let recovery = create_memo(move || waits.get() == Some(CoreWait::Recovery));
+    let unlock = create_memo(move || waits.get() == Some(CoreWait::Unlock));
+    let failure = create_memo(move || waits.get() == Some(CoreWait::Failure));
     let accounts = create_memo(move || waits.get() == Some(CoreWait::Account));
     let organizations = create_memo(move || waits.get() == Some(CoreWait::Organization));
     let sessions = create_memo(move || waits.get() == Some(CoreWait::Session));
@@ -1762,7 +1818,285 @@ fn Onboarding(core: Signal<CoreView>, want: Callback<Asking>) -> NodeId {
                         <SessionsCard core={core} />
                     </ListItem>
                 </Show>
+                <Show value={recovery}>
+                    <ListItem grow=1.0>
+                        <RecoveryCard core={core} secret={secret} pending={pending} ask={ask} />
+                    </ListItem>
+                </Show>
+                <Show value={unlock}>
+                    <ListItem grow=1.0>
+                        <UnlockCard core={core} secret={secret} pending={pending} ask={ask} />
+                    </ListItem>
+                </Show>
+                <Show value={failure}>
+                    <ListItem grow=1.0>
+                        <FailureCard core={core} />
+                    </ListItem>
+                </Show>
             </List>
+        </Frame>
+    }
+}
+
+/// The recovery phrase, while the person writes it down: its words, asked for as it shows and
+/// held only while it does, numbered; a field for the words at the checked positions, typed
+/// back as a secret and cleared; Confirm, New phrase, and Keep the old one while replacing.
+#[component]
+fn RecoveryCard(
+    core: Signal<CoreView>,
+    secret: Signal<Option<Held>>,
+    pending: Signal<bool>,
+    ask: Callback<SecretCommand>,
+) -> NodeId {
+    let area = create_memo(move || core.with(|view| view.recovery.clone()));
+    let busy = create_memo(move || pending.get() || area.with(|area| area.busy));
+    let error = create_memo(move || area.with(|area| area.error.clone()));
+    let replacing = create_memo(move || area.with(|area| area.replacing));
+    ask.call(SecretCommand::RecoveryPhrase);
+    // The one copy of the words it shows beside the phrase itself.
+    let words = create_memo(move || {
+        secret.with(|secret| {
+            secret
+                .as_ref()
+                .and_then(Held::phrase)
+                .map(|phrase| {
+                    phrase
+                        .split_whitespace()
+                        .enumerate()
+                        .map(|(at, word)| format!("{} {word}", at + 1))
+                        .collect::<Vec<_>>()
+                        .join("   ")
+                })
+                .unwrap_or_default()
+        })
+    });
+    let asked = create_memo(move || {
+        area.with(|area| {
+            let positions: Vec<String> = area.checked.iter().map(u32::to_string).collect();
+            format!("Type words {} to show you wrote it down.", positions.join(", "))
+        })
+    });
+    let typed = create_signal(String::new());
+    let confirm = move || {
+        let words = typed.get_untracked();
+        typed.set(String::new());
+        if !words.trim().is_empty() {
+            ask_core(CoreCommand::ConfirmRecovery(Password::from(words)));
+        }
+    };
+    let renew = move || {
+        // The host makes the new phrase with the command, before the request after it.
+        ask_core(CoreCommand::NewRecoveryPhrase);
+        ask.call(SecretCommand::RecoveryPhrase);
+    };
+    view! {
+        <be_host_accounts_ui::Column>
+            <Text style=TextStyle::TITLE>{RECOVERY_TITLE}</Text>
+            <Text style=TextStyle::CAPTION>
+                "Write these words down and keep them safe: they are the only way back to your blocks if you lose this device."
+            </Text>
+            <Text>{words}</Text>
+            <Text style=TextStyle::CAPTION>{asked}</Text>
+            <be_host_accounts_ui::ErrorText text={error} />
+            <TextInput
+                value={typed}
+                label="Words"
+                placeholder="Words"
+                kind={InputKind::Password}
+                on_submit={move |_: String| confirm()}
+            />
+            <List direction=Direction::Horizontal spacing=Space::Md>
+                <Button label="Confirm" variant=ButtonVariant::Primary disabled={busy} on_click={confirm} />
+                <Button label="New phrase" variant=ButtonVariant::Secondary disabled={busy} on_click={renew} />
+                <Show value={replacing}>
+                    <Button
+                        label="Keep the old one"
+                        variant=ButtonVariant::Secondary
+                        on_click={|| ask_core(CoreCommand::CancelRecovery)}
+                    />
+                </Show>
+            </List>
+        </be_host_accounts_ui::Column>
+    }
+}
+
+/// Unlocking the account's keys on this device: its recovery phrase, typed as a secret and
+/// cleared; or pairing with a device that holds them, whose code, asked for, shows until it is
+/// withdrawn.
+#[component]
+fn UnlockCard(
+    core: Signal<CoreView>,
+    secret: Signal<Option<Held>>,
+    pending: Signal<bool>,
+    ask: Callback<SecretCommand>,
+) -> NodeId {
+    let area = create_memo(move || core.with(|view| view.unlock.clone()));
+    let error = create_memo(move || area.with(|area| area.error.clone()));
+    let lead = create_memo(move || {
+        area.with(|area| format!("The keys of {} are not on this device yet.", area.account))
+    });
+    let code = create_memo(move || {
+        secret.with(|secret| secret.as_ref().and_then(Held::code).map(str::to_owned))
+    });
+    let pairing = create_memo(move || code.with(Option::is_some));
+    let unpaired = create_memo(move || !pairing.get());
+    let code_line = create_memo(move || {
+        let account = area.with(|area| area.account.clone());
+        code.get()
+            .map(|code| format!("Enter {code} on a device signed in as {account}."))
+            .unwrap_or_default()
+    });
+    let phrase = create_signal(String::new());
+    let unlock = move || {
+        let typed = phrase.get_untracked();
+        phrase.set(String::new());
+        if !typed.trim().is_empty() {
+            ask_core(CoreCommand::UnlockWithPhrase(Password::from(typed)));
+        }
+    };
+    view! {
+        <be_host_accounts_ui::Column>
+            <Text style=TextStyle::TITLE>{UNLOCK_TITLE}</Text>
+            <Text style=TextStyle::CAPTION>{lead}</Text>
+            <be_host_accounts_ui::ErrorText text={error} />
+            <List direction=Direction::Horizontal align=Align::End spacing=Space::Md>
+                <ListItem grow=1.0>
+                    <TextInput
+                        value={phrase}
+                        label="Recovery phrase"
+                        placeholder="Recovery phrase"
+                        kind={InputKind::Password}
+                        on_submit={move |_: String| unlock()}
+                    />
+                </ListItem>
+                <Button label="Unlock" variant=ButtonVariant::Primary on_click={unlock} />
+            </List>
+            <Show value={unpaired}>
+                <Button
+                    label="Pair with another device"
+                    variant=ButtonVariant::Secondary
+                    disabled={pending}
+                    on_click={move || ask.call(SecretCommand::PairingCode)}
+                />
+            </Show>
+            <Show value={pairing}>
+                <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
+                    <ListItem grow=1.0>
+                        <Text>{code_line}</Text>
+                    </ListItem>
+                    <Button
+                        label="Cancel"
+                        variant=ButtonVariant::Secondary
+                        on_click={move || {
+                            secret.set(None);
+                            ask_core(CoreCommand::CancelPairing);
+                        }}
+                    />
+                </List>
+            </Show>
+        </be_host_accounts_ui::Column>
+    }
+}
+
+/// What the block stack's failure leaves the person to do: start it again, delete this
+/// device's copy of the blocks (asked first, saying what is lost), or quit.
+#[component]
+fn FailureCard(core: Signal<CoreView>) -> NodeId {
+    let failure = create_memo(move || core.with(|view| view.failure.clone()));
+    let message = create_memo(move || failure.with(|it| it.as_ref().map(|it| it.message.clone()).unwrap_or_default()));
+    let asking = create_signal(false);
+    let calm = create_memo(move || !asking.get());
+    let question = create_memo(move || {
+        let unsaved = failure.with(|it| it.as_ref().map_or(0, |it| it.unsaved));
+        match unsaved {
+            0 => "Delete this device's copy of your blocks? They download again from the server.".to_owned(),
+            1 => "Delete this device's copy of your blocks? 1 change not saved is lost.".to_owned(),
+            unsaved => format!("Delete this device's copy of your blocks? {unsaved} changes not saved are lost."),
+        }
+    });
+    view! {
+        <be_host_accounts_ui::Column>
+            <Text style=TextStyle::TITLE>{FAILURE_TITLE}</Text>
+            <Text style=TextStyle::PARAGRAPH>{message}</Text>
+            <Show value={calm}>
+                <List direction=Direction::Horizontal spacing=Space::Md>
+                    <Button label="Restart" variant=ButtonVariant::Primary on_click={|| ask_core(CoreCommand::Restart)} />
+                    <Button label="Delete local copy" variant=ButtonVariant::Secondary on_click={move || asking.set(true)} />
+                    <Button label="Quit" variant=ButtonVariant::Secondary on_click={|| ask_core(CoreCommand::Exit)} />
+                </List>
+            </Show>
+            <Show value={asking}>
+                <List spacing=Space::Md>
+                    <Text style=TextStyle::PARAGRAPH>{question}</Text>
+                    <List direction=Direction::Horizontal spacing=Space::Md>
+                        <Button label="Keep" variant=ButtonVariant::Secondary on_click={move || asking.set(false)} />
+                        <Button
+                            label="Delete"
+                            variant=ButtonVariant::Danger
+                            on_click={move || {
+                                asking.set(false);
+                                ask_core(CoreCommand::DeleteClientDatabase);
+                            }}
+                        />
+                    </List>
+                </List>
+            </Show>
+        </be_host_accounts_ui::Column>
+    }
+}
+
+/// Another device's request to pair, the host's question: the code that device shows, typed as
+/// a secret and cleared, to approve it, which stays until the host no longer lists the request;
+/// or Not now, after which the root asks about it no more.
+#[component]
+fn PairingDialog(core: Signal<CoreView>, id: u64, done: Callback<Closed>) -> NodeId {
+    let request = create_memo(move || {
+        core.with(|view| view.pairing.iter().find(|request| request.id == id).cloned())
+    });
+    let lead = create_memo(move || {
+        request.with(|request| {
+            let device = request.as_ref().map(|it| it.device.clone()).unwrap_or_default();
+            format!("{device} asks to pair. Type the code it shows.")
+        })
+    });
+    let refused = create_memo(move || request.with(|request| request.as_ref()?.refused.clone()));
+    let code = create_signal(String::new());
+    let approve = move || {
+        let typed = code.get_untracked();
+        code.set(String::new());
+        if !typed.trim().is_empty() {
+            ask_core(CoreCommand::ApprovePairing(PairingApproval {
+                id,
+                code: Password::from(typed),
+            }));
+        }
+    };
+    escape_dismisses(done);
+    view! {
+        <Frame
+            width=Length::FILL
+            height=Length::FILL
+            fill=ColorRole::Surface
+            border={Border::DEFAULT}
+            radius=Radius::Lg
+        >
+            <DialogBody
+                title=PAIRING_TITLE
+                actions={vec![
+                    DialogAction::cancel("Not now"),
+                    DialogAction::primary("Approve", approve),
+                ]}
+                on_dismiss={move || done.call(Closed::Dismissed)}
+            >
+                <Text style=TextStyle::CAPTION>{lead}</Text>
+                <be_host_accounts_ui::ErrorText text={refused} />
+                <TextInput
+                    value={code}
+                    label="Code"
+                    placeholder="Code"
+                    on_submit={move |_: String| approve()}
+                />
+            </DialogBody>
         </Frame>
     }
 }
@@ -2551,7 +2885,7 @@ impl Held {
     fn link(&self) -> Option<&str> {
         match &*self.0 {
             CoreSecret::Link(link) => link.as_str(),
-            CoreSecret::Agent(_) => None,
+            _ => None,
         }
     }
 
@@ -2559,7 +2893,23 @@ impl Held {
     fn agent(&self) -> Option<&be_wasm_root_api::AgentCredentials> {
         match &*self.0 {
             CoreSecret::Agent(agent) => Some(agent),
-            CoreSecret::Link(_) => None,
+            _ => None,
+        }
+    }
+
+    /// The recovery phrase it is, if it is one.
+    fn phrase(&self) -> Option<&str> {
+        match &*self.0 {
+            CoreSecret::Phrase(phrase) => phrase.as_str(),
+            _ => None,
+        }
+    }
+
+    /// The pairing code it is, if it is one.
+    fn code(&self) -> Option<&str> {
+        match &*self.0 {
+            CoreSecret::Code(code) => code.as_str(),
+            _ => None,
         }
     }
 }
