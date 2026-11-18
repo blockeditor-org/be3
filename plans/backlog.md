@@ -662,7 +662,11 @@ Depends on #686 (session catch-ups replaced by server ordering).
   `Execute` is refused, so after the server loses a blob every retry against
   the same daemon fails with "Action ... is missing from CAS" until someone runs
   `./scripts/buck kill` (guides/build_server.md). re-relay already forgets such
-  blobs. Done: when an attempt fails that way, `retrying` in
+  blobs. buck2's restarter (`[buck2] restarter`, on in .buckconfig) does not
+  help: it restarts only on errors buck2 marks as corrupting its state, and it
+  counts an `Execute` FAILED_PRECONDITION as an ordinary failure. Fixing that
+  in buck2 (mark the refusal as corrupt state, or forget the named digests in
+  `FindMissingCache`) would replace this item. Done: when an attempt fails that way, `retrying` in
   crates/be-tool-bootstrap/src/buck.rs runs `buck2 kill` before the next
   attempt, and the guide's first step goes. First check that buck2 exits 2
   (which `retrying` retries) rather than 3 on an `Execute` FAILED_PRECONDITION,
