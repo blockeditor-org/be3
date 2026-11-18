@@ -8,15 +8,15 @@ fn a_message_carries_the_blocks_attached_to_it() {
     // Rosa sends a block this account cannot read: its link says so and does not open.
     let hidden = Uuid::from_u128(0x41dd);
     let mut chat = Harness::new(&[]);
-    let send = signed_by(
-        &chat.content(),
+    chat.arrive(
         ROSA,
-        Message {
+        &ChatEntry::Message {
+            time: MORNING,
+            body: "Here are the plans".to_owned(),
+            reply_to: None,
             attachments: vec![BlockRef(hidden)],
-            ..Message::new(ROSA, MORNING, "Here are the plans")
         },
     );
-    chat.arrive(send);
     chat.editor.block_types(vec![BlockTypeDescriptor {
         block_type: TEXT.into_bytes(),
         display_name: "Text".to_owned(),
@@ -26,7 +26,7 @@ fn a_message_carries_the_blocks_attached_to_it() {
         press: Press::Open,
         plain_file: true,
     }]);
-    let rosas = chat.id(0);
+    let rosas = chat.seq(0);
     assert!(
         chat.editor
             .label(&format!("chat.message.{rosas}.attachment.{hidden}"))
@@ -83,11 +83,9 @@ fn a_message_carries_the_blocks_attached_to_it() {
     chat.editor.advance(std::time::Duration::from_millis(500));
     chat.editor.run();
     chat.run();
-    let sent = chat.id(1);
+    let sent = chat.seq(1);
     assert_eq!(
-        chat.content()
-            .message(sent)
-            .map(|message| message.attachments),
+        chat.log().message(sent).map(|shown| shown.attachments.clone()),
         Some(vec![BlockRef(plans), BlockRef(sketch)])
     );
     assert_eq!(

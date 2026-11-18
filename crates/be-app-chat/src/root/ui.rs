@@ -1,8 +1,9 @@
-use std::collections::{HashMap, HashSet};
+use std::cell::RefCell;
+use std::collections::HashMap;
 use std::rc::Rc;
 
 use be_sdk_beui::be_block_content::be_block_model::BlockRef;
-use be_sdk_beui::be_block_content::{ObjectId, SettingsLayer};
+use be_sdk_beui::be_block_content::{Along, LogSigner, SettingsLayer};
 use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::accesskit::{Node, Role};
 use be_sdk_beui::beui::datetime::{DateTime, HourCycle};
@@ -15,12 +16,9 @@ use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::{
     BlockFilter, BlockLink, BlockQuery, ChildTarget, ContentProjection, Editor, KeptEdit,
-    LayeredSettings, PickedFile, Signer, utc_offset, watch_block_label,
+    LayeredSettings, PickedFile, utc_offset, watch_block_label,
 };
-use be_type_chat::{
-    ChatContent, ChatReads, Deletion, Gap, Message, MessageEdit, MessageHash, Reaction,
-    ReactionKey, ReadPlace, Segment, Shown, Signature,
-};
+use be_type_chat::{ChatContent, ChatEntry, ChatLog, ChatReads, Shown};
 use beui::{Align, Direction, ScrollPosition};
 use uuid::Uuid;
 
@@ -36,17 +34,52 @@ pub const REACTIONS: [(&str, Glyph, &str); 5] = [
     ("check", ICON_CHECK, "Done"),
 ];
 
-/// What a message row shows, read from the content in one pass per change, so a row
-/// updates only when what it shows changed.
+/// How many entries of the chat's log a read asks for: the newest as the editor opens, and
+/// each earlier page as the person asks for it.
+const PAGE: u64 = 100;
+
+/// A row of the chat: a message in the log, by its place; one this device sent that waits for
+/// the server, by its entry's id; or one the server refused, by its place among those.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+enum RowKey {
+    Logged(u64),
+    Kept(Uuid),
+    Refused(u64),
+}
+
+impl std::fmt::Display for RowKey {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Logged(seq) => write!(formatter, "{seq}"),
+            Self::Kept(id) => write!(formatter, "kept.{id}"),
+            Self::Refused(token) => write!(formatter, "refused.{token}"),
+        }
+    }
+}
+
+/// Where a row's message is.
+#[derive(Clone, Debug, PartialEq)]
+enum State {
+    /// In the log, with who signed what it shows (`Shown::signer`).
+    Logged(LogSigner),
+    /// Deleted by its author, with a deletion whose key is worth saying: an old one, or one
+    /// that changed. Deleted with a trusted key, a message shows no row.
+    Deleted(LogSigner),
+    /// Waits on this device for the server.
+    Sending,
+    /// The server refused it, saying why: the token of the append that sent it.
+    NotSent(String, u64),
+}
+
+/// What a message row shows, read from the log in one pass per change, so a row updates only
+/// when what it shows changed.
 #[derive(Clone, Debug, PartialEq)]
 struct Row {
-    /// Who wrote it, named as the row shows (`Names`); none for a missing message's row, which
-    /// names nobody.
-    author: Option<Uuid>,
+    author: Uuid,
     mine: bool,
     time: String,
     /// When the server took it, for a message that arrived well after its claimed time: it was
-    /// written offline (`Message::arrived_late`).
+    /// written offline.
     arrived: Option<String>,
     body: String,
     edited: bool,
@@ -54,16 +87,19 @@ struct Row {
     reactions: Vec<Reacted>,
     /// The blocks sent with it.
     attachments: Vec<Uuid>,
-    /// What its authors signed: the message, its edit if it has one, and every reaction record
-    /// to it; for a deleted message's row, the deletion.
-    proofs: Vec<Proof>,
-    /// The row of a message whose deletion is forged, in the deleted message's place: it shows
-    /// who claims to have deleted it, and takes no reply, reaction or edit.
-    deleted: bool,
-    /// The row of a message removed outright, which a later message names
-    /// (`ChatContent::gaps`): a line saying so, in its place.
-    missing: bool,
+    state: State,
 }
+
+#[derive(Clone, Debug, PartialEq)]
+struct Reacted {
+    reaction: String,
+    count: usize,
+    mine: bool,
+}
+
+/// How long after its claimed time a message must arrive to show as sent offline: past the
+/// clock drift between a device and the server, and a slow connection's delay.
+const OFFLINE_AFTER: i64 = 5 * 60 * 1000;
 
 /// What a reply quotes: its author and the start of what it said, or that it was deleted.
 #[derive(Clone, Debug, PartialEq)]
@@ -135,68 +171,14 @@ impl Names {
     }
 }
 
-/// One record a member signed (plans/authorship.md), to ask the host who signed it.
-#[derive(Clone, Debug, PartialEq)]
-struct Proof {
-    author: Uuid,
-    record: Record,
-    signature: Vec<u8>,
-}
-
-/// What a signature covers, before the chat it is in is named: the block signatures bind to is
-/// known only once the host says (in a revision preview it is the block the revision is of).
-#[derive(Clone, Debug, PartialEq)]
-enum Record {
-    Message(ObjectId, Message),
-    /// The head of the message's author's edits (`ChatContent::edit_head`).
-    Edit(ObjectId, MessageEdit, Message),
-    /// The head of a reaction's records (`ChatContent::reaction_heads`).
-    Reaction(ReactionKey, Reaction),
-    /// A record removed outright or a chain's latest record cut (`Head::cut`), which no
-    /// signature can cover.
-    Removed,
-    /// A record found forged before its row was made, whatever its signature: a forged
-    /// deletion (`forged_deletions`).
-    Forged,
-}
-
-impl Record {
-    /// When the server took it, for a message that keeps that stamp (`Message::arrival`): a
-    /// message signed with a key its author has since replaced is forged if it arrived after
-    /// this device learned of the new key.
-    fn arrival(&self) -> Option<i64> {
-        match self {
-            Self::Message(_, message) => message.arrival,
-            _ => None,
-        }
-    }
-
-    /// The bytes its author signed, or none for a removal, which no signature covers
-    /// (`Trust::Altered`).
-    fn signed_bytes(&self, chat: Uuid) -> Option<Vec<u8>> {
-        match self {
-            Self::Message(id, message) => Some(message.signed_bytes(chat, *id)),
-            Self::Edit(id, edit, sent) => Some(edit.signed_bytes(chat, *id, sent.hash(chat, *id))),
-            Self::Reaction(key, reaction) => Some(key.signed_bytes(chat, reaction)),
-            Self::Removed | Self::Forged => None,
-        }
-    }
-}
-
-#[derive(Clone, Debug, PartialEq)]
-struct Reacted {
-    reaction: String,
-    count: usize,
-    mine: bool,
-}
-
 /// What the person is doing in the editor: none of it is in the block until it is sent.
 #[derive(Clone, Copy)]
 struct Composer {
     draft: Signal<String>,
-    replying: Signal<Option<ObjectId>>,
-    editing: Signal<Option<ObjectId>>,
-    picking: Signal<Option<ObjectId>>,
+    /// The message replied to, by its place.
+    replying: Signal<Option<u64>>,
+    editing: Signal<Option<u64>>,
+    picking: Signal<Option<u64>>,
     /// The blocks to send with the next message.
     attaching: Signal<Vec<Pending>>,
 }
@@ -281,7 +263,7 @@ fn pend(composer: Composer, pending: Pending) {
 /// which keeps it the chat's child until a message carries it, and attaches it.
 fn draft_made(chat: Chat, me: Uuid, composer: Composer, id: Uuid, block_type: Uuid) {
     if let Ok(draft) = chat.read(|content| content.make_draft(id, me, now())) {
-        chat.operate(draft.into());
+        chat.operate(draft);
     }
     pend(
         composer,
@@ -316,7 +298,7 @@ fn drop_made(chat: Chat, attached: Attached, pending: Pending) {
         return;
     }
     if let Ok(Some(dropped)) = chat.read(|content| content.drop_draft(pending.id)) {
-        chat.operate(dropped.into());
+        chat.operate(dropped);
     }
 }
 
@@ -403,44 +385,113 @@ fn PendingChip(editor: Editor, pending: Pending, link_id: String) -> NodeId {
     }
 }
 
+
+/// The sends waiting for their entry's id, by the token of the append: when the message was
+/// written and what it carries, which the chat's content lists as the message's once its id is
+/// known (`ChatContent::send`).
+type Sends = Stored<RefCell<HashMap<u64, (i64, Vec<BlockRef>)>>>;
+
 #[component]
 pub fn Chat(editor: Editor) -> NodeId {
     let chat: Chat = editor.block_content::<ChatContent>();
     let me = editor.blocks().account_id();
     let names = Names::new(editor, me);
     let block = editor.block_id();
-    // The block signatures bind to: this one, or in a revision preview the one it is of.
-    let signing = create_signal(block);
-    let asking = editor.then(editor.host().signing_block(), move |found| {
-        if let Ok(found) = found {
-            signing.set(found);
+    // The log as this editor holds it, folded; and what this device sent that the server has
+    // not taken yet, or refused.
+    let log = create_memo(move || chat.with_log(|items| ChatLog::of(items)));
+    let kept = create_memo(move || {
+        chat.with_kept(|kept| {
+            kept.map(|(id, bytes)| (id, bytes.to_vec()))
+                .collect::<Vec<_>>()
+        })
+    });
+    let refused = create_memo(move || {
+        chat.with_refused(|refused| {
+            refused
+                .map(|(token, bytes, why)| (token, bytes.to_vec(), why.to_owned()))
+                .collect::<Vec<_>>()
+        })
+    });
+    let first = create_memo(move || chat.with_log(|items| items.next().map(|item| item.seq)));
+    // The newest page as the chat opens: a read from past the log's end names its length.
+    let asked = std::cell::Cell::new((false, false));
+    create_effect(move || {
+        if chat.ready().is_err() {
+            return;
+        }
+        let size = chat.log_size();
+        let held = first.get().is_some();
+        let (opened, tail) = asked.get();
+        if !opened {
+            asked.set((true, tail));
+            untrack(|| chat.read_log(u64::MAX, 1));
+        } else if size > 0 && !held && !tail {
+            asked.set((true, true));
+            untrack(|| chat.read_log(size.saturating_sub(PAGE), PAGE as u32));
         }
     });
-    on_cleanup(move || asking.cancel());
-    let forged = forged_deletions(editor, chat, signing);
-    let missing = missing_messages(editor, chat, signing);
-    let rows: KeyedStore<ObjectId, Row> = KeyedStore::new();
-    create_effect(move || {
-        chat.track();
-        let forged = forged.get();
-        let missing = missing.get();
-        if let Ok(rows_now) = chat.read(|content| {
-            let mut rows = row_list(content, &content.shown(), me, &forged, None);
-            // Before the first message that names it.
-            for (naming, gone) in missing {
-                if let Some(at) = rows.iter().position(|(id, _)| *id == naming) {
-                    rows.insert(at, (gone, missing_row()));
-                }
-            }
-            rows
-        }) {
-            rows.reconcile_owned(rows_now);
+    let has_older = create_memo(move || first.get().is_some_and(|first| first > 0));
+    let load_older = move || {
+        if let Some(first) = first.get_untracked() {
+            let from = first.saturating_sub(PAGE);
+            chat.read_log(from, (first - from) as u32);
         }
+    };
+
+    let rows: KeyedStore<RowKey, Row> = KeyedStore::new();
+    create_effect(move || {
+        let today = local_date(now());
+        let mut list = Vec::new();
+        log.with(|log| {
+            list.extend(
+                log.messages()
+                    .filter_map(|shown| Some((RowKey::Logged(shown.seq), row(log, shown, me, today)?))),
+            );
+            kept.with(|kept| {
+                list.extend(kept.iter().filter_map(|(id, bytes)| {
+                    let row = unsent_row(log, bytes, me, State::Sending, today)?;
+                    Some((RowKey::Kept(*id), row))
+                }));
+            });
+            refused.with(|refused| {
+                list.extend(
+                    refused
+                        .iter()
+                        .filter_map(|(token, bytes, why)| {
+                            unsent_row(log, bytes, me, State::NotSent(why.clone(), *token), today)
+                        })
+                        .enumerate()
+                        .map(|(index, row)| (RowKey::Refused(index as u64), row)),
+                );
+            });
+        });
+        rows.reconcile_owned(list);
     });
     let ids = rows.keys();
-    let older = Older::new(chat, editor, me, forged);
-    let older_ids = older.rows.keys();
-    let empty = create_memo(move || ids.with(Vec::is_empty) && older_ids.with(Vec::is_empty));
+    let empty = create_memo(move || ids.with(Vec::is_empty));
+
+    // What a send carries is the message's once its entry's id is known.
+    let sends: Sends = store(RefCell::new(HashMap::new()));
+    {
+        create_effect(move || {
+            chat.track();
+            for (token, appended) in untrack(|| chat.take_appended()) {
+                let Some((time, attachments)) = sends.with(|sends| sends.borrow_mut().remove(&token)) else {
+                    continue;
+                };
+                let Ok(appended) = appended else {
+                    continue;
+                };
+                if let Ok(Some(edit)) =
+                    chat.read(|content| content.send(appended.id, me, time, &attachments))
+                {
+                    untrack(|| chat.operate(edit));
+                }
+            }
+        });
+    }
+
     let composer = Composer {
         draft: create_signal(String::new()),
         replying: create_signal(None),
@@ -528,149 +579,60 @@ pub fn Chat(editor: Editor) -> NodeId {
             </List>
         }
     };
-    // A message replied to or being edited can be deleted, here or elsewhere.
+    // A message replied to, being edited or reacted to can be deleted, here or elsewhere.
     create_effect(move || {
-        let older_ids = older_ids.get();
-        ids.with(|ids| {
-            let ids: Vec<ObjectId> = older_ids.iter().chain(ids.iter()).copied().collect();
-            if composer
-                .replying
-                .get_untracked()
-                .is_some_and(|id| !ids.contains(&id))
-            {
+        log.with(|log| {
+            let gone = |seq: Option<u64>| {
+                seq.is_some_and(|seq| {
+                    log.message(seq)
+                        .is_none_or(|shown| shown.deleted.is_some())
+                })
+            };
+            if gone(composer.replying.get_untracked()) {
                 composer.replying.set(None);
             }
-            if composer
-                .editing
-                .get_untracked()
-                .is_some_and(|id| !ids.contains(&id))
-            {
+            if gone(composer.editing.get_untracked()) {
                 composer.editing.set(None);
                 composer.draft.set(String::new());
             }
-            if composer
-                .picking
-                .get_untracked()
-                .is_some_and(|id| !ids.contains(&id))
-            {
+            if gone(composer.picking.get_untracked()) {
                 composer.picking.set(None);
             }
         });
     });
-    let send = move || {
-        submit(
-            editor,
-            &chat,
-            signing.get_untracked(),
-            me,
-            composer,
-            attached,
-        )
-    };
+    let send = move || submit(chat, log, me, composer, attached, sends);
     let scroll = ComponentRef::<ScrollApi>::new();
     let at_end = create_signal(true);
-    let unread = unread_count(editor, chat, block, me, at_end);
+    let unread = unread_count(editor, chat, log, block, me, at_end);
     let replying = create_memo(move || {
-        let id = composer.replying.get()?;
-        let quoted = rows.try_get(&id).or_else(|| older.rows.try_get(&id))?;
-        let (author, body) = quoted.with(|row| (row.author, excerpt(&row.body)));
-        Some(format!(
-            "Replying to {}: {body}",
-            author
-                .map(|author| names.inline(author))
-                .unwrap_or_default()
-        ))
+        let seq = composer.replying.get()?;
+        let (author, body) = log.with(|log| {
+            log.message(seq)
+                .map(|shown| (shown.author, excerpt(shown.body.as_deref().unwrap_or_default())))
+        })?;
+        Some(format!("Replying to {}: {body}", names.inline(author)))
     });
     let editing = create_memo(move || composer.editing.get().is_some());
 
-    // The messages sent from this device that the server lacks: sending, or not sent once
-    // the server refused them. The replica keeps them, so they show whichever editor sent them.
-    let lacking = chat.lacking();
-    let unsent = create_memo(move || {
-        lacking.with(|lacking| {
-            lacking
-                .iter()
-                .flat_map(|edit| {
-                    let unsent = Unsent {
-                        lacking: edit.id,
-                        failed: edit.failed,
-                    };
-                    edit.operation
-                        .iter()
-                        .flat_map(ChatContent::sent_in)
-                        .map(move |id| (id, unsent))
-                        .collect::<Vec<_>>()
-                })
-                .collect::<HashMap<ObjectId, Unsent>>()
-        })
-    });
-
-    // The oldest recent messages close into a segment once the recent ones are long enough.
-    // Any editor may propose it, and the segment closes once: the messages it names are the
-    // oldest ones in the order every replica has, and a second proposal finds them gone.
-    let visible = editor.presence_visible();
-    let lacking_any = create_memo(move || lacking.with(|lacking| !lacking.is_empty()));
-    create_effect(move || {
-        chat.track();
-        let visible = visible.get();
-        let unconfirmed = lacking_any.get();
-        // Only while every edit of ours (a message, a close, an edit, a reaction) is confirmed: a
-        // device holds at most one unconfirmed close, so two devices rarely close apart.
-        if !visible || unconfirmed {
-            return;
-        }
-        if let Ok(Some(closing)) = chat.read(|content| content.closing()) {
-            untrack(|| chat.operate(closing));
-        }
-    });
-
-    let message_rows = move |id: ObjectId| {
-        let shown = rows.get(&id);
-        // A message removed outright keeps its id, so its row turns into a missing one's.
-        let present = create_memo(move || !shown.with(|row| row.missing));
-        view! {
-            <Show
-                value={present}
-                fallback={move || view! {
-                    <MissingRow id />
-                }}
-            >
+    let message_rows = {
+        move |key: RowKey| {
+            let shown = rows.get(&key);
+            view! {
                 <MessageRow
-                    editor
                     chat={chat}
+                    editor
                     me
                     names
-                    id
+                    key
                     row={shown}
                     composer
-                    unsent
-                    block
-                    signing
+                    log
                     attached
+                    sends
                 />
-            </Show>
+            }
         }
     };
-    let older_message_rows = move |id: ObjectId| {
-        let shown = older.rows.get(&id);
-        view! {
-            <MessageRow
-                editor
-                chat={chat}
-                me
-                names
-                id
-                row={shown}
-                composer
-                unsent
-                block
-                signing
-                attached
-            />
-        }
-    };
-    let has_older = older.remaining;
-    let older_failed = older.failed;
 
     view! {
         <List spacing=Space::None>
@@ -680,7 +642,6 @@ pub fn Chat(editor: Editor) -> NodeId {
                     follow_end=true
                     on_change={move |position: ScrollPosition| {
                         at_end.set(position.offset >= position.max_offset() - 1.0);
-                        older.at_start.set(position.offset <= 1.0);
                     }}
                 >
                     <Frame padding={Padding::all(Space::Xl)}>
@@ -702,16 +663,10 @@ pub fn Chat(editor: Editor) -> NodeId {
                                         variant=ButtonVariant::Secondary
                                         size=ButtonSize::Small
                                         @test_id={"chat.older"}
-                                        on_click={move || older.load()}
+                                        on_click={load_older}
                                     />
-                                    <Show value={older_failed}>
-                                        <Text style=TextStyle::CAPTION>
-                                            "Could not read the earlier messages"
-                                        </Text>
-                                    </Show>
                                 </List>
                             </Show>
-                            <ForEach value={older_ids} view={older_message_rows} />
                             <ForEach value={ids} view={message_rows} />
                         </List>
                     </Frame>
@@ -828,387 +783,15 @@ pub fn Chat(editor: Editor) -> NodeId {
     }
 }
 
-/// The messages of closed segments, read back by range as the person scrolls to the start of
-/// the chat (guides/chat.md, "The editor"): the newest segment first, one at a time, each checked
-/// against the index before it shows.
-#[derive(Clone, Copy)]
-struct Older {
-    chat: Chat,
-    editor: Editor,
-    /// The segments read so far, each as its index entry names it (two that overlap can open at
-    /// the same message), with the messages its part holds.
-    read: Signal<Vec<(Segment, Vec<(ObjectId, Message)>)>>,
-    segments: Memo<Vec<Segment>>,
-    rows: KeyedStore<ObjectId, Row>,
-    reading: Signal<bool>,
-    /// The last read failed, or returned bytes the index does not describe.
-    failed: Signal<bool>,
-    /// The chat is scrolled to its first message.
-    at_start: Signal<bool>,
-    /// A closed segment is left to read.
-    remaining: Memo<bool>,
-}
-
-impl Older {
-    fn new(chat: Chat, editor: Editor, me: Uuid, forged: Memo<Vec<(ObjectId, Deletion)>>) -> Self {
-        let segments = chat.project(|content: &ChatContent| content.segments());
-        let read: Signal<Vec<(Segment, Vec<(ObjectId, Message)>)>> = create_signal(Vec::new());
-        let rows = KeyedStore::new();
-        let older = Self {
-            chat,
-            editor,
-            read,
-            segments,
-            rows,
-            reading: create_signal(false),
-            failed: create_signal(false),
-            at_start: create_signal(false),
-            remaining: create_memo(move || {
-                segments.with(|segments| read.with(|read| unread_segment(segments, read).is_some()))
-            }),
-        };
-        // Reaching the start of the chat reads the next older segment.
-        create_effect(move || {
-            if older.at_start.get() {
-                untrack(|| older.load());
-            }
-        });
-        // What was read follows the edits, deletions and reactions made to it since.
-        create_effect(move || {
-            chat.track();
-            let (segments, read, forged) = (segments.get(), read.get(), forged.get());
-            let rows_now = chat
-                .read(|content| {
-                    // Segments closed apart can overlap: a message shows once, in its place.
-                    let read_in_order: Vec<&[(ObjectId, Message)]> = segments
-                        .iter()
-                        .filter_map(|segment| read.iter().find(|(read, _)| read == segment))
-                        .map(|(_, messages)| messages.as_slice())
-                        .collect();
-                    let messages = ChatContent::weave(&read_in_order);
-                    let order: Vec<ObjectId> = messages.iter().map(|(id, _)| *id).collect();
-                    // The segment still holds a deleted message: a deletion by anyone but its
-                    // author is forged, whatever it signed.
-                    let mut forged = forged;
-                    for (id, message) in &messages {
-                        if let Some(deletion) = content.deletion_of(*id)
-                            && !deletion.by_author(Some(message))
-                            && !forged.iter().any(|(held, _)| held == id)
-                        {
-                            forged.push((*id, deletion));
-                        }
-                    }
-                    row_list(
-                        content,
-                        &content.shown_of(messages),
-                        me,
-                        &forged,
-                        Some(&order),
-                    )
-                })
-                .unwrap_or_default();
-            rows.reconcile_owned(rows_now);
-        });
-        older
-    }
-
-    /// Reads the newest segment not read yet, if there is one and none is being read.
-    fn load(&self) {
-        if self.reading.get_untracked() {
-            return;
-        }
-        let read = self.read.get_untracked();
-        let segments = self.segments.get_untracked();
-        let Some(index) = unread_segment(&segments, &read) else {
-            return;
-        };
-        self.read_segment_at(&segments[index]);
-    }
-
-    fn read_segment_at(&self, segment: &Segment) {
-        self.reading.set(true);
-        self.failed.set(false);
-        let this = *self;
-        let held = segment.clone();
-        read_segment(self.editor, self.chat, segment, true, move |found| {
-            this.reading.set(false);
-            match found {
-                SegmentRead::Held(messages) => {
-                    let mut read = this.read.get_untracked();
-                    read.push((held, messages));
-                    this.read.set(read);
-                }
-                SegmentRead::Broken | SegmentRead::Failed => this.failed.set(true),
-            }
-        });
-    }
-}
-
-/// What reading a closed segment's part found.
-enum SegmentRead {
-    Held(Vec<(ObjectId, Message)>),
-    /// The part is not what the index names: the bytes that came back differ in length or
-    /// hash, or the header gives the segment no range.
-    Broken,
-    /// The segment left the header, or its part could not be read.
-    Failed,
-}
-
-/// Reads `segment`'s messages, by the range the header held now gives it, and hands what it
-/// found to `done`. The replica's header can differ from this one's while the chat is busy,
-/// which moves the range and fails the check against the index; the read is tried once more
-/// then.
-fn read_segment(
-    editor: Editor,
-    chat: Chat,
-    segment: &Segment,
-    retry: bool,
-    done: impl FnOnce(SegmentRead) + 'static,
-) {
-    let live = chat.live();
-    let found = chat.read(|content| {
-        let index = content.segments().iter().position(|held| held == segment)?;
-        Some((index, content.segment_ranges().get(index).cloned()))
-    });
-    let (index, range) = match found {
-        Ok(Some((index, Some(range)))) => (index, range),
-        // Listed with no range to read it by: the header is not what the index says.
-        Ok(Some((_, None))) => {
-            done(SegmentRead::Broken);
-            return;
-        }
-        _ => {
-            done(SegmentRead::Failed);
-            return;
-        }
-    };
-    let segment = segment.clone();
-    let reading = live.read_range(range.start, range.end.saturating_sub(range.start));
-    editor.then(async move { Some(reading.await) }, move |bytes| {
-        let found = match bytes
-            .ok()
-            .map(|bytes| chat.read(|content| content.read_segment(index, &bytes)))
-        {
-            Some(Ok(Some(messages))) => SegmentRead::Held(messages),
-            Some(Ok(None)) => SegmentRead::Broken,
-            _ => SegmentRead::Failed,
-        };
-        match found {
-            SegmentRead::Held(_) => done(found),
-            _ if retry => read_segment(editor, chat, &segment, false, done),
-            found => done(found),
-        }
-    });
-}
-
-/// The newest segment of `segments` not in `read`: segments are told apart by their whole index
-/// entry, since two closed apart can open at the same message.
-pub(crate) fn unread_segment<T>(segments: &[Segment], read: &[(Segment, T)]) -> Option<usize> {
-    segments
-        .iter()
-        .rposition(|segment| !read.iter().any(|(read, _)| read == segment))
-}
-
-/// The rows of `shown` messages, each with its replied-to message and who signed it, and a
-/// row for each message of `forged` (forged deletions) in its place: by `order`, the messages
-/// read back from closed segments with the deleted ones, when given, else after the message
-/// the deletion says it followed.
-fn row_list(
-    content: &ChatContent,
-    shown: &[Shown],
-    me: Uuid,
-    forged: &[(ObjectId, Deletion)],
-    order: Option<&[ObjectId]>,
-) -> Vec<(ObjectId, Row)> {
-    let by_id: HashMap<ObjectId, &Shown> =
-        shown.iter().map(|message| (message.id, message)).collect();
-    let today = local_date(now());
-    let mut rows: Vec<(ObjectId, Row)> = shown
-        .iter()
-        .map(|message| {
-            let row = Row {
-                proofs: proofs(content, message),
-                ..row(&by_id, message, me, today)
-            };
-            (message.id, row)
-        })
-        .collect();
-    for (message, deletion) in forged {
-        let after = match order {
-            // Read back from a segment: after the nearest message before it that has a row.
-            Some(order) => {
-                let Some(at) = order.iter().position(|id| id == message) else {
-                    continue;
-                };
-                order[..at]
-                    .iter()
-                    .rev()
-                    .find(|id| rows.iter().any(|(row, _)| row == *id))
-                    .copied()
-            }
-            // A recent message's deletion names the message it followed; one that followed
-            // none may be of a closed message, shown with the segment instead.
-            None if deletion.after.is_none() && content.may_be_closed(*message) => continue,
-            None => deletion.after,
-        };
-        let at = match after {
-            None => Some(0),
-            Some(after) => rows
-                .iter()
-                .position(|(id, _)| *id == after)
-                .map(|at| at + 1),
-        };
-        if let Some(at) = at {
-            rows.insert(at, (*message, deleted_row(deletion, today)));
-        }
-    }
-    rows
-}
-
-/// The recent messages removed outright, each as `(the message that names it, the missing
-/// one)` (`ChatContent::gaps`). A gap counts once the naming message's signature verifies,
-/// so a forged message claims none, and, when a closed segment's filter says it may hold the
-/// missing one, once that segment is read and does not (a part that fails its check against
-/// the index holds nothing). Each naming message is asked about once and each such segment
-/// read once; until then, or when the part cannot be read at all, nothing shows.
-fn missing_messages(
-    editor: Editor,
-    chat: Chat,
-    signing: Signal<Uuid>,
-) -> Memo<Vec<(ObjectId, ObjectId)>> {
-    type Verdicts = HashMap<ObjectId, (MessageHash, Option<Signer>)>;
-    let verdicts: Signal<Verdicts> = create_signal(HashMap::new());
-    let read: Signal<HashMap<Segment, Option<HashSet<ObjectId>>>> = create_signal(HashMap::new());
-    let gaps: Signal<Vec<(Gap, MessageHash, Vec<Segment>)>> = create_signal(Vec::new());
-    create_effect(move || {
-        chat.track();
-        let block = signing.get();
-        let Ok(found) = chat.read(|content| {
-            content
-                .gaps()
-                .into_iter()
-                .filter_map(|gap| {
-                    let message = content.message(gap.naming)?;
-                    let segments = gap
-                        .closed_in
-                        .iter()
-                        .filter_map(|index| content.segments().get(*index).cloned())
-                        .collect();
-                    Some((gap, message, segments))
-                })
-                .collect::<Vec<_>>()
-        }) else {
-            return;
-        };
-        let mut held = Vec::new();
-        for (gap, message, segments) in found {
-            let naming = gap.naming;
-            let hash = message.hash(block, naming);
-            let asked = verdicts.with_untracked(|verdicts| {
-                verdicts.get(&naming).is_some_and(|(at, _)| *at == hash)
-            });
-            if !asked {
-                verdicts.update(|verdicts| {
-                    verdicts.insert(naming, (hash, None));
-                });
-                let asking = editor.host().verify(
-                    message.author,
-                    message.signed_bytes(block, naming),
-                    message.signature.0.clone(),
-                    message.arrival,
-                );
-                editor.then(asking, move |found| {
-                    let Ok(signer) = found else {
-                        return;
-                    };
-                    verdicts.update(|verdicts| {
-                        if let Some((at, verdict)) = verdicts.get_mut(&naming)
-                            && *at == hash
-                        {
-                            *verdict = Some(signer);
-                        }
-                    });
-                });
-            }
-            for segment in &segments {
-                if read.with_untracked(|read| read.contains_key(segment)) {
-                    continue;
-                }
-                read.update(|read| {
-                    read.insert(segment.clone(), None);
-                });
-                let key = segment.clone();
-                read_segment(editor, chat, segment, true, move |found| {
-                    let ids = match found {
-                        SegmentRead::Held(messages) => {
-                            messages.into_iter().map(|(id, _)| id).collect()
-                        }
-                        // A part that is not what the index names holds nothing, so breaking
-                        // it hides no gap; one that could not be read shows nothing yet.
-                        SegmentRead::Broken => HashSet::new(),
-                        SegmentRead::Failed => return,
-                    };
-                    read.update(|read| {
-                        read.insert(key, Some(ids));
-                    });
-                });
-            }
-            held.push((gap, hash, segments));
-        }
-        gaps.set(held);
-    });
-    create_memo(move || {
-        gaps.with(|gaps| {
-            verdicts.with(|verdicts| {
-                read.with(|read| {
-                    gaps.iter()
-                        .filter(|(gap, hash, segments)| {
-                            let verified =
-                                verdicts.get(&gap.naming) == Some(&(*hash, Some(Signer::Verified)));
-                            let not_closed = segments.iter().all(|segment| {
-                                read.get(segment)
-                                    .and_then(Option::as_ref)
-                                    .is_some_and(|ids| !ids.contains(&gap.gone))
-                            });
-                            verified && not_closed
-                        })
-                        .map(|(gap, _, _)| (gap.naming, gap.gone))
-                        .collect()
-                })
-            })
-        })
-    })
-}
-
-/// The row of a message removed outright (`Row::missing`).
-fn missing_row() -> Row {
-    Row {
-        author: None,
-        mine: false,
-        time: String::new(),
-        arrived: None,
-        body: MISSING.to_owned(),
-        edited: false,
-        reply: None,
-        reactions: Vec::new(),
-        attachments: Vec::new(),
-        proofs: Vec::new(),
-        deleted: false,
-        missing: true,
-    }
-}
-
-/// What a removed message's row says: that it is gone, not who removed it, which nothing tells.
-const MISSING: &str = "A message that was here is no longer in the chat";
-
-/// How many messages others sent since this account last read the chat, none until its
-/// owner-only `ChatReads` loaded. Each device keeps its own place there and the furthest
-/// counts, so every device the account uses agrees. The chat is read while it is scrolled to its
-/// newest message, shown, and its own view has the keyboard: a chat left open behind others,
-/// or beside the one being typed in, is not.
+/// How many messages others sent since this account last read the chat, among the entries
+/// this editor holds, none until its owner-only `ChatReads` loaded. Each device keeps its own
+/// place there and the furthest counts, so every device the account uses agrees. The chat is
+/// read while it is scrolled to its newest message, shown, and its own view has the keyboard: a
+/// chat left open behind others, or beside the one being typed in, is not.
 fn unread_count(
     editor: Editor,
     chat: Chat,
+    log: Memo<ChatLog>,
     block: Uuid,
     me: Uuid,
     at_end: Signal<bool>,
@@ -1220,9 +803,8 @@ fn unread_count(
         if !ready.get() {
             return None;
         }
-        let places = read.with(|reads| reads.places(block));
-        chat.read(|content| content.unread(places.into_iter().map(|place| place.message), me))
-            .ok()
+        let place = read.with(|reads| reads.place(block));
+        Some(log.with(|log| log.unread(place, me)))
     });
     let shown = editor.presence_visible();
     let keyboard = editor.has_keyboard();
@@ -1232,45 +814,45 @@ fn unread_count(
             return;
         }
         // Tracked, so a write the settings were not loaded for is made once they are.
-        let places = read.with(|reads| reads.places(block));
-        let moved = untrack(|| {
-            chat.read(|content| {
-                let newest = content.newest()?;
-                let here = places.iter().filter(|place| place.device == device);
-                if here
-                    .clone()
-                    .any(|place| !content.reads_further(newest, Some(place.message)))
-                {
-                    return None;
-                }
-                let seen: Vec<ReadPlace> = places
-                    .iter()
-                    .filter(|place| place.device == device || content.behind(place.message, newest))
-                    .cloned()
-                    .collect();
-                Some((newest, seen))
-            })
-        });
-        let Ok(Some((newest, seen))) = moved else {
+        let place = read.with(|reads| reads.place(block));
+        let Some(last) = untrack(|| chat.with_log(|items| items.last().map(|item| item.seq)))
+        else {
             return;
         };
-        let edit: KeptEdit<ChatReads> =
-            Rc::new(move |_| ChatReads::set_read(block, device, newest, &seen));
+        if place.is_some_and(|place| place >= last) {
+            return;
+        }
+        let edit: KeptEdit<ChatReads> = Rc::new(move |_| ChatReads::set_read(block, device, last));
         // Not yet loaded, it is written on the next change instead.
         let _ = reads.write_all(SettingsLayer::EveryDevice, &[edit]);
     });
     unread
 }
 
-fn row(shown: &HashMap<ObjectId, &Shown>, message: &Shown, me: Uuid, today: i64) -> Row {
-    let reply = message
-        .message
-        .reply_to
-        .map(|quoted| match shown.get(&quoted) {
-            Some(quoted) => Quote::Message(quoted.message.author, excerpt(&quoted.body)),
-            None => Quote::Deleted,
+/// The row of a message in the log, or none for one that shows no row: deleted by its author
+/// with a key worth nothing to say about, or one no key this device holds opens.
+fn row(log: &ChatLog, shown: &Shown, me: Uuid, today: i64) -> Option<Row> {
+    let mine = shown.author == me;
+    if let Some((_, signer)) = shown.deleted {
+        return matches!(
+            signer,
+            LogSigner::Changed | LogSigner::Replaced | LogSigner::Bad
+        )
+        .then(|| Row {
+            author: shown.author,
+            mine,
+            time: time(shown.time, today),
+            arrived: None,
+            body: "Message deleted".to_owned(),
+            edited: false,
+            reply: None,
+            reactions: Vec::new(),
+            attachments: Vec::new(),
+            state: State::Deleted(signer),
         });
-    let reactions = message
+    }
+    let body = shown.body.clone()?;
+    let reactions = shown
         .reactions
         .iter()
         .map(|(reaction, authors)| Reacted {
@@ -1279,27 +861,62 @@ fn row(shown: &HashMap<ObjectId, &Shown>, message: &Shown, me: Uuid, today: i64)
             mine: authors.contains(&me),
         })
         .collect();
-    Row {
-        author: Some(message.message.author),
-        mine: message.message.author == me,
-        proofs: Vec::new(),
-        time: time(message.message.time, today),
-        arrived: message
-            .message
-            .arrived_late()
-            .map(|arrival| format!("sent offline, arrived {}", time(arrival, today))),
-        body: message.body.clone(),
-        edited: message.edited,
-        reply,
+    Some(Row {
+        author: shown.author,
+        mine,
+        time: time(shown.time, today),
+        arrived: (shown.arrival - shown.time > OFFLINE_AFTER)
+            .then(|| format!("sent offline, arrived {}", time(shown.arrival, today))),
+        body,
+        edited: shown.edited,
+        reply: shown.reply_to.map(|quoted| quote(log, quoted)),
         reactions,
-        attachments: message
-            .message
+        attachments: shown
             .attachments
             .iter()
             .map(|attachment| attachment.0)
             .collect(),
-        deleted: false,
-        missing: false,
+        state: State::Logged(shown.signer),
+    })
+}
+
+/// The row of a message this device sent that is not in the log: waiting for the server, or
+/// refused. None for an entry that is no message (an edit, a reaction), which shows no row.
+fn unsent_row(log: &ChatLog, bytes: &[u8], me: Uuid, state: State, today: i64) -> Option<Row> {
+    let ChatEntry::Message {
+        time: written,
+        body,
+        reply_to,
+        attachments,
+    } = ChatEntry::decode(bytes)?
+    else {
+        return None;
+    };
+    Some(Row {
+        author: me,
+        mine: true,
+        time: time(written, today),
+        arrived: None,
+        body,
+        edited: false,
+        reply: reply_to.map(|quoted| quote(log, quoted)),
+        reactions: Vec::new(),
+        attachments: attachments
+            .iter()
+            .map(|attachment| attachment.0)
+            .collect(),
+        state,
+    })
+}
+
+fn quote(log: &ChatLog, quoted: u64) -> Quote {
+    match log
+        .message(quoted)
+        .filter(|shown| shown.deleted.is_none())
+        .and_then(|shown| Some((shown.author, shown.body.as_deref()?)))
+    {
+        Some((author, body)) => Quote::Message(author, excerpt(body)),
+        None => Quote::Deleted,
     }
 }
 
@@ -1330,13 +947,6 @@ fn time(millis: i64, today: i64) -> String {
     }
 }
 
-/// A message the server lacks: the edit that sent it, and whether the server refused it.
-#[derive(Clone, Copy, Debug, PartialEq)]
-struct Unsent {
-    lacking: u64,
-    failed: bool,
-}
-
 fn excerpt(body: &str) -> String {
     const LONGEST: usize = 48;
     let line = body.lines().next().unwrap_or_default();
@@ -1350,214 +960,61 @@ fn now() -> i64 {
     i64::try_from(wall_clock().as_millis()).unwrap_or(i64::MAX)
 }
 
-/// The message and its edit as their author signed them, for each row to verify.
-fn proofs(content: &ChatContent, message: &Shown) -> Vec<Proof> {
-    let sent = &message.message;
-    let mut proofs = vec![Proof {
-        author: sent.author,
-        record: Record::Message(message.id, sent.clone()),
-        signature: sent.signature.0.clone(),
-    }];
-    let removed = |author: Uuid| Proof {
-        author,
-        signature: Vec::new(),
-        record: Record::Removed,
-    };
-    // A cut edit or a removed deletion is no record its author signed.
-    let edit = content.edit_head(message.id, sent.author);
-    if edit.cut || content.deletion_removed(message.id) {
-        proofs.push(removed(sent.author));
-    }
-    // Checked against the message's author whoever the record names, so an edit someone else
-    // put in the author's place is forged.
-    if let Some(edit) = edit.record {
-        proofs.push(Proof {
-            author: sent.author,
-            signature: edit.signature.0.clone(),
-            record: Record::Edit(message.id, edit, sent.clone()),
-        });
-    }
-    for (key, head) in content.reaction_heads(message.id) {
-        if head.cut {
-            proofs.push(removed(key.author));
-        }
-        if let Some(reaction) = head.record {
-            proofs.push(Proof {
-                author: key.author,
-                signature: reaction.signature.0.clone(),
-                record: Record::Reaction(key, reaction),
-            });
-        }
-    }
-    proofs
-}
-
-/// The row of a message whose deletion is forged: only a forged one has a row, so its proof
-/// is forged whatever the deletion's own signature says (one someone else signed as themselves
-/// verifies as theirs).
-fn deleted_row(deletion: &Deletion, today: i64) -> Row {
-    Row {
-        author: Some(deletion.author),
-        mine: false,
-        time: time(deletion.time, today),
-        arrived: None,
-        body: "Message deleted".to_owned(),
-        edited: false,
-        reply: None,
-        reactions: Vec::new(),
-        attachments: Vec::new(),
-        proofs: vec![Proof {
-            author: deletion.author,
-            signature: Vec::new(),
-            record: Record::Forged,
-        }],
-        deleted: true,
-        missing: false,
-    }
-}
-
-/// The forged deletions, each with the message it deleted: one the host says its author did not
-/// sign, one that keeps a message by someone else or one whose own signature is forged
-/// (only a message's author deletes it), one that keeps another message than the one a later
-/// message cites (`Deletion::kept_matches`), and one of a recent message that keeps none of it.
-/// Each deletion is asked about once, when it first shows in the content, and only a forged
-/// one gets a row; a closed message's deletion is checked against the segment's copy when it
-/// is read (`Older`).
-fn forged_deletions(
-    editor: Editor,
-    chat: Chat,
-    signing: Signal<Uuid>,
-) -> Memo<Vec<(ObjectId, Deletion)>> {
-    type Verdicts = HashMap<ObjectId, (Deletion, Option<Signer>)>;
-    let verdicts: Signal<Verdicts> = create_signal(HashMap::new());
-    create_effect(move || {
-        chat.track();
-        let block = signing.get();
-        let Ok(made) = chat.read(ChatContent::deletions_made) else {
-            return;
-        };
-        for (message, deletion) in made {
-            let asked = verdicts.with_untracked(|verdicts| {
-                verdicts
-                    .get(&message)
-                    .is_some_and(|(held, _)| *held == deletion)
-            });
-            if asked {
-                continue;
-            }
-            let kept_none_of_a_recent = deletion.message.is_none()
-                && chat
-                    .read(|content| !content.may_be_closed(message))
-                    .unwrap_or(false);
-            // What it keeps must be the message a later one cites, so it can't keep a made-up
-            // message of its own author's.
-            let kept_another = chat
-                .read(|content| deletion.kept_matches(block, message, &content.cited(message)))
-                .ok()
-                .flatten()
-                == Some(false);
-            if !deletion.by_author(None) || kept_none_of_a_recent || kept_another {
-                verdicts.update(|verdicts| {
-                    verdicts.insert(message, (deletion, Some(Signer::Bad)));
-                });
-                continue;
-            }
-            verdicts.update(|verdicts| {
-                verdicts.insert(message, (deletion.clone(), None));
-            });
-            let host = editor.host();
-            let checked = deletion.clone();
-            let asking = async move {
-                let signer = match host
-                    .verify(
-                        checked.author,
-                        checked.signed_bytes(block, message),
-                        checked.signature.0.clone(),
-                        None,
-                    )
-                    .await?
-                {
-                    Ok(signer) => signer,
-                    Err(failure) => return Some(Err(failure)),
-                };
-                let Some(sent) = &checked.message else {
-                    return Some(Ok(signer));
-                };
-                let wrote = match host
-                    .verify(
-                        sent.author,
-                        sent.signed_bytes(block, message),
-                        sent.signature.0.clone(),
-                        None,
-                    )
-                    .await?
-                {
-                    Ok(wrote) => wrote,
-                    Err(failure) => return Some(Err(failure)),
-                };
-                // Kept by a deletion, a message its author did not sign proves no author.
-                Some(Ok(match wrote {
-                    Signer::Bad => Signer::Bad,
-                    _ => signer,
-                }))
-            };
-            editor.then(asking, move |found| {
-                let Ok(signer) = found else {
-                    return;
-                };
-                verdicts.update(|verdicts| {
-                    if let Some((held, verdict)) = verdicts.get_mut(&message)
-                        && *held == deletion
-                    {
-                        *verdict = Some(signer);
-                    }
-                });
-            });
-        }
-    });
-    create_memo(move || {
-        verdicts.with(|verdicts| {
-            let mut forged: Vec<(ObjectId, Deletion)> = verdicts
-                .iter()
-                .filter(|(_, (_, verdict))| *verdict == Some(Signer::Bad))
-                .map(|(message, (deletion, _))| (*message, deletion.clone()))
-                .collect();
-            forged.sort_by_key(|(message, _)| *message);
-            forged
-        })
-    })
-}
-
-/// Deletes `message` as `me`, signed once the host signed it; unsigned if it could not, which
-/// others see as forged rather than lose it.
-fn delete(editor: Editor, chat: Chat, block: Uuid, me: Uuid, message: ObjectId) {
-    let Ok(deletion) = chat.read(|content| content.deletion(message, me, now())) else {
-        return;
-    };
-    let signing = editor.host().sign(deletion.signed_bytes(block, message));
-    editor.then(signing, move |signed| {
-        let deletion = Deletion {
-            signature: Signature(signed.unwrap_or_default()),
-            ..deletion
-        };
-        if let Ok(change) = chat.read(|content| content.put_deletion(message, &deletion)) {
-            chat.operate(change.into());
-        }
-    });
-}
-
-/// The longest body sent: well under what `sign` accepts, with the rest of the record.
+/// The longest body sent, well within what an entry carries.
 const MAX_BODY_BYTES: usize = 32 * 1024;
 
-/// Sends the draft, or saves the edit, once the host signed it as the person; unsigned if the
-/// host could not, which others see as forged rather than lose it.
+/// A key for what a sent message announces, so a send made again tells once: the account and
+/// a count of the sends this editor made, with the time.
+fn announcement_key(me: Uuid, time: i64) -> String {
+    thread_local! {
+        static SENT: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+    }
+    let count = SENT.with(|sent| {
+        sent.set(sent.get() + 1);
+        sent.get()
+    });
+    format!("{}.{time}.{count}", me.simple())
+}
+
+/// Appends a message, which the host signs as the person's, telling the chat's members who
+/// are away, and mentioning the author of the message it replies to. What it carries is listed
+/// as the message's once its entry's id is known (`Sends`).
+fn send_message(chat: Chat, log: Memo<ChatLog>, me: Uuid, entry: ChatEntry, sends: Sends) {
+    let ChatEntry::Message {
+        time,
+        reply_to,
+        attachments,
+        ..
+    } = &entry
+    else {
+        return;
+    };
+    let mentions: Vec<Uuid> = reply_to
+        .and_then(|quoted| {
+            log.with_untracked(|log| log.message(quoted).map(|shown| shown.author))
+        })
+        .filter(|author| *author != me)
+        .into_iter()
+        .collect();
+    let along = Along {
+        announcement: entry.announcement(announcement_key(me, *time), mentions),
+        redacts: None,
+    };
+    let (time, attachments) = (*time, attachments.clone());
+    let token = chat.append(entry.encode(), along);
+    if !attachments.is_empty() {
+        sends.with(|sends| sends.borrow_mut().insert(token, (time, attachments)));
+    }
+}
+
+/// Sends the draft, or saves the edit.
 fn submit(
-    editor: Editor,
-    chat: &Chat,
-    block: Uuid,
+    chat: Chat,
+    log: Memo<ChatLog>,
     me: Uuid,
     composer: Composer,
     attached: Attached,
+    sends: Sends,
 ) {
     let body = composer.draft.get_untracked().trim().to_owned();
     let editing = composer.editing.get_untracked();
@@ -1575,53 +1032,28 @@ fn submit(
     if unready {
         return;
     }
-    let attachments: Vec<Uuid> = pending.iter().map(|pending| pending.id).collect();
-    // A body the host would refuse to sign stays in the composer rather than go out as forged.
+    let attachments: Vec<BlockRef> = pending.iter().map(|pending| BlockRef(pending.id)).collect();
     if (body.is_empty() && attachments.is_empty()) || body.len() > MAX_BODY_BYTES {
         return;
     }
-    let chat = *chat;
     match editing {
         Some(message) => {
-            let prepared = chat
-                .read(|content| {
-                    let of = content.hash(block, message)?;
-                    Some((content.next_edit(message, me, now(), body), of))
-                })
-                .ok()
-                .flatten();
-            let Some((edit, of)) = prepared else {
-                return;
+            let edit = ChatEntry::Edit {
+                message,
+                time: now(),
+                body,
             };
-            let signing = editor.host().sign(edit.signed_bytes(block, message, of));
-            editor.then(signing, move |signed| {
-                let edit = MessageEdit {
-                    signature: Signature(signed.unwrap_or_default()),
-                    ..edit
-                };
-                if let Ok(change) = chat.read(|content| content.put_edit(message, &edit)) {
-                    chat.operate(change.into());
-                }
-            });
+            chat.append(edit.encode(), Along::default());
             composer.editing.set(None);
         }
         None => {
-            let message = Message {
-                attachments: attachments.into_iter().map(BlockRef).collect(),
-                ..Message::new(me, now(), body).replying_to(composer.replying.get_untracked())
+            let message = ChatEntry::Message {
+                time: now(),
+                body,
+                reply_to: composer.replying.get_untracked(),
+                attachments,
             };
-            if let Ok((id, message)) = chat.read(|content| content.draft(block, message)) {
-                let signing = editor.host().sign(message.signed_bytes(block, id));
-                editor.then(signing, move |signed| {
-                    let message = Message {
-                        signature: Signature(signed.unwrap_or_default()),
-                        ..message
-                    };
-                    if let Ok(send) = chat.read(|content| content.send_drafted(id, &message)) {
-                        chat.operate(send.into());
-                    }
-                });
-            }
+            send_message(chat, log, me, message, sends);
             composer.replying.set(None);
             composer.attaching.set(Vec::new());
         }
@@ -1629,89 +1061,59 @@ fn submit(
     composer.draft.set(String::new());
 }
 
-/// How far a row's records are trusted, from most to least.
-#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
-enum Trust {
-    Verified,
-    Unverified,
-    Changed,
-    /// Signed with a contact's key it had replaced before the record arrived
-    /// (`Signer::Replaced`).
-    Replaced,
-    /// A record was removed or a chain's latest cut (`Record::Removed`): someone changed the
-    /// history around the author's records, which says nothing against any record shown (a
-    /// removal is signed by nobody, so anyone with Edit can fake one).
-    Altered,
-    /// A record's signature is not its author's.
-    Forged,
-}
-
-impl From<Signer> for Trust {
-    fn from(signer: Signer) -> Self {
-        match signer {
-            Signer::Verified => Self::Verified,
-            Signer::Unverified => Self::Unverified,
-            Signer::Changed => Self::Changed,
-            Signer::Replaced => Self::Replaced,
-            Signer::Bad => Self::Forged,
-        }
+/// Deletes the message at `seq` as `me`: a deletion entry, which redacts the message once the
+/// server takes it, and what it carries is no longer listed.
+fn delete(chat: Chat, log: Memo<ChatLog>, me: Uuid, seq: u64) {
+    let time = now();
+    let deletion = ChatEntry::Delete { message: seq, time };
+    chat.append(
+        deletion.encode(),
+        Along {
+            announcement: None,
+            redacts: Some(seq),
+        },
+    );
+    let id = log.with_untracked(|log| log.message(seq).map(|shown| shown.id));
+    if let Some(id) = id
+        && let Ok(Some(unlisted)) = chat.read(|content| content.delete(id, me, time))
+    {
+        chat.operate(unlisted);
     }
 }
 
-/// Reacts to `message`, or takes `me`'s reaction back, as a record signed once the host signed
-/// it; unsigned if it could not.
-fn toggle_reaction(
-    editor: Editor,
-    chat: Chat,
-    block: Uuid,
-    me: Uuid,
-    message: ObjectId,
-    reaction: &str,
-    mine: bool,
-) {
-    let Ok((key, reaction)) =
-        chat.read(|content| content.reaction(message, me, reaction, now(), !mine))
-    else {
-        return;
+/// Reacts to the message at `seq`, or takes `me`'s reaction back, which redacts the record that
+/// kept it.
+fn toggle_reaction(chat: Chat, log: Memo<ChatLog>, me: Uuid, seq: u64, reaction: &str) {
+    let held = log.with_untracked(|log| log.reaction(seq, me, reaction));
+    let kept = !held.is_some_and(|(_, kept)| kept);
+    let entry = ChatEntry::React {
+        message: seq,
+        reaction: reaction.to_owned(),
+        kept,
+        time: now(),
     };
-    let signing = editor.host().sign(key.signed_bytes(block, &reaction));
-    editor.then(signing, move |signed| {
-        let reaction = Reaction {
-            signature: Signature(signed.unwrap_or_default()),
-            ..reaction
-        };
-        if let Ok(change) = chat.read(|content| content.put_reaction(&key, &reaction)) {
-            chat.operate(change.into());
-        }
-    });
-}
-
-/// The row of a message removed outright: one quiet line in its place, with nothing to act on.
-#[component]
-fn MissingRow(id: ObjectId) -> NodeId {
-    view! {
-        <Frame
-            padding={Padding::symmetric(Space::Md, Space::Xs)}
-            @test_id={format!("chat.missing.{id}")}
-        >
-            <Text style=TextStyle::CAPTION italic=true color=TextColor::Muted>{MISSING}</Text>
-        </Frame>
-    }
+    let redacts = held.filter(|(_, kept)| *kept).map(|(place, _)| place);
+    chat.append(
+        entry.encode(),
+        Along {
+            announcement: None,
+            redacts,
+        },
+    );
 }
 
 #[component]
 fn MessageRow(
-    editor: Editor,
     chat: Chat,
+    editor: Editor,
     me: Uuid,
     names: Names,
-    id: ObjectId,
+    key: RowKey,
     row: ReadSignal<Row>,
     composer: Composer,
-    unsent: Memo<HashMap<ObjectId, Unsent>>,
-    block: Uuid,
-    signing: Signal<Uuid>,
+    log: Memo<ChatLog>,
     attached: Attached,
+    sends: Sends,
 ) -> NodeId {
     let attachment_ids = create_memo(move || row.with(|row| row.attachments.clone()));
     let has_attachments = create_memo(move || attachment_ids.with(|ids| !ids.is_empty()));
@@ -1723,54 +1125,26 @@ fn MessageRow(
                 editor
                 id={attachment}
                 attached
-                link_id={format!("chat.message.{id}.attachment.{attachment}")}
+                link_id={format!("chat.message.{key}.attachment.{attachment}")}
             />
         }
     };
-    let proofs = create_memo(move || row.with(|row| row.proofs.clone()));
-    // Who signed it, once the host says: nothing is marked until then.
-    let signer = create_async_memo(move || {
-        let proofs = proofs.get();
-        let chat = signing.get();
-        let host = editor.host();
-        async move {
-            // The least a row's records are trusted: one forged record makes it forged.
-            let mut least = Trust::Verified;
-            for proof in proofs {
-                if matches!(proof.record, Record::Forged) {
-                    least = least.max(Trust::Forged);
-                    continue;
-                }
-                let Some(bytes) = proof.record.signed_bytes(chat) else {
-                    least = least.max(Trust::Altered);
-                    continue;
-                };
-                let arrival = proof.record.arrival();
-                let verified = host
-                    .verify(proof.author, bytes, proof.signature, arrival)
-                    .await;
-                let signer = verified
-                    .and_then(Result::ok)
-                    .ok_or(be_sdk_beui::beui::reactive::Pending::Loading)?;
-                least = least.max(Trust::from(signer));
-            }
-            Ok(least)
-        }
+    let state = create_memo(move || row.with(|row| row.state.clone()));
+    let signer = create_memo(move || match state.get() {
+        State::Logged(signer) | State::Deleted(signer) => Some(signer),
+        State::Sending | State::NotSent(..) => None,
     });
-    let unverified = create_memo(move || signer.get() == Ok(Trust::Unverified));
-    let changed = create_memo(move || signer.get() == Ok(Trust::Changed));
-    let replaced = create_memo(move || signer.get() == Ok(Trust::Replaced));
-    let altered = create_memo(move || signer.get() == Ok(Trust::Altered));
-    let forged = create_memo(move || signer.get() == Ok(Trust::Forged));
+    let unverified = create_memo(move || signer.get() == Some(LogSigner::Unverified));
+    let changed = create_memo(move || signer.get() == Some(LogSigner::Changed));
+    let replaced = create_memo(move || signer.get() == Some(LogSigner::Replaced));
+    let forged = create_memo(move || signer.get() == Some(LogSigner::Bad));
+    let old_key = create_memo(move || match matches!(state.get(), State::Deleted(_)) {
+        true => "deleted with an old key".to_owned(),
+        false => "sent with an old key".to_owned(),
+    });
     let account = create_memo(move || row.with(|row| row.author));
-    let author = create_memo(move || {
-        account
-            .get()
-            .map(|author| names.name(author))
-            .unwrap_or_default()
-    });
-    let name_unverified =
-        create_memo(move || account.get().is_some_and(|author| names.unverified(author)));
+    let author = create_memo(move || names.name(account.get()));
+    let name_unverified = create_memo(move || names.unverified(account.get()));
     // A name the server gave says so already; one caption is enough for a key not verified too.
     let key_unverified = create_memo(move || unverified.get() && !name_unverified.get());
     let time = create_memo(move || row.with(|row| row.time.clone()));
@@ -1779,8 +1153,14 @@ fn MessageRow(
     let body = create_memo(move || row.with(|row| row.body.clone()));
     let edited = create_memo(move || row.with(|row| row.edited));
     let mine = create_memo(move || row.with(|row| row.mine));
-    let actionable = create_memo(move || row.with(|row| !row.deleted));
-    let deleted = create_memo(move || !actionable.get());
+    let deleted = create_memo(move || matches!(state.get(), State::Deleted(_)));
+    // Only a message in the log takes a reply, a reaction, an edit or a deletion.
+    let logged = match key {
+        RowKey::Logged(seq) => Some(seq),
+        RowKey::Kept(_) | RowKey::Refused(_) => None,
+    };
+    let actionable = create_memo(move || logged.is_some() && !deleted.get());
+    let own_actions = create_memo(move || actionable.get() && mine.get());
     let quote = create_memo(move || {
         row.with(|row| {
             row.reply
@@ -1799,35 +1179,29 @@ fn MessageRow(
         })
     });
     let reacted = create_memo(move || reactions.with(|reactions| !reactions.is_empty()));
-    let picking = create_memo(move || composer.picking.get() == Some(id));
-    let unsent = create_memo(move || unsent.with(|unsent| unsent.get(&id).copied()));
-    let sending = create_memo(move || unsent.get().is_some());
-    let failed = create_memo(move || unsent.get().is_some_and(|unsent| unsent.failed));
+    let picking = create_memo(move || logged.is_some() && composer.picking.get() == logged);
+    let sending = create_memo(move || matches!(state.get(), State::Sending));
+    let failed = create_memo(move || matches!(state.get(), State::NotSent(..)));
     // A message the server refused is sent again as a new one, or given up; either way the
     // one that failed goes.
     let let_go = move |again: bool| {
-        let Some(unsent) = unsent.get_untracked() else {
+        let State::NotSent(_, token) = state.get_untracked() else {
             return;
         };
         if again {
-            let sent = chat.read(|content| {
-                let message = content.message(id)?;
-                let body = content.body(id)?;
-                let again = Message {
-                    attachments: message.attachments,
-                    ..Message::new(me, now(), body).replying_to(message.reply_to)
-                };
-                Some(content.send(block, again).1)
+            let entry = chat.with_refused(|refused| {
+                for (refused, bytes, _) in refused {
+                    if refused == token {
+                        return ChatEntry::decode(bytes);
+                    }
+                }
+                None
             });
-            if let Ok(Some(send)) = sent {
-                chat.operate(send.into());
+            if let Some(entry) = entry {
+                send_message(chat, log, me, entry, sends);
             }
         }
-        // Given up, or sent as a new message: deleting it leaves the chat listing only what
-        // another message carries, so a block made for it alone goes with it (to the trash, where
-        // Restore finds it) and a referenced one stays where it is.
-        delete(editor, chat, signing.get_untracked(), me, id);
-        chat.dismiss_lacking(unsent.lacking);
+        chat.dismiss_refused(token);
     };
 
     let reaction_chips = move |reaction: String| {
@@ -1859,18 +1233,12 @@ fn MessageRow(
                 label={count}
                 glyph={glyph}
                 pressed={Binding::new(pressed, move |_| {
-                    toggle_reaction(
-                        editor,
-                        chat,
-                        signing.get_untracked(),
-                        me,
-                        id,
-                        &reaction,
-                        pressed.get_untracked(),
-                    );
+                    if let Some(seq) = logged {
+                        toggle_reaction(chat, log, me, seq, &reaction);
+                    }
                 })}
                 accessibility={accessible}
-                @test_id={format!("chat.message.{id}.reaction.{name_for_id}")}
+                @test_id={format!("chat.message.{key}.reaction.{name_for_id}")}
             />
         }
     };
@@ -1883,22 +1251,11 @@ fn MessageRow(
                 icon_only=true
                 variant=ButtonVariant::Ghost
                 size=ButtonSize::Small
-                @test_id={format!("chat.message.{id}.react.{reaction}")}
+                @test_id={format!("chat.message.{key}.react.{reaction}")}
                 on_click={move || {
-                    let mine = row.with_untracked(|row| {
-                        row.reactions
-                            .iter()
-                            .any(|reacted| reacted.reaction == reaction && reacted.mine)
-                    });
-                    toggle_reaction(
-                        editor,
-                        chat,
-                        signing.get_untracked(),
-                        me,
-                        id,
-                        reaction,
-                        mine,
-                    );
+                    if let Some(seq) = logged {
+                        toggle_reaction(chat, log, me, seq, reaction);
+                    }
                     composer.picking.set(None);
                 }}
             />
@@ -1914,7 +1271,7 @@ fn MessageRow(
             }}
             radius=Radius::Md
             padding={Padding::symmetric(Space::Lg, Space::Md)}
-            @test_id={format!("chat.message.{id}")}
+            @test_id={format!("chat.message.{key}")}
         >
             <List spacing=Space::Sm>
                 <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
@@ -1924,7 +1281,7 @@ fn MessageRow(
                             <Show value={name_unverified}>
                                 <Text
                                     style=TextStyle::CAPTION
-                                    @test_id={format!("chat.message.{id}.name_unverified")}
+                                    @test_id={format!("chat.message.{key}.name_unverified")}
                                 >
                                     "unverified name"
                                 </Text>
@@ -1933,7 +1290,7 @@ fn MessageRow(
                             <Show value={late}>
                                 <Text
                                     style=TextStyle::CAPTION
-                                    @test_id={format!("chat.message.{id}.arrived")}
+                                    @test_id={format!("chat.message.{key}.arrived")}
                                 >
                                     {arrived}
                                 </Text>
@@ -1942,45 +1299,41 @@ fn MessageRow(
                                 <Text style=TextStyle::CAPTION>"edited"</Text>
                             </Show>
                             <Show value={sending}>
-                                <Show
-                                    value={failed}
-                                    fallback={move || view! {
-                                        <Text
-                                            style=TextStyle::CAPTION
-                                            @test_id={format!("chat.message.{id}.sending")}
-                                        >
-                                            "Sending"
-                                        </Text>
-                                    }}
+                                <Text
+                                    style=TextStyle::CAPTION
+                                    @test_id={format!("chat.message.{key}.sending")}
                                 >
-                                    <Text
-                                        style=TextStyle::CAPTION
-                                        color=TextColor::Danger
-                                        @test_id={format!("chat.message.{id}.not_sent")}
-                                    >
-                                        "Not sent"
-                                    </Text>
-                                    <List
-                                        direction=Direction::Horizontal
-                                        align=Align::Center
-                                        spacing=Space::Xs
-                                    >
-                                        <Button
-                                            label="Send again"
-                                            variant=ButtonVariant::Ghost
-                                            size=ButtonSize::Small
-                                            @test_id={format!("chat.message.{id}.retry")}
-                                            on_click={move || let_go(true)}
-                                        />
-                                        <Button
-                                            label="Discard"
-                                            variant=ButtonVariant::Ghost
-                                            size=ButtonSize::Small
-                                            @test_id={format!("chat.message.{id}.discard")}
-                                            on_click={move || let_go(false)}
-                                        />
-                                    </List>
-                                </Show>
+                                    "Sending"
+                                </Text>
+                            </Show>
+                            <Show value={failed}>
+                                <Text
+                                    style=TextStyle::CAPTION
+                                    color=TextColor::Danger
+                                    @test_id={format!("chat.message.{key}.not_sent")}
+                                >
+                                    "Not sent"
+                                </Text>
+                                <List
+                                    direction=Direction::Horizontal
+                                    align=Align::Center
+                                    spacing=Space::Xs
+                                >
+                                    <Button
+                                        label="Send again"
+                                        variant=ButtonVariant::Ghost
+                                        size=ButtonSize::Small
+                                        @test_id={format!("chat.message.{key}.retry")}
+                                        on_click={move || let_go(true)}
+                                    />
+                                    <Button
+                                        label="Discard"
+                                        variant=ButtonVariant::Ghost
+                                        size=ButtonSize::Small
+                                        @test_id={format!("chat.message.{key}.discard")}
+                                        on_click={move || let_go(false)}
+                                    />
+                                </List>
                             </Show>
                             <Show value={key_unverified}>
                                 <Text style=TextStyle::CAPTION>"not verified"</Text>
@@ -1992,12 +1345,7 @@ fn MessageRow(
                             </Show>
                             <Show value={replaced}>
                                 <Text style=TextStyle::CAPTION color=TextColor::Warning>
-                                    "sent with an old key"
-                                </Text>
-                            </Show>
-                            <Show value={altered}>
-                                <Text style=TextStyle::CAPTION color=TextColor::Warning>
-                                    "history altered"
+                                    {old_key}
                                 </Text>
                             </Show>
                             <Show value={forged}>
@@ -2015,13 +1363,13 @@ fn MessageRow(
                                 icon_only=true
                                 variant=ButtonVariant::Ghost
                                 size=ButtonSize::Small
-                                @test_id={format!("chat.message.{id}.reply")}
+                                @test_id={format!("chat.message.{key}.reply")}
                                 on_click={move || {
                                     if composer.editing.get_untracked().is_some() {
                                         composer.editing.set(None);
                                         composer.draft.set(String::new());
                                     }
-                                    composer.replying.set(Some(id));
+                                    composer.replying.set(logged);
                                 }}
                             />
                             <Button
@@ -2030,15 +1378,15 @@ fn MessageRow(
                                 icon_only=true
                                 variant=ButtonVariant::Ghost
                                 size=ButtonSize::Small
-                                @test_id={format!("chat.message.{id}.react")}
+                                @test_id={format!("chat.message.{key}.react")}
                                 on_click={move || {
-                                    let open = composer.picking.get_untracked() == Some(id);
-                                    composer.picking.set((!open).then_some(id));
+                                    let open = composer.picking.get_untracked() == logged;
+                                    composer.picking.set(if open { None } else { logged });
                                 }}
                             />
                         </List>
                     </Show>
-                    <Show value={mine}>
+                    <Show value={own_actions}>
                         <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
                             <Show value={has_body}>
                                 <Button
@@ -2047,10 +1395,10 @@ fn MessageRow(
                                     icon_only=true
                                     variant=ButtonVariant::Ghost
                                     size=ButtonSize::Small
-                                    @test_id={format!("chat.message.{id}.edit")}
+                                    @test_id={format!("chat.message.{key}.edit")}
                                     on_click={move || {
                                         composer.replying.set(None);
-                                        composer.editing.set(Some(id));
+                                        composer.editing.set(logged);
                                         composer.draft.set(body.get_untracked());
                                     }}
                                 />
@@ -2061,12 +1409,14 @@ fn MessageRow(
                                 icon_only=true
                                 variant=ButtonVariant::Ghost
                                 size=ButtonSize::Small
-                                @test_id={format!("chat.message.{id}.delete")}
+                                @test_id={format!("chat.message.{key}.delete")}
                                 on_click={move || {
-                                    delete(editor, chat, signing.get_untracked(), me, id);
-                                    if composer.editing.get_untracked() == Some(id) {
-                                        composer.editing.set(None);
-                                        composer.draft.set(String::new());
+                                    if let Some(seq) = logged {
+                                        delete(chat, log, me, seq);
+                                        if composer.editing.get_untracked() == Some(seq) {
+                                            composer.editing.set(None);
+                                            composer.draft.set(String::new());
+                                        }
                                     }
                                 }}
                             />

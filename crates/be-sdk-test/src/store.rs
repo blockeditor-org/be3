@@ -1,5 +1,5 @@
 use std::cell::RefCell;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::rc::Rc;
 
 use be_block_store::{ChunkerConfig, ContentKey, Hash, Keyring, Manifest, MemoryStore, Vault};
@@ -124,6 +124,23 @@ struct Inner {
     host: Connection,
     clock: Outlets<()>,
     sleeping: Vec<Reply<()>>,
+    /// Whether the server holds appends to signed logs back (`hold_appends`), as one not
+    /// reached yet, and those it holds: each block, entry id, bytes and what goes along.
+    hold_appends: bool,
+    held_appends: Vec<(
+        Option<Uuid>,
+        Uuid,
+        Vec<u8>,
+        be_sdk_type_guest::api::Along,
+    )>,
+    /// Why the server refuses appends, while it does (`refuse_appends`).
+    refuse_appends: Option<String>,
+    /// How many appends were made, which numbers their ids.
+    appends: u64,
+    /// The entries logged since the replicas were last handed them, by replica.
+    logged: Vec<(Replica, Vec<be_sdk_type_guest::api::LogItem>)>,
+    /// Who signed what each account appends, where a test says (`set_log_signer`).
+    signers: HashMap<Uuid, be_sdk_type_guest::api::Signer>,
     /// Whether the server holds submissions back (`hold_submissions`), and those it holds.
     hold_submissions: bool,
     held_submissions: Vec<(Option<Uuid>, Call)>,
@@ -192,6 +209,12 @@ impl Default for Inner {
             host: Connection::new(Side::Host),
             clock: Outlets::default(),
             sleeping: Vec::new(),
+            hold_appends: false,
+            held_appends: Vec::new(),
+            refuse_appends: None,
+            appends: 0,
+            logged: Vec::new(),
+            signers: HashMap::new(),
             hold_submissions: false,
             held_submissions: Vec::new(),
             now: 0,
@@ -490,52 +513,30 @@ impl Inner {
                 bytes,
                 along,
             } => {
-                let Some(held) = block.and_then(|block| self.blocks.get_mut(&block)) else {
-                    return reply.send(&mut self.host, &Err("no such block".to_owned()));
+                if let Some(why) = self.refuse_appends.clone() {
+                    return reply.send(&mut self.host, &Err(why));
+                }
+                self.appends += 1;
+                let id = uuid::Uuid::from_u64_pair(0xa99e_d000, self.appends);
+                let held = self.offline || self.hold_appends;
+                let place = match held {
+                    true => {
+                        self.held_appends.push((block, id, bytes, along));
+                        None
+                    }
+                    false => self
+                        .log_entry(block, id, self.account, bytes, along, None)
+                        .map(|(seq, arrival)| be_sdk_type_guest::api::host::LogPlace { seq, arrival }),
                 };
-                let seq = held.log.len() as u64;
-                let arrival = seq as i64;
-                let item = be_sdk_type_guest::api::LogItem {
-                    seq,
-                    id: uuid::Uuid::from_u64_pair(0, seq),
-                    author: uuid::Uuid::nil(),
-                    arrival,
-                    payload: Some(bytes),
-                    signer: be_sdk_type_guest::api::Signer::Verified,
-                };
-                held.log.push(item.clone());
-                // What it takes back loses its payload, as the server's redaction does; this
-                // device is every entry's author.
-                let redacted = along
-                    .redacts
-                    .and_then(|seq| held.log.get_mut(seq as usize))
-                    .map(|taken| {
-                        taken.payload = None;
-                        taken.signer = be_sdk_type_guest::api::Signer::Redacted;
-                        taken.clone()
-                    });
-                let replica = held.replica;
-                let place = be_sdk_type_guest::api::host::LogPlace { seq, arrival };
                 reply.send(
                     &mut self.host,
-                    &Ok(be_sdk_type_guest::api::host::Appended {
-                        id: item.id,
-                        place: Some(place),
-                    }),
+                    &Ok(be_sdk_type_guest::api::host::Appended { id, place }),
                 );
-                if let Some(announcement) = along.announcement {
-                    self.announcing
-                        .push((block, Announcing::Held(seq), announcement));
-                    self.send_announcements(block);
-                }
-                if let Some(replica) = replica {
-                    self.on_replica(replica, |replica, host| {
-                        replica.logged(host, [item].into_iter().chain(redacted).collect());
-                    });
-                }
+                self.deliver_logged();
             }
             Call::ReadLog { reply, from, limit } => {
                 let log = block
+                    .or(self.own)
                     .and_then(|block| self.blocks.get(&block))
                     .map(|held| held.log.clone())
                     .unwrap_or_default();
@@ -545,10 +546,19 @@ impl Inner {
                     .take(limit as usize)
                     .cloned()
                     .collect();
+                let kept = self
+                    .held_appends
+                    .iter()
+                    .filter(|(at, ..)| *at == block)
+                    .map(|(_, id, bytes, _)| be_sdk_type_guest::api::KeptEntry {
+                        id: *id,
+                        payload: bytes.clone(),
+                    })
+                    .collect();
                 let page = be_sdk_type_guest::api::LogPage {
                     size: log.len() as u64,
                     items,
-                    kept: Vec::new(),
+                    kept,
                 };
                 reply.send(&mut self.host, &Ok(page));
             }
@@ -679,6 +689,99 @@ impl Inner {
         self.run();
         let outcome = self.replies.remove(&ticket.op())?;
         ticket.decode(outcome).ok()
+    }
+
+    /// Puts an entry `author` wrote in `block`'s log as the server would, numbered and stamped,
+    /// with what goes along with it: what it announces is sent, and what it takes back loses
+    /// its payload. Its replica hears it, with what it took back, on `deliver_logged`. Its place
+    /// and arrival, or none for a block not held.
+    fn log_entry(
+        &mut self,
+        block: Option<Uuid>,
+        id: Uuid,
+        author: Uuid,
+        bytes: Vec<u8>,
+        along: be_sdk_type_guest::api::Along,
+        arrival: Option<i64>,
+    ) -> Option<(u64, i64)> {
+        let key = block.or(self.own)?;
+        let held = self.blocks.get_mut(&key)?;
+        let seq = held.log.len() as u64;
+        // The server's clock, as the test's wall clock reads it now.
+        let arrival = arrival.unwrap_or(
+            (beui_core::timer::TEST_WALL_CLOCK.as_millis() as u64 + self.now) as i64,
+        );
+        let item = be_sdk_type_guest::api::LogItem {
+            seq,
+            id,
+            author,
+            arrival,
+            payload: Some(bytes),
+            signer: self.signer_of(author),
+        };
+        let held = self.blocks.get_mut(&key)?;
+        held.log.push(item.clone());
+        // What it takes back loses its payload, as the server's redaction does.
+        let redacted = along
+            .redacts
+            .and_then(|seq| held.log.get_mut(seq as usize))
+            .filter(|taken| taken.author == author)
+            .map(|taken| {
+                taken.payload = None;
+                taken.signer = be_sdk_type_guest::api::Signer::Redacted;
+                taken.clone()
+            });
+        if let Some(replica) = held.replica {
+            self.logged
+                .push((replica, [item].into_iter().chain(redacted).collect()));
+        }
+        if let Some(announcement) = along.announcement {
+            self.announcing
+                .push((block, Announcing::Held(seq), announcement));
+            if self.held_appends.is_empty() {
+                self.send_announcements(block);
+            }
+        }
+        Some((seq, arrival))
+    }
+
+    /// Who signed what `author` appended, as the host's verdict: a test's `set_signer`, or a
+    /// contact's key.
+    fn signer_of(&self, author: Uuid) -> be_sdk_type_guest::api::Signer {
+        match self.signers.get(&author) {
+            Some(signer) => *signer,
+            None => be_sdk_type_guest::api::Signer::Verified,
+        }
+    }
+
+    /// The server takes the appends it held, in order.
+    /// What they announce goes as one per block, as a drain sends it.
+    fn release_appends(&mut self) {
+        let held = std::mem::take(&mut self.held_appends);
+        let mut blocks = Vec::new();
+        for (index, (block, id, bytes, along)) in held.iter().cloned().enumerate() {
+            let author = self.account;
+            // Each but the last is taken as one more the drain holds back.
+            self.held_appends = held[index + 1..].to_vec();
+            self.log_entry(block, id, author, bytes, along, None);
+            if !blocks.contains(&block) {
+                blocks.push(block);
+            }
+        }
+        self.held_appends.clear();
+        for block in blocks {
+            self.send_announcements(block);
+        }
+        self.deliver_logged();
+    }
+
+    /// Hands each replica the entries its log took since this was last called.
+    fn deliver_logged(&mut self) {
+        for (replica, items) in std::mem::take(&mut self.logged) {
+            self.on_replica(replica, |replica, host| {
+                replica.logged(host, items);
+            });
+        }
     }
 
     fn on_replica(&mut self, replica: Replica, call: impl FnOnce(Replica, &mut Connection)) {
@@ -1177,6 +1280,81 @@ impl ContentStore {
         self.0.borrow_mut().hold_reads = hold;
     }
 
+    /// Holds appends to signed logs back, as a server not reached yet: each is answered as kept
+    /// on the device; released, the server takes those it held, in order.
+    pub fn hold_appends(&self, hold: bool) {
+        let mut inner = self.0.borrow_mut();
+        inner.hold_appends = hold;
+        if !hold && !inner.offline {
+            inner.release_appends();
+        }
+    }
+
+    /// Has the server refuse appends to signed logs, saying `why`, until called with none.
+    pub fn refuse_appends(&self, why: Option<&str>) {
+        self.0.borrow_mut().refuse_appends = why.map(str::to_owned);
+    }
+
+    /// Puts an entry `author` wrote in `block`'s signed log, as another device's append the
+    /// server took at `arrival` (by its clock now, for none): its place.
+    pub fn log_entry(
+        &self,
+        block: Option<Uuid>,
+        author: Uuid,
+        bytes: Vec<u8>,
+        arrival: Option<i64>,
+    ) -> u64 {
+        let mut inner = self.0.borrow_mut();
+        inner.appends += 1;
+        let id = uuid::Uuid::from_u64_pair(0xa99e_d000, inner.appends);
+        let along = be_sdk_type_guest::api::Along {
+            announcement: None,
+            redacts: None,
+        };
+        let place = inner.log_entry(block, id, author, bytes, along, arrival);
+        inner.deliver_logged();
+        place.map_or(0, |(seq, _)| seq)
+    }
+
+    /// `block`'s signed log as the server holds it.
+    pub fn log(&self, block: Option<Uuid>) -> Vec<be_sdk_type_guest::api::LogItem> {
+        let key = self.key(block);
+        self.0
+            .borrow()
+            .blocks
+            .get(&key)
+            .map(|held| held.log.clone())
+            .unwrap_or_default()
+    }
+
+    /// The appends to `block`'s signed log the server holds back, each id and its bytes.
+    pub fn held_appends(&self, block: Option<Uuid>) -> Vec<(Uuid, Vec<u8>)> {
+        let key = self.key(block);
+        let inner = self.0.borrow();
+        inner
+            .held_appends
+            .iter()
+            .filter(|(at, ..)| at.or(inner.own) == Some(key))
+            .map(|(_, id, bytes, _)| (*id, bytes.clone()))
+            .collect()
+    }
+
+    /// Says who signed what `author` appends to a signed log, as the host would tell.
+    pub fn set_log_signer(&self, author: Uuid, signer: be_sdk_beui::be_block_content::LogSigner) {
+        use be_sdk_beui::be_block_content::LogSigner;
+        use be_sdk_type_guest::api::Signer;
+        let signer = match signer {
+            LogSigner::Verified => Signer::Verified,
+            LogSigner::Unverified => Signer::Unverified,
+            LogSigner::Changed => Signer::Changed,
+            LogSigner::Replaced => Signer::Replaced,
+            LogSigner::Bad => Signer::Bad,
+            LogSigner::Unknown => Signer::Unknown,
+            LogSigner::Redacted => Signer::Redacted,
+        };
+        self.0.borrow_mut().signers.insert(author, signer);
+    }
+
     /// Holds submissions back, as a server that has not answered yet; released, it takes those
     /// it held in order, so a test can look at an edit sent and not yet held by the server.
     pub fn hold_submissions(&self, hold: bool) {
@@ -1348,6 +1526,10 @@ impl ContentStore {
         self.0.borrow_mut().offline = !online;
         if online {
             self.drain(false);
+            let mut inner = self.0.borrow_mut();
+            if !inner.hold_appends {
+                inner.release_appends();
+            }
         }
     }
 
