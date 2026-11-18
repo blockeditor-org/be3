@@ -26,6 +26,7 @@ async fn a_block_agent_is_refused_while_its_block_is_in_the_trash() {
                     time: 1_000,
                     pinned: false,
                     objects: Vec::new(),
+                    log_through: None,
                 }),
                 references: listing(&[], vec![terminal]),
                 metadata: Vec::new(),

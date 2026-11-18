@@ -2,6 +2,7 @@ use std::fmt;
 
 mod access;
 pub mod aead;
+pub mod merkle;
 pub use access::{
     Administrator, Asked, Authority, CarriedKey, Checked, Entry, EntryHash, FORMER_OWNER, Grant,
     Heads, Invitation, Invited, Level, Link, LogKind, Logged, Logs, MAX_ANCESTRY, Member, Named,

@@ -285,6 +285,7 @@ impl<S: ObjectStore> Peer<S> {
                             time: pending.time,
                             pinned: false,
                             objects: Vec::new(),
+                            log_through: None,
                         }),
                         references: be_block_protocol::ReferenceChange::between(
                             &[],

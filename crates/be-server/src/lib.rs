@@ -47,6 +47,7 @@ mod http;
 pub mod journal;
 pub mod keys;
 pub mod limits;
+pub mod log;
 mod notifications;
 pub mod objects;
 pub mod oidc;
@@ -441,6 +442,10 @@ pub async fn serve_with_mail(
             limits::MAX_NOTIFICATIONS_PER_BLOCK,
             Duration::from_secs(60),
         )),
+        log_entries: Arc::new(address::Rate::new(
+            log::MAX_ENTRIES_PER_MINUTE,
+            Duration::from_secs(60),
+        )),
         portal: config
             .portal
             .map(|portal| Arc::new(portal::Served::new(portal))),
@@ -601,6 +606,8 @@ pub(crate) struct Services {
     notifications: Arc<address::Rate<uuid::Uuid>>,
     /// Notifications each account sent about each block this minute.
     block_notifications: Arc<address::Rate<(uuid::Uuid, uuid::Uuid)>>,
+    /// Log entries each account appended this minute.
+    log_entries: Arc<address::Rate<uuid::Uuid>>,
 }
 
 /// What a connection was let in with: its place among its address's connections and among

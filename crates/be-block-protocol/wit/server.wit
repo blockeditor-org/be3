@@ -32,6 +32,7 @@ interface server {
         publish-outcome, reference-change,
     };
     use sessions.{session-event};
+    use logs.{entry-id, log-head, log-entry, log-page, logged, new-entry};
     use contacts.{invitation-preview, invitation-row, link, link-kind};
     use keys.{key-page, key-work, recovery-key, retirement, revocation, signing-key};
     use members.{bound-agent, created-agent, member};
@@ -97,6 +98,13 @@ interface server {
         /// above on any block, else a proof path, empty for the personal
         /// organization.
         log(option<block-id>),
+        /// A page of a block's signed log: at most `limit` entries (and
+        /// `be_server::log::MAX_PAGE_ENTRIES`, and what fits half a frame)
+        /// from `from`, with the hashes that tie them to the log's head, and
+        /// with `known`, a head size the caller holds, those that show the
+        /// head extends it. Needs View. Followed, the connection hears
+        /// `appended` as entries are appended.
+        block-log(block-log-query),
         /// Who may do what to a block, for its managers.
         access(block-id),
         /// One page of the keys of `blocks`, or of every key the caller holds
@@ -204,6 +212,13 @@ interface server {
         tag: hash,
     }
 
+    record block-log-query {
+        block: block-id,
+        %from: u64,
+        limit: u32,
+        known: option<u64>,
+    }
+
     /// A read's answer: the case its query asks for.
     variant page {
         summaries(list<option<block-summary>>),
@@ -212,6 +227,7 @@ interface server {
         tree(changed-page),
         history(list<history-entry>),
         log(list<list<u8>>),
+        block-log(log-page),
         access(access-list),
         keys(key-page),
         key-work(key-work),
@@ -248,6 +264,7 @@ interface server {
     variant topic {
         tree(block-id),
         session(block-id),
+        block-log(block-id),
         keys,
         key-work,
         roots,
@@ -287,6 +304,18 @@ interface server {
         /// Appends a signed record to an access log once the server checks it
         /// there (guides/blocks/keys.md).
         append-log(log-record),
+        /// Appends entries to a block's signed log, in order, each numbered
+        /// and stamped by the server, answered as `logged` with where each
+        /// went. An entry whose id the log holds is answered where it went
+        /// before. Needs Edit. Charged to the block's payer; at most
+        /// `be_server::log::MAX_ENTRIES_PER_APPEND` entries, and
+        /// `be_server::log::MAX_ENTRIES_PER_MINUTE` a minute from one account.
+        append(append),
+        /// Drops an entry's payload, keeping its hash, so the tree still
+        /// verifies and the log still shows the entry and who wrote it. By the
+        /// entry's author, or with Manage on the block. Redacting one redacted
+        /// is no refusal.
+        redact(redact),
         /// Deletes an agent: by the account that made it (a block's agent, only
         /// while it manages the block), or by an administrator. It goes with
         /// what it was granted and what was sealed to it. In a company
@@ -431,12 +460,26 @@ interface server {
         time: s64,
         pinned: bool,
         objects: list<list<u8>>,
+        /// The head of the block's signed log this commit was made on, which
+        /// the server refuses unless it is a head the log had: a prefix of
+        /// the log as it is.
+        log-through: option<log-head>,
     }
 
     record move {
         block: block-id,
         parent: block-parent,
         placement: list<u8>,
+    }
+
+    record append {
+        block: block-id,
+        entries: list<new-entry>,
+    }
+
+    record redact {
+        block: block-id,
+        seq: u64,
     }
 
     /// A signed record for an access log, by the kind of log entry it is.
@@ -599,6 +642,8 @@ interface server {
         agent(created-agent),
         /// `rotate-agent-token`: the agent's new token.
         token(string),
+        /// `append`: where each entry went, in order.
+        logged(list<logged>),
     }
 
     /// Why a write was refused: the index of the op refused, and why. None of
@@ -684,6 +729,8 @@ interface server {
         /// Another connection of the account sent this one a message
         /// (`target.devices`).
         paired(pairing-message),
+        /// Entries were appended to a block's log the connection follows.
+        appended(appended),
     }
 
     record tree-advanced {
@@ -701,6 +748,21 @@ interface server {
     record followed {
         organization: option<organization-id>,
         topic: topic,
+    }
+
+    /// One append's entries, from `previous` (the log's size before them) to
+    /// `head`: `proof` ties them to `head`, and `consistency` shows `head`
+    /// extends the head of size `previous`. A follower that holds that head
+    /// takes them as they are; one that holds an older one reads what it
+    /// missed with `block-log`.
+    record appended {
+        organization: organization-id,
+        block: block-id,
+        previous: u64,
+        head: log-head,
+        entries: list<log-entry>,
+        proof: list<hash>,
+        consistency: list<hash>,
     }
 
     /// Answers at once, so a client learns its socket is alive; the server
@@ -741,6 +803,7 @@ world client {
     import objects;
     import blocks;
     import sessions;
+    import logs;
     import keys;
     import notifications;
     import server;

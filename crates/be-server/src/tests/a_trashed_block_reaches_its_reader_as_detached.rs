@@ -43,6 +43,7 @@ async fn a_trashed_block_reaches_its_reader_as_detached() {
                     time: 1_000,
                     pinned: false,
                     objects: Vec::new(),
+                    log_through: None,
                 }),
                 references: listing(&[], Vec::new()),
                 metadata: Vec::new(),

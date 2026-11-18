@@ -127,6 +127,7 @@ impl<S: ObjectStore> Peer<S> {
                     time: 0,
                     pinned: false,
                     objects: Vec::new(),
+                    log_through: None,
                 }),
                 references: Default::default(),
                 metadata: Vec::new(),

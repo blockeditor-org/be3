@@ -1352,6 +1352,7 @@ version = "0.1.0"
 dependencies = [
  "be-block-commit",
  "be-block-graph",
+ "be-block-keys",
  "be-block-store",
  "be-wasm-ops",
  "be-wasm-ops-bindgen",

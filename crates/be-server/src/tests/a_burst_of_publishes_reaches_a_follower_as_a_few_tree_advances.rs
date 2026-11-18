@@ -37,6 +37,7 @@ async fn a_burst_of_publishes_reaches_a_follower_as_a_few_tree_advances() {
                     time: 1_000 + index,
                     pinned: false,
                     objects: Vec::new(),
+                    log_through: None,
                 }),
                 references: listing(&[], Vec::new()),
                 metadata: Vec::new(),

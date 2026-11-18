@@ -59,10 +59,14 @@ pub(crate) enum Table {
     Logs,
     /// The keys minted with a block this device made that no server took (`Refs::unmade`).
     Unmade,
+    /// The head of each block's signed log this device last verified (`KeptLogHead`).
+    LogHead,
+    /// The entries of signed logs this device read and verified, by block and place.
+    LogEntry,
 }
 
 impl Table {
-    pub const ALL: [Self; 24] = [
+    pub const ALL: [Self; 26] = [
         Self::Session,
         Self::Head,
         Self::Remote,
@@ -87,6 +91,8 @@ impl Table {
         Self::Dropped,
         Self::Logs,
         Self::Unmade,
+        Self::LogHead,
+        Self::LogEntry,
     ];
 
     pub fn code(self) -> u8 {
@@ -115,6 +121,8 @@ impl Table {
             Self::Dropped => 22,
             Self::Logs => 23,
             Self::Unmade => 24,
+            Self::LogHead => 25,
+            Self::LogEntry => 26,
         }
     }
 
@@ -316,6 +324,19 @@ pub struct Holding {
     pub lasting: bool,
 }
 
+/// An entry for a block's signed log made here, kept until the server takes it
+/// (`Peer::append`): sent in order with the block's other entries, behind its creation.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct Appending {
+    pub block: Uuid,
+    pub id: Uuid,
+    /// Sealed under the block's key.
+    #[serde(with = "serde_bytes")]
+    pub payload: Vec<u8>,
+    #[serde(with = "serde_bytes")]
+    pub signature: Vec<u8>,
+}
+
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub enum Op {
     Create(Creation),
@@ -323,6 +344,7 @@ pub enum Op {
     Move(Moving),
     Define(Defining),
     Hold(Holding),
+    Append(Appending),
 }
 
 impl Op {
@@ -333,6 +355,7 @@ impl Op {
             Self::Move(moving) => moving.block,
             Self::Define(defining) => defining.block,
             Self::Hold(holding) => holding.block,
+            Self::Append(appending) => appending.block,
         }
     }
 }
@@ -458,6 +481,9 @@ struct State {
     /// and a block forgotten comes back marked.
     dropped: HashSet<Uuid>,
     logs: HashMap<Uuid, KeptLog>,
+    log_heads: HashMap<Uuid, KeptLogHead>,
+    /// The entries of each block's signed log this device read, by place, payloads sealed.
+    log_entries: HashMap<Uuid, BTreeMap<u64, be_block_protocol::LogEntry>>,
     /// The keys minted with each block this device made that no server took (`Refs::unmade`).
     unmade: HashMap<Uuid, Vec<Uuid>>,
     next: u64,
@@ -481,6 +507,16 @@ pub struct KeptLog {
     /// when the wrap arrived (`KeyBook::vouch`): the key, its sender and the digest of what was
     /// sealed. Each wrap alone: any other, from that sender or another, is judged afresh.
     pub vouched: Vec<([u8; 16], [u8; 16], [u8; 32])>,
+}
+
+/// The head of a block's signed log this device last verified: a log the server serves later
+/// must extend it (`be_block_keys::merkle::consistent`), or the server cut or forked it. A local
+/// account, whose log has no server, keeps its tree's right edge to append to (`frontier`).
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct KeptLogHead {
+    pub size: u64,
+    pub root: [u8; 32],
+    pub frontier: Option<be_block_keys::merkle::Frontier>,
 }
 
 /// A block's journal on this device, sealed as on the server: what this device's replica
@@ -695,6 +731,16 @@ impl State {
             }
             Table::Unmade => {
                 self.unmade.insert(uuid_key(&row.key)?, decode(value)?);
+            }
+            Table::LogHead => {
+                self.log_heads.insert(uuid_key(&row.key)?, decode(value)?);
+            }
+            Table::LogEntry => {
+                let (block, seq) = row.key.split_at_checked(16).ok_or(StoreError::Corrupt)?;
+                self.log_entries
+                    .entry(uuid_key(block)?)
+                    .or_default()
+                    .insert(sequence_key(seq)?, decode(value)?);
             }
             Table::LetGo => {
                 self.let_go.insert(uuid_key(&row.key)?, decode(value)?);
@@ -987,7 +1033,7 @@ impl Refs {
             match op {
                 Op::Move(moving) => summary.parent = Some(moving.parent),
                 Op::Define(defining) => summary.metadata = defining.metadata.clone(),
-                Op::Create(_) | Op::Publish(_) | Op::Hold(_) => {}
+                Op::Create(_) | Op::Publish(_) | Op::Hold(_) | Op::Append(_) => {}
             }
         }
         summary
@@ -1438,6 +1484,50 @@ impl Refs {
 
     /// The newest record of each verified contact this device has seen, which a record the
     /// server serves must not be older than (`contacts::contacts`).
+    /// The head of `block`'s signed log this device last verified.
+    pub fn log_head(&self, block: Uuid) -> Option<KeptLogHead> {
+        self.state.lock().unwrap().log_heads.get(&block).cloned()
+    }
+
+    /// Keeps `head` as the newest verified head of `block`'s signed log, with `entries` of it,
+    /// in one write.
+    pub fn keep_entries(
+        &self,
+        block: Uuid,
+        head: KeptLogHead,
+        entries: Vec<be_block_protocol::LogEntry>,
+    ) -> Result<(), StoreError> {
+        let mut state = self.state.lock().unwrap();
+        let mut rows = vec![row(Table::LogHead, block.as_bytes().to_vec(), &head)];
+        let kept = state.log_entries.entry(block).or_default();
+        for entry in entries {
+            rows.push(row(Table::LogEntry, journal_entry_key(block, entry.seq), &entry));
+            kept.insert(entry.seq, entry);
+        }
+        state.log_heads.insert(block, head);
+        self.write(rows)
+    }
+
+    /// The entries of `block`'s log this device kept, from `from`, at most `limit`, in order,
+    /// stopping at the first it does not hold.
+    pub fn log_entries(
+        &self,
+        block: Uuid,
+        from: u64,
+        limit: usize,
+    ) -> Vec<be_block_protocol::LogEntry> {
+        let state = self.state.lock().unwrap();
+        let Some(kept) = state.log_entries.get(&block) else {
+            return Vec::new();
+        };
+        kept.range(from..)
+            .take(limit)
+            .enumerate()
+            .take_while(|(index, (seq, _))| **seq == from + *index as u64)
+            .map(|(_, (_, entry))| entry.clone())
+            .collect()
+    }
+
     pub fn contacts(&self) -> Vec<(Uuid, crate::contacts::OwnContact)> {
         self.state.lock().unwrap().contacts.clone()
     }
@@ -2055,7 +2145,9 @@ impl Refs {
         state
             .outbox
             .values()
-            .any(|op| op.block() == block && !matches!(op, Op::Publish(_) | Op::Hold(_)))
+            .any(|op| {
+                op.block() == block && !matches!(op, Op::Publish(_) | Op::Hold(_) | Op::Append(_))
+            })
     }
 
     pub fn below(&self, root: Uuid) -> HashSet<Uuid> {
@@ -2152,6 +2244,15 @@ impl Refs {
                     rows.push(Row {
                         table: Table::JournalBase,
                         key: block.as_bytes().to_vec(),
+                        value: None,
+                    });
+                }
+                // A log's entries go, its head stays: a log served later still has to extend
+                // what this device saw.
+                for seq in state.log_entries.remove(block).unwrap_or_default().into_keys() {
+                    rows.push(Row {
+                        table: Table::LogEntry,
+                        key: journal_entry_key(*block, seq),
                         value: None,
                     });
                 }

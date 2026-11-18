@@ -38,9 +38,12 @@ be_wasm_ops_bindgen::generate!({
         "keys-query",
         "revocations-query",
         "session-query",
+        "block-log-query",
         "create-block",
         "publish",
         "move",
+        "append",
+        "redact",
         "grant-record",
         "role-record",
         "member-record",
@@ -70,6 +73,7 @@ pub use account::*;
 pub use blocks::*;
 pub use contacts::*;
 pub use keys::*;
+pub use logs::*;
 pub use members::*;
 pub use notifications::*;
 pub use objects::*;
@@ -479,6 +483,45 @@ pub fn read_hello(frame: &[u8]) -> Option<Hello<'_>> {
     })
 }
 
+/// The sealed payload one entry of a block's signed log carries at most, which the server
+/// refuses past and a device before it keeps the entry.
+pub const MAX_LOG_ENTRY_BYTES: usize = 64 * 1024;
+
+/// What an entry's author signs (`sign_authored`, which binds it to its block): the entry's id
+/// and the hash of its sealed payload, so the signature still verifies once a redaction drops
+/// the payload, and the server can neither move it to another id nor replay it under a new one
+/// (an id the log holds is answered, not appended again).
+pub fn log_signed(id: Uuid, payload_hash: be_block_store::Hash) -> Vec<u8> {
+    let mut signed = Vec::with_capacity(LOG_SIGNED_DOMAIN.len() + 16 + 32);
+    signed.extend_from_slice(LOG_SIGNED_DOMAIN);
+    signed.extend_from_slice(id.as_bytes());
+    signed.extend_from_slice(payload_hash.as_bytes());
+    signed
+}
+
+const LOG_SIGNED_DOMAIN: &[u8] = b"be3.log.entry\0";
+
+impl LogEntry {
+    /// The entry's leaf in its log's Merkle tree (`be_block_keys::merkle::leaf_hash`): its
+    /// place, arrival, author, id, payload hash and signature, everything the server fixes or
+    /// the author signed, and not the payload itself, so a redacted entry still verifies.
+    pub fn leaf(&self) -> [u8; 32] {
+        let mut data = Vec::with_capacity(8 + 8 + 16 + 16 + 32 + self.signature.len());
+        data.extend_from_slice(&self.seq.to_be_bytes());
+        data.extend_from_slice(&self.arrival.to_be_bytes());
+        data.extend_from_slice(self.author.as_bytes());
+        data.extend_from_slice(self.id.as_bytes());
+        data.extend_from_slice(self.payload_hash.as_bytes());
+        data.extend_from_slice(&self.signature);
+        be_block_keys::merkle::leaf_hash(&data)
+    }
+
+    /// What its author signed (`log_signed`).
+    pub fn signed(&self) -> Vec<u8> {
+        log_signed(self.id, self.payload_hash)
+    }
+}
+
 /// The case of `Page` a query is answered with, so a read names what it expects.
 pub trait FromPage: Sized {
     fn from_page(page: Page) -> Option<Self>;
@@ -509,6 +552,7 @@ answers!(FromPage, from_page, Page {
     Tree => ChangedPage,
     History => Vec<HistoryEntry>,
     Log => Vec<Vec<u8>>,
+    BlockLog => LogPage,
     Access => AccessList,
     Keys => KeyPage,
     KeyWork => KeyWork,
@@ -535,6 +579,7 @@ answers!(FromDone, from_done, Done {
     Organization => Organization,
     Agent => CreatedAgent,
     Token => String,
+    Logged => Vec<Logged>,
 });
 
 /// What a `publish` with no commit answers: the block as it is now, or, when its head was not

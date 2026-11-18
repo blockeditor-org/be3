@@ -37,6 +37,7 @@ async fn references_keep_the_order_their_block_lists_them_in() {
                         time: time,
                         pinned: false,
                         objects: Vec::new(),
+                        log_through: None,
                     }),
                     references: listing(&listed, references.clone()),
                     metadata: Vec::new(),

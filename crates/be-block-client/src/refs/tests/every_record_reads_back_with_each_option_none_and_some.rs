@@ -96,9 +96,31 @@ fn every_record_reads_back_with_each_option_none_and_some() {
             Op::Create(creation.clone()),
             Op::Move(moving.clone()),
             Op::Define(defining.clone()),
+            Op::Append(Appending {
+                block,
+                id: Uuid::new_v4(),
+                payload: vec![11],
+                signature: vec![12; 64],
+            }),
         ] {
             reads_back(&op);
         }
+        let mut frontier = be_block_keys::merkle::Frontier::default();
+        frontier.push([13; 32]);
+        reads_back(&KeptLogHead {
+            size: 1,
+            root: [13; 32],
+            frontier: some.then_some(frontier),
+        });
+        reads_back(&be_block_protocol::LogEntry {
+            seq: 3,
+            id: Uuid::new_v4(),
+            author: Uuid::new_v4(),
+            arrival: 1_000,
+            payload_hash: Hash::of(b"payload"),
+            signature: vec![14; 64],
+            payload: some.then(|| vec![15]),
+        });
         reads_back(&SetAside {
             id: Uuid::new_v4(),
             count: 2,

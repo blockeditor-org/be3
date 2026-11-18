@@ -24,8 +24,9 @@ pub use peer::{
     Notification, OpenedNotification, Peer, PeerConfig, PendingRotation, Reconciled, Resolver,
     Saved, Sealed, SealsJournal, Signer, Write,
 };
+pub use peer::log::{Appended, LogRead, LoggedEntry};
 pub use refs::{
-    Aside, KeptChange, KeptEdit, KeptSubmission, ListedBlock, OpenEdits, PendingCounts, RefsDb,
+    Aside, KeptChange, KeptEdit, KeptLogHead, KeptSubmission, ListedBlock, OpenEdits, PendingCounts, RefsDb,
     SetAside, UnsentBlock,
 };
 #[cfg(not(target_arch = "wasm32"))]
@@ -158,6 +159,10 @@ pub enum ClientError {
     /// organization's) short of what this device checked of it before: it holds back history,
     /// so nothing is taken from it (guides/blocks/keys.md, "Epochs name their heads").
     Withheld(uuid::Uuid),
+    /// The server served a head of the block's signed log that does not extend the head this
+    /// device verified before: it cut, rewrote or forked the log (plans/signed_logs.md), so
+    /// nothing of it is taken.
+    LogForked(uuid::Uuid),
     /// What would be sent of the block is sealed under a key epoch its access log shows
     /// outdated, which someone who lost access may hold: not sent (guides/blocks/keys.md, "Epochs
     /// name their heads").
@@ -202,6 +207,9 @@ impl fmt::Display for ClientError {
             }
             Self::Outdated(_) => formatter.write_str(
                 "this edit was locked offline with a key someone who lost access may hold, so it was not sent",
+            ),
+            Self::LogForked(_) => formatter.write_str(
+                "the server served this block's log without entries this device saw in it before",
             ),
             Self::Withheld(_) => formatter.write_str(
                 "the server served less of this block's access history than this device saw before",

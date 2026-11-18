@@ -690,6 +690,17 @@ third_party = {
                     "rand_core",
                 ],
             },
+            "wasm32": {
+                "deps": [
+                    ":crypto-common-0.1.7",
+                    ":generic-array-0.14.7",
+                ],
+                "features": [
+                    "alloc",
+                    "getrandom",
+                    "rand_core",
+                ],
+            },
             "windows-arm64": {
                 "deps": [
                     ":crypto-common-0.1.7",
@@ -2315,6 +2326,7 @@ third_party = {
                     "std",
                 ],
             },
+            "wasm32": {},
             "wasm32-bindgen": {},
             "windows-arm64": {
                 "features": [
@@ -4645,6 +4657,19 @@ third_party = {
                     "unicode-normalization",
                 ],
             },
+            "wasm32": {
+                "deps": [
+                    ":bitcoin_hashes-0.14.101",
+                    ":serde-1.0.228",
+                    ":unicode-normalization-0.1.25",
+                ],
+                "features": [
+                    "alloc",
+                    "serde",
+                    "std",
+                    "unicode-normalization",
+                ],
+            },
             "windows-arm64": {
                 "deps": [
                     ":bitcoin_hashes-0.14.101",
@@ -4835,6 +4860,11 @@ third_party = {
                 },
             },
             "wasi-guest": {
+                "named_deps": {
+                    "hex": ":hex-conservative-0.2.3",
+                },
+            },
+            "wasm32": {
                 "named_deps": {
                     "hex": ":hex-conservative-0.2.3",
                 },
@@ -6856,6 +6886,15 @@ third_party = {
                     "zeroize",
                 ],
             },
+            "wasm32": {
+                "deps": [
+                    ":cfg-if-1.0.4",
+                    ":cipher-0.4.4",
+                ],
+                "features": [
+                    "zeroize",
+                ],
+            },
             "windows-arm64": {
                 "deps": [
                     ":cfg-if-1.0.4",
@@ -7007,6 +7046,21 @@ third_party = {
                 ],
             },
             "wasi-guest": {
+                "deps": [
+                    ":aead-0.5.2",
+                    ":chacha20-0.9.1",
+                    ":cipher-0.4.4",
+                    ":poly1305-0.8.0",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "getrandom",
+                    "rand_core",
+                ],
+            },
+            "wasm32": {
                 "deps": [
                     ":aead-0.5.2",
                     ":chacha20-0.9.1",
@@ -7661,6 +7715,16 @@ third_party = {
                 ],
             },
             "wasi-guest": {
+                "deps": [
+                    ":crypto-common-0.1.7",
+                    ":inout-0.1.4",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "zeroize",
+                ],
+            },
+            "wasm32": {
                 "deps": [
                     ":crypto-common-0.1.7",
                     ":inout-0.1.4",
@@ -10524,9 +10588,12 @@ third_party = {
             "wasm32": {
                 "deps": [
                     ":generic-array-0.14.7",
+                    ":rand_core-0.6.4",
                     ":typenum-1.20.1",
                 ],
                 "features": [
+                    "getrandom",
+                    "rand_core",
                     "std",
                 ],
             },
@@ -11585,6 +11652,22 @@ third_party = {
                 ],
             },
             "wasi-guest": {
+                "deps": [
+                    ":cfg-if-1.0.4",
+                    ":digest-0.10.7",
+                    ":rand_core-0.6.4",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "digest",
+                    "precomputed-tables",
+                    "rand_core",
+                    "zeroize",
+                ],
+            },
+            "wasm32": {
                 "deps": [
                     ":cfg-if-1.0.4",
                     ":digest-0.10.7",
@@ -12986,13 +13069,16 @@ third_party = {
                 "deps": [
                     ":block-buffer-0.10.4",
                     ":crypto-common-0.1.7",
+                    ":subtle-2.6.1",
                 ],
                 "features": [
                     "alloc",
                     "block-buffer",
                     "core-api",
                     "default",
+                    "mac",
                     "std",
+                    "subtle",
                 ],
             },
             "wasm32-bindgen": {
@@ -14416,6 +14502,15 @@ third_party = {
                     "std",
                 ],
             },
+            "wasm32": {
+                "deps": [
+                    ":signature-2.2.0",
+                ],
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
             "windows-arm64": {
                 "deps": [
                     ":signature-2.2.0",
@@ -14685,6 +14780,22 @@ third_party = {
                 ],
             },
             "wasi-guest": {
+                "deps": [
+                    ":curve25519-dalek-4.1.3",
+                    ":ed25519-2.2.3",
+                    ":sha2-0.10.9",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "fast",
+                    "std",
+                    "zeroize",
+                ],
+            },
+            "wasm32": {
                 "deps": [
                     ":curve25519-dalek-4.1.3",
                     ":ed25519-2.2.3",
@@ -19639,6 +19750,11 @@ third_party = {
                     ":wasi-0.11.1+wasi-snapshot-preview1",
                 ],
             },
+            "wasm32": {
+                "deps": [
+                    ":cfg-if-1.0.4",
+                ],
+            },
             "windows-arm64": {
                 "deps": [
                     ":cfg-if-1.0.4",
@@ -19745,6 +19861,14 @@ third_party = {
                 ],
             },
             "wasi-guest": {
+                "deps": [
+                    ":cfg-if-1.0.4",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
+            "wasm32": {
                 "deps": [
                     ":cfg-if-1.0.4",
                 ],
@@ -22600,6 +22724,11 @@ third_party = {
                     ":arrayvec-0.7.8",
                 ],
             },
+            "wasm32": {
+                "deps": [
+                    ":arrayvec-0.7.8",
+                ],
+            },
             "windows-arm64": {
                 "deps": [
                     ":arrayvec-0.7.8",
@@ -22825,6 +22954,11 @@ third_party = {
                     ":hmac-0.12.1",
                 ],
             },
+            "wasm32": {
+                "deps": [
+                    ":hmac-0.12.1",
+                ],
+            },
             "windows-arm64": {
                 "deps": [
                     ":hmac-0.12.1",
@@ -22959,6 +23093,11 @@ third_party = {
                 ],
             },
             "wasi-guest": {
+                "deps": [
+                    ":digest-0.10.7",
+                ],
+            },
+            "wasm32": {
                 "deps": [
                     ":digest-0.10.7",
                 ],
@@ -26759,6 +26898,11 @@ third_party = {
                 ],
             },
             "wasi-guest": {
+                "deps": [
+                    ":generic-array-0.14.7",
+                ],
+            },
+            "wasm32": {
                 "deps": [
                     ":generic-array-0.14.7",
                 ],
@@ -35117,6 +35261,7 @@ third_party = {
             "macos-x86_64": {},
             "wasi": {},
             "wasi-guest": {},
+            "wasm32": {},
             "windows-arm64": {},
             "windows-x86_64": {},
         },
@@ -39401,6 +39546,12 @@ third_party = {
                     ":universal-hash-0.5.1",
                 ],
             },
+            "wasm32": {
+                "deps": [
+                    ":opaque-debug-0.3.1",
+                    ":universal-hash-0.5.1",
+                ],
+            },
             "windows-arm64": {
                 "deps": [
                     ":opaque-debug-0.3.1",
@@ -42202,11 +42353,17 @@ third_party = {
             },
             "wasm32": {
                 "deps": [
+                    ":rand_chacha-0.9.0",
                     ":rand_core-0.9.5",
                 ],
                 "features": [
                     "alloc",
+                    "default",
+                    "os_rng",
+                    "small_rng",
                     "std",
+                    "std_rng",
+                    "thread_rng",
                 ],
             },
             "windows-arm64": {
@@ -42706,6 +42863,14 @@ third_party = {
                     "getrandom",
                 ],
             },
+            "wasm32": {
+                "deps": [
+                    ":getrandom-0.2.17",
+                ],
+                "features": [
+                    "getrandom",
+                ],
+            },
             "windows-arm64": {
                 "deps": [
                     ":getrandom-0.2.17",
@@ -42824,7 +42989,11 @@ third_party = {
                 ],
             },
             "wasm32": {
+                "deps": [
+                    ":getrandom-0.3.4",
+                ],
                 "features": [
+                    "os_rng",
                     "std",
                 ],
             },
@@ -51363,6 +51532,12 @@ third_party = {
                     "std",
                 ],
             },
+            "wasm32": {
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
             "windows-arm64": {
                 "deps": [
                     ":digest-0.10.7",
@@ -53148,6 +53323,18 @@ third_party = {
                     "getrandom",
                 ],
             },
+            "wasm32": {
+                "deps": [
+                    ":curve25519-dalek-4.1.3",
+                    ":hkdf-0.12.4",
+                    ":rand_core-0.6.4",
+                    ":sha2-0.10.9",
+                ],
+                "features": [
+                    "default",
+                    "getrandom",
+                ],
+            },
             "windows-arm64": {
                 "deps": [
                     ":curve25519-dalek-4.1.3",
@@ -54159,6 +54346,7 @@ third_party = {
             },
             "wasi": {},
             "wasi-guest": {},
+            "wasm32": {},
             "windows-arm64": {
                 "features": [
                     "const-generics",
@@ -56785,6 +56973,16 @@ third_party = {
                     "tinyvec_macros",
                 ],
             },
+            "wasm32": {
+                "deps": [
+                    ":tinyvec_macros-0.1.1",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "tinyvec_macros",
+                ],
+            },
             "windows-arm64": {
                 "deps": [
                     ":tinyvec_macros-0.1.1",
@@ -56835,6 +57033,7 @@ third_party = {
             "macos-x86_64": {},
             "wasi": {},
             "wasi-guest": {},
+            "wasm32": {},
             "windows-arm64": {},
             "windows-x86_64": {},
         },
@@ -60736,6 +60935,14 @@ third_party = {
                     "std",
                 ],
             },
+            "wasm32": {
+                "deps": [
+                    ":tinyvec-1.12.0",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
             "windows-arm64": {
                 "deps": [
                     ":tinyvec-1.12.0",
@@ -61079,6 +61286,12 @@ third_party = {
                 ],
             },
             "wasi-guest": {
+                "deps": [
+                    ":crypto-common-0.1.7",
+                    ":subtle-2.6.1",
+                ],
+            },
+            "wasm32": {
                 "deps": [
                     ":crypto-common-0.1.7",
                     ":subtle-2.6.1",
@@ -70160,6 +70373,20 @@ third_party = {
                     "zeroize",
                 ],
             },
+            "wasm32": {
+                "deps": [
+                    ":curve25519-dalek-4.1.3",
+                    ":rand_core-0.6.4",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "precomputed-tables",
+                    "static_secrets",
+                    "zeroize",
+                ],
+            },
             "windows-arm64": {
                 "deps": [
                     ":curve25519-dalek-4.1.3",
@@ -71965,6 +72192,15 @@ third_party = {
                 ],
             },
             "wasi-guest": {
+                "deps": [
+                    ":zeroize_derive-1.5.0",
+                ],
+                "features": [
+                    "alloc",
+                    "zeroize_derive",
+                ],
+            },
+            "wasm32": {
                 "deps": [
                     ":zeroize_derive-1.5.0",
                 ],

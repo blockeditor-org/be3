@@ -42,6 +42,7 @@ async fn requests_sent_before_a_close_are_still_carried_out() {
                         time: 1_000,
                         pinned: false,
                         objects: Vec::new(),
+                        log_through: None,
                     }),
                     references: listing(&[], Vec::new()),
                     metadata: Vec::new(),

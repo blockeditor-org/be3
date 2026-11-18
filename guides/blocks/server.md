@@ -219,11 +219,13 @@ counts and records nothing: `reserve-uploads` did before it signed.
   of its own.
 - **Following.** What the server pushes goes on the connection's one `events`
   stream (a second replaces the first): `tree-advanced` for the trees it
-  follows, `session` for the live sessions it is in, `topic-changed` for the
+  follows, `session` for the live sessions it is in, `appended` for the signed
+  logs it follows, `topic-changed` for the
   other topics it follows, and `paired` for its account's other connections'
   messages. A read with `follow` follows its query's topic first, so nothing
   changed during the read is missed: `tree` its entry (in `WatchHub`),
-  `session` joins the block's session (in `SessionRegistry`), and `keys`,
+  `session` joins the block's session (in `SessionRegistry`), `block-log` the
+  block's signed log (in `WatchHub`, "Signed logs" below), and `keys`,
   `key-work`, a listing of the roots (`children(root)`, `deleted`, `shared`),
   `storage`, `mailbox`, `contacts` and `mutes` their topic (in the
   connection's `Following`). A topic-changed carries no value: the client reads
@@ -716,6 +718,54 @@ back). A submission is
 refused while the journal holds another build's entries, and bounded by
 `MAX_JOURNAL_BYTES`; a `blocks` read with `contents` answers journals while they fit in a
 quarter of a frame.
+
+### Signed logs
+
+A block may have a signed log beside its content (plans/signed_logs.md;
+`log.rs`): entries the server numbers, stamps and hashes into a Merkle tree,
+which no commit changes. Content is what anyone with Edit may rewrite; a log
+is what its authors add, and only they (or a manager) may take back.
+
+- **Tables.** `block_logs` holds each entry (place, id, author, arrival, the
+  hash of its sealed payload, the signature, and the payload until it is
+  redacted), `block_log_nodes` every perfect subtree of its tree by level and
+  position, and `block_log_heads` the log's size, root and charged bytes. The
+  tree is RFC 6962's (`be_block_keys::merkle`, shared with access logs to come,
+  plans/access_logs_checked_once.md): an entry's leaf is
+  `be_block_protocol::LogEntry::leaf` (place, arrival, author, id, payload
+  hash, signature, not the payload), so a redacted entry still verifies. A
+  proof for any page or any older head is O(log n) lookups of perfect
+  subtrees (`merkle::subtree`), whatever the log's length.
+- **`append`** (Edit) numbers each entry next and stamps it with the
+  server's clock, never earlier than the entry before, in one transaction
+  that appends to the tree from its right edge (`merkle::Frontier`, read in
+  O(log n)). An entry whose id the log holds is answered where it went
+  (`logged`), so an outbox resends until it hears the answer. Limits:
+  `MAX_ENTRY_BYTES` each, `MAX_ENTRIES_PER_APPEND` and `MAX_APPEND_BYTES` an
+  op, `MAX_ENTRIES_PER_MINUTE` per account (`Services::log_entries`). Entries
+  are charged to the block's payer, in its size too (`charge_log`; a move
+  carries them to the new payer, `follow_payer`), and refused past a quota.
+  The server checks no signature: devices verify on their own, and an account's
+  device not yet told of its new phrase signs with the old key
+  (guides/blocks/keys.md, "Verifying").
+- **`redact`** (View, then the entry's author or Manage on the block) drops
+  the payload and uncharges it, keeping the leaf, so the head and every proof
+  stay as they were.
+- **`query.block-log(block, from, limit, known)`** (View) answers a page from
+  `from` (at most `MAX_PAGE_ENTRIES` and half a frame), the head, the range
+  proof tying the page to it (`merkle::range_proof`), and with `known`, the
+  size of a head the caller holds, a consistency proof from it
+  (`merkle::consistency_proof`). Followed, the connection hears each append as
+  `event.appended`: the entries, the size before them and a consistency proof
+  from it, so a follower holding that head takes them with no round trip. The
+  hub keeps who follows each log (`WatchHub::follow_log`), and an append tells
+  only those who may still view the block (`Connection::logged`).
+- **Commits name a log head.** `new-commit.log-through` names the head of the
+  block's log a commit was made on, and a publish naming a head the log never
+  had (past its size, or another root for that prefix) is refused
+  (`log::holds_prefix`). The server only checks it; what a commit says of the
+  log is in its sealed content.
+- `log::forget` drops a block's log, for when blocks are deleted for good.
 
 **Answers that fit a frame.** A summary carries metadata of up to
 `MAX_METADATA_BYTES` and none of the block's references: a reader takes those

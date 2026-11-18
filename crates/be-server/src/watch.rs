@@ -58,6 +58,12 @@ pub enum Push {
         entry: std::sync::Arc<be_block_protocol::JournalEntry>,
     },
     Paired(PairingMessage),
+    /// Entries were appended to a block's signed log (`event.appended`): told to the log's
+    /// followers who may still view the block.
+    Logged {
+        block: Place,
+        told: std::sync::Arc<crate::log::Told>,
+    },
     /// A message arrived in the account's mailbox, or was deleted (`store/mailbox.rs`).
     MailboxChanged,
     /// The account's key work in the organization may have changed (`topic.key-work`).
@@ -89,6 +95,10 @@ struct Joined {
     follows: HashMap<u64, HashMap<Place, Told>>,
     /// The connections following each entry point.
     followers: HashMap<Place, HashSet<u64>>,
+    /// The blocks whose signed logs each connection follows (`topic.block-log`).
+    log_follows: HashMap<u64, HashSet<Place>>,
+    /// The connections following each block's signed log.
+    log_followers: HashMap<Place, HashSet<u64>>,
 }
 
 /// What a connection was told of an entry point it follows. Once it is told the tree advanced,
@@ -134,6 +144,9 @@ impl Joined {
             self.leave_organization(client, organization);
         }
         self.follows.remove(&client);
+        for place in self.log_follows.remove(&client).unwrap_or_default() {
+            unindex(&mut self.log_followers, place, client);
+        }
     }
 
     fn leave_organization(&mut self, client: u64, organization: Uuid) {
@@ -146,6 +159,17 @@ impl Joined {
             for place in left {
                 follows.remove(&place);
                 unindex(&mut self.followers, place, client);
+            }
+        }
+        if let Some(follows) = self.log_follows.get_mut(&client) {
+            let left: Vec<Place> = follows
+                .iter()
+                .filter(|place| place.organization == organization)
+                .copied()
+                .collect();
+            for place in left {
+                follows.remove(&place);
+                unindex(&mut self.log_followers, place, client);
             }
         }
         let identity = self
@@ -244,6 +268,50 @@ impl WatchHub {
         follows.entry(place).or_default().outstanding = true;
         joined.followers.entry(place).or_default().insert(client);
         Ok(new)
+    }
+
+    /// Follows the signed log of `place`, before the read that starts it. Refused once the
+    /// connection follows `MAX_FOLLOWS_PER_CONNECTION` logs, and while it does not work in the
+    /// organization.
+    pub async fn follow_log(&self, client: u64, place: Place) -> Result<(), ServerError> {
+        let mut joined = self.joined.lock().await;
+        if joined
+            .organizations
+            .get(&client)
+            .is_none_or(|organizations| !organizations.contains_key(&place.organization))
+        {
+            return Ok(());
+        }
+        let follows = joined.log_follows.entry(client).or_default();
+        if !follows.contains(&place) && follows.len() >= MAX_FOLLOWS_PER_CONNECTION {
+            return Err(crate::limits::too_many(
+                "logs one connection follows; unfollow some first",
+                MAX_FOLLOWS_PER_CONNECTION,
+            ));
+        }
+        follows.insert(place);
+        joined.log_followers.entry(place).or_default().insert(client);
+        Ok(())
+    }
+
+    pub async fn unfollow_log(&self, client: u64, place: Place) {
+        let mut joined = self.joined.lock().await;
+        if let Some(follows) = joined.log_follows.get_mut(&client) {
+            follows.remove(&place);
+        }
+        unindex(&mut joined.log_followers, place, client);
+    }
+
+    /// The connections following the signed log of `place`, with who each is there.
+    pub async fn log_followers(&self, place: Place) -> Vec<(u64, Identity)> {
+        let joined = self.joined.lock().await;
+        joined
+            .log_followers
+            .get(&place)
+            .into_iter()
+            .flatten()
+            .filter_map(|client| Some((*client, joined.identity(*client, place.organization)?)))
+            .collect()
     }
 
     /// A read of the tree of `place` failed: the next change is told again, as after a read to
