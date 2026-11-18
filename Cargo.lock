@@ -2179,6 +2179,7 @@ dependencies = [
  "be-sdk-root",
  "be-wasm-gpu-guest",
  "be-wasm-ops",
+ "be-wasm-root-api",
  "beui-core",
  "beui-font-freetype",
  "beui-host",
@@ -2263,6 +2264,7 @@ version = "0.1.0"
 dependencies = [
  "be-lib-geometry",
  "be-lib-layers",
+ "be-lib-ui-types",
  "be-sdk-api",
  "be-sdk-beui-root",
  "be-sdk-root",

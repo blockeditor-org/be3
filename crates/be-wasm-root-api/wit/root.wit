@@ -64,6 +64,20 @@ interface host {
     /// notice already gone, or a key it does not offer, changes nothing. It
     /// answers at once; the change reaches `notices`.
     answer-notice: async func(id: u64, action: option<string>);
+
+    /// Puts `items` on the platform's clipboard in place of what it held:
+    /// representations of the same content, richest first, each the app
+    /// protocol's `clip-item` (be-lib-ui-types' `ClipItem`: a format, its data
+    /// and the blocks it names) in be-wasm-ops' encoding, as `fonts` is. The
+    /// root copies only what it has rendered: the host never asks it back for
+    /// a representation. It answers at once.
+    copy: async func(items: list<list<u8>>);
+
+    /// The first of `formats` the platform's clipboard holds, as a
+    /// `clip-item` in be-wasm-ops' encoding, or none when it holds none of
+    /// them: what a paste brings, which the root hands the field that asked.
+    /// It answers once the platform has read it, which may take frames.
+    paste: async func(formats: list<string>) -> option<list<u8>>;
 }
 
 /// The window's input, which the host hands the root inline on its frame thread

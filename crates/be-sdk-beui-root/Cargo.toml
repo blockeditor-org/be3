@@ -12,6 +12,7 @@ be-lib-ui-types = { path = "../be-lib-ui-types" }
 be-sdk-root = { path = "../be-sdk-root" }
 be-wasm-gpu-guest = { path = "../be-wasm-gpu-guest" }
 be-wasm-ops = { path = "../be-wasm-ops" }
+be-wasm-root-api = { path = "../be-wasm-root-api" }
 beui-core = { path = "../beui-core" }
 beui-font-freetype = { path = "../beui-font-freetype" }
 beui-host = { path = "../beui-host" }

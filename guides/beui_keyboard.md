@@ -322,6 +322,14 @@ gesture. An app's view passes its editor's answer
 on as `Interactive`'s `keyboard`, replacing the document's own. beui's own
 on-screen keyboard is in guides/beui/space.md, The on-screen keyboard.
 
+A root guest's beui documents (be-sdk-beui-root's `BeuiSurface`) have the
+host's clipboard and input method through `be3:root`: copies and pastes go to
+`host.copy` and `host.paste`, the platform's input-method events reach the
+document as input the root's router hands its focused layer, and the root
+names the focused field's area (`BeuiSurface::ime`) as `frame-done`'s `ime`,
+where the host shows the input method and its keyboard
+(guides/apps/runtime.md, The root guest).
+
 ## Touch
 
 `Input::Touch` carries a device and finger id, phase, position and optional

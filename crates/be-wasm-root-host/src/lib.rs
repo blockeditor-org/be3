@@ -74,6 +74,10 @@ struct Drawing {
     passed: bool,
 }
 
+/// The answer to the root's `host.paste`: a clip item in be-wasm-ops' encoding, or none.
+type PasteReply =
+    Reply<Option<Vec<u8>>, be_wasm_ops::wire::Optional<be_wasm_ops::wire::Bytes>>;
+
 /// The stepping both platforms share: the root, its connection, its sandbox and the frame it
 /// draws.
 struct Core<G> {
@@ -101,6 +105,15 @@ struct Core<G> {
     watching: Vec<Reply<ShownNotices>>,
     /// How the root answered notices (`host.answer-notice`), until the host takes them.
     answers: Vec<(u64, Option<String>)>,
+    /// What the root copied (`host.copy`), each copy's items, until the host takes them.
+    copies: Vec<Vec<Vec<u8>>>,
+    /// The pastes the root asked for (`host.paste`), by id with the formats each takes, until
+    /// the host takes them to read its clipboard.
+    pastes: Vec<(u64, Vec<String>)>,
+    /// The root's `host.paste` calls waiting for the host to answer them, by id.
+    pasting: Vec<(u64, PasteReply)>,
+    /// The id the next paste asked for is given.
+    next_paste: u64,
 }
 
 impl<G: Inline> Core<G> {
@@ -124,6 +137,10 @@ impl<G: Inline> Core<G> {
             },
             watching: Vec::new(),
             answers: Vec::new(),
+            copies: Vec::new(),
+            pastes: Vec::new(),
+            pasting: Vec::new(),
+            next_paste: 0,
         };
         core.received()?;
         Ok(core)
@@ -186,6 +203,32 @@ impl<G: Inline> Core<G> {
     /// id and the key of the action the person chose, or none where they dismissed it.
     fn take_answers(&mut self) -> Vec<(u64, Option<String>)> {
         std::mem::take(&mut self.answers)
+    }
+
+    /// What the root copied since the last call (`host.copy`), oldest first: each copy's items,
+    /// richest first, each be-lib-ui-types' `ClipItem` in be-wasm-ops' encoding. The host puts
+    /// each on its clipboard in turn, so the last stays.
+    fn take_copies(&mut self) -> Vec<Vec<Vec<u8>>> {
+        std::mem::take(&mut self.copies)
+    }
+
+    /// The pastes the root asked for since the last call (`host.paste`), oldest first: each its
+    /// id, which `answer_paste` names, and the formats it takes, preferred first.
+    fn take_pastes(&mut self) -> Vec<(u64, Vec<String>)> {
+        std::mem::take(&mut self.pastes)
+    }
+
+    /// Answers the paste `id` with what the host's clipboard held of the formats it takes: a
+    /// `ClipItem` in be-wasm-ops' encoding, or none. Answers whether the root waited for it, so
+    /// the host steps the root for it; a paste the root gave up on, or answered already, changes
+    /// nothing.
+    fn answer_paste(&mut self, id: u64, item: Option<Vec<u8>>) -> bool {
+        let Some(at) = self.pasting.iter().position(|(asked, _)| *asked == id) else {
+            return false;
+        };
+        let (_, reply) = self.pasting.remove(at);
+        reply.send(&mut self.connection, &item);
+        true
     }
 
     /// Asks the root for a frame for `request`, drawn by `deadline`, or says why the root drew
@@ -330,6 +373,12 @@ impl<G: Inline> Core<G> {
                         self.watching
                             .remove(at)
                             .fail(&mut self.connection, OpError::Canceled);
+                    } else if let Some(at) =
+                        self.pasting.iter().position(|(_, reply)| reply.op() == op)
+                    {
+                        let (id, reply) = self.pasting.remove(at);
+                        self.pastes.retain(|(asked, _)| *asked != id);
+                        reply.fail(&mut self.connection, OpError::Canceled);
                     }
                 }
                 Incoming::Completed { op, outcome } if self.drawing_op() == Some(op) => {
@@ -374,6 +423,16 @@ impl<G: Inline> Core<G> {
             embed::Call::Host(embed::host::Call::AnswerNotice { id, action, reply }) => {
                 self.answers.push((id, action));
                 reply.send(&mut self.connection, &());
+            }
+            embed::Call::Host(embed::host::Call::Copy { items, reply }) => {
+                self.copies.push(items);
+                reply.send(&mut self.connection, &());
+            }
+            embed::Call::Host(embed::host::Call::Paste { formats, reply }) => {
+                let id = self.next_paste;
+                self.next_paste += 1;
+                self.pastes.push((id, formats));
+                self.pasting.push((id, reply));
             }
         }
     }

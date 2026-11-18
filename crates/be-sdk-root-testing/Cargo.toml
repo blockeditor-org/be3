@@ -11,6 +11,7 @@ crate-type = ["cdylib", "rlib"]
 # Only the guest needs more than its constants, which the tests that run it read natively.
 [dependencies]
 be-lib-layers = { path = "../be-lib-layers" }
+be-lib-ui-types = { path = "../be-lib-ui-types" }
 be-sdk-api = { path = "../be-sdk-api" }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
