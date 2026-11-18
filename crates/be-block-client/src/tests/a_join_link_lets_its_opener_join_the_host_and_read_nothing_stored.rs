@@ -56,5 +56,21 @@ async fn a_join_link_lets_its_opener_join_the_host_and_read_nothing_stored() {
         "the host admits the link's opener"
     );
 
+    // Revoked, the link's grant falls: its opener joins no more, and forgets the root it handed.
+    let listed = owner.share_links(world).await.unwrap();
+    let (row, kept_code) = listed.first().expect("the owner lists the link it made");
+    assert!(kept_code.is_some(), "its maker keeps the code");
+    owner.revoke_share_link(world, row).await.unwrap();
+    assert!(player.join_host(world, owner.account()).await.is_err());
+    assert!(
+        player
+            .kept_shares()
+            .await
+            .unwrap()
+            .iter()
+            .all(|(_, kept)| kept.block != world),
+        "the opener forgets a link whose grant fell"
+    );
+
     harness.stop().await;
 }

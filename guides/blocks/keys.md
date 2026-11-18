@@ -663,7 +663,10 @@ opens it and makes nobody a contact, so it is no `link-kind` of the contact link
   sealed with the code; the opener keeps it in the account's block (`KeptShare::root`), refuses
   the opening as forged when the log its grant went into starts elsewhere, and, holding no key
   that carries a root, checks a host by that root (`Peer::joined_log`), so a log the server
-  makes up, even one copying the link's record, is refused. The opener's endorsement also
+  makes up, even one copying the link's record, is refused; it forgets the kept link once the
+  block grants it nothing (the link or its grant revoked). A maker whose device holds the
+  root only weakly (from another member's escrow) makes no link: it would vouch for a root
+  never verified. The opener's endorsement also
   covers the entry its grant follows, so the grant stands only where it was signed. A hosted
   block (an app's manifest runs a host component on its type, `discovery::hosted`) offers
   Join in the share dialog's link row, first and by default; any other block never does.
