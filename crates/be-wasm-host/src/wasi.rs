@@ -252,8 +252,8 @@ struct Call<'a> {
     arguments: Vec<u64>,
     view: View,
     wasi: &'a Wasi,
-    /// The guest's threads, which say when it is stopping.
-    threads: &'a crate::threads::Spawner,
+    /// The guest's host's interrupt, which says when it is stopping.
+    interrupt: &'a crate::interrupt::Interrupt,
 }
 
 /// A call's outcome: an errno for the guest, or why the guest stops.
@@ -847,7 +847,7 @@ fn poll_oneoff(call: &Call) -> Answer {
     // is stopped stops waiting within one.
     if let Some(wait) = soonest {
         let until = Instant::now() + Duration::from_nanos(wait);
-        while !call.threads.halts(false) {
+        while !call.interrupt.interrupted() {
             let left = until.saturating_duration_since(Instant::now());
             if left.is_zero() {
                 break;
@@ -893,12 +893,12 @@ fn answer(
         })
         .collect();
     let wasi = Arc::clone(&state.wasi);
-    let threads = Arc::clone(&state.threads);
+    let interrupt = Arc::clone(&state.interrupt);
     let call = Call {
         arguments: words,
         view: state.view_in(scope),
         wasi: &wasi,
-        threads: &threads,
+        interrupt: &interrupt,
     };
     match crate::gpu::contained(|| function(&call)).and_then(|answer| answer) {
         Ok(errno) => returned.set_int32(errno),

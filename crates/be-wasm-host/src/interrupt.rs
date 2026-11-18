@@ -1,18 +1,15 @@
-//! Stopping a host's guests from any thread: every isolate an app runs on (its own and each of
-//! its threads') is terminated, which stops a guest at its next call or loop, a thread blocked in
-//! `memory.atomic.wait` included.
+//! Stopping a host's guests from any thread: the isolate each app runs on is terminated, which
+//! stops the guest at its next call or loop.
 
 use std::sync::{
     Arc, Mutex, Weak,
     atomic::{AtomicBool, Ordering},
 };
 
-use crate::threads::Spawner;
-
 #[derive(Default)]
 pub(crate) struct Interrupt {
     interrupted: AtomicBool,
-    apps: Mutex<Vec<Weak<Spawner>>>,
+    apps: Mutex<Vec<Weak<v8::IsolateHandle>>>,
 }
 
 #[derive(Clone)]
@@ -27,7 +24,8 @@ impl Interrupt {
         self.interrupted.load(Ordering::SeqCst)
     }
 
-    pub(crate) fn watch(&self, app: &Arc<Spawner>) {
+    /// Terminates `app`'s isolate when the host is interrupted.
+    pub(crate) fn watch(&self, app: &Arc<v8::IsolateHandle>) {
         if let Ok(mut apps) = self.apps.lock() {
             apps.retain(|app| app.strong_count() > 0);
             apps.push(Arc::downgrade(app));
@@ -44,12 +42,12 @@ impl Interrupter {
         if self.0.interrupted.swap(true, Ordering::SeqCst) {
             return;
         }
-        let apps: Vec<Arc<Spawner>> = match self.0.apps.lock() {
+        let apps: Vec<Arc<v8::IsolateHandle>> = match self.0.apps.lock() {
             Ok(apps) => apps.iter().filter_map(Weak::upgrade).collect(),
             Err(_) => return,
         };
         for app in apps {
-            app.terminate(true);
+            app.terminate_execution();
         }
     }
 }

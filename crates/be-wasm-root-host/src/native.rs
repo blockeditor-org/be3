@@ -98,8 +98,6 @@ impl Root {
         device: wgpu::Device,
         queue: wgpu::Queue,
     ) -> Result<Self, String> {
-        // It runs on the calling thread, which it may never make wait on another of its own.
-        app.refuse_threads();
         let bell = Arc::new(Bell::default());
         let ringer = Arc::clone(&bell);
         app.on_wake(move || ringer.ring());

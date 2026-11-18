@@ -2,7 +2,7 @@ use super::*;
 
 /// Writes to standard error through two buffers each of 4 GiB less one byte.
 const OVERSIZED: &str = r#"(module
-    (import "env" "memory" (memory 1 4 shared))
+    (import "env" "memory" (memory 1 4))
     (import "wasi_snapshot_preview1" "fd_write" (func $fd_write (param i32 i32 i32 i32) (result i32)))
     (func (export "app_start"))
     (func (export "app_shutdown"))

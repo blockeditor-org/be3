@@ -1,80 +1,39 @@
 //! Instantiating a module on an isolate: the host functions each kind of guest gets, how each of
 //! a module's imports is answered, and `new WebAssembly.Instance` with them.
 
-use be_wasm_gpu_abi::embed::device as gpu_abi;
-use be_wasm_guest_abi as guest;
-
 use crate::engine::{self, Defined, Import, Kind, Module};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Role {
-    /// An app's main thread, whose gpu and transport calls are fast-API calls when its memory is
-    /// shared.
-    App { fast: bool },
+    /// An app: the gpu, its transport, WASI, waking and panicking.
+    App,
     /// A pure guest: its transport, waking and panicking, and the gpu only when its host was
     /// given a device for it (`Host::with_display`, the root guest's).
     Pure { gpu: bool },
-    /// A thread an app spawned: WASI, waking, panicking and spawning, and every other host call
-    /// refused, since only the main thread may make them.
-    Thread,
 }
 
-/// The host functions a guest of `role` is offered, made with `data` (its State).
+/// The host functions a guest of `role` is offered, made with `data` (its State); its gpu and
+/// transport calls are fast-API calls when `fast`, which its memory staying put allows (gpu.rs).
 pub(crate) fn host_functions<'s>(
     scope: &mut v8::PinScope<'s, '_>,
     data: v8::Local<'s, v8::Value>,
     role: Role,
+    fast: bool,
     modules: &[Module],
 ) -> Result<Defined<'s>, String> {
     let mut defined = Defined::default();
     crate::panic::define(scope, &mut defined, data)?;
     crate::wake::define(scope, &mut defined, data)?;
-    let imports = || {
-        modules
-            .iter()
-            .flat_map(|module| module.shape.imports.iter())
-    };
     match role {
-        Role::Pure { gpu: false } => {
-            crate::gpu::define_transport(scope, &mut defined, data, false)?
-        }
-        // A pure guest's memory is its own, never shared, so its calls are never fast ones.
-        Role::Pure { gpu: true } => crate::gpu::define_app(scope, &mut defined, data, false)?,
-        Role::App { fast } => {
+        Role::Pure { gpu: false } => crate::gpu::define_transport(scope, &mut defined, data, fast)?,
+        Role::Pure { gpu: true } => crate::gpu::define_app(scope, &mut defined, data, fast)?,
+        Role::App => {
             crate::gpu::define_app(scope, &mut defined, data, fast)?;
-            crate::wasi::define(
-                scope,
-                &mut defined,
-                data,
-                &imports().cloned().collect::<Vec<_>>(),
-            )?;
-            crate::threads::define(scope, &mut defined, data)?;
-        }
-        Role::Thread => {
-            crate::wasi::define(
-                scope,
-                &mut defined,
-                data,
-                &imports().cloned().collect::<Vec<_>>(),
-            )?;
-            crate::threads::define(scope, &mut defined, data)?;
-            for import in imports() {
-                let host = import.module == guest::HOST_MODULE;
-                if !(import.module == gpu_abi::MODULE || host)
-                    || (host
-                        && matches!(import.name.as_str(), guest::HOST_WAKE | guest::HOST_PANIC))
-                {
-                    continue;
-                }
-                let refusal = stub(
-                    scope,
-                    &format!(
-                        "an app thread called {}::{}, which only its main thread may do",
-                        import.module, import.name
-                    ),
-                )?;
-                defined.define(&import.module, &import.name, refusal);
-            }
+            let imports: Vec<Import> = modules
+                .iter()
+                .flat_map(|module| module.shape.imports.iter().cloned())
+                .collect();
+            crate::wasi::define(scope, &mut defined, data, &imports)?;
         }
     }
     Ok(defined)

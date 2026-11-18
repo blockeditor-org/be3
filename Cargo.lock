@@ -2799,33 +2799,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "be-tool-tls-diamond-app"
-version = "0.1.0"
-dependencies = [
- "be-tool-tls-diamond-base",
- "be-tool-tls-diamond-left",
- "be-tool-tls-diamond-right",
-]
-
-[[package]]
-name = "be-tool-tls-diamond-base"
-version = "0.1.0"
-
-[[package]]
-name = "be-tool-tls-diamond-left"
-version = "0.1.0"
-dependencies = [
- "be-tool-tls-diamond-base",
-]
-
-[[package]]
-name = "be-tool-tls-diamond-right"
-version = "0.1.0"
-dependencies = [
- "be-tool-tls-diamond-base",
-]
-
-[[package]]
 name = "be-tool-verify"
 version = "0.1.0"
 dependencies = [
