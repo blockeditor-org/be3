@@ -17,15 +17,23 @@ use uuid::Uuid;
 use crate::{AccountRecords, ClientError, Connection, Peer, contacts};
 
 /// What a share link hands its opener, sealed with its code (`InviteCode::seal_share`): the
-/// block's scope key as it travels, with the block and its log's root, and the root of the
-/// organization's log, so a guest checks records an administrator signed. The server stores it
-/// and never opens it.
+/// block's scope key as it travels, with the block and its log's root (none for a Join link,
+/// whose opener reads nothing stored), the root of the organization's log, so a guest checks
+/// records an administrator signed, and the block's name as its maker saw it, which the opener
+/// is shown before opening it. The server stores it and never opens it.
 #[derive(Clone, Debug, serde::Deserialize, Eq, PartialEq, serde::Serialize)]
 pub struct Handed {
+    pub scope: Option<HandedKey>,
+    pub organization_root: Option<EntryHash>,
+    pub name: String,
+}
+
+/// The block's scope key a share link carries: its id and the key as it travels.
+#[derive(Clone, Debug, serde::Deserialize, Eq, PartialEq, serde::Serialize)]
+pub struct HandedKey {
     pub key: Uuid,
     #[serde(with = "serde_bytes")]
-    pub scope: Vec<u8>,
-    pub organization_root: Option<EntryHash>,
+    pub carried: Vec<u8>,
 }
 
 impl Handed {
@@ -48,9 +56,16 @@ impl Handed {
             .ok()
             .and_then(|bytes| Self::decode(&bytes))
             .ok_or_else(tampered)?;
-        let carried = CarriedKey::decode(&handed.scope).map_err(|_| tampered())?;
-        if carried.block != link.block.into_bytes() {
-            return Err(tampered());
+        // A Join link carries no key, and any other the block's own.
+        match (&handed.scope, link.access) {
+            (None, Access::Join) => {}
+            (Some(scope), access) if access != Access::Join => {
+                let carried = CarriedKey::decode(&scope.carried).map_err(|_| tampered())?;
+                if carried.block != link.block.into_bytes() {
+                    return Err(tampered());
+                }
+            }
+            _ => return Err(tampered()),
         }
         Ok(handed)
     }
@@ -106,11 +121,12 @@ pub fn wire_admits(admits: Admits) -> LinkAdmits {
 
 fn level_of(access: Access) -> Result<Level, ClientError> {
     match access {
+        Access::Join => Ok(Level::Join),
         Access::View => Ok(Level::View),
         Access::Edit => Ok(Level::Edit),
         _ => Err(ClientError::Refused(
             ErrorCode::InvalidRequest,
-            "a share link grants viewing or editing".into(),
+            "a share link grants joining, viewing or editing".into(),
         )),
     }
 }
@@ -126,6 +142,18 @@ pub async fn read_share_link(
         be_block_protocol::Query::ShareLink(link_id(code)),
     )
     .await??)
+}
+
+/// The share link with `code` as this account reads it before opening it, with what it hands,
+/// opened with the code: the block's name and whether opening it joins the organization as a
+/// guest are what the person is asked to open it on.
+pub async fn preview_share_link(
+    connection: &Arc<Connection>,
+    code: &InviteCode,
+) -> Result<(be_block_protocol::ShareLink, Handed), ClientError> {
+    let link = read_share_link(connection, code).await?;
+    let handed = Handed::open(code, &link)?;
+    Ok((link, handed))
 }
 
 /// How often `open_share_link` signs its grant again after the block's log moved under it.
@@ -150,18 +178,24 @@ pub async fn open_share_link(
         account: account.into_bytes(),
         public: identity.public(),
     };
-    let sealed = identity
-        .seal_for(
-            account.into_bytes(),
-            &mine,
-            handed.key.as_bytes(),
-            &handed.scope,
-        )
-        .map_err(|error| {
-            ClientError::Encoding(format!(
-                "this device could not seal the link's key to this account: {error:?}"
-            ))
-        })?;
+    let (key, sealed) = match &handed.scope {
+        None => (None, Vec::new()),
+        Some(scope) => (
+            Some(scope.key),
+            identity
+                .seal_for(
+                    account.into_bytes(),
+                    &mine,
+                    scope.key.as_bytes(),
+                    &scope.carried,
+                )
+                .map_err(|error| {
+                    ClientError::Encoding(format!(
+                        "this device could not seal the link's key to this account: {error:?}"
+                    ))
+                })?,
+        ),
+    };
     if link.guest
         && let Some(root) = handed.organization_root
         && contacts::pinned(connection, account, identity, link.organization)
@@ -198,7 +232,7 @@ pub async fn open_share_link(
             be_block_protocol::Op::OpenShareLink {
                 link: link.id,
                 signed,
-                key: handed.key,
+                key,
                 sealed: sealed.clone(),
             },
         )
@@ -219,8 +253,8 @@ pub async fn open_share_link(
 }
 
 impl<S: ObjectStore> Peer<S> {
-    /// Makes a share link on `block` granting `access` (View or Edit) to whoever opens it, as
-    /// `admits` allows: makes the block a scope of its own, keeps the link's code in the
+    /// Makes a share link on `block` granting `access` (Join, View or Edit) to whoever opens it,
+    /// as `admits` allows: for View or Edit, makes the block a scope of its own, keeps the link's code in the
     /// account's block, and opens the link in the block's log. Answers the code; the link is
     /// `{server}/#share/{CODE}`.
     pub async fn make_share_link(
@@ -230,13 +264,23 @@ impl<S: ObjectStore> Peer<S> {
         admits: Admits,
     ) -> Result<InviteCode, ClientError> {
         let level = level_of(access)?;
-        let offer = self.offer(block, access).await?;
+        // A Join link carries no key: its opener reads nothing stored, and joins whoever hosts.
+        let scope = match access {
+            Access::Join => None,
+            _ => {
+                let offer = self.offer(block, access).await?;
+                Some(HandedKey {
+                    key: offer.key,
+                    carried: offer.secret,
+                })
+            }
+        };
         let code = InviteCode::generate();
         let link = link_id(&code);
         let handed = Handed {
-            key: offer.key,
-            scope: offer.secret,
+            scope,
             organization_root: self.keys().organization_root(),
+            name: self.kept_name(block).unwrap_or_default(),
         };
         let sealed = code.seal_share(block.into_bytes(), &handed.encode());
         let key = code.share_key(block.into_bytes());

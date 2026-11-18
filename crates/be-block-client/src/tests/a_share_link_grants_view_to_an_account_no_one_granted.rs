@@ -108,7 +108,7 @@ async fn a_share_link_grants_view_to_an_account_no_one_granted() {
         be_block_protocol::Op::OpenShareLink {
             link,
             signed: forged.encode(),
-            key: scope,
+            key: Some(scope),
             sealed: Vec::new(),
         },
     )
