@@ -31,7 +31,12 @@ async fn a_listing_answered_before_a_refused_move_keeps_the_block_where_it_is() 
 
     let folder = Listing::Children(BlockParent::Block(team));
     assert!(
-        member.list(folder).await.unwrap().iter().any(|summary| summary.id == note),
+        member
+            .list(folder)
+            .await
+            .unwrap()
+            .iter()
+            .any(|summary| summary.id == note),
         "the member sees the note in its folder"
     );
     member

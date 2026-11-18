@@ -40,7 +40,12 @@ async fn a_listing_answered_before_a_creation_sent_meanwhile_keeps_the_block() {
         "the drain sent the creation: {drained:?}"
     );
     assert!(
-        owner.list(folder).await.unwrap().iter().any(|summary| summary.id == block),
+        owner
+            .list(folder)
+            .await
+            .unwrap()
+            .iter()
+            .any(|summary| summary.id == block),
         "the server lists the block once it made it"
     );
 

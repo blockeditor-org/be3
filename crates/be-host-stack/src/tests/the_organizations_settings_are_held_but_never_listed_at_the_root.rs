@@ -18,7 +18,9 @@ fn the_organizations_settings_are_held_but_never_listed_at_the_root() {
     });
 
     ask_for(vec![Query::Roots]);
-    wait_until("listed the roots", |shared| shared.graph.ready(Query::Roots));
+    wait_until("listed the roots", |shared| {
+        shared.graph.ready(Query::Roots)
+    });
     let unlisted = crate::wait_until("read what the answer did", |shared| {
         Some(
             shared

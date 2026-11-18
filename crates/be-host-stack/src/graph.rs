@@ -1308,10 +1308,7 @@ impl Graph {
             return;
         }
         self.organization_settings = Some(settings);
-        if let Some(listed) = self
-            .listings
-            .get_mut(&Listing::Children(BlockParent::Root))
-        {
+        if let Some(listed) = self.listings.get_mut(&Listing::Children(BlockParent::Root)) {
             listed.members.remove(&settings);
         }
         self.prune();
@@ -1995,10 +1992,12 @@ impl Graph {
                 let known = known!(self);
                 self.nodes
                     .values()
-                    .filter(|node| match member(Listing::Backrefs(block), node, &known) {
-                        Some(refers) => refers,
-                        None => listed.is_some_and(|listed| listed.members.contains(&node.id)),
-                    })
+                    .filter(
+                        |node| match member(Listing::Backrefs(block), node, &known) {
+                            Some(refers) => refers,
+                            None => listed.is_some_and(|listed| listed.members.contains(&node.id)),
+                        },
+                    )
                     .map(|node| Node::clone(node))
                     .collect()
             }
@@ -2226,10 +2225,7 @@ fn member(listing: Listing, node: &Node, known: &Known) -> Option<bool> {
         Listing::Children(parent) => Some(node.parent == Some(parent)),
         Listing::Deleted => Some(node.parent.is_some() && !node.held),
         Listing::Block(block) => Some(block == node.id),
-        Listing::Backrefs(block) => known
-            .current(node)
-            .then(|| node.refers_to(block))
-            .flatten(),
+        Listing::Backrefs(block) => known.current(node).then(|| node.refers_to(block)).flatten(),
         Listing::References(block) => known
             .nodes
             .get(&block)

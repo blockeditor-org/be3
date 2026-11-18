@@ -48,7 +48,9 @@ async fn a_refused_move_with_a_definition_behind_it_puts_the_block_back_at_once(
         "the server refused the move into a folder the member may only view: {drained:?}"
     );
 
-    let summary = member.known_summary(note).expect("the device knows the note");
+    let summary = member
+        .known_summary(note)
+        .expect("the device knows the note");
     assert_eq!(
         summary.parent,
         Some(BlockParent::Block(team)),
