@@ -208,6 +208,17 @@ Depends on #686 (session catch-ups replaced by server ordering).
 
 ## 15. Flaky host tests
 
+- **A chat message unsent across a restart, stalled under load.**
+  be-host-stack's `a_chat_message_unsent_across_a_restart_notifies_once_after_reconnecting`
+  timed out in a verify at "the stack never reached read the chat's log: it
+  made no progress for 60 s", using 0.5 s of CPU in 60 s: a wait that never
+  woke. Its state then: connected, reached the server, no error, no commands,
+  edits or listings owed, nothing draining, progressed 30 to 32, wakes 5, one
+  open block. Run straight from its built harness it failed 2 of 48 times on the
+  integration tip at 16 at once on 4 cores, and 0 of 30 at 6 at once, so it is
+  older than any one branch. Done: what the stack waits on there is found and
+  woken, and the test passes 200 runs at 16 at once.
+
 - **A joined block's tabs, once under verify load.**
   `a_joined_blocks_tabs_carry_its_menu` waited for "Referenced by (2)" and saw
   (1), and has not failed since in 240 runs under `stress`. Its next failure
