@@ -536,8 +536,10 @@ impl<G: Inline> Core<G> {
                         self.watching
                             .remove(at)
                             .fail(&mut self.connection, OpError::Canceled);
-                    } else if let Some(at) =
-                        self.saving_watchers.iter().position(|reply| reply.op() == op)
+                    } else if let Some(at) = self
+                        .saving_watchers
+                        .iter()
+                        .position(|reply| reply.op() == op)
                     {
                         self.saving_watchers
                             .remove(at)

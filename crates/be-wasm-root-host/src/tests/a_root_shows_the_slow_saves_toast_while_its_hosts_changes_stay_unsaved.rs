@@ -51,7 +51,10 @@ fn a_root_shows_the_slow_saves_toast_while_its_hosts_changes_stay_unsaved() {
         time += 1;
         toast_at(&mut root, time)
     });
-    assert!(shown, "once changes stayed unsaved that long since the last save, it shows");
+    assert!(
+        shown,
+        "once changes stayed unsaved that long since the last save, it shows"
+    );
     let painting = own_paintings(&mut root, time)
         .into_iter()
         .find(|(surface, _)| *surface == u64::from(TOAST_SURFACE))
