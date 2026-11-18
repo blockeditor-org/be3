@@ -42,5 +42,8 @@ fn a_holder_whose_restart_peers_put_off_keeps_sending_its_edits() {
         "the holder's edit reached the peer: {:?}",
         sim.typed(1, 1)
     );
-    assert_eq!(sim.devices[0].status.restarts, 0, "the restart is still put off");
+    assert_eq!(
+        sim.devices[0].status.restarts, 0,
+        "the restart is still put off"
+    );
 }

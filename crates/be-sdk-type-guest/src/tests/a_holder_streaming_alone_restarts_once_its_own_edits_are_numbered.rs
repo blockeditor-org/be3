@@ -31,5 +31,9 @@ fn a_holder_streaming_alone_restarts_once_its_own_edits_are_numbered() {
     assert_eq!(prose(&sim.content(0)), "more end start\n");
     assert_eq!(sim.typed(0, 1), "more end start\n");
     sim.advance(crate::QUIET_INTERVAL);
-    assert_eq!(prose(&sim.head_content()), "more end start\n", "and is sealed");
+    assert_eq!(
+        prose(&sim.head_content()),
+        "more end start\n",
+        "and is sealed"
+    );
 }
