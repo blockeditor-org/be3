@@ -822,7 +822,9 @@ cannot read.
   that log holds a grant to it signed with a key it verified for the contact
   who signed it (`joined_log`), and pins it weakly, in memory
   (`KeyBook::pin_vouched`, `RootPin::Weak`), so a log rooted elsewhere later in
-  the run is refused ("Accepted limits").
+  the run is refused ("Accepted limits"). The logs of the blocks above, which
+  the walk up reads, it is served as proof paths through `reads_below` (its
+  own block lies below them), proving the lease holder there too.
 - **The handshake** is Noise IK (`Noise_IK_25519_XChaChaPoly_SHA256`: this
   crate's one seal in place of ChaChaPoly; the cipher is a private parameter,
   and a test runs the same code as `Noise_IK_25519_ChaChaPoly_SHA256` against
@@ -841,7 +843,9 @@ cannot read.
 - **Messages** (`noise::Channel`) each carry a 64-bit counter, the seal's
   nonce, and a side takes only the next one: a message out of place (dropped,
   held back, replayed) or changed breaks the channel for good, and the member
-  handshakes again, as it does after a host change or a reconnect. So the
+  handshakes again, as it does after a host change or a reconnect. A sealed
+  message the server refuses (`SlowDown`) is sent again as the same bytes,
+  never sealed again (`Channel::seal`). So the
   server can neither read, forge, reorder, replay nor silently drop a
   transport message; the handshake's own first message it can replay, which
   admits no one. Keys and the chaining key are wiped when dropped.

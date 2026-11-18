@@ -45,7 +45,9 @@ struct Session {
     /// The Join members, with their accounts.
     joiners: BTreeMap<ClientId, uuid::Uuid>,
     /// What each account may still send the lease holder (`limits::HOST_MESSAGES_PER_SECOND`),
-    /// across all its connections, for as long as the session lasts.
+    /// across all its connections, for as long as the session lasts. Not pruned when an account
+    /// leaves: leaving and joining again would refill its burst. One bucket per account that
+    /// ever sent here, a few dozen bytes, gone with the session.
     sends: HashMap<uuid::Uuid, crate::limits::Bucket>,
 }
 

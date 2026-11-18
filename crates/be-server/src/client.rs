@@ -1431,13 +1431,14 @@ impl Client {
                 // A reader below Edit checks a lease holder's right to host before it speaks to
                 // it (plans/hosted_blocks.md), in the block's log or one above it: the path proves
                 // the records of the holder of each session this connection is in, whose host it
-                // was told.
+                // was told, where that session's block is this one or lies below it
+                // (`ServerStore::access_log`).
                 let mut hosts = Vec::new();
                 for place in self.following.sessions.keys() {
                     if place.organization == identity.organization
                         && let Some(host) = connection.registry.host(*place).await
                     {
-                        hosts.push(host.account);
+                        hosts.push((place.block, host.account));
                     }
                 }
                 Page::Log(store.access_log(identity, block, hosts).await?)

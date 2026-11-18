@@ -174,6 +174,12 @@ a role inside the app, since the share dialog grants no roles. A game:
    confirmation, since IK's first message can be replayed), and a channel
    message out of order breaks the channel, after which the member handshakes
    again.
+   What step 4's host component must do with these: drop a member's channel
+   when the member leaves the session (`session-event.joiner`, or a `left`
+   membership entry), check every admitted member against the signed logs
+   again on each access change (as `Peer::admit` checks it) and drop one that
+   no longer holds Join, and make a participant that falls to Join (the server
+   takes it out and it joins again as a Join member) handshake again.
 4. **Hosting.** The host component, starting and stopping it with the editor,
    Keep hosting and the shell's list, lease handoff and reconnecting, ban
    records; then `be BLOCK host`. Done: a test with two editors and two
