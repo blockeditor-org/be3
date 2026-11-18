@@ -292,7 +292,7 @@ a carry whose gesture ended, so the item glides home and the site stops previewi
      `take_written` and `applied` count a held edit only once its layer commits.
    - Peers no longer see a canvas resize, rotation or erase until it is dropped: the
      canvas's presence carries no held frames. A move is on the drag board since
-     plans/declarative_dragging.md step 5, and its presence carries the moved centres.
+     plans/declarative_dragging.md step 5, and its presence carries the move's offset.
    - Left as they are:
      - Tagging the mirror's pending edits by gesture: a drag sends one edit per frame, but a
        snapshot answers only an edit the replica drops in a gesture it ended (an undo mid-drag

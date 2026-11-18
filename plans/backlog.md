@@ -477,6 +477,11 @@ Depends on #686 (session catch-ups replaced by server ordering).
   beui-core-html's `watch()` seeds the signal synchronously the first time it
   is made, and those eager `measure` calls at build go.
 
+- **The game's stage wraps its table.** The stage lays its pressing
+  `Interactive` over the table because a drag source's face once took its
+  child's own size; it lays its child out as a plain `Interactive` does now.
+  Done: the `Interactive` wraps the table, and the game's paintings and press
+  tests are unchanged.
 - **Selecting a game piece from the keyboard.** Space lifts the selected
   piece and the arrows step it between its squares, but only a click selects
   one, so a game cannot be played from the keyboard alone. Done: the arrows

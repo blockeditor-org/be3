@@ -40,8 +40,11 @@ impl CanvasState {
             return None;
         }
         if press.pointer == PointerId::Keyboard {
-            // Only between gestures, and only a selection something of which can move.
-            if self.focused_editor.get_untracked().is_some()
+            // Only between gestures, and only a selection something of which can move. The
+            // board refuses a lift only while it carries something, so the move begun here is
+            // lifted.
+            if self.board().carrying()
+                || self.focused_editor.get_untracked().is_some()
                 || !self.tool.get_untracked().selects()
                 || self.gesture.with_untracked(Option::is_some)
                 || self.selected_unlocked().is_empty()

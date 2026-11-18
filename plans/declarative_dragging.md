@@ -330,8 +330,8 @@ through the drag and Escape rebuilds nothing; drawn invisible, it is the gap, at
      The board's drop commits the hold; a put-down (Escape, a cancelled press) drops it, and
      `gesture_ended` puts down the board's carry when the replica ends the hold (an undo
      mid-move). Peers see the move again as it goes: the canvas's presence carries the
-     carried entities' centres (`CanvasCursor::carried`), which a peer's `Entities` draws them
-     at (`carry_for_peers`, a `drawn` memo beside `stored` that edits never read), with what
+     carried move's offset (`CanvasCursor::carried`), which a peer applies to what of the
+     mover's selection is unlocked and its `Entities` draws there (`carry_for_peers`, a `drawn` memo beside `stored` that edits never read), with what
      they are bound to following. The surface is an edge scroller that pans the camera, and
      the site chooses again as the camera moves (`Board::retrack`). From the keyboard, Space
      lifts the selection and the arrows step it by `FREE_STEP` points. Where it differs:
@@ -343,7 +343,10 @@ through the drag and Escape rebuilds nothing; drawn invisible, it is the gap, at
      declines it, or as it ends short of the threshold (a pen stroke keeps its first
      points); and the source's face lays its child out as a plain `Interactive` does, so a
      canvas fills it (a video clip now fits its lane). The canvas holds one carry at a
-     time, as the board does until step 7 (below). Lines: the hand-written move drag was
+     time, as the board does until step 7 (below). Left as they are: of two peers carrying
+     the same entity, a viewer draws the one listed last; and a peer whose mover's presence
+     clears before the drop's edit arrives draws the shape back where it was until the edit
+     lands, since a cleared presence does not say whether the carry was dropped or put down. Lines: the hand-written move drag was
      `drag`'s `Move` arm and the release path (3 lines); what is new does what the canvas
      did not: the site with its keyboard lift and edge scrolling (`carry.rs`, 194 lines) and
      peers drawing a carry (about 110 lines in `entities.rs` and `state.rs`).

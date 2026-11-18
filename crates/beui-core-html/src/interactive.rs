@@ -553,10 +553,11 @@ mod web {
             }
             self.pressed.set(None);
             self.uncaptured.set(None);
-            self.handlers.on_active_change.call(false);
+            // A press called off hears so before it hears it ended, as on the native core.
             if stage == PointerStage::Cancel {
                 self.handlers.on_cancel.call(());
             }
+            self.handlers.on_active_change.call(false);
         }
 
         fn claims(&self, element: &web_sys::Element, event: &web_sys::PointerEvent) -> bool {
