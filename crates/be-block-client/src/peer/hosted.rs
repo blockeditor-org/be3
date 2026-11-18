@@ -276,6 +276,26 @@ impl<S: ObjectStore> Peer<S> {
     /// is then pinned as weakly as a member's escrow wrap pins one (`KeyBook::pin_vouched`), so
     /// a log rooted elsewhere later is refused for the rest of the run.
     async fn joined_log(&self, block: Uuid) -> Result<Checked, ClientError> {
+        let held = match self.vouched_log(block).await {
+            // The server shows the block no more: this account holds nothing there.
+            Err(
+                refused @ ClientError::Refused(
+                    ErrorCode::BlockNotFound | ErrorCode::PermissionDenied,
+                    _,
+                ),
+            ) => {
+                self.forget_fallen_opens(block, None).await?;
+                return Err(refused);
+            }
+            held => held?,
+        };
+        self.forget_fallen_opens(block, Some(&held)).await?;
+        Ok(held)
+    }
+
+    /// `block`'s log, checked from a root this device pinned, or that a contact's grant or a
+    /// share link this account opened vouches for (`joined_log`).
+    async fn vouched_log(&self, block: Uuid) -> Result<Checked, ClientError> {
         if !matches!(self.keys.root_pin(block), crate::keys::RootPin::Unknown) {
             return Ok(self.checked_access(block).await?.1);
         }
@@ -312,5 +332,29 @@ impl<S: ObjectStore> Peer<S> {
         }
         self.keys.pin_vouched(block, root);
         Ok(self.checked_access(block).await?.1)
+    }
+
+    /// Forgets the share links this account opened on `block` once it holds nothing there: the
+    /// log, checked, grants it nothing, or the server shows the block no more (`checked` none).
+    /// The grant a link gave fell (revoked, or the link with it), so the root it handed vouches
+    /// for nothing more.
+    async fn forget_fallen_opens(
+        &self,
+        block: Uuid,
+        checked: Option<&Checked>,
+    ) -> Result<(), ClientError> {
+        if checked.is_some_and(|checked| {
+            checked
+                .holding(LogKind::Block, self.account.into_bytes(), Level::Join)
+                .is_some()
+        }) {
+            return Ok(());
+        }
+        for (link, kept) in self.kept_shares().await? {
+            if kept.block == block && !kept.made {
+                self.keep_share(link, None).await?;
+            }
+        }
+        Ok(())
     }
 }

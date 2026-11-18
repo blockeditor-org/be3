@@ -146,12 +146,7 @@ pub async fn read_share_link(
     connection: &Arc<Connection>,
     code: &InviteCode,
 ) -> Result<be_block_protocol::ShareLink, ClientError> {
-    let mut link = be_block_protocol::read::<be_block_protocol::ShareLink, _>(
-        connection,
-        None,
-        be_block_protocol::Query::ShareLink(link_id(code)),
-    )
-    .await??;
+    let mut link = served_link(connection, code).await?;
     let organizations = be_block_protocol::read::<Vec<be_block_protocol::Organization>, _>(
         connection,
         None,
@@ -163,6 +158,19 @@ pub async fn read_share_link(
             && organization.role != be_block_protocol::OrganizationRole::Guest
     });
     Ok(link)
+}
+
+/// The share link with `code` as the server serves it, its `guest` the server's word.
+async fn served_link(
+    connection: &Arc<Connection>,
+    code: &InviteCode,
+) -> Result<be_block_protocol::ShareLink, ClientError> {
+    Ok(be_block_protocol::read::<be_block_protocol::ShareLink, _>(
+        connection,
+        None,
+        be_block_protocol::Query::ShareLink(link_id(code)),
+    )
+    .await??)
 }
 
 /// The share link with `code` as this account reads it before opening it, with what it hands,
@@ -185,10 +193,10 @@ const OPEN_TRIES: usize = 3;
 /// block's log, and, for a guest of the organization, pins the root of its log the link carries
 /// when this account pinned none. Refused when the link no longer shares the block, or grants
 /// the level, that `expected` (what the person was shown) names. The account's block keeps the
-/// root of the block's log the link handed it, and the log, read once opened, must start at it
-/// (`ClientError::Forged`): a head the server made up is never trusted, the grant signed over it
-/// grants nothing in the real log, and `Peer::joined_log` checks by that root from then on.
-/// Answers the link and what it handed.
+/// root of the block's log the link handed it, before the grant is sent: `Peer::joined_log`
+/// takes the block's log only from that root, which is what keeps a log the server made up from
+/// being trusted. Reading the log once opened and refusing one rooted elsewhere
+/// (`ClientError::Forged`) only says so at once. Answers the link and what it handed.
 pub async fn open_share_link(
     connection: &Arc<Connection>,
     identity: &RecoverySecret,
@@ -292,11 +300,15 @@ pub async fn open_share_link(
         if tries >= OPEN_TRIES {
             return Err(error.into());
         }
-        let again = read_share_link(connection, code).await?;
+        // Only the head moved: whether this account is a guest is as judged once above.
+        let again = served_link(connection, code).await?;
         if again.head == link.head {
             return Err(error.into());
         }
-        link = again;
+        link = be_block_protocol::ShareLink {
+            guest: link.guest,
+            ..again
+        };
     }
     // The log the grant went into must start at the root the link handed.
     let served = be_block_protocol::read::<Vec<Vec<u8>>, _>(
@@ -341,8 +353,18 @@ impl<S: ObjectStore> Peer<S> {
         let code = InviteCode::generate();
         let link = link_id(&code);
         // The root of the block's log as this account pinned it: the opener checks by it.
-        let crate::keys::RootPin::Pinned(handed_root) = self.keys().root_pin(block) else {
-            return Err(ClientError::Locked(block));
+        let handed_root = match self.keys().root_pin(block) {
+            crate::keys::RootPin::Pinned(root) => root,
+            // Taken from a member's word alone: a link handing it on would vouch for a root
+            // this device never verified.
+            crate::keys::RootPin::Weak(_) => {
+                return Err(ClientError::Refused(
+                    ErrorCode::PermissionDenied,
+                    "this device knows who made the block only from another member's word: make the link on a device that made it, or holds a key of it from its manager".into(),
+                ));
+            }
+            crate::keys::RootPin::Conflicting => return Err(ClientError::Forged(block)),
+            crate::keys::RootPin::Unknown => return Err(ClientError::Locked(block)),
         };
         let handed = Handed {
             scope,
@@ -401,7 +423,12 @@ impl<S: ObjectStore> Peer<S> {
             be_block_protocol::Query::ShareLinks(block),
         )
         .await??;
-        let kept = self.kept_shares().await?;
+        let kept: Vec<_> = self
+            .kept_shares()
+            .await?
+            .into_iter()
+            .filter(|(_, kept)| kept.made)
+            .collect();
         Ok(rows
             .into_iter()
             .map(|row| {
@@ -491,7 +518,7 @@ impl<S: ObjectStore> Peer<S> {
         })
     }
 
-    async fn keep_share(&self, link: Uuid, kept: Option<KeptShare>) -> Result<(), ClientError> {
+    pub(crate) async fn keep_share(&self, link: Uuid, kept: Option<KeptShare>) -> Result<(), ClientError> {
         let bytes = kept.map(|kept| kept.encode());
         self.records()
             .await?
