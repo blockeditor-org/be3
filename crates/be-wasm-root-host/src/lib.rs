@@ -126,9 +126,9 @@ struct Core<G> {
     /// The root's `host.statistics` calls waiting for them to change from those it saw.
     statistics_watchers: Vec<Reply<HostStatistics>>,
     /// The host's memory over time, which `host.memory-history` answers.
-    memory_history: be_wasm_root_api::MemoryHistory,
+    memory_history: be_wasm_root_api::MemoryMinutes,
     /// The root's `host.memory-history` calls waiting for it to change from what they saw.
-    memory_watchers: Vec<Reply<be_wasm_root_api::MemoryHistory>>,
+    memory_watchers: Vec<Reply<be_wasm_root_api::MemoryMinutes>>,
     /// The session's screen lock, which `host.lock` answers: the generation counts each change.
     lock: LockState,
     /// The root's `host.lock` calls waiting for it to change from what they saw.
@@ -207,9 +207,9 @@ impl<G: Inline> Core<G> {
                 memory_file: None,
             },
             statistics_watchers: Vec::new(),
-            memory_history: be_wasm_root_api::MemoryHistory {
+            memory_history: be_wasm_root_api::MemoryMinutes {
                 generation: 1,
-                ..be_wasm_root_api::MemoryHistory::default()
+                ..be_wasm_root_api::MemoryMinutes::default()
             },
             memory_watchers: Vec::new(),
             lock: LockState {
@@ -376,7 +376,7 @@ impl<G: Inline> Core<G> {
         if self.memory_history.points == points && self.memory_history.now == now {
             return false;
         }
-        self.memory_history = be_wasm_root_api::MemoryHistory {
+        self.memory_history = be_wasm_root_api::MemoryMinutes {
             generation: self.memory_history.generation + 1,
             points,
             now,
