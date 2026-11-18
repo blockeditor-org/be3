@@ -11,8 +11,9 @@
 //! (Playwright's `getByRole`; `modal` and `inert` read Chrome's accessibility tree over CDP) and
 //! `roles ROLE COUNT` and
 //! `elements CSS COUNT`, for scripts that run only there (crates/beui-demo-html's), and
-//! `attribute CSS NAME VALUE|none`, `history LENGTH`, `history-state marker|none`, `loads COUNT` and
-//! `reload`, which a script both cores
+//! `attribute CSS NAME VALUE|none`, `history LENGTH`, `history-state marker|none`, `loads COUNT`,
+//! `reload` and `css TEXT` (adds a stylesheet, to stand in for a browser without a feature), which
+//! a script both cores
 //! run gives as `#web COMMAND` lines (comments natively).
 //!
 //! The browser run's `settle` waits until no frame is wanted at once; a frame a timer will ask
@@ -182,6 +183,9 @@ pub fn Fixture(name: String) -> Root {
         },
         "scroll_chain" => view! {
             <rows::ScrollChainFixture />
+        },
+        "virtual_anchor" => view! {
+            <rows::VirtualAnchorFixture />
         },
         "drag" => view! {
             <rows::DragFixture />
