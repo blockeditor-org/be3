@@ -27,6 +27,11 @@ use crate::{
     refs::{Creation, ListedBlock, Op, Pending, Refs, RefsDb, Scope, Session},
 };
 
+/// The blocks whose creation or move waited in the outbox when a listing was asked for
+/// (`Peer::placing`), for laying its answer over (`Peer::with_outbox`).
+#[derive(Clone, Debug, Default)]
+pub struct Placing(Vec<Uuid>);
+
 /// A listing's blocks, and the organization's change sequence the server read them at: a block
 /// that changes after it does so at a larger `changed`.
 #[derive(Clone, Debug, Default)]
@@ -3177,6 +3182,7 @@ impl<S: ObjectStore> Peer<S> {
         {
             return Ok(here(self.listed_here(listing, block)));
         }
+        let placing = self.placing();
         match self.list_online(listing).await {
             Ok((sequence, blocks)) => {
                 self.observe(&blocks);
@@ -3184,7 +3190,7 @@ impl<S: ObjectStore> Peer<S> {
                     .into_iter()
                     .map(|summary| self.summary_with_outbox(summary))
                     .collect();
-                let blocks = self.with_outbox(listing, blocks);
+                let blocks = self.with_outbox(listing, blocks, &placing);
                 let _ = self.refs.listed(listing, &blocks, sequence);
                 Ok(Listed { sequence, blocks })
             }
@@ -3307,7 +3313,7 @@ impl<S: ObjectStore> Peer<S> {
     /// what is in force at its parent.
     fn listed_here(&self, listing: Listing, block: Uuid) -> Vec<BlockSummary> {
         if let Some(cached) = self.refs.cached_listing(listing) {
-            return self.with_outbox(listing, cached);
+            return self.with_outbox(listing, cached, &Placing::default());
         }
         let parent = self
             .refs
@@ -3321,7 +3327,7 @@ impl<S: ObjectStore> Peer<S> {
                 .unwrap_or_default(),
             _ => Vec::new(),
         };
-        self.with_outbox(listing, blocks)
+        self.with_outbox(listing, blocks, &Placing::default())
     }
 
     /// A summary the server answered, as this device has it: where a move waiting in the
@@ -3331,13 +3337,50 @@ impl<S: ObjectStore> Peer<S> {
         self.refs.with_outbox(summary)
     }
 
+    /// The blocks whose creation or move waits in the outbox now: taken before a listing is
+    /// asked for, so its answer is laid over with them (`with_outbox`) even when the drain sends
+    /// them while the request is out.
+    pub fn placing(&self) -> Placing {
+        Placing(
+            self.refs
+                .outbox()
+                .into_iter()
+                .filter_map(|(_, op)| match op {
+                    Op::Create(creation) => Some(creation.block),
+                    Op::Move(moving) => Some(moving.block),
+                    Op::Publish(_) | Op::Define(_) | Op::Hold(_) | Op::Append(_) => None,
+                })
+                .collect(),
+        )
+    }
+
     /// A listing the server answered, as this device has it: what a creation or move waiting in
-    /// the outbox puts in it or takes out.
+    /// the outbox puts in it or takes out, and where this device has each block `placing` named
+    /// (`Peer::placing`, taken before the listing was asked for) whose creation or move the
+    /// drain sent since. Calls on one connection are answered in order, so an answer to a
+    /// request that went before such a write was read before the server took it, and would
+    /// otherwise leave out a block made here or keep one moved away.
     pub fn with_outbox(
         &self,
         listing: Listing,
         mut blocks: Vec<BlockSummary>,
+        placing: &Placing,
     ) -> Vec<BlockSummary> {
+        let waiting = self.placing();
+        for block in placing.0.iter().filter(|block| !waiting.0.contains(block)) {
+            let Some(summary) = self.refs.summary(*block) else {
+                continue;
+            };
+            let here = match (listing, summary.parent) {
+                (Listing::Children(under), Some(parent)) => under == parent,
+                (Listing::Deleted, Some(parent)) => parent == BlockParent::Detached,
+                _ => continue,
+            };
+            blocks.retain(|listed| listed.id != *block);
+            if here && self.refs.refused(*block).is_none() {
+                blocks.push(summary);
+            }
+        }
         for (_, op) in self.refs.outbox() {
             let (block, parent) = match op {
                 Op::Create(creation) => (creation.block, creation.parent),

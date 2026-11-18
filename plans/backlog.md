@@ -628,19 +628,6 @@ decisions/tentative_edits_wait_for_release.md) left as it was.
   whose answer has made no progress for `IDLE_TIMEOUT`, with a be-server test
   where a client that stops reading a GetObject answer is disconnected.
 
-- **A Backrefs answer that leaves out a block just made.** On the web, after a
-  text is created, be-host logs a few times "the answer to Backrefs(...) at
-  sequence N left out [...], which this device holds as listed there"
-  (`log_unlisted_held` in be-host-stack's `worker.rs`, from
-  `Graph::take_unlisted_held`). Repro: `./scripts/test
-  //crates/be-host:shown-again-web-host-test`, which makes two texts, and read
-  its log for those lines (the `stale` field says whether the answer was to a
-  request from before the change). Whether it is a request answered from
-  before the new block's reference was published, or the server's backrefs
-  lagging its listing, is not known. Done: the cause is found, and a
-  be-host-stack test that makes a block and lists its backrefs right away sees
-  no such line.
-
 - **One bad log entry refuses its whole batch.** `Peer::send_appends` sends
   a block's waiting entries in batches (`ENTRIES_PER_SEND`), and the server
   refuses an append whole, so one entry it would refuse (over a limit, a
