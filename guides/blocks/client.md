@@ -327,7 +327,8 @@ taken unproven.
   log's redactions (`log-page.redactions`), and each read names those since
   the count this device caught up with (`redactions-after`,
   `Refs::log_redactions`), told again as `Event::Redacted`; as it connects a
-  device reads each log it kept from its head (`catch_up_redactions`), so one
+  device asks of every log it read at once (`catch_up_redactions`,
+  `query.log-redactions`, a few hundred logs a read), so one
   pushed while it was away still reaches it.
 - **Who wrote an entry.** `Peer::verify_entry(block, app, ..., said, signature)`
   is `verify_authored` over what the app said and its salt, with the entry's arrival,

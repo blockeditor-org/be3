@@ -159,5 +159,14 @@ async fn an_exported_log_verifies_elsewhere_against_the_block_it_was_written_in(
         Some(Signer::Bad),
         "history may only lead the log"
     );
+    // Whether an entry is history needs nothing read: with the server gone, it still answers.
     harness.stop().await;
+    assert_eq!(
+        elsewhere
+            .verify_imported(new, "test.app", &history.entries[1])
+            .await
+            .unwrap(),
+        Some(Signer::Verified),
+        "verifying history reads nothing"
+    );
 }

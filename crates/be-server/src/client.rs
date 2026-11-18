@@ -79,6 +79,8 @@ pub(crate) fn query_rule(query: &Query) -> Rule {
         Query::Tree { entry: of, .. } => block(*of, Access::View),
         Query::History(of) => block(*of, Access::View),
         Query::BlockLog { block: of, .. } => block(*of, Access::View),
+        // Each block the caller may not view is left out of the answer.
+        Query::LogRedactions(_) => Rule::Member,
         // Of a block the caller views, or one above a block it views (`access_log`).
         Query::Log { .. } => Rule::Member,
         Query::Access(of) => block(*of, Access::Manage),
@@ -232,6 +234,7 @@ pub(crate) fn bound_may_read(query: &Query, follow: bool) -> bool {
         | Query::History(_)
         | Query::Log { .. }
         | Query::BlockLog { .. }
+        | Query::LogRedactions(_)
         | Query::KeyWork
         | Query::RecoveryKey
         | Query::Organizations
@@ -1561,6 +1564,11 @@ impl Client {
             Query::Log { log: None, held } => {
                 Page::Log(store.organization_log(admitted.identity()?, held).await?)
             }
+            Query::LogRedactions(asked) => Page::LogRedactions(
+                store
+                    .log_redactions(admitted.identity()?, asked)
+                    .await?,
+            ),
             Query::Access(block) => {
                 let identity = admitted.identity()?;
                 let mut list = store.list_access(identity, block).await?;

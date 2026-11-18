@@ -147,6 +147,9 @@ pub struct LogRead {
     pub proof_hashes: usize,
 }
 
+/// How many logs one catch-up read asks of (`Peer::catch_up_redactions`).
+const REDACTIONS_PER_READ: usize = 256;
+
 /// How many times `read_log` reads a page again because the kept head moved while it was on
 /// its way, before giving up as contended.
 const READS_WHILE_MOVING: usize = 4;
@@ -739,18 +742,47 @@ impl<S: ObjectStore> Peer<S> {
             .find(|logged| logged.entry.seq == seq))
     }
 
-    /// Catches up with the redactions of every log this device kept a head of, as it connects:
-    /// one read of each from its kept head, which tells those it missed as `Event::Redacted`
-    /// (`read_log`), so search and open replicas drop what a redaction took while it was away.
+    /// Catches up with the redactions of every log this device read, as it connects: one read
+    /// of many logs at a time (`query.log-redactions`) names those it missed, each told as
+    /// `Event::Redacted` as its push would have been, so search and open replicas drop what a
+    /// redaction took while it was away.
     pub async fn catch_up_redactions(&self) {
-        for block in self.refs.logs_kept() {
-            let Some(size) = self.refs.log_head(block).map(|head| head.size) else {
-                continue;
-            };
-            if let Err(error) = self.read_log(block, size, 0).await
-                && error.is_unreachable()
-            {
+        let asked: Vec<be_block_protocol::LogRedactionsQuery> = self
+            .refs
+            .logs_kept()
+            .into_iter()
+            .filter_map(|block| {
+                Some(be_block_protocol::LogRedactionsQuery {
+                    block,
+                    after: self.refs.log_redactions(block)?,
+                })
+            })
+            .collect();
+        for asked in asked.chunks(REDACTIONS_PER_READ) {
+            let answered = crate::ask(be_block_protocol::ask::<
+                Vec<be_block_protocol::LogRedactions>,
+                _,
+            >(
+                &self.connection(),
+                Some(self.organization),
+                be_block_protocol::Query::LogRedactions(asked.to_vec()),
+                false,
+            ))
+            .await;
+            let Ok(answered) = answered else {
                 return;
+            };
+            for log in answered {
+                for seq in log.redacted {
+                    self.connection().redaction_read(be_block_protocol::Redacted {
+                        organization: self.organization,
+                        block: log.block,
+                        seq,
+                    });
+                }
+                if self.refs.set_log_redactions(log.block, log.redactions).is_err() {
+                    return;
+                }
             }
         }
     }
