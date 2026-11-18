@@ -9,9 +9,9 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 be-lib-geometry = { path = "../be-lib-geometry" }
-be-lib-input-router = { path = "../be-lib-input-router" }
 be-lib-layers = { path = "../be-lib-layers" }
 be-lib-ui-types = { path = "../be-lib-ui-types" }
+be-sdk-root = { path = "../be-sdk-root" }
 be-wasm-guest-abi = { path = "../be-wasm-guest-abi" }
 be-wasm-ops = { path = "../be-wasm-ops" }
 be-wasm-root-api = { path = "../be-wasm-root-api" }

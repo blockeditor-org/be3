@@ -1,0 +1,24 @@
+[package]
+name = "be-sdk-root-testing"
+description = "A root guest built on be-sdk-root, which be-wasm-root-host's tests run: it embeds the triangle's editor and shows its screen"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+be-lib-geometry = { path = "../be-lib-geometry" }
+be-lib-layers = { path = "../be-lib-layers" }
+be-sdk-api = { path = "../be-sdk-api" }
+be-sdk-root = { path = "../be-sdk-root" }
+be-wasm-guest-abi = { path = "../be-wasm-guest-abi" }
+be-wasm-ops = { path = "../be-wasm-ops" }
+be-wasm-root-api = { path = "../be-wasm-root-api" }
+
+[features]
+module = []
+
+[lints]
+workspace = true

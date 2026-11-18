@@ -190,6 +190,17 @@ third_party = {
                     ":uuid-1.29.1",
                 ],
             },
+            "wasm32": {
+                "deps": [
+                    ":enumn-0.1.14",
+                    ":serde-1.0.228",
+                    ":uuid-1.29.1",
+                ],
+                "features": [
+                    "enumn",
+                    "serde",
+                ],
+            },
             "windows-arm64": {
                 "deps": [
                     ":enumn-0.1.14",

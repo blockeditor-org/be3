@@ -134,6 +134,21 @@ write_package_value("be3.cargo", {
             "test_deps": [],
             "test_features": [],
         },
+        "wasm32": {
+            "binaries": {},
+            "deps": [
+                "//crates/be-lib-geometry:be-lib-geometry",
+                "//crates/be-lib-stable-hash:be-lib-stable-hash",
+                "//crates/be-sdk-api:be-sdk-api",
+                "//crates/be-sdk-manifest:be-sdk-manifest",
+                "//crates/be-wasm-sandbox-api:be-wasm-sandbox-api",
+                "//third-party/rust:uuid-1.29.1",
+            ],
+            "examples": {},
+            "features": [],
+            "test_deps": [],
+            "test_features": [],
+        },
         "windows-arm64": {
             "binaries": {},
             "deps": [

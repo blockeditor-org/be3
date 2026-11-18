@@ -219,6 +219,12 @@ impl<T: Copy + Eq + Debug> Router<T> {
         self.presses.iter().any(|press| press.pointer == pointer)
     }
 
+    /// Whether any pointer has a button down or a finger on, whether or not it landed on a
+    /// surface: its release has yet to come.
+    pub fn holding(&self) -> bool {
+        !self.presses.is_empty()
+    }
+
     /// `pointer` presses `button` at `at`: the surface the press is for, held until the button
     /// lifts. A mouse or pen already holding a surface keeps it for its other buttons; a press
     /// that pans the camera under it (`HitTest::pans`) is no surface's, even one already held.

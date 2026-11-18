@@ -70,6 +70,7 @@ LAYER_EXTRAS = {
 LAYER_DENY = {
     "be-sdk-api": ["beui"],
     "be-sdk-app-host": ["beui", "be-block"],
+    "be-sdk-root": ["beui", "be-block"],
     "be-sdk-type-api": ["beui"],
 }
 

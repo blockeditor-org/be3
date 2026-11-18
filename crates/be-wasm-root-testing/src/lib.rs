@@ -4,8 +4,8 @@
 //! time, and races that whole exchange against the frame's deadline. Its layer list shows its own
 //! surface, and over it the child's screen only when the child echoed in time.
 //!
-//! It routes the window's input (`input.deliver`) as the compositor will, with
-//! be-lib-input-router's `Router` over the layers it drew last, and answers once it has: what
+//! It routes the window's input (`input.deliver`) as the compositor will, with be-sdk-root's
+//! `Windows` (a `Router` per window over the layers it drew last), and answers once it has: what
 //! lands on the child's screen goes to the child with the next frame, in the child's own
 //! coordinates, and the child echoes it back. A frame then shows `HEARD_LAYER`
 //! at the last point the child heard.
@@ -23,9 +23,9 @@ use std::{
 };
 
 use be_lib_geometry::{Pos2, Rect, pos2, vec2};
-use be_lib_input_router::{Routed, Router};
 use be_lib_layers::{Affine, Layer, LayerId, LayerInput, LayerList, Surface, WindowLayers};
 use be_lib_ui_types::input::{self as ui_input, Input};
+use be_sdk_root::Windows;
 use be_wasm_guest_abi::{Flow, Guest, Waker};
 use be_wasm_ops::guest::{Executor, LocalFuture};
 use be_wasm_root_api::{
@@ -93,19 +93,31 @@ pub const CHILD_ORIGIN: (f32, f32) = (SIZE.0 as f32 / 2.0, 0.0);
 /// input, in postcard.
 const ROUTED: &[u8] = b"routed:";
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 struct Frames {
     child: Rc<RefCell<Option<Rc<Instance>>>>,
     painter: Rc<RefCell<Option<Rc<Instance>>>>,
     spinning: Rc<Cell<bool>>,
-    /// The layers the root drew last, which it routes input by.
-    drawn: Rc<RefCell<LayerList>>,
-    /// A router per window: who holds the pointer, the hover and the focus.
-    routers: Rc<RefCell<Vec<(Option<u64>, Router<LayerId>)>>>,
+    /// A router per window over the layers the root drew last: who holds the pointer, the hover
+    /// and the focus.
+    windows: Rc<RefCell<Windows>>,
     /// The last point the child heard input at, in its own coordinates.
     heard: Rc<Cell<Option<Pos2>>>,
     /// Input routed to the child, which it is sent ahead of the next frame's ask.
     routed: Rc<RefCell<Vec<Vec<u8>>>>,
+}
+
+impl Default for Frames {
+    fn default() -> Self {
+        Self {
+            child: Rc::default(),
+            painter: Rc::default(),
+            spinning: Rc::default(),
+            windows: Rc::new(RefCell::new(Windows::new(ROOT_LAYER))),
+            heard: Rc::default(),
+            routed: Rc::default(),
+        }
+    }
 }
 
 impl Frames {
@@ -176,44 +188,23 @@ impl Frames {
     /// Routes `events` by the layers drawn last for `window`, and answers the frames that send
     /// the child what is for it.
     fn route(&self, window: Option<u64>, events: Vec<Input>) -> Vec<Vec<u8>> {
-        let drawn = self.drawn.borrow();
-        let Some(layers) = drawn
-            .windows
-            .iter()
-            .find(|layers| layers.window.map(|window| window.raw()) == window)
-        else {
-            return Vec::new();
-        };
-        let mut routers = self.routers.borrow_mut();
-        let at = match routers.iter().position(|(of, _)| *of == window) {
-            Some(at) => at,
-            None => {
-                routers.push((window, Router::new(ROOT_LAYER)));
-                routers.len() - 1
-            }
-        };
-        let router = &mut routers[at].1;
-        let mut frames = Vec::new();
-        for event in events {
-            for routed in router.route(layers, event) {
-                if let Routed::Input {
-                    target: CHILD_LAYER,
-                    input,
-                } = routed
-                {
-                    let mut frame = ROUTED.to_vec();
-                    frame.extend(postcard::to_allocvec(&input).expect("input serializes"));
-                    frames.push(frame);
-                }
-            }
-        }
-        frames
+        self.windows
+            .borrow_mut()
+            .route(window, events)
+            .into_iter()
+            .filter(|delivery| delivery.target == CHILD_LAYER)
+            .map(|delivery| {
+                let mut frame = ROUTED.to_vec();
+                frame.extend(postcard::to_allocvec(&delivery.input).expect("input serializes"));
+                frame
+            })
+            .collect()
     }
 
     /// Keeps `list` as the layers drawn last, and answers it.
     fn drew(&self, list: LayerList) -> FrameDone {
         let layers = list.encode();
-        *self.drawn.borrow_mut() = list;
+        self.windows.borrow_mut().drew(list);
         FrameDone { layers }
     }
 
