@@ -14,8 +14,6 @@ be-block-model = { path = "../be-block-model" }
 be-sdk-type-guest = { path = "../be-sdk-type-guest" }
 postcard = { version = "1", features = ["use-std"] }
 serde = { version = "1", features = ["derive"] }
-serde_bytes = "0.11"
-sha2 = "0.10"
 uuid = "1"
 
 [dev-dependencies]
