@@ -391,6 +391,14 @@ impl PlatformServices for WebPlatform {
         HELD.with(|held| held.borrow_mut().copy(clip));
     }
 
+    fn share(&mut self, clip: Clip) {
+        beui_web_input::share::share(&clip);
+    }
+
+    fn has_share_sheet(&self) -> bool {
+        beui_web_input::share::has_share_sheet()
+    }
+
     fn paste(&mut self, wanted: &[String], answer: PasteAnswer) {
         let Some(window) = web_sys::window() else {
             return answer.send(None);
