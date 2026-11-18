@@ -110,6 +110,9 @@ fn NewButton(adding: Adding) -> NodeId {
     } = adding;
     let (here, menu_button) = (NodeRef::new(), NodeRef::new());
     let focus = zoom.focus();
+    // A guest makes nothing here (decisions/a_guest_makes_only_its_own_shell.md).
+    let role = editor.watch::<be_sdk_beui::RoleWatch>();
+    let maker = create_memo(move || role.get() != be_sdk_beui::AccountRole::Guest);
     let addable = create_memo(move || {
         focus.with(|focus| {
             focus
@@ -204,18 +207,20 @@ fn NewButton(adding: Adding) -> NodeId {
         }
     };
     view! {
-        <List direction=Direction::Horizontal align=Align::Center spacing=Space::None>
-            <Show value={addable} fallback={menu}>|id: ReadSignal<Uuid>|
-                <Button
-                    @node_ref={&here}
-                    glyph=ICON_PLUS
-                    label="New"
-                    variant=ButtonVariant::Primary
-                    @test_id={"file-tree.new"}
-                    on_click={move || add_here(id.get_untracked())}
-                />
-            </Show>
-        </List>
+        <Show value={maker}>
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::None>
+                <Show value={addable} fallback={menu}>|id: ReadSignal<Uuid>|
+                    <Button
+                        @node_ref={&here}
+                        glyph=ICON_PLUS
+                        label="New"
+                        variant=ButtonVariant::Primary
+                        @test_id={"file-tree.new"}
+                        on_click={move || add_here(id.get_untracked())}
+                    />
+                </Show>
+            </List>
+        </Show>
     }
 }
 

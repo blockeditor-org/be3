@@ -13,10 +13,19 @@ interface account {
         developer: preference-layer,
     }
 
-    /// Whether the account administers the company it belongs to.
-    resource administrator-watch {
+    /// What the account is in the organization open: an administrator of a
+    /// company, a guest (it reaches only what share links gave it, and keeps
+    /// nothing of its own there but its settings), or a member.
+    enum account-role {
+        member,
+        administrator,
+        guest,
+    }
+
+    /// The account's role in the organization open.
+    resource role-watch {
         constructor();
-        next: async func() -> bool;
+        next: async func() -> account-role;
     }
 
     /// The base links to blocks are made from, empty on a local server.

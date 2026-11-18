@@ -1,7 +1,7 @@
 use std::{cell::RefCell, rc::Rc};
 
 use be_sdk_api::{
-    AdministratorWatch, PowerAction, PowerWatch, Watched,
+    RoleWatch, PowerAction, PowerWatch, Watched,
     guest::desktop::power,
     ops::{
         OpError,
@@ -83,7 +83,7 @@ fn a_watch_of_an_extension_the_manifest_does_not_grant_is_denied() {
     let mut wire = Wire::default();
     let (guest, editor, mut heard) = opened(&mut wire);
     let power = watched::<PowerWatch>(&guest, editor);
-    let administrator = watched::<AdministratorWatch>(&guest, editor);
+    let administrator = watched::<RoleWatch>(&guest, editor);
     guest.enter(|| with_parent(editor, || power::request(PowerAction::PowerOff)).detach());
     exchange(&mut wire, &guest, &mut heard);
     assert!(
@@ -91,7 +91,7 @@ fn a_watch_of_an_extension_the_manifest_does_not_grant_is_denied() {
         "an app that names no extension may not watch one"
     );
     assert!(
-        matches!(heard.as_slice(), [Heard::Watch(INSTANCE, open, _)] if *open == AdministratorWatch::OPEN),
+        matches!(heard.as_slice(), [Heard::Watch(INSTANCE, open, _)] if *open == RoleWatch::OPEN),
         "the account's watches are core, and the call is dropped: {heard:?}"
     );
     assert_eq!(*administrator.borrow(), None, "it waits for the value");
