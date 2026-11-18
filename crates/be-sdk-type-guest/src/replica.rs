@@ -579,9 +579,12 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     log_read: bool,
     /// Appends an editor asked for, by the token of the call: the editor and its token.
     appends: BTreeMap<Token, (EditorId, u64)>,
-    /// Reads of the log, by the token of the call: the editor and its token, or none for the
-    /// replica's own as it opens.
-    log_reads: BTreeMap<Token, Option<(EditorId, u64)>>,
+    /// Reads of the log, by the token of the call: the editor's, or none for the replica's own
+    /// as it opens.
+    log_reads: BTreeMap<Token, Option<crate::lacking::EditorRead>>,
+    /// The editors' reads a replica of the block before this one had not answered as this one
+    /// opened (`Carried::log_reads`), which it asks for again as it starts.
+    reads_carried: Vec<crate::lacking::EditorRead>,
     state: SessionState,
     /// The order applied so far.
     confirmed: C,
@@ -811,6 +814,9 @@ where
             (Some(head), None) => self.read(vec![Some(head)], Then::Load),
             (None, _) => self.load(C::default()),
         }
+        for read in std::mem::take(&mut self.reads_carried) {
+            self.read_log_for(read);
+        }
         self.run(out);
     }
 
@@ -919,12 +925,18 @@ where
     fn carry(&mut self) -> Carried {
         Carried {
             snapshots_shown: std::mem::take(&mut self.snapshots_shown),
+            log_reads: std::mem::take(&mut self.log_reads)
+                .into_values()
+                .flatten()
+                .filter(|read| self.editors.contains_key(&read.editor))
+                .collect(),
             ..self.lacking.carry()
         }
     }
 
     fn adopt(&mut self, mut carried: Carried) {
         self.snapshots_shown = std::mem::take(&mut carried.snapshots_shown);
+        self.reads_carried = std::mem::take(&mut carried.log_reads);
         self.lacking.adopt(carried);
         self.lacking
             .opened_with(self.commits_kept, &self.refused_commits);
@@ -964,6 +976,7 @@ where
             log_read: false,
             appends: BTreeMap::new(),
             log_reads: BTreeMap::new(),
+            reads_carried: Vec::new(),
             state: opened.session,
             projected: Settling::new(empty.clone(), Vec::new()),
             sealed_state: Vec::new(),
@@ -4067,14 +4080,12 @@ where
             }
             FromEditor::LetGoRefused { .. } => {}
             FromEditor::ReadLog { token, from, limit } if self.has_log => {
-                let call = self.token();
-                self.out.push(Effect::ReadLog {
-                    replica: self.id,
-                    token: call,
+                self.read_log_for(crate::lacking::EditorRead {
+                    editor,
+                    token,
                     from,
                     limit,
                 });
-                self.log_reads.insert(call, Some((editor, token)));
             }
             FromEditor::ReadLog { token, .. } => self.tell_editor(
                 editor,
@@ -4138,6 +4149,17 @@ where
         }
     }
 
+    fn read_log_for(&mut self, read: crate::lacking::EditorRead) {
+        let call = self.token();
+        self.out.push(Effect::ReadLog {
+            replica: self.id,
+            token: call,
+            from: read.from,
+            limit: read.limit,
+        });
+        self.log_reads.insert(call, Some(read));
+    }
+
     fn answer_log_read(&mut self, token: Token, result: Result<be_block_content::LogPage, String>) {
         let reader = self.log_reads.remove(&token).flatten();
         if let Ok(page) = &result {
@@ -4151,8 +4173,14 @@ where
             }
         }
         match (reader, result) {
-            (Some((editor, token)), result) => {
-                self.tell_editor(editor, &ToEditor::LogRead { token, result });
+            (Some(read), result) => {
+                self.tell_editor(
+                    read.editor,
+                    &ToEditor::LogRead {
+                        token: read.token,
+                        result,
+                    },
+                );
             }
             // The replica's own read as it opens fails when the host is stopping, restarting
             // its module, or offline with nothing kept: it describes the content without the

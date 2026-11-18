@@ -311,7 +311,9 @@ who signed them, `LogSigner`) changes what the content shows.
   (`Event::Redacted`) drops the payload this device kept (`Peer::redacted`)
   and hands the replica the entry as it is now (`Replicas::redacted`),
   which it takes as told better. Neither is kept for a replica opened again, which
-  reads the log afresh; a first read that fails (a restart, offline) is no
+  reads the log afresh, and asks again for each read an editor asked that the
+  replica before it had no answer to yet (`Carried::log_reads`): an answer goes to
+  the replica that asked, so the editor would never hear. A first read that fails (a restart, offline) is no
   error, and the replica describes its content without the log until it
   hears entries. A follow ends with its connection, and a read made offline
   makes none: as the device connects, the host reads each open replica's log
