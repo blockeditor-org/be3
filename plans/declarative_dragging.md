@@ -92,8 +92,8 @@ letting go), and `drop_target`/`switch_to_state_and_follow` handle what is not r
    gets the board's floating, Escape, edge scrolling, presence and inspector, and the board tells
    the site again as the drop changes under the pointer.
 
-Continuous drags (sliders, scrollbars, splitters, the colour area) move onto it in step 7, and
-only if they are as good there; otherwise they keep `on_drag` and the step says why. Panning moves
+Continuous drags (sliders, scrollbars, splitters, the colour area) move onto it in step 8, and
+only if they are as good there; until then they keep `on_drag`, and the step says why. Panning moves
 the camera, not an item, and stays outside the board.
 
 ## Shape
@@ -356,11 +356,8 @@ through the drag and Escape rebuilds nothing; drawn invisible, it is the gap, at
      board's frame (`drawn_by_site`); Space lifts the selected piece from the keyboard. Its presses are caught by an `Interactive` laid over
      the table rather than around it, from when a drag source's face took its child's own
      size; since the canvas step the face lays its child out as a plain `Interactive` does.
-   - **between blocks (a step of its own, after the canvas):** an item dragged into another block of a type that takes it (canvas to
-     canvas, list to list) moves on a plain drop and copies with a modifier, through the
-     clipboard's typed formats, so a drop is a paste. Without write access to the source it copies.
-     The source holds a tentative removal. On drop the target writes the insert first and the
-     source then commits its removal, so a crash between the two leaves a copy, never nothing.
+   - **between blocks:** moved to step 6. Two blocks are two editor instances, which only the
+     host connects, so a drag between them is the cross-app handoff.
    - **settings' display arrangement (done):** every place a display touches another lined
      up with its side's start, middle or end (`touching::places`) is a candidate, and within
      `SNAP` of none it is `free` in the area; a free drop settles against the nearest edge
@@ -384,13 +381,53 @@ through the drag and Escape rebuilds nothing; drawn invisible, it is the gap, at
      for other editors, so it moves here rather than in step 2: `styled::Tree`'s `reorder`
      becomes a drop site whose folder rows are `Into` candidates zoned to their middle, and
      `Reorder`'s tree-only `hover`, `part`, `shut` and `resting` go. The dock has no app boundary, so it stays one level.
+   - **Between blocks.** An item dragged into another block of a type that takes it (canvas to
+     canvas, list to list) moves on a plain drop and copies with a modifier, through the
+     clipboard's typed formats, so a drop is a paste. Without write access to the source it
+     copies. The source holds a tentative removal. On drop the target writes the insert first and
+     the source then commits its removal, so a crash between the two leaves a copy, never nothing.
+     It waits for this step, not the clipboard: the typed formats are there (`Clip`, `ClipFormat`,
+     the canvas copying its items as its own format, refs translated wherever a clip crosses), but
+     two blocks are two editor instances, a child block placed in a canvas included, and the only
+     drag between instances today is the host's block drag. That carries one block
+     (`ShellMessage::DragBlock`, `BlockDrag`), which an app can start but not with a clip of its
+     items, and nothing tells the source what the target did with the drop, which the
+     insert-then-remove order needs. Both are what this step's drag-over and drop events carry:
+     the payload as a clip, and the target's answer, which the host passes back to the source as
+     its commit or put-down.
 7. **Several carries at once.** Allow more than one carry, one per pointer, when the VR layer's two
    controllers (or touch) need it; steps 1 to 6 key carries by pointer but carry one at a time.
    The canvas holds one move in one `holding` cell and one `Gesture`: several carries in one
    canvas join one tentative gesture, committed when the last ends (the decision), so its hold
    counts the carries in it and each carry keeps its own `Gesture::Move`.
 8. **Continuous drags.** Sliders, scrollbars, splitters and the colour area as `free` along an axis,
-   quantised. Move each only if it is as good as today.
+   quantised, each moved only if it is as good as today. Looked at after step 5, none is yet, so
+   all stay on `on_drag` with the tentative-gestures pieces (`ValueDrag`, `HeldValue`, a tentative
+   gesture in the owner) until the board can do these:
+   - **Lifting at the press.** A carry lifts only past the drag threshold, and a mouse's moves
+     short of it are held. A slider, the colour area and the colour wheel jump to a press off
+     their thumb and follow the pointer from the first point, and a splitter moves from the
+     first point too; on the board each would stand still for the threshold and then jump.
+     Needs a source that lifts at a mouse's or pen's press, keeping the threshold for a finger,
+     where it tells a drag from a scroll.
+   - **Carrying without edge scrolling.** Every carry scrolls the `Scroll` whose edge band
+     holds it. A slider or colour area in a scrolling form would scroll the form when its thumb
+     neared the form's edge, and a scrollbar's thumb at either end of its track lies in its own
+     scroll's band, so it would scroll its scroll twice. Needs a carry, or a `free` place, that scrolls nothing.
+   - **Several carries (step 7).** Each finger presses its own control today, so two sliders
+     move at once; the board carries one at a time, and a second finger's lift would fail.
+   - **What stays outside:** the number input's scrub turns the distance moved into a value,
+     with no track for a thumb to rest in, and its press that never moves edits the number; the bottom sheet's height and its content's scroll are one travel
+     under the finger, choosing a detent only where it lets go (step 5); a scrollbar's press on
+     its track pages rather than lifts.
+   What the board would give them is little: Escape cancelling (a `Cancelled` they already
+   report and undo), keyboard steps (each has its own, by its own step: Home, End, Page Up and
+   Down, a splitter's `SPLIT_STEP`), and peers seeing the drag, which their owners already show
+   by writing (`HeldValue` shows it only locally). Escape cancelling a value control's drag
+   could be given without the board, by the core cancelling the press it holds; it is not
+   planned. Revisit once the three above exist, starting with the dock's splitters, which no
+   scroll holds and whose drags would then be `free(dock, ..)` previewed by writing
+   (`State::drag_edit`), put down to the size they started at.
 9. **Remove the rest.** Delete the old API. Rewrite components.md's Drag and drop, docking.md's
    Dragging, Dialogs and tool bars sections, and host_services.md, and replace `Draggable` and
    `DropTarget` in the list of behaviour-only pieces styled re-exports
