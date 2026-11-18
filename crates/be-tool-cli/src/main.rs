@@ -42,6 +42,11 @@ async fn run() -> Result<String, String> {
     {
         return host_terminal(&settings, target, &invocation.options.command).await;
     }
+    if invocation.verb == "host"
+        && let Some(target) = &invocation.target
+    {
+        return host_block(&settings, target).await;
+    }
     let tracker = Tracker::new(connect(&settings).await?, sources());
     let (block, label, base) = match cli::run(&tracker, &invocation).await? {
         Outcome::Print(text) => return Ok(text),
@@ -121,6 +126,38 @@ fn private_directory() -> Result<std::path::PathBuf, String> {
         .create(&path)
         .map_err(|error| format!("could not make {}: {error}", path.display()))?;
     Ok(path)
+}
+
+/// `be BLOCK host` (plans/headless_apps.md, step 2): the block's type's host component, run
+/// headless on a block stack signed in as this account, until Ctrl-C.
+async fn host_block(settings: &Settings, target: &str) -> Result<String, String> {
+    let tracker = Tracker::new(connect_live(settings).await?, sources());
+    let entry = tracker.resolve(target).await?;
+    let (block, block_type, label) = (entry.id, entry.block_type, entry.label());
+    drop(tracker);
+    let config = be_tool_cli::session::stack_config(settings).await?;
+    let stop = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let stopping = std::sync::Arc::clone(&stop);
+    tokio::spawn(async move {
+        let _ = tokio::signal::ctrl_c().await;
+        stopping.store(true, std::sync::atomic::Ordering::Release);
+    });
+    // The stack and the runtime keep their state on the thread that runs them.
+    tokio::task::spawn_blocking(move || {
+        be_host_stack::start(config);
+        let hosted = be_tool_cli::hosting::host_block(
+            block,
+            block_type,
+            uuid::Uuid::new_v4(),
+            || stop.load(std::sync::atomic::Ordering::Acquire),
+            |said| eprintln!("be: {label}: {said}"),
+        );
+        be_host_stack::stop_and_wait();
+        hosted
+    })
+    .await
+    .map_err(|error| format!("the host stopped: {error}"))??;
+    Ok(String::new())
 }
 
 async fn host_terminal(

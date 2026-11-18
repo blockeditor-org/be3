@@ -265,7 +265,9 @@ a role inside the app, since the share dialog grants no roles. A game:
      Done: `a_device_hosts_only_once_its_component_claims_the_lease`. Left:
      a claim the server refuses leaves the component running unhosted until
      the block stops being one this device should host.
-   - e. `be BLOCK host` (plans/headless_apps.md, step 2).
+   - e. `be BLOCK host` (done; plans/headless_apps.md, step 2): the type's host
+     component headless, while no other device hosts the block;
+     `be_hosts_a_block_while_no_other_device_does`.
    Done: a be-host-tests test with two editor devices and two players as raw
    peers, where the first host closes the world and the second carries on;
    and a be-host-stack test where Keep hosting outlives the editor and Stop
