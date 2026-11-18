@@ -307,7 +307,10 @@ who signed them, `LogSigner`) changes what the content shows.
   asking about an author it cannot tell of once a page; `bad` for an entry
   whose payload opens to no salt). A push told after a read already moved
   the head past it is still handed on, as read again against the kept head,
-  and the replica drops what it holds. Neither is kept for a replica opened again, which
+  and the replica drops what it holds. A redaction told
+  (`Event::Redacted`) drops the payload this device kept (`Peer::redacted`)
+  and hands the replica the entry as it is now (`Replicas::redacted`),
+  which it takes as told better. Neither is kept for a replica opened again, which
   reads the log afresh; a first read that fails (a restart, offline) is no
   error, and the replica describes its content without the log until it
   hears entries. A follow ends with its connection, and a read made offline

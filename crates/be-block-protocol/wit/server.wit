@@ -106,7 +106,8 @@ interface server {
         /// from `from`, with the hashes that tie them to the log's head, and
         /// with `known`, a head size the caller holds, those that show the
         /// head extends it. Needs View. Followed, the connection hears
-        /// `appended` as entries are appended.
+        /// `appended` as entries are appended, and `redacted` as one is
+        /// redacted.
         block-log(block-log-query),
         /// Who may do what to a block, for its managers.
         access(block-id),
@@ -845,6 +846,16 @@ interface server {
         paired(pairing-message),
         /// Entries were appended to a block's log the connection follows.
         appended(appended),
+        /// An entry of a block's log the connection follows was redacted, by
+        /// its author or a manager: its payload is gone, and a follower drops
+        /// what it kept of it.
+        redacted(redacted),
+    }
+
+    record redacted {
+        organization: organization-id,
+        block: block-id,
+        seq: u64,
     }
 
     record tree-advanced {

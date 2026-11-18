@@ -26,7 +26,7 @@ fn append(editor: &mut Editor<ChatContent>, entry: &ChatEntry, along: be_block_c
 }
 
 /// A chat's messages live in its log, and each is found by what it says now: an edit replaces
-/// its text, and a deleted message is not found.
+/// its text, and a deleted or otherwise redacted message is not found.
 #[test]
 fn a_chats_messages_are_found_by_what_they_say_now() {
     let harness = Harness::start();
@@ -98,5 +98,39 @@ fn a_chats_messages_are_found_by_what_they_say_now() {
         },
     );
     finds("plumber", &[]);
+    finds("tacos", &[chat]);
+
+    // An entry redacted with no deletion naming it, as a manager removes one, is told to the
+    // log's followers: its text leaves the index, and the open editor holds it redacted.
+    append(&mut editor, &said("The spare key is under the mat"), Default::default());
+    editor.until("heard the third message", |editor| editor.messages().len() == 3);
+    finds("spare", &[chat]);
+    let spare = editor
+        .mirror
+        .log()
+        .find(|item| item.payload.as_deref() == Some(&said("The spare key is under the mat").encode()[..]))
+        .map(|item| item.seq)
+        .expect("the editor holds the message");
+    append(
+        &mut editor,
+        &ChatEntry::React {
+            message: spare,
+            reaction: "eye".to_owned(),
+            kept: false,
+            takes_back: None,
+            time: 0,
+        },
+        be_block_content::Along {
+            announcement: None,
+            redacts: Some(spare),
+        },
+    );
+    finds("spare", &[]);
+    editor.until("held the message redacted", |editor| {
+        editor
+            .mirror
+            .log()
+            .any(|item| item.seq == spare && item.payload.is_none())
+    });
     finds("tacos", &[chat]);
 }

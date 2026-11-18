@@ -427,6 +427,8 @@ enum Notice {
     },
     /// Entries were appended to a log the connection follows (`event.appended`).
     Appended(be_block_protocol::Appended),
+    /// An entry of a log the connection follows was redacted (`event.redacted`).
+    Redacted(be_block_protocol::Redacted),
     /// A message on a block's host channel.
     Hosted {
         block: Uuid,
@@ -473,6 +475,7 @@ impl Notice {
             },
             Event::Paired(PairingMessage { from, payload }) => Notice::Paired { from, payload },
             Event::Appended(appended) => Notice::Appended(appended),
+            Event::Redacted(redacted) => Notice::Redacted(redacted),
             Event::Session { block, event, .. } => match event {
                 SessionEvent::Membership(entry) => Notice::Membership { block, entry },
                 SessionEvent::Sealed {
