@@ -7,7 +7,7 @@ fn a_conversation_shows_each_message_with_its_author_and_time() {
         (ME, "It is. I'm writing the notes now."),
         (ROSA, "Great, I'll check the installers once they're up."),
     ]);
-    let (first, second) = (chat.id(0), chat.id(1));
+    let (first, second) = (chat.seq(0), chat.seq(1));
 
     assert_eq!(
         chat.row(first),
