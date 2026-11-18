@@ -350,11 +350,7 @@ impl Harness {
 
     /// A new account's connection, the account's recovery key set to its test keys.
     async fn member(&self, email: &str) -> TestClient {
-        let (_, token) = ServerStore::open(&self.directory)
-            .unwrap()
-            .register(email, email)
-            .await
-            .unwrap();
+        let token = self.server.register(email, email).await;
         let mut client = self.signed_in(&token).await;
         let identity = test_secret(client.id()).identity();
         let response = client

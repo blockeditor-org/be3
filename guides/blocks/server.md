@@ -99,7 +99,10 @@ below), and postcard frames over a websocket. Every transaction that writes
 begins with `be_block_sqlite_schema::write_transaction`, which takes the write
 lock up front, so a second connection to the database (a test or tool opening a
 `ServerStore` beside a running server) waits out `BUSY_TIMEOUT` rather than
-failing with `SQLITE_BUSY`.
+failing with `SQLITE_BUSY`. Opening switches the database to WAL with
+`be_block_sqlite_schema::use_wal`, never the bare pragma: of two connections
+switching a new database at once, the second fails at once with `SQLITE_BUSY`
+(SQLite runs no busy handler there), and `use_wal` waits for the first instead.
 
 be-server parses no HTTP itself (decisions/be_server_serves_http_with_axum.md): the accept loop
 (`serve_with_mail`) admits each connection by its peer's address and hands it to `http::serve`,
