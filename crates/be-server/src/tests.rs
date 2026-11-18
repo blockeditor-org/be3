@@ -2030,7 +2030,7 @@ impl TestClient {
             invitation.organization.into_bytes(),
             read.head?,
             me.into_bytes(),
-            test_secret(me).identity(),
+            &test_secret(me),
         );
         Some(entry.encode())
     }
@@ -2349,7 +2349,7 @@ impl TestClient {
             log,
             Record::Member(Member {
                 account: account.into_bytes(),
-                identity,
+                identity: member.then_some(identity),
                 member,
                 agent,
                 invitation: None,
@@ -2450,10 +2450,9 @@ impl TestClient {
                 let Some((organization, checked)) = log else {
                     panic!("a person is removed from an organization with a log");
                 };
-                let identity = named.unwrap_or_else(|| test_secret(account).identity());
                 let record = be_block_keys::Record::Member(be_block_keys::Member {
                     account: account.into_bytes(),
-                    identity,
+                    identity: None,
                     member: false,
                     agent: false,
                     invitation: None,

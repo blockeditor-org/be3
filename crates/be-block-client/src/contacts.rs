@@ -1303,7 +1303,7 @@ pub async fn accept_link(
                     invitation.organization.into_bytes(),
                     head,
                     me.account,
-                    identity.identity(),
+                    identity,
                 )
                 .encode(),
             ),

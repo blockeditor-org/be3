@@ -87,22 +87,46 @@ async fn accepting_an_invitation_signs_the_member_in_with_no_administrator_onlin
         "a used invitation signed in a second account: {again:?}"
     );
 
-    // A member the server signs in itself, claiming the invitation's key without it, is caught
-    // by every device that reads the log.
-    let head = checked.head;
+    // A member the server signs in itself, claiming an invitation's key without its code, is
+    // caught by whoever reads the whole log, though the invitation is open and unused and the
+    // keys it names endorse the record: only the code's key signs a person in.
+    let admin = Peer::connect(
+        PeerConfig::new(&harness.url, admin_identity, Credentials::Token(admin_token))
+            .organization(Some(organization))
+            .chunker(ChunkerConfig::SMALL),
+        MemoryStore::new(),
+    )
+    .await
+    .unwrap();
+    let fresh = crate::contacts::invite(
+        &admin.connection(),
+        admin.keys().identity(),
+        &card,
+        organization,
+        &crate::contacts::Pinned {
+            root: admin.keys().organization_root(),
+            escrow: admin.keys().escrow(),
+            made: 0,
+        },
+        &admin.checked_organization().await.unwrap().unwrap(),
+    )
+    .await
+    .unwrap();
+    let head = admin.checked_organization().await.unwrap().unwrap().head;
+    let endorsed = be_block_keys::Entry::accepted(
+        &fresh,
+        organization.into_bytes(),
+        head,
+        second.account().into_bytes(),
+        second.keys().identity(),
+    );
     let forged = be_block_keys::Entry::sign(
         second.keys().identity(),
         second.account().into_bytes(),
         organization.into_bytes(),
         Some(head),
         false,
-        be_block_keys::Record::Member(be_block_keys::Member {
-            account: second.account().into_bytes(),
-            identity: second.keys().identity().identity(),
-            member: true,
-            agent: false,
-            invitation: Some(code.invitation_key(organization.into_bytes())),
-        }),
+        endorsed.record,
     );
     let database = harness.database();
     let position: i64 = database
@@ -118,18 +142,6 @@ async fn accepting_an_invitation_signs_the_member_in_with_no_administrator_onlin
             rusqlite::params![organization.to_string(), position, forged.encode()],
         )
         .unwrap();
-    let admin = Peer::connect(
-        PeerConfig::new(
-            &harness.url,
-            admin_identity,
-            Credentials::Token(admin_token),
-        )
-        .organization(Some(organization))
-        .chunker(ChunkerConfig::SMALL),
-        MemoryStore::new(),
-    )
-    .await
-    .unwrap();
     // Served the whole log, as is anyone who seals (a member below Edit is served a path that
     // hides other members' records).
     let read = admin.checked_organization().await;

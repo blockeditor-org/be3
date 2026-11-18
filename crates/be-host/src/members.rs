@@ -115,7 +115,9 @@ impl Members {
                     administrator: member.role == OrganizationRole::Administrator,
                     me: member.account == me,
                     agent: member.created_by.is_some(),
-                    unsigned: self.unsigned.contains(&member.account),
+                    // An agent waits unsigned until its maker's next `tend` signs it in.
+                    unsigned: member.created_by.is_none()
+                        && self.unsigned.contains(&member.account),
                 })
                 .collect(),
             removing,

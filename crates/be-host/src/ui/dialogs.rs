@@ -336,7 +336,7 @@ fn MembersPanel(view: HostUiStore) -> NodeId {
                                     <Text>{name}</Text>
                                     <Text style=TextStyle::CAPTION>{detail}</Text>
                                     <Show value={unsigned}>
-                                        <Text style=TextStyle::CAPTION>
+                                        <Text style={TextStyle::CAPTION.color(TextColor::Warning)}>
                                             "No invitation signed them in: the server added them. Remove them unless you know why they are here."
                                         </Text>
                                     </Show>
