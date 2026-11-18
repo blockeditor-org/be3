@@ -262,5 +262,16 @@ pub fn text_with_crlf(text: &str) -> String {
     text_from_system(text.to_owned()).replace('\n', "\r\n")
 }
 
+/// The link `text` is, when it is one http or https URL and nothing else, as a share sheet
+/// takes it apart from text (the web's `ShareData.url`), so the target opens it as a link.
+pub fn shared_link(text: &str) -> Option<&str> {
+    let text = text.trim();
+    let scheme = ["https://", "http://"].iter().any(|scheme| {
+        text.get(..scheme.len())
+            .is_some_and(|start| start.eq_ignore_ascii_case(scheme))
+    });
+    (scheme && !text.contains(char::is_whitespace)).then_some(text)
+}
+
 #[cfg(test)]
 mod tests;

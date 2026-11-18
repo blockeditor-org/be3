@@ -31,6 +31,14 @@ pub(crate) fn copy(clip: crate::types::Clip) {
     beui_core_html::page::copy(&clip);
 }
 
+pub(crate) fn share(clip: crate::types::Clip) {
+    beui_core_html::page::share(&clip);
+}
+
+pub(crate) fn use_share_sheet() -> ReadSignal<bool> {
+    beui_core_html::page::use_share_sheet()
+}
+
 pub(crate) fn focus_takes_text() -> bool {
     false
 }

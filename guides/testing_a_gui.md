@@ -431,9 +431,10 @@ it `measure`s in a `Text` (`wait 'Inner 50x20 at 140,50'`). To cross a timeout, 
   natively): the browser-only commands are `attribute`, `history`, `history-state` (the current
   history entry holds the page's own back entry or not), `loads` (how many times the page has
   loaded), `reload`, `selection`, `elements` (how many elements match a selector; a text's
-  marks are `.beui-mark` boxes), `role`, `roles` and `css` (adds a stylesheet, to stand in for a
+  marks are `.beui-mark` boxes), `role`, `roles`, `css` (adds a stylesheet, to stand in for a
   browser without a feature: `css '* { overflow-anchor: none !important; }'` is Safari's missing
-  scroll anchoring); web-test.mjs's header says what each takes.
+  scroll anchoring), and `share-sheet` and `shared TEXT` (a stand-in `navigator.share`, which
+  Chromium on Linux lacks, and what it was handed); web-test.mjs's header says what each takes.
 - To see a screen: `./scripts/buck run //crates/beui-tests:dev -- NAME` and `drive`; in a browser,
   serve `:web` with COOP `same-origin` and COEP `require-corp` and open
   `index.html?fixture=NAME`.

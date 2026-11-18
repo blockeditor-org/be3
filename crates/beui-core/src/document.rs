@@ -132,6 +132,7 @@ pub struct Document {
     focus_visible: ::beui_reactive::OwnedSignal<bool>,
     focus_watched: ::beui_reactive::OwnedSignal<Option<NodeId>>,
     fullscreen: ::beui_reactive::OwnedSignal<bool>,
+    share_sheet: ::beui_reactive::OwnedSignal<bool>,
     viewport_size: ::beui_reactive::OwnedSignal<Vec2>,
     reattached: Cell<bool>,
     pub(crate) pointer_lockers: RefCell<Vec<NodeOf<crate::base::interactive::InteractiveNode>>>,
@@ -200,6 +201,7 @@ pub struct Document {
     pub(crate) canvas_moves: Vec<NodeId>,
     pub(crate) canvas_moves_from: u64,
     pub copied: Option<crate::clipboard::Clip>,
+    shared: Option<crate::clipboard::Clip>,
     next_paint: Option<Instant>,
     now: Instant,
     reactive_scope: ::beui_reactive::Scope,
@@ -392,6 +394,7 @@ impl Document {
             focus_visible: ::beui_reactive::OwnedSignal::new(false),
             focus_watched: ::beui_reactive::OwnedSignal::new(None),
             fullscreen: ::beui_reactive::OwnedSignal::new(false),
+            share_sheet: ::beui_reactive::OwnedSignal::new(false),
             viewport_size: ::beui_reactive::OwnedSignal::new(Vec2::ZERO),
             reattached: Cell::new(false),
             pointer_lockers: RefCell::default(),
@@ -459,6 +462,7 @@ impl Document {
             canvas_moves: Vec::new(),
             canvas_moves_from: 0,
             copied: None,
+            shared: None,
             next_paint: None,
             now: crate::timer::frame_clock(),
             reactive_scope: ::beui_reactive::Scope::new(),
@@ -620,6 +624,11 @@ impl Document {
 
     pub fn watch_fullscreen(&self) -> ::beui_reactive::ReadSignal<bool> {
         self.fullscreen.read_only()
+    }
+
+    /// Whether the platform has a share sheet for `share`.
+    pub fn watch_share_sheet(&self) -> ::beui_reactive::ReadSignal<bool> {
+        self.share_sheet.read_only()
     }
 
     pub fn watch_focused(&self) -> ::beui_reactive::ReadSignal<Option<NodeId>> {
@@ -795,6 +804,11 @@ impl Document {
             .as_ref()
             .is_some_and(|(ctx, _, _)| ctx.fullscreen());
         self.fullscreen.set(fullscreen);
+        let share_sheet = self
+            .viewport
+            .as_ref()
+            .is_some_and(|(ctx, _, _)| ctx.has_share_sheet());
+        self.share_sheet.set(share_sheet);
         let size = self
             .viewport
             .as_ref()
@@ -1136,6 +1150,11 @@ impl Document {
 
     pub fn copy(&mut self, clip: crate::clipboard::Clip) {
         self.copied = Some(clip);
+    }
+
+    /// Hands `clip` to the platform's share sheet at the end of the frame.
+    pub fn share(&mut self, clip: crate::clipboard::Clip) {
+        self.shared = Some(clip);
     }
 
     pub fn request_paste(&mut self) {
@@ -1602,6 +1621,9 @@ impl Document {
 
         if let Some(clip) = self.copied.take() {
             ctx.copy(clip);
+        }
+        if let Some(clip) = self.shared.take() {
+            ctx.share(clip);
         }
         if std::mem::take(&mut self.paste_requested) {
             ctx.request_paste();
