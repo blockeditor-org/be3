@@ -830,6 +830,16 @@ impl App {
             .unwrap_or_default()
     }
 
+    /// The texture `surface` showed when the app last presented it, and its generation, kept
+    /// while the app configures it afresh until it presents again.
+    pub fn presented_surface(&self, surface: u32) -> Option<(wgpu::Texture, u64)> {
+        self.state()
+            .device
+            .ready()?
+            .presented_surface(surface)
+            .map(|(texture, generation)| (texture.clone(), generation))
+    }
+
     pub fn surface(&self, surface: u32) -> Option<(wgpu::Texture, u64)> {
         self.state()
             .device
@@ -984,7 +994,7 @@ impl Presenting {
         let released = app.take_released();
         let mut presented: Vec<PresentedTexture> = Vec::new();
         for surface in app.take_presented() {
-            let Some((texture, generation)) = app.surface(surface) else {
+            let Some((texture, generation)) = app.presented_surface(surface) else {
                 continue;
             };
             presented.retain(|held| held.surface != surface);

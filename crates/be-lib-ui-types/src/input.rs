@@ -98,6 +98,15 @@ impl CursorIcon {
         }
     }
 
+    /// Its value for CSS's `cursor`: its name, but `Touch`'s fallback, `crosshair`, which a page
+    /// that draws the touch cursor as an image falls back to.
+    pub fn css(self) -> &'static str {
+        match self {
+            CursorIcon::Touch => CursorIcon::Crosshair.name(),
+            cursor => cursor.name(),
+        }
+    }
+
     pub fn from_name(name: &str) -> Option<CursorIcon> {
         Self::ALL
             .into_iter()

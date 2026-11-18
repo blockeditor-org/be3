@@ -106,7 +106,7 @@ pub(crate) fn interactive(
         set_style(
             node,
             "cursor",
-            cursor.map(|cursor| cursor.name().to_owned()),
+            cursor.map(|cursor| cursor.css().to_owned()),
         );
     });
     let switches = Rc::new(Switches::default());
