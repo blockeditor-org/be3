@@ -209,6 +209,21 @@ fn a_joined_channel_opens_to_its_host_and_again_to_the_next() {
             .await
             .expect("the first host leaves");
     });
+    // The server says the lease moved to the second host, who hears it: only then is this
+    // device waited on, so a slow server does not count against its wait.
+    second.runtime.block_on(async {
+        loop {
+            match second_events.recv().await {
+                Ok(Event::Host {
+                    block: of,
+                    host: Some(host),
+                    ..
+                }) if of == block && host.account == second.account() => break,
+                Ok(_) | Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {}
+                Err(closed) => panic!("the events ended: {closed}"),
+            }
+        }
+    });
     let heard = channel_until("heard the first host go", block, |count| count >= 1);
     assert_eq!(
         heard.last(),

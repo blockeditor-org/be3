@@ -394,8 +394,9 @@ runs on, and lists it in the host menu with Stop (`UiCommand::StopHosting`).
 While kept, be-host holds the block's replica open itself
 (`be_host_stack::open`, let go with `close`), so a lease lost to a disconnect
 comes back and the component starts again; only Stop, or the account no
-longer allowed to edit, lets it go. Only an editor of the block may ask to keep
-hosting it. What is kept lives in memory only: quitting be-host stops it.
+longer allowed to edit, lets it go; meanwhile, without the lease, the device's
+replica stays a participant of the session, waiting for it. Only an editor of
+the block may ask to keep hosting it. What is kept lives in memory only: quitting be-host stops it.
 
 The other end of the channel is an ordinary editor. An editor opened on a
 block whose access is Join opens with `opening-kind.join` (block, type), is

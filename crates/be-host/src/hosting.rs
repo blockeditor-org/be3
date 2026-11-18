@@ -154,13 +154,16 @@ impl Hosts {
                 wanted.insert(block.id, block);
             }
         }
-        // One the account may no longer edit is kept no longer. One whose lease went (a
-        // disconnect, a rejoin, another device's turn) stays kept: its replica stays open, and
-        // the component starts again once the lease comes back.
+        // One the account is known no longer to edit (its node there, with less than Edit) is
+        // kept no longer; a node not loaded yet, as the graph reloads after a reconnect, keeps
+        // it. One whose lease went (a disconnect, a rejoin, another device's turn) stays kept:
+        // its replica stays open, and the component starts again once the lease comes back.
         let unkept: Vec<Uuid> = self
             .kept
             .keys()
-            .filter(|block| !be_host_stack::access(**block).can_edit())
+            .filter(|block| {
+                be_host_stack::node(**block).is_some_and(|node| !node.access.can_edit())
+            })
             .copied()
             .collect();
         for block in unkept {
