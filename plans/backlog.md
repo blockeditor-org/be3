@@ -18,10 +18,6 @@ Fixed items are removed as they land.
 
 ## 2. Docking
 
-- **Bar drops across layers.** A joined dock bar (guides/beui/docking.md,
-  joined groups) dropped across layers only reorders within its own layer.
-  Done: it can be dropped on any edge of any joined layer's pane, shown by a
-  dock test.
 - **A clipped tab strip says so.** A pane's tab strip scrolls and clips tabs
   past its edge with no cue that more lie there (the inspector at its default
   width hides its last tabs). Done: a clipped edge fades, or an overflow menu
