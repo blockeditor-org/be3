@@ -39,14 +39,12 @@ mod a_branch_moved_elsewhere_while_offline_keeps_both_changes;
 mod a_catch_up_moves_its_watermark_only_past_blocks_that_were_put;
 mod a_catch_up_settle_that_fails_to_write_is_settled_again_first;
 mod a_change_saved_offline_moves_its_branch_once_the_device_reconnects;
-mod a_chat_is_reindexed_without_reading_its_closed_segments_again;
 mod a_chat_message_notifies_the_members_away_who_want_it_through_the_server;
 mod a_chat_message_sent_offline_into_a_closed_chat_notifies_once_as_the_outbox_drains;
 mod a_chat_message_sent_with_two_editors_open_notifies_once;
 mod a_chat_message_still_sending_shows_as_sending_after_a_restart;
 mod a_chat_message_told_before_a_restart_is_not_told_again;
 mod a_chat_message_unsent_across_a_restart_notifies_once_after_reconnecting;
-mod a_chat_with_a_closed_segment_is_neither_duplicated_nor_exported;
 mod a_chats_unread_count_is_counted_from_its_head_and_the_accounts_reads;
 mod a_checklist_and_a_counter_are_held_by_one_peer;
 mod a_checkout_no_longer_shown_lets_go_of_what_its_status_read;
@@ -210,17 +208,26 @@ mod what_is_typed_while_a_seal_waits_on_a_silent_server_survives_a_crash_and_is_
 struct Editor<C: LiveEdit> {
     block: Uuid,
     id: u64,
+    /// The app the editor is, which the host checks an append against.
+    app: &'static str,
     mirror: be_sdk_type_guest::editor::EditorMirror<C>,
     received: Vec<be_sdk_type_guest::editor::ToEditor>,
 }
 
 impl<C: LiveEdit + Clone + Default> Editor<C> {
     fn attach(block: Uuid) -> Self {
+        Self::attach_as(block, "be3.test")
+    }
+
+    /// An editor of the app `app`: the one whose module serves the block's type, to append to
+    /// its log.
+    fn attach_as(block: Uuid, app: &'static str) -> Self {
         static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
         let id = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         attach(block, C::CONTENT_TYPE, id, true);
         let mut editor = Self {
             block,
+            app,
             id,
             mirror: be_sdk_type_guest::editor::EditorMirror::default(),
             received: Vec::new(),
@@ -233,7 +240,7 @@ impl<C: LiveEdit + Clone + Default> Editor<C> {
         from_editor(
             self.block,
             self.id,
-            "be3.test",
+            self.app,
             &be_sdk_type_api::encode_frame(&message),
         );
     }
@@ -295,6 +302,28 @@ impl<C: LiveEdit + Clone + Default> Editor<C> {
     fn take_received(&mut self) -> Vec<be_sdk_type_guest::editor::ToEditor> {
         self.pump();
         std::mem::take(&mut self.received)
+    }
+}
+
+impl Editor<be_type_chat::ChatContent> {
+    /// What each message of the chat's log this editor holds says, deleted ones left out.
+    fn messages(&self) -> Vec<String> {
+        be_type_chat::ChatLog::of(self.mirror.log())
+            .messages()
+            .filter(|shown| shown.deleted.is_none())
+            .filter_map(|shown| shown.body.clone())
+            .collect()
+    }
+
+    /// What each message this device sent that the server has not taken says.
+    fn kept(&self) -> Vec<String> {
+        self.mirror
+            .kept()
+            .filter_map(|(_, bytes)| match be_type_chat::ChatEntry::decode(bytes)? {
+                be_type_chat::ChatEntry::Message { body, .. } => Some(body),
+                _ => None,
+            })
+            .collect()
     }
 }
 
@@ -1401,7 +1430,8 @@ struct ChatRoom {
     members: Vec<(&'static str, Uuid)>,
     /// `away`, signed out, whose peer still holds the chat's key to open what pushes carry.
     reader: Member,
-    _connected: Vec<Member>,
+    /// The members others kept connected, by name.
+    connected: Vec<(&'static str, Member)>,
     pushes: PushService,
 }
 
@@ -1415,14 +1445,8 @@ impl ChatRoom {
         let personal = harness.connect_personal();
         let block = Uuid::new_v4();
         let mut joined = Vec::new();
-        let mut chat = be_type_chat::ChatContent::default();
         for (name, mode, connected) in [("away", None, false)].iter().chain(others) {
             let member = Member::join(harness, personal, &format!("{name}@example.com"), name);
-            let (_, said) = chat.send(
-                block,
-                be_type_chat::Message::new(member.account(), 1, format!("{name} is in")),
-            );
-            chat.apply(&be_type_chat::ChatOp::from(said));
             joined.push((*name, *mode, *connected, member));
         }
         create(
@@ -1430,7 +1454,7 @@ impl ChatRoom {
             be_type_chat::ChatContent::CONTENT_TYPE,
             be_block_graph::BlockParent::Root,
             be_block_content::BlockMetadata::named("Lunch"),
-            Some(chat.encode()),
+            Some(be_type_chat::ChatContent::default().encode()),
             false,
         );
         flush();
@@ -1438,7 +1462,9 @@ impl ChatRoom {
         let mut reader = None;
         let mut kept = Vec::new();
         for (name, mode, connected, member) in joined {
-            member.may_view(block);
+            // Each says hello in the chat's log, from its own device.
+            member.may_edit(block);
+            member.says(block, &format!("{name} is in"));
             member.takes_pushes(&pushes, name);
             if let Some(mode) = mode {
                 member.mode(block, mode);
@@ -1450,24 +1476,57 @@ impl ChatRoom {
                     member.signs_out();
                     reader = Some(member);
                 }
-                (_, true) => kept.push(member),
+                (_, true) => kept.push((name, member)),
                 (_, false) => member.signs_out(),
             }
         }
-        Self {
+        let room = Self {
             block,
             personal,
             me: harness.account,
             members,
             reader: reader.expect("away joined"),
-            _connected: kept,
+            connected: kept,
             pushes,
-        }
+        };
+        // This device reads the chat's log while online, which keeps what it read for an
+        // editor opened offline.
+        drop(room.editor());
+        room
     }
 
     /// Starts the host again after `stop`, from what it kept.
     fn restart(&self, harness: &Harness) {
         harness.start_in(self.personal);
+    }
+
+    /// The connected member `name`.
+    fn member(&self, name: &str) -> &Member {
+        self.connected
+            .iter()
+            .find(|(member, _)| *member == name)
+            .map(|(_, member)| member)
+            .expect("the member stays connected")
+    }
+
+    /// Another chat, named `name`, that the connected members may edit, where `from` said
+    /// `body`.
+    fn another(&self, name: &str, from: &str, body: &str) -> Uuid {
+        let block = Uuid::new_v4();
+        create(
+            block,
+            be_type_chat::ChatContent::CONTENT_TYPE,
+            be_block_graph::BlockParent::Root,
+            be_block_content::BlockMetadata::named(name),
+            Some(be_type_chat::ChatContent::default().encode()),
+            false,
+        );
+        flush();
+        for (_, member) in &self.connected {
+            member.may_edit(block);
+        }
+        self.member(from).says(block, body);
+        block
     }
 
     fn account(&self, name: &str) -> Uuid {
@@ -1478,25 +1537,39 @@ impl ChatRoom {
             .expect("the chat has the member")
     }
 
+    /// The chat's editor, which reads the chat's log as the chat app does.
     fn editor(&self) -> Editor<be_type_chat::ChatContent> {
-        let mut editor = Editor::attach(self.block);
+        let mut editor = Editor::attach_as(self.block, "be3.chat");
         editor.wait("was sent the chat", |_| true);
+        let (_, read) = editor.mirror.read_log(0, 100);
+        editor.send(read);
+        editor.until("read the chat's log", |editor| {
+            editor.messages().len() >= self.members.len()
+        });
         editor
     }
 
-    /// Sends `body` from this account, replying to `to`'s first message when given.
+    /// Sends `body` from this account, replying to `to`'s first message when given, which it
+    /// mentions, as the chat app does.
     fn send(&self, editor: &mut Editor<be_type_chat::ChatContent>, body: &str, to: Option<Uuid>) {
-        let content = editor.content();
         let quoted = to.and_then(|author| {
-            content.messages().into_iter().find(|id| {
-                content
-                    .message(*id)
-                    .is_some_and(|message| message.author == author)
-            })
+            be_type_chat::ChatLog::of(editor.mirror.log())
+                .messages()
+                .find(|shown| shown.author == author)
+                .map(|shown| shown.seq)
         });
-        let message = be_type_chat::Message::new(self.me, 2, body).replying_to(quoted);
-        let (_, edit) = content.send(self.block, message);
-        editor.operate(be_type_chat::ChatOp::from(edit));
+        let message = be_type_chat::ChatEntry::Message {
+            time: be_block_commit::now_milliseconds(),
+            body: body.to_owned(),
+            reply_to: quoted,
+            attachments: Vec::new(),
+        };
+        let along = be_block_content::Along {
+            announcement: message.announcement(Uuid::new_v4().to_string(), to.into_iter().collect()),
+            redacts: None,
+        };
+        let (_, append) = editor.mirror.append(message.encode(), along);
+        editor.send(append);
     }
 
     /// The next push: whom it went to, its urgency and the text it carries, opened as the
@@ -1608,6 +1681,32 @@ impl Member {
 
     fn account(&self) -> Uuid {
         self.someone.session.account
+    }
+
+    /// Gets Edit on the block and reads it, which leaves its key with the member's peer.
+    fn may_edit(&self, block: Uuid) {
+        set_access(block, self.account(), be_block_graph::Access::Edit, |_| {});
+        flush_and_send();
+        assert_eq!(status().error, None);
+        self.reads(block);
+    }
+
+    /// Appends a chat message saying `body` to the block's log, from the member's device.
+    fn says(&self, block: Uuid, body: &str) {
+        let message = be_type_chat::ChatEntry::Message {
+            time: be_block_commit::now_milliseconds(),
+            body: body.to_owned(),
+            reply_to: None,
+            attachments: Vec::new(),
+        };
+        self.runtime
+            .block_on(self.peer.append(
+                block,
+                "be3.chat",
+                &message.encode(),
+                be_block_content::Along::default(),
+            ))
+            .expect("the member says hello");
     }
 
     fn may_view(&self, block: Uuid) {

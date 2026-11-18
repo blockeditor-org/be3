@@ -65,17 +65,16 @@ that part (`Stored::holds` says which parts it has), `parts` hands the others
 back as `Reused`, and `encode` gives only the loaded bytes, which is what its
 replica's editors are sent. Most such types (a file, an index) have an `encode` that is the whole
 content anyway, so a copy through bytes loses nothing. A type whose `encode` leaves parts out
-sets `BlockContent::WHOLE_BYTES` to false (`type-info.whole-bytes`): chat's `decode(encode())`
-is a view, the header's index entries with no part behind them, and saving it writes the
-header alone. Whole-bytes paths (Replace, import) therefore cannot carry its parts (`be sync` has no file form for chat),
+sets `BlockContent::WHOLE_BYTES` to false (`type-info.whole-bytes`; no type does
+now, plans/signed_logs.md step 6): its `decode(encode())` is a view with no part
+behind it, and saving it writes the first part alone. Whole-bytes paths (Replace, import) therefore cannot carry its parts ,
 and Duplicate, export, `be` transfer, version control's re-listing and revision preview or
 restore refuse such a block when it has parts after its first; only `from_stored`, `parts` and
 `MergeParts` carry them. Its editors read the rest by range
 (guides/blocks/apps.md, "Reading a range"), except a reused part the content
 holds anyway (`reused_bytes`, guides/type_modules.md, "Parts named by hash"). Such
 a type merges outside a session by parts if it implements `MergeParts`
-(guides/type_modules.md, "Merging by parts"), and otherwise as whole bytes. Chat's merge by parts reads the segments it
-settles and never conflicts (guides/chat.md, "Merging").
+(guides/type_modules.md, "Merging by parts"), and otherwise as whole bytes.
 
 ## Documents: `be_block_model`
 
@@ -84,8 +83,8 @@ with a `Root` naming the content type. The derive supplies merge, rebase and
 undo; `Document<R>` implements the traits in `be-block-content` (`model.rs`), so it is
 registered with `undo` in `be_block_types!`. Content that does not fit can
 implement the traits by hand (blobs, below); content that is a document but
-must not load whole wraps one and forwards them to it (`ChatContent` in
-`crates/be-type-chat`).
+needs traits of its own (a signed log's `LogFold`, `Unread`) wraps one and
+forwards them to it (`ChatContent` in `crates/be-type-chat`).
 
 A field is a **register** (any serde value, set whole; setting it on both
 sides offline conflicts), `Count`, `Grid<T>` (dense cells for pixels; bounds
@@ -99,8 +98,8 @@ become a series without losing data). A `Stamp` orders by rank, then time,
 then origin. A plain write keeps the rank it was stamped after, so the last
 write wins; one stamped `ranked(n)` is replaced only by one ranked as high or
 higher, live or in a merge, so a lower-ranked write is a no-op whatever its
-clock says (chat ranks signed records by their count; a key holding `()` at
-a rank is a number that only rises). For a number, `Count` adds what each
+clock says (a key holding `()` at a rank is a number that only rises; no type
+ranks writes now, plans/signed_logs.md step 6). For a number, `Count` adds what each
 side adds; for a value, `LatestMap`, ranked when an older write must never
 replace a newer one.
 
@@ -137,7 +136,7 @@ How the model works:
 - **Offline merge** (`Document::merge`) matches objects by id across the three
   versions and merges each field on its own; list order merges like
   `merge_slices` once moved items are taken out and put back after their
-  sibling. A `List` field marked `#[model(merge_appends)]` (chat's messages)
+  sibling. A `List` field marked `#[model(merge_appends)]`
   instead merges published first: theirs (the published head, in every merge
   a replica or `be sync` makes) keeps its order, and the items only ours added
   go after all of it in our order, so what others have seen stays put and two

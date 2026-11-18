@@ -1,6 +1,6 @@
-use be_sdk_beui::be_block_content::{BlockContent, EditorView, LiveEdit};
+use be_sdk_beui::be_block_content::{BlockContent, EditorView};
 use be_sdk_beui::{BlockInfo, BlockParent};
-use be_type_chat::{ChatContent, ChatReads, ChatReadsContent, Message};
+use be_type_chat::{ChatContent, ChatEntry, ChatReads, ChatReadsContent};
 
 use super::*;
 
@@ -13,11 +13,7 @@ fn a_chat_row_counts_its_unread_messages_until_they_are_read() {
     let store = fixture.test.store();
     store.register(be_type_chat::registrations());
     let chat = Uuid::new_v4();
-    let mut lunch = ChatContent::default();
-    for (at, body) in [(1, "Who's in?"), (2, "Noon at the usual place")] {
-        let (_, send) = lunch.send(chat, Message::new(ROSA, at, body));
-        lunch.apply(&send.into());
-    }
+    let lunch = ChatContent::default();
     let mut info = BlockInfo::new(
         chat,
         ChatContent::CONTENT_TYPE,
@@ -36,7 +32,17 @@ fn a_chat_row_counts_its_unread_messages_until_they_are_read() {
     ));
     store.add_block(info);
     store.add_block(notes);
-    fixture.test.hold(Some(chat), lunch.clone());
+    fixture.test.hold(Some(chat), lunch);
+    // Rosa's two messages, in its log.
+    for (at, body) in [(1, "Who's in?"), (2, "Noon at the usual place")] {
+        let message = ChatEntry::Message {
+            time: at,
+            body: body.to_owned(),
+            reply_to: None,
+            attachments: Vec::new(),
+        };
+        store.log_entry(Some(chat), ROSA, message.encode(), Some(at));
+    }
     // Where this account read each chat up to: nothing of this one yet.
     let reads = Uuid::new_v4();
     fixture.test.hold(Some(reads), ChatReadsContent::default());
@@ -54,10 +60,9 @@ fn a_chat_row_counts_its_unread_messages_until_they_are_read() {
         .snapshot("a_chat_row_counts_its_unread_messages_until_they_are_read");
 
     // Reading the chat on another device moves this account's place to its newest message.
-    let newest = lunch.newest().expect("the chat has messages");
     fixture
         .test
-        .edit::<ChatReadsContent>(Some(reads), &ChatReads::set_read(chat, PHONE, newest, &[]));
+        .edit::<ChatReadsContent>(Some(reads), &ChatReads::set_read(chat, PHONE, 1));
     fixture.settle();
     assert!(
         !fixture.test.shown(&badge),

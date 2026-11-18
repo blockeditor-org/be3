@@ -90,12 +90,19 @@ the bytes against the index (`read_segment`).
 ### Signed logs
 
 A type with a signed log (guides/type_modules.md, "Signed logs") is appended
-to and read through the same projection: `ContentProjection::append(bytes)`,
-which the host signs as the app's (only the type's own app may append; another
-app's append is answered with an error), `take_appended` for where each went,
-`read_log(from, limit)`, and `with_log`, which reads the latest entries heard or
-read (up to `editor::LOG_HELD`) in the log's order, each with who signed it;
-each moves the revision.
+to and read through the same projection: `ContentProjection::append(bytes,
+along)`, which the host signs as the app's (only the type's own app may
+append; another app's append is answered with an error), with what goes along
+with it (`be_block_content::Along`: the push it announces, the entry it takes
+back), `take_appended` for where each went (its entry's id, and its place once
+the server took it), `read_log(from, limit)`, `log_size`, and `with_log`, which
+reads the latest entries heard or read (up to `editor::LOG_HELD`) in the log's
+order, each with who signed it. What is sending is `with_kept`: the entries
+this device appended that the server has not taken, from its own appends and
+from what each read tells (`LogPage::kept`, which the host reads from the
+device's outbox), so it survives the editor and the host opening again; what
+the server refused is `with_refused`, until `dismiss_refused`. Each moves the
+revision. In be-sdk-beui the projection's wrappers track the revision.
 
 ### Sending
 
@@ -103,7 +110,8 @@ An editor that shows what is still sending sends `FromEditor::FollowLacking`
 (`ContentProjection::lacking`), again with each snapshot; the replica then
 sends `ToEditor::Lacking`: the edits made on this device that the server lacks,
 each as its operation's bytes (none past 1 MiB), so the editor maps them to
-what they made (chat's messages), whichever editor made them. The first answer
+what they made, whichever editor made them. (A type with a signed log shows
+what is sending from its log instead: "Signed logs", above.) The first answer
 has them all (`reset`), later ones what was added or failed and the ids the
 server now holds. The replica records every edit made on this device, followed
 or not, and keeps each until the server holds it (`be-sdk-type-guest/src/lacking.rs`):
@@ -157,9 +165,8 @@ What is not kept:
   refused message in it shows as sent.
 - A replica reopened after a rejoin lists only what the module carried.
 
-In chat, Discard deletes the message with a delete edit, like any other, and
-lets the failed edit go. be-sdk-test's `ContentStore::set_online`,
-`refuse_kept` and `close_replica` drive this in an editor test.
+be-sdk-test's `ContentStore::set_online`, `refuse_kept` and `close_replica`
+drive this in an editor test.
 
 ## State and change callbacks
 
