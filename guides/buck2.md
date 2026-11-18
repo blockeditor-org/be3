@@ -347,9 +347,9 @@ use an editor extension's rust-analyzer: the toolchain's panics on this workspac
   not include it, such as an app crate for anything but `wasi_guest`, fails when the build is
   configured, with `root//buck/constraints:planned_by_cargo unsatisfied`; add the crate to that
   plan in `PLANS` in `crates/be-tool-buck/src/plan.rs` and run `./scripts/buckify`. The
-  browser-only crates (beui-platform-web, beui-core-html, beui-web-input) are planned only
-  under a web program, so `--target-platforms` alone cannot compile-check them: build a
-  program's `:web-module` instead (`./scripts/buck build //crates/beui-web-demo:web-module`
+  browser builds (beui-platform-web, and beui-core-html for wasm rather than the host's HTML
+  platform) are planned only under a web program, so `--target-platforms` alone cannot
+  compile-check them: build a program's `:web-module` instead (`./scripts/buck build //crates/beui-web-demo:web-module`
   for beui's, `//crates/be-host:web-module` for the host's). A pure guest
   built with `wasm32_crate`, such as be-wasm-root-testing's root, is named in the `wasm32` plan there. A binary or
   an example is likewise built only for the plans that build it (`cargo build --lib` builds
