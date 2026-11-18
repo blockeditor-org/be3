@@ -432,9 +432,12 @@ pub(crate) async fn handle(
     let error = match result {
         Ok(message) => message,
         Err(error) => {
-            response.status = 400;
+            response.status = match error {
+                ServerError::Refused(..) => 400,
+                _ => 500,
+            };
             response.location = None;
-            error.to_string()
+            error.told()
         }
     };
     // Keep the attempt's cookie for as long as its code, counted from now, while it is used.
