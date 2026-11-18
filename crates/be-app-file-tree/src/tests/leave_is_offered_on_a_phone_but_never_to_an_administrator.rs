@@ -1,5 +1,5 @@
 use be_sdk_beui::{
-    AccessLevel, AccountRole, RoleWatch, BlockCommand, BlockInfo, BlockParent, BlockQuery,
+    AccessLevel, AccountRole, BlockCommand, BlockInfo, BlockParent, BlockQuery, RoleWatch,
 };
 
 use super::*;
@@ -36,7 +36,9 @@ fn leave_is_offered_on_a_phone_but_never_to_an_administrator() {
         "leaving what was shared asks the host to take this account off it"
     );
 
-    fixture.test.set_watched::<RoleWatch>(&Some(AccountRole::Administrator));
+    fixture
+        .test
+        .set_watched::<RoleWatch>(&Some(AccountRole::Administrator));
     fixture.settle();
     fixture.test.click(&more);
     fixture.settle();

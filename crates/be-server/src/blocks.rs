@@ -2064,7 +2064,7 @@ impl ServerStore {
             }
             let before = graph.audience(block);
             let transaction = be_block_sqlite_schema::write_transaction(database)?;
-            revoke_or_grant(store, 
+            revoke_or_grant(store,
                 graph,
                 &transaction,
                 identity.organization,
@@ -2183,7 +2183,7 @@ impl ServerStore {
             // The log grants the new owner Manage, as the row does: authorship alone gives it
             // only while they can view the parent, which a block given away from somewhere
             // they cannot see would not be.
-            write_grant(store, 
+            write_grant(store,
                 graph,
                 &transaction,
                 identity.organization,
@@ -2191,7 +2191,7 @@ impl ServerStore {
                 account,
                 Access::Manage,
             )?;
-            write_grant(store, 
+            write_grant(store,
                 graph,
                 &transaction,
                 identity.organization,
@@ -2480,7 +2480,7 @@ fn open_or_close_inside(
             }
         }
     }
-    write_grant(store, 
+    write_grant(store,
         graph,
         database,
         organization,

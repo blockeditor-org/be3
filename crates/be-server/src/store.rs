@@ -607,7 +607,7 @@ impl ServerStore {
                     Access::Edit,
                     &bound.signed,
                 )?;
-                crate::blocks::revoke_or_grant(store, 
+                crate::blocks::revoke_or_grant(store,
                     graph,
                     &transaction,
                     organization,
@@ -1984,7 +1984,7 @@ fn remove_from(
         let shared = node.grants.keys().any(|other| *other != account);
         let before = graph.audience(block);
         if held {
-            crate::blocks::write_grant(store, 
+            crate::blocks::write_grant(store,
                 graph,
                 connection,
                 organization,

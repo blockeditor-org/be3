@@ -1,8 +1,8 @@
 use be_block::{LinkSharing, OrganizationPolicies, SettingsContent, SettingsProfileContent};
-use be_block_keys::Admits;
-use be_type_text::TextContent;
 use be_block_content::BlockMetadata;
+use be_block_keys::Admits;
 use be_block_protocol::BlockSummary;
+use be_type_text::TextContent;
 
 use super::an_organizations_policies_are_read_by_its_members_and_enforced_by_the_server::set_policies;
 use super::*;
@@ -66,7 +66,10 @@ async fn a_guest_makes_only_its_own_shell_and_it_goes_when_the_guest_does() {
         }
     };
     let refused = |made: &Result<BlockSummary, ClientError>| {
-        matches!(made, Err(ClientError::Refused(ErrorCode::PermissionDenied, _)))
+        matches!(
+            made,
+            Err(ClientError::Refused(ErrorCode::PermissionDenied, _))
+        )
     };
 
     let settings = make(SettingsContent::CONTENT_TYPE, BlockParent::Root, true)
@@ -111,7 +114,10 @@ async fn a_guest_makes_only_its_own_shell_and_it_goes_when_the_guest_does() {
     ));
     guest.save(settings, &held, None).await.unwrap();
     assert!(object_refs(&harness) > before, "its shell holds objects");
-    assert!(charged(&harness) > charged_before, "which its guest pays for");
+    assert!(
+        charged(&harness) > charged_before,
+        "which its guest pays for"
+    );
     for (made, why) in [
         (
             make(TextContent::CONTENT_TYPE, BlockParent::Root, false).await,
@@ -141,9 +147,7 @@ async fn a_guest_makes_only_its_own_shell_and_it_goes_when_the_guest_does() {
     ] {
         assert!(refused(&made), "a guest made {why}: {made:?}");
     }
-    let granted = guest
-        .grant(settings, member.account(), Access::View)
-        .await;
+    let granted = guest.grant(settings, member.account(), Access::View).await;
     assert!(
         granted.is_err(),
         "a guest grants no one its shell's blocks: {granted:?}"

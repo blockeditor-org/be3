@@ -134,7 +134,7 @@ pub use desktop::{
 };
 pub use desktop_types::TrayMenuEntry;
 pub use guest::account::{
-    LinkBaseWatch, MutesWatch, RoleWatch, PreferenceSourcesWatch, PushDeviceWatch,
+    LinkBaseWatch, MutesWatch, PreferenceSourcesWatch, PushDeviceWatch, RoleWatch,
     StorageUsageWatch,
 };
 pub use guest::contacts::ContactsWatch;
