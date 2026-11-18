@@ -34,9 +34,7 @@ pub fn InputSettingsView(editor: Editor, settings: Settings) -> NodeId {
     let rate_setting = InputSettings::repeat_rate_setting();
     let paste_setting = InputSettings::middle_click_paste_setting();
     let delay_value = create_memo(move || effective.get().repeat_delay() as f32);
-    let delay_shown = create_memo(move || format!("{} ms", delay_value.get()));
     let rate_value = create_memo(move || effective.get().repeat_rate() as f32);
-    let rate_shown = create_memo(move || format!("{} / s", rate_value.get()));
     let paste_on = create_memo(move || effective.get().middle_click_paste());
     let delay_row = settings.row(&delay_setting);
     let rate_row = settings.row(&rate_setting);
@@ -93,7 +91,7 @@ pub fn InputSettingsView(editor: Editor, settings: Settings) -> NodeId {
                         description="How long a key is held before it repeats."
                         row={delay_row}
                         value={delay_value}
-                        shown={delay_shown}
+                        shown={delay_text as fn(f32) -> String}
                         min={MIN_REPEAT_DELAY as f32}
                         max={MAX_REPEAT_DELAY as f32}
                         read_only={read_only}
@@ -107,7 +105,7 @@ pub fn InputSettingsView(editor: Editor, settings: Settings) -> NodeId {
                         description="How many times a second a held key repeats."
                         row={rate_row}
                         value={rate_value}
-                        shown={rate_shown}
+                        shown={rate_text as fn(f32) -> String}
                         min={MIN_REPEAT_RATE as f32}
                         max={MAX_REPEAT_RATE as f32}
                         read_only={read_only}
@@ -333,10 +331,7 @@ fn PointerRows(
         }
     });
     let speed_value = create_memo(move || speed.get().value);
-    let speed_shown = create_memo(move || match speed.get() {
-        FieldState { mixed: true, .. } => "Mixed".to_owned(),
-        state => format!("{:+.2}", state.value),
-    });
+    let speed_mixed = create_memo(move || speed.get().mixed);
     let (tap_on, tap_mixed, has_tap) = switch_state(tap);
     let (natural_on, natural_mixed, has_natural) = switch_state(natural);
     let (speed_row, tap_row, natural_row) = (
@@ -366,7 +361,8 @@ fn PointerRows(
                     description="How far the pointer moves for each movement of the device."
                     row={speed_row}
                     value={speed_value}
-                    shown={speed_shown}
+                    shown={speed_text as fn(f32) -> String}
+                    mixed={speed_mixed}
                     min=MIN_POINTER_SPEED
                     max=MAX_POINTER_SPEED
                     read_only={read_only}
@@ -563,7 +559,11 @@ fn SliderSetting(
     description: &'static str,
     row: SettingHandle,
     value: Memo<f32>,
-    shown: Memo<String>,
+    /// How the readout beside the slider writes a value.
+    shown: fn(f32) -> String,
+    /// The value stands for several that differ, so the readout says so until it is dragged.
+    #[prop(default = false)]
+    mixed: Prop<bool>,
     min: f32,
     max: f32,
     read_only: Memo<bool>,
@@ -575,6 +575,15 @@ fn SliderSetting(
     let held = HeldValue::new(Binding::new(value, move |value: f32| {
         on_change.call(Some(value))
     }));
+    let readout_id = format!("input.{id}.value");
+    // The readout follows the drag, as the slider does.
+    let readout = create_memo(move || {
+        let held = held.value.get();
+        match mixed.get() && held == value.get() {
+            true => "Mixed".to_owned(),
+            false => shown(held),
+        }
+    });
     view! {
         <LayeredSettingsRow
             setting={row}
@@ -596,7 +605,13 @@ fn SliderSetting(
                 />
             </ListItem>
             <ListItem length=VALUE_WIDTH>
-                <Text color=TextColor::Muted align=TextAlign::End>{shown}</Text>
+                <Text
+                    color=TextColor::Muted
+                    align=TextAlign::End
+                    @test_id={readout_id}
+                >
+                    {readout}
+                </Text>
             </ListItem>
         </LayeredSettingsRow>
     }
@@ -633,4 +648,16 @@ fn SwitchSetting(
             />
         </LayeredSettingsRow>
     }
+}
+
+fn delay_text(delay: f32) -> String {
+    format!("{} ms", delay.round())
+}
+
+fn rate_text(rate: f32) -> String {
+    format!("{} / s", rate.round())
+}
+
+fn speed_text(speed: f32) -> String {
+    format!("{speed:+.2}")
 }

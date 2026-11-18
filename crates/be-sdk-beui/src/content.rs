@@ -479,6 +479,8 @@ where
 /// (`NumberInput`'s `on_scrub`, `on_drag_change` on `Slider` and the colour controls) and make
 /// the editor's edits through `operate`. Every view of the block on this device follows the
 /// drag; it is written once, as one undo step, when kept, and leaves nothing when called off.
+/// An editor that already holds gestures of its own (the canvas, whose drags on its surface
+/// and in its sidebar share one) keeps its one hold rather than adding a `DragHold` beside it.
 pub struct DragHold<C: LiveEdit> {
     content: ContentProjection<C>,
     gesture: StoredCell<Option<ContentGesture>>,

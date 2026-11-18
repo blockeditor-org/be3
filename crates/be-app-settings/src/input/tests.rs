@@ -14,6 +14,7 @@ use crate::input::InputSettingsRoot;
 mod a_device_follows_its_default_until_it_is_overridden;
 mod a_narrow_page_stacks_each_control_under_its_label;
 mod a_pointer_kept_here_stays_on_this_device;
+mod a_slider_readout_follows_the_drag_before_it_is_set;
 mod a_touchscreen_is_put_on_the_display_chosen_for_it;
 mod every_pointer_reads_as_mixed_until_it_is_set;
 mod in_a_windowed_desktop_the_keyboard_and_pasting_are_set_but_not_the_pointers;

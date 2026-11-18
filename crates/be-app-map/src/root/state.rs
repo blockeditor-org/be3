@@ -164,6 +164,8 @@ impl MapState {
     }
 
     pub(crate) fn record(&self, edit: Edit) {
+        // Every edit goes through the hold, so one made by another path while a sidebar
+        // control is scrubbed (a point dragged on the map) lands in the scrub's hold too.
         self.inner.value().hold.operate(edit);
     }
 
