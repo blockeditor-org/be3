@@ -231,9 +231,9 @@ impl Instances {
 
     /// Granting or revealing access is only for an app whose manifest sets `sharing`, so an app
     /// the person opened cannot share what it shows, or read who has it or its links, unasked.
-    /// Any app may open a settings kind of its own block to anyone inside, or close it
-    /// (`set-access` of `ANYONE_INSIDE` at View or none, on the block it shows or one below
-    /// it), as the editor framework does for a kind every member reads: that names no one.
+    /// Any app may open a block it just made to anyone inside (`set-access` of `ANYONE_INSIDE`
+    /// at View or below, on a block it made in this run), as the editor framework does for a
+    /// settings kind every member reads: that names no one and shares nothing the person had.
     fn refuses_sharing(&self, instance: EditorInstanceId, call: &Call) -> bool {
         if self.sharing {
             return false;
@@ -247,19 +247,14 @@ impl Instances {
             } => {
                 let opening = Uuid::from_bytes(*account) == be_block_graph::ANYONE_INSIDE
                     && be_host_stack::app_graph::access_of(*access)
+                        > be_block_graph::Access::None
+                    && be_host_stack::app_graph::access_of(*access)
                         <= be_block_graph::Access::View;
-                let own = self
+                let made = self
                     .entries
                     .get(&instance)
-                    .and_then(|entry| entry.role.block())
-                    .map(|own| own.id);
-                let block = Uuid::from_bytes(*block);
-                let within = own.is_some_and(|own| {
-                    block == own
-                        || be_host_stack::with_graph(|graph| graph.is_within(block, own))
-                            .unwrap_or(false)
-                });
-                !(opening && within)
+                    .is_some_and(|entry| entry.made.contains(&Uuid::from_bytes(*block)));
+                !(opening && made)
             }
             Call::ListAccess { .. }
             | Call::TransferOwnership { .. }
