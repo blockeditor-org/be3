@@ -44,8 +44,8 @@ use be_lib_ui_types::input::Timed;
 use be_sdk_app_host::pacing::FrameClock;
 use be_wasm_root_api::FrameRequest;
 use be_wasm_root_host::Root;
-use beui::native::texture_quad::{Pipelines, Quad, Quads};
 use beui::native::painting::{Painting, Paints, Placement, ScreenPaintings};
+use beui::native::texture_quad::{Pipelines, Quad, Quads};
 use beui::native::{Draw, DrawAt, Drawing as GpuDrawing, compose, draw_gpu};
 use beui::reactive::*;
 use beui::styled::*;
@@ -223,7 +223,10 @@ impl RootShell {
             let painted = match painted.is_empty() {
                 true => ScreenPaintings::default(),
                 false => ScreenPaintings::decode(&painted).unwrap_or_else(|why| {
-                    eprintln!("be-host: the root {}'s paintings cannot be read: {why}", self.app);
+                    eprintln!(
+                        "be-host: the root {}'s paintings cannot be read: {why}",
+                        self.app
+                    );
                     ScreenPaintings::default()
                 }),
             };
@@ -452,12 +455,11 @@ impl Paints for ShownLayers {
                 continue;
             };
             let (width, height) = (layer.size.0 as f32, layer.size.1 as f32);
-            let corners = [(0.0, 0.0), (width, 0.0), (width, height), (0.0, height)].map(
-                |(x, y)| {
+            let corners =
+                [(0.0, 0.0), (width, 0.0), (width, height), (0.0, height)].map(|(x, y)| {
                     let at = layer.transform.apply(beui::pos2(x, y));
                     [at.x, at.y]
-                },
-            );
+                });
             let clip = [
                 corners.iter().map(|at| at[0]).fold(f32::MAX, f32::min),
                 corners.iter().map(|at| at[1]).fold(f32::MAX, f32::min),

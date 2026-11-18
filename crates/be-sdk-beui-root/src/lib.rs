@@ -301,15 +301,20 @@ struct OwnRenderer {
 const FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8Unorm;
 
 impl OwnRenderer {
-    fn draw(&mut self, output: &WindowOutput, scale: f32, background: Color32) -> Result<(), String> {
+    fn draw(
+        &mut self,
+        output: &WindowOutput,
+        scale: f32,
+        background: Color32,
+    ) -> Result<(), String> {
         let Shared { device, queue, .. } = &*self.root.0;
         let surface = self.drawn.surface.borrow();
         let (width, height) = surface.size();
         let texture = be_wasm_gpu_guest::texture(surface.acquire()?)?;
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
-        let renderer = self
-            .renderer
-            .get_or_insert_with(|| beui_renderer_wgpu::Renderer::new(&Resources::shared(device, FORMAT)));
+        let renderer = self.renderer.get_or_insert_with(|| {
+            beui_renderer_wgpu::Renderer::new(&Resources::shared(device, FORMAT))
+        });
         let screen = vec2(width as f32, height as f32);
         // The texture may hold any older frame, so the whole of it is drawn.
         let whole = Repaint::Region {
