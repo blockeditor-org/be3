@@ -79,6 +79,9 @@ BEUI_LAYERS=space ./scripts/buck run //crates/be-host:dev
 # through, and the apps whose host components it runs; `-c be3.apps=NAME,...` stages those apps'
 # modules too (guides/apps/runtime.md, "Headless")
 ./scripts/buck run //crates/be-tool-cli:dev -- ARGS
+
+# `be` running an app's host component headless, with no window, presenter or gpu: the counter's
+./scripts/test be_runs_an_apps_host_component_with_no_display
 ```
 
 An agent shows a visual change with a painting (guides/testing_a_gui.md).
@@ -93,6 +96,7 @@ An agent shows a visual change with a painting (guides/testing_a_gui.md).
 | `./scripts/test adding [--update]` | the tests whose full names contain `adding` (or a module path such as `media::tests`), in every crate. A path matches inside other crates' paths too (`desktop::tests` also runs be-host's `compositor::desktop::tests`), so name the crate's target (next row) to run one crate's |
 | `./scripts/test //crates/be-app-desktop:test [adding] [--update]` | one crate's tests, or those of them whose names contain `adding`; `--update` accepts their paintings |
 | `./scripts/buck run //crates/be-host:native` | the host, with every app beside it |
+| `./scripts/buck run //crates/be-tool-cli:dev -- ARGS` | `be`, with every app's manifest and type module staged beside it and the modules of the apps with a host component (`HOST_APPS` in its BUCK) and those `-c be3.apps=NAME,...` names; `:terminal-host` stages the manifests and type modules alone, `:native` nothing (guides/apps/runtime.md, "Headless") |
 | `./scripts/test //crates/be-host-tests:test [--update]` | the host tests: be-host headless with the editors each test names, driven and painted as a whole |
 | `./scripts/buck test //crates/be-lib-geometry:test` | one crate's tests through buck2 test, which prints only a failing test's output (`./scripts/test` runs the same and prints every test's); `build //crates/be-lib-geometry:test[run]` is the action verify runs, and `build //crates/be-lib-geometry:fix` the crate's autofixes |
 | `./scripts/buck build //crates/be-host:native-dist --out DIR` | a platform's release of the host; `//crates/be-server-bin:dist` is the server's |
