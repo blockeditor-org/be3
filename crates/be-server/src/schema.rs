@@ -586,6 +586,10 @@ const SCHEMA: &str = "
     CREATE UNIQUE INDEX block_logs_by_id
         ON block_logs (organization_id, block_id, id);
 
+    CREATE INDEX block_logs_by_redaction
+        ON block_logs (organization_id, block_id, redaction)
+        WHERE redaction IS NOT NULL;
+
     CREATE TABLE block_log_nodes (
         organization_id TEXT NOT NULL,
         block_id        TEXT NOT NULL,
