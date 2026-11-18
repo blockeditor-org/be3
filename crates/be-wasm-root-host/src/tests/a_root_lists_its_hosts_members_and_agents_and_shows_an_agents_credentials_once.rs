@@ -175,12 +175,12 @@ fn a_root_lists_its_hosts_members_and_agents_and_shows_an_agents_credentials_onc
     let _ = asks(&mut root, &mut time, key(Key::Escape));
     let _ = asks(&mut root, &mut time, key(OPENS_AGENTS));
     assert_eq!(painting(&mut root, &mut time), listed, "reopened, no credentials are held");
-    // A request whose dialog closed before the host took it is never made: no credentials
-    // are minted for nobody.
+    // While an agent is being made the dialog stays open, its credentials not to be lost:
+    // Escape waits, and so does a question of the host's, until they come.
     let _ = asks(
         &mut root,
         &mut time,
-        [ImeEvent::Enabled, ImeEvent::CommitText("Orphan".to_owned())]
+        [ImeEvent::Enabled, ImeEvent::CommitText("Crawler".to_owned())]
             .into_iter()
             .map(|event| Input::Ime(event).into())
             .collect(),
@@ -189,11 +189,36 @@ fn a_root_lists_its_hosts_members_and_agents_and_shows_an_agents_credentials_onc
         .expect("the root takes input");
     root.input(None, be_lib_ui_types::input::encode(&key(Key::Escape)))
         .expect("the root takes input");
+    root.show_core(CoreView {
+        discarding: Some(be_wasm_root_api::DiscardReason::Close),
+        ..agents()
+    });
     let _ = asks(&mut root, &mut time, Vec::new());
-    assert!(
-        root.take_secret_requests().is_empty(),
-        "a request cancelled before the host took it reaches it not"
+    let requests = root.take_secret_requests();
+    let [(id, SecretCommand::CreateAgent(name))] = requests.as_slice() else {
+        panic!("Create agent asks for one, Escape cancelling nothing: {requests:?}");
+    };
+    assert_eq!(name, "Crawler");
+    assert_eq!(painting(&mut root, &mut time), listed, "the agents stay, the question waits");
+    root.answer_secret(
+        *id,
+        Some(CoreSecret::Agent(AgentCredentials {
+            name: "Crawler".to_owned(),
+            server: "https://example.com".to_owned(),
+            organization: [4; 16],
+            token: Password::from("t0ken2".to_owned()),
+            phrase: Password::from("date elder fig".to_owned()),
+        })),
     );
+    assert_ne!(painting(&mut root, &mut time), listed, "the credentials come, and show");
+    // Shown, Escape closes them, and the question waiting opens.
+    let _ = asks(&mut root, &mut time, key(Key::Escape));
+    let discard = painting(&mut root, &mut time);
+    assert_ne!(discard, listed, "the host's question opens once the agents close");
+    let _ = asks(&mut root, &mut time, key(Key::Escape));
+    root.show_core(agents());
+    let _ = asks(&mut root, &mut time, Vec::new());
+
     let _ = asks(&mut root, &mut time, key(OPENS_AGENTS));
     let _ = root.take_core_commands();
     let commands = asks(&mut root, &mut time, click(pos2(297.0, 122.0)));
