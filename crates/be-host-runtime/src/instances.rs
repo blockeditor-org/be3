@@ -76,7 +76,9 @@ pub fn roles_revision() -> u64 {
 }
 
 thread_local! {
-    /// The blocks this device hosts, and whether it keeps hosting each (`set_hosting`).
+    /// The blocks this device hosts, and whether it keeps hosting each (`set_hosting`): the
+    /// host's, not an app's, so it outlives an app that restarts on purpose, and its editors
+    /// hear it again once reopened.
     static HOSTING: std::cell::RefCell<HashMap<Uuid, be_sdk_api::blocks::HostingHere>> =
         std::cell::RefCell::new(HashMap::default());
 }

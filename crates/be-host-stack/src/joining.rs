@@ -92,6 +92,8 @@ struct Joined {
     /// sent.
     outbox: VecDeque<Vec<u8>>,
     sending: bool,
+    /// Told each time `sending` clears, for a handshake that waits on it.
+    sent: Arc<tokio::sync::Notify>,
 }
 
 enum State {
@@ -135,7 +137,10 @@ pub fn want(
             .copied()
             .collect();
         for block in &leaves {
-            held.joining.blocks.remove(block);
+            // A handshake waiting on its sends hears it is gone.
+            if let Some(joined) = held.joining.blocks.remove(block) {
+                joined.sent.notify_one();
+            }
             held.seen.channel_news.clear(*block);
             held.seen.channel_hosts.remove(block);
         }
@@ -154,6 +159,7 @@ pub fn want(
                     state: State::Unjoined,
                     outbox: VecDeque::new(),
                     sending: false,
+                    sent: Arc::new(tokio::sync::Notify::new()),
                 },
             );
         }
@@ -280,14 +286,13 @@ fn handshake(
         // A message of the channel before still on its way goes first: sent after it, the
         // handshake reaches the host after it, as the host expects.
         loop {
-            let held = lock(&shared);
-            match held.joining.current(block, attempt) {
+            let sent = match lock(&shared).joining.current(block, attempt) {
                 None => return,
                 Some(joined) if !joined.sending => break,
-                Some(_) => {}
-            }
-            drop(held);
-            peer.connection().clock().sleep(SLOWED / 5).await;
+                Some(joined) => Arc::clone(&joined.sent),
+            };
+            // A clearing before this waits leaves a permit, so none is missed.
+            sent.notified().await;
         }
         loop {
             match peer
@@ -374,6 +379,7 @@ fn pump(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: &Tasks, blo
                     (true, Some(next)) => next.clone(),
                     _ => {
                         joined.sending = false;
+                        joined.sent.notify_one();
                         // Started over meanwhile: the new channel's messages go now.
                         let again = !joined.outbox.is_empty();
                         drop(held);
@@ -406,6 +412,7 @@ fn pump(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: &Tasks, blo
                         let mut held = lock(&shared);
                         if let Some(joined) = held.joining.blocks.get_mut(&block) {
                             joined.sending = false;
+                            joined.sent.notify_one();
                         }
                     }
                     rejoin(&shared, block, attempt);

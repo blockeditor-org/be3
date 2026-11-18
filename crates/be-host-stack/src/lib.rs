@@ -931,7 +931,9 @@ pub fn flush() -> usize {
     platform::await_flush(sealed).unwrap_or(unsaved)
 }
 
-#[cfg(any(test, feature = "testing"))]
+/// Keeps `block`'s replica open with no editor on it, until `close`: what a host does for a
+/// block it keeps hosting (be-host's `Hosts::keep`), so its session, and the lease, can come
+/// back after a disconnect.
 pub fn open(block: Uuid, content_type: Uuid) {
     if let Some(source) = revisions::source(block) {
         revisions::load(block, source, content_type);
@@ -945,7 +947,7 @@ pub fn open(block: Uuid, content_type: Uuid) {
     });
 }
 
-#[cfg(any(test, feature = "testing"))]
+/// Lets go of a block `open` kept open: its replica closes once nothing else holds it.
 pub fn close(block: Uuid) {
     if revisions::source(block).is_some() {
         return;
