@@ -29,7 +29,7 @@ pub use embedded::{Embedded, Spawn, Wants};
 pub use windows::{Delivery, Windows};
 
 use be_lib_layers::{LayerId, LayerList, Surface};
-use be_lib_ui_types::input;
+use be_lib_ui_types::{ImeArea, input};
 
 /// The apps a root embeds and the routing of its windows' input to them.
 pub struct Embedding {
@@ -86,6 +86,23 @@ impl Embedding {
         let events = input::decode(events)?;
         let routed = self.windows.route(window, events);
         Ok(self.forward(routed))
+    }
+
+    /// The input method's area in `window`, in its points: the field the app focused there
+    /// edits, as its screen asked, placed where the layers drawn last show that screen. None
+    /// while the root's own surface has the focus, or the focused app edits no text.
+    pub fn ime(&self, window: Option<u64>) -> Option<ImeArea> {
+        let layer = self.windows.focused(window)?;
+        let Surface::Screen { instance, surface } = layer.surface else {
+            return None;
+        };
+        let app = self.apps.iter().find(|app| app.instance() == instance)?;
+        let area = app.ime(surface)?;
+        Some(ImeArea {
+            rect: layer.to_window(area.rect),
+            cursor: layer.to_window(area.cursor),
+            ..area
+        })
     }
 
     /// Takes `list` as the layers drawn last, which input is routed by from now on, and answers

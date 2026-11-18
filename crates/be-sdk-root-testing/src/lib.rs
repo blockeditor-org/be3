@@ -154,6 +154,7 @@ impl frames::Guest for Root {
                     .next
                     .map(|at| u64::try_from(at.as_nanos()).unwrap_or(u64::MAX)),
                 owed: wants.owed,
+                ime: embedding.ime(None).map(|area| area.encode()),
             }
         })
     }

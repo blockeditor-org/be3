@@ -19,9 +19,9 @@ const OUT_OF_STEP_WAIT: Duration = Duration::from_secs(5);
 const FILES: &str = "Pane \"Files\"";
 const SHOW_A_CODE: &str = "Button \"Show a code\"";
 const FILE_TREE: &str = "#file-tree.filter";
-/// What a host running a root shows once it runs: the input catcher over its window
+/// What a host running a root shows once it runs: the drawing of what the root shows
 /// (crates/be-host/src/root.rs).
-const ROOT_CATCHER: &str = "#root";
+const ROOT_SHOWN: &str = "#root";
 
 /// be-host started headless with the dev workspace open, driven as `drive` drives it, for a test
 /// of what happens between editors (guides/testing_a_gui.md, 6).
@@ -90,7 +90,7 @@ impl HostTest {
     pub fn root(app: &str) -> Self {
         let mut start = Self::program(false, true);
         start.arguments = vec![format!("--root={app}")];
-        Self::begin(start, ROOT_CATCHER, false, None)
+        Self::begin(start, ROOT_SHOWN, false, None)
     }
 
     /// Starts a device of `account` on its test [`Server`], in a data directory of its own,

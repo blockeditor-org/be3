@@ -9,8 +9,9 @@
 //!
 //! This is the path step 4g turns on and makes the default, so it runs on be-host's real
 //! startup path and window, through beui's runner; only what the window shows comes from the
-//! root. beui still catches the window's input (an `Interactive` over the whole window, replayed
-//! as the platform's `Input`s with `Replay`), until the host routes by the layers itself (4f).
+//! root. The root takes the window's input as the platform delivered it, before beui makes
+//! events of it (`Program::input`; step 4f1): beui's document hears none of it, so keys the root
+//! does not route reach nothing in be-host, and the root's IME area is the window's.
 //!
 //! It runs none of the host's core: no data directory or the lock that keeps a second be-host
 //! off it, no block stack, workspace or accounts, no screen lock, and none of the desktop's OS
@@ -36,10 +37,10 @@ use beui::native::texture_quad::{Pipelines, Quad, Quads};
 use beui::native::{Draw, DrawAt, Drawing as GpuDrawing, compose, draw_gpu};
 use beui::reactive::*;
 use beui::styled::*;
-use beui::{Aim, ForwardedInput, Replay};
+use beui::{Input, WindowId};
 
-/// The id the window's input catcher has in the accessibility tree, `#root` to drive.
-pub(crate) const CATCHER: &str = "root";
+/// The id what the root shows has in the accessibility tree, `#root` to drive.
+pub(crate) const SHOWN: &str = "root";
 
 /// Runs `app`'s entry point as the root in a window opened with `options`, until the window
 /// closes or the root stops, which is an error.
@@ -60,9 +61,8 @@ struct RootShell {
     document: beui::native::Document,
     /// What the window shows of the root's last frame.
     shown: Signal<Option<GpuDrawing>>,
-    /// What the window's input catcher was given since the last frame.
-    caught: Rc<RefCell<Vec<ForwardedInput>>>,
-    replay: Replay,
+    /// The windows' input since the root was last handed it, each in its window's points.
+    input: Vec<(WindowId, Input)>,
     root: Option<Root>,
     /// Where the frame clock's time the root is asked for starts.
     time_origin: Option<Instant>,
@@ -78,9 +78,6 @@ struct RootShell {
     clock: FrameClock,
     /// The host's frames so far.
     pass: u64,
-    /// The catcher, focused once it is shown, so keys reach the root without a press first.
-    catcher: NodeRef,
-    focus_asked: bool,
     /// Why the root stopped, once it did, for `run` to exit with.
     stopped: Rc<RefCell<Option<String>>>,
     /// What the last frame showed, so an unchanged frame keeps its drawing.
@@ -89,25 +86,13 @@ struct RootShell {
 
 impl RootShell {
     fn new(app: String, stopped: Rc<RefCell<Option<String>>>) -> Self {
-        let caught: Rc<RefCell<Vec<ForwardedInput>>> = Rc::default();
         let mut shown = None;
-        let catching = Rc::clone(&caught);
-        let mut caught_by = None;
         let document = beui_host::native::build(|| {
             let drawing = create_signal(None::<GpuDrawing>);
             shown = Some(drawing);
-            let catcher = NodeRef::new();
-            caught_by = Some(catcher);
             view! {
                 <beui::styled::Root title="be-host">
-                    <Interactive
-                        @node_ref=&catcher
-                        focusable=true
-                        @test_id={CATCHER}
-                        on_forward={move |input: ForwardedInput| catching.borrow_mut().push(input)}
-                    >
-                        <Drawing draw={move || draw_gpu(drawing.get())} />
-                    </Interactive>
+                    <Drawing @test_id={SHOWN} draw={move || draw_gpu(drawing.get())} />
                 </beui::styled::Root>
             }
         });
@@ -115,8 +100,7 @@ impl RootShell {
             app,
             document,
             shown: shown.expect("the drawing's signal is made while the document is built"),
-            caught,
-            replay: Replay::default(),
+            input: Vec::new(),
             root: None,
             time_origin: None,
             origin: None,
@@ -124,8 +108,6 @@ impl RootShell {
             owed: false,
             clock: FrameClock::default(),
             pass: 0,
-            catcher: caught_by.expect("the catcher's ref is made while the document is built"),
-            focus_asked: false,
             stopped,
             drawn: Vec::new(),
         }
@@ -142,22 +124,21 @@ impl RootShell {
         self.owed = false;
     }
 
-    /// Hands the root the input caught since the last frame, in the window's points.
+    /// Hands the root its windows' input since it was last handed it, in order, a call for each
+    /// run of one window's. The main window is the one the layer list names as none; the host
+    /// opens no other for the root yet.
     fn deliver_input(&mut self) {
-        let caught = std::mem::take(&mut *self.caught.borrow_mut());
-        let events: Vec<beui::Input> = caught
-            .iter()
-            .flat_map(|input| self.replay.replay(input, 1.0, |_, _| Aim::Own))
-            .map(|replayed| replayed.input)
-            .collect();
+        let input = std::mem::take(&mut self.input);
         let Some(root) = &mut self.root else {
             return;
         };
-        if events.is_empty() {
-            return;
-        }
-        if let Err(why) = root.input(None, be_lib_ui_types::input::encode(&events)) {
-            self.stopped(&why);
+        for run in input.chunk_by(|(left, _), (right, _)| left == right) {
+            let window = run[0].0;
+            let window = (!window.is_main()).then(|| window.raw());
+            let events: Vec<Input> = run.iter().map(|(_, input)| input.clone()).collect();
+            if let Err(why) = root.input(window, be_lib_ui_types::input::encode(&events)) {
+                return self.stopped(&why);
+            }
         }
     }
 
@@ -185,6 +166,12 @@ impl RootShell {
         };
         self.next = done.next.map(Duration::from_nanos);
         self.owed = done.owed;
+        let ime = match done.ime.as_deref().map(beui::ImeArea::decode).transpose() {
+            Ok(ime) => ime,
+            Err(why) => return self.stopped(&why),
+        };
+        // The window shows the platform's input method where the root's focused surface edits.
+        context.set_ime_area(ime);
         let list = match LayerList::decode(&done.layers) {
             Ok(list) => list,
             Err(why) => return self.stopped(&format!("its layer list cannot be read: {why}")),
@@ -257,27 +244,18 @@ impl beui::native::Program for RootShell {
             context.close_window();
             return;
         }
-        // Once, after the first frame shows the catcher: a frame more shows it focused. One the
-        // first frame did not show is left for a press to focus, so nothing repaints for it.
-        if !self.focus_asked {
-            self.focus_asked = true;
-            let catcher = self.catcher;
-            let focused = beui::native::enter(&mut self.document, || {
-                catcher.try_get().map(|catcher| catcher.focus()).is_some()
-            });
-            if focused {
-                context.request_repaint();
-            }
-        }
-        // What the window caught this frame reaches the root with the next.
-        if !self.caught.borrow().is_empty() {
-            context.request_repaint();
-        }
         match self.next {
             Some(at) if at <= time => context.request_repaint(),
             Some(at) => context.request_repaint_after(at - time),
             None => {}
         }
+    }
+
+    /// The root takes all of its windows' input, which it routes to its surfaces itself; beui's
+    /// document, which only shows what the root drew, hears none of it.
+    fn input(&mut self, window: WindowId, input: &Input) -> bool {
+        self.input.push((window, input.clone()));
+        true
     }
 
     /// Only what the root owes now: a frame it wants later, or for an animation, is the repaint

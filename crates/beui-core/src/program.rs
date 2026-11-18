@@ -3,8 +3,8 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use crate::context::Context;
-use beui_types::Event;
 use beui_types::TouchPhase;
+use beui_types::{Event, Input, WindowId};
 use beui_types::{Rect, Vec2, pos2};
 
 pub mod accessibility_dump;
@@ -46,6 +46,15 @@ pub trait Program: std::any::Any {
     }
 
     fn exiting(&mut self) {}
+
+    /// Whether the program takes `input` for `window` itself, before beui makes the document's
+    /// events of it: the platform's input as it arrived, after the layers' (`Layer::input`),
+    /// in the window's points, each in order and once. What it takes no document hears, so a
+    /// program that routes its windows' input itself (be-host's root) gets the platform's own,
+    /// with IME composition, touches and pens as they came and the window's every event.
+    fn input(&mut self, _window: WindowId, _input: &Input) -> bool {
+        false
+    }
 
     fn lifecycle(&mut self, _change: Lifecycle) {}
 

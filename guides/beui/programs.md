@@ -91,6 +91,14 @@ is `choose_platform` and `stack` in crates/beui-host-window/src/runner.rs.
   `Foreground`, `Focused` and `NetworkChanged`. The process may be killed
   without another frame after `Background`, so that is where unsaved work is
   put somewhere durable, without blocking.
+- `input(window, &Input)` takes the platform's input before beui makes the
+  document's events of it: each `Input` in order, once, in its window's
+  points, after the layers' (`Layer::input`) and drive's. What it takes (it
+  answers true) no document hears, not even beui's own chords (the
+  inspector's). It is for a program that routes its windows' input itself:
+  be-host's root (`--root`) takes all of it, IME composition, raw touches and
+  pens included. A layer rewrites input for whatever is above it; this hook
+  only takes it for the program.
 - `busy`, `drawing` and `environment` are read only by a driver (below).
 
 From inside a frame the program asks the window for things through `Context`:

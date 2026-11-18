@@ -631,6 +631,7 @@ impl Runner {
                         .or((window == WindowId::MAIN).then_some(physical / scale))
                 },
                 layer_target: &|layer| self.context.layer_target(layer),
+                take: &mut |window, input| self.program.input(window, input),
             },
             &mut self.events,
         );

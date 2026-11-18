@@ -293,7 +293,11 @@ pointer. The one change is latching: a held scroll or touchpad gesture now stays
 it began on. The IME area, accessibility actions by node id and drive's presses already take
 this path, since they reach catchers through beui's document.
 
-What is left, with the compositor in the root (4f, 4g): the host's input goes through `Router`
+Built (step 4f1): beui hands a program the platform's raw input (`Program::input`), and
+be-host's `--root` hands all of it to the root, which routes it with `Router`; the root names
+the IME area of its focused surface (`frame-done`'s `ime`).
+
+What is left, with the compositor in the root (4f2, 4g): the host's input goes through `Router`
 over the last committed `WindowLayers` rather than through beui's document, with `AppView`
 declaring each layer's `LayerInput`, the host's UI its root's area, and the chords it takes
 along the focus (its actions, the palette, Tab and F6 between surfaces) as the router's
@@ -715,10 +719,9 @@ Each step lands on its own.
          manifest says `"root": true` (`AppManifest::root`: no editors, block types or host
          components; decisions/a_root_is_a_staged_app_flagged_root.md), whose entry point
          loads as a pure guest and starts as `Root` on the window's device, spawning the apps
-         it embeds as be-host finds every app (`staged_app`). Each host frame hands it what
-         beui's input catcher over the whole window got since the last (focused as it shows,
-         so keys reach it at once), replayed as the platform's `Input`s (`Replay`) and encoded
-         (`Root::input`), asks it for a frame by the deadline be-host's own UI keeps
+         it embeds as be-host finds every app (`staged_app`). Each host frame hands it the
+         window's input since the last (`Root::input`; through beui's catcher and `Replay`
+         until 4f1 gave it the platform's own), asks it for a frame by the deadline be-host's own UI keeps
          (`FrameClock`, so with drive's clock stopped `STOPPED_CLOCK_FRAME_BUDGET`), and draws
          each `Surface::Screen` or `Anchored` of its list from the texture `Root::surface`
          resolves, with `compose::quad` in a drawing filling the window; the root's own
@@ -746,12 +749,6 @@ Each step lands on its own.
          makes the root the default; until then `--root` is refused as a login session
          (`BEUI_PLATFORM=drm`), which would have no lock screen.
          Left for later:
-         - Input through beui's catcher and `Replay` loses what beui takes for itself or turns
-           into something else: IME pre-edit and the keyboard's composition (beui's own IME
-           area, not the root's), beui-level shortcuts and its intercepted chords (the
-           inspector, the palette), raw touches and pens beui turns into pointer gestures,
-           hover and presses held outside the window, and every window but the main one.
-           4f routes the window's own events instead.
          - The root's own surfaces are not drawn.
          - A painting of what the root shows (Other moves, Paintings), so the test compares
            pixels rather than a snapshot.
@@ -759,19 +756,38 @@ Each step lands on its own.
            so its deadline assumes the default.
          - A replaced device stops the root rather than moving it, so a replaced renderer
            (device loss) quits be-host under `--root`; and no host ships a root.
-   - 4f. The router over the layer list: the `HitTest` moves from beui's catchers to the last
-     committed `WindowLayers`. `AppView`, anchored views, scrims and popups declare each layer's
-     `LayerInput` (hit and gesture areas, `captures`, `focuses`, `placer`), the host's UI its
-     root's area from beui's hit regions, and beui a chord list for the focus (its actions, the
-     palette, Tab and F6) as the router's intercepted chords; be-host's input goes through
-     `Router::route` before beui sees it, with the IME area transformed by its layer,
-     accessibility actions reaching a surface by node id and drive's presses on the same path.
-     It may land with 4g, once the compositor declares the layers itself.
+   - 4f. The router over the layer list, in two sub-steps:
+     - 4f1. Built: raw input to the root. beui's `Program` gained `input(window, &Input)`, which
+       the runner offers each of the platform's inputs, in its window's points, after the
+       layers' and before the intake makes the document's events of it, on every platform the
+       runner drives (winit, the web, Android, DRM, headless, drive's taps); what the program
+       takes no document hears. be-host's `--root` takes all of it and hands it to the root by
+       window (`Root::input`, the main window as none), so the root routes the platform's own
+       input with `Router`: IME pre-edit and composition, raw touches and pens, hover and
+       presses held outside the window, every window's. Its catcher, `Replay` and focusing the
+       catcher on show went; keys the root does not route reach nothing in be-host, and beui's
+       own chords (the inspector's) do not reach beui under `--root`. `frame-done` gained
+       `ime`, the input method's area in the window's points (`ImeArea::encode`), which
+       be-sdk-root answers from the focused screen's window requests through its layer
+       (`Embedding::ime`, `Windows::focused`) and be-host sets as the window's. The host test
+       `a_root_in_place_of_the_hosts_ui_hands_its_editor_keys_presses_and_touches` presses,
+       types and taps on the triangle's screen, which tints itself by the input it heard
+       (`Heard::tint`), and beui-host's
+       `a_program_takes_the_platforms_input_before_its_document_hears_it` tests the hook. The
+       IME area is not yet shown by a test: no app a root embeds edits text before step 5.
+     - 4f2. The `HitTest` moves from beui's catchers to the last committed `WindowLayers` for
+       the host's own UI. `AppView`, anchored views, scrims and popups declare each layer's
+       `LayerInput` (hit and gesture areas, `captures`, `focuses`, `placer`), the host's UI its
+       root's area from beui's hit regions, and beui a chord list for the focus (its actions,
+       the palette, Tab and F6, the inspector's) as the router's intercepted chords; be-host's
+       input goes through `Router::route` before beui sees it, with the IME area transformed
+       by its layer, accessibility actions reaching a surface by node id and drive's presses
+       on the same path. It may land with 4g, once the compositor declares the layers itself.
    - 4g. The compositor moves into the root: `src/compositor`, `src/ui`, the camera and
      be-host-accounts-ui, talking to the native block stack by the messages it uses today
      (`ChangeWatch`) until step 5 moves the stack. drive's commands split as The root guest
      says. be-host runs the root through 4a's entry, draws its layer list (4b) and routes by
-     its declared input (4f), and its own beui UI goes. This is most of step 4 and may split
+     its declared input (4f2), and its own beui UI goes. This is most of step 4 and may split
      further by area: the lock screen and onboarding, dialogs and toasts, the debug panels,
      the editors and the camera.
 5. The block stack as an instance the root guest spawns, behind capabilities, building on the

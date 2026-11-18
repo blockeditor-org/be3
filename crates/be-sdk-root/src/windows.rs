@@ -1,7 +1,7 @@
 //! Routing each window's raw input over the layers the root drew last.
 
 use be_lib_input_router::{Routed, Router};
-use be_lib_layers::{LayerId, LayerList, Surface, WindowLayers};
+use be_lib_layers::{Layer, LayerId, LayerList, Surface, WindowLayers};
 use be_lib_ui_types::input::Input;
 
 /// What the router delivers to one surface: `input`, its positions in the surface's own pixels.
@@ -44,6 +44,16 @@ impl Windows {
     /// Whether `window` has a router.
     pub fn routes(&self, window: Option<u64>) -> bool {
         self.windows.iter().any(|routing| routing.window == window)
+    }
+
+    /// The layer focused in `window`, as it was drawn last: the one keys go to.
+    pub fn focused(&self, window: Option<u64>) -> Option<&Layer> {
+        let routing = self
+            .windows
+            .iter()
+            .find(|routing| routing.window == window)?;
+        let focused = routing.router.focused()?;
+        routing.layers.layer(focused)
     }
 
     /// Takes `list` as the layers drawn last. A window it leaves out has gone: its router goes

@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 use beui::PreferenceLayer;
 use beui::PreferenceSource;
 use beui::Rect;
+use beui::{Input, WindowId};
 use beui_core::context::Context;
 use beui_core::program::{FrameTimes, Lifecycle, Program, Setup};
 
@@ -56,6 +57,10 @@ impl<A: Program> Program for SavedPreferences<A> {
 
     fn exiting(&mut self) {
         self.program.exiting();
+    }
+
+    fn input(&mut self, window: WindowId, input: &Input) -> bool {
+        self.program.input(window, input)
     }
 
     fn lifecycle(&mut self, change: Lifecycle) {

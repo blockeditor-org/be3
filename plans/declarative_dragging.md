@@ -1,6 +1,6 @@
 # Declarative dragging: drags as the places they can lead to
 
-Depends on: plans/host_as_platform_adapter.md, step 4f (the forwarding router, built in step 3, routing the
+Depends on: plans/host_as_platform_adapter.md, step 4f2 (the forwarding router, built in step 3, routing the
 host's input over the layer list), before step 6.
 
 Every drag in beui becomes a description of where the dragged thing can end up, adapted from

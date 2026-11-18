@@ -52,6 +52,11 @@ interface frames {
         /// due or in flight. A frame it wants only later, or for an animation, is not owed, so
         /// a host waiting for its root to settle waits only while this is set.
         owed: bool,
+        /// The input method's area in the host's one window, in its points: the field
+        /// the focused surface edits, as be-lib-ui-types' `ImeArea` in its encoding
+        /// (`ImeArea::encode`). None while no surface edits text; the host shows the
+        /// platform's input method there.
+        ime: option<list<u8>>,
     }
 
     /// Draws a frame. The host steps the root until it answers: between

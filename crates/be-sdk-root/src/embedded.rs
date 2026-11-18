@@ -15,11 +15,12 @@ use be_lib_layers::{Affine, Layer, LayerId, LayerInput, Surface};
 use be_lib_stable_hash::HashMap;
 use be_lib_ui_types::input::{Input, PenPhase, TouchPhase};
 use be_sdk_api::{
-    InputBatch, Opening, Preferences, ScreenId, ScreenPlacement, ScreenRequest, SurfaceSpec,
-    embed::shell::Call as ShellCall,
+    ImeArea, InputBatch, Opening, Preferences, ScreenId, ScreenPlacement, ScreenRequest,
+    SurfaceSpec, WindowRequests, embed::shell::Call as ShellCall,
 };
 use be_sdk_app_host::{
     calls::{AppCall, Heard, Outbound},
+    holds::Held,
     pacing::{Ask, Asking, FRAME_TIMEOUT, Pacing},
     run::Run,
     session::{Session, SessionFailure, SessionState},
@@ -74,6 +75,9 @@ struct State {
     /// The screen each surface showed when last painted, kept once the screen goes, so the
     /// release of a press on it still reaches the app.
     surfaces: HashMap<u32, ScreenPlacement>,
+    /// What each screen asks of its window (its input method's area, its cursor), as its
+    /// last layout applied said.
+    windows: HashMap<ScreenId, WindowRequests>,
     /// Why the app stopped, once it did: it is asked for nothing again.
     failure: Option<String>,
     /// The frames waiting for the app to say hello or present.
@@ -137,6 +141,7 @@ impl Embedded {
             pass: 0,
             painted: HashMap::default(),
             surfaces: HashMap::default(),
+            windows: HashMap::default(),
             failure: None,
             waiting: Vec::new(),
             stop: Rc::clone(&stop),
@@ -237,6 +242,29 @@ impl Embedded {
             opacity: 1.0,
             shown: true,
             input: LayerInput::default(),
+        })
+    }
+
+    /// The input method's area the screen showing `surface` asks for, in the surface's pixels:
+    /// the field its app edits there, if any.
+    pub(crate) fn ime(&self, surface: u32) -> Option<ImeArea> {
+        let state = self.state.borrow();
+        let placement = state
+            .painted
+            .values()
+            .find(|placement| placement.surface == surface)?;
+        let area = state.windows.get(&placement.screen)?.ime.clone()?;
+        let pixels = raster(placement);
+        let scaled = |rect: Rect| {
+            Rect::from_min_max(
+                pos2(rect.min.x * pixels, rect.min.y * pixels),
+                pos2(rect.max.x * pixels, rect.max.y * pixels),
+            )
+        };
+        Some(ImeArea {
+            rect: scaled(area.rect),
+            cursor: scaled(area.cursor),
+            ..area
         })
     }
 
@@ -384,12 +412,14 @@ impl State {
             }
             Heard::Layout(layout) => {
                 let layout = self.run.place(layout, |_| false);
-                self.painted.retain(|screen, _| {
+                let laid_out = |screen: &ScreenId| {
                     layout
                         .screens
                         .iter()
                         .any(|placement| placement.screen == *screen)
-                });
+                };
+                self.painted.retain(|screen, _| laid_out(screen));
+                self.windows.retain(|screen, _| laid_out(screen));
                 self.run.lay_out(layout, |_| false);
             }
             Heard::LaidOut(mut commit) => {
@@ -400,7 +430,13 @@ impl State {
             }
             Heard::Presented(commit) => {
                 self.run.holds.heard_presents(1);
-                drop(self.run.holds.release_presented());
+                for held in self.run.holds.release_presented() {
+                    if let Held::Laid(laid) = held {
+                        for window in laid.windows {
+                            self.windows.insert(window.screen, window.window);
+                        }
+                    }
+                }
                 if let Some(presented) = commit.presented {
                     self.run.holds.heard_painted(presented.sequence);
                     for placement in presented.painted {

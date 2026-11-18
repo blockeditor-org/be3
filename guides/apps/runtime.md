@@ -151,16 +151,19 @@ tests read one their build made, crates/be-host-tests/apps.bzl). Each guest thre
   draws on demand draws for both and counts as busy only while one is owed. be-host runs a root in place
   of its own UI with `--root=APP` (`crates/be-host/src/root.rs`): the staged
   app `APP`, whose manifest says `"root": true`, starts as a pure guest on the
-  window's device; each host frame hands it the input beui's catcher over
-  the whole window got (replayed as the platform's `Input`s), asks it for a
-  frame by the deadline its own UI keeps (`FrameClock`) and draws each
+  window's device; each host frame hands it the window's input as the
+  platform delivered it, in points, which beui's document never hears
+  (`Program::input`), asks it for a frame by the deadline its own UI keeps (`FrameClock`) and draws each
   `Surface::Screen` of its list from the texture `Root::surface` resolves, as
   `compose::quad` places it, with the root's own surfaces the window's plain
-  background. It runs none of the host's core (no data directory, block
+  background; the IME area its frame names (`frame-done`'s `ime`, which
+  `Embedding::ime` answers from the focused screen's window requests through
+  its layer) is the window's. It runs none of the host's core (no data directory, block
   stack, screen lock or OS services), so it is refused as a login session; a
   root that stops closes the window and be-host exits saying why. No host ships a root yet; the host
-  test `a_root_in_place_of_the_hosts_ui_shows_the_editor_it_embeds` stages
-  be-sdk-root-testing as one. Tests also run a root natively in
+  tests `a_root_in_place_of_the_hosts_ui_*` stage be-sdk-root-testing as
+  one, and see a press, a key and a touch reach the triangle it embeds, which
+  tints its screen by what it heard. Tests also run a root natively in
   be-wasm-root-host's, and in Chromium
   `//crates/be-wasm-root-web-testing:web-test`, which also serves a guest on
   the page the sandbox for modules from bytes. That page is the crate's
