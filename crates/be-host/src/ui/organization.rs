@@ -4,12 +4,12 @@ use beui::icons::Glyph;
 use beui::icons::{
     ICON_ARCHIVE_RESTORE, ICON_ARROW_LEFT_RIGHT, ICON_BOT, ICON_BUG, ICON_CLOUD_ALERT,
     ICON_CLOUD_CHECK, ICON_CLOUD_OFF, ICON_CLOUD_SYNC, ICON_CONTACT, ICON_INFO, ICON_KEY,
-    ICON_LAYOUT_PANEL_LEFT, ICON_LINK, ICON_MAIL, ICON_POWER, ICON_RADIO_TOWER, ICON_SHIELD_ALERT, ICON_USER_COG,
-    ICON_USER_PLUS, ICON_USERS,
+    ICON_LAYOUT_PANEL_LEFT, ICON_LINK, ICON_MAIL, ICON_POWER, ICON_RADIO_TOWER, ICON_SHIELD_ALERT,
+    ICON_USER_COG, ICON_USER_PLUS, ICON_USERS,
 };
 use beui::reactive::*;
-use uuid::Uuid;
 use beui::styled::*;
+use uuid::Uuid;
 
 use super::debug::DebugPanels;
 use super::dialogs::Dialogs;
@@ -152,8 +152,6 @@ fn HostMenu(
                 disabled=true
             />
         </Show>
-        // What this device keeps hosting with no editor open (plans/hosted_blocks.md,
-        // "Hosting"), each with Stop.
         <ForEach value={hosting}>|kept: (Uuid, String)|
             <MenuItem
                 @test_id={format!("host.menu.hosting.{}", kept.0)}
