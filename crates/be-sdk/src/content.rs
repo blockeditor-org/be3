@@ -253,7 +253,8 @@ impl<C: LiveEdit + Clone + Default + 'static> LiveContent<C> {
     }
 
     /// Reads the entries of the block's signed log this editor holds, in the log's order, each
-    /// id once at its first place: the latest it heard or read, up to `editor::LOG_HELD`.
+    /// id once at its first place: the latest it heard or read, up to `editor::LOG_HELD`, and
+    /// every one from where it paged back to.
     pub fn with_log<R>(
         &self,
         read: impl FnOnce(&mut dyn Iterator<Item = &be_block_content::LogItem>) -> R,
