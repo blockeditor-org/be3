@@ -57,16 +57,28 @@ pub enum Entry {
     /// parent, so its history stays. With `restart` the session starts over from the commit
     /// loaded afresh: every replica moves what it has not had numbered onto it
     /// (`LiveEdit::carry_over`) and undo stops there.
+    /// Its `state` (a `BaseState`) goes inline, or past `LARGEST_RELAYED_OPERATION` by the
+    /// part it was put as, which every replica reads before it applies the reload.
     Reload {
         commit: CommitId,
         head: bool,
         replace: bool,
         restart: bool,
-        #[serde(with = "serde_bytes")]
-        state: Vec<u8>,
+        state: Payload,
     },
     /// A stash to keep in history: the holder's next seal has it as a second parent.
     Keep { commit: CommitId },
+}
+
+impl Entry {
+    /// The part this entry must be read from before it applies: an operation's bytes, or a
+    /// reload's state, when they went by one.
+    pub fn part(&self) -> Option<be_block_store::PartRef> {
+        match self {
+            Self::Operation(payload) | Self::Reload { state: payload, .. } => payload.part(),
+            Self::Keep { .. } => None,
+        }
+    }
 }
 
 impl Submitted {
