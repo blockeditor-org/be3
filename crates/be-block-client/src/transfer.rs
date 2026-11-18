@@ -55,6 +55,7 @@ pub fn encode(blocks: &[Saved]) -> Vec<u8> {
         }
         out.extend((block.log.len() as u32).to_le_bytes());
         for entry in &block.log {
+            out.extend(entry.block.as_bytes());
             out.extend(entry.seq.to_le_bytes());
             out.extend(entry.id.as_bytes());
             out.extend(entry.author.as_bytes());
@@ -113,6 +114,7 @@ pub fn decode(bytes: &[u8]) -> Result<Vec<Saved>, String> {
         };
         let mut log = Vec::new();
         for _ in 0..reader.u32()? {
+            let original = reader.uuid()?;
             let seq = reader.u64()?;
             let id = reader.uuid()?;
             let author = reader.uuid()?;
@@ -135,6 +137,7 @@ pub fn decode(bytes: &[u8]) -> Result<Vec<Saved>, String> {
             let length = reader.u32()? as usize;
             let signature = reader.take(length)?.to_vec();
             log.push(crate::ExportedEntry {
+                block: original,
                 seq,
                 id,
                 author,
@@ -327,8 +330,9 @@ pub fn renumber(blocks: Vec<Saved>) -> Vec<Saved> {
                     .map(|reference| ids.get(reference).copied().unwrap_or(*reference))
                     .collect(),
                 content: block.content.map(|bytes| swap.apply(&bytes)),
-                // A copy starts its own log: what the original's authors signed is the original's.
-                log: Vec::new(),
+                // An import keeps the log as history from the block it was written in, which each
+                // entry names (`ExportedEntry::block`).
+                log: block.log,
             }
         })
         .collect()

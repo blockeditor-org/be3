@@ -41,6 +41,10 @@ pub struct LoggedEntry {
     /// Its payload opened but holds no salt, which no client writes: it says nothing anyone
     /// signed.
     pub malformed: bool,
+    /// For an entry an import brought in (`Peer::import_blocks`), the entry as it was written
+    /// in its own block, which it verifies against (`Peer::verify_exported`); `opened` is what
+    /// it said.
+    pub imported: Option<ExportedEntry>,
 }
 
 impl LoggedEntry {
@@ -72,17 +76,39 @@ impl Said {
         Hash::of(&[&self.salt[..], &super::by_app(app, &self.bytes)].concat())
     }
 
-    /// The salt, then the bytes: what an entry's payload seals.
+    /// What an entry's payload seals: `SAID`, the salt, then the bytes.
     fn sealed(&self) -> Vec<u8> {
-        [&self.salt[..], &self.bytes].concat()
+        [&[SAID][..], &self.salt[..], &self.bytes].concat()
     }
 
     fn opened(plain: Vec<u8>) -> Option<Self> {
+        let (kind, plain) = plain.split_first()?;
         let (salt, bytes) = plain.split_first_chunk::<LOG_SALT_BYTES>()?;
-        Some(Self {
+        (*kind == SAID).then(|| Self {
             salt: *salt,
             bytes: bytes.to_vec(),
         })
+    }
+}
+
+/// The first byte of what an entry's payload seals: what its author said (`Said::sealed`), or
+/// an entry an import brought in (`ExportedEntry::sealed`).
+const SAID: u8 = 0;
+const IMPORTED: u8 = 1;
+
+impl ExportedEntry {
+    /// What an entry an import brings in seals: `IMPORTED`, then the entry as it was written.
+    pub(crate) fn sealed(&self) -> Vec<u8> {
+        let mut sealed = vec![IMPORTED];
+        sealed.extend(postcard::to_stdvec(self).expect("an exported entry always encodes"));
+        sealed
+    }
+
+    fn opened(plain: &[u8]) -> Option<Self> {
+        let (kind, rest) = plain.split_first()?;
+        (*kind == IMPORTED)
+            .then(|| postcard::from_bytes(rest).ok())
+            .flatten()
     }
 }
 
@@ -91,6 +117,8 @@ impl Said {
 /// (`Peer::verify_exported`) wherever the file goes.
 #[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct ExportedEntry {
+    /// The block it was written in, which its signature binds.
+    pub block: Uuid,
     pub seq: u64,
     pub id: Uuid,
     pub author: Uuid,
@@ -690,15 +718,25 @@ impl<S: ObjectStore> Peer<S> {
             .payload
             .as_ref()
             .and_then(|sealed| self.open_for(block, sealed).ok());
+        if let Some(imported) = plain.as_deref().and_then(ExportedEntry::opened) {
+            return LoggedEntry {
+                entry,
+                opened: imported.said.clone(),
+                malformed: false,
+                imported: Some(imported),
+            };
+        }
         let malformed = plain
             .as_ref()
-            .is_some_and(|plain| plain.len() < LOG_SALT_BYTES);
+            .is_some_and(|plain| plain.len() < 1 + LOG_SALT_BYTES);
         LoggedEntry {
             entry,
             opened: plain.and_then(Said::opened),
             malformed,
+            imported: None,
         }
     }
+
 
     /// Who signed an entry of `block`'s log that says `said` (its payload opened, with its salt)
     /// as the app `app`'s (`verify_authored`), judged by when the server took it: its arrival, which no
@@ -731,13 +769,18 @@ impl<S: ObjectStore> Peer<S> {
                 return Ok(exported);
             }
             from += read.entries.len() as u64;
-            exported.extend(read.entries.into_iter().map(|logged| ExportedEntry {
-                seq: logged.entry.seq,
-                id: logged.entry.id,
-                author: logged.entry.author,
-                arrival: logged.entry.arrival,
-                said: logged.opened,
-                signature: logged.entry.signature,
+            // An entry an import brought in goes as it was written in its own block.
+            exported.extend(read.entries.into_iter().map(|logged| match logged.imported {
+                Some(original) => original,
+                None => ExportedEntry {
+                    block,
+                    seq: logged.entry.seq,
+                    id: logged.entry.id,
+                    author: logged.entry.author,
+                    arrival: logged.entry.arrival,
+                    said: logged.opened,
+                    signature: logged.entry.signature,
+                },
             }));
             if from >= read.head.size {
                 return Ok(exported);
@@ -745,12 +788,11 @@ impl<S: ObjectStore> Peer<S> {
         }
     }
 
-    /// Who signed `entry` of an export of the block `original` as the app `app`'s: an export's
-    /// entries verify against the block they were written in, wherever the file went, with no
-    /// key of the block. None for a redacted entry, which says nothing to verify.
+    /// Who signed `entry` of an export as the app `app`'s, in the block it was written in
+    /// (`ExportedEntry::block`): an export's entries verify against it wherever the file went,
+    /// with no key of the block. None for a redacted entry, which says nothing to verify.
     pub async fn verify_exported(
         &self,
-        original: Uuid,
         app: &str,
         entry: &ExportedEntry,
     ) -> Result<Option<Signer>, ClientError> {
@@ -758,7 +800,7 @@ impl<S: ObjectStore> Peer<S> {
             return Ok(None);
         };
         self.verify_entry(
-            original,
+            entry.block,
             app,
             entry.author,
             entry.id,
