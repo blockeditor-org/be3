@@ -318,7 +318,8 @@ web_host_test(
     test = "web-test/two_pages_write_in_one_chat_and_neither_makes_a_file_call_or_starts_a_thread.mjs",
 )
 
-# A tab shown again shows its views' last frames until their app draws them anew, as natively.
+# A tab shown again shows its views' last frames until their app draws them anew, as natively;
+# then the idle page runs no frames.
 web_host_test(
     name = "shown-again-web-host-test",
     bundle = ":web",
