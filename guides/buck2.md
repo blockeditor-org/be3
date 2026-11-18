@@ -378,7 +378,7 @@ use an editor extension's rust-analyzer: the toolchain's panics on this workspac
   happens again on every new daemon: pin a file as a download instead where its hash is stable.
   Googlesource's `+archive` tarballs are made afresh on every download, so PDFium's repositories
   are GitHub archives of their commits (crates/be-tool-buck/src/pdfium.rs), and Ghostty's Zig
-  packages are pinned beside it in crates/be-lib-ghostty-vt/BUCK and handed to `zig fetch`.
+  packages are pinned beside it in crates/be-lib-ghostty-vt/BUCK and unpacked for `zig build --system`.
   The one action that still fetches is xwin's (buck/tools `windows-sdk-*`), which downloads
   the MSVC runtime and Windows SDK packages its pinned manifest lists, each by that manifest's
   hash.

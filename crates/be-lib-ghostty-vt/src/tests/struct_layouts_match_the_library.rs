@@ -70,29 +70,23 @@ fn struct_layouts_match_the_library() {
 
     let style = sys::Style::default();
     let base = std::ptr::from_ref(&style).addr();
+    for (field, offset) in [
+        ("bg_color", std::ptr::from_ref(&style.bg_color).addr() - base),
+        ("flags", std::ptr::from_ref(&style.flags).addr() - base),
+    ] {
+        assert_offset(types, "GhosttyStyle", field, offset);
+    }
+
+    let color = sys::StyleColor {
+        tag: sys::STYLE_COLOR_NONE,
+        value: sys::StyleColorValue { palette: 0 },
+    };
+    let base = std::ptr::from_ref(&color).addr();
     assert_offset(
         types,
-        "GhosttyStyle",
-        "size",
-        std::ptr::from_ref(&style.size).addr() - base,
-    );
-    assert_offset(
-        types,
-        "GhosttyStyle",
-        "bg_color",
-        std::ptr::from_ref(&style.bg_color).addr() - base,
-    );
-    assert_offset(
-        types,
-        "GhosttyStyle",
-        "inverse",
-        std::ptr::from_ref(&style.inverse).addr() - base,
-    );
-    assert_offset(
-        types,
-        "GhosttyStyle",
-        "underline",
-        std::ptr::from_ref(&style.underline).addr() - base,
+        "GhosttyStyleColor",
+        "value",
+        std::ptr::from_ref(&color.value).addr() - base,
     );
 
     let colors = sys::RenderStateColors::default();
