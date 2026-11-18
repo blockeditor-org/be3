@@ -2096,6 +2096,10 @@ impl Session<'_> {
             };
             self.replicas.drained(block, refused, commits);
         }
+        // Entries of a log the server refused: the replica hears what the device keeps of them.
+        for block in self.tasks.0.take_not_appended() {
+            self.replicas.not_appended((peer, shared), block);
+        }
         let diverged = self.tasks.0.take_diverged();
         let merged = !diverged.is_empty();
         for (block, local, remote) in diverged {
@@ -2309,21 +2313,24 @@ fn shared_offline(shared: &Arc<Mutex<Shared>>) {
     held.connection = None;
 }
 
-/// Publishes the outbox: answers the blocks that diverged, and those with the head the drain
-/// published (false) or that the server refused (true, `Replicas::drained`).
+/// Publishes the outbox: answers the blocks that diverged, those with the head the drain
+/// published (false) or that the server refused (true, `Replicas::drained`), and those with
+/// entries of their log the server refused (`Replicas::not_appended`).
 async fn drain_outbox(
     peer: &Arc<Peer<Store>>,
     shared: &Arc<Mutex<Shared>>,
 ) -> (
     Vec<(Uuid, CommitId, Option<CommitId>)>,
     Vec<(Uuid, Option<CommitId>, bool)>,
+    std::collections::BTreeSet<Uuid>,
 ) {
     let mut diverged = Vec::new();
     let mut published = Vec::new();
+    let mut not_appended = std::collections::BTreeSet::new();
     if peer.pending().operations == 0 {
         // What waited for the server to be reached goes now.
         be_block_type_host::replicas::send_announcements::<Shared>(peer, shared).await;
-        return (diverged, published);
+        return (diverged, published, not_appended);
     }
     match peer.drain(|_| false).await {
         Ok(drained) => {
@@ -2402,6 +2409,9 @@ async fn drain_outbox(
                         ..
                     } => {
                         shown_as_refused(peer, shared, *block);
+                    }
+                    be_block_client::Drained::NotAppended { block, .. } => {
+                        not_appended.insert(*block);
                     }
                     // Shown among the unsent edits; it leaves the files with what was made in it.
                     be_block_client::Drained::SetAside { block, .. } => {
@@ -2491,7 +2501,7 @@ async fn drain_outbox(
     // The drain published commits holding announced edits.
     be_block_type_host::replicas::send_announcements::<Shared>(peer, shared).await;
     report(peer, shared);
-    (diverged, published)
+    (diverged, published, not_appended)
 }
 
 /// After the server refused a move or a definition of `block`, the graph shows it as the server
@@ -5069,6 +5079,8 @@ struct Outbox {
     draining: bool,
     again: bool,
     diverged: Vec<(Uuid, CommitId, Option<CommitId>)>,
+    /// Blocks with entries of their log the server refused (`Replicas::not_appended`).
+    not_appended: std::collections::BTreeSet<Uuid>,
     /// Blocks whose kept commits all reached the server, or were refused
     /// (`Replicas::drained`).
     /// Each block a drain published, with the head it published (none for one only created),
@@ -5126,10 +5138,11 @@ impl Tasks {
         );
         self.spawn(async move {
             loop {
-                let (diverged, published) = drain_outbox(&peer, &shared).await;
+                let (diverged, published, not_appended) = drain_outbox(&peer, &shared).await;
                 let mut held = outbox.borrow_mut();
                 held.diverged.extend(diverged);
                 held.published.extend(published);
+                held.not_appended.extend(not_appended);
                 if !std::mem::take(&mut held.again) || !peer.is_attached() {
                     held.draining = false;
                     break;
@@ -5206,6 +5219,10 @@ impl Tasks {
 
     fn take_diverged(&self) -> Vec<(Uuid, CommitId, Option<CommitId>)> {
         std::mem::take(&mut self.outbox.borrow_mut().diverged)
+    }
+
+    fn take_not_appended(&self) -> std::collections::BTreeSet<Uuid> {
+        std::mem::take(&mut self.outbox.borrow_mut().not_appended)
     }
 
     /// Reads the locked nodes again as keys arrived, with one `learn` over all of them: one at

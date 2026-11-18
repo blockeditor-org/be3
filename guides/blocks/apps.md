@@ -99,7 +99,10 @@ order, each with who signed it. What is sending is `with_kept`: the entries
 this device appended that the server has not taken, from its own appends and
 from what each read tells (`LogPage::kept`, which the host reads from the
 device's outbox), so it survives the editor and the host opening again; what
-the server refused is `with_refused`, until `dismiss_refused`. Each moves the
+is not appended is `with_refused`, until `dismiss_refused`: the device keeps
+what the server refused (`LogPage::refused`, and pushed as a drain refuses
+one), so it survives the editor and the host opening again too, and
+dismissing one lets the device let go of it. Each moves the
 revision. In be-sdk-beui the projection's wrappers track the revision.
 
 ### Sending

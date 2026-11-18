@@ -67,6 +67,11 @@ pub(crate) enum Effect {
     Claim {
         replica: ReplicaId,
     },
+    /// Lets go of an entry the server refused (`host.let-go-refused`).
+    LetGoRefused {
+        replica: ReplicaId,
+        id: uuid::Uuid,
+    },
     Submit {
         replica: ReplicaId,
         submission: be_block_session::Submission,

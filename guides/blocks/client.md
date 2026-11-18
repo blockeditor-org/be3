@@ -257,7 +257,10 @@ taken unproven.
   arrival; otherwise `Appended::Kept`, and the drain sends it in order
   (`Drained::Appended`). A log's entries wait only behind the block's
   creation, never behind its content: a diverged publish holds none back. One
-  the server refuses leaves the outbox (`Drained::NotAppended`). A local
+  the server refuses leaves the outbox (`Drained::NotAppended`,
+  `Appended::Refused`) and is kept, with why, until the app lets it go
+  (`refused_entries`, `let_go_refused`; `Table::NotAppended`), so what the app
+  shows of it outlives the editor and the device starting again. A local
   account numbers and stamps entries on the device (`append_locally`),
   keeping its tree's right edge (`KeptLogHead::frontier`).
 - **Reading.** `Peer::read_log(block, from, limit)` reads a page and follows

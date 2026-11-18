@@ -1467,6 +1467,7 @@ impl EditorHost {
             | ToEditor::PartPut { .. }
             | ToEditor::Appended { .. }
             | ToEditor::Logged(_)
+            | ToEditor::Refused(_)
             | ToEditor::LogRead { .. }
             | ToEditor::Lacking { .. }
             | ToEditor::Failed(_)) => {
@@ -1541,6 +1542,7 @@ impl EditorHost {
             | FromEditor::PutPart { .. }
             | FromEditor::Append { .. }
             | FromEditor::ReadLog { .. }
+            | FromEditor::LetGoRefused { .. }
             | FromEditor::FollowLacking
             | FromEditor::DismissLacking(_)) => {
                 self.content_operations.borrow_mut().push((block, message));

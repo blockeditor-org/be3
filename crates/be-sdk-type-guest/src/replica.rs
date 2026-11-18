@@ -204,7 +204,7 @@ pub(crate) enum Input {
     /// Where an entry appended to the block's signed log went (`host.append`).
     Appended {
         token: Token,
-        result: Result<be_block_content::LogAppended, String>,
+        result: Result<be_block_content::LogAppended, be_block_content::LogNotAppended>,
     },
     /// A run of the block's signed log read (`host.read-log`): its length and the entries.
     LogRead {
@@ -213,6 +213,8 @@ pub(crate) enum Input {
     },
     /// Entries appended to the block's signed log (`replica.logged`).
     Logged(Vec<be_block_content::LogItem>),
+    /// Every entry this device appended that the server refused and keeps (`replica.refused`).
+    Refused(Vec<(Uuid, Vec<u8>, String)>),
     Resumed {
         token: Token,
         result: Result<Resume, String>,
@@ -781,6 +783,12 @@ where
             }
             Input::LogRead { token, result } => self.answer_log_read(token, result),
             Input::Logged(items) => self.logged(items),
+            Input::Refused(entries) => {
+                let editors: Vec<EditorId> = self.editors.keys().copied().collect();
+                for editor in editors {
+                    self.tell_editor(editor, &ToEditor::Refused(entries.clone()));
+                }
+            }
             Input::Resumed { token, result } => self.answer_resume(token, result),
             Input::Message {
                 from: Endpoint::Peer(from),
@@ -1833,6 +1841,7 @@ where
             | Input::PartPut { .. }
             | Input::Appended { .. }
             | Input::LogRead { .. }
+            | Input::Refused(_)
             | Input::Logged(_)
             | Input::Resumed { .. }
             | Input::Submitted { .. }
@@ -3787,12 +3796,19 @@ where
                 editor,
                 &ToEditor::Appended {
                     token,
-                    result: Err(match self.has_log {
-                        true => "the editor is attached read-only".to_owned(),
-                        false => "this type keeps no log".to_owned(),
+                    result: Err(be_block_content::LogNotAppended {
+                        id: None,
+                        why: match self.has_log {
+                            true => "the editor is attached read-only".to_owned(),
+                            false => "this type keeps no log".to_owned(),
+                        },
                     }),
                 },
             ),
+            FromEditor::LetGoRefused { id } if editable && self.has_log => {
+                self.out.push(Effect::LetGoRefused { replica: self.id, id });
+            }
+            FromEditor::LetGoRefused { .. } => {}
             FromEditor::ReadLog { token, from, limit } if self.has_log => {
                 let call = self.token();
                 self.out.push(Effect::ReadLog {

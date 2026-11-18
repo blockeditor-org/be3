@@ -287,7 +287,8 @@ pub enum Drained {
         seq: u64,
         arrival: i64,
     },
-    /// The server refused an entry for the block's signed log: it is not sent again.
+    /// The server refused an entry for the block's signed log: it is not sent again, and is
+    /// kept, with why, until let go (`Peer::refused_entries`).
     NotAppended {
         block: Uuid,
         id: Uuid,

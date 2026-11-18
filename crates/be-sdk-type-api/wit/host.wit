@@ -84,7 +84,19 @@ interface host {
     /// the entry through `replica.logged` once it is in the log, this one too.
     /// What goes `along` with it is kept with it and done once the server takes
     /// it.
-    append: async func(bytes: list<u8>, along: along) -> result<appended, string>;
+    append: async func(bytes: list<u8>, along: along) -> result<appended, not-appended>;
+
+    /// Why an entry was not appended. `id` names one the server refused,
+    /// which the device keeps until let go (`log-page.refused`); none for
+    /// one the device never made (too large, or no key to seal it with).
+    record not-appended {
+        id: option<uuid>,
+        why: string,
+    }
+
+    /// Lets go of an entry the server refused (`log-page.refused`): sent
+    /// again as a new one, or given up.
+    let-go-refused: async func(id: uuid);
 
     /// Where an entry went: its id, and its place and arrival once the server
     /// took it, none while it waits on this device for the server.
