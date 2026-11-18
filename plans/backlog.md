@@ -377,7 +377,12 @@ Depends on #686 (session catch-ups replaced by server ordering).
   already. Then nothing sends the snapshot, and what waits for the content (a keyboard gift's
   `Given` stage) waits for good. Done: a restarted app's editor is sent its snapshot in every
   case, shown by a be-host-runtime test that restarts an app with an editor attached and checks
-  the content counts as delivered.
+  the content counts as delivered. Not found yet: `Instances::reopen` keeps each link's
+  `attached`, so a restarted app's `Resend` is forwarded and the replica sends the snapshot
+  (`a_restarted_app_is_sent_its_content_and_blocks_again`), and a link that goes calls
+  `detach`, which takes the editor off the replica too, so a later `attaching` meets a replica
+  without it, whose `attach` sends the snapshot. What leaves a link unattached while the
+  replica still holds its editor is the thing to find first.
 
 - **A folder's mirror once under load.**
   be-host-stack's `a_folder_whose_share_is_taken_back_leaves_the_mirror_with_what_is_in_it`
