@@ -34,6 +34,9 @@ pub(super) struct Served {
     holding: Rc<RefCell<HashMap<Uuid, usize>>>,
     /// Commands for the loop that wait (see the module's doc).
     deferred: Rc<RefCell<VecDeque<Command>>>,
+    /// A flush ran while commands waited their turn (`flushed_ahead`): what they make once they
+    /// run is sealed too, as the flush was asked after them.
+    flushed_ahead: Cell<bool>,
     /// The trees and commits the loop's statuses and the lane's version commands share.
     objects: Objects,
 }
@@ -170,6 +173,21 @@ impl Served {
     /// Commands for the loop that wait their turn: sent, but not yet carried out.
     pub(super) fn deferred(&self) -> usize {
         self.deferred.borrow().len()
+    }
+
+    /// Notes a flush that ran ahead of commands sent before it, which wait their turn: an edit
+    /// behind a command that rekeys its block, say. The flush's seal could not take what they
+    /// make, and with the clock held no quiet spell seals it either.
+    pub(super) fn flushed_ahead(&self) {
+        if self.deferred() > 0 {
+            self.flushed_ahead.set(true);
+        }
+    }
+
+    /// Whether a flush ran ahead of commands that have all run since, so what they made is
+    /// sealed now; false while any still waits.
+    pub(super) fn take_flushed_ahead(&self) -> bool {
+        self.deferred() == 0 && self.flushed_ahead.replace(false)
     }
 
     pub(super) fn runnable(&mut self) -> Vec<Command> {
