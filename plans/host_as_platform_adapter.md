@@ -1200,6 +1200,28 @@ Each step lands on its own.
          what is not secret about it (that a link exists, whose, when it expires); the root
          holds it only while the dialog showing it is open, and drops it, zeroed, as it
          closes.
+         - 4g6f2b. Built: the organization's members and agents. `core-view` gains `members`
+           (a `members-area`: whether `listed`, each `member-row`, its account, name, email,
+           `member-role`, whether it is the person, an agent, or added by the server unsigned;
+           busy and error; be-host's `MembersView`, as data the root words) and `agents` (an
+           `agents-area`: whether listed, each `agent-row`'s account and name, busy and error).
+           The commands: `list-members`, `set-member-role` (a `role-change`),
+           `remove-member` (be-host's `ConfirmRemoveMember`: which member is being asked about
+           is the root's, so its `RemoveMember` and `CancelRemoveMember` are), `list-agents`
+           and `remove-agent`. Making an agent is `make-secret`'s `create-agent`, answered
+           with `core-secret`'s `agent`, its `agent-credentials` (name, server, organization,
+           and the token and recovery phrase as `password`s): be-host's `AgentsView::created`
+           leaves the view. be-sdk-root-testing's F10 (`OPENS_MEMBERS`, `MEMBERS_TITLE`) lists
+           the members, each but the person and agents with a change of role and Remove, which
+           asks first in the list's place (`REMOVE_MEMBER_TITLE`); F11 (`OPENS_AGENTS`,
+           `AGENTS_TITLE`) lists the agents with Remove and a name to make one, the credentials
+           answered shown once with Copy and Done. The secret a dialog shows is now any
+           `core-secret` (`Held`, an `Rc` compared by identity), handed by `secret_asker` to
+           whichever dialog asks for secrets. be-wasm-root-host's
+           `a_root_lists_its_hosts_members_and_agents_and_shows_an_agents_credentials_once`
+           changes a role, keeps and removes a member, makes an agent from a typed name and
+           shows its credentials, copies them, sees them gone once reopened, removes an agent,
+           and snapshots the members, the removal question, the agents and the credentials.
          - 4g6f2a. Built (4g6f2 split again: 4g6f2b is members and agents): signing in again,
            the question before discarding unsaved changes, and invitations, with the rule for
            secrets the host hands the person. `core-view` gains `reauthenticating` (the account
@@ -1215,7 +1237,7 @@ Each step lands on its own.
            `CancelDiscard`), `list-invitations` (its `OpenInvitations`, whose open state is the
            root's) and `revoke-invitation`. Making a link is `make-secret`, a call of its own
            taking a `secret-command` (`invite-member`, `invitation-link`; 4g6f2b adds the
-           agent's), answered once made with an `option<core-secret>` (`link`, a `password`), or
+           agent's, 4g6f2b), answered once made with an `option<core-secret>` (`link`, a `password`), or
            nothing if making it failed, why reaching `invitations`' error; `ask-core` answers at
            once, as before. be-wasm-root-host's `Root::take_secret_requests` hands each request
            with the id `Root::answer_secret` answers it by; an id no longer waited for drops the

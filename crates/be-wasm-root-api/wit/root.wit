@@ -3,7 +3,7 @@ package be3:root@0.1.0;
 /// What the host serves the root guest beside the sandbox
 /// (plans/host_as_platform_adapter.md, The root guest).
 interface host {
-    use be3:shared/ids@0.1.0.{block-id, block-type-id, organization-id, uuid};
+    use be3:shared/ids@0.1.0.{account-id, block-id, block-type-id, organization-id, uuid};
 
     /// Answers once the frame being drawn reaches its deadline: the display's
     /// next present less the time the host's own work after the frame takes.
@@ -508,12 +508,83 @@ interface host {
         error: option<string>,
     }
 
+    /// What a member of the organization may do there.
+    enum member-role {
+        administrator,
+        editor,
+        /// Holds only grants made through share links.
+        guest,
+    }
+
+    /// A member of the organization.
+    record member-row {
+        account: account-id,
+        /// Their name, or their email when they gave none.
+        name: string,
+        email: string,
+        role: member-role,
+        /// Whether it is the person themselves.
+        me: bool,
+        /// Whether it is an agent some member made.
+        agent: bool,
+        /// Whether the server added them on its own, no record in the
+        /// organization's log signing them in.
+        unsigned: bool,
+    }
+
+    /// The organization's members, once the root asked for them.
+    record members-area {
+        /// Whether they are listed yet since `list-members` last asked.
+        listed: bool,
+        members: list<member-row>,
+        /// Whether listing, a role's change or a removal is under way.
+        busy: bool,
+        error: option<string>,
+    }
+
+    /// An agent of the organization's: an account a program signs in as.
+    record agent-row {
+        account: account-id,
+        name: string,
+    }
+
+    /// The organization's agents, once the root asked for them.
+    record agents-area {
+        /// Whether they are listed yet since `list-agents` last asked.
+        listed: bool,
+        agents: list<agent-row>,
+        /// Whether listing, making or removing one is under way.
+        busy: bool,
+        error: option<string>,
+    }
+
+    /// What a program signs in to a new agent with: handed over once, as it
+    /// is made.
+    record agent-credentials {
+        name: string,
+        /// The server's address.
+        server: string,
+        organization: organization-id,
+        /// The token it signs in with.
+        token: password,
+        /// The recovery phrase of its keys.
+        phrase: password,
+    }
+
+    /// A member's new role.
+    record role-change {
+        account: account-id,
+        role: member-role,
+    }
+
     /// A secret the host hands the person once, as the answer to the command
     /// that made it, never in `core-view`: the root holds it only while it
     /// shows it.
     variant core-secret {
         /// An invitation's link, which whoever holds it may join by.
         link(password),
+        /// A new agent's credentials.
+        agent(agent-credentials),
     }
 
     /// What the block stack shows the person, a field per area, each the
@@ -548,6 +619,10 @@ interface host {
         discarding: option<discard-reason>,
         /// The organization's invitations.
         invitations: invitations-area,
+        /// The organization's members.
+        members: members-area,
+        /// The organization's agents.
+        agents: agents-area,
     }
 
     /// What the block stack shows the person, once it differs from the
@@ -640,6 +715,17 @@ interface host {
         list-invitations,
         /// Revoke the invitation of this id.
         revoke-invitation(uuid),
+        /// List the organization's members.
+        list-members,
+        /// Give a member another role.
+        set-member-role(role-change),
+        /// Remove a member from the organization, which the root asks the
+        /// person to confirm first.
+        remove-member(account-id),
+        /// List the organization's agents.
+        list-agents,
+        /// Remove an agent from the organization.
+        remove-agent(account-id),
     }
 
     /// The person asked `command` of the block stack, which the host does. It
@@ -657,6 +743,8 @@ interface host {
         /// The link of the invitation of this id again, while it is one of
         /// the person's own and still open.
         invitation-link(uuid),
+        /// Make an agent of this name: its credentials.
+        create-agent(string),
     }
 
     /// The person asked `command` of the block stack, which makes a secret:
