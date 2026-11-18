@@ -15,6 +15,11 @@
 //! `BeuiSurface::overlay_area`, the rects its overlays take the pointer in, as its hit area,
 //! and what lies under it takes the rest.
 //!
+//! A document's window has the host's clipboard (`be3:root`'s `host.copy` and `host.paste`), and
+//! its focused field's input method area (`BeuiSurface::ime`) is the one the root hands its host,
+//! which shows the platform's input method there and delivers what it types as input, which the
+//! root's router lands on the focused surface (plans/host_as_platform_adapter.md, step 4g4).
+//!
 //! A root links it as an app links be-sdk-beui: against the app libraries, whose beui library
 //! holds beui, its runner, its renderer and FreeType
 //! (decisions/a_root_links_beui_as_an_app_does.md). be-sdk-root itself stays free of any GUI
@@ -33,8 +38,10 @@ use std::{
 
 use be_lib_geometry::Pos2;
 use be_lib_layers::{Area, Layer, LayerId, Surface};
-use be_lib_ui_types::Fonts;
+use be_lib_ui_types::{ClipItem, Fonts, ImeArea};
 use be_sdk_root::{Delivery, OwnSurface};
+use be_wasm_root_api::guest::host;
+use beui_core::clipboard::{Clip, PasteAnswer};
 use beui_core::context::{Context, RendererInfo, WindowOutput};
 use beui_core::painting::{Painting, Punches};
 use beui_core::program::{Program, SafeArea, Setup, Waker};
@@ -134,11 +141,43 @@ struct Drawn {
     failure: std::cell::RefCell<Option<String>>,
 }
 
-/// The surface's window, which asks the platform for nothing it can give: the root has no
-/// clipboard, files or keyboard of its own to offer yet.
+/// The surface's window, whose platform is the root's host: a copy and a paste go to the host's
+/// clipboard through `be3:root` (`host.copy`, `host.paste`), and the host shows the platform's
+/// input method and keyboard where the root says the focused field is (`frame-done`'s `ime`,
+/// from `BeuiSurface::ime`). Choosing and saving files are the platform's own dialogs, which
+/// `be3:root` does not carry yet, so the default answers that they are unavailable.
 struct Window;
 
-impl PlatformServices for Window {}
+impl PlatformServices for Window {
+    /// Copies what the clip has rendered: the host never asks the root back for a lazy
+    /// representation, so one is left off.
+    fn copy(&mut self, clip: Clip) {
+        let items: Vec<Vec<u8>> = clip.ready_items().iter().map(be_wasm_ops::encode).collect();
+        if items.is_empty() {
+            return;
+        }
+        be_wasm_ops::guest::spawn(async move {
+            // A host that cannot hear it has stopped, which the root hears from its frames.
+            let _ = host::copy(items).await;
+        });
+    }
+
+    /// Asks the host for the first of `formats` its clipboard holds; the answer reaches the
+    /// document with the frame its waker asks for once it comes.
+    fn paste(&mut self, formats: &[String], answer: PasteAnswer) {
+        let formats = formats.to_vec();
+        be_wasm_ops::guest::spawn(async move {
+            let pasted = host::paste(formats).await.ok().flatten();
+            answer.send(pasted.and_then(|item| be_wasm_ops::decode::<ClipItem>(&item)));
+        });
+    }
+
+    /// The host shows the platform's own keyboard where the input method's area is, so beui
+    /// shows none of its own.
+    fn shows_keyboard(&self) -> bool {
+        true
+    }
+}
 
 /// A program that shows one document, filling its window.
 struct Showing {
@@ -321,6 +360,14 @@ impl BeuiSurface {
             true => Area::Nowhere,
             false => Area::Region(rects),
         }
+    }
+
+    /// The input method's area in the window `layer` shows the surface in, in its points: where
+    /// the document's focused field edits, as its last frame asked, which the root hands its
+    /// host as `frame-done`'s `ime` while `layer` has the focus. None while no field edits text.
+    pub fn ime(&self, layer: &Layer) -> Option<ImeArea> {
+        let area = self.runner.window().requests.ime.clone()?;
+        Some(be_sdk_root::ime_in_window(area, self.raster, layer))
     }
 
     /// The layer `id` showing the whole surface with its top left at `origin` in its window's

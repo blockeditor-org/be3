@@ -2,7 +2,7 @@
 
 use be_lib_input_router::{Routed, Router};
 use be_lib_layers::{Layer, LayerId, LayerList, Surface, WindowLayers};
-use be_lib_ui_types::input::{Input, Timed};
+use be_lib_ui_types::input::{Input, KeyChord, Timed};
 
 /// What the router delivers to one surface: `input`, its positions in the surface's own pixels.
 #[derive(Clone, Debug, PartialEq)]
@@ -36,6 +36,8 @@ struct Window {
 /// its router goes, and the surface it had focused hears it lost the focus.
 pub struct Windows {
     compositor: LayerId,
+    /// The chords every window's router hands `compositor` ahead of the focus.
+    intercepted: Vec<KeyChord>,
     windows: Vec<Window>,
 }
 
@@ -44,8 +46,30 @@ impl Windows {
     pub fn new(compositor: LayerId) -> Self {
         Self {
             compositor,
+            intercepted: Vec::new(),
             windows: Vec::new(),
         }
+    }
+
+    /// Hands `chords` to the compositor in every window from now on, ahead of the layer focused
+    /// there, in place of those it took before: a key pressed with one of them goes to the
+    /// compositor, and so does its release. A dialog takes Escape this way while it is open.
+    pub fn intercept(&mut self, chords: Vec<KeyChord>) {
+        for routing in &mut self.windows {
+            routing.router.intercept(chords.clone());
+        }
+        self.intercepted = chords;
+    }
+
+    /// Moves the keyboard in `window` to `target`, or takes it from every layer there: a dialog
+    /// that opens takes it, and gives it back to the layer that had it once it closes. Answers
+    /// what that tells the layer that had it and the one that gets it; a layer the window was not
+    /// drawn with last hears nothing of it, so a layer is focused once it has been drawn.
+    pub fn focus(&mut self, window: Option<u64>, target: Option<LayerId>) -> Vec<Delivery> {
+        let at = self.at(window);
+        let routing = &mut self.windows[at];
+        let routed = routing.router.focus(target);
+        delivered(&routing.layers, routed, None).collect()
     }
 
     /// Whether `window` has a router.
@@ -118,6 +142,7 @@ impl Windows {
         }
         for layers in list.windows {
             let window = layers.window.map(|window| window.raw());
+            let router = self.router();
             match self
                 .windows
                 .iter_mut()
@@ -129,7 +154,7 @@ impl Windows {
                 }
                 None => self.windows.push(Window {
                     window,
-                    router: Router::new(self.compositor),
+                    router,
                     layers,
                     gone: false,
                     unlocked: None,
@@ -142,26 +167,7 @@ impl Windows {
     /// Routes `window`'s `events` by its layers, and answers each delivery with the surface it
     /// is for and the time of the event it came of.
     pub fn route(&mut self, window: Option<u64>, events: Vec<Timed>) -> Vec<Delivery> {
-        let at = match self
-            .windows
-            .iter()
-            .position(|routing| routing.window == window)
-        {
-            Some(at) => at,
-            None => {
-                self.windows.push(Window {
-                    window,
-                    router: Router::new(self.compositor),
-                    layers: WindowLayers {
-                        window: None,
-                        layers: Vec::new(),
-                    },
-                    gone: true,
-                    unlocked: None,
-                });
-                self.windows.len() - 1
-            }
-        };
+        let at = self.at(window);
         let routing = &mut self.windows[at];
         let mut deliveries = Vec::new();
         for Timed { input, time } in events {
@@ -174,6 +180,37 @@ impl Windows {
         }
         deliveries.extend(self.prune());
         deliveries
+    }
+
+    /// Where `window`'s routing is, made for it if it has none: one never drawn routes against
+    /// no layers, and is forgotten once nothing holds it.
+    fn at(&mut self, window: Option<u64>) -> usize {
+        if let Some(at) = self
+            .windows
+            .iter()
+            .position(|routing| routing.window == window)
+        {
+            return at;
+        }
+        let router = self.router();
+        self.windows.push(Window {
+            window,
+            router,
+            layers: WindowLayers {
+                window: None,
+                layers: Vec::new(),
+            },
+            gone: true,
+            unlocked: None,
+        });
+        self.windows.len() - 1
+    }
+
+    /// A new window's router, which hands the compositor the chords it intercepts.
+    fn router(&self) -> Router<LayerId> {
+        let mut router = Router::new(self.compositor);
+        router.intercept(self.intercepted.clone());
+        router
     }
 
     /// Forgets the windows that went and hold no press, and answers the focus each lost.

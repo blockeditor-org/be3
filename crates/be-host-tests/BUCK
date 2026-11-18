@@ -62,6 +62,7 @@ APPS = {
     "a_presented_slide_takes_clicks_and_leaves_the_keys_to_the_deck": ["infinite-canvas", "presentation", "text"],
     "a_press_outside_a_menu_and_its_submenu_closes_both_and_reaches_what_it_landed_on": ["example-block-debug", "text"],
     "a_root_in_place_of_the_hosts_ui_hands_its_editor_keys_presses_and_touches": ["example-triangle", "//crates/be-sdk-root-testing"],
+    "a_root_in_place_of_the_hosts_ui_opens_a_dialog_on_the_hosts_clipboard_and_input_method": ["example-triangle", "//crates/be-sdk-root-testing"],
     "a_root_in_place_of_the_hosts_ui_shows_the_editor_it_embeds": ["example-triangle", "//crates/be-sdk-root-testing"],
     "a_second_click_on_a_zoomed_workspaces_add_button_closes_its_menu": [],
     "a_second_finger_turns_a_pen_stroke_into_a_pinch": ["infinite-canvas"],

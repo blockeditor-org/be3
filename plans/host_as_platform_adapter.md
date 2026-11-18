@@ -892,7 +892,8 @@ Each step lands on its own.
          accessibility tree is not published through `be3:root` yet.
        - `BeuiSurface`'s window offers no clipboard, file dialogs or input method: each area that
          moves (dialogs in 4g4, the lock screen's password field in 4g6) needs the host's half
-         of it through `be3:root` or the sandbox, as be-host-runtime serves an app's.
+         of it through `be3:root` or the sandbox, as be-host-runtime serves an app's. (4g4
+         built the clipboard and the input method; file dialogs are still left.)
        - A frame of the document is drawn whole (`Repaint::Region` of the surface), not by its
          damage: the surface keeps no record of which older frame its texture holds.
        - On the web, a linked root needs the page to link its libraries on the main thread with
@@ -943,9 +944,52 @@ Each step lands on its own.
          a toast's live region reaches no screen reader under `--root`, and tests press its
          buttons only by position; and `drive paint` still leaves out the app screens a root embeds. Both
          need `be3:root` to carry the root's accessibility tree and its apps' paintings.
-     - 4g4. Dialogs: a scrim layer that `captures` presses and dismisses, the dialog's layer
-       above it, Escape among the chords the root intercepts while one is open, and the
-       platform's own dialogs (files) still the host's.
+     - 4g4. Built: dialogs, a scrim layer that `captures` presses and dismisses, the dialog's
+       layer above it, Escape among the chords the root intercepts while one is open, and the
+       platform's own dialogs (files) still the host's. With them, of 4g2's leftovers, the
+       host's half of the clipboard and the input method for a root's own documents.
+       `be3:root` carries the clipboard as data, nothing beui's: `host.copy` puts a copy's
+       items on the host's clipboard (each the app protocol's `ClipItem`, encoded, as `fonts`
+       is), and `host.paste` asks for the first of some formats it holds, which the host
+       answers once its platform read it, in a later frame if need be
+       (be-wasm-root-host's `Root::take_copies`, `take_pastes` and `answer_paste`). The
+       input method needed nothing new in `be3:root`: its events already reach the root as
+       input, which the root's router hands its focused layer, and `frame-done`'s `ime` names
+       the focused field's area. be-host's `--root` puts what the root copies on the window's
+       clipboard (`Context::copy`) and reads each paste there (`Context::read_clipboard`).
+       be-sdk-beui-root's `BeuiSurface` window copies and pastes through those calls, says the
+       host shows the keyboard, and answers its focused field's input method area in the
+       window's points (`BeuiSurface::ime`). be-sdk-root's `Embedding` gained `intercept`
+       (the chords its own layer takes ahead of the focus, in every window, new ones too),
+       `focus` (moving the keyboard to a layer, or from all, telling both) and `focused`.
+       be-sdk-root-testing opens a dialog on F2, which it always intercepts: a scrim
+       (`SCRIM_LAYER`, its own surface filled with `SCRIM_COLOR`) hit nowhere, capturing
+       every press for `ROOT_LAYER`, its placer, and never focusing, and over it the dialog
+       (`DIALOG_LAYER`), a styled `DialogBody` with a name field in a card that fills its
+       surface; Escape is intercepted while it is open; once drawn it takes the focus and
+       hands its host the field's input method area, and closing (the scrim, Escape, Cancel
+       or Rename, which shows the name in its strip) gives the focus back to the layer that
+       had it. be-wasm-root-host's
+       `a_dialog_shows_over_its_scrim_which_captures_a_press_beside_it_and_closes_it`,
+       `escape_closes_a_dialog_while_the_root_intercepts_it` and
+       `typing_through_the_input_method_reaches_a_dialogs_field_and_the_clipboard_is_the_hosts`
+       check it through `be3:root`, and the host test
+       `a_root_in_place_of_the_hosts_ui_opens_a_dialog_on_the_hosts_clipboard_and_input_method`
+       through be-host, with drive's input method and the window's clipboard, a painting of
+       the dialog over its scrim, and a key reaching the triangle once the dialog gave its
+       focus back.
+       Left for later:
+       - A lazy clip representation (`ClipData::Lazy`) is not copied: the host never asks
+         the root back to render one. A root that copies one would need a `render-clip`
+         export the host calls when a paste asks for it.
+       - Files: a root's document cannot choose or save one yet, since `be3:root` carries
+         no file dialogs; the platform's stay the host's, so they want a host call each, as
+         be-sdk-beui-platform's `pick_file` and `save_file` are for an app.
+       - `drive paint` places a root's surfaces without their layer's opacity, which the
+         root's scrim does not use (its fill carries its alpha).
+       - be-sdk-root-testing's scrim covers its fixed `SIZE`, as its own surface does, not
+         be-host's whole window: a press past it lands on no layer and closes nothing. A root
+         that follows its window's size (4g7) sizes its scrim with it.
      - 4g5. The debug panels, over the read-only statistics the host grants (What the host
        keeps).
      - 4g6. The lock screen, onboarding, saving, keep changes, organization and
