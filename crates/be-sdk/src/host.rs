@@ -1935,7 +1935,11 @@ impl EditorHost {
     }
 
     fn ask<R>(&self, ask: impl FnOnce() -> R) -> R {
-        asking(self.instance.get(), ask)
+        let instance = self.instance.get();
+        if instance.is_some() {
+            crate::link::send_graph(instance, self);
+        }
+        asking(instance, ask)
     }
 
     pub fn list_revisions(&self, block: Uuid) -> Asked<Result<Vec<Revision>, Failure>> {

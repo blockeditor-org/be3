@@ -1,4 +1,5 @@
 use super::*;
+use be_type_example_counter::CounterContent;
 use be_sdk_api::{
     AccessLevel,
     embed::host_services::Call,
@@ -6,13 +7,32 @@ use be_sdk_api::{
 };
 
 /// An app grants or reveals access only if its manifest sets `sharing`: it cannot share the
-/// block it shows, read who has it, or make or read its links unasked. Any app still opens a
-/// settings kind of its own block to anyone inside, as the editor framework does, but opens
-/// nothing else so, and names no one.
+/// block it shows, open it to anyone inside or close it, read who has it, or make or read its
+/// links unasked. Any app still opens a block it just made to anyone inside, as the editor
+/// framework does for a settings kind, but opens nothing else so, and names no one.
 #[test]
 fn an_app_grants_or_reveals_access_only_if_its_manifest_allows() {
+    let harness = be_host_testing::Harness::start();
+    harness.connect();
+    be_host_stack::wait_until("knew the counter type", |_| {
+        be_host_stack::is_known(CounterContent::CONTENT_TYPE).then_some(())
+    });
     let own = Uuid::new_v4();
-    let mut instances = placed_on(own, Uuid::new_v4());
+    let made = Uuid::now_v7();
+    let mut instances = placed_on(own, CounterContent::CONTENT_TYPE);
+    call(
+        &mut instances,
+        be_sdk_api::embed::blocks::Call::CreateBlock {
+            reply: reply(next_op()),
+            block: made.into_bytes(),
+            block_type: CounterContent::CONTENT_TYPE.into_bytes(),
+            parent: be_sdk_api::BlockLocation::Root,
+            defined: Vec::new(),
+            content: None,
+            owner_only: false,
+        },
+    );
+    be_host_stack::flush_and_send();
     let ask = |instances: &mut Instances, call: Call| {
         instances.take_answers();
         instances.serve(crate::wire::Service {
@@ -33,6 +53,8 @@ fn an_app_grants_or_reveals_access_only_if_its_manifest_allows() {
     for call in [
         set(own, someone, AccessLevel::Edit),
         set(own, anyone_inside, AccessLevel::Edit),
+        set(own, anyone_inside, AccessLevel::View),
+        set(own, anyone_inside, AccessLevel::None),
         set(Uuid::new_v4(), anyone_inside, AccessLevel::View),
         Call::ListAccess {
             reply: reply(1),
@@ -72,9 +94,9 @@ fn an_app_grants_or_reveals_access_only_if_its_manifest_allows() {
         );
     }
     assert_ne!(
-        ask(&mut instances, set(own, anyone_inside, AccessLevel::View)),
+        ask(&mut instances, set(made, anyone_inside, AccessLevel::View)),
         denied,
-        "opening its own block's settings kind to anyone inside was denied"
+        "opening a block it just made to anyone inside was denied"
     );
     instances.allow_sharing(true);
     assert_ne!(

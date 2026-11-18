@@ -359,6 +359,9 @@ impl BlockStore for Instances {
         };
         metadata.put(&be_block_content::CREATED_BY, self.created_by().as_ref());
         be_host_stack::create(block, block_type, parent, metadata, content, owner_only);
+        if let Some(entry) = self.entries.get_mut(&instance) {
+            entry.made.insert(block);
+        }
         Ok(true)
     }
 
