@@ -705,10 +705,12 @@ opens it and makes nobody a contact, so it is no `link-kind` of the contact link
   grants made through links, reads none of the organization's settings, is served its log as
   a proof path, so it learns no member (but a guest with Edit on a block inside a workspace is
   served the whole log of each block above it, as any editor is, since key work seals by
-  them; that is meant), and may not make blocks, agents or links, move or grant
-  (`client::guest_may_write`), is no member for a grant or a pending grant
-  (`store::is_member_of`), and leaves when its last grant falls
-  (`share_links::drop_idle_guest`). Accepting an invitation makes it a member.
+  them; that is meant), and may not make agents or links, move or grant
+  (`client::guest_may_write`), makes only its own shell's blocks, which it alone reads
+  (decisions/a_guest_makes_only_its_own_shell.md), is no member for a grant or a pending
+  grant (`store::is_member_of`), and leaves when its last grant falls, its shell's blocks with
+  it (`share_links::drop_idle_guest`). Its be-host shows the organization only through
+  Shared with me (`role-watch`). Accepting an invitation makes it a member.
   A guest pins the organization log's root the link hands it, when it pinned none, so it checks
   records an administrator signed.
 
