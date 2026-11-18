@@ -1,4 +1,4 @@
-use be_host_accounts_ui::{AccountDetails, Column, ErrorText};
+use be_root_accounts_ui::{AccountDetails, Column, ErrorText};
 use beui::icons::{
     ICON_BOXES, ICON_CHECK, ICON_CHEVRON_DOWN, ICON_CLOUD, ICON_COPY, ICON_ELLIPSIS, ICON_MONITOR,
     ICON_PLUS, ICON_REFRESH_CW, ICON_USER_PLUS, ICON_USERS_ROUND,
@@ -107,7 +107,7 @@ pub(super) fn AccountsScreen(view: HostUiStore) -> NodeId {
         <List spacing=Space::None>
             <InvitationBanner view />
             <ListItem grow=1.0>
-                <be_host_accounts_ui::AccountsScreen
+                <be_root_accounts_ui::AccountsScreen
                     accounts
                     error
                     on_add={|| send(UiCommand::OpenAddAccount)}
@@ -517,7 +517,7 @@ pub(super) fn OrganizationsScreen(view: HostUiStore) -> NodeId {
                     arrow=false
                     items={view! {
                         <MenuItem
-                            label={move || be_host_accounts_ui::leave_label(account.get().local).to_owned()}
+                            label={move || be_root_accounts_ui::leave_label(account.get().local).to_owned()}
                             on_click={|| send(UiCommand::LogOutCurrent)}
                         />
                     }}

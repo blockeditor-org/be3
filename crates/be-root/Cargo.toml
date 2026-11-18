@@ -1,0 +1,46 @@
+[package]
+name = "be-root"
+description = "The root be-host runs in place of its own UI: the lock screen, notices, onboarding and the block stack's areas, drawn with beui, embedding the apps it runs"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+# Only the guest needs more than its constants, which the tests that run it read natively.
+[dependencies]
+be-lib-layers = { path = "../be-lib-layers" }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+be-root-accounts-ui = { path = "../be-root-accounts-ui" }
+be-lib-geometry = { path = "../be-lib-geometry" }
+be-lib-ui-types = { path = "../be-lib-ui-types" }
+be-sdk-api = { path = "../be-sdk-api" }
+be-sdk-beui-root = { path = "../be-sdk-beui-root" }
+be-sdk-root = { path = "../be-sdk-root" }
+be-wasm-gpu-guest = { path = "../be-wasm-gpu-guest" }
+be-wasm-guest-abi = { path = "../be-wasm-guest-abi" }
+be-wasm-ops = { path = "../be-wasm-ops" }
+be-wasm-password = { path = "../be-wasm-password" }
+be-wasm-root-api = { path = "../be-wasm-root-api" }
+beui = { path = "../beui" }
+
+# The tests run the root as be-host runs it, on be-wasm-root-host.
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+be-lib-geometry = { path = "../be-lib-geometry" }
+be-lib-ui-types = { path = "../be-lib-ui-types" }
+be-sdk-api = { path = "../be-sdk-api" }
+be-wasm-dylink = { path = "../be-wasm-dylink" }
+be-wasm-host = { path = "../be-wasm-host" }
+be-wasm-ops = { path = "../be-wasm-ops" }
+be-wasm-password = { path = "../be-wasm-password" }
+be-wasm-root-api = { path = "../be-wasm-root-api" }
+be-wasm-root-host = { path = "../be-wasm-root-host" }
+beui-fonts = { path = "../beui-fonts" }
+beui-paint-format = { path = "../beui-paint-format" }
+beui-paint-snapshot = { path = "../beui-paint-snapshot" }
+wgpu = { version = "29", default-features = false, features = ["noop"] }
+
+[lints]
+workspace = true
