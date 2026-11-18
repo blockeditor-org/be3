@@ -36,6 +36,11 @@ interface keys {
     record signing-key {
         account: account-id,
         key: public-key,
+        /// The newest name card the account's devices published
+        /// (`be_block_keys::NameCard`, signed with that account's signing
+        /// key, `publish-name`), which a contact shows over the name on the
+        /// card it verified; empty when none.
+        name: list<u8>,
     }
 
     record recovery-key {

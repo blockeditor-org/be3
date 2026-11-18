@@ -3240,6 +3240,9 @@ async fn sync_contacts(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
     if let Err(error) = peer.finish_links().await {
         record(shared, error);
     }
+    if let Err(error) = peer.publish_name().await {
+        record(shared, error);
+    }
     match peer.refresh_contacts().await {
         Ok(contacts) => {
             let pins = peer.contact_pins();

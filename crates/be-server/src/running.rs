@@ -62,12 +62,12 @@ impl Running {
         }));
     }
 
-    /// Makes this server lie to `account`: every block summary it sends that account's devices
-    /// is rewritten by `lie` (`Lies`), as a server that changes what it says would.
+    /// Makes this server lie to `account`: every page it sends that account's devices is
+    /// rewritten by `lie` (`Lies`), as a server that changes what it says would.
     pub fn lie(
         &self,
         account: Uuid,
-        lie: impl Fn(&mut be_block_protocol::BlockSummary) + Send + Sync + 'static,
+        lie: impl Fn(&mut be_block_protocol::Page) + Send + Sync + 'static,
     ) {
         self.config
             .lies

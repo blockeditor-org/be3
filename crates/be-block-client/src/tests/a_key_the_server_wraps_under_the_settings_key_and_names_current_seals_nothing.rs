@@ -85,10 +85,12 @@ async fn a_key_the_server_wraps_under_the_settings_key_and_names_current_seals_n
 
         // It names the key current, and says the note lives under the settings, to every device
         // of the victim's.
-        harness.server.lie(victim.account(), move |summary| {
-            if summary.id == note {
-                summary.key = Some(planted);
-                summary.parent = Some(BlockParent::Block(settings));
+        harness.server.lie(victim.account(), move |page| {
+            for summary in be_server::summaries_in(page) {
+                if summary.id == note {
+                    summary.key = Some(planted);
+                    summary.parent = Some(BlockParent::Block(settings));
+                }
             }
         });
         let device = harness.second(victim).await;
