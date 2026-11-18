@@ -878,6 +878,8 @@ pub struct Owing {
     pub clean: bool,
     /// Whether its module says it owes a seal (`Status::owes_seal`).
     pub owes_seal: bool,
+    /// Whether its module holds the lease, without which it seals nothing (`Status::holder`).
+    pub holder: bool,
     /// Whether its module says it diverged from the order (`Status::diverged`).
     pub diverged: bool,
     /// What its module says keeps its edits out of the journal (`Status::unjournaled`).
@@ -907,6 +909,7 @@ impl Owing {
             journaled: open.status.journaled,
             clean: open.status.clean,
             owes_seal: open.status.owes_seal,
+            holder: open.status.holder,
             diverged: open.status.diverged,
             unjournaled: open.status.unjournaled.clone(),
             now,
@@ -967,11 +970,12 @@ impl std::fmt::Display for Owing {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             formatter,
-            "{} of type {} (clean: {}, owes a seal: {}, diverged: {}, journaled: {}{}, unreported: {}, publishes unanswered: {}, joining: {}{}, closing: {}, last publish failed: {:?}, last keep failed: {:?})",
+            "{} of type {} (clean: {}, owes a seal: {}, holds the lease: {}, diverged: {}, journaled: {}{}, unreported: {}, publishes unanswered: {}, joining: {}{}, closing: {}, last publish failed: {:?}, last keep failed: {:?})",
             self.block,
             self.content_type,
             self.clean,
             self.owes_seal,
+            self.holder,
             self.diverged,
             self.journaled,
             self.unjournaled
