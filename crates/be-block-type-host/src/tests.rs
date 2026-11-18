@@ -48,6 +48,7 @@ mod an_edit_ordered_after_a_seal_is_given_once_to_a_restarted_replica;
 mod an_edit_sealed_beside_a_commit_waiting_in_the_outbox_is_merged_with_it;
 mod an_edit_sent_after_its_replica_made_a_clean_status_is_given_again_on_joining;
 mod an_edit_submitted_before_its_edits_were_kept_by_an_idle_pass_is_known_after_a_crash;
+mod an_edit_typed_while_a_reload_of_the_replicas_own_is_on_its_way_reaches_the_server_once;
 mod an_editor_attached_when_its_replica_reopens_is_sent_the_content_again;
 mod an_editor_of_a_replica_that_cannot_open_again_is_told_it_failed_and_the_block_released;
 mod an_editor_reads_no_part_of_another_block_its_replica_was_not_handed;
@@ -336,10 +337,12 @@ async fn step(
     replicas.pump((peer, shared)).await;
 }
 
-/// Gives `mirror` what the replica sent `editor` since the frames were last taken, as the
-/// editor would take it.
+/// Gives `mirror` what the replica sent `editor` of `block` since the frames were last taken,
+/// as the editor would take it, and relays what it answers.
 fn receive_frames<C: be_block_content::LiveEdit + Clone + Default>(
     shared: &Arc<Mutex<Quiet>>,
+    replicas: &mut Replicas<Quiet>,
+    block: Uuid,
     editor: EditorId,
     mirror: &mut be_sdk_type_guest::editor::EditorMirror<C>,
 ) {
@@ -354,8 +357,9 @@ fn receive_frames<C: be_block_content::LiveEdit + Clone + Default>(
             .filter(|(length, payload)| u32::from_be_bytes(**length) as usize == payload.len())
             .and_then(|(_, payload)| be_sdk_type_guest::editor::ToEditor::decode(payload))
             .or_else(|| be_sdk_type_guest::editor::ToEditor::decode(&frame));
-        if let Some(message) = message {
-            mirror.receive(message);
+        // What the mirror answers goes back to the replica, as an editor sends it.
+        if let Some(answer) = message.and_then(|message| mirror.receive(message)) {
+            replicas.relay_from_editor(block, editor, answer.encode(), std::time::Instant::now());
         }
     }
 }
@@ -377,11 +381,11 @@ async fn attach_mirror<C: be_block_content::LiveEdit + Clone + Default>(
         std::time::Instant::now(),
     );
     replicas.pump((peer, shared)).await;
-    receive_frames(shared, editor, &mut mirror);
+    receive_frames(shared, replicas, block, editor, &mut mirror);
     while mirror.content().is_none() {
         replicas.woken().await;
         replicas.pump((peer, shared)).await;
-        receive_frames(shared, editor, &mut mirror);
+        receive_frames(shared, replicas, block, editor, &mut mirror);
     }
     mirror
 }
@@ -641,7 +645,7 @@ async fn carry_an_edit_over_a_restart(
         },
     )
     .await;
-    receive_frames(shared, editor, &mut mirror);
+    receive_frames(shared, replicas, block, editor, &mut mirror);
 
     // The seal restarts the order; the edit goes before the replica hears the restart.
     replicas.seal((peer, shared), block, false).await;
@@ -828,7 +832,7 @@ async fn text_typed_offline(
         replicas.pump((peer, shared)).await;
         replicas.modules.tick_due();
         replicas.pump((peer, shared)).await;
-        receive_frames(shared, editor, &mut mirror);
+        receive_frames(shared, replicas, block, editor, &mut mirror);
     }
     assert_eq!(
         text_of(peer, shared, replicas, block).await,

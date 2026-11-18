@@ -51,8 +51,8 @@ fn only_the_types_own_app_writes_in_its_blocks_log() {
             for (to, frame) in frames {
                 shared.lock().unwrap().frames.push((to, frame));
                 match to {
-                    to if to == other => receive_frames(&shared, other, &mut held),
-                    to if to == own => receive_frames(&shared, own, &mut mirror),
+                    to if to == other => receive_frames(&shared, &mut replicas, block, other, &mut held),
+                    to if to == own => receive_frames(&shared, &mut replicas, block, own, &mut mirror),
                     _ => {
                         shared.lock().unwrap().frames.clear();
                     }

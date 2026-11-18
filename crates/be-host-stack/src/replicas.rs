@@ -306,6 +306,7 @@ pub fn snapshot_frame(content_type: Uuid, bytes: Vec<u8>) -> Vec<u8> {
             session: Vec::new(),
             unsettled: Vec::new(),
             applied: 0,
+            reloads: 0,
         })
         .encode(),
     )

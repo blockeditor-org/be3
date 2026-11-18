@@ -144,6 +144,10 @@ How the model works:
   runs written offline never interleave. You delete what you saw: deleting what the other side edited deletes
   it and counts a conflict; what the other side moved or inserted into a
   removed container survives (back where it came from) and counts a conflict.
+  Texts, rich texts and series merge into ours: ours is spliced where the
+  merge differs from it (be-block-model's `spliced`), so what both share keeps
+  its identities in ours and an edit made on ours still lands on the merge,
+  which a replica's reload of a merge relies on (guides/type_modules.md).
 - **Undo** (`Document::step`) records an undo and redo change per change, taken
   before the edit. Register undo is conditional (`Change::SetIf`,
   `Change::PutIf`), which is how undo leaves other people's edits alone; a

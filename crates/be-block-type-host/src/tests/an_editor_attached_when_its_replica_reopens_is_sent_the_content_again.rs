@@ -27,7 +27,7 @@ fn an_editor_attached_when_its_replica_reopens_is_sent_the_content_again() {
         replicas.reopen(block);
         while mirror.revision() == before {
             step(&peer, &shared, &mut replicas).await;
-            receive_frames(&shared, editor, &mut mirror);
+            receive_frames(&shared, &mut replicas, block, editor, &mut mirror);
         }
         assert!(
             mirror.is_loaded(),

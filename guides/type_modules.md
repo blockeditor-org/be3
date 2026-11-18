@@ -511,9 +511,13 @@ order: presence and channel messages. The rules an agent most needs:
   this device's journal too. With nothing to commit, the host trims with no new
   commit. It goes on applying the order while the seal is out. A rejected seal reconciles
   and seals once more; a head moved from elsewhere reconciles the holder, which
-  merges unsaved work into whatever it fast-forwards or merges onto, stashes its
-  side when the merge conflicts, publishes the result and submits it as a head
-  `Reload`; it seals nothing while that reload is on its way. A replica made
+  merges what it holds into whatever it fast-forwards or merges onto (a
+  fast-forward too: loaded as it is, the head would hold none of the
+  identities the edits on their way name), stashes its side when the merge
+  conflicts, publishes the result and submits it as a head `Reload` carrying
+  the merge's session state, so every replica takes those identities and what
+  the order numbers after the merge lands on it; it seals nothing while that
+  reload is on its way. A replica made
   holder carries on from the last seal's head: nothing moves with the lease.
 - **The lease.** The host hands the replica the session's membership
   (`replica.lease`, applying each membership entry as it hears it, and joining
@@ -660,7 +664,15 @@ sent) does not tell it again: the replica keeps the hash of the snapshot each ed
 until operations change what it shows, and carries it across the reopen, even when the
 editor is attached editable where it was read-only: editability is not in the snapshot, and
 the host tells an app editor that itself (`SetEditable`, guides/blocks/apps.md). A `Resend` is always
-answered. Detaching forgets the count. On the app protocol both directions travel
+answered. A reload other than a replacement may give what an editor's edits
+name new identities (a restart does): each snapshot carries how many the
+replica took (`Snapshot::reloads`), the mirror answers a new count with
+`FromEditor::Shown`, which must reach the replica, and an edit an editor sent
+before it said so, made on what it showed before a reload, goes as what it
+visibly did there (`LiveEdit::carry_over`) when it would otherwise apply as
+nothing. The carry is positional: it lands at the same place, not where its
+meaning moved. The replica keeps what the editors showed before each reload
+one of them may still show. Detaching forgets the count. On the app protocol both directions travel
 through the editor's `replica` resource (guides/blocks/apps.md, Content on the app protocol); `editor::EditorMirror` is the editor's side,
 which `ContentProjection` is built on. Undo and redo are host `change`s, not
 editor messages, since a shortcut may undo a block no editor shows.
