@@ -172,19 +172,20 @@ pub enum ToEditor {
         token: u64,
         result: Result<be_block_content::PartRef, String>,
     },
-    /// Where an entry `FromEditor::Append` asked for went: its place and arrival, or none while
-    /// it waits on this device for the server.
+    /// Where an entry `FromEditor::Append` asked for went: its id, and its place and arrival,
+    /// or none while it waits on this device for the server.
     Appended {
         token: u64,
-        result: Result<Option<(u64, i64)>, String>,
+        result: Result<be_block_content::LogAppended, String>,
     },
     /// Entries of the block's signed log, in order: what the replica heard appended, every
     /// editor's own too.
     Logged(Vec<be_block_content::LogItem>),
-    /// The answer to `FromEditor::ReadLog`: the log's length and the entries asked for.
+    /// The answer to `FromEditor::ReadLog`: the log's length, the entries asked for, and those
+    /// this device appended that the server has not taken yet.
     LogRead {
         token: u64,
-        result: Result<(u64, Vec<be_block_content::LogItem>), String>,
+        result: Result<be_block_content::LogPage, String>,
     },
     /// Edits made on this device that the server lacks, for an editor that asked
     /// (`FromEditor::FollowLacking`): with `reset`, every one; otherwise those added or changed
@@ -306,6 +307,11 @@ impl HeldLog {
         }
     }
 
+    /// Whether an entry `id` names is held.
+    pub(crate) fn holds_id(&self, id: Uuid) -> bool {
+        self.ids.contains_key(&id)
+    }
+
     /// Whether the place `seq` is held: an entry, or a repeat skipped.
     pub(crate) fn holds(&self, seq: u64) -> bool {
         self.items.contains_key(&seq) || self.skipped.contains(&seq)
@@ -389,12 +395,21 @@ pub struct EditorMirror<C: LiveEdit> {
     ranges: Vec<(u64, Result<Vec<u8>, String>)>,
     puts: Vec<(u64, Result<be_block_content::PartRef, String>)>,
     /// What `ToEditor::Appended` answered, by token, until taken.
-    appended: Vec<(u64, Result<Option<(u64, i64)>, String>)>,
+    appended: Vec<(u64, Result<be_block_content::LogAppended, String>)>,
     /// The entries of the block's signed log this editor heard or read, by place, each id once
     /// at its first place: the latest `LOG_HELD`.
     log: HeldLog,
     /// The log's length as last read.
     log_size: u64,
+    /// What each `append` not answered yet appends, by token.
+    appending: BTreeMap<u64, Vec<u8>>,
+    /// The entries this device appended that the server has not taken yet, by id: those this
+    /// editor appended, and those a read told of (`LogPage::kept`), which another editor, or
+    /// this one before the editor opened again, appended.
+    kept: Vec<(Uuid, Vec<u8>)>,
+    /// The entries the host refused to append, by the token of the `append`: the bytes and
+    /// why, until dismissed.
+    refused: BTreeMap<u64, (Vec<u8>, String)>,
     lacking: BTreeMap<u64, (Vec<u8>, bool)>,
     lacking_revision: u64,
     failed: Option<String>,
@@ -427,6 +442,9 @@ impl<C: LiveEdit + Clone + Default> Default for EditorMirror<C> {
             puts: Vec::new(),
             appended: Vec::new(),
             log: HeldLog::default(),
+            appending: BTreeMap::new(),
+            kept: Vec::new(),
+            refused: BTreeMap::new(),
             log_size: 0,
             lacking: BTreeMap::new(),
             lacking_revision: 0,
@@ -547,6 +565,7 @@ impl<C: LiveEdit + Clone + Default> EditorMirror<C> {
     pub fn append(&mut self, bytes: Vec<u8>, along: be_block_content::Along) -> (u64, FromEditor) {
         self.reads += 1;
         let token = self.reads;
+        self.appending.insert(token, bytes.clone());
         (
             token,
             FromEditor::Append {
@@ -557,7 +576,7 @@ impl<C: LiveEdit + Clone + Default> EditorMirror<C> {
         )
     }
 
-    pub fn take_appended(&mut self) -> Vec<(u64, Result<Option<(u64, i64)>, String>)> {
+    pub fn take_appended(&mut self) -> Vec<(u64, Result<be_block_content::LogAppended, String>)> {
         std::mem::take(&mut self.appended)
     }
 
@@ -580,9 +599,30 @@ impl<C: LiveEdit + Clone + Default> EditorMirror<C> {
         self.log_size
     }
 
+    /// The entries this device appended that the server has not taken yet, in the order they
+    /// were appended as far as this editor knows: each id and the bytes the app appended.
+    pub fn kept(&self) -> impl Iterator<Item = (Uuid, &[u8])> {
+        self.kept.iter().map(|(id, bytes)| (*id, bytes.as_slice()))
+    }
+
+    /// The entries the host refused to append, by the token of the `append`: the bytes and why.
+    pub fn refused(&self) -> impl Iterator<Item = (u64, &[u8], &str)> {
+        self.refused
+            .iter()
+            .map(|(token, (bytes, why))| (*token, bytes.as_slice(), why.as_str()))
+    }
+
+    /// Lets go of a refused entry: sent again as a new one, or given up.
+    pub fn dismiss_refused(&mut self, token: u64) {
+        if self.refused.remove(&token).is_some() {
+            self.revision += 1;
+        }
+    }
+
     fn take_log(&mut self, items: Vec<be_block_content::LogItem>) {
         for item in items {
             self.log_size = self.log_size.max(item.seq + 1);
+            self.kept.retain(|(id, _)| *id != item.id);
             self.log.take(item);
         }
         // An editor holds the latest entries it heard or read, and reads older ones again.
@@ -709,7 +749,24 @@ impl<C: LiveEdit + Clone + Default> EditorMirror<C> {
                 None
             }
             ToEditor::Appended { token, result } => {
+                if let Some(bytes) = self.appending.remove(&token) {
+                    match &result {
+                        // It waits on the device, unless the log already holds it.
+                        Ok(appended) if appended.place.is_none() => {
+                            let known = self.log.holds_id(appended.id)
+                                || self.kept.iter().any(|(id, _)| *id == appended.id);
+                            if !known {
+                                self.kept.push((appended.id, bytes));
+                            }
+                        }
+                        Ok(_) => {}
+                        Err(why) => {
+                            self.refused.insert(token, (bytes, why.clone()));
+                        }
+                    }
+                }
                 self.appended.push((token, result));
+                self.revision += 1;
                 None
             }
             ToEditor::Logged(items) => {
@@ -717,9 +774,15 @@ impl<C: LiveEdit + Clone + Default> EditorMirror<C> {
                 None
             }
             ToEditor::LogRead { token: _, result } => {
-                if let Ok((size, items)) = result {
-                    self.log_size = self.log_size.max(size);
-                    self.take_log(items);
+                if let Ok(page) = result {
+                    self.log_size = self.log_size.max(page.size);
+                    // The device's outbox as it was read: what is no longer in it was taken.
+                    self.kept = page
+                        .kept
+                        .into_iter()
+                        .filter(|(id, _)| !self.log.holds_id(*id))
+                        .collect();
+                    self.take_log(page.items);
                 }
                 None
             }

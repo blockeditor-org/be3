@@ -241,7 +241,7 @@ impl<C: LiveEdit + Clone + Default + 'static> LiveContent<C> {
 
     /// Where the entries `append` asked for went, by token, since this was last asked: their
     /// place and arrival, none while one waits on the device, or why it was refused.
-    pub fn take_appended(&self) -> Vec<(u64, Result<Option<(u64, i64)>, String>)> {
+    pub fn take_appended(&self) -> Vec<(u64, Result<be_block_content::LogAppended, String>)> {
         self.0.mirror.borrow_mut().take_appended()
     }
 
@@ -259,6 +259,35 @@ impl<C: LiveEdit + Clone + Default + 'static> LiveContent<C> {
         read: impl FnOnce(&mut dyn Iterator<Item = &be_block_content::LogItem>) -> R,
     ) -> R {
         read(&mut self.0.mirror.borrow().log())
+    }
+
+    /// The log's length as this editor last heard it.
+    pub fn log_size(&self) -> u64 {
+        self.0.mirror.borrow().log_size()
+    }
+
+    /// Reads the entries this device appended that the server has not taken yet, in order:
+    /// each id and the bytes the app appended (`EditorMirror::kept`).
+    pub fn with_kept<R>(
+        &self,
+        read: impl FnOnce(&mut dyn Iterator<Item = (uuid::Uuid, &[u8])>) -> R,
+    ) -> R {
+        read(&mut self.0.mirror.borrow().kept())
+    }
+
+    /// Reads the entries the host refused to append, by the token of the `append`: the bytes
+    /// and why (`EditorMirror::refused`).
+    pub fn with_refused<R>(
+        &self,
+        read: impl FnOnce(&mut dyn Iterator<Item = (u64, &[u8], &str)>) -> R,
+    ) -> R {
+        read(&mut self.0.mirror.borrow().refused())
+    }
+
+    /// Lets go of a refused entry: sent again as a new one, or given up.
+    pub fn dismiss_refused(&self, token: u64) {
+        self.0.mirror.borrow_mut().dismiss_refused(token);
+        self.announce();
     }
 
     /// Makes an edit outside any gesture.

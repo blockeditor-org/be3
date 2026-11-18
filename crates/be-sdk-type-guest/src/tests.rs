@@ -1560,8 +1560,15 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                     seq,
                     arrival: item.arrival,
                 };
+                let id = item.id;
                 self.to(device, |host| {
-                    reply.send(host, &Ok(be_sdk_type_api::host::Appended::Logged(place)))
+                    reply.send(
+                        host,
+                        &Ok(be_sdk_type_api::host::Appended {
+                            id,
+                            place: Some(place),
+                        }),
+                    )
                 });
                 self.log_item(item);
             }
@@ -1575,6 +1582,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                         .take(limit as usize)
                         .cloned()
                         .collect(),
+                    kept: Vec::new(),
                 };
                 self.to(device, |host| reply.send(host, &Ok(page)));
             }

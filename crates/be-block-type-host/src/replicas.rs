@@ -4847,13 +4847,14 @@ impl<H: Host> Replicas<H> {
                 let app = self.modules.name(module).to_owned();
                 self.answer_later(replica, module, async move {
                     let appended = match peer.append(block, &app, &bytes, along).await {
-                        Ok(be_block_client::Appended::Logged { seq, arrival, .. }) => {
-                            Ok(be_sdk_type_api::host::Appended::Logged(
-                                be_sdk_type_api::host::LogPlace { seq, arrival },
-                            ))
+                        Ok(be_block_client::Appended::Logged { id, seq, arrival }) => {
+                            Ok(be_sdk_type_api::host::Appended {
+                                id,
+                                place: Some(be_sdk_type_api::host::LogPlace { seq, arrival }),
+                            })
                         }
-                        Ok(be_block_client::Appended::Kept { .. }) => {
-                            Ok(be_sdk_type_api::host::Appended::Kept)
+                        Ok(be_block_client::Appended::Kept { id }) => {
+                            Ok(be_sdk_type_api::host::Appended { id, place: None })
                         }
                         Err(error) => Err(error.to_string()),
                     };
@@ -4870,6 +4871,11 @@ impl<H: Host> Replicas<H> {
                         Ok::<_, ClientError>(be_sdk_type_api::LogPage {
                             size: read.head.size,
                             items: log_items(&peer, block, &app, read.entries).await,
+                            kept: peer
+                                .kept_entries(block)
+                                .into_iter()
+                                .map(|(id, payload)| be_sdk_type_api::KeptEntry { id, payload })
+                                .collect(),
                         })
                     }
                     .await
