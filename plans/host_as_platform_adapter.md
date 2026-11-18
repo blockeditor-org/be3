@@ -1041,7 +1041,7 @@ Each step lands on its own.
        layer that later takes its id.
        Built after 4g6: the memory graph (be-host's `MemoryGraph`). `host.memory-history` is a
        watch of its own, apart from `host.statistics`, whose rows change every frame while the
-       graph's points change once a minute: `memory-history` carries the minutes measured, each
+       graph's points change once a minute: `memory-minutes` carries the minutes measured, each
        `memory-point` its time and resident, anonymous, shared and wasm bytes at the minute's
        peak, and when the latest sample was taken (be-wasm-root-host's
        `Root::show_memory_history`); turning `watch-statistics` off answers a call still
