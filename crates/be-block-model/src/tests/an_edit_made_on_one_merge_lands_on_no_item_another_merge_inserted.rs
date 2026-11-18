@@ -18,5 +18,9 @@ fn an_edit_made_on_one_merge_lands_on_no_item_another_merge_inserted() {
     // Typed between "t" and "w" of the line the first merge inserted.
     let typed = body_edit(&here, |body| body.insert(ALICE, 5, b"Z".to_vec()));
     there.apply(&typed);
-    assert_eq!(body(&there), "one\nsix\n", "it lands on nothing the other merge inserted");
+    assert_eq!(
+        body(&there),
+        "one\nsix\n",
+        "it lands on nothing the other merge inserted"
+    );
 }

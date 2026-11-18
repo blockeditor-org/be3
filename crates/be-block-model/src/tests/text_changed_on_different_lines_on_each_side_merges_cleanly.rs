@@ -19,5 +19,9 @@ fn text_changed_on_different_lines_on_each_side_merges_cleanly() {
             .expect("the note has a body")
             .pos(3)
     };
-    assert_eq!(typed(&merged), typed(&ours), "what ours typed keeps its identity");
+    assert_eq!(
+        typed(&merged),
+        typed(&ours),
+        "what ours typed keeps its identity"
+    );
 }
