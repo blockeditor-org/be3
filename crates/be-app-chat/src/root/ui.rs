@@ -89,9 +89,9 @@ struct Row {
     /// The blocks sent with it.
     attachments: Vec<Uuid>,
     state: State,
-    /// What this account did to it that the server refused (a deletion, an edit, a reaction):
-    /// what to say, and the token of the append, to dismiss.
-    undone: Option<(String, u64)>,
+    /// What this account did to it that the server refused (deletions, edits, reactions): what
+    /// to say of them all, and the tokens of their appends, to dismiss together.
+    undone: Option<(String, Vec<u64>)>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -442,19 +442,24 @@ pub fn Chat(editor: Editor) -> NodeId {
         let today = local_date(now());
         let mut list = Vec::new();
         // What the server refused of what this account did to a message shows on its row.
-        let undone: HashMap<u64, (String, u64)> = refused.with(|refused| {
-            refused
-                .iter()
-                .filter_map(|(token, bytes, why)| {
-                    let (message, done) = match ChatEntry::decode(bytes)? {
-                        ChatEntry::Delete { message, .. } => (message, "Not deleted"),
-                        ChatEntry::Edit { message, .. } => (message, "Edit not saved"),
-                        ChatEntry::React { message, .. } => (message, "Reaction not saved"),
-                        ChatEntry::Message { .. } => return None,
-                    };
-                    Some((message, (format!("{done}: {why}"), *token)))
-                })
-                .collect()
+        // Several on one message say so in one caption, in the order they were refused.
+        let mut undone: HashMap<u64, (String, Vec<u64>)> = HashMap::new();
+        refused.with(|refused| {
+            for (token, bytes, why) in refused {
+                let (message, done) = match ChatEntry::decode(bytes) {
+                    Some(ChatEntry::Delete { message, .. }) => (message, "Not deleted"),
+                    Some(ChatEntry::Edit { message, .. }) => (message, "Edit not saved"),
+                    Some(ChatEntry::React { message, .. }) => (message, "Reaction not saved"),
+                    Some(ChatEntry::Message { .. }) | None => continue,
+                };
+                let said = format!("{done}: {why}");
+                let (text, tokens) = undone.entry(message).or_default();
+                if !text.is_empty() {
+                    text.push_str("; ");
+                }
+                text.push_str(&said);
+                tokens.push(*token);
+            }
         });
         log.with(|log| {
             list.extend(log.messages().filter_map(|shown| {
@@ -490,6 +495,22 @@ pub fn Chat(editor: Editor) -> NodeId {
     create_effect(move || {
         chat.track();
         untrack(|| chat.take_appended());
+    });
+    // What a message of this account's deleted carries is no longer listed once the deletion is
+    // in the log, by whichever of its editors is open: a deletion the server refused unlists
+    // nothing.
+    create_effect(move || {
+        let deleted: Vec<(Uuid, i64)> = log.with(|log| {
+            log.messages()
+                .filter(|shown| shown.author == me)
+                .filter_map(|shown| Some((shown.id, shown.deleted?.0)))
+                .collect()
+        });
+        for (id, time) in deleted {
+            if let Ok(Some(unlisted)) = chat.read(|content| content.delete(id, me, time)) {
+                untrack(|| chat.operate(unlisted));
+            }
+        }
     });
     // What a message of this account's carries is listed as the message's once its entry has an
     // id (`ChatContent::send`): in the log, or waiting on the device. One sent by an editor that
@@ -1090,11 +1111,13 @@ fn submit(chat: Chat, log: Memo<ChatLog>, me: Uuid, composer: Composer, attached
     composer.draft.set(String::new());
 }
 
-/// Deletes the message at `seq` as `me`: a deletion entry, which redacts the message once the
-/// server takes it, and what it carries is no longer listed.
-fn delete(chat: Chat, log: Memo<ChatLog>, me: Uuid, seq: u64) {
-    let time = now();
-    let deletion = ChatEntry::Delete { message: seq, time };
+/// Deletes the message at `seq`: a deletion entry, which redacts the message once the server
+/// takes it. What it carries is no longer listed once the deletion is in the log.
+fn delete(chat: Chat, seq: u64) {
+    let deletion = ChatEntry::Delete {
+        message: seq,
+        time: now(),
+    };
     chat.append(
         deletion.encode(),
         Along {
@@ -1102,12 +1125,6 @@ fn delete(chat: Chat, log: Memo<ChatLog>, me: Uuid, seq: u64) {
             redacts: Some(seq),
         },
     );
-    let id = log.with_untracked(|log| log.message(seq).map(|shown| shown.id));
-    if let Some(id) = id
-        && let Ok(Some(unlisted)) = chat.read(|content| content.delete(id, me, time))
-    {
-        chat.operate(unlisted);
-    }
 }
 
 /// Reacts to the message at `seq`, or takes `me`'s reaction back, which redacts the record that
@@ -1216,8 +1233,10 @@ fn MessageRow(
     let undone_text =
         create_memo(move || undone.with(|undone| undone.clone().unwrap_or_default().0));
     let dismiss_undone = move || {
-        if let Some((_, token)) = undone.get_untracked() {
-            chat.dismiss_refused(token);
+        if let Some((_, tokens)) = undone.get_untracked() {
+            for token in tokens {
+                chat.dismiss_refused(token);
+            }
         }
     };
     // A message the server refused is sent again as a new one, or given up; either way the
@@ -1373,22 +1392,6 @@ fn MessageRow(
                                     />
                                 </List>
                             </Show>
-                            <Show value={has_undone}>
-                                <Text
-                                    style=TextStyle::CAPTION
-                                    color=TextColor::Danger
-                                    @test_id={format!("chat.message.{key}.undone")}
-                                >
-                                    {undone_text}
-                                </Text>
-                                <Button
-                                    label="Dismiss"
-                                    variant=ButtonVariant::Ghost
-                                    size=ButtonSize::Small
-                                    @test_id={format!("chat.message.{key}.dismiss")}
-                                    on_click={dismiss_undone}
-                                />
-                            </Show>
                             <Show value={key_unverified}>
                                 <Text style=TextStyle::CAPTION>"not verified"</Text>
                             </Show>
@@ -1466,7 +1469,7 @@ fn MessageRow(
                                 @test_id={format!("chat.message.{key}.delete")}
                                 on_click={move || {
                                     if let Some(seq) = logged {
-                                        delete(chat, log, me, seq);
+                                        delete(chat, seq);
                                         if composer.editing.get_untracked() == Some(seq) {
                                             composer.editing.set(None);
                                             composer.draft.set(String::new());
@@ -1496,6 +1499,29 @@ fn MessageRow(
                     >
                         {body}
                     </Text>
+                </Show>
+                <Show value={has_undone}>
+                    <List
+                        direction=Direction::Horizontal
+                        align=Align::Center
+                        spacing=Space::Xs
+                        wrap=true
+                    >
+                        <Text
+                            style=TextStyle::CAPTION
+                            color=TextColor::Danger
+                            @test_id={format!("chat.message.{key}.undone")}
+                        >
+                            {undone_text}
+                        </Text>
+                        <Button
+                            label="Dismiss"
+                            variant=ButtonVariant::Ghost
+                            size=ButtonSize::Small
+                            @test_id={format!("chat.message.{key}.dismiss")}
+                            on_click={dismiss_undone}
+                        />
+                    </List>
                 </Show>
                 <Show value={has_attachments}>
                     <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
