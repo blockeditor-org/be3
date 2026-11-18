@@ -31,7 +31,7 @@ fn an_edit_numbered_offline_after_a_seal_survives_joining() {
         replicas.pump((&peer, &shared)).await;
         replicas.keep_all((&peer, &shared)).await;
         replicas.pump((&peer, &shared)).await;
-        receive_frames(&shared, editor, &mut mirror);
+        receive_frames(&shared, &mut replicas, block, editor, &mut mirror);
         type_at_start(&mut replicas, block, editor, &mut mirror, "boots ");
         replicas.pump((&peer, &shared)).await;
 

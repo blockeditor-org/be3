@@ -47,7 +47,7 @@ fn an_edit_made_on_the_content_from_before_a_replica_joins_lands_after() {
         replicas.keep_all((&peer, &shared)).await;
         replicas.pump((&peer, &shared)).await;
         // What the editor is shown before the replica joins.
-        receive_frames(&shared, editor, &mut mirror);
+        receive_frames(&shared, &mut replicas, block, editor, &mut mirror);
         assert_eq!(TextBlock::text(mirror.content().expect("shown")), "socks");
 
         peer.drain(|_| false).await.expect("the creation is sent");

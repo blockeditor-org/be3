@@ -22,6 +22,7 @@ fn an_editor_reads_content_its_replica_could_not_open_as_failed() {
             session: Vec::new(),
             unsettled: Vec::new(),
             applied: 0,
+            reloads: 0,
         })
     };
     mirror.receive(snapshot(vec![0xff, 0x00, 0x13]));

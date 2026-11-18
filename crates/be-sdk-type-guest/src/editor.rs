@@ -49,6 +49,12 @@ pub enum FromEditor {
         payload: Vec<u8>,
     },
     Resend,
+    /// Says the editor was shown a snapshot made after `reloads` reloads (`Snapshot::reloads`):
+    /// what it sends after this was made on what that snapshot shows, and what it sent before,
+    /// on what it showed until then, which the replica carries over the reload.
+    Shown {
+        reloads: u64,
+    },
     /// Asks the replica to follow `ToEditor::Lacking`: what the server lacks of the edits made
     /// on this device, whichever editor made them.
     FollowLacking,
@@ -105,6 +111,9 @@ pub struct Snapshot {
     )]
     pub unsettled: Vec<Vec<u8>>,
     pub applied: u64,
+    /// How many reloads the replica took before this: an editor says once it was shown a new
+    /// count (`FromEditor::Shown`).
+    pub reloads: u64,
 }
 
 /// An edit made on this device that the server lacks, as an editor reads it
@@ -384,6 +393,8 @@ pub struct EditorMirror<C: LiveEdit> {
     projected: Option<Vec<Projected<C::Op>>>,
     length: u64,
     snapshots: u64,
+    /// The reloads the last snapshot was made after (`Snapshot::reloads`).
+    reloads: u64,
     reads: u64,
     ranges: Vec<(u64, Result<Vec<u8>, String>)>,
     puts: Vec<(u64, Result<be_block_content::PartRef, String>)>,
@@ -421,6 +432,7 @@ impl<C: LiveEdit + Clone + Default> Default for EditorMirror<C> {
             projected: None,
             length: 0,
             snapshots: 0,
+            reloads: 0,
             reads: 0,
             ranges: Vec::new(),
             puts: Vec::new(),
@@ -666,11 +678,17 @@ impl<C: LiveEdit + Clone + Default> EditorMirror<C> {
         std::mem::take(&mut self.ended)
     }
 
+    /// Takes what the replica sent. Its answer, when there is one, must reach the replica
+    /// before anything the editor sends after: a `Resend` asks for a snapshot, and a
+    /// `FromEditor::Shown` says which of its edits were made on what it showed before a
+    /// reload.
     pub fn receive(&mut self, message: ToEditor) -> Option<FromEditor> {
         match message {
             ToEditor::Snapshot(snapshot) => {
+                let reloads = snapshot.reloads;
                 self.adopt(snapshot);
-                None
+                (std::mem::replace(&mut self.reloads, reloads) != reloads)
+                    .then_some(FromEditor::Shown { reloads })
             }
             ToEditor::Operations(operations) => {
                 if self.confirmed.is_none() || self.resyncing {
@@ -815,9 +833,17 @@ impl<C: LiveEdit + Clone + Default> EditorMirror<C> {
             return landed;
         }
         if landed.mine {
-            self.pending.pop_front();
+            // The replica may have taken it otherwise than it went (carried over a reload this
+            // editor had not been shown, `FromEditor::Shown`): what it shows is then rebuilt.
+            let taken_as_sent = self
+                .pending
+                .pop_front()
+                .is_some_and(|sent| C::encode_operation(&sent) == landed.operation);
             self.acknowledged += 1;
             confirmed.push(operation, landed.unsettled);
+            if !taken_as_sent {
+                self.rebuild();
+            }
             return true;
         }
         if self.pending.is_empty() {
