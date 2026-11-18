@@ -33,7 +33,7 @@ async fn an_append_told_after_a_page_from_the_start_moved_the_head_past_it_is_st
     let first = reader.read_log(chat, 0, 10).await.unwrap();
     assert_eq!((first.head.size, first.entries.len()), (ENTRIES, 10));
 
-    owner.append(chat, "test.app", b"late").await.unwrap();
+    owner.append(chat, "test.app", b"late", be_block_content::Along::default()).await.unwrap();
     let pushed = loop {
         if let Ok(crate::Event::Appended(appended)) = events.recv().await {
             break appended;

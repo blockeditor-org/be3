@@ -110,6 +110,7 @@ mod an_editor_joins_with_a_snapshot_and_follows_operations;
 mod an_editor_keeps_its_landed_edits_through_a_replica_reopened_under_it;
 mod an_editor_reads_content_its_replica_could_not_open_as_failed;
 mod an_entry_no_build_can_read_is_passed_over_by_every_replica;
+mod a_log_longer_than_a_page_is_folded_whole;
 mod an_entry_told_better_replaces_the_one_held_and_unknown_never_does;
 mod an_external_publish_merges_into_a_live_replica;
 mod an_hour_of_steady_edits_makes_about_twelve_commits;
@@ -1545,7 +1546,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                     .map_err(|error| error.to_string());
                 self.to(device, |host| reply.send(host, &result));
             }
-            Call::Append { reply, bytes } => {
+            Call::Append { reply, bytes, .. } => {
                 let seq = self.log.len() as u64;
                 let item = be_sdk_type_api::LogItem {
                     seq,

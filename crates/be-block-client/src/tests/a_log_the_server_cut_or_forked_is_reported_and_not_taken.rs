@@ -11,7 +11,7 @@ async fn a_log_the_server_cut_or_forked_is_reported_and_not_taken() {
     let chat = workspace(&owner, "Chat").await;
     for text in ["one", "two", "three"] {
         owner
-            .append(chat, "test.app", text.as_bytes())
+            .append(chat, "test.app", text.as_bytes(), be_block_content::Along::default())
             .await
             .unwrap();
     }

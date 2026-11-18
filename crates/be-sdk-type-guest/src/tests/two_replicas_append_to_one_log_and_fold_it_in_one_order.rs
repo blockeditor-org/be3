@@ -21,7 +21,7 @@ fn two_replicas_append_to_one_log_and_fold_it_in_one_order() {
     let mut appended = Vec::new();
     for (device, text) in [(0, "one"), (1, "two"), (0, "three"), (1, "four")] {
         let mirror = sim.editors.get_mut(&(device, 1)).unwrap();
-        let (token, message) = mirror.append(text.as_bytes().to_vec());
+        let (token, message) = mirror.append(text.as_bytes().to_vec(), be_block_content::Along::default());
         sim.send_from_editor(device, 1, message);
         appended.push((device, token));
     }
@@ -88,7 +88,7 @@ fn two_replicas_append_to_one_log_and_fold_it_in_one_order() {
 
     // Entries that follow the repeat still fold.
     let mirror = sim.editors.get_mut(&(1, 1)).unwrap();
-    let (_, message) = mirror.append(b"five".to_vec());
+    let (_, message) = mirror.append(b"five".to_vec(), be_block_content::Along::default());
     sim.send_from_editor(1, 1, message);
     sim.settle();
     let mut order = order;

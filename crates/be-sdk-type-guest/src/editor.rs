@@ -78,6 +78,7 @@ pub enum FromEditor {
         token: u64,
         #[serde(with = "serde_bytes")]
         bytes: Vec<u8>,
+        along: be_block_content::Along,
     },
     /// Asks for at most `limit` entries of the block's signed log from `from`; the replica
     /// answers `ToEditor::LogRead` with the same `token`.
@@ -543,10 +544,17 @@ impl<C: LiveEdit + Clone + Default> EditorMirror<C> {
     /// Asks the replica to append `bytes` to the block's signed log; where it went comes back
     /// from `receive` and is taken with `take_appended` under the token this returns, and the
     /// entry itself as it reaches the log (`log`).
-    pub fn append(&mut self, bytes: Vec<u8>) -> (u64, FromEditor) {
+    pub fn append(&mut self, bytes: Vec<u8>, along: be_block_content::Along) -> (u64, FromEditor) {
         self.reads += 1;
         let token = self.reads;
-        (token, FromEditor::Append { token, bytes })
+        (
+            token,
+            FromEditor::Append {
+                token,
+                bytes,
+                along,
+            },
+        )
     }
 
     pub fn take_appended(&mut self) -> Vec<(u64, Result<Option<(u64, i64)>, String>)> {
