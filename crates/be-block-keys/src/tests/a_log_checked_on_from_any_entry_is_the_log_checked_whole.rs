@@ -2,7 +2,8 @@ use super::*;
 
 /// However much of a log a device checked before, checking on from there finds what a check from
 /// the root finds: through retirements, an opening closed, a share link opened, used and revoked,
-/// the retirement of an account granted through it, and the block changing owner.
+/// the retirement of an account granted through it, a Join link opened, and the block changing
+/// owner.
 #[test]
 fn a_log_checked_on_from_any_entry_is_the_log_checked_whole() {
     let creator = RecoveryPhrase::generate().secret();
@@ -11,7 +12,9 @@ fn a_log_checked_on_from_any_entry_is_the_log_checked_whole() {
     let opener = RecoveryPhrase::generate().secret();
     let opener_renewed = RecoveryPhrase::generate().secret();
     let other = RecoveryPhrase::generate().secret();
-    let (creator_id, member_id, opener_id, other_id) = ([1; 16], [2; 16], [3; 16], [4; 16]);
+    let joiner = RecoveryPhrase::generate().secret();
+    let (creator_id, member_id, opener_id, other_id, joiner_id) =
+        ([1; 16], [2; 16], [3; 16], [4; 16], [5; 16]);
     let block = [7; 16];
     let none = |_: &Asked| None;
     let root = Entry::root(&creator, creator_id, LogKind::Block, block);
@@ -38,10 +41,10 @@ fn a_log_checked_on_from_any_entry_is_the_log_checked_whole() {
         entries.push(entry);
         check(entries).unwrap();
     };
-    let link = |code: &InviteCode, open| {
+    let link = |code: &InviteCode, level, open| {
         Record::ShareLink(ShareLink {
             key: code.share_key(block),
-            level: Level::Edit,
+            level,
             admits: Admits::Members,
             open,
             authority: Authority::Log,
@@ -73,7 +76,7 @@ fn a_log_checked_on_from_any_entry_is_the_log_checked_whole() {
         Entry::retirement(&creator, &renewed, creator_id, block, head),
     );
     let code = InviteCode::generate();
-    append(&mut entries, &renewed, creator_id, link(&code, true));
+    append(&mut entries, &renewed, creator_id, link(&code, Level::Edit, true));
     let head = entries.last().unwrap().hash();
     push(
         &mut entries,
@@ -84,7 +87,14 @@ fn a_log_checked_on_from_any_entry_is_the_log_checked_whole() {
         &mut entries,
         Entry::retirement(&opener, &opener_renewed, opener_id, block, head),
     );
-    append(&mut entries, &renewed, creator_id, link(&code, false));
+    append(&mut entries, &renewed, creator_id, link(&code, Level::Edit, false));
+    let join = InviteCode::generate();
+    append(&mut entries, &renewed, creator_id, link(&join, Level::Join, true));
+    let head = entries.last().unwrap().hash();
+    push(
+        &mut entries,
+        Entry::opened(&join, block, head, joiner_id, &joiner, Level::Join),
+    );
     append(
         &mut entries,
         &renewed,
@@ -108,6 +118,12 @@ fn a_log_checked_on_from_any_entry_is_the_log_checked_whole() {
 
     let whole = check(&entries).unwrap();
     assert!(whole.last_lowering > 0 && whole.owner == Some(member_id));
+    assert!(
+        whole
+            .holding(LogKind::Block, joiner_id, Level::Join)
+            .is_some(),
+        "the Join link's opener holds Join"
+    );
     for split in 1..=entries.len() {
         let kept = check(&entries[..split]).unwrap();
         assert_eq!(
