@@ -210,7 +210,13 @@ pub(crate) async fn route(
     if !read {
         return Ok(None);
     }
-    let head = Head::parse(&buffer)?;
+    let head = match Head::parse(&buffer) {
+        Ok(head) => head,
+        Err(error) => {
+            refuse_head(&mut stream, error).await?;
+            return Ok(None);
+        }
+    };
     let client = services.client_address(peer.ip(), head.forwarded.as_deref());
     let Some(place) = place.or_else(|| services.addresses.take(client)) else {
         tracing::debug!(%client, "refusing a request: its address holds too many connections");
@@ -422,7 +428,10 @@ async fn serve(
 ) -> Result<(), ServerError> {
     let mut anonymous = Some(anonymous);
     loop {
-        let head = Head::parse(&buffer)?;
+        let head = match Head::parse(&buffer) {
+            Ok(head) => head,
+            Err(error) => return refuse_head(&mut stream, error).await,
+        };
         if head.length > MAX_BODY_BYTES {
             return refuse(&mut stream, 413, "the frame is too large").await;
         }
@@ -826,6 +835,15 @@ fn framed(frames: &[Vec<u8>]) -> Vec<u8> {
     body
 }
 
+/// Answers a head [`Head::parse`] refused with a 400 that says why.
+async fn refuse_head(stream: &mut TcpStream, error: ServerError) -> Result<(), ServerError> {
+    let message = match error {
+        ServerError::Socket(message) => message,
+        other => other.to_string(),
+    };
+    refuse(stream, 400, &message).await
+}
+
 async fn refuse(stream: &mut TcpStream, status: u16, message: &str) -> Result<(), ServerError> {
     respond(
         stream,
@@ -942,10 +960,35 @@ impl Head {
                 .and_then(|header| std::str::from_utf8(header.value).ok())
                 .map(str::trim)
         };
+        // A proxy in front may frame the body by another of these than the server would, and
+        // smuggle a request inside it, so a request that leaves any doubt is refused.
+        let count = |name: &str| {
+            request
+                .headers
+                .iter()
+                .filter(|header| header.name.eq_ignore_ascii_case(name))
+                .count()
+        };
+        if count("transfer-encoding") > 0 {
+            return Err(ServerError::Socket(
+                "a request has no Transfer-Encoding; send a Content-Length".into(),
+            ));
+        }
+        if count("content-length") > 1 {
+            return Err(ServerError::Socket(
+                "a request has one Content-Length".into(),
+            ));
+        }
         let length = match header("content-length") {
-            Some(value) => value
+            // Digits only: Rust's parse would take a `+` no proxy reads as one.
+            Some(value) if value.bytes().all(|byte| byte.is_ascii_digit()) => value
                 .parse()
                 .map_err(|_| ServerError::Socket("the content length is not a number".into()))?,
+            Some(_) => {
+                return Err(ServerError::Socket(
+                    "the content length is not a number".into(),
+                ));
+            }
             None => 0,
         };
         let session = header(SESSION_HEADER).map(str::to_owned);

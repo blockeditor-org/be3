@@ -242,7 +242,7 @@ fn Body(page: Shown) -> NodeId {
                     <Heading
                         glyph={Some(ICON_MAIL_CHECK)}
                         title="Verify your email address"
-                        lead="Confirm that this address is yours to continue."
+                        lead="Confirm that this address is yours, signed in as the account that asked for it."
                     />
                     <Notice text={page.general()} />
                     <PortalForm

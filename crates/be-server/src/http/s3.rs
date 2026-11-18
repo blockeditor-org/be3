@@ -107,16 +107,20 @@ impl Head {
         let mut request = http::Request::builder()
             .method(parsed.method.unwrap_or_default())
             .uri(parsed.path.unwrap_or_default());
-        let (mut length, mut chunked, mut close) = (0, false, false);
+        let (mut length, mut chunked, mut close) = (None, false, false);
         for header in parsed.headers.iter() {
             if header.name.eq_ignore_ascii_case("content-length") {
+                // One length, of digits only, so no proxy in front frames the body otherwise.
                 let Some(parsed) = std::str::from_utf8(header.value)
                     .ok()
-                    .and_then(|value| value.trim().parse().ok())
+                    .map(str::trim)
+                    .filter(|value| value.bytes().all(|byte| byte.is_ascii_digit()))
+                    .and_then(|value| value.parse().ok())
+                    .filter(|_| length.is_none())
                 else {
                     return Ok(None);
                 };
-                length = parsed;
+                length = Some(parsed);
             } else if header.name.eq_ignore_ascii_case("transfer-encoding") {
                 chunked = true;
             } else if header.name.eq_ignore_ascii_case("connection") {
@@ -127,7 +131,7 @@ impl Head {
         Ok(request.body(()).ok().map(|request| Self {
             request,
             size,
-            length,
+            length: length.unwrap_or(0),
             chunked,
             close,
         }))

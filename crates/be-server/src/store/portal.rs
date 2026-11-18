@@ -9,6 +9,9 @@ pub const MAX_MAIL_LINKS_PER_ADDRESS: i64 = 8;
 /// Email-change links one new email may have outstanding.
 pub const MAX_MAIL_LINKS_PER_EMAIL: i64 = 3;
 const EMAIL_LINK_LIFETIME: i64 = 3600;
+/// Why an email change's link opened in a browser not signed in as the account that asked for
+/// it confirms nothing.
+pub(crate) const ASKED_ELSEWHERE: &str = "Sign in as the account that asked for this change, or open the link in the browser where you asked for it, then open the link again.";
 
 pub struct AccountSession {
     pub id: String,
@@ -216,11 +219,16 @@ impl ServerStore {
         .await
     }
 
-    /// Verifies a new email from the link mailed to it, and answers the address it replaced,
-    /// empty for an account that had none.
-    /// Confirms an email change by its link's token; answers the account, its old email (empty
-    /// for none) and its new one.
-    pub async fn confirm_mail(&self, token: &str) -> Result<(Uuid, String, String), ServerError> {
+    /// Confirms an email change by its link's token, in a browser signed in as `account`, the
+    /// account that asked for it: the link alone would let an account that asked for a
+    /// stranger's address have the stranger's click attach it. Opened by another account it
+    /// confirms nothing and stays unspent. Answers the account's old email (empty for none) and
+    /// its new one.
+    pub async fn confirm_mail(
+        &self,
+        token: &str,
+        account: Uuid,
+    ) -> Result<(String, String), ServerError> {
         let token = token.to_owned();
         self.with_database(move |store, database| {
             let transaction = be_block_sqlite_schema::write_transaction(database)?;
@@ -231,9 +239,13 @@ impl ServerStore {
                     |row| Ok((row.get(0)?, row.get(1)?)),
                 )
                 .optional()?;
-            let (account, email) = row.ok_or_else(|| {
+            let (asked_by, email) = row.ok_or_else(|| {
                 refused("This link is invalid, expired, or already used. Request a new link.")
             })?;
+            let account = account.to_string();
+            if asked_by != account {
+                return Err(refused(ASKED_ELSEWHERE));
+            }
             super::codes::unregistered(&transaction, &email)?;
             let old_email: String = transaction.query_row(
                 "SELECT COALESCE(email, '') FROM accounts WHERE id = ?1",
@@ -255,7 +267,7 @@ impl ServerStore {
             transaction.execute("DELETE FROM account_mail WHERE account_id = ?1", [&account])?;
             transaction.commit()?;
             store.sessions_changed();
-            Ok((super::parse_uuid(&account)?, old_email, email))
+            Ok((old_email, email))
         })
         .await
     }
