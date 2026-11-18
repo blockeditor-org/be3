@@ -558,6 +558,15 @@ fn carry_keys(
     lift_by_keys(drag, at, lifted)
 }
 
+/// How many steps an arrow takes a held carry over a free place: ten with Shift, as a
+/// canvas nudges. (Ctrl+Shift and an arrow, a step of a carry not held, takes one.)
+fn shift_steps(modifiers: crate::types::Modifiers) -> f32 {
+    match modifiers.shift {
+        true => 10.0,
+        false => 1.0,
+    }
+}
+
 fn arrow(key: crate::types::Key) -> Option<Vec2> {
     use crate::types::Key;
     match key {
@@ -624,7 +633,7 @@ fn held_keys(press: KeyPress, mine: crate::reactive::Signal<Option<crate::drag::
     }
     let flat = |_| (Vec::new(), WindowId::MAIN);
     if let Some(toward) = arrow(press.key) {
-        driver.step(toward);
+        driver.step(toward * shift_steps(modifiers));
         return true;
     }
     match press.key {

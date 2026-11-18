@@ -2167,6 +2167,10 @@ impl CanvasState {
     }
 
     pub(crate) fn run(&self, command: CanvasCommand) {
+        // While the board carries the selection, nothing changes what it carries.
+        if self.carries() {
+            return;
+        }
         match command {
             CanvasCommand::SelectAll => {
                 let all = self

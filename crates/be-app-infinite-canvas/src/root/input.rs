@@ -546,7 +546,8 @@ impl CanvasState {
             }
             return true;
         }
-        if self.focused_editor.get_untracked().is_some() {
+        // While the board carries the selection, its keys are the carry's and the rest wait.
+        if self.focused_editor.get_untracked().is_some() || self.carries() {
             return false;
         }
         let modifiers = press.modifiers;

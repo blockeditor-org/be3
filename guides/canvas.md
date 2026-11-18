@@ -133,6 +133,11 @@ Moving the selection is a drag board carry (`root/carry.rs`;
 guides/beui/components.md, Drag and drop): a press on the selection begins
 `Gesture::Move`, and the surface's `drag` lifts it once the press passes the
 threshold, or Space lifts it from the keyboard and the arrows step it. The
+arrows also nudge a selection not carried, by the same world unit (ten with
+Shift), each nudge an edit of its own; a carry is the move a screen reader hears
+place by place, that Escape puts back, written once when dropped. While the
+board carries the selection, the canvas's own keys and commands wait, so nothing
+deletes or reselects what is carried. The
 canvas is a `free(..).unbounded()` site whose place is the world point under the
 pointer, applied to the move through the hold; the board's drop commits it, and
 a put-down (Escape, a cancelled press) drops it. While the board carries a move

@@ -140,6 +140,8 @@ pub(crate) fn use_move_site(state: CanvasState, surface: NodeRef) {
                 state.world_at(pointer)
             })
             .unbounded()
+            // A keyboard step is the arrows' nudge: a world unit, ten with Shift.
+            .stepped(state.scale())
         }),
         Callback::new(move |(_, at): (CanvasMove, CanvasPoint)| state.drop_move(at)),
     );

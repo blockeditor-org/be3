@@ -334,7 +334,7 @@ through the drag and Escape rebuilds nothing; drawn invisible, it is the gap, at
      mover's selection is unlocked and its `Entities` draws there (`carry_for_peers`, a `drawn` memo beside `stored` that edits never read), with what
      they are bound to following. The surface is an edge scroller that pans the camera, and
      the site chooses again as the camera moves (`Board::retrack`). From the keyboard, Space
-     lifts the selection and the arrows step it by `FREE_STEP` points. Where it differs:
+     lifts the selection and the arrows step it as far as they nudge one (`stepped`: a world unit, ten with Shift). Where it differs:
      the board publishes nothing itself, as its frame is in the mover's window points,
      so each site publishes its `over` in its own terms; `EdgeScroller` scrolls along both
      axes; the board commits a drop before it tells the site it is over nothing, so a site

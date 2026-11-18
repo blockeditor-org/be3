@@ -17,6 +17,10 @@ fn an_unbounded_free_drag_goes_past_its_areas_edges() {
         Some(1190),
         "the drop is named from where the item is, outside the area"
     );
-    assert!(moves_freely(&closest([fixed(slot(node, 1, 0.0))]).when_far(spec)));
-    assert!(!moves_freely(&closest([fixed(slot(node, 1, 0.0))])));
+    assert_eq!(
+        free_step(&closest([fixed(slot(node, 1, 0.0))]).when_far(spec.stepped(2.0))),
+        Some(2.0),
+        "a keyboard step over it moves the item as far as it says"
+    );
+    assert_eq!(free_step(&closest([fixed(slot(node, 1, 0.0))])), None);
 }

@@ -244,18 +244,19 @@ impl Board {
         true
     }
 
-    /// Moves a keyboard carry that has no fixed place `toward` by `FREE_STEP` that way, where
-    /// it has a `free` place to move in (a canvas, a display's arrangement).
+    /// Moves a keyboard carry that has no fixed place `toward` that way by its `free` place's
+    /// step, where it has one to move in (a canvas, a display's arrangement); `toward`'s length
+    /// counts the steps (Shift steps ten).
     fn step_free(&self, toward: beui_view::types::Vec2, last: DragPoint) -> bool {
-        let free = self
+        let Some(step) = self
             .placing
             .borrow()
             .as_ref()
-            .is_some_and(|placing| beui_view::drag::moves_freely(&placing.spec));
-        if !free {
+            .and_then(|placing| beui_view::drag::free_step(&placing.spec))
+        else {
             return false;
-        }
-        let step = toward / toward.length().max(f32::EPSILON) * beui_view::drag::FREE_STEP;
+        };
+        let step = toward * step;
         self.place(
             DragPoint {
                 pos: last.pos + step,
