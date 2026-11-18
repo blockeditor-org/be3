@@ -10,6 +10,7 @@ use be_wasm_root_testing::{
 use super::*;
 
 mod a_child_that_lets_its_surface_go_names_nothing_there_any_more;
+mod a_dialog_shows_over_its_scrim_which_captures_a_press_beside_it_and_closes_it;
 mod a_frame_asks_its_host_for_what_the_surface_under_the_pointer_and_the_focus_ask;
 mod a_frame_past_its_deadline_draws_without_the_child_it_waits_for;
 mod a_frame_waits_for_its_child_and_shows_it;
@@ -21,8 +22,10 @@ mod a_root_shows_its_hosts_notices_as_toasts_hit_only_where_they_are;
 mod a_root_that_keeps_waking_itself_without_answering_stops_at_its_patience;
 mod a_root_wants_frames_until_its_app_presents_and_wakes_its_host_for_them;
 mod a_roots_document_draws_again_when_the_frame_it_asked_for_comes;
+mod escape_closes_a_dialog_while_the_root_intercepts_it;
 mod input_reaches_the_child_under_it_by_the_layers_drawn_last;
 mod input_reaches_the_root_with_the_time_it_was_sampled;
+mod typing_through_the_input_method_reaches_a_dialogs_field_and_the_clipboard_is_the_hosts;
 
 const ROOT: &[u8] = include_bytes!(env!("ROOT_GUEST_WASM"));
 
@@ -191,4 +194,104 @@ fn shown(done: &FrameDone) -> Vec<LayerId> {
         .iter()
         .flat_map(|window| window.layers.iter().map(|layer| layer.id))
         .collect()
+}
+
+/// Draws a frame of the embedding root for the frame clock's `time`.
+fn step(root: &mut Root, time: u64) -> FrameDone {
+    root.frame(
+        FrameRequest {
+            time,
+            wall_clock: 0,
+        },
+        Instant::now() + PATIENT,
+    )
+    .expect("the root draws")
+}
+
+/// The layer `id` of a frame's one window, if it shows.
+fn layer_of(done: &FrameDone, id: LayerId) -> Option<be_lib_layers::Layer> {
+    LayerList::decode(&done.layers)
+        .expect("the frame is a layer list")
+        .windows
+        .into_iter()
+        .flat_map(|window| window.layers)
+        .find(|layer| layer.id == id && layer.shown)
+}
+
+/// The key `key` pressed and let go, with `modifiers` held around it.
+fn chord(
+    key: be_lib_ui_types::Key,
+    modifiers: be_lib_ui_types::Modifiers,
+) -> Vec<be_lib_ui_types::input::Timed> {
+    use be_lib_ui_types::input::{Input, Keystroke};
+    let stroke = |pressed| {
+        Input::Key(Keystroke {
+            key: Some(key),
+            pressed,
+            ..Keystroke::default()
+        })
+        .into()
+    };
+    let held = modifiers != be_lib_ui_types::Modifiers::NONE;
+    let mut events = Vec::new();
+    if held {
+        events.push(Input::Modifiers(modifiers).into());
+    }
+    events.extend([stroke(true), stroke(false)]);
+    if held {
+        events.push(Input::Modifiers(be_lib_ui_types::Modifiers::NONE).into());
+    }
+    events
+}
+
+/// A press and release of the primary button at `at`, in the window's points.
+fn click(at: be_lib_geometry::Pos2) -> Vec<be_lib_ui_types::input::Timed> {
+    use be_lib_ui_types::input::{Input, PointerButton};
+    let button = |pressed| {
+        Input::PointerButton {
+            pos: at,
+            button: PointerButton::Primary,
+            pressed,
+        }
+        .into()
+    };
+    vec![Input::PointerMoved(at).into(), button(true), button(false)]
+}
+
+/// Hands the root `events`, then draws frames from `*time` on until `done` holds of one, which
+/// it answers: within a few frames, or the test fails saying `what`.
+fn until(
+    root: &mut Root,
+    time: &mut u64,
+    events: Vec<be_lib_ui_types::input::Timed>,
+    what: &str,
+    done: impl Fn(&FrameDone) -> bool,
+) -> FrameDone {
+    if !events.is_empty() {
+        root.input(None, be_lib_ui_types::input::encode(&events))
+            .expect("the root takes input");
+    }
+    for _ in 0..12 {
+        *time += 1;
+        let drawn = step(root, *time);
+        if done(&drawn) {
+            return drawn;
+        }
+    }
+    panic!("within a few frames, {what}");
+}
+
+/// Opens the embedding root's dialog with the key it intercepts, from the frame clock's `*time`,
+/// and answers the first frame in which the dialog has the focus and its field the input method.
+fn open_dialog(root: &mut Root, time: &mut u64) -> FrameDone {
+    until(
+        root,
+        time,
+        chord(
+            be_sdk_root_testing::OPENS_DIALOG,
+            be_lib_ui_types::Modifiers::NONE,
+        ),
+        "F2 opens the dialog, which takes the focus for its field",
+        |done| layer_of(done, be_sdk_root_testing::DIALOG_LAYER).is_some() && done.ime.is_some(),
+    )
 }

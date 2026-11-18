@@ -10,7 +10,8 @@ use std::{
 };
 
 use be_lib_geometry::pos2;
-use be_lib_layers::{Area, LayerInput, LayerList, Surface, WindowLayers};
+use be_lib_layers::{Area, LayerId, LayerInput, LayerList, Surface, WindowLayers};
+use be_lib_ui_types::input::{Input, Key, KeyChord, Modifiers, TouchPhase};
 use be_sdk_api::{
     EditorInstanceId, Fonts, OpenBlock, Opening, OpeningKind, ParentView, Pos2 as ViewPos2,
     ScreenRequest, SurfaceFormat, SurfaceSpec, Vec2 as ViewVec2, ViewId, ViewPlacement,
@@ -33,9 +34,11 @@ use beui::styled::*;
 use beui::{Align2, NodeId, Pos2, Rect, vec2};
 
 use crate::{
-    APP, APP_ENTRY, CLOSES, LATE_LAYER, LATER, LATER_TEXT, ORIGIN, RASTER, RESIZED, RESIZES,
-    ROOT_COLOR, ROOT_LAYER, ROOT_SURFACE, SCREEN, SCREEN_SIZE, SIZE, TEXT, TEXT_LAYER, TEXT_STRIP,
-    TEXT_SURFACE, TOAST_AREA, TOAST_LAYER, TOAST_SURFACE, UNPRESENTED_SURFACE,
+    APP, APP_ENTRY, CLOSES, DIALOG_LAYER, DIALOG_ORIGIN, DIALOG_SIZE, DIALOG_SURFACE,
+    DIALOG_TITLE, LATE_LAYER, LATER, LATER_TEXT, OPENS_DIALOG, ORIGIN, RASTER, RESIZED, RESIZES,
+    ROOT_COLOR, ROOT_LAYER, ROOT_SURFACE, SCRIM_COLOR, SCRIM_LAYER, SCRIM_SURFACE, SCREEN,
+    SCREEN_SIZE, SIZE, TEXT, TEXT_LAYER, TEXT_STRIP, TEXT_SURFACE, TOAST_AREA, TOAST_LAYER,
+    TOAST_SURFACE, UNPRESENTED_SURFACE,
 };
 
 /// The triangle's editor, by its manifest's id.
@@ -66,8 +69,35 @@ struct Root {
     shown: Rc<Cell<Option<Signal<Vec<Toast>>>>>,
     /// The surface a `RESIZES` frame configures and never presents.
     unpresented: Rc<RefCell<Option<OwnSurface>>>,
+    /// The scrim under its dialog, filled with `SCRIM_COLOR` on its first frame.
+    scrim: Rc<RefCell<Option<OwnSurface>>>,
+    /// Its dialog, while it is open.
+    dialog: Rc<RefCell<Option<Dialog>>>,
+    /// What its input asked of the dialog, done with the next frame.
+    asked: Rc<Cell<Option<Asked>>>,
+    /// The name the strip shows in place of `TEXT` once the dialog renamed it, which its
+    /// document sets.
+    named: Rc<Cell<Option<Signal<Option<String>>>>>,
     /// Wakes the root, and so its host, for a frame its beui document wants.
     waker: Waker,
+}
+
+/// The root's dialog while it is open.
+struct Dialog {
+    surface: BeuiSurface,
+    /// How the person closed it from inside, which its document sets: with a name, or none.
+    closed: Rc<RefCell<Option<Option<String>>>>,
+    /// The layer focused when it opened, which gets the focus back when it closes.
+    had: Option<LayerId>,
+    /// Whether it took the focus yet: once it has been drawn.
+    focused: bool,
+}
+
+/// What the root's input asked of its dialog.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Asked {
+    Open,
+    Close,
 }
 
 impl Root {
@@ -82,6 +112,10 @@ impl Root {
             toasts: Rc::default(),
             shown: Rc::default(),
             unpresented: Rc::default(),
+            scrim: Rc::default(),
+            dialog: Rc::default(),
+            asked: Rc::default(),
+            named: Rc::default(),
             waker,
         }
     }
@@ -102,15 +136,18 @@ impl Root {
         let fonts: Fonts = be_wasm_ops::decode(&fonts).ok_or("the host's fonts cannot be read")?;
         *self.fonts.borrow_mut() = Some(Rc::new(fonts));
         let waker = self.waker.clone();
+        let named = Rc::clone(&self.named);
         let text = BeuiSurface::new(
             &beui,
             OwnSurface::new(TEXT_SURFACE, TEXT_STRIP),
             1.0,
             move || waker.wake(),
-            || {
+            move || {
+                let name = create_signal(None::<String>);
+                named.set(Some(name));
                 view! {
                     <Root clear_color=ColorRole::None>
-                        <Strip />
+                        <Strip name={name} />
                     </Root>
                 }
             },
@@ -132,7 +169,12 @@ impl Root {
                 }
             },
         )?;
+        let scrim = OwnSurface::new(SCRIM_SURFACE, SIZE);
+        scrim.fill(SCRIM_COLOR)?;
+        // F2 opens the dialog, wherever the focus is.
+        self.embedding.borrow_mut().intercept(vec![opens()]);
         *self.own.borrow_mut() = Some(own);
+        *self.scrim.borrow_mut() = Some(scrim);
         *self.beui.borrow_mut() = Some(beui);
         *self.text.borrow_mut() = Some(text);
         *self.toasts.borrow_mut() = Some(toasts);
@@ -178,15 +220,140 @@ impl Root {
         app.clone()
     }
 
-    /// Hands its beui documents what landed on their surfaces: its strip of text and its
-    /// toasts.
+    /// Hands its beui documents what landed on their surfaces: its strip of text, its toasts
+    /// and its dialog. What landed on its own layer, the compositor, opens the dialog (F2,
+    /// which it intercepts) or closes it (Escape, which it intercepts while the dialog is open,
+    /// or a press the scrim captured), with the next frame.
     fn heard(&self, own: &[Delivery]) {
+        let open = self.dialog.borrow().is_some();
+        for delivery in own.iter().filter(|delivery| delivery.target == ROOT_LAYER) {
+            let asked = match &delivery.input {
+                Input::Key(stroke) if stroke.pressed && !stroke.repeat => match stroke.key {
+                    Some(key) if key == OPENS_DIALOG && !open => Some(Asked::Open),
+                    Some(Key::Escape) if open => Some(Asked::Close),
+                    _ => None,
+                },
+                Input::PointerButton { pressed: true, .. } if open => Some(Asked::Close),
+                Input::Touch {
+                    phase: TouchPhase::Start,
+                    ..
+                } if open => Some(Asked::Close),
+                _ => None,
+            };
+            if asked.is_some() {
+                self.asked.set(asked);
+            }
+        }
         if let Some(text) = &mut *self.text.borrow_mut() {
             text.input(own);
         }
         if let Some(toasts) = &mut *self.toasts.borrow_mut() {
             toasts.input(own);
         }
+        if let Some(dialog) = &mut *self.dialog.borrow_mut() {
+            dialog.surface.input(own);
+        }
+    }
+
+    /// Opens or closes its dialog as its input asked, or as the person closed it from inside.
+    /// It opens with its scrim, interception of Escape and, once drawn, the focus; it closes
+    /// giving the focus back to the layer that had it, and Escape to whatever has the focus.
+    fn settle_dialog(&self) -> Result<(), String> {
+        let closed = self
+            .dialog
+            .borrow()
+            .as_ref()
+            .and_then(|dialog| dialog.closed.borrow_mut().take());
+        let asked = self.asked.take();
+        if let Some(named) = &closed
+            && let Some(name) = named.clone()
+            && let (Some(text), Some(shown)) = (&mut *self.text.borrow_mut(), self.named.get())
+        {
+            text.enter(|| shown.set(Some(name)));
+        }
+        if closed.is_some() || asked == Some(Asked::Close) {
+            let Some(dialog) = self.dialog.borrow_mut().take() else {
+                return Ok(());
+            };
+            let mut embedding = self.embedding.borrow_mut();
+            embedding.intercept(vec![opens()]);
+            let told = embedding.focus(None, dialog.had);
+            drop(embedding);
+            self.heard(&told);
+            return Ok(());
+        }
+        if asked != Some(Asked::Open) || self.dialog.borrow().is_some() {
+            return Ok(());
+        }
+        let Some(beui) = self.beui.borrow().clone() else {
+            return Ok(());
+        };
+        let closed = Rc::<RefCell<Option<Option<String>>>>::default();
+        let closing = Rc::clone(&closed);
+        let waker = self.waker.clone();
+        let surface = BeuiSurface::new(
+            &beui,
+            OwnSurface::new(DIALOG_SURFACE, DIALOG_SIZE),
+            1.0,
+            move || waker.wake(),
+            move || {
+                let done = Callback::new(move |name: Option<String>| {
+                    *closing.borrow_mut() = Some(name);
+                });
+                view! {
+                    <Root clear_color=ColorRole::None>
+                        <RenameDialog done={done} />
+                    </Root>
+                }
+            },
+        )?;
+        let mut embedding = self.embedding.borrow_mut();
+        let had = embedding.focused(None).map(|layer| layer.id);
+        embedding.intercept(vec![opens(), KeyChord::new(Key::Escape, Modifiers::NONE)]);
+        drop(embedding);
+        *self.dialog.borrow_mut() = Some(Dialog {
+            surface,
+            closed,
+            had,
+            focused: false,
+        });
+        Ok(())
+    }
+}
+
+/// The chord that opens the dialog.
+fn opens() -> KeyChord {
+    KeyChord::new(OPENS_DIALOG, Modifiers::NONE)
+}
+
+/// The dialog: a name, which it focuses, and Cancel and Rename, filling its surface. `done`
+/// hears how it closed: with the name, or none.
+#[component]
+fn RenameDialog(done: Callback<Option<String>>) -> NodeId {
+    let name = create_signal(String::new());
+    let rename = move || done.call(Some(name.get()));
+    view! {
+        <Frame
+            width=Length::FILL
+            height=Length::FILL
+            fill=ColorRole::Surface
+            border={Border::DEFAULT}
+            radius=Radius::Lg
+        >
+            <DialogBody
+                title=DIALOG_TITLE
+                scrolls=false
+                actions={vec![DialogAction::cancel("Cancel"), DialogAction::primary("Rename", rename)]}
+                on_dismiss={move || done.call(None)}
+            >
+                <TextInput
+                    value={name}
+                    label="Name"
+                    focused=true
+                    on_submit={move |_: String| rename()}
+                />
+            </DialogBody>
+        </Frame>
     }
 }
 
@@ -238,18 +405,19 @@ fn Notices(toasts: Signal<Vec<Toast>>) -> NodeId {
     }
 }
 
-/// The strip of text: `TEXT`, and `LATER_TEXT` from `LATER` on.
+/// The strip of text: `TEXT`, and `LATER_TEXT` from `LATER` on, or the `name` the dialog gave.
 #[component]
-fn Strip() -> NodeId {
+fn Strip(name: Signal<Option<String>>) -> NodeId {
     let later = create_signal(false);
     let timer = create_timer(move || {
         later.set(true);
         None
     });
     timer.start(LATER);
-    let shown = create_memo(move || match later.get() {
-        true => LATER_TEXT.to_owned(),
-        false => TEXT.to_owned(),
+    let shown = create_memo(move || match (name.get(), later.get()) {
+        (Some(name), _) => name,
+        (None, true) => LATER_TEXT.to_owned(),
+        (None, false) => TEXT.to_owned(),
     });
     view! {
         <Frame align=Align2::START padding=Space::Xs>
@@ -266,6 +434,8 @@ impl frames::Guest for Root {
             root.own(time, Duration::from_nanos(request.wall_clock))
                 .await
                 .expect("the root's host gives it fonts and a device to draw its own surface on");
+            root.settle_dialog()
+                .expect("the root draws its dialog with beui");
             if request.time == RESIZES {
                 if let Some(own) = &mut *root.own.borrow_mut() {
                     own.resize(RESIZED);
@@ -290,6 +460,15 @@ impl frames::Guest for Root {
             if let Some(toasts) = &mut *root.toasts.borrow_mut() {
                 toasts.frame().expect("the root draws its toasts with beui");
             }
+            if let Some(dialog) = &mut *root.dialog.borrow_mut() {
+                dialog
+                    .surface
+                    .frame()
+                    .expect("the root draws its dialog with beui");
+            }
+            // The dialog's own actions closed it: gone from this frame already.
+            root.settle_dialog()
+                .expect("the root draws its dialog with beui");
             let mut layers = vec![own.clone(), text];
             if request.time == CLOSES {
                 if let Some(app) = root.app.borrow_mut().take() {
@@ -307,6 +486,27 @@ impl frames::Guest for Root {
                     marker.surface = Surface::Root(1);
                     layers.push(marker);
                 }
+            }
+            // While the dialog is open, over the rest: its scrim, which takes no press itself but
+            // captures every one that misses the dialog for the root's own layer, which closes
+            // it, and never takes the focus; and the dialog over it.
+            if let Some(dialog) = &*root.dialog.borrow()
+                && let Some(scrim) = &*root.scrim.borrow()
+            {
+                let mut layer = scrim.layer(SCRIM_LAYER, pos2(0.0, 0.0), 1.0);
+                layer.input = LayerInput {
+                    hit: Area::Nowhere,
+                    captures: true,
+                    focuses: false,
+                    placer: Some(ROOT_LAYER),
+                    ..LayerInput::default()
+                };
+                layers.push(layer);
+                layers.push(
+                    dialog
+                        .surface
+                        .layer(DIALOG_LAYER, pos2(DIALOG_ORIGIN.0, DIALOG_ORIGIN.1)),
+                );
             }
             // Over everything, while a toast shows: hit only where one is, and never taking the
             // focus from what the person works in.
@@ -330,18 +530,42 @@ impl frames::Guest for Root {
             let mut embedding = root.embedding.borrow_mut();
             let wants = embedding.wants();
             let drawn = embedding.drew(list);
+            // The dialog drawn for the first time takes the focus.
+            let focus = match &mut *root.dialog.borrow_mut() {
+                Some(dialog) if !dialog.focused => {
+                    dialog.focused = true;
+                    embedding.focus(None, Some(DIALOG_LAYER))
+                }
+                _ => Vec::new(),
+            };
+            drop(embedding);
             root.heard(&drawn.own);
+            root.heard(&focus);
+            let embedding = root.embedding.borrow();
             let requests = embedding.requests(None);
             // Its documents want a frame at once (one heard input or was woken) or later.
             let documents = [&root.text, &root.toasts]
                 .into_iter()
                 .filter_map(|surface| surface.borrow().as_ref().and_then(BeuiSurface::next));
-            let next = wants.next.into_iter().chain(documents).min();
+            let dialog = root
+                .dialog
+                .borrow()
+                .as_ref()
+                .and_then(|dialog| dialog.surface.next());
+            let next = wants.next.into_iter().chain(documents).chain(dialog).min();
+            // The input method is where the focused surface edits: an app's screen, or the
+            // field of its dialog.
+            let ime = embedding.ime(None).or_else(|| {
+                let focused = embedding.focused(None)?;
+                let dialog = root.dialog.borrow();
+                let dialog = dialog.as_ref().filter(|_| focused.id == DIALOG_LAYER)?;
+                dialog.surface.ime(focused)
+            });
             FrameDone {
                 layers: drawn.layers,
                 next: next.map(|at| u64::try_from(at.as_nanos()).unwrap_or(u64::MAX)),
                 owed: wants.owed,
-                ime: embedding.ime(None).map(|area| area.encode()),
+                ime: ime.map(|area| area.encode()),
                 every_sample: requests.every_sample,
                 cursor: requests.cursor.name().to_owned(),
                 pointer_locked: requests.pointer_locked,
@@ -358,6 +582,10 @@ impl input::Guest for Root {
             .input(window, &events)
             .unwrap_or_default();
         self.heard(&own);
+        // What it asked of the dialog is done with the next frame, which this asks for.
+        if self.asked.get().is_some() {
+            self.waker.wake();
+        }
         Box::pin(async {})
     }
 }
@@ -391,8 +619,35 @@ impl paintings::Guest for Root {
             .as_ref()
             .filter(|toasts| toasts.overlay_area() != Area::Nowhere)
             .and_then(painted);
+        // Its scrim and dialog only while the dialog is open, as its layer list shows them.
+        let dialog = self
+            .dialog
+            .borrow()
+            .as_ref()
+            .and_then(|dialog| painted(&dialog.surface));
+        let scrim = dialog.as_ref().and_then(|_| {
+            let scrim = self.scrim.borrow();
+            let scrim = scrim.as_ref()?;
+            let (width, height) = scrim.size();
+            let painting = Painting {
+                frame: PaintFrame {
+                    size: [width, height],
+                    pixels_per_point: 1.0,
+                    background: SCRIM_COLOR.map(|channel| (channel * 255.0).round() as u8),
+                    primitives: Vec::new(),
+                },
+                textures: Default::default(),
+            };
+            Some((u64::from(scrim.id()), painting))
+        });
         let painted = ScreenPaintings {
-            screens: own.into_iter().chain(text).chain(toasts).collect(),
+            screens: own
+                .into_iter()
+                .chain(text)
+                .chain(scrim)
+                .chain(dialog)
+                .chain(toasts)
+                .collect(),
             overflows: Vec::new(),
         };
         Box::pin(async move { painted.encode() })

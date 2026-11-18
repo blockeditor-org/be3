@@ -289,6 +289,18 @@ finger opened). Which anchor to pass:
 Code that places its own body uses the parts (`DialogCard`, `DialogBody`, a
 `Modal`), as be-host's keep-changes prompt and an app opened as a dialog do.
 
+A root guest's dialog is layers of its own rather than a `Modal` in one
+document (plans/host_as_platform_adapter.md, step 4g4; be-sdk-root-testing's
+is the example): a scrim layer over the rest, which takes no press itself but
+`captures` every press that misses the dialog for its placer, the root's own
+layer, which closes the dialog; and above it the dialog's layer, a document
+showing a `DialogBody` in a card that fills its surface. While it is open the
+root intercepts Escape (`Embedding::intercept`), so Escape reaches the root
+wherever the focus is and closes it; once drawn the dialog takes the focus
+(`Embedding::focus`), and closing gives it back to the layer that had it. Its
+field's input method area is the one the root hands its host
+(`BeuiSurface::ime`).
+
 ## Toasts and `Floating`
 
 `unstyled::Toasts` is a `Pass` overlay at an `Inside*` edge with a live region;

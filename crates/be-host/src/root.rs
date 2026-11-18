@@ -27,6 +27,11 @@
 //! (plans/host_as_platform_adapter.md, step 4g3); what the person answers (`answer-notice`)
 //! be-host does: dismissing the notice, copying its report, opening its link.
 //!
+//! Its documents' clipboard is the window's: what the root copies (`host.copy`) be-host puts on
+//! it, and a paste it asks for (`host.paste`) be-host reads from it and answers with a later
+//! frame. The platform's input method shows where the root says its focused field is, and what
+//! it types reaches the root as input (plans/host_as_platform_adapter.md, step 4g4).
+//!
 //! It runs none of the host's core: no data directory or the lock that keeps a second be-host
 //! off it, no block stack, workspace or accounts, no screen lock, and none of the desktop's OS
 //! services. Step 4g brings back under this program what the host keeps (the plan's What the
@@ -46,6 +51,7 @@ use std::{
 
 use be_host_base::notices;
 use be_lib_layers::{Layer, LayerList, Surface};
+use be_lib_ui_types::ClipItem;
 use be_lib_ui_types::input::Timed;
 use be_sdk_app_host::pacing::FrameClock;
 use be_wasm_root_api::{FrameRequest, Notice, NoticeAction};
@@ -113,6 +119,9 @@ struct RootShell {
     waker: Option<beui::native::Waker>,
     /// The generation of the host's notices the root was last handed.
     notices: Option<u64>,
+    /// What the window's clipboard answered the root's pastes with, by their ids, until the
+    /// root is handed them.
+    pasted: Rc<RefCell<Vec<(u64, Option<ClipItem>)>>>,
 }
 
 /// What a root's frame asks of its window (`frame-done`'s `cursor`, `pointer-locked` and
@@ -155,6 +164,7 @@ impl RootShell {
             painting: false,
             waker: None,
             notices: None,
+            pasted: Rc::default(),
         }
     }
 
@@ -219,6 +229,9 @@ impl RootShell {
                 .clock
                 .deadline(self.pass, context.clock_stopped(), since(Instant::now()));
         show_notices(root, &mut self.notices);
+        for (id, item) in self.pasted.take() {
+            root.answer_paste(id, item.as_ref().map(be_sdk_api::ops::encode));
+        }
         let request = FrameRequest {
             time: nanos(time),
             wall_clock: nanos(beui::reactive::wall_clock()),
@@ -227,6 +240,7 @@ impl RootShell {
             Ok(done) => done,
             Err(why) => return self.stopped(&why),
         };
+        clipboard(context, root, &self.pasted);
         let answers = root.take_answers();
         if !answers.is_empty() {
             answer_notices(context, answers);
@@ -496,6 +510,26 @@ fn answer_notices(context: &beui::native::Context, answers: Vec<(u64, Option<Str
             // A key the notice does not offer changes nothing.
             Some(_) => {}
         }
+    }
+}
+
+/// Puts what `root` copied on the window's clipboard, the last copy staying, and reads the
+/// clipboard for each paste it asked for, whose answer `pasted` keeps until the next frame hands
+/// it over (`Root::answer_paste`). A copied item that cannot be read is left out.
+fn clipboard(
+    context: &beui::native::Context,
+    root: &mut Root,
+    pasted: &Rc<RefCell<Vec<(u64, Option<ClipItem>)>>>,
+) {
+    for items in root.take_copies() {
+        let items = items
+            .iter()
+            .filter_map(|item| be_sdk_api::ops::decode::<ClipItem>(item));
+        context.copy(Clip::items(items));
+    }
+    for (id, formats) in root.take_pastes() {
+        let pasted = Rc::clone(pasted);
+        context.read_clipboard(formats, move |item| pasted.borrow_mut().push((id, item)));
     }
 }
 

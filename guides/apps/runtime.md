@@ -164,7 +164,17 @@ tests read one their build made, crates/be-host-tests/apps.bzl). Each guest thre
   change as a watch's answer rather than asking again, and shows them (as
   toasts); `host.answer-notice` hands back what the person chose, an action's
   key or none to dismiss it, which the host takes after the frame
-  (`Root::take_answers`) and does. `frame-request` carries the frame clock's
+  (`Root::take_answers`) and does. The clipboard is the host's: `host.copy`
+  puts a copy's items on it (each the app protocol's `ClipItem`, encoded; only
+  what the root rendered, since the host never asks back for a lazy one), which
+  the host takes after the frame (`Root::take_copies`), and `host.paste` asks
+  for the first of some formats it holds, which the host takes
+  (`Root::take_pastes`), reads from its clipboard and answers by id, in a
+  later frame if its platform is slow (`Root::answer_paste`). The input method
+  needs nothing more: the platform's input-method events reach the root as
+  input, which its router hands the focused surface, and the field that
+  surface edits is `frame-done`'s `ime`. Choosing and saving files are the
+  platform's own dialogs, which `be3:root` does not carry yet. `frame-request` carries the frame clock's
   time and the host's wall clock (`wall-clock`), the only clocks a root reads.
   A root may start no threads (`App::refuse_threads`, which `Root::start`
   sets): it runs on the host's frame thread, which must never wait on a lock
@@ -199,7 +209,10 @@ tests read one their build made, crates/be-host-tests/apps.bzl). Each guest thre
   sees it and gives its own `Router` its chords (`Router::intercept`). It hands
   the root be-host-base's notices whenever they changed (`notices::generation`)
   and does what the root answers:
-  dismisses a notice, copies its report or opens its link. `drive
+  dismisses a notice, copies its report or opens its link. What the root
+  copies it puts on the window's clipboard (`Context::copy`), and each paste it
+  asks for it reads there (`Context::read_clipboard`) and hands back with the
+  next frame. `drive
   paint` asks the root for its paintings and places each where its layer
   shows its surface (the app screens it embeds are not in the painting yet).
   It runs none of the host's core (no data directory, block
@@ -207,7 +220,8 @@ tests read one their build made, crates/be-host-tests/apps.bzl). Each guest thre
   root that stops closes the window and be-host exits saying why. No host ships a root yet; the host
   tests `a_root_in_place_of_the_hosts_ui_*` stage be-sdk-root-testing as
   one, and see a press, a key and a touch reach the triangle it embeds, which
-  tints its screen by what it heard. Tests also run a root natively in
+  tints its screen by what it heard, and its dialog take drive's input method
+  and the window's clipboard and give the focus back to the triangle. Tests also run a root natively in
   be-wasm-root-host's, and in Chromium
   `//crates/be-wasm-root-web-testing:web-test`, which also serves a guest on
   the page the sandbox for modules from bytes. That page is the crate's
@@ -251,6 +265,15 @@ tests read one their build made, crates/be-host-tests/apps.bzl). Each guest thre
   from outside, and `BeuiSurface::overlay_area` is where its overlays took
   the pointer, in its pixels: a layer showing only overlays over a clear
   document takes that as its hit area, so what lies under it takes the rest.
+  A document's window copies to and pastes from the host's clipboard
+  (`host.copy`, `host.paste`), and `BeuiSurface::ime` is its focused field's
+  input method area in the window's points, which the root hands its host
+  while that surface's layer has the focus (`Embedding::focused`).
+  `Embedding::intercept` hands chords to the root's own layer, ahead of the
+  focus, in every window, and `Embedding::focus` moves the keyboard to a layer
+  or takes it from all, telling the layer that had it and the one that gets
+  it; a root's own dialog uses both (guides/beui/overlays.md, Modals and
+  dialogs).
   Input for a window the last list leaves out is still routed, against the
   layers it had last, until its presses lift, and only then its router goes,
   the surface it focused hearing `Focus(false)`; one never drawn routes
@@ -268,9 +291,9 @@ tests read one their build made, crates/be-host-tests/apps.bzl). Each guest thre
   surface or that closed wants and owes nothing. be-sdk-root-testing is a
   root built on it, which fills its own surface with `ROOT_COLOR` and draws a
   strip over it with beui, a line of text in styled components, under the
-  triangle's screen, and its host's notices as styled `Toasts` over
+  triangle's screen, its host's notices as styled `Toasts` over
   everything, on a layer listed only while one shows, hit only where they are
-  and never taking the focus, and which be-wasm-root-host's tests run with the
+  and never taking the focus, and a dialog F2 opens over a scrim, and which be-wasm-root-host's tests run with the
   triangle on a stand-in device, and be-host's host test with `--root`. A root is
   built as an app is (`app_module`, in the `wasi-guest` plan, linked against
   base and beui; decisions/a_root_links_beui_as_an_app_does.md); only

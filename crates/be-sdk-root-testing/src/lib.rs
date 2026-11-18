@@ -13,6 +13,15 @@
 //! (`be3:root`'s `host.notices`) as toasts, drawn with beui on `TOAST_SURFACE` at the window's
 //! top right and shown by `TOAST_LAYER` while any show, hit only where they are and never
 //! taking the focus; what the person answers it tells its host (`answer-notice`).
+//! F2 (`OPENS_DIALOG`), which the root always intercepts, opens a dialog of its own: a scrim
+//! (`SCRIM_LAYER`, its own surface filled with `SCRIM_COLOR`) over everything but its toasts,
+//! hit nowhere and capturing presses for the root's own layer, and over it the dialog
+//! (`DIALOG_LAYER`), drawn with beui on `DIALOG_SURFACE`: a title, a name field it focuses and
+//! Cancel and Rename. Once drawn, the dialog takes the focus, and the root hands its host the
+//! field's input method area; it closes on a press on the scrim, on Escape, which the root
+//! intercepts while it is open, or on its own actions, and gives the focus back to the layer that
+//! had it. Rename shows the name in the strip of text in place of `TEXT`. Its documents copy to
+//! and paste from their host's clipboard (`be3:root`'s `host.copy` and `host.paste`).
 //! A frame at `CLOSES` lets go of the app, which stops it. The window's input is routed by the
 //! library over the layers it drew last; what lands on `TEXT_SURFACE` its beui document hears,
 //! and what lands on its own surface beside the strip nothing does.
@@ -24,6 +33,7 @@
 //! that run it read natively.
 
 use be_lib_layers::LayerId;
+use be_lib_ui_types::Key;
 use be_sdk_api::ScreenId;
 
 /// The staged app it spawns: the triangle's, by its manifest's id.
@@ -108,6 +118,39 @@ pub const TOAST_SURFACE: u32 = 4;
 /// `TOAST_SURFACE`'s size, a pixel to a point, at the window's top left: as tall as the root's
 /// surface, and wider, so a toast and its margins fit.
 pub const TOAST_AREA: (u32, u32) = (480, 240);
+
+/// The key that opens the root's dialog, pressed with no modifiers: the root intercepts it
+/// wherever the focus is.
+pub const OPENS_DIALOG: Key = Key::F2;
+
+/// The layer showing `SCRIM_SURFACE` while the dialog is open: over everything but the toasts,
+/// hit nowhere and capturing every press that misses the dialog for `ROOT_LAYER`, its placer,
+/// which closes the dialog.
+pub const SCRIM_LAYER: LayerId = LayerId(4);
+
+/// A surface of the root's own the size of the window, filled with `SCRIM_COLOR`.
+pub const SCRIM_SURFACE: u32 = 5;
+
+/// What the scrim is filled with: black, half covering what lies under it.
+pub const SCRIM_COLOR: [f64; 4] = [0.0, 0.0, 0.0, 0.5];
+
+/// The layer showing `DIALOG_SURFACE` while the dialog is open, over its scrim.
+pub const DIALOG_LAYER: LayerId = LayerId(5);
+
+/// A surface of the root's own that beui draws its dialog on, filling it, a pixel to a point.
+pub const DIALOG_SURFACE: u32 = 6;
+
+/// `DIALOG_SURFACE`'s size, a pixel to a point.
+pub const DIALOG_SIZE: (u32, u32) = (320, 200);
+
+/// Where the dialog's top left sits in the window: centred in it.
+pub const DIALOG_ORIGIN: (f32, f32) = (
+    (SIZE.0 - DIALOG_SIZE.0) as f32 / 2.0,
+    (SIZE.1 - DIALOG_SIZE.1) as f32 / 2.0,
+);
+
+/// The dialog's title.
+pub const DIALOG_TITLE: &str = "Rename";
 
 #[cfg(target_arch = "wasm32")]
 mod guest;

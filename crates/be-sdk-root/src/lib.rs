@@ -37,7 +37,7 @@ pub use windows::{Delivery, Windows};
 
 use be_lib_geometry::{Rect, pos2};
 use be_lib_layers::{Layer, LayerId, LayerList, Surface};
-use be_lib_ui_types::{CursorIcon, ImeArea, WindowRequests, input};
+use be_lib_ui_types::{CursorIcon, ImeArea, KeyChord, WindowRequests, input};
 
 /// The apps a root embeds and the routing of its windows' input to them.
 pub struct Embedding {
@@ -95,6 +95,28 @@ impl Embedding {
         let events = input::decode(events)?;
         let routed = self.windows.route(window, events);
         Ok(self.forward(routed))
+    }
+
+    /// Hands `chords` to the root's own layer (the compositor `new` names) in every window, ahead
+    /// of the layer focused there, in place of those it took before (`Windows::intercept`): the
+    /// root's own shortcuts, and Escape while a dialog of its own is open.
+    pub fn intercept(&mut self, chords: Vec<KeyChord>) {
+        self.windows.intercept(chords);
+    }
+
+    /// The layer focused in `window`, as it was drawn last: the one its keys, text and input
+    /// method go to.
+    pub fn focused(&self, window: Option<u64>) -> Option<&Layer> {
+        self.windows.focused(window)
+    }
+
+    /// Moves the keyboard in `window` to the layer `target`, or takes it from every layer there
+    /// (`Windows::focus`): a dialog of the root's own takes it once drawn, and gives it back to
+    /// the layer that had it once it closes. An app whose screen lost or got it hears so; what
+    /// the root's own surfaces hear of it is answered.
+    pub fn focus(&mut self, window: Option<u64>, target: Option<LayerId>) -> Vec<Delivery> {
+        let told = self.windows.focus(window, target);
+        self.forward(told)
     }
 
     /// The input method's area in `window`, in its points: the field the app focused there
@@ -203,9 +225,10 @@ pub(crate) fn requests(
     }
 }
 
-/// `area`, an input method's area in a screen's points, in the window's points: the screen's
-/// surface is painted at `raster` pixels per point and shown by `layer`.
-pub(crate) fn ime_in_window(area: ImeArea, raster: f32, layer: &Layer) -> ImeArea {
+/// `area`, an input method's area in a surface's points, in the window's points: the surface
+/// is painted at `raster` pixels per point and shown by `layer`. An app's screen's area
+/// (`Embedding::ime`), or a field in a document of the root's own.
+pub fn ime_in_window(area: ImeArea, raster: f32, layer: &Layer) -> ImeArea {
     let pixels = |rect: Rect| {
         layer.to_window(Rect::from_min_max(
             pos2(rect.min.x * raster, rect.min.y * raster),
