@@ -57,15 +57,21 @@ which only chat uses with more than one part.
 ### A. The block system has signed logs
 
 A block may have a **log** beside its content: entries the server orders,
-stamps and chains, that no commit can change.
+stamps and hashes into a Merkle tree, that no commit can change.
 
 - **Server.** A `block_logs` table per organization and block: sequence,
   appender account, arrival, sealed payload (or its hash once redacted),
-  signature, chain hash `H(previous, seq, arrival, author, payload hash,
-  signature)`. One op `append(block, entries)` (Edit, or a future Post level;
+  signature, and the entry's leaf hash `H(seq, arrival, author, payload hash,
+  signature)` in a Merkle tree over the log, as a transparency log keeps one
+  (RFC 6962): a log's head is its size and root hash. A linear chain would make
+  linking an old entry to a head cost every hash in between (a million-message
+  chat's first page would need about 32 MB of hashes); the tree makes both
+  checks logarithmic: an inclusion proof shows an entry is in the head a
+  device holds (about 20 hashes for a million entries), and a consistency
+  proof shows a new head extends the kept one. One op `append(block, entries)` (Edit, or a future Post level;
   idempotent by an entry id the client picks, as journal submissions are),
   one op `redact(block, seq)` (the appender's account, or Manage: drops the
-  payload, keeps its hash, so the chain still verifies), one query
+  payload, keeps its hash, so the tree still verifies), one query
   `log(block, from, limit)` and a `log` topic whose push carries the new
   entries. That is a query, two ops and a topic: the five calls stay. Entries
   are charged to the block's payer; limits per entry and per minute. A commit
@@ -75,8 +81,11 @@ stamps and chains, that no commit can change.
   devices verify on their own (decisions/the_server_never_vouches_for_an_identity.md).
 - **Client.** `Peer::append`, kept in the outbox while offline and drained
   like a commit; the refs database keeps each block's log pages and its last
-  verified head, and a page that does not extend it is reported as the
-  server cutting or forking the log (the accepted limit "Forks" in
+  verified head; each page comes with inclusion proofs against the newest head
+  and each new head with a consistency proof from the kept one, so reading any
+  page costs that page plus O(log n) hashes wherever it is in the log. A head
+  that is not consistent with the kept one is reported as the server cutting
+  or forking the log (the accepted limit "Forks" in
   guides/blocks/keys.md, now detectable per device). `verify_authored` takes
   the entry's server arrival for every kind of entry.
 - **Host and type-module API.** `type-info.log` says a type has one. A replica
@@ -93,13 +102,13 @@ stamps and chains, that no commit can change.
   title, drafts, settings. What a message reads as now is a fold of the
   entries naming it, which only its author's count. Deleting appends a
   deletion and redacts the message's payload: the body is gone everywhere,
-  the chain still proves it existed and who wrote it.
+  the tree still proves it existed and who wrote it.
 - **Fixes.** All five gaps: no commit touches the log, so rollback is only
   the server cutting it, which every device that saw the head detects; a
   reaction taken back is a later entry and can redact the earlier; every
   entry, deletions and edits included, has the server's arrival, so `Replaced`
   works for all of them; nobody but the server writes an arrival. Gaps in
-  `seen` are no longer needed: the chain is the order.
+  `seen` are no longer needed: the log is the order.
 - **Costs.** One new storage kind in server, client, host and protocol (about
   2,000 lines with tests, comparable to the journal); a second place a type
   keeps data, which must be stated sharply to stay one obvious way: content
@@ -180,10 +189,10 @@ and appended only by the block's members, so it reaches no one new.
 ## Steps
 
 1. **Server log.** `block_logs`, `append`, `redact`, `query.log`,
-   `topic.log`, chain hashes, arrival, quota and limits, rules in
+   `topic.log`, the Merkle tree (heads, inclusion and consistency proofs), arrival, quota and limits, rules in
    `client::rule`, deleted with the block. Done: be-server tests show appends
    numbered and stamped in order and pushed to followers; a publish leaves the
-   log as it was; a redaction keeps the chain verifying; a viewer's append
+   log as it was; a redaction keeps the tree verifying; a viewer's append
    and another account's redaction are refused; `every_call_states_who_may_make_it` passes.
 2. **Commits name a log head.** `log-through` in a commit; the server refuses
    one naming no prefix. Done: a be-server test refuses a commit naming a seq
@@ -193,7 +202,8 @@ and appended only by the block's members, so it reaches no one new.
    `verify_authored` with each entry's arrival. Done: be-block-client tests
    append offline and drain in order; a server answering a log that does not
    extend the kept head is reported; an entry signed with a replaced key
-   after its replacement answers `Replaced`.
+   after its replacement answers `Replaced`; reading the first page of a
+   log of a million entries fetches that page and O(log n) proof hashes.
 4. **Type modules and apps.** `type-info.log`, `replica.logged`, `read-log`,
    the editor's append message signed by the host, `LogFold` for search and
    descriptions, export carrying entries. Done: a test type in
@@ -235,6 +245,8 @@ The user chose option A, and these answers (2026-11-18):
   longer removes others' messages.
 - **A taken-back reaction** redacts the earlier one, so the log keeps only
   that an entry existed and who wrote it.
-- **Verification cost**: a device verifies each entry it reads on its own and
-  the chain only from the last head it verified, page by page as it scrolls;
-  it never reads a whole log to trust its end.
+- **Verification cost**: a device verifies each entry it reads on its own,
+  and ties it to the head it holds with an inclusion proof, so a page anywhere
+  in the log (a million-message chat's first page, from a search hit) costs
+  that page plus about 20 hashes; a new head comes with a consistency proof
+  from the kept one. No device ever reads a whole log to trust a part of it.
