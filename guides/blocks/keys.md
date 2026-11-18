@@ -663,15 +663,19 @@ opens it and makes nobody a contact, so it is no `link-kind` of the contact link
   the access list marks them. be-host opens one pasted into Open a share link, in the host
   menu, or from the web build's address bar (`share_link.rs`): it reads the link first
   (`preview_share_link`) and asks, naming the block (its name as the maker saw it, sealed
-  with the code), the organization, what it grants and whether the account joins as a guest,
-  and opens that organization when it is not the one open.
+  with the code, shown on one line and cut short), the organization, what it grants and
+  whether the account joins as a guest (judged from the account's own organizations, not the
+  server's word), refuses the opening if the link changed since, and opens that organization
+  when it is not the one open.
 - **Join links** (plans/hosted_blocks.md): a link of level Join carries no key, and its opener
-  reads nothing stored. Having no key that carries the block's root, it checks a host by the
-  log as served, taken when it holds this account's own `Opened` grant (`Peer::joined_log`):
-  its endorsement covers the entry before it, so the chain to the root is the account's own
-  word. A hosted block (an app's manifest runs a host component on its type,
-  `discovery::hosted`) offers Join in the share dialog's link row, first and by default; any
-  other block never does.
+  reads nothing stored. Every link hands the root of the block's log, which its maker pinned,
+  sealed with the code; the opener keeps it in the account's block (`KeptShare::root`), refuses
+  the opening as forged when the log its grant went into starts elsewhere, and, holding no key
+  that carries a root, checks a host by that root (`Peer::joined_log`), so a log the server
+  makes up, even one copying the link's record, is refused. The opener's endorsement also
+  covers the entry its grant follows, so the grant stands only where it was signed. A hosted
+  block (an app's manifest runs a host component on its type, `discovery::hosted`) offers
+  Join in the share dialog's link row, first and by default; any other block never does.
 - **Keys after a rotation.** The scope key a link carries opens the epochs current when it
   was made. Later epochs reach an opener through key work's `unsealed`, as any grantee: their
   grant names their keys, so an editor's `tend` seals to them by the block's log. Their

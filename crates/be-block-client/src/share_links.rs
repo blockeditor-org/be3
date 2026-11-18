@@ -18,12 +18,15 @@ use crate::{AccountRecords, ClientError, Connection, Peer, contacts};
 
 /// What a share link hands its opener, sealed with its code (`InviteCode::seal_share`): the
 /// block's scope key as it travels, with the block and its log's root (none for a Join link,
-/// whose opener reads nothing stored), the root of the organization's log, so a guest checks
-/// records an administrator signed, and the block's name as its maker saw it, which the opener
-/// is shown before opening it. The server stores it and never opens it.
+/// whose opener reads nothing stored); the hash of the block's log root, which its maker
+/// pinned, for every link, so an opener checks the log by it whatever the server serves; the
+/// root of the organization's log, so a guest checks records an administrator signed; and the
+/// block's name as its maker saw it, which the opener is shown before opening it. The server
+/// stores it and never opens it.
 #[derive(Clone, Debug, serde::Deserialize, Eq, PartialEq, serde::Serialize)]
 pub struct Handed {
     pub scope: Option<HandedKey>,
+    pub block_root: EntryHash,
     pub organization_root: Option<EntryHash>,
     pub name: String,
 }
@@ -71,12 +74,17 @@ impl Handed {
     }
 }
 
-/// A share link this account made, as its block keeps it until the link is revoked.
+/// A share link as the account's block keeps it: one this account made, until it is revoked,
+/// and one it opened, with the root of the block's log the link handed it, by which it checks
+/// that log while it holds no key that carries a root (a Join member, `Peer::joined_log`).
 #[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
 pub struct KeptShare {
     pub code: Vec<u8>,
     pub organization: Uuid,
     pub block: Uuid,
+    pub root: EntryHash,
+    /// Whether this account made it, rather than opened it.
+    pub made: bool,
 }
 
 impl KeptShare {
@@ -131,17 +139,30 @@ fn level_of(access: Access) -> Result<Level, ClientError> {
     }
 }
 
-/// The share link with `code`, as this account reads it to open it.
+/// The share link with `code`, as this account reads it to open it. Whether opening it makes
+/// this account a guest is judged here, by whether the organization is among this account's
+/// own, not by the server's word.
 pub async fn read_share_link(
     connection: &Arc<Connection>,
     code: &InviteCode,
 ) -> Result<be_block_protocol::ShareLink, ClientError> {
-    Ok(be_block_protocol::read::<be_block_protocol::ShareLink, _>(
+    let mut link = be_block_protocol::read::<be_block_protocol::ShareLink, _>(
         connection,
         None,
         be_block_protocol::Query::ShareLink(link_id(code)),
     )
-    .await??)
+    .await??;
+    let organizations = be_block_protocol::read::<Vec<be_block_protocol::Organization>, _>(
+        connection,
+        None,
+        be_block_protocol::Query::Organizations,
+    )
+    .await??;
+    link.guest = !organizations.iter().any(|organization| {
+        organization.id == link.organization
+            && organization.role != be_block_protocol::OrganizationRole::Guest
+    });
+    Ok(link)
 }
 
 /// The share link with `code` as this account reads it before opening it, with what it hands,
@@ -162,17 +183,29 @@ const OPEN_TRIES: usize = 3;
 /// Opens the share link with `code` as `account`: takes the scope key it carries, sealing it to
 /// this account, signs this account's grant with the key the code derives after the head of the
 /// block's log, and, for a guest of the organization, pins the root of its log the link carries
-/// when this account pinned none. Answers the link.
+/// when this account pinned none. Refused when the link no longer shares the block, or grants
+/// the level, that `expected` (what the person was shown) names. The account's block keeps the
+/// root of the block's log the link handed it, and the log, read once opened, must start at it
+/// (`ClientError::Forged`): a head the server made up is never trusted, the grant signed over it
+/// grants nothing in the real log, and `Peer::joined_log` checks by that root from then on.
+/// Answers the link and what it handed.
 pub async fn open_share_link(
     connection: &Arc<Connection>,
     identity: &RecoverySecret,
     account: Uuid,
     code: &InviteCode,
-) -> Result<be_block_protocol::ShareLink, ClientError> {
+    expected: Option<(Uuid, Access)>,
+) -> Result<(be_block_protocol::ShareLink, Handed), ClientError> {
     // The record names these keys; the server holds them first, so it checks.
     contacts::register_identity(connection, identity).await?;
     let mut link = read_share_link(connection, code).await?;
     let handed = Handed::open(code, &link)?;
+    if expected.is_some_and(|expected| expected != (link.block, link.access)) {
+        return Err(ClientError::Refused(
+            ErrorCode::InvalidRequest,
+            "the link no longer shares what it showed: open it again to see what it does".into(),
+        ));
+    }
     let level = level_of(link.access)?;
     let mine = Party {
         account: account.into_bytes(),
@@ -215,6 +248,21 @@ pub async fn open_share_link(
         )
         .await?;
     }
+    // Kept before the grant, so the root the link handed is never lost.
+    if let Some(records) = AccountRecords::open(connection, account, identity).await? {
+        let kept = KeptShare {
+            code: code.to_bytes().to_vec(),
+            organization: link.organization,
+            block: link.block,
+            root: handed.block_root,
+            made: false,
+        }
+        .encode();
+        let id = link.id;
+        records
+            .update(move |_| vec![be_block::AccountBlock::set_share(id, Some(kept.clone()))])
+            .await?;
+    }
     let mut tries = 0;
     loop {
         let signed = Entry::opened(
@@ -238,7 +286,7 @@ pub async fn open_share_link(
         )
         .await?;
         let Err(error) = written else {
-            return Ok(link);
+            break;
         };
         tries += 1;
         if tries >= OPEN_TRIES {
@@ -250,6 +298,21 @@ pub async fn open_share_link(
         }
         link = again;
     }
+    // The log the grant went into must start at the root the link handed.
+    let served = be_block_protocol::read::<Vec<Vec<u8>>, _>(
+        connection,
+        Some(link.organization),
+        be_block_protocol::Query::Log(Some(link.block)),
+    )
+    .await??;
+    let root = served
+        .first()
+        .and_then(|bytes| be_block_keys::Step::decode(bytes).ok())
+        .map(|step| step.hash());
+    if root != Some(handed.block_root) {
+        return Err(ClientError::Forged(link.block));
+    }
+    Ok((link, handed))
 }
 
 impl<S: ObjectStore> Peer<S> {
@@ -277,8 +340,13 @@ impl<S: ObjectStore> Peer<S> {
         };
         let code = InviteCode::generate();
         let link = link_id(&code);
+        // The root of the block's log as this account pinned it: the opener checks by it.
+        let crate::keys::RootPin::Pinned(handed_root) = self.keys().root_pin(block) else {
+            return Err(ClientError::Locked(block));
+        };
         let handed = Handed {
             scope,
+            block_root: handed_root,
             organization_root: self.keys().organization_root(),
             name: self.kept_name(block).unwrap_or_default(),
         };
@@ -302,6 +370,8 @@ impl<S: ObjectStore> Peer<S> {
                 code: code.to_bytes().to_vec(),
                 organization: self.organization(),
                 block,
+                root: handed_root,
+                made: true,
             }),
         )
         .await?;
@@ -432,7 +502,7 @@ impl<S: ObjectStore> Peer<S> {
             .await
     }
 
-    async fn kept_shares(&self) -> Result<Vec<(Uuid, KeptShare)>, ClientError> {
+    pub(crate) async fn kept_shares(&self) -> Result<Vec<(Uuid, KeptShare)>, ClientError> {
         let records = self.records().await?;
         Ok(match records.read().await {
             Ok(held) => held

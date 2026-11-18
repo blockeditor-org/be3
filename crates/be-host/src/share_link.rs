@@ -54,11 +54,14 @@ impl ShareLinks {
         self.error = None;
     }
 
+    /// Closes the dialog, keeping a link from the address bar not yet opened, and the mailbox.
     pub(crate) fn close(&mut self) {
-        *self = Self {
-            waiting: self.waiting.take(),
-            ..Self::default()
-        };
+        self.open = false;
+        self.offered = None;
+        self.opened = None;
+        self.landed = None;
+        self.busy = false;
+        self.error = None;
     }
 
     #[cfg(target_arch = "wasm32")]
@@ -99,12 +102,14 @@ impl ShareLinks {
     }
 
     pub(crate) fn accept(&mut self) {
-        let Some((code, _)) = self.offered.take() else {
+        let Some((code, shown)) = self.offered.take() else {
             return;
         };
         let post = self.replies.1.clone();
         self.busy = true;
-        be_host_stack::open_share_link(code, move |opened| post.send(Reply::Opened(opened)));
+        be_host_stack::open_share_link(code, (shown.block, shown.access), move |opened| {
+            post.send(Reply::Opened(opened))
+        });
     }
 
     pub(crate) fn decline(&mut self) {
@@ -150,10 +155,28 @@ impl ShareLinks {
     }
 }
 
+/// The most of a block's name the dialog shows: the name is its maker's word, sealed with the
+/// link's code, so it is shown as text on one line and cut short.
+const MAX_NAME_CHARS: usize = 60;
+
 fn named(preview: &SharePreview) -> String {
-    match preview.name.trim().is_empty() {
-        true => "The block".to_owned(),
-        false => format!("“{}”", preview.name),
+    let words: Vec<&str> = preview
+        .name
+        .split(|character: char| character.is_whitespace() || character.is_control())
+        .filter(|word| !word.is_empty())
+        .collect();
+    let name: String = words
+        .join(" ")
+        .chars()
+        .filter(|character| !character.is_control())
+        .collect();
+    match name.chars().count() {
+        0 => "The block".to_owned(),
+        count if count > MAX_NAME_CHARS => format!(
+            "“{}…”",
+            name.chars().take(MAX_NAME_CHARS).collect::<String>()
+        ),
+        _ => format!("“{name}”"),
     }
 }
 

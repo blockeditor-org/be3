@@ -58,11 +58,12 @@ async fn a_share_link_admits_only_members_unless_the_policy_lets_it_admit_guests
         .make_share_link(team, Access::View, Admits::Anyone)
         .await
         .unwrap();
-    let opened = crate::share_links::open_share_link(
+    let (opened, _) = crate::share_links::open_share_link(
         &outsider.connection(),
         outsider.keys().identity(),
         outsider.account(),
         &anyone,
+        None,
     )
     .await
     .unwrap();
