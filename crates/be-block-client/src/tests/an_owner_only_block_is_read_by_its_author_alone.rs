@@ -1,7 +1,7 @@
 use super::*;
 
 use be_block_graph::{Access, SETTINGS_TYPE};
-use be_block_protocol::{KeyKind, RecoveryKey};
+use be_block_protocol::KeyKind;
 use be_type_text::{TextBlock, TextContent};
 
 /// Key wraps of `block`'s scope keys by anything but an account: a scope above, or the escrow
@@ -183,40 +183,7 @@ async fn an_owner_only_block_is_read_by_its_author_alone() {
     );
 
     let fresh = be_block_keys::RecoveryPhrase::generate().secret();
-    let RecoveryKey {
-        sealed, own, logs, ..
-    } = crate::ask(
-        be_block_protocol::read::<be_block_protocol::RecoveryKey, _>(
-            &member.connection(),
-            None,
-            be_block_protocol::Query::RecoveryKey,
-        ),
-    )
-    .await
-    .unwrap();
-    let resealed = crate::contacts::new_identity(
-        member.account(),
-        member.keys().identity(),
-        &fresh,
-        sealed,
-        own,
-        logs,
-    )
-    .unwrap();
-    crate::ask(be_block_protocol::write::<(), _>(
-        &member.connection(),
-        None,
-        be_block_protocol::Op::SetRecoveryKey {
-            public: fresh.public().0,
-            signing: fresh.signing().0,
-            sealed: resealed.sealed,
-            own: resealed.own,
-            changes: resealed.changes,
-            retirements: resealed.retirements,
-        },
-    ))
-    .await
-    .unwrap();
+    take_phrase(&member.connection(), member.account(), member.keys().identity(), &fresh).await;
     let renewed = Peer::connect(
         PeerConfig::new(
             &harness.url,

@@ -10,6 +10,7 @@ be-block-content = { path = "../be-block-content" }
 be-block-commit = { path = "../be-block-commit" }
 be-block-graph = { path = "../be-block-graph" }
 be-block-keys = { path = "../be-block-keys" }
+be-block-model = { path = "../be-block-model" }
 be-wasm-ops = { path = "../be-wasm-ops" }
 be-block-protocol = { path = "../be-block-protocol" }
 be-block-session = { path = "../be-block-session", default-features = false }

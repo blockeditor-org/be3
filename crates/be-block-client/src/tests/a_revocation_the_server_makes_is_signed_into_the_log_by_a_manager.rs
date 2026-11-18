@@ -68,6 +68,7 @@ async fn a_revocation_the_server_makes_is_signed_into_the_log_by_a_manager() {
                 recovery: secret.public().0,
                 signing: secret.signing().0,
                 contact: Vec::new(),
+                record: Vec::new(),
                 escrow: Vec::new(),
                 bound_to: Some(bound),
                 member: member.agent_record(agent, secret.identity()).await.unwrap(),

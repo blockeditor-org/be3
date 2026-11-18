@@ -2,7 +2,8 @@
 //! none of its devices may be connected, each message kept until a device of the account deletes
 //! it. The server leaves each in the transaction of the change it tells: a notice of the ways to
 //! sign in changing (`identity_changes.rs`), an accepted link's card (`accept-link`), a contact's
-//! key change (`set-recovery-key`).
+//! key change (`set-recovery-key`), and the account's records of contacts made (`accept-link`,
+//! `create-agent`) or removed (`remove-contact`), which a device keeps in the account's block.
 //!
 //! A notice can't be deleted in its first `NOTICE_HOLD`: whoever it warns about may hold a
 //! session too, so within it a device hides it only for itself. An account keeps at most
@@ -26,8 +27,8 @@ use crate::ServerError;
 pub const MAX_ACCOUNT_NOTICES: i64 = 20;
 /// How long a notice stays in the mailbox whatever a device deletes, in milliseconds.
 pub const NOTICE_HOLD: i64 = 7 * 86_400_000;
-/// Letters of one kind one account holds from one sender: key changes, or accepted cards, not yet
-/// taken.
+/// Letters of one kind one account holds from one sender: key changes, accepted cards or contact
+/// records, not yet taken.
 pub const MAX_LETTERS_FROM_ONE: i64 = 16;
 
 fn now() -> i64 {
@@ -41,6 +42,8 @@ fn kind(letter: &Letter) -> &'static str {
         Letter::Notice(_) => "notice",
         Letter::Accepted { .. } => "accepted",
         Letter::KeyChange(_) => "key-change",
+        Letter::Contact(_) => "contact",
+        Letter::Removed => "removed",
     }
 }
 

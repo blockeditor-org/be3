@@ -82,6 +82,14 @@ interface account {
         /// A contact took a new recovery phrase (`set-recovery-key`): its key change, sealed with
         /// its old key for this account (`RecoverySecret::seal_key_change`).
         key-change(list<u8>),
+        /// The account's record of the sender as a contact, sealed by the account for itself
+        /// (`be_block_client::contacts::OwnContact`), left by the write that made the two
+        /// contacts (`accept-link`, `create-agent`) for a device to keep in the account's block
+        /// (guides/blocks/keys.md, "Contacts").
+        contact(list<u8>),
+        /// The sender is no longer a contact (`remove-contact`, left to both): a device drops
+        /// its record from the account's block.
+        removed,
     }
 
     record accepted-link {

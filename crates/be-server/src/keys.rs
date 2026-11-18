@@ -1557,14 +1557,11 @@ impl ServerStore {
                 .iter()
                 .map(|key| ((key.organization, key.key), key))
                 .collect();
-            let mut needed = Vec::new();
-            for held in &held {
-                if held.sender == account
-                    || crate::contacts::is_verified_contact(&database, account, held.sender)?
-                {
-                    needed.push(held);
-                }
-            }
+            // What the account sealed for itself. What its contacts sealed to it the device
+            // reseals as far as its records of them in the account's block reach, which the
+            // server cannot read.
+            let needed: Vec<&SealedKey> =
+                held.iter().filter(|held| held.sender == account).collect();
             if let Some(missing) = needed
                 .iter()
                 .find(|held| !resealed.contains_key(&(held.organization, held.key)))
@@ -1583,7 +1580,7 @@ impl ServerStore {
                 .find(|held| !resealed_own.contains_key(&(held.kind, held.id)))
             {
                 return Err(refused(format!(
-                    "a new recovery key must reseal every contact and link the old one did, and {} is missing",
+                    "a new recovery key must reseal every link and pinned escrow key the old one did, and {} is missing",
                     missing.id
                 )));
             }

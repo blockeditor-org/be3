@@ -388,7 +388,7 @@ enum Notice {
         from: ClientId,
         payload: Vec<u8>,
     },
-    ContactsChanged,
+    MailboxChanged,
     Sequenced {
         block: Uuid,
         entry: be_block_protocol::JournalEntry,
@@ -411,9 +411,9 @@ impl Notice {
                 ..
             } => Notice::Roots,
             Event::TopicChanged {
-                topic: Topic::Contacts,
+                topic: Topic::Mailbox,
                 ..
-            } => Notice::ContactsChanged,
+            } => Notice::MailboxChanged,
             Event::TopicChanged {
                 organization,
                 topic,
@@ -766,12 +766,12 @@ impl TestClient {
             return;
         }
         self.heard = Some(client::server::events(&self.peer));
-        let contacts = self
+        let mailbox = self
             .peer
-            .ask::<Vec<be_block_protocol::ContactRow>>(Query::Contacts, true)
+            .ask::<Vec<be_block_protocol::Message>>(Query::Mailbox, true)
             .await
             .expect("the connection stayed open");
-        assert!(contacts.is_ok(), "following contacts failed: {contacts:?}");
+        assert!(mailbox.is_ok(), "following the mailbox failed: {mailbox:?}");
     }
 
     async fn round_trip(&mut self) {
@@ -1886,12 +1886,18 @@ impl TestClient {
         .await
     }
 
-    async fn contacts(&mut self) -> Vec<be_block_protocol::ContactRow> {
-        self.call(|peer| {
-            peer.read::<Vec<be_block_protocol::ContactRow>>(be_block_protocol::Query::Contacts)
-        })
-        .await
-        .expect("listing contacts failed")
+    /// The accounts the server holds as this account's contacts, read from its database: no
+    /// call lists them, as each device keeps its records in the account's block.
+    async fn contacts(&mut self) -> Vec<Uuid> {
+        let database = metadata_database(self.directory.as_ref().expect("signed in"));
+        let mut statement = database
+            .prepare("SELECT contact_id FROM contacts WHERE account_id = ?1 ORDER BY contact_id")
+            .unwrap();
+        statement
+            .query_map([self.id().to_string()], |row| row.get::<_, String>(0))
+            .unwrap()
+            .map(|id| Uuid::parse_str(&id.unwrap()).unwrap())
+            .collect()
     }
 
     /// Makes an agent bound to `block`; answers its account and token.
@@ -1921,6 +1927,7 @@ impl TestClient {
                     recovery: identity.public.0,
                     signing: identity.signing.0,
                     contact: Vec::new(),
+                    record: Vec::new(),
                     escrow: Vec::new(),
                     bound_to: Some(be_block_protocol::BoundAgent {
                         block,
@@ -2247,6 +2254,7 @@ impl TestClient {
                     recovery: identity.public.0,
                     signing: identity.signing.0,
                     contact: Vec::new(),
+                    record: Vec::new(),
                     escrow: Vec::new(),
                     bound_to: None,
                     member: member.clone(),

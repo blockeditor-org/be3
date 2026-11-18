@@ -6,14 +6,13 @@ use be_block_keys::{
 use std::collections::HashMap;
 
 use be_block_protocol::{
-    ErrorCode, EscrowKey, Invitation, KeyChange, Link, LinkKind, OwnKind, OwnSealed, PendingGrant,
-    SealedKey,
+    ErrorCode, EscrowKey, Invitation, KeyChange, Link, LinkKind, OwnSealed, PendingGrant, SealedKey,
 };
 use uuid::Uuid;
 
 use std::sync::Arc;
 
-use crate::{ClientError, connection::Connection};
+use crate::{AccountRecords, ClientError, connection::Connection};
 
 #[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct Contact {
@@ -31,6 +30,8 @@ pub struct Contact {
     /// When this account verified the card or last followed a key change (`OwnContact`); 0
     /// while unverified.
     pub verified: u64,
+    /// The newest mailbox message its record reflects (`OwnContact::through`).
+    pub through: u64,
     /// How the server's record of this contact differed from the newest this device had
     /// seen, which it kept and seals to; `None` when it served that one or a newer one.
     pub mismatch: Option<Mismatch>,
@@ -58,18 +59,24 @@ impl Contact {
                 email: self.email.clone(),
             },
             verified: self.verified,
+            through: self.through,
         })
     }
 }
 
-/// A contact as this account verified it, sealed to itself: the card, and when it was verified
-/// or its key last changed, a sequence that only grows. The server keeps it but cannot make one;
-/// what it can do is serve an older one, so each device pins the newest it has seen and refuses
-/// any older (plans/crypto_audit.md, 4).
+/// A contact as this account verified it, kept in the account's block (`AccountRecords`): the
+/// card, and when it was verified or its key last changed, a sequence that only grows. The server
+/// cannot read or make one; what it can do is serve an older version of the block, so each device
+/// pins the newest record it has seen and refuses any older (plans/crypto_audit.md, 4).
 #[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct OwnContact {
     pub card: ContactCard,
     pub verified: u64,
+    /// The newest mailbox message the record reflects: the letter that made it (`contact`,
+    /// `accepted`) or the last key change it followed. A letter up to it is taken already, and
+    /// deleted unread, so a device that stops between writing the record and deleting what it
+    /// followed never follows a change twice nor takes back a removal.
+    pub through: u64,
 }
 
 impl OwnContact {
@@ -81,18 +88,40 @@ impl OwnContact {
         Self {
             card,
             verified: now.max(after.saturating_add(1)),
+            through: 0,
         }
     }
 
+    /// Sealed for this account alone, as a letter carries it (`letter.contact`) to its own
+    /// mailbox.
     pub fn seal(&self, identity: &RecoverySecret) -> Vec<u8> {
-        identity.seal_own(&postcard::to_stdvec(self).expect("a contact record always encodes"))
+        identity.seal_own(&self.encode())
     }
 
     /// The record sealed in `sealed`, if it opens and names `account`.
     pub fn open(identity: &RecoverySecret, sealed: &[u8], account: Uuid) -> Option<Self> {
-        let record: Self = postcard::from_bytes(&identity.open_own(sealed).ok()?).ok()?;
+        Self::decode(&identity.open_own(sealed).ok()?, account)
+    }
+
+    /// As the account's block holds it, sealed by the block's own keys.
+    pub fn encode(&self) -> Vec<u8> {
+        postcard::to_stdvec(self).expect("a contact record always encodes")
+    }
+
+    /// The record in `bytes`, if it names `account`.
+    pub fn decode(bytes: &[u8], account: Uuid) -> Option<Self> {
+        let record: Self = postcard::from_bytes(bytes).ok()?;
         (record.card.account == account.into_bytes()).then_some(record)
     }
+}
+
+/// The records the account's block holds, by contact.
+fn records_of(block: &be_block::AccountBlock) -> HashMap<Uuid, OwnContact> {
+    block
+        .contacts
+        .iter()
+        .filter_map(|(account, bytes)| Some((*account, OwnContact::decode(bytes, *account)?)))
+        .collect()
 }
 
 #[derive(Clone, Debug)]
@@ -267,30 +296,34 @@ pub async fn mailbox(
     .await
 }
 
-/// The account's contacts as the server lists them, each checked against `pinned`, the newest
-/// record of it this device has seen: an older record the server serves is refused for the
-/// pinned one, and the contact listed with the mismatch for as long as the server serves it (only
-/// a server that misbehaves does, so writing the pinned one back would change nothing). Key
-/// changes in the mailbox are followed from the record kept, in order (`follow`), and deleted
-/// once the record that follows them is written, with any before the last followed that did not
-/// open (not the contact's). One after it that does not open breaks the chain: the server let
-/// older ones go (`MAX_LETTERS_FROM_ONE`), or it is sealed to a phrase this account took since.
-/// The contact is then listed as not confirmed, with nothing sealed to it, and those changes are
-/// kept, until the two connect again by a link, which deletes them (`accept_link`,
-/// `finish_links`). Nothing is deleted while this device could not read the served record, as
-/// after a new phrase taken on another device, whose identity those changes may be sealed to. Each record
-/// is written only over the one it was read as (`put-contact`'s `replaces`), so a device that read
-/// fewer changes than another never rolls the other's record back: refused, it reads again.
+/// The account's contacts, from its records in the account's block (`AccountRecords`), each
+/// checked against `pinned`, the newest record of it this device has seen: an older record the
+/// server serves is refused for the pinned one, and the contact listed with the mismatch for as
+/// long as the server serves it (only a server that misbehaves does). Records arrive as letters
+/// (`letter.contact`, made by the write that made two contacts; `letter.removed`), which a pass
+/// keeps in the block in mailbox order and then deletes. Key changes in the mailbox are followed
+/// from the record kept, in order (`follow`), and deleted once the record that follows them is
+/// written, with any before the last followed that did not open (not the contact's). One after it
+/// that does not open breaks the chain: the server let older ones go (`MAX_LETTERS_FROM_ONE`), or
+/// it is sealed to a phrase this account took since. The contact is then listed as not
+/// confirmed, with nothing sealed to it, and those changes are kept, until the two connect again
+/// by a link, which deletes them (`accept_link`, `finish_links`). Nothing is written or deleted
+/// while this device cannot read the block, as after a new phrase taken on another device, whose
+/// identity those changes may be sealed to. A record is written only over the block as read, so a
+/// device that read fewer changes than another never rolls the other's record back: refused, it
+/// reads again. An account in no personal organization (an agent) has no block: it keeps its
+/// letters and reads its contacts from them each time.
 pub async fn contacts(
     connection: &Arc<Connection>,
     account: Uuid,
     identity: &RecoverySecret,
     pinned: &HashMap<Uuid, OwnContact>,
 ) -> Result<Vec<Contact>, ClientError> {
+    let block = AccountRecords::open(connection, account, identity).await?;
     let mut tries = 0;
     loop {
-        match contacts_once(connection, account, identity, pinned).await {
-            Err(ClientError::Refused(ErrorCode::RecordChanged, _)) if tries < 3 => tries += 1,
+        match contacts_once(connection, account, identity, pinned, block.as_ref()).await {
+            Err(ClientError::Contended) if tries < 3 => tries += 1,
             listed => return listed,
         }
     }
@@ -301,115 +334,159 @@ async fn contacts_once(
     account: Uuid,
     identity: &RecoverySecret,
     pinned: &HashMap<Uuid, OwnContact>,
+    block: Option<&AccountRecords>,
 ) -> Result<Vec<Contact>, ClientError> {
-    let contacts = be_block_protocol::read::<Vec<be_block_protocol::ContactRow>, _>(
-        connection,
-        None,
-        be_block_protocol::Query::Contacts,
-    )
-    .await??;
+    let held = match block {
+        Some(block) => match block.read().await {
+            Ok(held) => Some(held),
+            Err(ClientError::Locked(_)) => None,
+            Err(error) => return Err(error),
+        },
+        None => None,
+    };
+    let readable = held.is_some() || block.is_none();
+    // Letters are taken, and deleted, only into a block this device reads.
+    let keeps = held.is_some();
+    let read = held
+        .as_ref()
+        .map(|held| records_of(&held.content.root()))
+        .unwrap_or_default();
+    let mut records = match readable {
+        true => read.clone(),
+        false => pinned.clone(),
+    };
+    let mailbox = mailbox(connection).await?;
+    let mut taken = Vec::new();
     let mut changes: HashMap<Uuid, Vec<(u64, Vec<u8>)>> = HashMap::new();
-    for message in mailbox(connection).await? {
-        if let (Some(from), be_block_protocol::Letter::KeyChange(sealed)) =
-            (message.from, message.letter)
-        {
-            changes.entry(from).or_default().push((message.id, sealed));
+    for message in &mailbox {
+        let Some(from) = message.from else {
+            continue;
+        };
+        let through = records.get(&from).map_or(0, |record| record.through);
+        match &message.letter {
+            be_block_protocol::Letter::Contact(sealed) => {
+                if message.id > through
+                    && let Some(mut record) = OwnContact::open(identity, sealed, from)
+                    && records
+                        .get(&from)
+                        .is_none_or(|held| held.verified < record.verified)
+                {
+                    record.through = message.id;
+                    records.insert(from, record);
+                }
+                taken.push(message.id);
+            }
+            be_block_protocol::Letter::Removed => {
+                if message.id > through {
+                    records.remove(&from);
+                }
+                taken.push(message.id);
+            }
+            be_block_protocol::Letter::KeyChange(sealed) => {
+                changes
+                    .entry(from)
+                    .or_default()
+                    .push((message.id, sealed.clone()));
+            }
+            _ => {}
         }
     }
-    let mut held = None;
-    let mut listed = Vec::with_capacity(contacts.len());
-    for row in contacts {
-        let served = OwnContact::open(identity, &row.sealed, row.account);
-        let pin = pinned.get(&row.account);
-        let mismatch = match (&served, pin) {
-            (_, None) => None,
-            (None, Some(_)) => Some(Mismatch::Unreadable),
-            (Some(served), Some(pin)) => {
-                (served.verified < pin.verified).then_some(Mismatch::Older)
-            }
+    let mut held_keys = None;
+    let mut listed = Vec::with_capacity(records.len());
+    let mut accounts: Vec<Uuid> = records.keys().copied().collect();
+    accounts.sort();
+    for contact in accounts {
+        let mismatch = match (pinned.get(&contact), readable) {
+            (None, _) => None,
+            (Some(_), false) => Some(Mismatch::Unreadable),
+            (Some(pin), true) => (records[&contact].verified < pin.verified).then_some(Mismatch::Older),
         };
-        let mut record = match mismatch {
-            Some(_) => pin.cloned(),
-            None => served,
-        };
-        let letters = changes.remove(&row.account).unwrap_or_default();
+        if mismatch == Some(Mismatch::Older) {
+            records.insert(contact, pinned[&contact].clone());
+        }
+        let record = records.get_mut(&contact).expect("listed from the records");
+        let letters = changes.remove(&contact).unwrap_or_default();
+        let (already, letters): (Vec<_>, Vec<_>) = letters
+            .into_iter()
+            .partition(|(id, _)| *id <= record.through);
+        taken.extend(already.iter().map(|(id, _)| *id));
         let sealed: Vec<Vec<u8>> = letters.iter().map(|(_, sealed)| sealed.clone()).collect();
-        let (changed, followed) = match &record {
-            Some(record) => follow(account, identity, &record.card, &sealed),
-            None => (None, 0),
-        };
-        let readable = mismatch != Some(Mismatch::Unreadable);
-        let broken = record.is_some() && readable && followed < letters.len();
-        let mut put = false;
-        if let Some(record) = &mut record
-            && let Some(changed) = changed
-        {
-            if held.is_none() {
-                held = Some(sealed_to_me(connection).await?);
+        let (changed, followed) = follow(account, identity, &record.card, &sealed);
+        let broken = readable && followed < letters.len();
+        if let Some(changed) = changed {
+            if held_keys.is_none() {
+                held_keys = Some(sealed_to_me(connection).await?);
             }
             reseal_from(
                 connection,
                 account,
                 identity,
                 &record.card,
-                held.as_deref().unwrap_or_default(),
+                held_keys.as_deref().unwrap_or_default(),
             )
             .await?;
             let mut card = record.card.clone();
             card.public = changed.public;
             card.signing = changed.signing;
-            *record = OwnContact::new(card, record.verified);
-            put = true;
+            *record = OwnContact {
+                through: letters[followed - 1].0,
+                ..OwnContact::new(card, record.verified)
+            };
         }
-        let mut ops = Vec::new();
-        if let Some(record) = record.as_ref().filter(|_| put) {
-            ops.push(be_block_protocol::Op::PutContact {
-                contact: row.account,
-                sealed: record.seal(identity),
-                replaces: row.sealed.clone(),
-            });
-        }
-        if record.is_some() && readable {
-            ops.extend(
-                letters[..followed]
-                    .iter()
-                    .map(|(id, _)| be_block_protocol::Op::DeleteMessage(*id)),
-            );
-        }
-        if !ops.is_empty() {
-            be_block_protocol::write_all::<(), _>(connection, None, ops).await??;
-        }
-        listed.push(match record {
+        taken.extend(letters[..followed].iter().map(|(id, _)| *id));
+        let record = record.clone();
+        listed.push(match broken {
             // Its key changed past what this device can follow: not confirmed, as a contact
             // whose card never opened, though named as it was verified.
-            Some(record) if broken => Contact {
-                account: row.account,
+            true => Contact {
+                account: contact,
                 email: record.card.email,
                 display_name: record.card.display_name,
                 public: None,
                 signing: None,
                 verified: 0,
+                through: record.through,
                 mismatch: None,
             },
-            Some(record) => Contact {
-                account: row.account,
+            false => Contact {
+                account: contact,
                 email: record.card.email,
                 display_name: record.card.display_name,
                 public: Some(record.card.public),
                 signing: Some(record.card.signing),
                 verified: record.verified,
+                through: record.through,
                 mismatch,
             },
-            None => Contact {
-                account: row.account,
-                email: row.email,
-                display_name: row.display_name,
-                public: None,
-                signing: None,
-                verified: 0,
-                mismatch: None,
-            },
         });
+    }
+    if let (Some(block), Some(held), true) = (block, held, keeps) {
+        let mut edits = Vec::new();
+        for (contact, record) in &records {
+            if read.get(contact) != Some(record) {
+                edits.push(be_block::AccountBlock::set_contact(
+                    *contact,
+                    Some(record.encode()),
+                ));
+            }
+        }
+        for contact in read.keys().filter(|contact| !records.contains_key(contact)) {
+            edits.push(be_block::AccountBlock::set_contact(*contact, None));
+        }
+        block.save(held, &edits).await?;
+        if !taken.is_empty() {
+            taken.sort_unstable();
+            taken.dedup();
+            be_block_protocol::write_all::<(), _>(
+                connection,
+                None,
+                taken
+                    .into_iter()
+                    .map(be_block_protocol::Op::DeleteMessage)
+                    .collect(),
+            )
+            .await??;
+        }
     }
     Ok(listed)
 }
@@ -535,30 +612,33 @@ pub struct NewIdentity {
     pub retirements: Vec<be_block_protocol::Retirement>,
 }
 
+/// What moving the account from `old` to `fresh` sends: every key in `held` sealed to it by
+/// itself or a contact it holds a record of (`records`, from the account's block) sealed again,
+/// what it sealed for itself outside the block (`own`), a key change for each contact, and a
+/// retirement in each of `logs`. None when something of `own` does not open with `old`.
 pub fn new_identity(
     account: Uuid,
     old: &RecoverySecret,
     fresh: &RecoverySecret,
     held: Vec<SealedKey>,
     own: Vec<OwnSealed>,
+    records: &HashMap<Uuid, OwnContact>,
     logs: Vec<be_block_protocol::SignedLog>,
 ) -> Option<NewIdentity> {
     let me = Party {
         account: account.into_bytes(),
         public: old.public(),
     };
-    let contacts: HashMap<Uuid, Party> = own
+    let contacts: HashMap<Uuid, Party> = records
         .iter()
-        .filter(|held| held.kind == OwnKind::Contact)
-        .filter_map(|held| {
-            let card = OwnContact::open(old, &held.sealed, held.id)?.card;
-            Some((
-                held.id,
+        .map(|(contact, record)| {
+            (
+                *contact,
                 Party {
-                    account: card.account,
-                    public: card.public,
+                    account: record.card.account,
+                    public: record.card.public,
                 },
-            ))
+            )
         })
         .collect();
     let mine = Party {
@@ -629,6 +709,107 @@ pub fn new_identity(
         changes,
         retirements,
     })
+}
+
+/// Why a device cannot take a new phrase (`set_recovery_key`).
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum CannotReseal {
+    /// It has no old phrase, and the account sealed something to it already.
+    NoOldPhrase,
+    /// Something the old phrase sealed does not open on this device, or the account's block
+    /// does not: it was sealed to a newer phrase taken on another device.
+    Unreadable,
+}
+
+/// Moves the account to `fresh`, resealing with `old` everything sealed to it or for itself
+/// (`new_identity`); with no `old`, only an account with nothing sealed yet. The contacts'
+/// waiting key changes are followed first, checked against the device's `pins`, so the changes
+/// this sends seal to each contact's newest key, which the contact's devices can open. That is
+/// best-effort: a contact's mailbox that will not read never holds up a new phrase. In the same
+/// write the account's block starts a new key epoch sealed to `fresh` alone
+/// (`AccountRecords::epoch_for`), so the old phrase reads nothing written to it after; its
+/// earlier epochs are sealed again to `fresh` with the rest. The server seals again what the
+/// account sealed to it (`ServerKey::reseal_from`).
+pub async fn set_recovery_key(
+    connection: &Arc<Connection>,
+    account: Uuid,
+    old: Option<&RecoverySecret>,
+    fresh: &RecoverySecret,
+    pins: &HashMap<Uuid, OwnContact>,
+) -> Result<Result<(), CannotReseal>, ClientError> {
+    if let Some(old) = old
+        && let Err(error) = contacts(connection, account, old, pins).await
+    {
+        eprintln!(
+            "be-block-client: a new phrase goes on without following the contacts' key changes: {error}"
+        );
+    }
+    let be_block_protocol::RecoveryKey {
+        sealed, own, logs, ..
+    } = crate::ask(be_block_protocol::read::<be_block_protocol::RecoveryKey, _>(
+        connection,
+        None,
+        be_block_protocol::Query::RecoveryKey,
+    ))
+    .await?;
+    let Some(old) = old else {
+        if !(sealed.is_empty() && own.is_empty() && logs.is_empty()) {
+            return Ok(Err(CannotReseal::NoOldPhrase));
+        }
+        crate::ask(be_block_protocol::write::<(), _>(
+            connection,
+            None,
+            be_block_protocol::Op::SetRecoveryKey {
+                public: fresh.public().0,
+                signing: fresh.signing().0,
+                sealed: Vec::new(),
+                own: Vec::new(),
+                changes: Vec::new(),
+                retirements: Vec::new(),
+            },
+        ))
+        .await?;
+        return Ok(Ok(()));
+    };
+    let block = AccountRecords::open(connection, account, old).await?;
+    let records = match &block {
+        Some(block) => match block.read().await {
+            Ok(held) => records_of(&held.content.root()),
+            Err(ClientError::Locked(_)) => return Ok(Err(CannotReseal::Unreadable)),
+            Err(error) => return Err(error),
+        },
+        None => HashMap::new(),
+    };
+    let Some(resealed) = new_identity(account, old, fresh, sealed, own, &records, logs) else {
+        return Ok(Err(CannotReseal::Unreadable));
+    };
+    let mut ops = vec![be_block_protocol::Op::SetRecoveryKey {
+        public: fresh.public().0,
+        signing: fresh.signing().0,
+        sealed: resealed.sealed,
+        own: resealed.own,
+        changes: resealed.changes,
+        retirements: resealed.retirements,
+    }];
+    let mut organization = None;
+    if let Some(block) = &block
+        && let Some(keys) = block.epoch_for(fresh).await?
+    {
+        organization = Some(block.organization());
+        ops.push(be_block_protocol::Op::PutKeys(
+            be_block_protocol::PutKeys::Rotate {
+                roots: vec![block.block()],
+                keys,
+            },
+        ));
+    }
+    crate::ask(be_block_protocol::write_all::<(), _>(
+        connection,
+        organization,
+        ops,
+    ))
+    .await?;
+    Ok(Ok(()))
 }
 
 pub async fn make_link(
@@ -710,37 +891,26 @@ pub async fn open_link(
     Ok((link, card))
 }
 
-/// The `verified` of each contact's record the server holds, by contact. A record a link
-/// makes follows it, so a contact verified again by a new link outranks every record of it any
-/// device of this account pinned, whatever the devices' clocks say: each pinned one was served
-/// or written back there (`contacts`).
-async fn served_verified(
+/// The `verified` of `contact`'s record in the account's block, 0 for none or a block that
+/// does not open here. A record a link makes follows it, so a contact verified again by a new
+/// link outranks every record of it any device of this account pinned, whatever the devices'
+/// clocks say: each pinned one was read from the block or written back there (`contacts`).
+async fn held_verified(
     connection: &Arc<Connection>,
+    account: Uuid,
     identity: &RecoverySecret,
-) -> Result<HashMap<Uuid, u64>, ClientError> {
-    Ok(served(connection)
-        .await?
-        .into_iter()
-        .filter_map(|(account, sealed)| {
-            let record = OwnContact::open(identity, &sealed, account)?;
-            Some((account, record.verified))
-        })
-        .collect())
-}
-
-/// Each contact's record as the server holds it, sealed, by contact.
-async fn served(connection: &Arc<Connection>) -> Result<HashMap<Uuid, Vec<u8>>, ClientError> {
-    Ok(
-        be_block_protocol::read::<Vec<be_block_protocol::ContactRow>, _>(
-            connection,
-            None,
-            be_block_protocol::Query::Contacts,
-        )
-        .await??
-        .into_iter()
-        .map(|row| (row.account, row.sealed))
-        .collect(),
-    )
+    contact: Uuid,
+) -> Result<u64, ClientError> {
+    let Some(block) = AccountRecords::open(connection, account, identity).await? else {
+        return Ok(0);
+    };
+    Ok(match block.read().await {
+        Ok(held) => records_of(&held.content.root())
+            .get(&contact)
+            .map_or(0, |record| record.verified),
+        Err(ClientError::Locked(_)) => 0,
+        Err(error) => return Err(error),
+    })
 }
 
 /// Accepts a link of the kind `expected`: a contact link's grant, or an invitation's escrow
@@ -756,11 +926,13 @@ pub async fn accept_link(
     // signs naming them (a member signed in) checks.
     register_identity(connection, identity).await?;
     let (link, card) = open_link(connection, code, expected).await?;
-    let after = served_verified(connection, identity)
-        .await?
-        .get(&Uuid::from_bytes(card.account))
-        .copied()
-        .unwrap_or_default();
+    let after = held_verified(
+        connection,
+        Uuid::from_bytes(me.account),
+        identity,
+        Uuid::from_bytes(card.account),
+    )
+    .await?;
     let key = match &link.kind {
         LinkKind::Contact(Some(grant)) => {
             let secret = code
@@ -831,9 +1003,9 @@ pub(crate) async fn finish_links(
     if !stray.is_empty() {
         be_block_protocol::write_all::<(), _>(connection, None, stray).await??;
     }
-    let served = match links.iter().any(|link| link.accepter.is_some()) {
-        true => served(connection).await?,
-        false => HashMap::new(),
+    let block = match links.iter().any(|link| link.accepter.is_some()) {
+        true => AccountRecords::open(connection, account, identity).await?,
+        false => None,
     };
     let mut finished = Vec::new();
     for link in links {
@@ -852,29 +1024,40 @@ pub(crate) async fn finish_links(
             .and_then(|code| InviteCode::from_bytes(&code).ok())
             .and_then(|code| ContactCard::open(&code, CardRole::Accepter, &card).ok())
             .filter(|card| card.account == accepter.into_bytes());
-        let mut kept = opened.is_some();
-        if let Some(card) = &opened {
-            let mut ops = vec![be_block_protocol::Op::PutContact {
-                contact: accepter,
-                sealed: OwnContact::new(
-                    card.clone(),
-                    served
-                        .get(&accepter)
-                        .and_then(|sealed| OwnContact::open(identity, sealed, accepter))
-                        .map_or(0, |record| record.verified),
-                )
-                .seal(identity),
-                replaces: served.get(&accepter).cloned().unwrap_or_default(),
-            }];
-            ops.extend(outdated(&held, account, identity, card));
-            let put =
-                crate::ask(be_block_protocol::write_all::<(), _>(connection, None, ops)).await;
-            match put {
-                Ok(_) => {}
-                Err(ClientError::Refused(ErrorCode::NotAContact, _)) => kept = false,
-                // Another device wrote the record meanwhile: this link waits for the next pass.
-                Err(ClientError::Refused(ErrorCode::RecordChanged, _)) => continue,
+        // Kept in the account's block before the link and its letter go, so a device that stops
+        // between keeps the card and finishes the link again.
+        let kept = opened.is_some();
+        if let (Some(card), Some(block), Some(letter)) = (&opened, &block, letter) {
+            let kept = block
+                .update(|current| {
+                    let before = current
+                        .contact(accepter)
+                        .and_then(|bytes| OwnContact::decode(bytes, accepter));
+                    if before
+                        .as_ref()
+                        .is_some_and(|before| before.through >= letter && before.card == *card)
+                    {
+                        return Vec::new();
+                    }
+                    let record = OwnContact {
+                        through: letter,
+                        ..OwnContact::new(card.clone(), before.map_or(0, |before| before.verified))
+                    };
+                    vec![be_block::AccountBlock::set_contact(
+                        accepter,
+                        Some(record.encode()),
+                    )]
+                })
+                .await;
+            match kept {
+                Ok(()) => {}
+                // A block sealed to a phrase this device lacks: another device finishes it.
+                Err(ClientError::Locked(_)) => continue,
                 Err(error) => return Err(error),
+            }
+            let ops = outdated(&held, account, identity, card);
+            if !ops.is_empty() {
+                be_block_protocol::write_all::<(), _>(connection, None, ops).await??;
             }
         }
         let (grant, invited) = match link.kind {

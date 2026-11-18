@@ -20,7 +20,6 @@ const REACHING_PAST: &[&str] = &[
     "accept-link",
     "links",
     "delete-link",
-    "put-contact",
     "remove-contact",
     "move",
     "append-log (grant)",
@@ -42,8 +41,8 @@ const CONNECTING: &[&str] = &[
     "events",
     "organizations",
     "log (organization)",
-    "contacts",
-    // Where its contacts' key changes arrive, which it deletes once it followed them.
+    // Where its contacts' records and key changes arrive, which it keeps, having no block of
+    // its own, or deletes once it followed them.
     "mailbox",
     "delete-message",
     "reserve-uploads",
@@ -57,7 +56,6 @@ const CONNECTING: &[&str] = &[
     "unfollow roots",
     "unfollow storage",
     "unfollow mailbox",
-    "unfollow contacts",
     "unfollow notify-modes",
     "keys",
     "put-keys (rows)",
@@ -248,7 +246,7 @@ async fn a_block_agent_reaches_its_block_and_nothing_else() {
             .contacts()
             .await
             .iter()
-            .all(|contact| contact.account == me),
+            .all(|contact| *contact == me),
         "a block's agent has contacts beyond its creator"
     );
 

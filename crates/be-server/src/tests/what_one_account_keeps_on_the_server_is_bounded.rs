@@ -57,6 +57,7 @@ async fn what_one_account_keeps_on_the_server_is_bounded() {
                 [7; 32],
                 Vec::new(),
                 Vec::new(),
+                Vec::new(),
                 None,
                 None,
             )
@@ -225,6 +226,7 @@ async fn what_one_account_keeps_on_the_server_is_bounded() {
                 "Agent",
                 [7; 32],
                 [7; 32],
+                Vec::new(),
                 Vec::new(),
                 Vec::new(),
                 None,

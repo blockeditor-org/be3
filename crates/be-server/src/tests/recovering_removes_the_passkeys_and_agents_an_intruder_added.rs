@@ -28,6 +28,7 @@ async fn recovering_removes_the_passkeys_and_agents_an_intruder_added() {
             [7; 32],
             Vec::new(),
             Vec::new(),
+            Vec::new(),
             None,
             None,
         )

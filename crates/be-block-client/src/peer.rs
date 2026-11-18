@@ -52,6 +52,7 @@ const CARRIED_BYTES: usize = be_block_protocol::MAX_FRAME_BYTES / 2;
 /// few blocks each, rather than making hundreds of blocks to cross one.
 pub(crate) const CONTENTS_BLOCKS: usize = if cfg!(test) { 8 } else { 256 };
 
+pub mod account_block;
 mod authorship;
 mod import;
 mod journal;
@@ -362,6 +363,9 @@ pub struct Peer<S: ObjectStore> {
     /// A local account's peer (`Peer::local`), which has no server: what it makes is final as
     /// it is made.
     local: bool,
+    /// Whether this peer only reaches the account's own block (`AccountRecords`), whose keys are
+    /// all the account's own: it never reads contacts, which would reach for the block again.
+    account_records: bool,
     /// The blocks a local account's peer settled since they were last taken
     /// (`take_settled_here`): with no server to list what changed, this is how its host hears
     /// of them (a search index catching up, above all).
@@ -550,6 +554,7 @@ impl<S: ObjectStore> Peer<S> {
                 offset: session.as_ref().and_then(|session| session.server_offset),
             }),
             local: false,
+            account_records: false,
             settled_here: Mutex::new(HashSet::new()),
             log_reads: Mutex::new(HashSet::new()),
             resealed: Mutex::new(HashMap::new()),
@@ -718,7 +723,7 @@ impl<S: ObjectStore> Peer<S> {
 
     /// Follows what this device hears of the organization and the account as it changes
     /// (`Event`): its keys, its key work and roots, notification modes, and the account's
-    /// contacts, mailbox and storage. Each read follows its topic first, answered with what it
+    /// mailbox, where its contacts' records arrive, and storage. Each read follows its topic first, answered with what it
     /// reads, which is left for the readers that want it; one refused (a block's agent follows
     /// less) is let go.
     async fn follow_topics(&self) {
@@ -750,11 +755,6 @@ impl<S: ObjectStore> Peer<S> {
                 &connection,
                 organization,
                 be_block_protocol::Query::NotifyModes,
-            ),
-            followed::<Vec<be_block_protocol::ContactRow>>(
-                &connection,
-                None,
-                be_block_protocol::Query::Contacts,
             ),
             followed::<Vec<be_block_protocol::Message>>(
                 &connection,
@@ -1069,8 +1069,10 @@ impl<S: ObjectStore> Peer<S> {
             wrap.wrapped_by == WrappedBy::Account(self.account)
                 && self.keys.sender(wrap.sender).is_none()
         });
-        if unknown {
-            self.refresh_contacts().await?;
+        if unknown && !self.account_records {
+            // Boxed: contacts reach the account's block through a peer of its own, which reads
+            // its keys here too.
+            Box::pin(self.refresh_contacts()).await?;
         }
         if self.keys.escrow_senders_unknown(&keys) {
             self.learn_administrators().await;

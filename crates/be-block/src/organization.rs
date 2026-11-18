@@ -46,7 +46,9 @@ pub const SYSTEM_TYPES: [Uuid; 2] = [
 ];
 
 pub fn is_workspace_type(content_type: Uuid) -> bool {
-    !SYSTEM_TYPES.contains(&content_type) && content_type != UNFILED_TYPE
+    !SYSTEM_TYPES.contains(&content_type)
+        && content_type != UNFILED_TYPE
+        && content_type != <crate::AccountBlock as be_block_content::Root>::CONTENT_TYPE
 }
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, Hash, PartialEq, Serialize)]
