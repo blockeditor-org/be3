@@ -169,8 +169,9 @@ pub(crate) fn op_rule(op: &Op) -> Rule {
 /// grants nothing, so nothing it made outlives it.
 fn guest_may_write(op: &Op, account: Uuid) -> bool {
     match op {
-        Op::CreateBlock { .. }
-        | Op::CreateAgent { .. }
+        // A guest makes only its own shell's blocks, which `ServerStore::create_block` checks.
+        Op::CreateBlock { .. } => true,
+        Op::CreateAgent { .. }
         | Op::RotateAgentToken(_)
         | Op::DeleteAgent { .. }
         | Op::CreateShareLink { .. }
