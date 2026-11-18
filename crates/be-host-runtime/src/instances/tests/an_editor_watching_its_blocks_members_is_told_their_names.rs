@@ -18,9 +18,9 @@ fn members(instances: &mut Instances, watch: OpId) -> Result<Vec<BlockMember>, F
                 other => panic!("not members: {other:?}"),
             }
         }
-        // The stack's reply reaches the runtime's mailbox as the stack's updates are taken.
-        be_host_stack::wait_until("the server named the members", |_| {
-            (be_host_base::host::letters_posted() > seen).then_some(())
+        // The stack's reply reaches the runtime's mailbox as its updates are taken.
+        be_host_stack::take_updates_or_wait("the members the server named", || {
+            be_host_base::host::letters_posted() > seen
         });
     }
 }
@@ -39,7 +39,6 @@ fn an_editor_watching_its_blocks_members_is_told_their_names() {
         false,
     );
     be_host_stack::flush_and_send();
-    be_host_stack::wait_until("mirrored the block", |shared| shared.graph.get(block).map(|_| ()));
     let mut instances = placed_on(block, CounterContent::CONTENT_TYPE);
     let watch = open_watch(&mut instances, |op| Call::BlockWatchNew {
         resource: wire::BlockWatch(op),
