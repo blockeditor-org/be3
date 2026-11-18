@@ -103,23 +103,27 @@ pub fn grants_of(
 }
 
 /// Names a block's members for an editor (`block-subject.members`) from what the server named
-/// (`list_names`): a contact by the name on its card this device verified, the signed-in account
-/// by its own, and anyone else by the name the server gave, which the server could have changed,
-/// so unverified. Read again as the contacts change, without asking the server.
+/// (`list_names`): a contact by the name on the card this device verified (`Contact::verified`)
+/// and pinned with no mismatch since, the signed-in account by its own (`own_name`, the name on
+/// the card it hands out), and anyone else by the name the server gave, which the server could
+/// have changed, so unverified. Read again as the contacts change, without asking the server.
 pub fn members_of(named: &[be_block_protocol::AccountName]) -> Vec<be_sdk_api::BlockMember> {
     let contacts = crate::contacts();
-    let me = crate::account();
+    let me = crate::own_name().filter(|(_, name)| !name.trim().is_empty());
     named
         .iter()
         .map(|named| {
             let card = contacts.iter().find(|contact| {
                 contact.account == named.account
                     && contact.public.is_some()
+                    && contact.verified != 0
+                    && contact.mismatch.is_none()
                     && !contact.display_name.is_empty()
             });
-            let (name, verified) = match card {
-                Some(contact) => (contact.display_name.clone(), true),
-                None => (named.display_name.clone(), me == Some(named.account)),
+            let (name, verified) = match (card, &me) {
+                (Some(contact), _) => (contact.display_name.clone(), true),
+                (None, Some((account, name))) if *account == named.account => (name.clone(), true),
+                (None, _) => (named.display_name.clone(), false),
             };
             be_sdk_api::BlockMember {
                 account: named.account.into_bytes(),

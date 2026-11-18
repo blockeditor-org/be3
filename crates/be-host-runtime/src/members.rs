@@ -3,7 +3,6 @@
 //! cards (`be_host_stack::app_graph::members_of`), so a contact's new card reaches the editor
 //! without asking the server again.
 
-use be_block_commit::CommitId;
 use be_host_stack::AccountName;
 use be_sdk_api::{EditorInstanceId, Failure, blocks::BlockValue};
 use uuid::Uuid;
@@ -28,10 +27,10 @@ pub(super) type NamesAnswer = Result<Vec<AccountName>, String>;
 pub(super) struct Members {
     /// What the server last named, once it answered.
     named: Option<NamesAnswer>,
-    /// The block's change and head when the server was last asked: it is asked again once the
-    /// block changes other than by a new head, as a grant, a move or a share above it changes
-    /// who may view it and a message sent does not.
-    asked: Option<(u64, Option<CommitId>)>,
+    /// The block's change when the server was last asked: it is asked again whenever the block
+    /// changes, since a grant, a revoke, a move or a share above it can change who may view it,
+    /// and any of them can land in the same summary as a new head.
+    asked: Option<u64>,
     asking: bool,
 }
 
@@ -54,12 +53,10 @@ impl Members {
         if !node.access.can_view() {
             return;
         }
-        let now = (node.changed, node.head);
+        let now = node.changed;
         let due = match self.asked {
             None => true,
-            Some((changed, head)) => {
-                matches!(self.named, Some(Err(_))) || (changed != now.0 && head == now.1)
-            }
+            Some(changed) => matches!(self.named, Some(Err(_))) || changed != now,
         };
         self.asked = Some(now);
         if !due {

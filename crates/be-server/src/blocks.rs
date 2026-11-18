@@ -2134,8 +2134,8 @@ impl ServerStore {
         .await
     }
 
-    /// The accounts that may view `block`, and its author, with the names they gave the
-    /// server, for a caller that may view it (`query.names`).
+    /// The accounts that may view `block`, its author among them while it may, with the names
+    /// they gave the server, for a caller that may view it (`query.names`).
     pub async fn list_names(
         &self,
         identity: Identity,
@@ -2144,14 +2144,14 @@ impl ServerStore {
         self.with_graph(identity.organization, move |_, graph, database| {
             require(graph, &visibility(identity), block, Access::View, "viewable")?;
             let node = graph.get(block).ok_or(ServerError::Corrupt)?;
-            let mut listed: BTreeSet<Uuid> = graph
+            let listed: BTreeSet<Uuid> = graph
                 .audience(block)
                 .into_iter()
+                .chain([node.author])
                 .filter(|account| {
                     *account != ANYONE_INSIDE && graph.effective_access(block, *account).can_view()
                 })
                 .collect();
-            listed.insert(node.author);
             let mut statement = database.prepare_cached(
                 "SELECT accounts.display_name
                  FROM memberships

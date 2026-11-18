@@ -761,3 +761,17 @@ decisions/tentative_edits_wait_for_release.md) left as it was.
 - **Unread rows in bold.** Done: a file-tree row whose block has an unread
   count shows its name bold, as a messaging app's conversation list does, with
   the file tree's painting showing it.
+
+## 28. Member names
+
+- **A member removed from the organization leaves the names.** An editor's
+  members (`block-subject.members`) are asked for again when the block's
+  `changed` moves (be-host-runtime `members.rs`). Removing a member from the
+  organization revokes only the grants they held (be-server `remove_from`), so
+  a block they viewed without one of its own (one they authored, or one open
+  in a workspace they viewed inside) keeps its `changed`, and an open editor
+  names them until the block next changes. Done: a member's removal reaches
+  the editors of every block they could view (the server moving those blocks'
+  `changed`, or the stack asking again as the organization's members change),
+  with a be-host-runtime test where removing the author of a block shared with
+  this account drops them from an open editor's members.
