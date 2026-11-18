@@ -597,7 +597,7 @@ mod telling {
     #[cfg(not(target_arch = "wasm32"))]
     pub(super) fn await_earlier(thread: ThreadId, number: u64) {
         let (lock, told) = telling();
-        let mut held = lock.lock().unwrap_or_else(PoisonError::into_inner);
+        let held = lock.lock().unwrap_or_else(PoisonError::into_inner);
         let waits = |held: &Telling| {
             !held.under_way.iter().any(|(_, by)| *by == thread)
                 && held
@@ -609,17 +609,21 @@ mod telling {
             return;
         }
         #[cfg(test)]
-        {
+        let held = {
+            let mut held = held;
             held.waiting += 1;
             told.notify_all();
-        }
-        let mut held = told
+            held
+        };
+        let held = told
             .wait_while(held, |held| waits(held))
             .unwrap_or_else(PoisonError::into_inner);
         #[cfg(test)]
-        {
+        let held = {
+            let mut held = held;
             held.waiting -= 1;
-        }
+            held
+        };
         drop(held);
     }
 
