@@ -1644,7 +1644,8 @@ impl Refs {
 
     /// The entry of `block`'s log this device kept at `seq`.
     /// Drops the payload of the entry of `block`'s log this device kept at `seq`, as the server
-    /// redacted it: the entry as it is now, or none when this device kept nothing of it to drop.
+    /// redacted it: the entry as it is now (one a read since kept redacted already too), or none
+    /// when this device kept nothing of it.
     pub fn log_entry_redacted(
         &self,
         block: Uuid,
@@ -1660,7 +1661,7 @@ impl Refs {
                 return Ok(None);
             };
             if entry.payload.take().is_none() {
-                return Ok(None);
+                return Ok(Some(entry.clone()));
             }
             entry.clone()
         };
