@@ -1065,7 +1065,7 @@ fn picker(
 pub(crate) fn leavable(editor: Editor, row: Memo<Option<Row>>) -> Memo<bool> {
     let role = editor.watch::<RoleWatch>();
     create_memo(move || {
-        role.get() != AccountRole::Administrator && row.get().is_some_and(|row| row.can_leave)
+        role.get() != Some(AccountRole::Administrator) && row.get().is_some_and(|row| row.can_leave)
     })
 }
 

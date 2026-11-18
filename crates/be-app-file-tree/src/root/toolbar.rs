@@ -112,7 +112,7 @@ fn NewButton(adding: Adding) -> NodeId {
     let focus = zoom.focus();
     // A guest makes nothing here (decisions/a_guest_makes_only_its_own_shell.md).
     let role = editor.watch::<be_sdk_beui::RoleWatch>();
-    let maker = create_memo(move || role.get() != be_sdk_beui::AccountRole::Guest);
+    let maker = create_memo(move || role.get() != Some(be_sdk_beui::AccountRole::Guest));
     let addable = create_memo(move || {
         focus.with(|focus| {
             focus

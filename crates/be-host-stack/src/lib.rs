@@ -2223,6 +2223,21 @@ pub fn name_when_created(block: Uuid, name: String) {
 }
 
 /// Makes a block; with `owner_only`, one only this account reads (`KindVisibility::Owner`).
+/// Whether the account is a guest of the organization open, which keeps there only its shell:
+/// its settings, readable by it alone (decisions/a_guest_makes_only_its_own_shell.md).
+static GUEST: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Says whether the account is a guest of the organization open (`guest`).
+pub fn set_guest(guest: bool) {
+    GUEST.store(guest, std::sync::atomic::Ordering::Relaxed);
+}
+
+/// Whether the account is a guest of the organization open: it makes only its own settings,
+/// owner-only, and what lies in them.
+pub fn guest() -> bool {
+    GUEST.load(std::sync::atomic::Ordering::Relaxed)
+}
+
 pub fn create(
     block: Uuid,
     content_type: Uuid,
@@ -2231,6 +2246,10 @@ pub fn create(
     content: Option<Vec<u8>>,
     owner_only: bool,
 ) {
+    // Everything a guest makes lies in its own settings, which only it reads already: nothing
+    // below them is owner-only of its own, which the server refuses.
+    let owner_only =
+        owner_only && !(guest() && matches!(parent, be_block_graph::BlockParent::Block(_)));
     if let Some(name) = PENDING_NAMES.with(|pending| pending.borrow_mut().remove(&block)) {
         metadata.insert(&be_block_content::NAME, &name);
     }

@@ -48,7 +48,7 @@ fn a_block_whose_key_has_not_arrived_shows_locked_and_a_shared_workspace_can_be_
         "leaving a workspace someone shared asks the host to take this account off it"
     );
 
-    fixture.test.set_watched::<RoleWatch>(&AccountRole::Administrator);
+    fixture.test.set_watched::<RoleWatch>(&Some(AccountRole::Administrator));
     fixture.settle();
     fixture.open_menu(team);
     assert!(fixture.offers("Rename"), "the workspace's menu is open");

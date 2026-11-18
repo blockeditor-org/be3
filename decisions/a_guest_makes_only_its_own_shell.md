@@ -7,12 +7,17 @@ be-host's shell keeps the account's state in blocks of that organization: a
 guest may make exactly those: a `Settings` at the top that is `owner-only`
 (readable by it alone, its key sealed to it and never escrowed, granted to no
 one), and below it whatever its shell keeps, which that block's scope seals to
-the guest alone. It makes nothing else: no block at the top of any other type,
-none a member could read, none inside a block someone else made, even one its
-link lets it edit. The server checks it by the block's type, place and
-`owner-only` mark (`require_guest_shell` in `be-server/src/blocks.rs`), not by
-anything the device says. When the guest leaves (its last grant falls), its
-shell's blocks are deleted with it (`share_links::drop_idle_guest`).
+the guest alone: any type (its profiles, sessions and settings kinds, and what
+an app keeps in them), bounded only by the account's quota and the blocks one
+account may make, and none owner-only of its own, as nothing below a member's
+owner-only block is either. Beyond that it makes nothing: no block at the top of
+any other type, none a member could read, none inside a block someone else
+made, even one its link lets it edit. The server checks it by the block's type,
+place and `owner-only` mark, and that the account is still a guest
+(`require_guest_shell` in `be-server/src/blocks.rs`), not by anything the device
+says. When the guest leaves (its last grant falls), its shell's blocks are
+forgotten with it, their commits, objects and charges too
+(`share_links::drop_idle_guest`, `ServerStore::forget_blocks`).
 
 be-host skips My files and Unfiled for a guest, and its files pane shows only
 Shared with me, which holds everything the guest reaches there; the New button

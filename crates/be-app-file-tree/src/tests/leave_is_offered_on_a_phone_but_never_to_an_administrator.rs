@@ -36,7 +36,7 @@ fn leave_is_offered_on_a_phone_but_never_to_an_administrator() {
         "leaving what was shared asks the host to take this account off it"
     );
 
-    fixture.test.set_watched::<RoleWatch>(&AccountRole::Administrator);
+    fixture.test.set_watched::<RoleWatch>(&Some(AccountRole::Administrator));
     fixture.settle();
     fixture.test.click(&more);
     fixture.settle();
