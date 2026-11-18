@@ -96,6 +96,10 @@ pub(crate) fn reveal(node: NodeId) {
     with_document(|document| document.reveal_node(node));
 }
 
+pub(crate) fn reveal_part(node: NodeId, part: crate::types::Rect) {
+    with_document(|document| document.reveal_part(node, part));
+}
+
 pub(crate) fn first_offset_within(node: NodeId) -> Option<NodeId> {
     with_document(|document| match document.contains(node) {
         true => document.first_offset_within(node).map(NodeOf::id),
