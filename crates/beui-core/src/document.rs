@@ -190,7 +190,9 @@ pub struct Document {
     overlay_line: OverlayLine,
     anchor_shift: f32,
     pinned_to_end: Option<beui_types::Direction>,
-    pub(crate) reveals: NodeMap<NodeId>,
+    /// Each viewer's node to reveal, and the part of it (fractions of its size), if not the
+    /// whole.
+    pub(crate) reveals: NodeMap<(NodeId, Option<Rect>)>,
     pub(crate) viewport: Option<(Context, Rect, f32)>,
     pub(crate) hidden: bool,
     pub(crate) embeds: Vec<std::rc::Weak<crate::base::embed::EmbedState>>,

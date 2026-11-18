@@ -203,7 +203,7 @@ impl OffsetNode {
     }
 
     fn revealed(&mut self, doc: &mut Document, out: &Rects, host: NodeId, main: f32) -> f32 {
-        let Some(target) = doc.take_reveal(host) else {
+        let Some((target, part)) = doc.take_reveal(host) else {
             return 0.0;
         };
         let mut shown = Some(target);
@@ -222,8 +222,20 @@ impl OffsetNode {
         };
         let extent = doc.outlined_extent(out, node).unwrap_or(rect);
         let scale = out.transform(Some(SpaceId::inside(host, 1))).scale;
-        let end = start + self.direction.main(extent.max - rect.min) / scale;
-        let start = start - self.direction.main(rect.min - extent.min) / scale;
+        let (start, end) = match part.filter(|_| node == target) {
+            // A part of the node: its fractions of the node's length along the axis.
+            Some(part) => {
+                let length = self.direction.main(rect.size()) / scale;
+                (
+                    start + length * self.direction.main(part.min.to_vec2()),
+                    start + length * self.direction.main(part.max.to_vec2()),
+                )
+            }
+            None => (
+                start - self.direction.main(rect.min - extent.min) / scale,
+                start + self.direction.main(extent.max - rect.min) / scale,
+            ),
+        };
         let Some(revealed) = revealed_offset(start, end, self.offset, main) else {
             return 0.0;
         };
@@ -579,14 +591,14 @@ impl Document {
 }
 
 impl Document {
-    fn reveal_in(&mut self, host: NodeId, target: NodeId) {
-        self.reveals.insert(host, target);
+    fn reveal_in(&mut self, host: NodeId, target: NodeId, part: Option<Rect>) {
+        self.reveals.insert(host, (target, part));
         if !self.arena.taken(host) {
             self.arena.invalidate_node(host);
         }
     }
 
-    pub(crate) fn take_reveal(&mut self, offset: NodeId) -> Option<NodeId> {
+    pub(crate) fn take_reveal(&mut self, offset: NodeId) -> Option<(NodeId, Option<Rect>)> {
         self.reveals.remove(&offset)
     }
 
@@ -622,14 +634,22 @@ impl Document {
     /// with the pan to make.
     pub fn reveal_node(&mut self, node: NodeId) {
         for viewer in self.enclosing_viewers(node) {
-            self.reveal_in(viewer, node);
+            self.reveal_in(viewer, node, None);
+        }
+    }
+
+    /// As `reveal_node`, for the part of `node` that `part` takes, in fractions of its size
+    /// (a list's slot): an `Offset` brings that part into view; a `Canvas` the whole node.
+    pub fn reveal_part(&mut self, node: NodeId, part: Rect) {
+        for viewer in self.enclosing_viewers(node) {
+            self.reveal_in(viewer, node, Some(part));
         }
     }
 
     pub(crate) fn reveal_in_canvases(&mut self, node: NodeId) {
         for viewer in self.enclosing_viewers(node) {
             if self.arena.made_as::<CanvasNode>(viewer).is_some() {
-                self.reveal_in(viewer, node);
+                self.reveal_in(viewer, node, None);
             }
         }
     }

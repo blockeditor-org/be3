@@ -26,6 +26,9 @@ pub trait TreeNode {
     fn close_overlay(&self);
     fn is_overlay_open(&self) -> bool;
     fn reveal(&self);
+    /// Brings the part of this node that `part` takes (fractions of its size, a list's slot)
+    /// into view in the scrolls around it; a canvas around it reveals the whole node.
+    fn reveal_part(&self, part: crate::types::Rect);
     fn first_offset_within(&self) -> Option<NodeId>;
     fn offset(&self) -> Option<f32>;
     fn scroll_position(&self) -> Option<ScrollPosition>;
@@ -86,6 +89,10 @@ impl TreeNode for NodeId {
 
     fn reveal(&self) {
         core::reveal(*self);
+    }
+
+    fn reveal_part(&self, part: crate::types::Rect) {
+        core::reveal_part(*self, part);
     }
 
     fn first_offset_within(&self) -> Option<NodeId> {
