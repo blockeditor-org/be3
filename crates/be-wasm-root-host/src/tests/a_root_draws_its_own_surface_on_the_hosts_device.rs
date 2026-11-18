@@ -1,4 +1,6 @@
-use be_sdk_root_testing::{ROOT_LAYER as EMBEDDING_ROOT_LAYER, ROOT_SURFACE, SIZE};
+use be_sdk_root_testing::{
+    RESIZED, RESIZES, ROOT_LAYER as EMBEDDING_ROOT_LAYER, ROOT_SURFACE, SIZE, UNPRESENTED_SURFACE,
+};
 
 use super::*;
 
@@ -22,7 +24,8 @@ fn a_root_draws_its_own_surface_on_the_hosts_device() {
     );
     let drawn = root
         .own_surface(ROOT_SURFACE)
-        .expect("the host holds what the root presented to its own surface");
+        .expect("the host holds what the root presented to its own surface")
+        .clone();
     assert_eq!(
         (drawn.texture.width(), drawn.texture.height()),
         SIZE,
@@ -43,5 +46,24 @@ fn a_root_draws_its_own_surface_on_the_hosts_device() {
         root.own_surface(1).is_none(),
         "a surface the root never presented resolves to nothing, though its layer list names it \
          when its frame is late"
+    );
+
+    root.frame(FrameRequest { time: RESIZES }, Instant::now() + PATIENT)
+        .expect("the root draws");
+    let resized = root
+        .own_surface(ROOT_SURFACE)
+        .expect("a surface configured afresh still shows what was presented to it");
+    assert_eq!(
+        (
+            resized.texture.width(),
+            resized.texture.height(),
+            resized.generation
+        ),
+        (SIZE.0, SIZE.1, drawn.generation),
+        "until the root presents it at its new size {RESIZED:?}, it shows its last frame"
+    );
+    assert!(
+        root.own_surface(UNPRESENTED_SURFACE).is_none(),
+        "a surface configured but never presented shows nothing"
     );
 }

@@ -87,12 +87,25 @@ pub const LATE_LAYER: LayerId = LayerId(1);
 /// A frame at this time lets go of the app, which stops it, and shows the root's surface alone.
 pub const CLOSES: u64 = u64::MAX;
 
+/// A frame at this time makes the root's own surface `RESIZED` without presenting it again, and
+/// configures `UNPRESENTED_SURFACE`, which it never presents, and shows the root's surface
+/// alone, the app kept.
+pub const RESIZES: u64 = u64::MAX - 1;
+
+/// The size a `RESIZES` frame gives the root's own surface, in pixels.
+pub const RESIZED: (u32, u32) = (200, 120);
+
+/// A surface of the root's own that a `RESIZES` frame configures and never presents.
+pub const UNPRESENTED_SURFACE: u32 = 2;
+
 #[derive(Clone)]
 struct Root {
     embedding: Rc<RefCell<Embedding>>,
     app: Rc<RefCell<Option<Embedded>>>,
     /// Its own surface, made and filled on its first frame.
     own: Rc<RefCell<Option<OwnSurface>>>,
+    /// The surface a `RESIZES` frame configures and never presents.
+    unpresented: Rc<RefCell<Option<OwnSurface>>>,
 }
 
 impl Default for Root {
@@ -101,6 +114,7 @@ impl Default for Root {
             embedding: Rc::new(RefCell::new(Embedding::new(ROOT_LAYER))),
             app: Rc::default(),
             own: Rc::default(),
+            unpresented: Rc::default(),
         }
     }
 }
@@ -148,6 +162,12 @@ impl frames::Guest for Root {
     fn frame(&self, request: FrameRequest) -> LocalFuture<FrameDone> {
         let root = self.clone();
         Box::pin(async move {
+            if request.time == RESIZES {
+                if let Some(own) = &mut *root.own.borrow_mut() {
+                    own.resize(RESIZED);
+                }
+                *root.unpresented.borrow_mut() = Some(OwnSurface::new(UNPRESENTED_SURFACE, SIZE));
+            }
             let own = root
                 .own_layer()
                 .expect("the root's host gives it a device to draw its own surface on");
@@ -156,7 +176,7 @@ impl frames::Guest for Root {
                 if let Some(app) = root.app.borrow_mut().take() {
                     root.embedding.borrow_mut().remove(app.instance());
                 }
-            } else {
+            } else if request.time != RESIZES {
                 let now = Duration::from_nanos(request.time);
                 let app = root.app(now);
                 let deadline = pin!(host::deadline());

@@ -147,7 +147,8 @@ impl RootShell {
 
     /// Hands the root its windows' input since it was last handed it, in order, a call for each
     /// run of one window's, each input with the frame clock's time it was sampled at, counted
-    /// from `origin` as the frames' are. The main window is the one the layer list names as none;
+    /// from `origin` as the frames' are. A sample's time is the platform's real instant, so
+    /// while drive's clock is stopped it can be later than the frame's. The main window is the one the layer list names as none;
     /// the host opens no other for the root yet.
     fn deliver_input(&mut self, origin: Instant) {
         let input = std::mem::take(&mut self.input);
@@ -222,7 +223,7 @@ impl RootShell {
                 Surface::Screen { instance, surface } | Surface::Anchored { instance, surface } => {
                     root.surface(instance, surface).cloned()
                 }
-                Surface::Root(surface) => root.own_surface(surface),
+                Surface::Root(surface) => root.own_surface(surface).cloned(),
                 // The host owns no surfaces of its own here.
                 Surface::Host(_) => None,
             };
