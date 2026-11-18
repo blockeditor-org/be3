@@ -201,6 +201,28 @@ linked as an app is, exporting `app_start` and `app_step` like any other, and so
 guest, which links base and beui to draw with beui
 (decisions/a_root_links_beui_as_an_app_does.md).
 
+#### What a type module builds
+
+A type module (`:module`, wasm32-unknown-unknown) builds only what its replica runs, about 72
+Rust libraries with the type crates. Features keep host-only parts out: be-block-store without
+`vault`, be-block-commit without `store` (sealed commits, `CommitStore` and history retention),
+be-block-session without `store`. What is left, and why:
+
+| crate | type modules use it for |
+|---|---|
+| be-block-content | the traits, metadata, `Root`, blobs |
+| be-block-model, be-lib-sequence | `Document<R>`, text and lists |
+| be-block-commit, `similar` | `MergeResult`; `similar` is the line diff under be-block-model's sequence merge (`merge_lines`; decisions/type_modules_keep_similar.md) |
+| be-block-store, sha2, ciborium | `Part`/`PartRef`/`Hash`/`Manifest`, CBOR of the model |
+| be-block-session | the order (`Sequencer`) and `SessionMessage` the replica runs |
+| be-block-protocol, be-block-graph | `SessionState`, `ClientId`, `RelayKind`; graph only for `Access`/`BlockParent` in the protocol, and `WORKSPACE_TYPE` |
+| be-sdk-type-api, be-wasm-ops, be-wasm-guest-abi | the protocol and the guest ABI |
+
+be-block, be-lib-search, be-lib-graphemes, the icu crates and unicode-normalization are in no
+type module's build. The apps (`wasi_guest`) build be-block through be-sdk, whose frame reads
+its built-ins for every editor (decisions/no_crate_splits_inside_dependency_chains.md).
+Shrinking what a module ships is decisions/shipped_bundle_size_settings.md.
+
 ### The host half
 
 `crates/be-wasm-guest-host` runs guests for every host: `Worker` queues
