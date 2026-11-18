@@ -106,7 +106,7 @@ async fn tell_identity(
 
 /// Finishes taking an account back once its recovery signed in (`codes::recover_account`):
 /// deletes every agent it made, then tells it in one mail and one notice what went, every way
-/// to sign in but its email and those agents (plans/crypto_audit.md, 9).
+/// to sign in but its email and those agents (guides/blocks/server.md, "Accounts").
 async fn finish_recovery(
     services: &Services,
     account: uuid::Uuid,
@@ -379,7 +379,7 @@ pub(crate) async fn handle(
                 response.location = Some("/auth".into());
             },
             "/auth/verify" => {
-                // Only the account that asked confirms it (plans/crypto_audit.md, 15).
+                // Only the account that asked confirms it (guides/blocks/server.md, "Accounts").
                 let account = account().map_err(|_| invalid(crate::store::portal::ASKED_ELSEWHERE))?;
                 let (old_email, new_email) = services.store.confirm_mail(value("token"), account).await?;
                 if !old_email.is_empty() { email_moved_notice(services, old_email); }
@@ -393,7 +393,7 @@ pub(crate) async fn handle(
             },
             "/auth/approve" => {
                 let account = account()?;
-                // A cookie alone, however old, mints no token (plans/crypto_audit.md, 8).
+                // A cookie alone, however old, mints no token (guides/blocks/server.md, "Accounts").
                 services.store.require_fresh(token).await?;
                 browser_auth::decide(services, &code, Some(account), token).await?;
                 response.location = Some("/auth/approved".into());
@@ -487,7 +487,7 @@ pub(crate) async fn handle(
         "/auth/settings" | "/auth/sessions" if profile.is_some() => {
             services.store.is_fresh(token).await?
         }
-        // An approval needs the same proof (plans/crypto_audit.md, 8).
+        // An approval needs the same proof (guides/blocks/server.md, "Accounts").
         "/auth" if profile.is_some() && !code.is_empty() => services.store.is_fresh(token).await?,
         _ => false,
     };

@@ -245,7 +245,7 @@ impl ServerStore {
     }
 
     /// The account an app token is for. A token expires `APP_SESSION_IDLE` after it was last
-    /// used, and each use renews it, writing at most once a day (plans/crypto_audit.md, 8).
+    /// used, and each use renews it, writing at most once a day (guides/blocks/server.md, "Accounts").
     pub async fn resolve_token(&self, token: &str) -> Result<Profile, ServerError> {
         let token = token.to_owned();
         self.with_database(move |_, database| {
@@ -980,7 +980,7 @@ impl ServerStore {
     }
 
     /// Deletes every agent `creator` made, in every organization, as taking an account back
-    /// does (plans/crypto_audit.md, 9): any of them may be an intruder's. Answers their names,
+    /// does (guides/blocks/server.md, "Accounts"): any of them may be an intruder's. Answers their names,
     /// for the notice. Grants signed to them (guides/blocks/keys.md, "Access logs") are left for a
     /// device of someone who manages the block to revoke, as for any grantee whose account is gone.
     pub(crate) async fn delete_agents_created_by(
