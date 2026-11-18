@@ -162,6 +162,9 @@ pub struct Connection {
     registry: Mutex<Registry>,
     /// The clock the connection keeps time by (`Clock::real` for an offline one).
     clock: Clock,
+    /// What reaching the account's block learned, kept for the next pass
+    /// (`AccountRecords::open`).
+    pub(crate) account_block: Mutex<Option<crate::peer::account_block::Reached>>,
 }
 
 impl Caller for Connection {
@@ -232,6 +235,7 @@ impl Connection {
             due: watched,
             registry: Mutex::new(Registry::default()),
             clock: clock.clone(),
+            account_block: Mutex::new(None),
         });
         spawn(worker(
             Carried {
@@ -268,6 +272,7 @@ impl Connection {
             due,
             registry: Mutex::new(Registry::default()),
             clock: Clock::real(),
+            account_block: Mutex::new(None),
         })
     }
 

@@ -34,6 +34,8 @@ pub type Sent<'a, T> = std::pin::Pin<Box<dyn Future<Output = Result<T, ClientErr
 pub struct AccountRecords {
     peer: Peer<MemoryStore>,
     block: Uuid,
+    /// The personal organization's name, as its peer was made with it.
+    name: String,
 }
 
 /// What the account's block held when read.
@@ -42,18 +44,23 @@ pub struct Held {
     pub content: AccountBlockContent,
 }
 
-/// The account's block as each connection opened it, by account and identity, so every pass
-/// that reads or writes it (contacts, links, pins) reuses one peer rather than reading its keys
-/// again; one for a connection that closed goes as the next is opened, and a new phrase forgets
-/// the connection's (`forget`).
-type Opened = Vec<(Arc<Connection>, Uuid, [u8; 32], Option<Arc<AccountRecords>>)>;
-
-static OPENED: std::sync::Mutex<Opened> = std::sync::Mutex::new(Vec::new());
+/// What a connection learned reaching the account's block, which it keeps for the next pass
+/// (`Connection::account_block`): for which account and identity, the personal organization
+/// (none for an account in none), and the block's key rows as last read. Plain data, so the
+/// connection holds no peer that holds it back; a peer opened from it reads keys again only
+/// when a read meets one it lacks.
+#[derive(Clone)]
+pub(crate) struct Reached {
+    account: Uuid,
+    public: [u8; 32],
+    personal: Option<(Uuid, String)>,
+    keys: KeySet,
+}
 
 impl AccountRecords {
     /// The account's block, reached over `connection`; none for an account in no personal
-    /// organization (an agent), which keeps what it is sent in its mailbox instead. Opened once
-    /// per connection and identity.
+    /// organization (an agent), which keeps what it is sent in its mailbox instead. The
+    /// organizations and the block's keys are read once per connection and identity.
     pub fn open<'a>(
         connection: &'a Arc<Connection>,
         account: Uuid,
@@ -61,37 +68,76 @@ impl AccountRecords {
     ) -> Sent<'a, Option<Arc<Self>>> {
         Box::pin(async move {
             let public = identity.public().0;
-            let held = |opened: &Opened| {
-                opened
-                    .iter()
-                    .find(|(of, held, key, _)| {
-                        Arc::ptr_eq(of, connection) && *held == account && *key == public
-                    })
-                    .map(|(.., records)| records.clone())
-            };
-            {
-                let mut opened = OPENED.lock().unwrap();
-                opened.retain(|(of, ..)| !of.is_closed());
-                if let Some(records) = held(&opened) {
-                    return Ok(records);
-                }
+            let reached = connection
+                .account_block
+                .lock()
+                .unwrap()
+                .clone()
+                .filter(|reached| reached.account == account && reached.public == public);
+            if let Some(reached) = reached {
+                let Some((organization, name)) = reached.personal else {
+                    return Ok(None);
+                };
+                let records =
+                    Self::assemble(connection, account, identity, organization, name)?;
+                records.peer.refs.add_keys(&reached.keys)?;
+                records.peer.keys.absorb(reached.keys);
+                return Ok(Some(Arc::new(records)));
             }
-            let records = Self::reach(connection, account, identity).await?.map(Arc::new);
-            let mut opened = OPENED.lock().unwrap();
-            if let Some(records) = held(&opened) {
-                return Ok(records);
-            }
-            opened.push((Arc::clone(connection), account, public, records.clone()));
-            Ok(records)
+            let records = Self::reach(connection, account, identity).await?;
+            *connection.account_block.lock().unwrap() = Some(Reached {
+                account,
+                public,
+                personal: records.as_ref().map(|records| {
+                    (records.peer.organization(), records.name.clone())
+                }),
+                keys: records
+                    .as_ref()
+                    .map(|records| records.peer.refs.keys())
+                    .unwrap_or_default(),
+            });
+            Ok(records.map(Arc::new))
         })
     }
 
-    /// Lets go of what `connection` opened, as its account takes a new phrase.
+    /// Lets go of what `connection` kept of the block, as its account takes a new phrase.
     pub fn forget(connection: &Arc<Connection>) {
-        OPENED
-            .lock()
-            .unwrap()
-            .retain(|(of, ..)| !Arc::ptr_eq(of, connection));
+        *connection.account_block.lock().unwrap() = None;
+    }
+
+    /// A peer of `organization` that reaches the account's block alone.
+    fn assemble(
+        connection: &Arc<Connection>,
+        account: Uuid,
+        identity: &RecoverySecret,
+        organization: Uuid,
+        name: String,
+    ) -> Result<Self, ClientError> {
+        let config = PeerConfig {
+            url: String::new(),
+            identity: identity.clone(),
+            credentials: Credentials::Header,
+            organization: Some(organization),
+            organization_name: name.clone(),
+            chunker: ChunkerConfig::DEFAULT,
+            refs: RefsDb::memory(),
+        };
+        let mut peer = Peer::assemble(
+            Arc::clone(connection),
+            account,
+            organization,
+            config,
+            MemoryStore::new(),
+        )?;
+        peer.account_records = true;
+        // Its keys opening are nothing the connection's other peers wait on.
+        peer.keys.on_opened(|| {});
+        *peer.session.lock().unwrap() = (OrganizationRole::Editor, OrganizationKind::Personal);
+        Ok(Self {
+            peer,
+            block: be_block::account_block(organization, account),
+            name,
+        })
     }
 
     fn reach<'a>(
@@ -113,29 +159,9 @@ impl AccountRecords {
         else {
             return Ok(None);
         };
-        let config = PeerConfig {
-            url: String::new(),
-            identity: identity.clone(),
-            credentials: Credentials::Header,
-            organization: Some(personal.id),
-            organization_name: personal.name,
-            chunker: ChunkerConfig::DEFAULT,
-            refs: RefsDb::memory(),
-        };
-        let mut peer = Peer::assemble(
-            Arc::clone(connection),
-            account,
-            personal.id,
-            config,
-            MemoryStore::new(),
-        )?;
-        peer.account_records = true;
-        // Its keys opening are nothing the connection's other peers wait on.
-        peer.keys.on_opened(|| {});
-        *peer.session.lock().unwrap() = (OrganizationRole::Editor, OrganizationKind::Personal);
-        let block = be_block::account_block(personal.id, account);
-        peer.refresh_keys(Some(vec![block])).await?;
-        Ok(Some(Self { peer, block }))
+        let records = Self::assemble(connection, account, identity, personal.id, personal.name)?;
+        records.peer.refresh_keys(Some(vec![records.block])).await?;
+        Ok(Some(records))
         })
     }
 

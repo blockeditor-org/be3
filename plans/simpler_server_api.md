@@ -372,8 +372,9 @@ two describe.
   finished; an invitation's code goes 30 days after it was made, and the block
   keeps at most `MAX_KEPT_LINKS`, the oldest going first. A pin carries when it
   was pinned (`Pinned::made`), and is taken only over an older one, so an old
-  pin letter the server sends again is not. `AccountRecords` is opened once per
-  connection and identity, and forgotten as the account takes a new phrase.
+  pin letter the server sends again is not. A connection keeps what reaching
+  the block learned (the personal organization, its key rows) for the next
+  pass, and forgets it as the account takes a new phrase.
   Bootstrapping: `Peer::open_session` reads its pin from the block
   (`contacts::pinned`). Tests: be-block-client's
   `a_new_device_opens_a_company_organization_from_the_pin_in_the_accounts_block`
