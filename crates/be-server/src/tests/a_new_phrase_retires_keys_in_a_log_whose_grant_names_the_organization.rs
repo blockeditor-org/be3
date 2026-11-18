@@ -24,11 +24,13 @@ async fn a_new_phrase_retires_keys_in_a_log_whose_grant_names_the_organization()
     assert!(matches!(grant, Ok(())), "{grant:?}");
     let log = decode_steps(owner.access_log(Some(workspace.block)).await.unwrap());
     assert!(
-        log.iter().filter_map(be_block_keys::Step::entry).any(|entry| matches!(
-            &entry.record,
-            be_block_keys::Record::Grant(grant)
-                if matches!(grant.authority, be_block_keys::Authority::Organization(_))
-        )),
+        log.iter()
+            .filter_map(be_block_keys::Step::entry)
+            .any(|entry| matches!(
+                &entry.record,
+                be_block_keys::Record::Grant(grant)
+                    if matches!(grant.authority, be_block_keys::Authority::Organization(_))
+            )),
         "the administrator granted on the organization's authority"
     );
 
