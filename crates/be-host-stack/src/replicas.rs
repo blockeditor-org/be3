@@ -123,7 +123,7 @@ impl be_block_type_host::Host for Shared {
         held.peer_messages.remove(&block);
         held.touch(block);
         drop(held);
-        crate::hosting::holding(shared, block, false);
+        crate::hosting::left(shared, block);
     }
 
     fn status(shared: &Arc<Mutex<Self>>, block: Uuid, status: &Status) {
@@ -165,7 +165,6 @@ impl be_block_type_host::Host for Shared {
         if !locked || status.unreadable.is_none() {
             super::worker::set_unreadable(shared, block, status.unreadable.clone());
         }
-        crate::hosting::holding(shared, block, status.holder);
     }
 
     fn described(

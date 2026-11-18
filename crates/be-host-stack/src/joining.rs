@@ -452,7 +452,7 @@ pub fn heard(
     event: Option<&Event>,
 ) {
     match event {
-        Some(Event::Host { block, host }) => {
+        Some(Event::Host { block, host, .. }) => {
             let restarted = {
                 let mut held = lock(shared);
                 match held.joining.blocks.get_mut(block) {

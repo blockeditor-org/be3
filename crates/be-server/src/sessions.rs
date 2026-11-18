@@ -88,9 +88,11 @@ struct Session {
 }
 
 impl Session {
-    /// Who holds the lease, with its account.
+    /// Who hosts the block, with its account: the holder of the lease by a claim only
+    /// (`Membership::claimed_holder`), since a device claims as its host component starts. The
+    /// lease itself, who seals, also falls to the first editor with no claim.
     fn host(&self) -> Option<SessionHost> {
-        let client = self.state.holder()?;
+        let client = self.state.claimed_holder()?;
         Some(SessionHost {
             client,
             account: *self.accounts.get(&client)?,
@@ -398,7 +400,7 @@ impl SessionRegistry {
         if !member(from) {
             return HostRoute::Refused;
         }
-        let Some(holder) = session.state.holder() else {
+        let Some(holder) = session.state.claimed_holder() else {
             return match to {
                 None => HostRoute::NoHost,
                 Some(_) => HostRoute::Refused,

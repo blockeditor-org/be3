@@ -51,9 +51,12 @@ fn a_member_that_handshakes_again_is_admitted_again_and_goes_when_banned() {
     );
     flush_and_send();
     assert_eq!(status().error, None);
-    wait_until("held the world's lease", |shared| {
-        shared.hosted.contains(&block)
+    // Its host component starts once the replica is in the session, and claims the lease.
+    wait_until("joined the world's session", |shared| {
+        shared.session_hosts.contains_key(&block)
     });
+    restart_host(block);
+    wait_until("hosts the world", |shared| shared.hosted.contains(&block));
 
     let peer = &viewer.peer;
     let mut events = peer.connection().subscribe();
