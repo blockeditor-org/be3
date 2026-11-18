@@ -577,11 +577,93 @@ interface host {
         role: member-role,
     }
 
+    /// Who someone is, as their card says.
+    record contact-card {
+        name: string,
+        email: string,
+    }
+
+    /// How the server's record of a contact differed from the one this
+    /// device kept.
+    enum contact-mismatch {
+        /// An older record, as a server bringing back a replaced key would
+        /// serve.
+        older,
+        /// One that does not open: changed, or sealed under a recovery phrase
+        /// this account took on another device, which this one needs too.
+        unreadable,
+    }
+
+    /// A contact: someone the person shares with directly.
+    record contact-row {
+        account: account-id,
+        name: string,
+        email: string,
+        /// Whether this device holds their key.
+        verified: bool,
+        mismatch: option<contact-mismatch>,
+    }
+
+    /// The person's contacts, and connecting with someone by a contact link.
+    record contacts-area {
+        contacts: list<contact-row>,
+        /// Who the contact link opened is from, while the person is asked to
+        /// connect with them.
+        offered: option<contact-card>,
+        /// Who the person just connected with.
+        connected: option<contact-card>,
+        /// Whether making, opening or accepting a link is under way.
+        busy: bool,
+        error: option<string>,
+    }
+
+    /// What a share link lets the person do with what it shares.
+    enum share-access {
+        view,
+        edit,
+        /// Join it while someone hosts it.
+        join,
+    }
+
+    /// What a share link opens: the block's name (its maker's words, sealed
+    /// with the link's code), its organization, what it lets the person do,
+    /// and whether they join the organization as a guest.
+    record share-preview {
+        name: string,
+        organization: string,
+        access: share-access,
+        guest: bool,
+    }
+
+    /// Opening a share link someone sent.
+    record share-links-area {
+        /// What the link opened would share, while the person is asked.
+        offered: option<share-preview>,
+        /// What it shared, once accepted.
+        opened: option<share-preview>,
+        busy: bool,
+        error: option<string>,
+    }
+
+    /// A block an editor asked to leave, which the host asks the person to
+    /// confirm: named from the host's graph, never from what the editor says.
+    record leaving {
+        block: block-id,
+        name: string,
+        /// The name of the block it sits in, when it sits in one.
+        within: option<string>,
+        /// Whether leaving is under way.
+        busy: bool,
+        /// Why leaving was refused (it needs the server), in words.
+        refused: option<string>,
+    }
+
     /// A secret the host hands the person once, as the answer to the command
     /// that made it, never in `core-view`: the root holds it only while it
     /// shows it.
     variant core-secret {
-        /// An invitation's link, which whoever holds it may join by.
+        /// A link whoever holds it may use: an invitation's, or a contact
+        /// link.
         link(password),
         /// A new agent's credentials.
         agent(agent-credentials),
@@ -623,6 +705,12 @@ interface host {
         members: members-area,
         /// The organization's agents.
         agents: agents-area,
+        /// The person's contacts.
+        contacts: contacts-area,
+        /// Opening a share link.
+        share-links: share-links-area,
+        /// A block an editor asked to leave, while the host asks to confirm.
+        leaving: option<leaving>,
     }
 
     /// What the block stack shows the person, once it differs from the
@@ -728,6 +816,28 @@ interface host {
         list-agents,
         /// Remove an agent from the organization.
         remove-agent(account-id),
+        /// Open the contact link the person pasted: a bearer secret, so a
+        /// `password`, zeroed once decoded.
+        open-contact-link(password),
+        /// Connect with whoever the contact link opened is from.
+        accept-contact,
+        /// Put the contact link opened aside, with who the person last
+        /// connected with and why it last failed: the root starts afresh.
+        forget-contact-link,
+        /// Remove a contact, which the root asks the person to confirm first.
+        remove-contact(account-id),
+        /// Open the share link the person pasted: a bearer secret, so a
+        /// `password`.
+        open-share-link(password),
+        /// Open what the share link offered.
+        accept-share-link,
+        /// Put the share link offered aside, with what was opened and why it
+        /// last failed: the root starts afresh.
+        forget-share-link,
+        /// Leave the block `leaving` names, unless another is asked by then.
+        confirm-leave(block-id),
+        /// Stay in it.
+        cancel-leave,
     }
 
     /// The person asked `command` of the block stack, which the host does. It
@@ -747,6 +857,9 @@ interface host {
         invitation-link(uuid),
         /// Make an agent of this name: its credentials.
         create-agent(string),
+        /// Make a contact link, which whoever holds it may connect with the
+        /// person by.
+        contact-link,
     }
 
     /// The person asked `command` of the block stack, which makes a secret:

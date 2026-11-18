@@ -1200,6 +1200,39 @@ Each step lands on its own.
          what is not secret about it (that a link exists, whose, when it expires); the root
          holds it only while the dialog showing it is open, and drops it, zeroed, as it
          closes.
+         - 4g6f3. Built: contacts, share links and leaving a block. `core-view` gains
+           `contacts` (a `contacts-area`: each `contact-row`, its account, name, email, whether
+           verified and its `contact-mismatch`, `older` or `unreadable`; the `contact-card`
+           offered by a contact link opened, the one just connected with, busy and error),
+           `share-links` (a `share-links-area`: the `share-preview` offered and the one opened,
+           each the block's name, its organization, its `share-access` and whether the person
+           joins as a guest, all data the root words; busy and error) and `leaving` (the block
+           an editor asked to leave, its name and the block it sits in, whether leaving is
+           busy and why it was refused: be-host's `LeavingView`, `leave_busy`,
+           `leave_refused`). The commands: `open-contact-link` and `open-share-link`, each
+           with the pasted link as a `password` (be-host's `OpenContactLink`,
+           `OpenShareLink`), `accept-contact`, `accept-share-link`, `forget-contact-link` and
+           `forget-share-link` (its `DeclineContact` and `DeclineShareLink`, which also put
+           aside what was connected or opened and why it failed, as its `CloseContacts` and
+           `CloseShareLinks` did: whether the dialogs are open is the root's, so it starts each
+           afresh with them), `remove-contact` (its `ConfirmRemoveContact`; which contact is
+           asked about is the root's), and `confirm-leave` and `cancel-leave`. A contact link
+           made is `make-secret`'s `contact-link`, answered with `core-secret`'s `link`.
+           be-sdk-root-testing asks before leaving in its dialog's place while the host asks,
+           after the discard question and before signing in again (`LEAVE_TITLE`: Leave, which
+           stays busy until the host stops asking, or Stay, Escape and closing it, which is
+           `cancel-leave`); F12 (`OPENS_CONTACTS`, `CONTACTS_TITLE`) lists the contacts, with
+           Remove asked first (`REMOVE_CONTACT_TITLE`), the contact link offered to connect
+           with, a contact link to make, shown once, and one to paste; F8 (`OPENS_SHARE_LINKS`,
+           `SHARE_LINK_TITLE`) opens a pasted share link, asks before opening what it shares,
+           worded as be-host's own dialog words it, and says what it opened. A link opened from
+           the page's address (be-host's `open_from_address` on the web) reaches the root with
+           4g7, which opens its dialog. be-wasm-root-host's
+           `a_root_asks_before_leaving_a_block_and_opens_its_hosts_contact_and_share_links`
+           leaves and stays, sees the question stay while leaving and go once left, makes a
+           contact link, connects and declines, removes a contact asked first, hands over a
+           share link as typed, opens what it shares, and snapshots the leave question, the
+           contacts, the contact offered, the share link offered and what it opened.
          - 4g6f2b. Built: the organization's members and agents. `core-view` gains `members`
            (a `members-area`: whether `listed`, each `member-row`, its account, name, email,
            `member-role`, whether it is the person, an agent, or added by the server unsigned;

@@ -216,15 +216,15 @@ its own (a `v8::SharedIsolate`, locked by the thread that runs it):
   (restoring or discarding unsent changes; opening, forgetting and adding
   accounts and the browser sign-in; listing, opening, creating and joining
   organizations; choosing and making sessions and profiles; the invitations,
-  members and agents;
+  members and agents; contacts, share links and leaving a block;
   `Root::take_core_commands`). A secret the host hands the person (an
   invitation's link, a new agent's credentials) comes from a call of its own,
   `host.make-secret`, answered
   once with it (`Root::take_secret_requests`, `Root::answer_secret`), never in
   the view. The root
   holds what it has open and what it asks the person itself. A secret the
-  person types into a command (an account's gateway token, an invitation's
-  link) is a `password`,
+  person types into a command (an account's gateway token, a pasted
+  invitation, contact or share link) is a `password`,
   zeroed once decoded as `host.unlock`'s is: the bindings' `secret` option
   covers every type holding one, which derives `Debug` alone
   (plans/host_as_platform_adapter.md, 4g6, has how the rest of be-host's core
