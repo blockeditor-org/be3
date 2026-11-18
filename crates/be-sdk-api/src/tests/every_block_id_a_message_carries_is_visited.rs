@@ -36,6 +36,7 @@ fn every_block_id_a_message_carries_is_visited() {
         company: false,
         set_inside: 0,
         links_admit: None,
+        hosted: false,
     };
     let mut command = VersionCommand::Adopt { block_id: [1; 16] };
     let mut visit = |role, block_id: &mut [u8; 16]| {
