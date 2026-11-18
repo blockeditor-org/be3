@@ -377,6 +377,29 @@ const SCHEMA: &str = "
         name_dated      INTEGER NOT NULL DEFAULT 0
     );
 
+    -- Parts of a move to a new recovery key staged ahead of its `set-recovery-key`
+    -- (`stage-recovery-key`): each key sealed again to the new key, and each log's retirement.
+    CREATE TABLE recovery_sealed_parts (
+        account_id      TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+        public          BLOB NOT NULL,
+        signing         BLOB NOT NULL,
+        organization_id TEXT NOT NULL,
+        key_id          TEXT NOT NULL,
+        sealed          BLOB NOT NULL,
+        PRIMARY KEY (account_id, organization_id, key_id)
+    );
+
+    CREATE TABLE recovery_retirement_parts (
+        account_id      TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+        public          BLOB NOT NULL,
+        signing         BLOB NOT NULL,
+        organization_id TEXT NOT NULL,
+        kind            TEXT NOT NULL,
+        log_id          TEXT NOT NULL,
+        entry           BLOB NOT NULL,
+        PRIMARY KEY (account_id, organization_id, kind, log_id)
+    );
+
     CREATE TABLE keys (
         organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
         id              TEXT NOT NULL,

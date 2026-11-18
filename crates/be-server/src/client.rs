@@ -160,6 +160,7 @@ pub(crate) fn op_rule(op: &Op) -> Rule {
         Op::RemoveContact { .. } => Rule::Anywhere,
         // In the personal organization, the account's block's new epoch goes with it.
         Op::SetRecoveryKey { .. } => Rule::Anywhere,
+        Op::StageRecoveryKey(_) => Rule::Account,
         Op::PublishName(_) => Rule::Anywhere,
         Op::SetMute { block: of, .. } => block(*of, Access::View),
     }
@@ -287,6 +288,7 @@ pub(crate) fn bound_may_write(op: &Op, root: Uuid) -> bool {
         | Op::RevokeShareLink { .. }
         | Op::RemoveContact { .. }
         | Op::SetRecoveryKey { .. }
+        | Op::StageRecoveryKey(_)
         | Op::PublishName(_)
         | Op::SetPushEndpoint(_)
         | Op::SetMute { .. } => false,
@@ -2472,6 +2474,13 @@ impl Client {
                         })
                         .await;
                 }
+                Ok(Done::Nothing)
+            }
+            Op::StageRecoveryKey(part) => {
+                connection
+                    .store
+                    .stage_recovery_key(admitted.account()?, part)
+                    .await?;
                 Ok(Done::Nothing)
             }
             Op::PublishName(signed) => {

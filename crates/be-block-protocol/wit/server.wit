@@ -467,6 +467,14 @@ interface server {
         /// epoch of the account's block (`be_block::account_block`), sealed to
         /// the new key alone, as a `put-keys` rotation.
         set-recovery-key(set-recovery-key),
+        /// Holds part of what a `set-recovery-key` to the same keys carries
+        /// (the keys sealed again and the retirements), for an account whose
+        /// move is more than one frame holds: that write takes the parts
+        /// staged for its keys beside its own, checks them all as one, and
+        /// drops them. Parts for other keys go; a part names only keys sealed
+        /// to the account and logs it signed in, and staging one again
+        /// replaces it. The account's own.
+        stage-recovery-key(recovery-key-part),
         /// Publishes the account's name card (`be_block_keys::NameCard`,
         /// signed with its signing key), which `signing-keys` serves its
         /// contacts. The server refuses one that does not name the caller or
@@ -712,6 +720,13 @@ interface server {
     record remove-contact {
         account: account-id,
         revocations: list<list<u8>>,
+    }
+
+    record recovery-key-part {
+        public: public-key,
+        signing: public-key,
+        sealed: list<sealed-key>,
+        retirements: list<retirement>,
     }
 
     record set-recovery-key {
