@@ -1,7 +1,7 @@
-use be_lib_ui_types::{Key, Modifiers};
-use be_sdk_root_testing::{ACCOUNTS_LAYER, ACCOUNTS_SURFACE, DIALOG_LAYER, DIALOG_SURFACE};
 use be_lib_geometry::pos2;
 use be_lib_ui_types::input::{ImeEvent, Input};
+use be_lib_ui_types::{Key, Modifiers};
+use be_sdk_root_testing::{ACCOUNTS_LAYER, ACCOUNTS_SURFACE, DIALOG_LAYER, DIALOG_SURFACE};
 use be_wasm_root_api::{
     AccountRow, BrowserSignIn, CoreCommand, CoreView, DisplayQuestion, NewAccount, SigningIn,
 };
@@ -47,7 +47,11 @@ fn grace() -> AccountRow {
 }
 
 /// Hands the root `events` and draws a few frames, answering what it asked of the block stack.
-fn asks(root: &mut Root, time: &mut u64, events: Vec<be_lib_ui_types::input::Timed>) -> Vec<CoreCommand> {
+fn asks(
+    root: &mut Root,
+    time: &mut u64,
+    events: Vec<be_lib_ui_types::input::Timed>,
+) -> Vec<CoreCommand> {
     root.input(None, be_lib_ui_types::input::encode(&events))
         .expect("the root takes input");
     for _ in 0..4 {
@@ -202,7 +206,10 @@ fn a_root_shows_its_hosts_accounts_and_adds_one_handing_over_only_what_was_typed
         revert_at: time + 15_000_000_000,
     }));
     let commands = asks(&mut root, &mut time, Vec::new());
-    assert!(commands.is_empty(), "the question stops no sign-in: {commands:?}");
+    assert!(
+        commands.is_empty(),
+        "the question stops no sign-in: {commands:?}"
+    );
     assert_ne!(
         painting_of(&mut root, &mut time, DIALOG_SURFACE),
         signing_in,
@@ -212,7 +219,10 @@ fn a_root_shows_its_hosts_accounts_and_adds_one_handing_over_only_what_was_typed
     assert_eq!(root.take_display_answers(), vec![(1, true)]);
     root.show_displays(None);
     let commands = asks(&mut root, &mut time, Vec::new());
-    assert!(commands.is_empty(), "resumed, it starts nothing afresh: {commands:?}");
+    assert!(
+        commands.is_empty(),
+        "resumed, it starts nothing afresh: {commands:?}"
+    );
     assert_eq!(
         painting_of(&mut root, &mut time, DIALOG_SURFACE),
         signing_in,
