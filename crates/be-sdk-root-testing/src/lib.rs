@@ -223,5 +223,16 @@ pub const SLOW_SAVE_TOAST: u64 = u64::MAX;
 /// The slow save's toast's title.
 pub const SLOW_SAVE_TITLE: &str = "Saving changes…";
 
+/// The key that opens the root's list of the block stack's unsent edits (`host.core`), in its
+/// dialog's place, pressed with no modifiers: the root intercepts it wherever the focus is, but
+/// not while the session is locked.
+pub const OPENS_UNSENT: Key = Key::F7;
+
+/// The title of the list of unsent edits.
+pub const UNSENT_TITLE: &str = "Unsent edits";
+
+/// The title of the question the list asks before discarding a block's unsent edits.
+pub const DISCARD_UNSENT_TITLE: &str = "Discard edits?";
+
 #[cfg(target_arch = "wasm32")]
 mod guest;
