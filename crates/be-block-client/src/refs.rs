@@ -489,7 +489,8 @@ struct State {
     /// Every contact's name as the server last listed it, so a push opened with no connection
     /// names its sender (`Peer::contact_name`).
     contact_names: Vec<(Uuid, String)>,
-    name_cards: Vec<(Uuid, be_block_keys::NameCard)>,
+    /// Each contact's kept name card, with the signing key that opened it.
+    name_cards: HashMap<Uuid, ([u8; 32], be_block_keys::NameCard)>,
     signers: HashMap<Uuid, Vec<KnownSigner>>,
     outbox: BTreeMap<u64, Op>,
     unsent: BTreeMap<Uuid, Unsent>,
@@ -741,7 +742,9 @@ impl State {
             }
             Table::Contacts => self.contacts = decode(value)?,
             Table::ContactNames => self.contact_names = decode(value)?,
-            Table::NameCards => self.name_cards = decode(value)?,
+            Table::NameCards => {
+                self.name_cards.insert(uuid_key(&row.key)?, decode(value)?);
+            }
             Table::Signers => {
                 self.signers.insert(uuid_key(&row.key)?, decode(value)?);
             }
@@ -1717,38 +1720,44 @@ impl Refs {
         self.write(vec![row(Table::ContactNames, Vec::new(), &names)])
     }
 
-    /// The newest name card `account` signed that this device showed (`Peer::refresh_contacts`),
-    /// which it shows over any older one a server serves.
-    pub fn name_card(&self, account: Uuid) -> Option<be_block_keys::NameCard> {
+    /// The newest name card `account` signed with `signing` that this device showed
+    /// (`Peer::refresh_contacts`), which it shows over any older one a server serves. None when
+    /// the card kept was opened with another key: a contact that took a new phrase is named by
+    /// what its new key signs, whatever an old key dated its card.
+    pub fn name_card(
+        &self,
+        account: Uuid,
+        signing: &be_block_keys::SigningPublic,
+    ) -> Option<be_block_keys::NameCard> {
         self.state
             .lock()
             .unwrap()
             .name_cards
-            .iter()
-            .find(|(named, _)| *named == account)
+            .get(&account)
+            .filter(|(kept, _)| *kept == signing.0)
             .map(|(_, card)| card.clone())
     }
 
-    /// Keeps `card` as `account`'s newest shown name card, unless one dated as late or later is
-    /// kept already.
+    /// Keeps `card`, which `signing` opened, as `account`'s newest shown name card, unless one
+    /// `signing` opened dated as late or later is kept already.
     pub fn keep_name_card(
         &self,
         account: Uuid,
+        signing: &be_block_keys::SigningPublic,
         card: be_block_keys::NameCard,
     ) -> Result<(), StoreError> {
-        let cards = {
+        let kept = (signing.0, card);
+        {
             let mut state = self.state.lock().unwrap();
-            if let Some((_, kept)) = state.name_cards.iter().find(|(named, _)| *named == account)
-                && kept.dated >= card.dated
+            if let Some((key, held)) = state.name_cards.get(&account)
+                && *key == signing.0
+                && held.dated >= kept.1.dated
             {
                 return Ok(());
             }
-            state.name_cards.retain(|(named, _)| *named != account);
-            state.name_cards.push((account, card));
-            state.name_cards.sort_by_key(|(named, _)| *named);
-            state.name_cards.clone()
-        };
-        self.write(vec![row(Table::NameCards, Vec::new(), &cards)])
+            state.name_cards.insert(account, kept.clone());
+        }
+        self.write(vec![row(Table::NameCards, account.as_bytes().to_vec(), &kept)])
     }
 
     /// Keeps `key` as one `account` signs with: verified once a contact's card or key change
