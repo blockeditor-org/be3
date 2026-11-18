@@ -13,10 +13,10 @@
 	}
 	reverse_proxy 127.0.0.1:9090 {
 		header_up -Be3-Gateway-Authorization
-		# Under be-server's IDLE_TIMEOUT (90 s), so Caddy never sends a request on a pooled
+		# Under be-server's IDLE_TIMEOUT (50 s), so Caddy never sends a request on a pooled
 		# connection the server is closing.
 		transport http {
-			keepalive 60s
+			keepalive 40s
 		}
 	}
 }
@@ -28,7 +28,7 @@
 	handle @storage {
 		reverse_proxy 127.0.0.1:9090 {
 			transport http {
-				keepalive 60s
+				keepalive 40s
 			}
 		}
 	}

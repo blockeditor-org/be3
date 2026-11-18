@@ -780,8 +780,10 @@ loses it at once, and a claim takes it at once (two devices that claim in turn
 pass it back and forth). After a grant, a move, a revocation or a role change
 (`append-log`, `move`), `recheck_sessions` writes the changes of edit access. Only the server
 writes leaves: when a socket closes, and when a connection goes silent past
-`IDLE_TIMEOUT` (90 s), as `leave_all` runs on any disconnect; until then a
-silent holder stays the holder. The registry indexes sessions by client, so
+`IDLE_TIMEOUT` (50 s), as `leave_all` runs on any disconnect; until then a
+silent holder stays the holder. `IDLE_TIMEOUT` is be-block-protocol's `CLIENT_SILENCE`, the
+longest a live client goes without sending (twice its `PING_INTERVAL` and its `PONG_WAIT`), so
+no live client is given up. The registry indexes sessions by client, so
 leaving them all costs what that client joined, and forgets an empty session.
 After a restart every session is empty and rebuilds from joins.
 
