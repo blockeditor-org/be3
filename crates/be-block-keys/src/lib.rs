@@ -2,6 +2,7 @@ use std::fmt;
 
 mod access;
 pub mod aead;
+pub mod lru;
 pub mod merkle;
 pub mod noise;
 pub use access::{
