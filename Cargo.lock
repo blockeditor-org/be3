@@ -1813,6 +1813,7 @@ version = "0.1.0"
 dependencies = [
  "be-block-commit",
  "be-block-fault-relay",
+ "be-block-sqlite-schema",
  "be-server",
  "be-tool-drive",
  "beui-core",

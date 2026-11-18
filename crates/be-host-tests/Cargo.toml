@@ -8,6 +8,7 @@ license.workspace = true
 be-block-commit = { path = "../be-block-commit" }
 beui-core = { path = "../beui-core" }
 be-block-fault-relay = { path = "../be-block-fault-relay" }
+be-block-sqlite-schema = { path = "../be-block-sqlite-schema" }
 be-server = { path = "../be-server" }
 tokio = { version = "1", features = ["rt-multi-thread"] }
 uuid = { version = "1", features = ["v4"] }
