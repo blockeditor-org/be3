@@ -45,5 +45,20 @@ fn an_entry_redacted_by_anyone_but_its_author_shows_removed() {
         .collect();
     assert_eq!(removed, [(1, BO), (4, ADA)]);
     assert!(log.message(2).is_none(), "a reaction taken back shows no row");
+
+    // A deletion naming the reaction its author took back adds no deleted message.
+    let mut deleted = entries.to_vec();
+    deleted.push(item(
+        7,
+        ADA,
+        &ChatEntry::Delete {
+            message: 2,
+            time: 0,
+        },
+    ));
+    assert!(
+        ChatLog::of(&deleted).message(2).is_none(),
+        "a deletion of a reaction taken back shows no row"
+    );
     assert_eq!(log.message(1).unwrap().body, None);
 }

@@ -174,11 +174,13 @@ impl ChatLog {
                 }
             }
             Some(Some(ChatEntry::Delete { message, time })) => {
+                // One a take-back named already (a reaction taken back) was no message.
+                let taken = self.taken_back.contains(&message);
                 self.take_back(message, item);
                 if let Some(gone) = self
                     .unopened
                     .get(&message)
-                    .filter(|gone| gone.author == item.author)
+                    .filter(|gone| !taken && gone.author == item.author)
                 {
                     self.messages.insert(
                         message,
