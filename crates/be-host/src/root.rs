@@ -504,7 +504,27 @@ fn show_statistics(root: &mut Root, memory: &mut Option<MemoryRows>) {
             .as_ref()
             .is_none_or(|shown| shown.generation != generation)
         {
-            let (rows, file) = crate::memory::view()
+            let view = crate::memory::view();
+            // The graph's minutes, which change only with a new sample, so only then.
+            let (points, now) = view
+                .as_ref()
+                .map(|view| {
+                    let points = view
+                        .points
+                        .iter()
+                        .map(|point| be_wasm_root_api::MemoryPoint {
+                            at: point.at,
+                            resident: point.usage.resident,
+                            anonymous: point.usage.anonymous,
+                            shared: point.usage.shared,
+                            wasm: point.usage.wasm,
+                        })
+                        .collect();
+                    (points, view.now)
+                })
+                .unwrap_or_default();
+            root.show_memory_history(points, now);
+            let (rows, file) = view
                 .map(|view| {
                     let rows = view
                         .rows

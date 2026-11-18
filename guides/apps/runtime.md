@@ -190,7 +190,9 @@ its own (a `v8::SharedIsolate`, locked by the thread that runs it):
   answers them once they change from the generation the root saw, as
   `host.notices` does (`Root::show_statistics`): performance and memory rows,
   each a heading or a measurement's latest, average and peak as the host words
-  them, and the file the memory statistics are written to. The session's
+  them, and the file the memory statistics are written to; `host.memory-history`
+  is the memory over time a graph draws, a point a minute, a watch of its own
+  since the rows change every frame (`Root::show_memory_history`). The session's
   screen lock is the host's: `host.lock` is a watch of it (locked, checking,
   why the last password was refused, whose session, the power actions offered;
   `Root::show_lock`), `host.lock-session` and `host.lock-power` ask the host to

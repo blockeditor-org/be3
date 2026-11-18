@@ -125,6 +125,10 @@ struct Core<G> {
     statistics: HostStatistics,
     /// The root's `host.statistics` calls waiting for them to change from those it saw.
     statistics_watchers: Vec<Reply<HostStatistics>>,
+    /// The host's memory over time, which `host.memory-history` answers.
+    memory_history: be_wasm_root_api::MemoryHistory,
+    /// The root's `host.memory-history` calls waiting for it to change from what they saw.
+    memory_watchers: Vec<Reply<be_wasm_root_api::MemoryHistory>>,
     /// The session's screen lock, which `host.lock` answers: the generation counts each change.
     lock: LockState,
     /// The root's `host.lock` calls waiting for it to change from what they saw.
@@ -203,6 +207,11 @@ impl<G: Inline> Core<G> {
                 memory_file: None,
             },
             statistics_watchers: Vec::new(),
+            memory_history: be_wasm_root_api::MemoryHistory {
+                generation: 1,
+                ..be_wasm_root_api::MemoryHistory::default()
+            },
+            memory_watchers: Vec::new(),
             lock: LockState {
                 generation: 1,
                 available: false,
@@ -357,6 +366,25 @@ impl<G: Inline> Core<G> {
         let answered = !watching.is_empty();
         for reply in watching {
             reply.send(&mut self.connection, &self.statistics);
+        }
+        answered
+    }
+
+    /// Shows the root the host's memory over time (`host.memory-history`), in place of what it
+    /// showed. Answers whether a root's call waited for it, so the host steps the root.
+    fn show_memory_history(&mut self, points: Vec<be_wasm_root_api::MemoryPoint>, now: u64) -> bool {
+        if self.memory_history.points == points && self.memory_history.now == now {
+            return false;
+        }
+        self.memory_history = be_wasm_root_api::MemoryHistory {
+            generation: self.memory_history.generation + 1,
+            points,
+            now,
+        };
+        let watching = std::mem::take(&mut self.memory_watchers);
+        let answered = !watching.is_empty();
+        for reply in watching {
+            reply.send(&mut self.connection, &self.memory_history);
         }
         answered
     }
@@ -695,6 +723,12 @@ impl<G: Inline> Core<G> {
                             .remove(at)
                             .fail(&mut self.connection, OpError::Canceled);
                     } else if let Some(at) =
+                        self.memory_watchers.iter().position(|reply| reply.op() == op)
+                    {
+                        self.memory_watchers
+                            .remove(at)
+                            .fail(&mut self.connection, OpError::Canceled);
+                    } else if let Some(at) =
                         self.pasting.iter().position(|(_, reply)| reply.op() == op)
                     {
                         let (id, reply) = self.pasting.remove(at);
@@ -758,6 +792,15 @@ impl<G: Inline> Core<G> {
                     for reply in std::mem::take(&mut self.statistics_watchers) {
                         reply.send(&mut self.connection, &self.statistics);
                     }
+                    for reply in std::mem::take(&mut self.memory_watchers) {
+                        reply.send(&mut self.connection, &self.memory_history);
+                    }
+                }
+            }
+            embed::Call::Host(embed::host::Call::MemoryHistory { seen, reply }) => {
+                match seen == self.memory_history.generation {
+                    true => self.memory_watchers.push(reply),
+                    false => reply.send(&mut self.connection, &self.memory_history),
                 }
             }
             embed::Call::Host(embed::host::Call::Statistics { seen, reply }) => {
