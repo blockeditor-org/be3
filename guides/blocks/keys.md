@@ -1132,9 +1132,12 @@ keys the granter verified that way, which every device then seals to.
   key (`signing-keys`). A device shows a verified contact by the card its
   verified signing key signs, else by the card it verified
   (`Peer::refresh_contacts`), so the server cannot rename anyone. Each device
-  keeps the newest card it showed per contact (`Refs::name_card`) and shows it
-  over an older one the server serves, or none, so a server that withholds a
-  rename only keeps it from devices that never showed it.
+  keeps the newest card it showed per contact with the signing key that opened
+  it (`Refs::name_card`), and shows it over an older one the server serves, or
+  none, so a server that withholds a rename only keeps it from devices that
+  never showed it. A kept card counts only while that key is the contact's
+  verified one: after a new phrase, what the new key signs names the contact,
+  whatever date an old key put on its card.
 - **The account's block** (`be_block::account_block`, `AccountBlock`) holds the
   account's records of its contacts, the code and kind of each link it made
   until it is finished (`contacts::KeptLink`, kept before `create-link`, so a
