@@ -37,9 +37,7 @@ impl SqliteRefs {
     }
 
     fn with_connection(connection: Connection) -> Result<Self, StoreError> {
-        connection
-            .pragma_update(None, "journal_mode", "WAL")
-            .map_err(failed)?;
+        be_block_sqlite_schema::use_wal(&connection).map_err(failed)?;
         connection
             .pragma_update(None, "synchronous", "NORMAL")
             .map_err(failed)?;
