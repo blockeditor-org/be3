@@ -100,6 +100,21 @@ fn every_record_reads_back_with_each_option_none_and_some() {
                 id: Uuid::new_v4(),
                 payload: vec![11],
                 signature: vec![12; 64],
+                announces: None,
+                redacts: None,
+            }),
+            Op::Append(Appending {
+                block,
+                id: Uuid::new_v4(),
+                payload: vec![11],
+                signature: vec![12; 64],
+                announces: Some(crate::refs::Made {
+                    key: "a message".into(),
+                    sealed: vec![14],
+                    several: "{count} new messages".into(),
+                    mentions: vec![Uuid::new_v4()],
+                }),
+                redacts: Some(3),
             }),
         ] {
             reads_back(&op);

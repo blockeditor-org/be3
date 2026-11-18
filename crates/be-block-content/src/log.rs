@@ -39,5 +39,24 @@ pub struct LogItem {
 /// nobody's (`LogSigner::Bad`), and each other with its verdict, so a type decides what one
 /// signed with a replaced key (`Replaced`), not yet told (`Unknown`) or redacted counts for.
 pub trait LogFold: crate::BlockContent {
+    /// Whether what the content shows depends on its log at all. A type whose content shows
+    /// nothing of its log (chat: its children are its content's) says false, and its replica
+    /// neither reads the log nor keeps it: its editors read what they show. One that folds has
+    /// its replica read the log to its end, a page at a time, so the fold is never cut short.
+    const FOLDS: bool = true;
+
     fn fold(&mut self, item: &LogItem);
+}
+
+/// What goes with an entry an editor appends, which the device keeps with the entry until the
+/// server takes it and then does, so neither happens for an entry the server never takes, nor
+/// is lost to a restart before it does.
+#[derive(Clone, Debug, Default, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
+pub struct Along {
+    /// What the server pushes to the block's members who are away: several taken at once go
+    /// as one (`Announcement::several`).
+    pub announcement: Option<crate::Announcement>,
+    /// The place of an entry of the block's log the new one takes back (a deletion's message),
+    /// redacted: the entry's author's, or a manager's, as the server checks.
+    pub redacts: Option<u64>,
 }

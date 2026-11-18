@@ -12,7 +12,7 @@ async fn an_exported_log_verifies_elsewhere_against_the_block_it_was_written_in(
     let chat = workspace(&owner, "Chat").await;
     for said in ["one", "two", "gone"] {
         owner
-            .append(chat, "test.app", said.as_bytes())
+            .append(chat, "test.app", said.as_bytes(), be_block_content::Along::default())
             .await
             .unwrap();
     }
