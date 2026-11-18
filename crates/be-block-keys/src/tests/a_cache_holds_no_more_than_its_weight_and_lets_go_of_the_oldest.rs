@@ -17,7 +17,11 @@ fn a_cache_holds_no_more_than_its_weight_and_lets_go_of_the_oldest() {
     cache.insert("a", 4, 2);
     assert_eq!(cache.weight(), 6, "putting a key again replaces its weight");
     cache.insert("heavy", 5, 11);
-    assert_eq!(cache.get(&"heavy"), None, "nothing heavier than the cache is kept");
+    assert_eq!(
+        cache.get(&"heavy"),
+        None,
+        "nothing heavier than the cache is kept"
+    );
     assert_eq!(cache.len(), 2);
     cache.insert("whole", 6, 10);
     assert_eq!(cache.len(), 1, "one that fills it lets go of the rest");

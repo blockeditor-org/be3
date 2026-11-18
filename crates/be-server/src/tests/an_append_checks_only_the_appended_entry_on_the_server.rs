@@ -70,7 +70,14 @@ fn an_append_checks_only_the_appended_entry_on_the_server() {
     assert_eq!(second, 1, "an append checks only the appended entry");
 
     let mut refused = entries.clone();
-    let mut bad = grants(&creator, block, entries.last().unwrap().hash(), LENGTH + 1, 1).remove(0);
+    let mut bad = grants(
+        &creator,
+        block,
+        entries.last().unwrap().hash(),
+        LENGTH + 1,
+        1,
+    )
+    .remove(0);
     bad.signature[0] ^= 1;
     refused.push(bad);
     let (checked, third) = check(&refused);
@@ -82,5 +89,8 @@ fn an_append_checks_only_the_appended_entry_on_the_server() {
     other.extend(grants(&creator, block, pinned, LENGTH * 2, 10));
     let (checked, fourth) = check(&other);
     assert!(checked.is_ok());
-    assert!(fourth >= 10, "a log that does not reach the kept head is checked whole");
+    assert!(
+        fourth >= 10,
+        "a log that does not reach the kept head is checked whole"
+    );
 }
