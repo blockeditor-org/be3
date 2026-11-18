@@ -29,19 +29,20 @@ use be_wasm_root_api::{
         host,
     },
 };
+use beui::icons::{Glyph, ICON_LOG_OUT, ICON_MOON, ICON_POWER, ICON_ROTATE_CCW};
 use beui::native::painting::{Frame as PaintFrame, Painting, ScreenPaintings};
 use beui::reactive::*;
 use beui::styled::*;
-use beui::icons::{Glyph, ICON_LOG_OUT, ICON_MOON, ICON_POWER, ICON_ROTATE_CCW};
 use beui::{Align, Align2, Direction, KeyPhase, NodeId, Overflow, Pos2, Rect, TextAlign, vec2};
 
 use crate::{
     APP, APP_ENTRY, CLOSES, DIALOG_LAYER, DIALOG_ORIGIN, DIALOG_SIZE, DIALOG_SURFACE, DIALOG_TITLE,
-    LATE_LAYER, LATER, STRAY_PASSWORD, UNLOCKS_TWICE, LATER_TEXT, LOCK_LAYER, LOCK_SURFACE, LOCKS_SESSION, OPENS_DIALOG, OPENS_STATISTICS, ORIGIN, RASTER, RESIZED,
-    RESIZES, ROOT_COLOR, ROOT_LAYER, ROOT_SURFACE, SCREEN, SCREEN_SIZE, SCRIM_COLOR, SCRIM_LAYER,
-    SCRIM_SURFACE, SIZE, STATISTICS_AREA, STATISTICS_LAYER, STATISTICS_ORIGIN, STATISTICS_SURFACE,
-    STATISTICS_TITLE, TEXT, TEXT_LAYER, TEXT_STRIP, TEXT_SURFACE, TOAST_AREA, TOAST_LAYER,
-    TOAST_SURFACE, UNPRESENTED_SURFACE,
+    LATE_LAYER, LATER, LATER_TEXT, LOCK_LAYER, LOCK_SURFACE, LOCKS_SESSION, OPENS_DIALOG,
+    OPENS_STATISTICS, ORIGIN, RASTER, RESIZED, RESIZES, ROOT_COLOR, ROOT_LAYER, ROOT_SURFACE,
+    SCREEN, SCREEN_SIZE, SCRIM_COLOR, SCRIM_LAYER, SCRIM_SURFACE, SIZE, STATISTICS_AREA,
+    STATISTICS_LAYER, STATISTICS_ORIGIN, STATISTICS_SURFACE, STATISTICS_TITLE, STRAY_PASSWORD,
+    TEXT, TEXT_LAYER, TEXT_STRIP, TEXT_SURFACE, TOAST_AREA, TOAST_LAYER, TOAST_SURFACE,
+    UNLOCKS_TWICE, UNPRESENTED_SURFACE,
 };
 
 /// The triangle's editor, by its manifest's id.
@@ -292,7 +293,9 @@ impl Root {
                 }
             },
         )?;
-        let (shown, shown_at) = shown.get().ok_or("the lock screen's document made its state")?;
+        let (shown, shown_at) = shown
+            .get()
+            .ok_or("the lock screen's document made its state")?;
         let had = self.embedding.borrow().focused(None).map(|layer| layer.id);
         *self.lock.borrow_mut() = Some(Locked {
             surface,
@@ -823,7 +826,10 @@ fn retry_wait(state: Signal<LockState>, shown_at: Signal<Duration>) -> Memo<Opti
             tick.restart(Duration::ZERO);
         });
     });
-    create_memo(move || left.get().map(|seconds| format!("Try again in {seconds} s")))
+    create_memo(move || {
+        left.get()
+            .map(|seconds| format!("Try again in {seconds} s"))
+    })
 }
 
 /// Hands `typed` to the host to check (`host.unlock`), keeping no copy: whether it unlocked the

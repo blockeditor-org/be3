@@ -10,8 +10,8 @@ mod sleep;
 use std::time::Duration;
 
 use be_host_base::host::{Desk, Mailbox, Post};
-use be_wasm_password::Password;
 use be_host_desktop::desktop_host::{DesktopHost, Host};
+use be_wasm_password::Password;
 pub(crate) use environment::export as export_environment;
 pub(crate) use install::{apply_elevated as apply_install_changes, install, uninstall};
 use lock::{Authenticate, Lock, Verdict};

@@ -2,8 +2,8 @@ use be_lib_geometry::{Rect, pos2, vec2};
 use be_lib_ui_types::input::{ImeEvent, Input};
 use be_lib_ui_types::{ImeArea, Key, Modifiers};
 use be_sdk_root_testing::{
-    DIALOG_ORIGIN, DIALOG_SIZE, LOCK_LAYER, LOCK_SURFACE, LOCKS_SESSION, ORIGIN,
-    STATISTICS_LAYER, TOAST_LAYER, UNLOCKS_TWICE,
+    DIALOG_ORIGIN, DIALOG_SIZE, LOCK_LAYER, LOCK_SURFACE, LOCKS_SESSION, ORIGIN, STATISTICS_LAYER,
+    TOAST_LAYER, UNLOCKS_TWICE,
 };
 use be_wasm_root_api::{LockState, Notice, PowerAction};
 
@@ -80,7 +80,8 @@ fn a_root_shows_its_hosts_lock_screen_and_hands_over_only_what_was_typed() {
         pos2(DIALOG_ORIGIN.0, DIALOG_ORIGIN.1),
         vec2(DIALOG_SIZE.0 as f32, DIALOG_SIZE.1 as f32),
     );
-    let in_dialog = |done: &FrameDone| ime(done).is_some_and(|area| dialog.contains_rect(area.rect));
+    let in_dialog =
+        |done: &FrameDone| ime(done).is_some_and(|area| dialog.contains_rect(area.rect));
     assert!(in_dialog(&dialog_open));
     root.show_notices(vec![Notice {
         id: 1,
@@ -115,7 +116,8 @@ fn a_root_shows_its_hosts_lock_screen_and_hands_over_only_what_was_typed() {
         Vec::new(),
         "the lock screen shows, its password field taking the input method",
         |done| {
-            layer_of(done, LOCK_LAYER).is_some() && ime(done).is_some_and(|area| !dialog.contains_rect(area.rect))
+            layer_of(done, LOCK_LAYER).is_some()
+                && ime(done).is_some_and(|area| !dialog.contains_rect(area.rect))
         },
     );
     assert_eq!(
