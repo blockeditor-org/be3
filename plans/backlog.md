@@ -32,13 +32,6 @@ Fixed items are removed as they land.
   move what is shown there. Done: the HTML list keeps its anchor row in place
   itself where `overflow-anchor` is missing, shown by a test on the HTML core.
 
-- **A row's rename that outlives its moment.** be-app-file-tree's `Renaming`
-  keeps a `pending` rename of a new block until its row shows, and a started
-  one (`editing`) until its field finishes, even after the tree lost the
-  keyboard to another block. Done: a pending rename is dropped, and a started
-  one ends as left, once the tree's keyboard goes to another block, shown by a
-  file tree test.
-
 ## 2. Docking
 
 - **Bar drops across layers.** A joined dock bar (guides/beui/docking.md,
