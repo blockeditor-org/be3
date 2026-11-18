@@ -19,8 +19,7 @@ async fn a_link_accepted_then_unmade_as_a_contact_leaves_no_link_or_card() {
             })
             .unwrap()
     };
-    let cards =
-        "SELECT count(*) FROM mailbox WHERE account_id = ?1 AND sender_id = ?2 AND kind = 'accepted'";
+    let cards = "SELECT count(*) FROM mailbox WHERE account_id = ?1 AND sender_id = ?2 AND kind = 'accepted'";
     let links = "SELECT count(*) FROM links WHERE owner_id = ?1 AND accepter_id = ?2";
     assert_eq!((count(cards), count(links)), (1, 1));
 

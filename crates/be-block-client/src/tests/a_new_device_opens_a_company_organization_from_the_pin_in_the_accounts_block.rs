@@ -8,7 +8,10 @@ use super::*;
 async fn a_new_device_opens_a_company_organization_from_the_pin_in_the_accounts_block() {
     let harness = Harness::start().await;
     let admin = harness.owner("admin@example.com").await;
-    let escrow = admin.keys().escrow().expect("the administrator made an escrow key");
+    let escrow = admin
+        .keys()
+        .escrow()
+        .expect("the administrator made an escrow key");
     let member = harness.member(&admin, "member@example.com").await;
     member.refresh_contacts().await.unwrap();
     assert_eq!(member.keys().pins().escrow, Some(escrow.clone()));

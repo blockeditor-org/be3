@@ -82,7 +82,13 @@ async fn contacts_keep_sharing_after_one_of_them_takes_a_new_recovery_phrase() {
     let block = Uuid::new_v4();
     let before = owner.sign_authored(block, b"before");
     let old = owner.keys().identity().clone();
-    take_phrase(&owner.connection(), owner.account(), owner.keys().identity(), &fresh).await;
+    take_phrase(
+        &owner.connection(),
+        owner.account(),
+        owner.keys().identity(),
+        &fresh,
+    )
+    .await;
 
     let owner = with_identity(&harness, &owner, fresh.clone()).await;
     let watcher = guest;

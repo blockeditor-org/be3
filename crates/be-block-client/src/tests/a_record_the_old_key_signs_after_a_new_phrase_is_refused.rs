@@ -23,15 +23,14 @@ async fn a_record_the_old_key_signs_after_a_new_phrase_is_refused() {
     let old = owner.keys().identity().clone();
 
     let fresh = be_block_keys::RecoveryPhrase::generate().secret();
-    let RecoveryKey {
-        logs, ..
-    } = crate::ask(
-        be_block_protocol::read::<be_block_protocol::RecoveryKey, _>(
-            &owner.connection(),
-            None,
-            be_block_protocol::Query::RecoveryKey,
-        ),
-    )
+    let RecoveryKey { logs, .. } = crate::ask(be_block_protocol::read::<
+        be_block_protocol::RecoveryKey,
+        _,
+    >(
+        &owner.connection(),
+        None,
+        be_block_protocol::Query::RecoveryKey,
+    ))
     .await
     .unwrap();
     assert!(

@@ -1357,11 +1357,7 @@ impl Client {
             }
             Query::Invitations => {
                 let identity = admitted.identity()?;
-                Page::Invitations(
-                    store
-                        .list_invitations(identity.organization)
-                        .await?,
-                )
+                Page::Invitations(store.list_invitations(identity.organization).await?)
             }
             Query::Storage => {
                 let usage = store.storage_usage(admitted.account()?).await?;
@@ -2001,11 +1997,7 @@ impl Client {
                         .await?,
                 ))
             }
-            Op::CreateLink {
-                link,
-                card,
-                kind,
-            } => {
+            Op::CreateLink { link, card, kind } => {
                 let account = admitted.account()?;
                 if let LinkKind::Invitation(invitation) = &kind
                     && Some(invitation.organization)

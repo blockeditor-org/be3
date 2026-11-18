@@ -59,7 +59,11 @@ impl AccountBlock {
 
     pub fn set_pin(organization: Uuid, pinned: Option<Vec<u8>>) -> Edit {
         Self::PINS
-            .put(ObjectId::ROOT, &organization, pinned.map(Bytes::from).as_ref())
+            .put(
+                ObjectId::ROOT,
+                &organization,
+                pinned.map(Bytes::from).as_ref(),
+            )
             .into()
     }
 }

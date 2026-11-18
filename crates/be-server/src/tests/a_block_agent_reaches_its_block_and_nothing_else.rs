@@ -240,11 +240,7 @@ async fn a_block_agent_reaches_its_block_and_nothing_else() {
         "a block's agent was sealed another block's key"
     );
     assert!(
-        agent
-            .contacts()
-            .await
-            .iter()
-            .all(|contact| *contact == me),
+        agent.contacts().await.iter().all(|contact| *contact == me),
         "a block's agent has contacts beyond its creator"
     );
 

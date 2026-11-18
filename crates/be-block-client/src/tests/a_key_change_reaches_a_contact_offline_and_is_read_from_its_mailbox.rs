@@ -1,7 +1,5 @@
 use super::*;
 
-
-
 fn waiting(harness: &Harness, to: Uuid, from: Uuid) -> i64 {
     harness
         .database()
@@ -36,7 +34,13 @@ async fn a_key_change_reaches_a_contact_offline_and_is_read_from_its_mailbox() {
     drop(guest);
 
     let fresh = be_block_keys::RecoveryPhrase::generate().secret();
-    take_phrase(&owner.connection(), owner.account(), owner.keys().identity(), &fresh).await;
+    take_phrase(
+        &owner.connection(),
+        owner.account(),
+        owner.keys().identity(),
+        &fresh,
+    )
+    .await;
     assert_eq!(
         waiting(&harness, account, owner.account()),
         1,

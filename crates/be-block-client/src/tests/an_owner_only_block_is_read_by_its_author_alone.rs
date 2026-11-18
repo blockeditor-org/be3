@@ -183,7 +183,13 @@ async fn an_owner_only_block_is_read_by_its_author_alone() {
     );
 
     let fresh = be_block_keys::RecoveryPhrase::generate().secret();
-    take_phrase(&member.connection(), member.account(), member.keys().identity(), &fresh).await;
+    take_phrase(
+        &member.connection(),
+        member.account(),
+        member.keys().identity(),
+        &fresh,
+    )
+    .await;
     let renewed = Peer::connect(
         PeerConfig::new(
             &harness.url,

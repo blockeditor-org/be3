@@ -19,13 +19,19 @@ async fn a_device_that_read_fewer_key_changes_never_rolls_a_contact_back() {
         .find(|contact| contact.account == owner.account())
         .and_then(|contact| contact.record())
         .unwrap();
-    let block = crate::AccountRecords::open(&slow.connection(), slow.account(), slow.keys().identity())
-        .await
-        .unwrap()
-        .expect("a person's account has its own block");
+    let block =
+        crate::AccountRecords::open(&slow.connection(), slow.account(), slow.keys().identity())
+            .await
+            .unwrap()
+            .expect("a person's account has its own block");
     let read = block.read().await.unwrap();
 
-    let first = new_phrase(&owner.connection(), owner.account(), owner.keys().identity()).await;
+    let first = new_phrase(
+        &owner.connection(),
+        owner.account(),
+        owner.keys().identity(),
+    )
+    .await;
     // What the slow device would write having followed the first change alone.
     let mut card = pinned.card.clone();
     card.public = first.public();

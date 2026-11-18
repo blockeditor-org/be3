@@ -20,23 +20,32 @@ async fn a_contacts_key_the_server_rolls_back_stays_the_newest_one_seen() {
     assert_eq!(guest.keys().contact(owner.account()), Some(old));
 
     // The owner takes a new phrase; the guest follows the change it sealed with the old one.
-    let fresh = new_phrase(&owner.connection(), owner.account(), owner.keys().identity()).await;
+    let fresh = new_phrase(
+        &owner.connection(),
+        owner.account(),
+        owner.keys().identity(),
+    )
+    .await;
     guest.refresh_contacts().await.unwrap();
     assert_eq!(guest.keys().contact(owner.account()), Some(fresh.public()));
 
     // The block is served holding the old record again, and the change is dropped.
-    crate::AccountRecords::open(&guest.connection(), guest.account(), guest.keys().identity())
-        .await
-        .unwrap()
-        .expect("a person's account has its own block")
-        .update(|_| {
-            vec![be_block::AccountBlock::set_contact(
-                owner.account(),
-                Some(stale.kept()),
-            )]
-        })
-        .await
-        .unwrap();
+    crate::AccountRecords::open(
+        &guest.connection(),
+        guest.account(),
+        guest.keys().identity(),
+    )
+    .await
+    .unwrap()
+    .expect("a person's account has its own block")
+    .update(|_| {
+        vec![be_block::AccountBlock::set_contact(
+            owner.account(),
+            Some(stale.kept()),
+        )]
+    })
+    .await
+    .unwrap();
     harness
         .database()
         .execute(
