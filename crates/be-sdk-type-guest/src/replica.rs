@@ -634,9 +634,10 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     /// Reloads waiting for the part their state goes by (`submit_reloads`): seals wait for
     /// them as for those in `reloading`.
     reloads_putting: VecDeque<PendingReload>,
-    /// A restart is due and the last seal fell short of what the order numbered: this
-    /// holder's own edits wait (`flush`), and it seals again once what it submitted is numbered
-    /// (`seal_for_restart`).
+    /// A restart is due, the last seal fell short of what the order numbered, and this holder is
+    /// alone: its own edits wait (`flush`), unsubmitted (so in the host's kept edits, not the
+    /// journal), and it seals again once what it submitted is numbered (`seal_for_restart`). A
+    /// seal that fails lets them go until the next comes back short.
     restart_short: bool,
     /// Said once that a due restart was put off past `RESTART_CEILING` times the limit.
     restart_overdue: bool,
@@ -2284,6 +2285,10 @@ where
     /// passes, `seal_retry_at` stays set until a seal settles or fails again: `commit_at` makes
     /// the retry due, and `sealing` keeps a second one from starting while it is on its way.
     fn seal_failed(&mut self) {
+        // Its own held for a restart go meanwhile (`restart_short`).
+        if std::mem::take(&mut self.restart_short) {
+            self.jobs.push_back(Job::Unblocked);
+        }
         let wait = (SEAL_RETRY_INTERVAL << self.seal_failures.min(4)).min(SEAL_RETRY_CEILING);
         self.seal_failures = self.seal_failures.saturating_add(1);
         self.seal_retry_at = Some(self.now + wait);
@@ -2637,20 +2642,13 @@ where
                         self.restart_short = false;
                         self.submit_reload(head, true, true, Vec::new(), None);
                     }
-                    // Short: this holder holds its own edits back and seals again as soon as
-                    // what it submitted is numbered, which, alone, holds everything.
+                    // Short. Alone, this holder holds its own edits back and seals again as soon as
+                    // what it submitted is numbered, which holds everything. With others in the
+                    // session the shortfall may be theirs, which holding its own would not end:
+                    // its edits go on, and the restart waits for a seal that holds everything.
                     true => {
-                        self.restart_short = true;
-                        let state = self.confirmed.session_state().len();
-                        if state > restart_limit().saturating_mul(RESTART_CEILING)
-                            && !std::mem::replace(&mut self.restart_overdue, true)
-                        {
-                            self.error(format!(
-                                "a restart is overdue: the session state is {state} bytes, and \
-                                 every seal falls short of what the order numbered (others are \
-                                 writing; plans/restart_carries_numbered_entries.md)"
-                            ));
-                        }
+                        self.restart_short = self.alone();
+                        self.report_overdue_restart();
                         self.seal_for_restart();
                     }
                     false => self.restart_short = false,
@@ -3281,7 +3279,7 @@ where
         if !self.restart_short {
             return;
         }
-        if !self.is_holder() || !self.restart_due() {
+        if !self.is_holder() || !self.alone() || !self.restart_due() {
             self.restart_short = false;
             self.jobs.push_back(Job::Unblocked);
             return;
@@ -3295,6 +3293,21 @@ where
             sealing: Sealing::Once,
             reply: None,
         });
+    }
+
+    /// Says once that a due restart was put off past `RESTART_CEILING` times the limit: others'
+    /// writing keeps every seal short (plans/restart_carries_numbered_entries.md).
+    fn report_overdue_restart(&mut self) {
+        let state = self.confirmed.session_state().len();
+        if state > restart_limit().saturating_mul(RESTART_CEILING)
+            && !std::mem::replace(&mut self.restart_overdue, true)
+        {
+            self.error(format!(
+                "a restart is overdue: the session state is {state} bytes, and every seal falls \
+                 short of what the order numbered (others are writing; \
+                 plans/restart_carries_numbered_entries.md)"
+            ));
+        }
     }
 
     /// A stash the order keeps, or a reload, is sealed at once: what it changed reaches the
@@ -3573,6 +3586,11 @@ where
             self.submit_reloads();
         }
         // A put that failed goes again on its timer (`tick`), whatever asks meanwhile.
+        // Its own held for a restart (`restart_short`) go again once the restart is no longer
+        // due (a gesture opened) or others joined.
+        if self.restart_short && !(self.restart_due() && self.alone()) {
+            self.restart_short = false;
+        }
         if self.restart_short
             || !self.loaded
             || self.released
