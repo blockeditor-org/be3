@@ -5,7 +5,7 @@ interface types {
     use be3:manifest/types@0.1.0.{app-identity, parent-view};
     use accessibility.{color, described-action, description};
     use be3:ui/types@0.1.0.{
-        key-chord, modifiers, pos2, rect, vec2, input, window-level, window-requests,
+        key-chord, modifiers, pos2, rect, vec2, input, window-level, window-requests, fonts,
     };
     use be3:preferences/types@0.1.0.{preferences};
 
@@ -167,25 +167,6 @@ interface types {
         host-name: string,
         surface: option<surface-spec>,
         preferences: preferences,
-    }
-
-    enum font-role {
-        text,
-        monospace,
-        fallback,
-        icons,
-    }
-
-    record font-face {
-        role: font-role,
-        index: u32,
-        data: list<u8>,
-    }
-
-    /// Faces to add, or with `replace` the whole set.
-    record fonts {
-        replace: bool,
-        faces: list<font-face>,
     }
 
     enum frame-chrome {

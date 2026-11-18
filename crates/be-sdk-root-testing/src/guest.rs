@@ -27,15 +27,15 @@ use be_wasm_root_api::{
         host,
     },
 };
-use beui::native::painting::ScreenPaintings;
-use beui::primitives::{Frame, Text};
+use beui::{Align2, NodeId};
+use beui::native::painting::{Frame as PaintFrame, Painting, ScreenPaintings};
 use beui::reactive::*;
-use beui::{Align2, Color32, FontId, Sides};
+use beui::styled::*;
 
 use crate::{
     APP, APP_ENTRY, CLOSES, LATE_LAYER, LATER, LATER_TEXT, ORIGIN, RASTER, RESIZED, RESIZES,
-    ROOT_COLOR, ROOT_LAYER, ROOT_SURFACE, SCREEN, SCREEN_SIZE, SIZE, TEXT, TEXT_ORIGIN, TEXT_SIZE,
-    UNPRESENTED_SURFACE,
+    ROOT_COLOR, ROOT_LAYER, ROOT_SURFACE, SCREEN, SCREEN_SIZE, SIZE, TEXT, TEXT_LAYER,
+    TEXT_STRIP, TEXT_SURFACE, UNPRESENTED_SURFACE,
 };
 
 /// The triangle's editor, by its manifest's id.
@@ -54,8 +54,10 @@ struct Root {
     app: Rc<RefCell<Option<Embedded>>>,
     /// What its surfaces drawn with beui share, made on its first frame.
     beui: Rc<RefCell<Option<BeuiRoot>>>,
-    /// Its own surface, which beui draws, made on its first frame.
-    own: Rc<RefCell<Option<BeuiSurface>>>,
+    /// Its own surface, filled with `ROOT_COLOR` on its first frame.
+    own: Rc<RefCell<Option<OwnSurface>>>,
+    /// The strip of text over it, which beui draws, made on its first frame.
+    text: Rc<RefCell<Option<BeuiSurface>>>,
     /// The surface a `RESIZES` frame configures and never presents.
     unpresented: Rc<RefCell<Option<OwnSurface>>>,
     /// Wakes the root, and so its host, for a frame its beui document wants.
@@ -69,32 +71,40 @@ impl Root {
             app: Rc::default(),
             beui: Rc::default(),
             own: Rc::default(),
+            text: Rc::default(),
             unpresented: Rc::default(),
             waker,
         }
     }
 
-    /// Hands beui the host's clocks for the frame, and makes its own surface the first time,
-    /// with the host's fonts.
+    /// Hands beui the host's clocks for the frame, and makes its surfaces the first time: its
+    /// own, filled with `ROOT_COLOR`, and the strip of text beui draws in the host's fonts.
     async fn own(&self, time: Duration, wall_clock: Duration) -> Result<(), String> {
         if let Some(beui) = &*self.beui.borrow() {
             beui.set_clock(time, wall_clock);
             return Ok(());
         }
+        let own = OwnSurface::new(ROOT_SURFACE, SIZE);
+        own.fill(ROOT_COLOR)?;
         let fonts = host::fonts()
             .await
             .map_err(|error| format!("the host gave no fonts: {error:?}"))?;
         let beui = BeuiRoot::new(&fonts, time, wall_clock)?;
         let waker = self.waker.clone();
-        let surface = BeuiSurface::new(
+        let text = BeuiSurface::new(
             &beui,
-            OwnSurface::new(ROOT_SURFACE, SIZE),
+            OwnSurface::new(TEXT_SURFACE, TEXT_STRIP),
             1.0,
             move || waker.wake(),
-            document,
+            || {
+                view! {
+                    <Root clear_color=ColorRole::None><Strip /></Root>
+                }
+            },
         )?;
+        *self.own.borrow_mut() = Some(own);
         *self.beui.borrow_mut() = Some(beui);
-        *self.own.borrow_mut() = Some(surface);
+        *self.text.borrow_mut() = Some(text);
         Ok(())
     }
 
@@ -121,19 +131,17 @@ impl Root {
         app.clone()
     }
 
-    /// Hands its beui document what landed on its own surface.
+    /// Hands its beui document what landed on its strip of text.
     fn heard(&self, own: &[Delivery]) {
-        if let Some(surface) = &mut *self.own.borrow_mut() {
-            surface.input(own);
+        if let Some(text) = &mut *self.text.borrow_mut() {
+            text.input(own);
         }
     }
 }
 
-/// What the root's own surface shows: `ROOT_COLOR` everywhere, and `TEXT` at `TEXT_ORIGIN`,
-/// `LATER_TEXT` from `LATER` on.
-fn document() -> beui::primitives::Root {
-    let [red, green, blue, _] = ROOT_COLOR.map(|channel| (channel * 255.0).round() as u8);
-    let (left, top) = TEXT_ORIGIN;
+/// The strip of text: `TEXT`, and `LATER_TEXT` from `LATER` on.
+#[component]
+fn Strip() -> NodeId {
     let later = create_signal(false);
     let timer = create_timer(move || {
         later.set(true);
@@ -145,11 +153,9 @@ fn document() -> beui::primitives::Root {
         false => TEXT.to_owned(),
     });
     view! {
-        <beui::primitives::Root clear_color={Color32::from_rgb(red, green, blue)}>
-            <Frame align=Align2::START padding={Sides::new(left, top, 0.0, 0.0)}>
-                <Text font={FontId::proportional(TEXT_SIZE)} color={Color32::WHITE}>{shown}</Text>
-            </Frame>
-        </beui::primitives::Root>
+        <Frame align=Align2::START padding=Space::Xs>
+            <Text size=TextSize::Sm>{shown}</Text>
+        </Frame>
     }
 }
 
@@ -163,19 +169,25 @@ impl frames::Guest for Root {
                 .expect("the root's host gives it fonts and a device to draw its own surface on");
             if request.time == RESIZES {
                 if let Some(own) = &mut *root.own.borrow_mut() {
-                    own.resize(RESIZED, 1.0);
+                    own.resize(RESIZED);
                 }
                 *root.unpresented.borrow_mut() = Some(OwnSurface::new(UNPRESENTED_SURFACE, SIZE));
-            } else if let Some(own) = &mut *root.own.borrow_mut() {
-                own.frame().expect("the root draws its own surface with beui");
+            } else if let Some(text) = &mut *root.text.borrow_mut() {
+                text.frame().expect("the root draws its strip of text with beui");
             }
             let own = root
                 .own
                 .borrow()
                 .as_ref()
-                .map(|own| own.layer(ROOT_LAYER, pos2(0.0, 0.0)))
+                .map(|own| own.layer(ROOT_LAYER, pos2(0.0, 0.0), 1.0))
                 .expect("the root made its own surface");
-            let mut layers = vec![own.clone()];
+            let text = root
+                .text
+                .borrow()
+                .as_ref()
+                .map(|text| text.layer(TEXT_LAYER, pos2(0.0, 0.0)))
+                .expect("the root made its strip of text");
+            let mut layers = vec![own.clone(), text];
             if request.time == CLOSES {
                 if let Some(app) = root.app.borrow_mut().take() {
                     root.embedding.borrow_mut().remove(app.instance());
@@ -205,7 +217,7 @@ impl frames::Guest for Root {
             root.heard(&drawn.own);
             let requests = embedding.requests(None);
             // Its document wants a frame at once (it heard input or was woken) or later.
-            let document = root.own.borrow().as_ref().and_then(BeuiSurface::next);
+            let document = root.text.borrow().as_ref().and_then(BeuiSurface::next);
             let next = match (wants.next, document) {
                 (Some(left), Some(right)) => Some(left.min(right)),
                 (left, right) => left.or(right),
@@ -236,14 +248,31 @@ impl input::Guest for Root {
 }
 
 impl paintings::Guest for Root {
+    /// Its own surface's painting, all `ROOT_COLOR`, and what beui painted of its strip.
     fn paintings(&self) -> LocalFuture<Vec<u8>> {
-        let painted = self.own.borrow().as_ref().and_then(|own| {
-            Some(ScreenPaintings {
-                screens: vec![(u64::from(own.id()), own.painting()?)],
-                overflows: Vec::new(),
-            })
+        let own = self.own.borrow().as_ref().map(|own| {
+            let (width, height) = own.size();
+            let painting = Painting {
+                frame: PaintFrame {
+                    size: [width, height],
+                    pixels_per_point: 1.0,
+                    background: ROOT_COLOR.map(|channel| (channel * 255.0).round() as u8),
+                    primitives: Vec::new(),
+                },
+                textures: Default::default(),
+            };
+            (u64::from(own.id()), painting)
         });
-        Box::pin(async move { painted.map(|painted| painted.encode()).unwrap_or_default() })
+        let text = self
+            .text
+            .borrow()
+            .as_ref()
+            .and_then(|text| Some((u64::from(text.id()), text.painting()?)));
+        let painted = ScreenPaintings {
+            screens: own.into_iter().chain(text).collect(),
+            overflows: Vec::new(),
+        };
+        Box::pin(async move { painted.encode() })
     }
 }
 

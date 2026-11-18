@@ -1,7 +1,6 @@
 use std::cell::RefCell;
 
 use be_sdk::fonts::{HostFont, host_fonts, report_missing, watch_fonts};
-use be_sdk_api::FontRole;
 use beui_core::context::Context;
 use beui_font_freetype::{FontBytes, FontData, FontLibrary, FontSources, FreetypeFonts};
 
@@ -34,20 +33,8 @@ pub(crate) fn context() -> Context {
     Context::new(FreetypeFonts::new(fonts()))
 }
 
-/// beui's font sources of the faces a host gave: an app's (`host_fonts`), or a root's
-/// (be-sdk-beui-root).
-pub fn sources(faces: &[HostFont]) -> FontSources {
-    let mut sources = FontSources::default();
-    for face in faces {
-        let list = match face.role {
-            FontRole::Text => &mut sources.proportional,
-            FontRole::Monospace => &mut sources.monospace,
-            FontRole::Fallback => &mut sources.fallback,
-            FontRole::Icons => &mut sources.icons,
-        };
-        list.push(data(face));
-    }
-    sources
+fn sources(faces: &[HostFont]) -> FontSources {
+    FontSources::of_faces(faces.iter().map(|face| (face.role, data(face))))
 }
 
 fn data(face: &HostFont) -> FontData {

@@ -26,14 +26,15 @@ fn drawn(root: &mut Root, time: u64) -> Vec<Layer> {
     window.layers.clone()
 }
 
-/// The editor's screen in a frame that shows the root's surface and the screen over it, with no
+/// The editor's screen in a frame that shows the root's surface, its strip of text and the
+/// screen over them, with no
 /// late marker: the frame waited for the app's answer, not for its deadline.
 fn shown_screen(root: &mut Root, time: u64) -> Layer {
     let layers = drawn(root, time);
-    let [_, screen] = &layers[..] else {
+    let [_, _, screen] = &layers[..] else {
         panic!(
             "the frame answered before its deadline and shows the editor's screen over the \
-             root's surface, not {layers:?}"
+             root's surface and its text, not {layers:?}"
         );
     };
     screen.clone()
@@ -75,8 +76,8 @@ fn a_root_built_on_the_library_shows_the_editor_it_embeds() {
 
     assert_eq!(
         drawn(&mut root, CLOSES).len(),
-        1,
-        "the root let go of the app"
+        2,
+        "the root let go of the app, and shows only its surface and its text"
     );
     // A frame more, so the host has served what the root did as it let go.
     drawn(&mut root, CLOSES);

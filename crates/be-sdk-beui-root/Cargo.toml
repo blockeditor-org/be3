@@ -8,9 +8,7 @@ license.workspace = true
 [dependencies]
 be-lib-geometry = { path = "../be-lib-geometry" }
 be-lib-layers = { path = "../be-lib-layers" }
-be-sdk = { path = "../be-sdk" }
-be-sdk-api = { path = "../be-sdk-api" }
-be-sdk-beui-platform = { path = "../be-sdk-beui-platform" }
+be-lib-ui-types = { path = "../be-lib-ui-types" }
 be-sdk-root = { path = "../be-sdk-root" }
 be-wasm-gpu-guest = { path = "../be-wasm-gpu-guest" }
 be-wasm-ops = { path = "../be-wasm-ops" }
