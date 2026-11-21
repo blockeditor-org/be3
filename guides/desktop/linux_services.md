@@ -91,7 +91,8 @@ Under `--desktop` the host is that backend: it serves `org.freedesktop.impl.port
 display's last drawn picture, upright, without the pointer, placed at the largest display scale),
 saves it as a PNG in `$XDG_RUNTIME_DIR/be-host/screenshots` and answers its `file://` URI. It
 reports interface version 1, so xdg-desktop-portal shows no access dialog first; `interactive` is
-ignored. Run in a window, be-host has no picture to give and the request fails.
+ignored. Run in a window or headless, the picture is the window as last presented: beui-runner
+provides `WindowPictures` in every runner's `Setup`, which answers at the end of the next frame.
 
 xdg-desktop-portal finds the backend only through files the login session installs
 (guides/desktop/login_session.md): `portals/be-host.portal`, read only from its own data
