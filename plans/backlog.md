@@ -365,6 +365,14 @@ Depends on #686 (session catch-ups replaced by server ordering).
   alone. Done: what each waits on under load found and made an explicit
   signal, with the test passing under `stress`-like parallel runs.
 
+- **Keep hosting through a closed editor, under verify load.** be-host-tests'
+  `keep_hosting_outlives_the_editor_until_stop` failed in 3 of 5 full verifies on one branch
+  (and passed in 1 of 1 on its base, and alone every time), two ways: timed out at
+  `wait not #dock.editors.menu.editor.keep-hosting` after reopening the closed Counter, and
+  timed out busy, one publish of the Counter left in the outbox through every drain, the last
+  `Diverged` (local and remote commits differ) with "object ... is nowhere to be found". Done:
+  the cause found and fixed at its source, and the test passes 200 runs under `stress`.
+
 ## 16. Host test tools
 
 - **Stepping an app's present apart from the poll.** With the clock stopped,
