@@ -138,92 +138,33 @@ Landed on 2026-11-22 in one verify: signed logs 5b (`signed-logs-5b-10`), `backl
 
 ## Manual steps for the maintainer
 
-Some of these apply only once the piece named is on this branch; check the commit list.
+Only what needs a person to do something. Some apply only once the piece named is on this branch; check the commit list.
 
-**Deploy workflow (once "deploy from a manually dispatched workflow" is included), in order:**
-- [ ] Generate an ed25519 SSH key used only for deploys. Uncomment the "CI deploy key" entry in `servers/common.nix` with its public half, land that, and deploy servers/api by hand (guides/servers.md). The workflow can't install its own key.
-- [ ] Create the GitHub environment `deploy`. Any branch may deploy, so required reviewers are its only gate (agents with the actions trigger tool can dispatch). Add the secrets:
-  - `BE3_DEPLOY_BUNNY_STORAGE_KEY` (the be-app storage zone password)
-  - `BE3_DEPLOY_BUNNY_API_KEY`
-  - `BE3_ANDROID_RELEASE_KEYSTORE` (the keystore's base64; without it, untick the APK)
-  - `BE3_DEPLOY_SSH_KEY` (the new private key)
-  - `BE3_DEPLOY_KNOWN_HOSTS` (`ssh-keyscan api.be3.pfg.pw`, checked against the real host key)
-  - `BE3_NL_TOKEN` (a repository secret is enough if one exists)
-- [ ] Bunny pull zone:
-  - send `Service-Worker-Allowed: /` on `/data/*`. Without it the first deploy stops before the server swap, after uploading be and the downloads;
-  - give `/`, `/index.html` and `/live/*` a one-hour TTL and `Cache-Control: no-cache` to browsers;
-  - optional: `/data/*` serves `max-age=2592000` today; guides/hosting.md expects one year, `immutable`.
-- [ ] Optional: delete the stale `/web/downloads.html` from the zone (the downloads page moves to `/live/downloads.html`).
-- [ ] Expect `./scripts/be`, setup's be step (it only warns now) and the Tracker workflow to fail until the first successful deploy writes `live/be-release`.
-- [ ] After the first deploy, load https://be3.pfg.pw once and check the service worker's scope is `/` with a script under `/data/BUILD/web/sw.js`, and that an existing push subscription survived.
+**Deploy workflow, in order:**
+- [ ] Generate an ed25519 SSH key used only for deploys. Uncomment the "CI deploy key" entry in `servers/common.nix` with its public half, land that, and deploy servers/api by hand (guides/servers.md).
+- [ ] Create the GitHub environment `deploy`, with required reviewers, and add the secrets `BE3_DEPLOY_BUNNY_STORAGE_KEY`, `BE3_DEPLOY_BUNNY_API_KEY`, `BE3_ANDROID_RELEASE_KEYSTORE` (base64; without it, untick the APK), `BE3_DEPLOY_SSH_KEY`, `BE3_DEPLOY_KNOWN_HOSTS` (`ssh-keyscan api.be3.pfg.pw`, checked against the real host key) and `BE3_NL_TOKEN`.
+- [ ] In the Bunny pull zone, send `Service-Worker-Allowed: /` on `/data/*`, and give `/`, `/index.html` and `/live/*` a one-hour TTL and `Cache-Control: no-cache` to browsers. Delete the stale `/web/downloads.html`.
+- [ ] After the first deploy, load https://be3.pfg.pw and check that the service worker's scope is `/`, with a script under `/data/BUILD/web/sw.js`.
 
-**Accounts (once "passwords go" is included):**
-- [ ] After deploying, nobody can sign in with a password. Existing accounts sign in by emailed code, and the hosted server delivers mail only to its log (journal). Make a login link with `be-server login-link --auth-origin https://api.be3.pfg.pw --email YOU` on the server (guides/hosting.md); it also makes a new server's first account.
-- [ ] Remember that whoever can read the server's journal can read every sign-in code. Real mail delivery is deferred (plans/deferred/mail_delivery.md).
-- [ ] Once "invitations bound to no email" is included: before deploying it, the hosted server's `links` table must lose two columns, or be-server refuses to start on its schema check. Stop be-server and run `sqlite3 <data-dir>/<server db> 'ALTER TABLE links DROP COLUMN invite_email; ALTER TABLE links DROP COLUMN invite_role;'`, or reset the links table. Outstanding invitations made before then are bound to an email and should be remade.
-- [ ] Once "approving a device's code needs a fresh proof" is included: after deploying, existing app sessions have no expiry and stop working, so every device signs in again once. Approving a be-host sign-in asks for a fresh sign-in, and app tokens expire after 90 days unused.
-- [ ] Recovering an account (by code or an operator login link) now removes its other ways in (passkeys, providers) and its agents, and says what went. `be-server login-link --account ID` also removes the account's email, since it vouches for none; use `--email` to keep an address you've checked.
+**Data:**
+- [ ] Before deploying this branch, stop be-server and delete its data, and delete every device's data directory: the protocol, schema, seal format and local accounts all changed with no migration.
+- [ ] After deploying, make the first account with `be-server login-link --auth-origin https://api.be3.pfg.pw --email YOU` on the server (guides/hosting.md). Passwords are gone, and sign-in codes are delivered only to the server's journal.
 
-**Google / provider sign-in (once "OIDC" is included):**
-- [ ] For each provider, register a web application with redirect URI `https://api.be3.pfg.pw/auth/oidc/ID/callback` (ID is the provider's id in the file below). Google: an OAuth client of type "Web application" in the Google Cloud console; the server asks for openid, email and profile.
-- [ ] Write the providers file next to the data directory, readable only by be-server: `[{"id":"google","preset":"google","client_id":"…","client_secret":"…"}]` (format, and single-tenant organization providers, in guides/hosting.md). `authoritative_email` stays false except for providers whose verified emails you trust.
-- [ ] Add `--oidc-providers FILE` to the be-server NixOS service in servers/ and deploy. It refuses to start on a malformed file; without the flag, no provider buttons show.
-- [ ] Changing `--auth-origin` later changes every redirect URI. Removing a provider strands accounts that sign in only with it; the server warns how many, and `be-server login-link --account ID` lets one in.
+**Provider sign-in (OIDC), if wanted:**
+- [ ] Register a web application for each provider, with redirect URI `https://api.be3.pfg.pw/auth/oidc/ID/callback`.
+- [ ] Write the providers file next to the data directory, readable only by be-server (format in guides/hosting.md), add `--oidc-providers FILE` to the be-server service in servers/, and deploy.
 
-**Android push (once "Android receives pushes through UnifiedPush" is included):**
-- [ ] On a phone, install a UnifiedPush distributor. Sunup works with the server as-is; ntfy needs `--push-host ntfy.sh` (or your own ntfy host) added to the be-server service in servers/ and deployed.
-- [ ] Run the device checks listed in guides/running/android.md ("Push notifications"); nothing on the Java side could be run here (no emulator).
-
-**Local accounts (once "be-host makes local accounts on the device" is included):**
-- [ ] be-host no longer starts the embedded server, so a local profile made with it no longer opens (no migration). Remove it and create a new local account; the old data in the data directory's `server/` folder can be deleted. Local accounts now run with no server, also on the web, where they live only in that browser's storage.
-- [ ] The server's create-local-profile call and local_profiles setting are gone. An existing server database keeps an unused `accounts.local_profile` column: harmless, or drop it by hand.
-
-**Data (once "#686" offline editing is included):**
-- [ ] The session wire protocol, type API, device refs tables and journals changed with no migration: delete existing device data directories and the server's data before running this build. The server now orders live sessions; "Unsaved" counts edits this device does not yet keep.
-
-**Signed access (once "signed access 3b" and "3a" are included):**
-- [ ] The protocol and server schema changed: set-access and set-role take a signed record; create-agent takes a signed bound-to and its account id is derived from its maker and keys; a new `sign-member`; `remove-member` takes a member record; escrow keys gain a maker and escrow wraps change format; new tables `keys.maker` and `*_log_names`. Update the server and every client together and reset the server's data, since existing escrow keys, wraps and access logs won't check.
-- [ ] Discarded edits: a join's answer now says whether the account may edit (`may-edit` in the `joined` record). A discarded block's edits stay discarded and its editors are read-only until the server says it may be edited again, and a rejoining replica no longer submits an edit twice. Covered by the same data reset.
-- [ ] Contacts: a device now pins each contact's newest key and shows contacts by the name on the card it verified, not the server's. Contacts made before this read as not confirmed until connected again, and a contact's rename shows only after they connect again.
-
-**Signed access 3c (once "opening a kind to anyone inside is a signed record" is included):**
-- [ ] The protocol gains `removal-revocations` and key work `unsigned-revocations`; remove-member and remove-contact carry signed revocations. A kind opened to everyone inside before this has no `Record::Opening`, so it offers nothing to contacts until it is reopened (no migration). Who counts as inside is still the server's tree until signed access step 4.
-
-**Crypto audit (once "one symmetric seal" is included):**
-- [ ] One AEAD seal format binds its header and its key's block (HIGH 3); a key the server holds seals only the settings block (HIGH 2); an owner-only block's data keys are sealed to nobody and never escrowed (item 6); a backup's seal binds its snapshot name (item 14). Reset data, since the seal format changed. Backups made before this (`be3-backup-v1`) don't restore; a restore logs the snapshot's time.
-
-**Wasm on V8 (once "wasm on V8" is included):**
-- [ ] Every wasm guest outside the browser now runs on V8 (rusty_v8 152.2.0) instead of wasmtime, and nothing is precompiled: a release bundle went from 1,235 MB to 497 MB, and be-host's binary from 162 to 232 MB. Existing devices keep a stale `<data_dir>/app-cache`; delete it by hand.
-- [ ] Guests may no longer declare wasm GC types or more than one table (V8 can't stop an isolate whose heap is held at its limit).
-- [ ] Starts cost more: across 141 host tests CPU went from 397 s to 756 s (about 1.9×) and the median start to the Files pane from 0.56 s to 1.67 s (about 3×). Most of what was recovered came from trimming each library's exports to what the staged apps import; an on-device code cache (TurboFan code, checked before use) helps later starts. Host tests read a cache their own build makes; it is test-only and never shipped.
-- [ ] Android builds again on our own rusty_v8 152.2.0 build for aarch64-linux-android, pinned in third-party/v8 (hosted on lfs.pfg.pw) and built by `scripts/internal/build-rusty-v8-android.sh`. The debug APK links. Install it on a device and open an app to confirm guests run; a clean rerun of the script is also unconfirmed.
-
-**Windows space mode (once "Windows opens no window until it is picked" is included):**
-- [ ] Only compiled here. On Windows, run `BEUI_LAYERS=space ./scripts/buck run //crates/be-host:native -- --desktop` and check: no window is captured until picked from a menu; a grab-handle click doesn't focus or lock; only a click in content focuses and locks the mouse; Ctrl+Alt+Space defocuses.
-
-**Headless apps in `be` (once "be runs an app's host component headless" is included):**
-- [ ] A deployed `be` downloads apps from its release, checked against the app-hashes.json its deploy-written build-info.json pins; only releases deployed after this carry `apps`. Covered here only by fakes, so check `be` against the first real deploy. Since step 1d, `be` also downloads app manifests and type modules from its release (all type modules on its first command that reads content, then cached). A development terminal host needs `~/.cache/be3/terminal-host/ARCH` rebuilt from `//crates/be-tool-cli:terminal-host` (the error names the command).
-
-**Text (once "a text area's newline marker room is a Blank" is included):**
-- [ ] Only Chromium was run. Check a line just wide enough in a text area in Firefox and Safari: its last word stays, and a selected newline highlights at full height. Natively the hung ⏎ is partly clipped at an exact fit.
-
-**Mailbox and new phrases (once "the mailbox" and "a new phrase reseals what the account sealed to the server" are included):**
-- [ ] Account notices, pending key changes and accepted links' cards move into one mailbox; the `account_notices` and `key_changes` tables and `links.accepter_card` go. Reset the server's data and every device's refs database, and delete old logs.
-- [ ] Setting a new recovery phrase now reseals, on the server, what the account had sealed to it, so an administrator's new phrase no longer leaves the organization's policies unreadable.
-
-**Known behaviour:**
-- [ ] On a server with no link base (a local server), Copy's plain text carries the block as a `#block/<org>/<id>` fragment rather than a full link.
+**Checks only a device can do:**
+- [ ] Android: install the debug APK and open an app to confirm guests run on V8. Install a UnifiedPush distributor (ntfy also needs `--push-host` on the be-server service) and run the push checks in guides/running/android.md.
+- [ ] Windows: run `BEUI_LAYERS=space ./scripts/buck run //crates/be-host:native -- --desktop` and check that no window is captured until picked from a menu, that only a click in content focuses and locks the mouse, and that Ctrl+Alt+Space defocuses.
+- [ ] Firefox and Safari: in a text area, check that a line just wide enough keeps its last word, and that a selected newline highlights at full height.
+- [ ] After the first deploy, check that `be` downloads its apps and type modules from the release.
 
 **Build server:**
-- [ ] Release builds no longer use LTO (decisions/no_lto.md); the build server's swap comment moved to servers/build/default.nix.
-- [ ] The build server is the NixOS configuration `servers/build` (NativeLink 1.8.6), already deployed from #1016, which this branch now carries.
-- [ ] Host tests sometimes fail under a full verify because an app's step starves for 10 s ("The app stopped responding"; 7.1 s system CPU against 0.3 s on a passing run), which looks like memory pressure on a crowded NativeLink worker. Cap how many host tests a worker runs at once by memory, not only CPU. Host tests now fail at once naming the stopped app.
-- [ ] Around 06:40–06:57 on 2026-11-16 memory reached 28 GB plus 16 GB of swap, then builds kept failing with "missing from CAS". No release, LTO, deploy or Android build ran; the dashboard's per-action peak memory for that window should name the action.
+- [ ] Cap how many host tests a NativeLink worker runs at once by memory, not only CPU. Under a full verify, a crowded worker starves an app's step for 10 s.
 
 **Repository:**
-- [ ] CI is disabled; re-enable the CI workflow when you want it back. This branch changes crates/be-tool-bootstrap, and only CI publishes and pins a new bootstrap (guides/bootstrap.md), so local `./scripts/*` keep using the old pinned bootstrap until CI runs on this branch.
-- [ ] Delete the stale branches `claude/headless-c-7`, `claude/headless-c-7-rebased`, `feat/menu-intent-typeahead` and `feat/menu-intent-typeahead-2` to `-4`, and other numbered branches whose last number landed.
-- [ ] Delete the stale branch `fix/stack-test-flakes` (its work merged from `fix/stack-test-flakes-rebased`).
-- [ ] Optional: AGENTS.md's principle "No in-app reach to strangers" could mention that a share link also counts as an out-of-band start (decisions/share_links_are_an_out_of_band_start.md, once included). Agents don't edit that list.
-- [ ] Delete this file.
-- [ ] Merge this pull request with **rebase**.
+- [ ] Re-enable the CI workflow. Only CI publishes and pins a new bootstrap (guides/bootstrap.md).
+- [ ] Delete stale branches: `claude/headless-c-7`, `claude/headless-c-7-rebased`, `feat/menu-intent-typeahead`, `feat/menu-intent-typeahead-2` to `-4`, `fix/stack-test-flakes`, `claude/host-adapter-4g7a`, and other numbered branches whose last number landed.
+- [ ] Optional: AGENTS.md's principle "No in-app reach to strangers" could mention that a share link also counts as an out-of-band start (decisions/share_links_are_an_out_of_band_start.md).
+- [ ] Delete this file, then merge this pull request with **rebase**.
