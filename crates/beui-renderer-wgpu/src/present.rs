@@ -299,6 +299,10 @@ pub enum Presented {
     Again,
 }
 
+/// How many frames may wait to be shown: one, so what is drawn shows at the next refresh, and
+/// reconfiguring the surface for a resize waits for one frame at most.
+pub(crate) const FRAME_LATENCY: u32 = 1;
+
 pub struct Target {
     surface: Option<wgpu::Surface<'static>>,
     config: wgpu::SurfaceConfiguration,
@@ -306,6 +310,9 @@ pub struct Target {
     clear_color: Option<Color32>,
     unpainted: Option<Unpainted>,
     retained: Option<Retained>,
+    /// The size of the frame presented last. A frame at another size is drawn without a
+    /// retained copy, so a resize allocates nothing until the size holds.
+    presented_size: Option<(u32, u32)>,
     presented: bool,
     offscreen: bool,
 }
@@ -333,7 +340,7 @@ impl Target {
                 width: 0,
                 height: 0,
                 present_mode: wgpu::PresentMode::Fifo,
-                desired_maximum_frame_latency: 2,
+                desired_maximum_frame_latency: FRAME_LATENCY,
                 alpha_mode: wgpu::CompositeAlphaMode::Auto,
                 view_formats: Vec::new(),
             },
@@ -341,6 +348,7 @@ impl Target {
             clear_color: None,
             unpainted: None,
             retained: None,
+            presented_size: None,
             presented: false,
             offscreen: false,
         }
@@ -388,6 +396,7 @@ impl Target {
             .ok_or("the adapter does not support this surface")?;
         config.format = gpu.format;
         config.present_mode = self.config.present_mode;
+        config.desired_maximum_frame_latency = FRAME_LATENCY;
         let capabilities = surface.get_capabilities(&gpu.adapter);
         if capabilities.usages.contains(wgpu::TextureUsages::COPY_DST) {
             config.usage |= wgpu::TextureUsages::COPY_DST;
@@ -417,6 +426,11 @@ impl Target {
     }
 
     pub fn resize(&mut self, gpu: &Gpu, width: u32, height: u32) {
+        // Configuring a surface waits for the GPU to finish everything queued, and on Vulkan
+        // makes a new swapchain: never for a size it already has.
+        if (width, height) == (self.config.width, self.config.height) {
+            return;
+        }
         self.config.width = width;
         self.config.height = height;
         self.configure(&gpu.device);
@@ -441,6 +455,17 @@ impl Target {
             .as_ref()
             .is_none_or(|retained| retained.size != size)
         {
+            // While a window is being resized every frame is at a new size and repainted whole,
+            // so the frame draws straight into the swapchain; the copy is made again once a
+            // frame is the size of the one before, which note() repaints whole.
+            if !self.offscreen
+                && self
+                    .presented_size
+                    .is_some_and(|presented| presented != size)
+            {
+                self.retained = None;
+                return;
+            }
             let texture = device.create_texture(&wgpu::TextureDescriptor {
                 label: Some("beui retained frame"),
                 size: wgpu::Extent3d {
@@ -635,6 +660,7 @@ impl Target {
         if let Some(frame) = frame {
             frame.present();
         }
+        self.presented_size = Some(size);
         self.presented = true;
         match gpu.lost() {
             true => Presented::Again,

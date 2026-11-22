@@ -6,7 +6,7 @@ use beui_runner::renderer;
 use beui_types::Color32;
 use beui_types::Vec2;
 
-use crate::present::{GpuSetup, surface_format};
+use crate::present::{FRAME_LATENCY, GpuSetup, surface_format};
 use crate::{Renderer, Repaint, renderer_info, wgpu_color_in};
 
 #[derive(Clone, Debug)]
@@ -80,7 +80,7 @@ impl CanvasSurface {
             width: 0,
             height: 0,
             present_mode: wgpu::PresentMode::Fifo,
-            desired_maximum_frame_latency: 2,
+            desired_maximum_frame_latency: FRAME_LATENCY,
             alpha_mode,
             view_formats: Vec::new(),
         };
@@ -150,6 +150,10 @@ impl renderer::Renderer for CanvasSurface {
     }
 
     fn resize(&mut self, width: u32, height: u32) {
+        // Sizing a canvas clears it, and configuring its surface waits for the GPU.
+        if (width, height) == (self.config.width, self.config.height) {
+            return;
+        }
         self.canvas.set_width(width);
         self.canvas.set_height(height);
         self.config.width = width;
