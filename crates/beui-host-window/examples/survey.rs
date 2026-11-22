@@ -4,8 +4,11 @@ use beui::{Rect, native::Context, native::Program};
 use beui_host::native::Document;
 use beui_host::native::build;
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    beui_host_window::run(SurveyProgram::new())
+beui_host_window::main! {
+    async fn main() -> Result<(), Box<dyn std::error::Error>> {
+        beui_host_window::run_program(beui_host_window::RunOptions::default(), SurveyProgram::new())
+            .await
+    }
 }
 
 struct SurveyProgram {

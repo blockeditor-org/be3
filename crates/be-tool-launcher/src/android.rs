@@ -22,7 +22,7 @@ static TASKS: OnceLock<Tasks> = OnceLock::new();
 #[unsafe(no_mangle)]
 fn android_main(app: AndroidApp) {
     let files = app.internal_data_path().unwrap_or_default();
-    let options = beui_host::native::RunOptions::default();
+    let options = beui_host_window::RunOptions::default();
     let launcher = match LauncherProgram::new(files) {
         Ok(launcher) => launcher,
         Err(error) => {
@@ -30,7 +30,7 @@ fn android_main(app: AndroidApp) {
             std::process::exit(1);
         }
     };
-    let code = match beui_host_window::run_with(options, launcher) {
+    let code = match beui_host_window::block_on(beui_host_window::run_program(options, launcher)) {
         Ok(()) => 0,
         Err(error) => {
             eprintln!("The launcher stopped: {error}");

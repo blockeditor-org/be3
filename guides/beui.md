@@ -72,7 +72,8 @@ beui plus the engine, for whatever runs documents: `beui_host::native` adds
 `build` (a document with the inspector and on-screen keyboard), fonts,
 `testing`, `drive`, `Headless`, renderers and, with its `web` feature, the
 browser's runner. The native windowed runner (winit, Android, and the space and
-XR layers) is `beui-host-window`'s (`run`, `run_with`, `native_platform`).
+XR layers) is `beui-host-window`'s (`main!`, `run`, `run_program`, `native_platform`), which
+also starts a program in a browser on either core.
 
 `beui-documents` is the facade without the components (types, `beui::reactive`,
 views, windows, `beui::native`); the facade re-exports it at the same paths and
@@ -104,7 +105,7 @@ macros expand to resolve. From the bottom up:
 | `beui-draw`, `beui-renderer-wgpu` | gpu drawings, and the wgpu renderer |
 | `beui-runner` | the `Runner`, `Platform`, `PlatformServices`, `Layer` and `Renderer` contracts, `RunOptions`, the `BEUI_*` environment |
 | `beui-platform-*`, `beui-layer-*` | platforms (winit, android, web, drm, headless) and layers (space, xr, drive) |
-| `beui-host-window` | the native windowed runner (`run`, `run_with`): picks a platform and stacks the layers `BEUI_PLATFORM` and `BEUI_LAYERS` ask for |
+| `beui-host-window` | a program's entry (`main!`, `run`, `run_program`): natively picks a platform and stacks the layers `BEUI_PLATFORM` and `BEUI_LAYERS` ask for; in a browser shows the program in the page's element on either core |
 | `beui-font-freetype` | shaping and rasterizing, and the bundled fonts |
 | `be-sdk-beui-platform` | the platform an app module's views run on |
 | `beui-paint-format`, `beui-paint-snapshot` | paintings and the snapshot assertions |

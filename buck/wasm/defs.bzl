@@ -1,5 +1,6 @@
 load(
     "@root//buck/cargo:defs.bzl",
+    "cargo_entry_library",
     "cargo_example",
     "cargo_library",
     "cargo_library_sources",
@@ -226,16 +227,53 @@ _WEB_SHIMS = [
     "//crates/be-host:env.js",
 ]
 
-# A program in the browser (buck/program/defs.bzl): the package's web_library
-# linked as role into :web-module, named module.wasm, through wasm-bindgen,
-# with files and the shims. serve is the address `./scripts/buck run` serves it
-# on with Caddy, which run_with replaces for a program that serves itself
-# another way, and either can be left out for one nothing runs.
-def web_program(name, role, module, files = [], serve = None, **kwargs):
+# The fonts beui's HTML core loads from beside the page.
+_HTML_FONTS = [
+    "//crates/beui-fonts:Inter-Regular.ttf",
+    "//crates/beui-fonts:Hack-Regular.ttf",
+    "//crates/beui-fonts:NotoEmoji-Regular.ttf",
+    "//crates/beui-fonts:lucide.ttf",
+]
+
+# Which plan builds each role's library (PLANS in crates/be-tool-buck/src/plan.rs).
+_WEB_PLANS = {"html": "wasi-html", "program": "wasi"}
+
+# A program in the browser (buck/program/defs.bzl), linked as role into
+# :NAME-module, named module.wasm, through wasm-bindgen, with files, the shims
+# and, for the HTML core, beui's fonts. serve is the address `./scripts/buck run`
+# serves it on with Caddy, which run_with replaces for a program that serves
+# itself another way, and either can be left out for one nothing runs.
+#
+# Its library is the package's web_library, or with entry, one of the crate's
+# [[bin]] roots built as a library for the role's plan (cargo_entry_library):
+# a program whose main is beui_host_window::main!, which runs natively from the
+# same file. Such a program gets a page of its own, which binds the module and
+# calls its beui_start("app"); globalThis.beuiStarted resolves to the module once
+# it runs, as drive's browser tests wait for.
+def web_program(name, role, module, files = [], serve = None, entry = None, **kwargs):
     module_rule = {"html": wasi_html_module, "program": wasi_program_module}[role]
+    library = ":" + cargo_wasm_facts().name
+    if entry != None:
+        library = ":{}-entry".format(name)
+        cargo_entry_library(
+            name = library.removeprefix(":"),
+            extra_deps = ["root//crates/beui-host-window:beui-host-window"],
+            plan = _WEB_PLANS[role],
+            root = entry,
+            rustc_flags = role_link_flags(role),
+            target_compatible_with = ["prelude//cpu/constraints:cpu[wasm32]"],
+        )
+        native.genrule(
+            name = name + "-index",
+            cmd = "$(exe //crates/be-tool-local:bin) web-page program {} $OUT".format(module),
+            out = "index.html",
+        )
+        files = files + [":{}-index".format(name)]
+    if role == "html":
+        files = files + _HTML_FONTS
     module_rule(
-        name = "web-module",
-        library = ":" + cargo_wasm_facts().name,
+        name = name + "-module",
+        library = library,
         module = module,
     )
     if serve != None:
@@ -246,7 +284,9 @@ def web_program(name, role, module, files = [], serve = None, **kwargs):
             "$(location //buck/program:bundle.Caddyfile)",
             serve,
         ]
-    program(name = name, bindgen = [":web-module"], files = files + _WEB_SHIMS, manifests = [], modules = [], wasm_bindgen = "//buck/cargo:wasm-bindgen", **kwargs)
+    program(
+        name = name, bindgen = [":{}-module".format(name)], files = files + _WEB_SHIMS, manifests = [], modules = [], wasm_bindgen = "//buck/cargo:wasm-bindgen", **kwargs
+    )
 
 # The libraries every editor is linked against unless it names its own
 # (guides/app_libraries.md): base, the root that holds std, wasi-libc, wgpu and

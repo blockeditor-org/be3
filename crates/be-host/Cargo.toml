@@ -71,12 +71,12 @@ tokio = { version = "1", features = ["sync"] }
 uuid = { version = "1", features = ["serde", "v4", "v7"] }
 be-wasm-password = { path = "../be-wasm-password" }
 be-wasm-threads = { path = "../be-wasm-threads" }
+beui-host-window = { path = "../beui-host-window" }
 be-sdk-window-stack = { path = "../be-sdk-window-stack" }
 qrcodegen = "1.8"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 beui-host = { path = "../beui-host" }
-beui-host-window = { path = "../beui-host-window" }
 directories-next = "2"
 tokio = { version = "1", features = ["net", "rt", "rt-multi-thread", "sync", "time"] }
 # Desktop only: Android has no embedded browser, and the browser sandbox has

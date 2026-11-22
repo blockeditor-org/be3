@@ -31,7 +31,7 @@ through the bundle's `automate` export.
 behind it on http://127.0.0.1:8080 without a browser (`-- --backend HOST:PORT` moves the
 server). be-server's `--auth-origin` is `http://` and the `--addr` given, so sign in from
 http://127.0.0.1:8080, not localhost. It and every other web bundle `./scripts/buck run` serves
-(`//crates/beui-web-demo:web`, `//crates/beui-demo:web-html`,
+(`//crates/beui-demo:web`, `//crates/beui-demo:web-html`,
 `//crates/be-tool-paint-review-web:web`) listen on loopback alone; `-- --addr HOST:PORT` moves
 them, and `-- --addr 0.0.0.0:PORT` is how to open one from another machine. A browser hands
 shared memory only to a secure page, which plain http is only on localhost, so be-host's page
@@ -62,11 +62,12 @@ A crate on beui's HTML core (guides/beui/core.md, Cores) renders DOM elements in
 drawing. Its bundle answers drive's reading commands (`tree`, `ids`, `find`, `wait`, `settle`, `pause`, `clock`) through `beui::html::automate`, in the native line
 format; input comes from Playwright. crates/beui-tests' `:web-test` drives its scripts that way
 (guides/testing_a_gui.md, 7). A bundle on this core stages beui's fonts
-(`//crates/beui-fonts:*.ttf`) beside its index.html, where its `@font-face` rules look.
+(`//crates/beui-fonts:*.ttf`) beside its index.html, where its `@font-face` rules look;
+`web_program` adds them to every bundle with the `html` role.
 
-- `./scripts/buck run //crates/beui-demo:web-html` serves the demo on this core
-  (crates/beui-demo-html) on http://127.0.0.1:8075; `./scripts/test //crates/beui-demo-html:web-test`
-  drives every page in Chromium.
+- `./scripts/buck run //crates/beui-demo:web-html` serves the demo on this core, built from the
+  same `main.rs` as its window, on http://127.0.0.1:8075; `./scripts/test //crates/beui-demo:web-html-test`
+  drives every page in Chromium (crates/beui-demo/drive/).
 - crates/be-server-portal-ui is be-server's account portal, rendered per request on the host
   (`beui::html::render_to_string`) and hydrated in the browser (`beui::html::hydrate`) from the
   `:assets` be-server's executable serves (guides/hosting.md).
@@ -133,7 +134,7 @@ the call (`own-memory-web-host-test`). Traps that shape this code:
   "What the page reads"). A port dropped tells the other end (an empty message), so an entry the
   worker does not know drops its port and the page hears it stopped; a worker that fails (a
   trap) drops nothing, so `web/threads.js` tells the page's ends itself on the worker's `error`,
-  and the page shows the stack's error (`Handover::gone`). `run_web` waits for
+  and the page shows the stack's error (`Handover::gone`). be-host's `beui_start` waits for
   what the host's files hold while the page's start-up look (`#status`) stays up, then hides
   it and shows the first screen; the page reads its copy and sends the worker each change
   (decisions/web_host_state_in_a_worker.md).

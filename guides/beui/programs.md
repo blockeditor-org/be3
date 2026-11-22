@@ -7,17 +7,27 @@ renderers, Android, the web, DRM displays) is in guides/beui/platforms.md.
 
 ## A standalone program
 
-A standalone program depends on beui-host and beui-host-window as well as beui.
-It builds its document once and implements `beui::Program`, whose only required
-method shows the document each frame:
+A standalone program depends on beui-host-window as well as beui, and writes its
+`main` once with `beui_host_window::main!`, which runs it natively and in a
+browser alike:
 
 ```rust
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    beui_host_window::run(CounterProgram {
-        document: build(|| view! { <Root title="Counter"><Counter /></Root> }),
-    })
+beui_host_window::main! {
+    async fn main() -> Result<(), Box<dyn std::error::Error>> {
+        beui_host_window::run(RunOptions::default(), || {
+            view! { <Root title="Counter"><Counter /></Root> }
+        })
+        .await
+    }
 }
+```
 
+`run` shows the document the closure builds. A program with its own
+`beui::Program` (be-host's shell, a fixture program) runs it with
+`run_program` instead, on the native core alone: `build` makes its document,
+and `update`, its only required method, shows it each frame:
+
+```rust
 struct CounterProgram { document: Document }
 
 impl Program for CounterProgram {
@@ -27,9 +37,19 @@ impl Program for CounterProgram {
 }
 ```
 
-beui-demo is the full example (`./scripts/buck run //crates/beui-demo:native`),
-and crates/beui-web-demo the same in a browser (`:web`, served on
-http://127.0.0.1:8070).
+Natively the macro is `main`, which runs the body to its end, and `run` returns
+once the window closes. In a browser it is the module's `beui_start(element_id)`
+and `automate(words, timeout)`: `run` shows the program in that element and
+returns once it runs, drawn with wgpu on the native core (`?automation` stacks
+the drive layer, which `automate` asks) or as the page itself on the HTML core
+(`automate` is the core's own). `web_program(entry = "src/main.rs")` in
+buck/wasm/defs.bzl builds `main.rs` for the browser and gives it a page that
+calls `beui_start("app")`. A library whose `android_main` the activity calls,
+such as be-host's or the launcher's, runs `run_program` with `block_on`.
+
+beui-demo is the full example: `./scripts/buck run //crates/beui-demo:native`
+in a window, `:web` in a browser drawn with wgpu (http://127.0.0.1:8070) and
+`:web-html` on the HTML core (http://127.0.0.1:8075), all from its `main.rs`.
 
 ### Root and the window's appearance
 
@@ -56,11 +76,12 @@ space and XR layers, is beui-host-window's, which also stacks the drive layer
 from beui-host; so an edit to winit, the space layer or XR rebuilds none of
 beui-host's tests, nor those of the crates that reach the engine only through
 beui-host. beui-host's
-one feature, `web`, adds the browser runner, `beui_host::native::run_web`.
+one feature, `web`, adds the browser runner, `beui_host::native::run_web`, which
+beui-host-window's `run` calls there.
 
 ### RunOptions and the rest of Program
 
-`beui_host_window::run` uses default `RunOptions`; `run_with` takes them: the program id and
+`RunOptions` hold the program id and
 starting size, `device_extensions` for wgpu's Vulkan device (be-host imports
 Wayland clients' buffers with them), and `platforms` the program offers beside
 the native one (such as `beui_platform_drm::Drm`) for `BEUI_PLATFORM` to pick

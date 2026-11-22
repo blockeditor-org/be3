@@ -3,7 +3,7 @@ import { bindMemory, refuseFiles, CONTROL } from "./wasi.js";
             import { bindHostFiles, bindThreads, receiveLetters, refuseThreads } from "./threads.js";
             import init, {
                 be_letter_arrived,
-                run_web,
+                beui_start,
                 push_open,
                 push_open_block,
                 push_register,
@@ -192,8 +192,8 @@ import { bindMemory, refuseFiles, CONTROL } from "./wasi.js";
                 started.resolve();
 
                 // The start-up look stays until the host's worker has read the host's files:
-                // run_web hides it as it shows the host's first screen.
-                await run_web("host");
+                // beui_start hides it as it shows the host's first screen.
+                await beui_start("host");
             } catch (error) {
                 console.error(error);
                 started.reject(error);

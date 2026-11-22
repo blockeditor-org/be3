@@ -558,6 +558,7 @@ write_package_value("be3.cargo", {
                 "//crates/be-sdk-window-stack:be-sdk-window-stack",
                 "//crates/be-wasm-password:be-wasm-password",
                 "//crates/be-wasm-threads:be-wasm-threads",
+                "//crates/beui-host-window:beui-host-window",
                 "//crates/beui-host:beui-host",
                 "//crates/beui-reactive:beui-reactive",
                 "//crates/beui:beui",

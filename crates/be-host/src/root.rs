@@ -72,12 +72,12 @@ pub(crate) const SHOWN: &str = "root";
 
 /// Runs `app`'s entry point as the root in a window opened with `options`, until the window
 /// closes or the root stops, which is an error.
-pub(crate) fn run(
+pub(crate) async fn run(
     app: String,
     options: beui_host::native::RunOptions,
 ) -> Result<(), Box<dyn Error>> {
     let stopped: Rc<RefCell<Option<String>>> = Rc::default();
-    beui_host_window::run_with(options, RootShell::new(app, Rc::clone(&stopped)))?;
+    beui_host_window::run_program(options, RootShell::new(app, Rc::clone(&stopped))).await?;
     match stopped.take() {
         Some(why) => Err(why.into()),
         None => Ok(()),

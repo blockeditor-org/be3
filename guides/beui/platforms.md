@@ -274,7 +274,8 @@ Windows black or white, which winit cannot change (plans/deferred/winit_issues.m
 On Windows wgpu draws through Vulkan alone, which beui-layer-xr and
 be-host-win32-capture are written against (plans/deferred/windows_vulkan_and_d3d12.md).
 
-**Web.** `run_web(element_id, options, layers, program)` draws with WebGPU, or
+**Web.** `run_web(element_id, options, layers, program)`, which
+beui-host-window's `run` calls in a browser (guides/beui/programs.md), draws with WebGPU, or
 WebGL where there is none, into the element if it is a canvas or a canvas it
 adds. Keys go through a hidden textarea, so paste and composition behave like
 any input on the page. A press on the canvas, or a text field taking beui's
@@ -282,6 +283,7 @@ focus any other way, focuses that textarea; the on-screen keyboard opens only
 within a user gesture. Pointer events push every one of
 `getCoalescedEvents()`. The page's thread may never wait: a browser traps
 `Atomics.wait` there, so a page module starts with `be_wasm_threads::initialize_page`
+(`beui_start` does)
 and anything that waits runs in a worker (guides/running/web.md, "Files and offline").
 guides/running/web.md runs it.
 
@@ -291,7 +293,7 @@ connection and AccessKit. It is a view so that TalkBack's touch exploration
 reaches it as hover events, which NativeActivity's input queue never delivers
 ([decision](../../decisions/beui_android_uses_its_own_view.md)). The library
 defines `#[unsafe(no_mangle)] fn android_main(program: AndroidApp)`, called on
-a thread of its own, which calls `run_with`. It draws edge to edge: the program
+a thread of its own, which runs `run_program` with `block_on`. It draws edge to edge: the program
 fills the safe area, and the bars show its clear colour. guides/running/android.md
 builds it.
 

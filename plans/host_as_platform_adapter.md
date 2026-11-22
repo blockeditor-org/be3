@@ -727,7 +727,7 @@ Each step lands on its own.
          serves it no sandbox).
        - 4e5c. Built: be-host's run option that starts a staged root module in place of its
          own UI, `--root=APP` (`crates/be-host/src/root.rs`), on be-host's startup path and
-         window (`beui_host_window::run_with`, as its own UI runs). `APP` is a staged app whose
+         window (`beui_host_window::run_program`, as its own UI runs). `APP` is a staged app whose
          manifest says `"root": true` (`AppManifest::root`: no editors, block types or host
          components; decisions/a_root_is_a_staged_app_flagged_root.md), whose entry point
          loads as a pure guest and starts as `Root` on the window's device, spawning the apps

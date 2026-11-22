@@ -11,7 +11,7 @@ use beui_runner::{Launch, Layer, Platform, RunOptions};
 
 use beui_runner::environment::{Base, Choice, Stacked};
 
-pub fn run_with(
+pub(crate) async fn run_program(
     mut options: RunOptions,
     program: impl Program + 'static,
 ) -> Result<(), Box<dyn Error>> {
@@ -74,7 +74,7 @@ pub fn run_with(
         program,
         layers,
     };
-    pollster::block_on(platform.run(launch))
+    platform.run(launch).await
 }
 
 #[cfg(target_os = "android")]

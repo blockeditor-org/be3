@@ -54,15 +54,19 @@ const BASE_CRATES: [&str; 4] = [
     "crates\\beui-types\\",
 ];
 
-const CORE_CHOOSERS: [&str; 8] = [
+/// The crates that choose by cfg(beui_html): the cores, the facades over them, and
+/// beui-host-window, which runs a program on whichever core it was built for.
+const CORE_CHOOSERS: [&str; 10] = [
     "crates/beui/",
     "crates/beui-documents/",
     "crates/beui-view/",
     "crates/beui-core-html/",
+    "crates/beui-host-window/",
     "crates\\beui\\",
     "crates\\beui-documents\\",
     "crates\\beui-view\\",
     "crates\\beui-core-html\\",
+    "crates\\beui-host-window\\",
 ];
 
 /// The crates that name beui_macros: the macros themselves, and beui-tree, whose reactive module
@@ -392,7 +396,7 @@ fn core_cfg_uses(tree: &SourceFile, source: &str, relative: &str) -> Vec<String>
             let offset = u32::from(token.text_range().start()) as usize;
             let line = source[..offset].matches('\n').count() + 1;
             format!(
-                "core cfg outside the cores: {relative}:{line} only beui-view, beui-documents, beui and beui-core-html choose by cfg(beui_html); elsewhere branch on `if CORE == Core::Html`"
+                "core cfg outside the cores: {relative}:{line} only beui-view, beui-documents, beui, beui-core-html and beui-host-window choose by cfg(beui_html); elsewhere branch on `if CORE == Core::Html`"
             )
         })
         .collect()

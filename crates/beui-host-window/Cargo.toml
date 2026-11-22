@@ -1,12 +1,14 @@
 [package]
 name = "beui-host-window"
-description = "beui's windowed runner: a beui program in a window of its own, on winit or Android, with the space and XR layers"
+description = "A beui program's entry: in a window of its own on winit or Android, with the space and XR layers, or in a browser on either core"
 edition.workspace = true
 version.workspace = true
 license.workspace = true
 
 [dependencies]
 beui = { path = "../beui" }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 beui-core = { path = "../beui-core" }
 beui-host = { path = "../beui-host" }
 beui-layer-drive = { path = "../beui-layer-drive" }
@@ -21,10 +23,17 @@ serde_json = "1"
 [target.'cfg(target_os = "android")'.dependencies]
 beui-platform-android = { path = "../beui-platform-android" }
 
-[target.'cfg(not(target_os = "android"))'.dependencies]
+[target.'cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))'.dependencies]
 beui-platform-winit = { path = "../beui-platform-winit" }
 
-[dev-dependencies]
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+be-wasm-threads = { path = "../be-wasm-threads" }
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+web-sys = { version = "0.3", features = ["Location", "Url", "UrlSearchParams", "Window"] }
+
+[target.'cfg(all(target_arch = "wasm32", not(beui_html)))'.dependencies]
+beui-host = { path = "../beui-host", features = ["web"] }
 
 [lints]
 workspace = true

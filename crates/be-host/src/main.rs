@@ -107,8 +107,34 @@ fn storage_dir() -> Option<PathBuf> {
         .map(|dirs| dirs.data_dir().to_path_buf())
 }
 
+beui_host_window::main! {
+    async fn main() -> Result<(), Box<dyn Error>> {
+        #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
+        return run(take_dev_token()).await;
+        #[cfg(target_os = "android")]
+        return Err("on Android be-host starts from android_main".into());
+        #[cfg(target_arch = "wasm32")]
+        return run_web().await;
+    }
+}
+
+/// Takes the dev workspace's token out of the environment, so the programs and terminals
+/// be-host starts do not inherit it, and asks for backtraces. No other thread runs yet.
 #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
-pub fn run(dev_token: Option<String>) -> Result<(), Box<dyn Error>> {
+fn take_dev_token() -> Option<String> {
+    let dev_token = std::env::var(DEV_TOKEN)
+        .ok()
+        .filter(|token| !token.is_empty());
+    // unsafe(env)
+    unsafe {
+        std::env::set_var("RUST_BACKTRACE", "1");
+        std::env::remove_var(DEV_TOKEN);
+    };
+    dev_token
+}
+
+#[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
+async fn run(dev_token: Option<String>) -> Result<(), Box<dyn Error>> {
     let arguments: Vec<String> = std::env::args().skip(1).collect();
     let platform = std::env::var(beui_host::native::environment::PLATFORM).ok();
     let arguments = arguments::parse(&arguments, platform.as_deref(), arguments::LINUX)?;
@@ -127,24 +153,24 @@ pub fn run(dev_token: Option<String>) -> Result<(), Box<dyn Error>> {
     #[cfg(target_os = "linux")]
     if arguments.drm {
         let console = login_session::start_log();
-        let ran = run_host(arguments, dev_token);
+        let ran = run_host(arguments, dev_token).await;
         if let (Err(error), Some(mut console)) = (&ran, console) {
             use std::io::Write;
             let _ = writeln!(console, "be-host: the login session ended: {error}");
         }
         return ran;
     }
-    run_host(arguments, dev_token)
+    run_host(arguments, dev_token).await
 }
 
 #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
-fn run_host(
+async fn run_host(
     arguments: arguments::Arguments,
     dev_token: Option<String>,
 ) -> Result<(), Box<dyn Error>> {
     panic_guard::install();
     if let Some(app) = arguments.root {
-        return root::run(app, native_options());
+        return root::run(app, native_options()).await;
     }
     let data_dir = storage_dir().ok_or("the application-data directory is unavailable")?;
     std::fs::create_dir_all(&data_dir)
@@ -168,7 +194,7 @@ fn run_host(
         core.run_as_desktop();
     }
     core.warm_apps();
-    beui_host_window::run_with(options, Shell::new(core))
+    beui_host_window::run_program(options, Shell::new(core)).await
 }
 
 /// How be-host opens its window natively: on the displays themselves too (`BEUI_PLATFORM=drm`),
@@ -240,10 +266,14 @@ pub fn be_worker_run(
     })
 }
 
+/// A JavaScript value an error was thrown as, as an error.
 #[cfg(target_arch = "wasm32")]
-#[wasm_bindgen::prelude::wasm_bindgen]
-pub async fn run_web(canvas_id: String) -> Result<(), wasm_bindgen::JsValue> {
-    be_wasm_threads::initialize_page();
+fn thrown(error: wasm_bindgen::JsValue) -> Box<dyn Error> {
+    format!("{error:?}").into()
+}
+
+#[cfg(target_arch = "wasm32")]
+async fn run_web() -> Result<(), Box<dyn Error>> {
     panic_guard::install();
     be_host_stack::discovery::load().await;
     // The page makes no file call: the host's worker reads its files and answers, while the
@@ -253,106 +283,41 @@ pub async fn run_web(canvas_id: String) -> Result<(), wasm_bindgen::JsValue> {
     let (failures, report) = desk().mailbox(HostCore::host_files_failed);
     let (host_state, workspaces) = host_files::open(PathBuf::from(WEB_DATA_DIR), report)
         .await
-        .map_err(|error| {
-            let error = web_sys::js_sys::Error::new(&error);
-            error.set_name("BeSavedData");
-            wasm_bindgen::JsValue::from(error)
-        })?;
-    let mut core = HostCore::new(host_state, workspaces, Some(failures))
-        .map_err(|error| wasm_bindgen::JsValue::from_str(&error.to_string()))?;
+        .map_err(|error| beui_host_window::web::NamedError::new("BeSavedData", error))?;
+    let mut core =
+        HostCore::new(host_state, workspaces, Some(failures)).map_err(|error| error.to_string())?;
     if let Some(status) = web_sys::window()
         .and_then(|window| window.document())
         .and_then(|document| document.get_element_by_id("status"))
     {
-        status.set_attribute("hidden", "")?;
+        status.set_attribute("hidden", "").map_err(thrown)?;
     }
     let options = run_options();
     web_push::install();
     let location = web_sys::window()
         .map(|window| window.location())
         .ok_or("no browser window is available")?;
-    let page = web_sys::Url::new(&location.href()?)?;
+    let address = location.href().map_err(thrown)?;
+    let page = web_sys::Url::new(&address).map_err(thrown)?;
     if page.search_params().has("dev-workspace") {
-        core.open_dev_workspace(Some(location.origin()?), None);
+        core.open_dev_workspace(Some(location.origin().map_err(thrown)?), None);
     }
-    if location.hash()?.starts_with("#invite/") {
-        core.open_invite(&location.href()?);
-        page.set_hash("");
-        location.replace(&page.href())?;
+    let hash = location.hash().map_err(thrown)?;
+    if hash.starts_with("#invite/") {
+        core.open_invite(&address);
+    } else if hash.starts_with("#share/") {
+        core.share_links.open_from_address(&address);
+    } else if hash.starts_with("#contact/") {
+        core.contacts.open_from_address(&address);
     }
-    if location.hash()?.starts_with("#share/") {
-        core.share_links.open_from_address(&location.href()?);
-        page.set_hash("");
-        location.replace(&page.href())?;
-    }
-    if location.hash()?.starts_with("#contact/") {
-        core.contacts.open_from_address(&location.href()?);
-        page.set_hash("");
-        location.replace(&page.href())?;
-    }
-    let mut layers: Vec<Box<dyn beui_host::native::Layer>> = Vec::new();
-    if let Some(inbox) = automation()? {
-        layers.push(Box::new(beui_host::native::drive::Drive::new(inbox)));
-    }
-    beui_host::native::run_web(&canvas_id, options, layers, Shell::new(core))
-        .await
-        .map_err(|error| wasm_bindgen::JsValue::from_str(&error.to_string()))
-}
-
-#[cfg(target_arch = "wasm32")]
-thread_local! {
-    static AUTOMATION: std::cell::RefCell<Option<beui_host::native::drive::Inbox>> =
-        const { std::cell::RefCell::new(None) };
-}
-
-#[cfg(target_arch = "wasm32")]
-fn automation() -> Result<Option<beui_host::native::drive::Inbox>, wasm_bindgen::JsValue> {
-    let location = web_sys::window()
-        .map(|window| window.location())
-        .ok_or("no browser window is available")?;
-    if !web_sys::Url::new(&location.href()?)?
-        .search_params()
-        .has("automation")
+    if ["#invite/", "#share/", "#contact/"]
+        .iter()
+        .any(|link| hash.starts_with(link))
     {
-        return Ok(None);
+        page.set_hash("");
+        location.replace(&page.href()).map_err(thrown)?;
     }
-    Ok(Some(AUTOMATION.with(|automation| {
-        automation.borrow_mut().get_or_insert_default().clone()
-    })))
-}
-
-#[cfg(target_arch = "wasm32")]
-#[wasm_bindgen::prelude::wasm_bindgen]
-pub async fn automate(
-    words: Vec<String>,
-    timeout_milliseconds: i32,
-) -> Result<String, wasm_bindgen::JsValue> {
-    use wasm_bindgen::JsCast;
-    let inbox = automation()?.ok_or("the page was not opened with ?automation")?;
-    let answered = beui_host::native::drive::ask(&inbox, words);
-    let canceller = answered.canceller();
-    let late = wasm_bindgen::closure::Closure::once_into_js(move || {
-        canceller.cancel(beui_host::native::drive::timed_out(
-            std::time::Duration::from_millis(u64::try_from(timeout_milliseconds).unwrap_or(0)),
-            &inbox,
-        ));
-    });
-    web_sys::window()
-        .ok_or("no browser window is available")?
-        .set_timeout_with_callback_and_timeout_and_arguments_0(
-            late.unchecked_ref(),
-            timeout_milliseconds,
-        )?;
-    match answered.await {
-        beui_host::native::drive::Reply::Text(text) => Ok(text),
-        beui_host::native::drive::Reply::Error(error) => Err(error.into()),
-        beui_host::native::drive::Reply::Image { .. } => {
-            Err("the browser takes screenshots itself: use drive shot".into())
-        }
-        beui_host::native::drive::Reply::Painting(_) => {
-            Err("the web build does not answer paint; run be-host natively".into())
-        }
-    }
+    beui_host_window::run_program(options, Shell::new(core)).await
 }
 
 // unsafe(ffi)
@@ -380,7 +345,8 @@ fn android_main(android: beui_host_window::AndroidApp) {
     let exit_code = match HostCore::new(storage_root)
         .map_err(|error| error.to_string())
         .and_then(|core| {
-            beui_host_window::run_with(options, Shell::new(core)).map_err(|error| error.to_string())
+            beui_host_window::block_on(beui_host_window::run_program(options, Shell::new(core)))
+                .map_err(|error| error.to_string())
         }) {
         Ok(()) => 0,
         Err(error) => {

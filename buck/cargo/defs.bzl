@@ -324,6 +324,31 @@ def cargo_example(example, extra_deps = [], env = {}, **kwargs):
         **(kwargs | RUST_LOCAL),
     )
 
+# A program's entry, the root of one of the crate's [[bin]]s, as a library for one
+# plan: a browser runs no binary, but calls what the module exports, which
+# beui_host_window::main! makes there (web_program in buck/wasm/defs.bzl). It is
+# built as the binary would be, with the crate's library and its dependencies on
+# that plan, and compatible with that plan alone.
+def cargo_entry_library(name, plan, root = "src/main.rs", extra_deps = [], **kwargs):
+    crate = _crate()
+    binaries = [binary["name"] for binary in crate["binaries"] if binary["crate_root"] == root]
+    if len(binaries) != 1:
+        fail("{} has no [[bin]] whose root is {}".format(crate["name"], root))
+    _compatible(crate, kwargs, [plan])
+    crate_name = binaries[0].replace("-", "_")
+    native.rust_library(
+        name = name,
+        crate = crate_name,
+        crate_root = root,
+        deps = _per_platform(crate, lambda entry: entry["deps"], [":" + crate["name"]] + extra_deps),
+        edition = crate["edition"],
+        env = _env(crate, crate_name, {}),
+        mapped_srcs = cargo_manifest_sources(),
+        rustc_flags = _rustc_flags(crate, kwargs),
+        srcs = _target_sources(crate, root),
+        **(kwargs | RUST_LOCAL),
+    )
+
 # A crate's every target from its Cargo.toml: the library, if it has one, and
 # its tests, unless test = False, every [[bin]] and every example, and
 # cargo_package()'s. Most BUCK files are this one line, and a new crate starts
