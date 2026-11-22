@@ -32,7 +32,6 @@ write_package_value("be3.cargo", {
             "test_deps": [
                 "//crates/beui-components-unstyled:beui-components-unstyled",
                 "//crates/beui-font-freetype:beui-font-freetype",
-                "//crates/beui-macros:beui-macros",
                 "//crates/beui-view:beui-view",
             ],
             "test_features": [],
@@ -55,7 +54,6 @@ write_package_value("be3.cargo", {
             "test_deps": [
                 "//crates/beui-components-unstyled:beui-components-unstyled",
                 "//crates/beui-font-freetype:beui-font-freetype",
-                "//crates/beui-macros:beui-macros",
                 "//crates/beui-view:beui-view",
             ],
             "test_features": [],
@@ -78,7 +76,6 @@ write_package_value("be3.cargo", {
             "test_deps": [
                 "//crates/beui-components-unstyled:beui-components-unstyled",
                 "//crates/beui-font-freetype:beui-font-freetype",
-                "//crates/beui-macros:beui-macros",
                 "//crates/beui-view:beui-view",
             ],
             "test_features": [],
@@ -101,7 +98,6 @@ write_package_value("be3.cargo", {
             "test_deps": [
                 "//crates/beui-components-unstyled:beui-components-unstyled",
                 "//crates/beui-font-freetype:beui-font-freetype",
-                "//crates/beui-macros:beui-macros",
                 "//crates/beui-view:beui-view",
             ],
             "test_features": [],
@@ -124,7 +120,6 @@ write_package_value("be3.cargo", {
             "test_deps": [
                 "//crates/beui-components-unstyled:beui-components-unstyled",
                 "//crates/beui-font-freetype:beui-font-freetype",
-                "//crates/beui-macros:beui-macros",
                 "//crates/beui-view:beui-view",
             ],
             "test_features": [],
@@ -184,7 +179,6 @@ write_package_value("be3.cargo", {
             "test_deps": [
                 "//crates/beui-components-unstyled:beui-components-unstyled",
                 "//crates/beui-font-freetype:beui-font-freetype",
-                "//crates/beui-macros:beui-macros",
                 "//crates/beui-view:beui-view",
             ],
             "test_features": [],
@@ -207,7 +201,6 @@ write_package_value("be3.cargo", {
             "test_deps": [
                 "//crates/beui-components-unstyled:beui-components-unstyled",
                 "//crates/beui-font-freetype:beui-font-freetype",
-                "//crates/beui-macros:beui-macros",
                 "//crates/beui-view:beui-view",
             ],
             "test_features": [],

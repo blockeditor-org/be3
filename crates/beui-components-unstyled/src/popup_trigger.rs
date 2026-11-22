@@ -1,5 +1,4 @@
 use accesskit::{HasPopup, Node, Role};
-use beui_macros::{component, view};
 use beui_view::types::icons::Glyph;
 
 use crate as unstyled;

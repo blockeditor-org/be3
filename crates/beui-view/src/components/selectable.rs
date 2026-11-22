@@ -1,7 +1,7 @@
 use crate::actions::Chord;
+use crate::reactive::component;
 use crate::reactive::{Callback, Child, ComponentRef, NodeId, Prop};
 use crate::types::{Color, Key, Rect};
-use beui_macros::component;
 
 pub const COPY_KEY: Chord = Chord::ctrl(Key::C);
 pub const SELECT_ALL_KEY: Chord = Chord::ctrl(Key::A);

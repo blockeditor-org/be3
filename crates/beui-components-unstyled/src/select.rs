@@ -7,7 +7,6 @@ use crate::form::Posted;
 use crate::scroll::ScrollStyle;
 use crate::search_list::{SearchList, SearchListApi, SearchRowHandle};
 use crate::text_input::{TextInputHandle, TextInputStyle};
-use beui_macros::{component, view};
 use beui_view::primitives::*;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;

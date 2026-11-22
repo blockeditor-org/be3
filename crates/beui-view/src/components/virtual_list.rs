@@ -5,8 +5,8 @@ use crate::reactive::Prop;
 use crate::reactive::ReadSignal;
 use crate::reactive::RenderFn;
 use crate::reactive::RowArgs;
+use crate::reactive::component;
 use crate::types::Direction;
-use beui_macros::component;
 use std::hash::Hash;
 
 /// Stands for one row per key and builds only the rows its slice of the enclosing

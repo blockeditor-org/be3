@@ -3,7 +3,6 @@ pub mod find;
 pub mod format_bar;
 
 use crate::frame::{Border, Frame, Radius};
-use beui_macros::{component, view};
 
 use crate::button::ButtonVariant;
 use crate::button::{Button, ButtonSize};

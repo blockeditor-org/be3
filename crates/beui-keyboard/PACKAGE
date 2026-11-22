@@ -19,7 +19,6 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/beui-components-styled:beui-components-styled",
                 "//crates/beui-components-unstyled:beui-components-unstyled",
-                "//crates/beui-macros:beui-macros",
                 "//crates/beui-reactive:beui-reactive",
                 "//crates/beui-view:beui-view",
                 "//third-party/rust:accesskit-0.24.1",
@@ -35,7 +34,6 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/beui-components-styled:beui-components-styled",
                 "//crates/beui-components-unstyled:beui-components-unstyled",
-                "//crates/beui-macros:beui-macros",
                 "//crates/beui-reactive:beui-reactive",
                 "//crates/beui-view:beui-view",
                 "//third-party/rust:accesskit-0.24.1",
@@ -51,7 +49,6 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/beui-components-styled:beui-components-styled",
                 "//crates/beui-components-unstyled:beui-components-unstyled",
-                "//crates/beui-macros:beui-macros",
                 "//crates/beui-reactive:beui-reactive",
                 "//crates/beui-view:beui-view",
                 "//third-party/rust:accesskit-0.24.1",
@@ -67,7 +64,6 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/beui-components-styled:beui-components-styled",
                 "//crates/beui-components-unstyled:beui-components-unstyled",
-                "//crates/beui-macros:beui-macros",
                 "//crates/beui-reactive:beui-reactive",
                 "//crates/beui-view:beui-view",
                 "//third-party/rust:accesskit-0.24.1",
@@ -83,7 +79,6 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/beui-components-styled:beui-components-styled",
                 "//crates/beui-components-unstyled:beui-components-unstyled",
-                "//crates/beui-macros:beui-macros",
                 "//crates/beui-reactive:beui-reactive",
                 "//crates/beui-view:beui-view",
                 "//third-party/rust:accesskit-0.24.1",
@@ -99,7 +94,6 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/beui-components-styled:beui-components-styled",
                 "//crates/beui-components-unstyled:beui-components-unstyled",
-                "//crates/beui-macros:beui-macros",
                 "//crates/beui-reactive:beui-reactive",
                 "//crates/beui-view:beui-view",
                 "//third-party/rust:accesskit-0.24.1",
@@ -115,7 +109,6 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/beui-components-styled:beui-components-styled",
                 "//crates/beui-components-unstyled:beui-components-unstyled",
-                "//crates/beui-macros:beui-macros",
                 "//crates/beui-reactive:beui-reactive",
                 "//crates/beui-view:beui-view",
                 "//third-party/rust:accesskit-0.24.1",
@@ -131,7 +124,6 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/beui-components-styled:beui-components-styled",
                 "//crates/beui-components-unstyled:beui-components-unstyled",
-                "//crates/beui-macros:beui-macros",
                 "//crates/beui-reactive:beui-reactive",
                 "//crates/beui-view:beui-view",
                 "//third-party/rust:accesskit-0.24.1",
@@ -147,7 +139,6 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/beui-components-styled:beui-components-styled",
                 "//crates/beui-components-unstyled:beui-components-unstyled",
-                "//crates/beui-macros:beui-macros",
                 "//crates/beui-reactive:beui-reactive",
                 "//crates/beui-view:beui-view",
                 "//third-party/rust:accesskit-0.24.1",
@@ -163,7 +154,6 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/beui-components-styled:beui-components-styled",
                 "//crates/beui-components-unstyled:beui-components-unstyled",
-                "//crates/beui-macros:beui-macros",
                 "//crates/beui-reactive:beui-reactive",
                 "//crates/beui-view:beui-view",
                 "//third-party/rust:accesskit-0.24.1",
@@ -179,7 +169,6 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/beui-components-styled:beui-components-styled",
                 "//crates/beui-components-unstyled:beui-components-unstyled",
-                "//crates/beui-macros:beui-macros",
                 "//crates/beui-reactive:beui-reactive",
                 "//crates/beui-view:beui-view",
                 "//third-party/rust:accesskit-0.24.1",

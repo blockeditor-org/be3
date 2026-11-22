@@ -3,8 +3,6 @@ use std::cell::Cell;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
-use beui_macros::{component, view};
-
 use crate::anchored::SheetWhen;
 use crate::anchored::{Anchored, AnchoredHandle, AnchoredSheetHandle, AnchoredStyle, Dropdown};
 use beui_view::primitives::*;

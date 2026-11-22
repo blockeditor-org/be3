@@ -21,7 +21,6 @@ use crate::types::{Area, Claim};
 use crate::types::{KeyPress, PointerPress};
 use crate::types::{Pos2, Rect, Vec2};
 use crate::types::{handle_center, toolbar_anchor};
-use beui_macros::view;
 
 const HANDLE_HIT_RADIUS: f32 = 24.0;
 const END: usize = usize::MAX;

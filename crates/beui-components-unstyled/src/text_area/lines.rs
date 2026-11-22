@@ -3,8 +3,6 @@ use beui_view::types::LayerPolicy;
 use beui_view::types::Overflow;
 use std::rc::Rc;
 
-use beui_macros::{component, view};
-
 use beui_text_editor_core::{ListMarker, SynHlColorScope, SynHlStyle};
 use beui_view::components::overlay::Overlay;
 use beui_view::reactive::NodeId;

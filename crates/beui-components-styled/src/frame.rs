@@ -1,7 +1,7 @@
-use beui_macros::{component, view};
 use beui_view::primitives;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::{Child, Get, IntoPropValue, Prop, focus_ring};
+use beui_view::reactive::{component, view};
 use beui_view::types::{Align2, Corners, Outline};
 use beui_view::types::{Color, Sides, Vec2};
 

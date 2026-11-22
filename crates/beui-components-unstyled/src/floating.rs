@@ -1,4 +1,3 @@
-use beui_macros::{component, view};
 use beui_view::types::LayerPolicy;
 
 use beui_view::components::overlay::Overlay;

@@ -1,6 +1,7 @@
 use crate::reactive::Child;
 use crate::reactive::NodeId;
 use crate::reactive::Prop;
+use crate::reactive::component;
 use crate::types::Align2;
 use crate::types::Color;
 use crate::types::Corners;
@@ -8,7 +9,6 @@ use crate::types::Extent;
 use crate::types::Outline;
 use crate::types::Sides;
 use crate::types::Vec2;
-use beui_macros::component;
 
 /// Sizing, padding, fill and outline on one retained node. A `max` extent caps the room
 /// the frame takes, not its content, like CSS `max-width` on a block; for a box as wide as

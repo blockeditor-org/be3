@@ -6,7 +6,6 @@ license.workspace = true
 
 [dependencies]
 accesskit = "0.24.1"
-beui-macros = { path = "../beui-macros" }
 beui-view = { path = "../beui-view" }
 
 [target.'cfg(not(beui_html))'.dependencies]

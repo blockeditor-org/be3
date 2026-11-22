@@ -2,9 +2,9 @@ use crate::reactive::Callback;
 use crate::reactive::Child;
 use crate::reactive::NodeId;
 use crate::reactive::Prop;
+use crate::reactive::component;
 use crate::types::Direction;
 use crate::types::ScrollPosition;
-use beui_macros::component;
 
 /// Shows its one child, laid out at full length along `direction`, from `offset`. It
 /// answers no input and never clamps: whatever drives it (a `Scroll`) keeps it in range,

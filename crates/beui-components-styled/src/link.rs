@@ -1,6 +1,5 @@
 use crate::frame::Radius;
 use accesskit::Role;
-use beui_macros::{component, view};
 use beui_view::types::icons::Glyph;
 
 use crate::focus_ring::FocusRing;

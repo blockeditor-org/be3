@@ -1,7 +1,6 @@
 use std::time::Duration;
 
 use accesskit::{Node, Role};
-use beui_macros::{component, view};
 
 use crate::datetime::{Date, DateTime, HourCycle, MONTH_NAMES, Time, days_in_month, twelve_hour};
 use beui_view::primitives::*;

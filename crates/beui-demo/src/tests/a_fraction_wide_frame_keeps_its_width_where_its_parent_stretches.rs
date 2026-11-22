@@ -1,6 +1,6 @@
 use super::*;
 use beui::Extent;
-use beui_macros::view;
+use beui::reactive::view;
 
 #[test]
 fn a_fraction_wide_frame_keeps_its_width_where_its_parent_stretches() {

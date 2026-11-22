@@ -1,8 +1,6 @@
 use crate::frame::{Border, ColorRole, Frame, Radius};
 use std::hash::Hash;
 
-use beui_macros::{component, view};
-
 use crate::button::{Button, ButtonVariant};
 use crate::context_menu::menu_style;
 use crate::list::List;

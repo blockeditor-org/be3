@@ -36,7 +36,6 @@ use beui::{
     Color32, Direction, FontId, Image, ImageFit, Key, Modifiers, NodeId, PreferenceLayer,
     PreferenceSource, Rect, ScrollGesture, TextAlign, unstyled,
 };
-use beui_macros::{component, sample};
 use beui_text_editor_core::{
     EditorCommand, Highlighter, Language, MarkdownCommand, TextBuffer, TextLanguage,
 };

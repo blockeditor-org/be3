@@ -1,5 +1,5 @@
 use super::*;
-use beui_macros::view;
+use crate::reactive::view;
 
 fn preferences() -> crate::primitives::Root {
     let remember = create_signal(true);

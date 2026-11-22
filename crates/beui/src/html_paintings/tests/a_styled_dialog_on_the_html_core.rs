@@ -1,5 +1,5 @@
 use super::*;
-use beui_macros::view;
+use crate::reactive::view;
 
 #[test]
 fn a_styled_dialog_on_the_html_core() {

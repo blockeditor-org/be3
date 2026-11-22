@@ -1196,7 +1196,6 @@ use crate::styled;
 use crate::styled::*;
 use crate::unstyled;
 use beui::layout::Direction;
-use beui_macros::{component, view};
 
 #[component]
 fn BackTo(

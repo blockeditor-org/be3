@@ -9,7 +9,6 @@ use std::rc::Rc;
 use be_lib_stable_hash::HashMap;
 use beui_components_unstyled::drag_board;
 use beui_components_unstyled::{DragPoint, ReorderGap};
-use beui_macros::{component, view};
 use beui_view::drag::{Candidate, DragSpec, closest, custom};
 use beui_view::measure::measure;
 use beui_view::primitives::*;

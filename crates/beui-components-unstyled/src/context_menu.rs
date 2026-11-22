@@ -1,8 +1,6 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use beui_macros::{component, view};
-
 use crate as unstyled;
 use crate::anchored::SheetWhen;
 use crate::button::ButtonHandle;

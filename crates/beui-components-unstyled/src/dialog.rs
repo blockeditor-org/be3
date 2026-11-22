@@ -1,5 +1,4 @@
 use accesskit::{Node, Role};
-use beui_macros::{component, view};
 
 use super::back_slide::SlideCurves;
 use super::modal::{Modal, ModalHandle, ModalMotion};

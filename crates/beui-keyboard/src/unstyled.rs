@@ -6,7 +6,6 @@ pub mod tables;
 use std::cell::RefCell;
 use std::time::Duration;
 
-use beui_macros::{component, view};
 use beui_reactive::{Stored, store};
 use beui_view::primitives::*;
 use beui_view::reactive::*;

@@ -3,11 +3,11 @@ use crate::reactive::Child;
 use crate::reactive::Children;
 use crate::reactive::NodeId;
 use crate::reactive::Prop;
+use crate::reactive::component;
 use crate::types::CanvasArrangement;
 use crate::types::CanvasView;
 use crate::types::Vec2;
 pub use crate::types::tree::CanvasItem;
-use beui_macros::component;
 
 #[component]
 pub fn Canvas(

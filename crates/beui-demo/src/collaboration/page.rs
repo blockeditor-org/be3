@@ -10,7 +10,6 @@ use beui::reactive::*;
 use beui::styled::*;
 use beui::unstyled::{self, RemoteTextCursor, TextAreaState, narrower_than};
 use beui::{Color32, Direction, NodeId};
-use beui_macros::{component, sample};
 use beui_text_editor_core::schema::basic::{self, Basic};
 use beui_text_editor_core::{CursorPosition, EditorCommand, TextLanguage, Value};
 

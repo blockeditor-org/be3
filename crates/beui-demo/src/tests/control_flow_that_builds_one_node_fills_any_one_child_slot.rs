@@ -1,6 +1,6 @@
 use super::*;
+use beui::reactive::view;
 use beui::styled::{Frame, List, Size, Space};
-use beui_macros::view;
 use std::cell::Cell;
 use std::rc::Rc;
 

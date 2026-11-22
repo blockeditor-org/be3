@@ -2,7 +2,6 @@ use be_lib_stable_hash::HashMap;
 use std::rc::Rc;
 
 use accesskit::{Node, Role, Toggled};
-use beui_macros::{component, view};
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 use beui_view::types::Color;

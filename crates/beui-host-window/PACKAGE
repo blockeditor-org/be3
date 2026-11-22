@@ -43,7 +43,6 @@ write_package_value("be3.cargo", {
                         "//crates/beui-layer-drive:beui-layer-drive",
                         "//crates/beui-layer-space:beui-layer-space",
                         "//crates/beui-layer-xr:beui-layer-xr",
-                        "//crates/beui-macros:beui-macros",
                         "//crates/beui-platform-android:beui-platform-android",
                         "//crates/beui-platform-headless:beui-platform-headless",
                         "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
@@ -56,9 +55,7 @@ write_package_value("be3.cargo", {
                 },
             },
             "features": [],
-            "test_deps": [
-                "//crates/beui-macros:beui-macros",
-            ],
+            "test_deps": [],
             "test_features": [],
         },
         "linux-arm64": {
@@ -85,7 +82,6 @@ write_package_value("be3.cargo", {
                         "//crates/beui-layer-drive:beui-layer-drive",
                         "//crates/beui-layer-space:beui-layer-space",
                         "//crates/beui-layer-xr:beui-layer-xr",
-                        "//crates/beui-macros:beui-macros",
                         "//crates/beui-platform-headless:beui-platform-headless",
                         "//crates/beui-platform-winit:beui-platform-winit",
                         "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
@@ -98,9 +94,7 @@ write_package_value("be3.cargo", {
                 },
             },
             "features": [],
-            "test_deps": [
-                "//crates/beui-macros:beui-macros",
-            ],
+            "test_deps": [],
             "test_features": [],
         },
         "linux-x86_64": {
@@ -127,7 +121,6 @@ write_package_value("be3.cargo", {
                         "//crates/beui-layer-drive:beui-layer-drive",
                         "//crates/beui-layer-space:beui-layer-space",
                         "//crates/beui-layer-xr:beui-layer-xr",
-                        "//crates/beui-macros:beui-macros",
                         "//crates/beui-platform-headless:beui-platform-headless",
                         "//crates/beui-platform-winit:beui-platform-winit",
                         "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
@@ -140,9 +133,7 @@ write_package_value("be3.cargo", {
                 },
             },
             "features": [],
-            "test_deps": [
-                "//crates/beui-macros:beui-macros",
-            ],
+            "test_deps": [],
             "test_features": [],
         },
         "macos-arm64": {
@@ -169,7 +160,6 @@ write_package_value("be3.cargo", {
                         "//crates/beui-layer-drive:beui-layer-drive",
                         "//crates/beui-layer-space:beui-layer-space",
                         "//crates/beui-layer-xr:beui-layer-xr",
-                        "//crates/beui-macros:beui-macros",
                         "//crates/beui-platform-headless:beui-platform-headless",
                         "//crates/beui-platform-winit:beui-platform-winit",
                         "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
@@ -182,9 +172,7 @@ write_package_value("be3.cargo", {
                 },
             },
             "features": [],
-            "test_deps": [
-                "//crates/beui-macros:beui-macros",
-            ],
+            "test_deps": [],
             "test_features": [],
         },
         "macos-x86_64": {
@@ -211,7 +199,6 @@ write_package_value("be3.cargo", {
                         "//crates/beui-layer-drive:beui-layer-drive",
                         "//crates/beui-layer-space:beui-layer-space",
                         "//crates/beui-layer-xr:beui-layer-xr",
-                        "//crates/beui-macros:beui-macros",
                         "//crates/beui-platform-headless:beui-platform-headless",
                         "//crates/beui-platform-winit:beui-platform-winit",
                         "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
@@ -224,9 +211,7 @@ write_package_value("be3.cargo", {
                 },
             },
             "features": [],
-            "test_deps": [
-                "//crates/beui-macros:beui-macros",
-            ],
+            "test_deps": [],
             "test_features": [],
         },
         "windows-arm64": {
@@ -253,7 +238,6 @@ write_package_value("be3.cargo", {
                         "//crates/beui-layer-drive:beui-layer-drive",
                         "//crates/beui-layer-space:beui-layer-space",
                         "//crates/beui-layer-xr:beui-layer-xr",
-                        "//crates/beui-macros:beui-macros",
                         "//crates/beui-platform-headless:beui-platform-headless",
                         "//crates/beui-platform-winit:beui-platform-winit",
                         "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
@@ -266,9 +250,7 @@ write_package_value("be3.cargo", {
                 },
             },
             "features": [],
-            "test_deps": [
-                "//crates/beui-macros:beui-macros",
-            ],
+            "test_deps": [],
             "test_features": [],
         },
         "windows-x86_64": {
@@ -295,7 +277,6 @@ write_package_value("be3.cargo", {
                         "//crates/beui-layer-drive:beui-layer-drive",
                         "//crates/beui-layer-space:beui-layer-space",
                         "//crates/beui-layer-xr:beui-layer-xr",
-                        "//crates/beui-macros:beui-macros",
                         "//crates/beui-platform-headless:beui-platform-headless",
                         "//crates/beui-platform-winit:beui-platform-winit",
                         "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
@@ -308,9 +289,7 @@ write_package_value("be3.cargo", {
                 },
             },
             "features": [],
-            "test_deps": [
-                "//crates/beui-macros:beui-macros",
-            ],
+            "test_deps": [],
             "test_features": [],
         },
     },

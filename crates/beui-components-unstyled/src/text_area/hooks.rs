@@ -1,5 +1,3 @@
-use beui_macros::{component, view};
-
 use beui_text_editor_core::schema::basic;
 use beui_text_editor_core::{LineLook, ListMarker, MarkSet, SynHlStyle, SyntaxHighlight, TableRow};
 use beui_view::components::text::Span;

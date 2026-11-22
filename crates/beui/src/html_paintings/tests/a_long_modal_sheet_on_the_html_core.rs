@@ -1,6 +1,6 @@
 use super::*;
+use crate::reactive::view;
 use crate::{primitives, unstyled};
-use beui_macros::view;
 
 #[test]
 fn a_long_modal_sheet_on_the_html_core() {

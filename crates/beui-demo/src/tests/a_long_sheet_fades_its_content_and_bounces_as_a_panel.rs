@@ -1,7 +1,7 @@
 use super::*;
+use beui::reactive::view;
 use beui::vec2;
 use beui::{TouchId, TouchPhase};
-use beui_macros::view;
 
 #[test]
 fn a_long_sheet_fades_its_content_and_bounces_as_a_panel() {

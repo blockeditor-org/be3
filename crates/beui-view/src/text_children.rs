@@ -1,3 +1,4 @@
+use crate::reactive::view;
 use crate::reactive::{
     BuildsNode, ChildSegment, ChildValue, Children, ComponentContext, Get, IntoChild, IntoSegment,
     Memo, NodeId, Prop, ReadSignal, Ready, ScopeContext, Signal,
@@ -6,7 +7,6 @@ use crate::reactive::{DynamicSegment, ForEach, create_memo};
 use crate::types::icons::Glyph;
 use crate::types::text::{FontPatch, IconSpan, Phrase, PhraseRun};
 use crate::types::{Color, FontFamily, FontId, GapWidth, SpanBackground};
-use beui_macros::view;
 
 pub enum TextChild {
     Span(Span),

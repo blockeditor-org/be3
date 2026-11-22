@@ -1,5 +1,4 @@
 use crate::frame::{Border, ColorRole, Frame, Radius};
-use beui_macros::{component, view};
 
 use crate::list::List;
 use crate::text::{Text, TextColor, TextStyle};

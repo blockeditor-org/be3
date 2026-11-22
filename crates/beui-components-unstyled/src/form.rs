@@ -1,4 +1,3 @@
-use beui_macros::{component, view};
 use beui_view::escape::beui_html::{Event, Node, attr, elements as html, flag};
 use beui_view::escape::{Escape, html_escape};
 use beui_view::reactive::NodeId;

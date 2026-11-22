@@ -1,6 +1,6 @@
 use super::*;
+use beui::reactive::view;
 use beui::styled::{Frame, List, Size, Space};
-use beui_macros::view;
 
 #[test]
 fn a_list_leaves_no_gap_for_a_hidden_frame() {

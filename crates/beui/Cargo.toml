@@ -10,7 +10,6 @@ beui-dock = { path = "../beui-dock" }
 beui-dock-host = { path = "../beui-dock-host" }
 beui-keyboard = { path = "../beui-keyboard" }
 beui-documents = { path = "../beui-documents" }
-beui-macros = { path = "../beui-macros" }
 
 [target.'cfg(beui_html)'.dependencies]
 beui-components-styled = { path = "../beui-components-styled" }

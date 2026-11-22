@@ -2,7 +2,6 @@ use crate::context_menu::MenuTreeLead;
 use crate::frame::{ColorRole, Frame, Radius};
 use crate::text::{Icon, Text, TextColor, TextSize, TextStyle};
 use beui_components_unstyled::Picture;
-use beui_macros::{component, view};
 use beui_view::reactive::NodeId;
 use beui_view::types::Image;
 use beui_view::types::icons::{Glyph, ICON_CHECK, ICON_CHEVRON_RIGHT, ICON_DOT};

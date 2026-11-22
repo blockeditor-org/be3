@@ -6,11 +6,11 @@ use beui_core::display::Layer;
 use beui_core::document::Document;
 use beui_core::painter::Shape;
 use beui_keyboard::styled::SoftwareKeyboard;
-use beui_macros::view;
 use beui_types::Color32;
 use beui_types::Corners;
 use beui_types::Rotation;
 use beui_types::{ImeArea, Keyboard};
+use beui_view::reactive::view;
 
 use super::the_chrome_around_a_curved_panel::window;
 use super::*;

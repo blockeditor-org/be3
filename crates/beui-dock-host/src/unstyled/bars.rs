@@ -12,7 +12,6 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use beui_components_unstyled::{Glide, drag_board};
-use beui_macros::{component, view};
 use beui_view::components::overlay::{Overlay, OverlaysWithin};
 use beui_view::components::root::Root;
 use beui_view::drag::{Candidate, Carry, DragPoint, DragSpec, Driver, closest, custom, floating};

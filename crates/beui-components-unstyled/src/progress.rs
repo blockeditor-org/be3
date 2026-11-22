@@ -3,7 +3,6 @@ use std::rc::Rc;
 use std::time::Duration;
 
 use accesskit::{Node, Role};
-use beui_macros::component;
 
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;

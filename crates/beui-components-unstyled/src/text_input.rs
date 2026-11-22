@@ -24,7 +24,6 @@ use crate::form::Posted;
 use crate::menu_popup::MenuStyle;
 use crate::scroll::ScrollStyle;
 use crate::text_menu::TextContextMenu;
-use beui_macros::{component, view};
 use beui_view::reactive::NodeId;
 
 use beui_view::escape::beui_html::{Event, attr, elements as html};

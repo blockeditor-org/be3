@@ -1,5 +1,3 @@
-use beui_macros::{component, view};
-
 use crate::theme::NARROW_WIDTH;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::narrower_than;

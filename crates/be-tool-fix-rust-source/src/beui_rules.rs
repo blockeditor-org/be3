@@ -65,6 +65,15 @@ const CORE_CHOOSERS: [&str; 8] = [
     "crates\\beui-core-html\\",
 ];
 
+/// The crates that name beui_macros: the macros themselves, and beui-tree, whose reactive module
+/// re-exports them for every crate above it.
+const MACRO_NAMERS: [&str; 4] = [
+    "crates/beui-macros/",
+    "crates/beui-tree/",
+    "crates\\beui-macros\\",
+    "crates\\beui-tree\\",
+];
+
 const DOCUMENT_ACCESS: [&str; 5] = [
     "with_document",
     "try_with_document",
@@ -146,6 +155,12 @@ pub(crate) fn beui_violations(tree: &SourceFile, source: &str, relative: &str) -
         if !BASE_CRATES.iter().any(|base| relative.starts_with(base)) {
             violations.extend(fixed_extent_uses(tree, source, relative));
         }
+    }
+    if !MACRO_NAMERS
+        .iter()
+        .any(|allowed| relative.starts_with(allowed))
+    {
+        violations.extend(macro_uses(tree, source, relative));
     }
     if !CORE_CHOOSERS
         .iter()
@@ -304,6 +319,21 @@ fn primitive_uses(tree: &SourceFile, source: &str, relative: &str) -> Vec<String
             let line = source[..offset].matches('\n').count() + 1;
             format!(
                 "primitive outside beui: {relative}:{line} only beui's own crates use beui::primitives; import beui::styled::* instead"
+            )
+        })
+        .collect()
+}
+
+fn macro_uses(tree: &SourceFile, source: &str, relative: &str) -> Vec<String> {
+    tree.syntax()
+        .descendants_with_tokens()
+        .filter_map(|element| element.into_token())
+        .filter(|token| token.text() == "beui_macros")
+        .map(|token| {
+            let offset = u32::from(token.text_range().start()) as usize;
+            let line = source[..offset].matches('\n').count() + 1;
+            format!(
+                "beui_macros outside beui-tree: {relative}:{line} component, view and sample come with the reactive module beui's crates export (beui::reactive::*)"
             )
         })
         .collect()

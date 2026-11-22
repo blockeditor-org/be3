@@ -24,8 +24,6 @@ use beui_text_editor_core::{
     VisualRows,
 };
 
-use beui_macros::{component, view};
-
 use crate::{Scroll, ScrollStyle};
 use beui_view::primitives::*;
 use beui_view::reactive::ImeCursor;

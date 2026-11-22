@@ -1,8 +1,6 @@
 use crate::frame::{Border, ColorRole, Frame, Radius};
 use std::rc::Rc;
 
-use beui_macros::{component, view};
-
 use crate::focus_ring::FocusRing;
 use crate::list::{Grid, List};
 use crate::number_input::NumberInput;

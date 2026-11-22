@@ -1,9 +1,9 @@
 use crate::reactive::Child;
 use crate::reactive::Prop;
+use crate::reactive::component;
 use crate::reactive::{ChildValue, ComponentContext, NodeId, ScopeContext};
 use crate::types::Color;
 pub use crate::types::SystemBars;
-use beui_macros::component;
 
 #[component]
 pub fn Root(

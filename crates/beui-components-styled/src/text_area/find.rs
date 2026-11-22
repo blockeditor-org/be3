@@ -1,5 +1,4 @@
 use crate::frame::{ColorRole, Frame};
-use beui_macros::{component, view};
 
 use beui_text_editor_core::FindDirection;
 

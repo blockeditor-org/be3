@@ -25,7 +25,6 @@ beui-platform-android = { path = "../beui-platform-android" }
 beui-platform-winit = { path = "../beui-platform-winit" }
 
 [dev-dependencies]
-beui-macros = { path = "../beui-macros" }
 
 [lints]
 workspace = true

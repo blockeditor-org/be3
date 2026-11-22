@@ -1,10 +1,10 @@
 use crate::reactive::{NodeId, OverlayAnchor};
+use crate::reactive::{component, view};
 use crate::types::window::{
     WindowEdge, WindowId, WindowLevel, WindowPlacement, WindowReport, WindowRequest, WindowRole,
     WindowSpec,
 };
 use crate::types::{LayerLevel, LayerPolicy, Placement, Pos2, Rect, Vec2};
-use beui_macros::{component, view};
 
 use crate::components::frame::Frame;
 use crate::components::overlay::Overlay;

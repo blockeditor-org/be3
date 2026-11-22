@@ -2,7 +2,6 @@ use beui_view::types::icons::Glyph;
 use std::hash::Hash;
 
 use beui_dock_state::{DockAlign, DockBarPlacement, DockEdge, SIDEBAR_WIDTH, SplitSize, TabId};
-use beui_macros::component;
 use beui_view::reactive::*;
 use beui_view::types::{Direction, Image, Rect, Vec2};
 

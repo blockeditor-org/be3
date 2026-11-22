@@ -18,7 +18,6 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use accesskit::{Node, Role};
-use beui_macros::{component, view};
 
 use beui_components_unstyled::Choice;
 use beui_components_unstyled::ChoiceItem;

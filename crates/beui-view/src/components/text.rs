@@ -3,6 +3,7 @@ use crate::reactive::Child;
 use crate::reactive::Children;
 use crate::reactive::NodeId;
 use crate::reactive::Prop;
+use crate::reactive::component;
 pub use crate::text_children::{Blank, Break, Gap, Span, SpanText, TextChild, TextItem};
 use crate::types::Color;
 use crate::types::FontFamily;
@@ -16,7 +17,6 @@ use crate::types::TextGlyph;
 use crate::types::TextMark;
 use crate::types::icons::Glyph;
 use crate::types::text::DEFAULT_FONT_SIZE;
-use beui_macros::component;
 use std::rc::Rc;
 
 #[component]

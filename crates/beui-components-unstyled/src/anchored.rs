@@ -1,4 +1,3 @@
-use beui_macros::{component, view};
 use beui_view::components::overlay::{Overlay, use_overlay_presence};
 use beui_view::measure::measure;
 use beui_view::primitives::*;

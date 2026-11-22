@@ -1,6 +1,6 @@
 use super::*;
+use beui::reactive::view;
 use beui::vec2;
-use beui_macros::view;
 
 #[test]
 fn a_sheet_handle_shows_its_focus_ring_when_tabbed_to() {

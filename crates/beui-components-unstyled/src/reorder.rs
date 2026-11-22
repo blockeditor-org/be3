@@ -14,7 +14,6 @@ use be_lib_stable_hash::HashMap;
 use crate::drag_board::drag_board;
 use crate::drop_site::{slots_in, use_drop_site};
 use accesskit::{Live, Node, Role};
-use beui_macros::{component, view};
 use beui_view::components::overlay::Overlay;
 use beui_view::drag::{
     After, Carry, DragPoint, DragSpec, closest, fixed, floating, into, move_after,

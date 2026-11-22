@@ -1,5 +1,4 @@
 use accesskit::{HasPopup, Node, Role};
-use beui_macros::{component, view};
 use beui_view::components::overlay::use_modal;
 use beui_view::types::LayerPolicy;
 use beui_view::types::icons::Glyph;

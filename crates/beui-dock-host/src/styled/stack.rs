@@ -1,5 +1,4 @@
 use beui_components_styled::frame::{Border, ColorRole, Frame, Radius};
-use beui_macros::{component, view};
 use beui_view::types::Overflow;
 
 use crate::styled::{BarRoom, DockMenu};

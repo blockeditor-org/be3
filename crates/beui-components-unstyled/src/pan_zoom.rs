@@ -1,6 +1,5 @@
 use crate::gestures;
 use accesskit::{Node, Role};
-use beui_macros::{component, view};
 
 use beui_view::primitives::*;
 use beui_view::reactive::NodeId;

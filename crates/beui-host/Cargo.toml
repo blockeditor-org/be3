@@ -24,7 +24,6 @@ beui-layer-drive = { path = "../beui-layer-drive" }
 beui-platform-headless = { path = "../beui-platform-headless" }
 beui-renderer-wgpu = { path = "../beui-renderer-wgpu" }
 beui-view = { path = "../beui-view" }
-beui-macros = { path = "../beui-macros" }
 be-lib-stable-hash = { path = "../be-lib-stable-hash" }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]

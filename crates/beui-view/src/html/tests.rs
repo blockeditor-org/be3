@@ -1,7 +1,6 @@
 use crate::primitives::*;
 use crate::reactive::*;
 use crate::types::*;
-use beui_macros::view;
 use beui_paint_snapshot::BrowserSnapshot;
 
 const INK: Color32 = Color32::from_rgb(30, 30, 40);

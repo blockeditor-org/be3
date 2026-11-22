@@ -522,7 +522,6 @@ use beui_host::native::{
 use beui_host::primitives::{Canvas, CanvasItem, Frame, Interactive};
 use beui_host::reactive::*;
 use beui_host::{styled, unstyled};
-use beui_macros::{component, view};
 
 // A copy of `build_node` in beui-host's src/tests.rs, whose own tests use it.
 pub(crate) fn build_node(view: impl FnOnce() -> NodeId) -> Document {

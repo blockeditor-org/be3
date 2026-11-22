@@ -54,7 +54,10 @@ Program code imports `beui::reactive::*` (the framework and base nodes) and
 (`beui::unstyled::X`, `beui::styled::theme::X`) on its own line.
 `beui::primitives` is for beui's own crates, its tests and beui-demo's base
 pages; the source lint rejects it elsewhere, since primitives take raw colours
-and pixels where styled components take tokens.
+and pixels where styled components take tokens. `#[component]`, `view!` and
+`#[sample]` come with the reactive module (`beui_view::reactive::*` or
+`crate::reactive` in beui's own crates); the lint rejects naming `beui_macros`
+anywhere but beui-tree, which re-exports them.
 
 ## Crates
 

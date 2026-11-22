@@ -7,7 +7,6 @@ use beui_dock_state::{
     DockBarPlacement, DockEdge, DockMode, DockSpec, DockSpecBar, DockSpecEntry, DockSpecNode,
     DockSpecPane, DockSpecWindow, DockState, TabId, joined_host, joined_key, joined_prefix,
 };
-use beui_macros::{component, view};
 use beui_view::primitives::*;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;

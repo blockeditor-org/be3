@@ -1,4 +1,3 @@
-use beui_macros::{component, view};
 use beui_view::types::{Dismiss, LayerLevel, LayerPolicy};
 
 use super::back_slide::{BackSlide, SlideCurves};

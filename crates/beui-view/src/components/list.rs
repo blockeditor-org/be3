@@ -3,13 +3,13 @@ use crate::reactive::Children;
 use crate::reactive::Get;
 use crate::reactive::NodeId;
 use crate::reactive::Prop;
+use crate::reactive::component;
 use crate::types::Align;
 use crate::types::Direction;
 use crate::types::ItemSize;
 use crate::types::Justify;
 use crate::types::Sizing;
 pub use crate::types::tree::ListItem;
-use beui_macros::component;
 
 #[component]
 pub fn List(

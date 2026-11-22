@@ -1,6 +1,6 @@
 use super::*;
 use crate::ThemeKind;
-use beui_macros::view;
+use crate::reactive::view;
 
 fn scroll() -> crate::primitives::Root {
     view! {

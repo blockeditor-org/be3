@@ -1,7 +1,6 @@
 use std::sync::OnceLock;
 
 use accesskit::{Node, Role};
-use beui_macros::{component, view};
 
 use crate::choice::{Choice, ChoiceKind, ChoiceOption, ChoiceOptionHandle};
 use crate::color_area::{ColorArea, ColorAreaHandle};

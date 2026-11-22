@@ -1,5 +1,4 @@
 use crate::frame::{Border, ColorRole, Frame, Radius};
-use beui_macros::{component, view};
 use beui_view::types::icons::Glyph;
 
 use crate::button::{ButtonSize, ButtonVariant};

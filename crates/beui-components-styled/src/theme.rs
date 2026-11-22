@@ -1,5 +1,3 @@
-use beui_macros::component;
-
 use beui_components_unstyled::SyntaxColors;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;

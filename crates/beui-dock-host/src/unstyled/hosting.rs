@@ -14,7 +14,6 @@ use beui_dock_state::{
     DockAlign, DockEdge, DockFullscreen, DockMode, DockSpec, DockSpecNode, DockState, GroupId,
     LeafId, TabId, joined_host, joined_key,
 };
-use beui_macros::{component, view};
 use beui_view::component_ref::ComponentRef;
 use beui_view::primitives::*;
 use beui_view::reactive::NodeId;

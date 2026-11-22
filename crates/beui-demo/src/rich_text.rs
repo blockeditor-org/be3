@@ -10,7 +10,6 @@ use beui::reactive::*;
 use beui::styled::*;
 use beui::unstyled::{MarkerKind, TextAreaState, TextMarker};
 use beui::{Direction, NodeId, TextAlign};
-use beui_macros::{component, sample};
 use beui_text_editor_core::schema::basic::{
     self, Basic, CHECK, CHECKED, CODE_BLOCK, LIST, MENTION, NUMBER, QUOTE,
 };

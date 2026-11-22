@@ -1,6 +1,5 @@
 use std::hash::Hash;
 
-use beui_macros::{component, view};
 use beui_view::primitives::Layers;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;

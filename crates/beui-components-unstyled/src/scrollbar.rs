@@ -1,8 +1,6 @@
 use std::cell::Cell;
 use std::rc::Rc;
 
-use beui_macros::{component, view};
-
 use beui_view::primitives::*;
 use beui_view::reactive::Draw;
 use beui_view::reactive::NodeId;

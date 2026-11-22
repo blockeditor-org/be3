@@ -1,5 +1,4 @@
 use crate::frame::{ColorRole, Frame, Radius};
-use beui_macros::{component, view};
 
 use crate::list::{List, Spacer};
 use crate::theme::{knob_border, use_theme};

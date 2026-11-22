@@ -1,5 +1,3 @@
-use beui_macros::{component, view};
-
 use crate::ContextMenu;
 use crate::text_area::text_area_geometry;
 use crate::theme::use_theme;

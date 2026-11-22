@@ -4,7 +4,6 @@ use std::hash::Hash;
 use std::rc::Rc;
 
 use accesskit::{Node, Role};
-use beui_macros::{component, view};
 
 use crate::button::{Button, ButtonHandle};
 use crate::context_menu::ContextMenu;

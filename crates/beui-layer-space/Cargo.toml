@@ -21,7 +21,6 @@ beui-host = { path = "../beui-host" }
 beui-reactive = { path = "../beui-reactive" }
 beui-components-styled = { path = "../beui-components-styled" }
 beui-view = { path = "../beui-view" }
-beui-macros = { path = "../beui-macros" }
 beui-font-freetype = { path = "../beui-font-freetype" }
 beui-keyboard = { path = "../beui-keyboard" }
 beui-paint-snapshot = { path = "../beui-paint-snapshot" }

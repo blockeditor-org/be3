@@ -10,7 +10,6 @@ path = "src/main.rs"
 
 [dependencies]
 beui = { path = "../beui" }
-beui-macros = { path = "../beui-macros" }
 be-lib-stable-hash = { path = "../be-lib-stable-hash" }
 beui-text-editor-core = { path = "../beui-text-editor-core" }
 

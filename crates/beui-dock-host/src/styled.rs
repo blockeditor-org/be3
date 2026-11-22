@@ -5,7 +5,6 @@ mod stack;
 mod switch;
 
 use beui_components_styled::frame::{Border, ColorRole, Frame, Radius};
-use beui_macros::{component, view};
 
 use crate::unstyled as dock;
 pub use crate::unstyled::{

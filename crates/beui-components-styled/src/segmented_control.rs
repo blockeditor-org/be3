@@ -1,5 +1,3 @@
-use beui_macros::{component, view};
-
 use crate::choice::{Collapsing, Kind, SegmentFace, Wide};
 use crate::frame::{Border, Frame, Radius};
 use crate::list::List;

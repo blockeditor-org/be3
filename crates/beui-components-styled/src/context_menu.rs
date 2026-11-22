@@ -1,5 +1,4 @@
 use crate::frame::{Border, ColorRole, Frame, Radius};
-use beui_macros::{component, view};
 use beui_view::types::Overflow;
 use beui_view::types::ScrollPosition;
 use beui_view::types::icons::Glyph;

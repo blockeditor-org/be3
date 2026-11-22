@@ -1,6 +1,5 @@
 use std::cell::Cell;
 
-use beui_macros::{component, view};
 use beui_view::measure::{measure, scrolled_by};
 use beui_view::primitives::Frame;
 use beui_view::reactive::*;

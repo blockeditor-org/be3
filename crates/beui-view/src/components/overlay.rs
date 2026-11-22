@@ -4,6 +4,7 @@ use crate::reactive::NodeId;
 use crate::reactive::NodeRef;
 use crate::reactive::OverlayAnchor;
 use crate::reactive::Prop;
+use crate::reactive::component;
 use crate::reactive::{
     Get, Memo, Set, Signal, StoredCell, create_effect, create_memo, create_signal, on_cleanup,
     provide_context, untrack, use_context,
@@ -16,7 +17,6 @@ use crate::types::Placement;
 use crate::types::Rect;
 use crate::types::WindowId;
 use crate::types::WindowSpec;
-use beui_macros::component;
 
 #[component]
 pub fn Overlay(

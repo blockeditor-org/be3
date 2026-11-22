@@ -3,8 +3,6 @@ use crate::frame::{Frame, Radius};
 use crate::tokens::{Size, Stroke};
 use std::rc::Rc;
 
-use beui_macros::{component, view};
-
 use crate::color_picker::thumb;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::ValueDrag;

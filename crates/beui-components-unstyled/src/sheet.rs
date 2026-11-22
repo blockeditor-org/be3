@@ -8,7 +8,6 @@ use std::time::Duration;
 use crate::gestures;
 use crate::watched::Watched;
 use accesskit::Role;
-use beui_macros::{component, view};
 
 use super::back_slide::BACK_DRAG_SHARE;
 use super::fling::Fling;

@@ -1,5 +1,3 @@
-use beui_macros::view;
-
 use beui_view::components::text::Span;
 use beui_view::primitives::*;
 use beui_view::reactive::*;

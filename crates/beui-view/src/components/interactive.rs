@@ -10,6 +10,7 @@ use crate::types::ImeEvent;
 use crate::types::ImeText;
 use crate::types::KeyPress;
 
+use crate::reactive::{component, view};
 use crate::types::ClipItem;
 use crate::types::PointerPress;
 use crate::types::Pos2;
@@ -20,7 +21,6 @@ use crate::types::forward::ForwardedInput;
 use crate::types::input::PointerInput;
 use crate::types::input::WheelInput;
 use crate::types::region::{Area, Claim};
-use beui_macros::{component, view};
 
 #[component]
 pub fn Interactive(

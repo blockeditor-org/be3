@@ -3,8 +3,8 @@
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
+use crate::reactive::component;
 use be_lib_stable_hash::{HashMap, HashSet};
-use beui_macros::component;
 use beui_reactive::{ScopeContext, current_scope};
 
 use crate::reactive::{

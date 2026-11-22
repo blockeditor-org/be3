@@ -4,7 +4,6 @@ use std::rc::Rc;
 use std::time::{Duration, Instant};
 
 use accesskit::{Action, Node, Role};
-use beui_macros::{component, view};
 
 use super::fling::Fling;
 use super::rubber_band::{MINIMUM_VELOCITY, Spring, bounce, rubber_band};

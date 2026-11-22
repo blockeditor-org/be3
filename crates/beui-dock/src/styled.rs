@@ -3,7 +3,6 @@ use beui_components_styled::menu_button::MenuButton;
 use beui_components_styled::tokens::Space;
 use beui_components_styled::tool_pill::ToolPill;
 use beui_components_unstyled::menu::MenuNodes;
-use beui_macros::{component, view};
 use beui_view::primitives::*;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;

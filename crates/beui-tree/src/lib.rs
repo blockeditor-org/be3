@@ -39,7 +39,7 @@ pub mod reactive {
     pub use crate::prop_value::{
         AbsentProp, IntoPropValue, MarkedRequired, Takes, TakesBlock, TakesOptionalBlock,
     };
-    pub use beui_macros::{component, view};
+    pub use beui_macros::{component, sample, view};
     pub use beui_reactive::{
         AsyncMemo, Boundary, Effect, ErrorBoundary, Get, KeyedItems, KeyedStore, Memo,
         OwnedKeyedStore, OwnedSignal, OwnedSource, OwnedStored, OwnedTrigger, Pending, ReadSignal,

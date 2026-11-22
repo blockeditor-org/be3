@@ -1,5 +1,4 @@
 use crate::frame::Radius;
-use beui_macros::{component, view};
 
 use crate::color_picker::{ColorPicker, ColorSwatch};
 use crate::focus_ring::FocusRing;

@@ -1,6 +1,5 @@
 use crate::frame::{ColorRole, Frame, Radius};
 use accesskit::Role;
-use beui_macros::{component, view};
 
 use crate::focus_ring::FocusRing;
 use crate::theme::{control_border, use_theme};
