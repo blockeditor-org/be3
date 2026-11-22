@@ -267,7 +267,12 @@ The layer list); `Renderer::scissors` is then where that pass drew.
 
 **Desktop (winit).** Retitles the window, shows custom cursor images, reads
 clipboard images through arboard. `setup.get::<Arc<winit::window::Window>>()`
-is the window.
+is the window. A resize is answered with a frame at the new size at once, not at
+the next redraw. Until it shows, the system fills what the window grew by: on
+X11 with the clear colour (`backdrop.rs` sets the window's background), on
+Windows black or white, which winit cannot change (plans/deferred/winit_issues.md).
+On Windows wgpu draws through Vulkan alone, which beui-layer-xr and
+be-host-win32-capture are written against (plans/deferred/windows_vulkan_and_d3d12.md).
 
 **Web.** `run_web(element_id, options, layers, program)` draws with WebGPU, or
 WebGL where there is none, into the element if it is a canvas or a canvas it

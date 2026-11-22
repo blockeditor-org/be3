@@ -2,7 +2,8 @@
 //! drawing the new size, the server fills the new part with the window's background, which is
 //! black unless set: setting it to the program's clear colour shows that colour there instead,
 //! beside the last frame, which stays at the window's corner.
-//! Other systems keep the last frame or a colour of their own meanwhile.
+//! Windows shows black or white there instead, and winit has no way to set it
+//! (plans/deferred/winit_issues.md).
 
 use std::cell::{Cell, RefCell};
 
