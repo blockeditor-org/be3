@@ -705,12 +705,9 @@ impl Instances {
                         Made::Lost => return answering.send(Err(Failure::Denied)),
                     }
                 }
-                be_host_stack::set_access(
-                    block,
-                    Uuid::from_bytes(account),
-                    access,
-                    move |set| answering.send_or_fail(set),
-                );
+                be_host_stack::set_access(block, Uuid::from_bytes(account), access, move |set| {
+                    answering.send_or_fail(set)
+                });
             }
             Call::TransferOwnership {
                 reply,

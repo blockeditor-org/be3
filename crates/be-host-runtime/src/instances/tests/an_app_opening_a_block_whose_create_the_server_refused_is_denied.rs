@@ -1,9 +1,5 @@
 use super::*;
-use be_sdk_api::{
-    AccessLevel, Failure,
-    embed::host_services::Call as HostCall,
-    ops::Outcome,
-};
+use be_sdk_api::{AccessLevel, Failure, embed::host_services::Call as HostCall, ops::Outcome};
 use be_type_example_counter::CounterContent;
 
 /// An app names, as its new block's id, a block the server holds that this device has never
@@ -18,7 +14,10 @@ fn an_app_opening_a_block_whose_create_the_server_refused_is_denied() {
         be_host_stack::is_known(CounterContent::CONTENT_TYPE).then_some(())
     });
     let taken = harness.block_out_of_sight(CounterContent::CONTENT_TYPE);
-    assert!(be_host_stack::node(taken).is_none(), "this device lists the block");
+    assert!(
+        be_host_stack::node(taken).is_none(),
+        "this device lists the block"
+    );
     let mut instances = placed_on(Uuid::new_v4(), CounterContent::CONTENT_TYPE);
     call(
         &mut instances,

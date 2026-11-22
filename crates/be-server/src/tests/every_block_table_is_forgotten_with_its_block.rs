@@ -15,9 +15,13 @@ fn every_block_table_is_forgotten_with_its_block() {
         .unwrap()
         .collect::<Result<_, _>>()
         .unwrap();
-    assert!(tables.iter().any(|table| table == "share_links"), "{tables:?}");
+    assert!(
+        tables.iter().any(|table| table == "share_links"),
+        "{tables:?}"
+    );
     let listed = |table: &str| {
-        crate::blocks::BLOCK_ROWS.contains(&table) || crate::blocks::BLOCK_ROWS_APART.contains(&table)
+        crate::blocks::BLOCK_ROWS.contains(&table)
+            || crate::blocks::BLOCK_ROWS_APART.contains(&table)
     };
     let missing: Vec<&String> = tables.iter().filter(|table| !listed(table)).collect();
     assert!(
@@ -25,9 +29,14 @@ fn every_block_table_is_forgotten_with_its_block() {
         "{missing:?} keep rows by block_id: list each in BLOCK_ROWS, which forget_blocks deletes, \
          or in BLOCK_ROWS_APART with how forget_blocks handles it"
     );
-    let named = crate::blocks::BLOCK_ROWS.iter().chain(crate::blocks::BLOCK_ROWS_APART);
+    let named = crate::blocks::BLOCK_ROWS
+        .iter()
+        .chain(crate::blocks::BLOCK_ROWS_APART);
     let unknown: Vec<&&str> = named
         .filter(|table| !tables.iter().any(|known| known == **table))
         .collect();
-    assert!(unknown.is_empty(), "{unknown:?} are listed but have no block_id column");
+    assert!(
+        unknown.is_empty(),
+        "{unknown:?} are listed but have no block_id column"
+    );
 }

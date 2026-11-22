@@ -1,9 +1,5 @@
 use super::*;
-use be_sdk_api::{
-    AccessLevel, Failure,
-    embed::host_services::Call as HostCall,
-    ops::Outcome,
-};
+use be_sdk_api::{AccessLevel, Failure, embed::host_services::Call as HostCall, ops::Outcome};
 use be_type_example_counter::CounterContent;
 
 /// An app whose manifest does not set `sharing` opens a block it just made to anyone inside,
@@ -49,7 +45,10 @@ fn an_app_opens_a_block_it_made_only_once_the_server_took_it() {
         "the server took the create before the opening was asked"
     );
     assert!(
-        instances.take_answers().iter().all(|(answered, _)| *answered != op),
+        instances
+            .take_answers()
+            .iter()
+            .all(|(answered, _)| *answered != op),
         "the opening was answered before the server took the create"
     );
 

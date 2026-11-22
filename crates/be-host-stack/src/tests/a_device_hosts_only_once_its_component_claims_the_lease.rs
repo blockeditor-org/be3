@@ -6,7 +6,11 @@ fn host_heard_by(member: &Member, block: Uuid) -> Option<Uuid> {
     member.runtime.block_on(async {
         peer.refresh_keys(None).await.expect("the keys arrive");
         peer.connection()
-            .join(peer.organization(), block, be_block_store::Hash::from_bytes([3; 32]))
+            .join(
+                peer.organization(),
+                block,
+                be_block_store::Hash::from_bytes([3; 32]),
+            )
             .await
             .expect("the member joins")
             .host
@@ -36,14 +40,22 @@ fn a_device_hosts_only_once_its_component_claims_the_lease() {
     );
     flush();
     open(block, CounterContent::CONTENT_TYPE);
-    set_access(block, player.account(), be_block_graph::Access::Join, |_| {});
+    set_access(
+        block,
+        player.account(),
+        be_block_graph::Access::Join,
+        |_| {},
+    );
     set_access(block, other.account(), be_block_graph::Access::Edit, |_| {});
     flush_and_send();
     assert_eq!(status().error, None);
     wait_until("joined the world's session", |shared| {
         shared.session_hosts.contains_key(&block)
     });
-    assert!(may_host(block), "no one hosts, so a component may start here");
+    assert!(
+        may_host(block),
+        "no one hosts, so a component may start here"
+    );
     assert_eq!(
         host_heard_by(&player, block),
         None,

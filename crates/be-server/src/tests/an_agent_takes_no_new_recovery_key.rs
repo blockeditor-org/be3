@@ -14,7 +14,9 @@ async fn an_agent_takes_no_new_recovery_key() {
         panic!("creating an agent failed: {response:?}");
     };
     let mut agent = harness.second_connection(&token, personal).await;
-    let fresh = be_block_keys::RecoveryPhrase::generate().secret().identity();
+    let fresh = be_block_keys::RecoveryPhrase::generate()
+        .secret()
+        .identity();
 
     let staged = agent
         .call(|peer| {
