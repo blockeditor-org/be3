@@ -1,4 +1,4 @@
-use crate::plan::{Member, PLANS, cargo_arguments};
+use crate::plan::{Member, PLANS, builds_programs, cargo_arguments};
 
 #[test]
 fn plans_pick_crates_by_name_and_examples() {
@@ -26,6 +26,15 @@ fn plans_pick_crates_by_name_and_examples() {
     );
     assert!(!host.contains("be-app-canvas"));
     assert!(plan("wasi-guest").contains("-p be-app-canvas -p be-app-text "));
+    assert!(
+        !builds_programs("wasi-guest"),
+        "the guests' binaries and examples run on the host, not as guests"
+    );
+    assert!(builds_programs("linux-x86_64"));
+    assert!(
+        builds_programs("windows-x86_64"),
+        "a cross platform is the host's plan"
+    );
     let wasm32 = plan("wasm32");
     assert!(wasm32.starts_with(
         "build --target TRIPLE -p tabletop-rules-chess -p be-type-text -p be-lib-remap-module"

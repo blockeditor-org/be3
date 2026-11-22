@@ -52,6 +52,19 @@ pub(crate) struct Plan {
     html: bool,
     /// The libraries alone, `--lib`.
     lib: bool,
+    /// Whether the crates' binaries and examples are built for the platform. Without them
+    /// `cargo test` still plans them; the facts leave them out, so a crate here only for its
+    /// library and tests, such as beui-demo, runs its programs only where they are planned.
+    programs: bool,
+}
+
+/// Whether a platform's plan builds its crates' binaries and examples: every plan but those
+/// that say not, and the cross platforms, which are the host's plan for another triple.
+pub(crate) fn builds_programs(platform: &str) -> bool {
+    PLANS
+        .iter()
+        .find(|plan| plan.name == platform)
+        .is_none_or(|plan| plan.programs)
 }
 
 /// What the host's plan leaves out: the wasm-only crates.
@@ -101,6 +114,7 @@ pub(crate) const PLANS: &[Plan] = &[
         packages: Packages::Workspace(HOST_EXCLUDES),
         html: false,
         lib: false,
+        programs: true,
     },
     // be-host, beui's DOM demo, the paint review page, beui-html's live DOM
     // and the page that tests the root entry for the web.
@@ -117,6 +131,7 @@ pub(crate) const PLANS: &[Plan] = &[
         ]),
         html: false,
         lib: true,
+        programs: true,
     },
     // The apps, the libraries apps are linked against (wasm_library in
     // buck/wasm/defs.bzl), the echo guest staged as an app and its worker, the apps' workers, beui's demo, the paint
@@ -142,6 +157,7 @@ pub(crate) const PLANS: &[Plan] = &[
         ]),
         html: false,
         lib: false,
+        programs: false,
     },
     // The games, every app's type module (be-type-bundle runs them in process
     // on the host), the remap module, the pure guests and the pure root guest
@@ -160,6 +176,7 @@ pub(crate) const PLANS: &[Plan] = &[
         ]),
         html: false,
         lib: false,
+        programs: true,
     },
     // The browser's gpu shim, which wasm-bindgen binds to the page: a plan of
     // its own, since its wgpu and web-sys must not reach the pure guests (a
@@ -171,6 +188,7 @@ pub(crate) const PLANS: &[Plan] = &[
         packages: Packages::Only(&[Named("be-wasm-gpu-shim")]),
         html: false,
         lib: false,
+        programs: true,
     },
     // beui's HTML core in the browser, with the crates whose native side runs
     // only on the native core, such as the shared tests' fixtures program, and
@@ -182,6 +200,7 @@ pub(crate) const PLANS: &[Plan] = &[
         packages: Packages::Only(&[All(HTML), Named("beui-tests"), Named("beui-demo-html")]),
         html: true,
         lib: true,
+        programs: true,
     },
     // And on the host, with be-server-bin, the server's executable, which
     // renders its account portal on that core.
@@ -192,6 +211,7 @@ pub(crate) const PLANS: &[Plan] = &[
         packages: Packages::Only(&[All(HTML), Named("be-server-bin")]),
         html: true,
         lib: false,
+        programs: true,
     },
 ];
 

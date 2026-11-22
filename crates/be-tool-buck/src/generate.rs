@@ -387,6 +387,8 @@ pub fn generate(inputs: &Inputs) -> Result<BTreeMap<String, String>, String> {
                 if !named.is_empty() {
                     facts.insert("test_named_deps".into(), json!(named));
                 }
+            } else if !crate::plan::builds_programs(platform) {
+                continue;
             } else if kinds.contains("example") {
                 facts["examples"][&name] = json!({"deps": deps, "features": features});
             } else if kinds.contains("bin") {

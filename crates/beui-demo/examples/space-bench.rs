@@ -1,4 +1,3 @@
-#[cfg(not(target_arch = "wasm32"))]
 mod bench {
     use std::any::Any;
     use std::cell::RefCell;
@@ -356,6 +355,5 @@ mod bench {
 }
 
 fn main() {
-    #[cfg(not(target_arch = "wasm32"))]
     bench::main();
 }

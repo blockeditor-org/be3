@@ -381,44 +381,13 @@ write_package_value("be3.cargo", {
             "test_features": [],
         },
         "wasi-guest": {
-            "binaries": {
-                "demo": [
-                    "//crates/be-lib-stable-hash:be-lib-stable-hash",
-                    "//crates/beui-text-editor-core:beui-text-editor-core",
-                    "//crates/beui:beui",
-                ],
-            },
+            "binaries": {},
             "deps": [
                 "//crates/be-lib-stable-hash:be-lib-stable-hash",
                 "//crates/beui-text-editor-core:beui-text-editor-core",
                 "//crates/beui:beui",
             ],
-            "examples": {
-                "open-bench": {
-                    "deps": [
-                        "//crates/be-lib-stable-hash:be-lib-stable-hash",
-                        "//crates/be-sdk-test:be-sdk-test",
-                        "//crates/be-tool-bench:be-tool-bench",
-                        "//crates/beui-host:beui-host",
-                        "//crates/beui-inspector:beui-inspector",
-                        "//crates/beui-text-editor-core:beui-text-editor-core",
-                        "//crates/beui:beui",
-                    ],
-                    "features": [],
-                },
-                "space-bench": {
-                    "deps": [
-                        "//crates/be-lib-stable-hash:be-lib-stable-hash",
-                        "//crates/be-sdk-test:be-sdk-test",
-                        "//crates/be-tool-bench:be-tool-bench",
-                        "//crates/beui-host:beui-host",
-                        "//crates/beui-inspector:beui-inspector",
-                        "//crates/beui-text-editor-core:beui-text-editor-core",
-                        "//crates/beui:beui",
-                    ],
-                    "features": [],
-                },
-            },
+            "examples": {},
             "features": [],
             "test_deps": [
                 "//crates/be-sdk-test:be-sdk-test",

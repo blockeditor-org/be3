@@ -355,7 +355,8 @@ use an editor extension's rust-analyzer: the toolchain's panics on this workspac
   for beui's, `//crates/be-host:web-module` for the host's). A pure guest
   built with `wasm32_crate`, such as be-wasm-root-testing's root, is named in the `wasm32` plan there. A binary or
   an example is likewise built only for the plans that build it (`cargo build --lib` builds
-  none).
+  none, and the wasm guests' plan, whose crates are there for their libraries and tests, records
+  none: `programs` in `PLANS`).
 - **Lints** are rustc's, and a warning fails the compile, but verify compiles only
   `linux_x86_64` and the `wasi_guest` its tests build, and runs no clippy
   (decisions/verify_compiles_one_configuration_per_target.md). Code behind `cfg(windows)`,
