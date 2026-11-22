@@ -1,6 +1,6 @@
 load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_example", "cargo_library", "cargo_package")
-load("@root//buck/program:drive.bzl", "headless")
-load("@root//buck/wasm:defs.bzl", "app_tests")
+load("@root//buck/program:drive.bzl", "headless", "web_drive_test")
+load("@root//buck/wasm:defs.bzl", "app_tests", "web_program")
 
 cargo_package()
 
@@ -27,9 +27,31 @@ cargo_example("open-bench")
 # Times the space cursor's icon and resizing a space panel: `./scripts/buck run -m release //crates/beui-demo:example-space-bench -- [cursor|resize]`.
 cargo_example("space-bench")
 
-# The demo's pages on beui's HTML core, in a browser (crates/beui-demo-html):
-# `./scripts/buck run //crates/beui-demo:web-html`.
-alias(
+# The demo in a browser, from src/main.rs as natively: `./scripts/buck run //crates/beui-demo:web`
+# draws it with wgpu on http://127.0.0.1:8070, and `:web-html` shows it on beui's HTML core
+# on http://127.0.0.1:8075, either on the address given as `-- --addr HOST:PORT`.
+web_program(
+    name = "web",
+    entry = "src/main.rs",
+    module = "beui_demo",
+    role = "program",
+    serve = "127.0.0.1:8070",
+)
+
+web_program(
     name = "web-html",
-    actual = "//crates/beui-demo-html:web",
+    entry = "src/main.rs",
+    module = "beui_demo",
+    role = "html",
+    serve = "127.0.0.1:8075",
+)
+
+# drive/*.drive in Chromium against :web-html: every page opens, the long modal
+# sheet opens and closes, only Selectable text selects, and controls carry
+# their ARIA roles and states, each overlay reads once, as what it is, and an
+# anchored overlay near the window's corner flips and shifts as natively.
+web_drive_test(
+    name = "web-html-test",
+    bundle = ":web-html",
+    scripts = glob(["drive/*.drive"]),
 )

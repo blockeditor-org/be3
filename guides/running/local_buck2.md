@@ -65,4 +65,4 @@ On 8 cores with `rustc_threads = 2`, measured:
   only downloads survive. Keep the daemon running between verifies.
 
 The slowest actions in a full run: libghostty-vt's Zig build (2 minutes), then the browser tests of beui-tests
-and beui-demo-html and be-host-stack's tests (40 to 50 seconds).
+and beui-demo and be-host-stack's tests (40 to 50 seconds).

@@ -47,6 +47,6 @@ fn plans_pick_crates_by_name_and_examples() {
     assert!(plan("wasm32-bindgen").starts_with("build --target TRIPLE -p be-wasm-gpu-shim "));
     assert!(
         plan("wasi-html")
-            .ends_with("-p beui-demo-html --lib --unit-graph -Z unstable-options --locked")
+            .ends_with("-p beui-host-window --lib --unit-graph -Z unstable-options --locked")
     );
 }

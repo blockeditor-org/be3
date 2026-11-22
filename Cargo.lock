@@ -3530,17 +3530,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "beui-demo-html"
-version = "0.1.0"
-dependencies = [
- "be-wasm-threads",
- "beui",
- "beui-demo",
- "wasm-bindgen",
- "wasm-bindgen-futures",
-]
-
-[[package]]
 name = "beui-dock"
 version = "0.1.0"
 dependencies = [
@@ -3644,6 +3633,7 @@ dependencies = [
 name = "beui-host-window"
 version = "0.1.0"
 dependencies = [
+ "be-wasm-threads",
  "beui",
  "beui-core",
  "beui-host",
@@ -3657,6 +3647,9 @@ dependencies = [
  "beui-runner",
  "pollster",
  "serde_json",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
 ]
 
 [[package]]
@@ -3995,18 +3988,6 @@ dependencies = [
  "beui-reactive",
  "beui-tree",
  "beui-types",
-]
-
-[[package]]
-name = "beui-web-demo"
-version = "0.1.0"
-dependencies = [
- "be-wasm-threads",
- "beui",
- "beui-demo",
- "beui-host",
- "wasm-bindgen",
- "wasm-bindgen-futures",
 ]
 
 [[package]]

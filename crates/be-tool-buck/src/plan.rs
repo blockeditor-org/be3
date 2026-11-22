@@ -73,10 +73,8 @@ const HOST_EXCLUDES: &[Pick] = &[
     Named("be-sdk"),
     Named("be-sdk-beui"),
     Named("be-wasm-gpu-shim"),
-    Named("beui-web-demo"),
     Named("be-server-portal-ui"),
     Named("be-server-bin"),
-    Named("beui-demo-html"),
     Named("be-tool-paint-review-web"),
     Named("be-wasm-root-web-testing"),
     // PDFium, which it links, is built only for the apps' platform.
@@ -116,15 +114,17 @@ pub(crate) const PLANS: &[Plan] = &[
         lib: false,
         programs: true,
     },
-    // be-host, beui's DOM demo, the paint review page, beui-html's live DOM
-    // and the page that tests the root entry for the web.
+    // be-host, beui's demo drawn with wgpu and the entry it runs through, the paint
+    // review page, beui-html's live DOM and the page that tests the root entry for
+    // the web.
     Plan {
         name: "wasi",
         mode: Mode::Build,
         triple: "wasm32-wasip1-threads",
         packages: Packages::Only(&[
             Named("be-host"),
-            Named("beui-web-demo"),
+            Named("beui-demo"),
+            Named("beui-host-window"),
             Named("be-tool-paint-review-web"),
             Named("beui-html"),
             Named("be-wasm-root-web-testing"),
@@ -192,12 +192,17 @@ pub(crate) const PLANS: &[Plan] = &[
     },
     // beui's HTML core in the browser, with the crates whose native side runs
     // only on the native core, such as the shared tests' fixtures program, and
-    // beui's demo in the browser.
+    // beui's demo in the browser and the entry it runs through.
     Plan {
         name: "wasi-html",
         mode: Mode::Build,
         triple: "wasm32-wasip1-threads",
-        packages: Packages::Only(&[All(HTML), Named("beui-tests"), Named("beui-demo-html")]),
+        packages: Packages::Only(&[
+            All(HTML),
+            Named("beui-tests"),
+            Named("beui-demo"),
+            Named("beui-host-window"),
+        ]),
         html: true,
         lib: true,
         programs: true,

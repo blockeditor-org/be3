@@ -60,5 +60,5 @@ released(
         cmd = "$(exe :bin) web-page " + name + " $OUT",
         out = "index.html",
     )
-    for name in ["host", "demo", "paint-review"]
+    for name in ["host", "paint-review"]
 ]

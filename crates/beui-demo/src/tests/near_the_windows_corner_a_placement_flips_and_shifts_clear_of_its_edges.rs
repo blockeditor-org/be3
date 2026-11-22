@@ -1,6 +1,6 @@
 use super::*;
 
-/// The HTML core's twin is crates/beui-demo-html/src/drive/placements.drive.
+/// The HTML core's twin is crates/beui-demo/drive/placements.drive.
 #[test]
 fn near_the_windows_corner_a_placement_flips_and_shifts_clear_of_its_edges() {
     let mut test = alone(WIDE, Page::Layering);

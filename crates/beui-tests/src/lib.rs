@@ -10,7 +10,7 @@
 //! `Text`. The browser alone also answers `selection none|some`, `role ROLE NAME [STATE...]`
 //! (Playwright's `getByRole`; `modal` and `inert` read Chrome's accessibility tree over CDP) and
 //! `roles ROLE COUNT` and
-//! `elements CSS COUNT`, for scripts that run only there (crates/beui-demo-html's), and
+//! `elements CSS COUNT`, for scripts that run only there (crates/beui-demo/drive/), and
 //! `attribute CSS NAME VALUE|none`, `history LENGTH`, `history-state marker|none`, `loads COUNT`,
 //! `reload`, `css TEXT` (adds a stylesheet, to stand in for a browser without a feature),
 //! `share-sheet` (gives the page a `navigator.share` that keeps what it is handed, and reloads)

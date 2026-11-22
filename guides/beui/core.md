@@ -389,8 +389,9 @@ row's preview floats.
 **Running and server rendering.** `beui::html::run(element_id, build)` starts a
 program; `render_to_string` on the host and `hydrate` in the browser serve a
 page that shows before any script runs. crates/be-server-portal-ui is the worked
-example (guides/running/web.md); crates/beui-demo-html runs beui-demo on this
-core.
+example (guides/running/web.md); a program whose `main` is
+`beui_host_window::main!` runs on this core as it does natively, as beui-demo's
+`:web-html` does (guides/beui/programs.md).
 
 ## HTML: strings and live DOM
 
