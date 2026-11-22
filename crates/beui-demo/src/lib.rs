@@ -320,22 +320,17 @@ struct Today(Date);
 #[derive(Clone, Copy)]
 struct DemoWindow {
     title: Signal<String>,
-    background: Signal<Option<ColorRole>>,
+    clear_color: Signal<ColorRole>,
 }
 
 impl DemoWindow {
     fn provide() -> Self {
         let window = Self {
             title: create_signal("beui demo".to_owned()),
-            background: create_signal(Some(ColorRole::Background)),
+            clear_color: create_signal(ColorRole::Background),
         };
         provide_context(window);
         window
-    }
-
-    fn clear_color(self) -> Memo<ColorRole> {
-        let background = self.background;
-        create_memo(move || background.get().unwrap_or(ColorRole::Background))
     }
 }
 
@@ -344,7 +339,7 @@ pub fn DemoRoot(today: Date) -> Root {
     provide_context(Today(today));
     let window = DemoWindow::provide();
     view! {
-        <Root title={window.title} clear_color={window.clear_color()}>
+        <Root title={window.title} clear_color={window.clear_color}>
             <Demo />
         </Root>
     }
@@ -369,7 +364,7 @@ fn LoneRoot(today: Date, page: Page) -> Root {
     provide_context(Today(today));
     let window = DemoWindow::provide();
     view! {
-        <Root title={window.title} clear_color={window.clear_color()}>
+        <Root title={window.title} clear_color={window.clear_color}>
             <Container>|_|
                 <LonePage page />
             </Container>

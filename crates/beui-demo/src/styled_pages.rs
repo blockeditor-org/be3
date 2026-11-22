@@ -4854,7 +4854,14 @@ fn WindowSample() -> NodeId {
                     <ChoiceOption value=ColorRole::Background label="Background" />
                     <ChoiceOption value=ColorRole::Surface label="Surface" />
                 }}
-                selected={window.background}
+                selected={Binding::new(
+                    Prop::dynamic(move || Some(window.clear_color.get())),
+                    move |role: Option<ColorRole>| {
+                        if let Some(role) = role {
+                            window.clear_color.set(role);
+                        }
+                    },
+                )}
             />
         </List>
     }
