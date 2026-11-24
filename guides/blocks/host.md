@@ -42,9 +42,11 @@ device replaced, which the server drops at once (it keeps no history the organiz
 ask for, so a device that heard of a head can find it gone), or the connection is down. The
 replica is opened again (`Replicas::not_yet`): at once when what it loaded is no longer the
 head, once the head moves on or its join answers when it loaded the head it knew while joining,
-and once the connection comes back for a lost one. The same commit missing again after it opened
-is unreadable (`Replicas::retried`), so no wait outlasts one opening, and nothing is reset for a
-head another device replaced.
+and once the connection comes back for a lost one. The same commit missing again after it opened,
+once a join has answered (or after a few openings while it still joins), is unreadable
+(`Replicas::retried`), so the wait is bounded, and nothing is reset for a head another device
+replaced. A replica that waits stays unopened rather than loading, so one asked to close
+closes.
 
 The host keeps `be-objects/` and the refs database across builds.
 

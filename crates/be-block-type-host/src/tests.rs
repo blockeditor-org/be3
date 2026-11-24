@@ -21,10 +21,10 @@ mod a_block_reopened_while_its_rejoin_is_held_opens_again_holding_its_journaled_
 mod a_block_sent_while_its_replica_owes_a_seal_is_asked_for_it_once;
 mod a_block_whose_creation_waits_joins_once_it_is_sent_not_on_reconnecting;
 mod a_block_whose_kept_edits_stop_opening_as_its_replica_starts_opens_again_unlocked;
+mod a_head_gone_everywhere_opens_once_more_then_is_unreadable;
 mod a_host_crash_with_a_held_drag_saves_nothing;
 mod a_journal_is_opened_on_the_commit_a_seal_was_made_on_only_when_it_reaches_the_seal;
 mod a_key_searched_for_in_vain_is_searched_for_again_after_reconnecting;
-mod a_load_of_a_gone_commit_that_is_not_the_head_opens_again_once;
 mod a_merge_over_parts_reads_only_the_parts_each_side_changed;
 mod a_module_restart_mid_drag_keeps_the_drag;
 mod a_modules_answer_is_seen_after_the_host_task_spent_its_budget;
@@ -195,6 +195,7 @@ fn with_devices<F: Future<Output = ()>>(
     tokio::task::LocalSet::new().block_on(&runtime, async {
         be_lib_build_id::install("test");
         let server = be_server::Running::start(be_server::ServerConfig::OPEN).await;
+        SERVER_OBJECTS.set(Some(server.directory.join("objects")));
         let email = format!("{}@example.com", Uuid::new_v4().simple());
         let phrase = be_block_keys::RecoveryPhrase::generate();
         let token = server.register(&email, "Owner").await;
@@ -206,8 +207,13 @@ fn with_devices<F: Future<Output = ()>>(
                 Credentials::Token(token.clone()),
             )
             .organization(organization);
+            let store = MemoryStore::new();
+            // The first device's, which `lose_everywhere` reaches.
+            if organization.is_none() {
+                DEVICE_STORE.set(Some(store.clone()));
+            }
             async move {
-                Peer::connect(config, MemoryStore::new())
+                Peer::connect(config, store)
                     .await
                     .expect("the peer signs in")
             }
@@ -228,6 +234,27 @@ fn with_devices<F: Future<Output = ()>>(
         .await;
         server.stop().await;
     });
+}
+
+thread_local! {
+    /// Where the test's server keeps its objects, and the first device's store.
+    static SERVER_OBJECTS: std::cell::Cell<Option<std::path::PathBuf>> = const { std::cell::Cell::new(None) };
+    static DEVICE_STORE: std::cell::Cell<Option<MemoryStore>> = const { std::cell::Cell::new(None) };
+}
+
+/// Loses the object `hash` everywhere, from the first device's store and the server's, as one
+/// gone for good would be: the server still names the commits that hold it.
+fn lose_everywhere(hash: be_block_store::Hash) {
+    use be_block_store::ObjectStore;
+    let store = DEVICE_STORE.take().expect("a device signed in");
+    store.remove(hash).expect("the device lets the object go");
+    DEVICE_STORE.set(Some(store));
+    let objects = SERVER_OBJECTS.take().expect("the server started");
+    be_block_store::FileStore::open(&objects)
+        .expect("the server's objects open")
+        .remove(hash)
+        .expect("the server lets the object go");
+    SERVER_OBJECTS.set(Some(objects));
 }
 
 thread_local! {
