@@ -40,8 +40,11 @@ Only content that was had and does not read is unreadable (`load-error.unreadabl
 whose objects are not to be had now answers `load-error.not-yet`: the commit is a head another
 device replaced, which the server drops at once (it keeps no history the organization did not
 ask for, so a device that heard of a head can find it gone), or the connection is down. The
-replica waits, and the host opens it again once the block's head moves on from that commit or
-the connection comes back (`Replicas::not_yet`), so nothing is reset for it.
+replica is opened again (`Replicas::not_yet`): at once when what it loaded is no longer the
+head, once the head moves on or its join answers when it loaded the head it knew while joining,
+and once the connection comes back for a lost one. The same commit missing again after it opened
+is unreadable (`Replicas::retried`), so no wait outlasts one opening, and nothing is reset for a
+head another device replaced.
 
 The host keeps `be-objects/` and the refs database across builds.
 
