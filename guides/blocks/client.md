@@ -67,9 +67,11 @@ each `due()` until it gives up. The fault relay (guides/blocks/server.md,
 
 ## Reading and writing
 
-- `open` reads the head commit and its objects in one `ReadContents`, and
-  decodes with `BlockContent::from_stored`; `read_contents` returns `Stored`
-  (bytes and the parts they were saved in).
+- `open` reads the block as this device has it newest (`Peer::current`: the
+  head of its own commits still in the outbox, from its store, else the head
+  commit and its objects in one `ReadContents`, with the session's journal),
+  and decodes with `BlockContent::from_stored`; `read_contents` returns
+  `Stored` (bytes and the parts they were saved in).
 - `save` seals `BlockContent::parts` and publishes against the head it read,
   carrying the commit and the objects (nodes and chunks) that head lacks, so a
   save is one round trip and costs what changed. The outbox keeps a commit's
@@ -77,6 +79,23 @@ each `due()` until it gives up. The fault relay (guides/blocks/server.md,
   the expected head's (`held_by`, `references_of`). A merge, or new objects over
   half a frame, upload first (`push`): only what `MissingObjects` says is
   missing, through URLs (below).
+- **Changing a block against its head** is `Peer::update(block, content_type,
+  make)`, the one read-change-write loop: it reads the block (`current`), asks
+  `make` for its new content (`NewContent`: the stored form and its references
+  and derived metadata, as `NewContent::of` makes them for a `BlockContent`)
+  or nothing, and writes that against the head read. A write refused because
+  another landed first is read and made again, up to `UPDATE_ATTEMPTS`, then
+  `ClientError::Contended`, so nothing it writes goes over a write `make` did
+  not see. `make` answers a future that borrows nothing of it, so an update is
+  `Send` whenever that future is; state kept across reads (a type module, what
+  was written) lives outside it. `update_content::<C>(block, ops)` is the typed
+  form, for content this device decodes: `ops` answers the `LiveEdit`
+  operations to apply to the content as read (the prefix registry, the
+  account's block). `force_update` is the force form, for content that
+  replaces the whole block (a reset to blank, a block's bytes replaced): it
+  writes the same content again over whatever head another write left. The CLI's
+  edits, a sync pass listing a folder's children and the host's replacing a
+  block's bytes all go through these.
 - `read_contents` reads many heads at once, asking for up to `CONTENTS_BLOCKS`
   blocks per `ReadContents`, all sent together, so a tree costs one round trip,
   not three per block. The server decides how much of each comes back: the

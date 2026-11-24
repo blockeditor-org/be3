@@ -5,10 +5,9 @@ use be_block_graph::{Access, BlockParent};
 use be_block_store::ObjectStore;
 use uuid::Uuid;
 
-use super::{Peer, Saved};
+use super::Peer;
 use crate::ClientError;
 
-const ATTEMPTS: usize = 8;
 const MAX_DEPTH: usize = 256;
 
 pub struct Registry {
@@ -88,28 +87,11 @@ impl<S: ObjectStore> Peer<S> {
                 kind
             }
         };
-        for _ in 0..ATTEMPTS {
-            let head = self.newest_head(kind).await?;
-            let mut content = match head {
-                Some(_) => self
-                    .open::<PrefixRegistryContent>(kind)
-                    .await?
-                    .unwrap_or_default(),
-                None => PrefixRegistryContent::default(),
-            };
-            let before = content.root();
-            for edit in edits {
-                content.apply(edit);
-            }
-            if content.root() == before {
-                return Ok(());
-            }
-            match self.save(kind, &content, head).await? {
-                Saved::Rejected { .. } => continue,
-                Saved::Published(_) | Saved::Unchanged(_) | Saved::Kept(_) => return Ok(()),
-            }
-        }
-        Err(ClientError::Contended)
+        self.update_content(kind, |_: PrefixRegistryContent| {
+            std::future::ready(Ok(edits.to_vec()))
+        })
+            .await?;
+        Ok(())
     }
 
     pub(super) async fn follow_prefixes(

@@ -3,7 +3,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
 use be_block_client::transfer::Saved;
-use be_block_client::{Peer, Saved as Published, Write};
+use be_block_client::{BlockRead, ClientError, Peer, Saved as Published, Write};
 use be_block_commit::CommitId;
 use be_block_content::{BlockMetadata, EXECUTABLE, Entries, NAME};
 use be_block_graph::BlockParent;
@@ -20,7 +20,6 @@ use crate::remote::{self, Block};
 use crate::{ERRORS_FILE, Report, STATE_DIRECTORY, UNEXPORTED_FILE, client, explain};
 
 const IN_FLIGHT: usize = 16;
-const ATTEMPTS: usize = 8;
 
 pub(crate) async fn run<S: ObjectStore>(
     peer: &Peer<S>,
@@ -1804,44 +1803,57 @@ async fn list_children<S: ObjectStore>(
     gained: &[Uuid],
     lost: &[Uuid],
 ) -> Result<(), String> {
-    for _ in 0..ATTEMPTS {
-        let (head, current) = match remote::read(peer, &[(folder, None)]).await?.pop() {
-            Some((_, head, current)) => (head, current),
-            None => (None, None),
-        };
-        let mut content = current.clone();
-        for (children, change) in [
-            (gained, ChildChange::Add as fn(Uuid) -> ChildChange),
-            (lost, ChildChange::Delete),
-        ] {
-            for child in children {
-                let edit = Edit::Child(change(*child));
-                if let Some(changed) = types
-                    .apply(block_type, content.clone(), client(), edit)
-                    .await?
-                {
-                    content = Some(changed);
+    // Held outside the futures `update` asks for, which borrow nothing of its closure.
+    let types = tokio::sync::Mutex::new(types);
+    peer.update(folder, block_type, |read: BlockRead| {
+        let types = &types;
+        async move {
+            let mut types = types.lock().await;
+            let current = read.stored.map(|stored| stored.bytes);
+            let mut content = current.clone();
+            for (children, change) in [
+                (gained, ChildChange::Add as fn(Uuid) -> ChildChange),
+                (lost, ChildChange::Delete),
+            ] {
+                for child in children {
+                    let edit = Edit::Child(change(*child));
+                    if let Some(changed) = types
+                        .apply(block_type, content.clone(), client(), edit)
+                        .await?
+                    {
+                        content = Some(changed);
+                    }
                 }
             }
+            let Some(content) = content.filter(|content| Some(content) != current.as_ref()) else {
+                return Ok(None);
+            };
+            let description = types
+                .describe(block_type, &content, peer.organization())
+                .await?;
+            Ok::<_, Failed>(Some(be_block_client::NewContent {
+                parts: content.into(),
+                references: description.references,
+                derived: description.derived,
+            }))
         }
-        let Some(content) = content.filter(|content| Some(content) != current.as_ref()) else {
-            return Ok(());
-        };
-        let description = types
-            .describe(block_type, &content, peer.organization())
-            .await?;
-        match peer
-            .write(
-                folder,
-                Write::encoded(block_type, &content, head)
-                    .described(description.references, description.derived),
-            )
-            .await
-            .map_err(explain)?
-        {
-            Published::Rejected { .. } => continue,
-            Published::Published(_) | Published::Unchanged(_) | Published::Kept(_) => return Ok(()),
-        }
+    })
+    .await
+    .map(|_| ())
+    .map_err(|Failed(error)| error)
+}
+
+/// An error of `list_children`'s change or of the update around it, as a pass tells it.
+struct Failed(String);
+
+impl From<String> for Failed {
+    fn from(error: String) -> Self {
+        Self(error)
     }
-    Err("it kept changing".to_owned())
+}
+
+impl From<ClientError> for Failed {
+    fn from(error: ClientError) -> Self {
+        Self(explain(error))
+    }
 }

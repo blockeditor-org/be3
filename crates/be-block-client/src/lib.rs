@@ -24,8 +24,8 @@ pub use peer::hosted::{Admitted, Admitting, Joining};
 pub use peer::log::{Appended, ExportedEntry, LOG_SALT_BYTES, LogRead, LoggedEntry, Said};
 pub use peer::{
     BlockRead, Drained, Listed, MAX_NOTIFICATION_AGE_MILLISECONDS, MAX_NOTIFICATION_TEXT,
-    Notification, OpenedNotification, Peer, PeerConfig, PendingRotation, Reconciled, Resolver,
-    Saved, Sealed, SealsJournal, Signer, Write, by_app,
+    NewContent, Notification, OpenedNotification, Peer, PeerConfig, PendingRotation, Reconciled, Resolver,
+    Saved, Sealed, SealsJournal, Signer, UPDATE_ATTEMPTS, Write, by_app,
 };
 pub use refs::{
     Aside, KeptChange, KeptEdit, KeptLogHead, KeptSubmission, ListedBlock, OpenEdits,

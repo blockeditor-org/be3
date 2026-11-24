@@ -5711,32 +5711,24 @@ async fn reset<H: Host>(
     if peer.uncreated(block) {
         return Ok(());
     }
-    let mut expected = peer.remote_head(block).await?;
     // What this device kept of the block and has not sent is set aside among the unsent edits,
     // to be restored or discarded, before the blank is written, rather than waiting ahead of it
     // to be merged into it. It is set aside with no refusal: one would set aside the blank and
     // every later edit too (`Peer::refusal`).
     if !peer.pending_commits(block).is_empty() {
+        let remote = peer.remote_head(block).await?;
         peer.move_to_unsent(block, None)?;
-        if let Some(head) = expected {
+        if let Some(head) = remote {
             peer.remember(block, head)?;
         }
     }
-    for _ in 0..4 {
-        match peer
-            .write(
-                block,
-                Write::encoded(kind.content_type, &kind.blank, expected).described(
-                    kind.described.references.clone(),
-                    kind.described.derived.clone(),
-                ),
-            )
-            .await?
-        {
-            Saved::Rejected { head } => expected = head,
-            _ => break,
-        }
-    }
+    // The blank goes over whatever another write left.
+    let blank = be_block_client::NewContent {
+        parts: kind.blank.clone().into(),
+        references: kind.described.references.clone(),
+        derived: kind.described.derived.clone(),
+    };
+    peer.force_update(block, kind.content_type, &blank).await?;
     H::reset_notice();
     Ok(())
 }
