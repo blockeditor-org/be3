@@ -96,7 +96,7 @@ pub fn MenuPopup(
     #[prop(default = NodeRef::new())] overlay: NodeRef,
     #[prop(default = NodeRef::new())] content: NodeRef,
     trigger: Option<NodeRef>,
-    on_gone: Callback<()>,
+    #[prop(default = Callback::default())] on_gone: Callback<()>,
 ) -> NodeId {
     let (row, panel) = menu.parts();
     let spacing = menu.spacing();

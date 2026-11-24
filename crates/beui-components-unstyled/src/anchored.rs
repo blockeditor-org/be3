@@ -97,6 +97,7 @@ pub fn Anchored(
     #[prop(default = NodeRef::new())] overlay: NodeRef,
     /// Called each time the last of its content goes, once a close has finished leaving: an
     /// owner that builds the popup only while it is needed drops it here.
+    #[prop(default = Callback::default())]
     on_gone: Callback<()>,
     #[prop(children)] content: RenderFn<AnchoredHandle, NodeId>,
 ) -> NodeId {
