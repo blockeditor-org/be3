@@ -95,6 +95,9 @@ pub fn Anchored(
     #[prop(default = LayerPolicy::BlocksAll)] policy: Prop<LayerPolicy>,
     #[prop(default = None)] trigger: Prop<Option<NodeRef>>,
     #[prop(default = NodeRef::new())] overlay: NodeRef,
+    /// Called each time the last of its content goes, once a close has finished leaving: an
+    /// owner that builds the popup only while it is needed drops it here.
+    on_gone: Callback<()>,
     #[prop(children)] content: RenderFn<AnchoredHandle, NodeId>,
 ) -> NodeId {
     let never_sheet = matches!(sheet, Prop::Static(SheetWhen::Never));
@@ -124,7 +127,22 @@ pub fn Anchored(
     let anchor = create_memo(move || at_point(anchor.get(), at.get()));
     let close = Callback::new(move |()| open.set(false));
     let pointer = NodeRef::new();
-    let look = move |sheet: bool, shown: Memo<bool>| content.call(AnchoredHandle { sheet, shown });
+    // How many looks' content is built, to tell `on_gone` when the last goes.
+    let built = StoredCell::new(0_usize);
+    let look = move |sheet: bool, shown: Memo<bool>| {
+        built.set(built.get() + 1);
+        on_cleanup(move || {
+            let Some(count) = built.try_get() else {
+                return;
+            };
+            let left = count.saturating_sub(1);
+            built.set(left);
+            if left == 0 {
+                on_gone.call(());
+            }
+        });
+        content.call(AnchoredHandle { sheet, shown })
+    };
     let dropdown = move || {
         view! {
             <Overlay

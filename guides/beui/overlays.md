@@ -112,7 +112,8 @@ it never shows values left over from the last one. A caller that wants its
 content kept, with its state, while closed wraps its own body in a `Kept` with
 a `KeepAlive` around the overlay: what the `Kept` builds on first open is kept,
 paused, while closed, and reads the overlay's context (its presence) as the
-rest of the content does. Content can be built more than once, so it is an
+rest of the content does: wrap the body in a `Kept` to keep a draft across
+closes (beui-demo's Filters popover). Content can be built more than once, so it is an
 `Fn`. State the rest of a component reads (which rows a select's search
 hides) belongs outside the content, derived from data, since the content's
 nodes may not exist.
