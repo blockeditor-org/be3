@@ -4,8 +4,7 @@ use super::*;
 /// by the new replica from that part read's answer, as planned against the content it was
 /// asked of, and the part is read once.
 #[test]
-fn an_editors_range_read_is_answered_once_though_its_replica_reopens_before_its_parts_are_read()
-{
+fn an_editors_range_read_is_answered_once_though_its_replica_reopens_before_its_parts_are_read() {
     let mut sim = Sim::<FileContent>::new(1, file_module);
     let payload: Vec<u8> = (0..64 * 1024u32)
         .map(|index| (index.wrapping_mul(2_654_435_761) >> 13) as u8)

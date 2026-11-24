@@ -1069,7 +1069,8 @@ where
         self.snapshots_shown = std::mem::take(&mut carried.snapshots_shown);
         let calls = std::mem::take(&mut carried.editor_calls);
         self.ranges_before = calls.ranges;
-        self.asked_before = calls.asks
+        self.asked_before = calls
+            .asks
             .into_iter()
             .map(|(epoch, call, ask)| ((epoch, call), ask))
             .collect();
