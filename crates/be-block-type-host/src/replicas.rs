@@ -1337,6 +1337,24 @@ impl<H: Host> Replicas<H> {
         });
     }
 
+    /// Holds `block`'s replica's next rejoin as one whose seal it has yet to report holds it
+    /// (`settling`): until its status reports another head.
+    #[cfg(test)]
+    pub(crate) fn hold_until_reported(&mut self, block: Uuid) {
+        let Some(&replica) = self.blocks.get(&block) else {
+            return;
+        };
+        if let Some(open) = self.open.get_mut(&replica) {
+            open.reporting = open.status.head;
+        }
+    }
+
+    /// The last number of `block`'s order its replica heard (`Open::heard_through`).
+    #[cfg(test)]
+    pub(crate) fn heard_through_of(&self, block: Uuid) -> Option<u64> {
+        self.replica_of(block)?.1.heard_through
+    }
+
     /// Says what `block`'s replica's status says of whether a seal would take what it owes, as
     /// a report from its module would.
     #[cfg(test)]
@@ -3877,7 +3895,7 @@ impl<H: Host> Replicas<H> {
                 if let Err(error) = peer.heard_entry(*block, tag, entry.clone()) {
                     H::record(shared, error);
                 }
-                let sequence = entry.sequence;
+                let (sequence, origin, base) = (entry.sequence, entry.origin, entry.base);
                 let entry = match peer.open_entry(*block, entry.clone()) {
                     Ok(entry) => entry,
                     Err(ClientError::Locked(key)) if !self.searched.contains(&key) => {
@@ -3905,14 +3923,22 @@ impl<H: Host> Replicas<H> {
                 if let Some(open) = self.open.get_mut(&replica)
                     && open.joining
                 {
-                    // Rejoining the server's order it was in, the replica takes the entry that
-                    // continues it now as well as after reopening: the rejoin's answer waits for
-                    // it to settle (`settling`), which may take this very entry (its own reload
-                    // of the head, which its status reports only once applied), and parked here
-                    // it would wait for the answer in turn.
+                    // Rejoining the server's order it was in, the replica takes its own entry that
+                    // continues that order now as well as after reopening: the rejoin's answer
+                    // waits for it to settle (`settling`), which may take this very entry (its
+                    // own reload of the head, which its status reports only once applied), and
+                    // parked here it would wait for the answer in turn. An entry names no order
+                    // or run of it, so the same order is told by what only it numbers this way:
+                    // this replica's own submission, made on the last entry it heard and
+                    // numbered next. A server that started its order afresh would have to have
+                    // numbered exactly as many entries this device never heard, and then this
+                    // submission based past them, for one of its entries to pass.
                     let continues = open.rejoining.is_some()
                         && !open.made_up
-                        && open.heard_through.map(|through| through + 1) == Some(sequence);
+                        && origin == open.origin
+                        && open
+                            .heard_through
+                            .is_some_and(|through| base == through && sequence == through + 1);
                     open.early.push(replayed.clone());
                     if !continues {
                         return;
@@ -4554,6 +4580,7 @@ impl<H: Host> Replicas<H> {
         open.joining = false;
         open.rejoining = None;
         let early = std::mem::take(&mut open.early);
+        let heard_through = open.heard_through;
         // Closed (or reopened) while its rejoin was held (`rejoin_held`): it lets go of the join
         // rather than open again on the server's journal, which would lose the journaled edits
         // no seal holds, and ends, leaving the session (`ended`): the replica seals as it closes,
@@ -4572,7 +4599,7 @@ impl<H: Host> Replicas<H> {
             // The connection joined: it leaves, so it holds no lease nor hears the session.
             self.leave(shared, peer, block);
             self.uncreated.insert(block);
-            for replayed in early {
+            for replayed in not_taken_early(early, heard_through) {
                 self.replay(replica, replayed);
             }
             self.close_if_asked(replica);
@@ -4582,7 +4609,7 @@ impl<H: Host> Replicas<H> {
             Ok(joined) => joined,
             Err(error) => {
                 H::record(shared, error);
-                for replayed in early {
+                for replayed in not_taken_early(early, heard_through) {
                     self.replay(replica, replayed);
                 }
                 self.close_if_asked(replica);
@@ -6308,6 +6335,20 @@ fn sealed_here<S: be_block_store::ObjectStore>(
         };
     }
     resume
+}
+
+/// What of `early` a replica that does not open again on the join still needs given: the
+/// order's entries past `heard_through`, which a rejoin's replica took early up to (`told`).
+fn not_taken_early(early: Vec<Replayed>, heard_through: Option<u64>) -> Vec<Replayed> {
+    early
+        .into_iter()
+        .filter(|replayed| match (replayed, heard_through) {
+            (Replayed::Sequenced { entries }, Some(through)) => {
+                entries.iter().any(|entry| entry.sequence > through)
+            }
+            _ => true,
+        })
+        .collect()
 }
 
 /// The last number of the order `journal` holds: its last entry's, or its base's.

@@ -27,6 +27,9 @@ mod an_instance_of_an_app_no_staged_app_has_the_id_of_says_so;
 mod an_instance_that_stopped_says_why;
 mod an_instance_the_guest_drops_stops;
 mod clients_of_a_shared_worker_hear_only_their_own_answers;
+mod frames_sent_to_an_instance_still_starting_are_work_in_flight;
+mod frames_no_guest_asks_for_are_not_work_in_flight;
+mod a_compile_under_way_is_work_in_flight;
 
 const ECHO: &[u8] = include_bytes!(env!("GUEST_ECHO_WASM"));
 
@@ -170,5 +173,23 @@ impl Pump {
                     .expect("the sandbox answers in time");
             }
         }
+    }
+}
+
+/// A server with nothing to wake for, to look at what it holds.
+fn idle_server() -> Server {
+    Server::new(Arc::new(|| {}), Box::new(staged))
+}
+
+/// An instance stopped for `why`, holding `received` for the guest, and waiting for its guest's
+/// `next` when `asked`.
+fn stopped_served(received: Vec<Vec<u8>>, asked: bool) -> Served {
+    Served {
+        instance: Err("it stopped".to_owned()),
+        app: None,
+        received,
+        next: asked.then(|| -> (OpId, Answer<Frames>) {
+            (1, Box::new(|_: &Frames| (1, Outcome::Ok(Vec::new()))))
+        }),
     }
 }

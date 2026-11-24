@@ -16,6 +16,8 @@ use uuid::Uuid;
 use crate::{Host, Replicas, in_process, started};
 
 mod a_block_closed_while_its_rejoin_is_held_and_opened_online_again_holds_its_journaled_edits;
+mod a_held_rejoin_takes_its_own_next_entry_and_lets_go_once_sealed;
+mod a_held_rejoin_takes_no_entry_another_order_numbered_next;
 mod a_block_closed_while_its_rejoin_is_held_lets_go_of_the_join_and_closes;
 mod a_block_reopened_while_its_rejoin_is_held_opens_again_holding_its_journaled_edits;
 mod a_block_sent_while_its_replica_owes_a_seal_is_asked_for_it_once;
@@ -900,4 +902,78 @@ async fn text_on_the_server(peer: &Peer<MemoryStore>, block: Uuid) -> String {
         .await
         .expect("the head's content is read");
     TextBlock::text(&TextContent::from_stored(&stored).expect("the text decodes"))
+}
+
+/// A tally open online whose editor added 2 and then 3, and the server numbered both:
+/// what the connection said since the first was heard, kept from the replica, which has yet to
+/// hear its own second entry. Then a reconnect's rejoin, held until the replica reports a head
+/// other than the one it is on (`Replicas::hold_until_reported`), as one whose seal has yet to
+/// be reported holds it, and the answer is in.
+async fn rejoin_held_before_its_own_entry(
+    peer: &Arc<Peer<MemoryStore>>,
+    shared: &Arc<Mutex<Quiet>>,
+    replicas: &mut Replicas<Quiet>,
+) -> (Uuid, Vec<be_block_client::Event>) {
+    let block = peer
+        .create::<Tally>(BlockParent::Root)
+        .await
+        .expect("the tally is made");
+    peer.save(block, &Tally::default(), None)
+        .await
+        .expect("the empty tally is published");
+    replicas
+        .open((peer, shared), block, Tally::CONTENT_TYPE, true)
+        .await
+        .expect("the block opens");
+    step_until_replicas(peer, shared, replicas, "opened the tally", |replicas, _| {
+        replicas.status(block).is_some() && !replicas.joining()
+    })
+    .await;
+    let editor = 7;
+    let mut mirror = attach_mirror::<Tally>(peer, shared, replicas, block, editor).await;
+    // The first is heard as the order numbers it, so the replica knows where the order is.
+    operate(replicas, block, editor, &mut mirror, TallyOp::Add(2));
+    step_until_replicas(peer, shared, replicas, "heard the first edit", |replicas, _| {
+        replicas.heard_through_of(block).is_some()
+    })
+    .await;
+    receive_frames(shared, replicas, block, editor, &mut mirror);
+    operate(replicas, block, editor, &mut mirror, TallyOp::Add(3));
+    replicas.pump((peer, shared)).await;
+
+    // What the server says of the edit is kept, not heard, until its entry was said.
+    let mut said = Vec::new();
+    let (connection, mut receiver) = EVENTS
+        .with(|events| events.borrow_mut().take())
+        .expect("the test listens to the connection");
+    let numbered = tokio::time::timeout(std::time::Duration::from_secs(30), async {
+        loop {
+            tokio::select! {
+                () = replicas.woken() => {
+                    replicas.pump((peer, shared)).await;
+                }
+                event = receiver.recv() => {
+                    let event = event.expect("the connection stays open");
+                    let own = matches!(
+                        &event,
+                        be_block_client::Event::Sequenced { block: of, .. } if *of == block
+                    );
+                    said.push(event);
+                    if own {
+                        return;
+                    }
+                }
+            }
+        }
+    })
+    .await;
+    EVENTS.with(|events| *events.borrow_mut() = Some((connection, receiver)));
+    assert!(numbered.is_ok(), "the server never numbered the edit");
+
+    replicas.hold_until_reported(block);
+    replicas.reconnect((peer, shared));
+    replicas.rejoin_answered().await;
+    replicas.pump((peer, shared)).await;
+    assert!(replicas.joining(), "the rejoin's answer is held");
+    (block, said)
 }

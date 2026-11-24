@@ -749,9 +749,8 @@ impl Instance {
         let Some(link) = self.link_mut(block) else {
             return true;
         };
-        let snapshot = be_host_stack::unframe(frame)
-            .and_then(|bytes| ToEditor::decode(&bytes))
-            .is_some_and(|message| matches!(message, ToEditor::Snapshot(_)));
+        let message = be_host_stack::unframe(frame).and_then(|bytes| ToEditor::decode(&bytes));
+        let snapshot = matches!(message, Some(ToEditor::Snapshot(_)));
         if link.resuming && !snapshot {
             return true;
         }
@@ -760,14 +759,16 @@ impl Instance {
         }
         // Only a snapshot gives the editor its content: operations or presence the replica sent
         // before it heard the editor ask again reach an editor that ignores them until it has it.
-        if let Some(link) = self.link_mut(block)
-            && snapshot
-        {
-            link.resuming = false;
-            if !link.delivered {
-                link.delivered = true;
+        // That the block will not open answers it as well: it waits for nothing more.
+        let failed = matches!(message, Some(ToEditor::Failed(_)));
+        if let Some(link) = self.link_mut(block) {
+            if snapshot {
+                link.resuming = false;
+            }
+            if snapshot && !link.delivered {
                 link.deliveries += 1;
             }
+            link.delivered |= snapshot || failed;
         }
         true
     }

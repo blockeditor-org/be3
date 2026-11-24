@@ -343,6 +343,8 @@ Depends on #686 (session catch-ups replaced by server ordering).
   `serve_editors`). The host's own statuses for it go from opening to available (seen in a
   print), so the workspace app keeps or shows the old one: where a child's `error` is drawn, and
   whether a later status reaches it before the root says it owes nothing, is what to look at.
+  `be_root_in_place_of_the_hosts_ui_shows_a_joined_dock` shows the same text over both its
+  children, its joined dock never shown, in 4 of 30 runs on 7c707c052 and 3 of 30 after.
   Done: the cause found and fixed at its source.
 - **A replica waiting for its head's objects, under whole-crate load.**
   be-host-stack's `a_block_whose_replica_waits_for_its_heads_objects_does_not_export` failed

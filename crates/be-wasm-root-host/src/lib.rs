@@ -187,6 +187,10 @@ struct Core<G> {
     /// What the host sent the apps the root spawned, until the root takes it
     /// (`host.forwarded`).
     relaying: Vec<be_wasm_root_api::RelayedFrames>,
+    /// Whether its sandbox answered the root, or frames were relayed to it, since it was last
+    /// stepped: what it has yet to take in.
+    #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
+    unstepped: bool,
     /// The root's `host.forwarded` call, waiting for the host to send its apps something.
     relay_watcher: Option<Reply<Vec<be_wasm_root_api::RelayedFrames>>>,
     /// The children the root shows of the editors the host opened (`host.show-children`), the
@@ -332,6 +336,7 @@ impl<G: Inline> Core<G> {
             next_editor: 1,
             forwarded: Vec::new(),
             relaying: Vec::new(),
+            unstepped: false,
             relay_watcher: None,
             shown_children: Vec::new(),
             placer_events: Vec::new(),
@@ -672,6 +677,7 @@ impl<G: Inline> Core<G> {
             return false;
         };
         reply.send(&mut self.connection, &std::mem::take(&mut self.relaying));
+        self.unstepped = true;
         true
     }
 
@@ -696,7 +702,7 @@ impl<G: Inline> Core<G> {
     /// Stops the root's sandbox instance `instance` for `why`, which the root hears from it.
     fn stop_instance(&mut self, instance: u64, why: &str) {
         self.sandbox.fail(instance, why);
-        self.sandbox.poll(&mut self.connection);
+        self.unstepped |= self.sandbox.poll(&mut self.connection);
     }
 
     /// The staged app the root's sandbox instance `instance` runs, while it runs: none once it
@@ -705,12 +711,22 @@ impl<G: Inline> Core<G> {
         self.sandbox.app_of(instance).map(str::to_owned)
     }
 
-    /// Whether the apps the root spawned have nothing in flight: none has frames to step through
-    /// or a step under way, the root took all they sent, and no frames wait between the root and
-    /// the host, either way (`relay`, `take_forwarded`).
+    /// Why the apps the root spawned have something in flight, if they do: frames wait between
+    /// the root and the host, either way (`relay`, `take_forwarded`), the root has yet to be
+    /// stepped with what its sandbox's `poll` or a relay answered it, or an instance has frames
+    /// to step through or a step under way (`Server::unsettled`).
     #[cfg(not(target_arch = "wasm32"))]
-    fn apps_settled(&self) -> bool {
-        self.relaying.is_empty() && self.forwarded.is_empty() && self.sandbox.settled()
+    fn apps_unsettled(&self) -> Option<&'static str> {
+        if !self.relaying.is_empty() {
+            return Some("frames the host relayed wait for the root to take them");
+        }
+        if !self.forwarded.is_empty() {
+            return Some("frames the root forwarded wait for the host to take them");
+        }
+        if self.unstepped {
+            return Some("the root has yet to be stepped with what its apps or the host sent it");
+        }
+        self.sandbox.unsettled()
     }
 
     /// How the root answered the display questions since the last call, oldest first.
@@ -833,6 +849,7 @@ impl<G: Inline> Core<G> {
         if frames.is_empty() && !woken {
             return Ok(false);
         }
+        self.unstepped = false;
         self.guest.deliver(frames);
         self.guest.step()?;
         self.received()?;
@@ -976,7 +993,7 @@ impl<G: Inline> Core<G> {
                 | Incoming::Credited { .. } => {}
             }
         }
-        self.sandbox.poll(&mut self.connection);
+        self.unstepped |= self.sandbox.poll(&mut self.connection);
     }
 
     fn drawing_op(&self) -> Option<OpId> {

@@ -277,17 +277,31 @@ impl Server {
         false
     }
 
-    /// Answers whatever finished since: compiles, and the frames instances sent or why they
-    /// stopped.
-    /// Whether every instance it serves has nothing left to do with what it was sent, and the
-    /// guest has taken all they sent back (`Instance::settled`).
+    /// Whether nothing it serves has work left: no compile is under way, every instance has
+    /// nothing left to do with what it was sent (`Instance::settled`), and none holds frames for
+    /// the guest while it waits for them. Frames the guest is not waiting for are its to take
+    /// when it asks, not work in flight.
     pub fn settled(&self) -> bool {
-        self.instances.values().all(|served| {
-            served.received.is_empty() && served.instance.as_ref().ok().is_none_or(Instance::settled)
+        self.unsettled().is_none()
+    }
+
+    /// Why it is not settled (`settled`), if it is not.
+    pub fn unsettled(&self) -> Option<&'static str> {
+        if !self.compiling.is_empty() {
+            return Some("a compile is under way");
+        }
+        self.instances.values().find_map(|served| {
+            if served.next.is_some() && !served.received.is_empty() {
+                return Some("an instance's frames wait for the guest that asked for them");
+            }
+            served.instance.as_ref().ok().and_then(Instance::unsettled)
         })
     }
 
-    pub fn poll(&mut self, connection: &mut Connection) {
+    /// Answers whatever finished since: compiles, and the frames instances sent or why they
+    /// stopped. Whether it answered anything, which the guest takes in only once stepped.
+    pub fn poll(&mut self, connection: &mut Connection) -> bool {
+        let mut answered = false;
         let mut compiling = Vec::with_capacity(self.compiling.len());
         for (compile, answer) in std::mem::take(&mut self.compiling) {
             let Some(done) = compile.done() else {
@@ -301,6 +315,7 @@ impl Server {
             });
             let (op, outcome) = answer(&id);
             connection.complete(op, outcome);
+            answered = true;
         }
         self.compiling = compiling;
         for served in self.instances.values_mut() {
@@ -319,8 +334,10 @@ impl Server {
             if let Some((_, next)) = served.next.take() {
                 let (op, outcome) = next(&answer);
                 connection.complete(op, outcome);
+                answered = true;
             }
         }
+        answered
     }
 }
 
