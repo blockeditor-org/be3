@@ -438,6 +438,7 @@ pub fn Sheet(
                 snaps={snaps}
                 on_snap={snapped}
                 bar_from={top}
+                natural=true
                 style={style.fading(0.0)}
                 on_change={move |at: ScrollPosition| position.set(Some(at))}
             >

@@ -123,6 +123,14 @@ pub(crate) fn drive_offset(node: NodeId, value: f32) {
     });
 }
 
+pub(crate) fn keep_natural_length(node: NodeId) {
+    with_document(|document| {
+        if let Some(offset) = offset_node(document, node) {
+            document.set_offset_natural(offset, true);
+        }
+    });
+}
+
 pub(crate) fn offset_to_end(node: NodeId) {
     with_document(|document| {
         if let Some(offset) = offset_node(document, node) {

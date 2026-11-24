@@ -34,6 +34,9 @@ pub trait TreeNode {
     fn scroll_position(&self) -> Option<ScrollPosition>;
     fn drive_offset(&self, value: f32);
     fn offset_to_end(&self);
+    /// Lays the offset's content out at its natural length, shrinking nothing in it when it
+    /// overflows (a sheet, whose space above always overflows its scroll).
+    fn keep_natural_length(&self);
     fn on_steer(&self, handler: impl FnMut(()) + 'static);
     fn row_offset<K: Clone + Hash + Eq + 'static>(&self, key: &K) -> Option<f32>;
     fn texts_within(&self) -> Vec<NodeId>;
@@ -113,6 +116,10 @@ impl TreeNode for NodeId {
 
     fn offset_to_end(&self) {
         core::offset_to_end(*self);
+    }
+
+    fn keep_natural_length(&self) {
+        core::keep_natural_length(*self);
     }
 
     fn on_steer(&self, handler: impl FnMut(()) + 'static) {

@@ -82,6 +82,9 @@ pub(crate) fn drive_offset(node: NodeId, value: f32) {
     }
 }
 
+/// The browser lays a scroll's content out at its own length already.
+pub(crate) fn keep_natural_length(_node: NodeId) {}
+
 pub(crate) fn offset_to_end(node: NodeId) {
     if let Some(scroller) = scroll::find(node) {
         scroller.to_end();

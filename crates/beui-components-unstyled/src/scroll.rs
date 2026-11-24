@@ -963,6 +963,7 @@ fn Scrolling(
     snaps: Prop<Vec<f32>>,
     on_snap: Callback<f32>,
     bar_from: Prop<f32>,
+    natural: bool,
     fit: bool,
     bleed: Prop<Sides>,
     focus_ring: Prop<Option<Outline>>,
@@ -999,6 +1000,9 @@ fn Scrolling(
         wheeled: Cell::new(None),
     });
     settles.set(Some(motion));
+    if natural && let Some(offset) = motion.with(|motion| motion.node) {
+        offset.keep_natural_length();
+    }
     let animation = create_animation(
         move |frame| motion.value().step(frame.delta.as_secs_f32()).is_some(),
         move || motion.value().finish(),
@@ -1287,6 +1291,10 @@ pub fn Scroll(
     /// highest stop). Natively only: the browser draws its own bar.
     #[prop(default = 0.0)]
     bar_from: Prop<f32>,
+    /// Lays its content out at its natural length, shrinking nothing in it when it overflows:
+    /// content that always overflows (a sheet's, with the space above it) and scrolls whole.
+    #[prop(default = false)]
+    natural: bool,
     #[prop(default = false)] fit: bool,
     #[prop(default = false)] follow_end: Prop<bool>,
     #[prop(default = Sides::ZERO)] bleed: Prop<Sides>,
@@ -1327,6 +1335,7 @@ pub fn Scroll(
             snaps
             on_snap={on_snap}
             bar_from
+            natural
             fit
             bleed
             focus_ring

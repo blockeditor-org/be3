@@ -27,6 +27,8 @@ pub struct OffsetNode {
     /// placed, so code outside the Offset does not read it for that.
     pub offset: f32,
     pub fits: bool,
+    /// Lays the content out at its natural length even when it overflows, shrinking nothing.
+    pub natural: bool,
     pub position: Option<ScrollPosition>,
     anchored: bool,
     kept: Option<(u64, Option<OffsetAnchor>)>,
@@ -52,6 +54,7 @@ impl OffsetNode {
             child: Some(child),
             offset: 0.0,
             fits: false,
+            natural: false,
             position: None,
             anchored: false,
             kept: None,
@@ -78,7 +81,7 @@ impl OffsetNode {
             child,
             self.direction.axes(f32::INFINITY, cross),
         ));
-        if natural <= main {
+        if natural <= main || self.natural {
             return natural;
         }
         crate::layout::least_length(doc, painter, child, self.direction, cross)
@@ -459,6 +462,12 @@ impl Document {
         let node = self.arena.get_mut_as::<OffsetNode>(offset);
         node.direction = direction;
         node.unanchor();
+    }
+
+    pub fn set_offset_natural(&mut self, offset: NodeOf<OffsetNode>, natural: bool) {
+        if self.arena.get_as::<OffsetNode>(offset).natural != natural {
+            self.arena.get_mut_as::<OffsetNode>(offset).natural = natural;
+        }
     }
 
     pub fn set_offset_fits(&mut self, offset: NodeOf<OffsetNode>, fits: bool) {
