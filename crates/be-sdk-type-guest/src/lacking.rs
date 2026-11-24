@@ -65,6 +65,10 @@ pub(crate) struct Carried {
     /// as the next opened (`Replica::asked_before`), by the epoch and token they were made
     /// under: the host answers each all the same, and the next replica hands it on.
     pub(crate) asks: Vec<(u64, u64, EditorAsk)>,
+    /// The editors' range reads still waiting on part reads, by the epoch those reads were made
+    /// under (`Replica::ranges_before`): each fills from their answers, as planned against the
+    /// content it was asked of.
+    pub(crate) ranges: Vec<(u64, crate::replica::RangeRead)>,
 }
 
 /// A call a replica made for one of its editors, whose answer the editor waits for: a read of
@@ -408,6 +412,7 @@ impl Lacking {
             kept: std::mem::take(&mut self.kept),
             snapshots_shown: BTreeMap::new(),
             asks: Vec::new(),
+            ranges: Vec::new(),
         }
     }
 
