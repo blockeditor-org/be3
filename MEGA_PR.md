@@ -39,6 +39,7 @@ Landed on 2026-11-24:
 - `host-adapter-4g7b1`: a root's embedded editors are served through its host (forwarded instances, relayed ops).
 - `flush-after-revoke-6b`: a flush keeps its mark until a seal settles it, and seals what it answered ahead of once the block owes a seal it can make; fixes the lease flake. Backlog §32: a Host event held during a join can override its answer.
 - `one-way-in-apps-4`: worker messages are typed, and a shared worker's jobs carry tickets so each answer goes to the job it answers (extras dropped).
+- `kept-content-1-3b`: a kept subtree reads its showing Kept's context; overlays and context menus build their body on each open and drop it once gone; Scroll settles a fling or release on its nearest snap stop; an HTML overlay dropped while shown gives the focus back.
 - `members-private-2`: only an administrator is served the organization's whole log; an editor is served a proof path, so members no longer see every other member through it.
 
 Landed on 2026-11-22 in one verify: signed logs 5b (`signed-logs-5b-10`), `backlog-keys-10b`, `block-rows-guard` and hosted blocks 4d2 (`hosted-blocks-4d2-5`).
