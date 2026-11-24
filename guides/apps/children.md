@@ -123,7 +123,16 @@ clipped to its place, and its placer hears the room it took as its status's
 placed before them; they hide a child placed below its placer only because
 the placer draws over it there.
 
-A joined dock's tab menus, picks and details, drags, and the other kinds of child
+What an editor tells the shell reaches the root, which acts on it as be-host
+does: its menus go to the docks and to the status of a child whose frame it
+draws (`shown-child.menu`), an ask for its details goes to the docks or its
+placer, a pick from a child's menu goes to the editor drawing that child's
+frame, and `leave-frame` gives the frame back. A block an editor drags
+(`drag-block`) is carried by be-sdk-root's `Embedding` over the views under the
+pointer that take a drag, each told through its host (`host.tell-editor`,
+`editor-event.drag`), and dropped on release.
+
+The other kinds of child
 (plans/host_as_platform_adapter.md, 4g7b3e to 4g7b3g) are not there yet: a
 child of another kind the placer hears is unavailable.
 

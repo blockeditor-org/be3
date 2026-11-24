@@ -75,9 +75,17 @@ impl Forwarded {
         self.wire.send(told);
     }
 
-    /// Tells the editor `instance` what its root saw of a child it placed (`child-focused`),
-    /// sent with the next `step`.
-    pub fn tell_placer(&mut self, instance: EditorInstanceId, event: EditorEvent) {
+    /// Tells the editor `instance` what its root saw that the app protocol says as an event,
+    /// sent with the next `step`: the keyboard went into a child of it (`child-focused`), a
+    /// child asked for its details (`child-details`), a pick from one of its menus a dock or a
+    /// placer showed (`menu-pick`), or a block dragged over one of its views (`drag`). Any other
+    /// event is the host's to send, and is dropped.
+    pub fn tell(&mut self, instance: EditorInstanceId, event: EditorEvent) {
+        match event {
+            EditorEvent::MenuPick(_) => self.instances.note_menu_pick(instance),
+            EditorEvent::ChildFocused(_) | EditorEvent::ChildDetails(_) | EditorEvent::Drag(_) => {}
+            _ => return,
+        }
         self.wire.send(vec![Outbound::Event(instance, event)]);
     }
 

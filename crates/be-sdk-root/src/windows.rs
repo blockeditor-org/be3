@@ -93,6 +93,14 @@ impl Windows {
         routing.layers.layer(routing.router.hovered()?)
     }
 
+    /// The window a press is held in, if any: where a drag an app starts is carried from.
+    pub fn pressing(&self) -> Option<Option<u64>> {
+        self.windows
+            .iter()
+            .find(|routing| !routing.gone && routing.router.holding())
+            .map(|routing| routing.window)
+    }
+
     /// The layer in `window` holding the pointer lock, which only the focused one may.
     pub fn locked(&self, window: Option<u64>) -> Option<&Layer> {
         let routing = self.routing(window)?;

@@ -12,13 +12,15 @@ use std::{
 
 use be_lib_geometry::{Pos2, Rect, pos2, vec2};
 use be_lib_layers::{Affine, Layer, LayerId, LayerInput, Surface};
-use be_lib_stable_hash::HashMap;
+use be_lib_stable_hash::{HashMap, HashSet};
 use be_lib_ui_types::input::{Input, PenPhase, TouchPhase};
 use be_sdk_api::{
     Catalog, ChildPlacement, ChildPlacements, DebugTemplate, DockMessage, EditorInstanceId, Fonts,
     ImeArea, InputBatch, Insets, Opening, Preferences, ScreenId, ScreenPlacement, ScreenRequest,
-    SurfaceSpec, TimedInput, WindowRequests, embed::shell::Call as ShellCall,
-    shell_types::ShellMessage,
+    SurfaceSpec, TimedInput, WindowRequests,
+    app::EditorEvent,
+    embed::shell::Call as ShellCall,
+    shell_types::{DragStart, ShellMessage},
 };
 use be_sdk_app_host::{
     calls::{AppCall, Heard, Outbound},
@@ -152,6 +154,14 @@ struct State {
     /// What its docks said since the root last read it (`Embedded::take_docks`), in order,
     /// each applied once the children of the commit it came in are.
     docks: Vec<DockMessage>,
+    /// What its editors told the shell around them that the root acts on (their menus, asks for
+    /// their details, picks from their children's menus, and asks to leave the frame), in order,
+    /// until taken (`Embedded::take_told`).
+    told: Vec<(EditorInstanceId, ShellMessage)>,
+    /// The block one of its editors began to drag out of itself, until its root carries it.
+    drag: Option<DragStart>,
+    /// The editors that take the block dragged over them, as they last said.
+    accepting: HashSet<EditorInstanceId>,
     /// The size each editor's content wants, as it last told the shell
     /// (`shell-message.intrinsic-size`).
     intrinsics: HashMap<EditorInstanceId, be_lib_geometry::Vec2>,
@@ -393,6 +403,9 @@ impl Embedded {
             placed: Vec::new(),
             placing: false,
             docks: Vec::new(),
+            told: Vec::new(),
+            drag: None,
+            accepting: HashSet::default(),
             intrinsics: HashMap::default(),
             contents: HashMap::default(),
             failure: None,
@@ -428,6 +441,62 @@ impl Embedded {
     /// them.
     pub fn take_docks(&self) -> Vec<DockMessage> {
         std::mem::take(&mut self.state.borrow_mut().docks)
+    }
+
+    /// The block one of its editors began to drag out of itself since the last call, if any.
+    pub(crate) fn take_drag(&self) -> Option<DragStart> {
+        self.state.borrow_mut().drag.take()
+    }
+
+    /// Whether its editor `editor` takes the block dragged over it, as it last said; forgotten
+    /// once that drag left it or was dropped (`end_drag`).
+    pub(crate) fn accepts(&self, editor: EditorInstanceId) -> bool {
+        self.state.borrow().accepting.contains(&editor)
+    }
+
+    /// Forgets whether `editor` takes a block, once the drag over it left or was dropped, as
+    /// be-host does.
+    pub(crate) fn end_drag(&self, editor: EditorInstanceId) {
+        self.state.borrow_mut().accepting.remove(&editor);
+    }
+
+    /// The view a block dragged over the point `local` of its surface `surface` (in the
+    /// surface's pixels) is over: the editor, the view and the point in the view's points, when
+    /// that view holds its editor's content (its main view, or a view of its dock framed for
+    /// it), the only one that takes a drag, as under be-host. None over a preview or a bar.
+    pub(crate) fn drop_site(
+        &self,
+        surface: u32,
+        local: Pos2,
+    ) -> Option<(EditorInstanceId, be_sdk_api::ViewId, Pos2)> {
+        let state = self.state.borrow();
+        let placement = state
+            .painted
+            .values()
+            .find(|placement| placement.surface == surface)?;
+        let request = state
+            .run
+            .screens
+            .iter()
+            .find(|screen| screen.screen == placement.screen)?;
+        let content = request.view == be_sdk_api::ViewId::MAIN
+            || (request.placement == be_sdk_api::ViewPlacement::Dock && request.frame.is_some());
+        if !content {
+            return None;
+        }
+        let points = 1.0 / raster(placement);
+        Some((
+            request.instance,
+            request.view,
+            pos2(local.x * points, local.y * points),
+        ))
+    }
+
+    /// What its editors told the shell around them that the root acts on since the last call, in
+    /// order: each editor's menus, asks for its details, picks from its children's menus, and
+    /// asks to leave the frame it takes.
+    pub fn take_told(&self) -> Vec<(EditorInstanceId, ShellMessage)> {
+        std::mem::take(&mut self.state.borrow_mut().told)
     }
 
     /// The size its editor `editor`'s content wants, as it last told the shell.
@@ -514,9 +583,9 @@ impl Embedded {
             &state.run.pacing,
             state.now,
         );
-        // Children it placed, or what its docks said, that the root has yet to read want a frame
+        // Children it placed, or what its docks or its editors said, that the root has yet to read want a frame
         // now, which shows them.
-        match state.placing || !state.docks.is_empty() {
+        match state.placing || !state.docks.is_empty() || !state.told.is_empty() {
             true => Wants {
                 next: Some(state.now),
                 owed: true,
@@ -613,6 +682,18 @@ impl Embedded {
         state.wire.send(send);
         state.flush();
     }
+}
+
+/// Tells the editor `editor` the root's host opened in the app whose handle is `instance` what
+/// the root saw that the app protocol says as an event (`host.tell-editor`): the keyboard went
+/// into a child it placed, a child asked for its details, a pick from one of its menus, or a
+/// block dragged over its view. Its host sends it with its next step.
+pub fn tell_editor(instance: u64, editor: EditorInstanceId, event: &EditorEvent) {
+    let told = host::tell_editor(instance, editor.0, be_wasm_ops::encode(event));
+    be_wasm_ops::guest::spawn(async move {
+        // A host that stopped answering stops the root too.
+        let _ = told.await;
+    });
 }
 
 /// Spawns the staged app `app`'s entry point `module` in the root's sandbox.
@@ -880,8 +961,32 @@ impl State {
     /// which a change of owes the root a frame (`placing`), whose settle hands it on.
     fn hear_tell(&mut self, instance: EditorInstanceId, messages: Vec<ShellMessage>) {
         for message in messages {
-            let ShellMessage::IntrinsicSize(size) = message else {
-                continue;
+            let size = match message {
+                ShellMessage::IntrinsicSize(size) => size,
+                // What the root acts on across its apps: kept for its next settle, which it is
+                // owed (`Embedded::take_told`).
+                ShellMessage::Menu(_)
+                | ShellMessage::Details
+                | ShellMessage::ChildMenuPick(_)
+                | ShellMessage::LeaveFrame => {
+                    self.told.push((instance, message));
+                    self.wake();
+                    continue;
+                }
+                // A drag its root carries once it hears it (`Embedding::input`).
+                ShellMessage::DragBlock(start) => {
+                    self.drag = Some(start);
+                    self.wake();
+                    continue;
+                }
+                ShellMessage::DragAccepted(accepted) => {
+                    match accepted {
+                        true => self.accepting.insert(instance),
+                        false => self.accepting.remove(&instance),
+                    };
+                    continue;
+                }
+                _ => continue,
             };
             let before = match size {
                 Some(size) => self.intrinsics.insert(instance, size),

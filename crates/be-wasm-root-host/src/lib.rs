@@ -200,9 +200,9 @@ struct Core<G> {
     /// The children the root shows of the editors the host opened (`host.show-children`), the
     /// latest of each editor's view, until the host takes them.
     shown_children: Vec<ShownChildren>,
-    /// What the root told the host's editors of their children (`host.tell-placer`), by the
-    /// root's instance and the editor, until the host takes it.
-    placer_events: Vec<(u64, u64, be_wasm_root_api::PlacerEvent)>,
+    /// What the root told the host's editors (`host.tell-editor`), by the root's instance and
+    /// the editor, each encoded, in order, until taken.
+    editor_events: Vec<(u64, u64, Vec<u8>)>,
     /// Where the host's editors the root shows as placed children show their content
     /// (`host.place-content`), until the host takes them.
     placed_contents: Vec<be_wasm_root_api::PlacedContent>,
@@ -358,7 +358,7 @@ impl<G: Inline> Core<G> {
             unstepped: false,
             relay_watcher: None,
             shown_children: Vec::new(),
-            placer_events: Vec::new(),
+            editor_events: Vec::new(),
             dock_updates: Vec::new(),
             placed_contents: Vec::new(),
             assigned_sizes: Vec::new(),
@@ -732,10 +732,10 @@ impl<G: Inline> Core<G> {
         std::mem::take(&mut self.shown_children)
     }
 
-    /// What the root told the host's editors of their children since the last call
-    /// (`host.tell-placer`): by the root's instance and the editor, in order.
-    fn take_placer_events(&mut self) -> Vec<(u64, u64, be_wasm_root_api::PlacerEvent)> {
-        std::mem::take(&mut self.placer_events)
+    /// What the root told the host's editors (`host.tell-editor`): by the root's instance and
+    /// the editor, each encoded, in order.
+    fn take_editor_events(&mut self) -> Vec<(u64, u64, Vec<u8>)> {
+        std::mem::take(&mut self.editor_events)
     }
 
     /// The dock updates the root made for the host's editors since the last call
@@ -1243,13 +1243,13 @@ impl<G: Inline> Core<G> {
                 });
                 reply.send(&mut self.connection, &());
             }
-            embed::Call::Host(embed::host::Call::TellPlacer {
+            embed::Call::Host(embed::host::Call::TellEditor {
                 instance,
                 editor,
                 event,
                 reply,
             }) => {
-                self.placer_events.push((instance, editor, event));
+                self.editor_events.push((instance, editor, event));
                 reply.send(&mut self.connection, &());
             }
             embed::Call::Host(embed::host::Call::Dock {

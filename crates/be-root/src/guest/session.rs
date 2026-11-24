@@ -20,7 +20,7 @@ use beui::reactive::*;
 use beui::styled::*;
 use beui::{Align, NodeId, TextAlign};
 
-use be_wasm_root_api::{PlacerEvent, ShownBlock};
+use be_wasm_root_api::ShownBlock;
 
 use super::{Root, Window, host};
 use crate::{LOADING_APP, NOT_OPENED_TITLE, SESSION_NOTICE_LAYER};
@@ -345,7 +345,11 @@ impl Root {
             return;
         }
         for (instance, editor, child) in into {
-            tell_placer(instance, editor.0, PlacerEvent::ChildFocused(child.0));
+            be_sdk_root::tell_editor(
+                instance,
+                editor,
+                &be_sdk_api::app::EditorEvent::ChildFocused(child),
+            );
         }
         // Its host takes what it was told with the next frame.
         self.waker.wake();
@@ -410,15 +414,6 @@ async fn both<A: Future, B: Future>(mut left: Pin<&mut A>, mut right: Pin<&mut B
         }
     })
     .await;
-}
-
-/// Tells the editor `editor`, opened in the app whose handle is `instance`, `event`.
-fn tell_placer(instance: u64, editor: u64, event: PlacerEvent) {
-    let told = host::tell_placer(instance, editor, event);
-    be_wasm_ops::guest::spawn(async move {
-        // A host that stopped answering stops the root too.
-        let _ = told.await;
-    });
 }
 
 /// Whether `left` finished before `right`, polling both until one does.
