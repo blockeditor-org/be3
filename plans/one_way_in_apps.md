@@ -21,12 +21,6 @@ Pieces several editors write for themselves, which be-sdk-beui or the types shou
    (`RenderClient.sent`) each work out which jobs a stopped generation will never answer.
    be-sdk-worker gets `Shared<Job, Answer>` and `Work<In, Out>`, which do the serde, give each
    job a ticket and fail the tickets a stopped generation leaves; both apps use them.
-3. **A block name's length is checked once.** be-type-text defines its own `MAX_NAME_BYTES`
-   beside `be_block_content::metadata::MAX_NAME_BYTES`, file-tree's rename (`clipped()` in
-   `root/rename.rs`) cuts a long name silently, and the workspace's rename dialog refuses it.
-   `Blocks::set_name` refuses a name past the limit and both renames show that refusal; the
-   text type uses the shared constant.
-
 ## The test
 
 - workspace-index's row menu renames a block, as file-tree's does.

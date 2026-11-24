@@ -8,7 +8,6 @@ use be_block_content::plain::extension;
 use be_block_content::{ChildChange, Root, SearchDocument};
 use be_sdk_type_guest::DocumentFile;
 
-const MAX_NAME_BYTES: usize = 128;
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -189,14 +188,9 @@ impl Root for TextBlock {
 
     fn name(&self) -> Option<String> {
         let line = self.body.split(|byte| *byte == b'\n').next()?;
-        let mut name = String::new();
-        for character in String::from_utf8_lossy(line).trim().chars() {
-            if name.len() + character.len_utf8() > MAX_NAME_BYTES {
-                break;
-            }
-            name.push(character);
-        }
-        (!name.is_empty()).then_some(name)
+        let line = String::from_utf8_lossy(line);
+        let name = be_block_content::metadata::clip_name(line.trim());
+        (!name.is_empty()).then(|| name.to_owned())
     }
 
     fn references(&self) -> Vec<Uuid> {

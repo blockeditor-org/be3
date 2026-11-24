@@ -95,7 +95,9 @@ pub fn RowPanel(data: Data, row: ObjectId) -> NodeId {
         };
         data.set_value(row, field, Some(DatabaseValue::String(text.clone())));
         if let Some(page) = page.get_untracked() {
-            data.editor().blocks().set_name(page, Some(text));
+            // The page's name is its title, cut to what a name holds.
+            let name = be_sdk_beui::be_block_content::metadata::clip_name(&text).to_owned();
+            let _named = data.editor().blocks().set_name(page, Some(name));
         }
     };
     let close = move || data.deselect();

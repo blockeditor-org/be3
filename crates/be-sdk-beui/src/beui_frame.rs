@@ -158,7 +158,7 @@ pub(crate) fn FrameChrome(
     );
     let root: Rc<Cell<Option<beui::styled::Root>>> = Rc::default();
     let rooted = Rc::clone(&root);
-    let notices = create_signal(Vec::<Toast>::new());
+    let notices = editor.notices();
     let area = NodeRef::new();
     let block = editor.block_id();
     let frame = view! {
@@ -172,7 +172,6 @@ pub(crate) fn FrameChrome(
                     items
                     published
                     listed
-                    notices
                     on_exit={move || exit_writer.set(true)}
                 />
                 <CommandPalette open={palette} shown_in />
@@ -273,7 +272,6 @@ struct Watched {
     editor: Editor,
     list: RefCell<Option<BlockList>>,
     watching: Cell<bool>,
-    notices: Signal<Vec<Toast>>,
 }
 
 /// The notice undo shows when it reaches a session restart.
@@ -349,10 +347,7 @@ impl Watched {
     }
 
     fn tell(&self, toast: Toast) {
-        self.notices.update(|notices| {
-            notices.retain(|shown| shown.id != toast.id);
-            notices.push(toast);
-        });
+        self.editor.notify(toast);
     }
 
     fn finger_tap(&self, fingers: usize) -> bool {
@@ -503,7 +498,6 @@ pub(crate) fn FrameMenu(
     items: Memo<Vec<MenuNode>>,
     published: Rc<RefCell<Vec<MenuNode>>>,
     listed: Signal<Vec<MenuNode>>,
-    notices: Signal<Vec<Toast>>,
     on_exit: Callback<()>,
 ) -> NodeId {
     let on_phone = create_memo(move || bar.get().on_phone);
@@ -513,7 +507,6 @@ pub(crate) fn FrameMenu(
         editor,
         list: RefCell::new(None),
         watching: Cell::new(false),
-        notices,
     });
     let told_lost = Cell::new(false);
     create_effect(move || {

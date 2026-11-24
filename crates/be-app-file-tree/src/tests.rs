@@ -10,6 +10,7 @@ use uuid::Uuid;
 use crate::root::FileTreeRoot;
 
 mod a_block_only_an_open_tab_shows_is_not_used_anywhere;
+mod a_name_longer_than_a_name_holds_is_refused_and_said_why;
 mod a_block_whose_key_has_not_arrived_shows_locked_and_a_shared_workspace_can_be_left;
 mod a_chat_row_counts_its_unread_messages_until_they_are_read;
 mod a_folder_reopened_from_the_view_is_listed_before_the_files_are_shown;

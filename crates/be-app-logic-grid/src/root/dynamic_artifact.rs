@@ -152,7 +152,9 @@ impl CompileRegeneration {
                 .and_then(|listed| listed.into_iter().next())
                 .and_then(|info| info.name())
                 .unwrap_or_else(|| "Logic Grid".to_owned());
-            Blocks::of(&self.host).set_name(self.target, Some(artifact_name(&source_name)));
+            let name = artifact_name(&source_name);
+            let name = be_sdk_beui::be_block_content::metadata::clip_name(&name).to_owned();
+            let _named = Blocks::of(&self.host).set_name(self.target, Some(name));
         }
         Some(Ok(()))
     }

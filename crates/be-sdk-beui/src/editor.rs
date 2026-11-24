@@ -311,6 +311,7 @@ impl OwnedEditor {
         let popped = create_signal(None::<crate::popover::Popped>);
         let zoom = create_signal(None);
         let fit = create_signal(None);
+        let notices = create_signal(Vec::new());
         let pushed = Rc::new(Mirror::new(&host));
         let mirrored = Rc::downgrade(&pushed);
         let syncing = core.on_pumped(move || {
@@ -338,6 +339,7 @@ impl OwnedEditor {
             frame_children,
             zoom,
             fit,
+            notices,
         });
         Self {
             editor: Editor(state.handle()),
@@ -385,6 +387,8 @@ struct EditorState {
     /// What "fit" does here: what the editor keeps fitted (`keep_fitted`), or its own
     /// (`fit_with`).
     pub(crate) fit: Signal<Option<crate::zoom::Fitter>>,
+    /// The toasts the frame shows over the editor (`notify`).
+    notices: Signal<Vec<beui::styled::Toast>>,
 }
 
 impl Editor {
@@ -404,6 +408,19 @@ impl Editor {
 
     pub fn core(&self) -> EditorCore {
         self.state().core.clone()
+    }
+
+    /// Shows `toast` over the editor, in place of one with its id: a change the editor refused
+    /// (a name too long), something done that needs saying.
+    pub fn notify(&self, toast: beui::styled::Toast) {
+        self.state().notices.update(|notices| {
+            notices.retain(|shown| shown.id != toast.id);
+            notices.push(toast);
+        });
+    }
+
+    pub(crate) fn notices(&self) -> Signal<Vec<beui::styled::Toast>> {
+        self.state().notices
     }
 
     pub fn host(&self) -> EditorHost {
