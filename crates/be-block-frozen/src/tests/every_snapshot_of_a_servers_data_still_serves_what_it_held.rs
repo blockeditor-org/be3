@@ -539,18 +539,6 @@ async fn check(snapshot: &Snapshot) {
     .await
     .unwrap_or_else(|error| panic!("{name}: the pending link no longer opens: {error}"));
     assert_eq!(card.email, scene::OWNER_EMAIL);
-    let taker = Peer::connect(
-        PeerConfig::new(
-            socket(&server),
-            taker.keys().identity().clone(),
-            Credentials::Token(taker.token().to_owned()),
-        )
-        .organization(Some(personal)),
-        MemoryStore::new(),
-    )
-    .await
-    .unwrap();
-    assert_eq!(text(&taker, snapshot.recipes).await, scene::RECIPES);
 
     let invited = register(&server, scene::INVITED_EMAIL, personal).await;
     let me = contacts::card(

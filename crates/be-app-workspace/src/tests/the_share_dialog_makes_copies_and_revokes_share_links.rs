@@ -210,4 +210,16 @@ fn the_share_dialog_makes_copies_and_revokes_share_links() {
             _ => None,
         });
     assert_eq!(revoked, Some(Uuid::from_u128(0x11).to_string()));
+
+    // An organization that blocks sharing outside it makes no invitation, so none is offered.
+    assert!(fixture.says("Invite someone new"));
+    fixture.test.edit::<OrganizationPoliciesContent>(
+        Some(policies),
+        &OrganizationPolicies::set_outside_sharing(Some(Allowance::Blocked)),
+    );
+    fixture.settle();
+    assert!(
+        !fixture.says("Invite someone new"),
+        "an invitation is offered only where the organization shares outside"
+    );
 }

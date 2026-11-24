@@ -140,10 +140,10 @@ fn stored(connection: &Connection, link: Uuid) -> Result<Option<Stored>, ServerE
 }
 
 impl ServerStore {
-    /// Whether `organization`'s policy lets a link admit `admits`: in the personal organization,
-    /// where every account is a member, its members or one of them; in a company one, its
-    /// `link_sharing`, but for a link that admits one, an invitation's share half, which its
-    /// `outside_sharing` allows as a contact link that carried access was.
+    /// Whether `organization`'s policy lets a link admit `admits`. A link that admits one (an
+    /// invitation's share half) follows `shares_outside`; every other follows `link_sharing`.
+    /// The personal organization, where every account is a member, allows any but a link for
+    /// anyone.
     fn link_policy_allows(
         &self,
         graph: &BlockGraph,
