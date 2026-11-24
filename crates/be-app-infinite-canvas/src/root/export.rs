@@ -354,7 +354,7 @@ pub(crate) fn png_exporter() -> ExporterOf<ImageContent, ImageExport> {
             Ok(Made::named(Blob::new(header, data), name))
         }
     })
-    .settings(|settings| view! { <ImageSettings settings png=true /> })
+    .settings(|settings| Build::new(move || view! { <ImageSettings settings png=true /> }))
     .describe(describe)
     .initial(selected)
 }
@@ -374,7 +374,7 @@ pub(crate) fn svg_exporter() -> ExporterOf<FileContent, ImageExport> {
             Ok(Made::named(Blob::new(header, data), name))
         }
     })
-    .settings(|settings| view! { <ImageSettings settings png=false /> })
+    .settings(|settings| Build::new(move || view! { <ImageSettings settings png=false /> }))
     .describe(describe)
     .initial(selected)
 }

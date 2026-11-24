@@ -570,7 +570,7 @@ fn export_dialog(editor: &mut BeuiTest<CanvasRoot>, name: &str) -> BeuiTest<Canv
             settings: request.settings.clone(),
         },
     )
-    .with_size(Vec2::new(420.0, 300.0));
+    .with_size(Vec2::new(520.0, 260.0));
     hold_canvas(editor, &mut dialog, *block);
     dialog.run();
     dialog
@@ -600,9 +600,14 @@ fn hold_canvas(editor: &BeuiTest<CanvasRoot>, test: &mut BeuiTest<CanvasRoot>, b
 fn copied_export(editor: &mut BeuiTest<CanvasRoot>, name: &str, format: &str) -> Vec<u8> {
     let mut dialog = export_dialog(editor, name);
     dialog.click("export.copy");
+    dialog.run();
     let copied = dialog.take_copied(format);
     let [item] = copied.as_slice() else {
-        panic!("Copy puts one {format} on the clipboard, put {}", copied.len());
+        panic!(
+            "Copy puts one {format} on the clipboard, put {}; failed with {:?}",
+            copied.len(),
+            dialog.take_reported_failures()
+        );
     };
     item.data.clone()
 }

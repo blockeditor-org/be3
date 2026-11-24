@@ -81,7 +81,7 @@ type Prepare<C, S> = Rc<dyn Fn(Editor) -> Maker<C, S>>;
 pub struct ExporterOf<C, S: 'static> {
     name: &'static str,
     prepare: Prepare<C, S>,
-    settings: Option<Rc<dyn Fn(ExportSettings<S>) -> NodeId>>,
+    settings: Option<Rc<dyn Fn(ExportSettings<S>) -> Build<NodeId>>>,
     describe: Rc<dyn Fn(&S) -> String>,
     initial: Rc<dyn Fn(Editor) -> S>,
 }
@@ -109,8 +109,12 @@ where
         }
     }
 
-    /// The component that edits its settings, inside whichever dialog shows them.
-    pub fn settings(mut self, component: impl Fn(ExportSettings<S>) -> NodeId + 'static) -> Self {
+    /// What edits its settings, inside whichever dialog shows them:
+    /// `|settings| Build::new(move || view! { .. })`.
+    pub fn settings(
+        mut self,
+        component: impl Fn(ExportSettings<S>) -> Build<NodeId> + 'static,
+    ) -> Self {
         self.settings = Some(Rc::new(component));
         self
     }
@@ -126,6 +130,29 @@ where
     pub fn initial(mut self, initial: impl Fn(Editor) -> S + 'static) -> Self {
         self.initial = Rc::new(initial);
         self
+    }
+
+    /// Makes `made`, which this exporter made from `source` with `settings`, a block in the
+    /// account's Unfiled: an artifact of `source` it makes again whenever `source` changes,
+    /// as the Export dialog's "Add to workspace" does. Its id.
+    pub fn add_to_workspace(&self, source: Editor, settings: &S, made: Made<C>) -> Uuid {
+        let source_type = source
+            .blocks()
+            .info(source.block_id())
+            .map_or(Uuid::nil(), |info| info.block_type);
+        add_artifact(
+            &source.host(),
+            source.block_id(),
+            source_type,
+            self.name,
+            encode(settings),
+            MadeBytes {
+                block_type: C::CONTENT_TYPE,
+                content: made.content.encode(),
+                name: made.name,
+                renames: made.renames,
+            },
+        )
     }
 
     /// Makes what it makes from `source` with `settings` once, calling `done` when it is made
@@ -222,10 +249,13 @@ where
     fn settings(&self, value: Memo<Vec<u8>>, edit: Callback<Vec<u8>>) -> Option<NodeId> {
         let component = self.settings.clone()?;
         let typed = create_memo(move || value.with(|data| decode::<S>(data).unwrap_or_default()));
-        Some(component(ExportSettings {
-            value: typed,
-            edit: Callback::new(move |settings: S| edit.call(encode(&settings))),
-        }))
+        Some(
+            component(ExportSettings {
+                value: typed,
+                edit: Callback::new(move |settings: S| edit.call(encode(&settings))),
+            })
+            .call(),
+        )
     }
 
     fn start(&self, source: Editor) -> MakeBytes {
@@ -446,6 +476,7 @@ pub(crate) fn ExportDialog(
     request: ExportDialogRequest,
 ) -> NodeId {
     let dismiss = host.clone();
+    let dismiss_host = host.clone();
     let on_dismiss = move || dismiss.close_dialog(crate::DialogAnswer::Dismissed);
     let Some(exporter) = exporter else {
         let missing = format!("This editor has no exporter named \"{}\".", request.exporter);
@@ -477,12 +508,25 @@ pub(crate) fn ExportDialog(
     let wanted = create_signal(None::<Destination>);
     let busy = create_signal(false);
     let tasks = store(RefCell::new(Vec::<Task>::new()));
+    // Copied from the dialog's own effect, where its document is: an answer from the host
+    // arrives outside it.
+    let copying = create_signal(None::<SavedFile>);
+    create_effect(move || {
+        if let Some(file) = copying.get() {
+            untrack(|| {
+                copying.set(None);
+                copy(clip_of(file));
+                host_done(&dismiss_host, busy);
+            });
+        }
+    });
     let sending = Sending {
         host: host.clone(),
         source,
         source_type,
         tasks,
         busy,
+        copying,
         exporter: exporter.name(),
         settings,
     };
@@ -542,6 +586,7 @@ struct Sending {
     source_type: Uuid,
     tasks: Stored<RefCell<Vec<Task>>>,
     busy: Signal<bool>,
+    copying: Signal<Option<SavedFile>>,
     exporter: &'static str,
     settings: Signal<Vec<u8>>,
 }
@@ -555,12 +600,11 @@ impl Sending {
                     .host
                     .file_of_content(made.block_type, made.content, made.name);
                 let filed = self.clone();
-                let task = self.source.then(asked, move |file| match file {
+                // The host's own `then`: the dialog keeps the task, and an effect's run that
+                // asked is gone by the time the answer comes.
+                let task = self.host.then(asked, move |file| match file {
                     Ok(file) if to == Destination::File => filed.save(file),
-                    Ok(file) => {
-                        copy(clip_of(file));
-                        filed.done();
-                    }
+                    Ok(file) => filed.copying.set(Some(file)),
                     Err(failure) => filed.fail(&failure.to_string()),
                 });
                 self.keep(task);
@@ -571,7 +615,7 @@ impl Sending {
     fn save(self, file: SavedFile) {
         let asked = self.host.save_file(file);
         let saved = self.clone();
-        let task = self.source.then(asked, move |save| match save {
+        let task = self.host.then(asked, move |save| match save {
             FileSave::Saved => saved.done(),
             FileSave::Cancelled => saved.busy.set(false),
             FileSave::Failed(failure) => saved.fail(&failure),
@@ -579,27 +623,18 @@ impl Sending {
         self.keep(task);
     }
 
-    /// Makes the block in the account's Unfiled, as an artifact of the source the exporter
-    /// makes again whenever the source changes, and opens it.
+    /// Makes the block in the account's Unfiled (`add_artifact`), and opens it.
     fn make_artifact(self, made: MadeBytes) {
-        let mut metadata = BlockMetadata::named(be_block_content::metadata::clip_name(&made.name));
-        metadata.insert(
-            &be_block_content::ARTIFACT,
-            &be_block_content::Artifact {
-                source: self.source.block_id().into(),
-                source_type: self.source_type,
-                exporter: self.exporter.to_owned(),
-                settings: self.settings.get_untracked(),
-                made: Some(fingerprint(&made.content)),
-            },
+        let block_type = made.block_type;
+        let block = add_artifact(
+            &self.host,
+            self.source.block_id(),
+            self.source_type,
+            self.exporter,
+            self.settings.get_untracked(),
+            made,
         );
-        let block = self.host.graph().create_with(
-            made.block_type,
-            Some(made.content),
-            BlockParent::Unfiled,
-            metadata,
-        );
-        self.host.open_block(block, made.block_type);
+        self.host.open_block(block, block_type);
         self.done();
     }
 
@@ -608,8 +643,7 @@ impl Sending {
     }
 
     fn done(&self) {
-        self.busy.set(false);
-        self.host.close_dialog(crate::DialogAnswer::Accepted);
+        host_done(&self.host, self.busy);
     }
 
     fn fail(&self, error: &str) {
@@ -617,6 +651,41 @@ impl Sending {
         self.host
             .report_failure(format!("The block could not be exported. {error}"));
     }
+}
+
+/// Makes `made` a block in the account's Unfiled, as an artifact of `source` that `exporter`
+/// makes again from `settings` whenever `source` changes. Its id.
+fn add_artifact(
+    host: &EditorHost,
+    source: Uuid,
+    source_type: Uuid,
+    exporter: &str,
+    settings: Vec<u8>,
+    made: MadeBytes,
+) -> Uuid {
+    let mut metadata = BlockMetadata::named(be_block_content::metadata::clip_name(&made.name));
+    metadata.insert(
+        &be_block_content::ARTIFACT,
+        &be_block_content::Artifact {
+            source: source.into(),
+            source_type,
+            exporter: exporter.to_owned(),
+            settings,
+            made: Some(fingerprint(&made.content)),
+        },
+    );
+    host.graph().create_with(
+        made.block_type,
+        Some(made.content),
+        BlockParent::Unfiled,
+        metadata,
+    )
+}
+
+/// Closes the Export dialog: what it made has gone where it was sent.
+fn host_done(host: &EditorHost, busy: Signal<bool>) {
+    busy.set(false);
+    host.close_dialog(crate::DialogAnswer::Accepted);
 }
 
 /// `file` as the clipboard holds it: its own media type, and as text too when it is text.
