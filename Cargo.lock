@@ -2696,6 +2696,7 @@ dependencies = [
  "be-server",
  "be-tool-terminal-emulator",
  "be-type-bundle",
+ "be-type-chat",
  "be-type-database",
  "be-type-example-counter",
  "be-type-terminal",

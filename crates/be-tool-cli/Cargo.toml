@@ -47,6 +47,7 @@ ureq = "2"
 be-host-testing = { path = "../be-host-testing" }
 be-type-example-counter = { path = "../be-type-example-counter" }
 be-type-bundle = { path = "../be-type-bundle" }
+be-type-chat = { path = "../be-type-chat" }
 be-server = { path = "../be-server" }
 tokio = { version = "1", features = ["macros", "net", "rt-multi-thread", "sync"] }
 be-type-workspace = { path = "../be-type-workspace" }
