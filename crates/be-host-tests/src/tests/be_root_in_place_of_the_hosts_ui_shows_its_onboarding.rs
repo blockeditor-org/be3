@@ -29,9 +29,11 @@ fn be_root_in_place_of_the_hosts_ui_shows_its_onboarding() {
     };
     let background = pixel(width - 2, height - 2);
     let past = (400.0 * scale) as u32;
-    let drawn = (0..height)
-        .step_by(2)
-        .any(|y| (past..width).step_by(2).any(|x| !near(pixel(x, y), background)));
+    let drawn = (0..height).step_by(2).any(|y| {
+        (past..width)
+            .step_by(2)
+            .any(|x| !near(pixel(x, y), background))
+    });
     assert!(
         drawn,
         "the root's accounts show past 400 points, over the background {background:?} it fills the window with"

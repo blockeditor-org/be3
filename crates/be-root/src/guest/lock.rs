@@ -25,7 +25,12 @@ pub(super) fn LockCard(
     let time = create_memo(move || clock.get().time.format(HourCycle::H24));
     let date = create_memo(move || {
         let date = clock.get().date;
-        format!("{}, {} {}", date.weekday().name(), date.day, date.month_name())
+        format!(
+            "{}, {} {}",
+            date.weekday().name(),
+            date.day,
+            date.month_name()
+        )
     });
     let submit = move |typed: String| {
         if typed.is_empty() || checking.get_untracked() {

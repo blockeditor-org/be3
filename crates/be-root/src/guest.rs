@@ -20,10 +20,10 @@ use be_wasm_ops::guest::{Executor, LocalFuture};
 use be_wasm_password::Password;
 use be_wasm_root_api::{
     AccountRow, AgentRow, ContactCard, ContactMismatch, ContactRow, CoreCommand, CoreSecret,
-    CoreView, CoreWait, DiscardReason, HostedBlock, DisplayQuestion, FrameDone, FrameRequest, HostStatistics,
-    InvitationRow, InvitationState, LockState, MemberRole, MemberRow, MemoryMinutes, NewAccount,
-    Notice, OrganizationRow, OrganizationsListed, PairingApproval, PowerAction, ProfileRow,
-    Refusal, RoleChange, SavingState, SecretCommand, ServerAccount, SetAside,
+    CoreView, CoreWait, DiscardReason, DisplayQuestion, FrameDone, FrameRequest, HostStatistics,
+    HostedBlock, InvitationRow, InvitationState, LockState, MemberRole, MemberRow, MemoryMinutes,
+    NewAccount, Notice, OrganizationRow, OrganizationsListed, PairingApproval, PowerAction,
+    ProfileRow, Refusal, RoleChange, SavingState, SecretCommand, ServerAccount, SetAside,
     ShareAccess, SharePreview, StatisticRow, SyncState, UnsentEdit, WindowSize,
     guest::{
         exports::{frames, input, paintings},
@@ -31,7 +31,8 @@ use be_wasm_root_api::{
     },
 };
 use beui::icons::{
-    Glyph, ICON_LOG_OUT, ICON_MENU, ICON_MOON, ICON_POWER, ICON_ROTATE_CCW, ICON_TRASH, ICON_USER_MINUS,
+    Glyph, ICON_LOG_OUT, ICON_MENU, ICON_MOON, ICON_POWER, ICON_ROTATE_CCW, ICON_TRASH,
+    ICON_USER_MINUS,
 };
 use beui::native::painting::{Frame as PaintFrame, Painting, ScreenPaintings};
 use beui::reactive::*;
@@ -41,7 +42,16 @@ use beui::{
     Align, Align2, Direction, Justify, KeyPhase, NodeId, Overflow, Pos2, Rect, TextAlign, vec2,
 };
 
-use crate::{ADD_ACCOUNT_TITLE, AGENTS_TITLE, CONTACTS_TITLE, DIALOG_LAYER, DIALOG_SURFACE, DISCARD_TITLE, DISCARD_UNSENT_TITLE, FAILURE_TITLE, INVITATIONS_TITLE, KEEP_DISPLAY_TITLE, LOCK_LAYER, LOCK_SURFACE, MEMBERS_TITLE, MENU_BUTTON, MENU_LAYER, MENU_SURFACE, ONBOARDING_LAYER, ONBOARDING_SURFACE, ORGANIZATIONS_TITLE, PAIRING_TITLE, REAUTH_TITLE, RECOVERY_TITLE, REMOVE_CONTACT_TITLE, REMOVE_MEMBER_TITLE, ROOT_COLOR, ROOT_LAYER, ROOT_SURFACE, SHARE_LINK_TITLE, SIGN_IN_TITLE, SLOW_SAVE, SLOW_SAVE_TITLE, SLOW_SAVE_TOAST, STATISTICS_LAYER, STATISTICS_SURFACE, STATISTICS_TITLE, STATISTICS_WIDTH, TOAST_LAYER, TOAST_SURFACE, UNSENT_TITLE};
+use crate::{
+    ADD_ACCOUNT_TITLE, AGENTS_TITLE, CONTACTS_TITLE, DIALOG_LAYER, DIALOG_SURFACE, DISCARD_TITLE,
+    DISCARD_UNSENT_TITLE, FAILURE_TITLE, INVITATIONS_TITLE, KEEP_DISPLAY_TITLE, LOCK_LAYER,
+    LOCK_SURFACE, MEMBERS_TITLE, MENU_BUTTON, MENU_LAYER, MENU_SURFACE, ONBOARDING_LAYER,
+    ONBOARDING_SURFACE, ORGANIZATIONS_TITLE, PAIRING_TITLE, REAUTH_TITLE, RECOVERY_TITLE,
+    REMOVE_CONTACT_TITLE, REMOVE_MEMBER_TITLE, ROOT_COLOR, ROOT_LAYER, ROOT_SURFACE,
+    SHARE_LINK_TITLE, SIGN_IN_TITLE, SLOW_SAVE, SLOW_SAVE_TITLE, SLOW_SAVE_TOAST, STATISTICS_LAYER,
+    STATISTICS_SURFACE, STATISTICS_TITLE, STATISTICS_WIDTH, TOAST_LAYER, TOAST_SURFACE,
+    UNSENT_TITLE,
+};
 
 mod dialogs;
 mod lock;
@@ -786,9 +796,10 @@ impl Root {
             &beui,
             OwnSurface::new(
                 STATISTICS_SURFACE,
-                self.window
-                    .get()
-                    .pixels(self.window.get().statistics_width(), self.window.get().height),
+                self.window.get().pixels(
+                    self.window.get().statistics_width(),
+                    self.window.get().height,
+                ),
             ),
             self.window.get().pixels_per_point,
             move || waker.wake(),

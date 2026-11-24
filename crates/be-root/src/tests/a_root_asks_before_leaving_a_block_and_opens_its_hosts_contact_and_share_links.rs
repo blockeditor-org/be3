@@ -186,10 +186,13 @@ fn a_root_asks_before_leaving_a_block_and_opens_its_hosts_contact_and_share_link
 
     // A contact link opened: who it is from, to connect with.
     let _ = menu(&mut root, &mut time, Entry::Contacts);
-    show_core(&mut root, contacts(Some(ContactCard {
-        name: "Ada".to_owned(),
-        email: "ada@example.com".to_owned(),
-    })));
+    show_core(
+        &mut root,
+        contacts(Some(ContactCard {
+            name: "Ada".to_owned(),
+            email: "ada@example.com".to_owned(),
+        })),
+    );
     beui_paint_snapshot::assert_painting(
         "a_root_asks_to_connect_with_a_contact",
         painting(&mut root, &mut time),
@@ -210,7 +213,10 @@ fn a_root_asks_before_leaving_a_block_and_opens_its_hosts_contact_and_share_link
     let _ = painting(&mut root, &mut time);
     let commands = asks(&mut root, &mut time, click(pos2(593.0, 270.0)));
     assert!(commands.is_empty(), "asking removes no one: {commands:?}");
-    beui_paint_snapshot::assert_painting("a_root_asks_before_removing_a_contact", painting(&mut root, &mut time));
+    beui_paint_snapshot::assert_painting(
+        "a_root_asks_before_removing_a_contact",
+        painting(&mut root, &mut time),
+    );
     let commands = asks(&mut root, &mut time, click(pos2(566.0, 340.0)));
     assert!(
         matches!(commands.as_slice(), [CoreCommand::RemoveContact(GRACE)]),

@@ -47,8 +47,9 @@ pub(super) fn Notices(
                 Toast {
                     id: SLOW_SAVE_TOAST,
                     title: SLOW_SAVE_TITLE.to_owned(),
-                    message: "This is taking longer than usual. Keep be-host open until it finishes."
-                        .to_owned(),
+                    message:
+                        "This is taking longer than usual. Keep be-host open until it finishes."
+                            .to_owned(),
                     sticky: true,
                     ..Toast::default()
                 },

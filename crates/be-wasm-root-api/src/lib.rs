@@ -25,12 +25,13 @@ be_wasm_ops_bindgen::generate!({
 pub use frames::{FrameDone, FrameRequest, WindowSize};
 pub use host::{
     AccountRow, AgentCredentials, AgentRow, AgentsArea, BrowserSignIn, ContactCard,
-    ContactMismatch, ContactRow, ContactsArea, CoreCommand, CoreFailure, CoreSecret, CoreView, DefaultServer, HostedBlock,
-    CoreWait, DiscardReason, DisplayQuestion, DisplayState, HostStatistics, Invitation,
-    InvitationRow, InvitationState, InvitationsArea, Leaving, LockState, MemberRole, MemberRow,
-    MembersArea, MemoryMinutes, MemoryPoint, NewAccount, Notice, NoticeAction, OrganizationRow,
-    OrganizationsArea, OrganizationsListed, PairingApproval, PairingRequest, PowerAction,
-    ProfileRow, Reauthenticating, RecoveryArea, Refusal, RoleChange, SavingState, SecretCommand,
-    ServerAccount, SessionKind, SessionRow, SessionsArea, SetAside, ShareAccess, ShareLinksArea,
-    SharePreview, ShownNotices, SigningIn, StatisticRow, SyncState, UnlockArea, UnsentEdit,
+    ContactMismatch, ContactRow, ContactsArea, CoreCommand, CoreFailure, CoreSecret, CoreView,
+    CoreWait, DefaultServer, DiscardReason, DisplayQuestion, DisplayState, HostStatistics,
+    HostedBlock, Invitation, InvitationRow, InvitationState, InvitationsArea, Leaving, LockState,
+    MemberRole, MemberRow, MembersArea, MemoryMinutes, MemoryPoint, NewAccount, Notice,
+    NoticeAction, OrganizationRow, OrganizationsArea, OrganizationsListed, PairingApproval,
+    PairingRequest, PowerAction, ProfileRow, Reauthenticating, RecoveryArea, Refusal, RoleChange,
+    SavingState, SecretCommand, ServerAccount, SessionKind, SessionRow, SessionsArea, SetAside,
+    ShareAccess, ShareLinksArea, SharePreview, ShownNotices, SigningIn, StatisticRow, SyncState,
+    UnlockArea, UnsentEdit,
 };

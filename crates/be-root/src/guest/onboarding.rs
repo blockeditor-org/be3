@@ -3,7 +3,8 @@
 use super::*;
 use be_wasm_root_api::{Invitation, OrganizationsArea, SessionKind, SessionsArea};
 use beui::icons::{
-    ICON_BOXES, ICON_CHECK, ICON_CHEVRON_DOWN, ICON_CLOUD, ICON_COPY, ICON_MONITOR, ICON_PLUS, ICON_ELLIPSIS, ICON_REFRESH_CW, ICON_USER_PLUS, ICON_USERS_ROUND,
+    ICON_BOXES, ICON_CHECK, ICON_CHEVRON_DOWN, ICON_CLOUD, ICON_COPY, ICON_ELLIPSIS, ICON_MONITOR,
+    ICON_PLUS, ICON_REFRESH_CW, ICON_USER_PLUS, ICON_USERS_ROUND,
 };
 
 /// What the block stack waits for the person to do: the accounts, the organizations or the
@@ -675,7 +676,8 @@ fn CreateOrganization(busy: Memo<bool>) -> NodeId {
 pub(super) fn SessionsCard(core: Signal<CoreView>) -> NodeId {
     let area = create_memo(move || core.with(|view| view.sessions.clone()));
     let loading = create_memo(move || !area.with(|area| area.loaded));
-    let title = create_memo(move || core.with(|view| view.organization.clone().unwrap_or_default()));
+    let title =
+        create_memo(move || core.with(|view| view.organization.clone().unwrap_or_default()));
     // Which types it lists is the root's own choice, not the host's.
     let every = create_signal(false);
     let kind_name = move |area: &SessionsArea, kind: [u8; 16]| {
@@ -691,7 +693,9 @@ pub(super) fn SessionsCard(core: Signal<CoreView>) -> NodeId {
                 .iter()
                 .filter(|session| every || session.session_type == area.session_type)
                 .map(|session| {
-                    let kind = every.then(|| kind_name(area, session.session_type)).flatten();
+                    let kind = every
+                        .then(|| kind_name(area, session.session_type))
+                        .flatten();
                     let label = match (kind, session.current) {
                         (Some(kind), true) => format!("{} ({kind}, last used)", session.name),
                         (Some(kind), false) => format!("{} ({kind})", session.name),
@@ -785,7 +789,10 @@ pub(super) fn SessionsCard(core: Signal<CoreView>) -> NodeId {
                 menu_label="New session of another type"
                 disabled={loading}
                 items={view! {
-                    <ForEach value={kinds} key={|kind: &SessionKind| kind.id}>|kind: ReadSignal<SessionKind>| {
+                    <ForEach
+                        value={kinds}
+                        key={|kind: &SessionKind| kind.id}
+                    >|kind: ReadSignal<SessionKind>| {
                         let id = kind.with_untracked(|kind| kind.id);
                         let label = create_memo(move || kind.with(|kind| format!("New {} session", kind.name)));
                         view! {
@@ -1052,7 +1059,9 @@ pub(super) fn AddAccountDialog(
                 <List spacing=Space::Xl2>
                     <Show value={choosing}>
                         <List spacing=Space::Lg>
-                            <Text style=TextStyle::PARAGRAPH>"Choose where to keep your account."</Text>
+                            <Text style=TextStyle::PARAGRAPH>
+                                "Choose where to keep your account."
+                            </Text>
                             <Frame
                                 fill=ColorRole::Surface
                                 border={Border::DEFAULT}
@@ -1146,7 +1155,11 @@ pub(super) fn AddAccountDialog(
                                 <List spacing=Space::Xl>
                                     <List spacing=Space::Sm>
                                         <Text style=TextStyle::CAPTION>"Device code"</Text>
-                                        <List direction=Direction::Horizontal align=Align::Center spacing=Space::Lg>
+                                        <List
+                                            direction=Direction::Horizontal
+                                            align=Align::Center
+                                            spacing=Space::Lg
+                                        >
                                             <ListItem grow=1.0>
                                                 <Text size=TextSize::Xl>{code}</Text>
                                             </ListItem>
@@ -1162,7 +1175,11 @@ pub(super) fn AddAccountDialog(
                                     <Separator />
                                     <List spacing=Space::Sm>
                                         <Text style=TextStyle::CAPTION>"Sign-in link"</Text>
-                                        <List direction=Direction::Horizontal align=Align::Center spacing=Space::Lg>
+                                        <List
+                                            direction=Direction::Horizontal
+                                            align=Align::Center
+                                            spacing=Space::Lg
+                                        >
                                             <ListItem grow=1.0>
                                                 <Text style=TextStyle::CAPTION>{link}</Text>
                                             </ListItem>

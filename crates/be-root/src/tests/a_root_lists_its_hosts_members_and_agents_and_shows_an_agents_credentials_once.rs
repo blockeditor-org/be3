@@ -174,8 +174,12 @@ fn a_root_lists_its_hosts_members_and_agents_and_shows_an_agents_credentials_onc
         *id,
         Some(CoreSecret::Agent(AgentCredentials {
             name: "Indexer".to_owned(),
-            bundle: Password::from(r#"{"server":"https://example.com","token":"t0ken"}"#.to_owned()),
-            proxy_bundle: Password::from(r#"{"authentication":"proxy","server":"https://example.com"}"#.to_owned()),
+            bundle: Password::from(
+                r#"{"server":"https://example.com","token":"t0ken"}"#.to_owned(),
+            ),
+            proxy_bundle: Password::from(
+                r#"{"authentication":"proxy","server":"https://example.com"}"#.to_owned(),
+            ),
             proxy_header: Password::from("Bearer t0ken".to_owned()),
         })),
     );
@@ -211,10 +215,13 @@ fn a_root_lists_its_hosts_members_and_agents_and_shows_an_agents_credentials_onc
         .expect("the root takes input");
     root.input(None, be_lib_ui_types::input::encode(&key(Key::Escape)))
         .expect("the root takes input");
-    show_core(&mut root, CoreView {
-        discarding: Some(be_wasm_root_api::DiscardReason::Close),
-        ..agents()
-    });
+    show_core(
+        &mut root,
+        CoreView {
+            discarding: Some(be_wasm_root_api::DiscardReason::Close),
+            ..agents()
+        },
+    );
     let _ = asks(&mut root, &mut time, Vec::new());
     let requests = root.take_secret_requests();
     let [(id, SecretCommand::CreateAgent(name))] = requests.as_slice() else {
@@ -230,8 +237,12 @@ fn a_root_lists_its_hosts_members_and_agents_and_shows_an_agents_credentials_onc
         *id,
         Some(CoreSecret::Agent(AgentCredentials {
             name: "Crawler".to_owned(),
-            bundle: Password::from(r#"{"server":"https://example.com","token":"t0ken"}"#.to_owned()),
-            proxy_bundle: Password::from(r#"{"authentication":"proxy","server":"https://example.com"}"#.to_owned()),
+            bundle: Password::from(
+                r#"{"server":"https://example.com","token":"t0ken"}"#.to_owned(),
+            ),
+            proxy_bundle: Password::from(
+                r#"{"authentication":"proxy","server":"https://example.com"}"#.to_owned(),
+            ),
             proxy_header: Password::from("Bearer t0ken".to_owned()),
         })),
     );
