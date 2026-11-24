@@ -2389,8 +2389,7 @@ where
             })
         );
         if opening && matches!(result, Err(be_sdk_type_api::LoadError::NotYet(_))) {
-            self.waiting = None;
-            self.opened_content = None;
+            self.waiting.take();
             return;
         }
         let Some(Wait::Reads { slots, .. }) = &mut self.waiting else {

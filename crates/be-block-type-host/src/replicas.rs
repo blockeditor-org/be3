@@ -226,6 +226,10 @@ pub async fn send_announcements<H: Host>(peer: &Peer<H::Store>, shared: &Arc<Mut
     }
 }
 
+/// How many times a block's replica opens again for one commit's missing objects while it still
+/// joins (`Replicas::retried`) before that commit is unreadable.
+const NOT_YET_OPENINGS: u32 = 3;
+
 /// A block whose replica waits for a load's objects (`Replicas::not_yet`).
 struct NotYet {
     /// The commit whose load failed.
@@ -1097,11 +1101,14 @@ pub struct Replicas<H: Host> {
     /// it. A load that is no opening (a merge's sides, a reload, a restart's commits) recovers
     /// the same way: opening again loads afresh from the head then.
     not_yet: HashMap<Uuid, NotYet>,
-    /// The commit whose missing object last opened a block's replica again (`read_not_yet`):
-    /// missing again once it opened, it is gone for good (a commit no head replaced, which
-    /// opening again would only load again), and the load is unreadable, so no wait outlasts
-    /// one opening.
-    retried: HashMap<Uuid, CommitId>,
+    /// The commit whose missing object last opened a block's replica again (`read_not_yet`),
+    /// and how many times it did. Missing again once a join answered (a commit no head
+    /// replaced, which opening again would only load again), or after `NOT_YET_OPENINGS`, it
+    /// is gone for good and the load is unreadable, so the wait is bounded; while the replica
+    /// still joins it waits on the join, which may tell a newer head. One slot per block: the
+    /// bound relies on an opening loading the head first, so a block misses one commit at a
+    /// time.
+    retried: HashMap<Uuid, (CommitId, u32)>,
     /// Submissions refused for a missing key, submitted again once keys arrive (`unlock`).
     refused: Vec<Refused>,
     /// How many searches for keys relayed messages started.
@@ -2012,20 +2019,6 @@ impl<H: Host> Replicas<H> {
 
     pub fn joining(&self) -> bool {
         self.open.values().any(|open| open.joining)
-    }
-
-    /// Has `block`'s replica hear that a load of `commit` found its objects missing, with the
-    /// head this device knows now.
-    #[cfg(test)]
-    pub(crate) fn load_found_missing(&self, peer: &Peer<H::Store>, block: Uuid, commit: CommitId) {
-        if let Some(replica) = self.blocks.get(&block).copied() {
-            let _ = self.io.send(Io::NotYet {
-                replica,
-                commit,
-                head: peer.known_remote_head(block),
-                unreachable: false,
-            });
-        }
     }
 
     /// The restarts of the order `block`'s kept edits would be kept under now.
@@ -4095,9 +4088,7 @@ impl<H: Host> Replicas<H> {
                 head,
                 unreachable,
             } => {
-                if let Some(block) = self.open.get(&replica).map(|open| open.block)
-                    && (unreachable || self.retried.get(&block) != Some(&commit))
-                {
+                if let Some(block) = self.open.get(&replica).map(|open| open.block) {
                     self.not_yet.insert(
                         block,
                         NotYet {
@@ -4283,7 +4274,11 @@ impl<H: Host> Replicas<H> {
         for (block, commit) in ready {
             self.not_yet.remove(&block);
             if let Some(commit) = commit {
-                self.retried.insert(block, commit);
+                let tries = match self.retried.get(&block) {
+                    Some((retried, tries)) if *retried == commit => tries + 1,
+                    _ => 1,
+                };
+                self.retried.insert(block, (commit, tries));
             }
             self.reopen(block);
         }
@@ -4945,6 +4940,11 @@ impl<H: Host> Replicas<H> {
             .await;
         self.asked.retain(|_, (to, _)| *to != replica);
         self.blocks.remove(&open.block);
+        // Ended for good, it waits on no load; one opened in its place keeps what it missed.
+        if !open.reopen {
+            self.not_yet.remove(&open.block);
+            self.retried.remove(&open.block);
+        }
         if !open.joining {
             self.leave(shared, peer, open.block);
         }
@@ -5336,9 +5336,16 @@ impl<H: Host> Replicas<H> {
             } => {
                 // The head this device knows as it loads, which the wait for a missing object
                 // waits to move on from; and whether this commit's missing object opened the
-                // replica again already, which makes it unreadable now.
+                // replica again already and a join has answered since (or it opened as many
+                // times as it may), which makes it unreadable now.
                 let known = peer.known_remote_head(block);
-                let retried = self.retried.get(&block) == Some(&commit);
+                let joining = self.open.get(&replica).is_some_and(|open| open.joining);
+                let retried = self
+                    .retried
+                    .get(&block)
+                    .is_some_and(|(retried, tries)| {
+                        *retried == commit && (!joining || *tries >= NOT_YET_OPENINGS)
+                    });
                 let peer = Arc::clone(peer);
                 let io = self.io.clone();
                 self.answer_later(replica, module, async move {
