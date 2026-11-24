@@ -216,6 +216,7 @@ mod undo_steps_back_through_what_this_peer_did;
 mod version_history_lists_the_commits_kept_here_with_the_head_here_current;
 mod what_is_typed_is_found_through_the_workspaces_search_index;
 mod what_is_typed_while_a_seal_waits_on_a_silent_server_survives_a_crash_and_is_sent_once;
+mod who_hosts_a_block_this_device_left_is_not_taken;
 
 struct Editor<C: LiveEdit> {
     block: Uuid,
