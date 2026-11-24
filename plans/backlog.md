@@ -228,6 +228,22 @@ Depends on #686 (session catch-ups replaced by server ordering).
   240 ("the channel to the first host closed: []"). Done: each cause found and
   fixed at its source, and each passes 400 runs at 16 at once.
 
+- **A reopened counter that never hears the head, once under verify load.**
+  `an_edit_sealed_offline_onto_a_seal_the_server_lost_lands_once` failed with
+  "never counted 5: it last counted Some(2)": the reopened replica loaded the
+  seal under the head and never took the head. It has not failed since in 6
+  runs alone and 3 under combined crate load. One cause is fixed at its source:
+  a replica told of a head before the lease came to it dropped the head
+  (`a_replica_that_gains_the_lease_takes_a_head_it_heard_of_before`). Unproven:
+  the host telling the reopened replica only the older seal, because both
+  heads it tells (the join's and `known_head`) still read it, and `heard`
+  naming a head the module did not load, so `moved_head` skips the real one.
+  Its next failure explains itself with prints, in `start` after `journal_for`
+  (remote, head, load_at, sealed_head, known_head), in `moved` and
+  `moved_head` (each head, and why it is parked or skipped), and in the join
+  path after `reopening`. Done: the cause seen in that output and fixed at its
+  source, with a test that shows it.
+
 - **A joined block's tabs, once under verify load.**
   `a_joined_blocks_tabs_carry_its_menu` waited for "Referenced by (2)" and saw
   (1), and has not failed since in 240 runs under `stress`. Its next failure
