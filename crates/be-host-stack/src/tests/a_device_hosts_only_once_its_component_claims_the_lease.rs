@@ -107,9 +107,11 @@ fn a_device_hosts_only_once_its_component_claims_the_lease() {
     // Its component stops, as be-host stops one once another device hosts, while the replica
     // stays open: the claim it made goes, so once the other device leaves, no one hosts, rather
     // than this device by a claim no component stands behind.
+    let joins = joins_of(block);
     release_host(block);
     wait_until("joined again with no claim", |shared| {
-        shared.session_hosts.get(&block) == Some(&Some(false))
+        shared.session_joins.get(&block).copied().unwrap_or(0) > joins
+            && shared.session_hosts.get(&block) == Some(&Some(false))
     });
     outside.leave();
     wait_until("no one hosts once the other device left", |shared| {
@@ -120,4 +122,11 @@ fn a_device_hosts_only_once_its_component_claims_the_lease() {
         None,
         "an open replica whose claim went hosts nothing"
     );
+}
+
+/// How many times this device's replica of `block` has had its join answered so far.
+fn joins_of(block: Uuid) -> u64 {
+    crate::wait_until("read the joins", |shared| {
+        Some(shared.session_joins.get(&block).copied().unwrap_or(0))
+    })
 }
