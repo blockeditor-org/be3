@@ -326,7 +326,10 @@ crates/be-sdk-worker; decisions/guests_are_single_threaded.md). The map's
   canvas can show more editors than the app may run workers: each editor holds
   a `Shared::<Job, Answer>::new("tiles.wasm", wake)`, sends with `send`, which
   answers the job's `Ticket`, and takes its own answers with `try_receive` once
-  `wake` is called, each with its ticket. The worker starts with the first and
+  `wake` is called, each with its ticket. Each message carries its ticket, so
+  the worker's first answer to a job is that job's and any more are dropped; a
+  job it never answers stays in `in_flight` until it stops. The worker starts
+  with the first and
   stops with the last; one that stopped (a job it failed stops it) fails each
   ticket it had not answered, and the next `send` starts it anew, so a stop
   fails only what that instance was sent, even when a `send` started the next

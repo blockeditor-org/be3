@@ -17,6 +17,7 @@ use super::*;
 
 mod a_guest_compiles_a_module_and_talks_to_an_instance_of_it;
 mod a_guest_spawns_a_staged_app_by_its_id_and_talks_to_it;
+mod a_shared_worker_s_answer_goes_to_the_job_it_answers;
 mod a_shared_worker_s_stop_fails_only_what_it_had_not_answered;
 mod an_app_runs_a_bounded_number_of_workers;
 mod an_app_spawns_its_own_worker_and_exchanges_messages_with_it;

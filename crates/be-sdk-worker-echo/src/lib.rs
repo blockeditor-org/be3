@@ -1,6 +1,7 @@
 //! The smallest worker (be_sdk_worker::Work, exported by worker.rs), which be-wasm-sandbox-host's
 //! tests spawn as the echo app's: it says it started, then answers each message with `ECHOED`
-//! followed by it, except `STOP`, which stops it.
+//! followed by it, except `STOP`, which stops it, `TWICE`, which it answers twice, and `SILENT`,
+//! which it does not answer.
 
 use be_sdk_worker::{App, Work};
 
@@ -15,6 +16,12 @@ pub const ECHOED: &[u8] = b"echoed ";
 
 /// The message that stops the worker, with `STOPPED` as its error.
 pub const STOP: &[u8] = b"stop";
+
+/// A message the worker answers twice.
+pub const TWICE: &[u8] = b"twice";
+
+/// A message the worker does not answer.
+pub const SILENT: &[u8] = b"silent";
 
 /// Why the worker stopped when it was sent `STOP`.
 pub const STOPPED: &str = "the echo worker was asked to stop";
@@ -34,7 +41,13 @@ impl Work for Echo {
         if message == STOP {
             return Err(STOPPED.to_owned());
         }
+        if message == SILENT {
+            return Ok(());
+        }
         app.send(&[ECHOED, &message].concat());
+        if message == TWICE {
+            app.send(&[ECHOED, &message].concat());
+        }
         Ok(())
     }
 }

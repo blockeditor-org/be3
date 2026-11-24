@@ -8,7 +8,15 @@ use be_sdk_api::ops::{Connection, OpError, OpId, Outcome};
 use be_sdk_beui::worker::{Hosted, Work};
 use be_wasm_sandbox_api::{embed::sandbox::Call, sandbox::Source};
 
-type Start = fn(&mut Vec<Vec<u8>>) -> Result<Hosted, String>;
+/// A served worker (`Hosted`), as the frames it takes and sends.
+type Step = Box<dyn FnMut(Vec<Vec<u8>>, &mut Vec<Vec<u8>>) -> Result<(), String>>;
+
+type Start = fn(&mut Vec<Vec<u8>>) -> Result<Step, String>;
+
+fn start<W: Work>(outbound: &mut Vec<Vec<u8>>) -> Result<Step, String> {
+    let mut hosted = Hosted::<W>::start(outbound)?;
+    Ok(Box::new(move |frames, outbound| hosted.step(frames, outbound)))
+}
 
 type Frames = Result<Vec<Vec<u8>>, String>;
 
@@ -31,14 +39,14 @@ pub(crate) struct Workers {
 
 struct Running {
     /// The worker, or why it could not start or stopped.
-    work: Result<Hosted, String>,
+    work: Result<Step, String>,
     sent: Vec<Vec<u8>>,
     next: Option<Next>,
 }
 
 impl Workers {
     pub(crate) fn serve<W: Work>(&mut self, module: &str) {
-        self.served.insert(module.to_owned(), Hosted::start::<W>);
+        self.served.insert(module.to_owned(), start::<W>);
     }
 
     /// Takes one of the editor's sandbox calls.
@@ -80,7 +88,7 @@ impl Workers {
             } => {
                 if let Some(running) = self.running.get_mut(&this.op())
                     && let Ok(work) = &mut running.work
-                    && let Err(failure) = work.step(frames, &mut running.sent)
+                    && let Err(failure) = work(frames, &mut running.sent)
                 {
                     running.work = Err(failure);
                 }
