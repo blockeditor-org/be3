@@ -361,10 +361,10 @@ struct Stack {
     searches: std::collections::HashMap<Owner, Vec<SearchAsk>>,
     /// The block whose host channel each Join editor joins (`want_channel`).
     channels: std::collections::HashMap<Owner, Uuid>,
-    /// Natively, the worker's own state, for a test to wait on and reach into: the page never
-    /// locks it. On the web it is the worker's alone.
+    /// Natively, the worker's own state, for a test to wait on and reach into, and for `stop` to
+    /// close its connection: the page locks it for nothing else. On the web it is the worker's
+    /// alone.
     #[cfg(not(target_arch = "wasm32"))]
-    #[cfg_attr(not(any(test, feature = "testing")), allow(dead_code))]
     shared: Arc<Mutex<Shared>>,
     #[cfg(not(target_arch = "wasm32"))]
     #[cfg_attr(not(any(test, feature = "testing")), allow(dead_code))]
@@ -849,6 +849,19 @@ fn stop_now() {
     if let Some(mut stack) = stack {
         let taken = stack.catch_up();
         stack.handover.close();
+        // The connection is shared (`link::signed_in`): closed now rather than once the worker
+        // hears it stopped, so whatever asks for one next (the organizations listed for the
+        // next, the next stack) is handed a new one rather than this, closed under it.
+        #[cfg(not(target_arch = "wasm32"))]
+        if let Some(connection) = stack
+            .shared
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .connection
+            .take()
+        {
+            connection.close();
+        }
         let mut kept = OWN_INVITATIONS
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);

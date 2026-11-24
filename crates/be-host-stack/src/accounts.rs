@@ -212,6 +212,30 @@ async fn authenticated(
     )
 }
 
+/// What `read` answers on the account's connection, asked once more on a new connection when the
+/// one it was asked on closed under it. The stack shares that connection and closes it as it
+/// stops (`link::signed_in`, `worker::run`), so a read begun as an organization is left (the
+/// organizations listed for the next) would otherwise fail with "the connection closed". Only
+/// reads go through here: a write cut that way may have been carried.
+async fn read_signed_in<T, F>(
+    server_url: &str,
+    token: &str,
+    read: impl Fn(crate::link::Link) -> F,
+) -> Result<T, AccountError>
+where
+    F: std::future::Future<Output = Result<T, ClientError>>,
+{
+    let clock = be_block_client::Clock::real();
+    let link = crate::link::signed_in(server_url, token, &clock).await?;
+    let connection = std::sync::Arc::clone(&link.connection);
+    match read(link).await {
+        Err(error) if error.is_unreachable() && connection.is_closed() => {
+            Ok(read(crate::link::signed_in(server_url, token, &clock).await?).await?)
+        }
+        answer => Ok(answer?),
+    }
+}
+
 /// The server's notices in a mailbox, by message id, oldest first.
 pub fn notices(mailbox: Vec<be_block_protocol::Message>) -> Vec<(u64, String)> {
     mailbox
@@ -229,10 +253,11 @@ pub async fn account_notices(
     server_url: String,
     token: String,
 ) -> Result<Vec<(u64, String)>, AccountError> {
-    let connection = authenticated(&server_url, token).await?;
-    Ok(notices(
-        be_block_client::contacts::mailbox(&connection).await?,
-    ))
+    let mailbox = read_signed_in(&server_url, &token, |link| async move {
+        be_block_client::contacts::mailbox(&link.connection).await
+    })
+    .await?;
+    Ok(notices(mailbox))
 }
 
 /// Deletes an account notice from the mailbox for the account's every device. The server
@@ -274,14 +299,15 @@ pub async fn organizations(
     server_url: String,
     token: String,
 ) -> Result<Vec<Organization>, AccountError> {
-    let connection = authenticated(&server_url, token).await?;
-    Ok(ask(be_block_protocol::read::<
-        Vec<be_block_protocol::Organization>,
-        _,
-    >(
-        &connection, None, be_block_protocol::Query::Organizations
-    ))
-    .await?)
+    read_signed_in(&server_url, &token, |link| async move {
+        ask(be_block_protocol::read::<Vec<Organization>, _>(
+            &link.connection,
+            None,
+            be_block_protocol::Query::Organizations,
+        ))
+        .await
+    })
+    .await
 }
 
 /// Makes a company organization as `me`, who signs the root of its access log.
@@ -464,22 +490,22 @@ pub struct Keys {
 }
 
 pub async fn keys(server_url: String, token: String) -> Result<Keys, AccountError> {
-    let crate::link::Link {
-        connection,
+    let (
         account,
-        ..
-    } = crate::link::signed_in(&server_url, &token, &be_block_client::Clock::real()).await?;
-    let be_block_protocol::RecoveryKey {
-        public,
-        sealed,
-        logs,
-    } = ask(
-        be_block_protocol::read::<be_block_protocol::RecoveryKey, _>(
-            &connection,
+        be_block_protocol::RecoveryKey {
+            public,
+            sealed,
+            logs,
+        },
+    ) = read_signed_in(&server_url, &token, |link| async move {
+        let key = ask(be_block_protocol::read::<be_block_protocol::RecoveryKey, _>(
+            &link.connection,
             None,
             be_block_protocol::Query::RecoveryKey,
-        ),
-    )
+        ))
+        .await?;
+        Ok((link.account, key))
+    })
     .await?;
     Ok(Keys {
         account,
