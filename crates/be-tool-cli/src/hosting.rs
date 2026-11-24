@@ -138,7 +138,9 @@ pub fn host_block(
             }
             // Another device hosts it: the component stops, and its claim stays in the session
             // with no release_host, so once that device goes the server names this one host
-            // again and the component starts again here, which `be host` always wants.
+            // again and the component starts again here, which `be host` always wants. The
+            // stack still counts a component running here, so a reconnect that answers no one
+            // hosts claims again while it stands by, until the next step starts one.
             Some((instance, _)) if !may_host => {
                 be_host_runtime::close(&app.identity.id, instance);
                 running = None;
@@ -147,7 +149,9 @@ pub fn host_block(
         }
         let revision = be_host_stack::lease_revision();
         // Reported, as be-host reports a component each frame, until its app opens it; it sleeps
-        // until the stack, the app or a stop wakes it.
+        // until the stack, the app or a stop wakes it. Each step takes what the stack handed
+        // over first (`Headless::step` begins a host frame, `begin_host_frame`), so the lease
+        // revision read here is current.
         headless.run_until(LONGEST_SLEEP, || {
             if let Some((instance, false)) = running {
                 match be_host_runtime::host(&app, &catalog, client, instance, host, editor_block) {
