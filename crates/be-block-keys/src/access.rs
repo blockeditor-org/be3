@@ -1538,10 +1538,21 @@ impl Checked {
                     let owned = state.owner == Some(entry.signer);
                     // The offer's keys must still be the acceptor's: a key the log has since
                     // seen retired, or replaced by a grant, accepts nothing.
+                    // Nor does an account this log last took below View, or banned: checked
+                    // here as well as where the offer ends, so no later path that forgets to
+                    // end one lets them accept. Access from above, which this log does not
+                    // show, the server checks.
+                    let reads = state
+                        .levels
+                        .get(&entry.signer)
+                        .and_then(|held| held.last())
+                        .is_none_or(|(_, level)| *level >= Level::View)
+                        && !state.banned.contains(&entry.signer);
                     let accepting = !owned
                         && owner.account == entry.signer
                         && state.offered == Some((owner.account, owner.identity))
                         && own.is_none_or(|signing| signing == owner.identity.signing)
+                        && reads
                         && entry.signed_by(&owner.identity.signing);
                     if kind != LogKind::Block || !(accepting || owned && signed) {
                         return Err(KeyError::Record);

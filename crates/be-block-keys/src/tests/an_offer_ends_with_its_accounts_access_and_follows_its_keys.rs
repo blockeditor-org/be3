@@ -2,7 +2,9 @@ use super::*;
 
 /// An offer of ownership is accepted only with the account's current keys: once it takes a new
 /// phrase the offer follows it to the new keys and the old ones accept nothing. Revoking the
-/// account, or banning it, ends the offer (guides/blocks/keys.md, "Owner records").
+/// account, or banning it, ends the offer; and an account the log last took below View, as
+/// revoking the share link it came in by does, accepts nothing (guides/blocks/keys.md, "Owner
+/// records").
 #[test]
 fn an_offer_ends_with_its_accounts_access_and_follows_its_keys() {
     let creator = RecoveryPhrase::generate().secret();
@@ -83,4 +85,27 @@ fn an_offer_ends_with_its_accounts_access_and_follows_its_keys() {
             "{what}, the heir accepts the block"
         );
     }
+
+    // In by a share link, which is then revoked.
+    let code = InviteCode::generate();
+    let link = |open| {
+        Record::ShareLink(ShareLink {
+            key: code.share_key(block),
+            level: Level::View,
+            admits: Admits::Anyone,
+            open,
+            authority: Authority::Log,
+        })
+    };
+    let made = sign(&creator, creator_id, &root, false, link(true));
+    let opened = Entry::opened(&code, block, made.hash(), heir_id, &heir, Level::View);
+    let offer = sign(&creator, creator_id, &opened, false, owner(heir.identity()));
+    let closed = sign(&creator, creator_id, &offer, true, link(false));
+    let linked = vec![root.clone(), made, opened, offer, closed.clone()];
+    assert!(check(&linked).is_ok());
+    let late = sign(&heir, heir_id, &closed, true, owner(heir.identity()));
+    assert!(
+        check(&[linked, vec![late]].concat()).is_err(),
+        "an account whose link was revoked accepts the block"
+    );
 }
