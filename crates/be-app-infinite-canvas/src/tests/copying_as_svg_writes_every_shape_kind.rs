@@ -8,7 +8,7 @@ const EXPECTED: &str = r##"<svg xmlns="http://www.w3.org/2000/svg" width="288" h
 <rect x="-52" y="-40" width="288" height="136" fill="#0e1117"/>
 <path d="M-30 -20 L30 -20 L30 20 L-30 20 Z" fill="#fac850"/>
 <path d="M-30 -20 L30 -20 L30 20 L-30 20 Z" fill="none" stroke="#1e1e1e" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
-<text font-family="sans-serif" font-size="16" fill="#1e1e1e"><tspan x="-20.4" y="6">A &amp; </tspan><tspan x="9.93" y="6" text-decoration="line-through">B</tspan></text>
+<text font-family="sans-serif" font-size="16" fill="#1e1e1e"><tspan x="-20.41" y="6">A &amp; </tspan><tspan x="9.95" y="6" text-decoration="line-through">B</tspan></text>
 <path d="M110 0 C110 11.05 96.57 20 80 20 C63.43 20 50 11.05 50 0 C50 -11.05 63.43 -20 80 -20 C96.57 -20 110 -11.05 110 0 Z" fill="none" stroke="#1e1e1e" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
 <path d="M160 -20 L190 0 L160 20 L130 0 Z" fill="none" stroke="#1e1e1e" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="6 6"/>
 <path d="M-30 60 L30 60" fill="none" stroke="#e6ebf3" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
