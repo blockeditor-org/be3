@@ -583,7 +583,10 @@ fn statistic_row(row: be_host_base::performance::PerformanceRow) -> StatisticRow
 ///   is not locked, so none reaches here.
 /// - Displays (the desktop's): it asks to keep none, and an answer changes nothing.
 /// - The block stack: it shows nothing and waits for nothing, so a command changes nothing,
-///   and a secret asked for is answered with none.
+///   and a secret asked for is answered with none. It opens no block's editor either
+///   (`host.editor-of` and `host.open-editor` say why), so no app the root spawns has an editor
+///   whose calls the root forwards; be-host-runtime's `Forwarded` serves them once the stack
+///   runs here (plans/host_as_platform_adapter.md, 4g7b2).
 fn refuse_unserved(root: &mut Root) {
     root.take_lock_asked();
     root.take_lock_powers();
@@ -592,7 +595,17 @@ fn refuse_unserved(root: &mut Root) {
     for (id, _) in root.take_secret_requests() {
         root.answer_secret(id, None);
     }
+    for (id, _) in root.take_editor_asks() {
+        root.answer_editor(id, Err(NO_BLOCK_STACK.to_owned()));
+    }
+    for opening in root.take_openings() {
+        root.answer_opening(opening.id, Err(NO_BLOCK_STACK.to_owned()));
+    }
+    root.take_forwarded();
 }
+
+/// Why be-host opens no block's editor for its root yet.
+const NO_BLOCK_STACK: &str = "be-host runs no block stack under --root yet";
 
 /// The host's notices as `be3:root` carries them, oldest first.
 fn shown_notices() -> Vec<Notice> {

@@ -171,6 +171,59 @@ struct Core<G> {
     secret_replies: Vec<(u64, Reply<Option<be_wasm_root_api::CoreSecret>>)>,
     /// The id the next secret the root asks for is handed to the host with.
     next_secret: u64,
+    /// The blocks the root asked the editor of (`host.editor-of`), by the id the host answers
+    /// by, until the host takes them.
+    editor_asks: Vec<(u64, [u8; 16])>,
+    /// The editors the root asked the host to open (`host.open-editor`), until it takes them.
+    openings: Vec<EditorOpening>,
+    /// The root's `host.editor-of` and `host.open-editor` calls, by that id, until the host
+    /// answers them.
+    editor_replies: Vec<(u64, EditorReply)>,
+    /// The id the next of those is handed to the host with.
+    next_editor: u64,
+    /// What the root forwarded the host of the apps it spawned (`host.forward`), each app's
+    /// frames in order, until the host takes them.
+    forwarded: Vec<(u64, Vec<Vec<u8>>)>,
+    /// What the host sent the apps the root spawned, until the root takes it
+    /// (`host.forwarded`).
+    relaying: Vec<be_wasm_root_api::RelayedFrames>,
+    /// The root's `host.forwarded` call, waiting for the host to send its apps something.
+    relay_watcher: Option<Reply<Vec<be_wasm_root_api::RelayedFrames>>>,
+}
+
+/// An editor the root asked its host to open (`host.open-editor`), which the host answers by
+/// `id` (`Root::answer_opening`).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct EditorOpening {
+    pub id: u64,
+    /// The op of the sandbox `instance` resource the app runs in.
+    pub instance: u64,
+    /// The staged app it runs, by its manifest's id, while it runs one: what the host opens the
+    /// editor in, whatever app the root meant.
+    pub app: Option<String>,
+    pub block: [u8; 16],
+}
+
+/// A root's call about the editors its host opens, waiting for the host's answer.
+enum EditorReply {
+    Of(Reply<Result<be_wasm_root_api::EditorApp, String>>),
+    Open(Reply<Result<be_wasm_root_api::OpenedEditor, String>>),
+}
+
+impl EditorReply {
+    fn op(&self) -> OpId {
+        match self {
+            Self::Of(reply) => reply.op(),
+            Self::Open(reply) => reply.op(),
+        }
+    }
+
+    fn fail(self, connection: &mut Connection, error: OpError) {
+        match self {
+            Self::Of(reply) => reply.fail(connection, error),
+            Self::Open(reply) => reply.fail(connection, error),
+        }
+    }
 }
 
 impl<G: Inline> Core<G> {
@@ -250,6 +303,13 @@ impl<G: Inline> Core<G> {
             secret_requests: Vec::new(),
             secret_replies: Vec::new(),
             next_secret: 1,
+            editor_asks: Vec::new(),
+            openings: Vec::new(),
+            editor_replies: Vec::new(),
+            next_editor: 1,
+            forwarded: Vec::new(),
+            relaying: Vec::new(),
+            relay_watcher: None,
         };
         core.received()?;
         Ok(core)
@@ -513,6 +573,88 @@ impl<G: Inline> Core<G> {
         true
     }
 
+    /// The blocks the root asked the editor of since the last call, each by the id
+    /// `answer_editor` answers it by.
+    fn take_editor_asks(&mut self) -> Vec<(u64, [u8; 16])> {
+        std::mem::take(&mut self.editor_asks)
+    }
+
+    /// Answers the root's `host.editor-of` of `id`: the app and entry point that edit its
+    /// block, or why none does. Answers whether the root waited for it.
+    fn answer_editor(
+        &mut self,
+        id: u64,
+        editor: Result<be_wasm_root_api::EditorApp, String>,
+    ) -> bool {
+        let Some(EditorReply::Of(reply)) = self.take_editor_reply(id) else {
+            return false;
+        };
+        reply.send(&mut self.connection, &editor);
+        true
+    }
+
+    /// The editors the root asked to open since the last call.
+    fn take_openings(&mut self) -> Vec<EditorOpening> {
+        std::mem::take(&mut self.openings)
+    }
+
+    /// Answers the root's `host.open-editor` of `id`: the editor opened, with the frames that
+    /// open it, or why it was not. Answers whether the root waited for it.
+    fn answer_opening(
+        &mut self,
+        id: u64,
+        opened: Result<be_wasm_root_api::OpenedEditor, String>,
+    ) -> bool {
+        let Some(EditorReply::Open(reply)) = self.take_editor_reply(id) else {
+            return false;
+        };
+        reply.send(&mut self.connection, &opened);
+        true
+    }
+
+    fn take_editor_reply(&mut self, id: u64) -> Option<EditorReply> {
+        let at = self
+            .editor_replies
+            .iter()
+            .position(|(asked, _)| *asked == id)?;
+        Some(self.editor_replies.remove(at).1)
+    }
+
+    /// What the root forwarded of the apps it spawned since the last call: each app's frames,
+    /// by its instance, in order.
+    fn take_forwarded(&mut self) -> Vec<(u64, Vec<Vec<u8>>)> {
+        std::mem::take(&mut self.forwarded)
+    }
+
+    /// Sends the app the root spawned as `instance` `frames`, through the root. Answers whether
+    /// the root waited for them.
+    fn relay(&mut self, instance: u64, frames: Vec<Vec<u8>>) -> bool {
+        if frames.is_empty() {
+            return false;
+        }
+        match self
+            .relaying
+            .iter_mut()
+            .find(|relayed| relayed.instance == instance)
+        {
+            Some(relayed) => relayed.frames.extend(frames),
+            None => self
+                .relaying
+                .push(be_wasm_root_api::RelayedFrames { instance, frames }),
+        }
+        let Some(reply) = self.relay_watcher.take() else {
+            return false;
+        };
+        reply.send(&mut self.connection, &std::mem::take(&mut self.relaying));
+        true
+    }
+
+    /// The staged app the root's sandbox instance `instance` runs, while it runs: none once it
+    /// stopped or the root let go of it.
+    fn app_of(&self, instance: u64) -> Option<String> {
+        self.sandbox.app_of(instance).map(str::to_owned)
+    }
+
     /// How the root answered the display questions since the last call, oldest first.
     fn take_display_answers(&mut self) -> Vec<(u64, bool)> {
         std::mem::take(&mut self.display_answers)
@@ -697,6 +839,23 @@ impl<G: Inline> Core<G> {
                         // for nobody (an agent's credentials, which cannot be had again).
                         self.secret_requests.retain(|(asked, _)| *asked != id);
                     } else if let Some(at) = self
+                        .editor_replies
+                        .iter()
+                        .position(|(_, reply)| reply.op() == op)
+                    {
+                        let (id, reply) = self.editor_replies.remove(at);
+                        self.editor_asks.retain(|(asked, _)| *asked != id);
+                        self.openings.retain(|opening| opening.id != id);
+                        reply.fail(&mut self.connection, OpError::Canceled);
+                    } else if self
+                        .relay_watcher
+                        .as_ref()
+                        .is_some_and(|reply| reply.op() == op)
+                    {
+                        if let Some(reply) = self.relay_watcher.take() {
+                            reply.fail(&mut self.connection, OpError::Canceled);
+                        }
+                    } else if let Some(at) = self
                         .display_watchers
                         .iter()
                         .position(|reply| reply.op() == op)
@@ -875,6 +1034,54 @@ impl<G: Inline> Core<G> {
             embed::Call::Host(embed::host::Call::LockPower { action, reply }) => {
                 self.lock_powers.push(action);
                 reply.send(&mut self.connection, &());
+            }
+            embed::Call::Host(embed::host::Call::EditorOf { block, reply }) => {
+                let id = self.next_editor;
+                self.next_editor += 1;
+                self.editor_asks.push((id, block));
+                self.editor_replies.push((id, EditorReply::Of(reply)));
+            }
+            embed::Call::Host(embed::host::Call::OpenEditor {
+                instance,
+                block,
+                reply,
+            }) => {
+                let id = self.next_editor;
+                self.next_editor += 1;
+                self.openings.push(EditorOpening {
+                    id,
+                    instance,
+                    app: self.app_of(instance),
+                    block,
+                });
+                self.editor_replies.push((id, EditorReply::Open(reply)));
+            }
+            embed::Call::Host(embed::host::Call::Forward {
+                instance,
+                frames,
+                reply,
+            }) => {
+                match self
+                    .forwarded
+                    .iter_mut()
+                    .find(|(forwarded, _)| *forwarded == instance)
+                {
+                    Some((_, held)) => held.extend(frames),
+                    None => self.forwarded.push((instance, frames)),
+                }
+                reply.send(&mut self.connection, &());
+            }
+            embed::Call::Host(embed::host::Call::Forwarded { reply }) => {
+                match self.relaying.is_empty() {
+                    true => {
+                        if let Some(earlier) = self.relay_watcher.replace(reply) {
+                            earlier.fail(&mut self.connection, OpError::Canceled);
+                        }
+                    }
+                    false => {
+                        reply.send(&mut self.connection, &std::mem::take(&mut self.relaying))
+                    }
+                }
             }
             embed::Call::Host(embed::host::Call::PasteShortcut { reply }) => {
                 reply.send(&mut self.connection, &self.paste_shortcut);

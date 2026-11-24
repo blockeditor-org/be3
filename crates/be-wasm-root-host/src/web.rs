@@ -278,6 +278,53 @@ impl Root {
         }
     }
 
+    /// The blocks the root asked the editor of since the last call (`host.editor-of`), each by
+    /// the id `answer_editor` answers it by.
+    pub fn take_editor_asks(&self) -> Vec<(u64, [u8; 16])> {
+        self.shared.core.borrow_mut().take_editor_asks()
+    }
+
+    /// Answers the root's `host.editor-of` of `id`. If the root waited for it, it is stepped for
+    /// the answer.
+    pub fn answer_editor(&self, id: u64, editor: Result<be_wasm_root_api::EditorApp, String>) {
+        if self.shared.core.borrow_mut().answer_editor(id, editor) {
+            ring(self.shared.id);
+        }
+    }
+
+    /// The editors the root asked to open since the last call (`host.open-editor`), each
+    /// answered by its id (`answer_opening`).
+    pub fn take_openings(&self) -> Vec<crate::EditorOpening> {
+        self.shared.core.borrow_mut().take_openings()
+    }
+
+    /// Answers the root's `host.open-editor` of `id`. If the root waited for it, it is stepped
+    /// for the answer.
+    pub fn answer_opening(&self, id: u64, opened: Result<be_wasm_root_api::OpenedEditor, String>) {
+        if self.shared.core.borrow_mut().answer_opening(id, opened) {
+            ring(self.shared.id);
+        }
+    }
+
+    /// What the root forwarded of the apps it spawned since the last call (`host.forward`):
+    /// each app's frames, by its instance, in order.
+    pub fn take_forwarded(&self) -> Vec<(u64, Vec<Vec<u8>>)> {
+        self.shared.core.borrow_mut().take_forwarded()
+    }
+
+    /// Sends the app the root spawned as `instance` `frames` through the root
+    /// (`host.forwarded`). If the root waited for them, it is stepped for them.
+    pub fn relay(&self, instance: u64, frames: Vec<Vec<u8>>) {
+        if self.shared.core.borrow_mut().relay(instance, frames) {
+            ring(self.shared.id);
+        }
+    }
+
+    /// The staged app the root's sandbox instance `instance` runs, while it runs.
+    pub fn app_of(&self, instance: u64) -> Option<String> {
+        self.shared.core.borrow().app_of(instance)
+    }
+
     /// Shows the root whether the host asks the person to keep display settings that just
     /// changed (`host.displays`): the question, or none. If the root waits on it and it changed,
     /// it is stepped for it.

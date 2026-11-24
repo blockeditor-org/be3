@@ -20,6 +20,15 @@ pub type MethodId = u32;
 
 pub const GUEST_BIT: OpId = 1 << 63;
 
+/// The bit every op a relayed connection (`Connection::relayed`) starts carries beside its
+/// side's, so its ops never meet those of the connection that forwards it their frames.
+pub const RELAYED_BIT: OpId = 1 << 62;
+
+/// Whether `op` was started by a relayed connection (`Connection::relayed`).
+pub fn is_relayed(op: OpId) -> bool {
+    op & RELAYED_BIT != 0
+}
+
 pub const STREAM_WINDOW: u32 = 16;
 
 pub const STREAM_WINDOW_BYTES: u64 = 1 << 20;
@@ -322,8 +331,25 @@ impl Connection {
         }
     }
 
+    /// A connection to a peer another connection of `side` already talks to, which forwards
+    /// this one the frames of the ops it starts and of those the peer starts under them, and
+    /// relays the frames it sends unread: the ops it starts carry `RELAYED_BIT`, so the
+    /// forwarder tells them by their ids alone.
+    pub fn relayed(side: Side) -> Self {
+        Self {
+            next: RELAYED_BIT,
+            ..Self::new(side)
+        }
+    }
+
     pub fn side(&self) -> Side {
         self.side
+    }
+
+    /// Sends `frame`, which another connection to the same peer encoded, as it is: one a
+    /// relayed connection sent, which its forwarder passes on.
+    pub fn relay(&mut self, frame: Vec<u8>) {
+        self.outbound.push(frame);
     }
 
     fn live(&self, op: OpId) -> bool {

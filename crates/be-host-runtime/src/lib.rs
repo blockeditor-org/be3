@@ -16,6 +16,8 @@ mod description;
 mod docks;
 mod events;
 mod fonts;
+mod forwarded;
+pub use forwarded::Forwarded;
 
 pub use fonts::bundled as bundled_fonts;
 mod headless;

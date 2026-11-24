@@ -1049,6 +1049,53 @@ interface host {
     /// credentials) the host undoes, removing the agent it just made, and
     /// says so in `agents`' error.
     make-secret: async func(command: secret-command) -> option<core-secret>;
+
+    /// What the root spawns to show a block: the staged app and its entry
+    /// point, by the ids its manifest gives them.
+    record editor-app {
+        app: string,
+        module: string,
+    }
+
+    /// The editor that shows `block`, or why none does: no app edits its
+    /// type, or the person may not view it.
+    editor-of: async func(block: block-id) -> result<editor-app, string>;
+
+    /// An editor the host opened in an app the root spawned.
+    record opened-editor {
+        /// Its instance, as the app protocol names it (`editor-instance-id`):
+        /// what the root's screens of it name.
+        editor: u64,
+        /// The frames that open it, which the root sends the app before
+        /// anything that names it.
+        frames: list<list<u8>>,
+    }
+
+    /// Opens `block`'s editor in the app the root spawned as `instance` (the
+    /// op of its sandbox `instance` resource), which must run the app that
+    /// `editor-of` names for it. The host serves what the editor asks of it
+    /// from then on (blocks, host services, the network, debug and the
+    /// published interfaces), as it serves an app of its own, until the app
+    /// stops: everything the app sends on the editor's ops and on those it
+    /// starts under them the root forwards (`forward`), and what the host
+    /// answers (`forwarded`) it sends the app unread. The host's ops carry
+    /// be-wasm-ops' `RELAYED_BIT`, so they never meet the root's.
+    open-editor: async func(instance: u64, block: block-id) -> result<opened-editor, string>;
+
+    /// The frames for the host of the app the root spawned as `instance`, in
+    /// the order it sent them: be-wasm-ops frames, each as it encoded it.
+    forward: async func(instance: u64, frames: list<list<u8>>);
+
+    /// Frames for one app the root spawned.
+    record relayed-frames {
+        instance: u64,
+        frames: list<list<u8>>,
+    }
+
+    /// What the host sent the apps the root spawned since the last call,
+    /// each app's in order: be-wasm-ops frames, each as the host encoded it.
+    /// Answered once there are some.
+    forwarded: async func() -> list<relayed-frames>;
 }
 
 /// The window's input, which the host hands the root inline on its frame thread

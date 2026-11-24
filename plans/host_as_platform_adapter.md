@@ -1520,7 +1520,50 @@ Each step lands on its own.
            lives only in the browser.
        - 4g7b. App views: be-host-runtime's orchestration (pacing, settle, restarts, grafting
          the accessibility trees) as a guest library the root links, and `app_view`'s views
-         in the root, each declaring its layer's hit and gesture areas and placer.
+         in the root, each declaring its layer's hit and gesture areas and placer. Until step 5
+         the host serves the editors of the apps the root embeds, through the root
+         (decisions/a_roots_embedded_editors_are_served_by_its_host_until_step_5.md); step 5
+         deletes the host's end (be-host-runtime's `Forwarded`, the `be3:root` calls below and
+         `Wire`'s forwarding).
+         - 4g7b1 (built). Serving through the root. `be3:root`'s `host` gained:
+           - `editor-of(block)`: the staged app and entry point that edit it;
+           - `open-editor(instance, block)`: the host opens the block's editor in the app the
+             root spawned as that sandbox instance, which must run the app `editor-of` names
+             (be-wasm-sandbox-host's `Server::app_of`). It answers with the editor's instance
+             and the frames that open it;
+           - `forward(instance, frames)` and `forwarded()`: be-wasm-ops frames, each as
+             encoded, carrying what the app sends on the editor's ops and on those it starts
+             under them, and what the host answers.
+
+           The host's end is be-host-runtime's `Forwarded`: a `Wire` on a relayed connection,
+           whose ops carry be-wasm-ops' `RELAYED_BIT`, and `Instances` with the app's
+           manifest's rules. `Instances` takes the editor in with `open_forwarded`, and serves
+           it each pass with no screen of the host's. The root's `Wire` routes by op id alone:
+           - `take_forwarded` holds every frame on a relayed op or on an op the app started
+             under one;
+           - `relay_forwarded` sends the host's frames unread.
+
+           be-sdk-root's `Embedded::spawn_block` spawns the app, has the host open the editor,
+           relays the opening once the app says hello, and hears the host for every app it
+           opened that way. Tests:
+           - be-sdk-app-host's `an_editor_a_roots_host_opened_is_served_by_the_host_through_the_root`;
+           - be-host-runtime's `a_blocks_editor_a_root_embeds_is_sent_its_content_through_the_root`,
+             in which a counter block's snapshot reaches an app through a root's wire.
+
+           be-host under `--root` runs no block stack yet, so it answers `editor-of` and
+           `open-editor` with why. Left for later:
+           - the host's `Answer`s to editor calls (`commit-creation`, `render-clip`) on the
+             relayed wire;
+           - closing an editor short of the app stopping.
+         - 4g7b2. The session's view, full-window, in be-root: the editor `editor-of` names
+           for the block the session shows, through `Embedded::spawn_block`, with restarts, the
+           crash notice and the accessibility graft. be-host runs its block stack under
+           `--root` and serves the root's editors with `Forwarded`, with the registry's editor
+           for the block's type and the device's client id. Lift the refusal of `--root` with
+           `--dev-workspace`. A host test opens the dev workspace under `--root`, and a
+           painting shows a content editor's block.
+         - 4g7b3. Children: their placements, focus, the keyboard, drags and gifts, through
+           the root's layers. Desktop windows stay with 4g7e.
        - 4g7c. Anchored views placed outside groups (`anchored`).
        - 4g7d. Editors and the camera (`editors`, `editors/camera`), and the chords along the
          focus: Tab and F6 between surfaces, and the palette's (`palette`, `intercept`).

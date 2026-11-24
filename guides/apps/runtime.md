@@ -358,9 +358,18 @@ its own (a `v8::SharedIsolate`, locked by the thread that runs it):
   layers it had last, until its presses lift, and only then its router goes,
   the surface it focused hearing `Focus(false)`; one never drawn routes
   against none. A screen that went still hears what ends a press. When the
-  last `Embedded` of an app goes (`Embedding::remove`), its instance stops. It
-  refuses what it serves no app yet (`Wire::refuse_unserved`: block calls,
-  host services, the network, the shell but `tell`), and restarts nothing.
+  last `Embedded` of an app goes (`Embedding::remove`), its instance stops.
+  `Embedded::spawn_block` embeds a block's editor that the root's host opens and serves
+  until step 5 (decisions/a_roots_embedded_editors_are_served_by_its_host_until_step_5.md):
+  - `be3:root`'s `host.editor-of` names the app;
+  - `host.open-editor` opens the editor in it, which the host does with be-host-runtime's
+    `Forwarded`, whose connection's ops carry be-wasm-ops' `RELAYED_BIT`;
+  - the root's `Wire` sends the host every frame on those ops and on what the app starts under
+    them (`Wire::take_forwarded`, through `host.forward`), and relays the host's answers
+    unread (`host.forwarded`, `Wire::relay_forwarded`).
+
+  What else an app asks of a host the root refuses (`Wire::refuse_unserved`: block calls,
+  host services, the network, the shell but `tell`), and it restarts nothing.
   Once an app runs it is told the fonts `Spawn::fonts` carries, those
   `host.fonts` gave the root, and UTC as its offset (`Run::tell`).
   `Embedding::wants` is what its apps want of the root's frames, which a root
