@@ -71,9 +71,9 @@ pub(crate) enum Reach<'a> {
 impl Reach<'_> {
     pub(crate) async fn kind(&mut self, content_type: Uuid) -> Option<Kind> {
         match self {
-            Reach::Here(replicas) => replicas.kind(content_type).await,
+            Reach::Here(replicas) => replicas.modules.kind(content_type).await,
             Reach::Loop(calls) => calls
-                .call(move |replicas, _| Box::pin(replicas.kind(content_type)))
+                .call(move |replicas, _| Box::pin(replicas.modules.kind(content_type)))
                 .await
                 .ok()
                 .flatten(),

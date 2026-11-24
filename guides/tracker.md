@@ -82,9 +82,10 @@ right.
 ### Block files
 
 `download` and `upload` read and write the block file format
-(`crates/be-block-client/src/transfer.rs`), a frozen format (guides/frozen_formats.md) that
-be-host's Export as and Import also use. `upload` gives every block a new id and rewrites ids
-inside the file to match.
+(`crates/be-block-client/src/transfer.rs`), which be-host's Export as and Import also use
+(not frozen yet: guides/frozen_formats.md). `download` collects the tree as Export as does
+(guides/blocks/host.md, "Exporting and importing"). `upload` gives every block a new id and
+rewrites ids inside the file to match.
 
 ## Working on a row
 

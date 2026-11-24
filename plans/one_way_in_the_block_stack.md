@@ -7,17 +7,6 @@ drifted into a bug.
 
 ## Steps
 
-1. **One export of a subtree to a block file.** be-host-stack's `worker.rs` `export` and
-   be-tool-cli's `transfer.rs` `Tracker::download` (behind `be … download`) both walk children
-   breadth first, build `transfer::Saved`, refuse types whose bytes do not carry all their parts
-   (`whole_bytes`) and read content through `read_contents` and `Modules::readable`. The CLI's
-   copy writes `log: Vec::new()`, so `be download` drops a chat's signed log, and it skips the
-   host's `owner_only` refusal, its `can_view` filter and the widening to a parent that must be
-   exported whole (`exported_whole`). One `transfer::collect(peer, top, modules, open)` in
-   be-block-type-host, where `open` lets the host hand in the content of replicas it holds open
-   and its derived metadata; both callers use it. Import is already shared
-   (`Peer::queue_import`). Test: `be download` of a chat keeps its log, and refuses an
-   owner-only block.
 2. **The type-module WIT uses the stack's types.** `be-sdk-type-api/wit/types.wit` redeclares
    `journal-entry`, `journal-base`, `journal`, `log-item`, `log-import`, `log-page`,
    `log-search`, `along`, `announcement`, `child-change`, `search-document`, `part-ref`,

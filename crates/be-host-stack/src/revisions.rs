@@ -292,7 +292,7 @@ async fn perform(
     // segments). A revision of such a block that has them cannot be shown or restored by bytes
     // yet.
     if replicas
-        .kind(summary.content_type)
+        .modules.kind(summary.content_type)
         .await
         .is_some_and(|kind| !kind.whole_bytes)
     {
