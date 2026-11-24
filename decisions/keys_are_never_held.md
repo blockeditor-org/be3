@@ -7,10 +7,11 @@ not queued for when the app starts.
 
 Moving the keyboard into a child is declarative: the child's placement asks for it
 (`child-placement.keyboard-ask`, the serial of the editor's latest ask, which grows with each
-ask). The host moves the keyboard to the view that shows the child at the layout commit that
-carries a serial above every one it acted on for the editor, at once, without waiting for the
-child's app. It still does so only while the keyboard is inside the placer's views and no
-popover or keyboard-taking layer is open, which it checks synchronously at that commit;
+ask). At the layout commit that carries a serial above every one it acted on for the editor,
+the host moves the keyboard out of the placer at once, and the view that shows the child takes
+it as it is built (or at once if it is), without waiting for the child's app; keys typed in
+between reach nothing. It still does so only while the keyboard is inside the placer's views and
+no popover or keyboard-taking layer is open, which it checks synchronously at that commit;
 otherwise the ask does nothing. An editor that makes a block to type into ("Add notes") places
 its child asking once it places it; a `ChildBlock` or `Subregion` in a dock tab asks each time
 the dock gives the tab the keyboard.
