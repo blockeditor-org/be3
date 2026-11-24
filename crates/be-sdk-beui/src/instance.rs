@@ -748,6 +748,15 @@ impl<A: BeuiRoot> Instance for BeuiInstance<A> {
         }
     }
 
+    fn artifact_failure(&mut self) -> Option<String> {
+        self.parts
+            .views
+            .borrow()
+            .artifact_run
+            .as_ref()
+            .and_then(crate::export::ArtifactRun::failure)
+    }
+
     fn poll_artifact(&mut self) -> Option<Result<(), String>> {
         self.parts.views.borrow().artifacts.as_ref()?.poll()
     }

@@ -11,7 +11,6 @@ fn described(source: Uuid) -> BlockMetadata {
             source_type: ImageContent::CONTENT_TYPE,
             exporter: "png".to_owned(),
             settings: Vec::new(),
-            made: None,
         },
     );
     metadata

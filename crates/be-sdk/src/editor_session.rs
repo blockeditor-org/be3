@@ -60,6 +60,8 @@ struct ArtifactState {
     described: Option<Vec<u8>>,
     edited: bool,
     regenerating: Option<Sender<Result<(), Failure>>>,
+    /// The failure last told the host (`artifact-failed`).
+    failure: Option<String>,
 }
 
 impl ArtifactState {
@@ -70,6 +72,7 @@ impl ArtifactState {
             described: None,
             edited: false,
             regenerating: None,
+            failure: None,
         }
     }
 
@@ -548,6 +551,11 @@ impl EditorSession {
             if artifact.edited {
                 artifact.edited = false;
                 tell.push(ShellMessage::ArtifactEdited(artifact.draft.clone()));
+            }
+            let failure = self.editor.artifact_failure();
+            if artifact.failure != failure {
+                artifact.failure.clone_from(&failure);
+                tell.push(ShellMessage::ArtifactFailed(failure));
             }
             if artifact.regenerating.is_some()
                 && let Some(result) = self.editor.poll_artifact()

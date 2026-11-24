@@ -13,7 +13,6 @@ fn metadata_that_points_to_a_block_lists_it_as_a_reference() {
             source_type: Uuid::from_u128(2),
             exporter: "png".to_owned(),
             settings: source.as_bytes().to_vec(),
-            made: None,
         },
     );
     metadata.insert(&NAME, &source.to_string());
