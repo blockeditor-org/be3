@@ -383,7 +383,9 @@ joined, and be-host also releases any block the server names this device host of
 (`be_host_stack::hosted`) with no component running. That this device hosts comes
 only from `session-event.host`, the claimant's own included, never from a claim's
 answer, so it stays in order with every other claim; Keep hosting is offered only
-where a component runs and the server names this device host. The component hears its block's host channel members as `editor-event.member`
+where a component runs and the server names this device host. A join of a block's session that
+answers no one hosts it while a component runs there (a rejoin that dropped a claim as the
+component started again, or a reconnect) claims again (`Hosting::running`). The component hears its block's host channel members as `editor-event.member`
 (`member-event`: `joined` with the member's number, account and level, `said`,
 `left`), which be-host-stack admits and checks (`crates/be-host-stack/src/hosting.rs`,
 guides/blocks/keys.md, "Hosted channels") and the runtime passes on

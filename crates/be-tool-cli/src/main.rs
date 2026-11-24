@@ -138,9 +138,17 @@ async fn host_block(settings: &Settings, target: &str) -> Result<String, String>
     let config = be_tool_cli::session::stack_config(settings).await?;
     let stop = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
     let stopping = std::sync::Arc::clone(&stop);
+    // The first Ctrl-C stops hosting, closing the component and leaving the session; a second
+    // exits at once.
     tokio::spawn(async move {
-        let _ = tokio::signal::ctrl_c().await;
-        stopping.store(true, std::sync::atomic::Ordering::Release);
+        while tokio::signal::ctrl_c().await.is_ok() {
+            if stopping.swap(true, std::sync::atomic::Ordering::AcqRel) {
+                eprintln!("be: stopped without closing the host component");
+                std::process::exit(130);
+            }
+            eprintln!("be: stopping; press Ctrl-C again to exit at once");
+            be_tool_cli::hosting::wake();
+        }
     });
     // The stack and the runtime keep their state on the thread that runs them.
     tokio::task::spawn_blocking(move || {

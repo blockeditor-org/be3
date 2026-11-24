@@ -152,7 +152,9 @@ struct Registry {
     sessions: HashMap<Uuid, Uuid>,
     /// The session events of each block being joined, held until the join is answered, so a
     /// subscriber hears none before it.
-    joining: HashMap<Uuid, Vec<Event>>,
+    /// What a block's session told while its join was on its way, held until the join is
+    /// answered, each change of host with the membership index it is as of.
+    joining: HashMap<Uuid, Vec<(Event, Option<u64>)>>,
     /// This connection in each session it is in, as the session names it.
     clients: HashMap<Uuid, ClientId>,
 }
@@ -377,6 +379,7 @@ impl Connection {
             Told::Appended(appended) => Event::Appended(appended),
             Told::Redacted(redacted) => Event::Redacted(redacted),
             Told::Session { block, event, .. } => {
+                let mut index = None;
                 let event = match event {
                     SessionEvent::Membership(entry) => Event::Membership { block, entry },
                     SessionEvent::Sealed {
@@ -410,21 +413,24 @@ impl Connection {
                         payload,
                         received,
                     },
-                    SessionEvent::Host(host) => Event::Host {
-                        block,
-                        host,
-                        // Worked out once held events are let go, as the join they wait on
-                        // names this connection's client.
-                        ours: host.is_some_and(|host| {
-                            self.registry().clients.get(&block) == Some(&host.client)
-                        }),
-                        joined: false,
-                    },
+                    SessionEvent::Host(change) => {
+                        index = Some(change.index);
+                        Event::Host {
+                            block,
+                            host: change.host,
+                            // Worked out again once held events are let go, as the join they
+                            // wait on names this connection's client.
+                            ours: change.host.is_some_and(|host| {
+                                self.registry().clients.get(&block) == Some(&host.client)
+                            }),
+                            joined: false,
+                        }
+                    }
                     SessionEvent::Joiner(change) => Event::Joiner { block, change },
                 };
                 let mut registry = self.registry();
                 if let Some(held) = registry.joining.get_mut(&block) {
-                    held.push(event);
+                    held.push((event, index));
                     return None;
                 }
                 event
@@ -497,7 +503,12 @@ impl Connection {
                 ours: joined.host.is_some_and(|host| host.client == joined.client),
                 joined: true,
             });
-            for mut event in held {
+            for (mut event, index) in held {
+                // A change of host the server sent before it took the join is older than what
+                // the join answered: told now, it would undo it.
+                if index.is_some_and(|index| index <= joined.host_as_of) {
+                    continue;
+                }
                 if let Event::Host { host, ours, .. } = &mut event {
                     *ours = host.is_some_and(|host| host.client == joined.client);
                 }

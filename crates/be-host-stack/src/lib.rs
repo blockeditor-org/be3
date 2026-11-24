@@ -1265,6 +1265,13 @@ pub fn hosted() -> std::collections::HashSet<Uuid> {
     with_seen(|seen| seen.hosted.iter().copied().collect()).unwrap_or_default()
 }
 
+/// Who hosts `block`'s session, by the last word the server sent: `None` while this device's
+/// replica is not in it, else no one (`Some(None)`), this device (`Some(Some(true))`) or
+/// another (`Some(Some(false))`).
+pub fn session_host(block: Uuid) -> Option<Option<bool>> {
+    with_seen(|seen| seen.session_hosts.get(&block).copied()).flatten()
+}
+
 /// Whether a host component may start on `block` here: this device's replica is in its session
 /// and no one hosts it, or this device does, by the last word the server sent of who hosts.
 /// Starting one claims the lease (`restart_host`).

@@ -197,6 +197,16 @@ interface sessions {
         run: u64,
     }
 
+    /// Who hosts a session now, as of the membership entry that made it so.
+    record host-change {
+        host: option<session-host>,
+        /// The index of the membership entry that changed who hosts. A
+        /// connection that hears it while its join is on its way drops it
+        /// unless it is newer than the join's `host-as-of`: it was sent
+        /// before the join, which answers who hosts since.
+        index: u64,
+    }
+
     /// What happens in a session (`event.session`).
     variant session-event {
         /// The server wrote a membership entry.
@@ -213,7 +223,7 @@ interface sessions {
         hosted(relayed),
         /// Who holds the lease now, or none: told to every member, Join
         /// members included, as it changes.
-        host(option<session-host>),
+        host(host-change),
         /// A Join member came or went: told to the lease holder alone.
         joiner(joiner-change),
     }
