@@ -1987,16 +1987,31 @@ impl Children {
     /// The layers showing the views `parent`'s editor `only` (every editor's of it with none)
     /// anchored outside their groups (menus, popovers, sheets), each with the children placed in
     /// it, and those the editors of its children anchored, any number of levels deep: over
-    /// everything placed, as be-host shows them.
+    /// everything placed, in the order they opened across every app, as be-host stacks them.
     pub fn anchored_layers(
         &self,
         parent: &Embedded,
         only: Option<EditorInstanceId>,
         layers: &mut Vec<Layer>,
     ) {
+        let mut hung = Vec::new();
+        self.hung_layers(parent, only, &mut hung);
+        hung.sort_by_key(|(opened, _)| *opened);
+        layers.extend(hung.into_iter().flat_map(|(_, layers)| layers));
+    }
+
+    /// `anchored_layers`, each view's layers with when it opened.
+    fn hung_layers(
+        &self,
+        parent: &Embedded,
+        only: Option<EditorInstanceId>,
+        hung: &mut Vec<(u64, Vec<Layer>)>,
+    ) {
         for view in parent.anchored() {
             if only.is_none_or(|only| only == view.editor) {
-                self.layers(&view.request, view.layer, layers);
+                let mut layers = Vec::new();
+                self.layers(&view.request, view.layer, &mut layers);
+                hung.push((view.opened, layers));
             }
         }
         for child in self.shown.iter().filter(|child| child.owns()) {
@@ -2005,7 +2020,7 @@ impl Children {
                     .shared
                     .nested
                     .borrow()
-                    .anchored_layers(&app, Some(editor), layers);
+                    .hung_layers(&app, Some(editor), hung);
             }
         }
     }

@@ -31,8 +31,10 @@
 //! - The views an app's editors anchor outside their groups (menus, popovers, sheets), in the
 //!   anchor space each screen is asked for with, are `Surface::Anchored` layers
 //!   (`Embedded::anchored`) the root draws over what it places (`Children::anchored_layers`).
-//!   One asking for the keyboard gets it as it opens; a press outside a chain of them closes
-//!   those that ask to be (`input-batch.dismissed`), as be-host does.
+//!   One asking for the keyboard hands it to the child placed in it, else leaves it with the
+//!   screen of the view it hangs from, which takes it back once it closes; a press closes what
+//!   be-sdk-app-host's `anchored::dismissed_by_press` says (`input-batch.dismissed`), as be-host
+//!   does.
 //!
 //! The clipboard is not relayed: an app it embeds copies and pastes only as the app protocol
 //! lets it (a copy as a host service, which this does not serve yet, and a paste as the input
@@ -75,6 +77,7 @@ use be_sdk_api::{
     clipboard::{Blocks, ClipBlock, ClipFormat},
     shell_types::{DragOver, DragStart},
 };
+use be_sdk_app_host::anchored::{Hung, dismissed_by_press};
 use uuid::Uuid;
 
 /// The apps a root embeds and the routing of its windows' input to them.
@@ -84,9 +87,23 @@ pub struct Embedding {
     /// The block an app's editor drags out of itself, carried over the screens under the
     /// pointer until it is dropped (`Embedding::carry`).
     carried: Option<Carried>,
-    /// The anchored views given the keyboard as they opened (`anchored-placement.keyboard`),
-    /// each once: those still open.
-    keyed: Vec<LayerId>,
+    /// The anchored views that ask for the keyboard (`anchored-placement.keyboard`), while
+    /// their apps keep them open.
+    keyed: Vec<Keyed>,
+}
+
+/// An anchored view that asks for the keyboard, as be-host gives it: to the child placed in it,
+/// once that shows, else to the screen of the view it hangs from, which hands its keys on to
+/// the views it anchored; that screen takes it back once the view closes.
+struct Keyed {
+    instance: u64,
+    screen: be_sdk_api::ScreenId,
+    window: Option<u64>,
+    /// The layer showing the view it hangs from.
+    owner: Option<LayerId>,
+    /// Whether it was given yet: only once, so one drawn again after a frame without it does
+    /// not take it again.
+    given: bool,
 }
 
 /// A block an editor drags out of itself, as be-host's drag board carries it: the router of
@@ -195,11 +212,11 @@ impl Embedding {
         })
     }
 
-    /// Closes the chains of anchored views a press in `window`'s `events` lands outside of, as
-    /// be-host does (`anchored-placement.dismiss-on-outside-press`): the app hears which of its
-    /// views closed on the screen of the view the chain hangs from (`input-batch.dismissed`),
-    /// before the press, which still reaches what it landed on. A press on the chain's trigger
-    /// (the control that opens and closes it) closes nothing, so the control's own click does.
+    /// Closes the anchored views a press in `window`'s `events` closes, as be-host does
+    /// (be-sdk-app-host's `anchored::dismissed_by_press`, over each chain's views in the order
+    /// they opened, where they take presses): the app hears which closed on the screen of the
+    /// view the chain hangs from (`input-batch.dismissed`), before the press, which still
+    /// reaches what it landed on.
     fn dismiss_outside(&self, window: Option<u64>, events: &[input::Timed]) {
         let presses: Vec<Pos2> = events
             .iter()
@@ -231,31 +248,117 @@ impl Embedding {
                 if !chain.views.iter().any(shown) {
                     continue;
                 }
-                let outside = presses.iter().any(|at| {
-                    !chain
-                        .views
-                        .iter()
-                        .any(|view| view.layer.bounds().contains(*at))
-                        && !chain
-                            .views
-                            .iter()
-                            .filter_map(|view| view.placement.trigger)
-                            .any(|trigger| trigger.contains(*at))
-                });
-                let dismissed: Vec<be_sdk_api::ViewId> = chain
+                let hung: Vec<Hung> = chain
                     .views
                     .iter()
-                    .filter(|view| view.placement.dismiss_on_outside_press)
-                    .map(|view| view.view)
+                    .map(|view| Hung {
+                        id: view.view,
+                        parent: chain
+                            .views
+                            .iter()
+                            .any(|held| held.view == view.placement.parent)
+                            .then_some(view.placement.parent),
+                        floating: match view.floating.is_empty() {
+                            true => vec![view.layer.bounds()],
+                            false => view.floating.clone(),
+                        },
+                        dismiss_on_outside_press: view.placement.dismiss_on_outside_press,
+                        trigger: view.placement.trigger,
+                        blocks_owner: view.placement.blocks_owner,
+                    })
                     .collect();
-                if outside
-                    && !dismissed.is_empty()
+                let mut dismissed = Vec::new();
+                for at in &presses {
+                    for view in dismissed_by_press(&hung, *at) {
+                        if !dismissed.contains(&view) {
+                            dismissed.push(view);
+                        }
+                    }
+                }
+                if !dismissed.is_empty()
                     && let Some(screen) = app.screen_of(chain.editor, chain.parent)
                 {
                     app.dismiss(screen, dismissed);
                 }
             }
         }
+    }
+
+    /// Gives the keyboard as the anchored views that ask for it open and close, as be-host does
+    /// (be-host-runtime's `gives_keyboard`): to the child placed in one, once it shows, else to
+    /// the screen of the view it hangs from, which keeps it; once one closes, that screen takes
+    /// it back if nothing has it. Answers what the root's own surfaces hear of it.
+    fn key_anchored(&mut self) -> Vec<Delivery> {
+        let mut told = Vec::new();
+        for keyed in std::mem::take(&mut self.keyed) {
+            let open = self
+                .apps
+                .iter()
+                .find(|app| app.instance() == keyed.instance)
+                .is_some_and(|app| app.hangs(keyed.screen));
+            if open {
+                self.keyed.push(keyed);
+                continue;
+            }
+            if self.windows.focused(keyed.window).is_none()
+                && let Some(owner) = keyed.owner
+            {
+                told.extend(self.windows.focus(keyed.window, Some(owner)));
+            }
+        }
+        let mut giving = Vec::new();
+        for app in &self.apps {
+            let views = app.anchored();
+            for view in views.iter().filter(|view| view.placement.keyboard) {
+                let Some(window) = self.windows.window_of(view.layer.id) else {
+                    continue;
+                };
+                let at = match self.keyed.iter().position(|keyed| {
+                    (keyed.instance, keyed.screen) == (app.instance(), view.screen)
+                }) {
+                    Some(at) => at,
+                    None => {
+                        let owner = app
+                            .screen_of(view.editor, hung_from(&views, view))
+                            .and_then(|screen| app.layer(screen, pos2(0.0, 0.0)))
+                            .map(|layer| layer.id);
+                        self.keyed.push(Keyed {
+                            instance: app.instance(),
+                            screen: view.screen,
+                            window,
+                            owner,
+                            given: false,
+                        });
+                        self.keyed.len() - 1
+                    }
+                };
+                let keyed = &mut self.keyed[at];
+                if keyed.given {
+                    continue;
+                }
+                let target = match app.places_in(view.editor, view.view) {
+                    // Its child, once it shows.
+                    true => self
+                        .windows
+                        .layers(window)
+                        .iter()
+                        .find(|layer| layer.input.placer == Some(view.layer.id))
+                        .map(|layer| layer.id),
+                    false => keyed.owner,
+                };
+                if let Some(target) = target {
+                    keyed.given = true;
+                    let focused = self.windows.focused(window).map(|layer| layer.id);
+                    if focused != Some(target) {
+                        giving.push((window, target));
+                    }
+                }
+            }
+        }
+        for (window, target) in giving {
+            told.extend(self.windows.focus(window, Some(target)));
+        }
+        told
     }
 
     /// Lifts a block an app's editor began to drag out of itself, as be-host's drag board lifts
@@ -463,27 +566,7 @@ impl Embedding {
         // layers just drawn.
         told.extend(self.lift());
         self.carry();
-        // An anchored view that asks for the keyboard gets it as it opens, once.
-        let mut keyed = Vec::new();
-        let mut asking = Vec::new();
-        for app in &self.apps {
-            for view in app.anchored() {
-                if !view.placement.keyboard {
-                    continue;
-                }
-                let Some(window) = self.windows.window_of(view.layer.id) else {
-                    continue;
-                };
-                keyed.push(view.layer.id);
-                if !self.keyed.contains(&view.layer.id) {
-                    asking.push((window, view.layer.id));
-                }
-            }
-        }
-        self.keyed = keyed;
-        for (window, layer) in asking {
-            told.extend(self.windows.focus(window, Some(layer)));
-        }
+        told.extend(self.key_anchored());
         let apps = &self.apps;
         told.extend(self.windows.lock(|layer| {
             let Some((instance, surface)) = app_surface(layer.surface) else {
@@ -524,26 +607,30 @@ struct Chain {
     views: Vec<AnchoredView>,
 }
 
-/// `views` as the chains they hang in: each view with the views it hangs from, back to the
-/// editor's view that is not anchored.
-fn anchored_chains(views: Vec<AnchoredView>) -> Vec<Chain> {
-    let root_of = |view: &AnchoredView| {
-        let mut parent = view.placement.parent;
-        // Each step is another view of the same editor: no more than it anchored.
-        for _ in 0..views.len() {
-            match views
-                .iter()
-                .find(|held| held.editor == view.editor && held.view == parent)
-            {
-                Some(held) => parent = held.placement.parent,
-                None => break,
-            }
+/// The view of its editor's that is not anchored that `view` hangs from, through the other
+/// `views` it hangs from.
+fn hung_from(views: &[AnchoredView], view: &AnchoredView) -> be_sdk_api::ViewId {
+    let mut parent = view.placement.parent;
+    // Each step is another view of the same editor: no more than it anchored.
+    for _ in 0..views.len() {
+        match views
+            .iter()
+            .find(|held| held.editor == view.editor && held.view == parent)
+        {
+            Some(held) => parent = held.placement.parent,
+            None => break,
         }
-        parent
-    };
+    }
+    parent
+}
+
+/// `views` as the chains they hang in: each view with the views it hangs from, back to the
+/// editor's view that is not anchored, in the order they opened.
+fn anchored_chains(mut views: Vec<AnchoredView>) -> Vec<Chain> {
+    views.sort_by_key(|view| view.opened);
     let mut chains: Vec<Chain> = Vec::new();
     for view in &views {
-        let parent = root_of(view);
+        let parent = hung_from(&views, view);
         match chains
             .iter_mut()
             .find(|chain| (chain.editor, chain.parent) == (view.editor, parent))

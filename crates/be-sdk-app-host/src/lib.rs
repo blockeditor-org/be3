@@ -4,6 +4,7 @@
 //! does not (AGENTS.md, Apps), and no block stack.
 
 pub mod accessibility;
+pub mod anchored;
 pub mod blocks;
 pub mod calls;
 pub mod docks;

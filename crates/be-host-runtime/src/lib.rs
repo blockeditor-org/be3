@@ -189,46 +189,25 @@ impl HostAnchored {
     pub fn takes(&self, pos: beui::Pos2) -> bool {
         self.floating.iter().any(|rect| rect.contains(pos))
     }
-}
 
-pub fn dismissed_by_press(layers: &[HostAnchored], pos: beui::Pos2) -> Vec<be_sdk_api::ViewId> {
-    let below = |root: be_sdk_api::ViewId| {
-        let mut chain = vec![root];
-        for layer in layers {
-            if let Some(parent) = layer.parent
-                && chain.contains(&parent)
-                && !chain.contains(&layer.id)
-            {
-                chain.push(layer.id);
-            }
-        }
-        chain
-    };
-    let forwarded = layers.iter().any(|held| held.takes(pos));
-    let mut dismissed = Vec::new();
-    for layer in layers {
-        if !layer.dismiss_on_outside_press || dismissed.contains(&layer.id) {
-            continue;
-        }
-        let chain = below(layer.id);
-        let inside = layers
-            .iter()
-            .filter(|held| chain.contains(&held.id))
-            .any(|held| {
-                held.takes(pos)
-                    || held
-                        .trigger
-                        .is_some_and(|rect| rect.contains(pos) && (forwarded || !held.blocks_owner))
-            });
-        if !inside {
-            for id in chain {
-                if !dismissed.contains(&id) {
-                    dismissed.push(id);
-                }
-            }
+    /// How it hangs, as the dismissal every host shares reads it.
+    pub fn hung(&self) -> be_sdk_app_host::anchored::Hung {
+        be_sdk_app_host::anchored::Hung {
+            id: self.id,
+            parent: self.parent,
+            floating: self.floating.clone(),
+            dismiss_on_outside_press: self.dismiss_on_outside_press,
+            trigger: self.trigger,
+            blocks_owner: self.blocks_owner,
         }
     }
-    dismissed
+}
+
+/// What a press at `pos` closes of `layers`, one owner's in the order they opened
+/// (be-sdk-app-host's `anchored::dismissed_by_press`).
+pub fn dismissed_by_press(layers: &[HostAnchored], pos: beui::Pos2) -> Vec<be_sdk_api::ViewId> {
+    let hung: Vec<_> = layers.iter().map(HostAnchored::hung).collect();
+    be_sdk_app_host::anchored::dismissed_by_press(&hung, pos)
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]

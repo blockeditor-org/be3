@@ -43,6 +43,8 @@ fn hung(editor: u64, view: u64, parent: u64) -> AnchoredView {
             fit: false,
             origin: None,
         },
+        opened: view,
+        floating: vec![rect],
     }
 }
 

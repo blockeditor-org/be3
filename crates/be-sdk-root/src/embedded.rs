@@ -11,7 +11,7 @@ use std::{
 };
 
 use be_lib_geometry::{Pos2, Rect, Vec2, pos2, vec2};
-use be_lib_layers::{Affine, Layer, LayerId, LayerInput, Surface};
+use be_lib_layers::{Affine, Area, Layer, LayerId, LayerInput, Surface};
 use be_lib_stable_hash::{HashMap, HashSet};
 use be_lib_ui_types::input::{Input, PenPhase, TouchPhase};
 use be_sdk_api::{
@@ -177,7 +177,7 @@ struct State {
     used: HashMap<ScreenId, Vec2>,
     /// How each view the app anchored hangs (`frame-report.anchored`), by the screen it opened
     /// for it, as its last layout's report said: it closes once a layout no longer lists it.
-    anchored: HashMap<ScreenId, AnchoredPlacement>,
+    anchored: HashMap<ScreenId, Hanging>,
     /// Why the app stopped, once it did: it is asked for nothing again.
     failure: Option<String>,
     /// The frames waiting for the app to say hello or present.
@@ -652,22 +652,42 @@ impl Embedded {
     /// its id is the same every frame for the same screen.
     pub fn anchored(&self) -> Vec<AnchoredView> {
         let state = self.state.borrow();
-        let mut anchored: Vec<(&ScreenId, &AnchoredPlacement)> = state.anchored.iter().collect();
-        // Those that hang from another in the order they were opened, which the app numbers.
-        anchored.sort_by_key(|(screen, _)| screen.0);
+        let mut anchored: Vec<(&ScreenId, &Hanging)> = state.anchored.iter().collect();
+        // In the order they opened: one opened later is drawn over and hangs from the earlier.
+        anchored.sort_by_key(|(_, hanging)| hanging.opened);
+        // The view of its editor's that is not anchored that the view on `screen` hangs from.
+        let hung_from = |painted: &ScreenPlacement, placement: &AnchoredPlacement| {
+            let mut parent = placement.parent;
+            for _ in 0..state.anchored.len() {
+                let above = state.anchored.iter().find_map(|(screen, hanging)| {
+                    let shown = state.painted.get(screen)?;
+                    ((shown.instance, shown.view) == (painted.instance, parent))
+                        .then_some(hanging.placement.parent)
+                });
+                match above {
+                    Some(above) => parent = above,
+                    None => break,
+                }
+            }
+            parent
+        };
         anchored
             .into_iter()
-            .filter_map(|(screen, placement)| {
+            .filter_map(|(screen, hanging)| {
+                let placement = &hanging.placement;
                 let painted = state.painted.get(screen)?;
                 let raster = raster(painted);
                 let points = 1.0 / raster;
                 let size = placement.rect.size();
+                // Within the bounds of the view it hangs from, as that view's space says.
+                let owner = hung_from(painted, placement);
                 let bounds = state
                     .run
                     .screens
                     .iter()
-                    .filter(|request| request.instance == painted.instance)
-                    .find_map(|request| request.anchor_space.map(|space| space.bounds));
+                    .find(|request| (request.instance, request.view) == (painted.instance, owner))
+                    .and_then(|request| request.anchor_space)
+                    .map(|space| space.bounds);
                 let request = ScreenRequest {
                     screen: *screen,
                     instance: painted.instance,
@@ -702,6 +722,28 @@ impl Embedded {
                     origin: None,
                 };
                 let size = (painted.width, painted.height);
+                // It takes presses where its overlays do (`frame-report.floating`), as under
+                // be-host: in its pixels for its layer, in the window's points for dismissal.
+                let floating: Vec<Rect> = hanging
+                    .floating
+                    .iter()
+                    .map(|rect| rect.translate(placement.rect.min.to_vec2()))
+                    .collect();
+                let hit = match hanging.floating.is_empty() {
+                    true => Area::Whole,
+                    false => Area::Region(
+                        hanging
+                            .floating
+                            .iter()
+                            .map(|rect| {
+                                Rect::from_min_max(
+                                    pos2(rect.min.x * raster, rect.min.y * raster),
+                                    pos2(rect.max.x * raster, rect.max.y * raster),
+                                )
+                            })
+                            .collect(),
+                    ),
+                };
                 let layer = Layer {
                     id: screen_layer(self.instance, *screen),
                     surface: Surface::Anchored {
@@ -718,7 +760,14 @@ impl Embedded {
                     corner_radius: 0.0,
                     opacity: 1.0,
                     shown: true,
-                    input: LayerInput::default(),
+                    // A press on it leaves the keyboard where it is: with the screen of the view
+                    // it hangs from, which hands its keys on, or a child placed in it
+                    // (`Embedding::key_anchored`).
+                    input: LayerInput {
+                        hit,
+                        focuses: false,
+                        ..LayerInput::default()
+                    },
                 };
                 Some(AnchoredView {
                     layer,
@@ -727,9 +776,25 @@ impl Embedded {
                     editor: painted.instance,
                     view: painted.view,
                     request,
+                    opened: hanging.opened,
+                    floating,
                 })
             })
             .collect()
+    }
+
+    /// Whether the view it opened `screen` for is anchored and open, as its last layout said.
+    pub(crate) fn hangs(&self, screen: ScreenId) -> bool {
+        self.state.borrow().anchored.contains_key(&screen)
+    }
+
+    /// Whether its editor `editor`'s view `view` places any children, as its last layout applied
+    /// said.
+    pub(crate) fn places_in(&self, editor: EditorInstanceId, view: be_sdk_api::ViewId) -> bool {
+        self.state.borrow().placed.iter().any(|placements| {
+            (placements.instance, placements.view) == (editor, view)
+                && !placements.children.is_empty()
+        })
     }
 
     /// The screen showing the view `view` of its editor `editor`, as it painted it last.
@@ -856,6 +921,33 @@ pub struct AnchoredView {
     /// pixels it is painted at, anchoring views of its own where it hangs, within the bounds of
     /// the view of its editor's it hangs from, as be-host's anchored views do.
     pub request: ScreenRequest,
+    /// When it opened, among every view any app the root runs anchored: those opened later are
+    /// drawn over it.
+    pub opened: u64,
+    /// Where it takes presses, in the window's points (`frame-report.floating`).
+    pub floating: Vec<Rect>,
+}
+
+/// How a view an app anchored hangs, as its last layout said.
+struct Hanging {
+    placement: AnchoredPlacement,
+    /// Where its overlays take input, in its points (`frame-report.floating`).
+    floating: Vec<Rect>,
+    /// When it opened (`next_opened`).
+    opened: u64,
+}
+
+thread_local! {
+    /// How many views the root's apps anchored so far.
+    static OPENED: Cell<u64> = const { Cell::new(0) };
+}
+
+/// The next view anchored: after every other, in any app.
+fn next_opened() -> u64 {
+    OPENED.with(|opened| {
+        opened.set(opened.get() + 1);
+        opened.get()
+    })
 }
 
 /// Spawns the staged app `app`'s entry point `module` in the root's sandbox.
@@ -1049,6 +1141,17 @@ impl State {
                 self.contents.retain(|screen, _| laid_out(screen));
                 self.used.retain(|screen, _| laid_out(screen));
                 self.anchored.retain(|screen, _| laid_out(screen));
+                // A view the layout no longer has (an anchored view that closed) places nothing.
+                let before = self.placed.len();
+                self.placed.retain(|placements| {
+                    layout.screens.iter().any(|placement| {
+                        (placement.instance, placement.view)
+                            == (placements.instance, placements.view)
+                    })
+                });
+                if self.placed.len() != before {
+                    self.placing = true;
+                }
                 self.run.lay_out(layout, |_| false);
             }
             Heard::LaidOut(mut commit) => {
@@ -1067,7 +1170,18 @@ impl State {
                     self.contents.insert(report.screen, report.content);
                     match &report.anchored {
                         Some(anchored) => {
-                            self.anchored.insert(report.screen, anchored.clone());
+                            let opened = self
+                                .anchored
+                                .get(&report.screen)
+                                .map_or_else(next_opened, |held| held.opened);
+                            self.anchored.insert(
+                                report.screen,
+                                Hanging {
+                                    placement: anchored.clone(),
+                                    floating: report.floating.clone(),
+                                    opened,
+                                },
+                            );
                         }
                         None => {
                             self.anchored.remove(&report.screen);
