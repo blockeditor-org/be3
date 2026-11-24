@@ -561,8 +561,12 @@ exactly its parent's access and takes no grants (guides/blocks/host.md, "Search"
   links"). Who a link may admit is the organization's `link_sharing` policy
   (`OrganizationPolicies::link_sharing`: members, the default; anyone with an account, only
   while it shares outside; or no links), checked as a link is made and again as it is read and
-  opened. The share dialog reads the policy from the organization's settings as it changes
-  (be-sdk-shell's `Share::link_choices`), so it offers what the policy allows. An account a link
+  opened. A link may also admit one, the first account to open it (`Admits::One`, the share
+  half of an invitation, guides/blocks/keys.md, "An invitation"), allowed where a link for
+  anyone is and always in the personal organization; the server records that account
+  (`share_links.opened_by`) and refuses every other. The share dialog reads the policy from
+  the organization's settings as it changes (be-sdk-shell's `Share::link_choices`,
+  `Share::invites`), so it offers what the policy allows. An account a link
   admits from outside joins as a guest (`OrganizationRole::Guest`), which `is_member_of` does
   not count, makes no agents or links and grants nothing (`client::guest_may_write`), makes
   only its own shell's blocks (an owner-only `Settings` at the top and what lies in it,

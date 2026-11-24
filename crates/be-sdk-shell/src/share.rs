@@ -404,6 +404,12 @@ impl Share {
         }
     }
 
+    /// Whether an invitation may be made: its share link admits one person, which the server
+    /// allows where a link for anyone is, and always in a personal organization.
+    pub(crate) fn invites(policy: LinkSharing, company: bool) -> bool {
+        !company || policy == LinkSharing::Anyone
+    }
+
     pub(crate) fn admits_label(admits: LinkAdmits) -> &'static str {
         match admits {
             LinkAdmits::Members => "People in the organization",

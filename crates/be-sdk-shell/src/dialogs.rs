@@ -338,6 +338,14 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
             Err(_) => Vec::new(),
         })
     });
+    // An invitation is offered only where the server would make its share link.
+    let invites = create_memo(move || {
+        let policy = policy.with(OrganizationPolicies::link_sharing);
+        listing.with(|listing| match listing {
+            Ok(listing) => Share::invites(policy, listing.company),
+            Err(_) => false,
+        })
+    });
     // Whom the person asked to offer ownership to, as the question to confirm it.
     let transferring = create_memo(move || {
         let id = state.with(|share| share.as_ref()?.transferring)?;
@@ -466,16 +474,18 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
                         </Show>
                     </List>
                 </Show>
-                <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
-                    <Button
-                        label="Invite someone new"
-                        glyph=ICON_LINK
-                        variant=ButtonVariant::Secondary
-                        busy={inviting}
-                        @test_id={"share.invite"}
-                        on_click={move || act.call(ShareAction::InviteNew)}
-                    />
-                </List>
+                <Show value={invites}>
+                    <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
+                        <Button
+                            label="Invite someone new"
+                            glyph=ICON_LINK
+                            variant=ButtonVariant::Secondary
+                            busy={inviting}
+                            @test_id={"share.invite"}
+                            on_click={move || act.call(ShareAction::InviteNew)}
+                        />
+                    </List>
+                </Show>
                 <Show value={move || invite_link.with(|link| !link.is_empty())}>
                     <List spacing=Space::Sm>
                         <Text style=TextStyle::CAPTION @test_id={"share.invite.help"}>
