@@ -648,6 +648,8 @@ pub(super) struct AppArtifact {
     outcome: Option<Result<(), String>>,
     outcomes: Inbox<Result<(), String>>,
     regenerating: bool,
+    /// Why the instance last said it could not make the artifact again.
+    failure: Option<String>,
 }
 
 impl AppArtifact {
@@ -683,6 +685,7 @@ impl AppArtifact {
             outcome: None,
             outcomes,
             regenerating: false,
+            failure: None,
         }
     }
 }
@@ -710,6 +713,13 @@ impl ArtifactSession for AppArtifact {
             data,
             resync: std::mem::take(&mut self.resync),
         });
+        // A remake that failed as the source changed, which no one asked for, or the next
+        // that worked, reads as an outcome too.
+        let failure = be_host_runtime::artifact_failure(&self.app.identity.id, self.instance);
+        if failure != self.failure {
+            self.failure.clone_from(&failure);
+            self.outcome = Some(failure.map_or(Ok(()), Err));
+        }
         if let Some(outcome) = self.outcomes.take_latest() {
             self.regenerating = false;
             self.outcome = Some(outcome);

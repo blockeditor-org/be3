@@ -269,11 +269,16 @@ impl<A: BeuiRoot + AppEditor> BeuiTest<A> {
         EXPORT.with(|export| *export.borrow_mut() = Some(request));
         let editor = OwnedEditor::new(host, Uuid::nil());
         let mut test = Self::open(Kind::Export, Adopted::Editor(editor, None), Vec::new());
-        // The app's editors, as the host's catalog lists them: the dialog names its exporter
-        // as the manifest does.
+        test.app_catalog();
+        test
+    }
+
+    /// Tells the instance the catalog the host would: the app's own editors, with what each
+    /// exports as (guides/apps/editor.md, "Exporting").
+    pub fn app_catalog(&mut self) {
         let manifest =
             be_sdk_manifest::manifest_from_json(A::MANIFEST).expect("the app's manifest parses");
-        test.catalog(Catalog {
+        self.catalog(Catalog {
             types: Vec::new(),
             templates: Vec::new(),
             editors: manifest
@@ -296,7 +301,6 @@ impl<A: BeuiRoot + AppEditor> BeuiTest<A> {
                 })
                 .collect(),
         });
-        test
     }
 
     pub fn settings(artifacts: Artifacts, data: Vec<u8>) -> Self {

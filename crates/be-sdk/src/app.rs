@@ -61,6 +61,12 @@ pub trait Instance: std::any::Any {
         None
     }
 
+    /// Why the artifact could not be made again as its source last changed, or none once it
+    /// was, whether or not the host asked for it.
+    fn artifact_failure(&mut self) -> Option<String> {
+        None
+    }
+
     fn intrinsic_size(&mut self) -> Option<Vec2> {
         None
     }

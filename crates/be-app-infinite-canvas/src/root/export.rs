@@ -1048,9 +1048,26 @@ pub(crate) fn encode_raster(raster: &CanvasRaster) -> Option<String> {
 
 pub(crate) const DIALOG_SPACING: Space = Space::Lg;
 
-/// The settings of the canvas's PNG (`png`) or SVG export.
+/// The settings of the canvas's PNG (`png`, which has a scale) or SVG export.
 #[component]
 fn ImageSettings(settings: ExportSettings<ImageExport>, png: bool) -> NodeId {
+    match png {
+        true => view! {
+            <List spacing=DIALOG_SPACING>
+                <ScaleSetting settings />
+                <BackgroundSetting settings />
+            </List>
+        },
+        false => view! {
+            <List spacing=DIALOG_SPACING>
+                <BackgroundSetting settings />
+            </List>
+        },
+    }
+}
+
+#[component]
+fn ScaleSetting(settings: ExportSettings<ImageExport>) -> NodeId {
     let value = settings.value();
     let scale = create_memo(move || Some(value.get().scale));
     let choose_scale = move |chosen: Option<f32>| {
@@ -1058,37 +1075,40 @@ fn ImageSettings(settings: ExportSettings<ImageExport>, png: bool) -> NodeId {
             settings.update(|settings| settings.scale = scale);
         }
     };
+    view! {
+        <List direction=Direction::Horizontal align=Align::Center spacing=DIALOG_SPACING>
+            <ListItem grow=1.0>
+                <Text>"Scale"</Text>
+            </ListItem>
+            <Select
+                options={view! {
+                    <ChoiceOption value=1.0f32 label="1x" />
+                    <ChoiceOption value=2.0f32 label="2x" />
+                    <ChoiceOption value=3.0f32 label="3x" />
+                }}
+                selected={Binding::new(scale, choose_scale)}
+                label="Scale"
+                @test_id={"infinite-canvas.export.scale"}
+            />
+        </List>
+    }
+}
+
+#[component]
+fn BackgroundSetting(settings: ExportSettings<ImageExport>) -> NodeId {
+    let value = settings.value();
     let background = create_memo(move || value.get().background);
     let set_background = move |on: bool| settings.update(|settings| settings.background = on);
     view! {
-        <List spacing=DIALOG_SPACING>
-            <Show value={move || png}>
-                <List direction=Direction::Horizontal align=Align::Center spacing=DIALOG_SPACING>
-                    <ListItem grow=1.0>
-                        <Text>"Scale"</Text>
-                    </ListItem>
-                    <Select
-                        options={view! {
-                            <ChoiceOption value=1.0f32 label="1x" />
-                            <ChoiceOption value=2.0f32 label="2x" />
-                            <ChoiceOption value=3.0f32 label="3x" />
-                        }}
-                        selected={Binding::new(scale, choose_scale)}
-                        label="Scale"
-                        @test_id={"infinite-canvas.export.scale"}
-                    />
-                </List>
-            </Show>
-            <List direction=Direction::Horizontal align=Align::Center spacing=DIALOG_SPACING>
-                <ListItem grow=1.0>
-                    <Text>"Background"</Text>
-                </ListItem>
-                <Switch
-                    on={Binding::new(background, set_background)}
-                    label="Background"
-                    @test_id={"infinite-canvas.export.background"}
-                />
-            </List>
+        <List direction=Direction::Horizontal align=Align::Center spacing=DIALOG_SPACING>
+            <ListItem grow=1.0>
+                <Text>"Background"</Text>
+            </ListItem>
+            <Switch
+                on={Binding::new(background, set_background)}
+                label="Background"
+                @test_id={"infinite-canvas.export.background"}
+            />
         </List>
     }
 }

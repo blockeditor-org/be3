@@ -418,38 +418,38 @@ struct FrameActions {
 /// open editor (`ExporterOf::initial`).
 fn export_actions(editor: Editor, live: Memo<bool>) -> Vec<Action> {
     let id = editor.block_id();
-    let actions: Vec<Action> = editor
+    editor
         .exporters()
         .iter()
         .map(|exporter| {
             let name = exporter.name();
-            let label = create_memo(move || {
+            // The type's exporter of this name, as the catalog lists it: the host runs the
+            // one of the type's own editor, so an editor that is not it offers none.
+            let listed = create_memo(move || {
                 let types = editor.block_types();
-                let label = editor
-                    .host()
-                    .block_type()
-                    .and_then(|block_type| {
-                        types
-                            .exporters(block_type)
-                            .iter()
-                            .find(|listed| listed.name == name)
-                            .map(|listed| listed.label.clone())
-                    })
-                    .unwrap_or_else(|| name.to_owned());
+                editor.host().block_type().and_then(|block_type| {
+                    types
+                        .exporters(block_type)
+                        .iter()
+                        .find(|listed| listed.name == name)
+                        .map(|listed| listed.label.clone())
+                })
+            });
+            let label = create_memo(move || {
+                let label = listed.get().unwrap_or_else(|| name.to_owned());
                 format!("Export as {label}…")
             });
+            let offered = create_memo(move || live.get() && listed.with(Option::is_some));
             let exporter = exporter.clone();
             Action::new(format!("editor.export.{name}"), label, move || {
                 let settings = exporter.initial(editor);
                 editor.host().export_block_with(id, name, settings);
             })
             .glyph(ICON_DOWNLOAD)
-            .enabled(live)
+            .enabled(offered)
             .register()
         })
-        .collect();
-    editor.set_export_actions(actions.clone());
-    actions
+        .collect()
 }
 
 fn frame_actions(
