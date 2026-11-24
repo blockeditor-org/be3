@@ -69,7 +69,10 @@ async fn a_device_that_read_fewer_key_changes_never_rolls_a_contact_back() {
         })
         .await
         .unwrap();
-    let second = phrases.into_inner().unwrap().expect("the owner took both phrases");
+    let second = phrases
+        .into_inner()
+        .unwrap()
+        .expect("the owner took both phrases");
     assert_eq!(
         fast.verified_identity(owner.account()),
         Some(second.identity())

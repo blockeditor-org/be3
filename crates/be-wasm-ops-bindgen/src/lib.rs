@@ -180,8 +180,7 @@ fn rooted(tokens: TokenStream, root: &syn::Path) -> TokenStream {
                 after_dollar = false;
             }
             TokenTree::Group(group) => {
-                let mut rooted_group =
-                    Group::new(group.delimiter(), rooted(group.stream(), root));
+                let mut rooted_group = Group::new(group.delimiter(), rooted(group.stream(), root));
                 rooted_group.set_span(group.span());
                 out.extend([TokenTree::Group(rooted_group)]);
                 after_dollar = false;

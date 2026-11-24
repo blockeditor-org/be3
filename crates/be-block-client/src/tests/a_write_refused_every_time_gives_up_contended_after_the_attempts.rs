@@ -16,23 +16,27 @@ async fn a_write_refused_every_time_gives_up_contended_after_the_attempts() {
 
     let made = AtomicUsize::new(0);
     let updated = author
-        .update(block, TextContent::CONTENT_TYPE, |read: crate::BlockRead| {
-            let (made, other) = (&made, &other);
-            async move {
-                let made = made.fetch_add(1, Ordering::SeqCst);
-                other
-                    .save(
-                        block,
-                        &TextBlock::of(&format!("theirs {made}")),
-                        read.summary.head,
-                    )
-                    .await?
-                    .published()
-                    .expect("the other device's write lands");
-                let ours = TextBlock::of(&format!("ours {made}"));
-                Ok::<_, ClientError>(Some(crate::NewContent::of(&ours, organization)))
-            }
-        })
+        .update(
+            block,
+            TextContent::CONTENT_TYPE,
+            |read: crate::BlockRead| {
+                let (made, other) = (&made, &other);
+                async move {
+                    let made = made.fetch_add(1, Ordering::SeqCst);
+                    other
+                        .save(
+                            block,
+                            &TextBlock::of(&format!("theirs {made}")),
+                            read.summary.head,
+                        )
+                        .await?
+                        .published()
+                        .expect("the other device's write lands");
+                    let ours = TextBlock::of(&format!("ours {made}"));
+                    Ok::<_, ClientError>(Some(crate::NewContent::of(&ours, organization)))
+                }
+            },
+        )
         .await;
 
     assert!(

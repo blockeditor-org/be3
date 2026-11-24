@@ -4396,7 +4396,8 @@ async fn apply(
             // closed segments), and a copy through bytes would drop them: refuse until a copy of
             // parts exists.
             if replicas
-                .modules.kind(content_type)
+                .modules
+                .kind(content_type)
                 .await
                 .is_some_and(|kind| !kind.whole_bytes)
                 && peer.has_later_parts(from).await.unwrap_or(false)
@@ -4435,7 +4436,11 @@ async fn apply(
             };
             let bytes = match bytes {
                 Some(bytes) => Some(bytes),
-                None => replicas.modules.kind(content_type).await.map(|kind| kind.blank),
+                None => replicas
+                    .modules
+                    .kind(content_type)
+                    .await
+                    .map(|kind| kind.blank),
             };
             if let Some(bytes) = bytes
                 && let Err(error) =
@@ -4626,7 +4631,8 @@ async fn plain_file(
     let bytes = match content {
         Some(bytes) => bytes,
         None => replicas
-            .modules.kind(content_type)
+            .modules
+            .kind(content_type)
             .await
             .map(|kind| kind.blank)
             .ok_or("This block's type isn't known.")?,

@@ -1,5 +1,5 @@
-use be_block_content::block_url::block_url;
 use be_block_content::ChildChange;
+use be_block_content::block_url::block_url;
 use be_sdk_type_guest::api::{Change, guest::exports::replicas::Guest};
 use uuid::Uuid;
 
@@ -50,11 +50,7 @@ fn a_replaced_child_repoints_every_block_url_naming_it() {
 
     let unlinked = Uuid::from_u128(0x0b5e_0000_0000_4000_8000_0000_0000_0004);
     assert!(
-        changed(
-            &content,
-            ChildChange::Replace { old: unlinked, new }
-        )
-        .is_none(),
+        changed(&content, ChildChange::Replace { old: unlinked, new }).is_none(),
         "a text naming no such block is left alone"
     );
     assert!(

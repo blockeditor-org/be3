@@ -2981,7 +2981,11 @@ impl<H: Host> Replicas<H> {
         let peer = ctx.0;
         let no_module =
             || NotSearched::Type(format!("no type module has the block type {content_type}"));
-        let kind = self.modules.kind(content_type).await.ok_or_else(no_module)?;
+        let kind = self
+            .modules
+            .kind(content_type)
+            .await
+            .ok_or_else(no_module)?;
         let module = self.modules.module_of(content_type).ok_or_else(no_module)?;
         let content = kind.load(peer, manifest).await.map_err(NotSearched::Read)?;
         let scope = types::Scope::of([&content]);
@@ -3025,9 +3029,7 @@ impl<H: Host> Replicas<H> {
                     document.key
                 )));
             }
-            let source = document
-                .source
-                .filter(|source| scope.allows(*source));
+            let source = document.source.filter(|source| scope.allows(*source));
             if source.is_some_and(|source| indexed.contains(&source)) {
                 document.body = None;
             } else if document.body.is_none() {
@@ -3056,7 +3058,10 @@ impl<H: Host> Replicas<H> {
     ) -> Result<Vec<be_sdk_type_api::BlockPlace>, NotSearched> {
         let no_module =
             || NotSearched::Type(format!("no type module has the block type {content_type}"));
-        self.modules.kind(content_type).await.ok_or_else(no_module)?;
+        self.modules
+            .kind(content_type)
+            .await
+            .ok_or_else(no_module)?;
         let module = self.modules.module_of(content_type).ok_or_else(no_module)?;
         match self
             .ask(ctx, module, |connection| {
@@ -3090,7 +3095,11 @@ impl<H: Host> Replicas<H> {
     ) -> Result<u32, NotSearched> {
         let no_module =
             || NotSearched::Type(format!("no type module has the block type {content_type}"));
-        let kind = self.modules.kind(content_type).await.ok_or_else(no_module)?;
+        let kind = self
+            .modules
+            .kind(content_type)
+            .await
+            .ok_or_else(no_module)?;
         let module = self.modules.module_of(content_type).ok_or_else(no_module)?;
         let log = match kind.log {
             true => {
@@ -3139,7 +3148,11 @@ impl<H: Host> Replicas<H> {
     ) -> Result<LogSearched, NotSearched> {
         let no_module =
             || NotSearched::Type(format!("no type module has the block type {content_type}"));
-        let kind = self.modules.kind(content_type).await.ok_or_else(no_module)?;
+        let kind = self
+            .modules
+            .kind(content_type)
+            .await
+            .ok_or_else(no_module)?;
         if !kind.log {
             return Ok(LogSearched {
                 changes: Vec::new(),

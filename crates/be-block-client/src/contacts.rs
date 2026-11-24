@@ -483,12 +483,7 @@ pub async fn pinned(
         .collect();
     if let Some(block) = AccountRecords::open(connection, account, identity).await? {
         match block.read().await {
-            Ok(content) => found.extend(
-                content
-                    .root()
-                    .pin(organization)
-                    .and_then(Pinned::decode),
-            ),
+            Ok(content) => found.extend(content.root().pin(organization).and_then(Pinned::decode)),
             Err(ClientError::Locked(_)) => {}
             Err(error) => return Err(error),
         }

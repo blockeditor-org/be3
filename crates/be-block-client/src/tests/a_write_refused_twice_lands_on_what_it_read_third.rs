@@ -17,33 +17,39 @@ async fn a_write_refused_twice_lands_on_what_it_read_third() {
 
     let reads: Mutex<Vec<String>> = Mutex::new(Vec::new());
     let saved = author
-        .update(block, TextContent::CONTENT_TYPE, |read: crate::BlockRead| {
-            let (reads, other) = (&reads, &other);
-            async move {
-                let held = match &read.stored {
-                    Some(stored) => TextBlock::text(&<TextContent as BlockContent>::from_stored(stored)?),
-                    None => String::new(),
-                };
-                let made = {
-                    let mut reads = reads.lock().unwrap();
-                    reads.push(held.clone());
-                    reads.len()
-                };
-                if made <= 2 {
-                    other
-                        .save(
-                            block,
-                            &TextBlock::of(&format!("theirs {made}")),
-                            read.summary.head,
-                        )
-                        .await?
-                        .published()
-                        .expect("the other device's write lands");
+        .update(
+            block,
+            TextContent::CONTENT_TYPE,
+            |read: crate::BlockRead| {
+                let (reads, other) = (&reads, &other);
+                async move {
+                    let held = match &read.stored {
+                        Some(stored) => {
+                            TextBlock::text(&<TextContent as BlockContent>::from_stored(stored)?)
+                        }
+                        None => String::new(),
+                    };
+                    let made = {
+                        let mut reads = reads.lock().unwrap();
+                        reads.push(held.clone());
+                        reads.len()
+                    };
+                    if made <= 2 {
+                        other
+                            .save(
+                                block,
+                                &TextBlock::of(&format!("theirs {made}")),
+                                read.summary.head,
+                            )
+                            .await?
+                            .published()
+                            .expect("the other device's write lands");
+                    }
+                    let ours = TextBlock::of(&format!("{held}, then ours"));
+                    Ok::<_, ClientError>(Some(crate::NewContent::of(&ours, organization)))
                 }
-                let ours = TextBlock::of(&format!("{held}, then ours"));
-                Ok::<_, ClientError>(Some(crate::NewContent::of(&ours, organization)))
-            }
-        })
+            },
+        )
         .await
         .unwrap();
 
