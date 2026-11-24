@@ -25,7 +25,7 @@ pub use peer::log::{Appended, ExportedEntry, LOG_SALT_BYTES, LogRead, LoggedEntr
 pub use peer::{
     BlockRead, Drained, Listed, MAX_NOTIFICATION_AGE_MILLISECONDS, MAX_NOTIFICATION_TEXT,
     Notification, OpenedNotification, Peer, PeerConfig, PendingRotation, Reconciled, Resolver,
-    Saved, Sealed, SealsJournal, Signer, Write, by_app,
+    Saved, Sealed, SealsJournal, Write, by_app,
 };
 pub use refs::{
     Aside, KeptChange, KeptEdit, KeptLogHead, KeptSubmission, ListedBlock, OpenEdits,

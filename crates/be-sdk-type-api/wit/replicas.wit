@@ -256,11 +256,12 @@ interface replicas {
 
     /// What each of `items`, entries of a block's signed log, changes in the
     /// type's searchable text (`be_block_content::LogFold::search`), for a type
-    /// with `type-info.log`: one change at most per entry, in order.
+    /// with `type-info.log`: one change at most per entry, in order, each with
+    /// the `seq` of the entry it is.
     search-log: async func(
         content-type: content-type-id,
         items: list<log-item>,
-    ) -> result<list<log-search>, failure>;
+    ) -> result<list<tuple<u64, log-search>>, failure>;
 
     /// How many things in `content` and `log` the account has not read, by its
     /// `place` from `places` (none: the default place). `content` is a commit of

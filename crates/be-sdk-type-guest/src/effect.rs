@@ -1,6 +1,7 @@
 use be_block_commit::CommitId;
+use be_block_protocol::JournalBase;
 use be_block_store::PartRef;
-use be_sdk_type_api::{Description, JournalBase, Merging, Recipients, ReplicaId, Status, Written};
+use be_sdk_type_api::{Description, Merging, Recipients, ReplicaId, Status, Written};
 
 pub(crate) type Token = u64;
 

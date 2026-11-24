@@ -5,12 +5,12 @@ use std::path::{Path, PathBuf};
 use be_block_client::transfer::Saved;
 use be_block_client::{Peer, Saved as Published, Write};
 use be_block_commit::CommitId;
-use be_block_content::{BlockMetadata, EXECUTABLE, Entries, NAME};
+use be_block_content::{BlockMetadata, ChildChange, EXECUTABLE, Entries, NAME};
 use be_block_graph::BlockParent;
 use be_block_store::{ChunkRef, Hash, Manifest, ObjectStore, PartRef};
 use be_block_type_host::{Modules, Plain, plain_of};
 use be_block_vcs::{ConflictKind, Entry, Tree};
-use be_sdk_type_api::{Change as Edit, ChildChange, FileChange};
+use be_sdk_type_api::{Change as Edit, FileChange};
 use futures_util::StreamExt;
 use uuid::Uuid;
 
@@ -856,7 +856,7 @@ impl<S: ObjectStore> Pass<'_, S> {
                     at = end;
                 }
                 be_sdk_type_api::WrittenPart::Reused(part) => {
-                    let part = PartRef::from(*part);
+                    let part = *part;
                     let read = peer
                         .read_part(part, 0, part.length())
                         .await

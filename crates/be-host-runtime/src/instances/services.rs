@@ -886,7 +886,11 @@ impl Instances {
                     signature,
                     arrived,
                     move |found| {
-                        answering.send(found.map(signer).map_err(|_| Failure::Unavailable))
+                        answering.send(
+                            found
+                                .map_err(|_| Failure::Unavailable)
+                                .and_then(signer),
+                        )
                     },
                 );
             }
@@ -1008,14 +1012,16 @@ impl Instances {
     }
 }
 
-fn signer(signer: be_host_stack::authorship::Signer) -> Signer {
-    use be_host_stack::authorship::Signer as Found;
+/// Who signed, as an app is told; a verdict that could not be told is unavailable.
+fn signer(signer: be_block_content::Signer) -> Result<Signer, Failure> {
+    use be_block_content::Signer as Found;
     match signer {
-        Found::Verified => Signer::Verified,
-        Found::Unverified => Signer::Unverified,
-        Found::Changed => Signer::Changed,
-        Found::Replaced => Signer::Replaced,
-        Found::Bad => Signer::Bad,
+        Found::Verified => Ok(Signer::Verified),
+        Found::Unverified => Ok(Signer::Unverified),
+        Found::Changed => Ok(Signer::Changed),
+        Found::Replaced => Ok(Signer::Replaced),
+        Found::Bad => Ok(Signer::Bad),
+        Found::Unknown | Found::Redacted => Err(Failure::Unavailable),
     }
 }
 

@@ -3,12 +3,12 @@ use std::sync::Arc;
 
 use be_block_client::{Peer, Saved, Write};
 use be_block_commit::CommitId;
-use be_block_content::{BlockContent, BlockMetadata, LiveEdit, ObjectId};
+use be_block_content::{BlockContent, BlockMetadata, ChildChange, LiveEdit, ObjectId};
 use be_block_graph::BlockParent;
 use be_block_protocol::{BlockSummary, Listing};
 use be_block_store::ObjectStore;
 use be_block_type_host::Modules;
-use be_sdk_type_api::{Change as Edit, ChildChange, Description, FileChange};
+use be_sdk_type_api::{Change as Edit, Description, FileChange};
 use be_sdk_ui_database::{ValueLabels, database_value_text, parse_cell_value};
 use be_type_database::database::{
     Database, DatabaseContent, DatabaseValue, Inverse, RowRef, inverses, short_id,

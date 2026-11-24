@@ -8,7 +8,7 @@ fn an_entry_redacted_by_anyone_but_its_author_shows_removed() {
     let redacted = |seq: u64, author: Uuid| {
         let mut item = item(seq, author, &message("gone"));
         item.payload = None;
-        item.signer = LogSigner::Redacted;
+        item.signer = Signer::Redacted;
         item
     };
     let react = |kept: bool, takes_back: Option<u64>| ChatEntry::React {

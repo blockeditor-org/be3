@@ -6,13 +6,14 @@ use std::{
 };
 
 use be_block_commit::MergeResult;
+use be_block_protocol::{Journal, JournalEntry};
 use be_block_content::{
-    BlockContent, LiveEdit, Loads, Merge, MergeParts, PartReader, Undo, Unread, history::History,
+    BlockContent, ChildChange, LiveEdit, Loads, Merge, MergeParts, PartReader, PartRef,
+    SearchDocument, Undo, Unread, history::History,
 };
 use be_sdk_type_api::{
-    BlockPlace, Change, ChildChange, ClientId, CommitId, Description, EditorId, Endpoint,
-    FileChange, Journal, JournalEntry, Loaded, Merged, MergedParts, Opening, PartRef, Plain,
-    PlainFile, PublishOutcome, ReorderChild, ReplaceChild, ReplicaId, SearchDocument, SessionState,
+    BlockPlace, Change, ClientId, CommitId, Description, EditorId, Endpoint, FileChange, Loaded,
+    Merged, MergedParts, Opening, Plain, PlainFile, PublishOutcome, ReplicaId, SessionState,
     TypeInfo, Written,
     guest::{exports::replicas, host},
     ops::guest::{self as ops, Executor, LocalFuture, Pending, Sender},
@@ -231,36 +232,6 @@ fn fold<C: be_block_content::LogFold>(content: &mut C, item: &be_block_content::
     content.fold(item);
 }
 
-/// A log entry as the host interface carries it, as a type sees it.
-fn refused_entry(entry: be_sdk_type_api::RefusedEntry) -> (Uuid, Vec<u8>, String) {
-    (entry.id, entry.payload, entry.why)
-}
-
-fn log_item(item: be_sdk_type_api::LogItem) -> be_block_content::LogItem {
-    use be_block_content::LogSigner;
-    be_block_content::LogItem {
-        seq: item.seq,
-        id: item.id,
-        author: item.author,
-        arrival: item.arrival,
-        payload: item.payload,
-        signer: match item.signer {
-            be_sdk_type_api::Signer::Verified => LogSigner::Verified,
-            be_sdk_type_api::Signer::Unverified => LogSigner::Unverified,
-            be_sdk_type_api::Signer::Changed => LogSigner::Changed,
-            be_sdk_type_api::Signer::Replaced => LogSigner::Replaced,
-            be_sdk_type_api::Signer::Bad => LogSigner::Bad,
-            be_sdk_type_api::Signer::Unknown => LogSigner::Unknown,
-            be_sdk_type_api::Signer::Redacted => LogSigner::Redacted,
-        },
-        imported: item.imported.map(|imported| be_block_content::LogImport {
-            block: imported.block,
-            seq: imported.seq,
-            importer: imported.importer,
-        }),
-    }
-}
-
 fn open<C, H>(opened: Opened) -> Box<dyn AnyReplica>
 where
     C: LiveEdit + Merge + Clone + Default,
@@ -421,26 +392,13 @@ fn child<C: LiveEdit + Default>(
         Some(bytes) => C::decode(bytes).map_err(|error| error.to_string())?,
         None => C::default(),
     };
-    let Some(operations) = content.child_operations(be_child(change), client) else {
+    let Some(operations) = content.child_operations(change, client) else {
         return Ok(None);
     };
     for operation in &operations {
         content.apply(operation);
     }
     Ok(Some(content.encode()))
-}
-
-pub(crate) fn be_child(change: ChildChange) -> be_block_content::ChildChange {
-    match change {
-        ChildChange::Add(block) => be_block_content::ChildChange::Add(block),
-        ChildChange::Delete(block) => be_block_content::ChildChange::Delete(block),
-        ChildChange::Replace(ReplaceChild { old, new }) => {
-            be_block_content::ChildChange::Replace { old, new }
-        }
-        ChildChange::Reorder(ReorderChild { block, after }) => {
-            be_block_content::ChildChange::Reorder { block, after }
-        }
-    }
 }
 
 pub fn describe<C: BlockContent>(content: &C, organization: Uuid) -> Description {
@@ -568,7 +526,7 @@ impl Module {
         content_type: Uuid,
         bytes: &[u8],
         reads: &[Vec<u8>],
-        log: &[be_sdk_type_api::LogItem],
+        log: &[be_block_content::LogItem],
         block: Uuid,
         account: Uuid,
     ) -> Option<u32> {
@@ -578,8 +536,7 @@ impl Module {
             .iter()
             .find(|(of, _)| *of == block)
             .map(|(_, place)| place.as_slice());
-        let log: Vec<_> = log.iter().cloned().map(log_item).collect();
-        (fns.count)(Content::Bytes(bytes), place, &log, account).ok()
+        (fns.count)(Content::Bytes(bytes), place, log, account).ok()
     }
 
     fn unread_fns(&self, content_type: Uuid) -> Result<UnreadFns, Failure> {
@@ -941,9 +898,7 @@ impl Module {
                 let pending = ops::with_parent(replica, || host::put_part(bytes));
                 self.answer_later(replica, pending, move |result| Input::PartPut {
                     token,
-                    result: result
-                        .and_then(|put| put)
-                        .map(be_block_content::PartRef::from),
+                    result: result.and_then(|put| put),
                 });
             }
             Effect::Append {
@@ -952,10 +907,6 @@ impl Module {
                 bytes,
                 along,
             } => {
-                let along = be_sdk_type_api::Along {
-                    announcement: along.announcement.map(announcement),
-                    redacts: along.redacts,
-                };
                 let pending = ops::with_parent(replica, || host::append(bytes, along));
                 self.answer_later(replica, pending, move |result| Input::Appended {
                     token,
@@ -981,18 +932,7 @@ impl Module {
                 let pending = ops::with_parent(replica, || host::read_log(from, limit));
                 self.answer_later(replica, pending, move |result| Input::LogRead {
                     token,
-                    result: result
-                        .and_then(|read| read)
-                        .map(|page| be_block_content::LogPage {
-                            size: page.size,
-                            items: page.items.into_iter().map(log_item).collect(),
-                            kept: page
-                                .kept
-                                .into_iter()
-                                .map(|kept| (kept.id, kept.payload))
-                                .collect(),
-                            refused: page.refused.into_iter().map(refused_entry).collect(),
-                        }),
+                    result: result.and_then(|read| read),
                 });
             }
             Effect::Resume {
@@ -1023,7 +963,6 @@ impl Module {
                     barrier: submission.barrier,
                     payload: submission.payload,
                 };
-                let announcements = announcements.into_iter().map(announcement).collect();
                 let pending = ops::with_parent(replica, || host::submit(submission, announcements));
                 self.answer_later(replica, pending, move |submitted| Input::Submitted {
                     counter,
@@ -1224,24 +1163,11 @@ impl replicas::Guest for Module {
         indexed: Vec<PartRef>,
     ) -> LocalFuture<Result<Vec<SearchDocument>, Failure>> {
         let search = self.with_kind(content_type, |kind| kind.search_text);
-        let indexed = indexed
-            .into_iter()
-            .map(be_block_content::PartRef::from)
-            .collect();
         Box::pin(async move {
             let search = search.ok_or(Failure::UnknownType)?;
-            let documents = search(content, keys, indexed, request_parts())
+            search(content, keys, indexed, request_parts())
                 .await
-                .map_err(Failure::Malformed)?;
-            Ok(documents
-                .into_iter()
-                .map(|document| SearchDocument {
-                    key: document.key,
-                    source: document.source.map(PartRef::from),
-                    name: document.name,
-                    body: document.body,
-                })
-                .collect())
+                .map_err(Failure::Malformed)
         })
     }
 
@@ -1266,8 +1192,8 @@ impl replicas::Guest for Module {
     fn search_log(
         &self,
         content_type: Uuid,
-        items: Vec<be_sdk_type_api::LogItem>,
-    ) -> LocalFuture<Result<Vec<be_sdk_type_api::LogSearch>, Failure>> {
+        items: Vec<be_block_content::LogItem>,
+    ) -> LocalFuture<Result<Vec<(u64, be_block_content::LogSearch)>, Failure>> {
         let search = match self.with_kind(content_type, |kind| kind.search_log) {
             None => Err(Failure::UnknownType),
             Some(None) => Err(Failure::Malformed("this type keeps no log".to_owned())),
@@ -1275,16 +1201,8 @@ impl replicas::Guest for Module {
         };
         Box::pin(ready(search.map(|search| {
             items
-                .into_iter()
-                .map(log_item)
-                .filter_map(|item| {
-                    let change = search(&item)?;
-                    Some(be_sdk_type_api::LogSearch {
-                        seq: item.seq,
-                        place: change.place,
-                        text: change.text,
-                    })
-                })
+                .iter()
+                .filter_map(|item| Some((item.seq, search(item)?)))
                 .collect()
         })))
     }
@@ -1294,10 +1212,9 @@ impl replicas::Guest for Module {
         content_type: Uuid,
         content: Loaded,
         place: Option<Vec<u8>>,
-        log: Vec<be_sdk_type_api::LogItem>,
+        log: Vec<be_block_content::LogItem>,
         account: Uuid,
     ) -> LocalFuture<Result<u32, Failure>> {
-        let log: Vec<_> = log.into_iter().map(log_item).collect();
         Box::pin(ready(match self.unread_fns(content_type) {
             Ok(fns) => (fns.count)(Content::Loaded(content), place.as_deref(), &log, account)
                 .map_err(Failure::Malformed),
@@ -1415,18 +1332,18 @@ impl replicas::GuestReplica for OpenReplica {
         Box::pin(ready(()))
     }
 
-    fn logged(&self, items: Vec<be_sdk_type_api::LogItem>) -> LocalFuture<()> {
+    fn logged(&self, items: Vec<be_block_content::LogItem>) -> LocalFuture<()> {
         self.module.input(
             self.id,
-            Input::Logged(items.into_iter().map(log_item).collect()),
+            Input::Logged(items),
         );
         Box::pin(ready(()))
     }
 
-    fn refused(&self, entries: Vec<be_sdk_type_api::RefusedEntry>) -> LocalFuture<()> {
+    fn refused(&self, entries: Vec<be_block_content::RefusedEntry>) -> LocalFuture<()> {
         self.module.input(
             self.id,
-            Input::Refused(entries.into_iter().map(refused_entry).collect()),
+            Input::Refused(entries),
         );
         Box::pin(ready(()))
     }
@@ -1573,16 +1490,6 @@ macro_rules! be_block_types {
             }
         }
     };
-}
-
-/// An announcement as the host interface carries it.
-fn announcement(made: be_block_content::Announcement) -> be_sdk_type_api::Announcement {
-    be_sdk_type_api::Announcement {
-        key: made.key,
-        text: made.text,
-        several: made.several,
-        mentions: made.mentions,
-    }
 }
 
 #[cfg(test)]
