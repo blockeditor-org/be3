@@ -368,6 +368,7 @@ impl Share {
         match admits {
             LinkAdmits::Members => "People in the organization",
             LinkAdmits::Anyone => "Anyone with an account here",
+            LinkAdmits::One => "The first person who opens it",
         }
     }
 
@@ -380,6 +381,7 @@ impl Share {
         offered: &Offered,
     ) -> String {
         let who = match (link.admits, company) {
+            (LinkAdmits::One, _) => "The first person to open the link",
             (LinkAdmits::Members, true) => "Anyone in the organization with the link",
             (LinkAdmits::Anyone, true) => "Anyone with the link and an account on this server",
             (_, false) => "Anyone with the link",

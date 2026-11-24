@@ -129,6 +129,9 @@ pub enum Admits {
     Members,
     /// Any account on the server; one from outside the organization joins it as a guest.
     Anyone,
+    /// The first account to open it, as `Anyone` admits it, and no other after: an invitation
+    /// sent to one person (plans/invitations_without_pending_grants.md).
+    One,
 }
 
 /// A share link on the block: `key`, derived from the link's code

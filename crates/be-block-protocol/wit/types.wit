@@ -77,6 +77,9 @@ interface types {
         /// Any account on the server; one from outside the organization
         /// joins it as a guest.
         anyone,
+        /// The first account to open it, as `anyone` admits it, and no
+        /// other after.
+        one,
     }
 
     enum organization-kind {

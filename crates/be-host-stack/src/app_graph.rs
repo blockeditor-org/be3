@@ -123,6 +123,7 @@ pub fn admits_of(admits: be_block_protocol::LinkAdmits) -> be_sdk_api::LinkAdmit
     match admits {
         be_block_protocol::LinkAdmits::Members => be_sdk_api::LinkAdmits::Members,
         be_block_protocol::LinkAdmits::Anyone => be_sdk_api::LinkAdmits::Anyone,
+        be_block_protocol::LinkAdmits::One => be_sdk_api::LinkAdmits::One,
     }
 }
 
@@ -130,6 +131,7 @@ pub fn link_admits(admits: be_sdk_api::LinkAdmits) -> be_block_keys::Admits {
     match admits {
         be_sdk_api::LinkAdmits::Members => be_block_keys::Admits::Members,
         be_sdk_api::LinkAdmits::Anyone => be_block_keys::Admits::Anyone,
+        be_sdk_api::LinkAdmits::One => be_block_keys::Admits::One,
     }
 }
 
