@@ -127,6 +127,40 @@ impl Members {
     }
 }
 
+/// What a root guest is shown (`be3:root`'s `core-view`; root/block_stack.rs).
+impl Members {
+    /// The organization's members as a root shows them, `me` the person's own account:
+    /// listed once `show` asked and the server answered.
+    pub(crate) fn root_area(&self, me: Uuid) -> be_wasm_root_api::MembersArea {
+        be_wasm_root_api::MembersArea {
+            listed: self.open && !self.busy,
+            members: self
+                .members
+                .iter()
+                .map(|member| be_wasm_root_api::MemberRow {
+                    account: member.account.into_bytes(),
+                    name: named(member),
+                    email: member.email.clone(),
+                    role: match member.role {
+                        OrganizationRole::Administrator => {
+                            be_wasm_root_api::MemberRole::Administrator
+                        }
+                        OrganizationRole::Editor => be_wasm_root_api::MemberRole::Editor,
+                        OrganizationRole::Guest => be_wasm_root_api::MemberRole::Guest,
+                    },
+                    me: member.account == me,
+                    agent: member.created_by.is_some(),
+                    // An agent waits unsigned until its maker's next `tend` signs it in.
+                    unsigned: member.created_by.is_none()
+                        && self.unsigned.contains(&member.account),
+                })
+                .collect(),
+            busy: self.busy,
+            error: self.error.clone(),
+        }
+    }
+}
+
 fn named(member: &Member) -> String {
     match member.display_name.trim().is_empty() {
         true => member.email.clone(),

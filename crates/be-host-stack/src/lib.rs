@@ -206,6 +206,8 @@ pub struct UnsentEdit {
     /// Why the server refused it, in words (`refusal`), when it did rather than access being
     /// lost (`UnsentBlock::refused`).
     pub refused: Option<&'static str>,
+    /// Why it was set aside, which `refused` words: none when access to it was lost.
+    pub aside: Option<be_block_client::Aside>,
     /// Edits kept on this device that never became a commit (`UnsentBlock::kept_edits`).
     pub kept_edits: usize,
 }
@@ -1711,6 +1713,7 @@ pub fn unsent() -> Vec<UnsentEdit> {
                 since: unsent.since,
                 offerable: unsent.offerable,
                 refused: unsent.refused.map(aside),
+                aside: unsent.refused,
                 kept_edits: unsent.kept_edits,
             })
             .collect()

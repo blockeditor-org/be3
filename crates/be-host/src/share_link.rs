@@ -233,3 +233,27 @@ fn offered(preview: &SharePreview) -> String {
         organization(preview)
     )
 }
+
+/// What a root guest is shown (`be3:root`'s `core-view`; root/block_stack.rs).
+impl ShareLinks {
+    /// The share link opened as a root shows it, whether or not the host's own dialog is open:
+    /// the block's name as its maker gave it, which the root shows as plain text alone.
+    pub(crate) fn root_area(&self) -> be_wasm_root_api::ShareLinksArea {
+        let preview = |preview: &SharePreview| be_wasm_root_api::SharePreview {
+            name: preview.name.clone(),
+            organization: preview.organization_name.clone(),
+            access: match preview.access {
+                be_block_graph::Access::Edit => be_wasm_root_api::ShareAccess::Edit,
+                be_block_graph::Access::Join => be_wasm_root_api::ShareAccess::Join,
+                _ => be_wasm_root_api::ShareAccess::View,
+            },
+            guest: preview.guest,
+        };
+        be_wasm_root_api::ShareLinksArea {
+            offered: self.offered.as_ref().map(|(_, offered)| preview(offered)),
+            opened: self.opened.as_ref().map(preview),
+            busy: self.busy,
+            error: self.error.clone(),
+        }
+    }
+}

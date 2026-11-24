@@ -94,6 +94,15 @@ impl HostTest {
         Self::begin(start, ROOT_SHOWN, false, None)
     }
 
+    /// Starts the host with the staged app `app` as its root, as [`HostTest::root`] does, with
+    /// the dev workspace open (`--dev-workspace`): the root shows be-host's block stack signed
+    /// in. Wait for what the root shows with `settle`.
+    pub fn root_with_dev_workspace(app: &str) -> Self {
+        let mut start = Self::program(false, true);
+        start.arguments = vec![format!("--root={app}"), "--dev-workspace".to_owned()];
+        Self::begin(start, ROOT_SHOWN, false, None)
+    }
+
     /// Starts a device of `account` on its test [`Server`], in a data directory of its own,
     /// and opens its My files as `start` does: the account's first device, which sets its key.
     /// Start its other devices with [`HostTest::another_device`], which unlocks them with that

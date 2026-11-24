@@ -48,6 +48,8 @@
 //! The root is the app: one that fails to start or stops closes the window, and be-host exits
 //! saying why, as it would on a panic.
 
+mod block_stack;
+
 use std::{
     cell::RefCell,
     collections::BTreeMap,
@@ -144,6 +146,8 @@ struct RootShell {
     memory: Option<MemoryRows>,
     /// The editors be-host serves the root's apps, by the root's instance each runs in.
     editors: HashMap<u64, Forwarded>,
+    /// The block stack as the root is shown it, and the secrets it asked for.
+    block_stack: block_stack::BlockStack,
 }
 
 /// What a root's frame asks of its window (`frame-done`'s `cursor`, `pointer-locked` and
@@ -190,6 +194,7 @@ impl RootShell {
             pasted: Rc::default(),
             memory: None,
             editors: HashMap::new(),
+            block_stack: block_stack::BlockStack::default(),
         }
     }
 
@@ -275,6 +280,9 @@ impl RootShell {
         clipboard(context, root, &self.pasted);
         serve_editors(&self.core, root, &mut self.editors);
         refuse_unserved(root);
+        // What the root asked of the block stack in this frame, done at once; what that changed
+        // reaches it with its next frame, which showing it wakes the host for.
+        self.block_stack.step(&mut self.core, root, context);
         let answers = root.take_answers();
         if !answers.is_empty() {
             answer_notices(context, answers);
@@ -637,16 +645,12 @@ fn statistic_row(row: be_host_base::performance::PerformanceRow) -> StatisticRow
 ///   the lock screen changes nothing. `be3:root` drops a password handed over while the session
 ///   is not locked, so none reaches here.
 /// - Displays (the desktop's): it asks to keep none, and an answer changes nothing.
-/// - The block stack: it shows nothing and waits for nothing, so a command changes nothing,
-///   and a secret asked for is answered with none.
+///
+/// The block stack it serves (`block_stack`), and its apps' editors (`serve_editors`).
 fn refuse_unserved(root: &mut Root) {
     root.take_lock_asked();
     root.take_lock_powers();
     root.take_display_answers();
-    root.take_core_commands();
-    for (id, _) in root.take_secret_requests() {
-        root.answer_secret(id, None);
-    }
 }
 
 /// Serves the root the editors of the blocks it shows (plans/host_as_platform_adapter.md,
