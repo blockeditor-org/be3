@@ -1084,6 +1084,9 @@ interface host {
 
     /// The frames for the host of the app the root spawned as `instance`, in
     /// the order it sent them: be-wasm-ops frames, each as it encoded it.
+    /// The host ignores those for an instance it opened no editor in, and
+    /// stops serving an instance's editors, dropping what it held for them,
+    /// once the instance stopped or the root let go of it.
     forward: async func(instance: u64, frames: list<list<u8>>);
 
     /// Frames for one app the root spawned.
