@@ -1,6 +1,6 @@
 use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::icons::{
-    ICON_DOWNLOAD, ICON_EYE, ICON_GRID_3X3, ICON_LAYERS, ICON_PEN_TOOL, ICON_PENCIL, ICON_PLUS,
+    ICON_EYE, ICON_GRID_3X3, ICON_LAYERS, ICON_PEN_TOOL, ICON_PENCIL, ICON_PLUS,
     ICON_SLIDERS_HORIZONTAL,
 };
 use be_sdk_beui::beui::reactive::*;
@@ -38,21 +38,6 @@ fn add_menu(actions: &CanvasActions) -> MenuNode {
             MenuNode::labelled(&actions.add_text, "Text"),
             MenuNode::labelled(&actions.add_image, "Image…"),
             MenuNode::labelled(&actions.add_block, "Block…"),
-        ],
-    )
-}
-
-fn export_menu(actions: &CanvasActions) -> MenuNode {
-    MenuNode::submenu(
-        "canvas.export",
-        "Export",
-        ICON_DOWNLOAD,
-        vec![
-            act(&actions.copy_png),
-            act(&actions.copy_svg),
-            MenuNode::Separator,
-            act(&actions.export_png),
-            act(&actions.export_svg),
         ],
     )
 }
@@ -165,7 +150,6 @@ pub(crate) fn frame_menu(actions: &CanvasActions, fit_all: Option<&Action>) -> V
             ],
         ),
         add_menu(actions),
-        export_menu(actions),
         arrange_menu(actions),
         tools_menu(actions),
         view_menu(actions, fit_all),
@@ -186,7 +170,6 @@ fn context_menu(actions: &CanvasActions) -> Vec<MenuNode> {
         act(&actions.paste),
         act(&actions.duplicate),
         act(&actions.delete),
-        export_menu(actions),
         MenuNode::Separator,
         arrange_menu(actions),
         MenuNode::Separator,

@@ -3,7 +3,7 @@ use be_sdk_beui::beui::icons::Glyph;
 use be_sdk_beui::beui::icons::{
     ICON_ALIGN_HORIZONTAL_SPACE_BETWEEN, ICON_ALIGN_VERTICAL_SPACE_BETWEEN, ICON_ARROW_DOWN,
     ICON_ARROW_LEFT_RIGHT, ICON_ARROW_UP, ICON_BOXES, ICON_BRACES, ICON_CLIPBOARD, ICON_COMPONENT,
-    ICON_COPY, ICON_COPY_PLUS, ICON_DOWNLOAD, ICON_EXTERNAL_LINK, ICON_FOCUS, ICON_GRID_2X2,
+    ICON_COPY, ICON_COPY_PLUS, ICON_EXTERNAL_LINK, ICON_FOCUS, ICON_GRID_2X2,
     ICON_IMAGE, ICON_LAYERS_ARROW_UP, ICON_LINE_SQUIGGLE, ICON_LINK, ICON_LOCK, ICON_LOCK_OPEN,
     ICON_MAGNET, ICON_MINUS, ICON_PAINT_BUCKET, ICON_PENCIL, ICON_PIN, ICON_PLUS,
     ICON_RECTANGLE_HORIZONTAL, ICON_SCAN, ICON_SCISSORS, ICON_SEND_TO_BACK, ICON_SLASH,
@@ -11,11 +11,9 @@ use be_sdk_beui::beui::icons::{
     ICON_TYPE,
 };
 use be_sdk_beui::beui::reactive::*;
-use be_sdk_beui::beui::styled::use_theme;
 use be_type_infinite_canvas::{CanvasLayerMove, CanvasProfile};
 use uuid::Uuid;
 
-use super::export::{ExportFormat, ExportTo, Exporter};
 use super::grid::{GridActions, grid_actions};
 use super::state::{CanvasCommand, CanvasState, Tool};
 use super::touch::TouchChoice;
@@ -51,11 +49,6 @@ pub(crate) struct CanvasActions {
     pub(crate) cut: Action,
     pub(crate) copy: Action,
     pub(crate) paste: Action,
-    pub(crate) copy_png: Action,
-    pub(crate) copy_svg: Action,
-    pub(crate) export_png: Action,
-    pub(crate) export_svg: Action,
-    pub(crate) exporter: Exporter,
     pub(crate) duplicate: Action,
     pub(crate) delete: Action,
     pub(crate) group: Action,
@@ -214,52 +207,6 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
     .shortcut(Chord::ctrl(Key::V))
     .enabled(free)
     .register();
-    let theme = use_theme();
-    let exporter = Exporter::new(
-        state,
-        create_memo(move || super::canvas::palette(&theme)),
-        create_memo(move || beui::reactive::resolve_color(theme.background.get())),
-    );
-    state.set_exporter(exporter);
-    let drawn = when(|state| state.entities.ids().with(|ids| !ids.is_empty()));
-    let export =
-        |id: &str, label: &'static str, glyph: Glyph, format: ExportFormat, to: ExportTo| {
-            Action::new(id, label, move || match to {
-                ExportTo::Clipboard | ExportTo::Render => exporter.run(format, to),
-                ExportTo::File => exporter.ask(format),
-            })
-            .glyph(glyph)
-            .enabled(drawn)
-            .register()
-        };
-    let copy_png = export(
-        "canvas.copy-png",
-        "Copy as PNG",
-        ICON_IMAGE,
-        ExportFormat::Png,
-        ExportTo::Clipboard,
-    );
-    let copy_svg = export(
-        "canvas.copy-svg",
-        "Copy as SVG",
-        ICON_SPLINE_POINTER,
-        ExportFormat::Svg,
-        ExportTo::Clipboard,
-    );
-    let export_png = export(
-        "canvas.export-png",
-        "Export as PNG…",
-        ICON_DOWNLOAD,
-        ExportFormat::Png,
-        ExportTo::File,
-    );
-    let export_svg = export(
-        "canvas.export-svg",
-        "Export as SVG…",
-        ICON_DOWNLOAD,
-        ExportFormat::Svg,
-        ExportTo::File,
-    );
     let duplicate = command(
         "canvas.duplicate",
         "Duplicate",
@@ -622,11 +569,6 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
         cut,
         copy,
         paste,
-        copy_png,
-        copy_svg,
-        export_png,
-        export_svg,
-        exporter,
         duplicate,
         delete,
         group,

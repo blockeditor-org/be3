@@ -1,4 +1,3 @@
-use super::copying_as_svg_writes_every_shape_kind::palette_runs;
 use super::*;
 use be_sdk_beui::beui::{Key, Modifiers, Rect, native::Shape};
 
@@ -65,8 +64,8 @@ fn turned_text_is_drawn_turned_as_it_is_exported() {
             ..Modifiers::NONE
         },
     );
-    palette_runs(&mut editor, "copy as svg");
-    let copied = editor.take_copied_text();
+    let copied = vec![String::from_utf8(copied_export(&mut editor, "svg", "image/svg+xml"))
+        .expect("the SVG is text")];
     let [svg] = copied.as_slice() else {
         panic!("Copy as SVG puts one SVG on the clipboard, put {copied:?}");
     };

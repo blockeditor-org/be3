@@ -260,6 +260,11 @@ pub enum HostContent {
         parent: be_sdk_api::BlockLocation,
     },
     Rename(Uuid),
+    /// The Export dialog of a block, run in the app of the block's editor.
+    Export {
+        block: Uuid,
+        request: be_sdk_api::ExportRequest,
+    },
 }
 
 impl HostContent {
@@ -272,7 +277,8 @@ impl HostContent {
             | Self::ArtifactSettings(_)
             | Self::DockTab { .. }
             | Self::Picker { .. }
-            | Self::Rename(_) => None,
+            | Self::Rename(_)
+            | Self::Export { .. } => None,
         }
     }
 
@@ -285,7 +291,8 @@ impl HostContent {
             | Self::ArtifactSettings(_)
             | Self::DockTab { .. }
             | Self::Picker { .. }
-            | Self::Rename(_) => None,
+            | Self::Rename(_)
+            | Self::Export { .. } => None,
         }
     }
 }
@@ -377,6 +384,25 @@ fn picker_request(instance: EditorInstanceId) -> Option<PickerRequest> {
     PICKERS.with(|pickers| pickers.borrow().get(&instance).cloned())
 }
 
+thread_local! {
+    static EXPORTS: std::cell::RefCell<be_lib_stable_hash::HashMap<EditorInstanceId, be_sdk_api::ExportRequest>> =
+        std::cell::RefCell::new(be_lib_stable_hash::HashMap::default());
+}
+
+/// What the Export dialog `instance` opens as (`InstanceRole::Export`) runs: which exporter, and
+/// the settings it starts from.
+pub fn ask_export(instance: EditorInstanceId, request: be_sdk_api::ExportRequest) {
+    EXPORTS.with(|exports| exports.borrow_mut().insert(instance, request));
+}
+
+pub fn forget_export(instance: EditorInstanceId) {
+    EXPORTS.with(|exports| exports.borrow_mut().remove(&instance));
+}
+
+fn export_request(instance: EditorInstanceId) -> Option<be_sdk_api::ExportRequest> {
+    EXPORTS.with(|exports| exports.borrow().get(&instance).cloned())
+}
+
 pub struct RuntimeStatus {
     pub app_id: String,
     pub state: String,
@@ -463,6 +489,9 @@ pub enum InstanceRole {
     Artifact(Uuid, EditorBlock, Uuid),
     Picker(Uuid),
     Rename(Uuid, Uuid, bool),
+    /// The Export dialog of a block (`ask_export` says what it runs), in the app of the
+    /// block's editor.
+    Export(Uuid, EditorBlock),
     /// A host component (the manifest's `hosts`) on a block: no frame, no view, no input
     /// (guides/apps/host_services.md, "Host components").
     Host(Uuid, EditorBlock),
@@ -474,7 +503,7 @@ impl InstanceRole {
             Self::Editor(_, block) | Self::Artifact(_, block, _) | Self::Host(_, block) => {
                 Some(block)
             }
-            Self::Creation(..) | Self::Picker(..) | Self::Rename(..) => None,
+            Self::Creation(..) | Self::Picker(..) | Self::Rename(..) | Self::Export(..) => None,
         }
     }
 }
@@ -487,6 +516,7 @@ pub struct ArtifactSlot<'a> {
     pub editor: Uuid,
     pub block: EditorBlock,
     pub source: Uuid,
+    pub exporter: &'a str,
     pub data: &'a [u8],
     pub resync: bool,
 }

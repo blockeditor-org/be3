@@ -21,7 +21,10 @@
       "views": [
         "Main",
         "ArtifactSettings"
-      ]
+      ],
+      "exporters": {
+        "component": {"label": "Component"}
+      }
     },
     "game": {
       "id": "4238d713-289e-4b68-a24a-567ac199ff15",

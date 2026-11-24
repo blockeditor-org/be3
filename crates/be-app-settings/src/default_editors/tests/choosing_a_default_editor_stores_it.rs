@@ -32,6 +32,7 @@ fn choosing_a_default_editor_stores_it() {
                 name: "Note".to_owned(),
                 icon_codepoint: String::new(),
                 extensions: Vec::new(),
+                exporters: Vec::new(),
             },
             EditorDescriptor {
                 editor: debug.into_bytes(),
@@ -39,6 +40,7 @@ fn choosing_a_default_editor_stores_it() {
                 name: "Debug view".to_owned(),
                 icon_codepoint: String::new(),
                 extensions: Vec::new(),
+                exporters: Vec::new(),
             },
         ],
     });

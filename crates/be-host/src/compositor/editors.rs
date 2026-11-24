@@ -1730,6 +1730,17 @@ fn HostedChild(
                         false => Kind::NoPicker,
                     };
                 }
+                Some(HostContent::Export { block, request }) => {
+                    let Some(node) = be_host_stack::node(block) else {
+                        return Kind::Unavailable;
+                    };
+                    return match editors.ensure_picker(creation_key, |registry| {
+                        registry.export(block, node.content_type, request)
+                    }) {
+                        true => Kind::Picker,
+                        false => Kind::Unavailable,
+                    };
+                }
                 Some(HostContent::Rename(block)) => {
                     let sheet = sheet.get();
                     return match editors

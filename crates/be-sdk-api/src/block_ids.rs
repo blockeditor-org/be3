@@ -39,7 +39,9 @@ impl ChildPlacements {
                 | ChildContent::Window(_)
                 | ChildContent::Creation { .. }
                 | ChildContent::DockTab(_) => {}
-                ChildContent::ArtifactSettings { block_id } | ChildContent::Rename(block_id) => {
+                ChildContent::ArtifactSettings { block_id }
+                | ChildContent::Rename(block_id)
+                | ChildContent::Export { block_id, .. } => {
                     visit(self.instance, BlockIdRole::Existing, block_id);
                 }
                 ChildContent::Picker { filter, parent, .. } => {
@@ -78,6 +80,7 @@ impl Opening {
                 location(&mut open.parent, &mut existing);
             }
             OpeningKind::Rename(open) => existing(&mut open.block_id),
+            OpeningKind::Export(open) => existing(&mut open.block_id),
             OpeningKind::Host(open) => existing(&mut open.block_id),
             OpeningKind::Join(open) => existing(&mut open.block_id),
             OpeningKind::Creation(_) => {}
@@ -125,6 +128,7 @@ impl crate::embed::host_services::Call {
             Self::PickFile { .. }
             | Self::RevisionPreviewOpened { .. }
             | Self::SaveFile { .. }
+            | Self::FileOfContent { .. }
             | Self::RotateAgentToken { .. }
             | Self::RemoveAgent { .. }
             | Self::TerminalHostBinary { .. }
@@ -238,6 +242,7 @@ impl BlockCommand {
             | Self::Artifact { .. }
             | Self::Restore
             | Self::Share
+            | Self::Export(_)
             | Self::Leave
             | Self::CloseEditor
             | Self::Define { .. }
@@ -271,6 +276,7 @@ impl BlockCommand {
             // where the service places them, and a Join member's side of the channel.
             Self::Leave
             | Self::Share
+            | Self::Export(_)
             | Self::CloseEditor
             | Self::Artifact { .. }
             | Self::TellHost(_)

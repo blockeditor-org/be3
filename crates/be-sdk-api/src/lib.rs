@@ -45,11 +45,11 @@ be_wasm_ops_bindgen::generate!({
         "delete-command", "move-command", "reorder-command", "place-command", "adopt-command",
         "finish-command", "branch-command", "create-branch-command", "resolve-command",
         "undo-operation-command", "performance-duration", "performance-count", "view-zoom",
-        "block-child", "creation-child", "artifact-settings-child", "picker-child",
+        "block-child", "creation-child", "artifact-settings-child", "picker-child", "export-child",
         "window-fullscreen", "wifi-connect", "wifi-hidden", "notification-closed", "notification-action-invoked",
         "program-list", "program-launch", "program-exec", "tray-scroll", "tray-menu-chosen",
     ],
-    ordered: ["child-content", "dock-tab-path", "block-filter"],
+    ordered: ["child-content", "dock-tab-path", "block-filter", "export-request"],
 });
 
 pub use accessibility::DescribedAction;
@@ -76,7 +76,8 @@ pub use shell_types::ChildStatus;
 pub use shell_types::{
     ArtifactDescription, AudioCommand, AudioSource, AudioStatus, Catalog, ChildPreview,
     CreationProgress, DialogAnswer, DialogStatus, DropAction, EditorDescriptor, FitArea,
-    OfferedClipItem, PreviewImage, Stopped, TemplateDescriptor, ViewChange, WebViewEvent,
+    ExporterDescriptor, OfferedClipItem, PreviewImage, Stopped, TemplateDescriptor, ViewChange,
+    WebViewEvent,
 };
 pub use types::{
     AnchorSpace, AnchoredPlacement, ChildContent, ChildLayer, ChildMode, ChildPlacement,
@@ -88,7 +89,10 @@ pub use types::{
     SurfaceSupport, TimedInput, TopBar, ViewAnchor, ViewEdge, ViewPlacement, ViewSize,
     ViewportMetrics,
 };
-pub use types::{BlockFilter, BlockLocation, BlockPick, OpenPicker, OpenRename, PickedBlock};
+pub use types::{
+    BlockFilter, BlockLocation, BlockPick, ExportRequest, OpenExport, OpenPicker, OpenRename,
+    PickedBlock,
+};
 pub use types::{
     DockAlign, DockBar, DockBarEdge, DockBarHide, DockBarMove, DockBarPlace, DockBarPlacement,
     DockBarWindow, DockChild, DockChildClose, DockChildHosted, DockChildPick, DockCompact,
@@ -556,7 +560,8 @@ impl ChildContent {
             | Self::ArtifactSettings { .. }
             | Self::DockTab(_)
             | Self::Picker { .. }
-            | Self::Rename(_) => None,
+            | Self::Rename(_)
+            | Self::Export { .. } => None,
         }
     }
 }

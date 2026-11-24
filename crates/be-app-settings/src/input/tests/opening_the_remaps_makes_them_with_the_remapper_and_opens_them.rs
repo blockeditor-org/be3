@@ -18,6 +18,7 @@ fn opening_the_remaps_makes_them_with_the_remapper_and_opens_them() {
             name: "Input Remaps".to_owned(),
             icon_codepoint: String::new(),
             extensions: Vec::new(),
+            exporters: Vec::new(),
         }],
     });
 
