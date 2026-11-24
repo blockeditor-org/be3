@@ -8,7 +8,6 @@
 use std::sync::Arc;
 
 use be_block::{AccountBlock, AccountBlockContent};
-use be_block_commit::CommitId;
 use be_block_content::{BlockMetadata, Root};
 use be_block_graph::BlockParent;
 use be_block_keys::{Party, RecoverySecret};
@@ -22,9 +21,6 @@ use uuid::Uuid;
 use super::{Peer, PeerConfig, Saved};
 use crate::{ClientError, Connection, Credentials, refs::RefsDb};
 
-/// How often an update reads again after another device saved first.
-const TRIES: usize = 4;
-
 /// What each call answers: a future boxed as sent between threads. Reading contacts reaches this
 /// block, and its peer reads contacts when keys arrive from a sender it does not know, so these
 /// futures nest in each other's types; boxed with their bounds stated here, each is checked once,
@@ -35,17 +31,16 @@ pub type Sent<'a, T> = std::pin::Pin<Box<dyn Future<Output = Result<T, ClientErr
 #[cfg(target_arch = "wasm32")]
 pub type Sent<'a, T> = std::pin::Pin<Box<dyn Future<Output = Result<T, ClientError>> + 'a>>;
 
+/// Edits answered at once, for an `AccountRecords::update` that reads nothing else.
+pub(crate) fn answered<'a>(edits: Vec<Edit>) -> Sent<'a, Vec<Edit>> {
+    Box::pin(std::future::ready(Ok(edits)))
+}
+
 pub struct AccountRecords {
     peer: Peer<MemoryStore>,
     block: Uuid,
     /// The personal organization's name, as its peer was made with it.
     name: String,
-}
-
-/// What the account's block held when read.
-pub struct Held {
-    pub head: Option<CommitId>,
-    pub content: AccountBlockContent,
 }
 
 /// What a connection learned reaching the account's block, which it keeps for the next pass
@@ -180,83 +175,59 @@ impl AccountRecords {
 
     /// The block as it is now: empty when never made. `ClientError::Locked` when it does not
     /// open on this device, as after a new phrase taken on another device.
-    pub fn read(&self) -> Sent<'_, Held> {
+    pub fn read(&self) -> Sent<'_, AccountBlockContent> {
         Box::pin(async move {
             match self.peer.summary(self.block).await {
                 Err(ClientError::Refused(ErrorCode::BlockNotFound, _)) => {
-                    return Ok(Held {
-                        head: None,
-                        content: AccountBlockContent::default(),
-                    });
+                    return Ok(AccountBlockContent::default());
                 }
                 Err(error) => return Err(error),
                 Ok(_) => {}
             }
-            let content = self
+            Ok(self
                 .peer
                 .open::<AccountBlockContent>(self.block)
                 .await?
-                .unwrap_or_default();
-            Ok(Held {
-                head: self.peer.local_head(self.block),
-                content,
-            })
+                .unwrap_or_default())
         })
     }
 
-    /// Saves the edits `change` makes to the block as read, making the block first if it was
-    /// never made; when another device saved first, reads again and asks `change` again.
+    /// Saves the edits `make` answers for the block as read, making the block first if it was
+    /// never made (`Peer::update_content`): when another device saved first, `make` is asked
+    /// again of the block as it is then, so a write never goes over one it did not read.
     pub fn update<'a>(
         &'a self,
-        change: impl Fn(&AccountBlock) -> Vec<Edit> + Send + Sync + 'a,
+        mut make: impl FnMut(AccountBlockContent) -> Sent<'a, Vec<Edit>> + Send + 'a,
     ) -> Sent<'a, ()> {
         Box::pin(async move {
-            for _ in 0..TRIES {
-                let held = self.read().await?;
-                let edits = change(&held.content.root());
-                match self.save(held, &edits).await {
-                    Err(ClientError::Contended) => continue,
-                    saved => return saved,
-                }
-            }
-            Err(ClientError::Contended)
-        })
-    }
-
-    /// Saves `edits` to the block as `held` read it, making it first if it was never made.
-    /// `ClientError::Contended` when another device saved first: the caller reads again.
-    pub fn save<'a>(&'a self, held: Held, edits: &'a [Edit]) -> Sent<'a, ()> {
-        Box::pin(async move {
-            if edits.is_empty() {
-                return Ok(());
-            }
-            let Held { head, mut content } = held;
-            // Made just now, it holds nothing; made by another device since it was read, the save
-            // on no head is rejected and read again.
-            if head.is_none() && self.ensure().await? {
-                content = AccountBlockContent::default();
-            }
-            for edit in edits {
-                content.apply(edit);
-            }
-            match self.peer.save(self.block, &content, head).await? {
-                Saved::Published(_) | Saved::Unchanged(_) => Ok(()),
-                Saved::Rejected { .. } => Err(ClientError::Contended),
-                Saved::Kept(_) => Err(ClientError::Disconnected(
-                    "the account's block is saved only with the server".into(),
-                )),
-            }
-        })
-    }
-
-    /// Makes the block if the server has none: whether this made it.
-    fn ensure(&self) -> Sent<'_, bool> {
-        Box::pin(async move {
             match self.peer.summary(self.block).await {
-                Ok(_) => return Ok(false),
-                Err(ClientError::Refused(ErrorCode::BlockNotFound, _)) => {}
+                Ok(_) => {}
+                // Made only to keep something: an account's first pass, before its identity is
+                // registered, makes nothing.
+                Err(ClientError::Refused(ErrorCode::BlockNotFound, _)) => {
+                    if make(AccountBlockContent::default()).await?.is_empty() {
+                        return Ok(());
+                    }
+                    self.make().await?;
+                }
                 Err(error) => return Err(error),
             }
+            let saved = self
+                .peer
+                .update_content(self.block, &mut make)
+                .await?;
+            match saved {
+                Some(Saved::Kept(_)) => Err(ClientError::Disconnected(
+                    "the account's block is saved only with the server".into(),
+                )),
+                _ => Ok(()),
+            }
+        })
+    }
+
+    /// Makes the block, which the server did not have when read.
+    fn make(&self) -> Sent<'_, ()> {
+        Box::pin(async move {
             let metadata = BlockMetadata::default();
             match self
                 .peer
@@ -269,11 +240,11 @@ impl AccountRecords {
                 )
                 .await
             {
-                Ok(_) => Ok(true),
+                Ok(_) => Ok(()),
                 // Another device of the account made it first: its keys are read for it.
                 Err(ClientError::Refused(ErrorCode::BlockAlreadyExists, _)) => {
                     self.peer.refresh_keys(Some(vec![self.block])).await?;
-                    Ok(false)
+                    Ok(())
                 }
                 Err(error) => Err(error),
             }

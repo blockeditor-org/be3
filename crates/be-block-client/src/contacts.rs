@@ -10,9 +10,9 @@ use be_block_protocol::{
 };
 use uuid::Uuid;
 
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
-use crate::{AccountRecords, ClientError, connection::Connection};
+use crate::{AccountRecords, ClientError, connection::Connection, peer::account_block::answered};
 
 #[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct Contact {
@@ -220,7 +220,7 @@ impl<'a> Secrets<'a> {
             Ok(None) | Err(_) => return Self::new(identity, None),
         };
         match block.read().await {
-            Ok(held) => Self::new(identity, Some(&held.content.root())),
+            Ok(content) => Self::new(identity, Some(&content.root())),
             Err(_) => Self::new(identity, None),
         }
     }
@@ -398,8 +398,7 @@ pub async fn kept_links(
         return Ok(HashMap::new());
     };
     Ok(match block.read().await {
-        Ok(held) => held
-            .content
+        Ok(content) => content
             .root()
             .links
             .iter()
@@ -427,7 +426,8 @@ async fn keep_link(
     };
     let bytes = kept.encode();
     block
-        .update(move |current| {
+        .update(move |content| {
+            let current = content.root();
             let mut edits = vec![be_block::AccountBlock::set_link(link, Some(bytes.clone()))];
             // Invitations long past their life go, and past the bound the oldest links, so the
             // block holds no codes for links the server no longer keeps.
@@ -456,7 +456,7 @@ async fn keep_link(
                     .iter()
                     .map(|(_, id)| be_block::AccountBlock::set_link(*id, None)),
             );
-            edits
+            answered(edits)
         })
         .await
 }
@@ -483,8 +483,8 @@ pub async fn pinned(
         .collect();
     if let Some(block) = AccountRecords::open(connection, account, identity).await? {
         match block.read().await {
-            Ok(held) => found.extend(
-                held.content
+            Ok(content) => found.extend(
+                content
                     .root()
                     .pin(organization)
                     .and_then(Pinned::decode),
@@ -509,16 +509,17 @@ pub async fn keep_pin(
         return Ok(());
     };
     block
-        .update(move |current| {
-            let after = current
+        .update(move |content| {
+            let after = content
+                .root()
                 .pin(organization)
                 .and_then(Pinned::decode)
                 .map_or(0, |held| held.made);
             let pinned = pinned.clone().stamped(after);
-            vec![be_block::AccountBlock::set_pin(
+            answered(vec![be_block::AccountBlock::set_pin(
                 organization,
                 Some(pinned.encode()),
-            )]
+            )])
         })
         .await
 }
@@ -662,38 +663,68 @@ pub async fn contacts(
     pinned: &HashMap<Uuid, OwnContact>,
 ) -> Result<Vec<Contact>, ClientError> {
     let block = AccountRecords::open(connection, account, identity).await?;
-    let mut tries = 0;
-    loop {
-        match contacts_once(connection, account, identity, pinned, block.as_deref()).await {
-            Err(ClientError::Contended) if tries < 3 => tries += 1,
-            listed => return listed,
+    if let Some(block) = block.as_deref() {
+        // The pass over the block as last read, whose letters go once the block keeps them.
+        let passed: Mutex<Option<Pass>> = Mutex::new(None);
+        let updated = block
+            .update(|content| {
+                let passed = &passed;
+                Box::pin(async move {
+                    let (pass, edits) =
+                        pass(connection, account, identity, pinned, Some(&content), true).await?;
+                    *passed.lock().unwrap() = Some(pass);
+                    Ok(edits)
+                })
+            })
+            .await;
+        match (updated, passed.into_inner().unwrap()) {
+            (Ok(()), Some(pass)) => {
+                if !pass.taken.is_empty() {
+                    be_block_protocol::write_all::<(), _>(
+                        connection,
+                        None,
+                        pass.taken
+                            .into_iter()
+                            .map(be_block_protocol::Op::DeleteMessage)
+                            .collect(),
+                    )
+                    .await??;
+                }
+                return Ok(pass.listed);
+            }
+            // Not readable on this device, as after a new phrase taken on another: listed from
+            // the pins, and nothing written or deleted.
+            (Err(ClientError::Locked(_)), None) => {}
+            (Err(error), _) => return Err(error),
+            (Ok(()), None) => return Err(ClientError::Unexpected),
         }
     }
+    let (pass, _) = pass(connection, account, identity, pinned, None, block.is_none()).await?;
+    Ok(pass.listed)
 }
 
-async fn contacts_once(
+/// What a pass over the account's block and mailbox lists, and the letters it took into the
+/// block.
+struct Pass {
+    listed: Vec<Contact>,
+    taken: Vec<u64>,
+}
+
+/// One pass of `contacts` over `held`, the block as read (none when it was not), answering the
+/// edits that keep what it took. `readable` when the account's contacts are read from `held`
+/// or, for an account with no block, from its letters alone.
+async fn pass(
     connection: &Arc<Connection>,
     account: Uuid,
     identity: &RecoverySecret,
     pinned: &HashMap<Uuid, OwnContact>,
-    block: Option<&AccountRecords>,
-) -> Result<Vec<Contact>, ClientError> {
-    let held = match block {
-        Some(block) => match block.read().await {
-            Ok(held) => Some(held),
-            Err(ClientError::Locked(_)) => None,
-            Err(error) => return Err(error),
-        },
-        None => None,
-    };
-    let readable = held.is_some() || block.is_none();
+    held: Option<&be_block::AccountBlockContent>,
+    readable: bool,
+) -> Result<(Pass, Vec<be_block_model::Edit>), ClientError> {
     // Letters are taken, and deleted, only into a block this device reads.
     let keeps = held.is_some();
-    let kept = held
-        .as_ref()
-        .map(|held| kept_of(&held.content.root()))
-        .unwrap_or_default();
-    let root = held.as_ref().map(|held| held.content.root());
+    let root = held.map(|held| held.root());
+    let kept = root.as_ref().map(kept_of).unwrap_or_default();
     let secrets = Secrets::new(identity, root.as_ref());
     let mut removed: HashMap<Uuid, (u64, u64)> = kept
         .iter()
@@ -713,12 +744,10 @@ async fn contacts_once(
     let mailbox = mailbox(connection).await?;
     let mut taken = Vec::new();
     let mut pins: HashMap<Uuid, Pinned> = HashMap::new();
-    let mut newest_pin: HashMap<Uuid, u64> = held
+    let mut newest_pin: HashMap<Uuid, u64> = root
         .as_ref()
-        .map(|held| {
-            held.content
-                .root()
-                .pins
+        .map(|root| {
+            root.pins
                 .iter()
                 .filter_map(|(organization, bytes)| {
                     Some((*organization, Pinned::decode(bytes)?.made))
@@ -850,15 +879,13 @@ async fn contacts_once(
             },
         });
     }
-    if let (Some(block), Some(held), true) = (block, held, keeps) {
+    let mut edits = Vec::new();
+    if keeps {
         // Each contact whose state, kept or removed, differs from what the block held: a record
         // taken and removed in one pass still leaves its tombstone.
-        let mut edits: Vec<_> = pins
-            .into_iter()
-            .map(|(organization, pinned)| {
-                be_block::AccountBlock::set_pin(organization, Some(pinned.encode()))
-            })
-            .collect();
+        edits.extend(pins.into_iter().map(|(organization, pinned)| {
+            be_block::AccountBlock::set_pin(organization, Some(pinned.encode()))
+        }));
         let mut ended: HashMap<Uuid, KeptContact> = removed
             .iter()
             .map(|(contact, (verified, through))| {
@@ -884,22 +911,10 @@ async fn contacts_once(
                 ));
             }
         }
-        block.save(held, &edits).await?;
-        if !taken.is_empty() {
-            taken.sort_unstable();
-            taken.dedup();
-            be_block_protocol::write_all::<(), _>(
-                connection,
-                None,
-                taken
-                    .into_iter()
-                    .map(be_block_protocol::Op::DeleteMessage)
-                    .collect(),
-            )
-            .await??;
-        }
     }
-    Ok(listed)
+    taken.sort_unstable();
+    taken.dedup();
+    Ok((Pass { listed, taken }, edits))
 }
 
 /// Follows `changes` in order from `card`'s key: the key they lead to, if another, and how many
@@ -1198,7 +1213,7 @@ pub(crate) async fn set_recovery_key_in(
     let block = AccountRecords::open(connection, account, old).await?;
     let records = match &block {
         Some(block) => match block.read().await {
-            Ok(held) => records_of(&held.content.root()),
+            Ok(content) => records_of(&content.root()),
             Err(ClientError::Locked(_)) => return Ok(Err(CannotReseal::Unreadable)),
             Err(error) => return Err(error),
         },
@@ -1213,10 +1228,10 @@ pub(crate) async fn set_recovery_key_in(
         let (key, secret) = (retired_key(&old.public()), old.to_bytes().to_vec());
         block
             .update(move |_| {
-                vec![be_block::AccountBlock::set_retired(
+                answered(vec![be_block::AccountBlock::set_retired(
                     key,
                     Some(secret.clone()),
-                )]
+                )])
             })
             .await?;
     }
@@ -1412,7 +1427,7 @@ async fn held_verified(
         return Ok(0);
     };
     Ok(match block.read().await {
-        Ok(held) => kept_of(&held.content.root())
+        Ok(content) => kept_of(&content.root())
             .get(&contact)
             .map_or(0, KeptContact::verified),
         Err(ClientError::Locked(_)) => 0,
@@ -1565,8 +1580,7 @@ pub(crate) async fn finish_links(
         return Ok(Vec::new());
     };
     let kept: HashMap<Uuid, KeptLink> = match block.read().await {
-        Ok(held) => held
-            .content
+        Ok(content) => content
             .root()
             .links
             .iter()
@@ -1609,15 +1623,16 @@ pub(crate) async fn finish_links(
         // Kept in the account's block before the link and its letter go, so a device that stops
         // between keeps the card and finishes the link again.
         let recorded = block
-            .update(|current| {
-                let before = current
+            .update(|content| {
+                let before = content
+                    .root()
                     .contact(accepter)
                     .and_then(|bytes| KeptContact::decode(bytes, accepter));
                 if let Some(KeptContact::Record(before)) = &before
                     && before.through >= letter
                     && before.card == card
                 {
-                    return Vec::new();
+                    return answered(Vec::new());
                 }
                 // Newer than whatever the block held, a removal included.
                 let pin = pins.get(&accepter).map_or(0, |pin| pin.verified);
@@ -1628,10 +1643,10 @@ pub(crate) async fn finish_links(
                         before.map_or(0, |before| before.verified()).max(pin),
                     )
                 };
-                vec![be_block::AccountBlock::set_contact(
+                answered(vec![be_block::AccountBlock::set_contact(
                     accepter,
                     Some(record.kept()),
-                )]
+                )])
             })
             .await;
         match recorded {
@@ -1672,9 +1687,9 @@ pub(crate) async fn finish_links(
 /// Drops a finished link's code from the account's block.
 pub(crate) async fn forget_link(block: &AccountRecords, link: Uuid) -> Result<(), ClientError> {
     block
-        .update(move |current| match current.link(link) {
-            Some(_) => vec![be_block::AccountBlock::set_link(link, None)],
-            None => Vec::new(),
+        .update(move |content| match content.root().link(link) {
+            Some(_) => answered(vec![be_block::AccountBlock::set_link(link, None)]),
+            None => answered(Vec::new()),
         })
         .await
 }
