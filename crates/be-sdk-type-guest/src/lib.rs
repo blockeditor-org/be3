@@ -797,7 +797,9 @@ impl Module {
                 .remove(&id)
                 .map(|mut replica| {
                     let epoch = state.epochs.get(&id).copied().unwrap_or_default();
-                    // A released replica carries none of what it did for editors.
+                    // A released replica carries none of what it did for editors (its asks and
+                    // its range reads, `EditorCalls`), though a close releases it with editors
+                    // still attached: their answers go to its id, which no later replica has.
                     lacking::Carried {
                         editor_calls: lacking::EditorCalls::default(),
                         ..replica.carry(epoch)
