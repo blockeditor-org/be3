@@ -43,6 +43,9 @@ pub struct Blob<K: BlobKind> {
     data: Vec<u8>,
     saved: Option<PartRef>,
     unloaded: bool,
+    /// Where the payload starts in the stored form this blob was decoded from, while its header
+    /// is the one decoded: `payload_offset` then reads it rather than encoding the header again.
+    stored_start: Option<u64>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -57,6 +60,7 @@ impl<K: BlobKind> Blob<K> {
             data,
             saved: None,
             unloaded: false,
+            stored_start: None,
         }
     }
 
@@ -78,7 +82,8 @@ impl<K: BlobKind> Blob<K> {
     /// Where the payload starts in the stored form, after the encoded header: a reader of a
     /// blob loaded without its payload reads the payload's bytes from here on.
     pub fn payload_offset(&self) -> u64 {
-        encode_streamed(&self.header, &[]).len() as u64
+        self.stored_start
+            .unwrap_or_else(|| encode_streamed(&self.header, &[]).len() as u64)
     }
 
     pub fn payload_length(&self) -> u64 {
@@ -90,6 +95,7 @@ impl<K: BlobKind> Blob<K> {
 
     pub fn set_header(&mut self, header: K::Header) {
         self.header = header;
+        self.stored_start = None;
     }
 }
 
@@ -100,6 +106,7 @@ impl<K: BlobKind> Clone for Blob<K> {
             data: self.data.clone(),
             saved: self.saved,
             unloaded: self.unloaded,
+            stored_start: self.stored_start,
         }
     }
 }
@@ -111,6 +118,7 @@ impl<K: BlobKind> Default for Blob<K> {
             data: Vec::new(),
             saved: None,
             unloaded: false,
+            stored_start: None,
         }
     }
 }
@@ -155,7 +163,11 @@ impl<K: BlobKind> BlockContent for Blob<K> {
 
     fn decode(bytes: &[u8]) -> Result<Self, ContentError> {
         let (header, data) = decode_streamed(bytes)?;
-        Ok(Self::new(header, data))
+        let start = (bytes.len() - data.len()) as u64;
+        Ok(Self {
+            stored_start: Some(start),
+            ..Self::new(header, data)
+        })
     }
 
     fn parts(&self) -> Part<'_> {
@@ -199,7 +211,10 @@ impl<K: BlobKind> LiveEdit for Blob<K> {
 
     fn apply(&mut self, operation: &Self::Op) {
         match operation {
-            BlobOp::SetHeader(header) => self.header.clone_from(header),
+            BlobOp::SetHeader(header) => {
+                self.header.clone_from(header);
+                self.stored_start = None;
+            }
         }
     }
 }

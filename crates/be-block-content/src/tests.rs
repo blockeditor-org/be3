@@ -2,6 +2,7 @@ use super::*;
 use uuid::Uuid;
 
 mod a_blob_puts_its_header_before_its_payload;
+mod a_decoded_blob_reads_its_payload_from_where_it_was_stored;
 mod a_blob_saves_its_header_and_payload_as_separate_parts;
 mod a_block_link_is_found_by_its_fragment_whatever_its_host;
 mod a_view_state_is_written_read_and_skipped_when_unchanged;

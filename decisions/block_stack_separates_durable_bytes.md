@@ -3,8 +3,9 @@
 The block stack (`be-block-*`, guides/the_new_block_stack.md) keeps a block's
 persistent form as a byte string in chunks with a commit chain over it, and
 treats live editing, undo, the reference graph and child changes as separate
-layers a content type opts into (`BlockContent`, `LiveEdit`, `Merge`, `Undo`,
-`Streamed`). Live edits converge through one order the server numbers; offline divergence
+layers a content type opts into (`BlockContent`, `LiveEdit`, `Merge`, `Undo`; a blob's
+stored form puts its header first, so a reader loads the header and reads the payload by
+range). Live edits converge through one order the server numbers; offline divergence
 merges three ways over the persistent bytes; version control is built on the
 store and commits rather than as block types.
 

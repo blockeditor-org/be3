@@ -690,3 +690,14 @@ decisions/tentative_edits_wait_for_release.md) left as it was.
   Done: the cause is found and fixed or explained, with a be-host-runtime or
   be-host-stack test that revokes and then publishes on an open block and sees
   the publish land without waiting out a limit.
+
+## 29. Loading content
+
+- **A large blob's header loads the whole node tree.** `Peer::load_first_part`
+  fetches every node of the manifest's tree (`Vault::outline`, `missing_nodes`
+  walk every level), O(leaves/fanout) objects, though `Blob::from_stored` needs
+  only the path to the first part's end: 22 node objects of 1,737 in
+  be-block-client's `a_large_image_is_read_by_span_without_downloading_all_of_it`.
+  Done: loading the first part fetches only the nodes on the path to
+  `first_end()`, so opening a large blob is O(depth), with that test's bound
+  on the objects held after reading the header back to a constant.
