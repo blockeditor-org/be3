@@ -23,9 +23,7 @@ fn a_component_started_again_as_its_release_rejoins_hosts() {
         shared.session_hosts.contains_key(&block)
     });
     restart_host(block);
-    wait_until("hosts the world", |shared| {
-        shared.hosted.contains(&block)
-    });
+    wait_until("hosts the world", |shared| shared.hosted.contains(&block));
 
     // Stopped and started again before the rejoin that drops the claim is answered: the new
     // component finds the device still hosting, so it claims nothing then.

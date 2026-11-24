@@ -480,7 +480,9 @@ async fn block_verb<S: ObjectStore>(
         ("terminal-host", _, _) => Err(
             "terminal-host needs a live connection; run it as `be TARGET terminal-host`".to_owned(),
         ),
-        ("host", _, _) => Err("host needs a live connection; run it as `be TARGET host`".to_owned()),
+        ("host", _, _) => {
+            Err("host needs a live connection; run it as `be TARGET host`".to_owned())
+        }
         ("sync", _, _) => sync(tracker, Some(entry.id), invocation).await,
         ("move", _, _) => {
             let to = arguments

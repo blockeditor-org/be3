@@ -7,10 +7,10 @@ use std::{
 use be_block_graph::{Access, BlockParent};
 use be_block_protocol::{
     AccountStorage, Authenticated, BrowserLogin, BrowserLoginState, Contents, CreatedAgent,
-    DeviceLoginAnswer, DeviceLoginStep, Done, Error, ErrorCode, Event, Header, JoinedSession,
-    LinkKind, Listing, LogRecord, MemberKind, Op, Page, PairingMessage, PushEndpointChange,
-    HostChange, PutKeys, Query, RecoveryKey, ServerInfo, SessionEvent, SessionSend, SessionState, Target,
-    Topic, UploadUrl, WriteError, embed,
+    DeviceLoginAnswer, DeviceLoginStep, Done, Error, ErrorCode, Event, Header, HostChange,
+    JoinedSession, LinkKind, Listing, LogRecord, MemberKind, Op, Page, PairingMessage,
+    PushEndpointChange, PutKeys, Query, RecoveryKey, ServerInfo, SessionEvent, SessionSend,
+    SessionState, Target, Topic, UploadUrl, WriteError, embed,
 };
 use be_wasm_ops::{Backlog, Incoming, OpError, OpId, Outlets, Reply, Started, net::Peer};
 use tokio::sync::mpsc;
@@ -871,7 +871,8 @@ impl Client {
                 ),
                 false => return Ok(()),
             },
-            Push::Host { block, host, index } => match self.following.sessions.contains_key(&block) {
+            Push::Host { block, host, index } => match self.following.sessions.contains_key(&block)
+            {
                 true => session(block, SessionEvent::Host(HostChange { host, index })),
                 false => return Ok(()),
             },
