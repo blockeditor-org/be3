@@ -191,7 +191,11 @@ impl Pacing {
     }
 
     /// The app presented a frame: it is animating or not, wants the next after `repaint_after`
-    /// if at all, and has or has not taken in all its input (`input_waiting`).
+    /// if at all, and has or has not taken in all its input (`input_waiting`). A frame asked for
+    /// meets the need it was asked for, but not one made while it was in flight (`need`). One
+    /// the app presented unasked (it lays out when its surfaces are replaced) meets no need: a
+    /// `frame-needed` it sent after it may still arrive first, as the call goes out at once and
+    /// the present only with the step's other frames.
     pub fn presented(
         &mut self,
         now: Duration,
@@ -208,7 +212,10 @@ impl Pacing {
                 self.waiting = 0;
             }
         }
-        self.needed = std::mem::take(&mut self.needed_again);
+        let needed_again = std::mem::take(&mut self.needed_again);
+        if self.requested_at.is_some() {
+            self.needed = needed_again;
+        }
         self.requested_at = None;
         self.drawn_at = now;
         self.paint_at = repaint_after.map(|delay| now + delay);
