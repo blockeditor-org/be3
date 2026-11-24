@@ -48,7 +48,8 @@ mod own;
 mod windows;
 
 pub use children::{
-    ALREADY_OPEN_ABOVE, CHILD_SCREEN, Children, NOT_SHOWN_YET, Spawning, child_screen,
+    ALREADY_OPEN_ABOVE, CHILD_SCREEN, Children, KeyboardMove, NOT_SHOWN_YET, Spawning,
+    child_screen,
 };
 pub use embedded::{BlockSpawn, Embedded, Hosted, Spawn, SpawnFailure, Wants};
 pub use own::OwnSurface;
@@ -62,6 +63,19 @@ use be_lib_ui_types::{CursorIcon, ImeArea, KeyChord, WindowRequests, input};
 pub struct Embedding {
     apps: Vec<Embedded>,
     windows: Windows,
+    /// The presses and Escapes routed since `take_pressed`, in order: what takes back active
+    /// children (`Children::revoke`).
+    pressed: Vec<Pressed>,
+    /// The app's screen that took the keyboard last since `take_focused`.
+    focused: Option<LayerId>,
+}
+
+/// A press, of a pointer, a finger or a pen, or Escape pressed, and the layer it reached.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Pressed {
+    pub layer: LayerId,
+    /// Escape pressed, not a pointer's press.
+    pub escape: bool,
 }
 
 impl Embedding {
@@ -71,6 +85,8 @@ impl Embedding {
         Self {
             apps: Vec::new(),
             windows: Windows::new(compositor),
+            pressed: Vec::new(),
+            focused: None,
         }
     }
 
@@ -113,7 +129,25 @@ impl Embedding {
     pub fn input(&mut self, window: Option<u64>, events: &[u8]) -> Result<Vec<Delivery>, String> {
         let events = input::decode(events)?;
         let routed = self.windows.route(window, events);
+        self.pressed.extend(routed.iter().filter_map(|delivery| {
+            Some(Pressed {
+                layer: delivery.target,
+                escape: presses(&delivery.input)?,
+            })
+        }));
         Ok(self.forward(routed))
+    }
+
+    /// The presses and Escapes routed since the last call, in order, each with the layer it
+    /// reached: an app's screen or the root's own.
+    pub fn take_pressed(&mut self) -> Vec<Pressed> {
+        std::mem::take(&mut self.pressed)
+    }
+
+    /// The app's screen that took the keyboard last since the last call, routed there by a press
+    /// or moved there (`focus`): what the editors placing the child it shows hear.
+    pub fn take_focused(&mut self) -> Option<LayerId> {
+        self.focused.take()
     }
 
     /// Hands `chords` to the root's own layer (the compositor `new` names) in every window, ahead
@@ -191,18 +225,44 @@ impl Embedding {
     }
 
     /// Sends each app what is for its screens, and answers the rest.
-    fn forward(&self, deliveries: Vec<Delivery>) -> Vec<Delivery> {
+    fn forward(&mut self, deliveries: Vec<Delivery>) -> Vec<Delivery> {
         let mut own = Vec::new();
         for delivery in deliveries {
             let Surface::Screen { instance, surface } = delivery.surface else {
                 own.push(delivery);
                 continue;
             };
+            if delivery.input == input::Input::Focus(true) {
+                self.focused = Some(delivery.target);
+            }
             if let Some(app) = self.apps.iter().find(|app| app.instance() == instance) {
                 app.input(surface, delivery.input, delivery.time);
             }
         }
         own
+    }
+}
+
+/// Whether `input` is a press, of a pointer, a finger or a pen (`Some(false)`), or Escape
+/// pressed (`Some(true)`): what takes an active child back from its placer.
+fn presses(input: &input::Input) -> Option<bool> {
+    use input::{Input, Key, PenPhase, TouchPhase};
+    match input {
+        Input::PointerButton { pressed: true, .. } => Some(false),
+        Input::Touch {
+            phase: TouchPhase::Start,
+            ..
+        } => Some(false),
+        Input::Pen {
+            phase: PenPhase::Down(_),
+            ..
+        } => Some(false),
+        Input::Key(stroke)
+            if stroke.pressed && !stroke.repeat && stroke.key == Some(Key::Escape) =>
+        {
+            Some(true)
+        }
+        _ => None,
     }
 }
 

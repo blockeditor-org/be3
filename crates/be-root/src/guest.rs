@@ -1661,9 +1661,19 @@ impl frames::Guest for Root {
                     layers,
                 }],
             };
+            let drawn_layers: Vec<LayerId> = list
+                .windows
+                .iter()
+                .flat_map(|window| window.layers.iter().map(|layer| layer.id))
+                .collect();
+            // The list is taken as drawn first, so an ask can focus a layer it holds; what the
+            // apps want is read after, as it was before (nothing between changes it).
+            let drawn = root.embedding.borrow_mut().drew(list);
+            // A child asked to take the keyboard that now shows takes it there, unless the root's
+            // own takes it below.
+            let given = root.keyboard_into_children(&drawn_layers);
             let mut embedding = root.embedding.borrow_mut();
             let wants = embedding.wants();
-            let drawn = embedding.drew(list);
             // The lock screen, or else the dialog, or else the accounts, drawn for the first time
             // takes the focus.
             let focus = match (
@@ -1697,7 +1707,9 @@ impl frames::Guest for Root {
             });
             drop(embedding);
             root.heard(&drawn.own);
+            root.heard(&given);
             root.heard(&focus);
+            root.follow_focus();
             let embedding = root.embedding.borrow();
             let requests = embedding.requests(None);
             // Its documents want a frame at once (one heard input or was woken) or later.
@@ -1768,6 +1780,8 @@ impl input::Guest for Root {
             .input(window, &events)
             .unwrap_or_default();
         self.heard(&own);
+        self.revoke_children();
+        self.follow_focus();
         // What it asked of the dialog is done with the next frame, which this asks for.
         if self.asked.get().is_some() {
             self.waker.wake();

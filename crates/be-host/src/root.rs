@@ -66,11 +66,12 @@ use be_lib_layers::{Layer, LayerList, Surface};
 use be_lib_ui_types::ClipItem;
 use be_lib_ui_types::input::Timed;
 use be_sdk_api::{
+    app::EditorEvent,
     ChildId, ChildPreview, DialogStatus, EditorCapabilities, EditorInstanceId, InteractionMode,
     ResizeMode, ViewId,
 };
 use be_sdk_app_host::pacing::FrameClock;
-use be_wasm_root_api::{EditorApp, OpenedEditor};
+use be_wasm_root_api::{EditorApp, OpenedEditor, PlacerEvent};
 use be_wasm_root_api::{FrameRequest, Notice, NoticeAction, StatisticRow, WindowSize};
 use be_wasm_root_host::EditorOpening;
 use be_wasm_root_host::Root;
@@ -724,6 +725,15 @@ fn serve_editors(core: &crate::HostCore, root: &mut Root, editors: &mut Editors)
             .map(|child| child_status(&editors.opened, child))
             .collect();
         forwarded.show_children(EditorInstanceId(shown.editor), ViewId(shown.view), statuses);
+    }
+    for (instance, editor, event) in root.take_placer_events() {
+        let Some(forwarded) = served.get_mut(&instance) else {
+            continue;
+        };
+        let event = match event {
+            PlacerEvent::ChildFocused(child) => EditorEvent::ChildFocused(ChildId(child)),
+        };
+        forwarded.tell_placer(EditorInstanceId(editor), event);
     }
     for (instance, forwarded) in served.iter_mut() {
         root.relay(*instance, forwarded.step());

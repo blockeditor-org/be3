@@ -1624,11 +1624,26 @@ Each step lands on its own.
              later: a block's revision error (`be_host_stack::revisions::error`) reaches the
              placer's status only when the root shows its children again, not as the revision
              changes.
-           - 4g7b3b. The keyboard: a child's placement asking for it (`keyboard-ask`), applied as
-             the root settles the commit that carries it, with no keys held
-             (decisions/keys_are_never_held.md); promoting an active child and taking it back
-             (a press outside, Escape, the press replayed), and `on_focus` to the editors
-             above.
+           - 4g7b3b (built). The keyboard. `Children` reads each editor's highest
+             `keyboard-ask` from the placements it settles (`hear_asks`); one above every serial
+             acted on for that editor is a new ask, and `Children::keyboard`, after the frame's
+             layers are drawn, moves the keyboard into the child's layer if its app runs and its
+             layer is drawn, or else out of the placer's own screen (`KeyboardMove::Out`), for
+             the child to take once it shows while nothing else took it; only ever from within
+             the editor's views and the children they show, and with no keys held
+             (decisions/keys_are_never_held.md). be-root's session applies it before its own
+             dialog, lock screen or accounts take the focus (`keyboard_into_children`). Each
+             placer above the child the keyboard goes into, pressed or moved there, hears
+             `child-focused` (`Embedding::take_focused`, `Children::focused_into`, `be3:root`'s
+             `host.tell-placer`, `Forwarded::tell_placer`). A press anywhere but in an active
+             child, or Escape in its placer's view, takes it back (`Embedding::take_pressed`,
+             `Children::revoke`), and its placer hears it is no longer active. `Forwarded`
+             answers what an editor tells the shell and refuses what it asks (the root's views
+             take none of it yet). Tests: be-sdk-root's `children::tests` and `tests`; host test
+             `be_root_in_place_of_the_hosts_ui_hands_a_childs_keys_to_it`. Left for later: an
+             ask acted on only while no popover or keyboard-taking layer of the editor's is
+             open (they are inside its screen, so the root sees none), and the press that
+             promotes a child replayed in it.
            - 4g7b3c. A child that takes its placer's frame, and docks that join across apps
              (a child placed in a dock tab asked `docked`, its bars spliced; be-sdk-app-host's
              `Docks`).

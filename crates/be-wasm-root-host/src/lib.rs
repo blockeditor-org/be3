@@ -192,6 +192,9 @@ struct Core<G> {
     /// The children the root shows of the editors the host opened (`host.show-children`), the
     /// latest of each editor's view, until the host takes them.
     shown_children: Vec<ShownChildren>,
+    /// What the root told the host's editors of their children (`host.tell-placer`), by the
+    /// root's instance and the editor, until the host takes it.
+    placer_events: Vec<(u64, u64, be_wasm_root_api::PlacerEvent)>,
 }
 
 /// The children an editor the host opened placed in one of its views, as the root shows them
@@ -328,6 +331,7 @@ impl<G: Inline> Core<G> {
             relaying: Vec::new(),
             relay_watcher: None,
             shown_children: Vec::new(),
+            placer_events: Vec::new(),
         };
         core.received()?;
         Ok(core)
@@ -671,6 +675,12 @@ impl<G: Inline> Core<G> {
     /// latest of each editor's view.
     fn take_shown_children(&mut self) -> Vec<ShownChildren> {
         std::mem::take(&mut self.shown_children)
+    }
+
+    /// What the root told the host's editors of their children since the last call
+    /// (`host.tell-placer`): by the root's instance and the editor, in order.
+    fn take_placer_events(&mut self) -> Vec<(u64, u64, be_wasm_root_api::PlacerEvent)> {
+        std::mem::take(&mut self.placer_events)
     }
 
     /// Stops the root's sandbox instance `instance` for `why`, which the root hears from it.
@@ -1127,6 +1137,15 @@ impl<G: Inline> Core<G> {
                     view,
                     children,
                 });
+                reply.send(&mut self.connection, &());
+            }
+            embed::Call::Host(embed::host::Call::TellPlacer {
+                instance,
+                editor,
+                event,
+                reply,
+            }) => {
+                self.placer_events.push((instance, editor, event));
                 reply.send(&mut self.connection, &());
             }
             embed::Call::Host(embed::host::Call::PasteShortcut { reply }) => {
