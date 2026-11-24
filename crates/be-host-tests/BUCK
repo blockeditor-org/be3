@@ -89,7 +89,7 @@ APPS = {
     "an_offline_device_says_a_block_it_never_opened_is_not_on_it_yet": ["text"],
     "an_offline_device_that_never_opened_my_files_is_told_it_cannot_add_to_it": ["text"],
     "an_outsider_opens_a_share_link_as_a_guest": ["settings"],
-    "be_root_in_place_of_the_hosts_ui_hands_a_childs_frame_to_a_canvas_in_a_canvas": ["infinite-canvas", "//crates/be-root"],
+    "be_root_in_place_of_the_hosts_ui_hands_a_canvas_frame_to_the_editor_on_it": ["infinite-canvas", "example-pan-zoom", "//crates/be-root"],
     "be_root_in_place_of_the_hosts_ui_hands_a_childs_keys_to_it": ["//crates/be-root"],
     "be_root_in_place_of_the_hosts_ui_opens_a_block_its_files_open": ["infinite-canvas", "//crates/be-root"],
     "be_root_in_place_of_the_hosts_ui_shows_a_joined_dock": ["example-beui-gallery", "//crates/be-root"],
