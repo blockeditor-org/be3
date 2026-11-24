@@ -20,8 +20,13 @@
 //! - the host's statistics and memory graph in a panel (`STATISTICS_LAYER`), watched only while
 //!   open.
 //!
-//! It embeds no app yet: editors and app views come with 4g7b. Only the guest (`guest`, wasm32
-//! alone) needs more than the constants below, which the tests that run it read natively.
+//! - the session's view (core-view's `showing`): its block's editor, which its host opens and
+//!   serves, filling the window under everything else, with a notice over it
+//!   (`SESSION_NOTICE_LAYER`) while its app loads or after it stopped. Its children come with
+//!   4g7b3.
+//!
+//! Only the guest (`guest`, wasm32 alone) needs more than the constants below, which the tests
+//! that run it read natively.
 
 use be_lib_layers::LayerId;
 
