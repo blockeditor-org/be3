@@ -21,7 +21,8 @@ fn the_message_toast_sample_offers_its_actions() {
     test.snapshot("toast_with_actions");
 
     test.click("toast.3.action.reply");
-    test.frame(Vec::new());
+    // The answered toast slides off.
+    test.settle();
     let root = test.document().root().expect("the demo has a root");
     assert_eq!(
         showing(test.document(), root, "Chose reply on message 3"),

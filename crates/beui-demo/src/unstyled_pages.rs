@@ -44,7 +44,7 @@ const SETTLE: beui::reactive::Spring = beui::reactive::Spring {
 };
 const SHEET_CURVES: SheetCurves = SheetCurves {
     enter: SETTLE,
-    settle: beui::reactive::Easing::OutCubic,
+    settle: SETTLE,
     pull: PULL,
     rubber: RUBBER,
 };

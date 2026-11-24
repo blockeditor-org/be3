@@ -15,7 +15,7 @@ use beui_view::types::{LayerLevel, LayerPolicy};
 use crate::floating::Edge;
 use crate::gestures;
 use crate::scroll::{Scroll, ScrollStyle};
-use beui_view::types::{Direction, DragGesture, PointerPress, Velocity};
+use beui_view::types::{DRAG_THRESHOLD, Direction, DragGesture, PointerPress, Velocity};
 use beui_view::types::{Extent, Sides, vec2};
 
 pub const TOAST_DURATION: Duration = Duration::from_secs(8);
@@ -86,7 +86,9 @@ pub struct ToastHandle {
 /// `TOAST_SWIPE_SPEED` away from its rest, it flies off the way it was going at
 /// the speed it was let go at, and `on_dismiss` hears it once it is off;
 /// otherwise it springs back from that speed. A dismiss (its handle's or its
-/// time running out) sends it off from rest.
+/// time running out) sends it off from rest, or, while it is held, once it is
+/// let go, at the speed it is let go at. A toast taken out of `toasts` slides
+/// off the same way before it goes; one dismissed and kept collapses.
 #[component]
 pub fn Toasts(
     anchor: Prop<OverlayAnchor>,
@@ -107,9 +109,16 @@ pub fn Toasts(
     #[prop(children)] card: RenderFn<ToastHandle, NodeId>,
 ) -> NodeId {
     let all = create_memo(move || toasts.get());
-    let open = create_memo(move || all.with(|toasts| !toasts.is_empty()));
     let hidden = create_memo(move || all.with(|toasts| toasts.len().saturating_sub(limit.get())));
     let toasts = create_memo(move || all.with(|toasts| toasts[hidden.get()..].to_vec()));
+    let shown = create_signal(Vec::<Toast>::new());
+    let off = store(RefCell::new(Vec::<u64>::new()));
+    create_effect(move || {
+        let wanted = toasts.get();
+        let next = off.with(|off| keep_leaving(&shown.get_untracked(), wanted, &mut off.borrow_mut()));
+        shown.set(next);
+    });
+    let open = create_memo(move || shown.with(|shown| !shown.is_empty()));
     let bottom =
         edge.map(|edge| matches!(edge, Edge::Bottom | Edge::BottomStart | Edge::BottomEnd));
     let placement = edge.map(|edge| match edge {
@@ -122,7 +131,7 @@ pub fn Toasts(
     });
     let label = create_memo(move || label.get());
     let padding = create_memo(move || Sides::all(margin.get()));
-    let side = edge.map(|edge| match edge {
+    let side = create_memo(move || match edge.get() {
         Edge::TopStart | Edge::BottomStart => -1.0,
         Edge::Top | Edge::TopEnd | Edge::Bottom | Edge::BottomEnd => 1.0,
     });
@@ -141,11 +150,13 @@ pub fn Toasts(
                     <Frame padding={padding}>
                         <ToastStack
                             toasts={toasts}
+                            shown={shown}
+                            off={off}
                             hidden={hidden}
                             duration
                             spacing
                             spring
-                            side
+                            side={side}
                             travel={travel}
                             label={label}
                             on_dismiss
@@ -161,14 +172,39 @@ pub fn Toasts(
     }
 }
 
+/// What the stack draws: the owner's toasts, in their order, with each it took
+/// away still in place until it has slid off. One already off (dismissed and
+/// heard by `on_dismiss`) is dropped rather than kept.
+fn keep_leaving(shown: &[Toast], wanted: Vec<Toast>, off: &mut Vec<u64>) -> Vec<Toast> {
+    let mut next = wanted;
+    for (index, toast) in shown.iter().enumerate() {
+        if next.iter().any(|kept| kept.id == toast.id) {
+            continue;
+        }
+        if let Some(at) = off.iter().position(|id| *id == toast.id) {
+            off.remove(at);
+            continue;
+        }
+        let at = shown[..index]
+            .iter()
+            .rev()
+            .find_map(|before| next.iter().position(|kept| kept.id == before.id))
+            .map_or(0, |at| at + 1);
+        next.insert(at, toast.clone());
+    }
+    next
+}
+
 #[component]
 fn ToastStack(
     toasts: Memo<Vec<Toast>>,
+    shown: Signal<Vec<Toast>>,
+    off: Stored<RefCell<Vec<u64>>>,
     hidden: Memo<usize>,
     duration: Prop<Option<Duration>>,
     spacing: Prop<f32>,
     spring: Spring,
-    side: Prop<f32>,
+    side: Memo<f32>,
     travel: Memo<f32>,
     label: Prop<String>,
     on_dismiss: Callback<u64>,
@@ -186,18 +222,29 @@ fn ToastStack(
     view! {
         <List spacing>
             <Show value={move || hidden.get() > 0}>|| { more.call(hidden) }</Show>
-            <ForEach value={toasts}>|toast: Toast| {
+            <ForEach value={shown}>|toast: Toast| {
+                let id = toast.id;
                 let lasts = match toast.expires() {
                     true => duration.get_untracked(),
                     false => None,
                 };
                 let swipe = Swipe {
                     spring,
-                    side: side.get_untracked(),
+                    side,
                     travel,
                 };
+                let taken = create_memo(move || toasts.with(|toasts| !toasts.iter().any(|toast| toast.id == id)));
+                // Off: one its owner took away goes; one dismissed is told and kept
+                // collapsed until its owner takes it away.
+                let on_off = Callback::new(move |()| match taken.get_untracked() {
+                    true => shown.update(|shown| shown.retain(|toast| toast.id != id)),
+                    false => {
+                        off.with(|off| off.borrow_mut().push(id));
+                        on_dismiss.call(id);
+                    }
+                });
                 view! {
-                    <ToastItem toast lasts swipe on_dismiss on_action on_activate card />
+                    <ToastItem toast lasts swipe taken on_off on_action on_activate card />
                 }
             }</ForEach>
         </List>
@@ -208,7 +255,7 @@ fn ToastStack(
 struct Swipe {
     spring: Spring,
     /// The side a toast comes in from and is sent off to: 1 the right, -1 the left.
-    side: f32,
+    side: Memo<f32>,
     /// How far a toast moves to be off its stack.
     travel: Memo<f32>,
 }
@@ -227,6 +274,8 @@ struct Held {
     mouse: Option<Grip>,
     /// A finger carrying it.
     finger: bool,
+    /// Dismissed, or taken away by its owner: it goes once let go, whatever way.
+    dismissed: bool,
     gone: bool,
 }
 
@@ -245,7 +294,8 @@ struct Motion {
     offset: Signal<f32>,
     held: RefCell<Held>,
     animation: Cell<Option<Animation>>,
-    on_gone: Callback<()>,
+    gone: Signal<bool>,
+    on_off: Callback<()>,
 }
 
 impl Motion {
@@ -280,8 +330,21 @@ impl Motion {
     }
 
     fn dismiss(&self) {
-        let side = self.swipe.side;
-        self.head(Heading::Off(side), 0.0);
+        let heading = {
+            let mut held = self.held.borrow_mut();
+            held.dismissed = true;
+            held.heading
+        };
+        // One already on its way off keeps going.
+        if heading == Heading::Rest {
+            let side = self.swipe.side.get_untracked();
+            self.head(Heading::Off(side), 0.0);
+        }
+    }
+
+    fn recall(&self) {
+        self.held.borrow_mut().dismissed = false;
+        self.head(Heading::Rest, self.held.borrow().velocity);
     }
 
     fn grab(&self) {
@@ -296,6 +359,7 @@ impl Motion {
 
     /// Let go at `velocity`: off the way it was going if it went far or fast
     /// enough, back to rest otherwise, on the spring from that speed.
+    /// One dismissed while held goes whatever way it is let go.
     fn release(&self, velocity: f32) {
         let offset = self.offset.get_untracked();
         let width = self.swipe.travel.get_untracked();
@@ -305,9 +369,15 @@ impl Motion {
         };
         let thrown = velocity * away > TOAST_SWIPE_SPEED;
         let far = offset.abs() > TOAST_SWIPE_SHARE * width;
-        let heading = match (far || thrown) && velocity * away > -TOAST_SWIPE_SPEED {
-            true => Heading::Off(away),
-            false => Heading::Rest,
+        let dismissed = self.held.borrow().dismissed;
+        let heading = match ((far || thrown) && velocity * away > -TOAST_SWIPE_SPEED, dismissed) {
+            (true, _) => Heading::Off(away),
+            (false, true) => Heading::Off(match (velocity == 0.0, offset == 0.0) {
+                (false, _) => velocity.signum(),
+                (true, false) => away,
+                (true, true) => self.swipe.side.get_untracked(),
+            }),
+            (false, false) => Heading::Rest,
         };
         self.head(heading, velocity);
     }
@@ -333,7 +403,11 @@ impl Motion {
                 return;
             };
             grip.velocity.sample(press.time, press.pos);
-            grip.moved |= press.pos.x != grip.from;
+            // A click's jitter is no drag.
+            grip.moved |= (press.pos.x - grip.from).abs() > DRAG_THRESHOLD;
+            if !grip.moved {
+                return;
+            }
             grip.start + press.pos.x - grip.from
         };
         self.offset.set(offset);
@@ -403,7 +477,8 @@ impl Motion {
         if let Heading::Off(_) = heading {
             let gone = std::mem::replace(&mut self.held.borrow_mut().gone, true);
             if !gone {
-                self.on_gone.call(());
+                self.gone.set(true);
+                self.on_off.call(());
             }
         }
     }
@@ -414,13 +489,17 @@ fn ToastItem(
     toast: Toast,
     lasts: Option<Duration>,
     swipe: Swipe,
-    on_dismiss: Callback<u64>,
+    /// Whether its owner took it away, which sends it off.
+    taken: Memo<bool>,
+    /// Once it is off.
+    on_off: Callback<()>,
     on_action: Callback<(u64, String)>,
     on_activate: Callback<u64>,
     card: RenderFn<ToastHandle, NodeId>,
 ) -> NodeId {
     let id = toast.id;
-    let offset = create_signal(swipe.side * swipe.travel.get_untracked());
+    let offset = create_signal(swipe.side.get_untracked() * swipe.travel.get_untracked());
+    let gone = create_signal(false);
     let motion = store(Motion {
         swipe,
         offset,
@@ -429,10 +508,12 @@ fn ToastItem(
             velocity: 0.0,
             mouse: None,
             finger: false,
+            dismissed: false,
             gone: false,
         }),
         animation: Cell::new(None),
-        on_gone: Callback::new(move |()| on_dismiss.call(id)),
+        gone,
+        on_off,
     });
     let animation = create_animation(
         move |frame| motion.value().step(frame),
@@ -447,6 +528,15 @@ fn ToastItem(
     if let Some(lasts) = lasts {
         expiry.start(lasts);
     }
+    create_effect_on(
+        move || taken.get(),
+        move |&taken, was| match (taken, was.copied().unwrap_or(false)) {
+            (true, _) => motion.value().dismiss(),
+            // Given back before it was off (folded away and shown again): it stays.
+            (false, true) => motion.value().recall(),
+            (false, false) => {}
+        },
+    );
     let mut node = match toast.danger {
         true => Node::new(Role::Alert),
         false => Node::new(Role::Status),
@@ -473,7 +563,7 @@ fn ToastItem(
         1.0 - (offset.get().abs() / travel).clamp(0.0, 1.0)
     });
     view! {
-        <List spacing=0.0>
+        <Frame collapsed={gone}>
             <Interactive
                 press_focus=false
                 on_pointer={gestures::scroll_drag(
@@ -492,7 +582,7 @@ fn ToastItem(
                     <Frame translate={translate} opacity={opacity}>{card.call(handle)}</Frame>
                 })}
             />
-        </List>
+        </Frame>
     }
 }
 

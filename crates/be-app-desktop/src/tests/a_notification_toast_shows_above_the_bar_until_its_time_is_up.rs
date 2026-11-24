@@ -31,6 +31,8 @@ fn a_notification_toast_shows_above_the_bar_until_its_time_is_up() {
     fixture.test.advance(Duration::from_secs(6));
     fixture.test.run();
     fixture.settle();
+    // It slides off once its time is up.
+    fixture.test.settle();
     assert!(!fixture.test.shown(&toast(1)), "its time is up");
     assert!(
         fixture.test.shown(&toast(2)),
