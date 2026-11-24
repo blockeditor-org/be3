@@ -1048,15 +1048,6 @@ fn Scrolling(
         if from == 0.0 {
             return position;
         }
-        // Short of it there is nothing to show: what lies past it has not been reached (a
-        // sheet lowered below its highest stop).
-        if position.offset < from - EDGE_SLACK {
-            return ScrollPosition {
-                offset: 0.0,
-                content: position.viewport,
-                ..position
-            };
-        }
         ScrollPosition {
             offset: (position.offset - from).max(0.0),
             content: (position.content - from).max(0.0),
@@ -1101,6 +1092,14 @@ fn Scrolling(
             return;
         }
         let at = barred.get().offset;
+        // At or short of `bar_from` there is no bar: what lies past it is not being scrolled
+        // (a sheet's grip lowering it).
+        let short = position.get().offset < bar_from.get().max(0.0) + EDGE_SLACK;
+        if short && bar_from.get() > 0.0 {
+            moved.set(Some(at));
+            untrack(|| reveal.value().fade_to(0.0));
+            return;
+        }
         if moved.replace(Some(at)).is_some_and(|was| was != at) {
             reveal.value().poke();
         }
