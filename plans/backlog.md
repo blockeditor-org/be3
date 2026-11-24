@@ -568,6 +568,21 @@ Depends on #686 (session catch-ups replaced by server ordering).
   and that the failure can be seen: the output is not captured when the
   command is not quiet, so the wrapper may need another sign, such as a
   `forgot` line re-relay wrote to `target/re-relay.log` during the attempt.
+- **CI still installs Python Playwright for old pull requests.** ci.yml's
+  "Install the browser preview runtime" step serves only checkouts from before
+  the browser rasterizer ran `render.mjs` (those with
+  crates/be-tool-browser-rasterizer/requirements.txt); a newer checkout skips
+  it. Done: no open pull request lacks `render.mjs`, and the step is deleted.
+- **The browser rasterizer is about 650 MB.** `browser_program` copies
+  chrome-headless-shell (about 260 MB), node (about 120 MB) and the
+  `buck/sysroot:amd64-browser` libraries (about 250 MB, mostly Mesa's `libLLVM`
+  and `libgallium`, which `libgbm1` brings in), and CI downloads it all to draw
+  the previews. Check whether chrome-headless-shell drawing with
+  `--disable-gpu` (SwiftShader) needs `libgbm` and Mesa at all, and trim the
+  sysroot to what it loads; if it cannot shrink, render the previews remotely
+  as buck actions instead. Done: CI's download for the previews is
+  measured and well under its present size, and the previews still draw every
+  `.browser.paint` the same.
 
 ## 25. Tentative gestures
 

@@ -126,6 +126,25 @@ jobs:
       - uses: $/.github/actions/buck2
         if: ${{ !cancelled() }}
 
+      # Only for pull requests from before the rasterizer ran render.mjs on
+      # buck's pinned Node Playwright: their checkout still has requirements.txt
+      # and runs render.py on Python Playwright, driving the runner's Google
+      # Chrome. A checkout without requirements.txt skips this step.
+      # plans/backlog.md says when to delete it.
+      - name: Install the browser preview runtime
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && hashFiles('crates/be-tool-browser-rasterizer/requirements.txt', 'crates/browser-rasterizer/requirements.txt') != '' }}
+        run: |
+          requirements=crates/be-tool-browser-rasterizer/requirements.txt
+          [ -f "$requirements" ] || requirements=crates/browser-rasterizer/requirements.txt
+          python3 -m venv "$RUNNER_TEMP/browser-rasterizer"
+          "$RUNNER_TEMP/browser-rasterizer/bin/pip" install --quiet -r "$requirements"
+          echo "BE3_PLAYWRIGHT_PYTHON=$RUNNER_TEMP/browser-rasterizer/bin/python" >> "$GITHUB_ENV"
+          if chrome="$(command -v google-chrome)"; then
+            echo "BE3_CHROME=$chrome" >> "$GITHUB_ENV"
+          else
+            "$RUNNER_TEMP/browser-rasterizer/bin/python" -m playwright install --with-deps chromium
+          fi
+
       - name: Run ./scripts/ci
         if: ${{ !cancelled() }}
         env:
