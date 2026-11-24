@@ -187,8 +187,8 @@ struct Core<G> {
     /// What the host sent the apps the root spawned, until the root takes it
     /// (`host.forwarded`).
     relaying: Vec<be_wasm_root_api::RelayedFrames>,
-    /// Whether its sandbox answered the root, or frames were relayed to it, since it was last
-    /// stepped: what it has yet to take in.
+    /// Whether its sandbox answered the root (as it polled, or in a call it took), or frames
+    /// were relayed to it, since it was last stepped: what it has yet to take in.
     #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
     unstepped: bool,
     /// The root's `host.forwarded` call, waiting for the host to send its apps something.
@@ -878,7 +878,7 @@ impl<G: Inline> Core<G> {
                             &mut self.connection,
                             started,
                         ) {
-                            self.sandbox.call(call, &mut self.connection);
+                            self.unstepped |= self.sandbox.call(call, &mut self.connection);
                         }
                     } else if let Some(call) = embed::Call::accept(&mut self.connection, started) {
                         self.call(call);
