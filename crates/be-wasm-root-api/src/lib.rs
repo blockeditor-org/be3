@@ -30,7 +30,7 @@ pub use host::{
     HostStatistics, HostedBlock, Invitation, InvitationRow, InvitationState, InvitationsArea,
     Leaving, LockState, MemberRole, MemberRow, MembersArea, MemoryMinutes, MemoryPoint, NewAccount,
     Notice, NoticeAction, OpenedEditor, OpenedIn, OrganizationRow, OrganizationsArea,
-    OrganizationsListed, PairingApproval, PairingRequest, PlacedContent, PlacerEvent, PowerAction,
+    OrganizationsListed, PairingApproval, PairingRequest, PlacedContent, PowerAction,
     ProfileRow, Reauthenticating, RecoveryArea, Refusal, RelayedFrames, RoleChange, SavingState,
     SecretCommand, ServerAccount, SessionKind, SessionRow, SessionsArea, SetAside, ShareAccess,
     ShareLinksArea, SharePreview, ShownBlock, ShownChild, ShownNotices, ShownPreview, SigningIn,

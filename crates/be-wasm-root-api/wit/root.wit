@@ -1171,6 +1171,12 @@ interface host {
     record shown-child {
         /// The child's id, as the placement names it (`child-id`).
         child: u64,
+        /// The block it shows, as its placement names it, for a block child
+        /// the root opens an editor for: the host words its status from the
+        /// editor that edits it (`editor-of`) until that editor is open, as
+        /// be-host knows a child's editor before it opens (a canvas sizes a
+        /// new card by its `resize`).
+        shows: option<shown-block>,
         /// The editor that shows it, once the host opened it (`open-editor`)
         /// in an app the root spawned for it: none while that is under way,
         /// or when the root shows nothing of it.
@@ -1184,9 +1190,21 @@ interface host {
         error: option<string>,
         /// How the root shows a child placed as a preview.
         preview: shown-preview,
-        /// For a child placed to fit its content (`child-placement.fit`),
-        /// the room it took, in its placer's view's points, once it drew.
+        /// The size it wants, in its placer's view's points: for a child placed
+        /// to fit its content (`child-placement.fit`), the room it took once
+        /// it drew, else the size its editor's content wants, as it told the
+        /// shell (`shell-message.intrinsic-size`), which a canvas fits a new
+        /// card to (the app protocol's `child-status.intrinsic`).
         intrinsic: option<view-size>,
+        /// For a child that takes its placer's frame (placed active or live,
+        /// not taken back), the menu of the editor drawing that frame's
+        /// chrome, the innermost child taking it in turn, which its placer
+        /// may show (the app protocol's `child-status.menu`, as that editor
+        /// told it: be-sdk-api's `Vec<MenuItem>` in be-wasm-ops' encoding);
+        /// empty for none. A pick
+        /// from it the placer says (`shell-message.child-menu-pick`) reaches
+        /// that editor.
+        menu: list<u8>,
     }
 
     /// How the root shows a child placed as a preview (the app protocol's
@@ -1210,16 +1228,15 @@ interface host {
     /// that view; a child left out it no longer reports.
     show-children: async func(instance: u64, editor: u64, view: u64, children: list<shown-child>);
 
-    /// What happened to a child an editor placed, for the editor to hear.
-    variant placer-event {
-        /// The keyboard went into the child, by its `child-id`: given, or
-        /// pressed into it or into a child of it.
-        child-focused(u64),
-    }
-
-    /// Tells the editor `editor`, opened in the root's `instance`, `event`
-    /// (the app protocol's `editor-event` `child-focused`).
-    tell-placer: async func(instance: u64, editor: u64, event: placer-event);
+    /// Tells the editor `editor`, opened in the root's `instance`, what the
+    /// root saw that the app protocol says as an `editor-event` (be-sdk-api's
+    /// `EditorEvent`, in be-wasm-ops' encoding, as `dock` carries its
+    /// updates): the keyboard went into a child it placed (`child-focused`),
+    /// a child asked for its details (`child-details`), the person picked
+    /// from a menu of its that a dock or a placer showed (`menu-pick`), or a
+    /// block is dragged over one of its views (`drag`). The host sends it as
+    /// it sends its own editors those, and drops any other.
+    tell-editor: async func(instance: u64, editor: u64, event: list<u8>);
 
     /// A rectangle in a view's points.
     record view-rect {

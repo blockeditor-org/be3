@@ -57,10 +57,8 @@
 //! Left for later (plans/host_as_platform_adapter.md, 4g7b3e to 4g7b3g): an ask acted on only
 //! while no popover or keyboard-taking layer of the editor's is open (the editor's own popovers
 //! are in its screen, so the root does not see them), the press that promotes a child replayed in
-//! it, a joined dock's tab menus, picks and details (the editors' menus reach the root's host as
-//! shell messages it does not take yet), drags, and every other kind of child (web views, host
-//! panels, program windows, pickers, creations, artifact settings and rename forms), which the
-//! placer hears are unavailable.
+//! it, and every other kind of child (web views, host panels, program windows, pickers,
+//! creations, artifact settings and rename forms), which the placer hears are unavailable.
 
 use std::{
     cell::{Cell, RefCell},
@@ -76,8 +74,10 @@ use be_lib_layers::{Affine, Area, Layer, LayerId};
 use be_lib_stable_hash::{HashMap, HashSet};
 use be_sdk_api::{
     ChildContent, ChildId, ChildLayer, ChildMode, ChildPlacement, ChildPlacements, DockUpdate,
-    EditorInstanceId, Fonts, FrameChrome, FrameSpec, ParentView, Pos2 as ViewPos2, ScreenId,
-    ScreenRequest, SurfaceSpec, Vec2 as ViewVec2, ViewId, ViewPlacement, ViewportMetrics,
+    EditorInstanceId, Fonts, FrameChrome, FrameSpec, MenuItem, ParentView, Pos2 as ViewPos2,
+    ScreenId, ScreenRequest, SurfaceSpec, Vec2 as ViewVec2, ViewId, ViewPlacement, ViewportMetrics,
+    app::{EditorEvent, MenuChoice},
+    shell_types::{ChildMenuChoice, MenuSet, ShellMessage},
 };
 use be_sdk_app_host::docks::{DockedChild, Docks};
 use be_wasm_root_api::{
@@ -85,7 +85,7 @@ use be_wasm_root_api::{
 };
 use uuid::Uuid;
 
-use crate::{Embedded, Embedding, Hosted, Pressed};
+use crate::{Embedded, Embedding, Hosted, Pressed, tell_editor};
 
 /// The screens a child's app is asked for of each of its editors are numbered from the editor's
 /// instance (`screen_of`), at most this many: an app runs every editor of it the root shows.
@@ -588,6 +588,9 @@ struct Pool {
     pass: u64,
     /// The editors the settle under way visited, in order.
     visited: Vec<Rc<Editor>>,
+    /// Each editor's menus, by the view each is of, as it last told them
+    /// (`shell-message.menu`): what a child's status shows of the editor drawing its frame.
+    menus: HashMap<(EditorInstanceId, ViewId), Vec<MenuItem>>,
 }
 
 /// An app the root runs for its children's editors.
@@ -833,6 +836,20 @@ impl Child {
         }
     }
 
+    /// The size its placer hears it wants, as be-host's status says: the room it took when
+    /// placed to fit its content (`fitted`), else the size its editor's content wants, as it
+    /// told the shell (`Embedded::intrinsic`), which a canvas fits a new card to.
+    fn intrinsic(&self) -> Option<ViewSize> {
+        if self.placement.fit.is_some() {
+            return self.fitted();
+        }
+        let (app, editor) = self.hosted()?;
+        app.intrinsic(editor).map(|size| ViewSize {
+            width: size.x,
+            height: size.y,
+        })
+    }
+
     /// The room it took, placed to fit its content (`child-placement.fit`), in its placer's
     /// view's points, once it drew: its painted screen's size at its zoom.
     fn fitted(&self) -> Option<ViewSize> {
@@ -859,6 +876,26 @@ impl Child {
                 .map(|tab| app.layer_id(tab.screen))
         });
         tab.or(self.layer.filter(|_| self.placed))
+    }
+
+    /// The menu of the editor drawing the frame it takes over (`chrome_owner`), encoded as its
+    /// status carries it, while it would take its placer's frame (placed active or live, not
+    /// taken back from it, its editor open), as be-host's status says; empty otherwise.
+    fn frame_menu(&self, frame_revoked: &HashSet<(EditorInstanceId, ViewId, ChildId)>) -> Vec<u8> {
+        let owns_frame = matches!(self.placement.mode, ChildMode::Active | ChildMode::Live)
+            && !frame_revoked.contains(&(self.editor, self.view, self.child))
+            && self.hosted().is_some();
+        if !owns_frame {
+            return Vec::new();
+        }
+        let Some((_, editor)) = chrome_owner(&self.shared).hosted() else {
+            return Vec::new();
+        };
+        let items = POOL.with_borrow(|pool| pool.menus.get(&(editor, menu_view(editor))).cloned());
+        match items {
+            Some(items) if !items.is_empty() => be_wasm_ops::encode(&items),
+            _ => Vec::new(),
+        }
     }
 
     /// Whether it takes the input where it is placed: placed to, not taken back (`revoked`), and
@@ -968,6 +1005,45 @@ fn editor_key(child: &Child) -> EditorKey {
     }
 }
 
+/// The editor drawing the chrome of the frame `editor` is shown in, as be-host's `chrome_owner`
+/// says: the child taking `editor`'s frame over, the child taking that one's in turn, and so
+/// on, else `editor` itself.
+fn chrome_owner(editor: &Rc<Editor>) -> Rc<Editor> {
+    let mut owner = Rc::clone(editor);
+    // Each level is another editor's: no deeper than the children shown.
+    for _ in 0..64 {
+        let next = owner
+            .nested
+            .borrow()
+            .shown
+            .iter()
+            .find(|child| child.framing && child.hosted().is_some())
+            .map(|child| Rc::clone(&child.shared));
+        match next {
+            Some(next) if !Rc::ptr_eq(&next, &owner) => owner = next,
+            _ => break,
+        }
+    }
+    owner
+}
+
+/// The view of `editor` whose menu its frame shows and a pick from it names: its main view, else
+/// the first of its views it told a menu of.
+fn menu_view(editor: EditorInstanceId) -> ViewId {
+    POOL.with_borrow(
+        |pool| match pool.menus.contains_key(&(editor, ViewId::MAIN)) {
+            true => ViewId::MAIN,
+            false => pool
+                .menus
+                .keys()
+                .filter(|(held, _)| *held == editor)
+                .map(|(_, view)| *view)
+                .min_by_key(|view| view.0)
+                .unwrap_or(ViewId::MAIN),
+        },
+    )
+}
+
 /// The layer showing a copy of the layer `layer` at the place `place`: hashed from both under a
 /// tag of its own, so it is no other layer's id.
 fn copy_layer(layer: LayerId, place: PlaceKey) -> LayerId {
@@ -1016,6 +1092,7 @@ impl Children {
         for editor in &visited {
             editor.show(settling.docks);
         }
+        self.hear_told(parent, &mut docks);
         self.tell_all();
         self.hear_docks(parent, &mut docks);
         self.docks = docks;
@@ -1112,11 +1189,13 @@ impl Children {
                         (placements.instance, placements.view),
                         ShownChild {
                             child: child.0,
+                            shows: None,
                             shown_in: None,
                             active: false,
                             error: Some(NOT_SHOWN_YET.to_owned()),
                             preview: ShownPreview::None,
                             intrinsic: None,
+                            menu: Vec::new(),
                         },
                     )),
                 }
@@ -1269,6 +1348,7 @@ impl Children {
                 .or_default()
                 .push(ShownChild {
                     child: child.child.0,
+                    shows: Some(child.shown.clone()),
                     shown_in: hosted.as_ref().map(|(app, editor)| OpenedIn {
                         instance: app.instance(),
                         editor: editor.0,
@@ -1279,7 +1359,8 @@ impl Children {
                         Showing::Opening | Showing::Label | Showing::Shown { .. } => None,
                     },
                     preview: child.shown_preview(),
-                    intrinsic: child.fitted(),
+                    intrinsic: child.intrinsic(),
+                    menu: child.frame_menu(&self.frame_revoked),
                 });
         }
         // The bodies of joined docks its own editors place: available once the editor owning
@@ -1303,11 +1384,13 @@ impl Children {
                 .or_default()
                 .push(ShownChild {
                     child: ask.body.0,
+                    shows: None,
                     shown_in,
                     active: true,
                     error: None,
                     preview: ShownPreview::None,
                     intrinsic: None,
+                    menu: Vec::new(),
                 });
         }
         self.tell(views);
@@ -1319,16 +1402,11 @@ impl Children {
     }
 
     /// Hears what every app shown said of its docks, once what each placed is in (`settle`),
-    /// and hands the root's host what the docks have for each editor (`host.dock`). Menus, their
-    /// picks and details asked of a joined dock wait for the root to take its editors' shell
-    /// messages.
+    /// and hands the root's host what the docks have for each editor (`host.dock`), with the
+    /// picks from a joined dock's tab menus and the asks for docked children's details, each
+    /// for the editor it names (`host.tell-editor`).
     fn hear_docks(&self, parent: &Embedded, docks: &mut Docks) {
-        let mut apps: Vec<Embedded> = vec![parent.clone()];
-        for app in self.apps() {
-            if !apps.iter().any(|held| held.instance() == app.instance()) {
-                apps.push(app);
-            }
-        }
+        let apps = self.every_app(parent);
         for app in &apps {
             docks.heard(&app_key(app.instance()), app.take_docks());
         }
@@ -1348,14 +1426,144 @@ impl Children {
                     let _ = told.await;
                 });
             }
-            let _ = docks.take_picks(&key);
-            let _ = docks.take_details(&key);
+            // A pick from a joined dock's tab menu goes to the editor whose menu it is, and an
+            // ask for a docked child's details to its placer, as be-host-runtime sends them.
+            for (owner, view, id, anchor) in docks.take_picks(&key) {
+                let pick = MenuChoice { view, id, anchor };
+                tell_editor(app.instance(), owner, &EditorEvent::MenuPick(pick));
+            }
+            for (placer, child) in docks.take_details(&key) {
+                tell_editor(app.instance(), placer, &EditorEvent::ChildDetails(child));
+            }
         }
         // be-host-runtime marks the apps `take_changed` names for a frame. Here every app's
         // updates were just taken and handed to the host, whose relayed answer to an editor's
         // dock watch wakes its app, and what the app lays out then reaches the root as any
         // layout does (`Embedded::wants`): there is nothing left to mark.
         let _ = docks.take_changed();
+    }
+
+    /// `parent` and the apps of every child shown, any number of levels deep, each once.
+    fn every_app(&self, parent: &Embedded) -> Vec<Embedded> {
+        let mut apps: Vec<Embedded> = vec![parent.clone()];
+        for app in self.apps() {
+            if !apps.iter().any(|held| held.instance() == app.instance()) {
+                apps.push(app);
+            }
+        }
+        apps
+    }
+
+    /// Acts on what the editors of `parent` and of every app shown told the shell around them
+    /// (`Embedded::take_told`), as be-host does: a menu goes to the docks, which show it on a
+    /// joined dock's tab, and to the statuses of the children whose frame its editor draws; an
+    /// ask for its details goes to the docks hosting its dock, else to its placer as its child's
+    /// (`child-details`); a pick from a child's menu goes to the editor drawing that child's
+    /// frame (`menu-pick`); and an ask to leave the frame it takes gives the frame back to its
+    /// placer, as Escape there does. The root draws no details of its own: an editor that asks
+    /// with no placer hears nothing.
+    fn hear_told(&mut self, parent: &Embedded, docks: &mut Docks) {
+        for app in self.every_app(parent) {
+            for (editor, message) in app.take_told() {
+                match message {
+                    ShellMessage::Menu(MenuSet { view, items }) => {
+                        docks.set_menu(editor, view, items.clone());
+                        POOL.with_borrow_mut(|pool| {
+                            match items.is_empty() {
+                                true => pool.menus.remove(&(editor, view)),
+                                false => pool.menus.insert((editor, view), items),
+                            };
+                        });
+                    }
+                    ShellMessage::Details => {
+                        if !docks.details(editor)
+                            && let Some((instance, placer, child)) = self.placer_of(editor)
+                        {
+                            tell_editor(instance, placer, &EditorEvent::ChildDetails(child));
+                        }
+                    }
+                    ShellMessage::ChildMenuPick(choice) => {
+                        self.pick_child_menu(editor, &choice);
+                    }
+                    ShellMessage::LeaveFrame => self.leave_frame(editor),
+                    _ => {}
+                }
+            }
+        }
+    }
+
+    /// The place that shows the editor `editor`, any number of levels deep, as the handle of
+    /// its placer's app, its placer and its id there: its own place, not a copy, first.
+    fn placer_of(&self, editor: EditorInstanceId) -> Option<(u64, EditorInstanceId, ChildId)> {
+        let shows = |child: &&Child| {
+            child.placed && child.hosted().is_some_and(|(_, shown)| shown == editor)
+        };
+        let place = self
+            .shown
+            .iter()
+            .filter(shows)
+            .min_by_key(|child| child.copy());
+        if let Some(child) = place {
+            return Some((self.instance, child.editor, child.child));
+        }
+        self.shown
+            .iter()
+            .filter(|child| child.owns())
+            .find_map(|child| child.shared.nested.borrow().placer_of(editor))
+    }
+
+    /// Hands a pick from the menu of `placer`'s child `choice.child` to the editor drawing that
+    /// child's frame (`chrome_owner`), as be-host's `pick_frame_menu` does: the anchor only
+    /// when that is the child's own editor. Whether some level held the child.
+    fn pick_child_menu(&self, placer: EditorInstanceId, choice: &ChildMenuChoice) -> bool {
+        let place = self
+            .shown
+            .iter()
+            .find(|child| child.editor == placer && child.child == choice.child);
+        if let Some(place) = place {
+            let owner = chrome_owner(&place.shared);
+            if let Some((app, editor)) = owner.hosted() {
+                let anchor = choice.anchor.filter(|_| Rc::ptr_eq(&owner, &place.shared));
+                let pick = MenuChoice {
+                    view: menu_view(editor),
+                    id: choice.id.clone(),
+                    anchor,
+                };
+                tell_editor(app.instance(), editor, &EditorEvent::MenuPick(pick));
+            }
+            return true;
+        }
+        self.shown
+            .iter()
+            .filter(|child| child.owns())
+            .any(|child| child.shared.nested.borrow().pick_child_menu(placer, choice))
+    }
+
+    /// Gives back the frame the editor `editor` takes over wherever it does, as Escape in its
+    /// placer does (`revoke`): from every child of that view that could take it, so it goes to
+    /// none of its siblings.
+    fn leave_frame(&mut self, editor: EditorInstanceId) {
+        let left: Vec<(EditorInstanceId, ViewId)> = self
+            .shown
+            .iter()
+            .filter(|child| {
+                child.framing && child.hosted().is_some_and(|(_, shown)| shown == editor)
+            })
+            .map(|child| (child.editor, child.view))
+            .collect();
+        for (placer, view) in left {
+            for child in &self.shown {
+                if (child.editor, child.view) == (placer, view) && could_frame(&child.placement) {
+                    self.frame_revoked
+                        .insert((child.editor, child.view, child.child));
+                }
+            }
+        }
+        for child in &self.shown {
+            if child.owns() {
+                child.shared.nested.borrow_mut().leave_frame(editor);
+            }
+        }
     }
 
     /// The editor of the child the path `via` leads to from `editor`'s children, through each

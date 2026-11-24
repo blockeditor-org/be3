@@ -1796,6 +1796,34 @@ Each step lands on its own.
              already (`Embedded::hear_tell`, handed on with `host.place-content`): an editor's
              `tell` is not under its relayed op, so the root answers it and the host never sees
              it, and routing it to the host as well would read it twice.
+             - Built: `be3:root`'s `host.tell-placer` became `host.tell-editor`, which carries an
+               encoded `EditorEvent` (`child-focused`, `child-details`, `menu-pick`, `drag`; the
+               host's `Forwarded::tell` drops any other). `Embedded::hear_tell` keeps what the
+               root acts on (`take_told`): menus go to the root's `Docks` (`set_menu`) and, for a
+               child taking its placer's frame, to its status as the menu of the editor drawing
+               that frame (`chrome_owner`, `shown-child.menu`), as be-host's `frame_menu`; an
+               ask for details goes to the docks (whose `take_details` and `take_picks` reach
+               the editors they name), else to the child's placer
+               (`child-details`); a pick from a child's menu goes to the editor drawing its
+               frame (`menu-pick`); `leave-frame` gives the frame back as Escape does. A block
+               an editor drags (`drag-block`) is lifted while a press is held and carried by
+               `Embedding` over the views under the pointer that take a drag (`drop_site`:
+               the main view, or a dock view framed for the content), each hearing it through
+               its host, dropped on release; an editor that takes it (`drag-accepted`) shows
+               the alias cursor. A child's status now names the block it shows
+               (`shown-child.shows`), so the host words it from the editor that will show it
+               while that opens, as be-host does (a canvas keeps a new card only if its editor
+               resizes both ways), and carries the size its editor's content wants
+               (`shown-child.intrinsic`). Host test
+               `be_root_in_place_of_the_hosts_ui_lands_a_block_dragged_from_the_files_on_a_canvas`;
+               the root paintings with a tab now show the tab's child's menu in its bar.
+               Left for later: a card dropped under the root keeps its placeholder size, where
+               be-host fits it to the checklist's content, since the checklist's editor never
+               tells the root an intrinsic size there (not yet understood); a pick from a
+               joined dock's tab menu (the docks' `take_picks`, now sent as `menu-pick`), a
+               docked child's details (`take_details`, as `child-details`) and a pick through a
+               child's menu have no host test; files dragged in from outside the window are not
+               carried yet.
            - 4g7b3g. The other kinds of child: web views, host panels, pickers, creations,
              artifact settings and rename forms, which the placer hears are unavailable until
              then.

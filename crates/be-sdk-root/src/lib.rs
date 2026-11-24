@@ -18,13 +18,15 @@
 //!   sends under it the root forwards (`host.forward`) and relays what the host answers
 //!   (`host.forwarded`), as be-wasm-ops frames it never reads.
 //! - `Children` shows the block children the editors of an embedded app place: each is its
-//!   block's editor in an app of its own, spawned as `spawn_block` does and composited where it
-//!   was placed, with its own children likewise; the host tells each placer how they are
-//!   (`host.show-children`).
+//!   block's editor, opened by the host in the one app running its staged app
+//!   (`Embedded::open_editor`) and composited where it was placed, with its own children
+//!   likewise; the host tells each placer how they are (`host.show-children`).
 //! - `Embedding` holds the `Embedded`s and `Windows`: what is routed to an app's screen reaches
 //!   the app as `AppCall::Input`, in the screen's points; what lands on the root's own surfaces
 //!   the root gets back. What its apps ask of their windows (a cursor shape, the pointer lock,
-//!   every sample) it answers as the window's (`Embedding::requests`).
+//!   every sample) it answers as the window's (`Embedding::requests`). A block an editor drags
+//!   out of itself (`drag-block`) it carries over the views under the pointer, as be-host's drag
+//!   board does, and each hears it through its host (`tell_editor`, `editor-event.drag`).
 //!
 //! The clipboard is not relayed: an app it embeds copies and pastes only as the app protocol
 //! lets it (a copy as a host service, which this does not serve yet, and a paste as the input
@@ -51,18 +53,45 @@ pub use children::{
     ALREADY_OPEN_ABOVE, Children, KeyboardMove, NOT_SHOWN_YET, Spawning, child_screen,
     framing_screen, main_screen, preview_screen, preview_screen_of,
 };
-pub use embedded::{BlockSpawn, Embedded, Hosted, Spawn, SpawnFailure, Wants};
+pub use embedded::{BlockSpawn, Embedded, Hosted, Spawn, SpawnFailure, Wants, tell_editor};
 pub use own::OwnSurface;
 pub use windows::{Delivery, Windows};
 
-use be_lib_geometry::{Rect, pos2};
+use be_lib_geometry::{Pos2, Rect, pos2};
 use be_lib_layers::{Layer, LayerId, LayerList, Surface};
-use be_lib_ui_types::{CursorIcon, ImeArea, KeyChord, WindowRequests, input};
+use be_lib_ui_types::{CursorIcon, ImeArea, KeyChord, WindowRequests, input, input::Modifiers};
+use be_sdk_api::{
+    DropAction, EditorInstanceId, Pos2 as ViewPos2,
+    app::EditorEvent,
+    clipboard::{Blocks, ClipBlock, ClipFormat},
+    shell_types::{DragOver, DragStart},
+};
+use uuid::Uuid;
 
 /// The apps a root embeds and the routing of its windows' input to them.
 pub struct Embedding {
     apps: Vec<Embedded>,
     windows: Windows,
+    /// The block an app's editor drags out of itself, carried over the screens under the
+    /// pointer until it is dropped (`Embedding::carry`).
+    carried: Option<Carried>,
+}
+
+/// A block an editor drags out of itself, as be-host's drag board carries it: in the window the
+/// press that started it is in, over the views under the pointer that take a drag.
+struct Carried {
+    block: DragStart,
+    window: Option<u64>,
+    /// The keys held, which say what a drop does (`DropAction::of`).
+    modifiers: Modifiers,
+    /// The editor's view it is over, which hears it (`editor-event.drag`).
+    over: Option<Over>,
+}
+
+/// The view of an editor a carried block is over.
+struct Over {
+    app: Embedded,
+    editor: EditorInstanceId,
 }
 
 /// What a window's input did (`Embedding::input`).
@@ -90,6 +119,7 @@ impl Embedding {
         Self {
             apps: Vec::new(),
             windows: Windows::new(compositor),
+            carried: None,
         }
     }
 
@@ -131,6 +161,8 @@ impl Embedding {
     /// answered, for the root to take in.
     pub fn input(&mut self, window: Option<u64>, events: &[u8]) -> Result<Routed, String> {
         let events = input::decode(events)?;
+        self.lift();
+        self.carry(window, &events);
         let routed = self.windows.route(window, events);
         let pressed = routed
             .iter()
@@ -145,6 +177,122 @@ impl Embedding {
             own: self.forward(routed),
             pressed,
         })
+    }
+
+    /// Lifts a block an app's editor began to drag out of itself, in the window a press is held
+    /// in, as be-host's drag board lifts it: from there the views it is carried over hear it
+    /// (`carry`). One that arrives once nothing presses (the app's word came after the release)
+    /// lifts nothing.
+    fn lift(&mut self) {
+        let started: Vec<DragStart> = self.apps.iter().filter_map(Embedded::take_drag).collect();
+        for block in started {
+            if let Some(window) = self.windows.pressing() {
+                self.end_carry(false);
+                self.carried = Some(Carried {
+                    block,
+                    window,
+                    modifiers: Modifiers::NONE,
+                    over: None,
+                });
+            }
+        }
+    }
+
+    /// Carries the lifted block over `window`'s `events`, against the layers drawn last: the
+    /// view of an app's editor under the pointer that takes a drag hears it there
+    /// (`editor-event.drag`), with what the keys held make of a drop, and once the pointer is
+    /// released, that it was dropped there; the view it left hears it left. Its host sends each
+    /// what the root tells it (`host.tell-editor`).
+    fn carry(&mut self, window: Option<u64>, events: &[input::Timed]) {
+        for event in events {
+            let Some(carried) = self.carried.as_mut().filter(|held| held.window == window) else {
+                return;
+            };
+            match &event.input {
+                input::Input::Modifiers(modifiers) => carried.modifiers = *modifiers,
+                input::Input::PointerMoved(pos) => self.carry_to(*pos, false),
+                input::Input::PointerButton {
+                    pos,
+                    pressed: false,
+                    ..
+                } => {
+                    self.carry_to(*pos, true);
+                    self.carried = None;
+                }
+                input::Input::PointersCancelled => self.end_carry(true),
+                _ => {}
+            }
+        }
+    }
+
+    /// Carries the lifted block to `pos` in its window, dropped there when `dropped`.
+    fn carry_to(&mut self, pos: Pos2, dropped: bool) {
+        let Some(carried) = self.carried.as_ref() else {
+            return;
+        };
+        let site = self
+            .windows
+            .layers(carried.window)
+            .iter()
+            .rev()
+            .filter(|layer| layer.takes(pos))
+            .find_map(|layer| {
+                let Surface::Screen { instance, surface } = layer.surface else {
+                    return None;
+                };
+                let app = self.apps.iter().find(|app| app.instance() == instance)?;
+                let (editor, view, at) = app.drop_site(surface, layer.local(pos)?)?;
+                Some((app.clone(), editor, view, at))
+            });
+        let left = carried.over.as_ref().is_some_and(|over| {
+            site.as_ref().is_none_or(|(app, editor, ..)| {
+                (app.instance(), *editor) != (over.app.instance(), over.editor)
+            })
+        });
+        if left {
+            self.end_carry(false);
+        }
+        let Some(carried) = self.carried.as_mut() else {
+            return;
+        };
+        let Some((app, editor, view, at)) = site else {
+            return;
+        };
+        let blocks = Blocks {
+            blocks: vec![ClipBlock {
+                id: Uuid::from_bytes(carried.block.block_id),
+                organization: None,
+                block_type: Uuid::from_bytes(carried.block.block_type),
+                title: String::new(),
+            }],
+        };
+        let over = DragOver {
+            view,
+            pos: ViewPos2 { x: at.x, y: at.y },
+            items: vec![ClipFormat::encode(&blocks)],
+            action: DropAction::of(carried.modifiers),
+            dropped,
+        };
+        tell_editor(app.instance(), editor, &EditorEvent::Drag(Some(over)));
+        if dropped {
+            app.end_drag(editor);
+        }
+        carried.over = Some(Over { app, editor });
+    }
+
+    /// Tells the view the carried block is over that it left it, and stops carrying it when
+    /// `dropped` (the pointers were cancelled).
+    fn end_carry(&mut self, dropped: bool) {
+        let Some(carried) = self.carried.as_mut() else {
+            return;
+        };
+        if let Some(over) = carried.over.take() {
+            tell_editor(over.app.instance(), over.editor, &EditorEvent::Drag(None));
+            over.app.end_drag(over.editor);
+        }
+        if dropped {
+            self.carried = None;
+        }
     }
 
     /// Hands `chords` to the root's own layer (the compositor `new` names) in every window, ahead
@@ -188,13 +336,26 @@ impl Embedding {
     /// a screen it shows asks for them. Over the root's own surfaces the cursor is the default
     /// one: a root that draws its own controls sets its own.
     pub fn requests(&self, window: Option<u64>) -> Requests {
-        requests(&self.windows, window, |surface| {
+        let mut requests = requests(&self.windows, window, |surface| {
             let Surface::Screen { instance, surface } = *surface else {
                 return None;
             };
             let app = self.apps.iter().find(|app| app.instance() == instance)?;
             app.window(surface)
-        })
+        });
+        // A block carried over an editor that takes it shows that it would land there, as
+        // under be-host.
+        let accepted = self.carried.as_ref().is_some_and(|carried| {
+            carried.window == window
+                && carried
+                    .over
+                    .as_ref()
+                    .is_some_and(|over| over.app.accepts(over.editor))
+        });
+        if accepted {
+            requests.cursor = CursorIcon::Alias;
+        }
+        requests
     }
 
     /// Takes `list` as the layers drawn last, which input is routed by from now on, and answers

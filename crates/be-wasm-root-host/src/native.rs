@@ -304,10 +304,10 @@ impl Root {
         self.core.take_shown_children()
     }
 
-    /// What the root told the host's editors of their children since the last call
-    /// (`host.tell-placer`): by the root's instance and the editor, in order.
-    pub fn take_placer_events(&mut self) -> Vec<(u64, u64, be_wasm_root_api::PlacerEvent)> {
-        self.core.take_placer_events()
+    /// What the root told the host's editors (`host.tell-editor`): by the root's instance and
+    /// the editor, each encoded, in order.
+    pub fn take_editor_events(&mut self) -> Vec<(u64, u64, Vec<u8>)> {
+        self.core.take_editor_events()
     }
 
     /// The dock updates the root made for the host's editors since the last call

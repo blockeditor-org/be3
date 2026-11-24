@@ -70,7 +70,7 @@ use be_sdk_api::{
     ParentView, ResizeMode, ViewId, app::EditorEvent,
 };
 use be_sdk_app_host::pacing::FrameClock;
-use be_wasm_root_api::{EditorApp, OpenedEditor, PlacerEvent, ShownPreview};
+use be_wasm_root_api::{EditorApp, OpenedEditor, ShownPreview};
 use be_wasm_root_api::{FrameRequest, Notice, NoticeAction, StatisticRow, WindowSize};
 use be_wasm_root_host::EditorOpening;
 use be_wasm_root_host::Root;
@@ -811,18 +811,18 @@ fn serve_editors(core: &mut crate::HostCore, root: &mut Root, editors: &mut Edit
         let statuses = shown
             .children
             .iter()
-            .map(|child| child_status(&editors.opened, child))
+            .map(|child| child_status(core, &editors.opened, child))
             .collect();
         forwarded.show_children(EditorInstanceId(shown.editor), ViewId(shown.view), statuses);
     }
-    for (instance, editor, event) in root.take_placer_events() {
+    for (instance, editor, event) in root.take_editor_events() {
         let Some(forwarded) = served.get_mut(&instance) else {
             continue;
         };
-        let event = match event {
-            PlacerEvent::ChildFocused(child) => EditorEvent::ChildFocused(ChildId(child)),
-        };
-        forwarded.tell_placer(EditorInstanceId(editor), event);
+        // A root that encodes what no editor can read has nothing to tell it.
+        if let Some(event) = be_sdk_api::ops::decode::<EditorEvent>(&event) {
+            forwarded.tell(EditorInstanceId(editor), event);
+        }
     }
     for (instance, editor, updates) in root.take_dock_updates() {
         let Some(forwarded) = served.get_mut(&instance) else {
@@ -1001,6 +1001,7 @@ const CHILD_OPENING: &str = "the block's editor is opening";
 /// at once, as under be-host (`preview_of`): waiting while its editor opens, then shown in its
 /// place by the root, or drawn as its block's label by its placer when its editor draws none.
 fn child_status(
+    core: &crate::HostCore,
     opened: &HashMap<(u64, u64), OpenedFor>,
     child: &be_wasm_root_api::ShownChild,
 ) -> HostChildStatus {
@@ -1009,6 +1010,18 @@ fn child_status(
         .as_ref()
         .and_then(|shown| opened.get(&(shown.instance, shown.editor)));
     let manifest = shown.and_then(|shown| shown.app.editor(shown.editor.into_bytes()));
+    // Until its editor is open, the editor that will show it says how it is placed (its
+    // interaction, capabilities and resizing), as be-host knows it at once.
+    let edits = child
+        .shows
+        .as_ref()
+        .filter(|_| manifest.is_none())
+        .and_then(|shows| core.editor_of(shows).ok());
+    let described = manifest.or_else(|| {
+        edits
+            .as_ref()
+            .and_then(|(app, editor, _)| app.editor(editor.into_bytes()))
+    });
     let preview = match (child.preview, manifest) {
         (ShownPreview::None, _) => ChildPreview::Hosted,
         (ShownPreview::Label, _) => ChildPreview::Label,
@@ -1029,12 +1042,15 @@ fn child_status(
             .as_ref()
             .map(|size| beui::vec2(size.width, size.height)),
         active: available && child.active,
-        interaction: manifest.map_or(InteractionMode::Preview, |editor| editor.interaction),
-        capabilities: manifest
+        interaction: described.map_or(InteractionMode::Preview, |editor| editor.interaction),
+        capabilities: described
             .map_or_else(EditorCapabilities::default, |editor| editor.capabilities),
-        resize: manifest.map_or(ResizeMode::None, |editor| editor.resize),
+        resize: described.map_or(ResizeMode::None, |editor| editor.resize),
         error,
-        menu: Vec::new(),
+        // A root that encodes what no editor can read shows the child with no menu.
+        menu: be_sdk_api::ops::decode::<Vec<be_sdk_api::MenuItem>>(&child.menu)
+            .and_then(|items| be_sdk_api::MenuEntry::nest(items).ok())
+            .unwrap_or_default(),
         creation: None,
         preview,
         dialog: DialogStatus::default(),
