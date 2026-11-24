@@ -1078,9 +1078,7 @@ impl<G: Inline> Core<G> {
                             earlier.fail(&mut self.connection, OpError::Canceled);
                         }
                     }
-                    false => {
-                        reply.send(&mut self.connection, &std::mem::take(&mut self.relaying))
-                    }
+                    false => reply.send(&mut self.connection, &std::mem::take(&mut self.relaying)),
                 }
             }
             embed::Call::Host(embed::host::Call::PasteShortcut { reply }) => {

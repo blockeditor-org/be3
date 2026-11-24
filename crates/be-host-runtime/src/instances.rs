@@ -2401,8 +2401,7 @@ impl Instances {
                     || regions.iter().any(|request| request.view == *view)
                     || entry.anchored.iter().any(|held| held.view == *view)
             });
-            if regions.is_empty() && matches!(entry.role, InstanceRole::Editor(..)) && !forwarded
-            {
+            if regions.is_empty() && matches!(entry.role, InstanceRole::Editor(..)) && !forwarded {
                 continue;
             }
             regions.sort_by_key(|request| request.screen.0);

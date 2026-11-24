@@ -1,11 +1,11 @@
 use std::{cell::Cell, cell::RefCell, rc::Rc};
 
+use be_block_content::BlockContent as _;
 use be_sdk_api::{
     guest::blocks::Replica,
     ops::guest::{Executor, Serve, spawn, with_parent},
 };
 use be_sdk_type_guest::editor::{FromEditor, ToEditor};
-use be_block_content::BlockContent as _;
 use be_type_example_counter::CounterContent;
 
 use super::*;
@@ -109,7 +109,10 @@ fn a_blocks_editor_a_root_embeds_is_sent_its_content_through_the_root() {
     let into = Rc::clone(&sent);
     guest.enter(|| {
         let replica = with_parent(editor, || {
-            Replica::new(block.into_bytes(), CounterContent::CONTENT_TYPE.into_bytes())
+            Replica::new(
+                block.into_bytes(),
+                CounterContent::CONTENT_TYPE.into_bytes(),
+            )
         });
         let mut frames = replica.frames();
         let resend = replica.send(be_sdk_type_api::encode_frame(&FromEditor::Resend));

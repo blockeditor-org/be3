@@ -28,8 +28,7 @@ use be_sdk_api::{
     },
     ops::{
         Connection, Frame, Incoming, MethodId, OpError, OpId, Outcome, Producer, Reply, Side,
-        Started, decode_frame, is_relayed,
-        Ticket, wire,
+        Started, Ticket, decode_frame, is_relayed, wire,
     },
 };
 
@@ -827,8 +826,9 @@ impl Wire {
     /// they are, which complete the ops the app started under the host's editors.
     pub fn relay_forwarded(&mut self, frames: Vec<Vec<u8>>) -> Result<(), String> {
         for frame in frames {
-            let decoded = decode_frame::<Frame>(&frame)
-                .map_err(|error| format!("the host relayed a frame that did not decode: {error}"))?;
+            let decoded = decode_frame::<Frame>(&frame).map_err(|error| {
+                format!("the host relayed a frame that did not decode: {error}")
+            })?;
             if let Frame::Complete { op, .. } = decoded {
                 self.forwarding.ops.remove(&op);
             }

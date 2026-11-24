@@ -92,7 +92,9 @@ fn an_editor_a_roots_host_opened_is_served_by_the_host_through_the_root() {
     };
     embedded.host.open(open());
     embedded.exchange();
-    let editor = editor.get().expect("the app served the editor the host opened");
+    let editor = editor
+        .get()
+        .expect("the app served the editor the host opened");
     assert!(
         is_relayed(editor),
         "the host's editor is on an op of its own range"

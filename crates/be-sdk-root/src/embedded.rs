@@ -15,11 +15,9 @@ use be_lib_layers::{Affine, Layer, LayerId, LayerInput, Surface};
 use be_lib_stable_hash::HashMap;
 use be_lib_ui_types::input::{Input, PenPhase, TouchPhase};
 use be_sdk_api::{
-    EditorInstanceId, Fonts, ImeArea, InputBatch, Opening, Preferences, ScreenId,
-    ScreenPlacement, ScreenRequest, SurfaceSpec, TimedInput, WindowRequests,
-    embed::shell::Call as ShellCall,
+    EditorInstanceId, Fonts, ImeArea, InputBatch, Opening, Preferences, ScreenId, ScreenPlacement,
+    ScreenRequest, SurfaceSpec, TimedInput, WindowRequests, embed::shell::Call as ShellCall,
 };
-use be_wasm_root_api::guest::host;
 use be_sdk_app_host::{
     calls::{AppCall, Heard, Outbound},
     holds::Held,
@@ -28,6 +26,7 @@ use be_sdk_app_host::{
     session::{Session, SessionFailure, SessionState},
     wire::Wire,
 };
+use be_wasm_root_api::guest::host;
 use be_wasm_sandbox_api::{
     guest::sandbox::Instance,
     sandbox::{Config, Source, StagedModule},
@@ -156,9 +155,9 @@ impl Embedded {
     /// which it serves from then on. Call it on the root's executor at the frame clock's `now`;
     /// it answers once the host did, or with why the host would not.
     pub async fn spawn_block(spawn: BlockSpawn, now: Duration) -> Result<Self, String> {
-        let editor = host::editor_of(spawn.block)
-            .await
-            .map_err(|error| format!("the host did not answer which app edits the block: {error:?}"))??;
+        let editor = host::editor_of(spawn.block).await.map_err(|error| {
+            format!("the host did not answer which app edits the block: {error:?}")
+        })??;
         let instance = instance(editor.app, editor.module);
         let opened = host::open_editor(instance.op(), spawn.block)
             .await
@@ -680,9 +679,8 @@ fn relay_to(handle: u64, state: &Rc<RefCell<State>>) {
 async fn hear_host() {
     while let Ok(relayed) = host::forwarded().await {
         for relayed in relayed {
-            let state = RELAYS.with_borrow(|relays| {
-                relays.get(&relayed.instance).and_then(Weak::upgrade)
-            });
+            let state =
+                RELAYS.with_borrow(|relays| relays.get(&relayed.instance).and_then(Weak::upgrade));
             // An app the root let go of is stopped: what the host still sent it goes nowhere.
             if let Some(state) = state {
                 state.borrow_mut().relay(relayed.frames);
