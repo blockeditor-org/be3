@@ -57,16 +57,18 @@ is, `show`, `focused`, `mode()`, `snapshot`/`restore`, bars by key, fullscreen);
 `DockHostLayout` is the host's, keyed by `TabId` (`DockingLayout::tab_of` converts): its area and
 covers, its windows and the window manager, the switch. `layout` is optional: a `Docking` given none
 makes its own. The declarations take no key type: a tab's `id` is a `DockId`, which any `DockKey`
-passes as, so one dock may mix keys, and a layout reads back only the tabs keyed by its `K`.
+passes as. A dock read through a `DockingLayout<K>` keys every tab it gives an id with a `K`
+(debug builds assert it); a tab left without one has no key there.
 
 **Defaults.** Whatever a declaration leaves out, the dock derives, so a layout says only what
 differs (an editor's stage and side panel are about ten lines, guides/apps/editor.md):
 
 - A split's and a pane's `id` is its place under its parent (`0`, `0.1`), a stage's `stage`, and a
-  tab's its pane's key and its title (`0.1/Inspector`, then `#1` for a second of that title). A
-  derived key is kept while the node is declared, but a `Show` before a node moves its place when
-  the node is built, so give an `id` to what a saved layout, a test or the code names. A tab
-  with a derived id has no key in a `DockingLayout<K>` and is not in its snapshot.
+  tab's its pane's key and its title (`0.1/Inspector`). A node keeps the key it derived while it
+  is declared, and one that takes a key some node already holds steps past it (`0.1#1`), so a
+  node a `Show` brings in front of another derives a key of its own, which depends on what was
+  declared first. Give an `id` to what a saved layout, a test or the code names. A tab with a
+  derived id has no key in a `DockingLayout<K>`, and its typed snapshot leaves it out.
 - `stage` marks an editor's stage (`DockPane`): bare, its one tab untitled (a joined dock is named
   after the tab it joined), focused when the dock starts unless `Docking`'s `focus` names a tab, and
   what the gathered mode keeps. A dock with a stage is an editor's layout: every pane is locked,

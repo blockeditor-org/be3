@@ -4,7 +4,7 @@ use uuid::Uuid;
 use be_sdk_beui::Editor;
 use be_sdk_beui::beui::dock::styled::{DockBarGrip, DockBarSurface};
 use be_sdk_beui::beui::dock::{DockAlign, DockBarPlacement, DockEdge};
-use be_sdk_beui::beui::dock::{DockBar, DockPane, DockTab, Docking, DockingLayout};
+use be_sdk_beui::beui::dock::{DockBar, DockPane, DockTab, Docking};
 use be_sdk_beui::beui::icons::{ICON_ARROW_DOWN, ICON_ARROW_UP, ICON_FOLDER, ICON_PENCIL_LINE};
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
@@ -135,11 +135,10 @@ pub fn FolderEditor(editor: Editor) -> NodeId {
     let chrome = editor.chrome_shown();
     let content = NodeRef::new();
     editor.content(&content);
-    let layout = DockingLayout::<&'static str>::new();
     view! {
-        <Docking layout focus=STAGE>
-            <DockPane id="stage" locked=true bare=true>
-                <DockTab id=STAGE title="Folder">
+        <Docking>
+            <DockPane stage=true>
+                <DockTab id=STAGE>
                     <Frame
                         @node_ref={&content}
                         border={move || drop.get().map(|welcome| {

@@ -1,7 +1,7 @@
 use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::dock::styled::{DockBarGrip, DockBarSurface};
 use be_sdk_beui::beui::dock::{DockAlign, DockBarPlacement, DockEdge};
-use be_sdk_beui::beui::dock::{DockBar, DockPane, DockTab, Docking, DockingLayout};
+use be_sdk_beui::beui::dock::{DockBar, DockPane, DockTab, Docking};
 use be_sdk_beui::beui::icons::{ICON_ARROW_LEFT, ICON_ARROW_RIGHT, ICON_REFRESH_CW};
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
@@ -107,11 +107,10 @@ fn TabDock(
     error: ReadSignal<Option<String>>,
     bar: Bar,
 ) -> NodeId {
-    let layout = DockingLayout::<&'static str>::new();
     view! {
-        <Docking layout focus=STAGE>
-            <DockPane id="stage" locked=true bare=true>
-                <DockTab id=STAGE title="Page">
+        <Docking>
+            <DockPane stage=true>
+                <DockTab id=STAGE>
                     <Page editor content page error />
                 </DockTab>
             </DockPane>
