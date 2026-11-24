@@ -7,11 +7,10 @@ piece should do once, plus small duplicates found beside them.
 
 ## Steps
 
-Steps 1 (a kept subtree reads the context of the `Kept` showing it) and 2 (overlays build their
-body on each open; keeping it is the caller's `Kept`) have landed.
+Steps 1 (a kept subtree reads the context of the `Kept` showing it), 2 (overlays build their
+body on each open; keeping it is the caller's `Kept`) and 3 (`Scroll`'s `snaps`, natively) have
+landed.
 
-3. **Scroll snaps.** `Scroll` gets snap stops along an axis: offsets a fling and a release
-   settle on. A carousel or a pager uses them too.
 4. **A sheet is one Scroll.** sheet.rs drives its content's offset itself, with its own wheel
    handling, fling and bounce phases and a `banding()` that repeats scroll.rs's
    `rubber_banding()`, so a sheet's content has no scrollbar, keyboard scrolling or autoscroll.
