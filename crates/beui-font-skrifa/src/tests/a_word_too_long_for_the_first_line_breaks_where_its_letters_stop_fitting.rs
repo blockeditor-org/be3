@@ -5,7 +5,7 @@ use beui_types::{FontId, TextLayout};
 #[test]
 fn a_word_too_long_for_the_first_line_breaks_where_its_letters_stop_fitting() {
     let font = FontId::proportional(14.0);
-    let mut fonts = Fonts::new(FreetypeFonts::default());
+    let mut fonts = Fonts::new(SkrifaFonts::default());
     let word = fonts
         .layout("Resizing", font, TextLayout::wrapped(f32::INFINITY), 1.0)
         .size()

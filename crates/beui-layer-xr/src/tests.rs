@@ -114,8 +114,8 @@ fn setup(host: &mut XrSpace, gpu: &Gpu, waker: Waker) {
 }
 
 fn program() -> FrameOutput {
-    let fonts = beui_font_freetype::FreetypeFonts::new(beui_font_freetype::FontLibrary::new(
-        beui_font_freetype::FontSources::default(),
+    let fonts = beui_font_skrifa::SkrifaFonts::new(beui_font_skrifa::FontLibrary::new(
+        beui_font_skrifa::FontSources::default(),
     ));
     let context = Context::new(fonts);
     context.run(|_| {})

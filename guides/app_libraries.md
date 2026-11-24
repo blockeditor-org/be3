@@ -4,8 +4,8 @@ An app is either **standalone**, one plain wasm module with everything in it
 (written against the raw app interface below, in any language), or
 **linked**: a position-independent module naming the libraries it needs,
 which the host links it to at load time, natively on V8 and in the browser,
-from the same files. A library holds what apps share (std, beui, wgpu, FreeType,
-HarfBuzz, ...), so a linked app's module holds only its own code and the
+from the same files. A library holds what apps share (std, beui, wgpu, beui's
+fonts, ...), so a linked app's module holds only its own code and the
 generics instantiated for its types, and every app shares one file and one
 compiled module per library.
 
@@ -19,8 +19,8 @@ A Rust app links two libraries, or one (`buck/wasm/defs.bzl`):
   be-sdk's state announces changes through callbacks any UI framework adapts
   (guides/blocks/apps.md, State and change callbacks).
 - **beui**, `crates/be-sdk-library-beui`, above base: beui-reactive, beui,
-  be-sdk-beui and be-sdk-beui-platform (renderer, fonts), with FreeType and
-  HarfBuzz.
+  be-sdk-beui and be-sdk-beui-platform (renderer, fonts), with the bundled
+  faces and the Rust crates that shape and draw them (skrifa, harfrust, zeno).
 
 Every editor links both (`DEFAULT_LIBRARIES`) unless its `app()` says
 otherwise, and its tests link a third (Tests, below); triangle names base
@@ -71,10 +71,9 @@ everything in it. `app_tests(libraries = [])` links a standalone test module.
 - **Compile.** V8 compiles each library once in the runner's process and the
   test module as it loads; nothing is compiled ahead of the run.
 
-A standalone module that links C libraries with the same symbols, such as
-PDFium's FreeType and beui's, gets one definition of each name from whichever
-archive comes first, so before tests were linked PDFium's tests ran on a mix
-of two FreeType builds and painted text a little differently from the app.
+A standalone module that links two C libraries with the same symbols gets
+one definition of each name from whichever archive comes first; linked tests
+run on the libraries the app ships instead.
 
 ## Identity
 
@@ -101,8 +100,8 @@ whole closure, not only direct uses.
 A module above the root is linked `-Bsymbolic`, so what it defines binds to
 its own definition: otherwise it reaches each of its symbols another module
 could define through a `GOT.func` or `GOT.mem` import, which the loader answers
-from the lowest module exporting the name (PDFium's FreeType was handed beui's
-`TT_RunIns`).
+from the lowest module exporting the name, and a module carrying its own copy
+of a C library another module also carries would be handed the other's.
 
 A link that needs libraries reads their `be3.lib` sections and refuses a
 closure that is incomplete or in which two libraries hold the same crate or C

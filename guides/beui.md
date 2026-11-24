@@ -106,7 +106,7 @@ macros expand to resolve. From the bottom up:
 | `beui-runner` | the `Runner`, `Platform`, `PlatformServices`, `Layer` and `Renderer` contracts, `RunOptions`, the `BEUI_*` environment |
 | `beui-platform-*`, `beui-layer-*` | platforms (winit, android, web, drm, headless) and layers (space, xr, drive) |
 | `beui-host-window` | a program's entry (`main!`, `run`, `run_program`): natively picks a platform and stacks the layers `BEUI_PLATFORM` and `BEUI_LAYERS` ask for; in a browser shows the program in the page's element on either core |
-| `beui-font-freetype` | shaping and rasterizing, and the bundled fonts |
+| `beui-font-skrifa` | shaping and rasterizing, and the bundled fonts |
 | `be-sdk-beui-platform` | the platform an app module's views run on |
 | `beui-paint-format`, `beui-paint-snapshot` | paintings and the snapshot assertions |
 | `beui-tests` | screens and scripts that must behave the same on both cores |

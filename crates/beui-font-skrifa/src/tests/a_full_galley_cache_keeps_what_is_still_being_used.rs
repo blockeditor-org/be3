@@ -15,7 +15,7 @@ fn fill(fonts: &mut Fonts, from: usize) {
 
 #[test]
 fn a_full_galley_cache_keeps_what_is_still_being_used() {
-    let mut fonts = Fonts::new(FreetypeFonts::default());
+    let mut fonts = Fonts::new(SkrifaFonts::default());
     let font = FontId::proportional(14.0);
     let held = fonts.layout("held", font, beui_types::text::TextLayout::DEFAULT, 1.0);
 

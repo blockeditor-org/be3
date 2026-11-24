@@ -1,6 +1,6 @@
 use beui::native::WindowSize;
 use beui::{Event, ForwardedInput, Input, Keystroke, native::Context};
-use beui_host::native::FreetypeFonts;
+use beui_host::native::SkrifaFonts;
 use beui_host::native::testing::{Gui, Showing, Stepped};
 
 use super::*;
@@ -57,7 +57,7 @@ fn escape_stops_a_presentation_rather_than_reaching_the_editor() {
         scale: 1.0,
     };
     let mut stepped = Stepped::new(
-        Context::new(FreetypeFonts::default()),
+        Context::new(SkrifaFonts::default()),
         Showing(document),
         window,
         None,

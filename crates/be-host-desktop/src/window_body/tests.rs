@@ -3,7 +3,7 @@ use std::rc::Rc;
 use std::time::Duration;
 
 use beui::{native::Context, native::WindowSize, vec2};
-use beui_host::native::FreetypeFonts;
+use beui_host::native::SkrifaFonts;
 use beui_host::native::testing::{Gui, Showing, Snapshots, Stepped};
 
 use super::*;
@@ -56,7 +56,7 @@ fn shown_drawing(initial: WindowStatus, buffer: Vec2) -> Shown {
         }
     });
     let mut stepped = Stepped::new(
-        Context::new(FreetypeFonts::default()),
+        Context::new(SkrifaFonts::default()),
         Showing(document),
         WindowSize {
             size: SIZE,

@@ -2,7 +2,7 @@
 
 Every guest (an app, the libraries apps link against, an app's workers, and an app's tests) is
 built for `wasm32-wasip1`, single-threaded, as are the C and C++ libraries guests link
-(wasi-libc, libc++, FreeType, HarfBuzz, PDFium, libghostty-vt). A guest has one thread, and its
+(wasi-libc, libc++, PDFium, libghostty-vt). A guest has one thread, and its
 memory is imported and unshared: the loaders (be-wasm-host natively, `web/app.js` in the browser)
 link an app's libraries into the memory its root library imports, which is not shared. Work that needs another thread runs as an instance of its
 own, a worker (`be_sdk_worker`), spawned through the sandbox API and talking to its app by

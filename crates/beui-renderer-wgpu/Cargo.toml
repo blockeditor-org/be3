@@ -31,7 +31,7 @@ web-sys = { version = "0.3", optional = true, features = [
 
 [dev-dependencies]
 beui-components-unstyled = { path = "../beui-components-unstyled" }
-beui-font-freetype = { path = "../beui-font-freetype" }
+beui-font-skrifa = { path = "../beui-font-skrifa" }
 beui-view = { path = "../beui-view" }
 pollster = "0.4"
 

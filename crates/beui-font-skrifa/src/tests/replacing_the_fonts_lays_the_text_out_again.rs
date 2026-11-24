@@ -5,13 +5,13 @@ use beui_types::{FontId, TextLayout};
 
 #[test]
 fn replacing_the_fonts_lays_the_text_out_again() {
-    let empty = FreetypeFonts::new(FontLibrary::new(FontSources::default()));
+    let empty = SkrifaFonts::new(FontLibrary::new(FontSources::default()));
     let mut fonts = Fonts::new(empty);
     let generation = fonts.generation();
     let before = fonts.layout("Aa", FontId::proportional(14.0), TextLayout::DEFAULT, 1.0);
     assert!(before.glyphs().is_empty(), "with no fonts nothing is drawn");
 
-    fonts.replace(Box::new(FreetypeFonts::default()));
+    fonts.replace(Box::new(SkrifaFonts::default()));
     assert_ne!(
         fonts.generation(),
         generation,

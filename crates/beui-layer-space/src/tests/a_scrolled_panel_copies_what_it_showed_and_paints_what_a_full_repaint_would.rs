@@ -7,8 +7,8 @@ use beui_types::geometry::Region;
 const SIZE: Vec2 = vec2(64.0, 80.0);
 
 fn rows(offset: f32) -> WindowOutput {
-    let fonts = beui_font_freetype::FreetypeFonts::new(beui_font_freetype::FontLibrary::new(
-        beui_font_freetype::FontSources::default(),
+    let fonts = beui_font_skrifa::SkrifaFonts::new(beui_font_skrifa::FontLibrary::new(
+        beui_font_skrifa::FontSources::default(),
     ));
     let mut output = Context::new(fonts)
         .run(|context| {

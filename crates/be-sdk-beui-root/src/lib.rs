@@ -21,7 +21,7 @@
 //! root's router lands on the focused surface (plans/host_as_platform_adapter.md, step 4g4).
 //!
 //! A root links it as an app links be-sdk-beui: against the app libraries, whose beui library
-//! holds beui, its runner, its renderer and FreeType
+//! holds beui, its runner, its renderer and its fonts
 //! (decisions/a_root_links_beui_as_an_app_does.md). be-sdk-root itself stays free of any GUI
 //! framework; this is the beui half beside it.
 
@@ -45,7 +45,7 @@ use beui_core::clipboard::{Clip, PasteAnswer};
 use beui_core::context::{Context, RendererInfo, WindowOutput};
 use beui_core::painting::{Painting, Punches};
 use beui_core::program::{Program, SafeArea, Setup, Waker};
-use beui_font_freetype::{FontBytes, FontData, FontLibrary, FontSources, FreetypeFonts};
+use beui_font_skrifa::{FontBytes, FontData, FontLibrary, FontSources, SkrifaFonts};
 use beui_renderer_wgpu::{Repaint, Resources};
 use beui_runner::renderer::{Loaded, Renderer};
 use beui_runner::{Incoming, Launch, PlatformServices, RunOptions, Runner};
@@ -226,7 +226,7 @@ impl BeuiSurface {
             surface: std::cell::RefCell::new(surface),
             failure: std::cell::RefCell::default(),
         });
-        let context = Context::new(FreetypeFonts::new(root.0.fonts.clone()));
+        let context = Context::new(SkrifaFonts::new(root.0.fonts.clone()));
         // Built at the host's time, so a timer the document starts counts from it.
         root.pin(&context);
         let document = beui_host::native::build(build);

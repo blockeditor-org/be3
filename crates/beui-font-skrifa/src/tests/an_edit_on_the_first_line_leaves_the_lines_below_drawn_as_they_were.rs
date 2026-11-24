@@ -31,7 +31,7 @@ fn an_edit_on_the_first_line_leaves_the_lines_below_drawn_as_they_were() {
     // A fractional scale, as a Windows display at 125% has, and narrow
     // letters whose advances are fractions of a pixel.
     let scale = 1.25;
-    let mut fonts = Fonts::new(FreetypeFonts::default());
+    let mut fonts = Fonts::new(SkrifaFonts::default());
     let before = fonts.layout(&format!("First line: {BELOW}"), font, layout, scale);
     assert!(
         before.lines().len() > 3,

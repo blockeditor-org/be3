@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use be_wasm_root_api::{CoreSecret, SecretCommand};
 use beui::native::Context;
-use beui_host::native::FreetypeFonts;
+use beui_host::native::SkrifaFonts;
 
 use super::*;
 use crate::{HostStateStore, ServerLocation};
@@ -47,7 +47,7 @@ impl Served {
         Self {
             stack: BlockStack::default(),
             core: signed_in(),
-            context: Context::new(FreetypeFonts::default()),
+            context: Context::new(SkrifaFonts::default()),
             answers: Vec::new(),
             waits,
         }

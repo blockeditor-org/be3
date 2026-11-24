@@ -16,8 +16,8 @@ fn rows(fill: Color32) -> Document {
 fn a_renderers_encoded_rows_survive_another_renderer_painting_between_its_frames() {
     let mut red = rows(Color32::from_rgb(200, 0, 0));
     let mut blue = rows(Color32::from_rgb(0, 0, 200));
-    let red_context = Context::new(beui_font_freetype::FreetypeFonts::default());
-    let blue_context = Context::new(beui_font_freetype::FreetypeFonts::default());
+    let red_context = Context::new(beui_font_skrifa::SkrifaFonts::default());
+    let blue_context = Context::new(beui_font_skrifa::SkrifaFonts::default());
     let mut first = Target::new();
     let mut second = Target::sharing(&first);
     let everything = everything();

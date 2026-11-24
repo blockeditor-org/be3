@@ -4,7 +4,7 @@ use be_sdk_api::{Vec2, WindowOver, WindowRequest};
 use beui::native::{Context, WindowSize, enter};
 use beui::{PointerButton, PointerEvent, PointerId};
 use beui_host::native::testing::{Gui, Showing, Stepped};
-use beui_host::native::{FreetypeFonts, build};
+use beui_host::native::{SkrifaFonts, build};
 
 use super::*;
 mod a_closed_window_takes_the_windows_it_opened_with_it;
@@ -71,7 +71,7 @@ impl Carrying {
             scale: 1.0,
         };
         let mut stepped = Stepped::new(
-            Context::new(FreetypeFonts::default()),
+            Context::new(SkrifaFonts::default()),
             Showing(document),
             window,
             None,

@@ -4,8 +4,8 @@ use beui_types::FontId;
 
 #[test]
 fn letters_land_where_their_advances_put_them() {
-    let mut backend = FreetypeFonts::default();
-    let mut fonts = Fonts::new(FreetypeFonts::default());
+    let mut backend = SkrifaFonts::default();
+    let mut fonts = Fonts::new(SkrifaFonts::default());
     let phase = 1.0 / SUBPIXEL_POSITIONS as f32;
 
     for text in [

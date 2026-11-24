@@ -503,8 +503,7 @@ def app_tests(exports = [], env = {}, extra_deps = [], libraries = None):
         test_type = "rust",
     )
 
-# Compiled to wasm, an app's tests paint with the FreeType and HarfBuzz it
-# ships, so the accepted paintings in the crate's snapshots/ stay put. The guest
+# Compiled to wasm, an app's tests paint with the font code it ships, so the accepted paintings in the crate's snapshots/ stay put. The guest
 # finds them from CARGO_MANIFEST_DIR, taken from the crate's real Cargo.toml
 # rather than a staged copy, and app-test-runner opens that directory, and
 # MADE_PAINTINGS' when it is set, to it and nothing else.

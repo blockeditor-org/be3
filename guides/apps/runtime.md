@@ -164,7 +164,7 @@ its own (a `v8::SharedIsolate`, locked by the thread that runs it):
   method's area (`ime`), the cursor shape by its CSS name (`cursor`), the
   pointer lock (`pointer-locked`) and every sample of the pointer's moves
   (`every-sample`). `host.fonts` answers the fonts the host bundles as the
-  app protocol's `Fonts` (be3:ui's, which beui-font-freetype's
+  app protocol's `Fonts` (be3:ui's, which beui-font-skrifa's
   `FontSources::of_faces` reads), encoded (`Root::with_fonts`; be-host's
   `be_host_runtime::bundled_fonts`, which it tells its apps), which a root
   asks once, draws its text in and tells the apps it embeds. `host.notices`

@@ -15,12 +15,8 @@ guest it is single-threaded, so it can start no threads.
 
 ## Why
 
-- beui's text needs FreeType and HarfBuzz, C libraries that need a libc. The apps' toolchain
-  builds them, position-independent, against wasi-libc; `wasm32-unknown-unknown` has no libc, so
-  a pure root would need a second build of them against one of its own, beside a second build
-  of beui, wgpu's `custom` backend and every crate they share with the apps.
 - The libraries already hold beui, its runner, its wgpu renderer, wgpu's `custom` backend over
-  `be3:gpu` and FreeType. A root linked against them holds only what they do not
+  `be3:gpu` and beui's fonts. A root linked against them holds only what they do not
   (be-sdk-root-testing's module, 1.4 MB, holds be-sdk-root, be-sdk-app-host, be-sdk-beui-root
   and itself), and natively shares the one compile of each library every app on the device
   uses (`Host`'s library cache is per flavor, so a pure root would compile beui again).
@@ -34,8 +30,8 @@ guest it is single-threaded, so it can start no threads.
 ## Rejected
 
 - **A pure root** (`wasm32-unknown-unknown`, no WASI, its memory its own): a second build of
-  beui, wgpu and the C libraries for a triple the apps do not use, and a libc for FreeType and
-  HarfBuzz to link against, for a sandbox the root does not need, since the root is be-host's own
+  beui, wgpu and every crate they share with the apps, for a triple the apps do not use, for a
+  sandbox the root does not need, since the root is be-host's own
   module and trusted (plans/host_as_platform_adapter.md, This plan adds no security boundary).
   The pure root be-wasm-root-host's own tests run (be-wasm-root-testing) stays one: it draws no
   UI, and `Root` runs either.

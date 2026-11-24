@@ -17,7 +17,7 @@ fn a_screen_in_a_composited_window_blends_over_the_ui_beneath_it_and_fades_with_
     let opaque = texture_of(&target, 1, &[[0, 0, 255, 255]]);
     let translucent = beui_draw::drawing(Shows::new(translucent, screen(1), 1));
     let faded = beui_draw::drawing(Shows::new(opaque, screen(2), 2));
-    let context = Context::new(beui_font_freetype::FreetypeFonts::default());
+    let context = Context::new(beui_font_skrifa::SkrifaFonts::default());
     let mut show = |drawing: beui_core::drawing::Drawing, opacity: f32| {
         let mut document = build(move || {
             view! {

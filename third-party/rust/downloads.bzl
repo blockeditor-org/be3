@@ -872,35 +872,11 @@ downloads = {
         "size_bytes": 7048,
         "version": "1.1.0",
     },
-    "core-foundation-0.9.4": {
-        "name": "core-foundation",
-        "sha256": "91e195e091a93c46f7102ec7818a2aa394e1e1771c3ab4825963fa03e45afb8f",
-        "size_bytes": 27743,
-        "version": "0.9.4",
-    },
     "core-foundation-sys-0.8.7": {
         "name": "core-foundation-sys",
         "sha256": "773648b94d0e5d620f64f280777445740e61fe701025087ec8b57f45c791888b",
         "size_bytes": 37712,
         "version": "0.8.7",
-    },
-    "core-graphics-0.22.3": {
-        "name": "core-graphics",
-        "sha256": "2581bbab3b8ffc6fcbd550bf46c355135d16e9ff2a6ea032ad6b9bf1d7efe4fb",
-        "size_bytes": 29514,
-        "version": "0.22.3",
-    },
-    "core-graphics-types-0.1.3": {
-        "name": "core-graphics-types",
-        "sha256": "45390e6114f68f718cc7a830514a96f903cccd70d02a8f6d9f643ac4ba45afaf",
-        "size_bytes": 7063,
-        "version": "0.1.3",
-    },
-    "core-text-19.2.0": {
-        "name": "core-text",
-        "sha256": "99d74ada66e07c1cefa18f8abfba765b486f250de2e4a999e5727fc0dd4b4a25",
-        "size_bytes": 18446,
-        "version": "19.2.0",
     },
     "core_maths-0.1.1": {
         "name": "core_maths",
@@ -1562,35 +1538,11 @@ downloads = {
         "size_bytes": 119122,
         "version": "0.24.0",
     },
-    "foreign-types-0.3.2": {
-        "name": "foreign-types",
-        "sha256": "f6f339eb8adc052cd2ca78910fda869aefa38d22d5cb648e6485e4d3fc06f3b1",
-        "size_bytes": 7504,
-        "version": "0.3.2",
-    },
-    "foreign-types-shared-0.1.1": {
-        "name": "foreign-types-shared",
-        "sha256": "00b0228411908ca8685dba7fc2cdd70ec9990a6e753e89b6ac91a84c40fbaf4b",
-        "size_bytes": 5672,
-        "version": "0.1.1",
-    },
     "form_urlencoded-1.2.2": {
         "name": "form_urlencoded",
         "sha256": "cb4cb245038516f5f85277875cdaa4f7d2c9a0fa0468de06ed190163b1581fcf",
         "size_bytes": 9347,
         "version": "1.2.2",
-    },
-    "freetype-0.7.2": {
-        "name": "freetype",
-        "sha256": "5a440748e063798e4893ceb877151e84acef9bea9a8c6800645cf3f1b3a7806e",
-        "size_bytes": 20368,
-        "version": "0.7.2",
-    },
-    "freetype-sys-0.20.1": {
-        "name": "freetype-sys",
-        "sha256": "0e7edc5b9669349acfda99533e9e0bcf26a51862ab43b08ee7745c55d28eb134",
-        "size_bytes": 3877697,
-        "version": "0.20.1",
     },
     "fsevent-sys-4.1.0": {
         "name": "fsevent-sys",
@@ -1813,18 +1765,6 @@ downloads = {
         "sha256": "6ea2d84b969582b4b1864a92dc5d27cd2b77b622a8d79306834f1be5ba20d84b",
         "size_bytes": 61040,
         "version": "2.7.1",
-    },
-    "harfbuzz-sys-0.5.0": {
-        "name": "harfbuzz-sys",
-        "sha256": "bf8c27ca13930dc4ffe474880040fe9e0f03c2121600dc9c95423624cab3e467",
-        "size_bytes": 8215050,
-        "version": "0.5.0",
-    },
-    "harfbuzz_rs-2.0.1": {
-        "name": "harfbuzz_rs",
-        "sha256": "58c18cfc23920d010f7637b86240a5f8892dfdbcb4f0e60828f8a9dc6ff5521d",
-        "size_bytes": 204412,
-        "version": "2.0.1",
     },
     "harfrust-0.12.0": {
         "name": "harfrust",
@@ -5683,6 +5623,12 @@ downloads = {
         "sha256": "d1586c021a01ca0a9216dcd874e546382e156a5cbab5fab6cb5f10087e22682a",
         "size_bytes": 47559,
         "version": "5.2.1",
+    },
+    "zeno-0.3.3": {
+        "name": "zeno",
+        "sha256": "6df3dc4292935e51816d896edcd52aa30bc297907c26167fec31e2b0c6a32524",
+        "size_bytes": 46042,
+        "version": "0.3.3",
     },
     "zerocopy-0.8.50": {
         "name": "zerocopy",

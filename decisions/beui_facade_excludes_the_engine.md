@@ -11,7 +11,7 @@ An edit to the renderer, fonts, inspector, drive, a platform or the runner then 
 be-host-runtime runs app documents but builds no components, so it does not depend on the facade:
 it depends on `beui-documents`, the facade without the components (types, `reactive`, views,
 windows, `native`; none of the engine), under the name `beui` (`package = "beui-documents"` in
-its Cargo.toml), and on the engine crates for the rest (beui-renderer-wgpu, beui-font-freetype,
+its Cargo.toml), and on the engine crates for the rest (beui-renderer-wgpu, beui-font-skrifa,
 beui-layer-drive). `beui`
 re-exports `beui-documents` at the same paths, so every item has one spelling in every crate:
 `beui::Pos`, `beui::native::Context`. An edit to a component, the dock, the keyboard, the

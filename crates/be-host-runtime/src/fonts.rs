@@ -8,7 +8,7 @@ use be_sdk_api::{FontFace, FontRole, Fonts};
 /// The fonts be-host bundles, which it tells every app once it runs, and hands its root
 /// (`be3:root`'s `host.fonts`).
 pub fn bundled() -> Fonts {
-    let sources = beui_font_freetype::FontSources::bundled();
+    let sources = beui_font_skrifa::FontSources::bundled();
     let faces = [
         (FontRole::Text, &sources.proportional),
         (FontRole::Monospace, &sources.monospace),
@@ -79,12 +79,12 @@ impl Fallbacks {
 #[cfg(not(target_arch = "wasm32"))]
 fn candidates(character: char) -> Vec<(PathBuf, u32)> {
     thread_local! {
-        static SYSTEM: RefCell<Option<beui_font_freetype::system::SystemFonts>> = const { RefCell::new(None) };
+        static SYSTEM: RefCell<Option<beui_font_skrifa::system::SystemFonts>> = const { RefCell::new(None) };
     }
     SYSTEM.with(|system| {
         system
             .borrow_mut()
-            .get_or_insert_with(beui_font_freetype::system::SystemFonts::new)
+            .get_or_insert_with(beui_font_skrifa::system::SystemFonts::new)
             .candidates(character)
     })
 }

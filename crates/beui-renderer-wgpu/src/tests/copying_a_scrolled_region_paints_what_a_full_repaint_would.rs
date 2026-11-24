@@ -50,7 +50,7 @@ fn copying_a_scrolled_region_paints_what_a_full_repaint_would() {
     let scroll = document
         .find_test_id("scroll")
         .expect("the scroll is built");
-    let context = Context::new(beui_font_freetype::FreetypeFonts::default());
+    let context = Context::new(beui_font_skrifa::SkrifaFonts::default());
     let mut target = Target::new();
     let everything = everything();
     target.draw_moving(&context, Color32::BLACK, |painter| {
@@ -67,7 +67,7 @@ fn copying_a_scrolled_region_paints_what_a_full_repaint_would() {
         let mut fresh = scrolling();
         let fresh_scroll = fresh.find_test_id("scroll").expect("the scroll is built");
         let mut whole = Target::new();
-        let fresh_context = Context::new(beui_font_freetype::FreetypeFonts::default());
+        let fresh_context = Context::new(beui_font_skrifa::SkrifaFonts::default());
         whole.draw_moving(&fresh_context, Color32::BLACK, |painter| {
             fresh.show(painter.ctx(), everything)
         });

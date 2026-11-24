@@ -14,7 +14,7 @@ be-block-graph = { path = "../be-block-graph" }
 # every item as other crates do (`beui::Pos`, `beui::native::Context`) without depending
 # on the components (decisions/beui_facade_excludes_the_engine.md).
 beui = { path = "../beui-documents", package = "beui-documents" }
-beui-font-freetype = { path = "../beui-font-freetype" }
+beui-font-skrifa = { path = "../beui-font-skrifa" }
 beui-layer-drive = { path = "../beui-layer-drive" }
 beui-renderer-wgpu = { path = "../beui-renderer-wgpu" }
 be-host-base = { path = "../be-host-base" }

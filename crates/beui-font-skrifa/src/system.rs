@@ -1,8 +1,8 @@
 use be_lib_stable_hash::HashMap;
 use std::path::{Path, PathBuf};
-use std::ptr;
 
-use freetype::freetype as ft;
+use skrifa::raw::{FileRef, TableProvider};
+use skrifa::{FontRef, MetadataProvider};
 
 use crate::library::FontData;
 
@@ -13,7 +13,6 @@ pub struct SystemFonts {
     given: Vec<(PathBuf, u32)>,
 }
 
-// unsafe(ffi)
 impl SystemFonts {
     pub fn new() -> Self {
         Self {
@@ -48,17 +47,11 @@ impl SystemFonts {
 
     fn scan(&mut self, character: char) -> Vec<(PathBuf, u32)> {
         let files = self.scanned.get_or_insert_with(font_files);
-        let mut library = ptr::null_mut();
-        if unsafe { ft::FT_Init_FreeType(&mut library) } != 0 {
-            return Vec::new();
-        }
-        let found = files
+        files
             .iter()
-            .find_map(|path| face_covering(library, path, character));
-        unsafe {
-            ft::FT_Done_FreeType(library);
-        }
-        found.into_iter().collect()
+            .find_map(|path| face_covering(path, character))
+            .into_iter()
+            .collect()
     }
 }
 
@@ -77,32 +70,18 @@ pub fn fallback() -> impl FnMut(char) -> Option<FontData> {
     move |character| fonts.lookup(character)
 }
 
-// unsafe(ffi)
-fn face_covering(library: ft::FT_Library, path: &Path, character: char) -> Option<(PathBuf, u32)> {
-    let name = std::ffi::CString::new(path.to_str()?).ok()?;
-    let mut index = 0;
-    loop {
-        let mut face = ptr::null_mut();
-        if unsafe { ft::FT_New_Face(library, name.as_ptr(), index, &mut face) } != 0 {
-            return None;
-        }
-        let (faces, usable) = unsafe {
-            let flags = (*face).face_flags;
-            let scalable = flags & ft::FT_FACE_FLAG_SCALABLE as ft::FT_Long != 0;
-            let color = flags & ft::FT_FACE_FLAG_COLOR as ft::FT_Long != 0;
-            let covers = ft::FT_Get_Char_Index(face, character as ft::FT_ULong) != 0;
-            let faces = (*face).num_faces;
-            ft::FT_Done_Face(face);
-            (faces, (scalable || color) && covers)
-        };
-        if usable {
-            return Some((path.to_path_buf(), index as u32));
-        }
-        index += 1;
-        if index >= faces {
-            return None;
-        }
-    }
+fn face_covering(path: &Path, character: char) -> Option<(PathBuf, u32)> {
+    let bytes = std::fs::read(path).ok()?;
+    let fonts: Vec<FontRef> = match FileRef::new(&bytes).ok()? {
+        FileRef::Font(font) => vec![font],
+        FileRef::Collection(collection) => collection.iter().filter_map(Result::ok).collect(),
+    };
+    let index = fonts.iter().position(|font| {
+        let scalable = font.glyf().is_ok() || font.cff().is_ok() || font.cff2().is_ok();
+        let color = font.colr().is_ok() || font.cbdt().is_ok() || font.sbix().is_ok();
+        (scalable || color) && font.charmap().map(character).is_some()
+    })?;
+    Some((path.to_path_buf(), index as u32))
 }
 
 fn font_directories() -> Vec<PathBuf> {

@@ -1,6 +1,6 @@
 load("@root//buck/tools:defs.bzl", "configured_once")
 
-# The WASI sysroot the apps' C (freetype, harfbuzz) and be-host's web build
+# The WASI sysroot the apps' C (PDFium, libghostty-vt) and be-host's web build
 # are compiled and linked against. Rust needs none of it.
 configured_once(
     http_archive,

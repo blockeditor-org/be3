@@ -1,5 +1,5 @@
 use beui_core::program::{Setup, Waker};
-use beui_font_freetype::FreetypeFonts;
+use beui_font_skrifa::SkrifaFonts;
 
 use super::the_chrome_around_a_curved_panel::window;
 use super::*;
@@ -10,7 +10,7 @@ const SIZE: Vec2 = vec2(800.0, 500.0);
 #[test]
 fn a_panel_carried_under_the_floor_stays_visible_and_can_be_picked() {
     let (mut space, now) = space();
-    let context = Context::new(FreetypeFonts::default());
+    let context = Context::new(SkrifaFonts::default());
     let mut setup = Setup::new(Waker::new(|| {}));
     setup.provide(context.clone());
     space.setup(&setup);

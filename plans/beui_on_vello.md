@@ -110,6 +110,6 @@ for later.
 - **vello_cpu as the renderer**: every target beui draws on has a GPU (the PineNote's Mali-G52
   through panvk).
 - **glifo for text**: beui keeps its own shaping, layout and atlas
-  (plans/fonts_on_skrifa_and_harfrust.md); only drawing the atlas goes through Vello.
+  (decisions/fonts_are_read_shaped_and_drawn_in_rust.md); only drawing the atlas goes through Vello.
 - **Unexporting Vello from the beui library** so the linker drops what beui does not call: apps
   may call Vello directly.

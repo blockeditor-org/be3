@@ -1,28 +1,31 @@
 mod color;
 mod library;
+mod outline;
+mod raster;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod system;
 
-use std::cell::{Cell, RefCell};
-use std::ptr;
 use std::rc::Rc;
 
 use be_lib_stable_hash::HashMap;
-use freetype::freetype as ft;
-use harfbuzz_rs::{Blob, Face as HbFace, Font as HbFont, Owned, Tag, UnicodeBuffer, shape};
-use unicode_script::{Script, UnicodeScript};
+use harfrust::{Script, ShapeOptions, ShaperData, Tag, UnicodeBuffer};
+use icu_properties::props::Script as Unicode;
+use icu_properties::{CodePointMapData, PropertyNamesShort};
+use skrifa::charmap::MappingIndex;
+use skrifa::instance::{LocationRef, Size};
+use skrifa::{FontRef, GlyphId as FontGlyph, MetadataProvider};
 
 use beui_core::font::{
-    FontBackend, Galley, GalleyLine, Glyph, GlyphId, GlyphImage, GlyphRaster, GlyphRasterizer,
+    FontBackend, Galley, GalleyLine, Glyph, GlyphId, GlyphRaster, GlyphRasterizer,
     Shaping,
 };
+use raster::{RasterFace, Rasterizer};
 use beui_types::vec2;
 use beui_types::{FontFamily, FontId};
 
 pub use library::{FontBytes, FontData, FontLibrary, FontSources, ICONS_FONT};
 
-pub struct FreetypeFonts {
-    library: ft::FT_Library,
+pub struct SkrifaFonts {
     fonts: FontLibrary,
     generation: u64,
     fallbacks: usize,
@@ -35,13 +38,9 @@ pub struct FreetypeFonts {
     shaped: ShapedLines,
 }
 
-// unsafe(ffi)
-impl FreetypeFonts {
+impl SkrifaFonts {
     pub fn new(fonts: FontLibrary) -> Self {
-        let mut library = ptr::null_mut();
-        let opened = unsafe { ft::FT_Init_FreeType(&mut library) == 0 };
         let mut backend = Self {
-            library: if opened { library } else { ptr::null_mut() },
             generation: fonts.generation(),
             fonts,
             fallbacks: 0,
@@ -58,9 +57,6 @@ impl FreetypeFonts {
     }
 
     fn load_families(&mut self) {
-        if self.library.is_null() {
-            return;
-        }
         let sources = self.fonts.sources();
         let proportional = self.load_chain(&sources.proportional);
         let monospace = self.load_chain(&sources.monospace);
@@ -83,7 +79,7 @@ impl FreetypeFonts {
     }
 
     fn load_new_fallbacks(&mut self) -> bool {
-        if self.library.is_null() || self.fonts.fallback_count() <= self.fallbacks {
+        if self.fonts.fallback_count() <= self.fallbacks {
             return false;
         }
         let added = self.fonts.fallback_from(self.fallbacks);
@@ -113,29 +109,16 @@ impl FreetypeFonts {
         if let Some(index) = self.faces.iter().position(|face| face.data.same(source)) {
             return Some(index);
         }
-        let mut face = ptr::null_mut();
-        unsafe {
-            if ft::FT_New_Memory_Face(
-                self.library,
-                source.bytes.as_ptr(),
-                source.bytes.len() as ft::FT_Long,
-                source.index as ft::FT_Long,
-                &mut face,
-            ) != 0
-            {
-                return None;
-            }
-        }
-        let blob = Blob::with_bytes_owned(source.bytes.clone(), |bytes| bytes);
-        let hb_face = HbFace::new(blob, source.index);
-        self.rasterizer.faces.borrow_mut().push(RasterFace {
-            face,
-            size: Cell::new(None),
-        });
+        let font = FontRef::from_index(&source.bytes, source.index).ok()?;
+        self.rasterizer
+            .faces
+            .borrow_mut()
+            .push(RasterFace::new(source.clone(), &font));
         self.faces.push(FaceData {
             data: source.clone(),
-            face,
-            font: HbFont::new(hb_face),
+            scalable: raster::scalable(&font),
+            charmap: MappingIndex::new(&font),
+            shaper: ShaperData::new(&font),
         });
         Some(self.faces.len() - 1)
     }
@@ -289,21 +272,9 @@ impl FreetypeFonts {
         let Some(&index) = self.family(family).first() else {
             return fallback;
         };
-        if self.rasterizer.sized(index, pixel_size) != Some(1.0) {
-            return fallback;
-        }
-        let face = self.faces[index].face;
-        unsafe {
-            let size = (*face).size;
-            if size.is_null() {
-                return fallback;
-            }
-            let metrics = (*size).metrics;
-            (
-                metrics.ascender as f32 / 64.0,
-                metrics.descender as f32 / 64.0,
-            )
-        }
+        self.rasterizer
+            .metrics(index, pixel_size)
+            .unwrap_or(fallback)
     }
 
     fn shaped(&mut self, line: &str, family: FontFamily, pixel_size: u32) -> Rc<[ShapedGlyph]> {
@@ -322,30 +293,34 @@ impl FreetypeFonts {
         }
         for run in self.font_runs(text, family) {
             let offset = run.start;
-            let face = &mut self.faces[run.face];
-            let scale = pixel_size as i32 * 64;
-            face.font.set_scale(scale, scale);
-            face.font.set_ppem(pixel_size, pixel_size);
-            let mut buffer = UnicodeBuffer::new().add_str(&text[run.start..run.end]);
+            let face = &self.faces[run.face];
+            let Ok(font) = FontRef::from_index(&face.data.bytes, face.data.index) else {
+                continue;
+            };
+            let mut buffer = UnicodeBuffer::new();
+            buffer.push_str(&text[run.start..run.end]);
             if let Some(script) = run.script {
-                let tag = script.as_iso15924_tag().to_be_bytes();
-                buffer = buffer.set_script(Tag::new(
-                    tag[0] as char,
-                    tag[1] as char,
-                    tag[2] as char,
-                    tag[3] as char,
-                ));
+                buffer.set_script(script);
             }
-            let output = shape(&face.font, buffer.guess_segment_properties(), &[]);
+            buffer.guess_segment_properties();
+            let options = ShapeOptions::new()
+                .scale(Some(pixel_size as i32 * 64))
+                .point_size(Some(pixel_size as f32));
+            let output = face.shaper.shaper(&font).build().shape(buffer, options);
+            let size = Size::new(pixel_size as f32);
+            let metrics = font.glyph_metrics(size, LocationRef::default());
             glyphs.extend(
                 output
-                    .get_glyph_infos()
+                    .glyph_infos()
                     .iter()
-                    .zip(output.get_glyph_positions())
+                    .zip(output.glyph_positions())
                     .map(|(info, position)| ShapedGlyph {
                         face: run.face,
-                        glyph: info.codepoint,
-                        extents: extents(&face.font, info.codepoint, pixel_size),
+                        glyph: info.glyph_id,
+                        extents: match face.scalable {
+                            true => extents(&metrics, info.glyph_id, pixel_size),
+                            false => Some(unknown_extents(pixel_size)),
+                        },
                         cluster: offset + info.cluster as usize,
                         x_advance: position.x_advance as f32 / 64.0,
                         x_offset: position.x_offset as f32 / 64.0,
@@ -410,19 +385,21 @@ impl FreetypeFonts {
     }
 
     fn covering(&self, character: char, family: FontFamily) -> Option<usize> {
-        self.family(family).iter().copied().find(|index| unsafe {
-            ft::FT_Get_Char_Index(self.faces[*index].face, character as ft::FT_ULong) != 0
+        self.family(family).iter().copied().find(|index| {
+            let face = &self.faces[*index];
+            FontRef::from_index(&face.data.bytes, face.data.index)
+                .is_ok_and(|font| face.charmap.charmap(&font).map(character).is_some())
         })
     }
 }
 
-impl Default for FreetypeFonts {
+impl Default for SkrifaFonts {
     fn default() -> Self {
         Self::new(FontLibrary::bundled())
     }
 }
 
-impl FontBackend for FreetypeFonts {
+impl FontBackend for SkrifaFonts {
     fn shape(
         &mut self,
         text: &str,
@@ -441,12 +418,6 @@ impl FontBackend for FreetypeFonts {
     fn generation(&self) -> u64 {
         self.fonts.generation()
     }
-}
-
-// unsafe(ffi)
-unsafe extern "C" {
-    fn FT_GlyphSlot_Embolden(slot: ft::FT_GlyphSlot);
-    fn FT_GlyphSlot_Oblique(slot: ft::FT_GlyphSlot);
 }
 
 const SUBPIXEL_POSITIONS: u32 = 4;
@@ -497,102 +468,9 @@ fn split_subpixel(x: f32) -> (f32, u32) {
 
 struct FaceData {
     data: FontData,
-    face: ft::FT_Face,
-    font: Owned<HbFont<'static>>,
-}
-
-struct RasterFace {
-    face: ft::FT_Face,
-    size: Cell<Option<(u32, Option<f32>)>>,
-}
-
-#[derive(Default)]
-struct Rasterizer {
-    faces: RefCell<Vec<RasterFace>>,
-}
-
-// unsafe(ffi)
-impl Rasterizer {
-    fn sized(&self, index: usize, pixel_size: u32) -> Option<f32> {
-        let faces = self.faces.borrow();
-        let face = faces.get(index)?;
-        if let Some((size, scale)) = face.size.get()
-            && size == pixel_size
-        {
-            return scale;
-        }
-        let scale = unsafe { color::set_size(face.face, pixel_size) };
-        face.size.set(Some((pixel_size, scale)));
-        scale
-    }
-}
-
-// unsafe(ffi)
-impl GlyphRasterizer for Rasterizer {
-    fn rasterize(&self, key: GlyphId) -> Option<GlyphImage> {
-        let scale = self.sized(key.face, key.pixel_size)?;
-        let face = self.faces.borrow().get(key.face)?.face;
-        let raster = key.raster();
-        let scaled = key.raster != GlyphId::LAID_OUT;
-        let flags = match scaled {
-            true => ft::FT_LOAD_COLOR | ft::FT_LOAD_NO_HINTING,
-            false => ft::FT_LOAD_COLOR,
-        };
-        unsafe {
-            if ft::FT_Load_Glyph(face, key.glyph, flags as i32) != 0 {
-                return None;
-            }
-            let slot = (*face).glyph;
-            if key.bold {
-                FT_GlyphSlot_Embolden(slot);
-            }
-            if key.italic {
-                FT_GlyphSlot_Oblique(slot);
-            }
-            let outline = (*slot).format == ft::FT_Glyph_Format::FT_GLYPH_FORMAT_OUTLINE;
-            if outline && scaled {
-                let fixed = (raster * 65536.0).round() as ft::FT_Fixed;
-                let matrix = ft::FT_Matrix {
-                    xx: fixed,
-                    xy: 0,
-                    yx: 0,
-                    yy: fixed,
-                };
-                ft::FT_Outline_Transform(&(*slot).outline, &matrix);
-            }
-            if outline {
-                let shift = (key.subpixel as ft::FT_Pos * 64) / SUBPIXEL_POSITIONS as ft::FT_Pos;
-                ft::FT_Outline_Translate(&(*slot).outline, shift, 0);
-            }
-            if ft::FT_Render_Glyph(slot, ft::FT_Render_Mode::FT_RENDER_MODE_NORMAL) != 0 {
-                return None;
-            }
-            let bitmap = &(*slot).bitmap;
-            let (left, top) = ((*slot).bitmap_left, (*slot).bitmap_top);
-            if bitmap.pixel_mode == ft::FT_Pixel_Mode::FT_PIXEL_MODE_BGRA as u8 {
-                return Some(color::image(bitmap, left, top, scale * raster));
-            }
-            Some(GlyphImage {
-                width: bitmap.width,
-                height: bitmap.rows,
-                left,
-                top,
-                pixels: pixels(bitmap),
-                color: false,
-            })
-        }
-    }
-}
-
-// unsafe(ffi)
-impl Drop for Rasterizer {
-    fn drop(&mut self) {
-        for face in self.faces.get_mut().drain(..) {
-            unsafe {
-                ft::FT_Done_Face(face.face);
-            }
-        }
-    }
+    scalable: bool,
+    charmap: MappingIndex,
+    shaper: ShaperData,
 }
 
 fn ink_bounds(extents: [f32; 4], pixel_size: u32, shape: Shaping) -> [f32; 4] {
@@ -621,34 +499,26 @@ struct ShapedGlyph {
     y_offset: f32,
 }
 
-fn extents(font: &HbFont<'static>, glyph: u32, pixel_size: u32) -> Option<[f32; 4]> {
-    let Some(extents) = font.get_glyph_extents(glyph) else {
-        let size = pixel_size as f32;
-        return Some([-size, -2.0 * size, 2.0 * size, size]);
-    };
-    if extents.width == 0 || extents.height == 0 {
-        return None;
-    }
-    let left = extents.x_bearing as f32 / 64.0;
-    let top = -extents.y_bearing as f32 / 64.0;
-    Some([
-        left,
-        top,
-        left + extents.width as f32 / 64.0,
-        top - extents.height as f32 / 64.0,
-    ])
+/// Room enough for a glyph whose bounds the font does not give, such as a bitmap's.
+fn unknown_extents(pixel_size: u32) -> [f32; 4] {
+    let size = pixel_size as f32;
+    [-size, -2.0 * size, 2.0 * size, size]
 }
 
-// unsafe(ffi)
-impl Drop for FreetypeFonts {
-    fn drop(&mut self) {
-        self.close_faces();
-        unsafe {
-            if !self.library.is_null() {
-                ft::FT_Done_FreeType(self.library);
-            }
-        }
+fn extents(metrics: &skrifa::metrics::GlyphMetrics, glyph: u32, pixel_size: u32) -> Option<[f32; 4]> {
+    let Some(bounds) = metrics.bounds(FontGlyph::new(glyph)) else {
+        return Some(unknown_extents(pixel_size));
+    };
+    if bounds.x_max <= bounds.x_min || bounds.y_max <= bounds.y_min {
+        return None;
     }
+    let grid = |value: f32, round: fn(f32) -> f32| round(value * 64.0) / 64.0;
+    Some([
+        grid(bounds.x_min, f32::floor),
+        -grid(bounds.y_max, f32::ceil),
+        grid(bounds.x_max, f32::ceil),
+        -grid(bounds.y_min, f32::floor),
+    ])
 }
 
 struct FontRun {
@@ -693,13 +563,14 @@ fn chain(primary: &[usize], others: &[&[usize]]) -> Vec<usize> {
 }
 
 fn script_runs(text: &str) -> Vec<ScriptRun> {
+    let scripts = CodePointMapData::<Unicode>::new();
     let mut runs = Vec::new();
     let mut start = 0;
     let mut current = None;
 
     for (index, character) in text.char_indices() {
-        let script = character.script();
-        if matches!(script, Script::Common | Script::Inherited | Script::Unknown) {
+        let script = scripts.get(character);
+        if matches!(script, Unicode::Common | Unicode::Inherited | Unicode::Unknown) {
             continue;
         }
         match current {
@@ -709,7 +580,7 @@ fn script_runs(text: &str) -> Vec<ScriptRun> {
                 runs.push(ScriptRun {
                     start,
                     end: index,
-                    script: current,
+                    script: current.and_then(shaping_script),
                 });
                 start = index;
                 current = Some(script);
@@ -721,35 +592,15 @@ fn script_runs(text: &str) -> Vec<ScriptRun> {
         runs.push(ScriptRun {
             start,
             end: text.len(),
-            script: current,
+            script: current.and_then(shaping_script),
         });
     }
     runs
 }
 
-// unsafe(ffi)
-fn pixels(bitmap: &ft::FT_Bitmap) -> Vec<u8> {
-    let width = bitmap.width as usize;
-    let rows = bitmap.rows as usize;
-    let pitch = bitmap.pitch.unsigned_abs() as usize;
-    if bitmap.buffer.is_null() || width == 0 || rows == 0 {
-        return Vec::new();
-    }
-    let buffer = unsafe { std::slice::from_raw_parts(bitmap.buffer, pitch * rows) };
-    let mut pixels = vec![0; width * rows];
-    for row in 0..rows {
-        let source = if bitmap.pitch >= 0 {
-            row
-        } else {
-            rows - 1 - row
-        };
-        for column in 0..width {
-            if let Some(value) = buffer.get(source * pitch + column) {
-                pixels[row * width + column] = *value;
-            }
-        }
-    }
-    pixels
+fn shaping_script(script: Unicode) -> Option<Script> {
+    let tag = PropertyNamesShort::<Unicode>::new().get_locale_script(script)?;
+    Script::from_iso15924_tag(Tag::new(&tag.into_raw()))
 }
 
 #[cfg(test)]

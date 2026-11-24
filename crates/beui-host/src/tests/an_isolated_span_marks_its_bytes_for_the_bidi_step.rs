@@ -5,7 +5,7 @@ use beui_core::font::Galley;
 
 #[test]
 fn an_isolated_span_marks_its_bytes_for_the_bidi_step() {
-    let context = Context::new(crate::native::FreetypeFonts::default());
+    let context = Context::new(crate::native::SkrifaFonts::default());
     let mut shaper =
         |text: &str, font: FontId| -> Galley { context.layout(text, font, TextLayout::DEFAULT) };
     let style = SpanStyle::new(FontId::proportional(14.0), Color32::WHITE);

@@ -11,7 +11,7 @@ fn every_glyph_draws_inside_the_box_it_is_culled_by() {
         ],
         ..FontSources::bundled()
     };
-    let mut fonts = Fonts::new(FreetypeFonts::new(FontLibrary::new(sources)));
+    let mut fonts = Fonts::new(SkrifaFonts::new(FontLibrary::new(sources)));
     let text = "Quick fjord gyp! WAVY {[|]} 0123 \u{1f600}";
     let icons: String = [beui_core::icons::ICON_CODE, beui_core::icons::ICON_BLOCKS]
         .map(beui_core::icons::Glyph::as_str)

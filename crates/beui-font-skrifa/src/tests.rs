@@ -15,6 +15,9 @@ mod a_word_that_fits_stays_on_its_line;
 mod a_word_too_long_for_any_line_never_widens_the_text;
 mod a_word_too_long_for_the_first_line_breaks_where_its_letters_stop_fitting;
 mod a_word_wider_than_the_wrap_width_breaks_between_its_letters;
+mod emboldening_grows_a_square_by_exactly_the_strength;
+mod emboldening_keeps_a_sharp_spike_bounded;
+mod emboldening_shrinks_a_counter;
 mod a_wrapped_text_laid_out_at_its_own_width_keeps_its_lines;
 mod an_edit_on_the_first_line_leaves_the_lines_below_drawn_as_they_were;
 mod every_glyph_draws_inside_the_box_it_is_culled_by;
@@ -31,7 +34,7 @@ fn font() -> FontId {
 }
 
 fn fonts() -> Fonts {
-    Fonts::new(FreetypeFonts::default())
+    Fonts::new(SkrifaFonts::default())
 }
 
 fn zone() -> f32 {

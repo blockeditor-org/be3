@@ -5,7 +5,7 @@ use beui_types::{FontId, TextLayout};
 #[test]
 fn a_word_that_fits_stays_on_its_line() {
     let font = FontId::proportional(14.0);
-    let mut fonts = Fonts::new(FreetypeFonts::default());
+    let mut fonts = Fonts::new(SkrifaFonts::default());
     let fitted = fonts
         .layout("one two ", font, TextLayout::DEFAULT, 1.0)
         .size()

@@ -3,7 +3,7 @@ use crate::{TextAlign, TextLayout};
 
 #[test]
 fn text_laid_out_in_a_drawing_measures_what_it_draws() {
-    let context = Context::new(crate::native::FreetypeFonts::default());
+    let context = Context::new(crate::native::SkrifaFonts::default());
     let font = FontId::proportional(14.0);
     let origin = pos2(10.0, 20.0);
     let mut measured = None;

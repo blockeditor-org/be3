@@ -1,6 +1,6 @@
 use beui::native::{Context, WindowSize};
 use beui_host::native::testing::{Gui, Showing, Stepped};
-use beui_host::native::{FreetypeFonts, build};
+use beui_host::native::{SkrifaFonts, build};
 
 use super::*;
 
@@ -49,7 +49,7 @@ fn a_child_moving_out_of_a_view_during_layout_leaves_no_removed_node_to_paint() 
         }
     });
     let mut stepped = Stepped::new(
-        Context::new(FreetypeFonts::default()),
+        Context::new(SkrifaFonts::default()),
         Showing(document),
         WindowSize {
             size: Vec2::new(400.0, 300.0),

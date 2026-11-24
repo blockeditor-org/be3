@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use beui::native::{Context, WindowSize};
 use beui::vec2;
-use beui_host::native::FreetypeFonts;
+use beui_host::native::SkrifaFonts;
 use beui_host::native::build;
 use beui_host::native::testing::{Gui, Showing, Stepped, Target};
 
@@ -74,7 +74,7 @@ impl Shown {
             }
         });
         let stepped = Stepped::new(
-            Context::new(FreetypeFonts::default()),
+            Context::new(SkrifaFonts::default()),
             Showing(document),
             WindowSize {
                 size: SIZE,

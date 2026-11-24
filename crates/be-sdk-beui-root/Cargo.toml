@@ -14,7 +14,7 @@ be-wasm-gpu-guest = { path = "../be-wasm-gpu-guest" }
 be-wasm-ops = { path = "../be-wasm-ops" }
 be-wasm-root-api = { path = "../be-wasm-root-api" }
 beui-core = { path = "../beui-core" }
-beui-font-freetype = { path = "../beui-font-freetype" }
+beui-font-skrifa = { path = "../beui-font-skrifa" }
 beui-host = { path = "../beui-host" }
 beui-renderer-wgpu = { path = "../beui-renderer-wgpu" }
 beui-runner = { path = "../beui-runner" }

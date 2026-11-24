@@ -336,8 +336,8 @@ fn on(space: &Space, window: WindowId, at: Pos2) -> Pos2 {
 }
 
 fn program_frame(cursor: CursorIcon) -> FrameOutput {
-    let fonts = beui_font_freetype::FreetypeFonts::new(beui_font_freetype::FontLibrary::new(
-        beui_font_freetype::FontSources::default(),
+    let fonts = beui_font_skrifa::SkrifaFonts::new(beui_font_skrifa::FontLibrary::new(
+        beui_font_skrifa::FontSources::default(),
     ));
     Context::new(fonts).run(|context| context.set_cursor_icon(cursor))
 }
@@ -488,7 +488,7 @@ fn off_ray(point: Vec3, origin: Vec3, toward: Vec3) -> f32 {
 
 fn painted_space() -> (Space, Instant, Context) {
     let (mut space, now) = space();
-    let context = Context::new(beui_font_freetype::FreetypeFonts::default());
+    let context = Context::new(beui_font_skrifa::SkrifaFonts::default());
     let mut setup = beui_core::program::Setup::new(beui_core::program::Waker::new(|| {}));
     setup.provide(context.clone());
     space.setup(&setup);

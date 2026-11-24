@@ -8,7 +8,7 @@ use beui_core::font::Galley;
 /// so what is selected is exactly what lies between the carets.
 #[test]
 fn a_selection_in_rich_text_fills_between_its_carets_across_gaps() {
-    let context = Context::new(crate::native::FreetypeFonts::default());
+    let context = Context::new(crate::native::SkrifaFonts::default());
     let mut shaper =
         |text: &str, font: FontId| -> Galley { context.layout(text, font, TextLayout::DEFAULT) };
     let style = SpanStyle::new(FontId::proportional(14.0), Color32::WHITE);
