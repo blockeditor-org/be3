@@ -173,6 +173,7 @@ Only what needs a person to do something. Some apply only once the piece named i
 
 **Repository:**
 - [ ] Re-enable the CI workflow. Only CI publishes and pins a new bootstrap (guides/bootstrap.md).
+- [ ] Once CI publishes bootstraps again, build the bootstrap steps of plans/one_way_in_the_tools.md (one acceptance of paintings shared with be-tool-verify, and the bootstrap's shared helpers). They wait on a new bootstrap release and pin.
 - [ ] Delete stale branches: `claude/headless-c-7`, `claude/headless-c-7-rebased`, `feat/menu-intent-typeahead`, `feat/menu-intent-typeahead-2` to `-4`, `fix/stack-test-flakes`, `claude/host-adapter-4g7a`, and other numbered branches whose last number landed.
 - [ ] Optional: AGENTS.md's principle "No in-app reach to strangers" could mention that a share link also counts as an out-of-band start (decisions/share_links_are_an_out_of_band_start.md).
 - [ ] Delete this file, then merge this pull request with **rebase**.
