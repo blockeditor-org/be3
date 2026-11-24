@@ -585,7 +585,10 @@ order: presence and channel messages. The rules an agent most needs:
   sequence. `replay` does the same for a reader outside the session. A journal
   by another build is handed over without its entries, at its last number, and
   the replica reports them lost (`status.undo.lost-edits`); its holder starts the
-  journal over.
+  journal over. It reads the parts the journal names first, again on a timer
+  while reads fail; one it could not read in `JOURNAL_PART_TRIES` is given up,
+  and a base whose state goes by a part it gave up opens the same way, on the
+  commit with the journal's edits lost.
 - **Opening again.** A replica's `origin` is kept across its reopenings
   (`opening.origin`), and `opening.taken-before` says how many local edits the
   host no longer gives it, so it numbers the edits it is given again as before.

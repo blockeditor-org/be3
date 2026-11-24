@@ -37,6 +37,12 @@ Fixed items are removed as they land.
 
 ## 7. Sessions
 
+- **A reader outside the session cannot replay a base whose state goes by a part.** `replay`
+  reads no part, so a base past `LARGEST_RELAYED_OPERATION` (a large session with others in
+  it) fails it and the reader reads the head alone. The host could read the base's part
+  (`read-part`) and hand its bytes to `replay`. Done when such a reader sees the journal's
+  edits.
+
 - **A Join channel test that once heard more than Closed.** be-host-stack's
   `a_joined_channel_opens_to_its_host_and_again_to_the_next` once failed where the first
   host leaves: it heard something other than (or before) `Closed`, maybe a second `Closed`
