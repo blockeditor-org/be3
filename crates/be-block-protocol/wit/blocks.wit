@@ -233,8 +233,9 @@ interface sessions {
         /// A message on the host channel (`session-send.host`): from the
         /// lease holder to this member, or to the holder from a member.
         hosted(relayed),
-        /// Who holds the lease now, or none: told to every member, Join
-        /// members included, as it changes.
+        /// Who hosts now (the claimed holder, which may not be the lease
+        /// holder that seals), or none: told to every member, Join members
+        /// and the claimant included, as it changes.
         host(host-change),
         /// A Join member came or went: told to the lease holder alone.
         joiner(joiner-change),
