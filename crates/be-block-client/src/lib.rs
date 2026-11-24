@@ -18,7 +18,6 @@ mod transport;
 pub use clock::Clock;
 pub use connection::{Answer, Connection, Credentials, Event, ask};
 pub use contacts::Contact;
-pub use share_links::ScopeOffer;
 pub use keys::{EscrowWarning, KeyBook};
 pub use peer::account_block::AccountRecords;
 pub use peer::hosted::{Admitted, Admitting, Joining};
@@ -32,6 +31,7 @@ pub use refs::{
     Aside, KeptChange, KeptEdit, KeptLogHead, KeptSubmission, ListedBlock, OpenEdits,
     PendingCounts, RefsDb, SetAside, UnsentBlock,
 };
+pub use share_links::ScopeOffer;
 #[cfg(not(target_arch = "wasm32"))]
 pub use transport::tls_config;
 

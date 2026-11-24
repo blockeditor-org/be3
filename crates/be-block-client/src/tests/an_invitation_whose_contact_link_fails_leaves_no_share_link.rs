@@ -1,4 +1,3 @@
-
 use super::*;
 
 /// An invitation's share link is made first; when its contact link then fails (here, the maker

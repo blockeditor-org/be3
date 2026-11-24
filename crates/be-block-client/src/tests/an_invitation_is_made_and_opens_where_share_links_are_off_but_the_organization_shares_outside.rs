@@ -15,7 +15,9 @@ async fn an_invitation_is_made_and_opens_where_share_links_are_off_but_the_organ
     let invited = harness.owner("invited@example.com").await;
     set_policies(
         &maker,
-        &[OrganizationPolicies::set_link_sharing(Some(LinkSharing::Off))],
+        &[OrganizationPolicies::set_link_sharing(Some(
+            LinkSharing::Off,
+        ))],
     )
     .await;
     let team = workspace(&maker, "Team").await;
@@ -34,7 +36,10 @@ async fn an_invitation_is_made_and_opens_where_share_links_are_off_but_the_organ
         "maker@example.com",
     );
 
-    let code = maker.make_invitation(&card, team, Access::View).await.unwrap();
+    let code = maker
+        .make_invitation(&card, team, Access::View)
+        .await
+        .unwrap();
     crate::contacts::accept_link(
         &invited.connection(),
         invited.keys().identity(),

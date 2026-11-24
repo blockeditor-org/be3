@@ -37,7 +37,10 @@ async fn a_share_link_admitting_one_in_the_personal_organization_opens_for_one_m
     )
     .await
     .unwrap();
-    assert!(!opened.guest, "a member of the personal organization joins as no guest");
+    assert!(
+        !opened.guest,
+        "a member of the personal organization joins as no guest"
+    );
     assert_eq!(text(&first, note).await, "for one member");
 
     let refused = crate::share_links::open_share_link(
@@ -50,7 +53,10 @@ async fn a_share_link_admitting_one_in_the_personal_organization_opens_for_one_m
     .await
     .unwrap_err();
     assert!(
-        matches!(refused, ClientError::Refused(ErrorCode::PermissionDenied, _)),
+        matches!(
+            refused,
+            ClientError::Refused(ErrorCode::PermissionDenied, _)
+        ),
         "a third account is refused: {refused}"
     );
 

@@ -864,7 +864,7 @@ async fn befriend(maker: &Peer<MemoryStore>, accepter: &Peer<MemoryStore>) {
             "Maker",
             "maker@example.com",
         ),
-)
+    )
     .await
     .unwrap();
     crate::contacts::accept_link(

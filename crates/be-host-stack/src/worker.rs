@@ -3687,12 +3687,7 @@ async fn contact(
             let made = match offer {
                 Some((block, access)) => peer.make_invitation(&me, block, access).await,
                 None => {
-                    be_block_client::contacts::make_link(
-                        &peer.connection(),
-                        identity,
-                        &me,
-)
-                    .await
+                    be_block_client::contacts::make_link(&peer.connection(), identity, &me).await
                 }
             };
             reply.send(

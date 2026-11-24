@@ -64,12 +64,18 @@ async fn a_share_link_admitting_one_opens_for_its_first_opener_alone() {
         .await
         .unwrap_err();
     assert!(
-        matches!(refused, ClientError::Refused(ErrorCode::PermissionDenied, _)),
+        matches!(
+            refused,
+            ClientError::Refused(ErrorCode::PermissionDenied, _)
+        ),
         "a second person may not read it: {refused}"
     );
     let refused = open(&other, &one).await.unwrap_err();
     assert!(
-        matches!(refused, ClientError::Refused(ErrorCode::PermissionDenied, _)),
+        matches!(
+            refused,
+            ClientError::Refused(ErrorCode::PermissionDenied, _)
+        ),
         "nor open it: {refused}"
     );
 

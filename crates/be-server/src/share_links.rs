@@ -472,8 +472,17 @@ impl ServerStore {
             )?;
             let mut links = Vec::new();
             for row in rows {
-                let (id, maker, access, admits, key, created, maker_name, opened_by, opened_by_name) =
-                    row?;
+                let (
+                    id,
+                    maker,
+                    access,
+                    admits,
+                    key,
+                    created,
+                    maker_name,
+                    opened_by,
+                    opened_by_name,
+                ) = row?;
                 links.push(ShareLinkRow {
                     id: crate::store::parse_uuid(&id)?,
                     access: decode_access(&access)?,

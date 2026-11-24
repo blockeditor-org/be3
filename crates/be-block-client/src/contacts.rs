@@ -4,9 +4,7 @@ use be_block_keys::{
 };
 use std::collections::HashMap;
 
-use be_block_protocol::{
-    ErrorCode, EscrowKey, Invitation, KeyChange, Link, LinkKind, SealedKey,
-};
+use be_block_protocol::{ErrorCode, EscrowKey, Invitation, KeyChange, Link, LinkKind, SealedKey};
 use uuid::Uuid;
 
 use std::sync::{Arc, Mutex};

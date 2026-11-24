@@ -15,10 +15,9 @@ async fn a_contact_taken_and_removed_in_one_pass_stays_removed_whatever_is_repla
         "Rosa",
         "rosa@example.com",
     );
-    let code =
-        crate::contacts::make_link(&rosa.connection(), rosa.keys().identity(), &rosa_card)
-            .await
-            .unwrap();
+    let code = crate::contacts::make_link(&rosa.connection(), rosa.keys().identity(), &rosa_card)
+        .await
+        .unwrap();
     crate::contacts::accept_link(
         &guest.connection(),
         guest.keys().identity(),

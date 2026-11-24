@@ -7,7 +7,11 @@ fn card(peer: &Peer<MemoryStore>, name: &str) -> be_block_keys::ContactCard {
     crate::contacts::card(peer.account(), peer.keys().identity(), name, name)
 }
 
-async fn accept(peer: &Peer<MemoryStore>, name: &str, code: &be_block_keys::InviteCode) -> Result<(), ClientError> {
+async fn accept(
+    peer: &Peer<MemoryStore>,
+    name: &str,
+    code: &be_block_keys::InviteCode,
+) -> Result<(), ClientError> {
     crate::contacts::accept_link(
         &peer.connection(),
         peer.keys().identity(),
@@ -20,7 +24,10 @@ async fn accept(peer: &Peer<MemoryStore>, name: &str, code: &be_block_keys::Invi
     .map(|_| ())
 }
 
-async fn open(peer: &Peer<MemoryStore>, code: &be_block_keys::InviteCode) -> Result<be_block_protocol::ShareLink, ClientError> {
+async fn open(
+    peer: &Peer<MemoryStore>,
+    code: &be_block_keys::InviteCode,
+) -> Result<be_block_protocol::ShareLink, ClientError> {
     crate::share_links::open_share_link(
         &peer.connection(),
         peer.keys().identity(),
@@ -59,7 +66,9 @@ async fn an_invitation_makes_its_first_opener_a_contact_with_the_access_chosen()
         .await
         .unwrap();
 
-    accept(&invited, "invited@example.com", &code).await.unwrap();
+    accept(&invited, "invited@example.com", &code)
+        .await
+        .unwrap();
     invited.refresh_contacts().await.unwrap();
     assert!(
         invited.verified_identity(maker.account()).is_some(),
@@ -79,10 +88,17 @@ async fn an_invitation_makes_its_first_opener_a_contact_with_the_access_chosen()
     )
     .await
     .unwrap();
-    assert_eq!(text(&guest, note).await, "for the invited", "with the access chosen");
+    assert_eq!(
+        text(&guest, note).await,
+        "for the invited",
+        "with the access chosen"
+    );
 
     let refused = accept(&second, "second@example.com", &code).await;
-    assert!(refused.is_err(), "the contact half took one person: {refused:?}");
+    assert!(
+        refused.is_err(),
+        "the contact half took one person: {refused:?}"
+    );
     second.refresh_contacts().await.unwrap();
     assert!(
         second.verified_identity(maker.account()).is_none(),
@@ -90,7 +106,10 @@ async fn an_invitation_makes_its_first_opener_a_contact_with_the_access_chosen()
     );
     let refused = open(&second, &code).await.unwrap_err();
     assert!(
-        matches!(refused, ClientError::Refused(ErrorCode::PermissionDenied, _)),
+        matches!(
+            refused,
+            ClientError::Refused(ErrorCode::PermissionDenied, _)
+        ),
         "and gains no access: {refused}"
     );
 

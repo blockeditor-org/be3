@@ -91,7 +91,7 @@ async fn a_contact_whose_key_changes_outran_the_mailbox_is_not_confirmed_until_l
         &owner.connection(),
         &current,
         &crate::contacts::card(owner.account(), &current, "Owner", "owner@example.com"),
-)
+    )
     .await
     .unwrap();
     crate::contacts::accept_link(

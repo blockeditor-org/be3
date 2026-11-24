@@ -182,7 +182,12 @@ fn invitation_ended(state: InvitationState) -> ServerError {
 const LINK_COLUMNS: &str = "owner_id, card, invite_organization, invite_escrow, accepter_id,
     invite_created, invite_expires, invite_opened, invite_ended, invite_revoked, invite_key";
 
-type LinkRow = ((String, Vec<u8>), (String, Vec<u8>, String), Invited, Vec<u8>);
+type LinkRow = (
+    (String, Vec<u8>),
+    (String, Vec<u8>, String),
+    Invited,
+    Vec<u8>,
+);
 
 fn link_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<LinkRow> {
     Ok((
@@ -687,55 +692,55 @@ impl ServerStore {
                     )
                 })?;
                 self.with_database(move |_, database| {
-                        let transaction = be_block_sqlite_schema::write_transaction(database)?;
-                        // Checked again where it is taken: an inviter no longer administering
-                        // the organization ended it, and an account that joined meanwhile
-                        // through another invitation spends none.
-                        if role_in(&transaction, owner, invitation.organization)?
-                            != Some(OrganizationRole::Administrator)
-                        {
-                            return Err(invitation_ended(InvitationState::Revoked));
-                        }
-                        if is_member_of(&transaction, caller, invitation.organization)? {
-                            return Err(ServerError::Refused(
-                                ErrorCode::InvalidRequest,
-                                "you are already a member of that organization".into(),
-                            ));
-                        }
-                        let stored = stored_link(&transaction, link)?.ok_or_else(link_not_found)?;
-                        mark_accepted(&transaction, link, owner, caller, card)?;
-                        // Signed in by the invitation's key, which only the code's holder has:
-                        // the log, not the server, says who joined.
-                        crate::access::append_accepted(
-                            &transaction,
-                            invitation.organization,
-                            caller,
-                            &stored.invitation_key,
-                            &member,
-                        )?;
-                        befriend(&transaction, owner, &[], caller, &contact)?;
-                        crate::keys::pin_escrow(
-                            &transaction,
-                            caller,
-                            owner,
-                            invitation.organization,
-                            &key,
-                        )?;
-                        // An invitation joins as an editor, never as an administrator; a
-                        // guest becomes a member.
-                        transaction.execute(
-                            "INSERT OR REPLACE INTO memberships (organization_id, account_id, role)
+                    let transaction = be_block_sqlite_schema::write_transaction(database)?;
+                    // Checked again where it is taken: an inviter no longer administering
+                    // the organization ended it, and an account that joined meanwhile
+                    // through another invitation spends none.
+                    if role_in(&transaction, owner, invitation.organization)?
+                        != Some(OrganizationRole::Administrator)
+                    {
+                        return Err(invitation_ended(InvitationState::Revoked));
+                    }
+                    if is_member_of(&transaction, caller, invitation.organization)? {
+                        return Err(ServerError::Refused(
+                            ErrorCode::InvalidRequest,
+                            "you are already a member of that organization".into(),
+                        ));
+                    }
+                    let stored = stored_link(&transaction, link)?.ok_or_else(link_not_found)?;
+                    mark_accepted(&transaction, link, owner, caller, card)?;
+                    // Signed in by the invitation's key, which only the code's holder has:
+                    // the log, not the server, says who joined.
+                    crate::access::append_accepted(
+                        &transaction,
+                        invitation.organization,
+                        caller,
+                        &stored.invitation_key,
+                        &member,
+                    )?;
+                    befriend(&transaction, owner, &[], caller, &contact)?;
+                    crate::keys::pin_escrow(
+                        &transaction,
+                        caller,
+                        owner,
+                        invitation.organization,
+                        &key,
+                    )?;
+                    // An invitation joins as an editor, never as an administrator; a
+                    // guest becomes a member.
+                    transaction.execute(
+                        "INSERT OR REPLACE INTO memberships (organization_id, account_id, role)
                              VALUES (?1, ?2, ?3)",
-                            params![
-                                invitation.organization.to_string(),
-                                caller.to_string(),
-                                encode_role(OrganizationRole::Editor)
-                            ],
-                        )?;
-                        transaction.commit()?;
-                        Ok(Accepted { owner })
-                    })
-                    .await
+                        params![
+                            invitation.organization.to_string(),
+                            caller.to_string(),
+                            encode_role(OrganizationRole::Editor)
+                        ],
+                    )?;
+                    transaction.commit()?;
+                    Ok(Accepted { owner })
+                })
+                .await
             }
         }
     }
