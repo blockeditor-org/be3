@@ -606,8 +606,12 @@ impl Editor {
             return source;
         }
         let owned = match block {
+            // A reading editor's block is not its instance's own, so it is held as another's.
             Some(block) => OwnedContentProjection::unless_unviewable(
-                state.core.watched_content::<C>(block),
+                match state.reads_another.get() {
+                    true => state.core.watched_content::<C>(block),
+                    false => state.core.content_of::<C>(block),
+                },
                 state.core.host().graph().watch(BlockQuery::Block(block)),
             ),
             None => OwnedContentProjection::from(state.core.content::<C>(None)),
