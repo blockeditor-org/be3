@@ -959,6 +959,12 @@ impl ServerStore {
                 base.state.len(),
                 crate::journal::MAX_BASE_STATE_BYTES,
             )?;
+            if base.parts.len() > crate::journal::MAX_BASE_PARTS {
+                return Err(crate::limits::too_many(
+                    "objects a journal's base names",
+                    crate::journal::MAX_BASE_PARTS,
+                ));
+            }
         }
         // Checked before the graph is taken, so no change too large to keep holds it up.
         crate::limits::references(&references.removed)?;
@@ -1461,9 +1467,11 @@ impl ServerStore {
     }
 
     /// Ends the `until-committed` holds past their grace (`hold_objects`), uncharging their
-    /// blocks, and deletes what nothing holds any more. A block whose journal holds entries keeps
-    /// its holds, since an operation there may name a part no commit took yet: they end once a
-    /// commit rebases the journal and the grace has passed. Answers how many objects it
+    /// blocks, and deletes what nothing holds any more. A hold lasts while what no commit holds
+    /// yet may name its object: any of the block's, while its journal holds entries (an
+    /// operation there may name a part), and those its journal's base names
+    /// (`journal_base_parts`, a session state that goes by a part). They end once a commit
+    /// rebases the journal past them and the grace has passed. Answers how many objects it
     /// deleted.
     pub(crate) async fn collect_holds(&self) -> Result<usize, ServerError> {
         let grace = i64::try_from(self.upload_grace().as_millis()).unwrap_or(i64::MAX);
@@ -1475,7 +1483,11 @@ impl ServerStore {
                      WHERE held_since IS NOT NULL AND held_since <= ?1
                      AND NOT EXISTS(SELECT 1 FROM journal_entries
                          WHERE journal_entries.organization_id = block_objects.organization_id
-                           AND journal_entries.block_id = block_objects.block_id)",
+                           AND journal_entries.block_id = block_objects.block_id)
+                     AND NOT EXISTS(SELECT 1 FROM journal_base_parts
+                         WHERE journal_base_parts.organization_id = block_objects.organization_id
+                           AND journal_base_parts.block_id = block_objects.block_id
+                           AND journal_base_parts.hash = block_objects.hash)",
                 )?;
                 let rows = statement.query_map([cutoff], |row| row.get::<_, String>(0))?;
                 rows.map(|row| parse_uuid(&row?)).collect()
@@ -1493,7 +1505,11 @@ impl ServerStore {
                                AND held_since <= ?2
                                AND NOT EXISTS(SELECT 1 FROM journal_entries
                                    WHERE journal_entries.organization_id = block_objects.organization_id
-                                     AND journal_entries.block_id = block_objects.block_id)",
+                                     AND journal_entries.block_id = block_objects.block_id)
+                               AND NOT EXISTS(SELECT 1 FROM journal_base_parts
+                                   WHERE journal_base_parts.organization_id = block_objects.organization_id
+                                     AND journal_base_parts.block_id = block_objects.block_id
+                                     AND journal_base_parts.hash = block_objects.hash)",
                         )?;
                         let rows = statement
                             .query_map(params![organization.to_string(), cutoff], |row| {
@@ -2689,6 +2705,7 @@ pub(crate) const BLOCK_ROWS: &[&str] = &[
     "block_sizes",
     "journal_entries",
     "block_journals",
+    "journal_base_parts",
     "block_logs",
     "block_log_nodes",
     "block_log_heads",

@@ -57,12 +57,15 @@ interface host {
     /// `journal-state`, with it, is the session state as of that number: the server's
     /// journal starts from the commit with it only if the publish wins the head, and every
     /// replica hears `replica.sealed`. The host keeps this device's journal likewise.
+    /// `journal-parts` are the parts this replica put (`put-part`) that the state names: the
+    /// server keeps them while the journal's base names them.
     publish: async func(
         expected: option<commit-id>,
         merging: option<merging>,
         content: written,
         sealed-through: option<u64>,
         journal-state: option<list<u8>>,
+        journal-parts: list<part-ref>,
         /// How many times the session had started over (`status.restarts`): a
         /// seal's sequence counts in that run of the order alone.
         restarts: u64,
@@ -151,8 +154,8 @@ interface host {
     /// from the lease holder while `base.commit` is the head; this device's
     /// journal takes it either way. The announcements kept beside the entries
     /// `base` holds go with its commit when this device sealed it, sent once
-    /// the server holds it.
-    rebase-journal: async func(base: journal-base, restarts: u64);
+    /// the server holds it. `parts` are as `publish`'s `journal-parts`.
+    rebase-journal: async func(base: journal-base, restarts: u64, parts: list<part-ref>);
 
     /// Opaque bytes for a peer, every peer, an editor or the host.
     send: async func(to: recipients, bytes: list<u8>);

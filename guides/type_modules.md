@@ -244,9 +244,9 @@ current key, uploads them and has the server hold them for the block
 (`hold-objects` with `hold.until-committed`), and answers the `part-ref`
 once the upload is done. Only then does it send the operation, with that ref
 (a `be_block_content::PartRef`) in its own payload. The hold ends when a commit of the
-block that uses the part publishes, or once `upload_grace` passed and the
+block that uses the part publishes, or once `upload_grace` passed, the
 block's journal holds no entries (an uncommitted operation may still name the
-part). A type's part is put by an editor: `EditorMirror::put_part`
+part) and its base names none of the part's objects (`journal-base.parts`). A type's part is put by an editor: `EditorMirror::put_part`
 (`FromEditor::PutPart`, answered `ToEditor::PartPut` under its token), which
 the replica turns into its `Effect::PutPart`. `LiveEdit` has no hook for a
 replica to put a part of its own; the replica puts only an oversized operation's
@@ -547,7 +547,12 @@ order: presence and channel messages. The rules an agent most needs:
   `keep` as a second parent; `publish`'s `sealed-through` names the last sequence
   it holds, which the host keeps with the commit (`Commit::sealed_through`), and
   `journal-state` the session state as of it: the journal's base, which the host
-  hands the server with the publish (`Write::seals_journal`), so the server trims
+  hands the server with the publish (`Write::seals_journal`). A state past
+  `LARGEST_RELAYED_OPERATION` goes by the part the replica puts it as first
+  (`journal_state`; the seal waits for the put), which the base names
+  (`BaseState::part`, and `journal-parts`, whose objects the server keeps while
+  the base names them); a replica opening on the base reads it before it
+  replays. The server trims
   its journal as the seal wins the head and tells every replica
   (`replica.sealed`), which takes it as its base once it applied that far, so a
   replica that takes the lease next seals on it even before the head reaches it

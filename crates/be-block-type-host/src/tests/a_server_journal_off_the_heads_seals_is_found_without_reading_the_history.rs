@@ -41,6 +41,7 @@ fn journal(base: Option<CommitId>, sequence: u64, through: u64) -> Journal {
             commit: base,
             sequence,
             state: Vec::new(),
+            parts: Vec::new(),
         },
         entries: (sequence + 1..=through)
             .map(|sequence| JournalEntry {
