@@ -8,16 +8,18 @@ replica applies it at S in the same way (`carried_from_seal` in be-sdk-type-gues
 
 1. Build what the entries after T were made on: the commit loaded, with that state adopted.
 2. Load the commit afresh.
-3. Carry each entry it applied in (T, S), in order, from the first content onto the second
+3. Carry each entry it logged in (T, S), in order, from the first content onto the second
    (`LiveEdit::carry_over`, each under a client of its own, `CARRIED_CLIENTS` with its sequence).
 4. Go on from the result, and carry what it has not had numbered on top, as before
    (`carry_pending`).
 
 Every replica holds the same entries and the same content at S, so all of them reach the same
 content. No commit holds that content until the next seal, so the journal is not rebased at
-the restart. A replica opening on the journal replays the restart entry in the same way: when
-the journal's base is the restart's seal, it keeps the commit loaded afresh beside the one with
-the base state adopted (`replay_seal`), and does steps 1 to 3 from those.
+the restart. A replica opening on the journal replays the restart entry in the same way,
+whatever seal the journal starts from (a server that lost a seal's rebase keeps it on an
+earlier one): it reads the commit the entry names before it replays (`journal_restart_commits`),
+and builds what the entries after T were made on from that commit and the state the entry
+carries (`replay_restart`).
 
 ## Why
 
