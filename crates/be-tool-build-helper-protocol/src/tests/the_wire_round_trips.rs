@@ -30,7 +30,12 @@ fn the_wire_round_trips() {
             "manifest": "https://cdn/builds/android/c.json",
         }),
     );
-    for state in [State::Queued, State::Running, State::Succeeded, State::Failed] {
+    for state in [
+        State::Queued,
+        State::Running,
+        State::Succeeded,
+        State::Failed,
+    ] {
         assert_eq!(serde_json::to_value(state).unwrap(), state.name());
     }
     round_trips(Refusal::default(), json!({}));

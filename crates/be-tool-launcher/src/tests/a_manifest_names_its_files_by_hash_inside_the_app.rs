@@ -15,7 +15,8 @@ fn a_manifest_names_its_files_by_hash_inside_the_app() {
         .to_string()
     };
 
-    let manifest = helper::parse_manifest(described("data/be3.pdf/index.json", &hash).as_bytes()).unwrap();
+    let manifest =
+        helper::parse_manifest(described("data/be3.pdf/index.json", &hash).as_bytes()).unwrap();
 
     assert_eq!(manifest.product, "native-linux_x86_64");
     assert!(manifest.files[0].executable);

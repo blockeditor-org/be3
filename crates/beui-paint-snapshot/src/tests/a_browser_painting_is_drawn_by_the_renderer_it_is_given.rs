@@ -17,10 +17,8 @@ fn a_browser_painting_is_drawn_by_the_renderer_it_is_given() {
     );
 
     // A renderer that checks it was handed the painting and draws the native one.
-    let directory = std::env::temp_dir().join(format!(
-        "be3-painting-renderer-test-{}",
-        std::process::id()
-    ));
+    let directory =
+        std::env::temp_dir().join(format!("be3-painting-renderer-test-{}", std::process::id()));
     std::fs::create_dir_all(&directory).unwrap();
     let picture = directory.join("drawn.png");
     drawn.save(&picture).unwrap();
@@ -42,9 +40,13 @@ fn a_browser_painting_is_drawn_by_the_renderer_it_is_given() {
         picture.to_str().unwrap(),
     ]);
     renderer.arg(&file);
-    assert_eq!(page.render(0, Some(&file), Some(&mut renderer)).unwrap(), drawn);
     assert_eq!(
-        page.render(1, None, Some(&mut Command::new("sh"))).unwrap_err(),
+        page.render(0, Some(&file), Some(&mut renderer)).unwrap(),
+        drawn
+    );
+    assert_eq!(
+        page.render(1, None, Some(&mut Command::new("sh")))
+            .unwrap_err(),
         "a browser painting has only frame 0, there is no frame 1"
     );
 

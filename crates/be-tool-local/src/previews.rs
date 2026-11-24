@@ -244,16 +244,16 @@ fn differing_frames(
     omitted: &mut usize,
     browser_renderer: Option<&Path>,
 ) -> Result<Vec<Frame>, String> {
-    let count = |snapshot: Option<(&Paint, &Path)>| {
-        snapshot.map_or(0, |(snapshot, _)| snapshot.frames())
-    };
+    let count =
+        |snapshot: Option<(&Paint, &Path)>| snapshot.map_or(0, |(snapshot, _)| snapshot.frames());
     let frames = count(old).max(count(new));
     let renderer = || browser_renderer.map(|built| crate::browser::renderer(Some(built)));
     let mut listed = Vec::new();
     for index in 0..frames {
         let old_frame = old.filter(|(snapshot, _)| index < snapshot.frames());
         let new_frame = new.filter(|(snapshot, _)| index < snapshot.frames());
-        if matches!((old_frame, new_frame), (Some((old, _)), Some((new, _))) if old.same_frame(new, index)) {
+        if matches!((old_frame, new_frame), (Some((old, _)), Some((new, _))) if old.same_frame(new, index))
+        {
             continue;
         }
         if *drawn >= MAX_FRAMES {

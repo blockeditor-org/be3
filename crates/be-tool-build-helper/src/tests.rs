@@ -50,7 +50,12 @@ impl Backend for Fake {
         }
     }
 
-    fn build(&self, product: be_tool_build_helper_protocol::Product, commit: &str, log: &Log) -> Result<(), String> {
+    fn build(
+        &self,
+        product: be_tool_build_helper_protocol::Product,
+        commit: &str,
+        log: &Log,
+    ) -> Result<(), String> {
         let name = format!("{}/{commit}", product.name());
         self.built.lock().unwrap().push(name.clone());
         log.line(&format!("building {name}"));

@@ -22,7 +22,10 @@ fn a_browser_painting_is_described_by_its_first_changed_line() {
 
     let (accepted, made) = (hello.encode().unwrap(), goodbye.encode().unwrap());
     assert_eq!(crate::changed(&accepted, &accepted), None);
-    assert_eq!(crate::changed(&accepted, &made), Some(difference.description));
+    assert_eq!(
+        crate::changed(&accepted, &made),
+        Some(difference.description)
+    );
 
     let native = triangle([255, 0, 0, 255]);
     assert_eq!(

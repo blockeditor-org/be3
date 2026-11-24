@@ -23,8 +23,5 @@ fn a_painting_file_decodes_to_its_kind() {
     assert!(!native.same_frame(&browser, 0));
 
     assert!(Painting::decode(b"BE3BROWSER 1\n{}").is_err());
-    assert_eq!(
-        Painting::decode(b"").unwrap_err(),
-        "not a paint snapshot"
-    );
+    assert_eq!(Painting::decode(b"").unwrap_err(), "not a paint snapshot");
 }

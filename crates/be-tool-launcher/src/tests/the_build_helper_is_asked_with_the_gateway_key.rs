@@ -4,16 +4,13 @@ use super::*;
 fn the_build_helper_is_asked_with_the_gateway_key() {
     let commit = "c".repeat(40);
     let product = Product::Host;
-    let base = format!(
-        "{}/products/native-{}/{commit}",
-        helper::HELPER,
-        platform()
-    );
+    let base = format!("{}/products/native-{}/{commit}", helper::HELPER, platform());
     let mut store = Store::default();
     store.answer(
         &base,
         200,
-        &json!({"product": product.name(), "commit": commit, "state": "queued", "position": 2}).to_string(),
+        &json!({"product": product.name(), "commit": commit, "state": "queued", "position": 2})
+            .to_string(),
     );
     store.answer(&format!("{base}/log?from=5"), 200, "built");
 

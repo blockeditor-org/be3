@@ -6,8 +6,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 use std::{env, fs, thread};
 
-const USAGE: &str =
-    "usage: be-tool-local stress NAME [--repeat N] [--parallel K] [--limit SECONDS] [--apart] [--latency MS]";
+const USAGE: &str = "usage: be-tool-local stress NAME [--repeat N] [--parallel K] [--limit SECONDS] [--apart] [--latency MS]";
 /// The host tests' package, whose `:test` runs every test against the host that has every app
 /// and whose `:test-FILE` runs one against the host that stages the apps it names
 /// (crates/be-host-tests/BUCK).
@@ -254,7 +253,11 @@ struct Test {
 /// `src/MODULE/tests/STEM.rs` is the part `MODULE-tests-STEM` (`tests/STEM.rs` is `STEM`) and
 /// runs `MODULE::tests::STEM::STEM`.
 fn test_files(sources: &Path) -> Result<Vec<Test>, String> {
-    fn walk(directory: &Path, module: &mut Vec<String>, tests: &mut Vec<Test>) -> Result<(), String> {
+    fn walk(
+        directory: &Path,
+        module: &mut Vec<String>,
+        tests: &mut Vec<Test>,
+    ) -> Result<(), String> {
         let entries = fs::read_dir(directory)
             .map_err(|error| format!("could not read {}: {error}", directory.display()))?;
         for entry in entries.flatten() {
@@ -271,7 +274,10 @@ fn test_files(sources: &Path) -> Result<Vec<Test>, String> {
                 path.push(stem.to_owned());
                 let joined = path.join("/");
                 tests.push(Test {
-                    part: joined.strip_prefix("tests/").unwrap_or(&joined).replace('/', "-"),
+                    part: joined
+                        .strip_prefix("tests/")
+                        .unwrap_or(&joined)
+                        .replace('/', "-"),
                     libtest: format!("{}::{stem}", path.join("::")),
                 });
             }

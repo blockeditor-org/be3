@@ -34,9 +34,10 @@ impl Painting {
     /// Whether both hold frame `index` and it is the same in each.
     pub fn same_frame(&self, other: &Self, index: usize) -> bool {
         match (self, other) {
-            (Self::Native(before), Self::Native(after)) => {
-                before.frames.get(index).is_some_and(|frame| after.frames.get(index) == Some(frame))
-            }
+            (Self::Native(before), Self::Native(after)) => before
+                .frames
+                .get(index)
+                .is_some_and(|frame| after.frames.get(index) == Some(frame)),
             (Self::Browser(before), Self::Browser(after)) => index == 0 && before == after,
             _ => false,
         }
@@ -105,7 +106,9 @@ impl Painting {
                 }
                 image::open(&output.0)
                     .map(|image| image.to_rgba8())
-                    .map_err(|error| format!("could not read what the browser rasterizer drew: {error}"))
+                    .map_err(|error| {
+                        format!("could not read what the browser rasterizer drew: {error}")
+                    })
             }
         }
     }

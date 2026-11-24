@@ -2,8 +2,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-use be_lib_git::git;
 use crate::previews::{PAINTINGS, stage};
+use be_lib_git::git;
 
 const USAGE: &str = "usage: be-tool-local ci MANIFEST [--previews BASE OUT] [--unchecked PACKAGE]... [--unchecked-all]";
 

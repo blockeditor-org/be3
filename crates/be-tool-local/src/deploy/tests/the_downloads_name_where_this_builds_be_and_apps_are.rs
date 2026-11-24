@@ -9,10 +9,7 @@ fn the_downloads_name_where_this_builds_be_and_apps_are() {
     std::fs::create_dir_all(&bundle).unwrap();
     std::fs::write(bundle.join("be"), b"be for arm").unwrap();
     std::fs::write(bundle.join("counter.wasm"), b"the module").unwrap();
-    let listed = format!(
-        r#"{{"counter.wasm":"{}"}}"#,
-        sha256(b"the module")
-    );
+    let listed = format!(r#"{{"counter.wasm":"{}"}}"#, sha256(b"the module"));
     std::fs::write(bundle.join("app-hashes.json"), &listed).unwrap();
     let apps = release_apps(&bundle, "tree", "https://be3.example").unwrap();
     std::fs::write(bundle.join("counter.wasm"), b"another module").unwrap();

@@ -2,8 +2,8 @@ use std::fs::{self, File};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
-use serde::{Deserialize, Serialize};
 use be_lib_sha256::{Digest as _, Sha256, finish};
+use serde::{Deserialize, Serialize};
 
 use be_tool_build_helper_protocol::Manifest;
 

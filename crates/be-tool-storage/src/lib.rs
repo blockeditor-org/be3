@@ -83,7 +83,9 @@ impl Storage {
     /// What the storage zone holds at `url`, or `None` when it holds nothing there.
     pub fn get(&self, url: &str) -> Result<Option<Box<dyn Read + Send + Sync>>, String> {
         let key = self.key()?;
-        match self.call(url, || self.agent(url).get(url).set("AccessKey", key).call()) {
+        match self.call(url, || {
+            self.agent(url).get(url).set("AccessKey", key).call()
+        }) {
             Ok(response) => Ok(Some(response.into_reader())),
             Err(ureq::Error::Status(404, _)) => Ok(None),
             Err(error) => Err(format!("reading {url} failed: {error}")),
@@ -159,7 +161,9 @@ impl Storage {
         content_type: &str,
     ) -> Result<Put, String> {
         let key = self.key()?;
-        match self.call(url, || self.agent(url).head(url).set("AccessKey", key).call()) {
+        match self.call(url, || {
+            self.agent(url).head(url).set("AccessKey", key).call()
+        }) {
             Ok(_) => Ok(Put::Present),
             Err(ureq::Error::Status(404, _)) => {
                 self.put(url, body, sha256, content_type)?;

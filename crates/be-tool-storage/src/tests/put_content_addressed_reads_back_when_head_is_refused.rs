@@ -18,7 +18,11 @@ fn put_content_addressed_reads_back_when_head_is_refused() {
     assert_eq!(put(b"be"), Ok(Put::Stored));
     assert_eq!(put(b"be"), Ok(Put::Present));
     assert_eq!(stub.puts(), 1, "the same bytes are not sent again");
-    assert_eq!(stub.sent("GET"), 2, "each refused HEAD is followed by reading the file back");
+    assert_eq!(
+        stub.sent("GET"),
+        2,
+        "each refused HEAD is followed by reading the file back"
+    );
 
     // What the fallback still catches, which a HEAD could not: other bytes at the path.
     let error = put(b"another be").unwrap_err();

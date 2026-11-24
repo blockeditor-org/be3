@@ -65,7 +65,10 @@ impl Stub {
 
     fn sent(&self, method: &str) -> usize {
         let requests = self.requests.lock().unwrap();
-        requests.iter().filter(|request| request.method == method).count()
+        requests
+            .iter()
+            .filter(|request| request.method == method)
+            .count()
     }
 }
 
@@ -99,7 +102,10 @@ fn answer(
     let mut files = files.lock().unwrap();
     let (status, sent) = match method.as_str() {
         "HEAD" if keyed && refuses_keyed_head => (405, Vec::new()),
-        "HEAD" => (if files.contains_key(&path) { 200 } else { 404 }, Vec::new()),
+        "HEAD" => (
+            if files.contains_key(&path) { 200 } else { 404 },
+            Vec::new(),
+        ),
         _ if !keyed => (401, Vec::new()),
         "GET" => match files.get(&path) {
             Some(bytes) => (200, bytes.clone()),

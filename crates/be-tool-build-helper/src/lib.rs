@@ -138,10 +138,9 @@ async fn products(builds: &Arc<Builds>, method: &str, product: &str, commit: &st
         },
         "POST" => match tokio::task::spawn_blocking(move || builds.ask(product, &commit)).await {
             Ok(Asked::Status(status)) => Response::json("200 OK", &status),
-            Ok(Asked::Refused(error)) => Response::json(
-                "422 Unprocessable Entity",
-                &Refusal { error: Some(error) },
-            ),
+            Ok(Asked::Refused(error)) => {
+                Response::json("422 Unprocessable Entity", &Refusal { error: Some(error) })
+            }
             Err(error) => Response::text("500 Internal Server Error", format!("{error}\n")),
         },
         _ => Response::text(

@@ -10,8 +10,7 @@ mod raster;
 
 pub use accepted::{HOW_TO_ACCEPT, assert_accepted, assert_painting, changed};
 pub use beui_paint_format::{
-    Content, Fade, Frame, Glyph, Pixels, Primitive, RoundedRect, TextureKey, Triangle,
-    Turn, Vertex,
+    Content, Fade, Frame, Glyph, Pixels, Primitive, RoundedRect, TextureKey, Triangle, Turn, Vertex,
 };
 pub use compare::{Difference, difference, frame_difference};
 pub use fingerprint::fingerprint;

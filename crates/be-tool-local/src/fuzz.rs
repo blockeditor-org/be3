@@ -4,7 +4,8 @@ use std::process::{Command, ExitCode, Stdio};
 use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
 use std::{env, fs};
 
-const USAGE: &str = "usage: be-tool-local fuzz (--all | --list FILE) [LIBFUZZER-FLAG... | INPUT...]";
+const USAGE: &str =
+    "usage: be-tool-local fuzz (--all | --list FILE) [LIBFUZZER-FLAG... | INPUT...]";
 
 const FUZZED: [i32; 4] = [0, 70, 71, 77];
 

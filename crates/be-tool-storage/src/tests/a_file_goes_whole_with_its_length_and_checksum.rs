@@ -19,14 +19,26 @@ fn a_file_goes_whole_with_its_length_and_checksum() {
     assert_eq!(storage.head(&url), Ok(true));
 
     let requests = stub.requests.lock().unwrap();
-    let put = requests.iter().find(|request| request.method == "PUT").unwrap();
+    let put = requests
+        .iter()
+        .find(|request| request.method == "PUT")
+        .unwrap();
     assert_eq!(put.path, format!("/files/{sha256}"));
     assert_eq!(put.headers["content-length"], "100000");
     assert_eq!(put.headers["checksum"], sha256.to_uppercase());
     assert_eq!(put.headers["content-type"], "application/octet-stream");
     assert!(!put.headers.contains_key("transfer-encoding"));
-    let head = requests.iter().find(|request| request.method == "HEAD").unwrap();
-    assert!(!head.headers.contains_key("accesskey"), "HEAD goes to the CDN without the key");
+    let head = requests
+        .iter()
+        .find(|request| request.method == "HEAD")
+        .unwrap();
+    assert!(
+        !head.headers.contains_key("accesskey"),
+        "HEAD goes to the CDN without the key"
+    );
     drop(requests);
-    assert_eq!(stub.files.lock().unwrap()[&format!("/files/{sha256}")], bytes);
+    assert_eq!(
+        stub.files.lock().unwrap()[&format!("/files/{sha256}")],
+        bytes
+    );
 }
