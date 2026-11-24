@@ -343,8 +343,12 @@ impl Motion {
     }
 
     fn recall(&self) {
-        self.held.borrow_mut().dismissed = false;
-        self.head(Heading::Rest, self.held.borrow().velocity);
+        let velocity = {
+            let mut held = self.held.borrow_mut();
+            held.dismissed = false;
+            held.velocity
+        };
+        self.head(Heading::Rest, velocity);
     }
 
     fn grab(&self) {

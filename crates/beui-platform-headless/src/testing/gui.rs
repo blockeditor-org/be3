@@ -359,6 +359,12 @@ pub trait Gui {
                 return;
             }
             let (changed, requested) = self.last_frame();
+            // Only frames that changed and asked for no other count against the eager
+            // budget: one an animation asked for does not, or a long animation would spend
+            // it and its last, changed frame would wait for a wake that never comes.
+            if requested < Duration::MAX {
+                eager = 0;
+            }
             if changed && eager < EAGER_FRAMES {
                 eager += 1;
                 continue;
