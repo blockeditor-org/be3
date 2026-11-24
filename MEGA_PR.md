@@ -44,6 +44,7 @@ Landed on 2026-11-24:
 - `one-way-in-apps-5`: one block-tree walk for the files pane and the block picker (block_tree); a folder's rows get the files pane's row menu (block_menu; can_move_out_of takes a block-type lookup); plans/one_way_in_apps.md done.
 - `host-adapter-4g7b2`: be-host runs its core under --root and serves the root's editors through Forwarded; be-root shows the session's editor full-window and the signed-in block stack; a root's paintings carry its apps' screens; an agent made for a root that stopped waiting is removed; root views compile only where --root does.
 - `backrefs-flake`: the backrefs test waits for the server to make the folder and child before it edits the folder (test timing; 18/200 → 0/800).
+- `host-adapter-4g7b2-tests`: tests for agent undo, a deferred agent and the stop after a protocol break; fixes a deferred agent taking the credentials of the one made before it.
 - `members-private-2`: only an administrator is served the organization's whole log; an editor is served a proof path, so members no longer see every other member through it.
 
 Landed on 2026-11-22 in one verify: signed logs 5b (`signed-logs-5b-10`), `backlog-keys-10b`, `block-rows-guard` and hosted blocks 4d2 (`hosted-blocks-4d2-5`).
