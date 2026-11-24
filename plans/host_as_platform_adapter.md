@@ -1719,10 +1719,10 @@ Each step lands on its own.
              Tests: be-sdk-root's `children::tests`; host tests
              `be_root_in_place_of_the_hosts_ui_shows_a_presentations_slides_as_previews`,
              `..._hands_a_canvas_frame_to_the_editor_on_it` (the frame-takeover painting, a pan
-             and zoom editor on a canvas) and `..._opens_a_block_its_files_open`. Left for
-             later:
-             - the same test made in a window resized to 1280x900 under be-host's UI never
-               settles once restarted under the root (several apps owe frames in turn);
+             and zoom editor on a canvas) and `..._opens_a_block_its_files_open`. An embedded
+             app asked for no screens (a child shown as its label) is asked for no frame and owes
+             the root none (`Embedded::draws`): it presents nothing, so a frame asked of it waited
+             out the root's stopped-clock budget. Left for later:
              - a search hit's place handed to the block it opens (be-host's `reveals`);
              - each preview is an app of its own rather than drawn once at its largest (4g7b3e).
            - 4g7b3e. A block in several places sharing one editor (one app per staged app
