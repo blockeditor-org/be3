@@ -132,6 +132,8 @@ pub struct BeuiTest<A: BeuiRoot + AppEditor> {
     /// The deepest the viewport zooms: the `max_zoom` the app's manifest gives the editor.
     max_zoom: f32,
     children: Vec<ChildPlacement>,
+    /// The highest `keyboard-ask` a child placed carried, as `take_keyboard_asks` last read.
+    keyboard_ask: u64,
     views_children: Vec<(ViewId, Vec<ChildPlacement>)>,
     occluders: Vec<Occluder>,
     report: Option<FrameReport>,
@@ -425,6 +427,7 @@ impl<A: BeuiRoot + AppEditor> BeuiTest<A> {
             viewport: None,
             max_zoom: max_zoom::<A>(),
             children: Vec::new(),
+            keyboard_ask: 0,
             views_children: Vec::new(),
             occluders: Vec::new(),
             report: None,
@@ -693,18 +696,23 @@ impl<A: BeuiRoot + AppEditor> BeuiTest<A> {
         })
     }
 
-    pub fn take_child_focus(&mut self) -> Vec<ChildId> {
-        self.take_shell_messages(|call| match call {
-            ShellMessage::FocusChild(child) => Some(*child),
-            _ => None,
-        })
-    }
-
-    pub fn take_block_child_focus(&mut self) -> Vec<Uuid> {
-        self.take_shell_messages(|call| match call {
-            ShellMessage::FocusBlockChild(block) => Some(Uuid::from_bytes(*block)),
-            _ => None,
-        })
+    /// The child the host gives the keyboard since the last call, as it hears the editor's
+    /// asks: the one whose placement carries the highest `keyboard-ask` above every one heard
+    /// before, if any.
+    pub fn take_keyboard_asks(&mut self) -> Vec<ChildId> {
+        let placed = self
+            .children
+            .iter()
+            .chain(self.views_children.iter().flat_map(|(_, placed)| placed));
+        let asked = placed
+            .filter(|placement| placement.keyboard_ask > self.keyboard_ask)
+            .max_by_key(|placement| placement.keyboard_ask)
+            .map(|placement| (placement.child, placement.keyboard_ask));
+        let Some((child, ask)) = asked else {
+            return Vec::new();
+        };
+        self.keyboard_ask = ask;
+        vec![child]
     }
 
     pub fn take_child_closes(&mut self) -> Vec<ChildId> {
@@ -1474,6 +1482,7 @@ impl<A: BeuiRoot + AppEditor> BeuiTest<A> {
     pub fn clear_calls(&mut self) {
         self.calls.clear();
         self.extension_calls.clear();
+        self.take_keyboard_asks();
     }
 
     /// The `format` item of each copy that offered it ready.

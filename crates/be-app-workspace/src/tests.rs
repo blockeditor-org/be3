@@ -240,7 +240,7 @@ impl<A: be_sdk_beui::BeuiRoot + be_sdk_beui::AppEditor> Fixture<A> {
     }
 
     fn focused_windows(&mut self) -> Vec<u64> {
-        let given = self.test.take_child_focus();
+        let given = self.test.take_keyboard_asks();
         given
             .into_iter()
             .filter_map(|child| self.reported.get(&child).map(|window| window.id))

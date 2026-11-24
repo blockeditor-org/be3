@@ -41,6 +41,11 @@ pub fn ChildBlock(
     #[prop(default = 0.0)] rotation: Prop<f32>,
     #[prop(default = 1.0)] opacity: Prop<f32>,
     #[prop(default = None)] intrinsic: Prop<Option<beui::Vec2>>,
+    /// How many times the editor asked that the child take the keyboard: each time it grows,
+    /// the host moves the keyboard to the child at the layout commit that carries it, if the
+    /// keyboard is within this editor's views and no view that takes the keyboard is open.
+    #[prop(default = 0)]
+    keyboard: Prop<u64>,
     on_state: Callback<ChildState>,
     on_details: Callback<()>,
     on_focus: Callback<()>,
@@ -63,6 +68,7 @@ pub fn ChildBlock(
         fit: Prop::Static(None),
         dialog: Prop::Static(None),
         fullscreen: Prop::Static(false),
+        keyboard,
         on_state,
         on_details,
         on_focus,
@@ -89,6 +95,9 @@ pub fn Subregion(
     #[prop(default = None)] fit: Prop<Option<beui::Vec2>>,
     #[prop(default = false)] dialog: bool,
     #[prop(default = false)] fullscreen: Prop<bool>,
+    /// How many times the editor asked that the child take the keyboard (`ChildBlock`'s).
+    #[prop(default = 0)]
+    keyboard: Prop<u64>,
     on_state: Callback<ChildState>,
     on_details: Callback<()>,
     on_focus: Callback<()>,
@@ -121,6 +130,7 @@ pub fn Subregion(
         fit,
         dialog,
         fullscreen,
+        keyboard,
         on_state,
         on_details,
         on_focus,
@@ -146,6 +156,7 @@ struct Placing {
     fit: Prop<Option<beui::Vec2>>,
     dialog: Prop<Option<DialogFrame>>,
     fullscreen: Prop<bool>,
+    keyboard: Prop<u64>,
     on_state: Callback<ChildState>,
     on_details: Callback<()>,
     on_focus: Callback<()>,
@@ -173,6 +184,7 @@ fn SubregionView(
         fit,
         dialog,
         fullscreen,
+        keyboard,
         on_state,
         on_details,
         on_focus,
@@ -215,6 +227,12 @@ fn SubregionView(
         }
         on_focus.call(());
     });
+    // The editor's own asks, and one each time the dock gives this child's tab the keyboard.
+    let tab_asks = match tab {
+        Some(tab) => tab_keyboard_asks(editor, tab, placed, mode),
+        None => create_memo(|| 0),
+    };
+    let keyboard = Prop::dynamic(move || keyboard.get() + tab_asks.get());
     let state = editor.register_child(
         slot,
         placed.into_prop(),
@@ -228,6 +246,7 @@ fn SubregionView(
         fit,
         dialog,
         fullscreen,
+        keyboard,
         on_state,
         on_details,
         on_focus,
@@ -237,9 +256,6 @@ fn SubregionView(
     );
     if let Some(link) = link {
         crate::docked::bridge_child_dock(editor, link, state, docked_tab);
-    }
-    if let Some(tab) = tab {
-        follow_tab_keyboard(editor, tab, state, placed, mode);
     }
     let preview = create_memo(move || state.with(|state| state.preview));
     let pictured = create_memo(move || {
@@ -283,19 +299,21 @@ fn SubregionView(
     }
 }
 
-fn follow_tab_keyboard(
+/// Counts the times the dock gives `tab` the keyboard, or brings its window forward, while the
+/// child it shows takes input (an active or live block, a dock tab's body, a program window) and
+/// no popover or keyboard-taking layer of the editor's is open: each is an ask that the child
+/// take the keyboard, which the child's placement carries (`keyboard-asks`).
+fn tab_keyboard_asks(
     editor: Editor,
     tab: beui::dock::DockTabControl,
-    state: ReadSignal<ChildState>,
     placed: Memo<Option<SubregionContent>>,
     mode: Memo<ChildMode>,
-) {
+) -> Memo<u64> {
     let given = create_memo(move || {
         let given = tab.keyboard().map(|count| (false, count));
         let forward = tab.brought_forward().map(|count| (true, count));
         given.into_iter().chain(forward).collect::<Vec<_>>()
     });
-    let child = create_memo(move || state.with(|state| state.child));
     let interactive = create_memo(move || {
         matches!(mode.get(), ChildMode::Active | ChildMode::Live)
             && placed.with(|placed| {
@@ -309,20 +327,22 @@ fn follow_tab_keyboard(
                 )
             })
     });
+    let asks = create_signal(0_u64);
     let asked = StoredCell::new(Vec::<(bool, u64)>::new());
     create_effect(move || {
         let given = given.get();
-        let (Some(child), true) = (child.get(), interactive.get()) else {
+        if !interactive.get() {
             return;
-        };
+        }
         let held = asked.replace(given.clone());
         let trapped = editor.popped().with_untracked(Option::is_some)
             || beui::native::try_with_document(|document| document.layers().takes_keyboard())
                 .unwrap_or(false);
         if !trapped && given.iter().any(|given| !held.contains(given)) {
-            untrack(|| editor.host().focus_child(child));
+            untrack(|| asks.update(|asks| *asks += 1));
         }
     });
+    create_memo(move || asks.get())
 }
 
 #[component]

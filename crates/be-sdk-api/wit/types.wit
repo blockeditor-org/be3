@@ -508,6 +508,18 @@ interface types {
         /// The placer shows the child full screen. The host tells a program
         /// window it is full screen while this is set.
         fullscreen: bool,
+        /// The editor's latest ask that this child take the keyboard, as the
+        /// person opening it or bringing it forward would: a serial that grows
+        /// with each ask the editor makes, of any of its children; 0 for none.
+        /// At the layout commit that carries a serial above every one the host
+        /// acted on for the editor, the host moves the keyboard to the view
+        /// that shows the child carrying the highest, at once, whether the
+        /// child's app runs yet or not: keys typed before it does are dropped,
+        /// never held. It only moves the keyboard within the editor: while the
+        /// keyboard is outside the editor's views and the children they show,
+        /// or a view that takes the keyboard (a dialog, a popover) is open, an
+        /// ask does nothing.
+        keyboard-ask: u64,
     }
 
     /// A rectangle that hides the children placed before it.
