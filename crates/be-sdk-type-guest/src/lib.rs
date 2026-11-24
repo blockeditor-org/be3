@@ -854,8 +854,13 @@ impl Module {
                 content,
                 sealed_through,
                 journal_state,
+                journal_parts,
                 restarts,
             } => {
+                let journal_parts = journal_parts
+                    .into_iter()
+                    .map(be_sdk_type_api::PartRef::from)
+                    .collect();
                 let pending = ops::with_parent(replica, || {
                     host::publish(
                         expected,
@@ -863,6 +868,7 @@ impl Module {
                         content,
                         sealed_through,
                         journal_state,
+                        journal_parts,
                         restarts,
                     )
                 });
@@ -1038,7 +1044,11 @@ impl Module {
                 replica,
                 base,
                 restarts,
-            } => ops::with_parent(replica, || host::rebase_journal(base, restarts)).detach(),
+                parts,
+            } => {
+                let parts = parts.into_iter().map(be_sdk_type_api::PartRef::from).collect();
+                ops::with_parent(replica, || host::rebase_journal(base, restarts, parts)).detach()
+            }
             Effect::Release { replica } => {
                 let closing = self.shared.state.borrow_mut().closing.remove(&replica);
                 ops::end(replica);

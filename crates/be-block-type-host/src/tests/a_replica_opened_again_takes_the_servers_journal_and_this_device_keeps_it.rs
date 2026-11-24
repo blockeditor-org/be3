@@ -52,6 +52,7 @@ fn a_replica_opened_again_takes_the_servers_journal_and_this_device_keeps_it() {
             commit: head,
             sequence: 5,
             state: b"positions".to_vec(),
+            parts: Vec::new(),
         };
         // The server's journal, sealed with the block's key as the server keeps it, each entry
         // stamped with when the server took it.

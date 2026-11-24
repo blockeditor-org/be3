@@ -61,6 +61,7 @@ fn every_record_reads_back_with_each_option_none_and_some() {
                     commit: Some(commit(b"commit")),
                     sequence: 9,
                     state: vec![10],
+                    parts: Vec::new(),
                 },
             }),
         };
@@ -191,6 +192,7 @@ fn every_record_reads_back_with_each_option_none_and_some() {
                 commit: some.then_some(commit(b"base")),
                 sequence: 4,
                 state: vec![9],
+                parts: Vec::new(),
             },
             order: be_block_session::Sequencer {
                 sequence: 5,

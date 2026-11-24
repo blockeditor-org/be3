@@ -1087,6 +1087,7 @@ fn sealing<C: BlockContent>(
             run: 0,
             through,
             state: format!("state through {through}").into_bytes(),
+            parts: Vec::new(),
         },
     ))
 }

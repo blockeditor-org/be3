@@ -22,6 +22,7 @@ async fn a_trim_from_other_than_the_holder_is_not_kept() {
         commit: Some(first.0),
         sequence: 1,
         state: Vec::new(),
+        parts: Vec::new(),
     };
     phone
         .submit(block, 7, 1, 0, b"an edit".to_vec())
