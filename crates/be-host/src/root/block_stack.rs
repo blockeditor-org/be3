@@ -51,13 +51,28 @@ impl BlockStack {
         for (id, command) in root.take_secret_requests() {
             match self.start(core, context, command) {
                 Ok(making) => self.making.push((id, making)),
-                Err(secret) => root.answer_secret(id, secret),
+                Err(secret) => {
+                    root.answer_secret(id, secret);
+                }
             }
         }
         let mut waiting = Vec::new();
         for (id, making) in std::mem::take(&mut self.making) {
+            // The agent being made, by its account, once it is.
+            let agent = match making {
+                Making::Agent => core.agent_created.as_ref().map(|(account, _)| *account),
+                _ => None,
+            };
             match made(core, making) {
-                Some(secret) => root.answer_secret(id, secret),
+                Some(secret) => {
+                    // An agent's credentials cannot be had again: one nobody waits for any more
+                    // is removed, as the root's `make-secret` says.
+                    if !root.answer_secret(id, secret)
+                        && let Some(account) = agent
+                    {
+                        core.command(context, ui::UiCommand::RemoveAgent(account));
+                    }
+                }
                 None => waiting.push((id, making)),
             }
         }
@@ -126,7 +141,7 @@ fn made(core: &mut HostCore, making: Making) -> Option<Option<CoreSecret>> {
             Some(link(made))
         }
         Making::Agent => {
-            if let Some(created) = core.agent_created.take() {
+            if let Some((_, created)) = core.agent_created.take() {
                 return Some(Some(CoreSecret::Agent(AgentCredentials {
                     name: created.name.clone(),
                     bundle: Password::from(created.bundle(false)),
