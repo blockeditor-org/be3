@@ -84,9 +84,9 @@ screen of its app placed `Dock`, framed where it holds the editor's content.
 
 A child placed as a preview runs its editor too, asked for its preview view the
 size of its place (`preview_screen`, capped as be-host caps a preview), hit
-nowhere and shown under its placer. The host tells the placer it is available
-with `ChildPreview::Hosted`, so be-sdk-beui leaves a hole for it as for any
-child rather than drawing a picture; one whose editor draws no preview runs no
+nowhere and shown under its placer. The host tells the placer it composites
+it (`ChildPreview::Composited`), so be-sdk-beui leaves a hole for it as for
+any child rather than drawing a picture; one whose editor draws no preview runs no
 app, and its placer draws the block's label (`ChildPreview::Label`). Promoted,
 it keeps its editor, asked for its main view instead. A child placed in a
 preview view is a preview too, and an editor shown only as a preview has no

@@ -1682,11 +1682,13 @@ Each step lands on its own.
                `be3:root`'s `shown-child` says how (`shown-preview`: `view`, or `label` for an
                editor whose manifest names no preview view, which `editor-app.preview` tells
                the root before it spawns anything), and be-host's `child_status` answers
-               `ChildPreview::Hosted` once its editor opened (`Waiting` before, `Label` for
+               `ChildPreview::Composited` once its editor opened (`Waiting` before, `Label` for
                one that draws none), available at once as be-host's own previews are.
-               be-sdk-beui's `ChildBlock` leaves a hole for a preview the host says is
-               `Hosted` and available, rather than drawing a picture. Promoted (a canvas
-               focusing its card), the child keeps its editor, asked for its main view.
+               be-sdk-beui's `ChildBlock` leaves a hole for a preview the host says it
+               composites, rather than drawing a picture; `Composited` is a variant of its own,
+               since `Hosted`, the default with no status, still draws a preview's picture.
+               Promoted (a canvas focusing its card), the child keeps its editor, asked for its
+               main view.
              - Opening a block: under `--root` `HostCore::instance_heard` keeps the
                `open-block`s of the root's editors (`root_opens`), and be-host's `open_blocks`
                hands each to the nearest of the asking editor and those placing it (which
