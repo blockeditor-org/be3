@@ -42,7 +42,10 @@ fn a_press_while_a_scroll_settles_on_a_stop_takes_it_to_the_nearest_stop() {
     harness.frame(Vec::new());
     let pressed_at = offset(&harness);
     assert!(
-        harness.document().api::<unstyled::ScrollApi>(scroll).animating(),
+        harness
+            .document()
+            .api::<unstyled::ScrollApi>(scroll)
+            .animating(),
         "flung, it is on its way to a stop"
     );
     harness.touch(TouchPhase::Start, pos2(100.0, 100.0));

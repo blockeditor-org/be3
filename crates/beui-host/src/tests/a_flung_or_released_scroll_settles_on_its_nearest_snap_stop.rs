@@ -45,7 +45,11 @@ fn a_flung_or_released_scroll_settles_on_its_nearest_snap_stop() {
     }
     harness.touch(TouchPhase::End, pos2(100.0, 80.0));
     harness.settle();
-    assert_eq!(offset(&harness), 0.0, "a slow release short of half a page goes back");
+    assert_eq!(
+        offset(&harness),
+        0.0,
+        "a slow release short of half a page goes back"
+    );
 
     // Dragged past half a page and let go slowly: on to the second.
     harness.touch(TouchPhase::Start, pos2(100.0, 180.0));
@@ -69,7 +73,11 @@ fn a_flung_or_released_scroll_settles_on_its_nearest_snap_stop() {
         harness.frame(Vec::new());
         frames += 1;
     }
-    assert_eq!(offset(&harness), 200.0, "a release past half a page goes on to the next");
+    assert_eq!(
+        offset(&harness),
+        200.0,
+        "a release past half a page goes on to the next"
+    );
 
     // Flung hard: on several pages, and still to a stop.
     harness.touch(TouchPhase::Start, pos2(100.0, 190.0));
@@ -79,6 +87,9 @@ fn a_flung_or_released_scroll_settles_on_its_nearest_snap_stop() {
     harness.touch(TouchPhase::End, pos2(100.0, 40.0));
     harness.settle();
     let flung = offset(&harness);
-    assert!(flung > 400.0, "a fling carries it on past the next page, to {flung}");
+    assert!(
+        flung > 400.0,
+        "a fling carries it on past the next page, to {flung}"
+    );
     assert_eq!(flung % 200.0, 0.0, "and it rests on a page, at {flung}");
 }

@@ -29,7 +29,12 @@ fn a_modal_sheet_rests_where_it_would_when_measurement_comes_late() {
         let outside = harness.find("sheet.outside");
         harness.click(harness.center(outside));
         harness.settle();
-        (rested, content.try_get().and_then(|content| harness.document().node_rect(content)))
+        (
+            rested,
+            content
+                .try_get()
+                .and_then(|content| harness.document().node_rect(content)),
+        )
     });
     assert_eq!(prompt.0.map(|rect| rect.top()), Some(480.0));
     assert_eq!(prompt.1, None, "a tap outside closes it");

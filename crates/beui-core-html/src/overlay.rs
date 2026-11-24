@@ -600,7 +600,10 @@ mod web {
         if held.shown.take().is_none() {
             return;
         }
-        let Some(returns_to) = held.returns_to.take().filter(|element| element.is_connected())
+        let Some(returns_to) = held
+            .returns_to
+            .take()
+            .filter(|element| element.is_connected())
         else {
             return;
         };

@@ -140,18 +140,20 @@ pub fn DialogFrame(
             beak=POINTER_REACH
             on_dismiss={on_dismiss}
             card={move |handle: DialogCardHandle| view! {
-                <DialogCard width={width.clone()} pointer={handle.pointer}>{handle.body}</DialogCard>
+                <DialogCard width={width.clone()} pointer={handle.pointer}>
+                    {handle.body}
+                </DialogCard>
             }}
             sheet={|handle: DialogSheetHandle| {
                 let DialogSheetHandle { open, close, tall, body } = handle;
                 match tall {
                     true => view! {
-                        <ModalSheet open rest=1.0 stops={vec![1.0]} on_close={close}>||
-                            {body.call()}
-                        </ModalSheet>
+                        <ModalSheet open rest=1.0 stops={vec![1.0]} on_close={close}>|| {
+                            body.call()
+                        }</ModalSheet>
                     },
                     false => view! {
-                        <ModalSheet open fit=true on_close={close}>||{body.call()}</ModalSheet>
+                        <ModalSheet open fit=true on_close={close}>|| { body.call() }</ModalSheet>
                     },
                 }
             }}

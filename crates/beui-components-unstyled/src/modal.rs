@@ -100,18 +100,18 @@ pub fn Modal(
     };
     view! {
         <Overlay
-                anchor=OverlayAnchor::Point(Pos2::ZERO)
-                open={open}
-                placement=placed
-                scrim={move || scrim.get().scale_alpha(presence.get())}
-                level={level}
-                shown_in={shown_in}
-                policy={move || match asked.get() && !open.get() {
-                    true => LayerPolicy::Inert,
-                    false => LayerPolicy::BlocksAll,
-                }}
-                on_dismiss={move |_: Dismiss| on_dismiss.call(())}
-                content={body}
-            />
+            anchor=OverlayAnchor::Point(Pos2::ZERO)
+            open={open}
+            placement=placed
+            scrim={move || scrim.get().scale_alpha(presence.get())}
+            level={level}
+            shown_in={shown_in}
+            policy={move || match asked.get() && !open.get() {
+                true => LayerPolicy::Inert,
+                false => LayerPolicy::BlocksAll,
+            }}
+            on_dismiss={move |_: Dismiss| on_dismiss.call(())}
+            content={body}
+        />
     }
 }
