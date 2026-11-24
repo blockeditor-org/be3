@@ -2993,9 +2993,12 @@ fn refuse_offline(command: Command, shared: &Arc<Mutex<Shared>>) -> Option<Comma
         Command::Contact(
             ContactCommand::Open { reply, .. } | ContactCommand::Accept { reply, .. },
         ) => reply.send(Err(NEEDS_CONNECTION.to_owned())),
-        Command::Contact(
-            ContactCommand::PreviewShare { reply, .. } | ContactCommand::OpenShare { reply, .. },
-        ) => reply.send(Err(NEEDS_CONNECTION.to_owned())),
+        Command::Contact(ContactCommand::PreviewShare { reply, .. }) => {
+            reply.send(Err(NEEDS_CONNECTION.to_owned()));
+        }
+        Command::Contact(ContactCommand::OpenShare { reply, .. }) => {
+            reply.send(Err(NEEDS_CONNECTION.to_owned()));
+        }
         Command::Contact(ContactCommand::Remove(_)) => {
             shared.lock().unwrap_or_else(PoisonError::into_inner).error =
                 Some(NEEDS_CONNECTION.to_owned());
