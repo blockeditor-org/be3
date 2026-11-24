@@ -86,7 +86,7 @@ pub use notifications::{
     MAX_NOTIFICATION_AGE_MILLISECONDS, MAX_NOTIFICATION_TEXT, Notification, OpenedNotification,
 };
 
-pub use authorship::{Signer, by_app};
+pub use authorship::by_app;
 pub use import::Imported;
 pub use prefixes::Registry;
 pub use rotation::PendingRotation;

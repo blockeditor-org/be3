@@ -1,4 +1,4 @@
-use be_block_content::{LogItem, LogSigner};
+use be_block_content::{LogItem, Signer};
 use uuid::Uuid;
 
 use crate::{ChatEntry, ChatLog};
@@ -17,10 +17,10 @@ const BO: Uuid = Uuid::from_u128(0xb0);
 
 /// The entry at `seq`, written by `author`.
 fn item(seq: u64, author: Uuid, entry: &ChatEntry) -> LogItem {
-    signed(seq, author, entry, LogSigner::Verified)
+    signed(seq, author, entry, Signer::Verified)
 }
 
-fn signed(seq: u64, author: Uuid, entry: &ChatEntry, signer: LogSigner) -> LogItem {
+fn signed(seq: u64, author: Uuid, entry: &ChatEntry, signer: Signer) -> LogItem {
     LogItem {
         seq,
         id: Uuid::from_u64_pair(7, seq),

@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use be_block_content::{Announcement, LogItem, LogSigner};
+use be_block_content::{Announcement, LogItem, Signer};
 use be_block_model::BlockRef;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -84,9 +84,9 @@ pub struct Shown {
     /// Each reaction kept, by name, with who keeps it.
     pub reactions: Vec<(String, Vec<Uuid>)>,
     /// Who signed what it shows, the least trusted of the message and the edit it shows.
-    pub signer: LogSigner,
+    pub signer: Signer,
     /// Its author's deletion: when, and who signed it.
-    pub deleted: Option<(i64, LogSigner)>,
+    pub deleted: Option<(i64, Signer)>,
     /// Redacted by someone else (a manager, the server), not taken back by its author: what it
     /// was is gone, so it may not have been a message at all.
     pub removed: bool,
@@ -111,7 +111,7 @@ pub struct ChatLog {
     reactions_taken: BTreeSet<u64>,
     /// Redacted entries their author's deletion names, with when and who signed it: shown as
     /// deleted messages once the fold knows none was a reaction taken back (`show_deleted`).
-    deleted: BTreeMap<u64, (i64, LogSigner)>,
+    deleted: BTreeMap<u64, (i64, Signer)>,
     /// What an import brought from another block, folded on its own.
     history: Option<Box<History>>,
 }
@@ -138,7 +138,7 @@ impl ChatLog {
         for item in items {
             match item.imported {
                 // One that may not be history here (replayed into the log) is hidden.
-                Some(_) if item.signer == LogSigner::Bad => {}
+                Some(_) if item.signer == Signer::Bad => {}
                 Some(from) => {
                     importer.get_or_insert(from.importer);
                     imported.push(LogItem {
@@ -210,7 +210,7 @@ impl ChatLog {
             None | Some(None) => {
                 self.unopened.insert(item.seq, item.clone());
             }
-            _ if item.signer == LogSigner::Bad => {}
+            _ if item.signer == Signer::Bad => {}
             Some(Some(ChatEntry::Edit { message, body, .. })) => {
                 if let Some(shown) = self.authored(message, item.author) {
                     shown.body = Some(body);
@@ -298,7 +298,7 @@ impl ChatLog {
     /// of its author's takes it back.
     fn show_removed(&mut self) {
         for (seq, gone) in &self.unopened {
-            if gone.signer != LogSigner::Redacted
+            if gone.signer != Signer::Redacted
                 || self.taken_back.contains(seq)
                 || self.messages.contains_key(seq)
             {
@@ -381,7 +381,7 @@ impl ChatLog {
         let own = self
             .messages
             .values()
-            .filter(|shown| shown.author == me && !shown.removed && shown.signer != LogSigner::Bad)
+            .filter(|shown| shown.author == me && !shown.removed && shown.signer != Signer::Bad)
             .map(|shown| shown.seq)
             .next_back();
         let from = match (place, own) {
@@ -394,23 +394,23 @@ impl ChatLog {
                 shown.author != me
                     && shown.deleted.is_none()
                     && shown.body.is_some()
-                    && shown.signer != LogSigner::Bad
+                    && shown.signer != Signer::Bad
             })
             .count()
     }
 }
 
 /// The less trusted of two verdicts on what one row shows.
-pub fn least_trusted(one: LogSigner, other: LogSigner) -> LogSigner {
-    fn rank(signer: LogSigner) -> u8 {
+pub fn least_trusted(one: Signer, other: Signer) -> Signer {
+    fn rank(signer: Signer) -> u8 {
         match signer {
-            LogSigner::Verified => 0,
-            LogSigner::Unverified => 1,
-            LogSigner::Unknown => 2,
-            LogSigner::Changed => 3,
-            LogSigner::Redacted => 4,
-            LogSigner::Replaced => 5,
-            LogSigner::Bad => 6,
+            Signer::Verified => 0,
+            Signer::Unverified => 1,
+            Signer::Unknown => 2,
+            Signer::Changed => 3,
+            Signer::Redacted => 4,
+            Signer::Replaced => 5,
+            Signer::Bad => 6,
         }
     }
     match rank(other) > rank(one) {

@@ -1,4 +1,4 @@
-use be_sdk_beui::be_block_content::{BlockContent, LogItem, LogSigner};
+use be_sdk_beui::be_block_content::{BlockContent, LogItem, Signer};
 use be_sdk_beui::beui::vec2;
 use be_sdk_beui::{
     BlockCommand, BlockInfo, BlockParent, BlockTypeDescriptor, ChildOperations, EditorHost,
@@ -78,7 +78,7 @@ impl Harness {
 
     /// A chat whose messages were each written three minutes after the last, with who signed
     /// what each member appends as `signers` says, and a contact's key for anyone else.
-    fn trusting(messages: &[(Uuid, &str)], signers: &[(Uuid, LogSigner)]) -> Self {
+    fn trusting(messages: &[(Uuid, &str)], signers: &[(Uuid, Signer)]) -> Self {
         let mut harness = Self {
             editor: BeuiTest::new(OwnedEditor::new(host(), CHAT)),
         };
@@ -171,8 +171,8 @@ impl Harness {
                 author: item.author,
                 arrival: item.arrival,
                 signer: match item.payload {
-                    Some(_) => LogSigner::Verified,
-                    None => LogSigner::Redacted,
+                    Some(_) => Signer::Verified,
+                    None => Signer::Redacted,
                 },
                 payload: item.payload,
                 imported: item

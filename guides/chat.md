@@ -30,7 +30,7 @@ is named by its place in the log (its seq).
 `ChatLog::of` folds the entries an editor holds into what it shows (`Shown`):
 each message with its author's latest edit, its kept reactions and its
 author's deletion. A row's verdict is the least trusted of the entries it
-shows (`least_trusted`); an entry signed as nobody's (`LogSigner::Bad`)
+shows (`least_trusted`); an entry signed as nobody's (`Signer::Bad`)
 changes nothing, though a message so signed still shows, marked "forged". A
 redacted entry its author took back (named by a later entry of theirs: a
 deletion, a `takes_back`) shows only as the message the deletion names; one

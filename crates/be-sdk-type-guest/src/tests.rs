@@ -7,12 +7,14 @@ use be_block_model::{
     Anchor, BlockRef, Change as ModelChange, Count, Document, Edit, List, Model, ObjectId, Text,
 };
 use be_block_protocol::ClientId;
-use be_block_protocol::{JoinedParticipant, MembershipChange, SessionState};
+use be_block_protocol::{
+    JoinedParticipant, Journal, JournalBase, MembershipChange, SessionState,
+};
 use be_block_session::{Membership, Resume, Sequencer};
 use be_block_store::Hash;
 use be_sdk_type_api::{
-    Change, Description, EditorId, Endpoint, Journal, JournalBase, Opening, PublishOutcome,
-    Recipients, SessionTag, Status, UndoState,
+    Change, Description, EditorId, Endpoint, Opening, PublishOutcome, Recipients, SessionTag,
+    Status, UndoState,
     embed::{exports::replicas::Replica, host::Call},
     ops::{Backlog, Connection, Incoming, OpId, Outcome, Outlets, Reply, Side, guest::Executor},
 };
@@ -686,7 +688,7 @@ struct Sim<C: LiveEdit + Clone + Default> {
     journal_tag: SessionTag,
     /// The block's signed log, as the server numbers and stamps it: each device's client is its
     /// author, and every entry verified.
-    log: Vec<be_sdk_type_api::LogItem>,
+    log: Vec<be_block_content::LogItem>,
     make: fn() -> Module,
 }
 
@@ -1230,7 +1232,12 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
         }
         let sealed = base.commit.map(|commit| (commit, base.sequence));
         let run = base_run(&base);
-        self.journal = Some(Journal { base, entries });
+        self.journal = Some(Journal {
+            tag: Hash::from_bytes(self.devices[device].tag.0),
+            base,
+            entries,
+            lost: false,
+        });
         self.journal_tag = self.devices[device].tag;
         // As the server, which tells only a seal that moved the head.
         let Some((commit, through)) = sealed.filter(|_| new_commit) else {
@@ -1554,19 +1561,19 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                 }
                 let result = self
                     .vault
-                    .read_part(part.into(), range.offset, range.length)
+                    .read_part(part, range.offset, range.length)
                     .map_err(|error| error.to_string());
                 self.to(device, |host| reply.send(host, &result));
             }
             Call::Append { reply, bytes, .. } => {
                 let seq = self.log.len() as u64;
-                let item = be_sdk_type_api::LogItem {
+                let item = be_block_content::LogItem {
                     seq,
                     id: Uuid::from_u64_pair(client, seq),
                     author: Uuid::from_u64_pair(0, client),
                     arrival: self.now as i64,
                     payload: Some(bytes),
-                    signer: be_sdk_type_api::Signer::Verified,
+                    signer: be_block_content::Signer::Verified,
                     imported: None,
                 };
                 let place = be_sdk_type_api::host::LogPlace {
@@ -1589,7 +1596,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             }
             Call::LetGoRefused { reply, .. } => self.to(device, |host| reply.send(host, &())),
             Call::ReadLog { reply, from, limit } => {
-                let page = be_sdk_type_api::LogPage {
+                let page = be_block_content::LogPage {
                     size: self.log.len() as u64,
                     items: self
                         .log
@@ -1608,7 +1615,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                 self.parts_put += 1;
                 if self.fail_puts > 0 {
                     self.fail_puts -= 1;
-                    let result: Result<be_sdk_type_api::PartRef, String> =
+                    let result: Result<be_block_content::PartRef, String> =
                         Err("the server is unreachable".to_owned());
                     return self.to(device, |host| reply.send(host, &result));
                 }
@@ -1620,8 +1627,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                         be_block_content::Part::from(bytes.as_slice()),
                     )
                     .map_err(|error| error.to_string())
-                    .and_then(|manifest| manifest.root.ok_or_else(|| "no bytes".to_owned()))
-                    .map(be_sdk_type_api::PartRef::from);
+                    .and_then(|manifest| manifest.root.ok_or_else(|| "no bytes".to_owned()));
                 self.to(device, |host| reply.send(host, &result));
             }
             Call::ResumeSession { reply, local } => {
@@ -1670,7 +1676,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                         },
                         None,
                     );
-                    let entry = be_sdk_type_api::JournalEntry {
+                    let entry = be_block_protocol::JournalEntry {
                         sequence: op.sequence,
                         origin: op.id.origin,
                         counter: op.id.counter,
@@ -1728,7 +1734,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
     /// keeps it in the journal and hands it to every participant, `device` too.
     /// Takes `item` into the block's log, as the server would, and tells every open device's
     /// replica.
-    fn log_item(&mut self, item: be_sdk_type_api::LogItem) {
+    fn log_item(&mut self, item: be_block_content::LogItem) {
         self.log.push(item.clone());
         for device in self.open_devices() {
             self.with_replica(device, |replica, host| {
@@ -1759,7 +1765,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             },
             Some(self.now as i64),
         );
-        let entry = be_sdk_type_api::JournalEntry {
+        let entry = be_block_protocol::JournalEntry {
             sequence: op.sequence,
             origin: op.id.origin,
             counter: op.id.counter,
@@ -1772,14 +1778,17 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
         self.journal_tag = self.devices[device].tag;
         // A journal starts on the block's head as the server has it.
         let head = self.head;
+        let tag = Hash::from_bytes(self.devices[device].tag.0);
         self.journal
             .get_or_insert_with(|| Journal {
+                tag,
                 base: JournalBase {
                     commit: head,
                     sequence: 0,
                     state: Vec::new(),
                 },
                 entries: Vec::new(),
+                lost: false,
             })
             .entries
             .push(entry.clone());

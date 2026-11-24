@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use be_sdk_beui::be_block_content::be_block_model::BlockRef;
-use be_sdk_beui::be_block_content::{Along, LogSigner, SettingsLayer};
+use be_sdk_beui::be_block_content::{Along, Signer, SettingsLayer};
 use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::accesskit::{Node, Role};
 use be_sdk_beui::beui::datetime::{DateTime, HourCycle};
@@ -63,10 +63,10 @@ impl std::fmt::Display for RowKey {
 #[derive(Clone, Debug, PartialEq)]
 enum State {
     /// In the log, with who signed what it shows (`Shown::signer`).
-    Logged(LogSigner),
+    Logged(Signer),
     /// Deleted by its author, with a deletion whose key is worth saying: an old one, or one
     /// that changed. Deleted with a trusted key, a message shows no row.
-    Deleted(LogSigner),
+    Deleted(Signer),
     /// Redacted by someone other than its author (a manager, the server).
     Removed,
     /// Waits on this device for the server.
@@ -953,7 +953,7 @@ fn row(log: &ChatLog, shown: &Shown, me: Uuid, today: i64) -> Option<Row> {
     if let Some((_, signer)) = shown.deleted {
         return matches!(
             signer,
-            LogSigner::Changed | LogSigner::Replaced | LogSigner::Bad
+            Signer::Changed | Signer::Replaced | Signer::Bad
         )
         .then(|| Row {
             author: shown.author,
@@ -1228,10 +1228,10 @@ fn MessageRow(
         State::Logged(signer) | State::Deleted(signer) => Some(signer),
         State::Removed | State::Sending | State::NotSent(..) => None,
     });
-    let unverified = create_memo(move || signer.get() == Some(LogSigner::Unverified));
-    let changed = create_memo(move || signer.get() == Some(LogSigner::Changed));
-    let replaced = create_memo(move || signer.get() == Some(LogSigner::Replaced));
-    let forged = create_memo(move || signer.get() == Some(LogSigner::Bad));
+    let unverified = create_memo(move || signer.get() == Some(Signer::Unverified));
+    let changed = create_memo(move || signer.get() == Some(Signer::Changed));
+    let replaced = create_memo(move || signer.get() == Some(Signer::Replaced));
+    let forged = create_memo(move || signer.get() == Some(Signer::Bad));
     let old_key = create_memo(move || match matches!(state.get(), State::Deleted(_)) {
         true => "deleted with an old key".to_owned(),
         false => "sent with an old key".to_owned(),

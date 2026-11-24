@@ -48,10 +48,10 @@ async fn an_entry_the_server_refuses_is_kept_until_it_is_let_go() {
     let refused = back.refused_entries(revoked.note);
     assert_eq!(refused.len(), 1);
     assert_eq!(
-        (refused[0].0, &refused[0].1[..]),
+        (refused[0].id, &refused[0].payload[..]),
         (id, &b"written away"[..])
     );
-    assert!(!refused[0].2.is_empty(), "it says why");
+    assert!(!refused[0].why.is_empty(), "it says why");
     drop(back);
 
     let again = harness.offline(&revoked.carol, &refs, &store);
@@ -59,7 +59,7 @@ async fn an_entry_the_server_refuses_is_kept_until_it_is_let_go() {
         again
             .refused_entries(revoked.note)
             .into_iter()
-            .map(|(refused, ..)| refused)
+            .map(|refused| refused.id)
             .collect::<Vec<_>>(),
         [id],
         "the device keeps it across starting again"

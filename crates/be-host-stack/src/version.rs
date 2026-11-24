@@ -2289,7 +2289,7 @@ async fn relist(
     {
         return Err("That place keeps parts that version control cannot carry yet.".into());
     }
-    let change = be_sdk_type_api::Change::Child(super::api_child(change));
+    let change = be_sdk_type_api::Change::Child(change);
     let ctx = (context.peer, context.shared);
     for _ in 0..8 {
         let head = head_here(context.peer, parent).await?;

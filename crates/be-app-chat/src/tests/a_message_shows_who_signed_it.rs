@@ -16,10 +16,10 @@ fn a_message_shows_who_signed_it() {
             (ME, "Forged in my name"),
         ],
         &[
-            (tom, LogSigner::Unverified),
-            (ana, LogSigner::Changed),
-            (eve, LogSigner::Replaced),
-            (ME, LogSigner::Bad),
+            (tom, Signer::Unverified),
+            (ana, Signer::Changed),
+            (eve, Signer::Replaced),
+            (ME, Signer::Bad),
         ],
     );
     let rows: Vec<String> = (0..5).map(|index| chat.row(chat.seq(index))).collect();

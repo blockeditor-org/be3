@@ -9,7 +9,7 @@ fn members_show_by_their_names_and_a_name_the_server_gave_is_marked() {
             (TEO, "I can check the installers."),
             (ME, "It is. Thanks, both."),
         ],
-        &[(TEO, LogSigner::Unverified)],
+        &[(TEO, Signer::Unverified)],
     );
     let (rosa, teo, mine) = (chat.seq(0), chat.seq(1), chat.seq(2));
     // Until the host names them, members show by their account's first digits.

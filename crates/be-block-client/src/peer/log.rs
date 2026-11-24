@@ -4,12 +4,13 @@
 //! one this device kept by a consistency proof, so a page anywhere in a log costs that page and
 //! O(log n) hashes, and a server that cut, rewrote or forked a log is caught.
 
+use be_block_content::Signer;
 use be_block_keys::merkle::{self, TreeHash};
 use be_block_protocol::{ErrorCode, LogEntry, LogHead, LogPage, Logged, NewEntry, Op as Call};
 use be_block_store::{Hash, ObjectStore};
 use uuid::Uuid;
 
-use super::{Drained, Peer, Signer};
+use super::{Drained, Peer};
 use crate::{
     ClientError,
     refs::{Appending, KeptLogHead, Op, RefusedEntry, Until},
@@ -684,7 +685,7 @@ impl<S: ObjectStore> Peer<S> {
     /// The entries this device appended to `block`'s log that the server has not taken yet, in
     /// the order they wait in the outbox: each id with the bytes its app appended. One no key
     /// this device holds opens is left out.
-    pub fn kept_entries(&self, block: Uuid) -> Vec<(Uuid, Vec<u8>)> {
+    pub fn kept_entries(&self, block: Uuid) -> Vec<be_block_content::KeptEntry> {
         self.refs
             .pending_for(block)
             .into_iter()
@@ -693,7 +694,10 @@ impl<S: ObjectStore> Peer<S> {
                     return None;
                 };
                 let plain = self.open_for(block, &appending.payload).ok()?;
-                Some((appending.id, Said::opened(plain)?.bytes))
+                Some(be_block_content::KeptEntry {
+                    id: appending.id,
+                    payload: Said::opened(plain)?.bytes,
+                })
             })
             .collect()
     }
@@ -702,13 +706,17 @@ impl<S: ObjectStore> Peer<S> {
     /// has not let go (`let_go_refused`), in the order they were refused: each id with the bytes
     /// its app appended and why the server refused it. One no key this device holds opens is
     /// left out.
-    pub fn refused_entries(&self, block: Uuid) -> Vec<(Uuid, Vec<u8>, String)> {
+    pub fn refused_entries(&self, block: Uuid) -> Vec<be_block_content::RefusedEntry> {
         self.refs
             .not_appended(block)
             .into_iter()
             .filter_map(|refused| {
                 let plain = self.open_for(block, &refused.payload).ok()?;
-                Some((refused.id, Said::opened(plain)?.bytes, refused.why))
+                Some(be_block_content::RefusedEntry {
+                    id: refused.id,
+                    payload: Said::opened(plain)?.bytes,
+                    why: refused.why,
+                })
             })
             .collect()
     }
