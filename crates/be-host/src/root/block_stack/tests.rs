@@ -58,15 +58,20 @@ impl Served {
     fn step(&mut self, asked: Vec<(u64, SecretCommand)>) {
         crate::desk().deliver(&mut self.core);
         let (answers, waits) = (&mut self.answers, self.waits);
-        self.stack
-            .serve(&mut self.core, &self.context, Vec::new(), asked, |id, secret| {
+        self.stack.serve(
+            &mut self.core,
+            &self.context,
+            Vec::new(),
+            asked,
+            |id, secret| {
                 let name = secret.map(|secret| match secret {
                     CoreSecret::Agent(agent) => agent.name,
                     _ => panic!("only agents were asked for"),
                 });
                 answers.push((id, name));
                 waits
-            });
+            },
+        );
     }
 
     /// Steps frames, each once a request answered, until `done`.

@@ -42,6 +42,9 @@ fn an_instance_its_host_fails_stops_and_says_why() {
         (stopped, instance.next().await.unwrap())
     });
     let why = Err("it broke the app protocol".to_owned());
-    assert_eq!(stopped, why, "the guest hears why, not what it had not taken");
+    assert_eq!(
+        stopped, why,
+        "the guest hears why, not what it had not taken"
+    );
     assert_eq!(again, why, "what it sends after goes nowhere");
 }

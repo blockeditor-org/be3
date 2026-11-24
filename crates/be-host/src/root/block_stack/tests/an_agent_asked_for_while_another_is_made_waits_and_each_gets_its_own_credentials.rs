@@ -22,7 +22,10 @@ fn an_agent_asked_for_while_another_is_made_waits_and_each_gets_its_own_credenti
     served.until("both are answered", |served| served.answers.len() == 2);
     assert_eq!(
         served.answers,
-        vec![(1, Some("First".to_owned())), (2, Some("Second".to_owned()))],
+        vec![
+            (1, Some("First".to_owned())),
+            (2, Some("Second".to_owned()))
+        ],
         "each request is answered with the agent it asked for"
     );
     assert!(served.lists("First") && served.lists("Second"));
