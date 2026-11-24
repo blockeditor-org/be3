@@ -12,9 +12,9 @@ const USAGE: &str =
 /// and whose `:test-FILE` runs one against the host that stages the apps it names
 /// (crates/be-host-tests/BUCK).
 const PACKAGE: &str = "//crates/be-host-tests";
-/// Where the host tests are, one file each, named after its one test (run_apart in
-/// buck/cargo/defs.bzl).
-const TESTS: &str = "crates/be-host-tests/src/tests";
+/// The host tests' sources: each file in a `tests/` directory under them is a test of its own,
+/// named after the file (run_apart in buck/cargo/defs.bzl).
+const SOURCES: &str = "crates/be-host-tests/src";
 const REPEAT: usize = 20;
 
 /// A run that takes longer than this is stopped, with everything it started, and counted as
@@ -115,10 +115,10 @@ struct Failure {
 
 fn run(arguments: Vec<String>) -> Result<usize, String> {
     let options = options(arguments, default_parallel())?;
-    let tests = tests_named(&test_files()?, &options.name);
+    let tests = tests_named(&test_files(Path::new(SOURCES))?, &options.name);
     if tests.is_empty() {
         return Err(format!(
-            "No host test's name contains {}: stress runs only the host tests ({TESTS}).",
+            "No host test's name contains {}: stress runs only the host tests (the files in a tests/ directory under {SOURCES}), and matches NAME against each one's full name, such as tests::STEM::STEM.",
             options.name
         ));
     }
@@ -242,26 +242,53 @@ fn file_name(name: &str) -> String {
         .collect()
 }
 
-/// The stems of the host tests' files, each the name of its one test.
-fn test_files() -> Result<Vec<String>, String> {
-    let entries =
-        fs::read_dir(TESTS).map_err(|error| format!("could not read {TESTS}: {error}"))?;
-    let mut stems: Vec<String> = entries
-        .flatten()
-        .map(|entry| entry.path())
-        .filter(|path| path.extension().is_some_and(|extension| extension == "rs"))
-        .filter_map(|path| Some(path.file_stem()?.to_string_lossy().into_owned()))
-        .collect();
-    stems.sort();
-    Ok(stems)
+/// A host test: its part's name, as `:test-PART` (`--apart`), and its full name, as libtest's
+/// filter reads it.
+#[derive(Clone, Debug, PartialEq)]
+struct Test {
+    part: String,
+    libtest: String,
 }
 
-/// The stems of the tests whose full names, as libtest's filter reads them
-/// (`tests::STEM::STEM`), contain `name`.
-fn tests_named(stems: &[String], name: &str) -> Vec<String> {
-    stems
+/// The tests under `sources` as cargo_test names them (buck/cargo/defs.bzl): a file
+/// `src/MODULE/tests/STEM.rs` is the part `MODULE-tests-STEM` (`tests/STEM.rs` is `STEM`) and
+/// runs `MODULE::tests::STEM::STEM`.
+fn test_files(sources: &Path) -> Result<Vec<Test>, String> {
+    fn walk(directory: &Path, module: &mut Vec<String>, tests: &mut Vec<Test>) -> Result<(), String> {
+        let entries = fs::read_dir(directory)
+            .map_err(|error| format!("could not read {}: {error}", directory.display()))?;
+        for entry in entries.flatten() {
+            let path = entry.path();
+            let name = entry.file_name().to_string_lossy().into_owned();
+            if path.is_dir() {
+                module.push(name);
+                walk(&path, module, tests)?;
+                module.pop();
+            } else if module.last().is_some_and(|last| last == "tests")
+                && let Some(stem) = name.strip_suffix(".rs")
+            {
+                let mut path = module.clone();
+                path.push(stem.to_owned());
+                let joined = path.join("/");
+                tests.push(Test {
+                    part: joined.strip_prefix("tests/").unwrap_or(&joined).replace('/', "-"),
+                    libtest: format!("{}::{stem}", path.join("::")),
+                });
+            }
+        }
+        Ok(())
+    }
+    let mut tests = Vec::new();
+    walk(sources, &mut Vec::new(), &mut tests)?;
+    tests.sort_by(|a, b| a.part.cmp(&b.part));
+    Ok(tests)
+}
+
+/// The tests whose full names contain `name`, as libtest's filter matches them.
+fn tests_named(tests: &[Test], name: &str) -> Vec<Test> {
+    tests
         .iter()
-        .filter(|stem| format!("tests::{stem}::{stem}").contains(name))
+        .filter(|test| test.libtest.contains(name))
         .cloned()
         .collect()
 }
@@ -323,12 +350,17 @@ impl Job {
 
 /// The `[command]` of `:test`, or with `--apart` of each test's `:test-STEM`, built in one
 /// buck2 invocation with everything they run.
-fn build(options: &Options, tests: &[String]) -> Result<Vec<Job>, String> {
+fn build(options: &Options, tests: &[Test]) -> Result<Vec<Job>, String> {
     let targets: Vec<(Option<String>, String)> = match options.apart {
         false => vec![(None, format!("{PACKAGE}:test[command]"))],
         true => tests
             .iter()
-            .map(|test| (Some(test.clone()), format!("{PACKAGE}:test-{test}[command]")))
+            .map(|test| {
+                (
+                    Some(test.part.clone()),
+                    format!("{PACKAGE}:test-{}[command]", test.part),
+                )
+            })
             .collect(),
     };
     let output = Command::new("./scripts/buck")
