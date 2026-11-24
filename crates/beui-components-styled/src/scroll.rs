@@ -99,6 +99,9 @@ pub fn Scroll(
     #[prop(default = 0.0)] offset: Prop<f32>,
     #[prop(default = None)] reveal: Prop<Option<usize>>,
     #[prop(default = Direction::Vertical)] direction: Prop<Direction>,
+    /// Offsets a fling and a release settle on (`unstyled::Scroll`'s `snaps`).
+    #[prop(default = Vec::new())]
+    snaps: Prop<Vec<f32>>,
     #[prop(default = false)] fit: bool,
     #[prop(default = None)] max_length: Prop<Option<Size>>,
     #[prop(default = false)] follow_end: Prop<bool>,
@@ -114,6 +117,7 @@ pub fn Scroll(
             offset
             reveal
             direction
+            snaps
             fit={fit || bounded}
             follow_end
             bleed={bleed.map(|bleed| bleed.reach)}
