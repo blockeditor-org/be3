@@ -308,12 +308,21 @@ enum Job<C> {
 
 impl<C> Job<C> {
     /// Whether the job may run while a seal is on its way: the order goes on meanwhile, and so
-    /// does what editors do.
+    /// does what editors do. A reload does not: it reads its commit, which is a wait of its own,
+    /// so it and what comes after it wait for the seal to land.
     fn passes_a_seal(&self) -> bool {
+        if let Job::Ordered(op) = self {
+            return !matches!(
+                Submitted::decode(&op.payload),
+                Some(Submitted {
+                    entry: Entry::Reload { .. },
+                    ..
+                })
+            );
+        }
         matches!(
             self,
-            Job::Ordered(_)
-                | Job::Heard { .. }
+            Job::Heard { .. }
                 | Job::Unblocked
                 | Job::Input(
                     Input::Message {
@@ -609,6 +618,15 @@ enum Wait<C> {
     Payloads {
         loaded: C,
     },
+    /// A seal, while the part its session state goes by is put (`journal_state`): what it
+    /// publishes once it is.
+    StatePut {
+        hash: Hash,
+        expected: Option<CommitId>,
+        merging: Option<Merging>,
+        content: Written,
+        then: AfterPublish,
+    },
 }
 
 #[derive(Default)]
@@ -843,13 +861,12 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     puts: BTreeMap<Token, Putting>,
     /// This replica's operations too large to submit inline, by the hash of their bytes.
     uploads: HashMap<Hash, Upload>,
-    /// The last session state too large for a journal's base to carry inline, by the hash of
-    /// its bytes, as the part it is put as (`journal_state`).
-    state_part: Option<(Hash, Upload)>,
-    /// A seal waiting for the part its state goes by: what it publishes once it is put.
-    seal_putting: Option<(Option<CommitId>, Option<Merging>, Written, AfterPublish)>,
-    /// A rebase of the journal waiting for the part its state goes by.
-    rebase_putting: bool,
+    /// Session states too large for a journal's base to carry inline, by the hash of their
+    /// bytes, as the parts they are put as (`journal_state`): those a seal or a rebase waits
+    /// for, and the last seal's, which a rebase on it names again.
+    state_parts: HashMap<Hash, Upload>,
+    /// A rebase of the journal waiting for the part its state goes by, by the state's hash.
+    rebase_putting: Option<Hash>,
     /// The bytes of operations sent by their part that this replica put or read, until it has
     /// applied them and nothing pending names them.
     payloads: HashMap<PartRef, Vec<u8>>,
@@ -1232,9 +1249,8 @@ where
             ranges_before: Vec::new(),
             puts: BTreeMap::new(),
             uploads: HashMap::new(),
-            state_part: None,
-            seal_putting: None,
-            rebase_putting: false,
+            state_parts: HashMap::new(),
+            rebase_putting: None,
             payloads: HashMap::new(),
             reading: BTreeMap::new(),
             read_failures: HashMap::new(),
@@ -1348,10 +1364,15 @@ where
     fn sealing_out(&self) -> bool {
         matches!(
             self.waiting,
-            Some(Wait::Publish {
-                then: AfterPublish::Seal { .. },
-                ..
-            })
+            Some(
+                Wait::Publish {
+                    then: AfterPublish::Seal { .. },
+                    ..
+                } | Wait::StatePut {
+                    then: AfterPublish::Seal { .. },
+                    ..
+                }
+            )
         )
     }
 
@@ -1577,18 +1598,23 @@ where
 
     /// The base state a journal starts from with `state`, the session state as of `sequence`,
     /// and the parts it names: a state too large to carry inline goes by the part it is put as,
-    /// as a reload's does. None while that part is put.
-    fn journal_state(&mut self, state: Vec<u8>, sequence: u64) -> Option<(Vec<u8>, Vec<PartRef>)> {
+    /// as a reload's does. While that part is put, the hash of the state it waits for.
+    fn journal_state(
+        &mut self,
+        state: Vec<u8>,
+        sequence: u64,
+    ) -> Result<(Vec<u8>, Vec<PartRef>), Hash> {
         if state.len() <= largest_inline() {
-            return Some((self.base_state(state, None, sequence), Vec::new()));
+            return Ok((self.base_state(state, None, sequence), Vec::new()));
         }
         let hash = Hash::of(&state);
-        match self.state_part {
-            Some((put, Upload::Put(part))) if put == hash => {
-                Some((self.base_state(Vec::new(), Some(part), sequence), vec![part]))
+        match self.state_parts.get(&hash) {
+            Some(Upload::Put(part)) => {
+                let part = *part;
+                Ok((self.base_state(Vec::new(), Some(part), sequence), vec![part]))
             }
-            Some((put, Upload::Putting)) if put == hash => None,
-            _ => {
+            Some(Upload::Putting) => Err(hash),
+            None => {
                 let token = self.token();
                 self.out.push(Effect::PutPart {
                     replica: self.id,
@@ -1596,53 +1622,86 @@ where
                     bytes: state,
                 });
                 self.puts.insert(token, Putting::State(hash));
-                self.state_part = Some((hash, Upload::Putting));
-                None
+                self.state_parts.insert(hash, Upload::Putting);
+                Err(hash)
             }
         }
     }
 
-    /// The part a journal's state goes by was put, or could not be: what waited for it goes on.
+    /// The part a journal's state goes by was put, or could not be: the seal or rebase that
+    /// waited for it goes on, or is tried again later.
     fn state_put(&mut self, hash: Hash, result: Result<PartRef, String>) {
-        if !self.state_part.is_some_and(|(put, _)| put == hash) {
-            return;
-        }
+        let waits = matches!(&self.waiting, Some(Wait::StatePut { hash: waits, .. }) if *waits == hash);
+        let rebase = self.rebase_putting == Some(hash);
         match result {
             Ok(part) => {
-                self.state_part = Some((hash, Upload::Put(part)));
-                if let Some((expected, merging, content, then)) = self.seal_putting.take() {
+                self.state_parts.insert(hash, Upload::Put(part));
+                if waits
+                    && let Some(Wait::StatePut {
+                        expected,
+                        merging,
+                        content,
+                        then,
+                        ..
+                    }) = self.waiting.take()
+                {
                     self.publish(expected, merging, content, then);
                 }
-                if std::mem::take(&mut self.rebase_putting) {
+                if rebase && !self.released {
+                    self.rebase_putting = None;
                     self.rebase_journal();
                 }
             }
             Err(error) => {
-                self.state_part = None;
+                self.state_parts.remove(&hash);
                 self.error(format!(
                     "a session state too large to carry inline could not be put: {error}"
                 ));
                 // The seal is tried again on its timer; the next seal rebases the journal.
-                if let Some((.., AfterPublish::Seal { reply, .. })) = self.seal_putting.take() {
+                if waits
+                    && let Some(Wait::StatePut {
+                        then: AfterPublish::Seal { reply, .. },
+                        ..
+                    }) = self.waiting.take()
+                {
                     self.sealing = false;
                     self.seal_failed();
                     if let Some(id) = reply {
                         self.reply(id, Answer::Sealed);
                     }
                 }
-                self.rebase_putting = false;
+                if rebase {
+                    self.rebase_putting = None;
+                }
             }
         }
+        self.prune_state_parts();
+    }
+
+    /// Keeps only the state parts something waits for, and the last seal's.
+    fn prune_state_parts(&mut self) {
+        let waiting = match &self.waiting {
+            Some(Wait::StatePut { hash, .. }) => Some(*hash),
+            _ => None,
+        };
+        let sealed = Hash::of(&self.sealed_state);
+        let rebase = self.rebase_putting;
+        self.state_parts.retain(|hash, _| {
+            Some(*hash) == waiting || Some(*hash) == rebase || *hash == sealed
+        });
     }
 
     /// Starts the journal from this holder's base: its last commit, the sequence it holds, and
     /// the session state as of it.
     fn rebase_journal(&mut self) {
-        let Some((state, parts)) = self.journal_state(self.sealed_state.clone(), self.sealed)
-        else {
-            self.rebase_putting = true;
-            return;
+        let (state, parts) = match self.journal_state(self.sealed_state.clone(), self.sealed) {
+            Ok(base) => base,
+            Err(hash) => {
+                self.rebase_putting = Some(hash);
+                return;
+            }
         };
+        self.rebase_putting = None;
         self.out.push(Effect::Rebase {
             replica: self.id,
             restarts: self.restarts,
@@ -2698,11 +2757,20 @@ where
         // carry inline is put first, and the seal waits for it.
         let (sealed_through, journal_state, journal_parts) = match &then {
             AfterPublish::Seal { through, state, .. } => {
-                let Some((state, parts)) = self.journal_state(state.clone(), *through) else {
-                    self.seal_putting = Some((expected, merging, content, then));
-                    return;
-                };
-                (Some(*through), Some(state), parts)
+                match self.journal_state(state.clone(), *through) {
+                    Ok((state, parts)) => (Some(*through), Some(state), parts),
+                    // It waits as a publish does, so nothing else starts meanwhile.
+                    Err(hash) => {
+                        self.waiting = Some(Wait::StatePut {
+                            hash,
+                            expected,
+                            merging,
+                            content,
+                            then,
+                        });
+                        return;
+                    }
+                }
             }
             AfterPublish::Merged { .. } => (None, None, Vec::new()),
         };
@@ -2878,6 +2946,7 @@ where
                 }
                 self.settle_at(head, through);
                 self.sealed_state = state;
+                self.prune_state_parts();
                 self.lacking.sealed(through, held, head);
                 // What came after the seal still owes one, timed from now.
                 self.owes_since = (self.applied > through).then_some(self.now);
