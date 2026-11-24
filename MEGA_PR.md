@@ -96,14 +96,12 @@ Landed on 2026-11-22 in one verify: signed logs 5b (`signed-logs-5b-10`), `backl
     - What remains of the plan is plans/seal_states_go_by_part.md: the 4 MiB ceiling when not alone.
 
 **Work in progress:**
-- `claude/flush-after-revoke-2` (on 61b08a86): fixes `a_publish_right_after_a_revoke_lands_without_waiting`, which stalled only under verify's load with "owes a seal: true, publishes unanswered: 0".
-  - Likely cause (reproduced in the module, not caught under load): a flush asked the module to seal while the holder's edit still waited for its place in the order, so nothing was owed yet and the seal was declined. Nothing asked again, and these tests' clock never brings the quiet-spell seal.
-  - Fix, in be-sdk-type-guest: the replica remembers a seal the host asked for and declined while its own edits or a reload were on their way (`seal_asked`). It seals once they land.
-  - `a_seal_asked_for_while_an_edit_waits_for_its_place_goes_once_it_has_one` reproduces it deterministically by holding the submission, and fails without the fix.
-  - The stall report now shows whether the replica holds the lease.
-  - Dropped:
-    - the worker's `flushed_ahead` reseal: a flush is answered only after its own `keep_all` once the line is quiet, so it was redundant;
-    - the attempt test, which never reproduced the stall.
+- `claude/flush-after-revoke-4`: fixes `a_publish_right_after_a_revoke_lands_without_waiting`, which stalled only under verify's load with "owes a seal: true, publishes unanswered: 0".
+  - Cause: the flush answered while this device's replica did not hold the lease yet (a trace of a passing run shows the lease arriving between the flush command and its keep). A replica that is not the holder leaves its numbered edits to the holder's seal, so the flush owed nothing. Once the lease came to it, it owed that seal and waited for its quiet spell, which the held clock never brings.
+  - Fix, in be-block-type-host: when a flush answers, `Replicas::flushed` marks each open block that is unclean, unreported or not the lease holder. When such a block's status next reports a seal it owes and can make (holder, no publish or seal ask out), it is asked once (`seal_flushed`). Status reports drive it, so it does not spin; a reload holding seals back clears `owes_seal` until it ends.
+  - `a_flush_answered_before_the_lease_comes_back_seals_once_it_does` (be-host-stack) reproduces it: an outside peer claims the lease, this device adds and flushes, then claims the lease back. Without the fix it fails with the stall's signature.
+  - The stall report shows whether the replica holds the lease.
+  - Dropped: the worker's `flushed_ahead` reseal, the attempt test, and a guest-side re-ask (`seal_asked`), which raced the flush's own late keep.
   - Separate and not started: the counter-seal flake `an_edit_sealed_offline_onto_a_seal_the_server_lost_lands_once` ("never counted 5, last 2"). After reopening, the replica opened on the older seal and was never told the server's newer head, which looks like a lost head announcement.
 
 **Not started:**

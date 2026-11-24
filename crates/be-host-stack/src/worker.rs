@@ -2019,6 +2019,7 @@ impl Session<'_> {
                             .lock()
                             .unwrap_or_else(PoisonError::into_inner)
                             .importing;
+                    self.replicas.flushed();
                     for done in flushes.drain(..) {
                         let _ = done.send(unsaved);
                     }

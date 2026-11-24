@@ -808,6 +808,9 @@ struct Open {
     /// Whether `replay`'s local edits or the counts beside them changed since they were kept
     /// on the device (`Replicas::keep_edits`).
     edits_changed: bool,
+    /// A flush answered while it held edits no seal took (`Replicas::flushed`): it is asked to
+    /// seal once it owes one it can make.
+    flush_owed: bool,
     reporting: Option<CommitId>,
     /// A join's answer held while the replica settles (`Replicas::settling`), handled once it
     /// has.
@@ -1977,6 +1980,7 @@ impl<H: Host> Replicas<H> {
                 heard_through: journal_through(opening_journal.as_ref()),
                 // A block opened for the first time on this device keeps its origin at once.
                 edits_changed: !recovered_any,
+                flush_owed: false,
                 reporting: None,
                 held: None,
                 publish_error: None,
@@ -2855,6 +2859,43 @@ impl<H: Host> Replicas<H> {
                 handle.refused(connection, entries);
             });
         }
+    }
+
+    /// A flush answers while open blocks may still hold edits no seal took: one whose edits
+    /// wait for their place in the order, or whose module has yet to report on them, owes
+    /// nothing it can seal yet; one whose module does not hold the lease leaves its edits to
+    /// the holder's seal, and owes that seal itself if the lease comes to it. Each is asked once
+    /// it reports a seal it owes and can make, rather than at its next quiet spell.
+    pub fn flushed(&mut self) {
+        for open in self.open.values_mut() {
+            open.flush_owed = !open.status.clean || open.unreported() || !open.status.holder;
+        }
+    }
+
+    /// Asks `replica` to seal once a flush answered with its edits unsealed (`flushed`) and it
+    /// now owes a seal it can make, with none on its way. Its status reports drive this, so it
+    /// asks once, not every pass.
+    fn seal_flushed(&mut self, replica: ReplicaId) {
+        let sealing = self
+            .asked
+            .values()
+            .any(|(asked, ask)| *asked == replica && matches!(ask, Asked::Seal(_)));
+        let Some(open) = self.open.get_mut(&replica) else {
+            return;
+        };
+        if !open.flush_owed {
+            return;
+        }
+        if open.status.clean && !open.unreported() && open.status.holder {
+            open.flush_owed = false;
+            return;
+        }
+        if !open.status.owes_seal || !open.status.holder || open.publishing > 0 || sealing {
+            return;
+        }
+        open.flush_owed = false;
+        let block = open.block;
+        self.seal_later(block, false);
     }
 
     pub fn take_kept(&mut self) -> bool {
@@ -4622,6 +4663,7 @@ impl<H: Host> Replicas<H> {
                 }
             }
         }
+        self.seal_flushed(replica);
         H::status(shared, block, &status);
         self.counted(shared);
         true
