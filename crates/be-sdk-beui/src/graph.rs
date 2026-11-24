@@ -56,16 +56,6 @@ impl Blocks {
         self.graph.create_named(content, parent, name)
     }
 
-    pub fn create_artifact<C: be_block_content::BlockContent>(
-        &self,
-        content: &C,
-        parent: BlockParent,
-        name: Option<String>,
-        artifact: be_block_content::Artifact,
-    ) -> Uuid {
-        self.graph.create_artifact(content, parent, name, artifact)
-    }
-
     pub fn create_with(
         &self,
         block_type: Uuid,

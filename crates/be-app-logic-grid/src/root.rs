@@ -860,14 +860,4 @@ impl Default for LogicGridEditor {
 }
 
 #[cfg(test)]
-pub(crate) fn descriptor_data(source: Uuid) -> Vec<u8> {
-    dynamic_artifact::descriptor(source).settings
-}
-
-#[cfg(test)]
-pub(crate) fn artifact_summary(data: &[u8]) -> String {
-    dynamic_artifact::summary(data)
-}
-
-#[cfg(test)]
 mod tests;
