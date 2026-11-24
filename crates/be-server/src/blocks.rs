@@ -2666,7 +2666,13 @@ pub(crate) const BLOCK_COLUMNS: &[(&str, &str, &str)] = &[
     (
         "links",
         "grant_block",
-        "not deleted: the blocks are made by an account that holds no links",
+        "not deleted: the blocks are made by an account that holds no links, which it checks",
+    ),
+    (
+        "block_departures",
+        "entry",
+        "kept, so a follower catching up under that entry still hears what left it, until \
+         departures a day old are forgotten (`changes::departed`)",
     ),
 ];
 
@@ -2677,8 +2683,8 @@ impl ServerStore {
     /// `graph`. The objects nothing holds then are deleted once that is kept (`free_later`). The
     /// blocks are a whole subtree (a departed guest's shell): nothing outside it lies in them,
     /// so no row of a block left names one as its parent or the block above it. Their maker
-    /// holds no links (a guest makes none), so no link grants one; a link that did would
-    /// outlive it.
+    /// holds no links (a guest makes none), so no link grants one: one that did would outlive
+    /// it, so it refuses as corrupt, forgetting nothing.
     pub(crate) fn forget_blocks(
         &self,
         connection: &Connection,
@@ -2693,15 +2699,16 @@ impl ServerStore {
                 .and_then(|node| node.parent.block())
                 .is_none_or(|parent| !blocks.contains(&parent) || blocks[..at].contains(&parent))
         }));
-        debug_assert!(blocks.iter().all(|block| {
-            connection
-                .query_row(
-                    "SELECT COUNT(*) FROM links WHERE grant_organization = ?1 AND grant_block = ?2",
-                    params![organization.to_string(), block.to_string()],
-                    |row| row.get::<_, i64>(0),
-                )
-                .is_ok_and(|links| links == 0)
-        }));
+        for block in blocks {
+            let links: i64 = connection.query_row(
+                "SELECT COUNT(*) FROM links WHERE grant_organization = ?1 AND grant_block = ?2",
+                params![organization.to_string(), block.to_string()],
+                |row| row.get(0),
+            )?;
+            if links > 0 {
+                return Err(ServerError::Corrupt);
+            }
+        }
         let mut freed = Vec::new();
         let mut released: Vec<(Uuid, Vec<Hash>)> = Vec::new();
         {
