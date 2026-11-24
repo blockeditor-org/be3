@@ -53,8 +53,8 @@ placer's raster, composited under the placer's layer (over it when placed
 is. The root tells the host through `be3:root`'s `host.show-children` which
 editor shows each child, and the host makes each child's status from that
 editor's manifest and tells the placer, as it does for its own children. The
-keyboard, gifts, frame takeovers, joined docks and drags are not there yet,
-and a child of any other kind, or a preview, the placer hears is unavailable.
+keyboard, frame takeovers, joined docks and drags are not there yet, and a
+child of any other kind, or a preview, the placer hears is unavailable.
 
 ## Drawing order
 
@@ -123,95 +123,51 @@ tab when it hears this (`DockTabControl::content_focused`, so a dock that stops
 showing the tab hands the keyboard to the one shown in its place), and one in an
 empty pane's view focuses that pane, so a press in a child (a joined dock's tab
 body or empty pane included) focuses what holds it and brings its window in
-front; `on_focus` is for anything more. An editor can ask to give the keyboard
-to a child the host already took away, since it hears of the child placed in
-its stead only after the commit that placed it (a joined editor's tab body shown
-again). The host answers `gift-missed` for a child its latest changes took away
-(`Instance::departed`), and the slot that placed it gives the keyboard to the
-child it places now (`EditorHost::missed_gift`, `Slot::before`), so a gift is
-asked again only when one missed. A child that takes a press without the
-keyboard (one being presented) brings nothing forward. The other way,
-`EditorHost::focus_child` gives a child the keyboard, but only while the
-keyboard is already inside the editor's views and no popover or keyboard-taking
-layer is open, so it never steals focus from elsewhere. `ChildBlock` and
-`Subregion` in a dock tab ask for it whenever the dock gives that tab the
-keyboard. `EditorHost::focus_block_child` asks the same for the child that will
-show a block, so an editor that makes a block to type into ("Add notes") asks in
-the frame that makes it, before the child exists.
+front; `on_focus` is for anything more. A child that takes a press without the
+keyboard (one being presented) brings nothing forward.
 
-Each editor instance makes at most one gift at a time
-(`be-host-runtime/src/instances/gift.rs`): what it gives the keyboard to (a
-block, a child, then the child's view), the keys held for it and the editor's
-view they were typed into. It moves pending → given → ready → done, and
-`Instances::end_gift` ends it however it ends:
+The other way, an editor asks that a child take the keyboard in the child's
+placement, never by a call: `ChildBlock` and `Subregion` take a `keyboard`
+count, and each time it grows the placement carries the editor's next
+`keyboard-ask` serial (be-sdk-beui's `register_child`). A `ChildBlock` or
+`Subregion` in a dock tab adds one each time the dock gives that tab the
+keyboard or brings its window forward, while no popover or keyboard-taking
+layer of the editor's is open. An editor that makes a block to type into ("Add
+notes") places its child with a count of one once it places it; a program tab
+counts its window's raises and calls for attention.
 
-- Pending: keys typed into the editor's view are held. A block gift turns
-  into a gift to the child that shows the block at a layout commit, and the
-  placer's views hear which child (`InstanceEvent::KeyboardGift`, kept per
-  instance in be-host's `app_view/gifts.rs` until the child's view is built
-  and takes it with `be_host_runtime::take_gift`).
-- Given: the child's view took the keyboard. It has to be seen with it by the
-  next host pass, or it lost it before it saw it and the gift ends, so keys
-  are never replayed into a view focused much later. Until then an input it
-  hears without the keyboard (a resting pointer's move sent as it was laid out)
-  ends nothing. Keys typed into it queue behind the held ones.
-- Ready: a text field in it has the keyboard (its view asks for an input
-  method in a frame its app answered after the focus, so an input method left
-  from before does not count), or, for a child with none, its app drew two
-  frames after it had its block's content and the focus (the count starts
-  again if the content is replaced, or relayed again for an editor that asked
-  for it with `Resend`, as an app that starts does even when the host relayed
-  it already). The child's app hears the held keys, in
-  order and ahead of its own.
-- Ended before that: when the person presses in the editor or takes the
-  keyboard elsewhere, when the child stops being placed in a mode that runs
-  an editor, when the host refused to make the block, when the editor has no
-  view left, when the child's app fails to start, and when its instance or
-  app goes. Nothing else ends it until the child is up: its view built and
-  its app running (`child_up_for_gift`), which takes any time while the host
-  makes the block, the editor places it and a cold start downloads and
-  compiles the child's app. From then the child's view has `GIFT_COMMITS` (8)
-  of the editor instance's own layout commits (those that carry its children
-  or one of its frame reports; other instances of the app do not count) or
-  `GIFT_WAIT` (3 s) on the frame clock, which bounds an editor that commits
-  nothing, to take it. So a child that is up but never shown in a view that
-  takes the keyboard ends the gift on its own. The editor's view hears the
-  held keys if it has the keyboard by the next host pass; otherwise they are
-  dropped.
+The host acts on the layout commit that carries a serial above every one it
+acted on for the editor (be-host-runtime's `Instances::set_children`, which
+names the child to the compositor with `InstanceEvent::KeyboardAsked`): the
+view that shows the child takes the keyboard as it is built, or at once if it
+is, without waiting for the child's app (be-host's `focus_when_given`). It does
+so only while the keyboard is inside the placer's views or the children they
+show and no view that takes the keyboard is open, so it never steals focus from
+elsewhere; otherwise the ask does nothing. An ask not acted on by the next
+commit is withdrawn. A window child (a program window) takes the keyboard from
+the host directly.
 
-Only the latest ask stands. A new ask replaces the gift and carries its keys,
-including keys already owed to the child an earlier ask gave the keyboard to,
-to the new child. A window child (a program window) takes the keyboard from
-the host directly, and the keys held for it are dropped, as the editor no
-longer has the keyboard.
+Keys are never held (decisions/keys_are_never_held.md): a key goes to whatever
+has the keyboard when it is routed, and one routed to a child whose app does
+not run yet is dropped, as is everything an app that is not running would hear.
+Nothing waits for an editor to claim a key or the keyboard.
 
-Keys typed into a view right after a press there wait the same way, as a
-pending gift to nothing yet (`GiftTo::Answer`), until its app has drawn a
-frame after the press (only for a press the app was sent, as it draws no frame
-for one that never reached it), since that frame may carry the ask ("Add
-notes" asks as it is clicked), and go to the view if it asked for nothing.
-Owed keys and the keyboard are kept by view, not by the node that catches its
-input: when the host builds a view's catcher again (a late child placed in a
-new pane), the new one takes over both, unless the keyboard went elsewhere
-meanwhile. A view that is no longer placed leaves nothing behind. A child
-never reads what its placer's view stores (`Placer` names the app with a
-plain string), as a child's effects can outlive the placer's view.
+The keyboard is kept by view, not by the node that catches its input: when the
+host builds a view's catcher again (a late child placed in a new pane), the new
+one takes the keyboard back, unless it went elsewhere meanwhile. A child never
+reads what its placer's view stores (`Placer` names the app with a plain
+string), as a child's effects can outlive the placer's view.
 
 A joined editor's content moves from its main view, which stays placed but is
 shown nowhere, into its dock tab view, built after the main view goes. That
-view takes over the keyboard and the keys the main view had
-(`keyboard_follows_content` in be-host's `app_view.rs`; the runtime's
-`forget_keys` finds where the content moved, `content_moved`). So a dock tab
-view is owed keys by two editors: the one that hosts its tab (it is that
-editor's child, given the keyboard with the tab) and the one that placed the
-instance (`key_placers`).
+view takes over the keyboard the main view had (`keyboard_follows_content` in
+be-host's `app_view.rs`; the runtime's `content_moved` finds where the content
+moved).
 
-Held keys skip the child's input method, so a composition (CJK) started before
-the child shows arrives as its committed text. An empty text block given the
-keyboard puts its caret in its text. It reads its own views' keyboard
-(`Editor::has_keyboard`), not the document's (`use_document_keyboard`): an app's
-instances share one document, and an instance reading the document's would act
-on a keyboard given to another.
+An empty text block given the keyboard puts its caret in its text. It reads its
+own views' keyboard (`Editor::has_keyboard`), not the document's
+(`use_document_keyboard`): an app's instances share one document, and an
+instance reading the document's would act on a keyboard given to another.
 
 ## Docks across apps
 

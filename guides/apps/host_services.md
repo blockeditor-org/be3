@@ -90,6 +90,10 @@ Notes on particular calls:
   what you asked.
 - `occlude(rect)` tells the host the editor draws over children placed so
   far there.
+- No call gives a child the keyboard: its placement asks for it
+  (`ChildBlock`'s and `Subregion`'s `keyboard`, the protocol's `keyboard-ask`),
+  and the host moves the keyboard at the commit that carries the ask, without
+  waiting for the child's app (guides/apps/children.md, Focus).
 - `create_block_agent(block, name)`, `rotate_agent_token(agent)` and
   `remove_agent(agent)` make, re-key and delete an agent that reaches only one
   block, the editor's own, one below it, or one the app made that still sits

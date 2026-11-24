@@ -244,6 +244,9 @@ is told as it moves. What lies under a point is beui's hit test, handed to the
 router as `forward::Catchers`. The same router routes between surfaces over the
 layer list's hit test (plans/host_as_platform_adapter.md, Input), which the host
 does not do yet.
+A key goes to whatever has the keyboard when it is routed: no host holds keys
+for a catcher that cannot take them yet, and an app that does not run yet hears
+nothing, so a slow editor never slows the rest (decisions/keys_are_never_held.md).
 `beui_core::interact::forward::Replay` turns a `ForwardedInput` back into the
 raw `Input` a platform would push (positions relative to the catcher over its
 zoom, `PointersCancelled` for a press that ended unreleased, `PointerRested` for a

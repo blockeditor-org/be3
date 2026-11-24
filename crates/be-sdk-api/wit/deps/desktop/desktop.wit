@@ -26,8 +26,8 @@ interface types {
 /// A shell places each window as a `window` child (`child-content.window`) and
 /// hears the rest from that child's `child-status`: its title, icon, group,
 /// raises, bell, full screen ask, notice and menu ask. It closes one with
-/// `close-child` and gives it the keyboard with `focus-child`; a window placed
-/// nowhere is suspended.
+/// `close-child` and gives it the keyboard by asking in its placement
+/// (`keyboard-ask`); a window placed nowhere is suspended.
 interface windows {
     use types.{host-window-id};
     use be3:ui/types@0.1.0.{vec2};

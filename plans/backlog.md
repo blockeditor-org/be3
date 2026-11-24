@@ -327,8 +327,7 @@ Depends on #686 (session catch-ups replaced by server ordering).
   be-host-runtime marks each content link undelivered (`instances.rs`, where it reopens), but
   if the host attaches the editor again (`attaching`) it does not forward the app's `Resend`
   (`!(resend && attaching)`), and the replica's `attach` returns early for an editor it has
-  already. Then nothing sends the snapshot, and what waits for the content (a keyboard gift's
-  `Given` stage) waits for good. Done: a restarted app's editor is sent its snapshot in every
+  already. Then nothing sends the snapshot, and what waits for the content waits for good. Done: a restarted app's editor is sent its snapshot in every
   case, shown by a be-host-runtime test that restarts an app with an editor attached and checks
   the content counts as delivered. Not found yet: `Instances::reopen` keeps each link's
   `attached`, so a restarted app's `Resend` is forwarded and the replica sends the snapshot
@@ -527,8 +526,7 @@ Depends on #686 (session catch-ups replaced by server ordering).
   its app does not focus the field it would otherwise: the document's focus is
   already on another node inside that view's window, so neither the window's
   kept focus nor `focus_into` (which waits one layout) puts it on the text
-  input. Found while fixing Ctrl+Tab between texts, which asks again only
-  once the app knows the new child (`gift-missed`) and so avoids it. Done: a
+  input. Found while fixing Ctrl+Tab between texts. Done: a
   view given the keyboard early focuses its field once it is up, shown by a
   host test that gives a text's view the keyboard before its content arrives.
 
