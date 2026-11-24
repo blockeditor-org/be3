@@ -3,7 +3,7 @@ package be3:app@0.1.0;
 /// The blocks an editor reads and changes through its host: the block graph,
 /// a block's content, history and version control, and asks to open blocks.
 interface blocks {
-    use types.{block-location, editor-id, failure, host-panel};
+    use types.{block-location, editor-id, export-request, failure, host-panel};
     use be3:shared/ids@0.1.0.{
         account-id, block-id, block-type-id, commit-id, content-type-id, uuid,
     };
@@ -142,6 +142,9 @@ interface blocks {
         restore,
         version(version-command),
         share,
+        /// Shows the block's Export dialog, from the instance that draws the
+        /// window (`shell-dialog.export`).
+        %export(export-request),
         leave,
         close-editor,
         set-parent(block-location),

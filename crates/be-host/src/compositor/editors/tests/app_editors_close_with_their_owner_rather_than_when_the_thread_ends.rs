@@ -28,6 +28,7 @@ fn app_editors_close_with_their_owner_rather_than_when_the_thread_ends() {
                 views: Vec::new(),
                 accepts: Vec::new(),
                 opens: Vec::new(),
+                exporters: Vec::new(),
             }],
             block_types: Vec::new(),
             entry_point: String::new(),

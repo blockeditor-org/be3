@@ -175,6 +175,15 @@ interface shell-types {
         /// The file extensions, without the dot, a program editor opens: a
         /// block whose file name ends in one opens in it. Empty for an app.
         extensions: list<string>,
+        /// What the editor exports its block as, in its manifest's order.
+        exporters: list<exporter-descriptor>,
+    }
+
+    /// An exporter an editor's manifest declares: the name its code registers
+    /// it under, and what menus call it.
+    record exporter-descriptor {
+        name: string,
+        label: string,
     }
 
     /// The block types, templates and editors the host has.

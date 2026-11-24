@@ -418,15 +418,20 @@ impl EditorSession {
         self.editor.connect(Uuid::nil());
     }
 
+    pub(crate) fn connect_export(&mut self, export: crate::host::ExportDialogRequest) {
+        self.host.set_editable(true);
+        self.editor.connect_export(export);
+    }
+
     pub(crate) fn connect_creation(&mut self, template: String) {
         self.host.set_editable(true);
         self.editor.connect_creation(template);
     }
 
     pub(crate) fn connect_artifact(&mut self, artifact: crate::Artifact, data: Vec<u8>) {
-        self.artifact = Some(ArtifactState::new(data));
         self.host.set_editable(true);
-        self.editor.connect_artifact(artifact);
+        self.editor.connect_artifact(artifact, &data);
+        self.artifact = Some(ArtifactState::new(data));
     }
 
     pub(crate) fn artifact_settings(&mut self, data: Vec<u8>) {
@@ -502,7 +507,9 @@ impl EditorSession {
 
     pub fn outbound(&mut self) {
         let instance = self.instance;
-        if self.hosting {
+        // A host component and an artifact instance are given no frame: each takes in what
+        // arrived here instead.
+        if self.hosting || self.artifact.is_some() {
             self.editor.pass();
         }
         self.link.exchange(instance, &self.host);

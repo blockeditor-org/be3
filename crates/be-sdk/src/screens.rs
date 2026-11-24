@@ -605,9 +605,16 @@ impl Screens {
                     block_id: Uuid::from_bytes(open.block_id),
                     block_type: Uuid::from_bytes(open.block_type),
                     source: Uuid::from_bytes(open.source),
+                    exporter: open.exporter,
                 },
                 open.data,
             ),
+            OpeningKind::Export(open) => session.connect_export(crate::host::ExportDialogRequest {
+                source: Uuid::from_bytes(open.block_id),
+                source_type: Uuid::from_bytes(open.block_type),
+                exporter: open.request.exporter,
+                settings: open.request.settings,
+            }),
         }
     }
 
@@ -801,6 +808,14 @@ fn catalog(catalog: &Catalog, debug: &[DebugTemplate]) -> BlockCatalog {
         name: editor.name.clone(),
         icon: Glyph::from_codepoint(&editor.icon_codepoint),
         extensions: editor.extensions.clone(),
+        exporters: editor
+            .exporters
+            .iter()
+            .map(|exporter| be_sdk_ui::ExporterEntry {
+                name: exporter.name.clone(),
+                label: exporter.label.clone(),
+            })
+            .collect(),
     }))
 }
 

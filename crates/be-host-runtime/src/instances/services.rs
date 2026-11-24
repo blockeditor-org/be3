@@ -509,6 +509,26 @@ impl Instances {
                     }));
                 });
             }
+            Call::FileOfContent {
+                reply,
+                block_type,
+                content,
+                name,
+            } => {
+                let answering = self.answering(instance, reply);
+                be_host_stack::file_of_content(
+                    Uuid::from_bytes(block_type),
+                    content,
+                    name,
+                    move |file| {
+                        answering.send_or_fail(file.map(|file| SavedFile {
+                            name: file.name.unwrap_or_default(),
+                            mime_type: file.media_type,
+                            data: file.bytes,
+                        }));
+                    },
+                );
+            }
             Call::ImportBlocks { reply, parent } => {
                 let Some(parent) = be_host_stack::app_graph::parent_of(parent) else {
                     return self.answer_now(reply, Err(Failure::Denied));

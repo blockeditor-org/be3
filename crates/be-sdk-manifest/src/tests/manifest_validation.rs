@@ -23,6 +23,7 @@ fn manifest_validation() {
         views: vec![ParentView::Main, ParentView::Preview],
         accepts: Vec::new(),
         opens: Vec::new(),
+        exporters: Vec::new(),
     };
     let manifest = AppManifest {
         identity: AppIdentity {

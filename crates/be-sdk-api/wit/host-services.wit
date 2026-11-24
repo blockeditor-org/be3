@@ -131,6 +131,11 @@ interface host-services {
     /// The block as the plain file its type writes it as.
     read-plain-file: async func(block: block-id) -> result<saved-file, failure>;
 
+    /// `content`, a block of `block-type`'s content, as the plain file its
+    /// type writes it as, named `name` (with the type's extension): what
+    /// `read-plain-file` reads for a block that holds it, without one.
+    file-of-content: async func(block-type: block-type-id, content: list<u8>, name: string) -> result<saved-file, failure>;
+
     /// Asks the user for a block file and imports it into `parent`, none when
     /// they cancel.
     import-blocks: async func(parent: block-location) -> result<option<imported-block>, failure>;
