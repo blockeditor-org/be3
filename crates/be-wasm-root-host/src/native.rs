@@ -322,6 +322,12 @@ impl Root {
         self.core.take_placed_contents()
     }
 
+    /// The sizes the root assigned the host's editors it lays out at an intrinsic size since the
+    /// last call (`host.assign-size`): by the root's instance and the editor, in order.
+    pub fn take_assigned_sizes(&mut self) -> Vec<(u64, u64, be_wasm_root_api::ViewSize)> {
+        self.core.take_assigned_sizes()
+    }
+
     /// Stops the root's sandbox instance `instance` for `why`, as an app that broke what its
     /// host asks of it: the root hears it stopped, and is stepped for that.
     pub fn stop_instance(&mut self, instance: u64, why: &str) {

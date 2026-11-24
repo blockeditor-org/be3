@@ -1067,6 +1067,11 @@ interface host {
         /// Whether the editor draws a preview of its block (its manifest's
         /// views name `preview`), which a child placed as one shows.
         preview: bool,
+        /// Whether the editor pans and zooms its own world (its manifest's
+        /// `pan-and-zoom` capability): placed with an intrinsic size, it is
+        /// handed the part of its world it shows (`place-content`) rather
+        /// than laid out at that size and drawn at its place's zoom.
+        pan-and-zoom: bool,
     }
 
     /// A block the root shows in an editor, as its placement names it.
@@ -1170,6 +1175,9 @@ interface host {
         error: option<string>,
         /// How the root shows a child placed as a preview.
         preview: shown-preview,
+        /// For a child placed to fit its content (`child-placement.fit`),
+        /// the room it took, in its placer's view's points, once it drew.
+        intrinsic: option<view-size>,
     }
 
     /// How the root shows a child placed as a preview (the app protocol's
@@ -1239,6 +1247,13 @@ interface host {
     /// its content wants, as be-host's camera does. The root calls it once
     /// either changed.
     place-content: async func(placed: placed-content);
+
+    /// Tells the editor `editor`, opened in the root's `instance`, the size
+    /// it is laid out at as a child placed with an intrinsic size
+    /// (`child-placement.intrinsic`), which the root draws at its place's
+    /// zoom: the app protocol's `editor-event.resized`, as be-host tells a
+    /// child it lays out so. The root calls it once the size changed.
+    assign-size: async func(instance: u64, editor: u64, size: view-size);
 
     /// Hands the editor `editor`, opened in the root's `instance`, the dock
     /// updates the root's docks made for it (guides/apps/children.md, Docks

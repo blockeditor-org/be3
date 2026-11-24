@@ -7,7 +7,7 @@ fn a_child_taking_its_placers_frame_is_asked_for_that_frame_with_its_place_as_co
     let mut owner = placed(rect((0.0, 0.0), (300.0, 200.0)), ChildMode::Live);
     owner.own_frame = true;
     owner.top_bar = TopBar::Shown;
-    let mut placer = child_screen(&owner, EditorInstanceId(1), 2.0);
+    let mut placer = child_screen(&owner, EditorInstanceId(1), 2.0, 1.0);
     if let Some(frame) = placer.frame.as_mut() {
         frame.chrome = FrameChrome::None;
     }

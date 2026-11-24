@@ -5,7 +5,7 @@ fn a_child_is_asked_for_its_place_at_its_placers_raster() {
     // A child is its editor's main view the size of its place, laid out and drawn at the
     // pixels per point of the screen that placed it.
     let mut placement = placed(rect((10.0, 20.0), (210.0, 120.5)), ChildMode::Live);
-    let screen = child_screen(&placement, EditorInstanceId(5), 2.0);
+    let screen = child_screen(&placement, EditorInstanceId(5), 2.0, 1.0);
     assert_eq!(screen.screen, CHILD_SCREEN);
     assert_eq!(screen.instance, EditorInstanceId(5));
     assert_eq!(screen.view, ViewId::MAIN);
@@ -27,7 +27,7 @@ fn a_child_is_asked_for_its_place_at_its_placers_raster() {
     placement.own_frame = true;
     placement.top_bar = TopBar::Shown;
     placement.anchor = Some(rect((10.0, 0.0), (90.0, 20.0)));
-    let frame = child_screen(&placement, EditorInstanceId(5), 2.0)
+    let frame = child_screen(&placement, EditorInstanceId(5), 2.0, 1.0)
         .frame
         .expect("a child with a frame of its own is asked to draw it");
     assert_eq!(frame.chrome, FrameChrome::Drawn);

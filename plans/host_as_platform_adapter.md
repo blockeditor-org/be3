@@ -1733,6 +1733,22 @@ Each step lands on its own.
              rather than per child, a twin for a placement naming another editor, and a block
              previewed in several places drawn once, at the largest, each place showing its
              part), occluders, `fit`, and a child in place at its zoom, rotation and opacity.
+             - Built: a child's layer is placed through its placer's (`placed_transform`): at
+               its place, turned by its `rotation` about its middle, faded by its `opacity`,
+               and, placed with an intrinsic size by a placer whose editor does not pan and
+               zoom (`editor-app.pan-and-zoom`, `placed_zoom`), laid out at its place's size
+               over the zoom that fits that size and drawn at that zoom, its editor told the
+               size by `be3:root`'s new `host.assign-size` (`Forwarded::resized`, be-host's
+               `resized`). A child placed to `fit` is asked for at most that room
+               (`ScreenRequest::fit`) and its placer hears what it took
+               (`shown-child.intrinsic`). Occluders give the placer the presses over the
+               children placed before them (`occluders_of`, `placer_hit`, `without`). Tests:
+               be-sdk-root's `children::tests`; host test
+               `be_root_in_place_of_the_hosts_ui_shows_a_checklist_in_place_on_a_canvas`. No
+               app reaches a zoom other than 1, a rotation or an opacity under the root yet:
+               its top-level canvas has no camera until 4g7d, no editor's manifest allows
+               rotation, and a canvas offers no opacity for an editor card; an occluder over a
+               child placed above its placer hides it from presses but not from sight.
            - 4g7b3f. Drags out of and into children (`drag-block`, `drag-accepted`), and a
              joined dock's tab menus, picks and details with the rest of the editors' shell
              messages the host's `Forwarded` refuses or drops today (`menu`, `details`,

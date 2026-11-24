@@ -763,6 +763,9 @@ fn serve_editors(core: &mut crate::HostCore, root: &mut Root, editors: &mut Edit
             preview: app
                 .editor(editor.into_bytes())
                 .is_some_and(|editor| editor.views.contains(&ParentView::Preview)),
+            pan_and_zoom: app
+                .editor(editor.into_bytes())
+                .is_some_and(|editor| editor.capabilities.pan_and_zoom),
         });
         root.answer_editor(id, editor);
     }
@@ -831,6 +834,14 @@ fn serve_editors(core: &mut crate::HostCore, root: &mut Root, editors: &mut Edit
     }
     for placed in root.take_placed_contents() {
         place_content(editors, placed);
+    }
+    for (instance, editor, size) in root.take_assigned_sizes() {
+        if let Some(forwarded) = editors.served.get_mut(&instance) {
+            forwarded.resized(
+                EditorInstanceId(editor),
+                beui::vec2(size.width, size.height),
+            );
+        }
     }
     editors
         .placers
@@ -1006,7 +1017,10 @@ fn child_status(
     HostChildStatus {
         child: ChildId(child.child),
         available,
-        intrinsic: None,
+        intrinsic: child
+            .intrinsic
+            .as_ref()
+            .map(|size| beui::vec2(size.width, size.height)),
         active: available && child.active,
         interaction: manifest.map_or(InteractionMode::Preview, |editor| editor.interaction),
         capabilities: manifest

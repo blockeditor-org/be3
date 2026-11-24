@@ -104,11 +104,23 @@ Who owns the camera): the root tells the host where its content shows and the
 size it wants (`host.place-content`), and the host hands a pan-and-zoom editor
 its view from them.
 
+A child is drawn where it was placed as under be-host: turned by its
+`rotation` about the middle of its place and faded by its `opacity` (its own
+children with it, since each layer is placed through its placer's transform).
+One placed with an intrinsic size, whose editor does not pan and zoom, is laid
+out at its place's size over the zoom that fits that size in it and drawn at
+that zoom (`child_screen`), and the host tells its editor that size
+(`host.assign-size`, the `resized` event be-host sends). One placed to `fit`
+its content is asked for at most that room, drawn from its place's top left
+clipped to its place, and its placer hears the room it took as its status's
+`intrinsic`. A view's occluders give the placer the presses over the children
+placed before them; they hide a child placed below its placer only because
+the placer draws over it there.
+
 A joined dock's tab menus, picks and details, drags, a block shown in several
-places sharing one editor, occluders, `fit`, a child in place at its zoom,
-rotation and opacity, and the other kinds of child (plans/host_as_platform_adapter.md,
-4g7b3e to 4g7b3g) are not there yet: a child of another kind the placer hears
-is unavailable.
+places sharing one editor, and the other kinds of child
+(plans/host_as_platform_adapter.md, 4g7b3e to 4g7b3g) are not there yet: a
+child of another kind the placer hears is unavailable.
 
 ## Drawing order
 
