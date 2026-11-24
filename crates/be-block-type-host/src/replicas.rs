@@ -259,6 +259,29 @@ pub async fn send_announcements<H: Host>(peer: &Peer<H::Store>, shared: &Arc<Mut
     }
 }
 
+/// A block whose replica waits for a load's objects (`Replicas::not_yet`).
+struct NotYet {
+    /// The head this device knew as the load began.
+    head: Option<CommitId>,
+    /// It met a lost connection, not a missing object: it waits for the connection alone.
+    unreachable: bool,
+    /// A join answered that very head and it was opened once more: a missing object then is
+    /// unreadable.
+    confirmed: bool,
+}
+
+/// What moved for a block that waits on a load (`Replicas::read_not_yet`).
+#[derive(Clone, Copy)]
+enum Moved {
+    /// The server told this head (a tree's head, a seal).
+    To(CommitId),
+    /// As the peer knows the head now.
+    Known,
+    /// A join answered, telling the head.
+    Joined,
+    Reconnected,
+}
+
 fn unreachable(error: &ClientError) -> bool {
     error.is_unreachable()
 }
@@ -390,12 +413,14 @@ pub enum Io {
         replica: ReplicaId,
         arrivals: u64,
     },
-    /// A load of `commit` for the replica found its objects not to be had now (`Loads::NotYet`):
-    /// the replica waits, and opens again once the block's head moves or the connection
-    /// comes back.
+    /// A load for the replica found its objects not to be had now (`load-error.not-yet`): the
+    /// replica waits, and opens again once the block's head moves on from `head` (the one this
+    /// device knew as the load began, whatever commit it loaded) or, `unreachable`, once the
+    /// connection comes back.
     NotYet {
         replica: ReplicaId,
-        commit: CommitId,
+        head: Option<CommitId>,
+        unreachable: bool,
     },
     Published {
         publish: u64,
@@ -1101,11 +1126,12 @@ pub struct Replicas<H: Host> {
     /// Blocks a read or a submission here found locked (`H::set_locked`), until keys arrive
     /// (`unlock`).
     locked: HashSet<Uuid>,
-    /// Blocks whose replica's load found the commit's objects not to be had now (a head
-    /// another device replaced, which the server dropped, or a lost connection), by the
-    /// commit: opened again once the head moves on from it or the connection comes back
-    /// (`read_not_yet`). Never unreadable for it, so never reset for it.
-    not_yet: HashMap<Uuid, CommitId>,
+    /// Blocks whose replica's load found a commit's objects not to be had now (a head another
+    /// device replaced, which the server dropped, or a lost connection): opened again once the
+    /// head moves on or the connection comes back (`read_not_yet`), never called unreadable for
+    /// it. A load that is no opening (a merge's sides, a reload, a restart's commits) recovers
+    /// the same way: opening again loads afresh from the head then.
+    not_yet: HashMap<Uuid, NotYet>,
     /// Submissions refused for a missing key, submitted again once keys arrive (`unlock`).
     refused: Vec<Refused>,
     /// How many searches for keys relayed messages started.
@@ -2021,6 +2047,20 @@ impl<H: Host> Replicas<H> {
         self.open.values().any(|open| open.joining)
     }
 
+    /// Has `block`'s replica hear that a load found its objects missing, as one of a commit
+    /// that is not the head would (a merge's side, a restart's commit), with the head this
+    /// device knows now.
+    #[cfg(test)]
+    pub(crate) fn load_found_missing(&self, peer: &Peer<H::Store>, block: Uuid) {
+        if let Some(replica) = self.blocks.get(&block).copied() {
+            let _ = self.io.send(Io::NotYet {
+                replica,
+                head: peer.known_remote_head(block),
+                unreachable: false,
+            });
+        }
+    }
+
     /// The restarts of the order `block`'s kept edits would be kept under now.
     #[cfg(test)]
     pub(crate) fn kept_restarts_of(&self, block: Uuid) -> Option<u64> {
@@ -2143,7 +2183,7 @@ impl<H: Host> Replicas<H> {
             }
         }
         // The join told the head: a load it was waiting on reads again on it.
-        self.read_not_yet(peer, Some(block), false);
+        self.read_not_yet(peer, Some(block), Moved::Joined);
         self.close_if_asked(replica);
     }
 
@@ -3620,8 +3660,14 @@ impl<H: Host> Replicas<H> {
     }
 
     fn told(&mut self, (peer, shared): Ctx<'_, H>, told: Told) {
-        if let Told::Head { block, .. } | Told::Event(Event::Sealed { block, .. }) = &told {
-            self.read_not_yet(peer, Some(*block), false);
+        match &told {
+            Told::Head { block, head }
+            | Told::Event(Event::Sealed {
+                block,
+                commit: head,
+                ..
+            }) => self.read_not_yet(peer, Some(*block), Moved::To(*head)),
+            _ => {}
         }
         let block = match &told {
             Told::Event(
@@ -4006,11 +4052,26 @@ impl<H: Host> Replicas<H> {
                     }
                 }
             }
-            Io::NotYet { replica, commit } => {
+            Io::NotYet {
+                replica,
+                head,
+                unreachable,
+            } => {
                 if let Some(block) = self.open.get(&replica).map(|open| open.block) {
-                    self.not_yet.insert(block, commit);
+                    let confirmed = self
+                        .not_yet
+                        .get(&block)
+                        .is_some_and(|waiting| waiting.confirmed);
+                    self.not_yet.insert(
+                        block,
+                        NotYet {
+                            head,
+                            unreachable,
+                            confirmed,
+                        },
+                    );
                     // The head may have moved on while it read.
-                    self.read_not_yet(peer, Some(block), false);
+                    self.read_not_yet(peer, Some(block), Moved::Known);
                 }
             }
             Io::Locked { replica, arrivals } => {
@@ -4145,27 +4206,47 @@ impl<H: Host> Replicas<H> {
         self.rejoin(peer, replica, rejoin);
     }
 
-    /// Opens again the replicas of `block` (or of every block) whose load found its objects
-    /// not to be had (`not_yet`) once the block's head moved on from that commit, or on
-    /// `reconnected`, once the connection came back.
-    fn read_not_yet(&mut self, peer: &Peer<H::Store>, block: Option<Uuid>, reconnected: bool) {
-        let ready: Vec<Uuid> = self
-            .not_yet
-            .iter()
-            .filter(|(of, commit)| {
-                block.is_none_or(|block| block == **of)
-                    && (reconnected || peer.known_remote_head(**of) != Some(**commit))
-            })
-            .map(|(of, _)| *of)
-            .collect();
-        for block in ready {
-            self.not_yet.remove(&block);
+    /// Opens again the replicas of `block` (or of every block) whose load found its objects not
+    /// to be had (`not_yet`): one that met a missing object once the block's head moved on from
+    /// the one it knew as it loaded (to `Moved::To`, or as the peer knows it), one that met a
+    /// lost connection on `Moved::Reconnected`. A join that answers the very head it knew
+    /// (`Moved::Joined`) opens it once more, and if that fails alike it is unreadable then
+    /// (`NotYet::confirmed`), so the wait is bounded.
+    fn read_not_yet(&mut self, peer: &Peer<H::Store>, block: Option<Uuid>, moved: Moved) {
+        let mut ready = Vec::new();
+        for (of, waiting) in &mut self.not_yet {
+            if block.is_some_and(|block| block != *of) {
+                continue;
+            }
+            let head = match moved {
+                Moved::To(head) => Some(head),
+                Moved::Known | Moved::Joined => peer.known_remote_head(*of),
+                Moved::Reconnected => {
+                    ready.push((*of, false));
+                    continue;
+                }
+            };
+            if waiting.unreachable {
+                continue;
+            }
+            if head != waiting.head {
+                ready.push((*of, false));
+            } else if matches!(moved, Moved::Joined) && !waiting.confirmed {
+                // Kept, so the next load of it says whether it is unreadable.
+                waiting.confirmed = true;
+                ready.push((*of, true));
+            }
+        }
+        for (block, kept) in ready {
+            if !kept {
+                self.not_yet.remove(&block);
+            }
             self.reopen(block);
         }
     }
 
     pub fn reconnect(&mut self, (peer, _): Ctx<'_, H>) {
-        self.read_not_yet(peer, None, true);
+        self.read_not_yet(peer, None, Moved::Reconnected);
         self.rejoins += 1;
         let rejoin = self.rejoins;
         // One whose creation the drain has not sent yet joins once it has (`created`).
@@ -4458,7 +4539,7 @@ impl<H: Host> Replicas<H> {
             self.moved(replica, head, false);
         }
         // The join told the head: a load it was waiting on reads again on it.
-        self.read_not_yet(peer, Some(block), false);
+        self.read_not_yet(peer, Some(block), Moved::Joined);
         self.close_if_asked(replica);
     }
 
@@ -5194,6 +5275,14 @@ impl<H: Host> Replicas<H> {
                 commit,
                 first_part,
             } => {
+                // The head this device knows as it loads, which the wait for a missing object
+                // waits to move on from; and whether a join already said it is that head and a
+                // load of it failed alike once, which makes a missing object unreadable.
+                let known = peer.known_remote_head(block);
+                let confirmed = self
+                    .not_yet
+                    .get(&block)
+                    .is_some_and(|waiting| waiting.confirmed && waiting.head == known);
                 let peer = Arc::clone(peer);
                 let io = self.io.clone();
                 self.answer_later(replica, module, async move {
@@ -5217,11 +5306,20 @@ impl<H: Host> Replicas<H> {
                     // and opens again, rather than be called unreadable (and, held, reset).
                     // A locked read has its own way back (`Io::Locked`, `unlock`).
                     let not_yet = match &read {
-                        Err(error)
-                            if matches!(error, ClientError::MissingObject(_))
-                                || error.is_unreachable() =>
-                        {
-                            let _ = io.send(Io::NotYet { replica, commit });
+                        Err(error) if error.is_unreachable() => {
+                            let _ = io.send(Io::NotYet {
+                                replica,
+                                head: known,
+                                unreachable: true,
+                            });
+                            true
+                        }
+                        Err(ClientError::MissingObject(_)) if !confirmed => {
+                            let _ = io.send(Io::NotYet {
+                                replica,
+                                head: known,
+                                unreachable: false,
+                            });
                             true
                         }
                         _ => false,
