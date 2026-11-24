@@ -23,7 +23,6 @@ use beui::clipboard::formats;
 pub(crate) const WORLD_POINTS: f32 = 1024.0;
 pub(crate) const MAX_SCALE: f32 = 32768.0;
 pub(crate) const MAX_PREVIEW_WORLD: f64 = (WORLD_POINTS * MAX_SCALE) as f64;
-pub(crate) const ZOOM_STEP: f32 = 1.25;
 const MAX_HELD_TILES: usize = 160;
 
 #[derive(Clone)]
@@ -381,10 +380,6 @@ impl MapState {
         if inner.dragged.get().is_none() {
             self.editor.pan(delta);
         }
-    }
-
-    pub(crate) fn zoom(&self, factor: f32) {
-        self.editor.zoom(factor);
     }
 
     pub(crate) fn watch(self) {

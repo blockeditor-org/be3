@@ -1,16 +1,13 @@
-use be_sdk_beui::Fitting;
 use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::dock::styled::{DockBarGrip, DockBarSurface};
-use be_sdk_beui::beui::icons::{
-    ICON_PLUS, ICON_REFRESH_CW, ICON_SCAN, ICON_ZOOM_IN, ICON_ZOOM_OUT,
-};
+use be_sdk_beui::beui::icons::{ICON_PLUS, ICON_REFRESH_CW, ICON_SCAN};
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 
-use super::state::{MapState, ZOOM_STEP};
+use super::state::MapState;
 
 #[component]
-pub(crate) fn MapToolbar(state: MapState, fitting: Fitting) -> NodeId {
+pub(crate) fn MapToolbar(state: MapState) -> NodeId {
     let error = state.last_error;
     let add = NodeRef::new();
 
@@ -26,26 +23,6 @@ pub(crate) fn MapToolbar(state: MapState, fitting: Fitting) -> NodeId {
                 label="Add a point of interest at the centre of the view"
                 @test_id={"map.add-point"}
                 on_click={move || state.open_picker(None, add)}
-            />
-            <Button
-                icon_only=true
-                glyph=ICON_ZOOM_OUT
-                label="Zoom out"
-                @test_id={"map.zoom-out"}
-                on_click={move || state.zoom(1.0 / ZOOM_STEP)}
-            />
-            <Button
-                icon_only=true
-                glyph=ICON_ZOOM_IN
-                label="Zoom in"
-                @test_id={"map.zoom-in"}
-                on_click={move || state.zoom(ZOOM_STEP)}
-            />
-            <Button
-                label="Whole world"
-                variant=ButtonVariant::Secondary
-                @test_id={"map.fit"}
-                on_click={move || fitting.fit()}
             />
             <Button
                 icon_only=true

@@ -6,7 +6,7 @@ fn the_pen_tool_draws_a_stylus_stroke_as_wide_as_it_is_pressed() {
     let mut editor = editor(&[]);
 
     for _ in 0..4 {
-        editor.click("infinite-canvas.pill.zoom-in");
+        editor.click("editor.zoom_in");
     }
     editor.settle();
     editor.click("infinite-canvas.dock.tool.Pen");

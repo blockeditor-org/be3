@@ -139,8 +139,10 @@ fn view_menu(actions: &CanvasActions) -> MenuNode {
             MenuNode::Separator,
             act(&actions.fit_selection),
             act(&actions.fit_frame),
-            act(&actions.fit_all),
-        ],
+        ]
+        .into_iter()
+        .chain(actions.fit_all.as_ref().map(act))
+        .collect(),
     )
 }
 

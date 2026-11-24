@@ -23,7 +23,7 @@ fn text_written_near_the_bottom_stays_in_view_when_the_keyboard_opens() {
         canvas.contains_rect(shown),
         "the text at {shown:?} is inside the canvas left above the keyboard, {canvas:?}"
     );
-    for chrome in ["infinite-canvas.dock", "infinite-canvas.zoom-pill"] {
+    for chrome in ["infinite-canvas.dock", "editor.zoom_bar"] {
         let covers = editor.rect_of(chrome);
         assert!(
             !covers.intersects(shown),

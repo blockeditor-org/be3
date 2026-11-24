@@ -10,7 +10,7 @@ fn fit_all_without_frames_zooms_to_everything() {
     let mut editor = editor(&[first, second]);
     let canvas = editor.rect_of("infinite-canvas.canvas");
 
-    editor.click("infinite-canvas.pill.fit");
+    editor.click("editor.zoom_fit");
 
     let shown = editor
         .rect_of(&format!("infinite-canvas.entity.{}", Uuid::from_u128(1)))

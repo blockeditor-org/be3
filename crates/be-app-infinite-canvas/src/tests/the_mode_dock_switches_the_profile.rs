@@ -11,7 +11,7 @@ fn the_mode_dock_switches_the_profile() {
         mode.left() - canvas.left() < 24.0 && mode.top() - canvas.top() < 24.0,
         "the mode dock sits in the top-left corner, at {mode:?} in {canvas:?}"
     );
-    let zoom = editor.rect_of("infinite-canvas.zoom-pill");
+    let zoom = editor.rect_of("editor.zoom_bar");
     assert!(
         mode.right() < zoom.left(),
         "the mode dock keeps clear of the zoom pill"

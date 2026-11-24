@@ -9,7 +9,7 @@ use be_sdk_beui::beui::dock::{
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{NodeId, Vec2};
-use be_sdk_beui::{Creation, Editor, SIDE_PANEL_WIDTH};
+use be_sdk_beui::{Creation, Editor, SIDE_PANEL_WIDTH, ZoomBar};
 use uuid::Uuid;
 
 pub(crate) mod canvas;
@@ -27,6 +27,7 @@ use toolbar::MapToolbar;
 const STAGE: &str = "stage";
 const INSPECTOR: &str = "inspector";
 const TOOLBAR: &str = "toolbar";
+const ZOOM: &str = "zoom";
 const INSPECTOR_WIDTH: f32 = SIDE_PANEL_WIDTH;
 
 pub struct MapRoot;
@@ -73,7 +74,7 @@ fn MapEditor(editor: Editor) -> NodeId {
         }));
     });
 
-    let fitting = editor.keep_fitted(|| Some(Fit::World));
+    editor.keep_fitted(|| Some(Fit::World));
 
     let chrome = editor.chrome_shown();
     let layout = DockingLayout::<&'static str>::new();
@@ -99,7 +100,14 @@ fn MapEditor(editor: Editor) -> NodeId {
                     parent=STAGE
                     placement={DockBarPlacement::Beside(DockEdge::Top, DockAlign::Start)}
                 >
-                    <MapToolbar state={state} fitting={fitting} />
+                    <MapToolbar state={state} />
+                </DockBar>
+                <DockBar
+                    id=ZOOM
+                    parent=STAGE
+                    placement={DockBarPlacement::Beside(DockEdge::Top, DockAlign::End)}
+                >
+                    <ZoomBar editor />
                 </DockBar>
             </Show>
         </Docking>

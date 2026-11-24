@@ -4,7 +4,7 @@ use be_sdk_beui::beui::{TouchPhase, pos2};
 #[test]
 fn a_text_tapped_in_starts_at_the_tap() {
     let mut editor = phone(&[]);
-    editor.click("infinite-canvas.pill.zoom-in");
+    editor.click("editor.zoom_in");
     editor.settle();
     let canvas = editor.rect_of("infinite-canvas.canvas");
     let tapped = |editor: &mut BeuiTest<CanvasRoot>, x: f32| {

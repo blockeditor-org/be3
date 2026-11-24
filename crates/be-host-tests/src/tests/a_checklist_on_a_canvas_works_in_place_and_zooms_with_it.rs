@@ -14,7 +14,7 @@ fn a_checklist_on_a_canvas_works_in_place_and_zooms_with_it() {
     host.crop("#infinite-canvas.canvas");
     host.record();
 
-    host.click("#infinite-canvas.pill.zoom-in");
+    host.click("#editor.zoom_in");
     let zoomed = host.place(PANE);
     let zoomed_button = host.place("#checklist.add");
     let zoom = zoomed.2 / pane.2;
@@ -26,7 +26,7 @@ fn a_checklist_on_a_canvas_works_in_place_and_zooms_with_it() {
         (zoomed_button.2 / button.2 - zoom).abs() < 0.05,
         "its content grows with it rather than laying out again, from {button:?} to {zoomed_button:?}"
     );
-    host.click("#infinite-canvas.pill.zoom-out");
+    host.click("#editor.zoom_out");
 
     host.run(&["move", "#checklist.draft"]);
     host.record();

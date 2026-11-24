@@ -57,7 +57,7 @@ fn text_shrinks_with_a_zoom_out_before_it_is_shaped_again() {
     let crisp = text_width(&editor);
     assert!(crisp > 100.0, "the note paints its text, {crisp} wide");
 
-    editor.click("infinite-canvas.pill.zoom-out");
+    editor.click("editor.zoom_out");
     let moving = text_width(&editor);
     editor.snapshot("text_shrinks_with_a_zoom_out_before_it_is_shaped_again");
     editor.advance(std::time::Duration::from_millis(500));
