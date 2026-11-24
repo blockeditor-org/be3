@@ -51,6 +51,7 @@ fn the_share_dialog_grants_no_knows_it_exists_but_shows_one_held() {
             set_inside: 0,
             levels: Vec::new(),
             host: None,
+            offered: None,
         }),
     );
     fixture.settle();

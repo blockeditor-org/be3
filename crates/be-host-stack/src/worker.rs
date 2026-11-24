@@ -289,6 +289,10 @@ pub(super) enum Command {
         account: Uuid,
         reply: DoneReply,
     },
+    AcceptOwnership {
+        block: Uuid,
+        reply: DoneReply,
+    },
     ListAccess {
         block: Uuid,
         reply: AccessReply,
@@ -495,6 +499,7 @@ impl Command {
             Command::SetAccess { .. } => "set access",
             Command::Ban { .. } => "ban",
             Command::TransferOwnership { .. } => "transfer ownership",
+            Command::AcceptOwnership { .. } => "accept ownership",
             Command::ListAccess { .. } => "list access",
             Command::ShareLink { .. } => "share link",
             Command::ListNames { .. } => "list names",
@@ -530,6 +535,7 @@ impl Command {
             Command::SetAccess { .. }
                 | Command::Ban { .. }
                 | Command::TransferOwnership { .. }
+                | Command::AcceptOwnership { .. }
                 | Command::ListAccess { .. }
                 | Command::ListNames { .. }
                 | Command::ReadHead { .. }
@@ -627,6 +633,7 @@ impl Command {
             | Command::SetAccess { block, .. }
             | Command::Ban { block, .. }
             | Command::TransferOwnership { block, .. }
+            | Command::AcceptOwnership { block, .. }
             | Command::ListAccess { block, .. }
             | Command::ShareLink { block, .. }
             | Command::ListNames { block, .. }
@@ -695,6 +702,7 @@ impl Command {
             Command::SetParent { block, .. }
             | Command::SetAccess { block, .. }
             | Command::TransferOwnership { block, .. }
+            | Command::AcceptOwnership { block, .. }
             | Command::ShareLink {
                 block,
                 change: ShareLinkCommand::Make { .. },
@@ -2956,7 +2964,8 @@ fn refuse_offline(command: Command, shared: &Arc<Mutex<Shared>>) -> Option<Comma
         // shows the refusal where the person acted.
         Command::SetAccess { reply, .. }
         | Command::Ban { reply, .. }
-        | Command::TransferOwnership { reply, .. } => reply.send(Err(OFFLINE_SHARING.to_owned())),
+        | Command::TransferOwnership { reply, .. }
+        | Command::AcceptOwnership { reply, .. } => reply.send(Err(OFFLINE_SHARING.to_owned())),
         Command::Leave { reply, .. } => reply.send(Err(OFFLINE_LEAVING.to_owned())),
         Command::ApprovePairing { reply, .. } => reply.send(Err(OFFLINE_PAIRING.to_owned())),
         Command::ListAccess { reply, .. } => reply.send(Err(NEEDS_CONNECTION.to_owned())),
@@ -3916,6 +3925,17 @@ async fn serve_command(
             reply.send(failed.map_or(Ok(()), Err));
             crate::changes::wake();
         }
+        Command::AcceptOwnership { block, reply } => {
+            let failed = peer.accept_ownership(block).await.err().map(|error| {
+                match error.is_unreachable() {
+                    true => OFFLINE_SHARING.to_owned(),
+                    false => error.to_string(),
+                }
+            });
+            tend(peer, shared).await;
+            reply.send(failed.map_or(Ok(()), Err));
+            crate::changes::wake();
+        }
         Command::ListAccess { block, reply } => {
             let listed = peer
                 .list_access(block)
@@ -4009,6 +4029,7 @@ async fn apply(
         Command::SetAccess { .. }
         | Command::Ban { .. }
         | Command::TransferOwnership { .. }
+        | Command::AcceptOwnership { .. }
         | Command::ListAccess { .. }
         | Command::ShareLink { .. }
         | Command::ListNames { .. }

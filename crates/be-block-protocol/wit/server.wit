@@ -28,7 +28,7 @@ interface server {
     use account.{account-storage, message, authenticated, browser-login, browser-login-state, pairing-message};
     use objects.{hold, object-length, upload-url};
     use blocks.{
-        access-list, account-name, change-cursor, changed-page, contents, history-entry, listed, object-change,
+        access-list, account-name, owner-offer, change-cursor, changed-page, contents, history-entry, listed, object-change,
         publish-outcome, reference-change,
     };
     use sessions.{session-event};
@@ -122,6 +122,10 @@ interface server {
         /// (be-host's `block-subject.members`). Nothing else of them: no
         /// email, role or grant, which only `access` tells, a manager.
         names(block-id),
+        /// The blocks offered to the caller in the organization (an owner
+        /// record naming it, `append-log(owner)`), not yet accepted or
+        /// withdrawn, each with who offered it.
+        owner-offers,
         /// One page of the keys of `blocks`, or of every key the caller holds
         /// with none: the keys after `after` in the order of their ids, as
         /// many as fit in half a frame with the wraps of each, and at least
@@ -290,6 +294,7 @@ interface server {
         log-redactions(list<log-redactions>),
         access(access-list),
         names(list<account-name>),
+        owner-offers(list<owner-offer>),
         keys(key-page),
         key-work(key-work),
         revocations(list<revocation>),
@@ -616,6 +621,18 @@ interface server {
         /// the block's session, and takes it out of one it is in, unless it
         /// holds Edit: a ban binds no editor, as a Join member or a viewer.
         ban(ban-record),
+        /// An owner record (be_block_keys::Owner) for `block`, appended to its
+        /// access log: its owner offering it to another member, a contact of
+        /// theirs, or withdrawing the offer by naming itself; or the member it
+        /// was offered to accepting it, naming itself with the keys the offer
+        /// named, whereupon its ownership moves to them
+        /// (guides/blocks/keys.md, "Owner records").
+        owner(owner-record),
+    }
+
+    record owner-record {
+        block: block-id,
+        signed: list<u8>,
     }
 
     record ban-record {

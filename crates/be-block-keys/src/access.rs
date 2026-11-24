@@ -1058,6 +1058,10 @@ pub struct Checked {
     /// an owner record moves it on. None for an organization's log, and on a proof path after
     /// an owner record served reduced, which hides whom it named.
     pub owner: Option<[u8; 16]>,
+    /// For a block's log: the account its owner offered it to, with the keys the offer named,
+    /// until that account accepts (an owner record it signs naming itself), the owner withdraws
+    /// it (one naming the owner) or offers it to someone else.
+    pub offered: Option<([u8; 16], PublicIdentity)>,
     /// For a block's log: the accounts barred from joining its host (`Record::Ban`), each until
     /// a grant to it after the ban.
     pub banned: HashSet<[u8; 16]>,
@@ -1132,9 +1136,9 @@ impl Checked {
             .is_some_and(|at| *at < self.last_lowering)
     }
 
-    /// Whether `record`, appended at the head of this log, lowers anyone's access, as
-    /// `check_log` will find it: what its entry must say (`Entry::lowers`).
-    pub fn lowers(&self, record: &Record) -> bool {
+    /// Whether `record`, signed by `signer` and appended at the head of this log, lowers anyone's
+    /// access, as `check_log` will find it: what its entry must say (`Entry::lowers`).
+    pub fn lowers(&self, signer: [u8; 16], record: &Record) -> bool {
         let last = |account: &[u8; 16]| {
             self.levels
                 .get(account)
@@ -1153,8 +1157,9 @@ impl Checked {
                     && self.administrators.contains_key(&member.account)
                     && last(&member.account).is_some_and(|before| before > Level::None)
             }
-            // The owner always holds Manage, and keeps less.
-            Record::Owner(_) => true,
+            // The owner always holds Manage, and keeps less once the account it offered the
+            // block to accepts it; an offer, or its withdrawal, moves no one.
+            Record::Owner(owner) => owner.account == signer && self.owner != Some(signer),
             // Revoking a link lowers everyone it granted.
             Record::ShareLink(link) => {
                 !link.open && self.linked.values().any(|key| *key == link.key)
@@ -1190,12 +1195,15 @@ impl Checked {
         let own = match &record {
             Record::Grant(grant) => grant.grantee == signer,
             Record::Member(member) => member.agent,
+            // Accepting a block offered to the signer, whom a path keeps whole, as it keeps
+            // every owner record.
+            Record::Owner(owner) => owner.account == signer,
             _ => false,
         };
         if self.partial && !own {
             return None;
         }
-        let lowers = self.lowers(&record);
+        let lowers = self.lowers(signer, &record);
         Some(Entry::sign(
             secret,
             signer,
@@ -1377,13 +1385,19 @@ impl Checked {
                     if reduced.places {
                         state.placements.push((place, None));
                     }
-                    // A transfer is signed by the owner, whom it lowers: hidden, it still leaves
-                    // them no more than a former owner keeps, and the new owner unknown.
+                    // An owner record that lowers anyone is an offer accepted, which lowers the
+                    // owner: hidden, it still leaves them no more than a former owner keeps, and
+                    // the new owner unknown. One that lowers no one is an offer or its
+                    // withdrawal: hidden, whom the block is offered to is unknown, and no
+                    // acceptance checks after it.
                     if reduced.owns {
-                        if kind != LogKind::Block || !reduced.lowers {
+                        if kind != LogKind::Block {
                             return Err(KeyError::Record);
                         }
-                        if let Some(former) = state.owner.take() {
+                        state.offered = None;
+                        if reduced.lowers
+                            && let Some(former) = state.owner.take()
+                        {
                             state.demote_owner(former);
                         }
                     }
@@ -1499,23 +1513,35 @@ impl Checked {
                     state.placements.push((place, Some(parent.placement)));
                 }
                 Record::Owner(owner) => {
-                    // Only the owner moves ownership on, signing with their current key, to
-                    // someone else.
-                    let may = kind == LogKind::Block
-                        && state.owner == Some(entry.signer)
-                        && owner.account != entry.signer
-                        && own.is_some_and(|signing| entry.signed_by(&signing));
-                    if !may {
+                    // The owner offers the block on, or withdraws an offer by naming itself,
+                    // signing with its current key; ownership moves only when the account it
+                    // was offered to accepts, naming itself and the keys the offer named, signed
+                    // with those keys.
+                    let signed = own.is_some_and(|signing| entry.signed_by(&signing));
+                    let owned = state.owner == Some(entry.signer);
+                    let accepting = !owned
+                        && owner.account == entry.signer
+                        && state.offered == Some((owner.account, owner.identity))
+                        && entry.signed_by(&owner.identity.signing);
+                    if kind != LogKind::Block || !(accepting || owned && signed) {
                         return Err(KeyError::Record);
                     }
-                    state.demote_owner(entry.signer);
-                    state.signers.insert(owner.account, owner.identity.signing);
-                    state
-                        .grants
-                        .insert(owner.account, (Level::Manage, owner.identity));
-                    state.set_level(owner.account, Level::Manage);
-                    state.owner = Some(owner.account);
-                    state.linked.remove(&owner.account);
+                    match (accepting, owner.account == entry.signer) {
+                        (false, false) => state.offered = Some((owner.account, owner.identity)),
+                        (false, true) => state.offered = None,
+                        (true, _) => {
+                            let former = state.owner.ok_or(KeyError::Record)?;
+                            state.offered = None;
+                            state.demote_owner(former);
+                            state.signers.insert(owner.account, owner.identity.signing);
+                            state
+                                .grants
+                                .insert(owner.account, (Level::Manage, owner.identity));
+                            state.set_level(owner.account, Level::Manage);
+                            state.owner = Some(owner.account);
+                            state.linked.remove(&owner.account);
+                        }
+                    }
                 }
                 Record::ShareLink(link) => {
                     // Made once, by a key never named before, granting Join, View or Edit; revoked only

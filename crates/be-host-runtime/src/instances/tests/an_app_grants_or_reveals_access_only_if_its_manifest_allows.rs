@@ -84,6 +84,10 @@ fn an_app_grants_or_reveals_access_only_if_its_manifest_allows() {
             block: own.into_bytes(),
             account: someone,
         },
+        Call::AcceptOwnership {
+            reply: reply(1),
+            block: own.into_bytes(),
+        },
         Call::ListShareLinks {
             reply: reply(1),
             block: own.into_bytes(),

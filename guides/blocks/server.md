@@ -582,11 +582,13 @@ exactly its parent's access and takes no grants (guides/blocks/host.md, "Search"
   "Naming a block's members"). It reads `audience`, so a block open in a
   workspace lists every account that views anything inside the workspace
   (`inside_viewers`) and may view the block. A block's agent may not ask it, and a guest is named only
-  itself, so it learns no member. Carrying an
-  owner record, it moves ownership (`transfer_owner`): only from the owner, to
-  a member who is their contact, and the block counts against the new owner's
-  bound on blocks (`OverQuota`), checked after the rest, so an owner learns
-  whether an account is at its bound only of a contact.
+  itself, so it learns no member. An
+  `append-log(owner)` (`owner_record`) offers ownership, only from the owner to a
+  member who is their contact, or withdraws an offer, keeping the one standing
+  in `owner_offers` (listed to the account offered it by `query.owner-offers`
+  and in `access-list.offered`); or, from the account offered the block, it
+  accepts and moves ownership, the block counting against the new owner's bound
+  on blocks (`OverQuota`).
 - Each block has an access log (guides/blocks/keys.md; table `access_log`,
   `be-server/src/access.rs`), served by `query.log(block)` to its viewers and to
   anyone viewing a block below it (`Visibility::reads_below`), who checks its

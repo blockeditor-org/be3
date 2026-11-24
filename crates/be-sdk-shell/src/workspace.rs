@@ -625,13 +625,32 @@ impl Workspace {
                 share.error = None;
                 let workspace = *self;
                 let asked = self.host().transfer_ownership(share.block, account);
-                // Listed again once it is done: who owns the block shows only then.
+                // Listed again once it is done: the offer shows only then.
                 let task = self.editor.then(asked, move |set| match set {
                     Ok(()) => workspace.share_listing.refresh(),
                     Err(failure) => workspace.access_set(Err(failure)),
                 });
                 self.state.value().share_asks.borrow_mut().push(task);
             }
+            self.share.set(Some(share));
+            return;
+        }
+        if let ShareAction::WithdrawOwnership | ShareAction::AcceptOwnership = action {
+            share.error = None;
+            let workspace = *self;
+            // An owner withdraws an offer by offering the block to themselves.
+            let asked = match action {
+                ShareAction::AcceptOwnership => self.host().accept_ownership(share.block),
+                _ => {
+                    let me = self.host().account_id();
+                    self.host().transfer_ownership(share.block, me)
+                }
+            };
+            let task = self.editor.then(asked, move |set| match set {
+                Ok(()) => workspace.share_listing.refresh(),
+                Err(failure) => workspace.access_set(Err(failure)),
+            });
+            self.state.value().share_asks.borrow_mut().push(task);
             self.share.set(Some(share));
             return;
         }

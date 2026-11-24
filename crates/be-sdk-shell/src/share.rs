@@ -130,6 +130,15 @@ impl Member {
     }
 }
 
+/// An offer of a block's ownership, as the share dialog shows it (`Share::ownership_offer`).
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) enum OwnershipOffer {
+    /// Its owner, named, offered it to the person.
+    ToMe { from: String },
+    /// The person, its owner, offered it to the member named.
+    ByMe { to: String },
+}
+
 #[derive(Clone, Debug)]
 pub(crate) enum ShareAction {
     Query(String),
@@ -141,11 +150,15 @@ pub(crate) enum ShareAction {
     SetAccess(Uuid, AccessLevel),
     Refresh,
     InviteNew,
-    /// Asks to confirm giving ownership to this member.
+    /// Asks to confirm offering ownership to this member.
     OfferOwnership(Uuid),
     CancelOwnership,
-    /// Gives ownership to the member offered it (`Share::transferring`).
+    /// Offers ownership to the member chosen (`Share::transferring`).
     ConfirmOwnership,
+    /// Withdraws the owner's offer of ownership (`AccessListing::offered`).
+    WithdrawOwnership,
+    /// Accepts ownership the owner offered the person.
+    AcceptOwnership,
     /// What the next share link grants.
     LinkAccess(AccessLevel),
     /// Whom the next share link admits.
@@ -173,7 +186,7 @@ pub(crate) struct Share {
     pub(crate) chosen_access: Option<AccessLevel>,
     pub(crate) inviting: Option<u64>,
     pub(crate) invite_link: Option<String>,
-    /// The member whom the person asked to give ownership to, until they confirm or cancel.
+    /// The member whom the person asked to offer ownership to, until they confirm or cancel.
     pub(crate) transferring: Option<Uuid>,
     /// What the next share link grants, once the person chose (`Share::link_access`), and
     /// whom it admits.
@@ -288,6 +301,8 @@ impl Share {
             ShareAction::CancelRevoke => self.revoking = None,
             ShareAction::InviteNew
             | ShareAction::ConfirmOwnership
+            | ShareAction::WithdrawOwnership
+            | ShareAction::AcceptOwnership
             | ShareAction::MakeLink
             | ShareAction::ConfirmRevoke => {}
         }
@@ -342,6 +357,31 @@ impl Share {
                 .unwrap_or_default()
                 .first(AccessLevel::View)
         })
+    }
+
+    /// The offer of ownership standing on the block as `listing` lists it, as `me` sees it: one
+    /// made to them, or one they made as its owner. Nobody else is told of it.
+    pub(crate) fn ownership_offer(listing: &AccessListing, me: Uuid) -> Option<OwnershipOffer> {
+        let offered = listing.offered?;
+        let name = |grant: &AccessGrant| grant.display_name.clone();
+        if offered == me.into_bytes() {
+            let from = listing.grants.iter().find(|grant| grant.author).map(name);
+            return Some(OwnershipOffer::ToMe {
+                from: from.unwrap_or_default(),
+            });
+        }
+        listing
+            .grants
+            .iter()
+            .any(|grant| grant.author && grant.account == me.into_bytes())
+            .then(|| OwnershipOffer::ByMe {
+                to: listing
+                    .grants
+                    .iter()
+                    .find(|grant| grant.account == offered)
+                    .map(name)
+                    .unwrap_or_default(),
+            })
     }
 
     /// Whether `me` manages the block as `listing` lists it: only a manager sees and makes its

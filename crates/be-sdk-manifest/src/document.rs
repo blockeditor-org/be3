@@ -43,7 +43,7 @@ pub struct ManifestDocument {
     #[serde(default)]
     pub block_agents: bool,
     /// Whether the app may grant or reveal access (`set-access`, `list-access`,
-    /// `transfer-ownership`, the share and contact link calls); the host denies those to any
+    /// `transfer-ownership`, `accept-ownership`, the share and contact link calls); the host denies those to any
     /// other, but for opening a settings kind of its own block to anyone inside.
     #[serde(default)]
     pub sharing: bool,
