@@ -1081,6 +1081,19 @@ pub(super) fn AgentsDialog(
                 .to_owned()
         })
     });
+    // be-host's instructions for a proxy, naming the build's default server as the example
+    // while the host says which it is.
+    let proxy_rule = create_memo(move || {
+        let example = core.with(|view| {
+            view.default_server
+                .as_ref()
+                .map(|server| format!(" ({} for {})", server.url, server.name))
+                .unwrap_or_default()
+        });
+        format!(
+            "Add a proxy rule for the server in these credentials{example}. Set its Authorization header to the value below and keep it outside the agent container. If a gateway secret is required, add Be3-Gateway-Authorization: Bearer <gateway secret> as a separate rule."
+        )
+    });
     let header = create_memo(move || {
         made.with(|made| {
             made.as_ref()
@@ -1186,9 +1199,7 @@ pub(super) fn AgentsDialog(
                         <Checkbox label="Account token supplied by proxy" checked={proxy} />
                         <Show value={proxy}>
                             <List spacing=Space::Sm>
-                                <Text style=TextStyle::PARAGRAPH>
-                                    "Add a proxy rule for the server in these credentials (api.be3.pfg.pw for the hosted service). Set its Authorization header to the value below and keep it outside the agent container. If a gateway secret is required, add Be3-Gateway-Authorization: Bearer <gateway secret> as a separate rule."
-                                </Text>
+                                <Text style=TextStyle::PARAGRAPH>{proxy_rule}</Text>
                                 <TextInput
                                     value={Binding::new(header, Callback::empty())}
                                     label="Proxy Authorization header"
