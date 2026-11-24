@@ -53,7 +53,7 @@ fn listed() -> OrganizationsListed {
 fn sessions() -> CoreView {
     CoreView {
         waits_for: Some(CoreWait::Session),
-        organization: "Analytical Engines".to_owned(),
+        organization: Some("Analytical Engines".to_owned()),
         sessions: SessionsArea {
             loaded: true,
             sessions: vec![

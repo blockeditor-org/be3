@@ -604,13 +604,15 @@ interface host {
     /// is made.
     record agent-credentials {
         name: string,
-        /// The server's address.
-        server: string,
-        organization: organization-id,
-        /// The token it signs in with.
-        token: password,
-        /// The recovery phrase of its keys.
-        phrase: password,
+        /// What a program reads from BE3_AGENT_CREDENTIALS, as the host's
+        /// block stack encodes it (`AgentCredentials::bundle`), with the
+        /// token it signs in with: a secret the root only shows and copies.
+        bundle: password,
+        /// The same for an agent whose proxy supplies its token, which it
+        /// leaves out.
+        proxy-bundle: password,
+        /// The Authorization header that proxy adds in its place.
+        proxy-header: password,
     }
 
     /// A member's new role.
@@ -821,22 +823,24 @@ interface host {
         pairing: list<pairing-request>,
         /// The block stack's failure, while it has failed.
         failure: option<core-failure>,
-        /// The organization whose blocks are open, by name, or empty while none is.
-        organization: string,
-        /// Who the person is signed in as, in words (their name or email, and server).
-        signed-in-as: string,
-        /// Whether the organization is a company's, whose members it invites, rather than the
-        /// person's own.
+        /// The organization whose blocks are open, by name, while one is. Who
+        /// is signed in is the account of `accounts` that is `current`.
+        organization: option<string>,
+        /// Whether the organization is a company's, whose members it invites,
+        /// rather than the person's own.
         company: bool,
-        /// Whether the person administers the organization: its members and invitations.
+        /// Whether the person administers the organization: its members and
+        /// invitations.
         administrator: bool,
-        /// Why the organization's escrow key is not to be trusted yet, in words, while it is
-        /// not.
+        /// Why the organization's escrow key is not to be trusted yet, while
+        /// it is not: the host's own reason, in its words, which the root
+        /// shows as it is.
         escrow-warning: option<string>,
-        /// The blocks this device keeps hosting with no editor open, oldest first.
+        /// The blocks this device keeps hosting with no editor open, oldest
+        /// first.
         hosting: list<hosted-block>,
-        /// The server this build signs in to unless the person names another, which adding
-        /// an account offers first.
+        /// The server this build signs in to unless the person names another,
+        /// which adding an account offers first.
         default-server: option<default-server>,
     }
 
@@ -1080,8 +1084,8 @@ interface frames {
         /// host's, which a driver may pin (drive's pinned wall clock), so a
         /// root reads neither clock of its own.
         wall-clock: u64,
-        /// The host's time zone at `wall-clock`: seconds east of UTC, which a root adds to
-        /// it to show the person's local time.
+        /// The host's time zone at `wall-clock`: seconds east of UTC, which a
+        /// root adds to it to show the person's local time.
         utc-offset: s32,
         /// The host's one window as it is drawn this frame, which the root
         /// lays its surfaces out in.

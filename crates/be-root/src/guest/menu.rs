@@ -81,8 +81,18 @@ pub(super) fn HostMenu(
         1 => "1 block".to_owned(),
         count => format!("{count} blocks"),
     });
-    let organization = create_memo(move || core.with(|view| view.organization.clone()));
-    let signed_in_as = create_memo(move || core.with(|view| view.signed_in_as.clone()));
+    let organization =
+        create_memo(move || core.with(|view| view.organization.clone().unwrap_or_default()));
+    // Who is signed in, as be-host's menu words it: the account open now.
+    let signed_in_as = create_memo(move || {
+        core.with(|view| {
+            view.accounts
+                .iter()
+                .find(|account| account.current)
+                .map(|account| format!("Signed in as {}", account.name))
+                .unwrap_or_default()
+        })
+    });
     let company = create_memo(move || core.with(|view| view.company));
     let administrator = create_memo(move || core.with(|view| view.administrator));
     let escrow_warning =

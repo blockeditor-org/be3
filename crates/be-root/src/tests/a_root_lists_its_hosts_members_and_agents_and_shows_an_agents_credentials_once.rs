@@ -55,7 +55,7 @@ fn members() -> CoreView {
         unsigned: false,
     };
     CoreView {
-        organization: "Analytical Engines".to_owned(),
+        organization: Some("Analytical Engines".to_owned()),
         administrator: true,
         members: MembersArea {
             listed: true,
@@ -73,7 +73,7 @@ fn members() -> CoreView {
 
 fn agents() -> CoreView {
     CoreView {
-        organization: "Analytical Engines".to_owned(),
+        organization: Some("Analytical Engines".to_owned()),
         agents: AgentsArea {
             listed: true,
             agents: vec![AgentRow {
@@ -174,10 +174,9 @@ fn a_root_lists_its_hosts_members_and_agents_and_shows_an_agents_credentials_onc
         *id,
         Some(CoreSecret::Agent(AgentCredentials {
             name: "Indexer".to_owned(),
-            server: "https://example.com".to_owned(),
-            organization: [4; 16],
-            token: Password::from("t0ken".to_owned()),
-            phrase: Password::from("apple banana cherry".to_owned()),
+            bundle: Password::from(r#"{"server":"https://example.com","token":"t0ken"}"#.to_owned()),
+            proxy_bundle: Password::from(r#"{"authentication":"proxy","server":"https://example.com"}"#.to_owned()),
+            proxy_header: Password::from("Bearer t0ken".to_owned()),
         })),
     );
     beui_paint_snapshot::assert_painting(
@@ -231,10 +230,9 @@ fn a_root_lists_its_hosts_members_and_agents_and_shows_an_agents_credentials_onc
         *id,
         Some(CoreSecret::Agent(AgentCredentials {
             name: "Crawler".to_owned(),
-            server: "https://example.com".to_owned(),
-            organization: [4; 16],
-            token: Password::from("t0ken2".to_owned()),
-            phrase: Password::from("date elder fig".to_owned()),
+            bundle: Password::from(r#"{"server":"https://example.com","token":"t0ken"}"#.to_owned()),
+            proxy_bundle: Password::from(r#"{"authentication":"proxy","server":"https://example.com"}"#.to_owned()),
+            proxy_header: Password::from("Bearer t0ken".to_owned()),
         })),
     );
     assert_ne!(
