@@ -33,10 +33,10 @@ async fn a_contact_connected_again_by_a_new_link_outranks_every_devices_pin() {
     .unwrap()
     .expect("a person's account has its own block")
     .update(|_| {
-        vec![be_block::AccountBlock::set_contact(
+        crate::peer::account_block::answered(vec![be_block::AccountBlock::set_contact(
             rosa.account(),
             Some(dated_ahead.kept()),
-        )]
+        )])
     })
     .await
     .unwrap();

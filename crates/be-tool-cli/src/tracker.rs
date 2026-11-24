@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
-use be_block_client::{Peer, Saved, Write};
+use be_block_client::{BlockRead, ClientError, NewContent, Peer, Saved, Write};
 use be_block_commit::CommitId;
 use be_block_content::{BlockContent, BlockMetadata, ChildChange, LiveEdit, ObjectId};
 use be_block_graph::BlockParent;
@@ -27,8 +27,22 @@ use be_type_text::TextContent;
 
 mod prefixes;
 
-const ATTEMPTS: usize = 8;
 const CLIENT: u64 = 0x6265_2d63_6c69;
+
+/// An error of `Tracker::edit`'s `make` or of the update around it, as the CLI tells it.
+struct Failed(String);
+
+impl From<String> for Failed {
+    fn from(error: String) -> Self {
+        Self(error)
+    }
+}
+
+impl From<ClientError> for Failed {
+    fn from(error: ClientError) -> Self {
+        Self(explain(error))
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FieldView {
@@ -324,24 +338,17 @@ impl<S: ObjectStore> Tracker<S> {
         &self.sources
     }
 
-    async fn read_bytes(&self, block: Uuid) -> Result<(Option<CommitId>, Option<Vec<u8>>), String> {
-        let read = self
-            .peer
-            .read_contents(&[(block, self.peer.local_head(block))])
-            .await
-            .map_err(explain)?;
-        let Some(read) = read.into_iter().next() else {
-            return Ok((None, None));
-        };
-        let head = read.summary.head;
-        if let Some(head) = head {
-            self.peer.remember(block, head).map_err(explain)?;
-        }
-        let bytes = match read.journal {
+    async fn read_bytes(&self, block: Uuid) -> Result<Option<Vec<u8>>, String> {
+        let read = self.peer.current(block).await.map_err(explain)?;
+        Ok(self.readable(read).await)
+    }
+
+    /// A block's bytes as read, with what its live session sequenced past them.
+    async fn readable(&self, read: BlockRead) -> Option<Vec<u8>> {
+        match read.journal {
             Some(_) => self.types().await.readable(read).await,
             None => read.stored.map(|stored| stored.bytes),
-        };
-        Ok((head, bytes))
+        }
     }
 
     async fn publish(
@@ -383,32 +390,53 @@ impl<S: ObjectStore> Tracker<S> {
         }
     }
 
-    /// Reads the block's head, makes new content with `make` and publishes it
-    /// against that head, retrying on the new head when rejected, so it never
-    /// overwrites a save it didn't see. An editor with the block open merges
-    /// the new head like any outside publish.
+    /// Makes the block's new content with `make` from its content as read and publishes it
+    /// against the head read (`Peer::update`), so it never overwrites a save it didn't see. An
+    /// editor with the block open merges the new head like any outside publish. Answers the
+    /// content as written, or as read when `make` changed nothing.
     async fn edit(
         &self,
         block: Uuid,
         content_type: Uuid,
-        mut make: impl AsyncFnMut(Option<Vec<u8>>) -> Result<Option<Vec<u8>>, String>,
+        make: impl AsyncFnMut(Option<Vec<u8>>) -> Result<Option<Vec<u8>>, String>,
     ) -> Result<Option<Vec<u8>>, String> {
-        for _ in 0..ATTEMPTS {
-            let (head, current) = self.read_bytes(block).await?;
-            let Some(changed) = make(current.clone()).await? else {
-                return Ok(current);
-            };
-            if Some(&changed) == current.as_ref() {
-                return Ok(current);
-            }
-            if self.publish(block, content_type, &changed, head).await? {
-                self.invalidate().await;
-                return Ok(Some(changed));
-            }
+        let organization = self.peer.organization();
+        // Kept outside the futures `update` asks for, which borrow nothing of its closure.
+        let make = Mutex::new(make);
+        let written = std::sync::Mutex::new(None);
+        let saved = self
+            .peer
+            .update(block, content_type, |read: BlockRead| {
+                let (make, written) = (&make, &written);
+                async move {
+                    let current = self.readable(read).await;
+                    *written.lock().unwrap() = current.clone();
+                    let changed = (*make.lock().await)(current.clone()).await?;
+                    let Some(changed) = changed else {
+                        return Ok(None);
+                    };
+                    if Some(&changed) == current.as_ref() {
+                        return Ok(None);
+                    }
+                    let description = self
+                        .types()
+                        .await
+                        .describe(content_type, &changed, organization)
+                        .await?;
+                    *written.lock().unwrap() = Some(changed.clone());
+                    Ok::<_, Failed>(Some(NewContent {
+                        parts: changed.into(),
+                        references: description.references,
+                        derived: description.derived,
+                    }))
+                }
+            })
+            .await
+            .map_err(|Failed(error)| error)?;
+        if saved.is_some() {
+            self.invalidate().await;
         }
-        Err(format!(
-            "block {block} kept changing while this was being saved; try again"
-        ))
+        Ok(written.into_inner().unwrap())
     }
 
     pub fn peer(&self) -> &Peer<S> {
@@ -1547,7 +1575,7 @@ impl<S: ObjectStore> Tracker<S> {
     }
 
     pub async fn text(&self, block: Uuid) -> Result<String, String> {
-        let (_, bytes) = self.read_bytes(block).await?;
+        let bytes = self.read_bytes(block).await?;
         self.plain_text(TextContent::CONTENT_TYPE, bytes).await
     }
 

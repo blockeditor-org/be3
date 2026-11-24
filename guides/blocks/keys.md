@@ -1195,9 +1195,10 @@ keys the granter verified that way, which every device then seals to.
   link, whose write deletes those that lead nowhere from the new card. Nothing
   is written or deleted while the block does not open on this device, since the
   changes may be sealed to a new phrase it lacks. A device writes the block
-  only over the head it read (`AccountRecords::save`), so a device that read
-  fewer changes than another never rolls a record back past a change the other
-  already deleted: refused, it reads again. A contact who connects again by a
+  only over the head it read (`AccountRecords::update`, over `Peer::update`),
+  so a device that read fewer changes than another never rolls a record back
+  past a change the other already deleted: refused, it reads the block and its
+  mailbox again and makes the pass again. A contact who connects again by a
   new link, as one who lost their phrase must, gets a record that follows the
   newest the block holds, so it outranks every device's pin whatever their
   clocks say, and a new key needs no signed change.

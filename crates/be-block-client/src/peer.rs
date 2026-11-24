@@ -79,6 +79,7 @@ mod prefixes;
 mod reseal;
 mod rotation;
 mod transfers;
+mod update;
 
 pub use notifications::{
     MAX_NOTIFICATION_AGE_MILLISECONDS, MAX_NOTIFICATION_TEXT, Notification, OpenedNotification,
@@ -88,6 +89,7 @@ pub use authorship::by_app;
 pub use import::Imported;
 pub use prefixes::Registry;
 pub use rotation::PendingRotation;
+pub use update::{NewContent, UPDATE_ATTEMPTS};
 
 /// Follows `query`'s topic, answering whether the server took it.
 fn followed<T: be_block_protocol::FromPage + Send + 'static>(
@@ -3632,27 +3634,12 @@ impl<S: ObjectStore> Peer<S> {
         whole
     }
 
+    /// `block`'s content as this device has it newest (`current`); none before its first save.
     pub async fn open<C: BlockContent>(&self, block: Uuid) -> Result<Option<C>, ClientError> {
-        if let Some(head) = self.local_head(block)
-            && !self.pending_commits(block).is_empty()
-        {
-            return Ok(Some(C::from_stored(&self.read_at(block, head).await?)?));
+        match self.current(block).await?.stored {
+            Some(stored) => Ok(Some(C::from_stored(&stored)?)),
+            None => Ok(None),
         }
-        let read = self
-            .read_contents(&[(block, self.local_head(block))])
-            .await?;
-        let Some(BlockRead {
-            summary,
-            stored: Some(stored),
-            ..
-        }) = read.into_iter().next()
-        else {
-            return Ok(None);
-        };
-        if let Some(head) = summary.head {
-            self.remember(block, head)?;
-        }
-        Ok(Some(C::from_stored(&stored)?))
     }
 
     /// `block`'s content at `commit`, which the server may have named (`load_head`).
