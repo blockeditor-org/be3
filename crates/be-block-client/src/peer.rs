@@ -196,6 +196,9 @@ pub struct SealsJournal {
     pub run: u64,
     pub through: u64,
     pub state: Vec<u8>,
+    /// The objects of the parts `state` names, which the server keeps while the journal's base
+    /// names them (`journal-base.parts`).
+    pub parts: Vec<Hash>,
 }
 
 impl<'a> Write<'a> {
@@ -3858,6 +3861,7 @@ impl<S: ObjectStore> Peer<S> {
                         commit: Some(id),
                         sequence: seal.through,
                         state: self.commits.vault().seal(key, &seal.state)?,
+                        parts: seal.parts.clone(),
                     },
                 })
             })
@@ -4109,6 +4113,24 @@ impl<S: ObjectStore> Peer<S> {
         self.hold(block, &objects, be_block_protocol::Hold::UntilCommitted)
             .await?;
         Ok(part)
+    }
+
+    /// Every object of `parts`, which this device put (`put_part`) or holds: what a journal's
+    /// base names so the server keeps them while it names them (`journal-base.parts`).
+    pub fn part_objects(
+        &self,
+        parts: &[be_block_store::PartRef],
+    ) -> Result<Vec<Hash>, ClientError> {
+        let vault = self.commits.vault();
+        let mut objects = Vec::new();
+        for part in parts {
+            let manifest = be_block_store::Manifest {
+                content_type: Uuid::nil(),
+                root: Some(*part),
+            };
+            objects.extend(vault.objects(&manifest)?);
+        }
+        Ok(objects)
     }
 
     pub fn set_resolver(&self, resolver: Resolver) {
