@@ -7,7 +7,7 @@ fn a_dock_stacked_by_narrowing_it_leaves_the_hidden_panel_unplaced() {
     let _root = crate::reactive::RootScope::new();
     let home = NodeRef::new();
     let document = build_node(move || {
-        let layout = DockingLayout::new();
+        let layout = DockingLayout::<u64>::new();
         view! {
             <dock_host::styled::DockHost>
                 <dock::Docking layout focus=2u64>

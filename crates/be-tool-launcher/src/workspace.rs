@@ -40,7 +40,7 @@ pub(crate) fn Workspace(model: Model) -> NodeId {
             <ListItem grow=1.0>
                 <DockHost>
                     <Docking layout={model.layout}>
-                        <DockPane id="workspace" active={Some(Tab::Log)}>
+                        <DockPane id="workspace" active=Tab::Log>
                             <DockTab id=Tab::Log title="Log" icon=ICON_TERMINAL>
                                 <Frame padding=PADDING>
                                     <TerminalPane pane />
@@ -60,7 +60,7 @@ pub(crate) fn Workspace(model: Model) -> NodeId {
 }
 
 #[component]
-fn PullRequestTab(model: Model, document: DockDocument<Tab, PullRequest, u64>) -> DockEntry<Tab> {
+fn PullRequestTab(model: Model, document: DockDocument<Tab, PullRequest, u64>) -> DockEntry {
     let pull_request = document.content();
     let title = create_memo(move || {
         pull_request.with(|pull_request| format!("#{} {}", pull_request.number, pull_request.title))

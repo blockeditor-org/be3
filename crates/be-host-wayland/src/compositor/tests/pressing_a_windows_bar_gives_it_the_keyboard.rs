@@ -11,7 +11,7 @@ const KEY_B: u32 = 48;
 #[component]
 fn Floating(windows: Windows) -> NodeId {
     let ids = create_memo(clone_list(&windows));
-    let layout = DockingLayout::new();
+    let layout = DockingLayout::<u64>::new();
     let window = Rect::from_min_size(pos2(450.0, 100.0), Vec2::new(450.0, 400.0));
     view! {
         <DockHost>

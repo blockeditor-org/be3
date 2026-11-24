@@ -2,14 +2,12 @@ use be_sdk_beui::Fit;
 use be_sdk_beui::beui::CanvasView;
 use be_sdk_beui::beui::dock::styled::{DockBarGrip, DockBarSurface};
 use be_sdk_beui::beui::dock::{DockAlign, DockBarPlacement, DockEdge};
-use be_sdk_beui::beui::dock::{
-    DockBar, DockPane, DockSplit, DockTab, Docking, DockingLayout, SplitSize,
-};
+use be_sdk_beui::beui::dock::{DockBar, DockPane, DockSplit, DockTab, Docking};
 use be_sdk_beui::beui::icons::{ICON_ARROW_LEFT, ICON_ARROW_RIGHT};
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{Color32, ImageFit, NodeId, PointerPress, Pos2, Rect, Vec2};
-use be_sdk_beui::{ContentFileReplace, Editor, SIDE_PANEL_WIDTH};
+use be_sdk_beui::{ContentFileReplace, Editor};
 
 use super::pages::{Pages, Shown, Viewport};
 use super::{filter, imported};
@@ -18,10 +16,7 @@ use beui::unstyled::gestures;
 
 const PAGE_FILL: Color32 = Color32::from_rgb(255, 255, 255);
 const STAGE: &str = "stage";
-const SIDEBAR: &str = "sidebar";
 const TOOLBAR: &str = "toolbar";
-const SIDEBAR_WIDTH: f32 = SIDE_PANEL_WIDTH;
-const PANEL_PADDING: Space = Space::Lg;
 
 #[component]
 pub fn PdfEditor(editor: Editor) -> NodeId {
@@ -145,24 +140,17 @@ fn PdfDock(
     controls: Controls,
     details: Details,
 ) -> NodeId {
-    let layout = DockingLayout::<&'static str>::new();
     view! {
-        <Docking layout focus={Some(STAGE)}>
-            <DockSplit id="pdf" size={SplitSize::Second(SIDEBAR_WIDTH)}>
-                <DockPane id="stage" locked=true bare=true>
-                    <DockTab id=STAGE title="Page">
+        <Docking>
+            <DockSplit>
+                <DockPane stage=true>
+                    <DockTab id=STAGE>
                         <Viewer editor content shown />
                     </DockTab>
                 </DockPane>
-                <DockPane id="sidebar" locked=true>
-                    <DockTab id=SIDEBAR title="PDF">
-                        <Frame fill=ColorRole::Surface>
-                            <Scroll @test_id={"pdf.sidebar"}>
-                                <Frame padding=PANEL_PADDING>
-                                    <DetailsPanel details />
-                                </Frame>
-                            </Scroll>
-                        </Frame>
+                <DockPane>
+                    <DockTab title="PDF">
+                        <DetailsPanel details />
                     </DockTab>
                 </DockPane>
             </DockSplit>

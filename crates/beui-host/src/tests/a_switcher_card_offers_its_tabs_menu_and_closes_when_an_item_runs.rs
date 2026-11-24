@@ -23,7 +23,7 @@ fn a_switcher_card_offers_its_tabs_menu_and_closes_when_an_item_runs() {
     let _root = crate::reactive::RootScope::new();
     let shared = create_signal(Vec::<u64>::new());
     let document = build_node(move || {
-        let layout = DockingLayout::new();
+        let layout = DockingLayout::<u64>::new();
         view! {
             <dock_host::styled::DockHost>
                 <dock::Docking layout focus=2u64>

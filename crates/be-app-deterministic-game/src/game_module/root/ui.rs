@@ -1,15 +1,12 @@
-use be_sdk_beui::beui::dock::{DockPane, DockSplit, DockTab, Docking, DockingLayout, SplitSize};
+use be_sdk_beui::beui::dock::{DockPane, DockSplit, DockTab, Docking};
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{NodeId, TextAlign};
-use be_sdk_beui::{ContentFileReplace, Editor, SIDE_PANEL_WIDTH};
+use be_sdk_beui::{ContentFileReplace, Editor};
 use be_type_deterministic_game::GameModuleContent;
 use tabletop_host::Game;
 
 use super::{filter, imported};
-const STAGE: &str = "stage";
-const PANEL: &str = "panel";
-const PANEL_WIDTH: f32 = SIDE_PANEL_WIDTH;
 const PADDING: Space = Space::Lg;
 const SPACING: Space = Space::Md;
 
@@ -38,15 +35,13 @@ pub fn ModuleView(editor: Editor) -> NodeId {
     let size = create_memo(move || payload.get().map_or(0, |data| data.len()));
     let bytes = create_memo(move || format!("{} bytes", size.get()));
 
-    let chrome = editor.chrome_shown();
     let content = NodeRef::new();
     editor.content(&content);
-    let layout = DockingLayout::<&'static str>::new();
     view! {
-        <Docking layout focus={Some(STAGE)}>
-            <DockSplit id="module" size={SplitSize::Second(PANEL_WIDTH)}>
-                <DockPane id="stage" locked=true bare=true>
-                    <DockTab id=STAGE title="Module">
+        <Docking>
+            <DockSplit>
+                <DockPane stage=true>
+                    <DockTab>
                         <Frame @node_ref={&content} padding=PADDING>
                             <List spacing=SPACING>
                                 <Dynamic value={loaded}>|loaded: Loaded| {
@@ -85,33 +80,18 @@ pub fn ModuleView(editor: Editor) -> NodeId {
                         </Frame>
                     </DockTab>
                 </DockPane>
-                <Show value={chrome}>
-                    <DockPane id="panel" locked=true>
-                        <DockTab id=PANEL title="Game module">
-                            <ModulePanel editor={editor} />
-                        </DockTab>
-                    </DockPane>
-                </Show>
+                <DockPane chrome=true>
+                    <DockTab title="Game module">
+                        <ContentFileReplace
+                            editor
+                            label="Replace module…"
+                            id_prefix="game-module"
+                            filter={filter()}
+                            import={imported}
+                        />
+                    </DockTab>
+                </DockPane>
             </DockSplit>
         </Docking>
-    }
-}
-
-#[component]
-fn ModulePanel(editor: Editor) -> NodeId {
-    view! {
-        <Frame fill=ColorRole::Surface>
-            <Scroll>
-                <Frame padding=PADDING>
-                    <ContentFileReplace
-                        editor
-                        label="Replace module…"
-                        id_prefix="game-module"
-                        filter={filter()}
-                        import={imported}
-                    />
-                </Frame>
-            </Scroll>
-        </Frame>
     }
 }

@@ -5,7 +5,7 @@ fn two_splitters_carried_at_once_each_go_back_or_stay_by_their_own_carry() {
     let _root = crate::reactive::RootScope::new();
     let presses = create_signal(0);
     let document = build_node(move || {
-        let layout = dock::DockingLayout::new();
+        let layout = dock::DockingLayout::<u64>::new();
         view! {
             <dock_host::styled::DockHost>
                 <dock::Docking layout>

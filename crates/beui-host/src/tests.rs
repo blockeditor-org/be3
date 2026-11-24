@@ -138,6 +138,7 @@ mod a_dock_dialog_over_a_hidden_tab_is_built_when_the_tab_is_shown;
 mod a_dock_document_opened_in_place_keeps_its_tab_and_rebuilds_only_for_another_document;
 mod a_dock_inside_a_dock_tab_joins_it_as_a_locked_group;
 mod a_dock_kept_hidden_lets_its_tab_go_and_joins_again_when_shown;
+mod a_dock_of_a_stage_a_chrome_pane_and_titles_builds_what_its_long_form_does;
 mod a_dock_splitter_stays_above_the_embeds_beside_it;
 mod a_dock_stacked_by_narrowing_it_leaves_the_hidden_panel_unplaced;
 mod a_dock_tab_dropped_where_no_window_is_opens_a_window_at_the_pointer;
@@ -2219,7 +2220,7 @@ pub(crate) fn text_of(document: &Document, id: NodeId) -> &str {
 pub(crate) fn dock_of(tabs: usize) -> (Document, NodeId) {
     let dock = NodeRef::new();
     let document = build_node(move || {
-        let layout = dock::DockingLayout::new();
+        let layout = dock::DockingLayout::<u64>::new();
         let open = create_signal((1..=tabs as u64).collect::<Vec<_>>());
         view! {
             <dock_host::styled::DockHost @node_ref=&dock>
@@ -2356,7 +2357,7 @@ fn pick_menu_of(harness: &mut Harness, dock: NodeId, node: NodeId, name: &str, r
 pub(crate) fn windowed_dock(drag_modifier: Option<Modifiers>) -> (Document, NodeId) {
     let dock = NodeRef::new();
     let document = build_node(move || {
-        let layout = dock::DockingLayout::new();
+        let layout = dock::DockingLayout::<u64>::new();
         view! {
             <dock_host::styled::DockHost drag_modifier @node_ref=&dock>
                 <dock::Docking layout>
@@ -2429,7 +2430,7 @@ pub(crate) fn split_dock(drag_modifier: Option<Modifiers>) -> SplitDock {
     let dock = NodeRef::new();
     let presses = create_signal(0);
     let document = build_node(move || {
-        let layout = dock::DockingLayout::new();
+        let layout = dock::DockingLayout::<u64>::new();
         view! {
             <dock_host::styled::DockHost drag_modifier @node_ref=&dock>
                 <dock::Docking layout>
@@ -2454,7 +2455,7 @@ pub(crate) fn split_dock(drag_modifier: Option<Modifiers>) -> SplitDock {
 }
 
 #[component]
-fn CountingTab(id: u64, presses: Signal<u32>) -> dock::DockEntry<u64> {
+fn CountingTab(id: u64, presses: Signal<u32>) -> dock::DockEntry {
     view! {
         <dock::DockTab id title={format!("Tab {id}")}>
             <CountingPanel id presses />

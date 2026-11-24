@@ -118,7 +118,7 @@ fn DeckDock(
 ) -> NodeId {
     let layout = DockingLayout::<&'static str>::new();
     view! {
-        <Docking layout focus={Some(STAGE)}>
+        <Docking layout focus=STAGE>
             <DockSplit id="deck" size={SplitSize::First(FILMSTRIP_WIDTH)}>
                 <DockPane id="filmstrip" locked=true>
                     <DockTab id=FILMSTRIP title="Slides">

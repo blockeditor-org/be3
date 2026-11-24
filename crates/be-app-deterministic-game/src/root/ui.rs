@@ -5,7 +5,7 @@ use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::dock::styled::{DockBarGrip, DockBarSurface};
 use be_sdk_beui::beui::dock::{DockAlign, DockBarPlacement, DockEdge};
 use be_sdk_beui::beui::dock::{
-    DockBar, DockPane, DockSplit, DockTab, Docking, DockingLayout, SplitSize, use_dock_bar,
+    DockBar, DockPane, DockSplit, DockTab, Docking, use_dock_bar,
 };
 use be_sdk_beui::beui::icons::{ICON_CHECK, ICON_FLAG, ICON_X};
 use be_sdk_beui::beui::reactive::*;
@@ -29,11 +29,8 @@ use moves::MoveTable;
 use play::Play;
 
 const STAGE: &str = "stage";
-const HISTORY: &str = "history";
 const CHOICES: &str = "choices";
 const ACTIONS: &str = "actions";
-const SIDEBAR_WIDTH: f32 = be_sdk_beui::SIDE_PANEL_WIDTH;
-const PANEL_PADDING: Space = Space::Lg;
 const BANNER_MARGIN: Space = Space::Lg;
 
 pub(crate) trait GameModel {
@@ -358,18 +355,17 @@ fn GameDock(
 ) -> NodeId {
     let steps = panel.steps;
     let Panel { table, shown, .. } = panel;
-    let dock = DockingLayout::<&'static str>::new();
     view! {
-        <Docking layout={dock} focus={Some(STAGE)}>
-            <DockSplit id="game" size={SplitSize::Second(SIDEBAR_WIDTH)}>
-                <DockPane id="stage" locked=true bare=true>
-                    <DockTab id=STAGE title="Board">
+        <Docking>
+            <DockSplit>
+                <DockPane stage=true>
+                    <DockTab id=STAGE>
                         <Stage content={stage} editor play drawn layout hand steps />
                     </DockTab>
                 </DockPane>
-                <DockPane id="history" locked=true>
-                    <DockTab id=HISTORY title="History">
-                        <History table shown steps />
+                <DockPane>
+                    <DockTab title="History">
+                        <MoveTable table shown steps />
                     </DockTab>
                 </DockPane>
             </DockSplit>
@@ -454,19 +450,6 @@ fn ChoiceBar(play: Play) -> NodeId {
         <DockBarSurface spacing=Space::Sm @test_id={"game.choices"}>
             <ChoiceButtons play />
         </DockBarSurface>
-    }
-}
-
-#[component]
-fn History(table: Memo<Table>, shown: Memo<usize>, steps: Steps) -> NodeId {
-    view! {
-        <Frame fill=ColorRole::Surface>
-            <Scroll @test_id={"game.history"}>
-                <Frame padding=PANEL_PADDING>
-                    <MoveTable table shown steps />
-                </Frame>
-            </Scroll>
-        </Frame>
     }
 }
 

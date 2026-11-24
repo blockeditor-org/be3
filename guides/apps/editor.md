@@ -64,14 +64,37 @@ framework reports its rectangle after every layout; the host pans, zooms and
 reads wheel gestures against it, so a wheel over a sidebar is not a wheel
 over the content.
 
-Side panels go in the editor's own dock (guides/beui/docking.md): a locked
-panel pane beside a bare locked stage pane, under a `Show` of
-`chrome_shown()`, sized with `SplitSize::Second(SIDE_PANEL_WIDTH)` so the
-stage takes what the frame gains. The canvas splits its stage with Inspector
-above Layers; the deterministic game puts a locked History pane beside its
-board and its seat picker in a `DockBar`. Database, worktree, game module and
-audio are further examples. When the editor's dock joins the workspace's
-([children.md](children.md#docks-across-apps)) these panes become the root's.
+Side panels go in the editor's own dock (guides/beui/docking.md). A stage and a
+side panel is all defaults:
+
+```rust
+view! {
+    <Docking>
+        <DockSplit>
+            <DockPane stage=true>
+                <DockTab><Track @node_ref={&content} editor /></DockTab>
+            </DockPane>
+            <DockPane chrome=true>
+                <DockTab title="Audio"><ContentFileReplace editor .. /></DockTab>
+            </DockPane>
+        </DockSplit>
+    </Docking>
+}
+```
+
+The stage is bare and focused, every pane of a dock with a stage is locked, a
+`chrome` pane leaves while the frame hides the chrome, the split gives the
+panel `SIDE_PANEL_WIDTH` so the stage takes what the frame gains, and the
+panel's body is the standard panel (`Surface`, a `Scroll`, padding). Give an id
+only to what the code names: the stage's tab when a `DockBar` hangs from it, a
+tab `DockingLayout::show` brings forward, a pane or tab a test finds by its id.
+A body that fills the panel itself (a list with its own scroll) takes `bare`;
+a size is given only to differ. The canvas splits its stage with Inspector
+above Layers; the deterministic game puts a History pane beside its board and
+its seat picker in a `DockBar`. Audio, image, PDF, map, logic grid, database
+and game module are further examples. When the editor's dock joins the
+workspace's ([children.md](children.md#docks-across-apps)) these panes become
+the root's.
 
 ## Phones
 

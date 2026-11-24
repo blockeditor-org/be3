@@ -1,19 +1,15 @@
 use be_sdk_beui::Fit;
-use be_sdk_beui::beui::dock::{DockPane, DockSplit, DockTab, Docking, DockingLayout, SplitSize};
+use be_sdk_beui::beui::dock::{DockPane, DockSplit, DockTab, Docking};
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{Image, ImageFit, NodeId, Pos2, Rect, Thumbhash, Vec2};
-use be_sdk_beui::{ContentFileReplace, Editor, SIDE_PANEL_WIDTH, fit_content};
+use be_sdk_beui::{ContentFileReplace, Editor, fit_content};
 
 use super::picture::{thumbhash, watch};
 use super::{filter, imported};
 use be_type_image::ImageContent;
 use beui::Align;
 
-const STAGE: &str = "stage";
-const PANEL: &str = "panel";
-const PANEL_WIDTH: f32 = SIDE_PANEL_WIDTH;
-const PANEL_PADDING: Space = Space::Lg;
 const PANEL_SPACING: Space = Space::Md;
 
 #[component]
@@ -32,16 +28,14 @@ pub fn ImageEditor(editor: Editor) -> NodeId {
         }
     };
 
-    let chrome = editor.chrome_shown();
     let content = NodeRef::new();
     editor.content(&content);
     editor.keep_fitted(|| Some(Fit::World));
-    let layout = DockingLayout::<&'static str>::new();
     view! {
-        <Docking layout focus={Some(STAGE)}>
-            <DockSplit id="image" size={SplitSize::Second(PANEL_WIDTH)}>
-                <DockPane id="stage" locked=true bare=true>
-                    <DockTab id=STAGE title="Picture">
+        <Docking>
+            <DockSplit>
+                <DockPane stage=true>
+                    <DockTab>
                         <Frame @node_ref={&content}>
                             <Loading fallback>|| {
                                 let block = editor.block_content::<ImageContent>();
@@ -63,27 +57,19 @@ pub fn ImageEditor(editor: Editor) -> NodeId {
                         </Frame>
                     </DockTab>
                 </DockPane>
-                <Show value={chrome}>
-                    <DockPane id="panel" locked=true>
-                        <DockTab id=PANEL title="Image">
-                            <Frame fill=ColorRole::Surface>
-                                <Scroll @test_id={"image.panel"}>
-                                    <Frame padding=PANEL_PADDING>
-                                        <List spacing=PANEL_SPACING>
-                                            <ContentFileReplace
-                                                editor
-                                                label="Replace image…"
-                                                id_prefix="image"
-                                                filter={filter()}
-                                                import={imported}
-                                            />
-                                        </List>
-                                    </Frame>
-                                </Scroll>
-                            </Frame>
-                        </DockTab>
-                    </DockPane>
-                </Show>
+                <DockPane chrome=true>
+                    <DockTab title="Image">
+                        <List spacing=PANEL_SPACING>
+                            <ContentFileReplace
+                                editor
+                                label="Replace image…"
+                                id_prefix="image"
+                                filter={filter()}
+                                import={imported}
+                            />
+                        </List>
+                    </DockTab>
+                </DockPane>
             </DockSplit>
         </Docking>
     }

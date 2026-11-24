@@ -1,9 +1,9 @@
 use be_sdk_beui::beui::dock::styled::{DockBarGrip, DockBarSurface};
 use be_sdk_beui::beui::dock::{DockAlign, DockBarPlacement, DockEdge};
 use be_sdk_beui::beui::dock::{
-    DockBar, DockPane, DockSplit, DockTab, Docking, DockingLayout, SplitSize,
+    DockBar, DockPane, DockSplit, DockTab, Docking, SplitSize,
 };
-use be_sdk_beui::{Editor, LoadingPane, SIDE_PANEL_WIDTH, ZoomBar};
+use be_sdk_beui::{Editor, LoadingPane, ZoomBar};
 use beui::icons::ICON_WRENCH;
 use beui::reactive::*;
 use beui::styled::*;
@@ -17,11 +17,8 @@ use crate::renderer::GridScene;
 use beui::native::draw_gpu;
 
 const STAGE: &str = "stage";
-const HOTBAR: &str = "hotbar";
-const PANELS: &str = "panels";
 const TOOLS: &str = "tools";
 const ZOOM: &str = "zoom";
-const PANELS_WIDTH: f32 = SIDE_PANEL_WIDTH;
 
 #[component]
 pub(super) fn LogicGridView(editor: Editor) -> NodeId {
@@ -56,7 +53,6 @@ pub(super) fn LogicGridView(editor: Editor) -> NodeId {
 
 #[component]
 fn GridDock(session: Session, chrome: ReadSignal<bool>) -> NodeId {
-    let layout = DockingLayout::<&'static str>::new();
     // The grid's fit returns the view to its origin, at 100%.
     let editor = session.editor();
     let world = editor.world();
@@ -68,28 +64,28 @@ fn GridDock(session: Session, chrome: ReadSignal<bool>) -> NodeId {
         }
     });
     view! {
-        <Docking layout focus={Some(STAGE)}>
-            <DockSplit id="grid" size={SplitSize::First(HOTBAR_WIDTH)}>
-                <Show value={chrome}>
-                    <DockPane id="hotbar" locked=true>
-                        <DockTab id=HOTBAR title="Components">
-                            <HotbarPane session={session} />
-                        </DockTab>
-                    </DockPane>
-                </Show>
-                <DockSplit id="workspace" size={SplitSize::Second(PANELS_WIDTH)}>
-                    <DockPane id="stage" locked=true bare=true>
-                        <DockTab id=STAGE title="Grid">
+        <Docking>
+            <DockSplit size={SplitSize::First(HOTBAR_WIDTH)}>
+                <DockPane chrome=true>
+                    <DockTab title="Components">
+                        <List spacing=Space::Md @test_id={"logic-grid.hotbar"}>
+                            <Hotbar session={session} />
+                            <Separator />
+                            <ToolSettings session={session} />
+                        </List>
+                    </DockTab>
+                </DockPane>
+                <DockSplit>
+                    <DockPane stage=true>
+                        <DockTab id=STAGE>
                             <GridCanvas session={session} />
                         </DockTab>
                     </DockPane>
-                    <Show value={chrome}>
-                        <DockPane id="panels" locked=true>
-                            <DockTab id=PANELS title="Simulation">
-                                <PanelsPane session={session} />
-                            </DockTab>
-                        </DockPane>
-                    </Show>
+                    <DockPane chrome=true>
+                        <DockTab title="Simulation">
+                            <Panels session={session} />
+                        </DockTab>
+                    </DockPane>
                 </DockSplit>
             </DockSplit>
             <Show value={chrome}>
@@ -109,36 +105,6 @@ fn GridDock(session: Session, chrome: ReadSignal<bool>) -> NodeId {
                 </DockBar>
             </Show>
         </Docking>
-    }
-}
-
-#[component]
-fn HotbarPane(session: Session) -> NodeId {
-    view! {
-        <Frame fill=ColorRole::Surface>
-            <Scroll @test_id={"logic-grid.hotbar"}>
-                <Frame padding=Space::Lg>
-                    <List spacing=Space::Md>
-                        <Hotbar session={session} />
-                        <Separator />
-                        <ToolSettings session={session} />
-                    </List>
-                </Frame>
-            </Scroll>
-        </Frame>
-    }
-}
-
-#[component]
-fn PanelsPane(session: Session) -> NodeId {
-    view! {
-        <Frame fill=ColorRole::Surface>
-            <Scroll @test_id={"logic-grid.panels"}>
-                <Frame padding=Space::Lg>
-                    <Panels session={session} />
-                </Frame>
-            </Scroll>
-        </Frame>
     }
 }
 

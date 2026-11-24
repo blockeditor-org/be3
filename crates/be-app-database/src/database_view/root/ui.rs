@@ -82,10 +82,10 @@ pub(crate) fn EditorBody(data: Data) -> NodeId {
         }
     });
     view! {
-        <Docking layout focus={Some(STAGE)}>
-            <DockSplit id="view" size={SplitSize::Second(ROW_WIDTH)}>
-                <DockPane id="stage" locked=true bare=true>
-                    <DockTab id=STAGE title="View">
+        <Docking layout>
+            <DockSplit size={SplitSize::Second(ROW_WIDTH)}>
+                <DockPane stage=true>
+                    <DockTab id=STAGE>
                         <List spacing=Space::None>
                             <Show value={chrome}>
                                 <ViewHeader data={data} />
@@ -99,8 +99,8 @@ pub(crate) fn EditorBody(data: Data) -> NodeId {
                     </DockTab>
                 </DockPane>
                 <Show value={beside}>
-                    <DockPane id="row" locked=true>
-                        <DockTab id=ROW title={code} on_close={move || data.deselect()}>
+                    <DockPane>
+                        <DockTab id=ROW title={code} bare=true on_close={move || data.deselect()}>
                             <OpenRow data={data} row={opened} />
                         </DockTab>
                     </DockPane>

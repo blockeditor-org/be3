@@ -11,7 +11,7 @@ fn ctrl_tab_leaves_the_tabs_under_an_open_dialog_alone() {
     let dock = NodeRef::new();
     let open = create_signal(false);
     let document = build_node(move || {
-        let layout = DockingLayout::new();
+        let layout = DockingLayout::<u64>::new();
         view! {
             <List spacing=Space::None>
                 <ListItem grow=1.0>

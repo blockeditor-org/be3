@@ -17,7 +17,7 @@ fn a_stacked_dock_bar_shows_the_menu_its_tab_hands_it() {
     let _root = crate::reactive::RootScope::new();
     let renamed = create_signal(0);
     let document = build_node(move || {
-        let layout = DockingLayout::new();
+        let layout = DockingLayout::<u64>::new();
         view! {
             <dock_host::styled::DockHost>
                 <dock::Docking layout focus=2u64>

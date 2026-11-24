@@ -16,7 +16,7 @@ fn an_app_panel_moved_by_a_drop_keeps_its_state_and_resizes_once() {
     let builds = create_signal(0_u32);
     let dock = NodeRef::new();
     let document = build_node(move || {
-        let layout = DockingLayout::new();
+        let layout = DockingLayout::<u64>::new();
         view! {
             <dock_host::styled::DockHost @node_ref=&dock>
                 <dock::Docking layout>

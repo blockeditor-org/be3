@@ -8,7 +8,7 @@ fn a_dock_tab_floated_into_a_window_its_host_focuses_takes_the_keyboard_with_it(
     let first = create_signal(String::new());
     let other = create_signal(String::new());
     let document = build_node(move || {
-        let layout = dock::DockingLayout::new();
+        let layout = dock::DockingLayout::<u64>::new();
         view! {
             <dock_host::styled::DockHost @node_ref=&dock>
                 <dock::Docking layout>

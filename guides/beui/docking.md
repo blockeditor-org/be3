@@ -32,12 +32,12 @@ the host's settings (`drag_modifier`) or its `DockHostLayout` puts one around it
 A `<ListItem>` that places the dock, and `@test_id` and `@node_ref`, go on the `DockHost`.
 
 ```rust
-let layout = DockingLayout::new();
+let layout = DockingLayout::<Key>::new();
 let host = DockHostLayout::new();
 view! {
     <ListItem grow=1.0><DockHost layout=host>
         <Docking layout>
-            <DockSplit id="root" direction=Direction::Horizontal fraction=0.25>
+            <DockSplit id="root" size={SplitSize::Fraction(0.25)}>
                 <DockPane id="files"><DockTab id=Key::Files title="Files"><Files /></DockTab></DockPane>
                 <DockPane id="editors" empty={move || view! { <Nothing /> }}>
                     <ForEach value={open}>|key: Key|
@@ -55,7 +55,27 @@ view! {
 Two handles: `DockingLayout<K>` is the client's, keyed by the caller's `DockKey` (where everything
 is, `show`, `focused`, `mode()`, `snapshot`/`restore`, bars by key, fullscreen);
 `DockHostLayout` is the host's, keyed by `TabId` (`DockingLayout::tab_of` converts): its area and
-covers, its windows and the window manager, the switch.
+covers, its windows and the window manager, the switch. `layout` is optional: a `Docking` given none
+makes its own. The declarations take no key type: a tab's `id` is a `DockId`, which any `DockKey`
+passes as, so one dock may mix keys, and a layout reads back only the tabs keyed by its `K`.
+
+**Defaults.** Whatever a declaration leaves out, the dock derives, so a layout says only what
+differs (an editor's stage and side panel are about ten lines, guides/apps/editor.md):
+
+- A split's and a pane's `id` is its place under its parent (`0`, `0.1`), a stage's `stage`, and a
+  tab's its pane's key and its title (`0.1/Inspector`, then `#1` for a second of that title). A
+  derived key is kept while the node is declared, but a `Show` before a node moves its place when
+  the node is built, so give an `id` to what a saved layout, a test or the code names. A tab
+  with a derived id has no key in a `DockingLayout<K>` and is not in its snapshot.
+- `stage` marks an editor's stage (`DockPane`): bare, its one tab untitled (a joined dock is named
+  after the tab it joined), focused when the dock starts unless `Docking`'s `focus` names a tab, and
+  what the gathered mode keeps. A dock with a stage is an editor's layout: every pane is locked,
+  and the body of each tab outside a bare pane is the standard panel (a `Surface` fill, a `Scroll`
+  filling it, padding inside, `DockPanel` in `styled.rs`) unless the tab is `bare`.
+- `chrome` marks a pane declared only while the frame shows its chrome (`provide_dock_chrome`,
+  which be-sdk-beui provides from `Editor::chrome_shown`); a split left with one child is that child.
+- A split with no `size` gives `SIDE_PANEL_WIDTH` to the side without the stage, and halves when it
+  has none.
 
 **Reconciling.** The declared tabs are the whole set: a tab the code stops declaring is closed, one
 it starts declaring is placed (beside the tab declared before it, else the nearest open declared
@@ -69,7 +89,7 @@ gets a close button on its bar too, even with a single tab, and the tab goes onl
 - Restore a layout before the effects of the write that declares its tabs run (writes made together
   with no `flush()` between qualify); a tab not declared when the dock reconciles is closed.
 
-Every container's `id` is saved with the layout, so a saved layout finds its panes after the code
+Every container's id is saved with the layout, so a saved layout finds its panes after the code
 changes.
 
 **Saving.** `DockingSnapshot` has no serialized form of its own. To save one, use be-sdk-beui's

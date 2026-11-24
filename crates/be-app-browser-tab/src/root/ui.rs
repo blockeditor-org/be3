@@ -109,7 +109,7 @@ fn TabDock(
 ) -> NodeId {
     let layout = DockingLayout::<&'static str>::new();
     view! {
-        <Docking layout focus={Some(STAGE)}>
+        <Docking layout focus=STAGE>
             <DockPane id="stage" locked=true bare=true>
                 <DockTab id=STAGE title="Page">
                     <Page editor content page error />

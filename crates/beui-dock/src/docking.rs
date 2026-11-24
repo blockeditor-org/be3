@@ -1,19 +1,22 @@
 use be_lib_stable_hash::{HashMap, HashSet};
-use std::any::Any;
 use std::cell::{Cell, RefCell};
+use std::marker::PhantomData;
 use std::rc::Rc;
 
 use beui_dock_state::{
-    DockBarPlacement, DockEdge, DockMode, DockSpec, DockSpecBar, DockSpecEntry, DockSpecNode,
+    SIDE_PANEL_WIDTH, SplitSize, DockBarPlacement, DockEdge, DockMode, DockSpec, DockSpecBar, DockSpecEntry, DockSpecNode,
     DockSpecPane, DockSpecWindow, DockState, TabId, joined_host, joined_key, joined_prefix,
 };
 use beui_view::primitives::*;
 use beui_view::reactive::NodeId;
+use beui_view::reactive::IntoPropValue;
+use beui_view::reactive::macro_support::OptionalTakes;
 use beui_view::reactive::*;
 use beui_view::types::Rect;
 
 use crate::controls::{DockBarControl, DockTabControl, DockTabMenu};
-use crate::declare::{DialogParts, DockEntry, DockKey, DockNode, EntryKind, NodeKind};
+use crate::declare::{DialogParts, DockEntry, DockId, DockKey, DockNode, EntryKind, NodeKind};
+use crate::styled::DockPanel;
 use crate::link::{
     DockBodies, DockDeclaration, DockDeclaredBar, DockDeclaredDialog, DockDeclaredGroup,
     DockDeclaredHost, DockDeclaredTab, DockHostEvent, DockHostLink, DockHostSlot, DockHosted,
@@ -22,6 +25,8 @@ use crate::link::{
 use beui_components_unstyled::DialogLayout;
 
 const MAX_JOINED_DEPTH: usize = 16;
+/// The key of a stage pane declared without an id.
+const STAGE: &str = "stage";
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct DockingSnapshot<K> {
@@ -46,14 +51,14 @@ impl<K> DockingSnapshot<K> {
     }
 }
 
-struct KeyMap<K> {
-    tabs: HashMap<K, TabId>,
-    keys: HashMap<TabId, K>,
+struct KeyMap {
+    tabs: HashMap<DockId, TabId>,
+    keys: HashMap<TabId, DockId>,
     next: u64,
     changed: bool,
 }
 
-impl<K> Default for KeyMap<K> {
+impl Default for KeyMap {
     fn default() -> Self {
         Self {
             tabs: HashMap::default(),
@@ -70,9 +75,9 @@ struct ForeignDialog {
     _scope: Scope,
 }
 
-struct LayoutInner<K: 'static> {
+struct LayoutInner {
     _scope: Scope,
-    keys: RefCell<KeyMap<K>>,
+    keys: RefCell<KeyMap>,
     keyed: Trigger,
     registry: Rc<Registry>,
     host: RefCell<Option<Rc<dyn DockHostLink>>>,
@@ -84,12 +89,11 @@ struct LayoutInner<K: 'static> {
 
 /// The caller's handle on a dock: where everything is, keyed by the caller's `DockKey`. `Copy`, and
 /// owned by the scope that made it; `OwnedDockingLayout` makes one outside a scope. In a dock that
-/// joined another, every call goes through the outer dock.
+/// joined another, every call goes through the outer dock. A tab whose id the dock derived has no
+/// key here: give a tab an id to show, read or save it by key.
 pub struct DockingLayout<K: 'static> {
-    state: Signal<DockState>,
-    mode: Signal<DockMode>,
-    restores: Trigger,
-    inner: Stored<LayoutInner<K>>,
+    any: AnyDockingLayout,
+    key: PhantomData<fn() -> K>,
 }
 
 impl<K> Clone for DockingLayout<K> {
@@ -100,6 +104,37 @@ impl<K> Clone for DockingLayout<K> {
 
 impl<K> Copy for DockingLayout<K> {}
 
+impl<K> std::ops::Deref for DockingLayout<K> {
+    type Target = AnyDockingLayout;
+
+    fn deref(&self) -> &AnyDockingLayout {
+        &self.any
+    }
+}
+
+/// A `DockingLayout` of any key, as `Docking` takes it: what does not need the key.
+#[derive(Clone, Copy)]
+pub struct AnyDockingLayout {
+    state: Signal<DockState>,
+    mode: Signal<DockMode>,
+    restores: Trigger,
+    inner: Stored<LayoutInner>,
+}
+
+pub struct ByLayout;
+
+impl<K> IntoPropValue<AnyDockingLayout, ByLayout> for DockingLayout<K> {
+    fn into_prop_value(self) -> AnyDockingLayout {
+        self.any
+    }
+}
+
+impl<K> OptionalTakes<DockingLayout<K>, ByLayout> for AnyDockingLayout {
+    fn take_some(value: DockingLayout<K>) -> Self {
+        value.any
+    }
+}
+
 impl<K: DockKey> Default for DockingLayout<K> {
     fn default() -> Self {
         Self::new()
@@ -108,7 +143,7 @@ impl<K: DockKey> Default for DockingLayout<K> {
 
 pub struct OwnedDockingLayout<K: 'static> {
     layout: DockingLayout<K>,
-    _inner: OwnedStored<LayoutInner<K>>,
+    _inner: OwnedStored<LayoutInner>,
 }
 
 impl<K: DockKey> Default for OwnedDockingLayout<K> {
@@ -119,10 +154,10 @@ impl<K: DockKey> Default for OwnedDockingLayout<K> {
 
 impl<K: DockKey> OwnedDockingLayout<K> {
     pub fn new() -> Self {
-        let (layout, inner) = DockingLayout::parts();
+        let (layout, inner) = AnyDockingLayout::parts();
         let inner = OwnedStored::new(inner);
         Self {
-            layout: layout(inner.handle()),
+            layout: DockingLayout::typed(layout(inner.handle())),
             _inner: inner,
         }
     }
@@ -142,11 +177,128 @@ impl<K: 'static> std::ops::Deref for OwnedDockingLayout<K> {
 
 impl<K: DockKey> DockingLayout<K> {
     pub fn new() -> Self {
+        Self::typed(AnyDockingLayout::new())
+    }
+
+    fn typed(any: AnyDockingLayout) -> Self {
+        Self {
+            any,
+            key: PhantomData,
+        }
+    }
+
+    /// Call before the effects of the write that declares the snapshot's tabs run (writes made
+    /// together, with no `flush()` between, qualify): a tab not declared when the dock reconciles is
+    /// closed. For a joined dock, a restore made before it joins is grafted in once its group stands.
+    pub fn restore(&self, snapshot: DockingSnapshot<K>) {
+        let DockingSnapshot { state, keys } = snapshot;
+        self.any.restore_ids(
+            state,
+            keys.into_iter().map(|(key, tab)| (DockId::of(&key), tab)),
+        );
+    }
+
+    /// Has no serialized form: save be-sdk-beui's `SavedDockLayout::of(snapshot)`. Fullscreen, snaps,
+    /// hidden windows, dialogs and a switch in progress are not in it, nor tabs whose ids the dock
+    /// derived. The outer dock's snapshot keeps only a joined dock's hosting tab; the joined dock's
+    /// owner saves this one.
+    pub fn snapshot(&self) -> DockingSnapshot<K> {
+        let (state, ids) = self.any.snapshot_ids();
+        let keys = ids
+            .into_iter()
+            .filter_map(|(id, tab)| Some((id.as_key::<K>()?, tab)))
+            .collect();
+        DockingSnapshot { state, keys }
+    }
+
+    pub fn tab_of(&self, key: &K) -> Option<TabId> {
+        self.any.tab_of_id(&DockId::of(key))
+    }
+
+    pub fn key_of(&self, tab: TabId) -> Option<K> {
+        self.any.id_of(tab)?.as_key()
+    }
+
+    pub fn contains(&self, key: &K) -> bool {
+        self.any.contains_tab(self.tab_of(key))
+    }
+
+    pub fn focused(&self) -> Option<K> {
+        self.key_of(self.any.focused_tab()?)
+    }
+
+    pub fn shown(&self) -> Option<K> {
+        self.key_of(self.any.shown_tab()?)
+    }
+
+    pub fn recent(&self) -> Vec<K> {
+        let mut keys: Vec<K> = Vec::new();
+        for tab in self.any.recent_tabs() {
+            if let Some(key) = self.key_of(tab)
+                && !keys.contains(&key)
+            {
+                keys.push(key);
+            }
+        }
+        keys
+    }
+
+    pub fn show(&self, key: &K) {
+        if let Some(tab) = self.tab_of(key) {
+            self.any.ask(DockRequest::Show(tab));
+        }
+    }
+
+    pub fn bar_placement(&self, key: &K) -> Option<DockBarPlacement> {
+        let bar = self.tab_of(key)?;
+        self.any.state.with(|state| state.bar_placement(bar))
+    }
+
+    pub fn place_bar(&self, key: &K, placement: DockBarPlacement) {
+        if let Some(bar) = self.tab_of(key) {
+            self.any.ask(DockRequest::PlaceBar(bar, Some(placement)));
+        }
+    }
+
+    pub fn is_bar_hidden(&self, key: &K) -> bool {
+        let Some(bar) = self.tab_of(key) else {
+            return false;
+        };
+        self.any.state.with(|state| state.is_bar_hidden(bar))
+    }
+
+    pub fn hide_bar(&self, key: &K) {
+        self.set_bar_hidden(key, true);
+    }
+
+    pub fn show_bar(&self, key: &K) {
+        self.set_bar_hidden(key, false);
+    }
+
+    fn set_bar_hidden(&self, key: &K, hidden: bool) {
+        if let Some(bar) = self.tab_of(key) {
+            self.any.ask(DockRequest::HideBar(bar, hidden));
+        }
+    }
+
+    pub fn fullscreen(&self) -> Option<K> {
+        self.key_of(self.any.fullscreen_tab()?)
+    }
+
+    pub fn enter_fullscreen(&self, key: &K, area: Option<Rect>) {
+        if let Some(tab) = self.tab_of(key) {
+            self.any.ask(DockRequest::Fullscreen(Some((tab, area))));
+        }
+    }
+}
+
+impl AnyDockingLayout {
+    fn new() -> Self {
         let (layout, inner) = Self::parts();
         layout(store(inner))
     }
 
-    fn parts() -> (impl FnOnce(Stored<LayoutInner<K>>) -> Self, LayoutInner<K>) {
+    fn parts() -> (impl FnOnce(Stored<LayoutInner>) -> Self, LayoutInner) {
         let owner = RootScope::new();
         let state = create_signal(DockState::default());
         let mode = create_signal(DockMode::Tiled);
@@ -180,7 +332,7 @@ impl<K: DockKey> DockingLayout<K> {
         (layout, inner)
     }
 
-    fn inner(&self) -> Rc<LayoutInner<K>> {
+    fn inner(&self) -> Rc<LayoutInner> {
         self.inner.value()
     }
 
@@ -198,17 +350,13 @@ impl<K: DockKey> DockingLayout<K> {
         self.inner().hosted.with(|hosted| hosted.as_ref().map(read))
     }
 
-    fn fresh_keys(&self) -> KeyMap<K> {
+    fn fresh_keys(&self) -> KeyMap {
         let mut map = KeyMap::default();
         map.next = self.inner().registry.foreign.borrow().newest() + 1;
         map
     }
 
-    /// Call before the effects of the write that declares the snapshot's tabs run (writes made
-    /// together, with no `flush()` between, qualify): a tab not declared when the dock reconciles is
-    /// closed. For a joined dock, a restore made before it joins is grafted in once its group stands.
-    pub fn restore(&self, snapshot: DockingSnapshot<K>) {
-        let DockingSnapshot { state, keys } = snapshot;
+    fn restore_ids(&self, state: DockState, keys: impl Iterator<Item = (DockId, TabId)>) {
         let inner = self.inner();
         let mut map = self.fresh_keys();
         for (key, tab) in keys {
@@ -239,10 +387,7 @@ impl<K: DockKey> DockingLayout<K> {
         self.restores.notify();
     }
 
-    /// Has no serialized form: save be-sdk-beui's `SavedDockLayout::of(snapshot)`. Fullscreen, snaps,
-    /// hidden windows, dialogs and a switch in progress are not in it. The outer dock's snapshot keeps
-    /// only a joined dock's hosting tab; the joined dock's owner saves this one.
-    pub fn snapshot(&self) -> DockingSnapshot<K> {
+    fn snapshot_ids(&self) -> (DockState, Vec<(DockId, TabId)>) {
         let mut state = self.state.get();
         let inner = self.inner();
         while let Some((group, host)) = state.joined_groups().first().copied() {
@@ -266,11 +411,15 @@ impl<K: DockKey> DockingLayout<K> {
         tabs.extend(state.outside().iter().map(|outside| outside.tab));
         tabs.sort();
         tabs.dedup();
-        let held: Vec<(K, TabId)> = tabs
+        let held: Vec<(DockId, TabId)> = tabs
             .into_iter()
             .filter_map(|tab| Some((keys.keys.get(&tab)?.clone(), tab)))
             .collect();
-        DockingSnapshot { state, keys: held }
+        (state, held)
+    }
+
+    fn state_snapshot(&self) -> DockState {
+        self.snapshot_ids().0
     }
 
     fn path(&self, host: TabId, key: &str) -> Option<String> {
@@ -297,13 +446,13 @@ impl<K: DockKey> DockingLayout<K> {
         self.mode.read_only()
     }
 
-    pub fn tab_of(&self, key: &K) -> Option<TabId> {
+    fn tab_of_id(&self, id: &DockId) -> Option<TabId> {
         let inner = self.inner();
         inner.keyed.track();
-        inner.keys.borrow().tabs.get(key).copied()
+        inner.keys.borrow().tabs.get(id).copied()
     }
 
-    pub fn key_of(&self, tab: TabId) -> Option<K> {
+    fn id_of(&self, tab: TabId) -> Option<DockId> {
         let inner = self.inner();
         inner.keyed.track();
         inner.keys.borrow().keys.get(&tab).cloned()
@@ -317,8 +466,7 @@ impl<K: DockKey> DockingLayout<K> {
         }
     }
 
-    pub fn contains(&self, key: &K) -> bool {
-        let tab = self.tab_of(key);
+    fn contains_tab(&self, tab: Option<TabId>) -> bool {
         if let Some(held) = self.hosted(|hosted| tab.is_some_and(|tab| hosted.tabs.contains(&tab)))
         {
             return held;
@@ -330,33 +478,25 @@ impl<K: DockKey> DockingLayout<K> {
         })
     }
 
-    pub fn focused(&self) -> Option<K> {
+    fn focused_tab(&self) -> Option<TabId> {
         let tab = match self.hosted(|hosted| hosted.focused) {
             Some(focused) => focused?,
             None => self.state.with(DockState::focused_or_host)?,
         };
-        self.key_of(self.outermost(tab))
+        Some(self.outermost(tab))
     }
 
-    pub fn shown(&self) -> Option<K> {
+    fn shown_tab(&self) -> Option<TabId> {
         let tab = match self.hosted(|hosted| hosted.shown) {
             Some(shown) => shown?,
             None => self.state.with(DockState::stacked_tab)?,
         };
-        self.key_of(self.outermost(tab))
+        Some(self.outermost(tab))
     }
 
-    pub fn recent(&self) -> Vec<K> {
+    fn recent_tabs(&self) -> Vec<TabId> {
         let tabs = self.state.with(DockState::recent_tabs);
-        let mut keys: Vec<K> = Vec::new();
-        for tab in tabs {
-            if let Some(key) = self.key_of(self.outermost(tab))
-                && !keys.contains(&key)
-            {
-                keys.push(key);
-            }
-        }
-        keys
+        tabs.into_iter().map(|tab| self.outermost(tab)).collect()
     }
 
     fn outermost(&self, tab: TabId) -> TabId {
@@ -372,59 +512,14 @@ impl<K: DockKey> DockingLayout<K> {
         tab
     }
 
-    pub fn show(&self, key: &K) {
-        if let Some(tab) = self.tab_of(key) {
-            self.ask(DockRequest::Show(tab));
-        }
-    }
-
-    pub fn bar_placement(&self, key: &K) -> Option<DockBarPlacement> {
-        let bar = self.tab_of(key)?;
-        self.state.with(|state| state.bar_placement(bar))
-    }
-
-    pub fn place_bar(&self, key: &K, placement: DockBarPlacement) {
-        if let Some(bar) = self.tab_of(key) {
-            self.ask(DockRequest::PlaceBar(bar, Some(placement)));
-        }
-    }
-
-    pub fn is_bar_hidden(&self, key: &K) -> bool {
-        let Some(bar) = self.tab_of(key) else {
-            return false;
-        };
-        self.state.with(|state| state.is_bar_hidden(bar))
-    }
-
     pub fn is_edge_auto_hidden(&self, edge: DockEdge) -> bool {
         self.state.with(|state| state.is_edge_auto_hidden(edge))
     }
 
-    pub fn hide_bar(&self, key: &K) {
-        self.set_bar_hidden(key, true);
-    }
-
-    pub fn show_bar(&self, key: &K) {
-        self.set_bar_hidden(key, false);
-    }
-
-    fn set_bar_hidden(&self, key: &K, hidden: bool) {
-        if let Some(bar) = self.tab_of(key) {
-            self.ask(DockRequest::HideBar(bar, hidden));
-        }
-    }
-
-    pub fn fullscreen(&self) -> Option<K> {
-        let tab = match self.hosted(|hosted| hosted.fullscreen) {
-            Some(fullscreen) => fullscreen?,
-            None => self.state.with(DockState::fullscreen)?.tab,
-        };
-        self.key_of(tab)
-    }
-
-    pub fn enter_fullscreen(&self, key: &K, area: Option<Rect>) {
-        if let Some(tab) = self.tab_of(key) {
-            self.ask(DockRequest::Fullscreen(Some((tab, area))));
+    fn fullscreen_tab(&self) -> Option<TabId> {
+        match self.hosted(|hosted| hosted.fullscreen) {
+            Some(fullscreen) => fullscreen,
+            None => Some(self.state.with(DockState::fullscreen)?.tab),
         }
     }
 
@@ -432,7 +527,7 @@ impl<K: DockKey> DockingLayout<K> {
         self.ask(DockRequest::Fullscreen(None));
     }
 
-    fn declaration(&self, spec: DockSpec, found: Signal<Rc<Found<K>>>) -> DockDeclaration {
+    fn declaration(&self, spec: DockSpec, found: Signal<Rc<Found>>) -> DockDeclaration {
         let (mut tabs, own_dialogs, own_groups) = found.with(|found| {
             (
                 found.declared_tabs(),
@@ -457,7 +552,7 @@ impl<K: DockKey> DockingLayout<K> {
             .into_iter()
             .filter_map(|(dialog, own)| {
                 let key = match own {
-                    true => self.key_of(dialog.tab)?.key(),
+                    true => self.id_of(dialog.tab)?.key().to_owned(),
                     false => found.with_untracked(|found| self.foreign_key(found, dialog.tab))?,
                 };
                 Some(DockDeclaredDialog { key, ..dialog })
@@ -478,17 +573,16 @@ impl<K: DockKey> DockingLayout<K> {
         }
     }
 
-    fn mint(&self, key: &K) -> TabId {
+    fn mint(&self, key: &DockId) -> TabId {
         let inner = self.inner();
         let mut keys = inner.keys.borrow_mut();
         if let Some(tab) = keys.tabs.get(key) {
             return *tab;
         }
-        let named = key as &dyn Any;
+        let named = key.value();
         let named = named
-            .downcast_ref::<TabId>()
-            .copied()
-            .or_else(|| named.downcast_ref::<u64>().copied().map(TabId::new))
+            .and_then(|named| named.downcast_ref::<TabId>().copied())
+            .or_else(|| named.and_then(|named| named.downcast_ref::<u64>().copied().map(TabId::new)))
             .filter(|tab| {
                 !keys.keys.contains_key(tab) && !inner.registry.foreign.borrow().contains(*tab)
             });
@@ -557,7 +651,7 @@ impl<K: DockKey> DockingLayout<K> {
         self.announce_keys();
     }
 
-    fn foreign_key(&self, found: &Found<K>, tab: TabId) -> Option<String> {
+    fn foreign_key(&self, found: &Found, tab: TabId) -> Option<String> {
         let (joined, held) = found.foreign.get(&tab)?;
         let declaration = joined.declaration.borrow();
         let declaration = declaration.as_ref()?;
@@ -569,7 +663,7 @@ impl<K: DockKey> DockingLayout<K> {
         self.path(host, &key)
     }
 
-    fn foreign_tabs(&self, found: &Found<K>) -> Vec<DockDeclaredTab> {
+    fn foreign_tabs(&self, found: &Found) -> Vec<DockDeclaredTab> {
         found
             .foreign
             .iter()
@@ -585,7 +679,7 @@ impl<K: DockKey> DockingLayout<K> {
             .collect()
     }
 
-    fn foreign_groups(&self, found: &Found<K>) -> Vec<DockDeclaredGroup> {
+    fn foreign_groups(&self, found: &Found) -> Vec<DockDeclaredGroup> {
         let registry = &self.inner().registry;
         found
             .hosts
@@ -610,7 +704,7 @@ impl<K: DockKey> DockingLayout<K> {
             .collect()
     }
 
-    fn declared_bars(&self, spec: &DockSpec, found: &Found<K>) -> Vec<DockDeclaredBar> {
+    fn declared_bars(&self, spec: &DockSpec, found: &Found) -> Vec<DockDeclaredBar> {
         let inner = self.inner();
         spec.bars
             .iter()
@@ -711,8 +805,9 @@ impl<K: DockKey> DockingLayout<K> {
         }
     }
 
-    fn spec(&self, nodes: &[Rc<DockNode<K>>], focus: Option<&K>, found: &mut Found<K>) -> DockSpec {
+    fn spec(&self, nodes: &[Rc<DockNode>], focus: Option<&DockId>, found: &mut Found) -> DockSpec {
         let mut spec = DockSpec::default();
+        found.staged = nodes.iter().any(|node| staged(node));
         for node in nodes {
             if let NodeKind::Dialog { id, parent, parts } = &node.kind {
                 let dialog = self.mint(id);
@@ -735,7 +830,7 @@ impl<K: DockKey> DockingLayout<K> {
                     continue;
                 }
                 let owner = parent.as_ref().map(|parent| self.mint(parent));
-                found.bars.insert(bar, (id.key(), *content));
+                found.bars.insert(bar, (id.key().to_owned(), *content));
                 found.spec_bars.push(DockSpecBar {
                     bar,
                     owner,
@@ -745,7 +840,7 @@ impl<K: DockKey> DockingLayout<K> {
                 });
             }
         }
-        for node in nodes {
+        for (place, node) in nodes.iter().enumerate() {
             match &node.kind {
                 NodeKind::Window {
                     key,
@@ -757,16 +852,19 @@ impl<K: DockKey> DockingLayout<K> {
                     rect: *rect,
                     placed: None,
                     hidden: *hidden,
-                    root: self.root(children, found),
+                    root: self.root(children, key, found),
                 }),
                 NodeKind::Dialog { .. } | NodeKind::Bar { .. } => {}
-                _ if spec.main.is_none() => spec.main = self.node(node, found),
+                _ if spec.main.is_none() => spec.main = self.node(node, &place.to_string(), found),
                 _ => {}
             }
         }
         spec.windows.append(&mut found.windows);
         spec.bars = found.spec_bars.clone();
-        spec.focus = focus.map(|key| self.mint(key));
+        spec.focus = match focus {
+            Some(focus) => Some(self.mint(focus)),
+            None => found.stage.as_ref().map(|(_, tab)| *tab),
+        };
         spec.see_through = found
             .tabs
             .iter()
@@ -787,20 +885,23 @@ impl<K: DockKey> DockingLayout<K> {
         spec
     }
 
-    fn root(&self, children: &Run<DockNode<K>>, found: &mut Found<K>) -> Option<DockSpecNode> {
+    /// The first node of `children` the spec has, each keyed, if it has no id, by its place under
+    /// `parent`.
+    fn root(&self, children: &Run<DockNode>, parent: &str, found: &mut Found) -> Option<DockSpecNode> {
         children
             .items()
             .iter()
-            .filter(|node| {
+            .enumerate()
+            .filter(|(_, node)| {
                 !matches!(
                     node.kind,
                     NodeKind::Window { .. } | NodeKind::Dialog { .. } | NodeKind::Bar { .. }
                 )
             })
-            .find_map(|node| self.node(node, found))
+            .find_map(|(place, node)| self.node(node, &format!("{parent}.{place}"), found))
     }
 
-    fn node(&self, node: &Rc<DockNode<K>>, found: &mut Found<K>) -> Option<DockSpecNode> {
+    fn node(&self, node: &Rc<DockNode>, place: &str, found: &mut Found) -> Option<DockSpecNode> {
         match &node.kind {
             NodeKind::Split {
                 key,
@@ -808,20 +909,34 @@ impl<K: DockKey> DockingLayout<K> {
                 size,
                 children,
             } => {
+                let key = key.get(|| place.to_owned());
                 let mut parts: Vec<DockSpecNode> = children
                     .items()
                     .iter()
-                    .filter_map(|child| self.node(child, found))
+                    .enumerate()
+                    .filter_map(|(place, child)| self.node(child, &format!("{key}.{place}"), found))
                     .collect();
                 if parts.len() < 2 {
                     return parts.pop();
                 }
                 let second = parts.swap_remove(1);
                 let first = parts.swap_remove(0);
+                let size = match size {
+                    Some(size) => size.get(),
+                    None => match &found.stage {
+                        Some((stage, _)) if holds(&first, stage) => {
+                            SplitSize::Second(SIDE_PANEL_WIDTH)
+                        }
+                        Some((stage, _)) if holds(&second, stage) => {
+                            SplitSize::First(SIDE_PANEL_WIDTH)
+                        }
+                        _ => SplitSize::default(),
+                    },
+                };
                 Some(DockSpecNode::Split {
-                    key: key.clone(),
+                    key,
                     direction: *direction,
-                    size: size.get(),
+                    size,
                     first: Box::new(first),
                     second: Box::new(second),
                 })
@@ -834,32 +949,56 @@ impl<K: DockKey> DockingLayout<K> {
                 sidebar,
                 locked,
                 bare,
+                stage,
+                chrome,
                 hide_empty_bar,
                 empty,
                 entries,
             } => {
+                if *chrome && !found.chrome_shown {
+                    return None;
+                }
+                let key = key.get(|| match stage {
+                    true => STAGE.to_owned(),
+                    false => place.to_owned(),
+                });
                 if empty.is_some() {
                     found.panes.insert(key.clone(), Rc::clone(node));
                 }
+                let mut titles: HashMap<String, usize> = HashMap::default();
                 let entries: Vec<DockSpecEntry> = entries
                     .items()
                     .iter()
-                    .filter_map(|entry| self.entry(entry, found))
+                    .filter_map(|entry| self.entry(entry, &key, &mut titles, found))
                     .collect();
+                let own = |entry: &DockSpecEntry| match entry {
+                    DockSpecEntry::Tab(tab) => Some(*tab),
+                    DockSpecEntry::Group { .. } => None,
+                };
+                if *stage
+                    && found.stage.is_none()
+                    && let Some(tab) = entries.iter().find_map(own)
+                {
+                    found.stage = Some((key.clone(), tab));
+                }
+                if found.staged && !*bare {
+                    let panels: Vec<TabId> = entries.iter().filter_map(own).collect();
+                    found.panels.extend(panels);
+                }
                 let active = active
                     .as_ref()
                     .map(|key| DockSpecEntry::Tab(self.mint(key)))
                     .and_then(|active| entries.iter().position(|entry| *entry == active))
                     .unwrap_or(0);
                 Some(DockSpecNode::Pane(DockSpecPane {
-                    key: key.clone(),
+                    area: (*locked || found.staged).then(|| key.clone()),
+                    key,
                     entries,
                     active,
                     vertical: *vertical,
                     icons_only: *icons_only,
                     sidebar: *sidebar,
                     keep: empty.is_some() || *bare,
-                    area: locked.then(|| key.clone()),
                     bare: *bare,
                     hide_empty_bar: *hide_empty_bar,
                 }))
@@ -868,15 +1007,35 @@ impl<K: DockKey> DockingLayout<K> {
         }
     }
 
-    fn entry(&self, entry: &Rc<DockEntry<K>>, found: &mut Found<K>) -> Option<DockSpecEntry> {
+    /// A tab with no id takes its title, after its pane's key, and how many of the pane's tabs
+    /// before it share that title.
+    fn entry(
+        &self,
+        entry: &Rc<DockEntry>,
+        pane: &str,
+        titles: &mut HashMap<String, usize>,
+        found: &mut Found,
+    ) -> Option<DockSpecEntry> {
         match &entry.kind {
-            EntryKind::Tab { id, .. } => {
-                let tab = self.mint(id);
+            EntryKind::Tab { id, title, .. } => {
+                let title = title.get_untracked();
+                let before = titles.entry(title.clone()).or_default();
+                let id = id.get(|| {
+                    DockId::derived(match *before {
+                        0 => format!("{pane}/{title}"),
+                        before => format!("{pane}/{title}#{before}"),
+                    })
+                });
+                *before += 1;
+                let tab = self.mint(&id);
                 if found.parts.contains_key(&tab) {
                     return None;
                 }
                 if found.tabs.insert(tab, Rc::clone(entry)).is_some() {
                     return None;
+                }
+                if let EntryKind::Tab { bare: true, .. } = &entry.kind {
+                    found.bare.insert(tab);
                 }
                 Some(self.splice(tab, found).unwrap_or(DockSpecEntry::Tab(tab)))
             }
@@ -887,7 +1046,7 @@ impl<K: DockKey> DockingLayout<K> {
                 ..
             } => {
                 found.groups.insert(key.clone(), Rc::clone(entry));
-                let root = self.root(children, found)?;
+                let root = self.root(children, key, found)?;
                 Some(DockSpecEntry::Group {
                     key: key.clone(),
                     pinned: *pinned,
@@ -897,7 +1056,7 @@ impl<K: DockKey> DockingLayout<K> {
         }
     }
 
-    fn splice(&self, host: TabId, found: &mut Found<K>) -> Option<DockSpecEntry> {
+    fn splice(&self, host: TabId, found: &mut Found) -> Option<DockSpecEntry> {
         let registry = Rc::clone(&self.inner().registry);
         let joined = registry.joined(host)?;
         let spec = joined.declaration.borrow().as_ref()?.spec.clone();
@@ -978,7 +1137,7 @@ impl<K: DockKey> DockingLayout<K> {
         host: TabId,
         joined: &Rc<Joined>,
         node: &DockSpecNode,
-        found: &mut Found<K>,
+        found: &mut Found,
     ) -> DockSpecNode {
         let prefix = joined_prefix(host);
         match node {
@@ -1023,21 +1182,29 @@ impl<K: DockKey> DockingLayout<K> {
     }
 }
 
-struct Found<K: 'static> {
+struct Found {
     foreign: HashMap<TabId, (Rc<Joined>, TabId)>,
     hosts: Vec<(TabId, DockSpecNode, Option<TabId>)>,
     windows: Vec<DockSpecWindow>,
-    tabs: HashMap<TabId, Rc<DockEntry<K>>>,
-    panes: HashMap<String, Rc<DockNode<K>>>,
-    groups: HashMap<String, Rc<DockEntry<K>>>,
+    tabs: HashMap<TabId, Rc<DockEntry>>,
+    panes: HashMap<String, Rc<DockNode>>,
+    groups: HashMap<String, Rc<DockEntry>>,
     dialogs: Vec<(TabId, TabId)>,
     parts: HashMap<TabId, DialogParts>,
     bars: HashMap<TabId, (String, BuildFn<NodeId>)>,
     spec_bars: Vec<DockSpecBar>,
     see_through: Vec<TabId>,
+    /// Whether the dock has a stage, which locks every pane and makes its tabs panels.
+    staged: bool,
+    /// The stage's pane and its tab.
+    stage: Option<(String, TabId)>,
+    chrome_shown: bool,
+    /// The tabs whose bodies are the standard panel, and those that opted out.
+    panels: HashSet<TabId>,
+    bare: HashSet<TabId>,
 }
 
-impl<K: 'static> Default for Found<K> {
+impl Default for Found {
     fn default() -> Self {
         Self {
             bars: HashMap::default(),
@@ -1051,17 +1218,46 @@ impl<K: 'static> Default for Found<K> {
             dialogs: Vec::new(),
             parts: HashMap::default(),
             see_through: Vec::new(),
+            staged: false,
+            stage: None,
+            chrome_shown: true,
+            panels: HashSet::default(),
+            bare: HashSet::default(),
         }
     }
 }
 
-impl<K: 'static> PartialEq for Found<K> {
+impl PartialEq for Found {
     fn eq(&self, _: &Self) -> bool {
         false
     }
 }
 
-impl<K: DockKey> Found<K> {
+/// Whether a declared node is, or holds, the stage, shown or not.
+fn staged(node: &DockNode) -> bool {
+    match &node.kind {
+        NodeKind::Pane { stage: true, .. } => true,
+        NodeKind::Split { children, .. } => children.items().iter().any(|node| staged(node)),
+        NodeKind::Pane { .. }
+        | NodeKind::Window { .. }
+        | NodeKind::Dialog { .. }
+        | NodeKind::Bar { .. } => false,
+    }
+}
+
+/// Whether the spec node is, or holds, the pane `key`.
+fn holds(node: &DockSpecNode, key: &str) -> bool {
+    match node {
+        DockSpecNode::Split { first, second, .. } => holds(first, key) || holds(second, key),
+        DockSpecNode::Pane(pane) => pane.key == key,
+    }
+}
+
+impl Found {
+    fn panel(&self, tab: TabId) -> bool {
+        self.panels.contains(&tab) && !self.bare.contains(&tab)
+    }
+
     fn live_parts(&self, tab: TabId) -> Option<DialogParts> {
         self.parts.get(&tab).copied().filter(DialogParts::alive)
     }
@@ -1082,7 +1278,9 @@ impl<K: DockKey> Found<K> {
                 } if title.is_alive() && icon.is_alive() && picture.is_alive() => {
                     Some(DockDeclaredTab {
                         tab: *tab,
-                        key: id.key(),
+                        key: id.keyed()
+                            .key()
+                            .to_owned(),
                         title: title.get(),
                         icon: icon.get(),
                         picture: picture.get(),
@@ -1116,7 +1314,12 @@ impl<K: DockKey> Found<K> {
             .tabs
             .iter()
             .filter_map(|(tab, entry)| match &entry.kind {
-                EntryKind::Tab { id, .. } => Some((*tab, id.key())),
+                EntryKind::Tab { id, .. } => Some((
+                    *tab,
+                    id.keyed()
+                        .key()
+                        .to_owned(),
+                )),
                 EntryKind::Group { .. } => None,
             })
             .chain(self.bars.iter().map(|(bar, (key, _))| (*bar, key.clone())))
@@ -1203,17 +1406,28 @@ fn place_foreign(
     placed
 }
 
+/// Whether the frame around this dock shows its chrome: a pane marked `chrome` is declared only
+/// while it does. An editor's frame provides it; with none, chrome always shows.
+#[derive(Clone, Copy)]
+struct DockChrome(ReadSignal<bool>);
+
+pub fn provide_dock_chrome(shown: ReadSignal<bool>) {
+    provide_context(DockChrome(shown));
+}
+
+/// `layout` is the caller's handle on the dock, for a caller that reads it, shows tabs by key or
+/// saves it; left out, the dock makes its own. The dock starts focused on `focus`, else on its
+/// stage, else on its first pane.
 #[component]
-pub fn Docking<K>(
-    layout: DockingLayout<K>,
-    #[prop(default = None)] focus: Prop<Option<K>>,
-    children: Children<DockNode<K>>,
-) -> NodeId
-where
-    K: DockKey,
-{
+pub fn Docking(
+    layout: Option<AnyDockingLayout>,
+    focus: Option<DockId>,
+    children: Children<DockNode>,
+) -> NodeId {
+    let layout = layout.unwrap_or_else(AnyDockingLayout::new);
+    let chrome = use_context::<DockChrome>();
     let nodes = children.into_run();
-    let found = create_signal(Rc::new(Found::<K>::default()));
+    let found = create_signal(Rc::new(Found::default()));
     let on_close = Callback::new(move |tab: TabId| {
         let close = found.with_untracked(|found| match found.foreign.get(&tab) {
             Some((joined, inner)) => Err((Rc::clone(joined), *inner)),
@@ -1231,8 +1445,15 @@ where
         if let Some(bar) = found.with_untracked(|found| found.bars.get(&tab).map(|(_, bar)| *bar)) {
             return bar.call();
         }
-        if let Some(content) = found.with_untracked(|found| found.content(tab)) {
-            return content.call();
+        if let Some((content, panel)) =
+            found.with_untracked(|found| Some((found.content(tab)?, found.panel(tab))))
+        {
+            return match panel {
+                true => view! {
+                    <DockPanel content />
+                },
+                false => content.call(),
+            };
         }
         let dialog = found.with_untracked(|found| found.live_parts(tab).map(|parts| parts.content));
         match dialog {
@@ -1277,8 +1498,10 @@ where
             changed.track();
         }
         let items = nodes.items();
-        let mut held = Found::default();
-        let focus = focus.get_untracked();
+        let mut held = Found {
+            chrome_shown: chrome.is_none_or(|chrome| chrome.0.get()),
+            ..Found::default()
+        };
         let declared = layout.spec(&items, focus.as_ref(), &mut held);
         let dialogs = held.dialogs.clone();
         let hosts: Vec<TabId> = held.hosts.iter().map(|(host, _, _)| *host).collect();
@@ -1370,7 +1593,7 @@ where
     }
     if let Some(keep) = keeper {
         keep(DockKept {
-            layout: create_memo(move || layout.snapshot().state),
+            layout: create_memo(move || layout.state_snapshot()),
             keys: create_memo(move || found.with(|found| found.own_keys())),
             restore: Callback::new(move |state: DockState| layout.keep_state(state)),
         });

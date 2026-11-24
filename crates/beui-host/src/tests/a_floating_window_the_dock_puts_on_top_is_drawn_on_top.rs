@@ -2,7 +2,7 @@ use super::*;
 use crate::reactive::*;
 
 #[component]
-fn Program(id: u64) -> dock::DockNode<u64> {
+fn Program(id: u64) -> dock::DockNode {
     let key = format!("window.{id}");
     let at = 60.0 + 40.0 * id as f32;
     view! {

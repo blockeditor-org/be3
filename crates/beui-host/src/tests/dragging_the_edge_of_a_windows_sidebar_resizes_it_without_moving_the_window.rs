@@ -8,7 +8,7 @@ fn dragging_the_edge_of_a_windows_sidebar_resizes_it_without_moving_the_window()
     let _root = crate::reactive::RootScope::new();
     let dock = NodeRef::new();
     let document = build_node(move || {
-        let layout = DockingLayout::new();
+        let layout = DockingLayout::<u64>::new();
         view! {
             <dock_host::styled::DockHost @node_ref=&dock>
                 <dock::Docking layout>

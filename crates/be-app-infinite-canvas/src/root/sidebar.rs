@@ -42,20 +42,7 @@ const LAYERS: [(&str, CanvasLayerMove); 4] = [
 #[component]
 pub(crate) fn CanvasInspector(state: CanvasState) -> NodeId {
     view! {
-        <Frame fill=ColorRole::Surface>
-            <Scroll @test_id={"infinite-canvas.inspector"}>
-                <Frame padding=Space::Lg>
-                    <CanvasPanels state={state} />
-                </Frame>
-            </Scroll>
-        </Frame>
-    }
-}
-
-#[component]
-fn CanvasPanels(state: CanvasState) -> NodeId {
-    view! {
-        <List spacing=Space::None>
+        <List spacing=Space::None @test_id={"infinite-canvas.inspector"}>
             <Match value={state.profile}>
                 <Case is={CanvasProfile::Vector}>
                     <Inspector state={state} />

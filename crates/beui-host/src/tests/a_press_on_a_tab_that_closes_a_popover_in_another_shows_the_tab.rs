@@ -10,7 +10,7 @@ fn a_press_on_a_tab_that_closes_a_popover_in_another_shows_the_tab() {
     let _root = crate::reactive::RootScope::new();
     let popover = NodeRef::new();
     let document = build_node(move || {
-        let layout = DockingLayout::new();
+        let layout = DockingLayout::<u64>::new();
         view! {
             <dock_host::styled::DockHost>
                 <dock::Docking layout>
