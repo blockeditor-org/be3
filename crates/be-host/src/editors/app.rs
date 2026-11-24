@@ -189,7 +189,14 @@ impl AppPicker {
     }
 
     pub(crate) fn intrinsic(&self) -> Option<Vec2> {
-        be_host_runtime::intrinsic_size(&self.app.identity.id, self.instance)
+        match self.role {
+            // The Export dialog is as tall as it lays itself out, as a creation dialog is.
+            InstanceRole::Export(..) => {
+                be_host_runtime::view_size(&self.app.identity.id, self.instance, ViewId::MAIN)
+                    .map(|size| Vec2::new(0.0, size.y.max(1.0)))
+            }
+            _ => be_host_runtime::intrinsic_size(&self.app.identity.id, self.instance),
+        }
     }
 
     pub(crate) fn card(&self) -> bool {
