@@ -6,7 +6,7 @@ fn on_a_phone_the_host_menu_rises_as_a_sheet_it_draws_itself() {
     host.run(&["resize", "390x800"]);
     host.click("#file-tree.host-menu");
     host.wait("#host.menu.status");
-    host.run(&["pause", "600"]);
+    host.run(&["pause", "1000"]);
     // The sheet's first row says whether everything is saved.
     host.synced();
     host.snapshot("on_a_phone_the_host_menu_rises_as_a_sheet_it_draws_itself");
