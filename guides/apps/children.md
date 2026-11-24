@@ -132,8 +132,7 @@ count, and each time it grows the placement carries the editor's next
 `keyboard-ask` serial (be-sdk-beui's `register_child`). A `ChildBlock` or
 `Subregion` in a dock tab adds one each time the dock gives that tab the
 keyboard or brings its window forward, while no popover or keyboard-taking
-layer of the editor's is open; a joined editor's, whose content the dock shows
-in a tab body of its own, leaves that to the body's. An editor that makes a block to type into ("Add
+layer of the editor's is open. An editor that makes a block to type into ("Add
 notes") places its child with a count of one once it places it; a program tab
 counts its window's raises and calls for attention.
 
@@ -143,7 +142,11 @@ names the child to the compositor with `InstanceEvent::KeyboardAsked`). A
 child whose view is up takes the keyboard at once, if it is inside the
 placer's views or the children they show and no view that takes the keyboard
 is open, so it never steals focus from elsewhere (be-host's
-`focus_when_given`). For a child whose view is not up yet (not built, or its
+`focus_when_given`). The view that takes it is the one showing the child's
+content (`asks::acts`): a joined editor's content shows in a dock tab body the
+placer places as a child of its own, beside its bars, so an ask for the joined
+child, its tab or one of its bars lands in that body, never in a bar or the
+main view left placed and shown nowhere. For a child whose view is not up yet (not built, or its
 app has not laid it out), the keyboard leaves the placer's own view at once
 (`keyboard_into_child`; one already in another of its children stays there),
 and the child's view takes it once it is up, while nothing else took it
