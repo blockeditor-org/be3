@@ -1243,8 +1243,14 @@ keys the granter verified that way, which every device then seals to.
   between them, leaves each a `letter.removed`, and revokes each one's grants on
   blocks the other may edit, in every shared organization. Contacts are per account,
   across organizations; a grant also needs membership.
-- **In the host**: the Contacts dialog, the share dialog (whose "Invite someone
-  new" calls host-services' `make-contact-link`), and the worker's
+- **An invitation**: the share dialog's "Invite someone new" (host-services'
+  `make-contact-link` with a block and a level, `Peer::make_invitation`) makes a plain
+  contact link and a share link on the block that admits one (`Admits::One`), with one code,
+  so the person is sent one link, the contact link. be-host opens it as each opens alone:
+  once the contact link is accepted it reads the share link with the same code and offers it
+  as a pasted one, and a contact link that carries none shows nothing. The share dialog
+  says on such a link's row who used it, or that no one has yet.
+- **In the host**: the Contacts dialog, the share dialog, and the worker's
   `Shared::contacts`, the only keys a share is sealed to.
 
 ## What the server can and cannot do

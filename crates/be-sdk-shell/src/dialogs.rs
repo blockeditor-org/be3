@@ -781,7 +781,7 @@ fn LinkRow(
                         variant=ButtonVariant::Secondary
                         size=ButtonSize::Small
                         busy={pending}
-                        @test_id={"share.links.revoke"}
+                        @test_id={format!("share.links.revoke.{}", link.with_untracked(|link| link.as_ref().map(|link| link.id.clone()).unwrap_or_default()))}
                         on_click={move || {
                             if let Some(link) = link.get_untracked() {
                                 act.call(ShareAction::OfferRevoke(link.id));
