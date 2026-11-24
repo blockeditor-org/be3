@@ -62,7 +62,7 @@ fn numbered_path(output: &Path, index: usize) -> PathBuf {
 }
 
 fn usage() -> ! {
-    eprintln!("usage: local-tools rasterize SNAPSHOT.paint OUTPUT.png [FRAME|all]");
+    eprintln!("usage: be-tool-local rasterize SNAPSHOT.paint OUTPUT.png [FRAME|all]");
     std::process::exit(2)
 }
 

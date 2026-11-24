@@ -5,7 +5,7 @@ use std::process::ExitCode;
 use crate::git;
 use crate::previews::{PAINTINGS, generate, stage};
 
-const USAGE: &str = "usage: local-tools changed [--base REVISION] [--images FOLDER]";
+const USAGE: &str = "usage: be-tool-local changed [--base REVISION] [--images FOLDER]";
 
 /// `be-tool-local changed`: for every painting in a crate's `snapshots/` that differs from HEAD
 /// (or `--base`), untracked ones included, says what moved and which frames changed, and writes

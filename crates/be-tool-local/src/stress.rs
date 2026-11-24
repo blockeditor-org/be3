@@ -6,7 +6,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
 use std::{env, fs, thread};
 
-const USAGE: &str = "usage: local-tools stress NAME [--repeat N] [--parallel K] [--limit SECONDS] [--apps A,B] [--latency MS]";
+const USAGE: &str = "usage: be-tool-local stress NAME [--repeat N] [--parallel K] [--limit SECONDS] [--apps A,B] [--latency MS]";
 const HARNESS: &str = "//crates/be-host-tests:test-harness";
 const BUNDLE: &str = "//crates/be-host-tests:host-with-all";
 const LIBRARIES: &str = "//crates/be-host-tests:host-libraries";
