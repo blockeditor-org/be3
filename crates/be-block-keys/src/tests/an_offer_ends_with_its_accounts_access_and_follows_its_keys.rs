@@ -34,8 +34,20 @@ fn an_offer_ends_with_its_accounts_access_and_follows_its_keys() {
     };
 
     let root = Entry::root(&creator, creator_id, LogKind::Block, block);
-    let granted = sign(&creator, creator_id, &root, false, grant(Level::View, heir.identity()));
-    let offer = sign(&creator, creator_id, &granted, false, owner(heir.identity()));
+    let granted = sign(
+        &creator,
+        creator_id,
+        &root,
+        false,
+        grant(Level::View, heir.identity()),
+    );
+    let offer = sign(
+        &creator,
+        creator_id,
+        &granted,
+        false,
+        owner(heir.identity()),
+    );
     let log = vec![root.clone(), granted.clone(), offer.clone()];
     assert_eq!(
         check(&log).unwrap().offered,
@@ -64,7 +76,13 @@ fn an_offer_ends_with_its_accounts_access_and_follows_its_keys() {
     );
 
     // Revoked, or banned, the heir holds no offer.
-    let revoked = sign(&creator, creator_id, &offer, true, grant(Level::None, heir.identity()));
+    let revoked = sign(
+        &creator,
+        creator_id,
+        &offer,
+        true,
+        grant(Level::None, heir.identity()),
+    );
     let ban = sign(
         &creator,
         creator_id,
@@ -78,7 +96,11 @@ fn an_offer_ends_with_its_accounts_access_and_follows_its_keys() {
     for (what, ending) in [("revoked", revoked), ("banned", ban)] {
         let mut ended = log.clone();
         ended.push(ending.clone());
-        assert_eq!(check(&ended).unwrap().offered, None, "{what}, the offer stands");
+        assert_eq!(
+            check(&ended).unwrap().offered,
+            None,
+            "{what}, the offer stands"
+        );
         let late = sign(&heir, heir_id, &ending, true, owner(heir.identity()));
         assert!(
             check(&[ended, vec![late]].concat()).is_err(),

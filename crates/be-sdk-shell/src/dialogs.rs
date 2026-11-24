@@ -575,9 +575,7 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
                             <Icon glyph=ICON_CROWN />
                         </Text>
                         <ListItem grow=1.0>
-                            <Text style=TextStyle::CAPTION @test_id={"share.offered"}>
-                                {offer}
-                            </Text>
+                            <Text style=TextStyle::CAPTION @test_id={"share.offered"}>{offer}</Text>
                         </ListItem>
                         <Button
                             label="Withdraw"

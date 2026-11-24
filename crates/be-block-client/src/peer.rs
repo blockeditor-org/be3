@@ -4673,12 +4673,14 @@ impl<S: ObjectStore> Peer<S> {
 
     /// The blocks offered to this account in the organization, not yet accepted or withdrawn.
     pub async fn owner_offers(&self) -> Result<Vec<be_block_protocol::OwnerOffer>, ClientError> {
-        Ok(be_block_protocol::read::<Vec<be_block_protocol::OwnerOffer>, _>(
-            &self.connection(),
-            Some(self.organization),
-            be_block_protocol::Query::OwnerOffers,
+        Ok(
+            be_block_protocol::read::<Vec<be_block_protocol::OwnerOffer>, _>(
+                &self.connection(),
+                Some(self.organization),
+                be_block_protocol::Query::OwnerOffers,
+            )
+            .await??,
         )
-        .await??)
     }
 
     /// Accepts `block`, which its owner offered this account (`transfer`): an owner record naming

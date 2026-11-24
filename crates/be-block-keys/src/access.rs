@@ -1494,7 +1494,10 @@ impl Checked {
                     }
                     state.granting(entry, own, &ban.authority, Level::Edit, false, outside)?;
                     state.banned.insert(ban.account);
-                    if state.offered.is_some_and(|(account, _)| account == ban.account) {
+                    if state
+                        .offered
+                        .is_some_and(|(account, _)| account == ban.account)
+                    {
                         state.offered = None;
                     }
                 }

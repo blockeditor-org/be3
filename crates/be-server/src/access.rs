@@ -983,12 +983,18 @@ pub(crate) fn offer_row(
             "SELECT account_id, from_id FROM owner_offers
              WHERE organization_id = ?1 AND block_id = ?2",
         )?
-        .query_row(params![organization.to_string(), block.to_string()], |row| {
-            Ok((row.get(0)?, row.get(1)?))
-        })
+        .query_row(
+            params![organization.to_string(), block.to_string()],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
         .optional()?;
-    row.map(|(to, from)| Ok((crate::store::parse_uuid(&to)?, crate::store::parse_uuid(&from)?)))
-        .transpose()
+    row.map(|(to, from)| {
+        Ok((
+            crate::store::parse_uuid(&to)?,
+            crate::store::parse_uuid(&from)?,
+        ))
+    })
+    .transpose()
 }
 
 /// The blocks offered to `account` in `organization`, each with who offered it.
@@ -1002,9 +1008,10 @@ pub(crate) fn offers_to(
          WHERE organization_id = ?1 AND account_id = ?2 ORDER BY block_id",
     )?;
     let rows: Vec<(String, String)> = statement
-        .query_map(params![organization.to_string(), account.to_string()], |row| {
-            Ok((row.get(0)?, row.get(1)?))
-        })?
+        .query_map(
+            params![organization.to_string(), account.to_string()],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )?
         .collect::<Result<_, _>>()?;
     let mut offers = Vec::new();
     for (block, _) in rows {
@@ -1058,7 +1065,9 @@ pub(crate) fn append_owner(
 ) -> Result<(), ServerError> {
     let entry = Entry::decode(record).map_err(|_| refused("the record does not read"))?;
     let Record::Owner(named) = &entry.record else {
-        return Err(refused("ownership is offered and accepted by owner records"));
+        return Err(refused(
+            "ownership is offered and accepted by owner records",
+        ));
     };
     if entry.signer != signer.into_bytes() || named.account != owner.into_bytes() {
         return Err(refused(

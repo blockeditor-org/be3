@@ -46,10 +46,7 @@ fn an_offer_of_ownership_is_withdrawn_by_its_owner_and_accepted_by_whom_it_was_m
         };
         // Owning it, the person offered it to Ada; else Grace, its owner, offered it to them.
         let (grants, offered) = match owner {
-            true => (
-                vec![grant(me, "Me", true), grant(ada, "Ada", false)],
-                ada,
-            ),
+            true => (vec![grant(me, "Me", true), grant(ada, "Ada", false)], ada),
             false => (
                 vec![grant(grace, "Grace", true), grant(me, "Me", false)],
                 me,
