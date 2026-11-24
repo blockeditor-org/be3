@@ -4,7 +4,7 @@ use be_sdk_test::prelude::*;
 use uuid::Uuid;
 
 use crate::root::AudioRoot;
-use be_type_audio::AudioFile;
+use be_type_audio::{AudioFile, BlobFile};
 
 mod a_playing_track_shows_its_position;
 mod a_track_on_a_phone_on_its_side_shows_its_panel_beside_it;

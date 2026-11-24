@@ -1,4 +1,3 @@
-use be_type_image::BlobFile as _;
 use super::*;
 use be_sdk_beui::beui::Vec2;
 
