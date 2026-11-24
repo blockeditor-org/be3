@@ -242,7 +242,15 @@ host owes a replica (the WIT documents each call):
   one answer at a time. `load` answers a commit's stored form with the parts it
   was saved in (`loaded`, which becomes a `be_block_store::Stored`), only the
   first part's bytes for a type that loads only that (`be_block_content::Loads`).
-  `read-part` reads a range of a saved part, which a replica answering an
+  It fails with a `load-error` (`be_sdk_type_api::LoadError`): `unreadable`
+  for content that was had and does not read, on which the replica opens no
+  content and tells its editors so; `not-yet` for objects not to be had now (a
+  replaced head the server dropped, a lost connection), on which an opening
+  stops waiting and stays unopened (`not_yet`): it answers jobs as an
+  unreadable one does (Close releases, content and seals answer unknown,
+  changes are not made), tells its editors nothing, and the host opens another
+  replica once the head moves or the connection comes back (guides/blocks/host.md,
+  "Blocks saved by another build"). `read-part` reads a range of a saved part, which a replica answering an
   editor's `Read` uses outside that one-answer rule (guides/blocks/apps.md,
   "Reading a range"). `written` carries the parts a save keeps as they were as
   `reused`, so such a replica saves without the bytes it never loaded.

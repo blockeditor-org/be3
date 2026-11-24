@@ -756,6 +756,10 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     incompatible: bool,
     diverged: bool,
     unreadable: Option<String>,
+    /// The opening's read was not to be had yet (`LoadError::NotYet`): the replica stays
+    /// unopened and runs its jobs as an unreadable one does, on no content, until the host
+    /// closes it and opens another once the head moves or the connection comes back.
+    not_yet: bool,
     history: H,
     editors: BTreeMap<EditorId, bool>,
     acknowledged: BTreeMap<EditorId, u64>,
@@ -1207,6 +1211,7 @@ where
             incompatible: false,
             diverged: false,
             unreadable: None,
+            not_yet: false,
             history: H::default(),
             editors: BTreeMap::new(),
             acknowledged: BTreeMap::new(),
@@ -2029,7 +2034,7 @@ where
     }
 
     fn run_job(&mut self, job: Job<C>, local: bool) {
-        if self.unreadable.is_some() {
+        if self.unreadable.is_some() || self.not_yet {
             return self.job_while_unreadable(job);
         }
         // Given again after a reopening, and the order holds it already: it is not made twice.
@@ -2376,20 +2381,23 @@ where
         token: Token,
         result: Result<be_block_content::Stored, be_sdk_type_api::LoadError>,
     ) {
-        // Not to be had now: an opening stops waiting on the read and stays unopened, neither
-        // unreadable nor loading anything, as the host opens the replica again once the head
-        // moves or the connection comes back. Its other jobs go on meanwhile: one asked to close
-        // closes, unopened as it is, rather than wait behind a read no one will answer. Anything
+        // Not to be had now: an opening stops waiting on the read and stays unopened
+        // (`not_yet`), loading nothing, as the host opens another replica once the head moves or
+        // the connection comes back. Its jobs go on as an unreadable one's do, on no content:
+        // one asked to close closes rather than wait behind a read no one will answer. Anything
         // else fails as it would.
         let opening = matches!(
-            self.waiting,
+            &self.waiting,
             Some(Wait::Reads {
                 then: Then::Load | Then::RestartCommits { .. },
-                ..
-            })
+                slots,
+            }) if slots.iter().any(|slot| matches!(slot, Slot::Waiting(waiting) if *waiting == token))
         );
         if opening && matches!(result, Err(be_sdk_type_api::LoadError::NotYet(_))) {
             self.waiting.take();
+            self.opened_content.take();
+            self.restart_commits.clear();
+            self.not_yet = true;
             return;
         }
         let Some(Wait::Reads { slots, .. }) = &mut self.waiting else {
@@ -4947,6 +4955,10 @@ where
         if let Some(reason) = &self.unreadable {
             let failed = ToEditor::Failed(format!("The content could not be read: {reason}"));
             return self.tell_editor(editor, &failed);
+        }
+        // An editor of a replica not opened yet is told nothing: the one opened next tells it.
+        if self.not_yet {
+            return;
         }
         let snapshot = self.snapshot_for(editor);
         self.tell_editor(editor, &ToEditor::Snapshot(snapshot));

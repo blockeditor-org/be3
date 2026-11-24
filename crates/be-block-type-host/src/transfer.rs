@@ -21,8 +21,10 @@ pub trait Open {
     fn modules(&mut self) -> &mut Modules;
 
     /// `block`'s content as a replica held open has it; none when no replica of it is open
-    /// (or it did not answer), and the block is read as stored.
-    fn content(&mut self, block: Uuid) -> impl Future<Output = Option<Vec<u8>>>;
+    /// (or it did not answer), and the block is read as stored. Fails for a block whose replica
+    /// waits for its head's objects (`Replicas::not_yet`).
+    fn content(&mut self, block: Uuid)
+    -> impl Future<Output = Result<Option<Vec<u8>>, ClientError>>;
 
     /// The metadata the exporter derived from `block`'s content, in place of what was saved.
     fn derived(&self, block: Uuid) -> Option<Entries>;
@@ -33,8 +35,8 @@ impl Open for Modules {
         self
     }
 
-    async fn content(&mut self, _: Uuid) -> Option<Vec<u8>> {
-        None
+    async fn content(&mut self, _: Uuid) -> Result<Option<Vec<u8>>, ClientError> {
+        Ok(None)
     }
 
     fn derived(&self, _: Uuid) -> Option<Entries> {
@@ -161,7 +163,7 @@ pub async fn collect<S: ObjectStore>(
                 parent,
                 metadata: peer.metadata(&summary).unwrap_or_default(),
                 references: peer.content_references(&summary).await?,
-                content: open.content(summary.id).await,
+                content: open.content(summary.id).await?,
                 log,
             },
         ));

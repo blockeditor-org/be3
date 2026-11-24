@@ -4390,7 +4390,10 @@ async fn apply(
             content_type,
             metadata,
         } => {
-            if !be_block_type_host::is_known(content_type) {
+            if !be_block_type_host::is_known(content_type) || replicas.not_yet(from) {
+                if replicas.not_yet(from) {
+                    record(shared, ClientError::NotYet(from));
+                }
                 shared
                     .lock()
                     .unwrap_or_else(PoisonError::into_inner)
@@ -4433,6 +4436,10 @@ async fn apply(
                 true => replicas.content(ctx, from).await,
                 false => None,
             };
+            if shown.is_none() && replicas.not_yet(from) {
+                record(shared, ClientError::NotYet(from));
+                return false;
+            }
             let bytes = match shown {
                 Some(bytes) => Some(bytes),
                 None => stored(peer, from).await.unwrap_or_else(|error| {
@@ -4463,6 +4470,10 @@ async fn apply(
             content_type,
             bytes,
         } => {
+            if replicas.not_yet(block) {
+                record(shared, ClientError::NotYet(block));
+                return false;
+            }
             let unreadable = replicas
                 .status(block)
                 .is_some_and(|status| status.unreadable.is_some());
@@ -4624,10 +4635,17 @@ async fn plain_file(
         .get(block)
         .map(|node| (node.content_type, node.metadata.name().unwrap_or_default()))
         .ok_or("This block isn't known yet.")?;
+    let not_yet = || ClientError::NotYet(block).to_string();
+    if replicas.not_yet(block) {
+        return Err(not_yet());
+    }
     let content = match replicas.is_open(block) {
         true => replicas.content((peer, shared), block).await,
         false => None,
     };
+    if content.is_none() && replicas.not_yet(block) {
+        return Err(not_yet());
+    }
     let content = match content {
         Some(content) => Some(content),
         None => stored(peer, block)
@@ -4845,10 +4863,17 @@ impl be_block_type_host::transfer::Open for Exporting<'_> {
         &mut self.replicas.modules
     }
 
-    async fn content(&mut self, block: Uuid) -> Option<Vec<u8>> {
-        match self.replicas.is_open(block) {
+    async fn content(&mut self, block: Uuid) -> Result<Option<Vec<u8>>, ClientError> {
+        if self.replicas.not_yet(block) {
+            return Err(ClientError::NotYet(block));
+        }
+        let content = match self.replicas.is_open(block) {
             true => self.replicas.content((self.peer, self.shared), block).await,
             false => None,
+        };
+        match content {
+            None if self.replicas.not_yet(block) => Err(ClientError::NotYet(block)),
+            content => Ok(content),
         }
     }
 

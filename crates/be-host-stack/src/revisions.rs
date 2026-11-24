@@ -2,7 +2,7 @@ use std::sync::{Arc, PoisonError};
 
 use std::sync::Mutex;
 
-use be_block_client::Peer;
+use be_block_client::{ClientError, Peer};
 use be_block_commit::CommitId;
 use be_sdk_api::Revision;
 use be_sdk_type_api::Change;
@@ -333,6 +333,9 @@ async fn perform(
     }
     if !replicas.is_open(block) {
         return Err("Open this file before restoring a revision.".into());
+    }
+    if replicas.not_yet(block) {
+        return Err(ClientError::NotYet(block).to_string());
     }
     // The state being replaced is kept as a bookmark, so pruning never takes it; what the
     // order does not hold yet the replica stashes under the restore.

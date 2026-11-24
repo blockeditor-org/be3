@@ -45,7 +45,7 @@ head, once the head moves on or its join answers when it loaded the head it knew
 and once the connection comes back for a lost one. The same commit missing again after it opened,
 once a join has answered (or after a few openings while it still joins), is unreadable
 (`Replicas::retried`), so the wait is bounded, and nothing is reset for a head another device
-replaced. A replica that waits stays unopened rather than loading, so one asked to close
+replaced. A replica that waits stays unopened rather than loading: it runs its jobs on no content, as an unreadable one does, so one asked to close
 closes.
 
 The host keeps `be-objects/` and the refs database across builds.
