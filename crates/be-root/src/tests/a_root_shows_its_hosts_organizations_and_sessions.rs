@@ -192,15 +192,18 @@ fn a_root_shows_its_hosts_organizations_and_sessions() {
     }
 
     // The invitation opened, to join.
-    show_core(&mut root, organizations(
-        listed(),
-        Some(Invitation {
-            organization: "Looms".to_owned(),
-            inviter: "Ada".to_owned(),
-            problem: None,
-            can_join: true,
-        }),
-    ));
+    show_core(
+        &mut root,
+        organizations(
+            listed(),
+            Some(Invitation {
+                organization: "Looms".to_owned(),
+                inviter: "Ada".to_owned(),
+                problem: None,
+                can_join: true,
+            }),
+        ),
+    );
     beui_paint_snapshot::assert_painting(
         "a_root_shows_an_invitation_to_join_an_organization",
         painting(&mut root, &mut time),

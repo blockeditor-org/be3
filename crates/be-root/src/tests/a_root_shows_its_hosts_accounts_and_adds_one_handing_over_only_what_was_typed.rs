@@ -172,20 +172,26 @@ fn a_root_shows_its_hosts_accounts_and_adds_one_handing_over_only_what_was_typed
     }
 
     // While it connects, then while the person signs in in their browser.
-    show_core(&mut root, CoreView {
-        signing_in: Some(SigningIn { browser: None }),
-        ..choosing(Vec::new())
-    });
+    show_core(
+        &mut root,
+        CoreView {
+            signing_in: Some(SigningIn { browser: None }),
+            ..choosing(Vec::new())
+        },
+    );
     let _ = asks(&mut root, &mut time, Vec::new());
-    show_core(&mut root, CoreView {
-        signing_in: Some(SigningIn {
-            browser: Some(BrowserSignIn {
-                url: "https://example.com/auth".to_owned(),
-                code: "WXYZ-1234".to_owned(),
+    show_core(
+        &mut root,
+        CoreView {
+            signing_in: Some(SigningIn {
+                browser: Some(BrowserSignIn {
+                    url: "https://example.com/auth".to_owned(),
+                    code: "WXYZ-1234".to_owned(),
+                }),
             }),
-        }),
-        ..choosing(Vec::new())
-    });
+            ..choosing(Vec::new())
+        },
+    );
     let signing_in = painting_of(&mut root, &mut time, DIALOG_SURFACE);
     beui_paint_snapshot::assert_painting(
         "a_root_waits_for_its_hosts_browser_sign_in",
@@ -274,10 +280,13 @@ fn a_root_shows_its_hosts_accounts_and_adds_one_handing_over_only_what_was_typed
     );
 
     // Once the block stack has an account open, the accounts go.
-    show_core(&mut root, CoreView {
-        waits_for: None,
-        ..choosing(Vec::new())
-    });
+    show_core(
+        &mut root,
+        CoreView {
+            waits_for: None,
+            ..choosing(Vec::new())
+        },
+    );
     until(
         &mut root,
         &mut time,

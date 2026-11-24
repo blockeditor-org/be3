@@ -117,7 +117,10 @@ pub(super) fn HostMenu(
                 disabled=true
             />
         </Show>
-        <ForEach value={hosting} key={|kept: &HostedBlock| kept.block}>|kept: ReadSignal<HostedBlock>|
+        <ForEach
+            value={hosting}
+            key={|kept: &HostedBlock| kept.block}
+        >|kept: ReadSignal<HostedBlock>|
             <MenuItem
                 label={move || kept.with(|kept| format!("Stop hosting {}", kept.name))}
                 glyph=ICON_RADIO_TOWER

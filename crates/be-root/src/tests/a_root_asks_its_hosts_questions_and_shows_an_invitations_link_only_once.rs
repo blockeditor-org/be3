@@ -125,7 +125,10 @@ fn a_root_asks_its_hosts_questions_and_shows_an_invitations_link_only_once() {
     step(&mut root, time);
 
     // The host asks before discarding unsaved changes: Keep, or Escape, keeps them.
-    show_core(&mut root, discarding(Some(DiscardReason::SwitchOrganization)));
+    show_core(
+        &mut root,
+        discarding(Some(DiscardReason::SwitchOrganization)),
+    );
     beui_paint_snapshot::assert_painting(
         "a_root_asks_before_its_host_discards_unsaved_changes",
         dialog_painting(&mut root, &mut time),
@@ -178,12 +181,15 @@ fn a_root_asks_its_hosts_questions_and_shows_an_invitations_link_only_once() {
         matches!(commands.as_slice(), [CoreCommand::Reauthenticate]),
         "Continue in browser signs in again: {commands:?}"
     );
-    show_core(&mut root, reauthenticating(Some(SigningIn {
-        browser: Some(BrowserSignIn {
-            url: "https://example.com/auth".to_owned(),
-            code: "WXYZ-1234".to_owned(),
-        }),
-    })));
+    show_core(
+        &mut root,
+        reauthenticating(Some(SigningIn {
+            browser: Some(BrowserSignIn {
+                url: "https://example.com/auth".to_owned(),
+                code: "WXYZ-1234".to_owned(),
+            }),
+        })),
+    );
     let commands = settle(&mut root, &mut time);
     assert!(
         commands.is_empty(),

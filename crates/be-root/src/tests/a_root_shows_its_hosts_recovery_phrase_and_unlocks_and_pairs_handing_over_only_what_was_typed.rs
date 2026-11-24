@@ -187,14 +187,17 @@ fn a_root_shows_its_hosts_recovery_phrase_and_unlocks_and_pairs_handing_over_onl
         "a_root_asks_before_deleting_its_hosts_local_copy",
         painting(&mut root, &mut time, ONBOARDING_SURFACE),
     );
-    show_core(&mut root, CoreView {
-        pairing: vec![PairingRequest {
-            id: 7,
-            device: "Laptop".to_owned(),
-            refused: None,
-        }],
-        ..CoreView::default()
-    });
+    show_core(
+        &mut root,
+        CoreView {
+            pairing: vec![PairingRequest {
+                id: 7,
+                device: "Laptop".to_owned(),
+                refused: None,
+            }],
+            ..CoreView::default()
+        },
+    );
     beui_paint_snapshot::assert_painting(
         "a_root_asks_to_pair_a_device",
         painting(&mut root, &mut time, DIALOG_SURFACE),

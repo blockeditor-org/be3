@@ -43,10 +43,13 @@ fn a_root_opens_the_block_stacks_dialogs_from_its_menu() {
     let mut time = 1;
     step(&mut root, time);
     // While the block stack waits for an account, its menu does not show.
-    show_core(&mut root, CoreView {
-        waits_for: Some(CoreWait::Account),
-        ..CoreView::default()
-    });
+    show_core(
+        &mut root,
+        CoreView {
+            waits_for: Some(CoreWait::Account),
+            ..CoreView::default()
+        },
+    );
     let waiting = until(
         &mut root,
         &mut time,
