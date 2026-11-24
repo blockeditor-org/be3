@@ -915,7 +915,9 @@ makes as `HOST_EDITOR`, setting up a new organization's settings say) are no one
 undo: the replica keeps no step of them. A type registered with `undo` keeps
 `be_block_content::history::History` (`HISTORY_STEPS` deep): steps sent within 750 ms
 of the last, by the frame-clock time each relayed frame is stamped with, may
-absorb into one, and `be_host_stack::undo`/`redo` send `Change::Undo`/`Redo`.
+absorb into one, and `be_host_stack::undo`/`redo` send `Change::Undo`/`Redo`. The replica
+records an edit at its stamp (`Input::Message::at`), not when it gets to it: edits that wait
+as jobs (behind a load, a read or a merge) and land together keep the time apart they were made.
 An editor groups a gesture into one step with `FromEditor::Gesture { id, gesture }`
 (`ContentProjection::begin_gesture`, then `operate_in`, `commit_gesture`,
 `cancel_gesture`; a cancel reverts and leaves no step). Each gesture is named by

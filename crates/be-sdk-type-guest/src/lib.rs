@@ -1277,7 +1277,7 @@ impl replicas::GuestReplica for OpenReplica {
 
     fn message(&self, from: Endpoint, bytes: Vec<u8>, at: u64) -> LocalFuture<()> {
         self.module.tick(at);
-        self.module.input(self.id, Input::Message { from, bytes });
+        self.module.input(self.id, Input::Message { from, bytes, at });
         Box::pin(ready(()))
     }
 
