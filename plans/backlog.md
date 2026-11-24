@@ -37,6 +37,11 @@ Fixed items are removed as they land.
 
 ## 7. Sessions
 
+- **A session past 4 MiB of state with others in it wedges.** With others in the session a
+  restart comes due only past `RESTART_CEILING` times `RESTART_STATE_BYTES`, which is what a
+  seal's journal base may carry (`MAX_RELAY_BYTES`), so a late restart's seal fails.
+  plans/seal_states_go_by_part.md sends that state by part.
+
 - **A Join channel test that once heard more than Closed.** be-host-stack's
   `a_joined_channel_opens_to_its_host_and_again_to_the_next` once failed where the first
   host leaves: it heard something other than (or before) `Closed`, maybe a second `Closed`
