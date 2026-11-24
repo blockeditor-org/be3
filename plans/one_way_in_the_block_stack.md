@@ -17,5 +17,3 @@ drifted into a bug.
    typed `update_content<C: LiveEdit>(block, ops)` over it. The last two loops deliberately
    resend the same bytes against the new head: that becomes `Peer::update`'s explicit `force`
    form, not a seventh loop.
-6. **One `Saved`.** be-block-client has `peer::Saved` (the result of a write) and
-   `transfer::Saved` (a block in a file). Rename the second `SavedBlock`.

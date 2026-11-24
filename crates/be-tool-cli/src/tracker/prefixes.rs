@@ -30,7 +30,7 @@ impl<S: ObjectStore> Tracker<S> {
 
     pub async fn register_uploaded(
         &self,
-        blocks: &[be_block_client::transfer::Saved],
+        blocks: &[be_block_client::transfer::SavedBlock],
     ) -> Result<(), String> {
         for block in blocks {
             if block.block_type != DatabaseContent::CONTENT_TYPE {

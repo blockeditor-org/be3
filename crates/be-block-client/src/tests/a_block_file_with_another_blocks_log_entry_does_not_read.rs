@@ -15,7 +15,7 @@ fn a_block_file_with_another_blocks_log_entry_does_not_read() {
         signature: vec![0; 64],
     };
     let file = |written_in: Uuid| {
-        crate::transfer::encode(&[crate::transfer::Saved {
+        crate::transfer::encode(&[crate::transfer::SavedBlock {
             id: block,
             block_type: be_type_workspace::WorkspaceContent::CONTENT_TYPE,
             parent: None,
