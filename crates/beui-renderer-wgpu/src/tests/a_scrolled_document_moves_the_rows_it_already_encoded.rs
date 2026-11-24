@@ -30,7 +30,7 @@ fn a_scrolled_document_moves_the_rows_it_already_encoded() {
     let scroll = document
         .find_test_id("scroll")
         .expect("the scroll is built");
-    let context = Context::new(beui_font_freetype::FreetypeFonts::default());
+    let context = Context::new(beui_font_skrifa::SkrifaFonts::default());
     let mut target = Target::new();
     let everything = everything();
     target.draw_in(

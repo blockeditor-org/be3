@@ -22,7 +22,7 @@ serde_json = "1"
 wgpu = { version = "29", default-features = false, features = ["vulkan"] }
 
 [dev-dependencies]
-beui-font-freetype = { path = "../beui-font-freetype" }
+beui-font-skrifa = { path = "../beui-font-skrifa" }
 pollster = "0.4"
 
 [target.'cfg(target_os = "linux")'.dev-dependencies]

@@ -1,11 +1,13 @@
 use beui_fonts::{HACK, INTER, LUCIDE, NOTO_EMOJI};
 use beui_types::text::{FontFamily, FontId};
-use ttf_parser::{Face, GlyphId};
+use skrifa::instance::{LocationRef, Size};
+use skrifa::metrics::{GlyphMetrics, Metrics};
+use skrifa::{FontRef, GlyphId, MetadataProvider};
 
 thread_local! {
-    static FACES: Vec<Face<'static>> = [INTER, HACK, NOTO_EMOJI, LUCIDE]
+    static FACES: Vec<FontRef<'static>> = [INTER, HACK, NOTO_EMOJI, LUCIDE]
         .iter()
-        .filter_map(|face| Face::parse(beui_fonts::bytes(face.file)?, 0).ok())
+        .filter_map(|face| FontRef::new(beui_fonts::bytes(face.file)?).ok())
         .collect();
 }
 
@@ -18,14 +20,20 @@ fn chain(family: FontFamily) -> &'static [usize] {
 }
 
 fn glyph<'a>(
-    faces: &'a [Face<'static>],
+    faces: &'a [FontRef<'static>],
     family: FontFamily,
     ch: char,
-) -> Option<(&'a Face<'static>, GlyphId)> {
+) -> Option<(&'a FontRef<'static>, GlyphId)> {
     chain(family).iter().find_map(|&index| {
         let face = faces.get(index)?;
-        face.glyph_index(ch).map(|glyph| (face, glyph))
+        face.charmap().map(ch).map(|glyph| (face, glyph))
     })
+}
+
+fn units_per_em(face: &FontRef) -> f32 {
+    face.metrics(Size::unscaled(), LocationRef::default())
+        .units_per_em
+        .max(1) as f32
 }
 
 pub(super) fn width(text: &str, font: FontId) -> Option<f32> {
@@ -35,9 +43,11 @@ pub(super) fn width(text: &str, font: FontId) -> Option<f32> {
             text.chars()
                 .map(|ch| {
                     let (face, glyph) =
-                        glyph(faces, font.family, ch).unwrap_or((primary, GlyphId(0)));
-                    let advance = face.glyph_hor_advance(glyph).unwrap_or(0) as f32;
-                    advance * font.size / face.units_per_em() as f32
+                        glyph(faces, font.family, ch).unwrap_or((primary, GlyphId::NOTDEF));
+                    let advance = GlyphMetrics::new(face, Size::unscaled(), LocationRef::default())
+                        .advance_width(glyph)
+                        .unwrap_or(0.0);
+                    advance * font.size / units_per_em(face)
                 })
                 .sum(),
         )
@@ -47,11 +57,9 @@ pub(super) fn width(text: &str, font: FontId) -> Option<f32> {
 pub(super) fn extents(font: FontId) -> Option<(f32, f32)> {
     FACES.with(|faces| {
         let face = faces.get(chain(font.family)[0])?;
-        let scale = font.size / face.units_per_em() as f32;
-        Some((
-            face.ascender() as f32 * scale,
-            -(face.descender() as f32) * scale,
-        ))
+        let metrics = Metrics::new(face, Size::unscaled(), LocationRef::default());
+        let scale = font.size / metrics.units_per_em.max(1) as f32;
+        Some((metrics.ascent * scale, -metrics.descent * scale))
     })
 }
 

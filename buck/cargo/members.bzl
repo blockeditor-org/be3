@@ -203,7 +203,7 @@ members = [
     "crates/beui-dock-state",
     "crates/beui-documents",
     "crates/beui-draw",
-    "crates/beui-font-freetype",
+    "crates/beui-font-skrifa",
     "crates/beui-fonts",
     "crates/beui-host",
     "crates/beui-host-window",

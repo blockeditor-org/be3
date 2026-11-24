@@ -1,6 +1,6 @@
 # Rust apps link two coarse libraries: base and beui
 
-Base holds std, alloc, the allocator, the panic runtime, wasi-libc, libc++ and libc++abi, wgpu with the custom backend, be-wasm-ops, be-sdk-api, be-sdk, geometry, serde, postcard, serde_json and uuid. beui holds `beui-reactive`, beui and everything under it, be-sdk-beui-platform, be-sdk-beui, FreeType and HarfBuzz. An app without beui (the triangle) links base alone, and an app may link no library and be one module written against the raw app interface. Each crate and C library lives in exactly one module of an app's closure, which `be-wasm-link` enforces.
+Base holds std, alloc, the allocator, the panic runtime, wasi-libc, libc++ and libc++abi, wgpu with the custom backend, be-wasm-ops, be-sdk-api, be-sdk, geometry, serde, postcard, serde_json and uuid. beui holds `beui-reactive`, beui and everything under it, be-sdk-beui-platform, be-sdk-beui and the font crates under beui. An app without beui (the triangle) links base alone, and an app may link no library and be one module written against the raw app interface. Each crate and C library lives in exactly one module of an app's closure, which `be-wasm-link` enforces.
 
 ## Why
 

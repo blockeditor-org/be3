@@ -16,7 +16,7 @@ fn overlapping_shapes_in_a_faded_frame_do_not_show_through_each_other() {
             </Root>
         }
     });
-    let context = Context::new(beui_font_freetype::FreetypeFonts::default());
+    let context = Context::new(beui_font_skrifa::SkrifaFonts::default());
     let mut target = Target::new();
     target.draw_in(
         &context,

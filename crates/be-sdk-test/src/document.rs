@@ -5,7 +5,7 @@ use beui::native::Context;
 use beui::native::Document;
 use beui::native::WindowSize;
 use beui_host::native::testing::{Gui, Showing, Stepped, Wraps};
-use beui_host::{native::FontLibrary, native::FreetypeFonts};
+use beui_host::{native::FontLibrary, native::SkrifaFonts};
 
 /// Paints a beui document that is not an editor (beui-demo's pages), with only beui's
 /// bundled fonts. It is beui's `testing::Stepped`, so a `Gui`: the document runs through the
@@ -45,7 +45,7 @@ impl DocumentTest {
     fn start(document: Document, size: Vec2, hosting: bool) -> Self {
         beui::native::fail_unsettled_layout(true);
         let fonts = FontLibrary::bundled();
-        let context = Context::new(FreetypeFonts::new(fonts.clone()));
+        let context = Context::new(SkrifaFonts::new(fonts.clone()));
         let window = WindowSize { size, scale: 1.0 };
         let mut stepped = match hosting {
             true => Stepped::hosting_windows(context, Showing(document), window),

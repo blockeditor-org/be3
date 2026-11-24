@@ -1,7 +1,7 @@
 // The wasi_snapshot_preview1 calls the module makes.
 //
 // be-host is built for wasm32-wasip1-threads, so Rust's standard library and
-// the C in FreeType and HarfBuzz both reach the host through WASI. wasm-bindgen
+// any C linked into it reach the host through WASI. wasm-bindgen
 // emits those as imports from the bare specifier "wasi_snapshot_preview1",
 // which index.html points at this file with an import map.
 //

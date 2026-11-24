@@ -17,7 +17,7 @@ Why:
 - A small native host is less code to port and check per platform.
 
 In November 2026, be-host's native Linux dependency tree was 674 crates, 83 of them first-party,
-including all of beui, FreeType and HarfBuzz, the block stack with SQLite and rustls, symphonia and
+including all of beui, the block stack with SQLite and rustls, symphonia and
 be-server (`be-host-stack/src/embedded_server.rs`).
 
 This plan adds no security boundary. Every guest is trusted, as every app is today, and the host
@@ -853,8 +853,7 @@ Each step lands on its own.
        linked against base and beui, which be-host loads with `be_wasm_host::Host::new` on the
        window's device (sharing each library's compile with the apps) and `Root` steps inline as
        before; only be-wasm-root-testing, which draws no UI, stays a pure guest. A pure root was
-       rejected: FreeType and HarfBuzz need a libc `wasm32-unknown-unknown` lacks, and it would
-       be a second build of beui and wgpu for a triple no app uses.
+       rejected: it would be a second build of beui and wgpu for a triple no app uses.
        `crates/be-sdk-beui-root`'s `BeuiSurface` draws a beui document on one of the root's
        `OwnSurface`s: beui's runner runs it as a program whose one window is the surface, beui's
        wgpu renderer draws it over `be3:gpu`'s `custom` backend into the surface's texture
@@ -864,7 +863,7 @@ Each step lands on its own.
        clock of its own; a surface draws when it heard input, was woken or a frame it asked for
        is due (`BeuiSurface::next`). `be3:root` gained what any framework needs, nothing beui's:
        `host.fonts`, the fonts the host bundles as the app protocol's own `Fonts` (moved into
-       be3:ui, which beui shares, so beui-font-freetype's `FontSources::of_faces` reads it), encoded
+       be3:ui, which beui shares, so beui-font-skrifa's `FontSources::of_faces` reads it), encoded
        (be-host's `be_host_runtime::bundled_fonts`, which it tells its apps; `Root::with_fonts`),
        which the root asks once and draws its text in; `frame-request`'s `wall-clock`, the
        host's wall clock (drive pins it);

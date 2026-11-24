@@ -6,7 +6,7 @@ use beui_types::{FontId, TextLayout};
 #[test]
 fn fonts_added_later_redraw_the_text_that_was_missing_them() {
     let library = FontLibrary::new(FontSources::default());
-    let mut fonts = Fonts::new(FreetypeFonts::new(library.clone()));
+    let mut fonts = Fonts::new(SkrifaFonts::new(library.clone()));
     let before = fonts.layout("Aa", FontId::proportional(14.0), TextLayout::DEFAULT, 1.0);
     assert!(before.glyphs().is_empty(), "with no fonts nothing is drawn");
 

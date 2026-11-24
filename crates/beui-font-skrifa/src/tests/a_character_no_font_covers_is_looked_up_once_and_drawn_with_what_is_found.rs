@@ -18,7 +18,7 @@ fn a_character_no_font_covers_is_looked_up_once_and_drawn_with_what_is_found() {
         counter.set(counter.get() + 1);
         (character == '\u{1f600}').then(|| emoji.clone())
     });
-    let mut fonts = Fonts::new(FreetypeFonts::new(library));
+    let mut fonts = Fonts::new(SkrifaFonts::new(library));
 
     let galley = fonts.layout(
         "a \u{1f600}",

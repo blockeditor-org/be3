@@ -36,8 +36,9 @@ const DROPPED_FROM_APPS: [&str; 5] = [
 // -Bsymbolic binds what a module defines to its own definition. Without it a
 // module reaches its own symbols that others could define through GOT.func and
 // GOT.mem imports, which the loader answers from the lowest module that
-// exports the name: PDFium's FreeType took the address of its TT_RunIns and
-// was handed beui's. A guest is single-threaded, so lld lowers its
+// exports the name, so a module carrying its own copy of a library another
+// module also carries (PDFium's FreeType once shared beui's names) would be
+// handed the other's. A guest is single-threaded, so lld lowers its
 // thread-locals to plain data and makes no thread-local block.
 const APP_FLAGS: [&str; 4] = [
     "-shared",

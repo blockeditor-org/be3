@@ -2,9 +2,9 @@
 pub use crate::keyboard_host::WINDOW_SIZE as KEYBOARD_WINDOW_SIZE;
 pub use beui::native::*;
 #[cfg(not(target_arch = "wasm32"))]
-pub use beui_font_freetype::system::SystemFonts;
-pub use beui_font_freetype::{
-    FontBytes, FontData, FontLibrary, FontSources, FreetypeFonts, ICONS_FONT,
+pub use beui_font_skrifa::system::SystemFonts;
+pub use beui_font_skrifa::{
+    FontBytes, FontData, FontLibrary, FontSources, SkrifaFonts, ICONS_FONT,
 };
 pub use beui_inspector::install as install_inspector;
 pub use beui_layer_drive as drive;
@@ -37,16 +37,16 @@ pub fn build(f: impl FnOnce() -> beui_view::primitives::Root) -> Document {
 }
 
 pub fn context() -> Context {
-    Context::new(FreetypeFonts::default())
+    Context::new(SkrifaFonts::default())
 }
 
 pub fn system_fonts() -> FontLibrary {
     let fonts = FontLibrary::bundled();
     #[cfg(not(target_arch = "wasm32"))]
-    let fonts = fonts.with_fallback(beui_font_freetype::system::fallback());
+    let fonts = fonts.with_fallback(beui_font_skrifa::system::fallback());
     fonts
 }
 
 pub fn system_context() -> Context {
-    Context::new(FreetypeFonts::new(system_fonts()))
+    Context::new(SkrifaFonts::new(system_fonts()))
 }

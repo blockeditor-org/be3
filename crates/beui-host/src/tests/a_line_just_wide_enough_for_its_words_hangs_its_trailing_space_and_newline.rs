@@ -14,7 +14,7 @@ fn ranges(layout: &RichLayout) -> Vec<std::ops::Range<usize>> {
 
 #[test]
 fn a_line_just_wide_enough_for_its_words_hangs_its_trailing_space_and_newline() {
-    let context = Context::new(crate::native::FreetypeFonts::default());
+    let context = Context::new(crate::native::SkrifaFonts::default());
     let mut shaper =
         |text: &str, font: FontId| -> Galley { context.layout(text, font, TextLayout::DEFAULT) };
     let style = SpanStyle::new(FontId::proportional(14.0), Color32::WHITE);

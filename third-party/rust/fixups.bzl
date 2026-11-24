@@ -54,17 +54,6 @@ FIXUPS = {
             "LIBCLANG_PATH": "$(location //buck/tools:llvm)/lib",
         },
     },
-    # The overlay's build script always compiles the FreeType the crate vendors,
-    # which an app paints with too, and compiles libpng and zlib beside it
-    # for FreeType to load the colour glyphs emoji fonts keep as PNG images.
-    "freetype-sys": {
-        "build_script_env": {
-            "LIBPNG_SOURCE": "$(location //third-party/libpng:source)",
-            "ZLIB_SOURCE": "$(location //third-party/zlib:source)",
-        },
-        "deps": ["//third-party/system:stdc++"],
-        "overlay": {"build.rs": "overlays/freetype-sys/build.rs"},
-    },
     "gdk-pixbuf-sys": _PKG_CONFIG,
     "gdk-sys": _PKG_CONFIG,
     "gdkx11-sys": _PKG_CONFIG,
@@ -76,11 +65,6 @@ FIXUPS = {
     "glib-sys": _PKG_CONFIG,
     "gobject-sys": _PKG_CONFIG,
     "gtk-sys": _PKG_CONFIG,
-    # The same as freetype-sys, for HarfBuzz.
-    "harfbuzz-sys": {
-        "build_script_env": {"HARFBUZZ_NO_PKG_CONFIG": "1"},
-        "deps": ["//third-party/system:stdc++"],
-    },
     "javascriptcore-rs-sys": _PKG_CONFIG,
     # The build script lists the WebGL extensions for the library to include,
     # by absolute path into the directory it ran in. That directory is the

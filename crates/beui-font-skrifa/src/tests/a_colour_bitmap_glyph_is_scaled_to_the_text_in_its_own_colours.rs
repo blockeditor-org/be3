@@ -3,18 +3,18 @@ use beui_core::font::Fonts;
 use beui_types::{FontId, TextLayout};
 
 #[test]
-fn layered_colour_glyphs_are_drawn_in_their_palette_colours() {
+fn a_colour_bitmap_glyph_is_scaled_to_the_text_in_its_own_colours() {
     let sources = FontSources {
         fallback: vec![FontData::from_static(include_bytes!(
-            "fonts/ColourLayers.ttf"
+            "fonts/ColourBitmap.ttf"
         ))],
         ..FontSources::bundled()
     };
-    let mut fonts = Fonts::new(FreetypeFonts::new(FontLibrary::new(sources)));
+    let mut fonts = Fonts::new(SkrifaFonts::new(FontLibrary::new(sources)));
 
     let galley = fonts.layout(
         "\u{1f600}",
-        FontId::proportional(32.0),
+        FontId::proportional(16.0),
         TextLayout::DEFAULT,
         1.0,
     );
@@ -24,7 +24,17 @@ fn layered_colour_glyphs_are_drawn_in_their_palette_colours() {
     let image = glyph.image().expect("the glyph rasterizes");
     assert!(
         image.color,
-        "a glyph made of coloured layers is drawn in colour"
+        "a glyph from a colour bitmap is drawn in colour"
+    );
+    assert_eq!(
+        (image.width, image.height),
+        (16, 16),
+        "the 32 pixel strike is scaled to the 16 pixel text"
+    );
+    assert_eq!(
+        (image.left, image.top),
+        (0, 13),
+        "the strike's bearings are scaled with it"
     );
     let pixel = |x: u32, y: u32| {
         let at = ((y * image.width + x) * 4) as usize;
@@ -35,15 +45,6 @@ fn layered_colour_glyphs_are_drawn_in_their_palette_colours() {
             image.pixels[at + 3],
         ]
     };
-    let middle = image.height / 2;
-    assert_eq!(
-        pixel(image.width / 4, middle),
-        [255, 0, 0, 255],
-        "the left layer is painted in the palette's first colour"
-    );
-    assert_eq!(
-        pixel(image.width * 3 / 4, middle),
-        [0, 0, 255, 255],
-        "the right layer is painted in the palette's second colour"
-    );
+    assert_eq!(pixel(8, 2), [255, 0, 0, 255], "the top half stays red");
+    assert_eq!(pixel(8, 13), [0, 0, 255, 255], "the bottom half stays blue");
 }

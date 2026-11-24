@@ -6,7 +6,7 @@ cargo_package()
 # The root of every Rust app's closure (guides/app_libraries.md): std,
 # wasi-libc, wgpu and the framework-neutral editor crates. It holds the C++
 # runtime and setjmp too, though nothing in it uses them, so that every C and
-# C++ library above it (beui's FreeType and HarfBuzz, an app's PDFium) shares
+# C++ library above it (an app's PDFium or libghostty-vt) shares
 # one copy: libc++ and libc++abi whole (WHOLE_LIBRARIES in crates/be-wasm-link),
 # and setjmp's three functions, the ones LLVM's -wasm-enable-sjlj calls.
 wasm_library(

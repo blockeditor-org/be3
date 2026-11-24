@@ -1,5 +1,5 @@
 [package]
-name = "beui-font-freetype"
+name = "beui-font-skrifa"
 edition.workspace = true
 version.workspace = true
 license.workspace = true
@@ -8,11 +8,13 @@ license.workspace = true
 beui-core = { path = "../beui-core" }
 beui-types = { path = "../beui-types" }
 beui-fonts = { path = "../beui-fonts" }
-freetype = "0.7"
-harfbuzz_rs = "2"
+harfrust = "0.12"
+icu_properties = "2.4"
+png = "0.18"
+skrifa = "0.44"
+zeno = "0.3"
 be-lib-stable-hash = { path = "../be-lib-stable-hash" }
 be-lib-ui-types = { path = "../be-lib-ui-types" }
-unicode-script = "0.5"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 libloading = "0.8"

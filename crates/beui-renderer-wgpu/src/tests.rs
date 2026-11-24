@@ -210,7 +210,7 @@ impl Target {
 
     pub fn draw(&mut self, background: Color32, repaint: Repaint, paint: impl FnOnce(&Painter)) {
         self.draw_in(
-            &Context::new(beui_font_freetype::FreetypeFonts::default()),
+            &Context::new(beui_font_skrifa::SkrifaFonts::default()),
             background,
             |_| repaint,
             paint,

@@ -1,6 +1,6 @@
 use beui_core::context::Context;
 use beui_core::program::{Setup, Waker};
-use beui_font_freetype::FreetypeFonts;
+use beui_font_skrifa::SkrifaFonts;
 
 use super::the_chrome_around_a_curved_panel::window;
 use super::*;
@@ -9,7 +9,7 @@ use crate::carry::TURN_SECONDS;
 #[test]
 fn a_panel_carried_to_each_corner_with_the_head_rolled_and_pitched_stays_upright_to_the_view() {
     let (mut space, now) = space();
-    let context = Context::new(FreetypeFonts::default());
+    let context = Context::new(SkrifaFonts::default());
     let mut setup = Setup::new(Waker::new(|| {}));
     setup.provide(context.clone());
     space.setup(&setup);

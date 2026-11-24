@@ -30,13 +30,13 @@ fn breaks(galley: &Galley) -> Breaks {
 #[test]
 fn a_galley_is_reused_at_every_width_that_breaks_it_the_same_way() {
     let font = FontId::proportional(14.0);
-    let mut reused = Fonts::new(FreetypeFonts::default());
+    let mut reused = Fonts::new(SkrifaFonts::default());
     let mut previous: Option<(Galley, Breaks)> = None;
 
     for width in (40..600).chain((40..600).rev()) {
         let layout = TextLayout::wrapped(width as f32);
         let galley = reused.layout(TEXT, font, layout, 1.0);
-        let fresh = breaks(&Fonts::new(FreetypeFonts::default()).layout(TEXT, font, layout, 1.0));
+        let fresh = breaks(&Fonts::new(SkrifaFonts::default()).layout(TEXT, font, layout, 1.0));
         assert!(
             breaks(&galley) == fresh,
             "at {width} the reused galley breaks differently from a fresh one"

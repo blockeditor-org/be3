@@ -2,7 +2,7 @@ use super::*;
 use beui::native::Context;
 use beui::native::WindowSize;
 use beui::vec2;
-use beui_host::native::FreetypeFonts;
+use beui_host::native::SkrifaFonts;
 use beui_host::native::build;
 use beui_host::native::testing::{Gui, Showing, Stepped};
 
@@ -38,7 +38,7 @@ fn the_view_opened_last_of_those_that_want_the_keyboard_holds_it() {
         }
     });
     let mut stepped = Stepped::new(
-        Context::new(FreetypeFonts::default()),
+        Context::new(SkrifaFonts::default()),
         Showing(document),
         WindowSize {
             size: vec2(400.0, 300.0),

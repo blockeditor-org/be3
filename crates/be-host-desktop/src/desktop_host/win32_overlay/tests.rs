@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use beui::{native::Context, native::WindowSize, vec2};
-use beui_host::native::FreetypeFonts;
+use beui_host::native::SkrifaFonts;
 use beui_host::native::testing::{Gui, Showing, Snapshots, Stepped};
 
 use super::*;
@@ -26,7 +26,7 @@ fn painting(name: &str, secure: bool, off_screen: Vec<Rect>) {
         scale: 1.0,
     };
     let mut stepped = Stepped::new(
-        Context::new(FreetypeFonts::default()),
+        Context::new(SkrifaFonts::default()),
         Showing(document),
         window,
         None,

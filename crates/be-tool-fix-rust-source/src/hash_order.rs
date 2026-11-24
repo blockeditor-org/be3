@@ -27,7 +27,7 @@ const STABLE_CRATES: [&str; 33] = [
     "beui-platform-headless",
     "beui-platform-android",
     "beui-renderer-wgpu",
-    "beui-font-freetype",
+    "beui-font-skrifa",
     "beui-demo",
     "beui-runner",
     "be-host-runtime",

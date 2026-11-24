@@ -4,7 +4,7 @@ An editor's tests, and those of beui-demo and the other crates that paint as app
 
 ## Why
 
-- What the editor paints is then what the shipped app paints, not what the machine running the tests happens to have installed: beui shapes and rasterizes glyphs with the HarfBuzz, FreeType and fonts it carries once compiled to wasm, so paintings compare exactly on any machine.
+- What the editor paints is then what the shipped app paints, not what the machine running the tests happens to have installed: beui shapes and rasterizes glyphs with the shaper, rasteriser and fonts it carries once compiled to wasm, so paintings compare exactly on any machine.
 - A painting is compared wherever its test runs, so running a crate's tests in one place keeps one set of paintings.
 
 ## Rejected

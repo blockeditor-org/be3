@@ -19,7 +19,7 @@ fn a_faded_scroll_fades_its_content_toward_each_edge_with_more_beyond_it() {
     let scroll = document
         .find_test_id("scroll")
         .expect("the scroll is built");
-    let context = Context::new(beui_font_freetype::FreetypeFonts::default());
+    let context = Context::new(beui_font_skrifa::SkrifaFonts::default());
     let everything = everything();
     let shown = |document: &mut Document| {
         let mut target = Target::new();

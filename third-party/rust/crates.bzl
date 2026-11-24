@@ -5226,16 +5226,6 @@ third_party = {
                     "default",
                 ],
             },
-            "wasi": {
-                "features": [
-                    "default",
-                ],
-            },
-            "wasi-guest": {
-                "features": [
-                    "default",
-                ],
-            },
             "windows-arm64": {
                 "features": [
                     "default",
@@ -5955,8 +5945,14 @@ third_party = {
                 ],
             },
             "linux-x86_64-html": {
+                "deps": [
+                    ":bytemuck_derive-1.10.2",
+                ],
                 "features": [
+                    "bytemuck_derive",
+                    "derive",
                     "extern_crate_alloc",
+                    "min_const_generics",
                 ],
             },
             "macos-arm64": {
@@ -9188,49 +9184,6 @@ third_party = {
         ],
         "version": "1.1.0",
     },
-    "core-foundation-0.9.4": {
-        "build_script": None,
-        "env": {
-            "CARGO_PKG_AUTHORS": "The Servo Project Developers",
-            "CARGO_PKG_DESCRIPTION": "Bindings to Core Foundation for macOS",
-            "CARGO_PKG_HOMEPAGE": "https://github.com/servo/core-foundation-rs",
-            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
-            "CARGO_PKG_REPOSITORY": "https://github.com/servo/core-foundation-rs",
-        },
-        "library": {
-            "crate": "core_foundation",
-            "crate_root": "src/lib.rs",
-            "edition": "2018",
-            "proc_macro": False,
-        },
-        "name": "core-foundation",
-        "platforms": {
-            "macos-arm64": {
-                "deps": [
-                    ":core-foundation-sys-0.8.7",
-                    ":libc-0.2.186",
-                ],
-                "features": [
-                    "default",
-                    "link",
-                ],
-            },
-            "macos-x86_64": {
-                "deps": [
-                    ":core-foundation-sys-0.8.7",
-                    ":libc-0.2.186",
-                ],
-                "features": [
-                    "default",
-                    "link",
-                ],
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "version": "0.9.4",
-    },
     "core-foundation-sys-0.8.7": {
         "build_script": None,
         "env": {
@@ -9265,146 +9218,6 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "0.8.7",
-    },
-    "core-graphics-0.22.3": {
-        "build_script": None,
-        "env": {
-            "CARGO_PKG_AUTHORS": "The Servo Project Developers",
-            "CARGO_PKG_DESCRIPTION": "Bindings to Core Graphics for macOS",
-            "CARGO_PKG_HOMEPAGE": "https://github.com/servo/core-graphics-rs",
-            "CARGO_PKG_LICENSE": "MIT / Apache-2.0",
-            "CARGO_PKG_README": "README.md",
-            "CARGO_PKG_REPOSITORY": "https://github.com/servo/core-foundation-rs",
-        },
-        "library": {
-            "crate": "core_graphics",
-            "crate_root": "src/lib.rs",
-            "edition": "2015",
-            "proc_macro": False,
-        },
-        "name": "core-graphics",
-        "platforms": {
-            "macos-arm64": {
-                "deps": [
-                    ":bitflags-1.3.2",
-                    ":core-foundation-0.9.4",
-                    ":core-graphics-types-0.1.3",
-                    ":foreign-types-0.3.2",
-                    ":libc-0.2.186",
-                ],
-                "features": [
-                    "default",
-                ],
-            },
-            "macos-x86_64": {
-                "deps": [
-                    ":bitflags-1.3.2",
-                    ":core-foundation-0.9.4",
-                    ":core-graphics-types-0.1.3",
-                    ":foreign-types-0.3.2",
-                    ":libc-0.2.186",
-                ],
-                "features": [
-                    "default",
-                ],
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "version": "0.22.3",
-    },
-    "core-graphics-types-0.1.3": {
-        "build_script": None,
-        "env": {
-            "CARGO_PKG_AUTHORS": "The Servo Project Developers",
-            "CARGO_PKG_DESCRIPTION": "Bindings for some fundamental Core Graphics types",
-            "CARGO_PKG_HOMEPAGE": "https://github.com/servo/core-foundation-rs",
-            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
-            "CARGO_PKG_REPOSITORY": "https://github.com/servo/core-foundation-rs",
-        },
-        "library": {
-            "crate": "core_graphics_types",
-            "crate_root": "src/lib.rs",
-            "edition": "2018",
-            "proc_macro": False,
-        },
-        "name": "core-graphics-types",
-        "platforms": {
-            "macos-arm64": {
-                "deps": [
-                    ":bitflags-1.3.2",
-                    ":core-foundation-0.9.4",
-                    ":libc-0.2.186",
-                ],
-                "features": [
-                    "default",
-                    "link",
-                ],
-            },
-            "macos-x86_64": {
-                "deps": [
-                    ":bitflags-1.3.2",
-                    ":core-foundation-0.9.4",
-                    ":libc-0.2.186",
-                ],
-                "features": [
-                    "default",
-                    "link",
-                ],
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "version": "0.1.3",
-    },
-    "core-text-19.2.0": {
-        "build_script": None,
-        "env": {
-            "CARGO_PKG_AUTHORS": "The Servo Project Developers",
-            "CARGO_PKG_DESCRIPTION": "Bindings to the Core Text framework.",
-            "CARGO_PKG_LICENSE": "MIT/Apache-2.0",
-            "CARGO_PKG_README": "README.md",
-            "CARGO_PKG_REPOSITORY": "https://github.com/servo/core-foundation-rs",
-        },
-        "library": {
-            "crate": "core_text",
-            "crate_root": "src/lib.rs",
-            "edition": "2015",
-            "proc_macro": False,
-        },
-        "name": "core-text",
-        "platforms": {
-            "macos-arm64": {
-                "deps": [
-                    ":core-foundation-0.9.4",
-                    ":core-graphics-0.22.3",
-                    ":foreign-types-0.3.2",
-                    ":libc-0.2.186",
-                ],
-                "features": [
-                    "default",
-                    "mountainlion",
-                ],
-            },
-            "macos-x86_64": {
-                "deps": [
-                    ":core-foundation-0.9.4",
-                    ":core-graphics-0.22.3",
-                    ":foreign-types-0.3.2",
-                    ":libc-0.2.186",
-                ],
-                "features": [
-                    "default",
-                    "mountainlion",
-                ],
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "version": "19.2.0",
     },
     "core_maths-0.1.1": {
         "build_script": None,
@@ -17805,6 +17618,15 @@ third_party = {
                     "std",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                ],
+                "features": [
+                    "bytemuck",
+                    "std",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":bytemuck-1.25.0",
@@ -17815,6 +17637,24 @@ third_party = {
                 ],
             },
             "macos-x86_64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                ],
+                "features": [
+                    "bytemuck",
+                    "std",
+                ],
+            },
+            "wasi": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                ],
+                "features": [
+                    "bytemuck",
+                    "std",
+                ],
+            },
+            "wasi-guest": {
                 "deps": [
                     ":bytemuck-1.25.0",
                 ],
@@ -17997,63 +17837,6 @@ third_party = {
         ],
         "version": "0.24.0",
     },
-    "foreign-types-0.3.2": {
-        "build_script": None,
-        "env": {
-            "CARGO_PKG_AUTHORS": "Steven Fackler <sfackler@gmail.com>",
-            "CARGO_PKG_DESCRIPTION": "A framework for Rust wrappers over C APIs",
-            "CARGO_PKG_LICENSE": "MIT/Apache-2.0",
-            "CARGO_PKG_README": "README.md",
-            "CARGO_PKG_REPOSITORY": "https://github.com/sfackler/foreign-types",
-        },
-        "library": {
-            "crate": "foreign_types",
-            "crate_root": "src/lib.rs",
-            "edition": "2015",
-            "proc_macro": False,
-        },
-        "name": "foreign-types",
-        "platforms": {
-            "macos-arm64": {
-                "deps": [
-                    ":foreign-types-shared-0.1.1",
-                ],
-            },
-            "macos-x86_64": {
-                "deps": [
-                    ":foreign-types-shared-0.1.1",
-                ],
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "version": "0.3.2",
-    },
-    "foreign-types-shared-0.1.1": {
-        "build_script": None,
-        "env": {
-            "CARGO_PKG_AUTHORS": "Steven Fackler <sfackler@gmail.com>",
-            "CARGO_PKG_DESCRIPTION": "An internal crate used by foreign-types",
-            "CARGO_PKG_LICENSE": "MIT/Apache-2.0",
-            "CARGO_PKG_REPOSITORY": "https://github.com/sfackler/foreign-types",
-        },
-        "library": {
-            "crate": "foreign_types_shared",
-            "crate_root": "src/lib.rs",
-            "edition": "2015",
-            "proc_macro": False,
-        },
-        "name": "foreign-types-shared",
-        "platforms": {
-            "macos-arm64": {},
-            "macos-x86_64": {},
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "version": "0.1.1",
-    },
     "form_urlencoded-1.2.2": {
         "build_script": None,
         "env": {
@@ -18156,196 +17939,6 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "1.2.2",
-    },
-    "freetype-0.7.2": {
-        "build_script": None,
-        "env": {
-            "CARGO_PKG_AUTHORS": "The Servo Project Developers",
-            "CARGO_PKG_DESCRIPTION": "Bindings for Freetype used by Servo",
-            "CARGO_PKG_LICENSE": "Apache-2.0 / MIT",
-            "CARGO_PKG_README": "README.md",
-            "CARGO_PKG_REPOSITORY": "https://github.com/servo/rust-freetype",
-        },
-        "library": {
-            "crate": "freetype",
-            "crate_root": "src/lib.rs",
-            "edition": "2015",
-            "proc_macro": False,
-        },
-        "name": "freetype",
-        "platforms": {
-            "android-arm64": {
-                "deps": [
-                    ":freetype-sys-0.20.1",
-                    ":libc-0.2.186",
-                ],
-                "features": [
-                    "default",
-                    "freetype-sys",
-                ],
-            },
-            "linux-arm64": {
-                "deps": [
-                    ":freetype-sys-0.20.1",
-                    ":libc-0.2.186",
-                ],
-                "features": [
-                    "default",
-                    "freetype-sys",
-                ],
-            },
-            "linux-x86_64": {
-                "deps": [
-                    ":freetype-sys-0.20.1",
-                    ":libc-0.2.186",
-                ],
-                "features": [
-                    "default",
-                    "freetype-sys",
-                ],
-            },
-            "macos-arm64": {
-                "deps": [
-                    ":freetype-sys-0.20.1",
-                    ":libc-0.2.186",
-                ],
-                "features": [
-                    "default",
-                    "freetype-sys",
-                ],
-            },
-            "macos-x86_64": {
-                "deps": [
-                    ":freetype-sys-0.20.1",
-                    ":libc-0.2.186",
-                ],
-                "features": [
-                    "default",
-                    "freetype-sys",
-                ],
-            },
-            "wasi": {
-                "deps": [
-                    ":freetype-sys-0.20.1",
-                    ":libc-0.2.186",
-                ],
-                "features": [
-                    "default",
-                    "freetype-sys",
-                ],
-            },
-            "wasi-guest": {
-                "deps": [
-                    ":freetype-sys-0.20.1",
-                    ":libc-0.2.186",
-                ],
-                "features": [
-                    "default",
-                    "freetype-sys",
-                ],
-            },
-            "windows-arm64": {
-                "deps": [
-                    ":freetype-sys-0.20.1",
-                    ":libc-0.2.186",
-                ],
-                "features": [
-                    "default",
-                    "freetype-sys",
-                ],
-            },
-            "windows-x86_64": {
-                "deps": [
-                    ":freetype-sys-0.20.1",
-                    ":libc-0.2.186",
-                ],
-                "features": [
-                    "default",
-                    "freetype-sys",
-                ],
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "version": "0.7.2",
-    },
-    "freetype-sys-0.20.1": {
-        "build_script": {
-            "crate_root": "build.rs",
-            "deps": [
-                ":cc-1.2.63",
-                ":pkg-config-0.3.33",
-            ],
-            "edition": "2018",
-        },
-        "env": {
-            "CARGO_PKG_AUTHORS": "Coeuvre <coeuvre@gmail.com>",
-            "CARGO_PKG_DESCRIPTION": "Low level binding for FreeType font library",
-            "CARGO_PKG_HOMEPAGE": "https://github.com/PistonDevelopers/freetype-sys",
-            "CARGO_PKG_LICENSE": "MIT",
-            "CARGO_PKG_README": "README.md",
-            "CARGO_PKG_REPOSITORY": "https://github.com/PistonDevelopers/freetype-sys.git",
-        },
-        "library": {
-            "crate": "freetype_sys",
-            "crate_root": "src/lib.rs",
-            "edition": "2018",
-            "proc_macro": False,
-        },
-        "links": "freetype",
-        "name": "freetype-sys",
-        "platforms": {
-            "android-arm64": {
-                "deps": [
-                    ":libc-0.2.186",
-                ],
-            },
-            "linux-arm64": {
-                "deps": [
-                    ":libc-0.2.186",
-                ],
-            },
-            "linux-x86_64": {
-                "deps": [
-                    ":libc-0.2.186",
-                ],
-            },
-            "macos-arm64": {
-                "deps": [
-                    ":libc-0.2.186",
-                ],
-            },
-            "macos-x86_64": {
-                "deps": [
-                    ":libc-0.2.186",
-                ],
-            },
-            "wasi": {
-                "deps": [
-                    ":libc-0.2.186",
-                ],
-            },
-            "wasi-guest": {
-                "deps": [
-                    ":libc-0.2.186",
-                ],
-            },
-            "windows-arm64": {
-                "deps": [
-                    ":libc-0.2.186",
-                ],
-            },
-            "windows-x86_64": {
-                "deps": [
-                    ":libc-0.2.186",
-                ],
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "version": "0.20.1",
     },
     "fsevent-sys-4.1.0": {
         "build_script": None,
@@ -21643,249 +21236,6 @@ third_party = {
         ],
         "version": "2.7.1",
     },
-    "harfbuzz-sys-0.5.0": {
-        "build_script": {
-            "crate_root": "build.rs",
-            "deps": [
-                ":cc-1.2.63",
-                ":pkg-config-0.3.33",
-            ],
-            "edition": "2015",
-        },
-        "env": {
-            "CARGO_PKG_AUTHORS": "The Servo Project Developers",
-            "CARGO_PKG_DESCRIPTION": "Rust bindings to the HarfBuzz text shaping engine",
-            "CARGO_PKG_LICENSE": "MIT",
-            "CARGO_PKG_REPOSITORY": "https://github.com/servo/rust-harfbuzz",
-        },
-        "library": {
-            "crate": "harfbuzz_sys",
-            "crate_root": "src/lib.rs",
-            "edition": "2015",
-            "proc_macro": False,
-        },
-        "links": "harfbuzz",
-        "name": "harfbuzz-sys",
-        "platforms": {
-            "android-arm64": {
-                "deps": [
-                    ":freetype-0.7.2",
-                ],
-                "features": [
-                    "build-native-freetype",
-                    "build-native-harfbuzz",
-                    "cc",
-                    "pkg-config",
-                ],
-            },
-            "linux-arm64": {
-                "deps": [
-                    ":freetype-0.7.2",
-                ],
-                "features": [
-                    "build-native-freetype",
-                    "build-native-harfbuzz",
-                    "cc",
-                    "pkg-config",
-                ],
-            },
-            "linux-x86_64": {
-                "deps": [
-                    ":freetype-0.7.2",
-                ],
-                "features": [
-                    "build-native-freetype",
-                    "build-native-harfbuzz",
-                    "cc",
-                    "pkg-config",
-                ],
-            },
-            "macos-arm64": {
-                "deps": [
-                    ":core-graphics-0.22.3",
-                    ":core-text-19.2.0",
-                    ":foreign-types-0.3.2",
-                ],
-                "features": [
-                    "build-native-freetype",
-                    "build-native-harfbuzz",
-                    "cc",
-                    "pkg-config",
-                ],
-            },
-            "macos-x86_64": {
-                "deps": [
-                    ":core-graphics-0.22.3",
-                    ":core-text-19.2.0",
-                    ":foreign-types-0.3.2",
-                ],
-                "features": [
-                    "build-native-freetype",
-                    "build-native-harfbuzz",
-                    "cc",
-                    "pkg-config",
-                ],
-            },
-            "wasi": {
-                "features": [
-                    "build-native-freetype",
-                    "build-native-harfbuzz",
-                    "cc",
-                    "pkg-config",
-                ],
-            },
-            "wasi-guest": {
-                "features": [
-                    "build-native-freetype",
-                    "build-native-harfbuzz",
-                    "cc",
-                    "pkg-config",
-                ],
-            },
-            "windows-arm64": {
-                "features": [
-                    "build-native-freetype",
-                    "build-native-harfbuzz",
-                    "cc",
-                    "pkg-config",
-                ],
-            },
-            "windows-x86_64": {
-                "features": [
-                    "build-native-freetype",
-                    "build-native-harfbuzz",
-                    "cc",
-                    "pkg-config",
-                ],
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "version": "0.5.0",
-    },
-    "harfbuzz_rs-2.0.1": {
-        "build_script": None,
-        "env": {
-            "CARGO_PKG_AUTHORS": "Manuel Reinhardt <manuel.rhdt@gmail.com>",
-            "CARGO_PKG_DESCRIPTION": "A high-level interface to HarfBuzz, exposing its most important functionality in a safe manner using Rust.",
-            "CARGO_PKG_LICENSE": "MIT",
-            "CARGO_PKG_README": "README.md",
-            "CARGO_PKG_REPOSITORY": "https://github.com/manuel-rhdt/harfbuzz_rs",
-        },
-        "library": {
-            "crate": "harfbuzz_rs",
-            "crate_root": "src/lib.rs",
-            "edition": "2018",
-            "proc_macro": False,
-        },
-        "name": "harfbuzz_rs",
-        "platforms": {
-            "android-arm64": {
-                "deps": [
-                    ":bitflags-1.3.2",
-                    ":harfbuzz-sys-0.5.0",
-                ],
-                "features": [
-                    "build-native-freetype",
-                    "build-native-harfbuzz",
-                    "default",
-                ],
-            },
-            "linux-arm64": {
-                "deps": [
-                    ":bitflags-1.3.2",
-                    ":harfbuzz-sys-0.5.0",
-                ],
-                "features": [
-                    "build-native-freetype",
-                    "build-native-harfbuzz",
-                    "default",
-                ],
-            },
-            "linux-x86_64": {
-                "deps": [
-                    ":bitflags-1.3.2",
-                    ":harfbuzz-sys-0.5.0",
-                ],
-                "features": [
-                    "build-native-freetype",
-                    "build-native-harfbuzz",
-                    "default",
-                ],
-            },
-            "macos-arm64": {
-                "deps": [
-                    ":bitflags-1.3.2",
-                    ":harfbuzz-sys-0.5.0",
-                ],
-                "features": [
-                    "build-native-freetype",
-                    "build-native-harfbuzz",
-                    "default",
-                ],
-            },
-            "macos-x86_64": {
-                "deps": [
-                    ":bitflags-1.3.2",
-                    ":harfbuzz-sys-0.5.0",
-                ],
-                "features": [
-                    "build-native-freetype",
-                    "build-native-harfbuzz",
-                    "default",
-                ],
-            },
-            "wasi": {
-                "deps": [
-                    ":bitflags-1.3.2",
-                    ":harfbuzz-sys-0.5.0",
-                ],
-                "features": [
-                    "build-native-freetype",
-                    "build-native-harfbuzz",
-                    "default",
-                ],
-            },
-            "wasi-guest": {
-                "deps": [
-                    ":bitflags-1.3.2",
-                    ":harfbuzz-sys-0.5.0",
-                ],
-                "features": [
-                    "build-native-freetype",
-                    "build-native-harfbuzz",
-                    "default",
-                ],
-            },
-            "windows-arm64": {
-                "deps": [
-                    ":bitflags-1.3.2",
-                    ":harfbuzz-sys-0.5.0",
-                ],
-                "features": [
-                    "build-native-freetype",
-                    "build-native-harfbuzz",
-                    "default",
-                ],
-            },
-            "windows-x86_64": {
-                "deps": [
-                    ":bitflags-1.3.2",
-                    ":harfbuzz-sys-0.5.0",
-                ],
-                "features": [
-                    "build-native-freetype",
-                    "build-native-harfbuzz",
-                    "default",
-                ],
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "version": "2.0.1",
-    },
     "harfrust-0.12.0": {
         "build_script": None,
         "env": {
@@ -21952,6 +21302,30 @@ third_party = {
                 ],
             },
             "macos-x86_64": {
+                "deps": [
+                    ":bitflags-2.12.1",
+                    ":bytemuck-1.25.0",
+                    ":read-fonts-0.41.0",
+                    ":smallvec-1.16.5",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "wasi": {
+                "deps": [
+                    ":bitflags-2.12.1",
+                    ":bytemuck-1.25.0",
+                    ":read-fonts-0.41.0",
+                    ":smallvec-1.16.5",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "wasi-guest": {
                 "deps": [
                     ":bitflags-2.12.1",
                     ":bytemuck-1.25.0",
@@ -29488,18 +28862,6 @@ third_party = {
                     "std",
                 ],
             },
-            "wasi": {
-                "features": [
-                    "default",
-                    "std",
-                ],
-            },
-            "wasi-guest": {
-                "features": [
-                    "default",
-                    "std",
-                ],
-            },
             "windows-arm64": {
                 "features": [
                     "default",
@@ -35452,7 +34814,12 @@ third_party = {
                     "std",
                 ],
             },
-            "wasi-guest": {},
+            "wasi-guest": {
+                "features": [
+                    "alloc",
+                    "race",
+                ],
+            },
             "wasi-html": {},
             "wasm32-bindgen": {
                 "features": [
@@ -43581,6 +42948,16 @@ third_party = {
                     "std",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":font-types-0.12.7",
+                    ":once_cell-1.21.4",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":bytemuck-1.25.0",
@@ -43593,6 +42970,28 @@ third_party = {
                 ],
             },
             "macos-x86_64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":font-types-0.12.7",
+                    ":once_cell-1.21.4",
+                ],
+                "features": [
+                    "experimental_font_api",
+                    "std",
+                ],
+            },
+            "wasi": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":font-types-0.12.7",
+                    ":once_cell-1.21.4",
+                ],
+                "features": [
+                    "experimental_font_api",
+                    "std",
+                ],
+            },
+            "wasi-guest": {
                 "deps": [
                     ":bytemuck-1.25.0",
                     ":font-types-0.12.7",
@@ -52418,6 +51817,8 @@ third_party = {
                     ":read-fonts-0.41.0",
                 ],
                 "features": [
+                    "autohint_shaping",
+                    "default",
                     "std",
                 ],
             },
@@ -52427,6 +51828,8 @@ third_party = {
                     ":read-fonts-0.41.0",
                 ],
                 "features": [
+                    "autohint_shaping",
+                    "default",
                     "std",
                 ],
             },
@@ -52436,6 +51839,19 @@ third_party = {
                     ":read-fonts-0.41.0",
                 ],
                 "features": [
+                    "autohint_shaping",
+                    "default",
+                    "std",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":read-fonts-0.41.0",
+                ],
+                "features": [
+                    "autohint_shaping",
+                    "default",
                     "std",
                 ],
             },
@@ -52445,6 +51861,8 @@ third_party = {
                     ":read-fonts-0.41.0",
                 ],
                 "features": [
+                    "autohint_shaping",
+                    "default",
                     "std",
                 ],
             },
@@ -52454,6 +51872,30 @@ third_party = {
                     ":read-fonts-0.41.0",
                 ],
                 "features": [
+                    "autohint_shaping",
+                    "default",
+                    "std",
+                ],
+            },
+            "wasi": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":read-fonts-0.41.0",
+                ],
+                "features": [
+                    "autohint_shaping",
+                    "default",
+                    "std",
+                ],
+            },
+            "wasi-guest": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":read-fonts-0.41.0",
+                ],
+                "features": [
+                    "autohint_shaping",
+                    "default",
                     "std",
                 ],
             },
@@ -52463,6 +51905,8 @@ third_party = {
                     ":read-fonts-0.41.0",
                 ],
                 "features": [
+                    "autohint_shaping",
+                    "default",
                     "std",
                 ],
             },
@@ -52472,6 +51916,8 @@ third_party = {
                     ":read-fonts-0.41.0",
                 ],
                 "features": [
+                    "autohint_shaping",
+                    "default",
                     "std",
                 ],
             },
@@ -60575,20 +60021,9 @@ third_party = {
         },
         "name": "ttf-parser",
         "platforms": {
-            "android-arm64": {
-                "features": [
-                    "apple-layout",
-                    "default",
-                    "glyph-names",
-                    "opentype-layout",
-                    "std",
-                    "variable-fonts",
-                ],
-            },
             "linux-arm64": {
                 "features": [
                     "apple-layout",
-                    "default",
                     "glyph-names",
                     "gvar-alloc",
                     "opentype-layout",
@@ -60599,59 +60034,8 @@ third_party = {
             "linux-x86_64": {
                 "features": [
                     "apple-layout",
-                    "default",
                     "glyph-names",
                     "gvar-alloc",
-                    "opentype-layout",
-                    "std",
-                    "variable-fonts",
-                ],
-            },
-            "linux-x86_64-html": {
-                "features": [
-                    "apple-layout",
-                    "default",
-                    "glyph-names",
-                    "opentype-layout",
-                    "std",
-                    "variable-fonts",
-                ],
-            },
-            "macos-arm64": {
-                "features": [
-                    "apple-layout",
-                    "default",
-                    "glyph-names",
-                    "opentype-layout",
-                    "std",
-                    "variable-fonts",
-                ],
-            },
-            "macos-x86_64": {
-                "features": [
-                    "apple-layout",
-                    "default",
-                    "glyph-names",
-                    "opentype-layout",
-                    "std",
-                    "variable-fonts",
-                ],
-            },
-            "windows-arm64": {
-                "features": [
-                    "apple-layout",
-                    "default",
-                    "glyph-names",
-                    "opentype-layout",
-                    "std",
-                    "variable-fonts",
-                ],
-            },
-            "windows-x86_64": {
-                "features": [
-                    "apple-layout",
-                    "default",
-                    "glyph-names",
                     "opentype-layout",
                     "std",
                     "variable-fonts",
@@ -61506,8 +60890,6 @@ third_party = {
             "linux-x86_64": {},
             "macos-arm64": {},
             "macos-x86_64": {},
-            "wasi": {},
-            "wasi-guest": {},
             "windows-arm64": {},
             "windows-x86_64": {},
         },
@@ -72203,6 +71585,93 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "5.2.1",
+    },
+    "zeno-0.3.3": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Chad Brokaw <cbrokaw@gmail.com>",
+            "CARGO_PKG_DESCRIPTION": "High performance, low level 2D path rasterization.",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/dfrg/zeno",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/dfrg/zeno",
+        },
+        "library": {
+            "crate": "zeno",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "zeno",
+        "platforms": {
+            "android-arm64": {
+                "features": [
+                    "default",
+                    "eval",
+                    "std",
+                ],
+            },
+            "linux-arm64": {
+                "features": [
+                    "default",
+                    "eval",
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "features": [
+                    "default",
+                    "eval",
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "features": [
+                    "default",
+                    "eval",
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "features": [
+                    "default",
+                    "eval",
+                    "std",
+                ],
+            },
+            "wasi": {
+                "features": [
+                    "default",
+                    "eval",
+                    "std",
+                ],
+            },
+            "wasi-guest": {
+                "features": [
+                    "default",
+                    "eval",
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "features": [
+                    "default",
+                    "eval",
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
+                "features": [
+                    "default",
+                    "eval",
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.3.3",
     },
     "zerocopy-0.8.50": {
         "build_script": {

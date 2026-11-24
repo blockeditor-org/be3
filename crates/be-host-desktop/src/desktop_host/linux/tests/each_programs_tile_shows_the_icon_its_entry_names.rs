@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use beui::native::{Context, WindowSize};
 use beui::{Image, vec2};
-use beui_host::native::FreetypeFonts;
+use beui_host::native::SkrifaFonts;
 use beui_host::native::testing::{Gui, Showing, Snapshots, Stepped};
 
 use super::*;
@@ -90,7 +90,7 @@ fn each_programs_tile_shows_the_icon_its_entry_names() {
         }
     });
     let mut stepped = Stepped::new(
-        Context::new(FreetypeFonts::default()),
+        Context::new(SkrifaFonts::default()),
         Showing(document),
         WindowSize {
             size: vec2(360.0, 200.0),

@@ -9,7 +9,7 @@ beui-core = { path = "../beui-core" }
 beui-types = { path = "../beui-types" }
 beui-runner = { path = "../beui-runner" }
 beui-reactive = { path = "../beui-reactive" }
-beui-font-freetype = { path = "../beui-font-freetype" }
+beui-font-skrifa = { path = "../beui-font-skrifa" }
 beui-host = { path = "../beui-host" }
 be-sdk-beui-platform-api = { path = "../be-sdk-beui-platform-api" }
 be-sdk = { path = "../be-sdk" }

@@ -42,7 +42,7 @@ Each stop of a paragraph that needs breaking is classified once (`Builder::class
 Two scales, like pinch-zoom and Ctrl+/- in a browser:
 
 - **Layout scale** (`Context::pixels_per_point`, platform scale times zoom): text is laid out and everything snaps to the pixel grid at this scale, and galleys are cached by it. Changing it lays the document out again.
-- **Raster** (`PainterState::raster`): how much finer a subtree is drawn (a hosted window's scale, a zoomed canvas's `Zoom::raster`). Only painting reads it: under a raster other than 1, FreeType rasterises glyphs unhinted at the scaled size at their laid-out positions, so a zoomed canvas is sharp without relayout. The browser's backend ignores it.
+- **Raster** (`PainterState::raster`): how much finer a subtree is drawn (a hosted window's scale, a zoomed canvas's `Zoom::raster`). Only painting reads it: under a raster other than 1, glyphs are rasterised unhinted at the scaled size at their laid-out positions, so a zoomed canvas is sharp without relayout. The browser's backend ignores it.
 
 ## Styled text
 
@@ -63,7 +63,15 @@ view! {
 
 ## Fonts and icons
 
-`crates/beui-fonts` holds the faces (Inter, Hack for monospace, Noto Emoji as fallback, Lucide for icons): their bytes, which beui-font-freetype loads, and `FACES`, from which the HTML core writes `@font-face` rules. Its BUCK exports each file for web bundles.
+`crates/beui-fonts` holds the faces (Inter, Hack for monospace, Noto Emoji as fallback, Lucide for icons): their bytes, which beui-font-skrifa loads, and `FACES`, from which the HTML core writes `@font-face` rules. Its BUCK exports each file for web bundles.
+
+On the native core `beui_font_skrifa::SkrifaFonts` is the `FontBackend` (beui-core's `font.rs`), all Rust ([decision](../../decisions/fonts_are_read_shaped_and_drawn_in_rust.md)):
+
+- **Shaping.** Text is split into runs of one script (`icu_properties`) and one face (the first in the family's chain whose cmap covers the character; a character none covers asks `FontLibrary`'s fallback, which natively is `system::fallback`: fontconfig, or a scan of the font directories). harfrust shapes each run at the pixel size, its positions scaled to 26.6 and rounded as HarfBuzz rounds; shaped lines are cached per family and size.
+- **Metrics.** A family's ascender and descender are its first face's hhea values fitted to the grid as FreeType fits them (outward to whole pixels, or to the nearest for a TrueType face whose head asks for integer scaling), so the baseline sits on a pixel.
+- **Drawing.** skrifa draws a glyph's outline hinted at the layout size (a `HintingInstance` per face and size: the font's own instructions, or the autohinter for a font without them), or unhinted under another raster; zeno fills it into a coverage mask, moved right by the glyph's subpixel phase. Synthetic bold emboldens the outline by a 24th of the pixel size and synthetic italic shears it as FreeType's oblique does, both at the layout size before the raster's scale (`outline.rs`). A COLR v0 glyph is its layers in their first-palette colours; a face of bitmaps alone (CBDT, sbix) draws from its nearest strike, scaled (`color.rs`).
+
+The HTML core keeps the browser's text, and measures text in a `Drawing` with skrifa (`text_block/faces.rs`).
 
 Icons are Lucide's, in `crates/beui-lucide` (re-exported as `beui_core::icons`; it knows nothing of beui, so the block catalog uses it too). An icon is a `Glyph` that only the list can make, so an icon prop cannot be handed text. Anything saved holds an icon by name, since Lucide renumbers codepoints ([decision](../../decisions/beui_icons_are_saved_by_name.md)). To find an icon for a purpose, search the tags in `crates/beui-lucide/src/list.rs` ("duplicate" finds `ICON_COPY_PLUS`) rather than guessing from names. The list is generated; to update Lucide, unpack the package (`npm pack lucide-static@VERSION`, `tar xzf`) and run `./scripts/buck run //crates/be-tool-local:bin -- icons PACKAGE` from inside the repository.
 

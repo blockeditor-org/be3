@@ -17,7 +17,7 @@ fn a_gap_shares_the_width_its_text_wraps_at() {
     );
     assert_eq!(GapWidth::px(12.0).of(200.0), 12.0);
 
-    let context = Context::new(crate::native::FreetypeFonts::default());
+    let context = Context::new(crate::native::SkrifaFonts::default());
     let mut shaper =
         |text: &str, font: FontId| -> Galley { context.layout(text, font, TextLayout::DEFAULT) };
     let style = SpanStyle::new(FontId::proportional(14.0), Color32::WHITE);

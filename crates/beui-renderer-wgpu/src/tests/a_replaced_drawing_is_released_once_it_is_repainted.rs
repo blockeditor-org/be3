@@ -44,7 +44,7 @@ fn a_replaced_drawing_is_released_once_it_is_repainted() {
             }
         }
     });
-    let context = Context::new(beui_font_freetype::FreetypeFonts::default());
+    let context = Context::new(beui_font_skrifa::SkrifaFonts::default());
     let mut target = Target::new();
     let everything = everything();
     target.draw_in(
