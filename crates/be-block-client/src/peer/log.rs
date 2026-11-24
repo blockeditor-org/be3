@@ -119,7 +119,7 @@ impl ExportedEntry {
     }
 }
 
-/// An entry of a block's signed log as an export carries it (`transfer::Saved::log`): opened,
+/// An entry of a block's signed log as an export carries it (`transfer::SavedBlock::log`): opened,
 /// with what its author signed, so it verifies against the block it was written in
 /// (`Peer::verify_exported`) wherever the file goes.
 #[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]

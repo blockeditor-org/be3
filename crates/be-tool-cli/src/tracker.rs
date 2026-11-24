@@ -1775,7 +1775,7 @@ impl<S: ObjectStore> Tracker<S> {
                 let page = Uuid::now_v7();
                 let (content, description) = self.text_page(&page_text).await?;
                 pages.push((
-                    be_block_client::transfer::Saved {
+                    be_block_client::transfer::SavedBlock {
                         id: page,
                         block_type: TextContent::CONTENT_TYPE,
                         parent: None,

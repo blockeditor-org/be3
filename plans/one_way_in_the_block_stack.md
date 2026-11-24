@@ -38,5 +38,3 @@ drifted into a bug.
    `Quiet` write about twelve empty methods (`set_marked`, `owned`, `reshaped`, `known_head`,
    `status`, `described`, `conflict`, `counted`, `leaving`, …). The trait gives them empty
    bodies; only the host overrides them.
-6. **One `Saved`.** be-block-client has `peer::Saved` (the result of a write) and
-   `transfer::Saved` (a block in a file). Rename the second `SavedBlock`.

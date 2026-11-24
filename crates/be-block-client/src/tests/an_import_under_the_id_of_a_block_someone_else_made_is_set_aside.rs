@@ -34,7 +34,7 @@ async fn an_import_under_the_id_of_a_block_someone_else_made_is_set_aside() {
 
     let answers = import_one(
         &laptop,
-        crate::transfer::Saved {
+        crate::transfer::SavedBlock {
             id: block,
             block_type: TextContent::CONTENT_TYPE,
             parent: None,
