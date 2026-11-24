@@ -2977,11 +2977,31 @@ where
             .collect()
     }
 
-    /// Whether the state `journal`'s base goes by is a part this replica gave up reading.
-    fn base_state_lost(&self, journal: &Journal) -> bool {
-        crate::wire::BaseState::decode(&journal.base.state)
-            .and_then(|state| state.part)
-            .is_some_and(|part| !self.payloads.contains_key(&part))
+    /// Whether a part `journal` needs is one this replica gave up reading (`JOURNAL_PART_TRIES`):
+    /// its base's state, an operation's, or a restart's state. One longer than `LARGEST_PART`
+    /// is not: every replica passes its entry over unread alike.
+    fn journal_part_lost(&self, journal: &Journal) -> bool {
+        let lost = |part: &PartRef| !self.payloads.contains_key(part);
+        let base = crate::wire::BaseState::decode(&journal.base.state).and_then(|state| state.part);
+        base.is_some_and(|part| lost(&part))
+            || journal
+                .entries
+                .iter()
+                .filter(|entry| entry.sequence > journal.base.sequence && entry.base >= entry.floor)
+                .filter_map(|entry| match Submitted::decode(&entry.payload) {
+                    Some(Submitted {
+                        entry:
+                            Entry::Operation(Payload::Part(part))
+                            | Entry::Reload {
+                                restart: true,
+                                state: Payload::Part(part),
+                                ..
+                            },
+                        ..
+                    }) if part.length() <= LARGEST_PART => Some(part),
+                    _ => None,
+                })
+                .any(|part| lost(&part))
     }
 
     /// The commits the restarts in the journal opened on name that are not read yet: its base,
@@ -3021,15 +3041,17 @@ where
             .take()
             .filter(|journal| journal.base.commit == self.base);
         let sealed_head = self.sealed_head.take();
-        // A base whose state goes by a part that could not be read for good: what the journal
-        // holds was made on that state, so it is lost, as another build's edits are. The
-        // replica opens on the commit after the journal, its editors are told, and a holder
-        // starts the journal over from it (below).
+        // A part the journal needs that could not be read for good (its base's state, an
+        // operation's, a restart's state): replaying without it would hold other content than
+        // the participants, so what the journal holds is lost, as another build's edits are.
+        // The replica opens on the commit after the journal, its editors are told, and a
+        // holder starts the journal over from it (below): a start over by the holder alone,
+        // as for another build's, which tells no participant to drop what it applied.
         let journal = match journal {
-            Some(journal) if self.base_state_lost(&journal) => {
+            Some(journal) if self.journal_part_lost(&journal) => {
                 self.error(
-                    "the session state of the journal's base could not be read: \
-                     edits since the last commit were lost",
+                    "a part the journal names could not be read: edits since the last commit \
+                     were lost",
                 );
                 let last = journal
                     .entries
