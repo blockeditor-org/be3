@@ -44,6 +44,7 @@ mod a_holder_streaming_faster_than_a_seal_restarts_and_loses_nothing;
 mod a_holder_whose_merge_cannot_read_its_parts_makes_no_due_seal_that_would_be_rejected;
 mod a_holder_whose_merge_cannot_read_its_parts_owes_no_seal_until_it_can;
 mod a_holder_whose_seal_a_peer_outpaces_restarts_and_loses_nothing;
+mod a_restart_replayed_on_a_journal_from_an_earlier_seal_carries_alike;
 mod a_holder_with_nothing_to_do_sets_no_timer;
 mod a_holders_edit_too_large_to_relay_goes_by_its_part_and_is_committed_at_once;
 mod a_holders_edit_too_large_to_relay_is_lacking_until_its_part_is_put_and_appended;
@@ -684,6 +685,9 @@ struct Sim<C: LiveEdit + Clone + Default> {
     largest_written: usize,
     written: u64,
     journal: Option<Journal>,
+    /// A seal that moves the head leaves the journal where it was, as a server that lost the
+    /// seal's rebase does: the journal stays on an earlier seal.
+    lose_rebases: bool,
     journal_tag: SessionTag,
     /// The block's signed log, as the server numbers and stamps it: each device's client is its
     /// author, and every entry verified.
@@ -762,6 +766,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             largest_written: 0,
             written: 0,
             journal: None,
+            lose_rebases: false,
             journal_tag: TAG,
             log: Vec::new(),
             make,
@@ -1216,6 +1221,26 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
         let base_run = |base: &JournalBase| {
             crate::wire::BaseState::decode(&base.state).map_or(0, |state| state.restarts)
         };
+        let sealed = base.commit.map(|commit| (commit, base.sequence));
+        let run = base_run(&base);
+        if !(self.lose_rebases && new_commit) {
+            self.rebase(device, base);
+        }
+        // As the server, which tells only a seal that moved the head.
+        let Some((commit, through)) = sealed.filter(|_| new_commit) else {
+            return;
+        };
+        for to in self.open_devices() {
+            if to != device && !self.deaf.contains(&to) {
+                self.with_replica(to, |replica, host| {
+                    replica.sealed(host, commit, through, run)
+                });
+            }
+        }
+    }
+
+    /// The journal starts from `base`, which `device` sealed.
+    fn rebase(&mut self, device: usize, base: JournalBase) {
         // Another build's entries go: the holder could not have applied them.
         let other = self.journal_tag != self.devices[device].tag;
         let entries: Vec<_> = self
@@ -1229,21 +1254,8 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
         if other || (entries.is_empty() && base.sequence < self.order.sequence) {
             self.order = Sequencer::starting(base.sequence);
         }
-        let sealed = base.commit.map(|commit| (commit, base.sequence));
-        let run = base_run(&base);
         self.journal = Some(Journal { base, entries });
         self.journal_tag = self.devices[device].tag;
-        // As the server, which tells only a seal that moved the head.
-        let Some((commit, through)) = sealed.filter(|_| new_commit) else {
-            return;
-        };
-        for to in self.open_devices() {
-            if to != device && !self.deaf.contains(&to) {
-                self.with_replica(to, |replica, host| {
-                    replica.sealed(host, commit, through, run)
-                });
-            }
-        }
     }
 
     fn settle(&mut self) {
