@@ -702,8 +702,8 @@ struct Sim<C: LiveEdit + Clone + Default> {
     largest_written: usize,
     written: u64,
     journal: Option<Journal>,
-    /// A seal that moves the head leaves the journal where it was, as a server that lost the
-    /// seal's rebase does: the journal stays on an earlier seal.
+    /// A seal or trim leaves the journal where it was, as a server that lost its rebase does:
+    /// the journal stays on an earlier seal.
     lose_rebases: bool,
     journal_tag: SessionTag,
     /// The block's signed log, as the server numbers and stamps it: each device's client is its
@@ -1278,7 +1278,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
         };
         let sealed = base.commit.map(|commit| (commit, base.sequence));
         let run = base_run(&base);
-        if !(self.lose_rebases && new_commit) {
+        if !self.lose_rebases {
             self.rebase(device, base);
         }
         // As the server, which tells only a seal that moved the head.
