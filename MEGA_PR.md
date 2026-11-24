@@ -54,6 +54,7 @@ Landed on 2026-11-24:
 - `hosted-blocks-followups-2`: the hosted blocks review suggestions; the host menu says whether a kept block is hosted here now; drive prints descriptions and bare text never matches them; export checks not-yet before asking the server.
 - `motion-springs-4`: back slides and toasts move on springs that carry the gesture's speed; toasts swipe to dismiss and one let go after it expired while held still leaves; a toast its owner removes slides off; Movement::Enter/Leave removed.
 - `no-held-keys` + `host-adapter-4g7b3b-4`: the gift system and held keys are gone; an editor asks for the keyboard to move into a child with a growing count in its layout commit, and the host acts at the commit (the child takes it if up, else the placer blurs; an ask that cannot apply ends); be-root moves the keyboard into asked children, tells placers child-focused, and takes active ones back (4g7b3b).
+- `host-adapter-4g7b3c`: under a root, a child that shows takes its placer's frame (taken back from every child of the view by a press outside or Escape), and docks join across apps through one `Docks` and `host.dock`; be-host waits for blocks a root asks for before they are listed.
 - `members-private-2`: only an administrator is served the organization's whole log; an editor is served a proof path, so members no longer see every other member through it.
 
 Landed on 2026-11-22 in one verify: signed logs 5b (`signed-logs-5b-10`), `backlog-keys-10b`, `block-rows-guard` and hosted blocks 4d2 (`hosted-blocks-4d2-5`).
