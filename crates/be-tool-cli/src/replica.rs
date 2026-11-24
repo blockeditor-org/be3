@@ -6,12 +6,11 @@ use std::time::Instant;
 
 use be_block_client::Event;
 use be_block_client::{ClientError, Peer};
-use be_block_commit::CommitId;
 use be_block_content::LiveEdit;
 use be_block_protocol::ClientId;
 use be_block_store::ObjectStore;
-use be_block_type_host::{Conflict, HOST_EDITOR, Replicas, Source};
-use be_sdk_type_api::{Description, EditorId, Status};
+use be_block_type_host::{HOST_EDITOR, Replicas, Source};
+use be_sdk_type_api::{EditorId, Status};
 use be_sdk_type_guest::editor::{EditorMirror, FromEditor, PeerMessage, PeerPresence, ToEditor};
 use tokio::sync::{broadcast, watch};
 use uuid::Uuid;
@@ -71,22 +70,6 @@ impl<S: ObjectStore + 'static> be_block_type_host::Host for Held<S> {
         }
     }
 
-    fn set_marked(_: &Arc<Mutex<Self>>, _: Uuid, _: bool) {}
-
-    fn owned(_: &Arc<Mutex<Self>>, _: Uuid) -> bool {
-        false
-    }
-
-    fn reshaped(_: &Arc<Mutex<Self>>, _: Uuid, _: &str) -> bool {
-        false
-    }
-
-    fn reset_notice() {}
-
-    fn known_head(_: &Arc<Mutex<Self>>, _: Uuid) -> Option<CommitId> {
-        None
-    }
-
     fn to_editor(shared: &Arc<Mutex<Self>>, _: Uuid, editor: EditorId, bytes: Vec<u8>) -> bool {
         if editor == HOST_EDITOR
             && let Some(frame) = ToEditor::decode(&bytes)
@@ -96,27 +79,9 @@ impl<S: ObjectStore + 'static> be_block_type_host::Host for Held<S> {
         true
     }
 
-    fn content(_: &Arc<Mutex<Self>>, _: Uuid, _: Uuid, _: Vec<u8>) {}
-
     fn released(shared: &Arc<Mutex<Self>>, _: Uuid) {
         held(shared).released = true;
     }
-
-    fn status(_: &Arc<Mutex<Self>>, _: Uuid, _: &Status) {}
-
-    fn described(_: &Arc<Mutex<Self>>, _: Uuid, _: Vec<Uuid>, _: Description) {}
-
-    fn conflict(_: &Arc<Mutex<Self>>, _: Uuid, _: Conflict) {}
-
-    fn counted(
-        _: &Arc<Mutex<Self>>,
-        _: Vec<be_block_type_host::Owing>,
-        _: Vec<be_block_type_host::Owing>,
-        _: Vec<be_block_type_host::Owing>,
-    ) {
-    }
-
-    fn leaving(_: &Arc<Mutex<Self>>, _: bool) {}
 }
 
 pub enum Woken {

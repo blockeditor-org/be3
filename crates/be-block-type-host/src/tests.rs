@@ -5,7 +5,7 @@ use be_block_commit::CommitId;
 use be_block_content::BlockContent;
 use be_block_graph::BlockParent;
 use be_block_store::{Manifest, MemoryStore};
-use be_sdk_type_api::{Description, EditorId, Status};
+use be_sdk_type_api::{Description, EditorId};
 use be_sdk_type_testing::ledger::Ledger;
 use be_sdk_type_testing::probe::{self, Probe};
 use be_sdk_type_testing::sections::{self, Sections};
@@ -13,7 +13,7 @@ use be_sdk_type_testing::tally::{Tally, TallyOp};
 use std::sync::Mutex;
 use uuid::Uuid;
 
-use crate::{Conflict, Host, Replicas, in_process, started};
+use crate::{Host, Replicas, in_process, started};
 
 mod a_block_closed_while_its_rejoin_is_held_and_opened_online_again_holds_its_journaled_edits;
 mod a_block_closed_while_its_rejoin_is_held_lets_go_of_the_join_and_closes;
@@ -114,22 +114,6 @@ impl Host for Quiet {
         };
     }
 
-    fn set_marked(_: &Arc<Mutex<Self>>, _: Uuid, _: bool) {}
-
-    fn owned(_: &Arc<Mutex<Self>>, _: Uuid) -> bool {
-        false
-    }
-
-    fn reshaped(_: &Arc<Mutex<Self>>, _: Uuid, _: &str) -> bool {
-        false
-    }
-
-    fn reset_notice() {}
-
-    fn known_head(_: &Arc<Mutex<Self>>, _: Uuid) -> Option<CommitId> {
-        None
-    }
-
     fn to_editor(shared: &Arc<Mutex<Self>>, _: Uuid, editor: EditorId, frame: Vec<u8>) -> bool {
         let mut held = shared.lock().unwrap();
         held.to_editors.push(editor);
@@ -137,17 +121,9 @@ impl Host for Quiet {
         false
     }
 
-    fn content(_: &Arc<Mutex<Self>>, _: Uuid, _: Uuid, _: Vec<u8>) {}
-
     fn released(shared: &Arc<Mutex<Self>>, block: Uuid) {
         shared.lock().unwrap().released.push(block);
     }
-
-    fn status(_: &Arc<Mutex<Self>>, _: Uuid, _: &Status) {}
-
-    fn described(_: &Arc<Mutex<Self>>, _: Uuid, _: Vec<Uuid>, _: Description) {}
-
-    fn conflict(_: &Arc<Mutex<Self>>, _: Uuid, _: Conflict) {}
 
     fn counted(
         shared: &Arc<Mutex<Self>>,
@@ -157,8 +133,6 @@ impl Host for Quiet {
     ) {
         shared.lock().unwrap().counted += 1;
     }
-
-    fn leaving(_: &Arc<Mutex<Self>>, _: bool) {}
 }
 
 /// Runs `test` with a server, a peer signed in to it and a host holding the `Sections`,
