@@ -1830,8 +1830,13 @@ fn HostedChild(
                 Kind::Unavailable | Kind::Missing | Kind::NoPicker
             );
             let mut status = status_of(&editors, &child, frame.get(), available);
-            if let (Kind::Preview, Some(key)) = (kind.get(), frame.get().or(child.block_id())) {
-                status.preview = preview_of(&editors, key);
+            // `Hosted` is for a preview the host composites in place (a root's): be-host's own
+            // are pictures, or the block's label where it has none to show.
+            if kind.get() == Kind::Preview {
+                status.preview = frame
+                    .get()
+                    .or(child.block_id())
+                    .map_or(ChildPreview::Label, |key| preview_of(&editors, key));
             }
             if let Some((progress, height, dialog)) = editors.creation_status(&creation_key) {
                 status.creation = progress;
