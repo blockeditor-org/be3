@@ -1752,7 +1752,11 @@ Each step lands on its own.
                app reaches a zoom other than 1, a rotation or an opacity under the root yet:
                its top-level canvas has no camera until 4g7d, no editor's manifest allows
                rotation, and a canvas offers no opacity for an editor card; an occluder over a
-               child placed above its placer hides it from presses but not from sight.
+               child placed above its placer hides it from presses but not from sight; the hole
+               a turned child takes the presses of is the upright bounds of its place, not its
+               turned shape. Each hole keeps the occluders of its own child: the placer is hit
+               unless a hole is there and none of its occluders is, as be-host-runtime's holes
+               say. A child placed to fit takes the presses of the room it took.
              - Built: each staged app runs once for every child the root shows, in be-sdk-root's
                `Pool` (`Embedded::spawn_app`, `open_editor`, `show_editor`), each editor asked
                for screens numbered from its instance (`main_screen`, `preview_screen_of`) and
@@ -1770,9 +1774,18 @@ Each step lands on its own.
                be-sdk-root's `children::tests`
                (`a_block_placed_in_several_places_shares_one_editor_but_a_twin`); host test
                `be_root_in_place_of_the_hosts_ui_shows_a_block_placed_twice_with_one_editor`.
-               Left for later: the app showing the session's block is not shared with its
-               children (its screen is the root's window's); a copy shows the whole of the
-               screen, not the part each place shows as be-host's shown parts say; the bodies of
+               An editor's own children are followed against the screens it was asked for at
+               the settle before: one whose screens changed lays out anew, and that layout's
+               placements bring the settle that follows them (walking the children again at
+               once kept the root owing frames). While the place showing an editor's main view
+               takes its placer's frame, no other place shows a copy of that frame-sized screen.
+               A place naming the editor that holds its block shares it, as be-host compares
+               the editor the block is open in (`editor-app.editor`). Left for later: the app
+               showing the session's block is not shared with its children (its screen is the
+               root's window's); a copy shows the whole of the screen, not the part each place
+               shows as be-host's shown parts say; the editors' lifetimes (one of two places
+               going, the last going, an app failing) have no test with a fake app, which
+               be-sdk-root has none of yet; the bodies of
                joined docks whose paths lead through a shared editor reach its own children only
                from the place that follows them.
            - 4g7b3f. Drags out of and into children (`drag-block`, `drag-accepted`), and a

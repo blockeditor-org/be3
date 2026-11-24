@@ -759,6 +759,7 @@ fn serve_editors(core: &mut crate::HostCore, root: &mut Root, editors: &mut Edit
         let editor = core.editor_of(&shown).map(|(app, editor, _)| EditorApp {
             app: app.identity.id.clone(),
             module: app.entry_point.clone(),
+            editor: editor.into_bytes(),
             name: app.identity.name.clone(),
             preview: app
                 .editor(editor.into_bytes())

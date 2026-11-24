@@ -71,6 +71,7 @@ fn a_root_shows_why_the_block_its_session_shows_cannot_be_opened() {
         Ok(EditorApp {
             app: "be3.checklist".to_owned(),
             module: "checklist.wasm".to_owned(),
+            editor: [4; 16],
             name: "Checklist".to_owned(),
             preview: false,
             pan_and_zoom: false,

@@ -1062,6 +1062,9 @@ interface host {
     record editor-app {
         app: string,
         module: string,
+        /// The editor, as its app's manifest names it (an `editor-id`): what
+        /// a placement naming an editor is compared with.
+        editor: uuid,
         /// The app's name, in words, as its manifest gives it.
         name: string,
         /// Whether the editor draws a preview of its block (its manifest's
@@ -1122,8 +1125,8 @@ interface host {
 
     /// Opens `shown`'s editor in the app the root spawned as `instance` (the
     /// op of its sandbox `instance` resource), which must run the app that
-    /// `editor-of` names for it, and may run others the host opened. The host serves what the editor asks of it
-    /// from then on (blocks, host services, the network, debug and the
+    /// `editor-of` names for it, and may run others the host opened there.
+    /// The host serves what the editor asks of it from then on (blocks, host services, the network, debug and the
     /// published interfaces), as it serves an app of its own, until the app
     /// stops: everything the app sends on the editor's ops and on those it
     /// starts under them the root forwards (`forward`), and what the host

@@ -10,7 +10,7 @@ fn be_root_in_place_of_the_hosts_ui_shows_a_block_placed_twice_with_one_editor()
     // be-host's own UI puts a checklist on a canvas and duplicates its card, which places the
     // same block twice; started again with the root in place of its UI, the root shows both
     // places with one editor, as be-host does: the first place shows its view, the second a
-    // copy of it.
+    // copy of it, so what is typed in the first shows in both.
     let mut host = HostTest::start(Options {
         previews: true,
         ..Options::default()
@@ -23,6 +23,10 @@ fn be_root_in_place_of_the_hosts_ui_shows_a_block_placed_twice_with_one_editor()
     let canvas = host.place("#infinite-canvas.canvas");
     let empty = format!("{:.0},{:.0}", canvas.0 + 20.0, canvas.1 + canvas.3 - 20.0);
     let card = host.place("GenericContainer #infinite-canvas.entity.");
+    let point =
+        |at: (f32, f32, f32, f32)| format!("{:.0},{:.0}", at.0 + at.2 / 2.0, at.1 + at.3 / 2.0);
+    let draft = point(host.place("#checklist.draft"));
+    let add = point(host.place("#checklist.add"));
     host.click(&empty);
     host.key("ctrl+a");
     host.key("ctrl+d");
@@ -38,5 +42,11 @@ fn be_root_in_place_of_the_hosts_ui_shows_a_block_placed_twice_with_one_editor()
     host.run(&["resize", "1700x900"]);
     host.run(&["settle"]);
     host.snapshot("be_root_shows_a_block_placed_twice_with_one_editor");
+    // A task added in the first place shows in the second too: both show the one editor.
+    host.run(&["click", &draft]);
+    host.type_text("buy milk");
+    host.run(&["click", &add]);
+    host.run(&["settle"]);
+    host.snapshot("be_root_shows_a_task_added_in_one_place_in_both");
     host.close();
 }
