@@ -61,19 +61,20 @@ pub(crate) struct Carried {
     pub(crate) kept: Vec<CommitId>,
     /// The snapshot the replica told each editor last (`Replica::snapshots_shown`).
     pub(crate) snapshots_shown: BTreeMap<EditorId, be_block_store::Hash>,
-    /// The reads of the log editors asked for that were not answered yet
-    /// (`Replica::log_reads`): the answer to one goes to the replica that asked, so the next
-    /// asks again, or the editor never hears.
-    pub(crate) log_reads: Vec<EditorRead>,
+    /// The calls replicas of the block made for their editors that the host had not answered
+    /// as the next opened (`Replica::asked_before`), by the epoch and token they were made
+    /// under: the host answers each all the same, and the next replica hands it on.
+    pub(crate) asks: Vec<(u64, u64, EditorAsk)>,
 }
 
-/// A read of the block's signed log an editor asked for: who asked, by its token, and what.
+/// A call a replica made for one of its editors, whose answer the editor waits for: a read of
+/// the log, a part put, or an append. Answered once by the host, it is never made again, so an
+/// append lands at most once.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) struct EditorRead {
-    pub(crate) editor: EditorId,
-    pub(crate) token: u64,
-    pub(crate) from: u64,
-    pub(crate) limit: u32,
+pub(crate) enum EditorAsk {
+    LogRead { editor: EditorId, token: u64 },
+    PartPut { editor: EditorId, token: u64 },
+    Append { editor: EditorId, token: u64 },
 }
 
 #[derive(Default)]
@@ -396,7 +397,7 @@ impl Lacking {
             refused: std::mem::take(&mut self.refused),
             kept: std::mem::take(&mut self.kept),
             snapshots_shown: BTreeMap::new(),
-            log_reads: Vec::new(),
+            asks: Vec::new(),
         }
     }
 
