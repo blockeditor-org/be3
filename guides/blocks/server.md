@@ -562,8 +562,9 @@ exactly its parent's access and takes no grants (guides/blocks/host.md, "Search"
   (`OrganizationPolicies::link_sharing`: members, the default; anyone with an account, only
   while it shares outside; or no links), checked as a link is made and again as it is read and
   opened. A link may also admit one, the first account to open it (`Admits::One`, the share
-  half of an invitation, guides/blocks/keys.md, "An invitation"), allowed where a link for
-  anyone is and always in the personal organization; the server records that account
+  half of an invitation, guides/blocks/keys.md, "An invitation"), allowed wherever the
+  organization shares outside (`OrganizationPolicies::shares_outside`, not `link_sharing`) and
+  always in the personal organization; the server records that account
   (`share_links.opened_by`) and refuses every other. The share dialog reads the policy from
   the organization's settings as it changes (be-sdk-shell's `Share::link_choices`,
   `Share::invites`), so it offers what the policy allows. An account a link

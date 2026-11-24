@@ -1,6 +1,4 @@
-use be_block::{LinkSharing, OrganizationPolicies};
 
-use super::an_organizations_policies_are_read_by_its_members_and_enforced_by_the_server::set_policies;
 use super::*;
 
 /// An invitation's share link is made first; when its contact link then fails (here, the maker
@@ -10,13 +8,6 @@ use super::*;
 async fn an_invitation_whose_contact_link_fails_leaves_no_share_link() {
     let harness = Harness::start().await;
     let maker = harness.owner("maker@example.com").await;
-    set_policies(
-        &maker,
-        &[OrganizationPolicies::set_link_sharing(Some(
-            LinkSharing::Anyone,
-        ))],
-    )
-    .await;
     let team = workspace(&maker, "Team").await;
     {
         let database = harness.database();
