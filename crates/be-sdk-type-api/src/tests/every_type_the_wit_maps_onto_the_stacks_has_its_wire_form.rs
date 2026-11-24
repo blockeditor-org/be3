@@ -34,6 +34,7 @@ fn every_type_the_wit_maps_onto_the_stacks_has_its_wire_form() {
         commit: Some(commit(1)),
         sequence: 9,
         state: vec![10],
+        parts: vec![hash(11)],
     };
     agrees::<_, wit::JournalBase>(base.clone(), true);
     agrees::<_, wit::Journal>(

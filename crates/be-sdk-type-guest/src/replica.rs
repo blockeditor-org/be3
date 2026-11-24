@@ -1716,6 +1716,7 @@ where
                 commit: self.base,
                 sequence: self.sealed,
                 state,
+                parts: Vec::new(),
             },
             parts,
         });
@@ -2139,6 +2140,7 @@ where
                     commit: self.base,
                     sequence: 0,
                     state,
+                    parts: Vec::new(),
                 },
                 parts: Vec::new(),
             });

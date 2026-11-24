@@ -17,10 +17,12 @@ fn replay_outside_a_session_refuses_a_journal_holding_a_restart() {
         },
     };
     let journal = be_sdk_type_api::Journal {
+        tag: Hash::of(b"a build"),
         base: be_sdk_type_api::JournalBase {
             commit: None,
             sequence: 0,
             state: Vec::new(),
+            parts: Vec::new(),
         },
         entries: vec![be_sdk_type_api::JournalEntry {
             sequence: 1,
@@ -31,6 +33,7 @@ fn replay_outside_a_session_refuses_a_journal_holding_a_restart() {
             received: None,
             payload: restart.encode(),
         }],
+        lost: false,
     };
     assert!(crate::replica::replay::<ProseContent>(None, &journal).is_err());
 }
