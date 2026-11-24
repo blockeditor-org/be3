@@ -142,7 +142,10 @@ fn CanvasEditor(editor: Editor) -> NodeId {
                             && state.profile.get() != be_type_infinite_canvas::CanvasProfile::Prototyping
                     }}
                 >
-                    <DockSplit direction=Direction::Vertical size={SplitSize::Second(LAYERS_HEIGHT)}>
+                    <DockSplit
+                        direction=Direction::Vertical
+                        size={SplitSize::Second(LAYERS_HEIGHT)}
+                    >
                         <DockPane id="inspector">
                             <DockTab id=INSPECTOR title="Inspector">
                                 <CanvasInspector state={state} />

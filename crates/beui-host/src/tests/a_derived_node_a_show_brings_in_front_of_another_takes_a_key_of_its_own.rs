@@ -57,12 +57,23 @@ fn a_derived_node_a_show_brings_in_front_of_another_takes_a_key_of_its_own() {
     harness.frame(Vec::new());
     let after = harness.document().api::<DockApi>(dock.get()).state();
     let mut keys = Vec::new();
-    pane_keys(after.spec().main.as_ref().expect("the dock has a tree"), &mut keys);
+    pane_keys(
+        after.spec().main.as_ref().expect("the dock has a tree"),
+        &mut keys,
+    );
     let mut distinct = keys.clone();
     distinct.sort();
     distinct.dedup();
-    assert_eq!(distinct.len(), keys.len(), "every pane has a key of its own: {keys:?}");
+    assert_eq!(
+        distinct.len(),
+        keys.len(),
+        "every pane has a key of its own: {keys:?}"
+    );
     let tabs = after.all_tabs();
-    assert_eq!(tabs.len(), 3, "the tab of the same title is declared beside the first");
+    assert_eq!(
+        tabs.len(),
+        3,
+        "the tab of the same title is declared beside the first"
+    );
     assert!(tabs.contains(&kept), "the tab declared first keeps its id");
 }

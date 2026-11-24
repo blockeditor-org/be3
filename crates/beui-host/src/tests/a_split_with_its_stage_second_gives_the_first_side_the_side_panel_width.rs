@@ -1,7 +1,6 @@
 use super::*;
 use crate::dock::{
-    DockPane, DockSpecNode, DockSplit, DockTab, Docking, DockingLayout, SIDE_PANEL_WIDTH,
-    SplitSize,
+    DockPane, DockSpecNode, DockSplit, DockTab, Docking, DockingLayout, SIDE_PANEL_WIDTH, SplitSize,
 };
 
 /// A split given no size, with the stage on its second side, gives its first side the side

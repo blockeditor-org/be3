@@ -2,9 +2,7 @@ use beui::Overflow;
 
 use be_sdk_beui::beui::dock::styled::{DockBarGrip, DockBarSurface};
 use be_sdk_beui::beui::dock::{DockAlign, DockBarPlacement, DockEdge};
-use be_sdk_beui::beui::dock::{
-    DockBar, DockPane, DockSplit, DockTab, Docking, SplitSize,
-};
+use be_sdk_beui::beui::dock::{DockBar, DockPane, DockSplit, DockTab, Docking, SplitSize};
 use be_sdk_beui::beui::icons::{
     ICON_ARROW_LEFT, ICON_ARROW_RIGHT, ICON_COPY_PLUS, ICON_ELLIPSIS, ICON_MAXIMIZE,
     ICON_STICKY_NOTE_PLUS, ICON_UNLINK, ICON_X,

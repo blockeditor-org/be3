@@ -1,6 +1,6 @@
 use beui_components_styled::button::{ButtonSize, ButtonVariant};
-use beui_components_styled::menu_button::MenuButton;
 use beui_components_styled::frame::{ColorRole, Frame as PanelFrame};
+use beui_components_styled::menu_button::MenuButton;
 use beui_components_styled::scroll::Scroll;
 use beui_components_styled::tokens::Space;
 use beui_components_styled::tool_pill::ToolPill;

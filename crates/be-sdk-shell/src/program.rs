@@ -853,11 +853,7 @@ pub fn ProgramWindow(workspace: Workspace, tab: TabId) -> DockNode {
 }
 
 #[component]
-pub fn WindowDialog(
-    workspace: Workspace,
-    window: HostWindowId,
-    parent: HostWindowId,
-) -> DockNode {
+pub fn WindowDialog(workspace: Workspace, window: HostWindowId, parent: HostWindowId) -> DockNode {
     let tab = dialog_tab(window);
     let listed = workspace.windows;
     let modal = create_memo(move || {

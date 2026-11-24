@@ -4,9 +4,7 @@ use be_sdk_beui::Fit;
 use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::dock::styled::{DockBarGrip, DockBarSurface};
 use be_sdk_beui::beui::dock::{DockAlign, DockBarPlacement, DockEdge};
-use be_sdk_beui::beui::dock::{
-    DockBar, DockPane, DockSplit, DockTab, Docking, use_dock_bar,
-};
+use be_sdk_beui::beui::dock::{DockBar, DockPane, DockSplit, DockTab, Docking, use_dock_bar};
 use be_sdk_beui::beui::icons::{ICON_CHECK, ICON_FLAG, ICON_X};
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;

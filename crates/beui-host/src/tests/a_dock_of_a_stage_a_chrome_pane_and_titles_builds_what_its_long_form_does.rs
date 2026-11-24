@@ -1,6 +1,6 @@
 use super::*;
 use crate::dock::{
-    DockPane, DockSplit, DockSpec, DockTab, Docking, SIDE_PANEL_WIDTH, SplitSize,
+    DockPane, DockSpec, DockSplit, DockTab, Docking, SIDE_PANEL_WIDTH, SplitSize,
     provide_dock_chrome,
 };
 use crate::dock_host::unstyled::DockApi;

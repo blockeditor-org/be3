@@ -14,8 +14,8 @@ pub use controls::{
     provide_dock_shows_through, use_dock_bar, use_dock_pane, use_dock_tab,
 };
 pub use declare::{
-    DockBar, DockDialog, DockEntry, DockGroup, DockId, DockKey, DockNode, DockPane,
-    DockSplit, DockTab, DockWindow,
+    DockBar, DockDialog, DockEntry, DockGroup, DockId, DockKey, DockNode, DockPane, DockSplit,
+    DockTab, DockWindow,
 };
 pub use docking::{
     AnyDockingLayout, Docking, DockingLayout, DockingSnapshot, OwnedDockingLayout,

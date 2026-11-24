@@ -4,8 +4,9 @@ use std::marker::PhantomData;
 use std::rc::Rc;
 
 use beui_dock_state::{
-    SIDE_PANEL_WIDTH, SplitSize, DockBarPlacement, DockEdge, DockMode, DockSpec, DockSpecBar, DockSpecEntry, DockSpecNode,
-    DockSpecPane, DockSpecWindow, DockState, TabId, joined_host, joined_key, joined_prefix,
+    DockBarPlacement, DockEdge, DockMode, DockSpec, DockSpecBar, DockSpecEntry, DockSpecNode,
+    DockSpecPane, DockSpecWindow, DockState, SIDE_PANEL_WIDTH, SplitSize, TabId, joined_host,
+    joined_key, joined_prefix,
 };
 use beui_view::primitives::*;
 use beui_view::reactive::NodeId;
@@ -15,12 +16,12 @@ use beui_view::types::Rect;
 
 use crate::controls::{DockBarControl, DockTabControl, DockTabMenu};
 use crate::declare::{DialogParts, DockEntry, DockId, DockKey, DockNode, EntryKind, NodeKind};
-use crate::styled::DockPanel;
 use crate::link::{
     DockBodies, DockDeclaration, DockDeclaredBar, DockDeclaredDialog, DockDeclaredGroup,
     DockDeclaredHost, DockDeclaredTab, DockHostEvent, DockHostLink, DockHostSlot, DockHosted,
     DockJoin, DockKeeper, DockKept, DockRequest, Joined, Registry, use_dock_join,
 };
+use crate::styled::DockPanel;
 use beui_components_unstyled::DialogLayout;
 
 const MAX_JOINED_DEPTH: usize = 16;
@@ -581,7 +582,9 @@ impl AnyDockingLayout {
         let named = key.value();
         let named = named
             .and_then(|named| named.downcast_ref::<TabId>().copied())
-            .or_else(|| named.and_then(|named| named.downcast_ref::<u64>().copied().map(TabId::new)))
+            .or_else(|| {
+                named.and_then(|named| named.downcast_ref::<u64>().copied().map(TabId::new))
+            })
             .filter(|tab| {
                 !keys.keys.contains_key(tab) && !inner.registry.foreign.borrow().contains(*tab)
             });
@@ -889,7 +892,12 @@ impl AnyDockingLayout {
 
     /// The first node of `children` the spec has, each keyed, if it has no id, by its place under
     /// `parent`.
-    fn root(&self, children: &Run<DockNode>, parent: &str, found: &mut Found) -> Option<DockSpecNode> {
+    fn root(
+        &self,
+        children: &Run<DockNode>,
+        parent: &str,
+        found: &mut Found,
+    ) -> Option<DockSpecNode> {
         children
             .items()
             .iter()
@@ -1309,9 +1317,7 @@ impl Found {
                 } if title.is_alive() && icon.is_alive() && picture.is_alive() => {
                     Some(DockDeclaredTab {
                         tab: *tab,
-                        key: id.keyed()
-                            .key()
-                            .to_owned(),
+                        key: id.keyed().key().to_owned(),
                         title: title.get(),
                         icon: icon.get(),
                         picture: picture.get(),
@@ -1345,12 +1351,7 @@ impl Found {
             .tabs
             .iter()
             .filter_map(|(tab, entry)| match &entry.kind {
-                EntryKind::Tab { id, .. } => Some((
-                    *tab,
-                    id.keyed()
-                        .key()
-                        .to_owned(),
-                )),
+                EntryKind::Tab { id, .. } => Some((*tab, id.keyed().key().to_owned())),
                 EntryKind::Group { .. } => None,
             })
             .chain(self.bars.iter().map(|(bar, (key, _))| (*bar, key.clone())))

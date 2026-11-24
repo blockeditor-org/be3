@@ -1,8 +1,6 @@
 use be_sdk_beui::beui::dock::styled::{DockBarGrip, DockBarSurface};
 use be_sdk_beui::beui::dock::{DockAlign, DockBarPlacement, DockEdge};
-use be_sdk_beui::beui::dock::{
-    DockBar, DockPane, DockSplit, DockTab, Docking, SplitSize,
-};
+use be_sdk_beui::beui::dock::{DockBar, DockPane, DockSplit, DockTab, Docking, SplitSize};
 use be_sdk_beui::{Editor, LoadingPane, ZoomBar};
 use beui::icons::ICON_WRENCH;
 use beui::reactive::*;

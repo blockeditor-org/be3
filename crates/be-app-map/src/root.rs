@@ -3,9 +3,7 @@ use be_type_map::MapContent;
 
 use be_sdk_beui::Loaded;
 use be_sdk_beui::beui::dock::{DockAlign, DockBarPlacement, DockEdge};
-use be_sdk_beui::beui::dock::{
-    DockBar, DockPane, DockSplit, DockTab, Docking,
-};
+use be_sdk_beui::beui::dock::{DockBar, DockPane, DockSplit, DockTab, Docking};
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{NodeId, Vec2};

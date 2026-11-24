@@ -1,6 +1,6 @@
+use be_lib_stable_hash::HashSet;
 use beui_view::types::icons::Glyph;
 use std::any::Any;
-use be_lib_stable_hash::HashSet;
 use std::cell::RefCell;
 use std::hash::Hash;
 use std::rc::Rc;
@@ -154,15 +154,12 @@ impl<T: Clone + Eq + Hash> Keyed<T> {
 
     /// The key, once the dock has read it.
     pub(crate) fn keyed(&self) -> T {
-        self.known()
-            .expect("the dock keys a node when it reads it")
+        self.known().expect("the dock keys a node when it reads it")
     }
 
     /// The key given or kept, before this read.
     pub(crate) fn known(&self) -> Option<T> {
-        self.given
-            .clone()
-            .or_else(|| self.derived.borrow().clone())
+        self.given.clone().or_else(|| self.derived.borrow().clone())
     }
 
     /// The key given or kept, else `derive`'s, stepped past every key `held` already (with
