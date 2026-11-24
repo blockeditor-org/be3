@@ -396,7 +396,16 @@ pub fn host_program(program: &Program, icon: Option<HostImage>) -> HostProgram {
         generic_name: String::new(),
         comment: program.shortcut.description.clone(),
         keywords: program.folder.iter().cloned().collect(),
-        wm_class: program.shortcut.app_user_model_id.clone(),
+        // The program id its windows carry (`Entry::program_id`): the shortcut's AppUserModelID,
+        // else its target, so a shell matches a window from last time to the program that starts
+        // it again even when the desktop did not launch it.
+        wm_class: program.shortcut.app_user_model_id.clone().or_else(|| {
+            program
+                .shortcut
+                .target
+                .as_ref()
+                .map(|target| target.to_string_lossy().into_owned())
+        }),
         icon,
     }
 }

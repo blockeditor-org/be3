@@ -596,6 +596,10 @@ interface programs {
         generic-name: string,
         comment: string,
         keywords: list<string>,
+        /// The `host-window.program-id` its windows carry, which a shell
+        /// matches a window from last time to the program by: a desktop
+        /// entry's StartupWMClass on Linux; a shortcut's AppUserModelID,
+        /// else its target, on Windows.
         wm-class: option<string>,
         icon: option<host-image>,
     }
