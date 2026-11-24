@@ -1,7 +1,7 @@
 //! One app's connection, from the host's side: what the host sends it (`AppCall`, `EditorCall`,
 //! the editors it opens and closes, the events around them) and what it hears back (`Heard`),
 //! with the watches it serves the app itself and the sandbox for its workers.
-use be_lib_stable_hash::HashMap;
+use be_lib_stable_hash::{HashMap, HashSet};
 use std::collections::BTreeMap;
 
 use crate::calls::{AppCall, EditorAnswer, EditorCall, Heard, Outbound};
@@ -27,7 +27,8 @@ use be_sdk_api::{
         shell::Call as ShellCall,
     },
     ops::{
-        Connection, Incoming, MethodId, OpError, OpId, Outcome, Producer, Reply, Side, Started,
+        Connection, Frame, Incoming, MethodId, OpError, OpId, Outcome, Producer, Reply, Side,
+        Started, decode_frame, is_relayed,
         Ticket, wire,
     },
 };
@@ -85,6 +86,22 @@ pub struct Wire {
     /// Whether the host offers a published interface of an extension the app is granted
     /// (`offering`); none unless it says so.
     offered: fn(&str) -> bool,
+    /// What the wire leaves to the host that serves the root it runs in (`forward`).
+    forwarding: Forwarding,
+}
+
+/// The frames a root's wire leaves to its host: those of the editors its host opened over a
+/// relayed wire (`Wire::relayed`), whose ops carry `RELAYED_BIT`, and of every op the app started
+/// under one of them (plans/host_as_platform_adapter.md, 4g7b1).
+#[derive(Default)]
+struct Forwarding {
+    /// Whether the host relayed the app anything yet: until it has, the app has no editor of its
+    /// host's and the wire forwards nothing.
+    relayed: bool,
+    /// The ops the app started under one of the host's, until the host completes them.
+    ops: HashSet<OpId>,
+    /// The frames for the host, in the order the app sent them, until it takes them.
+    frames: Vec<Vec<u8>>,
 }
 
 type PublishedWatch = (EditorInstanceId, MethodId, Watch<Encoded>);
@@ -149,6 +166,7 @@ impl Default for Wire {
             hearing: Vec::new(),
             sandbox: None,
             offered: |_| false,
+            forwarding: Forwarding::default(),
         }
     }
 }
@@ -159,6 +177,14 @@ impl Wire {
             extensions,
             ..Self::default()
         }
+    }
+
+    /// The host's end of an app a root runs, which the root forwards the frames of the editors
+    /// this wire opens (`Wire::take_forwarded`): the ops it starts carry `RELAYED_BIT`, so they never
+    /// meet the root's own on the app's connection.
+    pub fn relayed(mut self) -> Self {
+        self.connection = Connection::relayed(Side::Host);
+        self
     }
 
     /// Offers the app the published interfaces of the extensions it is granted that `offered`
@@ -797,7 +823,60 @@ impl Wire {
         self.connection.has_outbound()
     }
 
+    /// Relays the app `frames` its root's host sent from its relayed wire (`Wire::relayed`), as
+    /// they are, which complete the ops the app started under the host's editors.
+    pub fn relay_forwarded(&mut self, frames: Vec<Vec<u8>>) -> Result<(), String> {
+        for frame in frames {
+            let decoded = decode_frame::<Frame>(&frame)
+                .map_err(|error| format!("the host relayed a frame that did not decode: {error}"))?;
+            if let Frame::Complete { op, .. } = decoded {
+                self.forwarding.ops.remove(&op);
+            }
+            self.forwarding.relayed = true;
+            self.connection.relay(frame);
+        }
+        Ok(())
+    }
+
+    /// The frames the app sent that are its root's host's to answer, in order: those of the
+    /// editors the host opened over its relayed wire and of every op the app started under them.
+    pub fn take_forwarded(&mut self) -> Vec<Vec<u8>> {
+        std::mem::take(&mut self.forwarding.frames)
+    }
+
+    /// Whether `frame` is the host's (`take_forwarded`), which keeps it for the host.
+    fn forward(&mut self, frame: &[u8]) -> Result<bool, String> {
+        if !self.forwarding.relayed {
+            return Ok(false);
+        }
+        let decoded = decode_frame::<Frame>(frame)
+            .map_err(|error| format!("the app sent a frame that did not decode: {error}"))?;
+        let ops = &mut self.forwarding.ops;
+        let forwarded = match decoded {
+            Frame::Start {
+                op,
+                parent: Some(parent),
+                ..
+            } if is_relayed(parent) || ops.contains(&parent) => {
+                ops.insert(op);
+                true
+            }
+            Frame::Start { .. } => false,
+            Frame::Yield { op, .. }
+            | Frame::Complete { op, .. }
+            | Frame::Cancel { op }
+            | Frame::Credit { op, .. } => is_relayed(op) || ops.contains(&op),
+        };
+        if forwarded {
+            self.forwarding.frames.push(frame.to_vec());
+        }
+        Ok(forwarded)
+    }
+
     pub fn receive(&mut self, frame: &[u8], heard: &mut Vec<Heard>) -> Result<(), String> {
+        if self.forward(frame)? {
+            return Ok(());
+        }
         self.connection
             .receive(frame)
             .map_err(|error| format!("the app sent a frame that did not decode: {error}"))?;

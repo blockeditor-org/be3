@@ -68,6 +68,8 @@ pub struct Server {
 struct Served {
     /// The instance, or why it could not start or stopped.
     instance: Result<Instance, String>,
+    /// The id of the staged app it runs, for one spawned from a staged app's module.
+    app: Option<String>,
     received: Vec<Vec<u8>>,
     next: Option<(OpId, Answer<Frames>)>,
 }
@@ -107,6 +109,15 @@ impl Server {
             .as_ref()
             .ok()?
             .surface(surface)
+    }
+
+    /// The id of the staged app the instance the guest spawned with the op `instance` runs,
+    /// while it runs: none for one spawned from a module the guest compiled, one that could not
+    /// start or stopped, or one the guest let go of.
+    pub fn app_of(&self, instance: OpId) -> Option<&str> {
+        let served = self.instances.get(&instance)?;
+        served.instance.as_ref().ok()?;
+        served.app.as_deref()
     }
 
     /// Serves the app with the id `app`: it may spawn only modules its own app stages, which
@@ -156,6 +167,10 @@ impl Server {
                 source,
                 config,
             } => {
+                let app = match &source {
+                    api::Source::App(staged) => Some(staged.app.clone()),
+                    api::Source::Module(_) => None,
+                };
                 let source = match source {
                     api::Source::Module(module) => self
                         .modules
@@ -187,6 +202,7 @@ impl Server {
                     resource.op(),
                     Served {
                         instance,
+                        app,
                         received: Vec::new(),
                         next: None,
                     },

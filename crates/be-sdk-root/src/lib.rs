@@ -12,6 +12,11 @@
 //! - `OwnSurface` is a surface of the root's own, which it draws on the host's device as an app
 //!   draws its screens and names in its layer list as `Surface::Root`, below, between or above
 //!   the screens it embeds.
+//! - `Embedded::spawn_block` embeds a block's editor its host opens and serves until step 5
+//!   (decisions/a_roots_embedded_editors_are_served_by_its_host_until_step_5.md): `be3:root`'s
+//!   `host.editor-of` names the app, `host.open-editor` opens the editor, and everything the app
+//!   sends under it the root forwards (`host.forward`) and relays what the host answers
+//!   (`host.forwarded`), as be-wasm-ops frames it never reads.
 //! - `Embedding` holds the `Embedded`s and `Windows`: what is routed to an app's screen reaches
 //!   the app as `AppCall::Input`, in the screen's points; what lands on the root's own surfaces
 //!   the root gets back. What its apps ask of their windows (a cursor shape, the pointer lock,
@@ -37,7 +42,7 @@ mod embedded;
 mod own;
 mod windows;
 
-pub use embedded::{Embedded, Spawn, Wants};
+pub use embedded::{BlockSpawn, Embedded, Spawn, Wants};
 pub use own::OwnSurface;
 pub use windows::{Delivery, Windows};
 

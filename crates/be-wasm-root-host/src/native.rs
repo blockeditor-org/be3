@@ -240,6 +240,57 @@ impl Root {
         }
     }
 
+    /// The blocks the root asked the editor of since the last call (`host.editor-of`), each by
+    /// the id `answer_editor` answers it by.
+    pub fn take_editor_asks(&mut self) -> Vec<(u64, [u8; 16])> {
+        self.core.take_editor_asks()
+    }
+
+    /// Answers the root's `host.editor-of` of `id`. If the root waited for it, it is stepped for
+    /// the answer.
+    pub fn answer_editor(&mut self, id: u64, editor: Result<be_wasm_root_api::EditorApp, String>) {
+        if self.core.answer_editor(id, editor) {
+            self.bell.ring();
+        }
+    }
+
+    /// The editors the root asked to open since the last call (`host.open-editor`), each
+    /// answered by its id (`answer_opening`).
+    pub fn take_openings(&mut self) -> Vec<crate::EditorOpening> {
+        self.core.take_openings()
+    }
+
+    /// Answers the root's `host.open-editor` of `id`. If the root waited for it, it is stepped
+    /// for the answer.
+    pub fn answer_opening(
+        &mut self,
+        id: u64,
+        opened: Result<be_wasm_root_api::OpenedEditor, String>,
+    ) {
+        if self.core.answer_opening(id, opened) {
+            self.bell.ring();
+        }
+    }
+
+    /// What the root forwarded of the apps it spawned since the last call (`host.forward`):
+    /// each app's frames, by its instance, in order.
+    pub fn take_forwarded(&mut self) -> Vec<(u64, Vec<Vec<u8>>)> {
+        self.core.take_forwarded()
+    }
+
+    /// Sends the app the root spawned as `instance` `frames` through the root
+    /// (`host.forwarded`). If the root waited for them, it is stepped for them.
+    pub fn relay(&mut self, instance: u64, frames: Vec<Vec<u8>>) {
+        if self.core.relay(instance, frames) {
+            self.bell.ring();
+        }
+    }
+
+    /// The staged app the root's sandbox instance `instance` runs, while it runs.
+    pub fn app_of(&self, instance: u64) -> Option<String> {
+        self.core.app_of(instance)
+    }
+
     /// Shows the root whether the host asks the person to keep display settings that just
     /// changed (`host.displays`): the question, or none. If the root waits on it and it changed,
     /// it is stepped for it.

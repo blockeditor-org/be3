@@ -15,9 +15,11 @@ use be_lib_layers::{Affine, Layer, LayerId, LayerInput, Surface};
 use be_lib_stable_hash::HashMap;
 use be_lib_ui_types::input::{Input, PenPhase, TouchPhase};
 use be_sdk_api::{
-    Fonts, ImeArea, InputBatch, Opening, Preferences, ScreenId, ScreenPlacement, ScreenRequest,
-    SurfaceSpec, TimedInput, WindowRequests, embed::shell::Call as ShellCall,
+    EditorInstanceId, Fonts, ImeArea, InputBatch, Opening, Preferences, ScreenId,
+    ScreenPlacement, ScreenRequest, SurfaceSpec, TimedInput, WindowRequests,
+    embed::shell::Call as ShellCall,
 };
+use be_wasm_root_api::guest::host;
 use be_sdk_app_host::{
     calls::{AppCall, Heard, Outbound},
     holds::Held,
@@ -54,6 +56,29 @@ pub struct Spawn {
     pub fonts: Rc<Fonts>,
 }
 
+/// What `Embedded::spawn_block` starts: the editor of a block, which the root's host opens and
+/// serves (`be3:root`'s `host.open-editor`), in the app it names (`host.editor-of`).
+pub struct BlockSpawn {
+    pub block: [u8; 16],
+    /// The screens asked of the editor, given the instance the host opened it as.
+    pub screens: Box<dyn FnOnce(EditorInstanceId) -> Vec<ScreenRequest>>,
+    /// The surface the app draws to, granted if its hello asks for one.
+    pub surface: SurfaceSpec,
+    /// The fonts the app is told once it runs (`Spawn::fonts`).
+    pub fonts: Rc<Fonts>,
+}
+
+/// The editor an app opens once it says hello.
+enum Opened {
+    /// One the root opened itself, whose host serves it nothing: what it asks of a host is
+    /// refused.
+    Root(Opening),
+    /// One the root's host opened, by the frames that open it, which the root relays as they
+    /// are; everything the app then sends under it the root forwards to its host
+    /// (`host.forward`), and what the host answers it relays (`host.forwarded`).
+    Host(Vec<Vec<u8>>),
+}
+
 /// An app the root spawned and runs as its host. Clones are the same app. It stops when the
 /// last clone goes (`Embedding::remove` lets go of the embedding's), or with the root.
 #[derive(Clone)]
@@ -71,6 +96,8 @@ struct State {
     run: Run<()>,
     /// The fonts it is told once it runs.
     fonts: Rc<Fonts>,
+    /// The frames that open the editor its root's host opened, relayed once the app says hello.
+    opening: Vec<Vec<u8>>,
     /// The frame clock's time, as the last frame was asked for.
     now: Duration,
     /// The root's frames so far, the pass the app's pacing counts.
@@ -113,28 +140,61 @@ impl Embedded {
     /// Call it on the root's executor, from a frame or an input: the app is heard by a task of
     /// its own there.
     pub fn spawn(spawn: Spawn, now: Duration) -> Self {
-        let instance = Rc::new(Instance::new(
-            Source::App(StagedModule {
-                app: spawn.app.clone(),
-                module: spawn.module,
-            }),
-            Config {
-                name: spawn.app,
-                memory_limit: APP_MEMORY,
-            },
-        ));
+        let instance = instance(spawn.app, spawn.module);
+        Self::start(
+            instance,
+            Opened::Root(spawn.opening),
+            spawn.screens,
+            spawn.surface,
+            spawn.fonts,
+            now,
+        )
+    }
+
+    /// Spawns the app that edits `spawn`'s block, as its root's host names it
+    /// (`host.editor-of`), and has the host open the block's editor in it (`host.open-editor`),
+    /// which it serves from then on. Call it on the root's executor at the frame clock's `now`;
+    /// it answers once the host did, or with why the host would not.
+    pub async fn spawn_block(spawn: BlockSpawn, now: Duration) -> Result<Self, String> {
+        let editor = host::editor_of(spawn.block)
+            .await
+            .map_err(|error| format!("the host did not answer which app edits the block: {error:?}"))??;
+        let instance = instance(editor.app, editor.module);
+        let opened = host::open_editor(instance.op(), spawn.block)
+            .await
+            .map_err(|error| format!("the host did not open the block's editor: {error:?}"))??;
+        let screens = (spawn.screens)(EditorInstanceId(opened.editor));
+        Ok(Self::start(
+            instance,
+            Opened::Host(opened.frames),
+            screens,
+            spawn.surface,
+            spawn.fonts,
+            now,
+        ))
+    }
+
+    fn start(
+        instance: Rc<Instance>,
+        opened: Opened,
+        screens: Vec<ScreenRequest>,
+        surface: SurfaceSpec,
+        fonts: Rc<Fonts>,
+        now: Duration,
+    ) -> Self {
         let mut run = Run::new(
-            Session::new(HOST_NAME, Some(spawn.surface)),
+            Session::new(HOST_NAME, Some(surface)),
             false,
             Preferences::default(),
         );
         run.session.start(millis(now));
-        run.screens.clone_from(&spawn.screens);
+        run.screens.clone_from(&screens);
+        let (open, opening) = match opened {
+            Opened::Root(opening) => (Some(Outbound::Open(Box::new(opening))), Vec::new()),
+            Opened::Host(frames) => (None, frames),
+        };
         // Held until the hello: the session does not run yet.
-        let _ = run.queue([
-            Outbound::Open(Box::new(spawn.opening)),
-            AppCall::Screens(spawn.screens).into(),
-        ]);
+        let _ = run.queue(open.into_iter().chain([AppCall::Screens(screens).into()]));
         run.pacing.need();
         let handle = instance.op();
         let stop = Rc::new(Stop::default());
@@ -142,7 +202,8 @@ impl Embedded {
             instance: Rc::clone(&instance),
             wire: Wire::default(),
             run,
-            fonts: spawn.fonts,
+            fonts,
+            opening,
             now,
             pass: 0,
             painted: HashMap::default(),
@@ -152,6 +213,9 @@ impl Embedded {
             waiting: Vec::new(),
             stop: Rc::clone(&stop),
         }));
+        if !state.borrow().opening.is_empty() {
+            relay_to(handle, &state);
+        }
         be_wasm_ops::guest::spawn(hear(Rc::downgrade(&state), instance, stop));
         Self {
             state,
@@ -313,6 +377,20 @@ impl Embedded {
     }
 }
 
+/// Spawns the staged app `app`'s entry point `module` in the root's sandbox.
+fn instance(app: String, module: String) -> Rc<Instance> {
+    Rc::new(Instance::new(
+        Source::App(StagedModule {
+            app: app.clone(),
+            module,
+        }),
+        Config {
+            name: app,
+            memory_limit: APP_MEMORY,
+        },
+    ))
+}
+
 /// What an app wants of the frames its root draws (`Embedded::wants`).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Wants {
@@ -396,6 +474,7 @@ impl State {
                 return;
             }
         }
+        self.forward();
         for heard in heard {
             self.heard(heard);
         }
@@ -406,8 +485,8 @@ impl State {
 
     fn heard(&mut self, heard: Heard) {
         // What the root serves no app yet is refused at once, so nothing the app asks waits on
-        // it, but the shell's `tell`, which it takes and does nothing with. Blocks wait for a
-        // store in the root (step 5).
+        // it, but the shell's `tell`, which it takes and does nothing with. What an editor its
+        // host opened asks never reaches here: the wire leaves it to the host (`forward`).
         let heard = match heard {
             Heard::Shell(ShellCall::Tell { reply, .. }) => {
                 let (op, outcome) = reply.answer(&());
@@ -423,6 +502,11 @@ impl State {
             Heard::Hello(hello) => {
                 let accepted = self.run.session.connect(&hello, self.run.preferences());
                 self.wire.accept(&accepted);
+                let opening = std::mem::take(&mut self.opening);
+                if let Err(failure) = self.wire.relay_forwarded(opening) {
+                    self.fail(failure);
+                    return;
+                }
                 let queued = self.run.deliverable();
                 self.wire.send(queued);
                 self.tell();
@@ -513,6 +597,33 @@ impl State {
         self.wire.send(send);
     }
 
+    /// Hands the root's host what the app sent it, under the editor the host opened
+    /// (`host.forward`). The call starts at once, so the host hears each app's frames in order.
+    fn forward(&mut self) {
+        let frames = self.wire.take_forwarded();
+        if frames.is_empty() {
+            return;
+        }
+        let forwarded = host::forward(self.instance.op(), frames);
+        be_wasm_ops::guest::spawn(async move {
+            // A host that stopped answering stops the root too.
+            let _ = forwarded.await;
+        });
+    }
+
+    /// Relays the app what its root's host sent it (`host.forwarded`).
+    fn relay(&mut self, frames: Vec<Vec<u8>>) {
+        if self.failure.is_some() {
+            return;
+        }
+        if let Err(failure) = self.wire.relay_forwarded(frames) {
+            self.fail(failure);
+            return;
+        }
+        self.flush();
+        self.wake();
+    }
+
     /// Notes a session that failed, as one that timed out starting does.
     fn failed_session(&mut self) {
         if self.failure.is_none()
@@ -542,6 +653,43 @@ impl State {
             waker.wake();
         }
     }
+}
+
+thread_local! {
+    /// The apps whose editors the root's host opened, by their instances' handles, which hear
+    /// what the host sends them (`host.forwarded`).
+    static RELAYS: RefCell<HashMap<u64, Weak<RefCell<State>>>> = RefCell::default();
+    /// Whether a task hears what the root's host sends its apps.
+    static HEARING_HOST: Cell<bool> = const { Cell::new(false) };
+}
+
+/// Relays the app `state` runs as `handle` what the root's host sends it, hearing the host
+/// from now on if nothing did yet.
+fn relay_to(handle: u64, state: &Rc<RefCell<State>>) {
+    RELAYS.with_borrow_mut(|relays| {
+        relays.retain(|_, state| state.strong_count() > 0);
+        relays.insert(handle, Rc::downgrade(state));
+    });
+    if !HEARING_HOST.replace(true) {
+        be_wasm_ops::guest::spawn(hear_host());
+    }
+}
+
+/// Hears what the root's host sends the apps it spawned (`host.forwarded`) and relays each its
+/// own, until the host stops answering.
+async fn hear_host() {
+    while let Ok(relayed) = host::forwarded().await {
+        for relayed in relayed {
+            let state = RELAYS.with_borrow(|relays| {
+                relays.get(&relayed.instance).and_then(Weak::upgrade)
+            });
+            // An app the root let go of is stopped: what the host still sent it goes nowhere.
+            if let Some(state) = state {
+                state.borrow_mut().relay(relayed.frames);
+            }
+        }
+    }
+    HEARING_HOST.set(false);
 }
 
 /// Hears the app until it stops or the last `Embedded` of it goes: then it lets go of the

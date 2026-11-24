@@ -134,6 +134,9 @@ pub(super) struct Instances {
     accepted: Vec<be_sdk_api::ops::OpId>,
     relaying: HashSet<EditorInstanceId>,
     heard: beui::Heard,
+    /// Whether its editors are those a root guest embeds, whose screens the root draws and asks
+    /// of the app itself (`Forwarded`): each is served with no screen of the host's.
+    forwarded: bool,
 }
 
 struct Mail {
@@ -1254,6 +1257,25 @@ impl Instances {
         self.connection = Some(Connection { client_id });
     }
 
+    /// Takes `instance` in as an editor of `role` a root guest embeds (`Forwarded`): it opens
+    /// at the next pass (`next_screens`), and is served with no screen of the host's.
+    pub(super) fn open_forwarded(
+        &mut self,
+        instance: EditorInstanceId,
+        role: InstanceRole,
+        client_id: Uuid,
+        block_types: &Arc<crate::AppCatalog>,
+    ) {
+        self.forwarded = true;
+        self.connect(client_id);
+        if self.block_types.is_none() {
+            self.block_types = Some(Arc::clone(block_types));
+        }
+        self.entries
+            .entry(instance)
+            .or_insert_with(|| Instance::new(role));
+    }
+
     pub(super) fn report(
         &mut self,
         instance: EditorInstanceId,
@@ -2313,6 +2335,7 @@ impl Instances {
             HashMap::default();
         let mut opened = Vec::new();
         let mut screens = Vec::new();
+        let forwarded = self.forwarded;
         self.relaying.clear();
         if let Some(block_types) = &self.block_types
             && let Some((programs, program_editors)) =
@@ -2378,7 +2401,8 @@ impl Instances {
                     || regions.iter().any(|request| request.view == *view)
                     || entry.anchored.iter().any(|held| held.view == *view)
             });
-            if regions.is_empty() && matches!(entry.role, InstanceRole::Editor(..)) {
+            if regions.is_empty() && matches!(entry.role, InstanceRole::Editor(..)) && !forwarded
+            {
                 continue;
             }
             regions.sort_by_key(|request| request.screen.0);

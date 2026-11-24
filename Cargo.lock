@@ -2332,6 +2332,7 @@ dependencies = [
  "be-sdk-app-host",
  "be-wasm-gpu-abi",
  "be-wasm-ops",
+ "be-wasm-root-api",
  "be-wasm-sandbox-api",
 ]
 
