@@ -24,6 +24,7 @@ write_package_value("be3.cargo", {
                 "be-launcher": [
                     "//crates/be-block-content:be-block-content",
                     "//crates/be-sdk-terminal:be-sdk-terminal",
+                    "//crates/be-tool-build-helper-protocol:be-tool-build-helper-protocol",
                     "//crates/be-tool-terminal-emulator:be-tool-terminal-emulator",
                     "//crates/be-type-terminal:be-type-terminal",
                     "//crates/beui-host-window:beui-host-window",
@@ -42,6 +43,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-block-content:be-block-content",
                 "//crates/be-sdk-terminal:be-sdk-terminal",
+                "//crates/be-tool-build-helper-protocol:be-tool-build-helper-protocol",
                 "//crates/be-tool-terminal-emulator:be-tool-terminal-emulator",
                 "//crates/be-type-terminal:be-type-terminal",
                 "//crates/beui-host-window:beui-host-window",
@@ -68,6 +70,7 @@ write_package_value("be3.cargo", {
                 "be-launcher": [
                     "//crates/be-block-content:be-block-content",
                     "//crates/be-sdk-terminal:be-sdk-terminal",
+                    "//crates/be-tool-build-helper-protocol:be-tool-build-helper-protocol",
                     "//crates/be-tool-terminal-emulator:be-tool-terminal-emulator",
                     "//crates/be-type-terminal:be-type-terminal",
                     "//crates/beui-host-window:beui-host-window",
@@ -83,6 +86,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-block-content:be-block-content",
                 "//crates/be-sdk-terminal:be-sdk-terminal",
+                "//crates/be-tool-build-helper-protocol:be-tool-build-helper-protocol",
                 "//crates/be-tool-terminal-emulator:be-tool-terminal-emulator",
                 "//crates/be-type-terminal:be-type-terminal",
                 "//crates/beui-host-window:beui-host-window",
@@ -106,6 +110,7 @@ write_package_value("be3.cargo", {
                 "be-launcher": [
                     "//crates/be-block-content:be-block-content",
                     "//crates/be-sdk-terminal:be-sdk-terminal",
+                    "//crates/be-tool-build-helper-protocol:be-tool-build-helper-protocol",
                     "//crates/be-tool-terminal-emulator:be-tool-terminal-emulator",
                     "//crates/be-type-terminal:be-type-terminal",
                     "//crates/beui-host-window:beui-host-window",
@@ -121,6 +126,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-block-content:be-block-content",
                 "//crates/be-sdk-terminal:be-sdk-terminal",
+                "//crates/be-tool-build-helper-protocol:be-tool-build-helper-protocol",
                 "//crates/be-tool-terminal-emulator:be-tool-terminal-emulator",
                 "//crates/be-type-terminal:be-type-terminal",
                 "//crates/beui-host-window:beui-host-window",
@@ -144,6 +150,7 @@ write_package_value("be3.cargo", {
                 "be-launcher": [
                     "//crates/be-block-content:be-block-content",
                     "//crates/be-sdk-terminal:be-sdk-terminal",
+                    "//crates/be-tool-build-helper-protocol:be-tool-build-helper-protocol",
                     "//crates/be-tool-terminal-emulator:be-tool-terminal-emulator",
                     "//crates/be-type-terminal:be-type-terminal",
                     "//crates/beui-host-window:beui-host-window",
@@ -159,6 +166,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-block-content:be-block-content",
                 "//crates/be-sdk-terminal:be-sdk-terminal",
+                "//crates/be-tool-build-helper-protocol:be-tool-build-helper-protocol",
                 "//crates/be-tool-terminal-emulator:be-tool-terminal-emulator",
                 "//crates/be-type-terminal:be-type-terminal",
                 "//crates/beui-host-window:beui-host-window",
@@ -182,6 +190,7 @@ write_package_value("be3.cargo", {
                 "be-launcher": [
                     "//crates/be-block-content:be-block-content",
                     "//crates/be-sdk-terminal:be-sdk-terminal",
+                    "//crates/be-tool-build-helper-protocol:be-tool-build-helper-protocol",
                     "//crates/be-tool-terminal-emulator:be-tool-terminal-emulator",
                     "//crates/be-type-terminal:be-type-terminal",
                     "//crates/beui-host-window:beui-host-window",
@@ -197,6 +206,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-block-content:be-block-content",
                 "//crates/be-sdk-terminal:be-sdk-terminal",
+                "//crates/be-tool-build-helper-protocol:be-tool-build-helper-protocol",
                 "//crates/be-tool-terminal-emulator:be-tool-terminal-emulator",
                 "//crates/be-type-terminal:be-type-terminal",
                 "//crates/beui-host-window:beui-host-window",
@@ -220,6 +230,7 @@ write_package_value("be3.cargo", {
                 "be-launcher": [
                     "//crates/be-block-content:be-block-content",
                     "//crates/be-sdk-terminal:be-sdk-terminal",
+                    "//crates/be-tool-build-helper-protocol:be-tool-build-helper-protocol",
                     "//crates/be-tool-terminal-emulator:be-tool-terminal-emulator",
                     "//crates/be-type-terminal:be-type-terminal",
                     "//crates/beui-host-window:beui-host-window",
@@ -235,6 +246,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-block-content:be-block-content",
                 "//crates/be-sdk-terminal:be-sdk-terminal",
+                "//crates/be-tool-build-helper-protocol:be-tool-build-helper-protocol",
                 "//crates/be-tool-terminal-emulator:be-tool-terminal-emulator",
                 "//crates/be-type-terminal:be-type-terminal",
                 "//crates/beui-host-window:beui-host-window",
@@ -258,6 +270,7 @@ write_package_value("be3.cargo", {
                 "be-launcher": [
                     "//crates/be-block-content:be-block-content",
                     "//crates/be-sdk-terminal:be-sdk-terminal",
+                    "//crates/be-tool-build-helper-protocol:be-tool-build-helper-protocol",
                     "//crates/be-tool-terminal-emulator:be-tool-terminal-emulator",
                     "//crates/be-type-terminal:be-type-terminal",
                     "//crates/beui-host-window:beui-host-window",
@@ -273,6 +286,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-block-content:be-block-content",
                 "//crates/be-sdk-terminal:be-sdk-terminal",
+                "//crates/be-tool-build-helper-protocol:be-tool-build-helper-protocol",
                 "//crates/be-tool-terminal-emulator:be-tool-terminal-emulator",
                 "//crates/be-type-terminal:be-type-terminal",
                 "//crates/beui-host-window:beui-host-window",

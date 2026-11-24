@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use serde::{Deserialize, Serialize};
+use be_tool_build_helper_protocol::{self as protocol, Manifest, Refusal, Status, platform};
 
 use crate::net::{Http, get};
 
@@ -20,15 +20,19 @@ pub(crate) enum Product {
 }
 
 impl Product {
-    pub(crate) fn name(self) -> String {
+    pub(crate) fn wire(self) -> protocol::Product {
         match self {
-            Product::Host if cfg!(target_os = "android") => "android".to_owned(),
-            Product::Host => format!("native-{}", platform()),
+            Product::Host if cfg!(target_os = "android") => protocol::Product::Android,
+            Product::Host => protocol::Product::Native(platform()),
             #[cfg(not(target_os = "android"))]
-            Product::Demo => format!("beui-demo-{}", platform()),
+            Product::Demo => protocol::Product::BeuiDemo(platform()),
             #[cfg(target_os = "android")]
-            Product::Launcher => "launcher-android".to_owned(),
+            Product::Launcher => protocol::Product::LauncherAndroid,
         }
+    }
+
+    pub(crate) fn name(self) -> String {
+        self.wire().name()
     }
 
     pub(crate) fn title(self) -> &'static str {
@@ -58,93 +62,32 @@ impl Product {
     }
 }
 
-pub(crate) fn platform() -> &'static str {
-    let os = if cfg!(target_os = "macos") {
-        "macos"
-    } else if cfg!(windows) {
-        "windows"
-    } else {
-        "linux"
-    };
-    let cpu = if cfg!(target_arch = "aarch64") {
-        "arm64"
-    } else {
-        "x86_64"
-    };
-    match (os, cpu) {
-        ("macos", "arm64") => "macos_arm64",
-        ("macos", _) => "macos_x86_64",
-        ("windows", "arm64") => "windows_arm64",
-        ("windows", _) => "windows_x86_64",
-        (_, "arm64") => "linux_arm64",
-        _ => "linux_x86_64",
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub(crate) enum State {
-    Queued,
-    Running,
-    Succeeded,
-    Failed,
-    Refused,
-    Unknown,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
-pub(crate) struct Status {
-    pub(crate) state: State,
-    #[serde(default)]
-    pub(crate) position: Option<u32>,
-    #[serde(default)]
-    pub(crate) manifest: Option<String>,
-    #[serde(default)]
-    pub(crate) error: Option<String>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub(crate) struct File {
-    pub(crate) path: String,
-    pub(crate) sha256: String,
-    pub(crate) size: u64,
-    #[serde(default)]
-    pub(crate) executable: bool,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub(crate) struct Manifest {
-    pub(crate) product: String,
-    pub(crate) commit: String,
-    pub(crate) files: Vec<File>,
-}
-
-impl Manifest {
-    pub(crate) fn parse(document: &[u8]) -> Result<Self, String> {
-        let manifest: Manifest = serde_json::from_slice(document)
-            .map_err(|error| format!("the build helper described the build as {error}"))?;
-        for file in &manifest.files {
-            let plain = !file.path.is_empty()
-                && !file.path.starts_with('/')
-                && file
-                    .path
-                    .split('/')
-                    .all(|part| !part.is_empty() && part != "." && part != "..");
-            let hashed =
-                file.sha256.len() == 64 && file.sha256.bytes().all(|byte| byte.is_ascii_hexdigit());
-            if !plain || !hashed {
-                return Err(format!(
-                    "the build helper named a file {} {}",
-                    file.path, file.sha256
-                ));
-            }
+/// Reads a published build's manifest, refusing one that names a file outside the build or by
+/// anything but a sha256.
+pub(crate) fn parse_manifest(document: &[u8]) -> Result<Manifest, String> {
+    let manifest: Manifest = serde_json::from_slice(document)
+        .map_err(|error| format!("the build helper described the build as {error}"))?;
+    for file in &manifest.files {
+        let plain = !file.path.is_empty()
+            && !file.path.starts_with('/')
+            && file
+                .path
+                .split('/')
+                .all(|part| !part.is_empty() && part != "." && part != "..");
+        let hashed =
+            file.sha256.len() == 64 && file.sha256.bytes().all(|byte| byte.is_ascii_hexdigit());
+        if !plain || !hashed {
+            return Err(format!(
+                "the build helper named a file {} {}",
+                file.path, file.sha256
+            ));
         }
-        Ok(manifest)
     }
+    Ok(manifest)
 }
 
 pub(crate) fn file_url(sha256: &str) -> String {
-    format!("{PUBLIC}/files/{sha256}")
+    protocol::file_url(PUBLIC, sha256)
 }
 
 pub(crate) struct Helper<'a> {
@@ -173,12 +116,20 @@ impl Helper<'_> {
 
     fn status_from(&mut self, method: &str, url: &str) -> Result<Status, String> {
         let (code, body) = self.call(method, url)?;
-        serde_json::from_slice::<Status>(&body).map_err(|_| {
+        let unreadable = || {
             format!(
                 "the build helper answered {code}: {}",
                 String::from_utf8_lossy(&body).trim()
             )
-        })
+        };
+        let refused = match code {
+            200 => return serde_json::from_slice::<Status>(&body).map_err(|_| unreadable()),
+            404 => "The build helper knows no such build.",
+            422 => "The build helper will not build it.",
+            _ => return Err(unreadable()),
+        };
+        let refusal = serde_json::from_slice::<Refusal>(&body).map_err(|_| unreadable())?;
+        Err(refusal.error.unwrap_or_else(|| refused.to_owned()))
     }
 
     pub(crate) fn request(&mut self, product: Product, commit: &str) -> Result<Status, String> {
@@ -212,7 +163,7 @@ pub(crate) fn manifest(http: &mut dyn Http, url: &str) -> Result<Manifest, Strin
     if code != 200 {
         return Err(format!("{url} answered {code}"));
     }
-    Manifest::parse(&body)
+    parse_manifest(&body)
 }
 
 pub(crate) fn key(files: &Path) -> Option<String> {

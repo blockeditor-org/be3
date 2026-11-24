@@ -19,7 +19,7 @@ fn a_file_is_refused_when_it_does_not_match_its_hash() {
 
     let missing = manifest(vec![(
         "be-host.apk",
-        helper::File {
+        ManifestFile {
             sha256: "b".repeat(64),
             ..wanted
         },

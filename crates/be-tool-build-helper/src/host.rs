@@ -9,10 +9,9 @@ use std::{
 
 use sha2::{Digest as _, Sha256};
 
-use crate::{
-    products::{Manifest, ManifestFile, Product, manifest_url},
-    queue::{Backend, Log},
-};
+use be_tool_build_helper_protocol::{Manifest, ManifestFile, Product, file_url, manifest_url};
+
+use crate::queue::{Backend, Log};
 
 pub const STORAGE: &str = "https://storage.bunnycdn.com/be3-ci";
 
@@ -291,7 +290,7 @@ impl Host {
         if marker.exists() {
             return Ok(());
         }
-        let public = format!("{}/files/{sha256}", self.public.trim_end_matches('/'));
+        let public = file_url(&self.public, sha256);
         if curl_status(&["--head"], None, &public) == Some(200) {
             let _ = mark(&marker);
             return Ok(());

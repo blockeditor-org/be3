@@ -127,6 +127,7 @@ members = [
     "crates/be-tool-browser-rasterizer",
     "crates/be-tool-buck",
     "crates/be-tool-build-helper",
+    "crates/be-tool-build-helper-protocol",
     "crates/be-tool-cargo-offline",
     "crates/be-tool-cli",
     "crates/be-tool-drive",
