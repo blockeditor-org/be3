@@ -17,7 +17,7 @@ fn a_search_keeps_what_matches_and_the_blocks_above_it() {
     let graph = graph(&blocks);
     let mut rows = Vec::new();
     let kept = BlockTree {
-        children: &mut |block| children_of(&graph, block),
+        children: &mut |row| children_of(&graph, &row.block),
         open: &|_| false,
         shown: &|_| true,
         matches: Some(&|block| [3, 5].contains(&block.id.as_u128())),

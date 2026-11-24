@@ -931,9 +931,10 @@ impl Builder<'_> {
         let mut entries = Vec::new();
         walk(
             &mut BlockTree {
-                children: &mut |block| {
+                children: &mut |row| {
                     expanded
-                        .get(&block.id)
+                        .get(&row.block.id)
+                        .filter(|_| row.expanded)
                         .map(|listing| listed(clock.listed(listing)))
                 },
                 open: &|row: &TreeBlock| {

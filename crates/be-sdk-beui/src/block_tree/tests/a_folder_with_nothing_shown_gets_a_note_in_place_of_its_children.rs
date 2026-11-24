@@ -16,10 +16,10 @@ fn a_folder_with_nothing_shown_gets_a_note_in_place_of_its_children() {
     let graph = graph(&blocks);
     let mut rows = Vec::new();
     BlockTree {
-        children: &mut |block| match block.id.as_u128() {
+        children: &mut |row| match row.block.id.as_u128() {
             3 => Some(Listed::Failed("It failed".to_owned())),
             4 => Some(Listed::Waiting),
-            _ => children_of(&graph, block),
+            _ => children_of(&graph, &row.block),
         },
         open: &|row| row.block.id.as_u128() != 5,
         shown: &|block| !block.deleted,

@@ -61,10 +61,12 @@ pub enum TreeEntry {
 
 /// How a tree is walked.
 pub struct BlockTree<'a> {
-    /// The children of a block, or None when they are not listed (it is folded, or the editor
-    /// does not know them).
-    pub children: &'a mut dyn FnMut(&BlockInfo) -> Option<Listed>,
-    /// Whether a block's row unfolds, asked of every block not on its own path.
+    /// The children of a block's row, once whether it unfolds (`expanded`) is known, or None
+    /// when they are not listed: an editor that lists only what is open answers None for the
+    /// rest.
+    pub children: &'a mut dyn FnMut(&TreeBlock) -> Option<Listed>,
+    /// Whether a block's row unfolds, asked of every block not on its own path before its
+    /// children are (`has_children` is still None).
     pub open: &'a dyn Fn(&TreeBlock) -> bool,
     /// Whether a block gets a row at all.
     pub shown: &'a dyn Fn(&BlockInfo) -> bool,
@@ -133,27 +135,27 @@ impl BlockTree<'_> {
         let cycle = under.contains(&block.id);
         let mut path = under.to_vec();
         path.push(block.id);
-        let children = match cycle {
-            true => None,
-            false => (self.children)(&block),
-        };
-        let has_children = match &children {
-            Some(Listed::Blocks(children)) => {
-                Some(children.iter().any(|child| (self.shown)(child)))
-            }
-            Some(Listed::Waiting | Listed::Failed(_)) | None => None,
-        };
         let mut row = TreeBlock {
             path,
             container: under.last().copied(),
             depth,
             expanded: false,
-            has_children,
+            has_children: None,
             in_deleted,
             block,
         };
         // Asked even while searching: an editor may note what it opens.
         row.expanded = !cycle && ((self.open)(&row) | self.matches.is_some());
+        let children = match cycle {
+            true => None,
+            false => (self.children)(&row),
+        };
+        row.has_children = match &children {
+            Some(Listed::Blocks(children)) => {
+                Some(children.iter().any(|child| (self.shown)(child)))
+            }
+            Some(Listed::Waiting | Listed::Failed(_)) | None => None,
+        };
         let at = rows.len();
         let below = in_deleted || row.block.deleted;
         let expanded = row.expanded;

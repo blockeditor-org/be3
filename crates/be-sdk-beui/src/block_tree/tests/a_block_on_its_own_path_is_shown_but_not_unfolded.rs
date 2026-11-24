@@ -6,7 +6,7 @@ fn a_block_on_its_own_path_is_shown_but_not_unfolded() {
     let graph = graph(&blocks);
     let mut rows = Vec::new();
     BlockTree {
-        children: &mut |block| children_of(&graph, block),
+        children: &mut |row| children_of(&graph, &row.block),
         open: &|_| true,
         shown: &|_| true,
         matches: None,

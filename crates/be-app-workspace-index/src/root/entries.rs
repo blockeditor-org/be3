@@ -84,6 +84,8 @@ impl Listing {
 pub(crate) struct Folder {
     editor: Editor,
     entries: Memo<Vec<Entry>>,
+    /// The entries by their reference, which a row finds its own in.
+    by_reference: Memo<HashMap<Uuid, Entry>>,
     index: Listing,
     destinations: Memo<Vec<(Uuid, String)>>,
 }
@@ -150,9 +152,18 @@ impl Folder {
             .map(|workspace| (workspace.id, workspace.label(types.as_ref()).name))
             .collect()
         });
+        let by_reference = create_memo(move || {
+            entries.with(|entries| {
+                entries
+                    .iter()
+                    .map(|entry| (entry.reference, entry.clone()))
+                    .collect()
+            })
+        });
         Self {
             editor,
             entries,
+            by_reference,
             index,
             destinations,
         }
@@ -163,39 +174,37 @@ impl Folder {
         self.destinations
     }
 
-    /// Entry `key` as its menu acts on it: listed in this folder, which it lives in unless it
-    /// is a link.
+    /// Entry `key`, as it changes.
+    pub(crate) fn entry(&self, key: Uuid) -> Memo<Option<Entry>> {
+        let by_reference = self.by_reference;
+        create_memo(move || by_reference.with(|entries| entries.get(&key).cloned()))
+    }
+
+    /// Entry `key`, read where it tracks.
+    pub(crate) fn entry_tracked(&self, key: Uuid) -> Option<Entry> {
+        self.by_reference
+            .with(|entries| entries.get(&key).cloned())
+    }
+
+    /// Entry `key` as it is now.
+    pub(crate) fn entry_now(&self, key: Uuid) -> Option<Entry> {
+        self.by_reference
+            .with_untracked(|entries| entries.get(&key).cloned())
+    }
+
+    /// Entry `key` as its menu acts on it, as it changes.
     pub(crate) fn menu_block(&self, key: Uuid) -> Memo<Option<MenuBlock>> {
-        let (editor, entries) = (self.editor, self.entries);
+        let (editor, by_reference) = (self.editor, self.by_reference);
         create_memo(move || {
-            let entry = entries.with(|entries| entries.iter().find(|entry| entry.reference == key).cloned())?;
-            let (id, block_type) = (entry.id?, entry.block_type?);
-            let folder = editor.block_id();
-            let source = BlockParent::Block(folder);
-            let is_reference = entry.parent != Some(source);
-            let types = editor.block_types();
-            let can_delete = can_move_out_of(
-                &editor.blocks(),
-                types.as_ref(),
-                &editor
-                    .host()
-                    .block_type()
-                    .map(|folder_type| (folder, folder_type))
-                    .into_iter()
-                    .collect(),
-                source,
-                id,
-                is_reference,
-            );
-            Some(MenuBlock {
-                id,
-                block_type,
-                source,
-                is_reference,
-                access: entry.access,
-                can_delete,
-            })
+            by_reference.with(|entries| entries.get(&key).and_then(|entry| menu_block(editor, entry)))
         })
+    }
+
+    /// Entry `key` as its menu acts on it now.
+    pub(crate) fn menu_block_now(&self, key: Uuid) -> Option<MenuBlock> {
+        let editor = self.editor;
+        self.by_reference
+            .with_untracked(|entries| entries.get(&key).and_then(|entry| menu_block(editor, entry)))
     }
 
     pub(crate) fn entries(&self) -> Memo<Vec<Entry>> {
@@ -213,6 +222,36 @@ impl Folder {
     pub(crate) fn add(&self, block_id: Uuid) {
         self.index.add(block_id);
     }
+}
+
+/// `entry` as its menu acts on it: listed in this folder, which it lives in unless it is a link.
+fn menu_block(editor: Editor, entry: &Entry) -> Option<MenuBlock> {
+    let (id, block_type) = (entry.id?, entry.block_type?);
+    let folder = editor.block_id();
+    let source = BlockParent::Block(folder);
+    let is_reference = entry.parent != Some(source);
+    let types = editor.block_types();
+    let can_delete = can_move_out_of(
+        &editor.blocks(),
+        types.as_ref(),
+        &editor
+            .host()
+            .block_type()
+            .map(|folder_type| (folder, folder_type))
+            .into_iter()
+            .collect(),
+        source,
+        id,
+        is_reference,
+    );
+    Some(MenuBlock {
+        id,
+        block_type,
+        source,
+        is_reference,
+        access: entry.access,
+        can_delete,
+    })
 }
 
 fn type_name(types: &dyn BlockTypes, block_type: Uuid) -> String {
