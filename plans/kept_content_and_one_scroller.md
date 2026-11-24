@@ -24,6 +24,15 @@ landed.
    (`scroll-snap-type` on the scroll, an empty `scroll-snap-align: start` marker at each stop), so
    a sheet released between stops settles on one there too; this takes the place of
    plans/deferred/html_core.md's "Sheet's stops as CSS scroll snap".
+   Two general `Scroll` features carry it, each one way for any scroll:
+   - **Sticky items.** A list item marked `sticky` stays at the top edge of the nearest scroll
+     around it once scrolled to it, within its own list, as CSS `position: sticky; top: 0` does
+     (the HTML core uses exactly that). The sheet's grip is one, so it stays put while the
+     sheet's content scrolls under it. Layout stays linear: the scroll moves only its sticky
+     items, by its offset, after laying out its content.
+   - **A bar range.** `bar_from` is the offset a scroll's bar starts at: the bar shows the
+     offsets past it along the part of the viewport they scroll, and nothing before it. The
+     sheet sets it to its highest stop, so the bar reads as its content's own scroll.
 5. **One card surface.** `Card`, `DialogCard` and `PopoverPanel` (styled `card.rs`,
    `dialog.rs`, `popover.rs`) are the same frame (Surface fill, the default border, `Lg`
    radius) with different padding and width. One `Card` with a maximum width and an optional
