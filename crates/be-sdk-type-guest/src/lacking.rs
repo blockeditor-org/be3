@@ -61,12 +61,22 @@ pub(crate) struct Carried {
     pub(crate) kept: Vec<CommitId>,
     /// The snapshot the replica told each editor last (`Replica::snapshots_shown`).
     pub(crate) snapshots_shown: BTreeMap<EditorId, be_block_store::Hash>,
-    /// The calls replicas of the block made for their editors that the host had not answered
-    /// as the next opened (`Replica::asked_before`), by the epoch and token they were made
+    /// What replicas of the block were doing for their editors that the host had not
+    /// answered as the next opened: a release carries none of it (`EditorCalls`).
+    pub(crate) editor_calls: EditorCalls,
+}
+
+/// The calls a replica made for its editors whose answers the next replica, opened again
+/// under the same id, hands on. Only a reopen carries them: a released replica's editors are
+/// gone, and its calls are answered to its id, which no replica opened later has. What a
+/// replica does for an editor goes here, so a release can never carry it.
+#[derive(Default)]
+pub(crate) struct EditorCalls {
+    /// Calls not yet answered (`Replica::asked_before`), by the epoch and token they were made
     /// under: the host answers each all the same, and the next replica hands it on.
     pub(crate) asks: Vec<(u64, u64, EditorAsk)>,
-    /// The editors' range reads still waiting on part reads, by the epoch those reads were made
-    /// under (`Replica::ranges_before`): each fills from their answers, as planned against the
+    /// Range reads still waiting on part reads, by the epoch those reads were made under
+    /// (`Replica::ranges_before`): each fills from their answers, as planned against the
     /// content it was asked of.
     pub(crate) ranges: Vec<(u64, crate::replica::RangeRead)>,
 }
@@ -411,8 +421,7 @@ impl Lacking {
             refused: std::mem::take(&mut self.refused),
             kept: std::mem::take(&mut self.kept),
             snapshots_shown: BTreeMap::new(),
-            asks: Vec::new(),
-            ranges: Vec::new(),
+            editor_calls: EditorCalls::default(),
         }
     }
 
