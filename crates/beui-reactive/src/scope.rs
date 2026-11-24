@@ -289,7 +289,8 @@ impl Scope {
     /// Reads context, past what is provided in this scope, from `from` instead of from the
     /// scope it was opened under, until called again; `None` reads from that scope again.
     /// Who owns, disposes and pauses it does not change. A subtree kept apart from where it is
-    /// shown (`Kept`) reads the context of the place that shows it.
+    /// shown (`Kept`) reads the context of the place that shows it. It holds `from`'s scope
+    /// alive (a strong reference, so its context stays readable) until reset or disposed.
     pub fn read_context_from(&self, from: Option<&ScopeContext>) {
         let from = from.and_then(|from| from.0.upgrade());
         self.owner.reads.replace(from);
