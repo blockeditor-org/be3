@@ -4,6 +4,9 @@ use be_sdk_api::{ChildLayer, ChildMode, HostWindowId, TopBar};
 use be_sdk_api::{EditorInstanceId, ViewId};
 use beui::PointerButton;
 
+mod an_ask_at_its_commit_ends_blurs_or_waits;
+mod an_ask_lands_on_the_view_showing_its_childs_content_and_ends_once_withdrawn;
+
 pub(super) fn child(clip: Rect) -> HostChild {
     HostChild {
         child: ChildId(7),

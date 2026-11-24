@@ -36,8 +36,10 @@ pub struct Slides {
     selected: Signal<Option<Uuid>>,
     made_notes: StoredCell<Option<ChildTarget>>,
     /// The notes block just made to type into, whose editor asks for the keyboard once it is
-    /// placed, until it has it or the slide shows other notes.
-    typing_into: Signal<Option<Uuid>>,
+    /// placed, until it has it or the slide shows other notes: with how many notes were made to
+    /// type into so far, the count its `ChildBlock` asks with (`keyboard`), which only grows.
+    typing_into: Signal<Option<(Uuid, u64)>>,
+    notes_made: StoredCell<u64>,
 }
 
 impl Slides {
@@ -51,6 +53,7 @@ impl Slides {
             selected,
             made_notes: StoredCell::new(None),
             typing_into: create_signal(None),
+            notes_made: StoredCell::new(0),
         };
         let dependencies = editor
             .blocks()
@@ -60,7 +63,7 @@ impl Slides {
     }
 
     /// The notes block just made to type into, until its editor has the keyboard.
-    pub fn typing_into(&self) -> Signal<Option<Uuid>> {
+    pub fn typing_into(&self) -> Signal<Option<(Uuid, u64)>> {
         self.typing_into
     }
 
@@ -267,7 +270,9 @@ impl Slides {
         );
         self.made_notes
             .set(Some(ChildTarget::new(notes, TEXT_TYPE)));
-        self.typing_into.set(Some(notes));
+        let made = self.notes_made.get() + 1;
+        self.notes_made.set(made);
+        self.typing_into.set(Some((notes, made)));
         self.block.operate(Presentation::set_notes(
             ObjectId::from_uuid(id),
             Some(notes),

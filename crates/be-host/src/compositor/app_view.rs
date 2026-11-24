@@ -1620,30 +1620,58 @@ fn focus_when_asked(
 }
 
 /// Moves the keyboard into `child`, which the editor `instance` of `app` asked take it
-/// (`keyboard-ask`, `InstanceEvent::KeyboardAsked`), at the commit that carries the ask. A child
-/// whose view is up takes it there at once (`focus_when_given`). For one whose view is not built
-/// or not up yet: if one of the editor's own views has the keyboard, and no view that takes the
-/// keyboard is open, it leaves it at once, and the child's view takes it once it is up, while
-/// nothing else took it meanwhile. A keyboard in another of the editor's children stays there
-/// until then. Keys typed
-/// in between reach nothing: none is held (decisions/keys_are_never_held.md).
+/// (`keyboard-ask`, `InstanceEvent::KeyboardAsked`), at the commit that carries the ask. The ask
+/// does nothing, and ends, while a view that takes the keyboard is open or the keyboard is
+/// outside the editor's views and the children they show. A child whose view is up takes it
+/// there at once (`focus_when_given`). For one whose view is not built or not up yet, a
+/// keyboard in one of the editor's own views leaves it at once, and the child's view takes it
+/// once it is up, while nothing outside the editor took it meanwhile; one in another of the
+/// editor's children stays there until then. Keys typed in between reach nothing: none is held
+/// (decisions/keys_are_never_held.md).
 pub(crate) fn keyboard_into_child(app: &str, instance: EditorInstanceId, child: ChildId) {
-    // A child whose view is up takes the keyboard there, as that view decides.
-    if asks::has_view(app, instance, child)
-        || WANTING_KEYBOARD.with_borrow(|views| !views.is_empty())
-    {
-        return;
-    }
+    let wanting = WANTING_KEYBOARD.with_borrow(|views| !views.is_empty());
+    let up = asks::has_view(app, instance, child);
     try_with_document(|document| {
-        // Only from the editor's own views: one of its children holding the keyboard may be the
-        // one asked for, or show it.
-        let placer_holds = super::desktop::catchers_of(app, instance)
+        let held = document.focused_node();
+        let own = super::desktop::catchers_of(app, instance)
             .into_iter()
-            .any(|view| document.focused_node() == Some(view));
-        if placer_holds {
-            document.blur();
+            .any(|view| document.focus_is_within(view));
+        let within = held.is_none_or(|held| {
+            own || super::desktop::shown_within(held, |_, catcher| {
+                catcher.instance == instance && catcher.app == app
+            })
+        });
+        match ask_at_commit(wanting, up, within, own) {
+            AskAtCommit::Ends => asks::taken(app, instance),
+            AskAtCommit::Blurs => document.blur(),
+            AskAtCommit::Waits => {}
         }
     });
+}
+
+/// What an ask does at the commit that carries it (`keyboard_into_child`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum AskAtCommit {
+    /// It does nothing and ends: a view that takes the keyboard is open, or the keyboard is
+    /// outside the editor's views and the children they show.
+    Ends,
+    /// The keyboard leaves the editor's own view, for the child's view to take once it is up.
+    Blurs,
+    /// The child's view takes the keyboard once it is up, or at once if it is: a keyboard in
+    /// another of the editor's children stays there until then.
+    Waits,
+}
+
+/// What an ask does at its commit, with a view that takes the keyboard open (`wanting`), the
+/// child's view up (`up`), and the keyboard within the editor's views and their children or
+/// nowhere (`within`), and in one of the editor's own views (`own`).
+fn ask_at_commit(wanting: bool, up: bool, within: bool, own: bool) -> AskAtCommit {
+    match () {
+        _ if wanting || !within => AskAtCommit::Ends,
+        _ if up => AskAtCommit::Waits,
+        _ if own => AskAtCommit::Blurs,
+        _ => AskAtCommit::Waits,
+    }
 }
 
 /// Moves the keyboard to this child's view when the editor that placed it asked for it
@@ -1675,6 +1703,13 @@ fn focus_when_given(
     on_cleanup(move || {
         if registered.replace(false) {
             asks::viewed(asked.placer.app, asked.placer.instance, asked.child, (own, region), false);
+        }
+    });
+    // A child whose app failed takes no keyboard: an ask for it ends.
+    let failed = create_memo(move || state.with(|view| view.error.is_some()));
+    create_effect(move || {
+        if failed.get() && asks::asks(asked.placer.app, asked.placer.instance, asked.child) {
+            untrack(|| asks::taken(asked.placer.app, asked.placer.instance));
         }
     });
     let passing = create_signal(false);

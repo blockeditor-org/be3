@@ -387,7 +387,7 @@ fn SpeakerNotes(editor: Editor, slides: Slides) -> NodeId {
         let shown = target.get().map(|target| target.id);
         if typing_into
             .get()
-            .is_some_and(|notes| shown.is_some_and(|shown| shown != notes))
+            .is_some_and(|(notes, _)| shown.is_some_and(|shown| shown != notes))
         {
             typing_into.set(None);
         }
@@ -396,12 +396,13 @@ fn SpeakerNotes(editor: Editor, slides: Slides) -> NodeId {
         move || selected.get(),
         move |_, _| typing_into.set(None),
     );
+    // The count of notes made to type into while these are those notes: it only grows, so a
+    // new note asks again, and showing other notes asks nothing.
     let keyboard = move || {
-        u64::from(
-            typing_into
-                .get()
-                .is_some_and(|notes| target.get().is_some_and(|target| target.id == notes)),
-        )
+        typing_into
+            .get()
+            .filter(|(notes, _)| target.get().is_some_and(|target| target.id == *notes))
+            .map_or(0, |(_, made)| made)
     };
     view! {
         <Frame fill=ColorRole::Surface>

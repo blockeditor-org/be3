@@ -1129,9 +1129,11 @@ impl Runtime {
         let screens = self.laid_screens(&laid);
         let mut changed = self.instances.set_view_sizes(laid.sizes);
         changed |= self.instances.set_windows(laid.windows);
+        let asking = laid.children.clone();
         for placements in laid.children {
             changed |= self.instances.set_children(placements);
         }
+        self.instances.hear_keyboard_asks(&asking);
         self.instances.laid(laid.serial, &screens);
         changed |= self.report_docked();
         changed |= super::docks::heard(&self.app.identity.id, laid.docks);
@@ -2713,6 +2715,22 @@ pub fn dismiss_anchored_views(
 /// draw a frame that answers it. An app that does not run yet hears only where the keyboard is
 /// (`Input::Focus`), state it is told once it runs: every key, press and move is dropped, never
 /// held for when it runs (decisions/keys_are_never_held.md).
+/// What an app that does not run yet hears of the input routed to its views: only where the
+/// keyboard is (`Input::Focus`), which is state; every key, press and move is dropped, never
+/// queued for when it runs (decisions/keys_are_never_held.md).
+fn keep_only_focus(messages: &mut Vec<Outbound>) {
+    for message in messages.iter_mut() {
+        if let Outbound::App(AppCall::Input(batch)) = message {
+            batch
+                .events
+                .retain(|event| matches!(event.input, beui::Input::Focus(_)));
+        }
+    }
+    messages.retain(|message| {
+        !matches!(message, Outbound::App(AppCall::Input(batch)) if batch.events.is_empty())
+    });
+}
+
 pub fn forward_view(
     app_id: &str,
     instance: EditorInstanceId,
@@ -2727,16 +2745,7 @@ pub fn forward_view(
             .instances
             .forward(instance, region, input, aim, target);
         if !runtime.run.session.running() {
-            for message in &mut messages {
-                if let Outbound::App(AppCall::Input(batch)) = message {
-                    batch
-                        .events
-                        .retain(|event| matches!(event.input, beui::Input::Focus(_)));
-                }
-            }
-            messages.retain(|message| {
-                !matches!(message, Outbound::App(AppCall::Input(batch)) if batch.events.is_empty())
-            });
+            keep_only_focus(&mut messages);
         }
         let sent = !messages.is_empty();
         runtime.send_for_frame(messages);

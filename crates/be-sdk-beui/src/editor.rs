@@ -1044,15 +1044,17 @@ impl Editor {
     ) -> ReadSignal<ChildState> {
         let editor_state = self.state();
         let state = create_signal(ChildState::default());
-        // Each time the asks counted grow, the child carries the editor's next serial.
+        // Each time the count of asks grows above the highest it reached, the child carries the
+        // editor's next serial; a count that falls asks nothing.
         let ask = create_signal(0_u64);
         let counted = StoredCell::new(0_u64);
         let editor = self.0;
         create_effect(move || {
             let asks = keyboard.get();
-            if asks <= counted.replace(asks) {
+            if asks <= counted.get() {
                 return;
             }
+            counted.set(asks);
             let serial = editor
                 .try_with(|editor| {
                     let serial = editor.keyboard_asks.get() + 1;

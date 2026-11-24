@@ -17,6 +17,22 @@ otherwise the ask does nothing. An editor that makes a block to type into ("Add 
 its child asking once it places it; a `ChildBlock` or `Subregion` in a dock tab asks each time
 the dock gives the tab the keyboard.
 
+The ask ends without moving anything when the keyboard is outside the placer's views and the
+children they show, or a keyboard-taking view is open, when the commit carries it. A waiting
+ask also ends when its child is no longer placed, its app fails, or the editor's app restarts
+(the new run counts its asks from 1 again).
+
+One queue stays for now: be-host-runtime's `Instances::unannounced_input` keeps the input for
+a screen the host asked a running app for but the app has not announced yet (`gate`,
+`take_announced_input`), and hands it over once the app announces it. It waits for nothing an
+editor decides (no claim, no ask, no timer), only for the app to answer the host's own ask for
+the screen, and input for a screen no longer asked for is dropped, so it is bounded by the
+screen's life. It differs from the rule for an app that is not running (be-host-runtime's
+`forward_view`, which keeps only `Input::Focus`), and in practice it does carry keys typed while
+a child's editor opens in an app already running: keys typed right after "Add notes" reach the
+notes once the text app announces their screen. Whether that counts as holding, and so whether
+it keeps only `Input::Focus` too, is with the user.
+
 ## Why
 
 A slow editor must never slow down how the app feels. Holding keys made the keyboard's

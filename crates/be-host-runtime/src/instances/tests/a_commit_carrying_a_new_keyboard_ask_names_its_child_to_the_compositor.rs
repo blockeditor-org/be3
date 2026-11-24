@@ -8,16 +8,22 @@ fn a_commit_carrying_a_new_keyboard_ask_names_its_child_to_the_compositor() {
     let asking = |ask: u64| {
         let mut placements = child(Rect::from_min_size(Pos2::ZERO, SIZE), false);
         placements.children[0].keyboard_ask = ask;
-        placements
+        vec![placements]
+    };
+    let commit = |instances: &mut Instances, ask: u64| {
+        for placements in asking(ask) {
+            instances.set_children(placements);
+        }
+        instances.hear_keyboard_asks(&asking(ask));
     };
 
     // A child placed asking for nothing names nothing.
-    instances.set_children(asking(0));
+    commit(&mut instances, 0);
     host::deliver();
     assert!(heard.borrow().is_empty());
 
     // The commit that carries a higher ask names its child at once, whether its app runs or not.
-    instances.set_children(asking(1));
+    commit(&mut instances, 1);
     host::deliver();
     assert!(
         matches!(
@@ -30,10 +36,10 @@ fn a_commit_carrying_a_new_keyboard_ask_names_its_child_to_the_compositor() {
     heard.borrow_mut().clear();
 
     // The same ask carried again names nothing; a new one names it again.
-    instances.set_children(asking(1));
+    commit(&mut instances, 1);
     host::deliver();
     assert!(heard.borrow().is_empty(), "{:?}", heard.borrow());
-    instances.set_children(asking(2));
+    commit(&mut instances, 2);
     host::deliver();
     assert!(matches!(
         heard.borrow().as_slice(),

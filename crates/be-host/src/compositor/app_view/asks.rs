@@ -1,6 +1,8 @@
 //! Which child each editor instance asks take the keyboard, as it hears it
 //! (`InstanceEvent::KeyboardAsked`, from a layout commit's `keyboard-ask`), kept until the child's
-//! view acts on it or the instance's next commit withdraws it: the view may be built after the
+//! view acts on it, or the ask ends: the keyboard was outside the editor or a view that takes the
+//! keyboard was open when it came (`keyboard_into_child`), its child is no longer placed or
+//! reopened (`KeyboardAsked(None)`), or its child's app failed. The view may be built after the
 //! event, in the layout that places the child. Nothing waits for the child's app
 //! (decisions/keys_are_never_held.md).
 //!

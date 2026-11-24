@@ -128,8 +128,9 @@ keyboard (one being presented) brings nothing forward.
 
 The other way, an editor asks that a child take the keyboard in the child's
 placement, never by a call: `ChildBlock` and `Subregion` take a `keyboard`
-count, and each time it grows the placement carries the editor's next
-`keyboard-ask` serial (be-sdk-beui's `register_child`). A `ChildBlock` or
+count, which only grows, and each time it grows above the highest it reached
+the placement carries the editor's next `keyboard-ask` serial (be-sdk-beui's
+`register_child`). A `ChildBlock` or
 `Subregion` in a dock tab adds one each time the dock gives that tab the
 keyboard or brings its window forward, while no popover or keyboard-taking
 layer of the editor's is open. An editor that makes a block to type into ("Add
@@ -137,8 +138,13 @@ notes") places its child with a count of one once it places it; a program tab
 counts its window's raises and calls for attention.
 
 The host acts on the layout commit that carries a serial above every one it
-acted on for the editor (be-host-runtime's `Instances::set_children`, which
-names the child to the compositor with `InstanceEvent::KeyboardAsked`). A
+acted on for the editor (be-host-runtime's `Instances::hear_keyboard_asks`,
+which names the child to the compositor with `InstanceEvent::KeyboardAsked`,
+one an editor per commit; a restarted app's editor counts from 1 again). The
+ask ends without moving anything if, at that commit, a view that takes the
+keyboard is open or the keyboard is outside the placer's views and the
+children they show (`ask_at_commit`); an ask still waiting ends when its child
+is no longer placed (`KeyboardAsked(None)`) or its app fails. A
 child whose view is up takes the keyboard at once, if it is inside the
 placer's views or the children they show and no view that takes the keyboard
 is open, so it never steals focus from elsewhere (be-host's
@@ -149,8 +155,8 @@ child, its tab or one of its bars lands in that body, never in a bar or the
 main view left placed and shown nowhere. For a child whose view is not up yet (not built, or its
 app has not laid it out), the keyboard leaves the placer's own view at once
 (`keyboard_into_child`; one already in another of its children stays there),
-and the child's view takes it once it is up, while nothing else took it
-meanwhile. Keys typed in between reach nothing. An app that does not run yet
+and the child's view takes it once it is up, while nothing outside the
+editor took it meanwhile. Keys typed in between reach nothing. An app that does not run yet
 still hears which view has the keyboard (`Input::Focus`), so it focuses the
 field once it runs. A window child (a program window) takes the keyboard from
 the host directly.
