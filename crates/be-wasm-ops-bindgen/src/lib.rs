@@ -145,8 +145,8 @@ mod tests;
 /// - `local`: interfaces answered synchronously on the guest's own thread (the GPU);
 ///   only these may have plain `func`s.
 /// - `network: true`: a client and server over a socket instead of a guest and host.
-/// - `root` (a path): the module the world is generated in, when not the crate root, as for a
-///   test that generates a world beside the one its crate exports. Every `crate::` path of the
+/// - `root` (a path): the module the world is generated in, when not the crate root. It lets a
+///   world be generated a second time inside a test module, beside the one its crate exports. Every `crate::` path of the
 ///   output, the `with` and `uses` paths too, is read under it. Not with `local`.
 #[proc_macro]
 pub fn generate(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
