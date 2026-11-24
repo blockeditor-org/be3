@@ -162,6 +162,9 @@ struct State {
     drag: Option<DragStart>,
     /// The editors that take the block dragged over them, as they last said.
     accepting: HashSet<EditorInstanceId>,
+    /// Whether which of its editors take the block dragged over them changed since the root last
+    /// asked it for a frame: the cursor over them changes, which the root owes a frame for.
+    restyled: bool,
     /// The size each editor's content wants, as it last told the shell
     /// (`shell-message.intrinsic-size`).
     intrinsics: HashMap<EditorInstanceId, be_lib_geometry::Vec2>,
@@ -406,6 +409,7 @@ impl Embedded {
             told: Vec::new(),
             drag: None,
             accepting: HashSet::default(),
+            restyled: false,
             intrinsics: HashMap::default(),
             contents: HashMap::default(),
             failure: None,
@@ -536,6 +540,8 @@ impl Embedded {
             let mut state = self.state.borrow_mut();
             state.now = now;
             state.pass += 1;
+            // The frame asked for now shows the cursor as it is.
+            state.restyled = false;
             state.run.session.tick(millis(now));
             state.failed_session();
         }
@@ -585,7 +591,14 @@ impl Embedded {
         );
         // Children it placed, or what its docks or its editors said, that the root has yet to read want a frame
         // now, which shows them.
-        match state.placing || !state.docks.is_empty() || !state.told.is_empty() {
+        // So is a drag one of its editors began, which the root lifts at once, and a change of
+        // whether one takes the drag over it, which the cursor shows.
+        let owes = state.placing
+            || !state.docks.is_empty()
+            || !state.told.is_empty()
+            || state.drag.is_some()
+            || state.restyled;
+        match owes {
             true => Wants {
                 next: Some(state.now),
                 owed: true,
@@ -980,10 +993,15 @@ impl State {
                     continue;
                 }
                 ShellMessage::DragAccepted(accepted) => {
-                    match accepted {
+                    let changed = match accepted {
                         true => self.accepting.insert(instance),
                         false => self.accepting.remove(&instance),
                     };
+                    // The cursor over it says so at once.
+                    if changed {
+                        self.restyled = true;
+                        self.wake();
+                    }
                     continue;
                 }
                 _ => continue,

@@ -128,9 +128,10 @@ does: its menus go to the docks and to the status of a child whose frame it
 draws (`shown-child.menu`), an ask for its details goes to the docks or its
 placer, a pick from a child's menu goes to the editor drawing that child's
 frame, and `leave-frame` gives the frame back. A block an editor drags
-(`drag-block`) is carried by be-sdk-root's `Embedding` over the views under the
-pointer that take a drag, each told through its host (`host.tell-editor`,
-`editor-event.drag`), and dropped on release.
+(`drag-block`) is carried by the router of the window its press is in
+(be-lib-input-router's `start_drag`) over the views under the pointer that take
+a drag, each told through its host (`host.tell-editor`, `editor-event.drag`),
+dropped on release and put down by Escape.
 
 The other kinds of child
 (plans/host_as_platform_adapter.md, 4g7b3e to 4g7b3g) are not there yet: a
