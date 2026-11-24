@@ -93,7 +93,14 @@ fn an_owner_record_checks_only_as_the_owner_signed_it_and_a_path_cannot_hide_one
         .is_err(),
         "the account offered the block takes it with other keys than the offer named"
     );
-    let withdrawn = owner(&creator, creator_id, &offer, creator_id, creator.identity(), false);
+    let withdrawn = owner(
+        &creator,
+        creator_id,
+        &offer,
+        creator_id,
+        creator.identity(),
+        false,
+    );
     let after = check(&[root.clone(), offer.clone(), withdrawn.clone()]).unwrap();
     assert_eq!(after.offered, None, "a withdrawn offer stands");
     assert!(
