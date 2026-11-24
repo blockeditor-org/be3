@@ -558,7 +558,7 @@ order: presence and channel messages. The rules an agent most needs:
   replica that takes the lease next seals on it even before the head reaches it
   as the block's (`head-moved`); the host trims
   this device's journal too. With nothing to commit, the host trims with no new
-  commit. It goes on applying the order while the seal is out. A rejected seal reconciles
+  commit. It goes on applying the order while the seal is out, but for a reload: that reads its commit, a wait of its own, so it and what follows wait for the seal (`passes_a_seal`). A rejected seal reconciles
   and seals once more; a head moved from elsewhere reconciles the holder, which
   merges what it holds into whatever it fast-forwards or merges onto (a
   fast-forward too: loaded as it is, the head would hold none of the

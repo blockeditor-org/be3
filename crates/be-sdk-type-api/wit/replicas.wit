@@ -197,7 +197,9 @@ interface replicas {
     start: async func(entropy: list<u8>) -> list<type-info>;
 
     /// Content bytes (none for the type's default) with a journal of this
-    /// build replayed on top, for a reader outside the session.
+    /// build replayed on top, for a reader outside the session. It reads no
+    /// part, so it fails on a journal whose base state, an operation or a
+    /// reload goes by one: such a reader reads the head alone.
     replay: async func(
         content-type: content-type-id,
         bytes: option<list<u8>>,
