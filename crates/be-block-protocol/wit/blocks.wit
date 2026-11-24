@@ -162,6 +162,10 @@ interface blocks {
         /// session now: who hosts it, for a hosted block. None when no one is
         /// in a session of it with edit access.
         host: option<account-id>,
+        /// The account the block's owner offered it to, until that account
+        /// accepts or the owner withdraws the offer (guides/blocks/keys.md,
+        /// "Owner records").
+        offered: option<account-id>,
     }
 
     /// An account that may view a block, with the name it gave the server
@@ -169,6 +173,14 @@ interface blocks {
     record account-name {
         account: account-id,
         display-name: string,
+    }
+
+    /// A block offered to the caller (`query.owner-offers`), and who offered
+    /// it. Its name is sealed in its metadata, which the caller reads once it
+    /// has the block's keys, so the server has none to give.
+    record owner-offer {
+        block: block-id,
+        %from: account-id,
     }
 }
 

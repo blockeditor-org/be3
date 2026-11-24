@@ -53,6 +53,7 @@ fn query_case(query: &Query) -> &'static str {
         Query::Log { log: None, .. } => "log (organization)",
         Query::Access(_) => "access",
         Query::Names(_) => "names",
+        Query::OwnerOffers => "owner-offers",
         Query::Keys { .. } => "keys",
         Query::KeyWork => "key-work",
         Query::Revocations { .. } => "revocations",
@@ -86,6 +87,7 @@ const QUERIES: &[&str] = &[
     "log (organization)",
     "access",
     "names",
+    "owner-offers",
     "keys",
     "key-work",
     "revocations",
@@ -121,6 +123,7 @@ fn op_case(op: &Op) -> &'static str {
         Op::AppendLog(LogRecord::Role { .. }) => "append-log (role)",
         Op::AppendLog(LogRecord::Member { .. }) => "append-log (member)",
         Op::AppendLog(LogRecord::Ban { .. }) => "append-log (ban)",
+        Op::AppendLog(LogRecord::Owner { .. }) => "append-log (owner)",
         Op::DeleteAgent { .. } => "delete-agent",
         Op::PutKeys(PutKeys::Rows(_)) => "put-keys (rows)",
         Op::PutKeys(PutKeys::Rotate { .. }) => "put-keys (rotate)",
@@ -167,6 +170,7 @@ const OPS: &[&str] = &[
     "append-log (role)",
     "append-log (member)",
     "append-log (ban)",
+    "append-log (owner)",
     "delete-agent",
     "put-keys (rows)",
     "put-keys (rotate)",
@@ -388,6 +392,12 @@ impl TestClient {
             .write(Op::AppendLog(LogRecord::Ban {
                 block,
                 account: other,
+                signed: sealed(),
+            }))
+            .await;
+        calls
+            .write(Op::AppendLog(LogRecord::Owner {
+                block,
                 signed: sealed(),
             }))
             .await;
@@ -614,6 +624,7 @@ impl TestClient {
             .await;
         calls.read(Query::Access(block)).await;
         calls.read(Query::Names(block)).await;
+        calls.read(Query::OwnerOffers).await;
         calls
             .read(Query::Keys {
                 blocks: Some(vec![block]),

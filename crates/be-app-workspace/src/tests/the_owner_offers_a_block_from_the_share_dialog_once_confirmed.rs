@@ -3,10 +3,10 @@ use be_sdk_test::HostCall;
 
 use super::*;
 
-/// The block's owner offers ownership to someone with access from their row, and gives it only
-/// once they confirm; no one else is offered it (guides/blocks/keys.md, "Owner records").
+/// The block's owner offers ownership to someone with access from their row, and makes the offer
+/// only once they confirm; no one else may be offered it (guides/blocks/keys.md, "Owner records").
 #[test]
-fn the_owner_gives_a_block_away_from_the_share_dialog_once_confirmed() {
+fn the_owner_offers_a_block_from_the_share_dialog_once_confirmed() {
     let (mut fixture, block) = editor();
     let me = fixture.host.account_id();
     let colleague = Uuid::from_u128(0x3a_00c0);
@@ -62,6 +62,7 @@ fn the_owner_gives_a_block_away_from_the_share_dialog_once_confirmed() {
             set_inside: 0,
             levels: Vec::new(),
             host: None,
+            offered: None,
         }),
     );
     fixture.settle();
@@ -75,16 +76,16 @@ fn the_owner_gives_a_block_away_from_the_share_dialog_once_confirmed() {
         .click(format!("share.owner.{colleague}").as_str());
     fixture.settle();
     assert!(
-        fixture.says("Make Ada the owner?"),
-        "giving ownership away asks first"
+        fixture.says("Offer Ada ownership?"),
+        "offering ownership asks first"
     );
     assert!(
         fixture.test.take_ownership_transfers().is_empty(),
-        "nothing is given before the owner confirms"
+        "nothing is offered before the owner confirms"
     );
     fixture
         .test
-        .snapshot("the_owner_gives_a_block_away_from_the_share_dialog_once_confirmed");
+        .snapshot("the_owner_offers_a_block_from_the_share_dialog_once_confirmed");
 
     fixture.test.click("share.transfer");
     fixture.settle();
@@ -93,7 +94,7 @@ fn the_owner_gives_a_block_away_from_the_share_dialog_once_confirmed() {
         vec![(block, colleague)]
     );
     assert!(
-        !fixture.says("Make Ada the owner?"),
+        !fixture.says("Offer Ada ownership?"),
         "the question goes once it is answered"
     );
 }

@@ -128,8 +128,20 @@ async fn what_one_account_keeps_on_the_server_is_bounded() {
                 ],
             )
             .unwrap();
-        // The giver is a contact of the account, so the transfer below is refused for the
-        // account's bound alone: to anyone else, a transfer is refused before it.
+        // The giver offered the account its block, so the account's acceptance below is
+        // refused for its bound alone.
+        transaction
+            .execute(
+                "INSERT INTO owner_offers (organization_id, block_id, account_id, from_id)
+                 VALUES (?1, ?2, ?3, ?4)",
+                params![
+                    organization.to_string(),
+                    given.to_string(),
+                    account.to_string(),
+                    giver.to_string()
+                ],
+            )
+            .unwrap();
         transaction
             .execute(
                 "INSERT INTO accounts (id, email, display_name) VALUES (?1, ?1, 'Giver')",
@@ -256,9 +268,9 @@ async fn what_one_account_keeps_on_the_server_is_bounded() {
     );
     refused(block(Vec::new()).await, ErrorCode::OverQuota);
     let secret = be_block_keys::RecoveryPhrase::generate().secret();
-    let transfer = be_block_keys::Entry::sign(
+    let acceptance = be_block_keys::Entry::sign(
         &secret,
-        giver.into_bytes(),
+        account.into_bytes(),
         given.into_bytes(),
         None,
         true,
@@ -269,17 +281,15 @@ async fn what_one_account_keeps_on_the_server_is_bounded() {
     );
     refused(
         store
-            .set_access(
+            .owner_record(
                 Identity {
-                    account: giver,
+                    account,
                     organization,
                     role: OrganizationRole::Editor,
                     bound: None,
                 },
                 given,
-                account,
-                be_block_graph::Access::Manage,
-                Some(transfer.encode()),
+                acceptance.encode(),
             )
             .await,
         ErrorCode::OverQuota,

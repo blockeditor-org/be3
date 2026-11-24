@@ -2,9 +2,11 @@ use super::*;
 
 use be_block_keys::Owner;
 
-/// Ownership of a block moves by an owner record its owner signs (guides/blocks/keys.md,
-/// "Owner records"): the new owner manages it and reads it, and the old owner keeps Edit but grants
-/// nothing more, whether signed at the head now or at one from before the transfer.
+/// Ownership of a block moves when the member its owner offered it to accepts it
+/// (guides/blocks/keys.md, "Owner records"): until then the offer moves nothing, and only the
+/// account offered it may accept; then the new owner manages it and reads it, and the old owner
+/// keeps Edit but grants nothing more, whether signed at the head now or at one from before the
+/// transfer.
 #[tokio::test]
 async fn a_block_s_ownership_moves_and_its_old_owner_grants_no_more() {
     let harness = Harness::start().await;
@@ -43,7 +45,37 @@ async fn a_block_s_ownership_moves_and_its_old_owner_grants_no_more() {
         )
         .unwrap();
 
+    // An offer withdrawn, by offering the block to its owner, cannot be accepted.
+    alice.transfer(plans, carol.account()).await.unwrap();
+    assert_eq!(carol.owner_offers().await.unwrap().len(), 1);
+    alice.transfer(plans, alice.account()).await.unwrap();
+    assert!(carol.owner_offers().await.unwrap().is_empty());
+    assert!(carol.accept_ownership(plans).await.is_err());
+
     alice.transfer(plans, bob.account()).await.unwrap();
+    let (_, offered) = alice.checked_access(plans).await.unwrap();
+    assert_eq!(
+        offered.owner,
+        Some(alice.account().into_bytes()),
+        "an offer moved the block"
+    );
+    assert_eq!(
+        bob.owner_offers()
+            .await
+            .unwrap()
+            .iter()
+            .map(|offer| (offer.block, offer.from))
+            .collect::<Vec<_>>(),
+        vec![(plans, alice.account())],
+        "the offer reaches its account"
+    );
+    let taken = carol.accept_ownership(plans).await;
+    assert!(
+        taken.is_err(),
+        "someone the block was not offered to took it: {taken:?}"
+    );
+    bob.accept_ownership(plans).await.unwrap();
+    assert!(bob.owner_offers().await.unwrap().is_empty());
 
     bob.refresh_keys(None).await.unwrap();
     assert_eq!(text(&bob, note).await, "the plan", "the new owner reads it");
@@ -107,7 +139,7 @@ async fn a_block_s_ownership_moves_and_its_old_owner_grants_no_more() {
         alice.account().into_bytes(),
         plans.into_bytes(),
         Some(now.head),
-        true,
+        false,
         Record::Owner(Owner {
             account: carol.account().into_bytes(),
             identity: carols,
@@ -116,11 +148,9 @@ async fn a_block_s_ownership_moves_and_its_old_owner_grants_no_more() {
     let sent = crate::ask(be_block_protocol::write::<(), _>(
         &alice.connection(),
         Some(alice.organization()),
-        be_block_protocol::Op::AppendLog(be_block_protocol::LogRecord::Grant {
+        be_block_protocol::Op::AppendLog(be_block_protocol::LogRecord::Owner {
             block: plans,
-            account: carol.account(),
-            access: Access::Manage,
-            signed: Some(given_back.encode()),
+            signed: given_back.encode(),
         }),
     ))
     .await;
@@ -129,7 +159,7 @@ async fn a_block_s_ownership_moves_and_its_old_owner_grants_no_more() {
             &sent,
             Err(ClientError::Refused(ErrorCode::PermissionDenied, _))
         ),
-        "the old owner gives the block away again: {sent:?}"
+        "the old owner offers the block again: {sent:?}"
     );
     assert!(matches!(
         alice.transfer(plans, carol.account()).await,
