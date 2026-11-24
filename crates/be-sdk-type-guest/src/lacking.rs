@@ -69,7 +69,8 @@ pub(crate) struct Carried {
 /// The calls a replica made for its editors whose answers the next replica, opened again
 /// under the same id, hands on. Only a reopen carries them: a released replica's editors are
 /// gone, and its calls are answered to its id, which no replica opened later has. What a
-/// replica does for an editor goes here, so a release can never carry it.
+/// replica does for an editor goes here, so a release can never carry it. Only
+/// `Replica::adopt` reads it.
 #[derive(Default)]
 pub(crate) struct EditorCalls {
     /// Calls not yet answered (`Replica::asked_before`), by the epoch and token they were made
