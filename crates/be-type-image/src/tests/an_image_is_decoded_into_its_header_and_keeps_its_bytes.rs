@@ -1,3 +1,4 @@
+use crate::BlobFile as _;
 use super::*;
 
 #[test]

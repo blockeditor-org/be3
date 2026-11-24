@@ -9,7 +9,7 @@ use be_sdk_beui::beui::icons::{ICON_ARROW_LEFT, ICON_ARROW_RIGHT};
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{Color32, ImageFit, NodeId, PointerPress, Pos2, Rect, Vec2};
-use be_sdk_beui::{Editor, FileChooser, SIDE_PANEL_WIDTH};
+use be_sdk_beui::{ContentFileReplace, Editor, SIDE_PANEL_WIDTH};
 
 use super::pages::{Pages, Shown, Viewport};
 use super::{filter, imported};
@@ -28,18 +28,11 @@ pub fn PdfEditor(editor: Editor) -> NodeId {
     let block = editor.block_content::<PdfContent>();
     let payload = block.payload();
     let pages = Pages::new();
-    let chooser = FileChooser::new(filter(), imported);
     let shown = pages.shown();
     let performance = editor
         .host()
         .performance(format!("PDF ({})", editor.block_id()));
 
-    chooser.on_chosen(move |chooser| {
-        if let Some(pdf) = chooser.take() {
-            editor.replace_content(editor.block_id(), &pdf);
-            pages.go(0);
-        }
-    });
     let placed = editor.placed();
     let canvas = editor.canvas();
     let device = editor.pixels_per_point();
@@ -90,11 +83,6 @@ pub fn PdfEditor(editor: Editor) -> NodeId {
         }
     };
 
-    let read_only = editor.read_only();
-    let busy = chooser.busy();
-    let blocked = create_memo(move || read_only.get() || busy.get());
-    let failure = chooser.error();
-    let choose = move || chooser.open();
     let name = block.project(|pdf| pdf.header().source_name.clone());
 
     let chrome = editor.chrome_shown();
@@ -110,9 +98,8 @@ pub fn PdfEditor(editor: Editor) -> NodeId {
     };
     let details = Details {
         name,
-        blocked,
-        failure,
-        choose: Callback::new(move |()| choose()),
+        editor,
+        replaced: Callback::new(move |()| pages.go(0)),
     };
     view! {
         <List spacing=Space::None>
@@ -145,9 +132,9 @@ struct Controls {
 #[derive(Clone, Copy)]
 struct Details {
     name: Memo<String>,
-    blocked: Memo<bool>,
-    failure: ReadSignal<Option<String>>,
-    choose: Callback<()>,
+    editor: Editor,
+    /// A new PDF opens at its first page.
+    replaced: Callback<()>,
 }
 
 #[component]
@@ -236,23 +223,20 @@ fn PdfToolbar(controls: Controls) -> NodeId {
 fn DetailsPanel(details: Details) -> NodeId {
     let Details {
         name,
-        blocked,
-        failure,
-        choose,
+        editor,
+        replaced,
     } = details;
     view! {
         <List spacing=Space::Md>
             <Text style=TextStyle::CAPTION @test_id={"pdf.name"}>{name}</Text>
-            <Button
+            <ContentFileReplace
+                editor
                 label="Replace PDF…"
-                variant=ButtonVariant::Secondary
-                disabled={blocked}
-                @test_id={"pdf.replace"}
-                on_click={move || choose.call(())}
+                id_prefix="pdf"
+                filter={filter()}
+                import={imported}
+                on_replaced={replaced}
             />
-            <Show value={failure}>|refusal: ReadSignal<String>|
-                <Text style=TextStyle::CAPTION color=TextColor::Danger>{refusal}</Text>
-            </Show>
         </List>
     }
 }

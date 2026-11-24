@@ -3,7 +3,7 @@ use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::Root;
 use be_sdk_beui::{ContentFileCreation, Creation, Editor, FileFilter, PickedFile};
-use be_type_pdf::{PdfContent, PdfFile};
+use be_type_pdf::{BlobFile, PdfContent, PdfFile};
 
 mod pages;
 mod ui;
@@ -52,11 +52,13 @@ pub(crate) const DEFAULT_PAGE_SIZE: be_sdk_beui::beui::Vec2 =
     be_sdk_beui::beui::Vec2::new(612.0, 792.0);
 
 pub(crate) fn filter() -> FileFilter {
-    FileFilter::new("PDF", &["pdf"], &["application/pdf"])
+    FileFilter::new("PDF", PdfFile::FILE_EXTENSIONS, PdfFile::MIME_TYPES)
 }
 
 pub(crate) fn imported(file: PickedFile) -> Result<PdfContent, String> {
     let PickedFile { name, data } = file;
-    PdfFile::from_file(name.clone(), data)
-        .map_err(|error| format!("Could not import {name}: {error}"))
+    if !PdfFile::is_pdf(&data) {
+        return Err(format!("Could not import {name}: it is not a PDF file"));
+    }
+    Ok(PdfFile::from_file(name, data))
 }

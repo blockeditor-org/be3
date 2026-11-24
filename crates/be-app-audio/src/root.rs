@@ -5,7 +5,7 @@ use be_sdk_beui::Loaded;
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::{NodeId, Vec2};
 use be_sdk_beui::{ContentFileCreation, Creation, Editor, FileFilter, PickedFile};
-use be_type_audio::{AudioContent, AudioFile};
+use be_type_audio::{AudioContent, AudioFile, BlobFile};
 
 mod ui;
 
@@ -56,32 +56,13 @@ fn format_duration(duration: Duration) -> String {
 }
 
 pub(crate) fn filter() -> FileFilter {
-    FileFilter::new(
-        "Audio",
-        &["mp3", "wav", "ogg", "oga", "flac", "m4a"],
-        &["audio/*"],
-    )
-}
-
-pub(crate) fn guess_media_type(source_name: &str) -> &'static str {
-    match source_name
-        .rsplit('.')
-        .next()
-        .unwrap_or_default()
-        .to_ascii_lowercase()
-        .as_str()
-    {
-        "wav" => "audio/wav",
-        "ogg" | "oga" => "audio/ogg",
-        "flac" => "audio/flac",
-        "m4a" => "audio/mp4",
-        _ => "audio/mpeg",
-    }
+    FileFilter::new("Audio", AudioFile::FILE_EXTENSIONS, AudioFile::MIME_TYPES)
 }
 
 pub(crate) fn decode(file: PickedFile) -> Result<AudioContent, String> {
     let PickedFile { name, data } = file;
-    let media_type = guess_media_type(&name);
-    AudioFile::from_file(name.clone(), media_type, data)
-        .map_err(|error| format!("Could not import {name}: {error}"))
+    if data.is_empty() {
+        return Err(format!("Could not import {name}: it is empty"));
+    }
+    Ok(AudioFile::from_file(name, data))
 }

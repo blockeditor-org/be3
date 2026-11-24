@@ -1,3 +1,4 @@
+use be_type_image::BlobFile as _;
 use std::collections::HashMap;
 use std::rc::Rc;
 

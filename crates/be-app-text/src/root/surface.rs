@@ -1,3 +1,4 @@
+use be_type_image::BlobFile as _;
 use be_sdk_beui::{Drag, Pushed, SearchLocation, be_sdk_ui::BlockLabel};
 use beui::NodeId;
 use beui::reactive::*;

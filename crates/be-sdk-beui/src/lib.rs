@@ -41,7 +41,7 @@ pub use editor::{
     Artifacts, Creation, Editor, KindsAbove, OrganizationLayers, OwnedEditor, SetKind,
     ViewStateHandle, node_anchor,
 };
-pub use file_chooser::{ContentFileCreation, FileChooser};
+pub use file_chooser::{ContentFileCreation, ContentFileReplace, FileChooser};
 pub use fitting::Fitting;
 pub use graph::{BlockList, Blocks};
 pub use instance::BeuiApp;

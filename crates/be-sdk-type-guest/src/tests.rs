@@ -207,6 +207,8 @@ impl BlobKind for Bytes {
 
 impl crate::BlobFile for Bytes {
     const ANY_FILE: bool = true;
+    const FILE_EXTENSIONS: &'static [&'static str] = &[];
+    const MIME_TYPES: &'static [&'static str] = &[];
 
     fn header(name: &str, _: &[u8]) -> String {
         name.to_owned()

@@ -51,24 +51,12 @@ pub type ImageContent = Blob<ImageFile>;
 
 pub type ImageOp = BlobOp<ImageHeader>;
 
-impl ImageFile {
-    pub const FILE_EXTENSIONS: &'static [&'static str] = &[
+impl BlobFile for ImageFile {
+    const FILE_EXTENSIONS: &'static [&'static str] = &[
         "bmp", "gif", "ico", "jpg", "jpeg", "png", "pnm", "tga", "tif", "tiff", "webp",
     ];
-    pub const MIME_TYPES: &'static [&'static str] = &["image/*"];
+    const MIME_TYPES: &'static [&'static str] = &["image/*"];
 
-    pub fn from_file(source_name: impl Into<String>, data: Vec<u8>) -> ImageContent {
-        ImageContent::new(
-            ImageHeader {
-                source_name: source_name.into(),
-                ..ImageHeader::default()
-            },
-            data,
-        )
-    }
-}
-
-impl BlobFile for ImageFile {
     fn header(name: &str, _: &[u8]) -> ImageHeader {
         ImageHeader {
             source_name: name.to_owned(),

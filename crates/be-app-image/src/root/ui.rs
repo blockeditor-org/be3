@@ -3,7 +3,7 @@ use be_sdk_beui::beui::dock::{DockPane, DockSplit, DockTab, Docking, DockingLayo
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{Image, ImageFit, NodeId, Pos2, Rect, Thumbhash, Vec2};
-use be_sdk_beui::{Editor, FileChooser, SIDE_PANEL_WIDTH, fit_content};
+use be_sdk_beui::{ContentFileReplace, Editor, SIDE_PANEL_WIDTH, fit_content};
 
 use super::picture::{thumbhash, watch};
 use super::{filter, imported};
@@ -19,18 +19,6 @@ const PANEL_SPACING: Space = Space::Md;
 #[component]
 pub fn ImageEditor(editor: Editor) -> NodeId {
     let placeholder = thumbhash(editor);
-
-    let chooser = FileChooser::new(filter(), imported);
-    chooser.on_chosen(move |chooser| {
-        if let Some(image) = chooser.take() {
-            editor.replace_content(editor.block_id(), &image);
-        }
-    });
-
-    let read_only = editor.read_only();
-    let busy = chooser.busy();
-    let failure = chooser.error();
-    let choose = move || chooser.open();
 
     let fallback = move |pending: Pending| {
         let image = create_memo(|| None);
@@ -82,21 +70,13 @@ pub fn ImageEditor(editor: Editor) -> NodeId {
                                 <Scroll @test_id={"image.panel"}>
                                     <Frame padding=PANEL_PADDING>
                                         <List spacing=PANEL_SPACING>
-                                            <Button
+                                            <ContentFileReplace
+                                                editor
                                                 label="Replace image…"
-                                                variant=ButtonVariant::Secondary
-                                                disabled={move || read_only.get() || busy.get()}
-                                                @test_id={"image.replace"}
-                                                on_click={choose}
+                                                id_prefix="image"
+                                                filter={filter()}
+                                                import={imported}
                                             />
-                                            <Show value={failure}>|refusal: ReadSignal<String>|
-                                                <Text
-                                                    style=TextStyle::CAPTION
-                                                    color=TextColor::Danger
-                                                >
-                                                    {refusal}
-                                                </Text>
-                                            </Show>
                                         </List>
                                     </Frame>
                                 </Scroll>
