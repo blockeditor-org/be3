@@ -143,10 +143,13 @@ impl Root {
                         .show(vec![screen(hosted.editor, self.window.get())]);
                     let spawning = self.spawning();
                     children.settle(&hosted.app, &[*block], &mut embedding, &spawning, time);
-                    children.ask(&mut self.gifts.borrow_mut(), time);
+                    children.ask(&mut self.gifts.borrow_mut());
                 }
             }
         }
+        // What no editor shown took, as an app's that went or before the session's runs, is
+        // dropped.
+        self.gifts.borrow_mut().clear();
         let notice = session.as_ref().and_then(|session| session.state.notice());
         drop(session);
         if let (Some(surface), Some(shown)) = (
@@ -310,8 +313,9 @@ impl Root {
         }
     }
 
-    /// Takes back the active children of the views a press or Escape reached
-    /// (`Embedding::take_pressed`), whose placers hear it with the next frame.
+    /// Takes back the active children the presses and Escapes routed since took back
+    /// (`Embedding::take_pressed`, `Children::revoke`), whose placers hear it with the next
+    /// frame.
     pub(super) fn revoke_children(&self) {
         let pressed = self.embedding.borrow_mut().take_pressed();
         if pressed.is_empty() {
@@ -332,6 +336,10 @@ impl Root {
                 children.give(focused, &|layer| drawn.contains(&layer), time, &mut told)
             })
             .flatten();
+        if !told.is_empty() {
+            // Its host takes what it was told with the next frame.
+            self.waker.wake();
+        }
         for (instance, editor, event) in told {
             tell_placer(instance, editor, event);
         }
@@ -343,22 +351,24 @@ impl Root {
         }
     }
 
-    /// Tells the editors placing the child the keyboard went into, once it went into another:
-    /// each hears which of its children holds it (`child-focused`), from the innermost out.
+    /// Tells the editors placing the child the keyboard went into, each time it goes into one
+    /// (`Embedding::take_focused`): each hears which of its children holds it
+    /// (`child-focused`), from the innermost out.
     pub(super) fn follow_focus(&self) {
-        let focused = self.embedding.borrow().focused(None).map(|layer| layer.id);
-        if self.keyboard_at.replace(focused) == focused {
-            return;
-        }
-        let Some(focused) = focused else {
+        let Some(focused) = self.embedding.borrow_mut().take_focused() else {
             return;
         };
         let into = self
             .with_children(|children| children.focused_into(focused))
             .unwrap_or_default();
+        if into.is_empty() {
+            return;
+        }
         for (instance, editor, child) in into {
             tell_placer(instance, editor.0, PlacerEvent::ChildFocused(child.0));
         }
+        // Its host takes what it was told with the next frame.
+        self.waker.wake();
     }
 
     /// The session's notice over its editor, while it shows one: taking every press, for its

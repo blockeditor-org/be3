@@ -164,9 +164,6 @@ struct Root {
     /// The gifts its host's editors asked for, until a frame gives them to the children their
     /// editors place (`give_keyboard`).
     gifts: Rc<RefCell<Vec<Gift>>>,
-    /// The layer the keyboard was in when the editors placing children last heard where it went
-    /// (`follow_focus`).
-    keyboard_at: Rc<Cell<Option<LayerId>>>,
     /// The notice over the session's editor (`SessionNotice`), which beui draws, made on its
     /// first frame.
     session_notice: Rc<RefCell<Option<BeuiSurface>>>,
@@ -386,7 +383,6 @@ impl Root {
             session_rounds: Rc::default(),
             session_reload: Rc::default(),
             gifts: Rc::default(),
-            keyboard_at: Rc::default(),
             session_notice: Rc::default(),
             session_notice_shown: Rc::default(),
             waker,
@@ -1675,6 +1671,8 @@ impl frames::Guest for Root {
                 .iter()
                 .flat_map(|window| window.layers.iter().map(|layer| layer.id))
                 .collect();
+            // The list is taken as drawn first, so a gift can focus a layer it holds; what the
+            // apps want is read after, as it was before (nothing between changes it).
             let drawn = root.embedding.borrow_mut().drew(list);
             // A gift to a child that now shows takes the keyboard there, unless the root's own
             // takes it below.

@@ -187,6 +187,21 @@ pub use docking::{
 };
 pub use watch::{Encoded, WAITING_WEB_VIEW_EVENTS, Watch};
 
+/// How many of its own layout commits an editor has to show the child it gives the keyboard to
+/// (`focus-child`, `focus-block-child`), or for that child's view to take it, counted once the
+/// child is up. Making the block and placing its child usually takes one or two; an editor that
+/// animates commits more, so this leaves room. Its host (be-host-runtime, or a root) holds every
+/// gift to these.
+pub const GIFT_COMMITS: u32 = 8;
+
+/// How long on the frame clock a gift waits to be given once its child is up, for an editor that
+/// commits no layout.
+pub const GIFT_WAIT: std::time::Duration = std::time::Duration::from_secs(3);
+
+/// How many children an editor's changes took away its host remembers, for gifts asked late: a
+/// gift to one of them is missed (`gift-missed`), one to a child never placed waits.
+pub const GIFT_DEPARTED_KEPT: usize = 64;
+
 pub const MAX_COLLECTION_ITEMS: usize = 1024;
 pub const MAX_MENU_DEPTH: usize = 8;
 pub const MAX_TEXT_BYTES: usize = 64 * 1024 * 1024;

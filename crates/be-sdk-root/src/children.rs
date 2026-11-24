@@ -12,20 +12,24 @@
 //! app's manifest says of that editor, or why the root shows nothing of it.
 //!
 //! An editor's gifts of the keyboard to its children (`focus-child`, `focus-block-child`) reach
-//! the root through `host.gifts` and are given once the child shows (`ask`, `give`); each placer
-//! above a child the keyboard goes into hears so (`focused_into`, `child-focused`), and a press
-//! or Escape in a placer's view takes back its active children (`revoke`).
+//! the root through `host.gifts` and are given once the child shows (`ask`, `give`), as
+//! be-host-runtime's `gift` gives its own: counted from the child up, missed only for a child
+//! that was placed and went. Each placer above a child the keyboard goes into hears so
+//! (`focused_into`, `child-focused`). A press anywhere but in an active child, or Escape in its
+//! placer's view, takes it back (`revoke`).
 //!
-//! Left for later (4g7b3's later parts): the keys held for a gift until its child is ready, the
-//! press that promotes a child replayed in it, a child that takes its
-//! placer's frame, docks that join across apps (a child is asked for its own dock), drags, a block
-//! shown in several places sharing one editor, occluders, a child sized to its content (`fit`), one placed in place at
-//! its zoom, previews, and every other kind of child (web views, host panels, program windows,
+//! Left for later (4g7b3's later parts): the keys held for a gift until its child is ready, a
+//! gift given only while no popover or keyboard-taking layer of the editor's is open, the press
+//! that promotes a child replayed in it, a child that takes its placer's frame, docks that join
+//! across apps (a child is asked for its own dock), drags, a block shown in several places
+//! sharing one editor, occluders, a child sized to its content (`fit`), one placed in place at its
+//! zoom, previews, and every other kind of child (web views, host panels, program windows,
 //! pickers, creations, artifact settings, rename forms and dock tab bodies), which the placer
 //! hears are unavailable.
 
 use std::{
     cell::RefCell,
+    collections::VecDeque,
     future::Future,
     pin::Pin,
     rc::Rc,
@@ -38,12 +42,12 @@ use be_lib_layers::{Affine, Area, Layer, LayerId};
 use be_lib_stable_hash::{HashMap, HashSet};
 use be_sdk_api::{
     ChildContent, ChildId, ChildLayer, ChildMode, ChildPlacement, EditorInstanceId, FrameChrome,
-    FrameSpec, Fonts, ParentView, Pos2 as ViewPos2, ScreenId, ScreenRequest, SurfaceSpec,
+    FrameSpec, Fonts, GIFT_COMMITS, GIFT_DEPARTED_KEPT, GIFT_WAIT, ParentView, Pos2 as ViewPos2, ScreenId, ScreenRequest, SurfaceSpec,
     Vec2 as ViewVec2, ViewId, ViewPlacement, ViewportMetrics,
 };
 use be_wasm_root_api::{Gift, GiftTo, OpenedIn, PlacerEvent, ShownBlock, ShownChild, guest::host};
 
-use crate::{BlockSpawn, Embedded, Embedding, Hosted, SpawnFailure};
+use crate::{BlockSpawn, Embedded, Embedding, Hosted, Pressed, SpawnFailure};
 
 /// The one screen a child's app is asked for: its editor's main view, the size of its place.
 pub const CHILD_SCREEN: ScreenId = ScreenId(1);
@@ -73,11 +77,19 @@ pub struct Children {
     instance: u64,
     /// The layers showing that app's screens, with the editor and view each shows.
     placers: Vec<(LayerId, EditorInstanceId, ViewId)>,
+    /// How many layout commits each of its editors made that carried its children or a frame
+    /// report (`Embedded::commits`), as of the last `settle`.
+    commits: HashMap<EditorInstanceId, u32>,
     shown: Vec<Child>,
+    /// Every child its editors place now, of any kind, shown or not.
+    placed: HashSet<(EditorInstanceId, ChildId)>,
+    /// The latest children their changes took away (at most `GIFT_DEPARTED_KEPT`): a gift to
+    /// one is missed.
+    departed: VecDeque<(EditorInstanceId, ChildId)>,
     /// What the host was told last of each view's children (`host.show-children`).
     told: HashMap<(EditorInstanceId, ViewId), Vec<ShownChild>>,
-    /// The children placed active that a press or Escape in their placer's view took back: they
-    /// are passive until placed other than active.
+    /// The children placed active that were taken back (`revoke`): they are passive until placed
+    /// other than active.
     revoked: HashSet<(EditorInstanceId, ViewId, ChildId)>,
     /// The keyboard each editor asked be given to one of its children, the latest of each, until
     /// it is given or ends (`give`).
@@ -85,16 +97,14 @@ pub struct Children {
 }
 
 /// A gift an editor asked for, waiting for its child to show.
+#[derive(Clone, Debug, PartialEq)]
 struct Pending {
     editor: EditorInstanceId,
     to: GiftTo,
-    /// The frame clock's time it was asked at.
-    asked: Duration,
+    /// Once its child is up: the frame clock's time it came up, and its editor's commits then.
+    /// The gift waits `GIFT_WAIT` from there, or `GIFT_COMMITS` more commits.
+    up: Option<(Duration, u32)>,
 }
-
-/// How long a gift waits for its child's view to show on the frame clock before it ends, as
-/// be-host-runtime's `GIFT_WAIT` bounds its own.
-pub const GIFT_WAIT: Duration = Duration::from_secs(3);
 
 /// A block child placed to run its editor.
 struct Child {
@@ -109,16 +119,20 @@ struct Child {
     /// The pixels per point its placer's screen is laid out at, which its own is.
     raster: f32,
     showing: Rc<RefCell<Showing>>,
+    /// The layer showing its screen, once its editor opened.
+    layer: Option<LayerId>,
+    /// Whether it is up for a gift: its app runs, embedded.
+    up: bool,
+    /// The children its own editor places.
+    nested: Children,
 }
 
 /// How far a child's editor got.
 enum Showing {
-    /// The host has yet to name and open its editor, or its app to say hello.
+    /// The host has yet to name and open its editor.
     Opening,
     Shown {
         hosted: Hosted,
-        /// The children its own editor places.
-        children: Children,
         /// Whether its app is embedded, so input routed to its screen reaches it.
         embedded: bool,
     },
@@ -160,6 +174,9 @@ impl Child {
             placement,
             raster,
             showing: Rc::new(RefCell::new(Showing::Opening)),
+            layer: None,
+            up: false,
+            nested: Children::default(),
         })
     }
 
@@ -175,6 +192,16 @@ impl Child {
             self.shown.editor,
             self.shown.view_block,
         )
+    }
+
+    /// Whether `layer` shows it or one of its own children, any number of levels deep.
+    fn holds(&self, layer: LayerId) -> bool {
+        self.layer == Some(layer) || self.nested.holds(layer)
+    }
+
+    /// Whether it takes the input where it is placed: placed to, and not taken back (`revoked`).
+    fn takes_input(&self, revoked: &HashSet<(EditorInstanceId, ViewId, ChildId)>) -> bool {
+        takes_input(self.placement.mode) && !revoked.contains(&(self.editor, self.view, self.child))
     }
 }
 
@@ -199,8 +226,9 @@ struct Reconciled {
 }
 
 /// Matches the children `wanted` now with those `shown` before by what names their editor
-/// (`Child::key`): one that matches keeps its editor at its new place, one that does not is
-/// opened, unless its block is open `above` it, which it shows instead, and the rest go.
+/// (`Child::key`): one that matches keeps its editor and its own children at its new place, one
+/// that does not is opened, unless its block is open `above` it, which it shows instead, and the
+/// rest go.
 fn reconcile(shown: Vec<Child>, wanted: Vec<Child>, above: &[[u8; 16]]) -> Reconciled {
     let mut before: HashMap<ChildKey, Child> =
         shown.into_iter().map(|child| (child.key(), child)).collect();
@@ -208,7 +236,12 @@ fn reconcile(shown: Vec<Child>, wanted: Vec<Child>, above: &[[u8; 16]]) -> Recon
     let mut opened = Vec::new();
     for mut child in wanted {
         match before.remove(&child.key()) {
-            Some(shown) => child.showing = shown.showing,
+            Some(shown) => {
+                child.showing = shown.showing;
+                child.layer = shown.layer;
+                child.up = shown.up;
+                child.nested = shown.nested;
+            }
             None if above.contains(&child.block) => {
                 child.showing = Rc::new(RefCell::new(Showing::Failed(
                     ALREADY_OPEN_ABOVE.to_owned(),
@@ -246,18 +279,26 @@ impl Children {
             .iter()
             .map(|screen| (parent.layer_id(screen.screen), screen.instance, screen.view))
             .collect();
+        self.commits = screens
+            .iter()
+            .map(|screen| (screen.instance, parent.commits(screen.instance)))
+            .collect();
         let mut wanted = Vec::new();
+        let mut placed = HashSet::default();
         let mut views: HashMap<(EditorInstanceId, ViewId), Vec<ShownChild>> = HashMap::default();
         for placements in parent.placed() {
             let raster = screens
                 .iter()
-                .find(|screen| (screen.instance, screen.view) == (placements.instance, placements.view))
+                .find(|screen| {
+                    (screen.instance, screen.view) == (placements.instance, placements.view)
+                })
                 .map_or(1.0, |screen| screen.metrics.raster);
             let told = views
                 .entry((placements.instance, placements.view))
                 .or_default();
             for placement in placements.children {
                 let child = placement.child;
+                placed.insert((placements.instance, child));
                 match Child::placed(placements.instance, placements.view, raster, placement) {
                     Some(child) => wanted.push(child),
                     None => told.push(ShownChild {
@@ -269,16 +310,75 @@ impl Children {
                 }
             }
         }
+        self.depart(placed);
         let Reconciled { kept, opened, gone } =
             reconcile(std::mem::take(&mut self.shown), wanted, above);
         for child in &opened {
             spawn(&kept[*child], spawning, now);
         }
-        for gone in gone {
-            release(&gone.showing.borrow(), embedding);
+        for mut gone in gone {
+            release(&mut gone, embedding);
         }
         self.shown = kept;
-        // A child taken back stays passive while it is placed active.
+        self.forget_revoked();
+        let mut nested = above.to_vec();
+        let revoked = &self.revoked;
+        for child in &mut self.shown {
+            let failed = {
+                let showing = child.showing.borrow();
+                match &*showing {
+                    Showing::Shown { hosted, .. } => hosted.app.failure(),
+                    Showing::Opening | Showing::Failed(_) => None,
+                }
+            };
+            if let Some(why) = failed {
+                release(child, embedding);
+                *child.showing.borrow_mut() = Showing::Failed(why);
+            }
+            let app = match &mut *child.showing.borrow_mut() {
+                Showing::Shown { hosted, embedded } => {
+                    if !*embedded {
+                        embedding.embed(hosted.app.clone());
+                        *embedded = true;
+                    }
+                    hosted.app.show(vec![child_screen(
+                        &child.placement,
+                        hosted.editor,
+                        child.raster,
+                    )]);
+                    Some((hosted.app.clone(), hosted.editor))
+                }
+                Showing::Opening | Showing::Failed(_) => None,
+            };
+            child.layer = app.as_ref().map(|(app, _)| app.layer_id(CHILD_SCREEN));
+            child.up = app.as_ref().is_some_and(|(app, _)| app.started());
+            views
+                .entry((child.editor, child.view))
+                .or_default()
+                .push(ShownChild {
+                    child: child.child.0,
+                    shown_in: app.as_ref().map(|(app, editor)| OpenedIn {
+                        instance: app.instance(),
+                        editor: editor.0,
+                    }),
+                    active: child.takes_input(revoked),
+                    error: match &*child.showing.borrow() {
+                        Showing::Failed(why) => Some(why.clone()),
+                        Showing::Opening | Showing::Shown { .. } => None,
+                    },
+                });
+            if let Some((app, _)) = app {
+                nested.push(child.block);
+                child.nested.settle(&app, &nested, embedding, spawning, now);
+                nested.pop();
+            }
+        }
+        self.tell(views);
+    }
+
+    /// Forgets that a child was taken back once it is no longer placed active: a child taken
+    /// back stays passive only while it is.
+    fn forget_revoked(&mut self) {
         let shown = &self.shown;
         self.revoked.retain(|(editor, view, id)| {
             shown.iter().any(|child| {
@@ -286,57 +386,27 @@ impl Children {
                     && child.placement.mode == ChildMode::Active
             })
         });
-        let mut nested = above.to_vec();
-        for child in &self.shown {
-            let mut showing = child.showing.borrow_mut();
-            if let Showing::Shown { hosted, .. } = &*showing
-                && let Some(why) = hosted.app.failure()
-            {
-                release(&showing, embedding);
-                *showing = Showing::Failed(why);
-            }
-            let told = views.entry((child.editor, child.view)).or_default();
-            told.push(ShownChild {
-                child: child.child.0,
-                shown_in: match &*showing {
-                    Showing::Shown { hosted, .. } => Some(OpenedIn {
-                        instance: hosted.app.instance(),
-                        editor: hosted.editor.0,
-                    }),
-                    Showing::Opening | Showing::Failed(_) => None,
-                },
-                active: self.takes_input(child),
-                error: match &*showing {
-                    Showing::Failed(why) => Some(why.clone()),
-                    Showing::Opening | Showing::Shown { .. } => None,
-                },
-            });
-            if let Showing::Shown {
-                hosted,
-                children,
-                embedded,
-            } = &mut *showing
-            {
-                if !*embedded {
-                    embedding.embed(hosted.app.clone());
-                    *embedded = true;
-                }
-                hosted.app.show(vec![child_screen(
-                    &child.placement,
-                    hosted.editor,
-                    child.raster,
-                )]);
-                nested.push(child.block);
-                children.settle(&hosted.app, &nested, embedding, spawning, now);
-                nested.pop();
+    }
+
+    /// Takes `placed`, every child placed now, in place of those placed before: those no longer
+    /// placed have departed, and one placed again has not.
+    fn depart(&mut self, placed: HashSet<(EditorInstanceId, ChildId)>) {
+        let before = std::mem::replace(&mut self.placed, placed);
+        self.departed
+            .retain(|child| !self.placed.contains(child));
+        for child in before {
+            if !self.placed.contains(&child) && !self.departed.contains(&child) {
+                self.departed.push_back(child);
             }
         }
-        self.tell(parent.instance(), views);
+        while self.departed.len() > GIFT_DEPARTED_KEPT {
+            self.departed.pop_front();
+        }
     }
 
     /// Tells the host how each view's children are where that changed since it was told last,
     /// and that a view it was told of placed none once it places none.
-    fn tell(&mut self, instance: u64, mut views: HashMap<(EditorInstanceId, ViewId), Vec<ShownChild>>) {
+    fn tell(&mut self, mut views: HashMap<(EditorInstanceId, ViewId), Vec<ShownChild>>) {
         for view in self.told.keys() {
             views.entry(*view).or_default();
         }
@@ -344,7 +414,7 @@ impl Children {
             if self.told.get(&(editor, view)) == Some(&children) {
                 continue;
             }
-            let told = host::show_children(instance, editor.0, view.0, children.clone());
+            let told = host::show_children(self.instance, editor.0, view.0, children.clone());
             be_wasm_ops::guest::spawn(async move {
                 // A host that stopped answering stops the root too.
                 let _ = told.await;
@@ -356,42 +426,38 @@ impl Children {
         }
     }
 
-    /// Whether `child` takes the input where it is placed: placed to, and not taken back.
-    fn takes_input(&self, child: &Child) -> bool {
-        takes_input(child.placement.mode)
-            && !self
-                .revoked
-                .contains(&(child.editor, child.view, child.child))
-    }
-
-    /// Takes back the active children of each placer's view a press or Escape reached
-    /// (`Embedding::take_pressed`), as be-host does on a press in the placer or Escape: they
-    /// leave the input to their placer and their placer hears they are no longer active. Their
-    /// own children's placers likewise.
-    pub fn revoke(&mut self, pressed: &[LayerId]) {
-        for (layer, editor, view) in &self.placers {
-            if !pressed.contains(layer) {
+    /// Takes back active children, as be-host does: a pointer's press anywhere but in the child
+    /// (in its placer's view or outside it, on the root's own surfaces too), or Escape in its
+    /// placer's view. Each leaves the input to its placer, which hears it is no longer active
+    /// with the next `settle`. Their own children's likewise.
+    pub fn revoke(&mut self, pressed: &[Pressed]) {
+        for child in &self.shown {
+            if child.placement.mode != ChildMode::Active || !child.takes_input(&self.revoked) {
                 continue;
             }
-            for child in &self.shown {
-                if (child.editor, child.view) == (*editor, *view)
-                    && child.placement.mode == ChildMode::Active
-                {
-                    self.revoked.insert((child.editor, child.view, child.child));
-                }
+            let placer = self
+                .placers
+                .iter()
+                .find(|(_, editor, view)| (*editor, *view) == (child.editor, child.view))
+                .map(|(layer, ..)| *layer);
+            let taken = pressed.iter().any(|press| match press.escape {
+                true => Some(press.layer) == placer,
+                false => !child.holds(press.layer),
+            });
+            if taken {
+                self.revoked
+                    .insert((child.editor, child.view, child.child));
             }
         }
-        for child in &self.shown {
-            if let Showing::Shown { children, .. } = &mut *child.showing.borrow_mut() {
-                children.revoke(pressed);
-            }
+        for child in &mut self.shown {
+            child.nested.revoke(pressed);
         }
     }
 
-    /// Takes the gifts asked by the editors of the app these are the children of, at the frame
-    /// clock's `now`, each in place of the one its editor asked before; those of their own
-    /// children's apps go to them.
-    pub fn ask(&mut self, gifts: &mut Vec<Gift>, now: Duration) {
+    /// Takes the gifts asked by the editors of the app these are the children of, each in place
+    /// of the one its editor asked before, but one asked again for the same child, which keeps
+    /// waiting as it was; those of their own children's apps go to them.
+    pub fn ask(&mut self, gifts: &mut Vec<Gift>) {
         let instance = self.instance;
         let mut kept = Vec::new();
         for gift in gifts.drain(..) {
@@ -400,29 +466,37 @@ impl Children {
                 continue;
             }
             let editor = EditorInstanceId(gift.editor);
+            if self
+                .gifts
+                .iter()
+                .any(|pending| pending.editor == editor && pending.to == gift.to)
+            {
+                continue;
+            }
             self.gifts.retain(|pending| pending.editor != editor);
             self.gifts.push(Pending {
                 editor,
                 to: gift.to,
-                asked: now,
+                up: None,
             });
         }
         *gifts = kept;
-        for child in &self.shown {
+        for child in &mut self.shown {
             if gifts.is_empty() {
                 return;
             }
-            if let Showing::Shown { children, .. } = &mut *child.showing.borrow_mut() {
-                children.ask(gifts, now);
-            }
+            child.nested.ask(gifts);
         }
     }
 
-    /// Gives the keyboard where a gift asked, once its child shows in a layer drawn (`drawn`):
-    /// the layer to focus. A gift ends once given, when the keyboard (`focused`) is no longer
-    /// within its editor's views and their children, when its child is not placed (which its
-    /// editor hears, `told`), could not be shown, or did not show within `GIFT_WAIT` of the
-    /// frame clock's `now`. Only one layer takes the keyboard: the first gift that can be given.
+    /// Gives the keyboard where a gift asked, once its child is up and shows in a layer drawn
+    /// (`drawn`): the layer to focus, the first gift's that can be given. A gift ends once
+    /// given; when the keyboard (`focused`) is not within its editor's views and their children;
+    /// when its child could not be shown, is placed as a kind the root shows nothing of, or
+    /// departed (which its editor hears, `told`, as `gift-missed`); or when, once its child was
+    /// up, `GIFT_WAIT` passed on the frame clock (`now`) or its editor committed `GIFT_COMMITS`
+    /// layouts without the child showing. Until its child is up it waits, however long its app
+    /// takes to start.
     pub fn give(
         &mut self,
         focused: Option<LayerId>,
@@ -431,10 +505,8 @@ impl Children {
         told: &mut Vec<(u64, u64, PlacerEvent)>,
     ) -> Option<LayerId> {
         let mut given = None;
-        let gifts = std::mem::take(&mut self.gifts);
-        for pending in gifts {
-            let within = focused.is_some_and(|focused| self.within(pending.editor, focused));
-            if !within || now.saturating_sub(pending.asked) >= GIFT_WAIT {
+        for mut pending in std::mem::take(&mut self.gifts) {
+            if !focused.is_some_and(|focused| self.within(pending.editor, focused)) {
                 continue;
             }
             let child = self.shown.iter().find(|child| {
@@ -446,35 +518,42 @@ impl Children {
             });
             let Some(child) = child else {
                 match pending.to {
-                    // A child it places that the root shows no editor of ends it too.
-                    GiftTo::Child(id) if !self.placed(pending.editor, id) => {
+                    GiftTo::Child(id)
+                        if self.departed.contains(&(pending.editor, ChildId(id))) =>
+                    {
                         told.push((
                             self.instance,
                             pending.editor.0,
                             PlacerEvent::GiftMissed(id),
                         ));
                     }
-                    GiftTo::Child(_) => {}
-                    GiftTo::Block(_) => self.gifts.push(pending),
+                    // Placed, but of a kind that shows no editor.
+                    GiftTo::Child(id) if self.placed.contains(&(pending.editor, ChildId(id))) => {}
+                    // Not placed yet: the layout that places it may come after the ask.
+                    GiftTo::Child(_) | GiftTo::Block(_) => self.gifts.push(pending),
                 }
                 continue;
             };
-            let layer = match &*child.showing.borrow() {
-                Showing::Shown { hosted, .. } => Some(hosted.app.layer_id(CHILD_SCREEN)),
-                Showing::Opening => None,
-                Showing::Failed(_) => continue,
-            };
-            match layer.filter(|layer| drawn(*layer)) {
+            if matches!(&*child.showing.borrow(), Showing::Failed(_)) {
+                continue;
+            }
+            if !child.up {
+                pending.up = None;
+                self.gifts.push(pending);
+                continue;
+            }
+            let commits = self.commits.get(&pending.editor).copied().unwrap_or(0);
+            let (since, at) = *pending.up.get_or_insert((now, commits));
+            match child.layer.filter(|layer| drawn(*layer)) {
                 Some(layer) if given.is_none() => given = Some(layer),
-                Some(_) => {}
-                None => self.gifts.push(pending),
+                _ if now.saturating_sub(since) >= GIFT_WAIT
+                    || commits.wrapping_sub(at) >= GIFT_COMMITS => {}
+                _ => self.gifts.push(pending),
             }
         }
-        for child in &self.shown {
-            if let Showing::Shown { children, .. } = &mut *child.showing.borrow_mut() {
-                let inner = children.give(focused, drawn, now, told);
-                given = given.or(inner);
-            }
+        for child in &mut self.shown {
+            let inner = child.nested.give(focused, drawn, now, told);
+            given = given.or(inner);
         }
         given
     }
@@ -488,32 +567,13 @@ impl Children {
             || self
                 .shown
                 .iter()
-                .filter(|child| child.editor == editor)
-                .any(|child| match &*child.showing.borrow() {
-                    Showing::Shown {
-                        hosted, children, ..
-                    } => {
-                        hosted.app.layer_id(CHILD_SCREEN) == layer
-                            || children.holds(layer)
-                    }
-                    Showing::Opening | Showing::Failed(_) => false,
-                })
+                .any(|child| child.editor == editor && child.holds(layer))
     }
 
     /// Whether `layer` shows a view of the app these are the children of, or of a child of it.
     fn holds(&self, layer: LayerId) -> bool {
         self.placers.iter().any(|(placer, ..)| *placer == layer)
-            || self.shown.iter().any(|child| match &*child.showing.borrow() {
-                Showing::Shown { children, .. } => children.holds(layer),
-                Showing::Opening | Showing::Failed(_) => false,
-            })
-    }
-
-    /// Whether `editor` placed a child `id` of any kind, shown or not.
-    fn placed(&self, editor: EditorInstanceId, id: u64) -> bool {
-        self.told
-            .iter()
-            .any(|((placer, _), children)| *placer == editor && children.iter().any(|child| child.child == id))
+            || self.shown.iter().any(|child| child.holds(layer))
     }
 
     /// The children the keyboard went into when it went to the layer `layer`: for each placer
@@ -521,17 +581,11 @@ impl Children {
     /// the layer. Empty for a layer that shows none of these children.
     pub fn focused_into(&self, layer: LayerId) -> Vec<(u64, EditorInstanceId, ChildId)> {
         for child in &self.shown {
-            let Showing::Shown {
-                hosted, children, ..
-            } = &*child.showing.borrow()
-            else {
-                continue;
-            };
-            let mut into = match hosted.app.layer_id(CHILD_SCREEN) == layer {
+            let mut into = match child.layer == Some(layer) {
                 true => Vec::new(),
-                false => children.focused_into(layer),
+                false => child.nested.focused_into(layer),
             };
-            if hosted.app.layer_id(CHILD_SCREEN) == layer || !into.is_empty() {
+            if child.layer == Some(layer) || !into.is_empty() {
                 into.push((self.instance, child.editor, child.child));
                 return into;
             }
@@ -540,26 +594,30 @@ impl Children {
     }
 
     /// Whether a child's editor is still being opened, any number of levels deep: its host has
-    /// yet to open it, or the root to embed its app, so the root owes its host the frame that shows it (a host waiting for its
-    /// root to settle waits for it). Once its app runs, the app's own pacing says what it owes.
+    /// yet to open it, or the root to embed its app, so the root owes its host the frame that
+    /// shows it (a host waiting for its root to settle waits for it). Once its app runs, the
+    /// app's own pacing says what it owes.
     pub fn opening(&self) -> bool {
-        self.shown.iter().any(|child| match &*child.showing.borrow() {
-            Showing::Opening
-            | Showing::Shown {
-                embedded: false, ..
-            } => true,
-            Showing::Shown { children, .. } => children.opening(),
-            Showing::Failed(_) => false,
+        self.shown.iter().any(|child| {
+            matches!(
+                &*child.showing.borrow(),
+                Showing::Opening
+                    | Showing::Shown {
+                        embedded: false,
+                        ..
+                    }
+            ) || child.nested.opening()
         })
     }
 
     /// Lets go of every child, as when their placer goes: each child's app stops once nothing
     /// else holds it.
     pub fn release(&mut self, embedding: &mut Embedding) {
-        for child in std::mem::take(&mut self.shown) {
-            release(&child.showing.borrow(), embedding);
+        for mut child in std::mem::take(&mut self.shown) {
+            release(&mut child, embedding);
         }
         self.told.clear();
+        self.gifts.clear();
     }
 
     /// The apps of every child shown, any number of levels deep, each with the id of the layer
@@ -567,15 +625,12 @@ impl Children {
     pub fn screens(&self) -> Vec<(Embedded, LayerId)> {
         let mut screens = Vec::new();
         for child in &self.shown {
-            if let Showing::Shown {
-                hosted, children, ..
-            } = &*child.showing.borrow()
+            if let Showing::Shown { hosted, .. } = &*child.showing.borrow()
+                && let Some(layer) = hosted.app.layer(CHILD_SCREEN, pos2(0.0, 0.0))
             {
-                if let Some(layer) = hosted.app.layer(CHILD_SCREEN, pos2(0.0, 0.0)) {
-                    screens.push((hosted.app.clone(), layer.id));
-                }
-                screens.extend(children.screens());
+                screens.push((hosted.app.clone(), layer.id));
             }
+            screens.extend(child.nested.screens());
         }
         screens
     }
@@ -596,20 +651,17 @@ impl Children {
     fn apps(&self) -> Vec<Embedded> {
         let mut apps = Vec::new();
         for child in &self.shown {
-            if let Showing::Shown {
-                hosted, children, ..
-            } = &*child.showing.borrow()
-            {
+            if let Showing::Shown { hosted, .. } = &*child.showing.borrow() {
                 apps.push(hosted.app.clone());
-                apps.extend(children.apps());
             }
+            apps.extend(child.nested.apps());
         }
         apps
     }
 
     /// The layers showing `screen` of the app these are the children of, with its children:
     /// those placed below it, then `layer`, the placer's own, hit everywhere but where a child
-    /// that takes input is, then those placed above it. Each child is clipped to what its
+    /// that takes input shows, then those placed above it. Each child is clipped to what its
     /// placement shows of it within what shows of its placer, and shows its own children the
     /// same way.
     pub fn layers(&self, screen: &ScreenRequest, mut layer: Layer, layers: &mut Vec<Layer>) {
@@ -624,10 +676,7 @@ impl Children {
             if (child.editor, child.view) != (screen.instance, screen.view) {
                 continue;
             }
-            let Showing::Shown {
-                hosted, children, ..
-            } = &*child.showing.borrow()
-            else {
+            let Showing::Shown { hosted, .. } = &*child.showing.borrow() else {
                 continue;
             };
             let placement = &child.placement;
@@ -643,7 +692,7 @@ impl Children {
             };
             shown_child.clip = shown_child.clip.intersect(from_window.bounds(clip));
             shown_child.input.placer = Some(layer.id);
-            let active = self.takes_input(child);
+            let active = child.takes_input(&self.revoked);
             if !active {
                 shown_child.input.hit = Area::Nowhere;
             }
@@ -655,7 +704,7 @@ impl Children {
                 ChildLayer::Below => &mut below,
                 ChildLayer::Above => &mut over,
             };
-            children.layers(&child_screen, shown_child, into);
+            child.nested.layers(&child_screen, shown_child, into);
         }
         layer.input.hit = placer_hit(layer.size, holes);
         layers.extend(below);
@@ -766,7 +815,6 @@ fn spawn(child: &Child, spawning: &Spawning, now: Duration) {
         *showing.borrow_mut() = match spawned {
             Ok(hosted) => Showing::Shown {
                 hosted,
-                children: Children::default(),
                 embedded: false,
             },
             Err(SpawnFailure { name, why }) => Showing::Failed(match name {
@@ -778,17 +826,12 @@ fn spawn(child: &Child, spawning: &Spawning, now: Duration) {
     });
 }
 
-/// Lets go of a child's app and of those of its own children, as embedded.
-fn release(showing: &Showing, embedding: &mut Embedding) {
-    if let Showing::Shown {
-        hosted, children, ..
-    } = showing
-    {
+/// Lets go of `child`'s app and of those of its own children, as embedded.
+fn release(child: &mut Child, embedding: &mut Embedding) {
+    if let Showing::Shown { hosted, .. } = &*child.showing.borrow() {
         embedding.remove(hosted.app.instance());
-        for child in &children.shown {
-            release(&child.showing.borrow(), embedding);
-        }
     }
+    child.nested.release(embedding);
 }
 
 /// Every one of a list of futures, polled together until each finished.

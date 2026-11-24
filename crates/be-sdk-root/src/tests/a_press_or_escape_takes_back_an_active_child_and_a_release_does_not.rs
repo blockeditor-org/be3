@@ -23,8 +23,8 @@ fn a_press_or_escape_takes_back_an_active_child_and_a_release_does_not() {
         button: PointerButton::Primary,
         pressed,
     };
-    assert!(presses(&button(true)));
-    assert!(!presses(&button(false)));
+    assert_eq!(presses(&button(true)), Some(false));
+    assert_eq!(presses(&button(false)), None);
     let touch = |phase| Input::Touch {
         id: TouchId {
             device: 0,
@@ -34,11 +34,15 @@ fn a_press_or_escape_takes_back_an_active_child_and_a_release_does_not() {
         pos: at,
         force: None,
     };
-    assert!(presses(&touch(TouchPhase::Start)));
-    assert!(!presses(&touch(TouchPhase::Move)));
-    assert!(presses(&escape(true, false)));
-    assert!(!presses(&escape(true, true)), "a held Escape's repeats take back nothing more");
-    assert!(!presses(&escape(false, false)));
+    assert_eq!(presses(&touch(TouchPhase::Start)), Some(false));
+    assert_eq!(presses(&touch(TouchPhase::Move)), None);
+    assert_eq!(presses(&escape(true, false)), Some(true));
+    assert_eq!(
+        presses(&escape(true, true)),
+        None,
+        "a held Escape's repeats take back nothing more"
+    );
+    assert_eq!(presses(&escape(false, false)), None);
     let pen = |phase| Input::Pen {
         phase,
         pos: at,
@@ -48,6 +52,6 @@ fn a_press_or_escape_takes_back_an_active_child_and_a_release_does_not() {
             eraser: false,
         },
     };
-    assert!(presses(&pen(PenPhase::Down(PointerButton::Primary))));
-    assert!(!presses(&pen(PenPhase::Move)));
+    assert_eq!(presses(&pen(PenPhase::Down(PointerButton::Primary))), Some(false));
+    assert_eq!(presses(&pen(PenPhase::Move)), None);
 }

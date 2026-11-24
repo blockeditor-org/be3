@@ -1621,24 +1621,36 @@ Each step lands on its own.
              changes.
            - 4g7b3b. The keyboard. In parts:
              - 4g7b3b1 (built). be-host-runtime's `Forwarded` answers an editor's shell
-               calls (it dropped them unanswered), refusing all but `tell`, and keeps its
-               `focus-child` and `focus-block-child` (`take_gifts`, `GiftAsked`); be-host hands
-               them to the root through `be3:root`'s `host.gifts`. The root's `Children` keeps
-               each editor's latest gift (`ask`) and gives it once the child's layer is drawn
-               (`give`): only while the keyboard is within the editor's views and their
-               children, for at most `GIFT_WAIT` (3 s), and a child no longer placed is
-               `gift-missed` (`host.tell-placer`, which `Forwarded::tell_placer` sends as the
-               editor's event). Each time the keyboard goes into a child, given or pressed into,
-               every placer above it hears `child-focused`, from the innermost out
-               (`Children::focused_into`). A press or Escape that reaches a placer's view
-               (`Embedding::take_pressed`) takes back its active children (`Children::revoke`),
-               as be-host's `revoke_active` does: they turn passive, and their placers hear
-               `active` false until they place them other than active. be-sdk-root test
+               calls (it dropped them unanswered), refusing all but `tell` (only `web-view`
+               reaches it: the wire serves the watches), and keeps its `focus-child` and
+               `focus-block-child` (`take_gifts`, `GiftAsked`); be-host hands them to the root
+               through `be3:root`'s `host.gifts`. The root's `Children` gives them as
+               be-host-runtime's `gift` does, one behaviour: each editor's latest gift stands
+               (`ask`; asked again for the same child it keeps its count), waits however long
+               its child takes to come up (its app running, embedded), then is given once the
+               child's layer is drawn (`give`), or ends after `GIFT_WAIT` on the frame clock or
+               `GIFT_COMMITS` of its editor's own layout commits (`Embedded::commits`), both now
+               in be-sdk-api with `GIFT_DEPARTED_KEPT`. It is given only while the keyboard is
+               within the editor's views and their children; a child that was placed and went
+               (`departed`) is `gift-missed` (`host.tell-placer`, which
+               `Forwarded::tell_placer` sends as the editor's event), one not placed yet waits.
+               Each time the keyboard goes into a child (`Embedding::take_focused`), given or
+               pressed into, every placer above it hears `child-focused`, from the innermost out
+               (`Children::focused_into`). A pointer's press anywhere but in an active child, on
+               the root's own surfaces too, or Escape in its placer's view
+               (`Embedding::take_pressed`), takes it back (`Children::revoke`), as be-host's
+               `revoke_active` and `pressed_outside_view` do: it turns passive, and its placer
+               hears `active` false until it places it other than active. Gifts for an app no
+               longer shown are dropped. Tests: be-sdk-root's `children::tests` (revoking,
+               asking, giving, missing, `focused_into`) and
                `a_press_or_escape_takes_back_an_active_child_and_a_release_does_not`; host test
                `be_root_in_place_of_the_hosts_ui_hands_a_childs_keys_to_it`.
              - 4g7b3b2. The keys held for a gift until the child is ready, and typed into a
                view right after a press until its app answered it (be-host-runtime's `gift`,
-               `GiftTo::Answer`), which the root would hold and replay; the press that promotes
+               `GiftTo::Answer`), which the root would hold and replay; a gift given only while
+               no popover or keyboard-taking layer of the editor's is open; host tests in which
+               an editor really gives a child the keyboard and a press takes an active child
+               back (the canvas's, once 4g7b3c lets a child take the frame); the press that promotes
                a child replayed in it (`app_view/handoff.rs`); and the rest an editor tells its
                shell (its focus, titles, menus, dialogs, drags), which `Forwarded` drops.
            - 4g7b3c. A child that takes its placer's frame, and docks that join across apps

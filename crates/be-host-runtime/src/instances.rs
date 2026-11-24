@@ -167,7 +167,7 @@ struct Connection {
 
 /// How many children an instance's changes took away it remembers, for gifts asked late
 /// (`Instance::departed`).
-const DEPARTED_KEPT: usize = 64;
+const DEPARTED_KEPT: usize = be_sdk_api::GIFT_DEPARTED_KEPT;
 
 struct Instance {
     role: InstanceRole,

@@ -52,13 +52,7 @@ use crate::events::InstanceEvent;
 /// input, which the host builds again when the view moves (a child placed in a new pane).
 pub type GiftView = (String, EditorInstanceId, ViewId);
 
-/// How many of its own layout commits an editor has to show the child it gives the keyboard to,
-/// or for that child's view to take it. Making the block and placing its child usually takes one
-/// or two; an editor that animates commits more, so this leaves room.
-pub(crate) const GIFT_COMMITS: u32 = 8;
-
-/// How long on the frame clock a gift waits to be given, for an editor that commits no layout.
-pub(crate) const GIFT_WAIT: Duration = Duration::from_secs(3);
+pub(crate) use be_sdk_api::{GIFT_COMMITS, GIFT_WAIT};
 
 /// What an editor gives the keyboard to.
 #[derive(Clone, Debug, PartialEq, Eq)]

@@ -138,6 +138,9 @@ struct State {
     /// Whether what its views placed changed since the root last read it (`Embedded::placed`):
     /// the root owes its host the frame that shows that.
     placing: bool,
+    /// How many layout commits of each of its editors carried its children or one of its frame
+    /// reports: the count a gift to a child waits by (`GIFT_COMMITS`).
+    commits: HashMap<EditorInstanceId, u32>,
     /// Why the app stopped, once it did: it is asked for nothing again.
     failure: Option<String>,
     /// The frames waiting for the app to say hello or present.
@@ -307,6 +310,7 @@ impl Embedded {
             windows: HashMap::default(),
             placed: Vec::new(),
             placing: false,
+            commits: HashMap::default(),
             failure: None,
             waiting: Vec::new(),
             stop: Rc::clone(&stop),
@@ -332,6 +336,17 @@ impl Embedded {
         let mut state = self.state.borrow_mut();
         state.placing = false;
         state.placed.clone()
+    }
+
+    /// How many layout commits of its editor `editor` carried its children or one of its frame
+    /// reports so far.
+    pub fn commits(&self, editor: EditorInstanceId) -> u32 {
+        self.state
+            .borrow()
+            .commits
+            .get(&editor)
+            .copied()
+            .unwrap_or(0)
     }
 
     /// The screens it was asked for last.
@@ -676,6 +691,24 @@ impl State {
                 self.run.lay_out(layout, |_| false);
             }
             Heard::LaidOut(mut commit) => {
+                let mut editors: Vec<EditorInstanceId> = commit
+                    .children
+                    .iter()
+                    .map(|placements| placements.instance)
+                    .chain(commit.reports.iter().filter_map(|report| {
+                        self.run
+                            .screens
+                            .iter()
+                            .find(|screen| screen.screen == report.screen)
+                            .map(|screen| screen.instance)
+                    }))
+                    .collect();
+                editors.sort_by_key(|editor| editor.0);
+                editors.dedup();
+                for editor in editors {
+                    let commits = self.commits.entry(editor).or_default();
+                    *commits = commits.wrapping_add(1);
+                }
                 // Children that only move are placed at once; any that come or go wait for the
                 // present that follows, which draws the holes they fill.
                 let placed = &self.placed;
