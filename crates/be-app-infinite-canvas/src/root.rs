@@ -51,7 +51,6 @@ use crate::geometry::MIN_SIZE;
 use beui::Direction;
 
 pub(crate) const INSPECTOR: &str = "inspector";
-const LAYERS: &str = "layers";
 const INSPECTOR_WIDTH: f32 = 280.0;
 const LAYERS_HEIGHT: f32 = 240.0;
 
@@ -120,10 +119,10 @@ fn CanvasEditor(editor: Editor) -> NodeId {
     let bar_size = create_signal(Vec2::ZERO);
     let layout = DockingLayout::<&'static str>::new();
     view! {
-        <Docking layout focus={Some(STAGE)}>
-            <DockSplit id="canvas" size={SplitSize::Second(INSPECTOR_WIDTH)}>
-                <DockPane id="stage" locked=true bare=true>
-                    <DockTab id=STAGE title="Canvas">
+        <Docking layout>
+            <DockSplit size={SplitSize::Second(INSPECTOR_WIDTH)}>
+                <DockPane stage=true>
+                    <DockTab id=STAGE>
                         <List @node_ref=&scope spacing=Space::None>
                             <TouchSetting editor choice={touch} />
                             <ExportDialog exporter />
@@ -143,18 +142,14 @@ fn CanvasEditor(editor: Editor) -> NodeId {
                             && state.profile.get() != be_type_infinite_canvas::CanvasProfile::Prototyping
                     }}
                 >
-                    <DockSplit
-                        id="side"
-                        direction=Direction::Vertical
-                        size={SplitSize::Second(LAYERS_HEIGHT)}
-                    >
-                        <DockPane id="inspector" locked=true>
+                    <DockSplit direction=Direction::Vertical size={SplitSize::Second(LAYERS_HEIGHT)}>
+                        <DockPane>
                             <DockTab id=INSPECTOR title="Inspector">
                                 <CanvasInspector state={state} />
                             </DockTab>
                         </DockPane>
-                        <DockPane id="layers" locked=true>
-                            <DockTab id=LAYERS title="Layers">
+                        <DockPane>
+                            <DockTab title="Layers">
                                 <CanvasLayers state={state} />
                             </DockTab>
                         </DockPane>

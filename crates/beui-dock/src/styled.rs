@@ -1,5 +1,7 @@
 use beui_components_styled::button::{ButtonSize, ButtonVariant};
 use beui_components_styled::menu_button::MenuButton;
+use beui_components_styled::frame::{ColorRole, Frame as PanelFrame};
+use beui_components_styled::scroll::Scroll;
 use beui_components_styled::tokens::Space;
 use beui_components_styled::tool_pill::ToolPill;
 use beui_components_unstyled::menu::MenuNodes;
@@ -10,6 +12,19 @@ use beui_view::types::icons::{ICON_GRIP_HORIZONTAL, ICON_GRIP_VERTICAL};
 use beui_view::types::{Direction, Placement, PointerPress, Rect};
 
 use crate::{DockBarControl, use_dock_bar};
+
+/// The standard panel a tab's body is in a dock with a stage: a `Surface` fill, a `Scroll` filling
+/// it, and padding inside that, around the content.
+#[component]
+pub(crate) fn DockPanel(content: BuildFn<NodeId>) -> NodeId {
+    view! {
+        <PanelFrame fill=ColorRole::Surface>
+            <Scroll>
+                <PanelFrame padding=Space::Lg>{content.call()}</PanelFrame>
+            </Scroll>
+        </PanelFrame>
+    }
+}
 
 #[component]
 pub fn DockBarSurface(

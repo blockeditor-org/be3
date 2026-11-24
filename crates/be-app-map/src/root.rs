@@ -4,12 +4,12 @@ use be_type_map::MapContent;
 use be_sdk_beui::Loaded;
 use be_sdk_beui::beui::dock::{DockAlign, DockBarPlacement, DockEdge};
 use be_sdk_beui::beui::dock::{
-    DockBar, DockPane, DockSplit, DockTab, Docking, DockingLayout, SplitSize,
+    DockBar, DockPane, DockSplit, DockTab, Docking,
 };
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{NodeId, Vec2};
-use be_sdk_beui::{Creation, Editor, SIDE_PANEL_WIDTH, ZoomBar};
+use be_sdk_beui::{Creation, Editor, ZoomBar};
 use uuid::Uuid;
 
 pub(crate) mod canvas;
@@ -25,10 +25,8 @@ use state::{MapState, WORLD_POINTS};
 use toolbar::MapToolbar;
 
 const STAGE: &str = "stage";
-const INSPECTOR: &str = "inspector";
 const TOOLBAR: &str = "toolbar";
 const ZOOM: &str = "zoom";
-const INSPECTOR_WIDTH: f32 = SIDE_PANEL_WIDTH;
 
 pub struct MapRoot;
 
@@ -77,22 +75,19 @@ fn MapEditor(editor: Editor) -> NodeId {
     editor.keep_fitted(|| Some(Fit::World));
 
     let chrome = editor.chrome_shown();
-    let layout = DockingLayout::<&'static str>::new();
     view! {
-        <Docking layout focus={Some(STAGE)}>
-            <DockSplit id="map" size={SplitSize::Second(INSPECTOR_WIDTH)}>
-                <DockPane id="stage" locked=true bare=true>
-                    <DockTab id=STAGE title="Map">
+        <Docking>
+            <DockSplit>
+                <DockPane stage=true>
+                    <DockTab id=STAGE>
                         <MapCanvas state={state} />
                     </DockTab>
                 </DockPane>
-                <Show value={chrome}>
-                    <DockPane id="inspector" locked=true>
-                        <DockTab id=INSPECTOR title="Inspector">
-                            <MapInspector state={state} />
-                        </DockTab>
-                    </DockPane>
-                </Show>
+                <DockPane chrome=true>
+                    <DockTab title="Inspector">
+                        <MapInspector state={state} />
+                    </DockTab>
+                </DockPane>
             </DockSplit>
             <Show value={chrome}>
                 <DockBar

@@ -267,7 +267,7 @@ pub fn build(state: Stored<State>, embeds_program: bool) -> Panel {
         view! {
             <Frame @test_id={"inspector.dock"}>
                 <DockHost>
-                    <Docking layout=tools focus={Some(InspectorTab::Beui)}>{layout}</Docking>
+                    <Docking layout=tools focus={InspectorTab::Beui}>{layout}</Docking>
                 </DockHost>
             </Frame>
         }

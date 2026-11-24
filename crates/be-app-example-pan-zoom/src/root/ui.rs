@@ -2,7 +2,7 @@ use be_sdk_beui::Fit;
 use be_sdk_beui::beui::dock::styled::{DockBarGrip, DockBarSurface};
 use be_sdk_beui::beui::dock::{DockAlign, DockBarPlacement, DockEdge};
 use be_sdk_beui::beui::dock::{
-    DockBar, DockPane, DockSplit, DockTab, Docking, DockingLayout, SplitSize,
+    DockBar, DockPane, DockSplit, DockTab, Docking, SplitSize,
 };
 use be_sdk_beui::beui::icons::ICON_PANEL_LEFT_OPEN;
 use be_sdk_beui::beui::reactive::*;
@@ -15,7 +15,6 @@ const CARDS_TAB: &str = "cards";
 const ZOOM: &str = "zoom";
 const REOPEN: &str = "reopen";
 const SIDEBAR_WIDTH: f32 = 220.0;
-const PANEL_PADDING: Space = Space::Lg;
 const PANEL_SPACING: Space = Space::Md;
 const CARD_TITLE_SIZE: f32 = 17.0;
 const CARD_LABEL_SIZE: f32 = 11.0;
@@ -105,20 +104,19 @@ pub fn PanZoom(editor: Editor) -> NodeId {
     editor.keep_fitted(|| Some(Fit::Area(Rect::from_min_size(pos2(0.0, 0.0), WORLD))));
 
     let chrome = editor.chrome_shown();
-    let layout = DockingLayout::<&'static str>::new();
 
     view! {
-        <Docking layout focus={Some(STAGE)}>
-            <DockSplit id="pan_zoom" size={SplitSize::First(SIDEBAR_WIDTH)}>
-                <Show value={move || chrome.get() && open.get()}>
-                    <DockPane id="sidebar" locked=true>
+        <Docking>
+            <DockSplit size={SplitSize::First(SIDEBAR_WIDTH)}>
+                <Show value={open}>
+                    <DockPane id="sidebar" chrome=true>
                         <DockTab id=CARDS_TAB title="Cards" on_close={move || open.set(false)}>
                             <Sidebar editor selected />
                         </DockTab>
                     </DockPane>
                 </Show>
-                <DockPane id="stage" locked=true bare=true>
-                    <DockTab id=STAGE title="Canvas">
+                <DockPane stage=true>
+                    <DockTab id=STAGE>
                         <Stage @node_ref={&stage} editor={editor} selected={selected} />
                     </DockTab>
                 </DockPane>
@@ -169,27 +167,17 @@ fn Sidebar(editor: Editor, selected: Signal<Option<usize>>) -> NodeId {
         None => "Nothing selected".to_owned(),
     });
     view! {
-        <Frame fill=ColorRole::Surface>
-            <Scroll>
-                <Frame padding=PANEL_PADDING>
-                    <List spacing=PANEL_SPACING>
-                        <Text size=TextSize::Lg @test_id={"pan_zoom.title"}>"Pan and Zoom"</Text>
-                        <Text
-                            size=TextSize::Sm
-                            color=TextColor::Muted
-                            @test_id={"pan_zoom.selected"}
-                        >
-                            {chosen}
-                        </Text>
-                        <List spacing=Space::Xs>
-                            <ForEach value={card_indices()}>|index: usize|
-                                <FocusRow index editor={editor} selected={selected} />
-                            </ForEach>
-                        </List>
-                    </List>
-                </Frame>
-            </Scroll>
-        </Frame>
+        <List spacing=PANEL_SPACING>
+            <Text size=TextSize::Lg @test_id={"pan_zoom.title"}>"Pan and Zoom"</Text>
+            <Text size=TextSize::Sm color=TextColor::Muted @test_id={"pan_zoom.selected"}>
+                {chosen}
+            </Text>
+            <List spacing=Space::Xs>
+                <ForEach value={card_indices()}>|index: usize|
+                    <FocusRow index editor={editor} selected={selected} />
+                </ForEach>
+            </List>
+        </List>
     }
 }
 

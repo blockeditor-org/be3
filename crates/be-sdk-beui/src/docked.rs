@@ -66,6 +66,7 @@ impl DockedTabs {
         editor: Editor,
     ) {
         provide_context(saved::keeper(host.clone(), editor, Rc::clone(&self.kept)));
+        beui::dock::provide_dock_chrome(editor.chrome_shown());
         self.built.set(Some(docked));
         match docked {
             true => {

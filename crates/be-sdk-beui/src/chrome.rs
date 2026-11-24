@@ -4,7 +4,7 @@ use beui::styled::*;
 use beui::{Align, Direction};
 use beui::{NodeId, Vec2};
 
-pub const SIDE_PANEL_WIDTH: f32 = 260.0;
+pub use beui::dock::SIDE_PANEL_WIDTH;
 
 const BAND_PADDING: Padding = Padding::symmetric(Space::Lg, Space::Md);
 const BAND_SPACING: Space = Space::Md;

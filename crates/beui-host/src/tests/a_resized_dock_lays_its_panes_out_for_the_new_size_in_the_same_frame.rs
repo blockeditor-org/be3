@@ -16,7 +16,7 @@ fn a_resized_dock_lays_its_panes_out_for_the_new_size_in_the_same_frame() {
     let left = NodeRef::new();
     let right = NodeRef::new();
     let document = build_node(move || {
-        let layout = DockingLayout::new();
+        let layout = DockingLayout::<u64>::new();
         view! {
             <dock_host::styled::DockHost>
                 <dock::Docking layout>

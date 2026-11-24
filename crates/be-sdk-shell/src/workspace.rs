@@ -1465,7 +1465,7 @@ pub fn BlockTab(
     bar: Option<BuildFn<NodeId>>,
     #[prop(default = None)] preview: Prop<Option<ChildTarget>>,
     on_details: Callback<()>,
-) -> DockEntry<TabId> {
+) -> DockEntry {
     let title = workspace.tab_title(tab);
     let icon = workspace.tab_glyph(tab);
     let bar = RenderFn::new(move |()| match bar {
@@ -1487,7 +1487,7 @@ pub fn BlockTab(
 }
 
 #[component]
-pub fn PanelWindow(workspace: Workspace, panel: HostPanel) -> DockNode<TabId> {
+pub fn PanelWindow(workspace: Workspace, panel: HostPanel) -> DockNode {
     let key = format!("panel.{panel:?}");
     let editor = workspace.editor();
     view! {

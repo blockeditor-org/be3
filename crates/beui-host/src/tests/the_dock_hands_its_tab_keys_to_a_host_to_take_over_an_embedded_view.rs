@@ -10,7 +10,7 @@ fn the_dock_hands_its_tab_keys_to_a_host_to_take_over_an_embedded_view() {
     let dock = NodeRef::new();
     let keys = create_signal(DockTabKeys::CTRL);
     let document = build_node(move || {
-        let layout = DockingLayout::new();
+        let layout = DockingLayout::<u64>::new();
         view! {
             <dock_host::styled::DockHost tab_keys={keys} @node_ref=&dock>
                 <dock::Docking layout>

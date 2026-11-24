@@ -76,7 +76,7 @@ pub fn TextEditor(editor: Editor) -> NodeId {
         }
     };
     view! {
-        <Docking layout focus={Some(TEXT)}>
+        <Docking layout focus=TEXT>
             <DockPane id="text" locked=true bare=true>
                 <DockTab id=TEXT title="Text">
                     <List @node_ref=&content spacing=Space::None>

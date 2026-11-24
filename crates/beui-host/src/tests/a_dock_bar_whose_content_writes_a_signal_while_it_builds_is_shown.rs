@@ -20,7 +20,7 @@ fn CountingBar() -> NodeId {
 fn a_dock_bar_whose_content_writes_a_signal_while_it_builds_is_shown() {
     let _root = crate::reactive::RootScope::new();
     let document = build_node(move || {
-        let layout = DockingLayout::new();
+        let layout = DockingLayout::<u64>::new();
         view! {
             <dock_host::styled::DockHost>
                 <dock::Docking layout focus=1u64>

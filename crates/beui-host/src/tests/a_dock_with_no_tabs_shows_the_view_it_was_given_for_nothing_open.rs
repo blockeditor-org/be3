@@ -4,7 +4,7 @@ use crate::reactive::*;
 #[test]
 fn a_dock_with_no_tabs_shows_the_view_it_was_given_for_nothing_open() {
     let document = build_node(move || {
-        let layout = dock::DockingLayout::new();
+        let layout = dock::DockingLayout::<u64>::new();
         let open = create_signal(true);
         view! {
             <dock_host::styled::DockHost>

@@ -7,7 +7,7 @@ fn a_modifier_drag_moves_a_floating_window_by_its_content_or_its_tab_bar() {
     let _root = crate::reactive::RootScope::new();
     let dock = NodeRef::new();
     let document = build_node(move || {
-        let layout = dock::DockingLayout::new();
+        let layout = dock::DockingLayout::<u64>::new();
         view! {
             <dock_host::styled::DockHost drag_modifier={Some(Modifiers::LOGO)} @node_ref=&dock>
                 <dock::Docking layout>

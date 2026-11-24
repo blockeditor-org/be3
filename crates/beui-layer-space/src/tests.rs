@@ -557,7 +557,7 @@ pub(crate) fn dock_tab(document: &Document, dock: NodeId, title: &str) -> NodeId
 pub(crate) fn windowed_dock(drag_modifier: Option<Modifiers>) -> (Document, NodeId) {
     let dock = NodeRef::new();
     let document = build_node(move || {
-        let layout = dock::DockingLayout::new();
+        let layout = dock::DockingLayout::<u64>::new();
         view! {
             <dock_host::styled::DockHost drag_modifier @node_ref=&dock>
                 <dock::Docking layout>

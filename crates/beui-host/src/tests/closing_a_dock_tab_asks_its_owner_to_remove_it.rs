@@ -9,7 +9,7 @@ fn closing_a_dock_tab_asks_its_owner_to_remove_it() {
     let dock = NodeRef::new();
     let closed = create_signal(Vec::new());
     let document = build_node(move || {
-        let layout = DockingLayout::new();
+        let layout = DockingLayout::<u64>::new();
         view! {
             <dock_host::styled::DockHost @node_ref=&dock>
                 <dock::Docking layout>

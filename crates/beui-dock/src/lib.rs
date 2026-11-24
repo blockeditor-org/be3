@@ -14,10 +14,13 @@ pub use controls::{
     provide_dock_shows_through, use_dock_bar, use_dock_pane, use_dock_tab,
 };
 pub use declare::{
-    DockBar, DockDialog, DockEntry, DockGroup, DockKey, DockNode, DockPane, DockSplit, DockTab,
-    DockWindow,
+    ByDockKey, DockBar, DockDialog, DockEntry, DockGroup, DockId, DockKey, DockNode, DockPane,
+    DockSplit, DockTab, DockWindow,
 };
-pub use docking::{Docking, DockingLayout, DockingSnapshot, OwnedDockingLayout};
+pub use docking::{
+    AnyDockingLayout, ByLayout, Docking, DockingLayout, DockingSnapshot, OwnedDockingLayout,
+    provide_dock_chrome,
+};
 pub use documents::{
     DockDocument, DockDocumentBody, DockDocumentTabs, DockDocuments, DockOpened, DockSlot,
 };

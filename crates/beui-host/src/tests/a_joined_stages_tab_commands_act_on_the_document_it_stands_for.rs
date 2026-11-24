@@ -9,7 +9,7 @@ fn a_joined_stages_tab_commands_act_on_the_document_it_stands_for() {
     let built = Rc::new(std::cell::Cell::new(None));
     let handle = Rc::clone(&built);
     let document = build_node(move || {
-        let outer = DockingLayout::new();
+        let outer = DockingLayout::<u64>::new();
         let open = create_signal(vec![2u64, 3]);
         handle.set(Some((outer, open)));
         view! {
@@ -21,7 +21,7 @@ fn a_joined_stages_tab_commands_act_on_the_document_it_stands_for() {
                             match id {
                                 2 => view! {
                                     <DockTab id title="Document" on_close={close}>
-                                        <Docking layout={DockingLayout::new()}>
+                                        <Docking>
                                             <DockPane id="stage" locked=true bare=true>
                                                 <DockTab id=10u64 title="Stage">
                                                     <Frame @test_id="content.10" />

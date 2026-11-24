@@ -206,8 +206,8 @@ where
 #[component]
 pub fn DockDocumentTabs<K, T, I>(
     documents: DockDocuments<K, T, I>,
-    #[prop(children)] tab: RenderFn<DockDocument<K, T, I>, DockEntry<K>>,
-) -> DynamicSegment<DockEntry<K>>
+    #[prop(children)] tab: RenderFn<DockDocument<K, T, I>, DockEntry>,
+) -> DynamicSegment<DockEntry>
 where
     K: DockKey,
     T: Clone + PartialEq + 'static,

@@ -264,7 +264,7 @@ fn workspace_actions(workspace: Workspace) {
 }
 
 #[component]
-fn WorkspaceBlockTab(shell: Shell, tab: TabId) -> DockEntry<TabId> {
+fn WorkspaceBlockTab(shell: Shell, tab: TabId) -> DockEntry {
     let Shell {
         workspace,
         history,

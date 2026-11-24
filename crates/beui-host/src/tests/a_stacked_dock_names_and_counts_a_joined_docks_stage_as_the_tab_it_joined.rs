@@ -18,7 +18,7 @@ fn count(harness: &Harness, test_id: &str) -> String {
 fn a_stacked_dock_names_and_counts_a_joined_docks_stage_as_the_tab_it_joined() {
     let _root = crate::reactive::RootScope::new();
     let document = build_node(move || {
-        let layout = DockingLayout::new();
+        let layout = DockingLayout::<u64>::new();
         view! {
             <dock_host::styled::DockHost>
                 <dock::Docking layout focus=2u64>
@@ -31,7 +31,7 @@ fn a_stacked_dock_names_and_counts_a_joined_docks_stage_as_the_tab_it_joined() {
                             title="Report"
                             on_close={|| {}}
                             content={move || {
-                                let inner = DockingLayout::new();
+                                let inner = DockingLayout::<u64>::new();
                                 view! {
                                     <dock::Docking layout=inner focus=10u64>
                                         <DockSplit id="editor" size={SplitSize::Fraction(0.7)}>

@@ -25,7 +25,7 @@ fn a_dock_kept_hidden_lets_its_tab_go_and_joins_again_when_shown() {
                                         <ListItem grow=1.0>
                                             <Kept>|| {
                                                 built.update(|built| *built += 1);
-                                                let inner = DockingLayout::new();
+                                                let inner = DockingLayout::<u64>::new();
                                                 view! {
                                                     <dock::Docking layout=inner>
                                                         <DockPane id="inner" bare=true>

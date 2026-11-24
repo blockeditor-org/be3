@@ -11,7 +11,7 @@ fn a_tab_dragged_into_another_pane_hears_its_content_take_the_keyboard() {
     let controls = create_signal(Vec::<(u64, DockTabControl)>::new());
     let dock = NodeRef::new();
     let document = build_node(move || {
-        let layout = DockingLayout::new();
+        let layout = DockingLayout::<u64>::new();
         let tab = move |id: u64| {
             view! {
                 <DockTab

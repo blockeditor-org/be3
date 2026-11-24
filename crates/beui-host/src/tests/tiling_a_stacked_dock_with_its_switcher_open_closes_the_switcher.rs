@@ -6,7 +6,7 @@ const PHONE: Vec2 = Vec2::new(390.0, 800.0);
 
 #[component]
 fn Docked() -> NodeId {
-    let layout = DockingLayout::new();
+    let layout = DockingLayout::<u64>::new();
     view! {
         <dock_host::styled::DockHost>
             <dock::Docking layout focus=2u64>

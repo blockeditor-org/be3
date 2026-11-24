@@ -223,6 +223,8 @@ pub(crate) fn framed(rect: Rect) -> Rect {
 
 pub const FLOATING_SIZE: Vec2 = Vec2::new(420.0, 300.0);
 pub const SIDEBAR_WIDTH: f32 = 180.0;
+/// The width a split with a stage gives its other side, an editor's side panel.
+pub const SIDE_PANEL_WIDTH: f32 = 260.0;
 pub const MIN_SIDEBAR_WIDTH: f32 = 80.0;
 
 #[derive(Clone, Debug, PartialEq)]

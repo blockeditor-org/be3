@@ -318,7 +318,7 @@ fn block_window(tab: TabId, area: Vec2) -> Rect {
 }
 
 #[component]
-fn BlockWindow(workspace: Workspace, tab: TabId) -> DockNode<TabId> {
+fn BlockWindow(workspace: Workspace, tab: TabId) -> DockNode {
     let area = container_size().map_or(Vec2::ZERO, |size| size.get_untracked());
     let key = format!("block.{}", tab.value());
     view! {

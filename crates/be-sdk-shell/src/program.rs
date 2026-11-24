@@ -774,7 +774,7 @@ pub fn ProgramTab(
     workspace: Workspace,
     tab: TabId,
     #[prop(default = false)] floating: bool,
-) -> DockEntry<TabId> {
+) -> DockEntry {
     let title = workspace.tab_title(tab);
     let picture = workspace.tab_picture(tab);
     let glyph = match untrack(|| workspace.is_display(tab)) {
@@ -815,7 +815,7 @@ pub fn ProgramTab(
 }
 
 #[component]
-pub fn ProgramWindow(workspace: Workspace, tab: TabId) -> DockNode<TabId> {
+pub fn ProgramWindow(workspace: Workspace, tab: TabId) -> DockNode {
     let reach = Vec2::splat(be_sdk_beui::beui::dock_host::unstyled::HANDLE_REACH);
     let host = workspace.dock_host();
     let area = untrack(|| host.area()).size();
@@ -857,7 +857,7 @@ pub fn WindowDialog(
     workspace: Workspace,
     window: HostWindowId,
     parent: HostWindowId,
-) -> DockNode<TabId> {
+) -> DockNode {
     let tab = dialog_tab(window);
     let listed = workspace.windows;
     let modal = create_memo(move || {

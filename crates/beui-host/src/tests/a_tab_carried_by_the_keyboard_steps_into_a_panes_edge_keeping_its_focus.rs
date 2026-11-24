@@ -34,7 +34,7 @@ fn a_tab_carried_by_the_keyboard_steps_into_a_panes_edge_keeping_its_focus() {
     let _root = RootScope::new();
     let dock = NodeRef::new();
     let document = build_node(move || {
-        let layout = DockingLayout::new();
+        let layout = DockingLayout::<u64>::new();
         let tab = move |id: u64| {
             view! {
                 <DockTab id title={format!("Tab {id}")}>

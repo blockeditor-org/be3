@@ -9,7 +9,7 @@ fn a_dock_tab_hidden_behind_another_is_paused_and_kept() {
     let seen = create_signal([0, 0]);
     let builds = create_signal([0, 0]);
     let document = build_node(move || {
-        let layout = DockingLayout::new();
+        let layout = DockingLayout::<u64>::new();
         view! {
             <dock_host::styled::DockHost>
                 <dock::Docking layout>

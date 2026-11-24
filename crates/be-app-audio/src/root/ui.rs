@@ -3,11 +3,11 @@ use std::cell::Cell;
 use std::rc::Rc;
 use std::time::Duration;
 
-use be_sdk_beui::beui::dock::{DockPane, DockSplit, DockTab, Docking, DockingLayout, SplitSize};
+use be_sdk_beui::beui::dock::{DockPane, DockSplit, DockTab, Docking};
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{NodeId, TextAlign};
-use be_sdk_beui::{AudioStatus, ContentFileReplace, Editor, SIDE_PANEL_WIDTH};
+use be_sdk_beui::{AudioStatus, ContentFileReplace, Editor};
 
 use super::{decode, filter, format_micros};
 use be_type_audio::AudioContent;
@@ -16,9 +16,6 @@ use beui::Align;
 const PADDING: Space = Space::Lg;
 const SPACING: Space = Space::Md;
 const SECOND_MICROS: u64 = 1_000_000;
-const STAGE: &str = "stage";
-const PANEL: &str = "panel";
-const PANEL_WIDTH: f32 = SIDE_PANEL_WIDTH;
 
 fn played_to(status: &AudioStatus, since: Duration) -> u64 {
     let since = match status.playing {
@@ -33,25 +30,27 @@ fn played_to(status: &AudioStatus, since: Duration) -> u64 {
 
 #[component]
 pub fn AudioView(editor: Editor) -> NodeId {
-    let chrome = editor.chrome_shown();
     let content = NodeRef::new();
     editor.content(&content);
-    let layout = DockingLayout::<&'static str>::new();
     view! {
-        <Docking layout focus={Some(STAGE)}>
-            <DockSplit id="audio" size={SplitSize::Second(PANEL_WIDTH)}>
-                <DockPane id="stage" locked=true bare=true>
-                    <DockTab id=STAGE title="Track">
+        <Docking>
+            <DockSplit>
+                <DockPane stage=true>
+                    <DockTab>
                         <Track @node_ref={&content} editor={editor} />
                     </DockTab>
                 </DockPane>
-                <Show value={chrome}>
-                    <DockPane id="panel" locked=true>
-                        <DockTab id=PANEL title="Audio">
-                            <AudioPanel editor={editor} />
-                        </DockTab>
-                    </DockPane>
-                </Show>
+                <DockPane chrome=true>
+                    <DockTab title="Audio">
+                        <ContentFileReplace
+                            editor
+                            label="Replace audio…"
+                            id_prefix="audio"
+                            filter={filter()}
+                            import={decode}
+                        />
+                    </DockTab>
+                </DockPane>
             </DockSplit>
         </Docking>
     }
@@ -161,25 +160,6 @@ fn Track(editor: Editor) -> NodeId {
                     </Text>
                 </Show>
             </List>
-        </Frame>
-    }
-}
-
-#[component]
-fn AudioPanel(editor: Editor) -> NodeId {
-    view! {
-        <Frame fill=ColorRole::Surface>
-            <Scroll @test_id={"audio.panel"}>
-                <Frame padding=PADDING>
-                    <ContentFileReplace
-                        editor
-                        label="Replace audio…"
-                        id_prefix="audio"
-                        filter={filter()}
-                        import={decode}
-                    />
-                </Frame>
-            </Scroll>
         </Frame>
     }
 }

@@ -137,7 +137,7 @@ pub fn FolderEditor(editor: Editor) -> NodeId {
     editor.content(&content);
     let layout = DockingLayout::<&'static str>::new();
     view! {
-        <Docking layout focus={Some(STAGE)}>
+        <Docking layout focus=STAGE>
             <DockPane id="stage" locked=true bare=true>
                 <DockTab id=STAGE title="Folder">
                     <Frame

@@ -15,19 +15,6 @@ const ROW_RADIUS: Radius = Radius::Sm;
 
 #[component]
 pub(crate) fn CanvasLayers(state: CanvasState) -> NodeId {
-    view! {
-        <Frame fill=ColorRole::Surface>
-            <Scroll>
-                <Frame padding=Space::Lg>
-                    <LayerList state />
-                </Frame>
-            </Scroll>
-        </Frame>
-    }
-}
-
-#[component]
-fn LayerList(state: CanvasState) -> NodeId {
     let entities = state.entities.ids();
     let ids =
         create_memo(move || entities.with(|ids| ids.iter().rev().copied().collect::<Vec<Uuid>>()));

@@ -101,7 +101,7 @@ fn Panel(tab: TabId) -> NodeId {
 
 #[component]
 pub fn DockingFixture() -> NodeId {
-    let layout = DockingLayout::new();
+    let layout = DockingLayout::<TabId>::new();
     let open = create_signal(vec![ALPHA, BETA]);
     let state = layout.state();
     let described = create_memo(move || state.with(report));

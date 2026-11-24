@@ -89,7 +89,7 @@ fn VideoEditor(editor: Editor) -> NodeId {
     let chrome = editor.chrome_shown();
     let layout = DockingLayout::<&'static str>::new();
     view! {
-        <Docking layout focus={Some(PLAYER)}>
+        <Docking layout focus=PLAYER>
             <DockSplit
                 id="video"
                 direction=Direction::Vertical
