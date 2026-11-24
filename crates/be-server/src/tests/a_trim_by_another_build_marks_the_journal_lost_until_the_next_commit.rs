@@ -24,6 +24,7 @@ async fn a_trim_by_another_build_marks_the_journal_lost_until_the_next_commit() 
         commit: Some(commit),
         sequence,
         state: Vec::new(),
+        parts: Vec::new(),
     };
 
     phone.try_join_as(block, old_build).await.unwrap();

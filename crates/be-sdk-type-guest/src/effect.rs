@@ -1,4 +1,5 @@
 use be_block_commit::CommitId;
+use be_block_store::PartRef;
 use be_sdk_type_api::{Description, JournalBase, Merging, Recipients, ReplicaId, Status, Written};
 
 pub(crate) type Token = u64;
@@ -21,6 +22,8 @@ pub(crate) enum Effect {
         sealed_through: Option<u64>,
         /// With `sealed_through`, the session state the journal starts from with the commit.
         journal_state: Option<Vec<u8>>,
+        /// The parts `journal_state` names, put by this replica.
+        journal_parts: Vec<PartRef>,
         restarts: u64,
     },
     Stash {
@@ -83,6 +86,8 @@ pub(crate) enum Effect {
         base: JournalBase,
         /// The run of the order it is in (`status.restarts`).
         restarts: u64,
+        /// The parts `base.state` names, put by this replica.
+        parts: Vec<PartRef>,
     },
     Release {
         replica: ReplicaId,

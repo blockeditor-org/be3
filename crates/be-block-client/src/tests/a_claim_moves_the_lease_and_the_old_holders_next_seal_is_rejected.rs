@@ -69,6 +69,7 @@ async fn a_claim_moves_the_lease_and_the_old_holders_next_seal_is_rejected() {
                 commit: Some(sealed),
                 sequence: 2,
                 state: Vec::new(),
+                parts: Vec::new(),
             },
             true,
             false,

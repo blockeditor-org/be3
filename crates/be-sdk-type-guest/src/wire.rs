@@ -19,8 +19,12 @@ pub struct Submitted {
 /// block's key like the rest of the base: the server reads none of it.
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub struct BaseState {
+    /// The type's own, or nothing when it goes by `part`.
     #[serde(with = "serde_bytes")]
     pub content: Vec<u8>,
+    /// The part the type's own goes by when it is too large to carry inline
+    /// (`LARGEST_RELAYED_OPERATION`), put before the base it is in: a journal's base only.
+    pub part: Option<be_block_store::PartRef>,
     /// Origin, its highest `through`, and the sequence that holds it.
     pub origins: Vec<(u64, u64, u64)>,
     /// How many times the session started over before this state.

@@ -313,11 +313,14 @@ interface types {
 
     /// Where a journal starts: a commit (none for no content), the last
     /// sequence number it holds and the session state as of it, sealed with
-    /// the block's key.
+    /// the block's key. `parts` are the objects of the parts the state names
+    /// (a state too large to carry inline goes by one): the server keeps
+    /// them while the base names them.
     record journal-base {
         commit: option<commit-id>,
         sequence: u64,
         state: list<u8>,
+        parts: list<hash>,
     }
 
     /// A seal of a block's live session, which a publish carries: the base the

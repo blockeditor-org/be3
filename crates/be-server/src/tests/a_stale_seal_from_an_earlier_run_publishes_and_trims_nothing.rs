@@ -18,6 +18,7 @@ async fn a_stale_seal_from_an_earlier_run_publishes_and_trims_nothing() {
         commit: Some(commit),
         sequence,
         state: Vec::new(),
+        parts: Vec::new(),
     };
     let first = author.compose(b"saved\n", 1_000, None);
     let _ = phone
