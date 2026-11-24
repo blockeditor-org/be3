@@ -36,6 +36,8 @@ fn a_toast_with_actions_reports_them_and_stays_until_answered() {
         }
     });
     let mut harness = Harness::new(document);
+    // The toast slides in before it can be pressed where it rests.
+    harness.settle();
     let output = harness.frame(Vec::new());
     let reply = output
         .test_id_rect("toast.7.action.reply")

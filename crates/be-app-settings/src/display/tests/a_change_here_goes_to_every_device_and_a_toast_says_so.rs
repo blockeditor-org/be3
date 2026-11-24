@@ -12,6 +12,8 @@ fn a_change_here_goes_to_every_device_and_a_toast_says_so() {
         "this device keeps nothing of its own"
     );
     assert!(settings.says("Theme now applies on your devices"));
+    // The toast slides in before it rests.
+    settings.editor.settle();
     settings
         .editor
         .snapshot("a_change_here_goes_to_every_device_and_a_toast_says_so");

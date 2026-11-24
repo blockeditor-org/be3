@@ -30,6 +30,8 @@ fn an_error_toast_stays_until_it_is_dismissed() {
 
     harness.advance(TOAST_DURATION * 4);
     harness.frame(Vec::new());
+    // A toast whose time is up slides off before it goes.
+    harness.settle();
     let output = harness.frame(Vec::new());
     assert!(
         output.test_id_rect("toast.2").is_none(),
@@ -41,6 +43,7 @@ fn an_error_toast_stays_until_it_is_dismissed() {
         .center();
 
     harness.click(dismiss);
+    harness.settle();
     let output = harness.frame(Vec::new());
     assert!(
         output.test_id_rect("toast.1").is_none(),

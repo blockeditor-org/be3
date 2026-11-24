@@ -29,5 +29,7 @@ fn a_notification_that_arrives_on_an_idle_desktop_keeps_its_full_time() {
     fixture.test.advance(Duration::from_secs(4));
     fixture.test.run();
     fixture.settle();
+    // It slides off once its time is up.
+    fixture.test.settle();
     assert!(!fixture.test.shown(&toast(1)), "its time is up");
 }

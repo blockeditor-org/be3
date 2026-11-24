@@ -55,6 +55,9 @@ fn a_root_shows_the_slow_saves_toast_while_its_hosts_changes_stay_unsaved() {
         shown,
         "once changes stayed unsaved that long since the last save, it shows"
     );
+    // It slides in from the side and comes to rest within a second.
+    time += second;
+    step(&mut root, time);
     let painting = own_paintings(&mut root, time)
         .into_iter()
         .find(|(surface, _)| *surface == u64::from(TOAST_SURFACE))
@@ -67,10 +70,14 @@ fn a_root_shows_the_slow_saves_toast_while_its_hosts_changes_stay_unsaved() {
 
     // Dismissed, it stays dismissed while the changes are still unsaved.
     let close = pos2(window().width - 40.0, 36.0);
+    // Pressed, it slides off, and goes once it is off.
+    until(&mut root, &mut time, click(close), "a frame is drawn", |_| true);
+    time += second;
+    step(&mut root, time);
     until(
         &mut root,
         &mut time,
-        click(close),
+        Vec::new(),
         "its close button dismisses it",
         |done| layer_of(done, TOAST_LAYER).is_none(),
     );

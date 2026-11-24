@@ -32,7 +32,7 @@ fn on_a_phone_more_blocks_takes_over_the_menu_sheet_in_place() {
     assert!(
         (moving.top() - more.top()) * (settled.top() - moving.top()) >= 0.0
             && (settled.top() - more.top()).abs() > (moving.top() - more.top()).abs(),
-        "then eases to its own height, part way at {moving:?} from {more:?} to {settled:?}"
+        "then springs to its own height, part way at {moving:?} from {more:?} to {settled:?}"
     );
     fixture.test.record();
     fixture
