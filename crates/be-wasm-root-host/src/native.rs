@@ -160,6 +160,15 @@ impl Root {
             .unwrap_or_else(|held| held.into_inner()) = Some(Arc::new(wake));
     }
 
+    /// Hands the root the host's catalog (`host.block-types`): `catalog`, be-sdk-api's `Catalog`,
+    /// and `debug_templates`, its debug templates, each encoded, in place of the one handed
+    /// before. If the root waits on it, its bell rings, which wakes the host to step it.
+    pub fn show_block_types(&mut self, catalog: Vec<u8>, debug_templates: Vec<u8>) {
+        if self.core.show_block_types(catalog, debug_templates) {
+            self.bell.ring();
+        }
+    }
+
     /// Shows the person `shown`, the host's notices, oldest first, in place of those shown
     /// before: the root hears them from its `host.notices`, and if it waits on that, its bell
     /// rings, which wakes the host (`on_wake`) to step it.

@@ -72,6 +72,7 @@ fn a_root_shows_why_the_block_its_session_shows_cannot_be_opened() {
             app: "be3.checklist".to_owned(),
             module: "checklist.wasm".to_owned(),
             name: "Checklist".to_owned(),
+            preview: false,
         }),
     );
     let opening = (0..12)

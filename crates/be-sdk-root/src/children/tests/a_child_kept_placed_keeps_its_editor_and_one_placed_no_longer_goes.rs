@@ -55,13 +55,13 @@ fn a_child_kept_placed_keeps_its_editor_and_one_placed_no_longer_goes() {
         Showing::Failed(why) if why == ALREADY_OPEN_ABOVE
     ));
 
-    // Only a block child placed to run its editor is shown.
+    // Only a block child placed to run its editor, or its preview, is shown.
     assert!(
         Child::placed(
             EditorInstanceId(1),
             ViewId::MAIN,
             1.0,
-            placed(place, ChildMode::Preview)
+            placed(place, ChildMode::Hidden)
         )
         .is_none()
     );

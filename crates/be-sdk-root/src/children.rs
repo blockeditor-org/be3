@@ -35,14 +35,21 @@
 //! each another screen of its app (`ViewPlacement::Dock`), with a frame where it holds the
 //! editor's content.
 //!
-//! Left for later (4g7b3's later parts): an ask acted on only while no popover or
-//! keyboard-taking layer of the editor's is open (the editor's own popovers are in its screen, so
-//! the root does not see them), the press that promotes a child replayed in it, a joined dock's
-//! tab menus, picks and details (the editors' menus reach the root's host as shell messages it
-//! does not take yet), drags, a block shown in several places sharing one editor, occluders, a
-//! child sized to its content (`fit`), one placed in place at its zoom, previews, and every other
-//! kind of child (web views, host panels, program windows, pickers, creations, artifact settings
-//! and rename forms), which the placer hears are unavailable.
+//! A child placed as a preview runs its editor too, asked for its preview view
+//! (`PREVIEW_SCREEN`, `preview_screen`) and shown under its placer, which leaves a hole for it
+//! once the host says it is available (`ChildPreview::Hosted`), as a passive child is, hit
+//! nowhere. One whose editor draws no preview runs no app: its placer draws its block's label.
+//! Promoted (a canvas focusing its card), it keeps its editor, asked for its main view.
+//!
+//! Left for later (plans/host_as_platform_adapter.md, 4g7b3e to 4g7b3g): an ask acted on only
+//! while no popover or keyboard-taking layer of the editor's is open (the editor's own popovers
+//! are in its screen, so the root does not see them), the press that promotes a child replayed in
+//! it, a joined dock's tab menus, picks and details (the editors' menus reach the root's host as
+//! shell messages it does not take yet), drags, a block shown in several places sharing one
+//! editor (a preview included, which be-host draws once at the largest), occluders, a child
+//! sized to its content (`fit`), one placed in place at its zoom, rotation and opacity, and every
+//! other kind of child (web views, host panels, program windows, pickers, creations, artifact
+//! settings and rename forms), which the placer hears are unavailable.
 
 use std::{
     cell::RefCell,
@@ -62,7 +69,7 @@ use be_sdk_api::{
     ScreenRequest, SurfaceSpec, Vec2 as ViewVec2, ViewId, ViewPlacement, ViewportMetrics,
 };
 use be_sdk_app_host::docks::{DockedChild, Docks};
-use be_wasm_root_api::{OpenedIn, ShownBlock, ShownChild, guest::host};
+use be_wasm_root_api::{OpenedIn, ShownBlock, ShownChild, ShownPreview, guest::host};
 use uuid::Uuid;
 
 use crate::{BlockSpawn, Embedded, Embedding, Hosted, Pressed, SpawnFailure};
@@ -71,9 +78,17 @@ use crate::{BlockSpawn, Embedded, Embedding, Hosted, Pressed, SpawnFailure};
 /// its placer's frame while it takes that over.
 pub const CHILD_SCREEN: ScreenId = ScreenId(1);
 
+/// The screen a child placed as a preview asks its app for its editor's preview view, the size
+/// of its place.
+pub const PREVIEW_SCREEN: ScreenId = ScreenId(2);
+
 /// The first of the screens a child's app is asked for the views of its dock's tabs and bars
 /// that a joined dock places, each keeping its screen while placed.
-const FIRST_TAB_SCREEN: u64 = 2;
+const FIRST_TAB_SCREEN: u64 = 3;
+
+/// The most pixels along its longer side a preview is painted at, as be-host's
+/// `preview_scale` caps it.
+const PREVIEW_PIXELS: f32 = 2048.0;
 
 /// Said of a child whose block is open in an editor that places it, which would show itself
 /// without end: the words be-host says it in.
@@ -215,6 +230,9 @@ enum Showing {
         /// Whether its app is embedded, so input routed to its screen reaches it.
         embedded: bool,
     },
+    /// Placed as a preview, its editor draws none: its placer draws its block's label, and no
+    /// app runs for it.
+    Label,
     /// Why it shows nothing: its app could not start or stopped, or its block is open above it.
     Failed(String),
 }
@@ -301,7 +319,34 @@ impl Child {
     fn hosted(&self) -> Option<(Embedded, EditorInstanceId)> {
         match &*self.showing.borrow() {
             Showing::Shown { hosted, .. } => Some((hosted.app.clone(), hosted.editor)),
-            Showing::Opening | Showing::Failed(_) => None,
+            Showing::Opening | Showing::Label | Showing::Failed(_) => None,
+        }
+    }
+
+    /// Whether it is placed as a preview, which shows its editor's preview view.
+    fn previewed(&self) -> bool {
+        self.placement.mode == ChildMode::Preview
+    }
+
+    /// The screen its app is asked for where it is placed: its editor's preview view while placed
+    /// as a preview, else its main view.
+    fn screen(&self) -> ScreenId {
+        match self.previewed() {
+            true => PREVIEW_SCREEN,
+            false => CHILD_SCREEN,
+        }
+    }
+
+    /// How it shows as a preview, which the host words its status from: not placed as one, its
+    /// editor's preview view, or its block's label when its editor draws none.
+    fn shown_preview(&self) -> ShownPreview {
+        if !self.previewed() {
+            return ShownPreview::None;
+        }
+        match &*self.showing.borrow() {
+            Showing::Label => ShownPreview::Label,
+            Showing::Shown { hosted, .. } if !hosted.preview => ShownPreview::Label,
+            Showing::Opening | Showing::Shown { .. } | Showing::Failed(_) => ShownPreview::View,
         }
     }
 
@@ -385,6 +430,12 @@ fn reconcile(shown: Vec<Child>, wanted: Vec<Child>, above: &[[u8; 16]]) -> Recon
     let mut opened = Vec::new();
     for mut child in wanted {
         match before.remove(&child.key()) {
+            // One shown as its label, placed now to run its editor, is opened.
+            Some(shown)
+                if matches!(&*shown.showing.borrow(), Showing::Label) && !child.previewed() =>
+            {
+                opened.push(kept.len());
+            }
             Some(shown) => {
                 child.showing = shown.showing;
                 child.layer = shown.layer;
@@ -516,6 +567,7 @@ impl Children {
                         shown_in: None,
                         active: false,
                         error: Some(NOT_SHOWN_YET.to_owned()),
+                        preview: ShownPreview::None,
                     }),
                 }
             }
@@ -573,7 +625,7 @@ impl Children {
                 let showing = child.showing.borrow();
                 match &*showing {
                     Showing::Shown { hosted, .. } => hosted.app.failure(),
-                    Showing::Opening | Showing::Failed(_) => None,
+                    Showing::Opening | Showing::Label | Showing::Failed(_) => None,
                 }
             };
             if let Some(why) = failed {
@@ -600,7 +652,12 @@ impl Children {
             let mut deeper = Vec::new();
             if let Some((app, editor)) = &hosted {
                 let mut screens = Vec::new();
-                if child.placed {
+                if child.placed && child.previewed() {
+                    // A preview shows its editor's preview view, or nothing when it draws none,
+                    // whose label its placer draws.
+                    child.main = (child.shown_preview() == ShownPreview::View)
+                        .then(|| preview_screen(&child.placement, *editor, child.raster));
+                } else if child.placed {
                     let placer = self.requests.iter().find(|screen| {
                         (screen.instance, screen.view) == (child.editor, child.view)
                     });
@@ -636,7 +693,7 @@ impl Children {
             } else {
                 child.tabs.clear();
             }
-            child.layer = hosted.as_ref().map(|(app, _)| app.layer_id(CHILD_SCREEN));
+            child.layer = hosted.as_ref().map(|(app, _)| app.layer_id(child.screen()));
             child.up = hosted.as_ref().is_some_and(|(app, _)| app.started());
             if child.placed {
                 views
@@ -651,8 +708,9 @@ impl Children {
                         active: child.takes_input(&self.revoked),
                         error: match &*child.showing.borrow() {
                             Showing::Failed(why) => Some(why.clone()),
-                            Showing::Opening | Showing::Shown { .. } => None,
+                            Showing::Opening | Showing::Label | Showing::Shown { .. } => None,
                         },
+                        preview: child.shown_preview(),
                     });
             }
             if let Some((app, _)) = hosted {
@@ -687,6 +745,7 @@ impl Children {
                     shown_in,
                     active: true,
                     error: None,
+                    preview: ShownPreview::None,
                 });
         }
         self.tell(views);
@@ -1029,7 +1088,7 @@ impl Children {
         for child in &self.shown {
             if let Some((app, _)) = child.hosted() {
                 let shown =
-                    std::iter::once(CHILD_SCREEN).chain(child.tabs.iter().map(|tab| tab.screen));
+                    std::iter::once(child.screen()).chain(child.tabs.iter().map(|tab| tab.screen));
                 for screen in shown {
                     if let Some(layer) = app.layer(screen, pos2(0.0, 0.0)) {
                         screens.push((app.clone(), screen, layer.id));
@@ -1106,7 +1165,7 @@ impl Children {
                         .intersect(shown),
                 ),
             };
-            let Some(mut shown_child) = app.layer(CHILD_SCREEN, at.min) else {
+            let Some(mut shown_child) = app.layer(child.screen(), at.min) else {
                 continue;
             };
             let Some(from_window) = shown_child.transform.inverse() else {
@@ -1128,10 +1187,10 @@ impl Children {
             if active && !child.framing && placement.layer == ChildLayer::Below {
                 holes.push(hole(placement, pixels, layer.clip));
             }
-            let request = child
-                .main
-                .clone()
-                .unwrap_or_else(|| child_screen(placement, editor, child.raster));
+            let request = child.main.clone().unwrap_or_else(|| match child.previewed() {
+                true => preview_screen(placement, editor, child.raster),
+                false => child_screen(placement, editor, child.raster),
+            });
             let into = match (child.framing, placement.layer) {
                 (false, ChildLayer::Below) => &mut below,
                 (true, _) | (false, ChildLayer::Above) => &mut over,
@@ -1236,12 +1295,16 @@ fn placer_hit(size: (u32, u32), holes: Vec<Rect>) -> Area {
     Area::Region(whole.subtract(&holes))
 }
 
-/// Whether a child placed in `mode` runs its block's editor: not one previewed, nor one kept
-/// placed hidden.
+/// Whether a child placed in `mode` runs its block's editor: to show it where it is placed, or
+/// its preview view for a preview, but not one kept placed hidden.
 fn runs_editor(mode: ChildMode) -> bool {
     matches!(
         mode,
-        ChildMode::Passive | ChildMode::Active | ChildMode::Live | ChildMode::InPlace
+        ChildMode::Passive
+            | ChildMode::Active
+            | ChildMode::Live
+            | ChildMode::InPlace
+            | ChildMode::Preview
     )
 }
 
@@ -1292,6 +1355,29 @@ pub fn child_screen(
         anchor_space: None,
         fit: false,
         origin: None,
+    }
+}
+
+/// The screen a child placed as a preview, as `placement`, asks of its editor `editor`: its
+/// preview view the size of its place, at its placer's `raster` but no more than
+/// `PREVIEW_PIXELS` along its longer side, in no frame.
+pub fn preview_screen(
+    placement: &ChildPlacement,
+    editor: EditorInstanceId,
+    raster: f32,
+) -> ScreenRequest {
+    let size = placement.rect.size();
+    let longest = size.x.max(size.y) * raster;
+    let raster = match longest > PREVIEW_PIXELS {
+        true => raster * PREVIEW_PIXELS / longest,
+        false => raster,
+    };
+    ScreenRequest {
+        screen: PREVIEW_SCREEN,
+        view: ViewId::PREVIEW,
+        placement: ViewPlacement::Parent(ParentView::Preview),
+        frame: None,
+        ..child_screen(placement, editor, raster)
     }
 }
 
@@ -1465,9 +1551,15 @@ fn spawn(child: &Child, spawning: &Spawning, now: Duration) {
     let spawned = Embedded::spawn_block(
         BlockSpawn {
             shown: child.shown.clone(),
-            screens: Box::new(move |editor| vec![child_screen(&placement, editor, raster)]),
+            screens: Box::new(move |editor| {
+                vec![match placement.mode == ChildMode::Preview {
+                    true => preview_screen(&placement, editor, raster),
+                    false => child_screen(&placement, editor, raster),
+                }]
+            }),
             surface: spawning.surface.clone(),
             fonts: Rc::clone(&spawning.fonts),
+            preview: child.previewed(),
         },
         now,
     );
@@ -1483,7 +1575,10 @@ fn spawn(child: &Child, spawning: &Spawning, now: Duration) {
                 hosted,
                 embedded: false,
             },
-            Err(SpawnFailure { name, why }) => Showing::Failed(match name {
+            Err(SpawnFailure {
+                no_preview: true, ..
+            }) => Showing::Label,
+            Err(SpawnFailure { name, why, .. }) => Showing::Failed(match name {
                 Some(name) => format!("{name} could not start: {why}"),
                 None => why,
             }),

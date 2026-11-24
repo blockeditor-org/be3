@@ -633,6 +633,10 @@ struct HostCore {
     /// session's block yet: the host is busy until it does, so the root shows it.
     #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
     root_session_pending: bool,
+    /// The blocks the root's editors asked to open (`open-block`), by the app and instance that
+    /// asked, until the root's host routes them (root.rs, `open_blocks`).
+    #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
+    root_opens: Vec<(String, be_sdk_api::EditorInstanceId, BlockOpen)>,
     account_error: Option<String>,
     organization: Option<Organization>,
     organizations: Vec<Organization>,
@@ -1031,6 +1035,8 @@ impl HostCore {
             root_session: None,
             #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
             root_session_pending: false,
+            #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
+            root_opens: Vec::new(),
             account_error: None,
             organization: None,
             organizations: Vec::new(),
@@ -3721,6 +3727,17 @@ impl HostCore {
         use be_host_runtime::InstanceEvent::{
             ArtifactWatch, ChildClosed, ChildCommitted, ChildDismissed, Focused,
         };
+        // Under a root the compositor that takes editors' actions does not run: the root's
+        // host routes the blocks its editors open itself.
+        #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
+        if self.under_root
+            && let be_host_runtime::InstanceEvent::Action(EditorAction::OpenBlock(open)) =
+                &heard.event
+        {
+            self.root_opens
+                .push((heard.app_id.clone(), heard.instance, open.clone()));
+            return;
+        }
         if matches!(
             heard.event,
             Focused(_) | ArtifactWatch(_) | ChildCommitted(_) | ChildDismissed(_) | ChildClosed(_)
