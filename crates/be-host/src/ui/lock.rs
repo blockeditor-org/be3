@@ -153,6 +153,7 @@ pub(crate) fn LockScreen(
         >|| {
             let focused = create_memo(move || open.get() && !busy.get());
             let submit = submit.clone();
+            let id = id.clone();
             let viewport = use_viewport_size();
             let height = create_memo(move || Length::Extent(Extent::at_least(viewport.get().y)));
             view! {
@@ -167,7 +168,7 @@ pub(crate) fn LockScreen(
                             actions
                             password
                             focused
-                            id={id.clone()}
+                            id
                             on_submit={move |typed: String| submit(typed)}
                             on_action
                         />

@@ -91,7 +91,6 @@ pub fn Select<T>(
     #[prop(default = None)] at: Binding<Option<Pos2>>,
     #[prop(default = Placement::BELOW_START)] placement: Prop<Placement>,
     #[prop(default = None)] bounds: Prop<Option<Rect>>,
-    #[prop(default = false)] keep_alive: bool,
     accessibility: Option<Prop<Node>>,
 ) -> NodeId
 where
@@ -217,7 +216,6 @@ where
                 at
                 placement
                 bounds
-                keep_alive
                 trigger={Some(state.trigger)}
                 open
             >|handle: AnchoredHandle| {

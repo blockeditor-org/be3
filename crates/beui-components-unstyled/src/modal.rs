@@ -2,7 +2,6 @@ use beui_view::types::{Dismiss, LayerLevel, LayerPolicy};
 
 use super::back_slide::{BackSlide, SlideCurves};
 use beui_view::components::overlay::{Overlay, use_overlay_presence};
-use beui_view::primitives::{KeepAlive, Kept};
 use beui_view::reactive::NodeId;
 use beui_view::reactive::OverlayAnchor;
 use beui_view::reactive::*;
@@ -41,7 +40,8 @@ pub struct ModalHandle {
 /// Escape, back and a press on the scrim reach `on_dismiss` at once, but the
 /// modal only leaves when its owner writes `open` false, so an owner that asks
 /// first ("discard changes?") or an app that answers later keeps it in place.
-/// While leaving it lingers, inert.
+/// While leaving it lingers, inert. Its content is built each time it opens and dropped once it
+/// has gone; content that keeps its state while closed is a `Kept` the caller wraps it in.
 #[component]
 pub fn Modal(
     open: Prop<bool>,
@@ -51,7 +51,7 @@ pub fn Modal(
     motion: ModalMotion,
     #[prop(default = None)] shown_in: Prop<Option<WindowId>>,
     on_dismiss: Callback<()>,
-    #[prop(children)] content: Render<ModalHandle, NodeId>,
+    #[prop(children)] content: RenderFn<ModalHandle, NodeId>,
 ) -> NodeId {
     let presence = create_signal(match motion {
         ModalMotion::Slides(_) | ModalMotion::Still => 1.0_f32,
@@ -66,7 +66,8 @@ pub fn Modal(
     let handle = ModalHandle {
         presence: presence.into(),
     };
-    let body = Render::new(move |()| {
+    // Built each time the modal opens, in the overlay's content, and dropped once it is gone.
+    let body = move || {
         let content = content.call(handle);
         match motion {
             ModalMotion::Slides(curves) => {
@@ -91,29 +92,14 @@ pub fn Modal(
             }
             ModalMotion::Still | ModalMotion::Reported => content,
         }
-    })
-    .once();
+    };
     let placed = match placement {
         ModalPlacement::Center => Placement::Center,
         ModalPlacement::Fill => Placement::Fill,
         ModalPlacement::Sheet => Placement::Edge(LayerEdge::Bottom),
     };
-    // The body is built the first time the modal opens and kept, paused, while it is closed.
-    // It reads the overlay's presence, which a kept subtree does not see unless it carries it.
-    let content = move || {
-        let overlay = use_overlay_presence();
-        view! {
-            <Kept>|| {
-                if let Some(overlay) = overlay {
-                    overlay.provide();
-                }
-                body.call(())
-            }</Kept>
-        }
-    };
     view! {
-        <KeepAlive>
-            <Overlay
+        <Overlay
                 anchor=OverlayAnchor::Point(Pos2::ZERO)
                 open={open}
                 placement=placed
@@ -125,8 +111,7 @@ pub fn Modal(
                     false => LayerPolicy::BlocksAll,
                 }}
                 on_dismiss={move |_: Dismiss| on_dismiss.call(())}
-                content={content}
+                content={body}
             />
-        </KeepAlive>
     }
 }
