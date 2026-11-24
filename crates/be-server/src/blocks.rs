@@ -159,16 +159,10 @@ impl Visibility {
     }
 
     /// Whether this caller is served the organization's whole log rather than a proof path: it
-    /// administers the organization, or has Edit or above on any of its blocks.
-    /// A guest never is: it would learn every member.
-    pub(crate) fn served_whole_organization(&self, graph: &BlockGraph) -> bool {
-        if self.guest {
-            return false;
-        }
-        match self.candidates(graph) {
-            None => true,
-            Some(blocks) => blocks.into_iter().any(|block| self.can_edit(graph, block)),
-        }
+    /// administers the organization. Anyone else would learn every member from it, which only
+    /// an administrator may list (`list-members`), however many blocks it manages.
+    pub(crate) fn served_whole_organization(&self) -> bool {
+        !self.guest && self.bound.is_none() && self.administrator
     }
 
     /// The blocks a member who administers nothing may know of, and perhaps some more: what lies

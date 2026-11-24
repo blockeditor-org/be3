@@ -3,8 +3,9 @@
 A block's access log is a hash chain of signed records
 (guides/blocks/keys.md, "Access logs"). Whoever holds Edit or above on a block,
 or on a block below it, is served its whole log and the whole logs of the
-blocks above it they may view; members with Edit on any block of a company
-organization, and its administrators, are served the organization's whole log.
+blocks above it they may view. Only a company organization's administrators
+are served the organization's whole log; every other member, an editor
+included, is served a proof path of it.
 Everyone else with access (View, Join) is served a proof path: the entries
 that prove their own right and that of whoever sealed them a key, the rest
 reduced to what chains them. A whole log costs an editor each entry once:
@@ -22,7 +23,20 @@ everyone granted above already reaches the block, and its managers list them.
 Readers below Edit never seal, so a path, which hides other members' grants,
 is enough for them to check their own key.
 
+The organization's log is the exception: it names every member, and only an
+administrator may list them, yet a block's creator holds Manage on it, so
+serving it to editors served it to nearly every member. An editor does not
+need it whole: it seals to administrators through the escrow key, and an
+honest organization path keeps every administrator record, and every record
+about anyone who ever administered it, whole, so no demotion hides behind a
+reduced entry; and it seals to a block's grantees by the keys the block's own
+log names, which it is served whole.
+
 ## Rejected
+
+- **The organization's whole log to every editor.** It handed the member list
+  to every member who had made a block, which `list-members` keeps to
+  administrators.
 
 - **A commitment to the log's state** (a Merkle map of current levels beside
   the chain), so a sealer could check one member without seeing the rest, and

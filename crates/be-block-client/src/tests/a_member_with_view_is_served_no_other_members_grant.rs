@@ -21,7 +21,8 @@ fn granted(steps: &[Step]) -> Vec<[u8; 16]> {
 /// member's grant reaches it; and of the organization's log, no other member's record. The path
 /// still checks from the root it pinned, the key sealed to it opens and reads, and a revocation
 /// it is served only reduced still outdates the epochs named before it. An editor is served
-/// every grant.
+/// every grant of the block, but of the organization's log only what an administrator does not
+/// need to be: its own record and its sealers'.
 #[tokio::test]
 async fn a_member_with_view_is_served_no_other_members_grant() {
     let harness = Harness::start().await;
@@ -90,9 +91,17 @@ async fn a_member_with_view_is_served_no_other_members_grant() {
         vec![vera.account().into_bytes()],
         "the organization's log names the viewer no other member"
     );
-    assert!(
-        members(&carol.organization_log().await.unwrap()).len() == 3,
-        "an editor is served the organization's whole log"
+    // An editor who administers nothing learns no other member either; only an administrator,
+    // who may list them, is served every member record.
+    assert_eq!(
+        members(&carol.organization_log().await.unwrap()),
+        vec![carol.account().into_bytes()],
+        "an editor is served the organization's members"
+    );
+    assert_eq!(
+        members(&admin.organization_log().await.unwrap()).len(),
+        3,
+        "an administrator is served the organization's whole log"
     );
 
     // Bob's revocation reaches the viewer reduced, yet still outdates what came before it.
