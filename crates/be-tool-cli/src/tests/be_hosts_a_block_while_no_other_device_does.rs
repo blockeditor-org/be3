@@ -44,7 +44,16 @@ fn be_hosts_a_block_while_no_other_device_does() {
         |said| told.push(said.to_owned()),
     )
     .expect("the host runs");
-    assert!(hosted_and_added, "this device hosts the block and its component added one");
-    assert_eq!(told.first().map(String::as_str), Some("standing by until no one else hosts it"));
-    assert!(told.iter().any(|said| said == "hosting"), "it said it hosts: {told:?}");
+    assert!(
+        hosted_and_added,
+        "this device hosts the block and its component added one"
+    );
+    assert_eq!(
+        told.first().map(String::as_str),
+        Some("standing by until no one else hosts it")
+    );
+    assert!(
+        told.iter().any(|said| said == "hosting"),
+        "it said it hosts: {told:?}"
+    );
 }
