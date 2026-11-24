@@ -2059,3 +2059,4 @@ fn waiting_module() -> Module {
     registration.replica_merge = Some(Rc::new(waiting_merge as crate::replica::PartsMerge<_>));
     Module::new(vec![registration])
 }
+mod replay_outside_a_session_refuses_a_journal_holding_a_restart;
