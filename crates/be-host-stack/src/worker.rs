@@ -2031,9 +2031,8 @@ impl Session<'_> {
                             .lock()
                             .unwrap_or_else(PoisonError::into_inner)
                             .importing;
-                    self.replicas.flushed(
-                        self.served.deferred() > 0 || self.uploads.deferred() > 0,
-                    );
+                    self.replicas
+                        .flushed(self.served.deferred() > 0 || self.uploads.deferred() > 0);
                     for done in flushes.drain(..) {
                         let _ = done.send(unsaved);
                     }
