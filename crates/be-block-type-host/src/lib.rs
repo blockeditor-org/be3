@@ -30,7 +30,8 @@ pub struct Conflict {
 }
 
 /// What a replica tells and asks the program holding it. The methods with bodies have neutral
-/// defaults (nothing told, nothing known) that only be-host overrides.
+/// defaults (nothing told, nothing known), which a host overrides when it shows or keeps what
+/// they tell.
 pub trait Host: Sized + 'static {
     type Store: ObjectStore + 'static;
 
@@ -79,6 +80,8 @@ pub trait Host: Sized + 'static {
 
     fn to_editor(shared: &Arc<Mutex<Self>>, block: Uuid, editor: EditorId, bytes: Vec<u8>) -> bool;
 
+    /// The content as it now reads: a host that mirrors content (to read it without a replica,
+    /// or to index it for search) keeps it from here.
     fn content(_shared: &Arc<Mutex<Self>>, _block: Uuid, _content_type: Uuid, _bytes: Vec<u8>) {}
 
     fn released(shared: &Arc<Mutex<Self>>, block: Uuid);
@@ -86,6 +89,8 @@ pub trait Host: Sized + 'static {
     /// Also when only `status.undo` changed.
     fn status(_shared: &Arc<Mutex<Self>>, _block: Uuid, _status: &Status) {}
 
+    /// The block's references and description as its content gives them: a host that shows
+    /// them (names, the graph) or searches them keeps them from here.
     fn described(
         _shared: &Arc<Mutex<Self>>,
         _block: Uuid,
@@ -97,7 +102,9 @@ pub trait Host: Sized + 'static {
     fn conflict(_shared: &Arc<Mutex<Self>>, _block: Uuid, _conflict: Conflict) {}
 
     /// How many open replicas have edits not yet committed, which owe a seal (`Owing`), and how
-    /// many hold edits not yet durable (`Replicas::counts`).
+    /// many hold edits not yet durable (`Replicas::counts`). A host that can exit while some are
+    /// not durable must keep this and wait on them before it stops, or those edits are lost: the
+    /// default forgets it, which only a host that never stops with edits open may.
     fn counted(
         _shared: &Arc<Mutex<Self>>,
         _unsealed: Vec<Owing>,
