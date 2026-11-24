@@ -187,7 +187,7 @@ fn command(socket: &Path, mut arguments: Vec<String>, timeout: Duration) -> Resu
         }
         Reply::Painting(bytes) => {
             let file = file.ok_or("the app sent a painting that was not asked for")?;
-            let painting = beui_paint_snapshot::Painting::decode(&bytes)?;
+            let painting = beui_paint_format::Painting::decode(&bytes)?;
             let snapshot = beui_paint_snapshot::Snapshot::of_painting(painting)?;
             if file.extension().is_some_and(|found| found == "png") {
                 let image = beui_paint_snapshot::render(&snapshot, 0)?;

@@ -46,7 +46,7 @@ impl BrowserSnapshot {
         self
     }
 
-    pub fn is_browser(bytes: &[u8]) -> bool {
+    pub(crate) fn is_browser(bytes: &[u8]) -> bool {
         bytes.starts_with(b"BE3BROWSER ")
     }
 
@@ -103,10 +103,12 @@ impl BrowserSnapshot {
     }
 }
 
-/// Where a browser painting first differs from the accepted one, line by line.
-pub(crate) fn describe(accepted: &[u8], made: &[u8]) -> String {
-    let previous = String::from_utf8_lossy(accepted);
-    let current = String::from_utf8_lossy(made);
+/// Where a browser painting first differs from the one before it, line by line.
+pub(crate) fn describe(before: &BrowserSnapshot, after: &BrowserSnapshot) -> String {
+    let text = |snapshot: &BrowserSnapshot| {
+        String::from_utf8(snapshot.encode().unwrap_or_default()).unwrap_or_default()
+    };
+    let (previous, current) = (text(before), text(after));
     let old: Vec<_> = previous.lines().collect();
     let new: Vec<_> = current.lines().collect();
     let first = old

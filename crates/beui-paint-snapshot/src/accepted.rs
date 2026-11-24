@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use crate::{BrowserSnapshot, Snapshot};
+use crate::{Painting, Snapshot};
 
 const REVIEW: &str =
     "commit it, and review it among the paintings on the pull request's summary comment";
@@ -61,32 +61,27 @@ pub(crate) fn assert_bytes(name: &str, how_to_accept: &str, review: &str, made: 
 }
 
 /// What changed from the accepted painting to the one a test made, both as
-/// their files hold them, or None when they are the same painting: the same
-/// encoded painting, however it was compressed, or for a browser painting the
-/// same bytes.
+/// their files hold them, or None when they are the same painting: for a
+/// native painting the same encoded painting, however it was compressed.
 pub fn changed(accepted: &[u8], made: &[u8]) -> Option<String> {
-    if BrowserSnapshot::is_browser(made) {
-        return (accepted != made).then(|| crate::browser::describe(accepted, made));
+    if let (Ok(accepted), Ok(made)) = (Snapshot::body_of(accepted), Snapshot::body_of(made))
+        && accepted == made
+    {
+        return None;
     }
-    let made_body = match Snapshot::body_of(made) {
-        Ok(body) => body,
+    let made = match Painting::decode(made) {
+        Ok(made) => made,
         Err(error) => return Some(format!("the painting made is unreadable: {error}")),
     };
-    match Snapshot::body_of(accepted) {
-        Ok(body) if body == made_body => return None,
-        Ok(_) => {}
+    let accepted = match Painting::decode(accepted) {
+        Ok(accepted) => accepted,
         Err(error) => return Some(format!("the accepted painting is unreadable: {error}")),
-    }
-    let (previous, current) = match (Snapshot::decode(accepted), Snapshot::decode(made)) {
-        (Ok(previous), Ok(current)) => (previous, current),
-        (Err(error), _) => return Some(format!("the accepted painting is unreadable: {error}")),
-        (_, Err(error)) => return Some(format!("the painting made is unreadable: {error}")),
     };
-    Some(
-        crate::difference(&previous, &current)
-            .map(|difference| difference.description)
-            .unwrap_or_else(|| "the encoded painting changed, though it looks the same".to_owned()),
-    )
+    match accepted.difference(&made) {
+        Some(difference) => Some(difference.description),
+        None if matches!(made, Painting::Browser(_)) => None,
+        None => Some("the encoded painting changed, though it looks the same".to_owned()),
+    }
 }
 
 fn file_name(accepted: &Path) -> &std::ffi::OsStr {

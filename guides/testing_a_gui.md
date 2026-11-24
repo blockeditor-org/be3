@@ -205,10 +205,15 @@ A page rendered as HTML (crates/be-server-portal-ui's portal) is snapshotted wit
 
 The `.browser` name makes the painting a text file of the viewport, the document and every
 resource it loads (beui's fonts excepted), one token per JSON line so Git diffs read well. Tests
-compare the bytes without a browser; crates/be-tool-browser-rasterizer renders them for review
+compare them without a browser; crates/be-tool-browser-rasterizer renders them for review
 (the previews, and `be-tool-local rasterize`) in the browser tests' pinned Node Playwright and
 Chromium, which its `:browser-rasterizer` lays out beside it, so it needs nothing installed. Fix
 dynamic ids, form tokens and times in fixtures.
+
+Whatever reads a painting file (the comparison, `rasterize`, the pull request's previews)
+decodes it as beui-paint-snapshot's `Painting`, `Native` or `Browser`, whose `frames`,
+`difference` and `render(index, browser_renderer)` cover both kinds; `render` hands a browser
+painting to the rasterizer it is given.
 
 ## 5. Running them
 

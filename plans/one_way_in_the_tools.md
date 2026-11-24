@@ -26,10 +26,6 @@ Depends on: none. Steps 2 and the bootstrap's part of 6 need a bootstrap release
    `File`) each define the wire. A serde-only `be-tool-build-helper-protocol`, as
    be-tool-paint-review-manifest is for paint review; the launcher's extra states become
    client-side outcomes.
-5. **One painting kind.** beui-paint-snapshot's `accepted.rs` `changed()`, be-tool-local's
-   `rasterize.rs` and `previews.rs`'s `ReviewSnapshot` each branch on `is_browser`, and their
-   descriptions differ. A `Painting { Native, Browser }` in beui-paint-snapshot with `decode`,
-   `frames`, `difference` and `render(index, browser_renderer)`; the others call it.
 6. **One storage client and one copy of the small helpers.** be-tool-local's `deploy.rs`
    (ureq, a `Checksum` header, `stored_sha256`) and be-tool-build-helper's `host.rs` (curl by
    content hash) share one blocking client: put if absent by sha256, get, head. be-server's
