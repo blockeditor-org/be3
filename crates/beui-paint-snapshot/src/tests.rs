@@ -2,10 +2,13 @@ use std::collections::BTreeMap;
 
 use crate::{Content, Fade, Frame, Primitive, Snapshot, Texture, Triangle, Vertex};
 
+mod a_browser_painting_is_described_by_its_first_changed_line;
+mod a_browser_painting_is_drawn_by_the_renderer_it_is_given;
 mod a_faded_rect_fades_toward_the_edge_it_names_the_way_the_shader_does;
 mod a_frame_that_changed_is_named_by_its_number;
 mod a_glyph_paints_its_coverage_in_its_colour;
 mod a_highlight_marks_only_the_pixels_that_changed;
+mod a_painting_file_decodes_to_its_kind;
 mod a_painting_is_unchanged_however_it_was_compressed;
 mod a_painting_with_bytes_after_its_end_is_unreadable;
 mod a_recording_keeps_the_frames_it_was_given;

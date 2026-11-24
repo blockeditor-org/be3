@@ -6,7 +6,8 @@ use be_block_content::BlockContent;
 use be_tool_drive::Driven;
 use be_type_infinite_canvas::{CanvasContent, CanvasEntity, CanvasShape};
 use beui_layer_drive::Reply;
-use beui_paint_snapshot::{Painting, Snapshot};
+use beui_paint_format::Painting;
+use beui_paint_snapshot::Snapshot;
 
 mod cores;
 mod server;

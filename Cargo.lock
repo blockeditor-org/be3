@@ -1650,6 +1650,7 @@ dependencies = [
  "be-tool-drive",
  "be-type-infinite-canvas",
  "beui-layer-drive",
+ "beui-paint-format",
  "beui-paint-snapshot",
  "libc",
  "tokio",
@@ -1872,6 +1873,7 @@ dependencies = [
  "be-tool-drive",
  "beui-core",
  "beui-layer-drive",
+ "beui-paint-format",
  "beui-paint-snapshot",
  "tokio",
  "uuid",
@@ -2717,6 +2719,7 @@ version = "0.1.0"
 dependencies = [
  "be-host-archive",
  "beui-layer-drive",
+ "beui-paint-format",
  "beui-paint-snapshot",
  "beui-runner",
  "image",
