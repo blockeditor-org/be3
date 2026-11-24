@@ -846,7 +846,11 @@ impl State {
             .app_call(AppCall::BlockTypes(types.catalog.clone()));
         self.wire
             .app_call(AppCall::DebugTemplates(types.debug_templates.clone()));
+        // What it draws may change with it: the root owes the frame that shows it, which a
+        // host waiting for its root to settle waits for.
+        self.run.pacing.need();
         self.flush();
+        self.wake();
     }
 
     /// Hands the root's host what the app sent it, under the editor the host opened

@@ -1700,12 +1700,23 @@ Each step lands on its own.
                editors), which be-sdk-root tells every app it runs (`tell_types`). Names read
                "Untitled" only where a block had no name of its own.
 
+             A child placed in a preview view is a preview too (`in_view`), as be-host-runtime
+             makes it, and an editor shown only as a preview has no dock: be-host keeps previews
+             out of its docks, and the root's `Docks` looped between it and the docked editor of
+             the same block (a slide in the filmstrip and on the stage).
+
              Tests: be-sdk-root's `children::tests`; host tests
              `be_root_in_place_of_the_hosts_ui_shows_a_presentations_slides_as_previews`,
-             `..._hands_a_childs_frame_to_a_canvas_in_a_canvas` (the frame-takeover painting)
-             and `..._opens_a_block_its_files_open`. Left for later: a search hit's place
-             handed to the block it opens (be-host's `reveals`), and each preview being an app
-             of its own rather than drawn once at its largest (4g7b3e).
+             `..._hands_a_canvas_frame_to_the_editor_on_it` (the frame-takeover painting, a pan
+             and zoom editor on a canvas) and `..._opens_a_block_its_files_open`. Left for
+             later:
+             - the editor taking the canvas's frame draws its world from the frame's content
+               corner rather than where the card was, as be-host keeps it (`a_pan_and_zoom_editor_on_a_canvas_takes_the_frame_in_place_and_pans_with_it`), which the
+               painting shows (4g7b3c's `framing_screen`);
+             - the same test made in a window resized to 1280x900 under be-host's UI never
+               settles once restarted under the root (several apps owe frames in turn);
+             - a search hit's place handed to the block it opens (be-host's `reveals`);
+             - each preview is an app of its own rather than drawn once at its largest (4g7b3e).
            - 4g7b3e. A block in several places sharing one editor (one app per staged app
              rather than per child, a twin for a placement naming another editor, and a block
              previewed in several places drawn once, at the largest, each place showing its

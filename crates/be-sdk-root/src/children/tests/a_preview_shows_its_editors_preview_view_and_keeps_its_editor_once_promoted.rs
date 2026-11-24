@@ -34,6 +34,12 @@ fn a_preview_shows_its_editors_preview_view_and_keeps_its_editor_once_promoted()
     // One whose editor draws no preview shows its label, which its placer draws.
     *child.showing.borrow_mut() = Showing::Label;
     assert_eq!(child.shown_preview(), ShownPreview::Label);
+    // A child placed in a preview view is a preview too, as under be-host, unless hidden.
+    let live = placed(place, ChildMode::Live);
+    assert_eq!(in_view(&live, ViewId::PREVIEW).mode, ChildMode::Preview);
+    assert_eq!(in_view(&live, ViewId::MAIN).mode, ChildMode::Live);
+    let hidden = placed(place, ChildMode::Hidden);
+    assert_eq!(in_view(&hidden, ViewId::PREVIEW).mode, ChildMode::Hidden);
     // A child placed to run its editor is not a preview.
     let running = wanted(placed(place, ChildMode::Active));
     assert_eq!(running.screen(), CHILD_SCREEN);
