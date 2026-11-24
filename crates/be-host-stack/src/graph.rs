@@ -172,6 +172,8 @@ pub enum Owner {
     Version,
     Organization,
     Editor(u64),
+    /// The blocks a root guest asks the host for the editors of, until it names or opens them.
+    Root,
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq, serde::Deserialize, serde::Serialize)]

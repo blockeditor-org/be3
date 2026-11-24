@@ -15,7 +15,8 @@ use be_lib_layers::{Affine, Layer, LayerId, LayerInput, Surface};
 use be_lib_stable_hash::HashMap;
 use be_lib_ui_types::input::{Input, PenPhase, TouchPhase};
 use be_sdk_api::{
-    ChildPlacement, ChildPlacements, EditorInstanceId, Fonts, ImeArea, InputBatch, Opening,
+    ChildPlacement, ChildPlacements, DockMessage, EditorInstanceId, Fonts, ImeArea, InputBatch,
+    Insets, Opening,
     Preferences, ScreenId, ScreenPlacement, ScreenRequest, SurfaceSpec, TimedInput, WindowRequests,
     embed::shell::Call as ShellCall,
 };
@@ -139,6 +140,12 @@ struct State {
     /// Whether what its views placed changed since the root last read it (`Embedded::placed`):
     /// the root owes its host the frame that shows that.
     placing: bool,
+    /// What its docks said since the root last read it (`Embedded::take_docks`), in order,
+    /// each applied once the children of the commit it came in are.
+    docks: Vec<DockMessage>,
+    /// Where each screen holds its editor's content, as its last layout's frame report said:
+    /// none for a view that holds none (a dock bar of its tools).
+    contents: HashMap<ScreenId, Option<Insets>>,
     /// Why the app stopped, once it did: it is asked for nothing again.
     failure: Option<String>,
     /// The frames waiting for the app to say hello or present.
@@ -308,6 +315,8 @@ impl Embedded {
             windows: HashMap::default(),
             placed: Vec::new(),
             placing: false,
+            docks: Vec::new(),
+            contents: HashMap::default(),
             failure: None,
             waiting: Vec::new(),
             stop: Rc::clone(&stop),
@@ -333,6 +342,19 @@ impl Embedded {
         let mut state = self.state.borrow_mut();
         state.placing = false;
         state.placed.clone()
+    }
+
+    /// What its editors' docks said since the last call, in order (be-sdk-api's `DockMessage`):
+    /// what a root's docks hear of the app (`Children`), once it took in what it placed with
+    /// them.
+    pub fn take_docks(&self) -> Vec<DockMessage> {
+        std::mem::take(&mut self.state.borrow_mut().docks)
+    }
+
+    /// Where its screen `screen` holds its editor's content, in the screen's points, as its last
+    /// layout said: none for a view that holds none, or one not laid out yet.
+    pub fn content(&self, screen: ScreenId) -> Option<Insets> {
+        self.state.borrow().contents.get(&screen).copied().flatten()
     }
 
     /// The screens it was asked for last.
@@ -408,8 +430,9 @@ impl Embedded {
             &state.run.pacing,
             state.now,
         );
-        // Children it placed that the root has yet to read want a frame now, which shows them.
-        match state.placing {
+        // Children it placed, or what its docks said, that the root has yet to read want a frame
+        // now, which shows them.
+        match state.placing || !state.docks.is_empty() {
             true => Wants {
                 next: Some(state.now),
                 owed: true,
@@ -595,6 +618,11 @@ impl State {
         }
     }
 
+    /// Takes in what its docks said, after what it placed with them.
+    fn hear_docks(&mut self, docks: Vec<DockMessage>) {
+        self.docks.extend(docks);
+    }
+
     /// Asks the app for a frame if its pacing says one is due.
     fn ask(&mut self) -> Ask {
         let ask = self.run.pacing.ask(Asking {
@@ -678,6 +706,7 @@ impl State {
                 };
                 self.painted.retain(|screen, _| laid_out(screen));
                 self.windows.retain(|screen, _| laid_out(screen));
+                self.contents.retain(|screen, _| laid_out(screen));
                 self.run.lay_out(layout, |_| false);
             }
             Heard::LaidOut(mut commit) => {
@@ -689,6 +718,11 @@ impl State {
                     .heard_layout(&mut commit, |placements| only_moves(placed, placements));
                 let children = std::mem::take(&mut commit.children);
                 self.place(children);
+                // Held with its children when they wait for the present, else heard now.
+                self.hear_docks(std::mem::take(&mut commit.docks));
+                for report in &commit.reports {
+                    self.contents.insert(report.screen, report.content);
+                }
                 self.run.pacing.laid_out();
             }
             Heard::Presented(commit) => {
@@ -699,6 +733,7 @@ impl State {
                             self.windows.insert(window.screen, window.window);
                         }
                         self.place(laid.children);
+                        self.hear_docks(laid.docks);
                     }
                 }
                 if let Some(presented) = commit.presented {

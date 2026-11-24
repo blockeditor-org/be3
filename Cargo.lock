@@ -2352,6 +2352,7 @@ dependencies = [
  "be-wasm-ops",
  "be-wasm-root-api",
  "be-wasm-sandbox-api",
+ "uuid",
 ]
 
 [[package]]

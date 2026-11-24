@@ -98,6 +98,14 @@ impl Driven {
     /// starts it again on the data it kept, as a person quitting and opening it again. The log
     /// starts over in a file of its own, so the one before stays beside it.
     pub fn restart(&mut self) -> Result<(), String> {
+        let arguments = self.start.arguments.clone();
+        self.restart_with(arguments)
+    }
+
+    /// Closes the program, failing unless it exits cleanly, and starts it again on the data it
+    /// kept with `arguments` in place of those it was started with.
+    pub fn restart_with(&mut self, arguments: Vec<String>) -> Result<(), String> {
+        self.start.arguments = arguments;
         self.close_child()?;
         self.starts += 1;
         self.log = self.log_path();

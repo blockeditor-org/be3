@@ -666,14 +666,35 @@ fn refuse_unserved(root: &mut Root) {
 /// instance the root let go of, or that stopped, it stops serving.
 fn serve_editors(core: &crate::HostCore, root: &mut Root, editors: &mut Editors) {
     let served = &mut editors.served;
-    let asks = std::mem::take(&mut editors.asks)
+    let asks: Vec<_> = std::mem::take(&mut editors.asks)
         .into_iter()
-        .chain(root.take_editor_asks());
+        .chain(root.take_editor_asks())
+        .collect();
+    let openings: Vec<_> = std::mem::take(&mut editors.openings)
+        .into_iter()
+        .chain(root.take_openings())
+        .collect();
+    // The stack lists what the root asks for, as it lists the blocks be-host's own editors
+    // show, which it may not have yet once it starts on the data it kept.
+    let mut wanted: Vec<[u8; 16]> = asks
+        .iter()
+        .map(|(_, shown)| shown.block)
+        .chain(openings.iter().map(|opening| opening.shown.block))
+        .collect();
+    wanted.sort_unstable();
+    wanted.dedup();
+    be_host_stack::want(
+        be_host_stack::Owner::Root,
+        wanted
+            .into_iter()
+            .map(|block| be_host_stack::Query::Block(Uuid::from_bytes(block)))
+            .collect(),
+    );
     for (id, shown) in asks {
-        // While the stack does not list the session's block (yet, or again for a moment), an
-        // ask for a block it does not list waits for it rather than failing.
-        if core.root_session_pending && be_host_stack::node(Uuid::from_bytes(shown.block)).is_none()
-        {
+        // While the stack does not list the session's block (yet, or again for a moment), or
+        // has yet to read the listing of the block asked for, an ask for a block it does not
+        // list waits for it rather than failing.
+        if unlisted_yet(core, shown.block) {
             editors.asks.push((id, shown));
             continue;
         }
@@ -684,13 +705,8 @@ fn serve_editors(core: &crate::HostCore, root: &mut Root, editors: &mut Editors)
         });
         root.answer_editor(id, editor);
     }
-    let openings = std::mem::take(&mut editors.openings)
-        .into_iter()
-        .chain(root.take_openings());
     for opening in openings {
-        if core.root_session_pending
-            && be_host_stack::node(Uuid::from_bytes(opening.shown.block)).is_none()
-        {
+        if unlisted_yet(core, opening.shown.block) {
             editors.openings.push(opening);
             continue;
         }
@@ -734,9 +750,28 @@ fn serve_editors(core: &crate::HostCore, root: &mut Root, editors: &mut Editors)
         };
         forwarded.tell_placer(EditorInstanceId(editor), event);
     }
+    for (instance, editor, updates) in root.take_dock_updates() {
+        let Some(forwarded) = served.get_mut(&instance) else {
+            continue;
+        };
+        // A root that encodes what no editor can read has nothing to hand it.
+        if let Some(updates) = be_sdk_api::ops::decode::<Vec<be_sdk_api::DockUpdate>>(&updates) {
+            forwarded.dock(EditorInstanceId(editor), updates);
+        }
+    }
     for (instance, forwarded) in served.iter_mut() {
         root.relay(*instance, forwarded.step());
     }
+}
+
+/// Whether an ask for an editor of `block` waits: the stack does not list it, but may yet, while
+/// the session's block is not listed or the stack has yet to read the block's listing, which
+/// `serve_editors` asks it for.
+fn unlisted_yet(core: &crate::HostCore, block: [u8; 16]) -> bool {
+    let block = Uuid::from_bytes(block);
+    let query = be_host_stack::Query::Block(block);
+    let reading = !be_host_stack::ready(query) && be_host_stack::failure(query).is_none();
+    (core.root_session_pending || reading) && be_host_stack::node(block).is_none()
 }
 
 /// The editors be-host serves the root's apps, by the root's instance each runs in, and the

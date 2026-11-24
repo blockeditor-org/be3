@@ -301,6 +301,12 @@ impl Root {
         self.core.take_placer_events()
     }
 
+    /// The dock updates the root made for the host's editors since the last call
+    /// (`host.dock`): by the root's instance and the editor, each encoded, in order.
+    pub fn take_dock_updates(&mut self) -> Vec<(u64, u64, Vec<u8>)> {
+        self.core.take_dock_updates()
+    }
+
     /// Stops the root's sandbox instance `instance` for `why`, as an app that broke what its
     /// host asks of it: the root hears it stopped, and is stepped for that.
     pub fn stop_instance(&mut self, instance: u64, why: &str) {
