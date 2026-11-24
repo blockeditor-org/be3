@@ -5,15 +5,6 @@ Depends on: none. Steps 2 and the bootstrap's part of 6 need a bootstrap release
 
 ## Steps
 
-1. **`stress` reuses the runner and the comparison.** be-tool-local's `stress.rs` copies
-   paint-compare's `run()` as `changed_paintings()`, and its `once()`/`wait()` enforce a time
-   limit by killing only the child, so a run that times out can leave its hosts running, which
-   be-tool-run-test (`--time-limit`, `--paintings`, a fresh TMPDIR, stopping the whole process
-   group) does not. Its `ENVIRONMENT` list copies `run_env` from be-host-tests' BUCK by hand
-   ("Nothing checks the two lists agree"). `stress` calls `be_tool_paint_compare::run` as a
-   library and runs each attempt through run-test, built in the same buck invocation, which
-   also hands it the test's environment. It stays local
-   (decisions/host_tests_stay_flake_free.md).
 2. **One acceptance of paintings.** be-tool-verify's `Run::paintings` copies a painting from
    `changed/` into `snapshots/` only when `used/NAME`'s hash matches the accepted file, and
    otherwise reports it stale; the bootstrap's `test.rs` `report()` (`./scripts/test --update`)

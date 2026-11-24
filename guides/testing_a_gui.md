@@ -341,17 +341,19 @@ Debugging:
   host's log with every panic in full. A step that times out while the tree shows nothing
   pending means something asks for a frame every frame.
 - A flake that shows only under load: `./scripts/buck run //crates/be-tool-local:bin -- stress
-  NAME [--repeat N] [--parallel K] [--limit SECONDS] [--apps A,B] [--latency MS]` builds the
-  host tests' harness once and runs the tests whose names contain NAME N times (20), K at a
-  time (twice the cores), killing a run that takes more than SECONDS (300). It prints how many
+  NAME [--repeat N] [--parallel K] [--limit SECONDS] [--apart] [--latency MS]` builds the
+  host tests once and runs the tests whose names contain NAME N times (20), K at a time (twice
+  the cores). Each run is the test's own command, its `[command]` sub-target (buck/dev/test.bzl:
+  crates/be-tool-run-test with the test's environment), which stops the run and everything it
+  started once it takes more than SECONDS (300). It prints how many
   runs failed, grouped by the panic's message with the numbers blurred and the first logs of
   each group, which are under target/stress/NAME/: a failing run's output as N.log, and in
   N.logs/ the whole log of each program it drove, which each writes there as it runs, so a run
-  killed for passing SECONDS keeps them too (a failure carries only the end of one, and says
-  when it logged nothing). Every run uses the host that has every app
-  unless `--apps` lists the apps the test names in `APPS`; verify stages only those, which
-  changes the timing, so try both. `--apps` builds the host apps.bzl defines for that set, so
-  it takes only a set some test in `APPS` names already. `--latency` delays each read of what
+  stopped for passing SECONDS keeps them too (a failure carries only the end of one, and says
+  when it logged nothing). Every run uses `:test`, the host that has every app, unless
+  `--apart`: then each test runs as its own `:test-NAME`, staging only the apps it names in
+  `APPS`, as verify does, which changes the timing, so try both (with several tests matched,
+  N.log is N-I.log, I the test). `--latency` delays each read of what
   the server sends a device of a test's `Server` (`HostTest::device`, through its relay), as a
   build server busy with other tests does: a flake that shows there with the CPU idle (the
   run-test line says a few seconds of CPU in forty) is a slow server, not load, and shows here
@@ -360,9 +362,9 @@ Debugging:
   once slows every step down, but at 7 or more per core single steps pass 30 seconds with
   nothing wrong. Report a fix with its failure counts before and after, such as "3 of 200
   before, 0 of 800 after": a rate of one in a few hundred needs hundreds of runs.
-  A run whose painting differs from the accepted one fails with what changed, and keeps that
-  variant in target/stress/NAME/N/changed/ with a `.why` beside it (`rasterize`, then compare
-  the pictures).
+  A run whose painting differs from the accepted one, as be-tool-paint-compare compares them
+  for verify, fails with what changed, and keeps that variant in target/stress/NAME/N/changed/
+  with a `.why` beside it (`rasterize`, then compare the pictures).
 - A crate's own test under load (`stress` runs host tests only): build its harness,
   `./scripts/buck build //crates/NAME:test-harness --show-full-output`, and run it as verify's
   part does, through `//crates/be-tool-run-test:bin` with `--one-test`, the sysroot's

@@ -1,52 +1,42 @@
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
-use std::process::{Child, Command, ExitCode, Stdio};
+use std::process::{Command, ExitCode, Stdio};
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use std::{env, fs, thread};
 
-const USAGE: &str = "usage: local-tools stress NAME [--repeat N] [--parallel K] [--limit SECONDS] [--apps A,B] [--latency MS]";
-const HARNESS: &str = "//crates/be-host-tests:test-harness";
-const BUNDLE: &str = "//crates/be-host-tests:host-with-all";
-const LIBRARIES: &str = "//crates/be-host-tests:host-libraries";
-/// The apps every test's host stages (`BASE` in crates/be-host-tests/apps.bzl).
-const BASE_APPS: [&str; 2] = ["file-tree", "workspace"];
-const HOST: &str = "//crates/be-host:bin";
-const AMD64: &str = "//buck/sysroot:amd64";
-const AMD64_TEST: &str = "//buck/sysroot:amd64-test";
-const LAVAPIPE: &str = "//buck/sysroot:lavapipe_icd.json";
+const USAGE: &str =
+    "usage: local-tools stress NAME [--repeat N] [--parallel K] [--limit SECONDS] [--apart] [--latency MS]";
+/// The host tests' package, whose `:test` runs every test against the host that has every app
+/// and whose `:test-FILE` runs one against the host that stages the apps it names
+/// (crates/be-host-tests/BUCK).
+const PACKAGE: &str = "//crates/be-host-tests";
+/// Where the host tests are, one file each, named after its one test (run_apart in
+/// buck/cargo/defs.bzl).
+const TESTS: &str = "crates/be-host-tests/src/tests";
 const REPEAT: usize = 20;
 
-/// A run that takes longer than this is killed and counted as timed out: a hung host would
-/// otherwise stop the whole stress run. Every step of a host test gives up after 30 seconds, so
-/// a run of a few steps ends well before this when nothing hangs.
+/// A run that takes longer than this is stopped, with everything it started, and counted as
+/// timed out: a hung host would otherwise stop the whole stress run. Every step of a host test
+/// gives up after 30 seconds, so a run of a few steps ends well before this when nothing hangs.
 const LIMIT: Duration = Duration::from_secs(300);
 
 /// Where a failing run's output goes, one file each, under the name stressed.
 const OUTPUT: &str = "target/stress";
 
-/// The environment variables `run_env` in crates/be-host-tests/BUCK sets for the harness, and
-/// `CARGO_MANIFEST_DIR`. Nothing checks the two lists agree (a test cannot read that BUCK file
-/// from its sandbox): a variable added there is added here, and a harness that fails at once
-/// with a missing variable says so.
-const ENVIRONMENT: [&str; 6] = [
-    "BE_BUNDLE",
-    "BE_HOST",
-    "HOST_LIBRARIES",
-    "VK_ICD_FILENAMES",
-    "XKB_CONFIG_ROOT",
-    "CARGO_MANIFEST_DIR",
-];
-
 /// Runs the host tests whose names contain NAME again and again, several at once, and says how
 /// many failed and why: a flake that shows only under load shows here (guides/testing_a_gui.md,
-/// 6, Debugging), a painting that differs from the accepted one included. `./scripts/test` caches a passing run, so running it again proves
-/// nothing.
+/// 6, Debugging), a painting that differs from the accepted one included. `./scripts/test`
+/// caches a passing run, so running it again proves nothing.
 ///
-/// Every run uses the one host that has every app (`:host-with-all`), unless `--apps` names the
-/// apps a test names in `APPS` in crates/be-host-tests/BUCK: then it stages only those, as
-/// `./scripts/test` and verify do, so a flake that needs the smaller host's timing shows too.
+/// Each run is the test's own command as buck/dev/test.bzl describes it (its `[command]`):
+/// crates/be-tool-run-test, which gives it a TMPDIR of its own and stops it and all it started
+/// at the time limit, with the test's environment. Its paintings are compared as verify
+/// compares them, by be-tool-paint-compare. Every run uses `:test`, the host that has every
+/// app, unless `--apart`: then each test runs as its own part, staging only the apps it names
+/// in `APPS` in crates/be-host-tests/BUCK, as `./scripts/test` and verify do, so a flake that
+/// needs the smaller host's timing shows too.
 pub fn main(arguments: Vec<String>) -> ExitCode {
     match run(arguments) {
         Ok(failed) => match failed {
@@ -66,8 +56,8 @@ struct Options {
     repeat: usize,
     parallel: usize,
     limit: Duration,
-    /// The apps to stage beside `BASE_APPS`, or `None` for every app.
-    apps: Option<Vec<String>>,
+    /// Each test runs as its own part, against the host that stages the apps it names.
+    apart: bool,
     /// How long the server takes to answer a device of a test's `Server`, through its relay.
     latency: Option<Duration>,
 }
@@ -83,7 +73,7 @@ fn options(arguments: Vec<String>, parallel: usize) -> Result<Options, String> {
     let mut repeat = REPEAT;
     let mut parallel = parallel;
     let mut limit = LIMIT;
-    let mut apps = None;
+    let mut apart = false;
     let mut latency = None;
     let mut arguments = arguments.into_iter();
     while let Some(argument) = arguments.next() {
@@ -101,20 +91,7 @@ fn options(arguments: Vec<String>, parallel: usize) -> Result<Options, String> {
             "--latency" => {
                 latency = Some(Duration::from_millis(number("--latency")? as u64));
             }
-            "--apps" => {
-                let listed = arguments
-                    .next()
-                    .ok_or_else(|| format!("--apps takes the apps, as A,B or nothing\n{USAGE}"))?;
-                let mut named: Vec<String> = listed
-                    .split(',')
-                    .map(str::trim)
-                    .filter(|app| !app.is_empty() && !BASE_APPS.contains(app))
-                    .map(str::to_owned)
-                    .collect();
-                named.sort();
-                named.dedup();
-                apps = Some(named);
-            }
+            "--apart" => apart = true,
             flag if flag.starts_with('-') => return Err(format!("unknown flag {flag}\n{USAGE}")),
             _ if name.is_some() => return Err(USAGE.to_owned()),
             _ => name = Some(argument),
@@ -125,7 +102,7 @@ fn options(arguments: Vec<String>, parallel: usize) -> Result<Options, String> {
         repeat,
         parallel,
         limit,
-        apps,
+        apart,
         latency,
     })
 }
@@ -138,13 +115,14 @@ struct Failure {
 
 fn run(arguments: Vec<String>) -> Result<usize, String> {
     let options = options(arguments, default_parallel())?;
-    let built = build(options.apps.as_deref())?;
-    if matching(&built, &options.name)? == 0 {
+    let tests = tests_named(&test_files()?, &options.name);
+    if tests.is_empty() {
         return Err(format!(
-            "No host test's name contains {}: stress runs only the host tests (crates/be-host-tests).",
+            "No host test's name contains {}: stress runs only the host tests ({TESTS}).",
             options.name
         ));
     }
+    let jobs = build(&options, &tests)?;
     let output = PathBuf::from(OUTPUT).join(file_name(&options.name));
     let _ = fs::remove_dir_all(&output);
     fs::create_dir_all(&output)
@@ -159,13 +137,22 @@ fn run(arguments: Vec<String>) -> Result<usize, String> {
                     if run >= options.repeat {
                         return;
                     }
-                    let log = output.join(format!("{run}.log"));
-                    let paintings = output.join(run.to_string());
-                    if let Err(reason) = once(&built, &options, &log, &paintings) {
-                        failures
-                            .lock()
-                            .unwrap_or_else(std::sync::PoisonError::into_inner)
-                            .push(Failure { reason, log });
+                    for (index, job) in jobs.iter().enumerate() {
+                        let name = match jobs.len() {
+                            1 => run.to_string(),
+                            _ => format!("{run}-{index}"),
+                        };
+                        let log = output.join(format!("{name}.log"));
+                        if let Err(reason) = once(job, &options, &log, &output.join(&name)) {
+                            let reason = match &job.test {
+                                Some(test) if jobs.len() > 1 => format!("{test}: {reason}"),
+                                _ => reason,
+                            };
+                            failures
+                                .lock()
+                                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                                .push(Failure { reason, log });
+                        }
                     }
                 }
             });
@@ -178,7 +165,7 @@ fn run(arguments: Vec<String>) -> Result<usize, String> {
         "{}: {} of {} runs failed, {} at a time",
         options.name,
         failures.len(),
-        options.repeat,
+        options.repeat * jobs.len(),
         options.parallel
     );
     print!("{}", report(&failures));
@@ -255,37 +242,98 @@ fn file_name(name: &str) -> String {
         .collect()
 }
 
-struct Built {
-    harness: PathBuf,
-    environment: Vec<(&'static str, String)>,
+/// The stems of the host tests' files, each the name of its one test.
+fn test_files() -> Result<Vec<String>, String> {
+    let entries =
+        fs::read_dir(TESTS).map_err(|error| format!("could not read {TESTS}: {error}"))?;
+    let mut stems: Vec<String> = entries
+        .flatten()
+        .map(|entry| entry.path())
+        .filter(|path| path.extension().is_some_and(|extension| extension == "rs"))
+        .filter_map(|path| Some(path.file_stem()?.to_string_lossy().into_owned()))
+        .collect();
+    stems.sort();
+    Ok(stems)
 }
 
-/// The host that stages `apps` beside the base ones, as crates/be-host-tests/apps.bzl names it.
-fn host_with(apps: &[String]) -> String {
-    match apps.is_empty() {
-        true => "//crates/be-host-tests:host-with-base".to_owned(),
-        false => format!("//crates/be-host-tests:host-with-{}", apps.join("+")),
+/// The stems of the tests whose full names, as libtest's filter reads them
+/// (`tests::STEM::STEM`), contain `name`.
+fn tests_named(stems: &[String], name: &str) -> Vec<String> {
+    stems
+        .iter()
+        .filter(|stem| format!("tests::{stem}::{stem}").contains(name))
+        .cloned()
+        .collect()
+}
+
+/// One test command to run again and again: a test's `[command]` (buck/dev/test.bzl), and the
+/// filter that follows it.
+#[derive(Debug, PartialEq)]
+struct Job {
+    /// The test a part runs, for `--apart`; `None` for the whole harness, filtered.
+    test: Option<String>,
+    launcher: Vec<String>,
+    command: Vec<String>,
+    environment: Vec<(String, String)>,
+}
+
+impl Job {
+    /// A `[command]`'s JSON: `launcher` and `command`, lists of words, and `env`, each value a
+    /// list of words that buck2 would join with spaces.
+    fn parse(test: Option<String>, text: &str) -> Result<Job, String> {
+        let value: serde_json::Value = serde_json::from_str(text)
+            .map_err(|error| format!("a test's [command] is not JSON: {error}"))?;
+        let words = |value: &serde_json::Value| -> Option<Vec<String>> {
+            value
+                .as_array()?
+                .iter()
+                .map(|word| word.as_str().map(str::to_owned))
+                .collect()
+        };
+        let field = |key: &str| {
+            words(&value[key]).ok_or_else(|| format!("a test's [command] has no list {key}"))
+        };
+        let environment = value["env"]
+            .as_object()
+            .ok_or("a test's [command] has no env")?
+            .iter()
+            .map(|(key, value)| {
+                words(value)
+                    .map(|words| (key.clone(), words.join(" ")))
+                    .ok_or_else(|| format!("a test's [command] has no words for {key}"))
+            })
+            .collect::<Result<_, String>>()?;
+        Ok(Job {
+            test,
+            launcher: field("launcher")?,
+            command: field("command")?,
+            environment,
+        })
+    }
+
+    /// Where the test's accepted paintings are: its crate's snapshots/.
+    fn accepted(&self) -> PathBuf {
+        self.environment
+            .iter()
+            .find(|(key, _)| key == "CARGO_MANIFEST_DIR")
+            .map(|(_, manifest)| Path::new(manifest).join("snapshots"))
+            .unwrap_or_default()
     }
 }
 
-/// What `run_env` in crates/be-host-tests/BUCK sets for the harness, built here; with `apps`,
-/// what `apart_env` sets instead for a test that names them.
-fn build(apps: Option<&[String]>) -> Result<Built, String> {
-    let bundle_target = apps.map_or_else(|| BUNDLE.to_owned(), host_with);
-    let mut targets = vec![
-        HARNESS,
-        bundle_target.as_str(),
-        HOST,
-        AMD64_TEST,
-        AMD64,
-        LAVAPIPE,
-    ];
-    if apps.is_some() {
-        targets.push(LIBRARIES);
-    }
+/// The `[command]` of `:test`, or with `--apart` of each test's `:test-STEM`, built in one
+/// buck2 invocation with everything they run.
+fn build(options: &Options, tests: &[String]) -> Result<Vec<Job>, String> {
+    let targets: Vec<(Option<String>, String)> = match options.apart {
+        false => vec![(None, format!("{PACKAGE}:test[command]"))],
+        true => tests
+            .iter()
+            .map(|test| (Some(test.clone()), format!("{PACKAGE}:test-{test}[command]")))
+            .collect(),
+    };
     let output = Command::new("./scripts/buck")
         .args(["build", "--show-full-output"])
-        .args(&targets)
+        .args(targets.iter().map(|(_, target)| target))
         .stderr(Stdio::inherit())
         .output()
         .map_err(|error| format!("could not run ./scripts/buck: {error}"))?;
@@ -293,227 +341,140 @@ fn build(apps: Option<&[String]>) -> Result<Built, String> {
         return Err("Building the host tests failed.".to_owned());
     }
     let listed = String::from_utf8_lossy(&output.stdout);
-    let path = |target: &str| -> Result<PathBuf, String> {
-        let wanted = format!("root{target}");
-        listed
-            .lines()
-            .find_map(|line| {
-                let (name, path) = line.split_once(' ')?;
-                (name == wanted).then(|| PathBuf::from(path.trim()))
-            })
-            .ok_or_else(|| format!("buck did not say where it built {target}"))
-    };
-    let amd64_test = path(AMD64_TEST)?;
-    let amd64 = path(AMD64)?;
-    let libraries = |sysroot: &Path| sysroot.join("usr/lib/x86_64-linux-gnu");
-    let [bundle, host, libraries_variable, icd, xkb, manifest] = ENVIRONMENT;
-    let bundled = match apps {
-        None => path(BUNDLE)?.display().to_string(),
-        Some(_) => format!(
-            "{}:{}",
-            path(&bundle_target)?.display(),
-            path(LIBRARIES)?.display()
-        ),
-    };
-    let mut environment = vec![
-        (bundle, bundled),
-        (host, path(HOST)?.display().to_string()),
-        (
-            libraries_variable,
-            format!(
-                "{}:{}",
-                libraries(&amd64_test).display(),
-                libraries(&amd64).display()
-            ),
-        ),
-        (icd, path(LAVAPIPE)?.display().to_string()),
-        (
-            xkb,
-            amd64_test.join("usr/share/X11/xkb").display().to_string(),
-        ),
-        (
-            manifest,
-            env::current_dir()
-                .map_err(|error| format!("no working directory: {error}"))?
-                .join("crates/be-host-tests")
-                .display()
-                .to_string(),
-        ),
-    ];
-    if let Some(apps) = apps {
-        let mut staged: Vec<&str> = BASE_APPS
-            .into_iter()
-            .chain(apps.iter().map(String::as_str))
-            .collect();
-        staged.sort_unstable();
-        environment.push(("HOST_TEST_APPS", staged.join(",")));
-    }
-    Ok(Built {
-        harness: path(HARNESS)?,
-        environment,
-    })
+    targets
+        .into_iter()
+        .map(|(test, target)| {
+            let wanted = format!("root{target}");
+            let path = listed
+                .lines()
+                .find_map(|line| {
+                    let (name, path) = line.split_once(' ')?;
+                    (name == wanted).then(|| PathBuf::from(path.trim()))
+                })
+                .ok_or_else(|| format!("buck did not say where it built {target}"))?;
+            let text = fs::read_to_string(&path)
+                .map_err(|error| format!("could not read {}: {error}", path.display()))?;
+            Job::parse(test, &text)
+        })
+        .collect()
 }
 
-/// How many of the harness's tests have names containing `name`, as libtest lists them.
-fn matching(built: &Built, name: &str) -> Result<usize, String> {
-    let output = Command::new(&built.harness)
-        .args([name, "--list"])
-        .envs(built.environment.iter().map(|(key, value)| (key, value)))
-        .stdin(Stdio::null())
-        .stderr(Stdio::inherit())
-        .output()
-        .map_err(|error| format!("could not run the harness: {error}"))?;
-    if !output.status.success() {
-        return Err("The harness could not list its tests.".to_owned());
-    }
-    Ok(listed_tests(&String::from_utf8_lossy(&output.stdout)))
-}
-
-/// The number of tests in libtest's `--list` output: one `NAME: test` line each.
-fn listed_tests(listing: &str) -> usize {
-    listing
-        .lines()
-        .filter(|line| line.ends_with(": test"))
-        .count()
-}
-
-/// One run of the tests named, which fails with what went wrong: the panic's message, how the
-/// harness ended when it did not panic, that it ran past `limit` and was killed, or that a
-/// painting differs from the accepted one. The run writes its paintings into `paintings`/made
-/// (MADE_PAINTINGS) rather than comparing them itself, so that every run keeps its own: those
-/// that differ stay in `paintings`/changed with a `.why` beside each, and the rest is removed.
-fn once(built: &Built, options: &Options, log: &Path, paintings: &Path) -> Result<(), String> {
-    let limit = options.limit;
-    let made = paintings.join("made");
+/// One run of the job, which fails with what went wrong: the panic's message, how the harness
+/// ended when it did not panic, that it ran past `limit` and was stopped, or that a painting
+/// differs from the accepted one. run-test records the run in `paintings`.run (its `--record`:
+/// the log, the status and the paintings made, which the test compares none of), and
+/// be-tool-paint-compare compares those with the accepted ones into `paintings`, so that every
+/// run keeps its own: those that differ stay in `paintings`/changed with a `.why` beside each,
+/// and the rest is removed.
+fn once(job: &Job, options: &Options, log: &Path, paintings: &Path) -> Result<(), String> {
+    let record = paintings.with_extension("run");
+    let _ = fs::remove_dir_all(&record);
     // Each program the run drives writes its whole log here, beside the run's own output, so a
-    // run killed for passing its limit keeps them too; a run that passed has them removed.
-    let logs = std::env::current_dir()
+    // run stopped for passing its limit keeps them too; a run that passed has them removed.
+    let logs = env::current_dir()
         .unwrap_or_default()
         .join(log.with_extension("logs"));
     let _ = fs::remove_dir_all(&logs);
-    let mut command = Command::new(&built.harness);
+    let (launcher, flags) = job
+        .launcher
+        .split_first()
+        .ok_or("a test's [command] has no launcher")?;
+    let mut command = Command::new(launcher);
     if let Some(latency) = options.latency {
         command.env("HOST_TEST_LATENCY_MS", latency.as_millis().to_string());
     }
-    let mut child = command
-        .arg(&options.name)
-        .envs(built.environment.iter().map(|(key, value)| (key, value)))
-        .env("MADE_PAINTINGS", &made)
+    let ran = command
+        .args(flags)
+        // A later --time-limit is the one the launcher keeps.
+        .args(["--time-limit", &format!("{}s", options.limit.as_secs())])
+        .arg("--record")
+        .arg(&record)
+        .arg("--")
+        .args(&job.command)
+        .args(job.test.is_none().then_some(&options.name))
+        .envs(job.environment.iter().map(|(key, value)| (key, value)))
         // be-tool-drive's `Driven` keeps them there (its `KEEP_LOGS`).
         .env("BE_DRIVE_KEEP_LOGS", &logs)
         .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .map_err(|error| format!("could not run the harness: {error}"))?;
-    let readers = [
-        child.stdout.take().map(reader),
-        child.stderr.take().map(reader),
-    ];
-    let (status, timed_out) = wait(&mut child, limit);
-    let text: String = readers
-        .into_iter()
-        .flatten()
-        .map(|reader| reader.join().unwrap_or_default())
-        .collect();
-    let accepted = built
-        .environment
-        .iter()
-        .find(|(key, _)| *key == "CARGO_MANIFEST_DIR")
-        .map(|(_, manifest)| Path::new(manifest).join("snapshots"))
-        .unwrap_or_default();
-    let changed = changed_paintings(&made, &accepted, &paintings.join("changed"));
-    let _ = fs::remove_dir_all(&made);
-    if changed.is_empty() {
+        .output()
+        .map_err(|error| format!("could not run {launcher}: {error}"));
+    let mut text = fs::read_to_string(record.join("log")).unwrap_or_default();
+    let status = fs::read_to_string(record.join("status"))
+        .ok()
+        .and_then(|status| status.trim().parse::<i32>().ok());
+    if let Ok(ran) = &ran {
+        text.push_str(&String::from_utf8_lossy(&ran.stdout));
+        text.push_str(&String::from_utf8_lossy(&ran.stderr));
+    }
+    let changed = compare(&record.join("made"), &job.accepted(), paintings);
+    let _ = fs::remove_dir_all(&record);
+    let _ = fs::remove_dir_all(paintings.join("used"));
+    if changed.as_ref().is_ok_and(Vec::is_empty) {
         let _ = fs::remove_dir_all(paintings);
     }
-    if let (Some(status), false) = (status, timed_out)
-        && status.success()
-    {
-        let Some((painting, why)) = changed.into_iter().next() else {
-            let _ = fs::remove_dir_all(&logs);
-            return Ok(());
-        };
+    let failed = |reason: String| {
         let _ = fs::write(log, &text);
-        return Err(format!("the painting {painting} changed: {why}"));
-    }
-    let _ = fs::write(log, &text);
-    Err(match (timed_out, status) {
-        (true, _) => format!(
-            "timed out: the run took more than {} seconds",
-            limit.as_secs()
-        ),
-        (false, Some(status)) => reason(&text, &ended(status)),
-        (false, None) => reason(&text, "the harness could not be waited for"),
-    })
-}
-
-/// Each painting in `made` that differs from the one in `accepted`, by name with what changed,
-/// copied into `changed` with that in a `.why` beside it.
-fn changed_paintings(made: &Path, accepted: &Path, changed: &Path) -> Vec<(String, String)> {
-    let mut names: Vec<_> = fs::read_dir(made)
-        .into_iter()
-        .flatten()
-        .flatten()
-        .map(|entry| entry.file_name())
-        .collect();
-    names.sort();
-    let mut differ = Vec::new();
-    for name in names {
-        let Ok(bytes) = fs::read(made.join(&name)) else {
-            continue;
-        };
-        let why = match fs::read(accepted.join(&name)) {
-            Ok(previous) => match beui_paint_snapshot::changed(&previous, &bytes) {
-                Some(why) => why,
-                None => continue,
+        Err(reason)
+    };
+    match status {
+        Some(0) => match changed {
+            Ok(changed) => match changed.into_iter().next() {
+                None => {
+                    let _ = fs::remove_dir_all(&logs);
+                    Ok(())
+                }
+                Some((painting, why)) => failed(format!("the painting {painting} changed: {why}")),
             },
-            Err(_) => "there is no accepted painting".to_owned(),
-        };
-        let mut why_name = name.clone();
-        why_name.push(".why");
-        let _ = fs::create_dir_all(changed);
-        let _ = fs::write(changed.join(&name), &bytes);
-        let _ = fs::write(changed.join(why_name), &why);
-        differ.push((name.to_string_lossy().into_owned(), why));
-    }
-    differ
-}
-
-fn reader(mut pipe: impl std::io::Read + Send + 'static) -> thread::JoinHandle<String> {
-    thread::spawn(move || {
-        let mut bytes = Vec::new();
-        let _ = pipe.read_to_end(&mut bytes);
-        String::from_utf8_lossy(&bytes).into_owned()
-    })
-}
-
-/// Waits for the child until `limit`, then kills it: how it ended and whether it was killed.
-fn wait(child: &mut Child, limit: Duration) -> (Option<std::process::ExitStatus>, bool) {
-    let started = Instant::now();
-    loop {
-        match child.try_wait() {
-            Ok(Some(status)) => return (Some(status), false),
-            Ok(None) if started.elapsed() >= limit => {
-                let _ = child.kill();
-                return (child.wait().ok(), true);
-            }
-            Ok(None) => thread::park_timeout(Duration::from_millis(50)),
-            Err(_) => return (None, false),
+            Err(error) => failed(format!("the paintings could not be compared: {error}")),
+        },
+        Some(be_tool_run_test::TIMED_OUT) => failed(format!(
+            "timed out: the run took more than {} seconds",
+            options.limit.as_secs()
+        )),
+        Some(status) => {
+            let ended = ended(status);
+            failed(reason(&text, &ended))
         }
+        None => failed(match ran {
+            Err(error) => error,
+            Ok(_) => reason(&text, "the launcher recorded no status"),
+        }),
     }
 }
 
-/// How a process that did not succeed ended, naming the signal of one a signal killed.
-fn ended(status: std::process::ExitStatus) -> String {
-    #[cfg(unix)]
-    {
-        use std::os::unix::process::ExitStatusExt as _;
-        if let Some(signal) = status.signal() {
-            return format!("the harness was killed by signal {signal}");
-        }
+/// Compares the paintings in `made` with those in `accepted` as verify does
+/// (be-tool-paint-compare, `--update`): each that differs, by name with what changed, is in
+/// `out`/changed with that in a `.why` beside it.
+fn compare(made: &Path, accepted: &Path, out: &Path) -> Result<Vec<(String, String)>, String> {
+    be_tool_paint_compare::run(&be_tool_paint_compare::Options {
+        made: made.to_owned(),
+        accepted: accepted.to_owned(),
+        out: out.to_owned(),
+        update: true,
+        ..Default::default()
+    })?;
+    let changed = out.join("changed");
+    let mut differ: Vec<(String, String)> = fs::read_dir(&changed)
+        .map_err(|error| format!("could not read {}: {error}", changed.display()))?
+        .flatten()
+        .filter_map(|entry| {
+            let name = entry.file_name().to_string_lossy().into_owned();
+            let painting = name.strip_suffix(".why")?.to_owned();
+            let why = fs::read_to_string(entry.path()).unwrap_or_default();
+            Some((painting, why))
+        })
+        .collect();
+    differ.sort();
+    Ok(differ)
+}
+
+/// How a run that did not succeed ended, by the status the launcher recorded: 128 and the
+/// signal for a test a signal stopped.
+fn ended(status: i32) -> String {
+    match status {
+        129.. => format!("the harness was killed by signal {}", status - 128),
+        _ => format!("the harness exited with status {status}"),
     }
-    format!("the harness exited with {status}")
 }
 
 /// The panic's own message, which tells failures apart, or `ended` when there was none.

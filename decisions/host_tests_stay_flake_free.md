@@ -15,10 +15,11 @@ rules make that hard to write and easy to find.
   late frame in any test, whoever wrote it, the first time it shows. It has no opt-out; a
   painting that changes between two frames of a program with nothing to do is not a painting.
 - `./scripts/buck run //crates/be-tool-local:bin -- stress NAME` runs host tests many times at
-  once (twice the cores by default), kills a run that hangs, and counts the failures by message
-  with the first logs of each, so a flake shows before it reaches a pull request. It is local
-  and on demand, and it runs every test against the host that has every app, where
-  `./scripts/test` stages the apps a test names.
+  once (twice the cores by default), each through be-tool-run-test as verify runs it, stops a
+  run that hangs with all it started, and counts the failures by message with the first logs of
+  each, so a flake shows before it reaches a pull request. It is local and on demand, and it
+  runs every test against the host that has every app, where `./scripts/test` stages the apps
+  a test names, unless `--apart` runs each as `./scripts/test` does.
 - The rules for writing a test live in guides/testing_a_gui.md, 6.
 
 ## The add-menu painting's flipping hover
