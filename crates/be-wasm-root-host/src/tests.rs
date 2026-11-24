@@ -151,6 +151,8 @@ fn own_paintings(root: &mut Root, time: u64) -> Vec<(u64, beui_paint_format::Pai
         FrameRequest {
             time,
             wall_clock: 0,
+            utc_offset: 0,
+            window: window(),
         },
         Instant::now() + PATIENT,
     )
@@ -185,6 +187,15 @@ fn glyphs(primitives: &[beui_paint_format::Primitive]) -> Vec<[f32; 4]> {
         .collect()
 }
 
+/// The host's one window the tests' roots draw in: the fixtures' size, a pixel to a point.
+fn window() -> be_wasm_root_api::WindowSize {
+    be_wasm_root_api::WindowSize {
+        width: 400.0,
+        height: 240.0,
+        pixels_per_point: 1.0,
+    }
+}
+
 /// Far enough off that a child that answers at all answers before it.
 const PATIENT: Duration = Duration::from_secs(60);
 
@@ -204,6 +215,8 @@ fn step(root: &mut Root, time: u64) -> FrameDone {
         FrameRequest {
             time,
             wall_clock: 0,
+            utc_offset: 0,
+            window: window(),
         },
         Instant::now() + PATIENT,
     )

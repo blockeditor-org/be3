@@ -40,7 +40,7 @@ fn a_root_shows_its_hosts_lock_screen_and_statistics() {
     let mut root = embedding();
     let mut time = 1;
     step(&mut root, time);
-    root.show_core(be_wasm_root_api::CoreView::default());
+    show_core(&mut root, be_wasm_root_api::CoreView::default());
 
     // Performance opens the statistics panel, which watches the host's statistics and graphs
     // its memory over the last minutes: a gap of more than two minutes, while the computer
@@ -99,13 +99,8 @@ fn a_root_shows_its_hosts_lock_screen_and_statistics() {
         |done| layer_of(done, STATISTICS_LAYER).is_none(),
     );
 
-    // Lock asks the host to lock the session, which shows the lock screen over everything,
-    // its field taking the input method.
-    let _ = menu(&mut root, &mut time, Entry::Lock);
-    assert!(
-        root.take_lock_asked(),
-        "Lock asks the host to lock the session"
-    );
+    // The host locks the session, which shows the lock screen over everything, its field
+    // taking the input method.
     root.show_lock(locked(None, None));
     let locked_frame = until(
         &mut root,

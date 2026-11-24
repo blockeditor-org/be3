@@ -1866,7 +1866,6 @@ dependencies = [
  "be-block-commit",
  "be-block-fault-relay",
  "be-block-sqlite-schema",
- "be-root",
  "be-sdk-root-testing",
  "be-server",
  "be-tool-drive",
@@ -2112,6 +2111,7 @@ version = "0.1.0"
 dependencies = [
  "be-lib-geometry",
  "be-lib-layers",
+ "be-lib-quoted-name",
  "be-lib-ui-types",
  "be-root-accounts-ui",
  "be-sdk-api",

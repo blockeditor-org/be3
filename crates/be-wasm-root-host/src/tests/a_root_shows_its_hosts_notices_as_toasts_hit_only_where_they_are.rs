@@ -174,6 +174,8 @@ fn draw(root: &mut Root, time: u64) -> FrameDone {
         FrameRequest {
             time,
             wall_clock: 0,
+            utc_offset: 0,
+            window: window(),
         },
         Instant::now() + PATIENT,
     )

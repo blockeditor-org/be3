@@ -22,10 +22,10 @@ be_wasm_ops_bindgen::generate!({
     secret: ["password"],
 });
 
-pub use frames::{FrameDone, FrameRequest};
+pub use frames::{FrameDone, FrameRequest, WindowSize};
 pub use host::{
     AccountRow, AgentCredentials, AgentRow, AgentsArea, BrowserSignIn, ContactCard,
-    ContactMismatch, ContactRow, ContactsArea, CoreCommand, CoreFailure, CoreSecret, CoreView,
+    ContactMismatch, ContactRow, ContactsArea, CoreCommand, CoreFailure, CoreSecret, CoreView, DefaultServer, HostedBlock,
     CoreWait, DiscardReason, DisplayQuestion, DisplayState, HostStatistics, Invitation,
     InvitationRow, InvitationState, InvitationsArea, Leaving, LockState, MemberRole, MemberRow,
     MembersArea, MemoryMinutes, MemoryPoint, NewAccount, Notice, NoticeAction, OrganizationRow,

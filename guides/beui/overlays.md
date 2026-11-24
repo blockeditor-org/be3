@@ -295,12 +295,15 @@ finger opened). Which anchor to pass:
 Code that places its own body uses the parts (`DialogCard`, `DialogBody`, a
 `Modal`), as be-host's keep-changes prompt and an app opened as a dialog do.
 
-A root guest's dialog is layers of its own rather than a `Modal` in one
-document (plans/host_as_platform_adapter.md, step 4g4; be-sdk-root-testing's
-is the example): a scrim layer over the rest, which takes no press itself but
-`captures` every press that misses the dialog for its placer, the root's own
-layer, which closes the dialog; and above it the dialog's layer, a document
-showing a `DialogBody` in a card that fills its surface. Once drawn the dialog
+A root guest's dialog is a layer of its own over the rest. be-root's is a
+surface the window's size whose document shows the dialog as be-host's own
+does, a `DialogFrame` (beui's card over its scrim, or a sheet in a narrow
+window, which Escape and a press on the scrim dismiss) around a `DialogBody`;
+its layer takes every press and the focus. be-sdk-root-testing's, a fixture of
+a fixed size (plans/host_as_platform_adapter.md, step 4g4), lays a scrim layer
+of its own under it, which takes no press itself but `captures` every press
+that misses the dialog for its placer, the root's own layer, which closes the
+dialog. Once drawn the dialog
 takes the focus (`Embedding::focus`), and closing gives it back to the layer
 that had it, or to none if that layer went meanwhile. With the focus in it,
 Escape is its document's, bubbling from the focus so a popup inside takes it

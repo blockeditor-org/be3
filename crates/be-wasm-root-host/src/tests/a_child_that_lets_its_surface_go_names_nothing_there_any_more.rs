@@ -9,6 +9,8 @@ fn a_child_that_lets_its_surface_go_names_nothing_there_any_more() {
                 FrameRequest {
                     time: PAINTS,
                     wall_clock: 0,
+                    utc_offset: 0,
+                    window: window(),
                 },
                 Instant::now() + PATIENT,
             )

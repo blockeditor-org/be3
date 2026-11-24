@@ -9,6 +9,8 @@ fn a_frame_waits_for_its_child_and_shows_it() {
                 FrameRequest {
                     time,
                     wall_clock: 0,
+                    utc_offset: 0,
+                    window: window(),
                 },
                 Instant::now() + PATIENT,
             )

@@ -16,6 +16,8 @@ fn a_root_wants_frames_until_its_app_presents_and_wakes_its_host_for_them() {
             FrameRequest {
                 time: 1,
                 wall_clock: 0,
+                utc_offset: 0,
+                window: window(),
             },
             Instant::now(),
         )
@@ -41,6 +43,8 @@ fn a_root_wants_frames_until_its_app_presents_and_wakes_its_host_for_them() {
             FrameRequest {
                 time: 2,
                 wall_clock: 0,
+                utc_offset: 0,
+                window: window(),
             },
             Instant::now() + PATIENT,
         )
@@ -70,6 +74,8 @@ fn a_root_wants_frames_until_its_app_presents_and_wakes_its_host_for_them() {
                 FrameRequest {
                     time,
                     wall_clock: 0,
+                    utc_offset: 0,
+                    window: window(),
                 },
                 Instant::now() + PATIENT,
             )

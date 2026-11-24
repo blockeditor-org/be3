@@ -18,7 +18,6 @@ beui-paint-snapshot = { path = "../beui-paint-snapshot" }
 
 [dev-dependencies]
 # The root its root test runs, for where it places the triangle's screen.
-be-root = { path = "../be-root" }
 be-sdk-root-testing = { path = "../be-sdk-root-testing" }
 
 [lints]

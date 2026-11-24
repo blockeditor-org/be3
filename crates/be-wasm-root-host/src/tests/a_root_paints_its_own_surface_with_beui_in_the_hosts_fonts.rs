@@ -9,6 +9,8 @@ fn a_root_paints_its_own_surface_with_beui_in_the_hosts_fonts() {
         FrameRequest {
             time: 1,
             wall_clock: 0,
+            utc_offset: 0,
+            window: window(),
         },
         Instant::now() + PATIENT,
     )

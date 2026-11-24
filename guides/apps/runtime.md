@@ -243,7 +243,10 @@ its own (a `v8::SharedIsolate`, locked by the thread that runs it):
   input, which its router hands the focused surface, and the field that
   surface edits is `frame-done`'s `ime`. Choosing and saving files are the
   platform's own dialogs, which `be3:root` does not carry yet. `frame-request` carries the frame clock's
-  time and the host's wall clock (`wall-clock`), the only clocks a root reads.
+  time and the host's wall clock (`wall-clock`), the only clocks a root reads, the host's
+  time zone (`utc-offset`, seconds east of UTC), and the host's one window (`window`: its
+  size in points and its pixels per point), which a root lays its surfaces out in, resizing
+  them as it changes.
   A root, single-threaded as every guest is, starts no threads, and nothing
   it runs waits: it runs on the host's frame thread. The root's
   `paintings` export answers what its own surfaces painted, in
@@ -294,7 +297,7 @@ its own (a `v8::SharedIsolate`, locked by the thread that runs it):
   own UI stays the default until be-root passes the host tests that exercise it
   (plans/host_as_platform_adapter.md, 4g7). The host test
   `be_root_in_place_of_the_hosts_ui_shows_its_onboarding` stages be-root and runs it with
-  `--root=be3.root`; the host tests `a_root_in_place_of_the_hosts_ui_*` stage be-sdk-root-testing as
+  `--root=be3.root`, filling be-host's window; the host tests `a_root_in_place_of_the_hosts_ui_*` stage be-sdk-root-testing as
   one, and see a press, a key and a touch reach the triangle it embeds, which
   tints its screen by what it heard, and its dialog take drive's input method
   and the window's clipboard and give the focus back to the triangle. Tests also run a root natively in
@@ -375,10 +378,12 @@ its own (a `v8::SharedIsolate`, locked by the thread that runs it):
   screen while the session is locked: a fixture, nothing in it the product's, which be-wasm-root-host's tests run with the
   triangle on a stand-in device, and be-host's host test with `--root`. be-root
   (decisions/the_real_root_is_its_own_crate_not_the_testing_root.md) is the root be-host is to
-  run in place of its own UI: the lock card and the statistics panel with its memory graph as a
+  run in place of its own UI, worded and laid out as be-host's own (its `src/ui`) and filling
+  the window it is told of: the lock card and the statistics panel with its memory graph as a
   person sees them, the toasts and the slow save's toast,
   the question of keeping display settings, the block stack's onboarding and its dialogs, which
-  a menu at the window's top right opens in place of the fixture's keys; its own tests run it
+  a menu at the window's top right opens as be-host's organization menu does, its entries
+  following `core-view`'s organization, role and status fields; its own tests run it
   as be-wasm-root-host's run the fixture. A root is
   built as an app is (`app_module`, in the `wasi-guest` plan, linked against
   base and beui; decisions/a_root_links_beui_as_an_app_does.md); only

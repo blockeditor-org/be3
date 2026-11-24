@@ -55,6 +55,8 @@ fn members() -> CoreView {
         unsigned: false,
     };
     CoreView {
+        organization: "Analytical Engines".to_owned(),
+        administrator: true,
         members: MembersArea {
             listed: true,
             members: vec![
@@ -71,6 +73,7 @@ fn members() -> CoreView {
 
 fn agents() -> CoreView {
     CoreView {
+        organization: "Analytical Engines".to_owned(),
         agents: AgentsArea {
             listed: true,
             agents: vec![AgentRow {
@@ -90,20 +93,21 @@ fn a_root_lists_its_hosts_members_and_agents_and_shows_an_agents_credentials_onc
     let mut time = 1;
     step(&mut root, time);
 
-    // F10 lists the members.
+    // An administrator's menu lists the members.
+    show_core(&mut root, members());
     let commands = menu(&mut root, &mut time, Entry::Members);
     assert!(
         matches!(commands.as_slice(), [CoreCommand::ListMembers]),
         "opening them lists them: {commands:?}"
     );
-    root.show_core(members());
+    show_core(&mut root, members());
     beui_paint_snapshot::assert_painting(
         "a_root_lists_its_hosts_members",
         painting(&mut root, &mut time),
     );
 
     // A member's role changes; the person themselves and agents have no such buttons.
-    let commands = asks(&mut root, &mut time, click(pos2(222.0, 136.0)));
+    let commands = asks(&mut root, &mut time, click(pos2(502.0, 285.0)));
     assert!(
         matches!(
             commands.as_slice(),
@@ -116,7 +120,7 @@ fn a_root_lists_its_hosts_members_and_agents_and_shows_an_agents_credentials_onc
     );
 
     // Removing one asks first: Escape keeps them, Remove removes them.
-    let commands = asks(&mut root, &mut time, click(pos2(324.0, 136.0)));
+    let commands = asks(&mut root, &mut time, click(pos2(604.0, 285.0)));
     assert!(commands.is_empty(), "asking removes no one: {commands:?}");
     beui_paint_snapshot::assert_painting(
         "a_root_asks_before_removing_a_member",
@@ -128,8 +132,8 @@ fn a_root_lists_its_hosts_members_and_agents_and_shows_an_agents_credentials_onc
         layer_of(&step(&mut root, time), DIALOG_LAYER).is_some(),
         "the list stays open"
     );
-    let _ = asks(&mut root, &mut time, click(pos2(324.0, 136.0)));
-    let commands = asks(&mut root, &mut time, click(pos2(296.0, 163.0)));
+    let _ = asks(&mut root, &mut time, click(pos2(604.0, 285.0)));
+    let commands = asks(&mut root, &mut time, click(pos2(576.0, 348.0)));
     assert!(
         matches!(commands.as_slice(), [CoreCommand::RemoveMember(GRACE)]),
         "Remove removes them: {commands:?}"
@@ -146,7 +150,7 @@ fn a_root_lists_its_hosts_members_and_agents_and_shows_an_agents_credentials_onc
         matches!(commands.as_slice(), [CoreCommand::ListAgents]),
         "opening them lists them: {commands:?}"
     );
-    root.show_core(agents());
+    show_core(&mut root, agents());
     let listed = painting(&mut root, &mut time);
     beui_paint_snapshot::assert_painting("a_root_lists_its_hosts_agents", listed.clone());
     let _ = asks(
@@ -208,7 +212,7 @@ fn a_root_lists_its_hosts_members_and_agents_and_shows_an_agents_credentials_onc
         .expect("the root takes input");
     root.input(None, be_lib_ui_types::input::encode(&key(Key::Escape)))
         .expect("the root takes input");
-    root.show_core(CoreView {
+    show_core(&mut root, CoreView {
         discarding: Some(be_wasm_root_api::DiscardReason::Close),
         ..agents()
     });
@@ -250,12 +254,12 @@ fn a_root_lists_its_hosts_members_and_agents_and_shows_an_agents_credentials_onc
         "while the agent was made, the question waited"
     );
     let _ = asks(&mut root, &mut time, key(Key::Escape));
-    root.show_core(agents());
+    show_core(&mut root, agents());
     let _ = asks(&mut root, &mut time, Vec::new());
 
     let _ = menu(&mut root, &mut time, Entry::Agents);
     let _ = root.take_core_commands();
-    let commands = asks(&mut root, &mut time, click(pos2(297.0, 122.0)));
+    let commands = asks(&mut root, &mut time, click(pos2(594.0, 294.0)));
     assert!(
         matches!(commands.as_slice(), [CoreCommand::RemoveAgent(BUILDER)]),
         "Remove removes the agent: {commands:?}"

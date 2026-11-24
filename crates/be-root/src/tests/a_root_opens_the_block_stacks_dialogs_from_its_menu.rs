@@ -1,7 +1,33 @@
-use be_wasm_root_api::{CoreCommand, CoreView, CoreWait};
+use be_wasm_root_api::{
+    CoreCommand, CoreView, CoreWait, HostedBlock, Refusal, SetAside, UnsentEdit,
+};
 
 use super::*;
-use crate::{DIALOG_LAYER, DIALOG_SURFACE, MENU_LAYER, STATISTICS_LAYER};
+use crate::{DIALOG_LAYER, DIALOG_SURFACE, MENU_LAYER, MENU_SURFACE, STATISTICS_LAYER};
+
+/// A company's organization the person administers, with an unsent edit, a block kept
+/// hosting and an escrow key not to be trusted yet.
+fn organization() -> CoreView {
+    CoreView {
+        organization: "Analytical Engines".to_owned(),
+        signed_in_as: "Ada (ada@example.com)".to_owned(),
+        company: true,
+        administrator: true,
+        escrow_warning: Some("Its fingerprint changed since this device last saw it.".to_owned()),
+        hosting: vec![HostedBlock {
+            block: [7; 16],
+            name: "Board".to_owned(),
+        }],
+        unsent: vec![UnsentEdit {
+            block: [9; 16],
+            name: Some("Notes".to_owned()),
+            offerable: false,
+            aside: Some(SetAside::Refused(Refusal::OverQuota)),
+            kept_edits: 0,
+        }],
+        ..CoreView::default()
+    }
+}
 
 #[test]
 fn a_root_opens_the_block_stacks_dialogs_from_its_menu() {
@@ -9,7 +35,7 @@ fn a_root_opens_the_block_stacks_dialogs_from_its_menu() {
     let mut time = 1;
     step(&mut root, time);
     // While the block stack waits for an account, its menu does not show.
-    root.show_core(CoreView {
+    show_core(&mut root, CoreView {
         waits_for: Some(CoreWait::Account),
         ..CoreView::default()
     });
@@ -27,8 +53,9 @@ fn a_root_opens_the_block_stacks_dialogs_from_its_menu() {
     );
 
     // Once it has an organization open, its button shows at the window's top right, hit only
-    // where it is.
-    root.show_core(CoreView::default());
+    // where it is: here a company's, which the person administers, with an unsent edit, a
+    // block kept hosting and an escrow key not to be trusted yet, so it offers everything.
+    show_core(&mut root, organization());
     let open = until(&mut root, &mut time, Vec::new(), "the menu shows", |done| {
         layer_of(done, MENU_LAYER).is_some()
     });
@@ -38,6 +65,21 @@ fn a_root_opens_the_block_stacks_dialogs_from_its_menu() {
         "the menu is hit only where it shows: {:?}",
         layer.input.hit
     );
+    // Its surfaces fill the window, and follow it as it resizes, the menu's button at its
+    // top right.
+    let sized = |root: &mut Root, time: &mut u64| {
+        let painting = painting_of(root, time, MENU_SURFACE);
+        let own = own_paintings(root, *time)
+            .into_iter()
+            .find(|(surface, _)| *surface == u64::from(crate::ROOT_SURFACE))
+            .map(|(_, painting)| painting.frame.size)
+            .expect("the root paints its own surface");
+        (painting.frame.size, own)
+    };
+    assert_eq!(sized(&mut root, &mut time), ([800, 600], [800, 600]));
+    resize(1100.0, 720.0);
+    assert_eq!(sized(&mut root, &mut time), ([1100, 720], [1100, 720]));
+    resize(800.0, 600.0);
     beui_paint_snapshot::assert_painting(
         "a_root_shows_its_menu_button",
         menu_painting(&mut root, &mut time),
@@ -121,7 +163,4 @@ fn a_root_opens_the_block_stacks_dialogs_from_its_menu() {
         "Performance again closes it",
         |done| layer_of(done, STATISTICS_LAYER).is_none(),
     );
-
-    let _ = menu(&mut root, &mut time, Entry::Lock);
-    assert!(root.take_lock_asked(), "Lock locks the session");
 }

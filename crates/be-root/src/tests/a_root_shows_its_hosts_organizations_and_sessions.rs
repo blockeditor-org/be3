@@ -2,7 +2,7 @@ use crate::{ONBOARDING_LAYER, ONBOARDING_SURFACE};
 use be_lib_geometry::pos2;
 use be_lib_ui_types::input::{ImeEvent, Input};
 use be_wasm_root_api::{
-    CoreCommand, CoreView, CoreWait, Invitation, OrganizationRow, OrganizationsArea,
+    AccountRow, CoreCommand, CoreView, CoreWait, Invitation, OrganizationRow, OrganizationsArea,
     OrganizationsListed, ProfileRow, SessionKind, SessionRow, SessionsArea,
 };
 
@@ -17,6 +17,15 @@ const NOTEBOOK: [u8; 16] = [4; 16];
 fn organizations(listed: OrganizationsListed, joining: Option<Invitation>) -> CoreView {
     CoreView {
         waits_for: Some(CoreWait::Organization),
+        accounts: vec![AccountRow {
+            key: "https://example.com\u{0}ada".to_owned(),
+            name: "Ada".to_owned(),
+            email: "ada@example.com".to_owned(),
+            server: Some("https://example.com".to_owned()),
+            has_last_organization: true,
+            current: true,
+            organizations: Vec::new(),
+        }],
         organizations: OrganizationsArea {
             listed,
             joining,
@@ -44,6 +53,7 @@ fn listed() -> OrganizationsListed {
 fn sessions() -> CoreView {
     CoreView {
         waits_for: Some(CoreWait::Session),
+        organization: "Analytical Engines".to_owned(),
         sessions: SessionsArea {
             loaded: true,
             sessions: vec![
@@ -126,7 +136,7 @@ fn a_root_shows_its_hosts_organizations_and_sessions() {
     step(&mut root, time);
 
     // Waiting for an organization, while they are listed, then listed.
-    root.show_core(organizations(OrganizationsListed::Loading, None));
+    show_core(&mut root, organizations(OrganizationsListed::Loading, None));
     until(
         &mut root,
         &mut time,
@@ -134,14 +144,14 @@ fn a_root_shows_its_hosts_organizations_and_sessions() {
         "while the block stack waits for an organization, the organizations show",
         |done| layer_of(done, ONBOARDING_LAYER).is_some(),
     );
-    root.show_core(organizations(listed(), None));
+    show_core(&mut root, organizations(listed(), None));
     beui_paint_snapshot::assert_painting(
         "a_root_shows_its_hosts_organizations",
         painting(&mut root, &mut time),
     );
 
     // Each organization opens in its last session, or choosing one.
-    let commands = asks(&mut root, &mut time, click(pos2(350.0, 75.0)));
+    let commands = asks(&mut root, &mut time, click(pos2(380.0, 210.0)));
     assert!(
         matches!(
             commands.as_slice(),
@@ -149,29 +159,29 @@ fn a_root_shows_its_hosts_organizations_and_sessions() {
         ),
         "Open opens the organization: {commands:?}"
     );
-    let commands = asks(&mut root, &mut time, click(pos2(262.0, 118.0)));
+    let commands = asks(&mut root, &mut time, click(pos2(597.0, 254.0)));
     assert!(
         matches!(commands.as_slice(), [CoreCommand::ChooseSessionIn(LOOMS)]),
         "Sessions opens it choosing a session: {commands:?}"
     );
 
     // Creating one, by name.
-    let _ = asks(&mut root, &mut time, click(pos2(158.0, 175.0)));
+    let _ = asks(&mut root, &mut time, click(pos2(357.0, 427.0)));
     let _ = asks(&mut root, &mut time, typed("Lovelace Ltd"));
-    let commands = asks(&mut root, &mut time, click(pos2(346.0, 175.0)));
+    let commands = asks(&mut root, &mut time, click(pos2(575.0, 427.0)));
     assert!(
         matches!(commands.as_slice(), [CoreCommand::CreateOrganization(name)] if name == "Lovelace Ltd"),
         "Create creates it: {commands:?}"
     );
 
     // An invitation's link, a bearer secret, crosses as typed inside the command alone.
-    let _ = asks(&mut root, &mut time, click(pos2(130.0, 220.0)));
+    let _ = asks(&mut root, &mut time, click(pos2(361.0, 351.0)));
     let _ = asks(
         &mut root,
         &mut time,
         typed("https://example.com/invite#code"),
     );
-    let commands = asks(&mut root, &mut time, click(pos2(318.0, 220.0)));
+    let commands = asks(&mut root, &mut time, click(pos2(579.0, 351.0)));
     match commands.as_slice() {
         [CoreCommand::OpenInvitation(link)] => assert_eq!(
             link.as_bytes(),
@@ -182,7 +192,7 @@ fn a_root_shows_its_hosts_organizations_and_sessions() {
     }
 
     // The invitation opened, to join.
-    root.show_core(organizations(
+    show_core(&mut root, organizations(
         listed(),
         Some(Invitation {
             organization: "Looms".to_owned(),
@@ -195,62 +205,62 @@ fn a_root_shows_its_hosts_organizations_and_sessions() {
         "a_root_shows_an_invitation_to_join_an_organization",
         painting(&mut root, &mut time),
     );
-    let commands = asks(&mut root, &mut time, click(pos2(337.0, 201.0)));
+    let commands = asks(&mut root, &mut time, click(pos2(567.0, 345.0)));
     assert!(
         matches!(commands.as_slice(), [CoreCommand::JoinInvited]),
         "Join joins it: {commands:?}"
     );
-    let commands = asks(&mut root, &mut time, click(pos2(255.0, 201.0)));
+    let commands = asks(&mut root, &mut time, click(pos2(490.0, 345.0)));
     assert!(
         matches!(commands.as_slice(), [CoreCommand::CancelJoin]),
-        "Not now puts it aside: {commands:?}"
+        "Cancel puts it aside: {commands:?}"
     );
 
-    // Listing failed: Try again lists them again.
-    root.show_core(organizations(OrganizationsListed::Failed, None));
+    // Listing failed: Retry lists them again.
+    show_core(&mut root, organizations(OrganizationsListed::Failed, None));
     beui_paint_snapshot::assert_painting(
         "a_root_shows_its_hosts_organizations_could_not_be_listed",
         painting(&mut root, &mut time),
     );
-    let commands = asks(&mut root, &mut time, click(pos2(345.0, 75.0)));
+    let commands = asks(&mut root, &mut time, click(pos2(409.0, 226.0)));
     assert!(
         matches!(commands.as_slice(), [CoreCommand::ReloadOrganizations]),
-        "Try again lists them again: {commands:?}"
+        "Retry lists them again: {commands:?}"
     );
 
     // Waiting for a session: those of this device's type, each to open, and a new one.
-    root.show_core(sessions());
+    show_core(&mut root, sessions());
     beui_paint_snapshot::assert_painting(
         "a_root_shows_its_hosts_sessions",
         painting(&mut root, &mut time),
     );
-    let commands = asks(&mut root, &mut time, click(pos2(200.0, 74.0)));
+    let commands = asks(&mut root, &mut time, click(pos2(400.0, 295.0)));
     assert!(
         matches!(commands.as_slice(), [CoreCommand::OpenSession([5, ..])]),
         "a session opens: {commands:?}"
     );
-    let commands = asks(&mut root, &mut time, click(pos2(103.0, 118.0)));
+    let commands = asks(&mut root, &mut time, click(pos2(282.0, 339.0)));
     assert!(
         matches!(commands.as_slice(), [CoreCommand::NewSession(DESKTOP)]),
         "a new session is of this device's type: {commands:?}"
     );
-    let commands = asks(&mut root, &mut time, click(pos2(200.0, 190.0)));
+    let commands = asks(&mut root, &mut time, click(pos2(400.0, 131.0)));
     assert!(
         matches!(commands.as_slice(), [CoreCommand::UseProfile([7, ..])]),
         "a profile is used: {commands:?}"
     );
 
     // Every type, which the root shows by its own choice, asking the host nothing.
-    let commands = asks(&mut root, &mut time, click(pos2(270.0, 118.0)));
+    let commands = asks(&mut root, &mut time, click(pos2(593.0, 215.0)));
     assert!(commands.is_empty(), "{commands:?}");
-    let commands = asks(&mut root, &mut time, click(pos2(200.0, 118.0)));
+    let commands = asks(&mut root, &mut time, click(pos2(400.0, 339.0)));
     assert!(
         matches!(commands.as_slice(), [CoreCommand::OpenSession([6, ..])]),
         "a session of another type shows, and opens: {commands:?}"
     );
 
     // Once an organization's blocks are open, nothing waits.
-    root.show_core(CoreView::default());
+    show_core(&mut root, CoreView::default());
     until(
         &mut root,
         &mut time,
