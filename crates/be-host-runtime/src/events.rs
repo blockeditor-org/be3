@@ -54,10 +54,10 @@ pub enum InstanceEvent {
     },
     /// The view `ViewId` was asked to take the keyboard.
     FocusRequested(ViewId),
-    /// It asks that this child take the keyboard (`keyboard-ask`), which the view that shows
-    /// the child takes as it is built or at once if it is, if the keyboard is within the editor's
-    /// views and no view that takes the keyboard is open; none once the editor's next commit of
-    /// children withdrew an ask not acted on.
+    /// It asks that this child take the keyboard (`keyboard-ask`): if the keyboard is within the
+    /// editor's views and no view that takes the keyboard is open, it leaves them, and the view
+    /// that shows the child takes it as it is built, or at once if it is, while nothing else
+    /// took it meanwhile. None once the instance closed.
     KeyboardAsked(Option<ChildId>),
     /// The instance closed: nothing more comes from it.
     Closed,

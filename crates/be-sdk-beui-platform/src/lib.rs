@@ -342,7 +342,14 @@ impl ModuleRunner {
             match regions.iter().find(|region| region.id() == floated.region) {
                 Some(region) => {
                     floated.shown = true;
-                    self.windows.insert(floated.region, *window);
+                    let new = self.windows.insert(floated.region, *window) != Some(*window);
+                    if new && self.focused.contains(&floated.region) {
+                        // The host gave the view the keyboard before its window was made.
+                        self.runner.push(Incoming::Window(WindowReport::Focused {
+                            window: *window,
+                            focused: true,
+                        }));
+                    }
                     if region.host_place != floated.placement {
                         floated.placement.clone_from(&region.host_place);
                         if let Some(placement) = &region.host_place {
@@ -530,7 +537,7 @@ impl ModuleRunner {
                     ..
                 } if self.views.placed(placement).is_some() => {
                     if let Some(id) = self.views.placed(placement) {
-                        self.windows.insert(id, *window);
+                        self.window_made(id, *window);
                     }
                     continue;
                 }
@@ -893,6 +900,19 @@ fn placed(mut tree: TreeUpdate, ratio: f32) -> TreeUpdate {
 }
 
 impl ModuleRunner {
+    /// Takes `window` as the one showing the view `id`. A view the host gave the keyboard before
+    /// its window was made (it heard `Input::Focus` while it had none) has its window focused,
+    /// so the field it would focus takes the keyboard once it is up.
+    fn window_made(&mut self, id: ViewRef, window: WindowId) {
+        let new = self.windows.insert(id, window) != Some(window);
+        if new && self.focused.contains(&id) {
+            self.send(Incoming::Window(WindowReport::Focused {
+                window,
+                focused: true,
+            }));
+        }
+    }
+
     fn tell_keyboard(&self) {
         let mut keyboard: Vec<ViewRef> = self.focused.iter().copied().collect();
         keyboard.sort_by_key(|view| (view.instance.0, view.view.0));
@@ -1061,7 +1081,7 @@ impl Regions for ModuleRunner {
             if let Some(floated) = self.floated.get_mut(&window) {
                 floated.shown = true;
             }
-            self.windows.insert(id, window);
+            self.window_made(id, window);
             self.placements.insert(id, region.view.placement);
         }
         self.views.set_floated(

@@ -1619,12 +1619,37 @@ fn focus_when_asked(
     });
 }
 
-/// Moves the keyboard to this child's view when the editor that placed it asks for it
-/// (`keyboard-ask`, `InstanceEvent::KeyboardAsked`), at once once the view is built, whether the
-/// child's app runs yet or not: keys typed before it does are dropped, never held
-/// (decisions/keys_are_never_held.md). Only while the keyboard is within the placer's views and
-/// the children they show, and no view that takes the keyboard is open; otherwise the ask does
-/// nothing. A view the keyboard went to hands it on to the child that fills it, if any.
+/// Moves the keyboard into a child the editor `instance` of `app` asked take it
+/// (`keyboard-ask`, `InstanceEvent::KeyboardAsked`), at the commit that carries the ask: if the
+/// keyboard is within the editor's views and the children they show, and no view that takes the
+/// keyboard is open, it leaves them at once, and the child's view takes it as it is built
+/// (`focus_when_given`), or at once if it is, while nothing else took it meanwhile. Keys typed
+/// in between reach nothing: none is held (decisions/keys_are_never_held.md).
+pub(crate) fn keyboard_into_child(app: &str, instance: EditorInstanceId) {
+    if WANTING_KEYBOARD.with_borrow(|views| !views.is_empty()) {
+        return;
+    }
+    try_with_document(|document| {
+        let Some(held) = document.focused_node() else {
+            return;
+        };
+        let placer_holds = super::desktop::catchers_of(app, instance)
+            .into_iter()
+            .any(|view| document.focus_is_within(view))
+            || super::desktop::shown_within(held, |_, catcher| {
+                catcher.instance == instance && catcher.app == app
+            });
+        if placer_holds {
+            document.blur();
+        }
+    });
+}
+
+/// Moves the keyboard to this child's view when the editor that placed it asked for it
+/// (`keyboard_into_child`), as the view is built or at once if it is, whether the child's app
+/// runs yet or not: keys typed before it does are dropped. Only while nothing else took the
+/// keyboard since the ask, and no view that takes the keyboard is open. A view the keyboard
+/// went to hands it on to the child that fills it, if any.
 fn focus_when_given(
     asked: Option<AskedFocus>,
     (app, own): (Stored<String>, EditorInstanceId),

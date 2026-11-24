@@ -172,9 +172,6 @@ struct Instance {
     /// The highest `keyboard-ask` a child it placed carried that the host acted on: a commit
     /// carrying a higher one moves the keyboard to that child (`set_children`).
     keyboard_ask: u64,
-    /// Whether the compositor heard an ask of its it may still act on
-    /// (`InstanceEvent::KeyboardAsked`), which its next commit of children withdraws.
-    keyboard_asked: bool,
     /// Blocks it made in this run, the only ones an app whose manifest does not set `sharing`
     /// may open to anyone inside (`services::refuses_sharing`).
     made: HashSet<Uuid>,
@@ -357,7 +354,6 @@ impl Instance {
             artifact: ArtifactState::default(),
             dialog: DialogStatus::default(),
             keyboard_ask: 0,
-            keyboard_asked: false,
             made: HashSet::default(),
             screens: HashMap::default(),
             forwarded_statuses: HashMap::default(),
@@ -2876,7 +2872,6 @@ impl Instances {
                 // child's app runs yet or not (decisions/keys_are_never_held.md).
                 Some((child, ask)) if ask > entry.keyboard_ask => {
                     entry.keyboard_ask = ask;
-                    entry.keyboard_asked = true;
                     super::events::emit(
                         &self.app_id,
                         instance,
@@ -2889,24 +2884,13 @@ impl Instances {
         changed
     }
 
-    /// Withdraws the asks for the keyboard the compositor heard and did not act on, as a new
-    /// layout commit comes: an ask stands only for the commit that carries it.
-    pub(super) fn withdraw_keyboard_asks(&mut self) {
-        for (instance, entry) in &mut self.entries {
-            if std::mem::take(&mut entry.keyboard_asked) {
-                super::events::emit(&self.app_id, *instance, InstanceEvent::KeyboardAsked(None));
-            }
-        }
-    }
-
     /// The host asks that `child` of `instance` take the keyboard, as a view that hands the
     /// keyboard it has to the child that fills it does: the compositor moves it there as it
     /// would for the editor's own ask.
     pub(super) fn ask_keyboard(&mut self, instance: EditorInstanceId, child: ChildId) -> bool {
-        let Some(entry) = self.entries.get_mut(&instance) else {
+        if !self.entries.contains_key(&instance) {
             return false;
-        };
-        entry.keyboard_asked = true;
+        }
         super::events::emit(&self.app_id, instance, InstanceEvent::KeyboardAsked(Some(child)));
         true
     }

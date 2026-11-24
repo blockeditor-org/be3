@@ -98,7 +98,12 @@ fn heard(heard: be_host_runtime::Heard) {
             app_view::asks::heard(app_id.clone(), instance, None);
             editors::camera::closed(app_id, instance);
         }
-        InstanceEvent::KeyboardAsked(child) => app_view::asks::heard(app_id, instance, child),
+        InstanceEvent::KeyboardAsked(child) => {
+            if child.is_some() {
+                app_view::keyboard_into_child(&app_id, instance);
+            }
+            app_view::asks::heard(app_id, instance, child);
+        }
         _ => {}
     }
 }

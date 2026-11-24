@@ -1335,7 +1335,6 @@ impl Runtime {
         }
         super::request_windows(&self.app.identity.id, window_requests);
         self.instances.adopt_anchored(&reports, self.run.layout());
-        self.instances.withdraw_keyboard_asks();
         let held = self.held_screens();
         let mut changed = self.instances.confirm(serial, &held);
         changed |= self.instances.set_frame_reports(reports);

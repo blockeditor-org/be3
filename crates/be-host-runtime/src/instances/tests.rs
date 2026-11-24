@@ -550,7 +550,7 @@ fn resize(instances: &mut Instances, size: Vec2, scale_factor: f32) {
 }
 
 mod a_block_an_app_makes_names_the_app_and_the_app_cannot_say_otherwise;
-mod a_commit_asking_a_child_take_the_keyboard_names_it_to_the_compositor_once;
+mod a_commit_carrying_a_new_keyboard_ask_names_its_child_to_the_compositor;
 mod a_block_is_named_after_its_content_until_someone_names_it;
 mod a_block_shown_before_its_instance_reports_reaches_it_once_it_does;
 mod a_child_asked_full_screen_or_closed_reaches_the_host;

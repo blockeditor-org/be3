@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn a_commit_asking_a_child_take_the_keyboard_names_it_to_the_compositor_once() {
+fn a_commit_carrying_a_new_keyboard_ask_names_its_child_to_the_compositor() {
     let mut instances = placed();
     instances.next_screens(PASS);
     let (_mailbox, heard) = hearing();
@@ -29,23 +29,10 @@ fn a_commit_asking_a_child_take_the_keyboard_names_it_to_the_compositor_once() {
     );
     heard.borrow_mut().clear();
 
-    // The next commit withdraws an ask the compositor did not act on, and the same ask carried
-    // again names nothing: nothing waits for the child.
-    instances.withdraw_keyboard_asks();
+    // The same ask carried again names nothing; a new one names it again.
     instances.set_children(asking(1));
     host::deliver();
-    assert!(
-        matches!(
-            heard.borrow().as_slice(),
-            [InstanceEvent::KeyboardAsked(None)]
-        ),
-        "{:?}",
-        heard.borrow()
-    );
-    heard.borrow_mut().clear();
-
-    // A new ask names it again.
-    instances.withdraw_keyboard_asks();
+    assert!(heard.borrow().is_empty(), "{:?}", heard.borrow());
     instances.set_children(asking(2));
     host::deliver();
     assert!(matches!(
