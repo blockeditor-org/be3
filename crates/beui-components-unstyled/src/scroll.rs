@@ -188,6 +188,12 @@ impl Reveal {
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Default)]
+struct Watch {
+    coasting: bool,
+    moving: bool,
+}
+
 struct Momentum {
     rubber: Spring,
     stretch: f32,
@@ -237,6 +243,14 @@ impl Momentum {
 
     fn flinging(&self) -> bool {
         self.fling.is_some() && self.stretch == 0.0 && self.drag.is_none()
+    }
+
+    /// What effects watch of it: whether it coasts, and whether it moves at all.
+    fn watched(&self) -> Watch {
+        Watch {
+            coasting: self.coasting(),
+            moving: self.moving(),
+        }
     }
 
     fn coasting(&self) -> bool {
@@ -414,9 +428,6 @@ impl Momentum {
 
 const EDGE_GAIN: f32 = 3.0;
 
-/// A browser scroll's content box, as long as what it holds along the scroll and at least
-/// as long as the scroll, clips what is painted past it: a lifted or gliding item's
-/// translation would otherwise add to what the browser lets the scroll reach.
 /// The browser's marks for `stops`: an empty snap area at each, and from the last on one as long
 /// as the rest of the content, inside which (taller than the scroll) the browser scrolls freely,
 /// as `Scroll` does past its last stop.
@@ -448,6 +459,9 @@ fn snap_markers(stops: &[f32], direction: Direction) -> String {
         .collect()
 }
 
+/// A browser scroll's content box, as long as what it holds along the scroll and at least
+/// as long as the scroll, clips what is painted past it: a lifted or gliding item's
+/// translation would otherwise add to what the browser lets the scroll reach.
 fn content_clip(direction: Direction) -> String {
     let (length, least) = match direction {
         Direction::Vertical => ("height", "min-height"),
@@ -541,10 +555,11 @@ struct Motion {
     reported: ReadSignal<Option<ScrollPosition>>,
     direction: Prop<Direction>,
     snaps: Prop<Vec<f32>>,
+    keep_past_last_stop: bool,
     on_snap: Callback<f32>,
     /// A stop a release chose, told to `on_snap` once the momentum is let go.
     chosen: Cell<Option<f32>>,
-    momentum: Watched<Momentum>,
+    momentum: Watched<Momentum, Watch>,
     animation: Cell<Option<Animation>>,
     autoscrolling: Cell<Option<Timer>>,
     autoscrolled: Cell<Instant>,
@@ -675,22 +690,31 @@ impl Motion {
         momentum.rest();
         let mut offset = (position.offset - wheel).clamp(0.0, position.max_offset());
         self.take_snaps(&mut momentum);
-        // A wheel never takes it below its last stop once there (a sheet's wheel scrolls what
-        // it holds, never lowers it); short of it, a step up goes on to the next stop.
+        // Up to the last stop a wheel steps between stops; past it, it scrolls freely and comes
+        // back no further than the last stop. Kept past the last stop, it never goes back below
+        // it, and short of it only steps forwards.
         let last = momentum
             .snaps
             .last()
             .map(|last| last.clamp(0.0, position.max_offset()));
         if let Some(last) = last {
-            if position.offset < last - SNAP_SLACK {
-                if wheel < 0.0
-                    && let Some(stop) =
-                        momentum.next_stop(position.offset, true, position.max_offset())
+            let forwards = wheel < 0.0;
+            let at_last = (position.offset - last).abs() <= SNAP_SLACK;
+            let steps = match position.offset < last - SNAP_SLACK {
+                true => forwards || !self.keep_past_last_stop,
+                false => at_last && !forwards && !self.keep_past_last_stop,
+            };
+            if steps {
+                if let Some(stop) =
+                    momentum.next_stop(position.offset, forwards, position.max_offset())
                 {
                     momentum.snap = Some(stop);
                     self.chosen.set(Some(stop));
                     self.animate(&mut momentum);
                 }
+                return;
+            }
+            if position.offset < last - SNAP_SLACK {
                 return;
             }
             offset = offset.max(last);
@@ -821,6 +845,18 @@ impl Motion {
         }
     }
 
+    fn shift(&self, by: f32) {
+        let Some(position) = self.placed() else {
+            return;
+        };
+        let mut momentum = self.momentum.borrow_mut();
+        if let Some(hold) = &mut momentum.drag {
+            *hold += by;
+        }
+        let offset = (position.offset + by).clamp(0.0, position.max_offset());
+        self.publish(&momentum, &position, offset);
+    }
+
     fn scroll_to(&self, offset: f32) {
         let Some(position) = self.placed() else {
             return;
@@ -881,25 +917,25 @@ impl Motion {
         true
     }
 
-    /// Where a key that would go to `offset` goes, given stops: past the last stop it stays
-    /// past it (a sheet's keys scroll what it holds, never lower it); short of it, it steps to
-    /// the next stop that way.
+    /// Where a key that would go to `offset` goes, given stops: past the last stop it moves
+    /// freely, coming back no further than the last stop; up to it, it steps to the next stop
+    /// that way. Kept past the last stop, a key never takes it back below it.
     fn keyed(&self, position: &ScrollPosition, offset: f32) -> f32 {
-        let mut snaps = self.snaps.get_untracked();
-        snaps.sort_by(f32::total_cmp);
-        let Some(last) = snaps.last().map(|last| last.clamp(0.0, position.max_offset())) else {
+        let mut momentum = self.momentum.borrow_mut();
+        self.take_snaps(&mut momentum);
+        let max_offset = position.max_offset();
+        let Some(last) = momentum.snaps.last().map(|last| last.clamp(0.0, max_offset)) else {
             return offset;
         };
-        if position.offset >= last - SNAP_SLACK {
+        let forwards = offset > position.offset;
+        let at_last = (position.offset - last).abs() <= SNAP_SLACK;
+        let past = position.offset > last + SNAP_SLACK;
+        if past || (at_last && (forwards || self.keep_past_last_stop)) {
             return offset.max(last);
         }
-        let forwards = offset > position.offset;
-        let mut stops = snaps.iter().map(|stop| stop.clamp(0.0, position.max_offset()));
-        let next = match forwards {
-            true => stops.find(|stop| *stop > position.offset + SNAP_SLACK),
-            false => stops.rev().find(|stop| *stop < position.offset - SNAP_SLACK),
-        };
-        next.unwrap_or(position.offset)
+        momentum
+            .next_stop(position.offset, forwards, max_offset)
+            .unwrap_or(position.offset)
     }
 
     /// Moved from outside (a reveal), it stops. A settle asked for goes on, as it does through
@@ -969,6 +1005,7 @@ fn Scrolling(
     #[prop(default = ComponentRef::new())] api: ComponentRef<ScrollApi>,
     direction: Prop<Direction>,
     snaps: Prop<Vec<f32>>,
+    keep_past_last_stop: bool,
     on_snap: Callback<f32>,
     bar_from: Prop<f32>,
     fit: bool,
@@ -1000,10 +1037,11 @@ fn Scrolling(
         snaps,
         on_snap,
         chosen: Cell::new(None),
-        momentum: Watched::new(Momentum::new(style.rubber), Momentum::coasting),
+        momentum: Watched::new(Momentum::new(style.rubber), Momentum::watched),
         animation: Cell::default(),
         autoscrolling: Cell::default(),
         autoscrolled: Cell::new(now()),
+        keep_past_last_stop,
         wheeled: Cell::new(None),
         driven: Cell::new(0.0),
     });
@@ -1206,8 +1244,8 @@ fn Scrolling(
             Direction::Horizontal => CursorIcon::ResizeHorizontal,
         })
     });
-    let coasting = motion.with(|motion| motion.momentum.flag());
-    let coasting = create_memo(move || match coasting.get() {
+    let watched = motion.with(|motion| motion.momentum.flag());
+    let coasting = create_memo(move || match watched.get().coasting {
         true => vec![Claim::always(true)],
         false => Vec::new(),
     });
@@ -1292,11 +1330,16 @@ pub fn Scroll(
     #[prop(default = Direction::Vertical)] direction: Prop<Direction>,
     /// Offsets along `direction` that a fling and a release settle on, the nearest to where
     /// they would have come to rest; none lets them rest anywhere. Past the last stop it moves
-    /// freely, but a coast from short of it stops there. A wheel or a key past the last stop
-    /// stays past it; short of it, a wheel's step up and a key step between stops. On the HTML
-    /// core they are the browser's scroll snap.
+    /// freely, but a coast from short of it stops there. A wheel or a key steps between stops,
+    /// scrolls freely past the last one and, coming back, stops at it before stepping on. On
+    /// the HTML core they are the browser's scroll snap.
     #[prop(default = Vec::new())]
     snaps: Prop<Vec<f32>>,
+    /// Once at or past the last stop, a wheel or a key never takes it back below it, and short
+    /// of it a wheel only steps forwards (a sheet: they scroll what it holds, never lower it).
+    /// Natively only.
+    #[prop(default = false)]
+    keep_past_last_stop: bool,
     /// Told the stop a release, a fling or a wheel's step chose, as it starts settling there.
     on_snap: Callback<f32>,
     /// The offset its bar starts at: the bar shows only the offsets past it, as the scroll of
@@ -1342,6 +1385,7 @@ pub fn Scroll(
             api
             direction
             snaps
+            keep_past_last_stop
             on_snap={on_snap}
             bar_from
             fit
@@ -1674,10 +1718,11 @@ fn BrowserScroll(
         snaps: Prop::Static(Vec::new()),
         on_snap: Callback::empty(),
         chosen: Cell::new(None),
-        momentum: Watched::new(Momentum::new(style.rubber), Momentum::coasting),
+        momentum: Watched::new(Momentum::new(style.rubber), Momentum::watched),
         animation: Cell::default(),
         autoscrolling: Cell::default(),
         autoscrolled: Cell::new(now()),
+        keep_past_last_stop: false,
         wheeled: Cell::new(None),
         driven: Cell::new(0.0),
     });
@@ -1850,8 +1895,10 @@ fn navigates(key: Key) -> bool {
 pub struct ScrollApi(Stored<Motion>, Callback<()>, Callback<f32>, Callback<DragGesture>);
 
 impl ScrollApi {
+    /// Whether it is moving on its own (settling, coasting, springing back), read
+    /// reactively.
     pub fn animating(&self) -> bool {
-        self.0.with(|motion| motion.momentum.borrow().moving())
+        self.0.with(|motion| motion.momentum.flag().get().moving)
     }
 
     pub fn scroll_to_end(&self) {
@@ -1860,6 +1907,23 @@ impl ScrollApi {
             return;
         }
         self.0.with(|motion| motion.to_end());
+    }
+
+    /// Moves by `by` at once, taking a drag's hold with it so the drag goes on from where it
+    /// is (as if what it holds had moved by as much).
+    pub fn shift(&self, by: f32) {
+        if !self.2.is_empty() {
+            let at = self
+                .0
+                .try_value()
+                .and_then(|motion| motion.reported.get_untracked())
+                .map_or(0.0, |position| position.offset);
+            self.2.call(at + by);
+            return;
+        }
+        if let Some(motion) = self.0.try_value() {
+            motion.shift(by);
+        }
     }
 
     /// Moves to `offset` at once, stopping whatever motion it had.

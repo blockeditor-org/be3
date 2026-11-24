@@ -7,7 +7,7 @@ fn on_a_phone_tapping_a_blocks_name_renames_it_in_a_sheet() {
     host.run(&["resize", "390x800"]);
     host.click("#dock.title");
     host.wait("#rename.name");
-    host.run(&["pause", "1000"]);
+    host.wait_still("#sheet.handle");
     let (_, name_y, _, _) = host.place("#rename.name");
     let (_, handle_y, _, _) = host.place("#sheet.handle");
     assert!(

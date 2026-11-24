@@ -330,13 +330,13 @@ pub enum Movement {
     /// Something landing where layout puts it: a dropped item, dock panes and
     /// bars moving, a sidebar opening, a sheet or page returning after a drag.
     Settle,
-    /// Something arriving: a sheet rising, a page sliding in.
+    /// Something arriving: a page sliding in.
     Enter,
     /// Something going away: a page sliding out.
     Leave,
     /// Scrolled content pulled past its end springing back.
     Rubber,
-    /// A window or sheet pulled past where it rests springing back.
+    /// A window pulled past where it rests springing back.
     Pull,
 }
 
