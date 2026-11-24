@@ -880,7 +880,6 @@ impl Inner {
                 head,
                 session: session(TAG),
                 journal: None,
-                lost_edits: false,
                 journal_kept: false,
                 commits_kept,
                 refused_commits,
