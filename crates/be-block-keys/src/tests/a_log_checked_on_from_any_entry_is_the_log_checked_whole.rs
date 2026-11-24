@@ -26,7 +26,7 @@ fn a_log_checked_on_from_any_entry_is_the_log_checked_whole() {
     // far finds it, and checks the log still checks.
     let append = |entries: &mut Vec<Entry>, by: &RecoverySecret, signer, record: Record| {
         let checked = check(entries).unwrap();
-        let lowers = checked.lowers(&record);
+        let lowers = checked.lowers(signer, &record);
         let previous = checked.head;
         entries.push(Entry::sign(
             by,
@@ -115,6 +115,16 @@ fn a_log_checked_on_from_any_entry_is_the_log_checked_whole() {
         &mut entries,
         &renewed,
         creator_id,
+        Record::Owner(Owner {
+            account: member_id,
+            identity: member.identity(),
+        }),
+    );
+    // The member accepts the block offered to it.
+    append(
+        &mut entries,
+        &member,
+        member_id,
         Record::Owner(Owner {
             account: member_id,
             identity: member.identity(),

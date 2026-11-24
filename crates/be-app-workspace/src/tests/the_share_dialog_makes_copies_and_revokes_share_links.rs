@@ -48,6 +48,7 @@ fn answer_listings(fixture: &mut Fixture, block: Uuid) -> Vec<HostCall> {
                         set_inside: 0,
                         levels: Vec::new(),
                         host: None,
+                        offered: None,
                     }),
                 );
             }

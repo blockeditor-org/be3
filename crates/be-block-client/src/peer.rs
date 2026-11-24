@@ -4654,31 +4654,41 @@ impl<S: ObjectStore> Peer<S> {
             .ok_or(ClientError::Unexpected)
     }
 
-    /// Moves ownership of `block`, which this account owns, to `account`, a verified contact
-    /// (guides/blocks/keys.md, "Owner records"): seals them the block's key, then sends the owner
-    /// record naming the keys this device verified for them. They hold Manage from then on, as its
-    /// owner; this account keeps Edit and grants nothing more there.
+    /// Offers ownership of `block`, which this account owns, to `account`, a verified contact
+    /// (guides/blocks/keys.md, "Owner records"): seals them the block's key, then sends an owner
+    /// record naming the keys this device verified for them, which moves nothing until they
+    /// accept it (`accept_ownership`). Offering it to this account withdraws an offer.
     pub async fn transfer(&self, block: Uuid, account: Uuid) -> Result<(), ClientError> {
         use be_block_keys::{Owner, Record};
         let me = self.keys.account().into_bytes();
-        let owns = |checked: &be_block_keys::Checked| checked.owner == Some(me);
         let (_, checked) = self.checked_access(block).await?;
-        if !owns(&checked) || account == self.keys.account() {
-            return Err(ClientError::Refused(
-                ErrorCode::PermissionDenied,
-                format!("this account does not own block {block}, so gives it to no one"),
-            ));
-        }
-        let identity = self.verified_identity(account).ok_or_else(|| {
+        let not_owner = || {
             ClientError::Refused(
-                ErrorCode::NotAContact,
-                "give ownership only to your contacts: send them a contact link first".into(),
+                ErrorCode::PermissionDenied,
+                format!("this account does not own block {block}, so offers it to no one"),
             )
-        })?;
-        self.seal_share(block, account, &identity.public).await?;
-        // Signed at the head the server holds once the key went: a record after any other
-        // change meanwhile, and refused here if this account no longer owns the block.
-        let (_, checked) = self.checked_access(block).await?;
+        };
+        if checked.owner != Some(me) {
+            return Err(not_owner());
+        }
+        let identity = match account == self.keys.account() {
+            true => self.keys.identity().identity(),
+            false => self.verified_identity(account).ok_or_else(|| {
+                ClientError::Refused(
+                    ErrorCode::NotAContact,
+                    "offer ownership only to your contacts: send them a contact link first".into(),
+                )
+            })?,
+        };
+        // The block's key goes with the offer, so whom it is offered to can see what they
+        // would own before accepting it, and reads it from the moment they do.
+        let checked = match account == self.keys.account() {
+            true => checked,
+            false => {
+                self.seal_share(block, account, &identity.public).await?;
+                self.checked_access(block).await?.1
+            }
+        };
         let record = checked
             .next(
                 self.keys.identity(),
@@ -4689,22 +4699,75 @@ impl<S: ObjectStore> Peer<S> {
                     identity,
                 }),
             )
-            .filter(|_| owns(&checked))
+            .filter(|_| checked.owner == Some(me))
+            .ok_or_else(not_owner)?
+            .encode();
+        self.append_owner(block, record).await
+    }
+
+    /// The blocks offered to this account in the organization, not yet accepted or withdrawn.
+    pub async fn owner_offers(&self) -> Result<Vec<be_block_protocol::OwnerOffer>, ClientError> {
+        Ok(be_block_protocol::read::<Vec<be_block_protocol::OwnerOffer>, _>(
+            &self.connection(),
+            Some(self.organization),
+            be_block_protocol::Query::OwnerOffers,
+        )
+        .await??)
+    }
+
+    /// Accepts `block`, which its owner offered this account (`transfer`): an owner record naming
+    /// this account with its keys, signed after the head of the block's log, which the offer
+    /// must name as they are; ownership moves with it. A block this device never pinned the root
+    /// of is checked from the root as served, which the offer then vouches for: it must come from
+    /// the block's owner, a contact signing with the key this device verified for them, as a
+    /// Join member takes a root its verified granter's record vouches for.
+    pub async fn accept_ownership(&self, block: Uuid) -> Result<(), ClientError> {
+        use be_block_keys::{Owner, Record};
+        let me = self.keys.account().into_bytes();
+        let identity = self.keys.identity().identity();
+        let (_, checked) = match self.keys.root_pin(block) {
+            crate::keys::RootPin::Unknown => {
+                let served = self.served_log(block).await?;
+                let root = served.first().ok_or(ClientError::Forged(block))?.hash();
+                self.checked_rooted(block, root).await?
+            }
+            _ => self.checked_access(block).await?,
+        };
+        let vouched = checked.owner.is_some_and(|owner| {
+            self.verified_identity(Uuid::from_bytes(owner))
+                .is_some_and(|verified| checked.signers.get(&owner) == Some(&verified.signing))
+        });
+        let record = checked
+            .offered
+            .filter(|offered| vouched && *offered == (me, identity))
+            .and_then(|_| {
+                checked.next(
+                    self.keys.identity(),
+                    me,
+                    block.into_bytes(),
+                    Record::Owner(Owner {
+                        account: me,
+                        identity,
+                    }),
+                )
+            })
             .ok_or_else(|| {
                 ClientError::Refused(
                     ErrorCode::PermissionDenied,
-                    format!("this account does not own block {block}, so gives it to no one"),
+                    format!("block {block} is not offered to this account"),
                 )
             })?
             .encode();
+        self.append_owner(block, record).await
+    }
+
+    async fn append_owner(&self, block: Uuid, signed: Vec<u8>) -> Result<(), ClientError> {
         be_block_protocol::write::<(), _>(
             &self.connection(),
             Some(self.organization),
-            be_block_protocol::Op::AppendLog(be_block_protocol::LogRecord::Grant {
+            be_block_protocol::Op::AppendLog(be_block_protocol::LogRecord::Owner {
                 block: block,
-                account: account,
-                access: Access::Manage,
-                signed: Some(record),
+                signed: signed,
             }),
         )
         .await??;

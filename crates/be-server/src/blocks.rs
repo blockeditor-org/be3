@@ -664,7 +664,11 @@ impl ServerStore {
             let viewed = graph.contains(block) && seen.can_view(graph, block);
             let joins = graph.contains(block) && seen.inherited(graph, block).can_join();
             let below = !viewed && seen.reads_below(graph, block);
-            if !viewed && !joins && !below {
+            // The member a block is offered to reads its log, as a path, to accept it.
+            let offered = graph.contains(block)
+                && crate::access::offered(database, identity.organization, block)?
+                    .is_some_and(|(to, _)| to == identity.account);
+            if !viewed && !joins && !below && !offered {
                 return Err(refusal(graph, &seen, block, "visible"));
             }
             let whole = viewed && seen.served_whole(graph, block);
@@ -1928,14 +1932,6 @@ impl ServerStore {
         access: Access,
         record: Option<Vec<u8>>,
     ) -> Result<Option<BTreeSet<Uuid>>, ServerError> {
-        if let Some(record) = record
-            .as_ref()
-            .filter(|record| crate::access::is_owner_record(record))
-        {
-            return self
-                .transfer_owner(identity, block, account, access, record.clone())
-                .await;
-        }
         self.with_graph(identity.organization, move |store, graph, database| {
             let leaving = account == identity.account && access == Access::None;
             match leaving {
@@ -2097,27 +2093,98 @@ impl ServerStore {
         .await
     }
 
-    /// `set-access` carrying an owner record: ownership of `block` moves from its owner, the
-    /// caller, to `account` (guides/blocks/keys.md, "Owner records"). The new owner holds what
-    /// authorship gives and the former keeps Edit (`be_block_keys::FORMER_OWNER`), in the log as in
-    /// the graph. Answers who could view the block before, as a grant does.
-    async fn transfer_owner(
+    /// An owner record for `block`, signed by the caller (`append-log(owner)`,
+    /// guides/blocks/keys.md, "Owner records"): its owner offering it to another member, a
+    /// contact of theirs, or withdrawing the offer by naming itself; or the member it was offered
+    /// to accepting it, naming itself. Only an acceptance moves ownership: the new owner holds
+    /// what authorship gives and the former keeps Edit (`be_block_keys::FORMER_OWNER`), in the log
+    /// as in the graph. Answers, for an acceptance, who could view the block before and the
+    /// former owner.
+    pub async fn owner_record(
         &self,
         identity: Identity,
         block: Uuid,
-        account: Uuid,
-        access: Access,
         record: Vec<u8>,
-    ) -> Result<Option<BTreeSet<Uuid>>, ServerError> {
+    ) -> Result<Option<(BTreeSet<Uuid>, Uuid)>, ServerError> {
         self.with_graph(identity.organization, move |store, graph, database| {
-            require_manage(graph, &visibility(identity), block)?;
-            let node = graph.get(block).ok_or(ServerError::Corrupt)?;
-            if node.author != identity.account {
+            let entry = be_block_keys::Entry::decode(&record)
+                .map_err(|_| ServerError::Refused(ErrorCode::InvalidRequest, "the record does not read".into()))?;
+            let be_block_keys::Record::Owner(named) = &entry.record else {
                 return Err(ServerError::Refused(
-                    ErrorCode::PermissionDenied,
-                    format!("only the owner of block {block} gives its ownership away"),
+                    ErrorCode::InvalidRequest,
+                    "an owner record offers, withdraws or accepts a block".into(),
                 ));
+            };
+            let account = Uuid::from_bytes(named.account);
+            let caller = identity.account;
+            let offered = crate::access::offered(database, identity.organization, block)?;
+            let Some(node) = graph.get(block) else {
+                return Err(not_found(block));
+            };
+            let former = node.author;
+            if former != caller {
+                // The member a block was offered to accepts it, naming itself.
+                if offered.map(|(to, _)| to) != Some(caller) || account != caller {
+                    return Err(ServerError::Refused(
+                        ErrorCode::PermissionDenied,
+                        format!(
+                            "only the owner of block {block} offers it, and only whom it offers it to accepts it"
+                        ),
+                    ));
+                }
+                // The block becomes theirs to keep, so it counts against their bound as making
+                // one would: no one fills an account up by being given blocks.
+                if graph.authored(caller) >= MAX_BLOCKS_PER_ACCOUNT {
+                    return Err(crate::limits::too_many(
+                        "blocks one account makes in an organization",
+                        MAX_BLOCKS_PER_ACCOUNT,
+                    ));
+                }
+                let before = graph.audience(block);
+                let transaction = be_block_sqlite_schema::write_transaction(database)?;
+                crate::access::append_owner(
+                    &transaction,
+                    identity.organization,
+                    block,
+                    caller,
+                    caller,
+                    &record,
+                )?;
+                crate::access::set_offer(&transaction, identity.organization, block, None)?;
+                graph.set_author(block, caller)?;
+                transaction.execute(
+                    "UPDATE blocks SET author = ?3 WHERE organization_id = ?1 AND id = ?2",
+                    params![
+                        identity.organization.to_string(),
+                        block.to_string(),
+                        caller.to_string()
+                    ],
+                )?;
+                // The log grants the new owner Manage, as the row does: authorship alone gives
+                // it only while they can view the parent, which a block given away from
+                // somewhere they cannot see would not be.
+                write_grant(
+                    store,
+                    graph,
+                    &transaction,
+                    identity.organization,
+                    block,
+                    caller,
+                    Access::Manage,
+                )?;
+                write_grant(
+                    store,
+                    graph,
+                    &transaction,
+                    identity.organization,
+                    block,
+                    former,
+                    Access::Edit,
+                )?;
+                transaction.commit()?;
+                return Ok(Some((before, former)));
             }
+            require_manage(graph, &visibility(identity), block)?;
             let fixed = node.owner_only
                 || graph.owner_only_root(block).is_some()
                 || node.is_search_index()
@@ -2130,79 +2197,65 @@ impl ServerStore {
                     format!("block {block} belongs to what holds it, so its ownership never moves"),
                 ));
             }
-            if access != Access::Manage
-                || account == identity.account
-                || account == ANYONE_INSIDE
-                || account == crate::organization::server_account(database)?
-            {
-                return Err(ServerError::Refused(
-                    ErrorCode::InvalidRequest,
-                    "ownership moves to another member, who manages the block".into(),
-                ));
+            if account != caller {
+                if account == ANYONE_INSIDE
+                    || account == crate::organization::server_account(database)?
+                {
+                    return Err(ServerError::Refused(
+                        ErrorCode::InvalidRequest,
+                        "a block is offered to another member".into(),
+                    ));
+                }
+                if !crate::store::is_member_of(database, account, identity.organization)? {
+                    return Err(ServerError::Refused(
+                        ErrorCode::PermissionDenied,
+                        "that account is not a member of this organization".into(),
+                    ));
+                }
+                if !crate::contacts::is_contact(database, caller, account)? {
+                    return Err(ServerError::Refused(
+                        ErrorCode::NotAContact,
+                        "offer ownership only to your contacts: send them a contact link first"
+                            .into(),
+                    ));
+                }
             }
-            if !crate::store::is_member_of(database, account, identity.organization)? {
-                return Err(ServerError::Refused(
-                    ErrorCode::PermissionDenied,
-                    "that account is not a member of this organization".into(),
-                ));
-            }
-            if !crate::contacts::is_contact(database, identity.account, account)? {
-                return Err(ServerError::Refused(
-                    ErrorCode::NotAContact,
-                    "give ownership only to your contacts: send them a contact link first".into(),
-                ));
-            }
-            // The block becomes theirs to keep, so it counts against their bound as making one
-            // would: no one fills an account up by giving it blocks. Checked last, so an owner
-            // learns how many blocks an account holds only of a contact.
-            if graph.authored(account) >= MAX_BLOCKS_PER_ACCOUNT {
-                return Err(crate::limits::too_many(
-                    "blocks one account makes in an organization",
-                    MAX_BLOCKS_PER_ACCOUNT,
-                ));
-            }
-            let before = graph.audience(block);
             let transaction = be_block_sqlite_schema::write_transaction(database)?;
             crate::access::append_owner(
                 &transaction,
                 identity.organization,
                 block,
-                identity.account,
+                caller,
                 account,
                 &record,
             )?;
-            graph.set_author(block, account)?;
-            transaction.execute(
-                "UPDATE blocks SET author = ?3 WHERE organization_id = ?1 AND id = ?2",
-                params![
-                    identity.organization.to_string(),
-                    block.to_string(),
-                    account.to_string()
-                ],
-            )?;
-            // The log grants the new owner Manage, as the row does: authorship alone gives it
-            // only while they can view the parent, which a block given away from somewhere
-            // they cannot see would not be.
-            write_grant(
-                store,
-                graph,
+            // An offer names whom it is to; naming the owner withdraws it.
+            crate::access::set_offer(
                 &transaction,
                 identity.organization,
                 block,
-                account,
-                Access::Manage,
-            )?;
-            write_grant(
-                store,
-                graph,
-                &transaction,
-                identity.organization,
-                block,
-                identity.account,
-                Access::Edit,
+                (account != caller).then_some((account, caller)),
             )?;
             transaction.commit()?;
-            Ok(Some(before))
+            Ok(None)
+        })
+        .await
+    }
+
+    /// The blocks offered to the caller in its organization (`query.owner-offers`), not yet
+    /// accepted or withdrawn, with who offered each.
+    pub async fn owner_offers(
+        &self,
+        identity: Identity,
+    ) -> Result<Vec<be_block_protocol::OwnerOffer>, ServerError> {
+        self.with_graph(identity.organization, move |_, graph, database| {
+            Ok(
+                crate::access::offers_to(database, identity.organization, identity.account)?
+                    .into_iter()
+                    .filter(|(block, _)| graph.contains(*block))
+                    .map(|(block, from)| be_block_protocol::OwnerOffer { block, from })
+                    .collect(),
+            )
         })
         .await
     }
@@ -2409,6 +2462,8 @@ impl ServerStore {
                 company,
                 set_inside: u32::try_from(graph.set_inside(block)).unwrap_or(u32::MAX),
                 host: None,
+                offered: crate::access::offered(database, identity.organization, block)?
+                    .map(|(to, _)| to),
             })
         })
         .await
@@ -2631,6 +2686,7 @@ pub(crate) const BLOCK_ROWS: &[&str] = &[
     "mutes",
     "told_keys",
     "share_links",
+    "owner_offers",
 ];
 
 /// The tables with a `block_id` column that `forget_blocks` does not delete by it alone:

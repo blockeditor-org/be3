@@ -85,6 +85,7 @@ pub(crate) fn query_rule(query: &Query) -> Rule {
         Query::Log { .. } => Rule::Member,
         Query::Access(of) => block(*of, Access::Manage),
         Query::Names(of) => block(*of, Access::View),
+        Query::OwnerOffers => Rule::Member,
         Query::Keys { .. }
         | Query::KeyWork
         | Query::Revocations { .. }
@@ -126,6 +127,9 @@ pub(crate) fn op_rule(op: &Op) -> Rule {
             LogRecord::Grant { block: of, .. } => block(*of, Access::KnowExists),
             LogRecord::Role { .. } => Rule::Administrator,
             LogRecord::Ban { block: of, .. } => block(*of, Access::Edit),
+            // Its owner, or the member it was offered to, who may not see it yet
+            // (`ServerStore::owner_record`).
+            LogRecord::Owner { .. } => Rule::Member,
             // An administrator removes a person; anyone signs in or out an agent it made.
             LogRecord::Member { .. } => Rule::Member,
         },
@@ -247,6 +251,7 @@ pub(crate) fn bound_may_read(query: &Query, follow: bool) -> bool {
         Query::LogRedactions(_)
         | Query::Access(_)
         | Query::Names(_)
+        | Query::OwnerOffers
         | Query::Revocations { .. }
         | Query::SigningKeys(_)
         | Query::Members
@@ -1588,6 +1593,9 @@ impl Client {
             Query::Names(block) => {
                 Page::Names(store.list_names(admitted.identity()?, block).await?)
             }
+            Query::OwnerOffers => {
+                Page::OwnerOffers(store.owner_offers(admitted.identity()?).await?)
+            }
             Query::Keys { blocks, after } => {
                 Page::Keys(store.get_keys(admitted.identity()?, blocks, after).await?)
             }
@@ -2073,6 +2081,31 @@ impl Client {
                                 within: Some(block),
                             })
                             .await;
+                    }
+                    LogRecord::Owner { block, signed } => {
+                        let accepted = connection
+                            .store
+                            .owner_record(identity, block, signed)
+                            .await?;
+                        if let Some((before, former)) = accepted {
+                            connection
+                                .after(After::Revoked {
+                                    revoked: vec![contacts::Granted {
+                                        organization: identity.organization,
+                                        block,
+                                        before,
+                                    }],
+                                    accounts: vec![identity.account, former],
+                                })
+                                .await;
+                            connection
+                                .after(After::Recheck {
+                                    organization: identity.organization,
+                                    account: None,
+                                    within: Some(block),
+                                })
+                                .await;
+                        }
                     }
                     LogRecord::Ban {
                         block,

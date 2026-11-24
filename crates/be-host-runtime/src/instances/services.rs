@@ -293,6 +293,7 @@ impl Instances {
             }
             Call::ListAccess { .. }
             | Call::TransferOwnership { .. }
+            | Call::AcceptOwnership { .. }
             | Call::ListShareLinks { .. }
             | Call::MakeShareLink { .. }
             | Call::RevokeShareLink { .. }
@@ -720,6 +721,12 @@ impl Instances {
                     Uuid::from_bytes(account),
                     move |set| answering.send_or_fail(set),
                 );
+            }
+            Call::AcceptOwnership { reply, block } => {
+                let answering = self.answering(instance, reply);
+                be_host_stack::accept_ownership(Uuid::from_bytes(block), move |set| {
+                    answering.send_or_fail(set)
+                });
             }
             Call::SetMute { reply, block, mode } => {
                 let answering = self.answering(instance, reply);

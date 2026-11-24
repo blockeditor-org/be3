@@ -12,7 +12,7 @@ use be_sdk_beui::{
 };
 use uuid::Uuid;
 
-use super::share::{Member, Offered, Person, Share, ShareAction};
+use super::share::{Member, Offered, OwnershipOffer, Person, Share, ShareAction};
 use super::workspace::Workspace;
 use be_sdk_beui::beui::TextAlign;
 use be_sdk_beui::beui::text::Phrase;
@@ -338,15 +338,30 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
             Err(_) => Vec::new(),
         })
     });
-    // Whom the person asked to give ownership to, as the question to confirm it.
+    // Whom the person asked to offer ownership to, as the question to confirm it.
     let transferring = create_memo(move || {
         let id = state.with(|share| share.as_ref()?.transferring)?;
         members.with(|members| {
             members
                 .iter()
                 .find(|member| member.id == id)
-                .map(|member| format!("Make {} the owner?", member.name))
+                .map(|member| format!("Offer {} ownership?", member.name))
         })
+    });
+    // An offer of ownership standing: one made to the person, to accept, or one they made, to
+    // withdraw.
+    let ownership_offer = create_memo(move || {
+        listing.with(|listing| Share::ownership_offer(listing.as_ref().ok()?, me))
+    });
+    let offered_to_me = create_memo(move || match ownership_offer.get()? {
+        OwnershipOffer::ToMe { from } => Some(format!("{from} offered you ownership")),
+        OwnershipOffer::ByMe { .. } => None,
+    });
+    let offered_by_me = create_memo(move || match ownership_offer.get()? {
+        OwnershipOffer::ByMe { to } => Some(format!(
+            "Ownership offered to {to}. Nothing changes until they accept."
+        )),
+        OwnershipOffer::ToMe { .. } => None,
     });
     view! {
         <Dialog
@@ -496,7 +511,7 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
                                 <Text size=TextSize::Lg>{question}</Text>
                             </List>
                             <Text style=TextStyle::CAPTION @test_id={"share.transfer.help"}>
-                                "They will manage this block and decide who has access. You will keep edit access, but you can't give anyone access or take ownership back. Only your contacts can be made owner."
+                                "Once they accept, they will manage this block and decide who has access. You will keep edit access, but you can't give anyone access or take ownership back. Only your contacts can be offered ownership."
                             </Text>
                             <List
                                 direction=Direction::Horizontal
@@ -511,7 +526,7 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
                                     on_click={move || act.call(ShareAction::CancelOwnership)}
                                 />
                                 <Button
-                                    label="Make owner"
+                                    label="Offer ownership"
                                     glyph=ICON_CROWN
                                     variant=ButtonVariant::Primary
                                     @test_id={"share.transfer"}
@@ -520,6 +535,58 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
                             </List>
                         </List>
                     </Card>
+                </Show>
+                <Show value={offered_to_me}>|offer: ReadSignal<String>|
+                    <Card>
+                        <List spacing=Space::Md>
+                            <List
+                                direction=Direction::Horizontal
+                                align=Align::Center
+                                spacing=Space::Xs
+                            >
+                                <Text align=TextAlign::Center>
+                                    <Icon glyph=ICON_CROWN />
+                                </Text>
+                                <Text size=TextSize::Lg @test_id={"share.offered"}>{offer}</Text>
+                            </List>
+                            <Text style=TextStyle::CAPTION>
+                                "If you accept, you will manage this block and decide who has access. They will keep edit access."
+                            </Text>
+                            <List
+                                direction=Direction::Horizontal
+                                align=Align::Center
+                                spacing=Space::Md
+                            >
+                                <Spacer />
+                                <Button
+                                    label="Accept ownership"
+                                    glyph=ICON_CROWN
+                                    variant=ButtonVariant::Primary
+                                    @test_id={"share.accept"}
+                                    on_click={move || act.call(ShareAction::AcceptOwnership)}
+                                />
+                            </List>
+                        </List>
+                    </Card>
+                </Show>
+                <Show value={offered_by_me}>|offer: ReadSignal<String>|
+                    <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
+                        <Text size=TextSize::Sm align=TextAlign::Center>
+                            <Icon glyph=ICON_CROWN />
+                        </Text>
+                        <ListItem grow=1.0>
+                            <Text style=TextStyle::CAPTION @test_id={"share.offered"}>
+                                {offer}
+                            </Text>
+                        </ListItem>
+                        <Button
+                            label="Withdraw"
+                            variant=ButtonVariant::Secondary
+                            size=ButtonSize::Small
+                            @test_id={"share.withdraw"}
+                            on_click={move || act.call(ShareAction::WithdrawOwnership)}
+                        />
+                    </List>
                 </Show>
                 <Show value={links}>|links: ReadSignal<Vec<ShareLink>>|
                     <LinksSection
@@ -924,7 +991,7 @@ fn MemberRow(member: Memo<Option<Member>>, offered: Memo<Offered>, act: ShareAct
                         <Button
                             icon_only=true
                             glyph=ICON_CROWN
-                            label="Make owner"
+                            label="Offer ownership"
                             size=ButtonSize::Small
                             @test_id={format!("share.owner.{}", member.with_untracked(|member| member.as_ref().map(|member| member.id).unwrap_or_default()))}
                             on_click={move || {

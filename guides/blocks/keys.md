@@ -262,26 +262,36 @@ that member's record checks on theirs, and reduces every other, open or ended:
 a path below Edit grows with the invitations its members came by, not with every
 one the organization made (`proof_path`).
 
-**Owner records** move a block's ownership:
-only its owner (the root's creator, or whom the last owner record named, held
-as `Checked::owner`) signs one, naming another account and the keys it verified
-for them, sent as an `append-log(grant)` with Manage (`Peer::transfer`, the share
-dialog's crown). The new owner holds Manage and no grant may name them; the
-former keeps Edit (`FORMER_OWNER`), so every Manage they held by ownership,
-directly or as authority for a record below (`Authority::Inherited`), ends
-there, and the record lowers someone, outdating the epochs before it. A proof
+**Owner records** move a block's ownership in two steps, an offer and its
+acceptance, each sent as an `append-log(owner)`. Its owner (the root's creator,
+or whom the last accepted record named, held as `Checked::owner`) offers it by
+signing one naming another account and the keys it verified for them
+(`Peer::transfer`, the share dialog's crown), and seals that account the
+block's keys with it, so they read it the moment they accept. An offer moves
+nothing and lowers no one; it stands as `Checked::offered` until the next owner
+record, and the owner withdraws it by signing one naming themselves, or replaces
+it by offering the block to someone else. The account offered it accepts by
+signing one naming itself with exactly the keys the offer named
+(`Peer::accept_ownership`, the share dialog's Accept, which the server lists as
+`query.owner-offers` and in `access-list.offered`): it checks the log from a
+root its verified contact, the owner, vouches for if it has none pinned. Only
+then does the new owner hold Manage, and no grant may name them; the former
+keeps Edit (`FORMER_OWNER`), so every Manage they held by ownership, directly
+or as authority for a record below (`Authority::Inherited`), ends there, and
+the acceptance lowers someone (`Checked::lowers`), outdating the epochs before
+it. A proof
 path keeps every owner record whole, and a reduced entry says whether it is one
 (`Reduced::owns`): reduced, it still leaves its signer, the owner then, Edit,
 and the owner unknown. The server moves the block's author with it (giving the
 new owner a Manage row, since authorship alone gives Manage only while they can
 view the parent) and refuses it for blocks that belong to what holds them
-(owner-only blocks, settings, edit kinds, search indexes, an Unfiled). A
-transfer has no accept step: the new owner holds the block as soon as the
-record is appended, and can leave it only by giving ownership on, since no
-grant names or lowers an owner; holding Manage, they may also trash it. The
-server takes a transfer only to a member who is a contact of the giver, and
-refuses one to an account already at `MAX_BLOCKS_PER_ACCOUNT`, checked after
-the contact check so the giver learns an account's count only of a contact. The former owner, the creator included, is then
+(owner-only blocks, settings, edit kinds, search indexes, an Unfiled). The
+new owner can leave the block only by giving ownership on, since no grant names
+or lowers an owner; holding Manage, they may also trash it. The server takes an
+offer only to a member who is a contact of the giver, keeps the one standing
+per block (`owner_offers`), lets the account offered it read the block's log to
+accept, and refuses the acceptance of an account already at
+`MAX_BLOCKS_PER_ACCOUNT`, which the giver never learns of. The former owner, the creator included, is then
 a member like any other, whom the new owner may revoke.
 
 **Parent records** place the block (`Placement`:
@@ -1067,8 +1077,9 @@ who lost access. Cited from code by these names.
   administrator's own escrow wrap is taken without checking the block's log,
   so a malicious administrator can root a block another reaches only through
   escrow; it reads everything through escrow anyway.
-- **Authorship** is the root's and the owner records'. A transfer needs no
-  acceptance ("Owner records").
+- **Authorship** is the root's and the owner records'. A transfer takes
+  effect only once the account offered the block accepts it ("Owner
+  records").
 - **A Join member's root.** A `Join` member takes a block's root from the log
   as served once a grant to it there is signed by a verified contact ("Hosted
   channels"), so that contact, with the server, can show it a log of their own

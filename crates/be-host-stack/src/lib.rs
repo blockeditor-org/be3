@@ -2403,8 +2403,9 @@ pub fn ban(block: Uuid, account: Uuid, reply: impl FnOnce(Result<(), String>) + 
     });
 }
 
-/// Gives ownership of `block`, which the account owns, to `account`; `reply` hears whether the
-/// server took it, or the refusal to show (offline, it needs the server).
+/// Offers ownership of `block`, which the account owns, to `account`, or withdraws the offer
+/// when `account` is the signed-in one (`Peer::transfer`); `reply` hears whether the server took
+/// it, or the refusal to show (offline, it needs the server).
 pub fn transfer_ownership(
     block: Uuid,
     account: Uuid,
@@ -2413,6 +2414,15 @@ pub fn transfer_ownership(
     send(Command::TransferOwnership {
         block,
         account,
+        reply: replies::expect(reply),
+    });
+}
+
+/// Accepts ownership of `block`, which its owner offered the account (`Peer::accept_ownership`);
+/// `reply` hears as for `transfer_ownership`.
+pub fn accept_ownership(block: Uuid, reply: impl FnOnce(Result<(), String>) + Send + 'static) {
+    send(Command::AcceptOwnership {
+        block,
         reply: replies::expect(reply),
     });
 }

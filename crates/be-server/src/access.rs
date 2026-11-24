@@ -952,15 +952,75 @@ pub(crate) fn banned(
     )
 }
 
-/// Whether `record` is an owner record: `set-access` carrying one moves the block's ownership
-/// (`append_owner`) rather than granting.
-pub(crate) fn is_owner_record(record: &[u8]) -> bool {
-    Entry::decode(record).is_ok_and(|entry| matches!(entry.record, Record::Owner(_)))
+/// Whom `block` is offered to and by whom (`append-log(owner)`), until accepted or withdrawn.
+pub(crate) fn offered(
+    connection: &Connection,
+    organization: Uuid,
+    block: Uuid,
+) -> Result<Option<(Uuid, Uuid)>, ServerError> {
+    let row: Option<(String, String)> = connection
+        .prepare_cached(
+            "SELECT account_id, from_id FROM owner_offers
+             WHERE organization_id = ?1 AND block_id = ?2",
+        )?
+        .query_row(params![organization.to_string(), block.to_string()], |row| {
+            Ok((row.get(0)?, row.get(1)?))
+        })
+        .optional()?;
+    row.map(|(to, from)| Ok((crate::store::parse_uuid(&to)?, crate::store::parse_uuid(&from)?)))
+        .transpose()
+}
+
+/// The blocks offered to `account` in `organization`, each with who offered it.
+pub(crate) fn offers_to(
+    connection: &Connection,
+    organization: Uuid,
+    account: Uuid,
+) -> Result<Vec<(Uuid, Uuid)>, ServerError> {
+    let mut statement = connection.prepare_cached(
+        "SELECT block_id, from_id FROM owner_offers
+         WHERE organization_id = ?1 AND account_id = ?2 ORDER BY block_id",
+    )?;
+    let rows: Vec<(String, String)> = statement
+        .query_map(params![organization.to_string(), account.to_string()], |row| {
+            Ok((row.get(0)?, row.get(1)?))
+        })?
+        .collect::<Result<_, _>>()?;
+    rows.into_iter()
+        .map(|(block, from)| Ok((crate::store::parse_uuid(&block)?, crate::store::parse_uuid(&from)?)))
+        .collect()
+}
+
+/// Records whom `block` is offered to and by whom, or that no one is (`offer` none).
+pub(crate) fn set_offer(
+    connection: &Connection,
+    organization: Uuid,
+    block: Uuid,
+    offer: Option<(Uuid, Uuid)>,
+) -> Result<(), ServerError> {
+    connection.execute(
+        "DELETE FROM owner_offers WHERE organization_id = ?1 AND block_id = ?2",
+        params![organization.to_string(), block.to_string()],
+    )?;
+    if let Some((to, from)) = offer {
+        connection.execute(
+            "INSERT INTO owner_offers (organization_id, block_id, account_id, from_id)
+             VALUES (?1, ?2, ?3, ?4)",
+            params![
+                organization.to_string(),
+                block.to_string(),
+                to.to_string(),
+                from.to_string()
+            ],
+        )?;
+    }
+    Ok(())
 }
 
 /// Appends `record`, signed by `signer`, to `block`'s log once it checks at its head: an owner
-/// record moving ownership to `owner`, naming the keys the server holds for them. The log
-/// refuses it unless `signer` owns the block there.
+/// record naming `owner` (whom the block is offered to, or who accepts it) with the keys the
+/// server holds for them. The log refuses an offer unless `signer` owns the block, and an
+/// acceptance unless the block was offered to `signer`.
 pub(crate) fn append_owner(
     connection: &Connection,
     organization: Uuid,
@@ -971,7 +1031,7 @@ pub(crate) fn append_owner(
 ) -> Result<(), ServerError> {
     let entry = Entry::decode(record).map_err(|_| refused("the record does not read"))?;
     let Record::Owner(named) = &entry.record else {
-        return Err(refused("ownership moves by an owner record"));
+        return Err(refused("ownership is offered and accepted by owner records"));
     };
     if entry.signer != signer.into_bytes() || named.account != owner.into_bytes() {
         return Err(refused(

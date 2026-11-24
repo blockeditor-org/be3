@@ -2603,7 +2603,7 @@ impl TestClient {
                     agent: false,
                     invitation: None,
                 });
-                let lowers = checked.lowers(&record);
+                let lowers = checked.lowers(me.into_bytes(), &record);
                 let signed = be_block_keys::Entry::sign(
                     &test_secret(me),
                     me.into_bytes(),

@@ -225,6 +225,16 @@ const SCHEMA: &str = "
         PRIMARY KEY (account_id, contact_id)
     );
 
+    -- Whom a block's owner offered it to, by an owner record in its log, until accepted or
+    -- withdrawn (`append-log(owner)`).
+    CREATE TABLE owner_offers (
+        organization_id TEXT NOT NULL,
+        block_id        TEXT NOT NULL,
+        account_id      TEXT NOT NULL,
+        from_id         TEXT NOT NULL,
+        PRIMARY KEY (organization_id, block_id)
+    );
+
     CREATE TABLE blocks (
         organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
         id              TEXT NOT NULL,
