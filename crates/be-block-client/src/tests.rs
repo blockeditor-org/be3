@@ -276,6 +276,7 @@ mod the_first_page_of_a_long_log_costs_that_page_and_log_n_hashes;
 mod the_next_editor_seals_once_the_server_writes_a_lost_holders_leave;
 mod the_server_naming_itself_in_key_work_is_sealed_nothing;
 mod two_contacts_taking_new_phrases_at_once_still_follow_each_other;
+mod two_devices_of_a_new_account_keep_both_its_letters_signing_in_at_once;
 mod two_devices_sealing_one_head_keep_only_the_winners_trim;
 mod two_peers_of_one_account_read_each_others_blocks;
 mod what_a_policy_governs_waits_while_the_server_cannot_read_it;
@@ -435,8 +436,18 @@ impl Harness {
     }
 
     async fn reconnect(&self, peer: &Peer<MemoryStore>, token: String) {
+        self.reconnect_on(peer, token, &Clock::real()).await;
+    }
+
+    /// `peer` connected again keeping time by a manual clock, as a test whose writes contend on
+    /// purpose wants: an update's backoff then waits for no real time (`Peer::back_off`).
+    async fn on_manual_clock(&self, peer: &Peer<MemoryStore>) {
+        self.reconnect_on(peer, peer.token(), &Clock::manual()).await;
+    }
+
+    async fn reconnect_on(&self, peer: &Peer<MemoryStore>, token: String, clock: &Clock) {
         let (connection, signed_in) =
-            Connection::connect(&self.url, &Clock::real(), &Credentials::Token(token))
+            Connection::connect(&self.url, clock, &Credentials::Token(token))
                 .await
                 .expect("the server signs the device in");
         peer.attach(connection, signed_in.token).await.unwrap();
