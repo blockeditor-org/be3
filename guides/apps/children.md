@@ -132,20 +132,24 @@ count, and each time it grows the placement carries the editor's next
 `keyboard-ask` serial (be-sdk-beui's `register_child`). A `ChildBlock` or
 `Subregion` in a dock tab adds one each time the dock gives that tab the
 keyboard or brings its window forward, while no popover or keyboard-taking
-layer of the editor's is open. An editor that makes a block to type into ("Add
+layer of the editor's is open; a joined editor's, whose content the dock shows
+in a tab body of its own, leaves that to the body's. An editor that makes a block to type into ("Add
 notes") places its child with a count of one once it places it; a program tab
 counts its window's raises and calls for attention.
 
 The host acts on the layout commit that carries a serial above every one it
 acted on for the editor (be-host-runtime's `Instances::set_children`, which
-names the child to the compositor with `InstanceEvent::KeyboardAsked`): the
-view that shows the child takes the keyboard as it is built, or at once if it
-is, without waiting for the child's app (be-host's `focus_when_given`). It does
-so only while the keyboard is inside the placer's views or the children they
-show and no view that takes the keyboard is open, so it never steals focus from
-elsewhere; otherwise the ask does nothing. An ask not acted on by the next
-commit is withdrawn. A window child (a program window) takes the keyboard from
-the host directly.
+names the child to the compositor with `InstanceEvent::KeyboardAsked`). If the
+keyboard is inside the placer's views or the children they show and no view
+that takes the keyboard is open, it leaves them at once (be-host's
+`keyboard_into_child`), so it never steals focus from elsewhere; otherwise the
+ask does nothing. The view that shows the child takes it as it is built, or at
+once if it is, without waiting for the child's app, while nothing else took
+the keyboard meanwhile (`focus_when_given`); keys typed in between reach
+nothing. An app given the keyboard for a view whose window it has yet to make
+focuses that window once it makes it (be-sdk-beui-platform's `window_made`), so
+the field it would focus takes the keyboard once it is up. A window child (a
+program window) takes the keyboard from the host directly.
 
 Keys are never held (decisions/keys_are_never_held.md): a key goes to whatever
 has the keyboard when it is routed, and one routed to a child whose app does
