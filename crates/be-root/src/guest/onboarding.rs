@@ -675,7 +675,7 @@ fn CreateOrganization(busy: Memo<bool>) -> NodeId {
 pub(super) fn SessionsCard(core: Signal<CoreView>) -> NodeId {
     let area = create_memo(move || core.with(|view| view.sessions.clone()));
     let loading = create_memo(move || !area.with(|area| area.loaded));
-    let title = create_memo(move || core.with(|view| view.organization.clone()));
+    let title = create_memo(move || core.with(|view| view.organization.clone().unwrap_or_default()));
     // Which types it lists is the root's own choice, not the host's.
     let every = create_signal(false);
     let kind_name = move |area: &SessionsArea, kind: [u8; 16]| {

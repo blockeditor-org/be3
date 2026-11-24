@@ -322,7 +322,7 @@ pub(super) fn InvitationsDialog(
         core.with(|view| {
             format!(
                 "Anyone who opens this link with an account on this server can join {} as an editor, once, within seven days.",
-                view.organization
+                view.organization.as_deref().unwrap_or_default()
             )
         })
     });
@@ -568,43 +568,6 @@ pub(super) fn MembersDialog(core: Signal<CoreView>, done: Callback<Closed>) -> N
             </List>
         </Frame>
     }
-}
-
-/// An agent's credentials as be-host's own dialog copies them: the JSON a program reads from
-/// BE3_AGENT_CREDENTIALS.
-pub(super) fn agent_bundle(agent: &be_wasm_root_api::AgentCredentials) -> String {
-    let quoted = |text: &str| {
-        let mut quoted = String::from('"');
-        for character in text.chars() {
-            match character {
-                '"' => quoted.push_str("\\\""),
-                '\\' => quoted.push_str("\\\\"),
-                character if character < ' ' => {
-                    quoted.push_str(&format!("\\u{:04x}", u32::from(character)))
-                }
-                character => quoted.push(character),
-            }
-        }
-        quoted.push('"');
-        quoted
-    };
-    let id = agent.organization;
-    let hex: String = id.iter().map(|byte| format!("{byte:02x}")).collect();
-    let organization = format!(
-        "{}-{}-{}-{}-{}",
-        &hex[0..8],
-        &hex[8..12],
-        &hex[12..16],
-        &hex[16..20],
-        &hex[20..32]
-    );
-    format!(
-        "{{\"organization\":{},\"recovery_phrase\":{},\"server\":{},\"token\":{}}}",
-        quoted(&organization),
-        quoted(agent.phrase.as_str().unwrap_or_default()),
-        quoted(&agent.server),
-        quoted(agent.token.as_str().unwrap_or_default())
-    )
 }
 
 /// The host's question before leaving a block an editor asked to leave: Leave, which asks the
@@ -1092,7 +1055,8 @@ pub(super) fn AgentsDialog(
         }
     };
     // What it shows and copies of the credentials, as be-host's own dialog does: the bundle a
-    // program reads from BE3_AGENT_CREDENTIALS, the one copy it keeps beside them.
+    // program reads from BE3_AGENT_CREDENTIALS, which the host encodes, the one copy it keeps
+    // beside them.
     let heading = create_memo(move || {
         made.with(|made| {
             let name = made.as_ref().and_then(Held::agent).map(|agent| agent.name.clone());
@@ -1102,12 +1066,28 @@ pub(super) fn AgentsDialog(
             )
         })
     });
+    // Whether the agent's proxy supplies its token: which of the host's two bundles shows.
+    let proxy = create_signal(false);
     let credentials = create_memo(move || {
+        let proxy = proxy.get();
         made.with(|made| {
             made.as_ref()
                 .and_then(Held::agent)
-                .map(agent_bundle)
+                .and_then(|agent| match proxy {
+                    true => agent.proxy_bundle.as_str(),
+                    false => agent.bundle.as_str(),
+                })
                 .unwrap_or_default()
+                .to_owned()
+        })
+    });
+    let header = create_memo(move || {
+        made.with(|made| {
+            made.as_ref()
+                .and_then(Held::agent)
+                .and_then(|agent| agent.proxy_header.as_str())
+                .unwrap_or_default()
+                .to_owned()
         })
     });
     let copy = move || {
@@ -1122,7 +1102,14 @@ pub(super) fn AgentsDialog(
     // While an agent is being made it stays open, so its credentials, which cannot be had
     // again, reach the person: Close and its close button wait for the answer, and so does the
     // root for Escape and the scrim (`Dialog::holds_while_pending`).
-    let organization = create_memo(move || core.with(|view| format!("Organization: {}", view.organization)));
+    // The organization it makes agents in, while one is open: no line while none is.
+    let organization = create_memo(move || {
+        core.with(|view| {
+            view.organization
+                .as_ref()
+                .map(|organization| format!("Organization: {organization}"))
+        })
+    });
     let dismiss = move || {
         if !pending.get_untracked() {
             done.call(Closed::Dismissed);
@@ -1142,7 +1129,9 @@ pub(super) fn AgentsDialog(
                         ]}
                         on_dismiss={dismiss}
                     >
-                        <Text style=TextStyle::CAPTION>{organization}</Text>
+                        <Show value={organization}>|organization: ReadSignal<String>|
+                            <Text style=TextStyle::CAPTION>{organization}</Text>
+                        </Show>
                         <Text style=TextStyle::CAPTION>
                             "An agent is an account for a program, such as a coding agent. It sees only the blocks you share with it. Share a workspace or blocks with it from this device after setup. This list shows the agents you created."
                         </Text>
@@ -1194,6 +1183,18 @@ pub(super) fn AgentsDialog(
                         on_dismiss={move || done.call(Closed::Dismissed)}
                     >
                         <Text style=TextStyle::PARAGRAPH>{heading}</Text>
+                        <Checkbox label="Account token supplied by proxy" checked={proxy} />
+                        <Show value={proxy}>
+                            <List spacing=Space::Sm>
+                                <Text style=TextStyle::PARAGRAPH>
+                                    "Add a proxy rule for the server in these credentials (api.be3.pfg.pw for the hosted service). Set its Authorization header to the value below and keep it outside the agent container. If a gateway secret is required, add Be3-Gateway-Authorization: Bearer <gateway secret> as a separate rule."
+                                </Text>
+                                <TextInput
+                                    value={Binding::new(header, Callback::empty())}
+                                    label="Proxy Authorization header"
+                                />
+                            </List>
+                        </Show>
                         <TextInput
                             value={Binding::new(credentials, Callback::empty())}
                             label="Agent credentials"

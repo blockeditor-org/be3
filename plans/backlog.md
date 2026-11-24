@@ -714,3 +714,12 @@ decisions/tentative_edits_wait_for_release.md) left as it was.
   Done: loading the first part fetches only the nodes on the path to
   `first_end()`, so opening a large blob is O(depth), with that test's bound
   on the objects held after reading the header back to a constant.
+
+## 30. One-time secrets
+
+- **A stray press dismisses a secret shown once.** be-host's dialogs that show a secret only
+  once (an agent's credentials, an invite or contact link) close on a press on their scrim,
+  and be-root's do the same (be-host parity, plans/host_as_platform_adapter.md 4g7a2), so a
+  stray press loses credentials that cannot be had again. Done: once such a secret shows, a
+  press on the scrim leaves the dialog open in both, closing only from Done or its close
+  button, with a test for each.
