@@ -549,6 +549,10 @@ fn show_statistics(root: &mut Root, memory: &mut Option<MemoryRows>) {
 
 /// The memory rows the root was last handed, and the sample they are of.
 struct MemoryRows {
+    #[cfg_attr(
+        not(target_os = "linux"),
+        expect(dead_code, reason = "only Linux samples memory")
+    )]
     generation: u64,
     rows: Vec<StatisticRow>,
     file: Option<String>,

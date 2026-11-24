@@ -55,7 +55,10 @@ In be-host-desktop, `desktop_host/win32.rs` (`Win32`) is the `DesktopHost`, with
   `wm-class`, the program id their windows carry: the shortcut's AppUserModelID, else its target
   (`win32_map::host_program`). So a window from last time, kept as a placeholder with its chip
   like any other (guides/desktop.md), starts again from its shortcut on Open or Restore, even one
-  the desktop did not launch. Every entry is listed `opens_hidden`,
+  the desktop did not launch. Matching by executable misses a launcher whose window belongs to
+  another process (its shortcut targets the launcher, its window the program it starts) and a
+  path Windows redirects (a 32-bit program's System32 is SysWOW64); without an AppUserModelID
+  such a window's chip cannot start it again. Every entry is listed `opens_hidden`,
   since showing one captures it: the shell opens a hidden tab for each, nothing is captured or
   focused until the person shows it from its window chip, and only then is it captured.
 - `WindowSurface` starts a capture when mounted, which happens only for shown entries, and stops it

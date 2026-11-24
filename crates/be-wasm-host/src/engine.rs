@@ -94,6 +94,7 @@ pub(crate) fn initialize() {
 /// x86_64 has 128 TiB; an arm64 Linux kernel built with 39-bit addresses, as vendor kernels such
 /// as the PineNote's may be, has 512 GiB, which would run out after a few dozen guests, so there
 /// the memories may move and the imports are ordinary calls. Tried once, as V8 starts.
+#[cfg(unix)]
 const ROOM: usize = 4 << 40;
 
 /// Whether the process can reserve `ROOM` of address space, tried by reserving it and letting it go.
