@@ -51817,8 +51817,6 @@ third_party = {
                     ":read-fonts-0.41.0",
                 ],
                 "features": [
-                    "autohint_shaping",
-                    "default",
                     "std",
                 ],
             },
@@ -51828,8 +51826,6 @@ third_party = {
                     ":read-fonts-0.41.0",
                 ],
                 "features": [
-                    "autohint_shaping",
-                    "default",
                     "std",
                 ],
             },
@@ -51839,8 +51835,6 @@ third_party = {
                     ":read-fonts-0.41.0",
                 ],
                 "features": [
-                    "autohint_shaping",
-                    "default",
                     "std",
                 ],
             },
@@ -51850,8 +51844,6 @@ third_party = {
                     ":read-fonts-0.41.0",
                 ],
                 "features": [
-                    "autohint_shaping",
-                    "default",
                     "std",
                 ],
             },
@@ -51861,8 +51853,6 @@ third_party = {
                     ":read-fonts-0.41.0",
                 ],
                 "features": [
-                    "autohint_shaping",
-                    "default",
                     "std",
                 ],
             },
@@ -51872,8 +51862,6 @@ third_party = {
                     ":read-fonts-0.41.0",
                 ],
                 "features": [
-                    "autohint_shaping",
-                    "default",
                     "std",
                 ],
             },
@@ -51883,8 +51871,6 @@ third_party = {
                     ":read-fonts-0.41.0",
                 ],
                 "features": [
-                    "autohint_shaping",
-                    "default",
                     "std",
                 ],
             },
@@ -51894,8 +51880,6 @@ third_party = {
                     ":read-fonts-0.41.0",
                 ],
                 "features": [
-                    "autohint_shaping",
-                    "default",
                     "std",
                 ],
             },
@@ -51905,8 +51889,6 @@ third_party = {
                     ":read-fonts-0.41.0",
                 ],
                 "features": [
-                    "autohint_shaping",
-                    "default",
                     "std",
                 ],
             },
@@ -51916,8 +51898,6 @@ third_party = {
                     ":read-fonts-0.41.0",
                 ],
                 "features": [
-                    "autohint_shaping",
-                    "default",
                     "std",
                 ],
             },

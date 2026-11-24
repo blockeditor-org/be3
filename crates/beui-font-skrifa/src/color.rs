@@ -1,10 +1,11 @@
 use std::io::Cursor;
 
-use skrifa::bitmap::{BitmapData, Origin};
+use skrifa::bitmap::{BitmapData, BitmapGlyph, Origin};
 use skrifa::raw::TableProvider;
 use skrifa::{FontRef, GlyphId as FontGlyph, MetadataProvider};
 
 use beui_core::font::GlyphImage;
+use zeno::Scratch;
 
 use crate::outline::Outline;
 
@@ -43,10 +44,10 @@ pub(crate) fn layers(font: &FontRef, glyph: FontGlyph) -> Option<Vec<(FontGlyph,
 }
 
 /// Layers filled and laid over each other in their colours, as one colour glyph.
-pub(crate) fn paint_layers(layers: &[(Outline, [u8; 4])]) -> GlyphImage {
+pub(crate) fn paint_layers(layers: &[(Outline, [u8; 4])], scratch: &mut Scratch) -> GlyphImage {
     let filled: Vec<_> = layers
         .iter()
-        .map(|(outline, color)| (outline.fill(), *color))
+        .map(|(outline, color)| (outline.fill(scratch), *color))
         .filter(|((_, placement), _)| placement.width > 0 && placement.height > 0)
         .collect();
     let Some(left) = filled.iter().map(|((_, at), _)| at.left).min() else {
@@ -109,18 +110,8 @@ pub(crate) fn bitmap(
     pixel_size: u32,
     raster: f32,
 ) -> Option<GlyphImage> {
-    let strikes = font.bitmap_strikes();
-    let wanted = pixel_size as f32;
-    let strike = strikes
-        .iter()
-        .filter(|strike| strike.ppem() >= wanted)
-        .min_by(|a, b| a.ppem().total_cmp(&b.ppem()))
-        .or_else(|| strikes.iter().max_by(|a, b| a.ppem().total_cmp(&b.ppem())))?;
-    if strike.ppem() <= 0.0 {
-        return None;
-    }
-    let bitmap = strike.get(glyph)?;
-    let (width, height, premultiplied) = match bitmap.data {
+    let (bitmap, scale) = strike_glyph(font, glyph, pixel_size)?;
+    let (width, height, premultiplied) = match bitmap.data.clone() {
         BitmapData::Png(bytes) => png(bytes)?,
         BitmapData::Bgra(bytes) => {
             let premultiplied = bytes
@@ -137,20 +128,56 @@ pub(crate) fn bitmap(
     if premultiplied.len() != width as usize * height as usize * 4 {
         return None;
     }
-    let left = bitmap.inner_bearing_x.round() as i32;
-    let top = match bitmap.placement_origin {
-        Origin::TopLeft => bitmap.inner_bearing_y,
-        Origin::BottomLeft => bitmap.inner_bearing_y + height as f32,
-    }
-    .round() as i32;
+    let (left, top) = bearings(&bitmap, height);
     Some(image(
         premultiplied,
         width,
         height,
-        left,
-        top,
-        wanted / strike.ppem() * raster,
+        left.round() as i32,
+        top.round() as i32,
+        scale * raster,
     ))
+}
+
+/// Where a bitmap glyph draws at the text's size, y down: its strike's box scaled as
+/// `bitmap` scales it.
+pub(crate) fn bitmap_extents(font: &FontRef, glyph: FontGlyph, pixel_size: u32) -> Option<[f32; 4]> {
+    let (bitmap, scale) = strike_glyph(font, glyph, pixel_size)?;
+    let (left, top) = bearings(&bitmap, bitmap.height);
+    let left = (left * scale).round();
+    let top = -(top * scale).round();
+    let width = (bitmap.width as f32 * scale).round().max(1.0);
+    let height = (bitmap.height as f32 * scale).round().max(1.0);
+    Some([left, top, left + width, top + height])
+}
+
+/// A glyph from the smallest strike at least as large as the text, or the largest there is,
+/// and how much it is scaled to the text.
+fn strike_glyph<'a>(
+    font: &FontRef<'a>,
+    glyph: FontGlyph,
+    pixel_size: u32,
+) -> Option<(BitmapGlyph<'a>, f32)> {
+    let strikes = font.bitmap_strikes();
+    let wanted = pixel_size as f32;
+    let strike = strikes
+        .iter()
+        .filter(|strike| strike.ppem() >= wanted)
+        .min_by(|a, b| a.ppem().total_cmp(&b.ppem()))
+        .or_else(|| strikes.iter().max_by(|a, b| a.ppem().total_cmp(&b.ppem())))?;
+    if strike.ppem() <= 0.0 {
+        return None;
+    }
+    Some((strike.get(glyph)?, wanted / strike.ppem()))
+}
+
+/// A bitmap's left and top bearings at its strike's size, as FreeType reads them.
+fn bearings(bitmap: &BitmapGlyph, height: u32) -> (f32, f32) {
+    let top = match bitmap.placement_origin {
+        Origin::TopLeft => bitmap.inner_bearing_y,
+        Origin::BottomLeft => bitmap.inner_bearing_y + height as f32,
+    };
+    (bitmap.inner_bearing_x, top)
 }
 
 /// A PNG strike's pixels, premultiplied.

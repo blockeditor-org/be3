@@ -23,6 +23,8 @@ way.
   keeps FreeType's defaults (the font's instructions, the autohinter for a font without them,
   smooth normal mode), and the ascender and descender are hhea's fitted to the grid as FreeType
   fits them, so baselines stay where they were.
+- What it costs: harfrust takes no pixels-per-em, so a GPOS Device table's per-size deltas are
+  no longer applied (HarfBuzz applied them once `set_ppem` was called). Few fonts carry them.
 
 ## Rejected
 

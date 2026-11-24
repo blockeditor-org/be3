@@ -8,6 +8,8 @@ use skrifa::{FontRef, GlyphId as FontGlyph, MetadataProvider, OutlineGlyphCollec
 
 use beui_core::font::{GlyphId, GlyphImage, GlyphRasterizer};
 
+use zeno::Scratch;
+
 use crate::outline::{Outline, Placed};
 use crate::{FontData, SUBPIXEL_POSITIONS, color};
 
@@ -24,6 +26,7 @@ pub(crate) struct RasterFace {
     scalable: bool,
     engine: RefCell<Option<Engine>>,
     hinting: RefCell<HashMap<u32, Option<HintingInstance>>>,
+    metrics: RefCell<HashMap<u32, Option<(f32, f32)>>>,
 }
 
 impl RasterFace {
@@ -33,6 +36,7 @@ impl RasterFace {
             scalable: scalable(font),
             engine: RefCell::new(None),
             hinting: RefCell::default(),
+            metrics: RefCell::default(),
         }
     }
 
@@ -52,8 +56,13 @@ impl RasterFace {
             .clone()
     }
 
-    fn draw(&self, font: &FontRef, glyph: FontGlyph, pixel_size: u32, hinted: bool) -> Option<Outline> {
-        let outlines = font.outline_glyphs();
+    fn draw(
+        &self,
+        outlines: &OutlineGlyphCollection,
+        glyph: FontGlyph,
+        pixel_size: u32,
+        hinted: bool,
+    ) -> Option<Outline> {
         let outline = outlines.get(glyph)?;
         let mut path = Outline::default();
         let size = Size::new(pixel_size as f32);
@@ -61,10 +70,10 @@ impl RasterFace {
             let mut cache = self.hinting.borrow_mut();
             let instance = cache.entry(pixel_size).or_insert_with(|| {
                 let options = HintingOptions {
-                    engine: self.engine(&outlines),
+                    engine: self.engine(outlines),
                     target: Default::default(),
                 };
-                HintingInstance::new(&outlines, size, LocationRef::default(), options).ok()
+                HintingInstance::new(outlines, size, LocationRef::default(), options).ok()
             });
             if let Some(instance) = instance {
                 outline
@@ -83,6 +92,7 @@ impl RasterFace {
 #[derive(Default)]
 pub(crate) struct Rasterizer {
     pub(crate) faces: RefCell<Vec<RasterFace>>,
+    scratch: RefCell<Scratch>,
 }
 
 impl Rasterizer {
@@ -93,6 +103,17 @@ impl Rasterizer {
     pub(crate) fn metrics(&self, index: usize, pixel_size: u32) -> Option<(f32, f32)> {
         let faces = self.faces.borrow();
         let face = faces.get(index)?;
+        *face
+            .metrics
+            .borrow_mut()
+            .entry(pixel_size)
+            .or_insert_with(|| face.grid_metrics(pixel_size))
+    }
+}
+
+impl RasterFace {
+    fn grid_metrics(&self, pixel_size: u32) -> Option<(f32, f32)> {
+        let face = self;
         if !face.scalable {
             return None;
         }
@@ -153,15 +174,17 @@ impl GlyphRasterizer for Rasterizer {
             scale: raster,
             shift: key.subpixel as f32 / SUBPIXEL_POSITIONS as f32,
         };
-        let draw = |glyph| face.draw(&font, glyph, key.pixel_size, hinted);
+        let outlines = font.outline_glyphs();
+        let draw = |glyph| face.draw(&outlines, glyph, key.pixel_size, hinted);
+        let mut scratch = self.scratch.borrow_mut();
         if let Some(layers) = color::layers(&font, glyph) {
             let layers = layers
                 .into_iter()
                 .filter_map(|(glyph, paint)| Some((draw(glyph)?.place(placed), paint)))
                 .collect::<Vec<_>>();
-            return Some(color::paint_layers(&layers));
+            return Some(color::paint_layers(&layers, &mut scratch));
         }
-        let (pixels, placement) = draw(glyph)?.place(placed).fill();
+        let (pixels, placement) = draw(glyph)?.place(placed).fill(&mut scratch);
         Some(GlyphImage {
             width: placement.width,
             height: placement.height,
