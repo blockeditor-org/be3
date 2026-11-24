@@ -2823,7 +2823,9 @@ where
                 }) => Some(commit),
                 _ => None,
             })
-            .filter(|commit| Some(*commit) != self.base && !self.restart_commits.contains_key(commit))
+            .filter(|commit| {
+                Some(*commit) != self.base && !self.restart_commits.contains_key(commit)
+            })
             .collect();
         commits.sort();
         commits.dedup();
@@ -3427,7 +3429,10 @@ where
         // the log outgrew there would drop entries on every replica alike.
         debug_assert!(
             self.log.len() < LOG_LIMIT
-                || self.log.front().is_some_and(|logged| logged.sequence <= through),
+                || self
+                    .log
+                    .front()
+                    .is_some_and(|logged| logged.sequence <= through),
             "the log covers what came after the restart's seal"
         );
         let (mut old, mut new) = (at_seal, fresh);

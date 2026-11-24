@@ -42,7 +42,10 @@ fn a_holder_whose_seal_a_peer_outpaces_restarts_and_loses_nothing() {
         "the holder's edit reached the peer: {:?}",
         sim.typed(1, 1)
     );
-    assert!(sim.devices[0].status.restarts >= 1, "the restart did not wait");
+    assert!(
+        sim.devices[0].status.restarts >= 1,
+        "the restart did not wait"
+    );
     assert!(
         sim.typed(0, 1).starts_with("a b "),
         "and the holder holds both: {:?}",

@@ -14,7 +14,10 @@ fn a_restart_replayed_on_a_journal_from_an_earlier_seal_carries_alike() {
     sim.attach(1, 1, true);
     sim.type_at(0, 1, 0, "start\n");
     sim.advance(crate::QUIET_INTERVAL);
-    assert_eq!(sim.devices[0].status.restarts, 0, "the first seal does not restart");
+    assert_eq!(
+        sim.devices[0].status.restarts, 0,
+        "the first seal does not restart"
+    );
     let first = sim.head;
     // The server loses the rebase of every seal from here: the journal stays on the first,
     // two seals behind the restart's, so nothing names the restart's seal to the replica
@@ -68,7 +71,10 @@ fn a_restart_replayed_on_a_journal_from_an_earlier_seal_carries_alike() {
         prose(&sim.content(0)),
         "the replica opened on the journal holds what the participants hold"
     );
-    assert_eq!(sim.devices[2].status.restarts, sim.devices[0].status.restarts);
+    assert_eq!(
+        sim.devices[2].status.restarts,
+        sim.devices[0].status.restarts
+    );
     // And it goes on with them: what it types reaches both.
     sim.type_at(2, 1, 0, "d ");
     sim.settle();
