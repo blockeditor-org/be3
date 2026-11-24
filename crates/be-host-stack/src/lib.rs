@@ -1460,6 +1460,17 @@ fn hear_head(block: Uuid, head: be_block_commit::CommitId) {
     send(Command::HearHead { block, head });
 }
 
+/// Has the worker hear who hosts `block` as the server's session event would tell it, through
+/// what it does with one (`hosting::heard`).
+#[cfg(test)]
+fn hear_host(block: Uuid, host: Option<be_block_protocol::SessionHost>, joined: bool) {
+    send(Command::HearHost {
+        block,
+        host,
+        joined,
+    });
+}
+
 #[cfg(test)]
 pub fn send_to_peers(block: Uuid, to: Option<u64>, channel: Uuid, payload: Vec<u8>) {
     send(Command::SendToPeers {

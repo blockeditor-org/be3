@@ -248,6 +248,13 @@ pub(super) enum Command {
         block: Uuid,
         head: CommitId,
     },
+    /// A test hears who hosts `block` as the server would tell it (`crate::hear_host`).
+    #[cfg(test)]
+    HearHost {
+        block: Uuid,
+        host: Option<be_block_protocol::SessionHost>,
+        joined: bool,
+    },
     #[cfg(test)]
     SendToPeers {
         block: Uuid,
@@ -492,6 +499,8 @@ impl Command {
             #[cfg(test)]
             Command::HearHead { .. } => "hear head",
             #[cfg(test)]
+            Command::HearHost { .. } => "hear host",
+            #[cfg(test)]
             Command::SendToPeers { .. } => "send to peers",
             Command::Create { .. } => "create",
             Command::SetParent { .. } => "set parent",
@@ -654,7 +663,8 @@ impl Command {
             #[cfg(test)]
             Command::Presence { block, .. }
             | Command::SendToPeers { block, .. }
-            | Command::HearHead { block, .. } => Some(*block),
+            | Command::HearHead { block, .. }
+            | Command::HearHost { block, .. } => Some(*block),
             Command::Export { .. }
             | Command::Unsent { .. }
             | Command::Import(_)
@@ -1868,7 +1878,7 @@ impl Session<'_> {
                         }
                         let replicas = &self.replicas;
                         crate::hosting::heard(peer, shared, &self.tasks.0, event.as_ref(), |block| {
-                            replicas.is_open(block) && !replicas.is_leaving(block)
+                            in_session(replicas, block)
                         });
                         crate::joining::heard(peer, shared, &self.tasks.0, event.as_ref());
                         heard(peer, shared, &self.tasks.0, event).await;
@@ -4348,6 +4358,23 @@ async fn apply(
             false
         }
         #[cfg(test)]
+        Command::HearHost {
+            block,
+            host,
+            joined,
+        } => {
+            let event = be_block_client::Event::Host {
+                block,
+                host,
+                ours: false,
+                joined,
+            };
+            crate::hosting::heard(peer, shared, tasks, Some(&event), |block| {
+                in_session(replicas, block)
+            });
+            false
+        }
+        #[cfg(test)]
         Command::HearHead { block, head } => {
             // As a tree read would tell it (`read_trees`).
             if let Some(mut summary) = peer.known_summary(block) {
@@ -5718,4 +5745,9 @@ fn fail(shared: &Arc<Mutex<Shared>>, error: String) {
     held.reached = true;
     held.error = Some(error);
     held.progressed += 1;
+}
+
+/// Whether this device's replica of `block` is in its session: open, and not leaving it.
+fn in_session(replicas: &Replicas, block: Uuid) -> bool {
+    replicas.is_open(block) && !replicas.is_leaving(block)
 }
