@@ -72,9 +72,11 @@ pub(crate) const LARGEST_RELAYED_OPERATION: usize = 1024 * 1024;
 /// How many operations a replica keeps of the order since its last seal, to apply again on top of
 /// a reload: past this a reload applies what it kept.
 const LOG_LIMIT: usize = 65_536;
-/// The clients the entries a restart carries are made under (`carried_from_seal`), each its
-/// entry's number with these top bits: no participant is numbered this high, nor a merge's own
-/// (its top bit alone, with the next derived), apart from one in four.
+/// The clients the entries a restart carries are made under (`carried_from_seal`): both top bits
+/// set, with the entry's number below them. Participants are numbered far below this. A client
+/// drawn at random with its top bit set (a LiveText editor's, `unjoined_client`, `merge_client`)
+/// has both set one time in four, and then names a carried one only if its low 62 bits equal an
+/// entry's number, which is negligible.
 const CARRIED_CLIENTS: u64 = 0b11 << 62;
 
 /// How many contents shown before a reload a replica keeps for its editors' late edits
@@ -405,6 +407,10 @@ struct Logged<Op> {
 
 enum Then {
     Load,
+    /// The commits the restarts in the journal opened on name (`load`).
+    RestartCommits {
+        commits: Vec<CommitId>,
+    },
     Reload {
         op: SessionOp,
         commit: CommitId,
@@ -639,9 +645,12 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     /// Reloads waiting for the part their state goes by (`submit_reloads`): seals wait for
     /// them as for those in `reloading`.
     reloads_putting: VecDeque<PendingReload>,
-    /// While a journal is replayed (`loaded`): its base under its state and afresh, and its
-    /// number, which a restart in it carries what came after over (`carried_from_seal`).
-    replay_seal: Option<(C, C, u64)>,
+    /// While a journal is opened (`load`, `loaded`): the commits its restarts name, loaded
+    /// afresh, which a restart replayed carries what came after its seal onto
+    /// (`carried_from_seal`).
+    restart_commits: BTreeMap<CommitId, C>,
+    /// The content opened on, while the commits its journal's restarts name are read.
+    opened_content: Option<C>,
     /// The last barrier applied.
     replaced_at: u64,
     /// The counter of this replica's last submission, from a random start: ids never repeat.
@@ -990,7 +999,8 @@ where
             keep: Vec::new(),
             reloading: Vec::new(),
             reloads_putting: VecDeque::new(),
-            replay_seal: None,
+            restart_commits: BTreeMap::new(),
+            opened_content: None,
             replaced_at: 0,
             // Leaves room for 2^48 submissions after it.
             counter: Uuid::new_v4().as_u64_pair().0 >> 16,
@@ -2075,7 +2085,8 @@ where
                     return;
                 };
                 match then {
-                    Then::Load => {
+                    Then::Load | Then::RestartCommits { .. } => {
+                        self.opened_content = None;
                         self.unreadable = Some(error);
                         // Its editors are told it will not open rather than left loading.
                         self.resnapshot = true;
@@ -2126,6 +2137,14 @@ where
                     }
                 }
                 self.load(loaded)
+            }
+            Then::RestartCommits { commits } => {
+                for commit in commits {
+                    self.restart_commits.insert(commit, next());
+                }
+                if let Some(loaded) = self.opened_content.take() {
+                    self.load(loaded);
+                }
             }
             Then::Reload {
                 op,
@@ -2716,7 +2735,15 @@ where
     fn load(&mut self, content: C) {
         let missing = self.journal_parts();
         if missing.is_empty() {
-            return self.loaded(content);
+            let commits = self.journal_restart_commits();
+            if commits.is_empty() {
+                return self.loaded(content);
+            }
+            self.opened_content = Some(content);
+            return self.read(
+                commits.iter().copied().map(Some).collect(),
+                Then::RestartCommits { commits },
+            );
         }
         for part in missing {
             self.read_payload(part);
@@ -2733,13 +2760,46 @@ where
             .filter(|entry| entry.base >= entry.floor)
             .filter_map(|entry| match Submitted::decode(&entry.payload) {
                 Some(Submitted {
-                    entry: Entry::Operation(Payload::Part(part)),
+                    entry:
+                        Entry::Operation(Payload::Part(part))
+                        | Entry::Reload {
+                            restart: true,
+                            state: Payload::Part(part),
+                            ..
+                        },
                     ..
                 }) if part.length() <= LARGEST_PART => Some(part),
                 _ => None,
             })
             .filter(|part| !self.payloads.contains_key(part) && !self.read_retry.contains_key(part))
             .collect()
+    }
+
+    /// The commits the restarts in the journal opened on name that are not read yet: its base,
+    /// which a restart on it names, is the content opened on (`loaded`).
+    fn journal_restart_commits(&self) -> Vec<CommitId> {
+        let mut commits: Vec<CommitId> = self
+            .opened_journal
+            .iter()
+            .filter(|journal| journal.base.commit == self.base)
+            .flat_map(|journal| &journal.entries)
+            .filter_map(|entry| match Submitted::decode(&entry.payload) {
+                Some(Submitted {
+                    entry:
+                        Entry::Reload {
+                            restart: true,
+                            commit,
+                            ..
+                        },
+                    ..
+                }) => Some(commit),
+                _ => None,
+            })
+            .filter(|commit| Some(*commit) != self.base && !self.restart_commits.contains_key(commit))
+            .collect();
+        commits.sort();
+        commits.dedup();
+        commits
     }
 
     fn loaded(&mut self, content: C) {
@@ -2751,18 +2811,20 @@ where
             .filter(|journal| journal.base.commit == self.base);
         let sealed_head = self.sealed_head.take();
         if let Some(journal) = journal {
-            // A restart in the journal carries what came after its seal, the journal's base,
-            // over it, as applying it does: the base afresh and under its state are kept for it.
-            let restarts_in_it = journal.entries.iter().any(|entry| {
+            // A restart in the journal carries what came after its seal over the commit it
+            // names, as applying it does: the base afresh is kept for one that names it.
+            let restart_on_base = journal.entries.iter().any(|entry| {
                 matches!(
                     Submitted::decode(&entry.payload),
                     Some(Submitted {
-                        entry: Entry::Reload { restart: true, .. },
+                        entry: Entry::Reload { restart: true, commit, .. },
                         ..
-                    })
+                    }) if Some(commit) == self.base
                 )
             });
-            let fresh = restarts_in_it.then(|| self.confirmed.clone());
+            if restart_on_base && let Some(base) = self.base {
+                self.restart_commits.insert(base, self.confirmed.clone());
+            }
             match self.adopt_base_state(&journal.base.state, journal.base.sequence) {
                 Some(state) if !state.is_empty() => {
                     if self.confirmed.adopt_session_state(&state).is_err() {
@@ -2775,8 +2837,6 @@ where
             }
             self.applied = journal.base.sequence;
             self.sealed = journal.base.sequence;
-            self.replay_seal =
-                fresh.map(|fresh| (self.confirmed.clone(), fresh, journal.base.sequence));
             for entry in journal.entries {
                 if entry.sequence <= self.applied {
                     self.passed_over(
@@ -2809,7 +2869,7 @@ where
                 }
             }
         }
-        self.replay_seal = None;
+        self.restart_commits.clear();
         // Local edits kept across a stop were made before a restart the order had since: what
         // they were made on is gone.
         if self.restarts > self.kept_restart {
@@ -2881,21 +2941,9 @@ where
                     Entry::Reload {
                         restart: true,
                         commit,
+                        state,
                         ..
-                    } => {
-                        self.restarts += 1;
-                        // On the journal's base, which it names: what came after carries over it.
-                        if let Some((at_seal, fresh, _)) = self
-                            .replay_seal
-                            .take()
-                            .filter(|(_, _, base)| Some(commit) == self.base && *base == op.base)
-                        {
-                            let (carried, _) =
-                                self.carried_from_seal(at_seal, fresh, op.base, sequence);
-                            self.confirmed = carried;
-                            self.log.clear();
-                        }
-                    }
+                    } => self.replay_restart(commit, state, op.base, sequence),
                     Entry::Keep { commit }
                     | Entry::Reload {
                         commit,
@@ -2912,6 +2960,35 @@ where
             None => self.incompatible = true,
         }
         self.applied = sequence;
+    }
+
+    /// Replays a restart as applying it does (`reloaded`): what the order numbered after its
+    /// seal, `through`, carries from the commit it names under the state it carries onto that
+    /// commit afresh, whatever seal the journal starts from.
+    fn replay_restart(&mut self, commit: CommitId, state: Payload, through: u64, sequence: u64) {
+        let Some(fresh) = self.restart_commits.get(&commit).cloned() else {
+            // Read before replay (`journal_restart_commits`), or the replica did not open.
+            self.incompatible = true;
+            return;
+        };
+        let state = match state {
+            Payload::Inline(bytes) => bytes,
+            Payload::Part(part) => self.payloads.get(&part).cloned().unwrap_or_default(),
+        };
+        let mut at_seal = fresh.clone();
+        match self.adopt_base_state(&state, sequence) {
+            Some(state) if !state.is_empty() => {
+                if at_seal.adopt_session_state(&state).is_err() {
+                    self.incompatible = true;
+                }
+            }
+            Some(_) => {}
+            None => self.incompatible = true,
+        }
+        self.restarts += 1;
+        let (carried, _) = self.carried_from_seal(at_seal, fresh, through, sequence);
+        self.confirmed = carried;
+        self.log.clear();
     }
 
     /// The operation `payload` carries, with its arrival stamped as the order took it: every
@@ -3307,6 +3384,13 @@ where
     /// from its number, so every replica, holding the same entries, makes the same content.
     /// Whether any was carried.
     fn carried_from_seal(&self, at_seal: C, fresh: C, through: u64, until: u64) -> (C, bool) {
+        // The log reaches back to the seal: no seal lands between it and the restart, and one
+        // the log outgrew there would drop entries on every replica alike.
+        debug_assert!(
+            self.log.len() < LOG_LIMIT
+                || self.log.front().is_some_and(|logged| logged.sequence <= through),
+            "the log covers what came after the restart's seal"
+        );
         let (mut old, mut new) = (at_seal, fresh);
         let mut any = false;
         for logged in self
