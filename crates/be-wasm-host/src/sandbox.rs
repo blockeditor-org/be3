@@ -258,6 +258,12 @@ fn no_library(identity: &str) -> Result<Vec<u8>, String> {
 }
 
 impl Instance {
+    /// Whether it has nothing left to do with what it was sent: no frames wait for a step, and
+    /// no step on them is in flight. One that stopped has nothing left.
+    pub fn settled(&self) -> bool {
+        self.failure.is_some() || self.worker.settled()
+    }
+
     /// Queues `frames` for the instance, which is stepped with them as soon as it is free.
     pub fn send(&mut self, frames: Vec<Vec<u8>>) -> Result<(), String> {
         if let Some(failure) = &self.failure {

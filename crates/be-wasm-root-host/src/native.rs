@@ -307,6 +307,11 @@ impl Root {
         self.core.app_of(instance)
     }
 
+    /// Whether the apps the root spawned have nothing in flight (`Core::apps_settled`).
+    pub fn apps_settled(&self) -> bool {
+        self.core.apps_settled()
+    }
+
     /// Shows the root whether the host asks the person to keep display settings that just
     /// changed (`host.displays`): the question, or none. If the root waits on it and it changed,
     /// it is stepped for it.

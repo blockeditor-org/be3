@@ -3877,6 +3877,7 @@ impl<H: Host> Replicas<H> {
                 if let Err(error) = peer.heard_entry(*block, tag, entry.clone()) {
                     H::record(shared, error);
                 }
+                let sequence = entry.sequence;
                 let entry = match peer.open_entry(*block, entry.clone()) {
                     Ok(entry) => entry,
                     Err(ClientError::Locked(key)) if !self.searched.contains(&key) => {
@@ -3904,7 +3905,19 @@ impl<H: Host> Replicas<H> {
                 if let Some(open) = self.open.get_mut(&replica)
                     && open.joining
                 {
-                    return open.early.push(replayed);
+                    // Rejoining the server's order it was in, the replica takes the entry that
+                    // continues it now as well as after reopening: the rejoin's answer waits for
+                    // it to settle (`settling`), which may take this very entry (its own reload
+                    // of the head, which its status reports only once applied), and parked here
+                    // it would wait for the answer in turn.
+                    let continues = open.rejoining.is_some()
+                        && !open.made_up
+                        && open.heard_through.map(|through| through + 1) == Some(sequence);
+                    open.early.push(replayed.clone());
+                    if !continues {
+                        return;
+                    }
+                    open.heard_through = Some(sequence);
                 }
                 self.replay(replica, replayed);
             }

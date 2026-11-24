@@ -281,6 +281,7 @@ impl RootShell {
             Err(why) => return self.stopped(&why),
         };
         clipboard(context, root, &self.pasted);
+        self.editors.relayed = false;
         serve_editors(&self.core, root, &mut self.editors);
         refuse_unserved(root);
         // What the root asked of the block stack in this frame, done at once; what that changed
@@ -444,6 +445,20 @@ impl beui::native::Program for RootShell {
         busy.extend(be_host_runtime::busy());
         if self.core.root_session_pending {
             busy.push("the session's block is not listed yet".to_owned());
+        }
+        if self.editors.relayed {
+            busy.push("the root has yet to take in frames relayed to its apps".to_owned());
+        }
+        if self.root.as_ref().is_some_and(|root| !root.apps_settled()) {
+            busy.push("an app the root runs has frames in flight".to_owned());
+        }
+        if self
+            .editors
+            .served
+            .values()
+            .any(be_host_runtime::Forwarded::awaiting_content)
+        {
+            busy.push("an editor the root shows waits for a block's content".to_owned());
         }
         if !self.editors.asks.is_empty() || !self.editors.openings.is_empty() {
             busy.push("the root asked for an editor of a block not listed yet".to_owned());
@@ -670,7 +685,7 @@ fn serve_editors(core: &crate::HostCore, root: &mut Root, editors: &mut Editors)
         .into_iter()
         .chain(root.take_editor_asks());
     for (id, shown) in asks {
-        // While the stack does not list the session's block (yet, or again for a moment), an
+        // While the stack does not list the session's block yet, an
         // ask for a block it does not list waits for it rather than failing.
         if core.root_session_pending && be_host_stack::node(Uuid::from_bytes(shown.block)).is_none()
         {
@@ -702,7 +717,10 @@ fn serve_editors(core: &crate::HostCore, root: &mut Root, editors: &mut Editors)
             continue;
         };
         match forwarded.receive(frames) {
-            Ok(frames) => root.relay(instance, frames),
+            Ok(frames) => {
+                editors.relayed |= !frames.is_empty();
+                root.relay(instance, frames);
+            }
             Err(why) => {
                 // Stopped toward the root too, which shows that it stopped.
                 served.remove(&instance);
@@ -715,18 +733,30 @@ fn serve_editors(core: &crate::HostCore, root: &mut Root, editors: &mut Editors)
         .opened
         .retain(|(instance, _), _| served.contains_key(instance));
     for shown in root.take_shown_children() {
-        let Some(forwarded) = served.get_mut(&shown.instance) else {
+        editors
+            .shown
+            .insert((shown.instance, shown.editor, shown.view), shown.children);
+    }
+    let opened = &editors.opened;
+    editors
+        .shown
+        .retain(|(instance, editor, _), _| opened.contains_key(&(*instance, *editor)));
+    // Told again each pass, which sends only what changed: a child shown before its editor
+    // opened is told it is available once it has, though the root shows nothing new of it.
+    for ((instance, editor, view), children) in &editors.shown {
+        let Some(forwarded) = served.get_mut(instance) else {
             continue;
         };
-        let statuses = shown
-            .children
+        let statuses = children
             .iter()
             .map(|child| child_status(&editors.opened, child))
             .collect();
-        forwarded.show_children(EditorInstanceId(shown.editor), ViewId(shown.view), statuses);
+        forwarded.show_children(EditorInstanceId(*editor), ViewId(*view), statuses);
     }
     for (instance, forwarded) in served.iter_mut() {
-        root.relay(*instance, forwarded.step());
+        let frames = forwarded.step();
+        editors.relayed |= !frames.is_empty();
+        root.relay(*instance, frames);
     }
 }
 
@@ -740,6 +770,12 @@ struct Editors {
     opened: HashMap<(u64, u64), OpenedFor>,
     asks: Vec<(u64, be_wasm_root_api::ShownBlock)>,
     openings: Vec<EditorOpening>,
+    /// The children the root last showed of each view of the editors opened, by the root's
+    /// instance, the editor and the view, whose statuses each pass tells again.
+    shown: HashMap<(u64, u64, u64), Vec<be_wasm_root_api::ShownChild>>,
+    /// Whether frames were relayed to the root's apps since the root's last frame, which takes
+    /// them in: what they bring (an editor's content) is not in what that frame said it owes.
+    relayed: bool,
 }
 
 /// An editor be-host opened in an app the root spawned: the app's manifest, the editor it opened
