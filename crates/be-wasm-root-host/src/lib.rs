@@ -705,6 +705,14 @@ impl<G: Inline> Core<G> {
         self.sandbox.app_of(instance).map(str::to_owned)
     }
 
+    /// Whether the apps the root spawned have nothing in flight: none has frames to step through
+    /// or a step under way, the root took all they sent, and no frames wait between the root and
+    /// the host, either way (`relay`, `take_forwarded`).
+    #[cfg(not(target_arch = "wasm32"))]
+    fn apps_settled(&self) -> bool {
+        self.relaying.is_empty() && self.forwarded.is_empty() && self.sandbox.settled()
+    }
+
     /// How the root answered the display questions since the last call, oldest first.
     fn take_display_answers(&mut self) -> Vec<(u64, bool)> {
         std::mem::take(&mut self.display_answers)

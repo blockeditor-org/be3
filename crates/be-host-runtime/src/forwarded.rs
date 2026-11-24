@@ -92,6 +92,11 @@ impl Forwarded {
         );
     }
 
+    /// Whether one of its editors waits for a block's content: its own, or one it watches.
+    pub fn awaiting_content(&self) -> bool {
+        self.instances.awaiting_forwarded_content()
+    }
+
     /// Takes the frames the root forwarded, in order, and serves what they ask: the frames that
     /// answer, for the root to relay. Why the app is to stop, if its frames broke the protocol.
     pub fn receive(&mut self, frames: Vec<Vec<u8>>) -> Result<Vec<Vec<u8>>, String> {

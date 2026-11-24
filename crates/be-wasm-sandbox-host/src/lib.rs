@@ -279,6 +279,14 @@ impl Server {
 
     /// Answers whatever finished since: compiles, and the frames instances sent or why they
     /// stopped.
+    /// Whether every instance it serves has nothing left to do with what it was sent, and the
+    /// guest has taken all they sent back (`Instance::settled`).
+    pub fn settled(&self) -> bool {
+        self.instances.values().all(|served| {
+            served.received.is_empty() && served.instance.as_ref().ok().is_none_or(Instance::settled)
+        })
+    }
+
     pub fn poll(&mut self, connection: &mut Connection) {
         let mut compiling = Vec::with_capacity(self.compiling.len());
         for (compile, answer) in std::mem::take(&mut self.compiling) {
