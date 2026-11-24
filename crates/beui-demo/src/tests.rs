@@ -8,6 +8,7 @@ use beui_host::native::build;
 use super::*;
 use crate::{DemoRoot, LoneRoot, PAGES, Page};
 
+mod a_fitted_sheet_pulled_past_its_top_carries_its_surface_to_the_bottom;
 mod a_banner_says_what_failed_until_it_is_dismissed;
 mod a_bar_carried_into_a_band_moves_the_bars_beside_its_slot_aside;
 mod a_bar_floating_over_the_dock_stays_above_its_windows_which_keep_off_its_band;

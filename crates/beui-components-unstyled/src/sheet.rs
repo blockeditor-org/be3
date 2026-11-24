@@ -7,7 +7,12 @@
 //! the content's top lowers it. The stops are the scroll's snap stops, with 0 (lowered out of
 //! sight) among them: a release that settles there closes it. The grip is a sticky item, so it
 //! stays put while the content scrolls under it, and the scroll's bar starts at the highest
-//! stop, so it reads as the content's own.
+//! stop, so it reads as the content's own. Taking the grip while the content is scrolled
+//! lowers the sheet at once: how far the content was scrolled is held as the content's own
+//! shift until the sheet is back at its top with the grip let go, when it becomes the scroll
+//! again. Pulled past the end of what it holds, the sheet's surface carries on down to the
+//! bottom edge, so no gap opens under it. It rises as it opens, and settles, on the scroll's
+//! spring.
 
 use std::cell::Cell;
 use std::rc::Rc;
@@ -27,7 +32,9 @@ use beui_view::types::Color;
 use beui_view::types::Direction;
 use beui_view::types::Extent;
 use beui_view::types::ScrollPosition;
-use beui_view::types::{BackGesture, CursorIcon, DragGesture, PointerPress, Vec2, vec2};
+use beui_view::types::{
+    BackGesture, CursorIcon, DragGesture, PointerInput, PointerPress, PointerStage, Vec2, vec2,
+};
 use beui_view::types::{Key, KeyPress};
 
 /// How near a stop the sheet counts as at it, and as lowered out of sight at 0.
@@ -183,7 +190,7 @@ pub fn Sheet(
     style: ScrollStyle,
     #[prop(default = ComponentRef::new())] scroll: ComponentRef<ScrollApi>,
     grip: Render<SheetGripHandle, NodeId>,
-    panel: Render<NodeId, NodeId>,
+    panel: RenderFn<NodeId, NodeId>,
     on_presence: Callback<f32>,
     on_gone: Callback<()>,
     on_close: Callback<()>,
@@ -212,6 +219,10 @@ pub fn Sheet(
     // The place it is settling on, and that place's offset when it set out for it.
     let aim = StoredCell::new(None::<Aim>);
     let aimed = StoredCell::new(0.0_f32);
+    // How far what it holds was scrolled past its top when its grip was taken, held as that
+    // content's own shift while the grip lowers the sheet, so it stays where it was scrolled.
+    let kept = create_signal(0.0_f32);
+    let gripped = create_signal(false);
     let api = move || scroll.try_get();
     let laid_out = move || position.with_untracked(Option::is_some) && top.get_untracked() > 0.0;
     let settle_on = move |to: Aim| {
@@ -270,6 +281,7 @@ pub fn Sheet(
     let enter = move || {
         gone.set(false);
         leaving.set(false);
+        kept.set(0.0);
         match take_offer() {
             Some(Offer::Leaving { from, vanish, .. }) => {
                 vanish.call(());
@@ -407,6 +419,36 @@ pub fn Sheet(
             settle_on(to);
         }
     });
+    // Taking the grip moves the scroll past its top into `kept`, so the grip lowers the sheet
+    // at once rather than first scrolling what it holds back.
+    let grip_taken = Callback::new(move |taken: bool| {
+        gripped.set(taken);
+        let past = raised.get_untracked() - top.get_untracked();
+        if taken
+            && past > SETTLED
+            && let Some(api) = api()
+        {
+            kept.update(|kept| *kept += past);
+            api.scroll_to(top.get_untracked());
+        }
+    });
+    // Back at its top with the grip let go, what was kept becomes the scroll again, so
+    // dragging, the wheel and the keys go on from where it shows.
+    create_effect(move || {
+        let back = kept.get() > 0.0
+            && !gripped.get()
+            && raised.get() >= top.get() - SETTLED
+            && !api().is_some_and(|api| api.animating());
+        if back {
+            untrack(|| {
+                let by = kept.get();
+                kept.set(0.0);
+                if let Some(api) = api() {
+                    api.scroll_to(raised.get() + by);
+                }
+            });
+        }
+    });
     let drag = Callback::new(move |gesture: DragGesture| {
         if let Some(api) = api() {
             api.drag(gesture);
@@ -422,9 +464,9 @@ pub fn Sheet(
         <List spacing=0.0>
             // Sticky only while what it holds scrolls under it: a sheet that fits moves whole.
             <ListItem sticky={move || height.get() > top.get() + SETTLED}>
-                <SheetHandle placed raised extent focused step drag>{grip}</SheetHandle>
+                <SheetHandle placed raised extent focused step drag grip_taken>{grip}</SheetHandle>
             </ListItem>
-            {children}
+            <Offset fit=true offset={move || kept.get()}>{children}</Offset>
         </List>
     });
     let measured = measure(sheet);
@@ -437,8 +479,26 @@ pub fn Sheet(
         true => 0.0,
         false => top.get(),
     });
+    // Pulled past the end of what it holds, the sheet's surface carries on down to the bottom
+    // edge rather than leaving a gap the page shows through.
+    let open_below = create_memo(move || {
+        position.get().map_or(0.0, |position| {
+            (position.viewport - (position.content - position.offset)).max(0.0)
+        })
+    });
+    let filling = create_memo(move || open_below.get() > 0.0);
     view! {
         <Frame height={move || Extent::px(length.get())} fade_edges={edges}>
+        <Layers>
+            <Show value={filling}>|| {
+                let filler = panel.call(view! { <Frame /> });
+                view! {
+                    <List spacing=0.0>
+                        <ListItem grow=1.0><Frame /></ListItem>
+                        <ListItem length={move || Some(open_below.get())}>{filler}</ListItem>
+                    </List>
+                }
+            }</Show>
             <Scroll
                 api=scroll
                 offset={start}
@@ -455,6 +515,7 @@ pub fn Sheet(
                 </ListItem>
                 {sheet}
             </Scroll>
+        </Layers>
         </Frame>
     }
 }
@@ -490,7 +551,7 @@ pub fn ModalSheet(
                 fade
                 style
                 grip={move |handle: SheetGripHandle| grip.call(handle)}
-                panel={move |content: NodeId| panel.call(content)}
+                panel
                 on_presence={modal.presence}
                 on_close={on_close}
             >
@@ -509,7 +570,7 @@ fn ModalSheetBody(
     fade: f32,
     style: ScrollStyle,
     grip: Render<SheetGripHandle, NodeId>,
-    panel: Render<NodeId, NodeId>,
+    panel: RenderFn<NodeId, NodeId>,
     on_presence: Callback<f32>,
     on_close: Callback<()>,
     children: NodeId,
@@ -586,6 +647,7 @@ fn SheetHandle(
     focused: Signal<bool>,
     step: Callback<bool>,
     drag: Callback<DragGesture>,
+    grip_taken: Callback<bool>,
     children: NodeId,
 ) -> NodeId {
     let steps = create_memo(move || placed.with(|placed| placed.stops.len() > 1));
@@ -633,6 +695,14 @@ fn SheetHandle(
                 true
             }}
             cursor=CursorIcon::ResizeVertical
+            on_pointer={move |input: PointerInput| {
+                match input.stage {
+                    PointerStage::Down => grip_taken.call(true),
+                    PointerStage::Up | PointerStage::Cancel => grip_taken.call(false),
+                    PointerStage::Move => {}
+                }
+                false
+            }}
             on_press={move |press: PointerPress| {
                 pressed.set(Some(press.pos.y));
                 drag.call(DragGesture { started: true, ..still() });
@@ -650,6 +720,9 @@ fn SheetHandle(
                 }
             }}
             on_active_change={move |active: bool| {
+                if !active {
+                    grip_taken.call(false);
+                }
                 if !active && pressed.take().is_some() {
                     drag.call(DragGesture { ended: true, ..still() });
                 }
