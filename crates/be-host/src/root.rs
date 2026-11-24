@@ -36,11 +36,14 @@
 //! panels, be-host measures its memory and hands the root its performance and memory rows
 //! (`host.statistics`) as they change (plans/host_as_platform_adapter.md, step 4g5).
 //!
-//! It runs none of the host's core: no data directory or the lock that keeps a second be-host
-//! off it, no block stack, workspace or accounts, no screen lock, and none of the desktop's OS
-//! services. Step 4g brings back under this program what the host keeps (the plan's What the
-//! host keeps) before it becomes the default; until then `--root` is refused as a login session
-//! (`BEUI_PLATFORM=drm`), which would have no lock screen.
+//! It runs the host's core (`HostCore`), as be-host's own UI does: its data directory and the
+//! lock that keeps a second be-host off it, the block stack, accounts and session, and the dev
+//! workspace (`--dev-workspace`), each stepped every frame before the root's (step 4g7b2). The
+//! core opens no editor of its own here: the root embeds them. It runs no screen lock and none
+//! of the desktop's OS services: step 4g7g brings back the rest of what the host keeps (the
+//! plan's What the host keeps) before the root becomes the default; until then `--root` is
+//! refused as a login session (`BEUI_PLATFORM=drm`), which would have no lock screen, and with
+//! `--desktop`.
 //!
 //! The root is the app: one that fails to start or stops closes the window, and be-host exits
 //! saying why, as it would on a panic.
@@ -74,10 +77,12 @@ pub(crate) const SHOWN: &str = "root";
 /// closes or the root stops, which is an error.
 pub(crate) async fn run(
     app: String,
+    core: crate::HostCore,
     options: beui_host::native::RunOptions,
 ) -> Result<(), Box<dyn Error>> {
     let stopped: Rc<RefCell<Option<String>>> = Rc::default();
-    beui_host_window::run_program(options, RootShell::new(app, Rc::clone(&stopped))).await?;
+    beui_host_window::run_program(options, RootShell::new(app, core, Rc::clone(&stopped)))
+        .await?;
     match stopped.take() {
         Some(why) => Err(why.into()),
         None => Ok(()),
@@ -86,6 +91,9 @@ pub(crate) async fn run(
 
 struct RootShell {
     app: String,
+    /// What the host keeps (the plan's What the host keeps): its block stack, accounts and
+    /// session, which it steps each frame and the root shows.
+    core: crate::HostCore,
     document: beui::native::Document,
     /// What the window shows of the root's last frame.
     shown: Signal<Option<GpuDrawing>>,
@@ -140,7 +148,7 @@ struct Requests {
 }
 
 impl RootShell {
-    fn new(app: String, stopped: Rc<RefCell<Option<String>>>) -> Self {
+    fn new(app: String, core: crate::HostCore, stopped: Rc<RefCell<Option<String>>>) -> Self {
         let mut shown = None;
         let document = beui_host::native::build(|| {
             let drawing = create_signal(None::<GpuDrawing>);
@@ -153,6 +161,7 @@ impl RootShell {
         });
         Self {
             app,
+            core,
             document,
             shown: shown.expect("the drawing's signal is made while the document is built"),
             input: Vec::new(),
@@ -349,6 +358,10 @@ impl beui::native::Program for RootShell {
         // A notice shown wakes the window, whose next frame hands it to the root.
         let waker = setup.waker.clone();
         be_host_base::host::install_waker(move || waker.wake());
+        be_host_base::host::install_clock(beui::reactive::now);
+        // The host's own apps the core runs (its blocks' host components) draw on the window's
+        // device too.
+        be_host_runtime::install(setup);
         match start(&self.app, setup) {
             Ok(root) => self.root = Some(root),
             Err(why) => self.stopped(&format!("it did not start: {why}")),
@@ -367,6 +380,9 @@ impl beui::native::Program for RootShell {
         let now = context.now();
         let origin = *self.time_origin.get_or_insert(now);
         let time = now.saturating_duration_since(origin);
+        self.core.frame();
+        // What the host's apps did in this frame's `poll` reaches whoever waits on it.
+        beui::native::enter(&mut self.document, be_host_base::host::deliver);
         self.deliver_input(origin);
         self.frame(context, time, rect);
         self.document.show(context, rect);
@@ -404,7 +420,11 @@ impl beui::native::Program for RootShell {
     /// it asked for, which drive tells apart itself. A painting drive asked for is owed until
     /// the root answers it.
     fn busy(&self) -> Vec<String> {
-        let mut busy = Vec::new();
+        let mut busy = match self.core.error.is_some() {
+            true => Vec::new(),
+            false => self.core.busy(false),
+        };
+        busy.extend(be_host_runtime::busy());
         if self.owed {
             busy.push(format!("the root {} owes a frame", self.app));
         }
@@ -412,6 +432,31 @@ impl beui::native::Program for RootShell {
             busy.push(format!("the root {} owes a painting", self.app));
         }
         busy
+    }
+
+    fn out_of_step(&self) -> Option<Vec<String>> {
+        Some(self.core.out_of_step())
+    }
+
+    fn connected(&self) -> Option<bool> {
+        Some(be_host_stack::status().connected)
+    }
+
+    fn in_step_due(&self) -> Option<Instant> {
+        be_host_stack::modules_due()
+    }
+
+    fn close_requested(&mut self) -> bool {
+        self.core.close_requested()
+    }
+
+    fn lifecycle(&mut self, change: beui::native::Lifecycle) {
+        match change {
+            beui::native::Lifecycle::Background => be_host_stack::backgrounded(),
+            beui::native::Lifecycle::Foreground
+            | beui::native::Lifecycle::Focused
+            | beui::native::Lifecycle::NetworkChanged => be_host_stack::retry_now(),
+        }
     }
 
     /// drive asks what the window shows: the root is asked what its own surfaces painted with
