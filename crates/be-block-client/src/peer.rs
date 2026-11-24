@@ -4429,11 +4429,12 @@ impl<S: ObjectStore> Peer<S> {
         .await
     }
 
-    pub async fn offer(
+    /// Makes `block` a scope of its own and answers its key as a share link hands it over.
+    pub async fn offer_scope(
         &self,
         block: Uuid,
         access: Access,
-    ) -> Result<crate::GrantOffer, ClientError> {
+    ) -> Result<crate::ScopeOffer, ClientError> {
         let keys = self.own_scope(block).await?;
         self.put_keys(keys).await?;
         let key = self
@@ -4444,7 +4445,7 @@ impl<S: ObjectStore> Peer<S> {
             .keys
             .carried_plain(key)
             .map_err(|_| ClientError::Locked(block))?;
-        Ok(crate::GrantOffer {
+        Ok(crate::ScopeOffer {
             organization: self.organization,
             block,
             access,

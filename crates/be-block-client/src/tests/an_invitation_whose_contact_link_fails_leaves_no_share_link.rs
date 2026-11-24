@@ -11,7 +11,7 @@ async fn an_invitation_whose_contact_link_fails_leaves_no_share_link() {
     let team = workspace(&maker, "Team").await;
     {
         let database = harness.database();
-        for _ in 0..1_000 {
+        for _ in 0..be_server::limits::MAX_CONTACT_LINKS_PER_ACCOUNT {
             database
                 .execute(
                     "INSERT INTO links (id, owner_id, card) VALUES (?1, ?2, x'')",

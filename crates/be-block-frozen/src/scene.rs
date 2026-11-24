@@ -5,7 +5,7 @@
 //! a pending invitation, and the organization's settings shared with the server, holding policies
 //! it enforces: no sharing outside and a storage quota in bytes), the personal organization (a
 //! folder shared with a contact made by link, who added a note to it that is charged to the
-//! folder's owner, a pending link carrying a grant, and that contact's change of recovery phrase), an object the owner uploaded that no block holds yet, and two
+//! folder's owner, a pending contact link, and that contact's change of recovery phrase), an object the owner uploaded that no block holds yet, and two
 //! invite codes that each make one account, one already used.
 //!
 //! Once a snapshot is taken, these values are what old data looks like: changing one stops the

@@ -17,7 +17,8 @@ mod transport;
 
 pub use clock::Clock;
 pub use connection::{Answer, Connection, Credentials, Event, ask};
-pub use contacts::{Contact, GrantOffer};
+pub use contacts::Contact;
+pub use share_links::ScopeOffer;
 pub use keys::{EscrowWarning, KeyBook};
 pub use peer::account_block::AccountRecords;
 pub use peer::hosted::{Admitted, Admitting, Joining};

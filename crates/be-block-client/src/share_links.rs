@@ -339,6 +339,31 @@ pub async fn open_share_link(
     Ok((link, handed))
 }
 
+/// A block's scope key as a share link hands it over (`Peer::offer_scope`): the block a scope
+/// of its own, at `access`.
+#[derive(Clone)]
+pub struct ScopeOffer {
+    pub organization: Uuid,
+    pub block: Uuid,
+    pub access: Access,
+    pub key: Uuid,
+    /// The scope key as it travels (`be_block_keys::CarriedKey`), with the block and its root.
+    pub secret: Vec<u8>,
+}
+
+impl std::fmt::Debug for ScopeOffer {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("ScopeOffer")
+            .field("organization", &self.organization)
+            .field("block", &self.block)
+            .field("access", &self.access)
+            .field("key", &self.key)
+            .field("secret", &"..")
+            .finish()
+    }
+}
+
 impl<S: ObjectStore> Peer<S> {
     /// Makes a share link on `block` granting `access` (Join, View or Edit) to whoever opens it,
     /// as `admits` allows: for View or Edit, makes the block a scope of its own, keeps the link's code in the
@@ -406,7 +431,7 @@ impl<S: ObjectStore> Peer<S> {
         let scope = match access {
             Access::Join => None,
             _ => {
-                let offer = self.offer(block, access).await?;
+                let offer = self.offer_scope(block, access).await?;
                 Some(HandedKey {
                     key: offer.key,
                     carried: offer.secret,

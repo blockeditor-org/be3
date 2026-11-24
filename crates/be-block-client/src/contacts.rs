@@ -1,4 +1,3 @@
-use be_block_graph::Access;
 use be_block_keys::{
     CardRole, ContactCard, InviteCode, Own, Party, PublicIdentity, RecoveryPublic, RecoverySecret,
     SigningPublic,
@@ -247,29 +246,6 @@ impl<'a> Secrets<'a> {
 /// Where `public`'s secret is kept once retired (`AccountBlock::retired`).
 fn retired_key(public: &be_block_keys::RecoveryPublic) -> Uuid {
     Uuid::from_slice(&public.0[..16]).expect("sixteen bytes make an id")
-}
-
-#[derive(Clone)]
-pub struct GrantOffer {
-    pub organization: Uuid,
-    pub block: Uuid,
-    pub access: Access,
-    pub key: Uuid,
-    /// The scope key as it travels (`be_block_keys::CarriedKey`), with the block and its root.
-    pub secret: Vec<u8>,
-}
-
-impl std::fmt::Debug for GrantOffer {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter
-            .debug_struct("GrantOffer")
-            .field("organization", &self.organization)
-            .field("block", &self.block)
-            .field("access", &self.access)
-            .field("key", &self.key)
-            .field("secret", &"..")
-            .finish()
-    }
 }
 
 #[derive(Clone, Debug)]

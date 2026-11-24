@@ -709,7 +709,7 @@ async fn write_scene(url: &str, data: &Path) -> Result<Written, String> {
         &owner_personal.connection(),
         owner_personal.keys().identity(),
         &owner_card,
-)
+    )
     .await
     .map_err(text)?;
     be_block_client::contacts::accept_link(
@@ -773,15 +773,10 @@ async fn write_scene(url: &str, data: &Path) -> Result<Written, String> {
         ));
     }
     drop(friend_editing);
-    let offer = owner_personal
-        .offer(recipes, Access::View)
-        .await
-        .map_err(text)?;
     let link_code = be_block_client::contacts::make_link(
         &owner_personal.connection(),
         owner_personal.keys().identity(),
         &owner_card,
-        Some(&offer),
     )
     .await
     .map_err(text)?;
