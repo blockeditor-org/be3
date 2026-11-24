@@ -6,7 +6,7 @@ fn a_child_is_asked_for_its_place_at_its_placers_raster() {
     // pixels per point of the screen that placed it.
     let mut placement = placed(rect((10.0, 20.0), (210.0, 120.5)), ChildMode::Live);
     let screen = child_screen(&placement, EditorInstanceId(5), 2.0, 1.0);
-    assert_eq!(screen.screen, CHILD_SCREEN);
+    assert_eq!(screen.screen, main_screen(EditorInstanceId(5)));
     assert_eq!(screen.instance, EditorInstanceId(5));
     assert_eq!(screen.view, ViewId::MAIN);
     assert_eq!(

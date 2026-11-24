@@ -322,6 +322,12 @@ impl Root {
         self.core.take_placed_contents()
     }
 
+    /// The editors the root closed since the last call (`host.close-editor`): by the root's
+    /// instance and the editor, in order.
+    pub fn take_closed_editors(&mut self) -> Vec<(u64, u64)> {
+        self.core.take_closed_editors()
+    }
+
     /// The sizes the root assigned the host's editors it lays out at an intrinsic size since the
     /// last call (`host.assign-size`): by the root's instance and the editor, in order.
     pub fn take_assigned_sizes(&mut self) -> Vec<(u64, u64, be_wasm_root_api::ViewSize)> {

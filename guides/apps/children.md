@@ -46,8 +46,15 @@ Under `--root` (plans/host_as_platform_adapter.md, 4g7b3) the root shows an
 embedded editor's children, not be-host's compositor. be-sdk-root's `Children`
 reads each view's placements from the app's layout commits
 (`Embedded::placed`) and shows each block child placed to run its editor as
-that block's editor in an app of its own, which the host opens and serves as it
-does the root's other editors. Its screen is the size of its place, at its
+that block's editor, which the host opens and serves as it does the root's
+other editors (`be3:root`'s `host.open-editor`, and `host.close-editor` once no
+place shows it). Each staged app runs once for every child, holding every
+editor of it the root shows, each asked for screens of its own; the app
+showing the session's block is not one of them. A block placed in several
+places shares one editor, a twin aside, as above: its main view is one place's
+(one placed active takes it), its preview view the largest preview's, and the
+other places show a copy of that screen scaled to their place, hit nowhere,
+without the editor's own children. Its screen is the size of its place, at its
 placer's raster, composited under the placer's layer (over it when placed
 `Above`), and the placer is hit everywhere but where a child that takes input
 is. The root tells the host through `be3:root`'s `host.show-children` which
@@ -90,8 +97,7 @@ any child rather than drawing a picture; one whose editor draws no preview runs 
 app, and its placer draws the block's label (`ChildPreview::Label`). Promoted,
 it keeps its editor, asked for its main view instead. A child placed in a
 preview view is a preview too, and an editor shown only as a preview has no
-dock, as under be-host. Each preview is an app of its own, not drawn once for
-every place as under be-host.
+dock, as under be-host.
 
 A block a root's editor opens (`open-block`) goes to the editor that handles
 show requests, as under be-host: the nearest of the asking editor and those
@@ -117,8 +123,7 @@ clipped to its place, and its placer hears the room it took as its status's
 placed before them; they hide a child placed below its placer only because
 the placer draws over it there.
 
-A joined dock's tab menus, picks and details, drags, a block shown in several
-places sharing one editor, and the other kinds of child
+A joined dock's tab menus, picks and details, drags, and the other kinds of child
 (plans/host_as_platform_adapter.md, 4g7b3e to 4g7b3g) are not there yet: a
 child of another kind the placer hears is unavailable.
 

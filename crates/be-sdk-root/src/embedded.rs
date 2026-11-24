@@ -68,8 +68,6 @@ pub struct BlockSpawn {
     pub surface: SurfaceSpec,
     /// The fonts the app is told once it runs (`Spawn::fonts`).
     pub fonts: Rc<Fonts>,
-    /// Whether it shows the block's preview: the app is spawned only if its editor draws one.
-    pub preview: bool,
 }
 
 /// A block's editor its root's host opened, in the app `Embedded::spawn_block` spawned.
@@ -91,9 +89,6 @@ pub struct SpawnFailure {
     /// The name of the app that edits the block, once the host named it.
     pub name: Option<String>,
     pub why: String,
-    /// Asked for a preview (`BlockSpawn::preview`), the editor draws none: nothing failed, and
-    /// its placer draws the block's label in its place.
-    pub no_preview: bool,
 }
 
 /// The editor an app opens once it says hello.
@@ -101,10 +96,11 @@ enum Opened {
     /// One the root opened itself, whose host serves it nothing: what it asks of a host is
     /// refused.
     Root(Opening),
-    /// One the root's host opened, by the frames that open it, which the root relays as they
-    /// are; everything the app then sends under it the root forwards to its host
-    /// (`host.forward`), and what the host answers it relays (`host.forwarded`).
-    Host(Vec<Vec<u8>>),
+    /// Those the root's host opens in it (`Embedded::open_editor`), by the frames that open
+    /// each, which the root relays as they are; everything the app then sends under them the
+    /// root forwards to its host (`host.forward`), and what the host answers it relays
+    /// (`host.forwarded`).
+    Host,
 }
 
 /// An app the root spawned and runs as its host. Clones are the same app. It stops when the
@@ -126,7 +122,7 @@ struct State {
     fonts: Rc<Fonts>,
     /// The generation of the host's catalog it was told last (`tell_types`): 0 for none.
     told_types: u64,
-    /// The frames that open the editor its root's host opened, relayed once the app says hello.
+    /// The frames that open the editors its root's host opened, relayed once the app says hello.
     opening: Vec<Vec<u8>>,
     /// Whether the app said hello: one that stops after it stopped, one that stops before it
     /// could not start.
@@ -212,42 +208,19 @@ impl Embedded {
                 format!("the host did not answer which app edits the block: {error:?}")
             })
             .and_then(|editor| editor)
-            .map_err(|why| SpawnFailure {
-                name: None,
-                why,
-                no_preview: false,
-            })?;
+            .map_err(|why| SpawnFailure { name: None, why })?;
         let name = editor.name;
         let preview = editor.preview;
         let pan_and_zoom = editor.pan_and_zoom;
-        if spawn.preview && !preview {
-            return Err(SpawnFailure {
-                name: Some(name),
-                why: "its editor draws no preview".to_owned(),
-                no_preview: true,
-            });
-        }
-        let failed = |why: String| SpawnFailure {
-            name: Some(name.clone()),
-            why,
-            no_preview: false,
-        };
-        let instance = instance(editor.app, editor.module);
-        let opened = host::open_editor(instance.op(), spawn.shown)
+        let app = Self::spawn_app(editor.app, editor.module, spawn.surface, spawn.fonts, now);
+        let editor = app
+            .open_editor(spawn.shown)
             .await
-            .map_err(|error| format!("the host did not open the block's editor: {error:?}"))
-            .and_then(|opened| opened)
-            .map_err(failed)?;
-        let editor = EditorInstanceId(opened.editor);
-        let screens = (spawn.screens)(editor);
-        let app = Self::start(
-            instance,
-            Opened::Host(opened.frames),
-            screens,
-            spawn.surface,
-            spawn.fonts,
-            now,
-        );
+            .map_err(|why| SpawnFailure {
+                name: Some(name.clone()),
+                why,
+            })?;
+        app.show((spawn.screens)(editor));
         Ok(Hosted {
             app,
             editor,
@@ -255,6 +228,70 @@ impl Embedded {
             preview,
             pan_and_zoom,
         })
+    }
+
+    /// Spawns the staged app `app`'s entry point `module` at the frame clock's `now`, to run
+    /// the editors its root's host opens in it (`open_editor`), asked for no screens yet. Call it
+    /// on the root's executor.
+    pub fn spawn_app(
+        app: String,
+        module: String,
+        surface: SurfaceSpec,
+        fonts: Rc<Fonts>,
+        now: Duration,
+    ) -> Self {
+        Self::start(
+            instance(app, module),
+            Opened::Host,
+            Vec::new(),
+            surface,
+            fonts,
+            now,
+        )
+    }
+
+    /// Has the root's host open `shown`'s editor in this app (`host.open-editor`), which must
+    /// run the app that edits it, and serve it from then on: the editor's instance, once the
+    /// frames that open it are on their way to the app, or why the host would not.
+    pub async fn open_editor(&self, shown: ShownBlock) -> Result<EditorInstanceId, String> {
+        let opened = host::open_editor(self.instance, shown)
+            .await
+            .map_err(|error| format!("the host did not open the block's editor: {error:?}"))
+            .and_then(|opened| opened)?;
+        let mut state = self.state.borrow_mut();
+        if let Some(failure) = &state.failure {
+            return Err(failure.clone());
+        }
+        // Before the hello the frames wait with the rest that open its editors.
+        match state.started {
+            true => state.relay(opened.frames),
+            false => state.opening.extend(opened.frames),
+        }
+        Ok(EditorInstanceId(opened.editor))
+    }
+
+    /// Asks the app for `screens` of its editor `editor` in place of those of it it was asked
+    /// for, keeping its other editors' (`show`).
+    pub fn show_editor(&self, editor: EditorInstanceId, screens: Vec<ScreenRequest>) {
+        let mut all = self.screens();
+        all.retain(|screen| screen.instance != editor);
+        all.extend(screens);
+        self.show(all);
+    }
+
+    /// Closes its editor `editor`: the app is asked for none of its screens, and the root's host
+    /// stops serving it and closes it in the app (`host.close-editor`). The app keeps running
+    /// its other editors.
+    pub fn close_editor(&self, editor: EditorInstanceId) {
+        self.show_editor(editor, Vec::new());
+        if self.state.borrow().failure.is_some() {
+            return;
+        }
+        let closed = host::close_editor(self.instance, editor.0);
+        be_wasm_ops::guest::spawn(async move {
+            // A host that stopped answering stops the root too.
+            let _ = closed.await;
+        });
     }
 
     /// Asks the app for `screens` in place of those it was asked for, as when the window it
@@ -325,9 +362,10 @@ impl Embedded {
         );
         run.session.start(millis(now));
         run.screens.clone_from(&screens);
-        let (open, opening) = match opened {
-            Opened::Root(opening) => (Some(Outbound::Open(Box::new(opening))), Vec::new()),
-            Opened::Host(frames) => (None, frames),
+        let hosted = matches!(opened, Opened::Host);
+        let open = match opened {
+            Opened::Root(opening) => Some(Outbound::Open(Box::new(opening))),
+            Opened::Host => None,
         };
         // Held until the hello: the session does not run yet.
         let _ = run.queue(open.into_iter().chain([AppCall::Screens(screens).into()]));
@@ -340,7 +378,7 @@ impl Embedded {
             run,
             fonts,
             told_types: 0,
-            opening,
+            opening: Vec::new(),
             started: false,
             painted_answer: None,
             now,
@@ -357,7 +395,7 @@ impl Embedded {
             waiting: Vec::new(),
             stop: Rc::clone(&stop),
         }));
-        if !state.borrow().opening.is_empty() {
+        if hosted {
             relay_to(handle, &state);
         }
         tell_types_to(&state);

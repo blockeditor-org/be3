@@ -23,7 +23,7 @@ fn a_child_placed_with_an_intrinsic_size_is_laid_out_at_it_and_drawn_at_its_zoom
     );
 
     // Drawn from its view's points to its place: scaled by its zoom.
-    let to_placer = placed_transform(&placement, zoom);
+    let to_placer = placed_transform(&placement, be_lib_geometry::vec2(zoom, zoom));
     assert_eq!(to_placer.apply(pos2(0.0, 0.0)), pos2(10.0, 20.0));
     assert_eq!(to_placer.apply(pos2(200.0, 100.0)), pos2(410.0, 220.0));
 
