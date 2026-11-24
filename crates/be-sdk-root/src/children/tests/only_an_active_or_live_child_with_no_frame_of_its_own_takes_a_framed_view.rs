@@ -57,11 +57,7 @@ fn only_an_active_or_live_child_with_no_frame_of_its_own_takes_a_framed_view() {
     assert_eq!(taking[0].2, ChildId(6));
 
     // A view drawn with no frame has none to take.
-    let bare = [child_screen(
-        &placed_at_main(),
-        EditorInstanceId(1),
-        1.0,
-    )];
+    let bare = [child_screen(&placed_at_main(), EditorInstanceId(1), 1.0)];
     assert_eq!(framing(&placed, &bare, &rules(&none, &none)), []);
 
     // Nor does a view that does not hold the editor's content, or a child that draws nothing.

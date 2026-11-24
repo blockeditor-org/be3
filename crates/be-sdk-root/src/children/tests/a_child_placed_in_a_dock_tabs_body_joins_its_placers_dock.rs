@@ -20,8 +20,16 @@ fn a_child_placed_in_a_dock_tabs_body_joins_its_placers_dock() {
 
     // Its docks then ask the child, once its editor shows the block, for its frame docked.
     let mut docks = Docks::default();
-    docks.register(EditorInstanceId(1), &app_key(5), Some(Uuid::from_bytes([9; 16])));
-    docks.register(EditorInstanceId(2), &app_key(6), Some(Uuid::from_bytes([1; 16])));
+    docks.register(
+        EditorInstanceId(1),
+        &app_key(5),
+        Some(Uuid::from_bytes([9; 16])),
+    );
+    docks.register(
+        EditorInstanceId(2),
+        &app_key(6),
+        Some(Uuid::from_bytes([1; 16])),
+    );
     docks.placed(EditorInstanceId(1), children, None);
     assert!(docks.docked(EditorInstanceId(2)));
     assert!(!docks.docked(EditorInstanceId(1)));

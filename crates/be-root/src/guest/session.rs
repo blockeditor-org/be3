@@ -13,8 +13,7 @@ use be_sdk_api::{
     SurfaceSpec, Vec2 as ViewVec2, ViewId, ViewPlacement, ViewportMetrics,
 };
 use be_sdk_root::{
-    BlockSpawn, Children, Delivery, Embedded, Hosted, KeyboardMove, Pressed,
-    SpawnFailure, Spawning,
+    BlockSpawn, Children, Delivery, Embedded, Hosted, KeyboardMove, Pressed, SpawnFailure, Spawning,
 };
 use beui::icons::{ICON_CIRCLE_ALERT, ICON_REFRESH_CW};
 use beui::reactive::*;

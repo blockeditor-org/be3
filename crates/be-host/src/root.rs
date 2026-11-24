@@ -681,7 +681,12 @@ fn serve_editors(core: &crate::HostCore, root: &mut Root, editors: &mut Editors)
         .iter()
         .map(|(_, shown)| shown.block)
         .chain(openings.iter().map(|opening| opening.shown.block))
-        .chain(editors.opened.values().map(|opened| opened.block.into_bytes()))
+        .chain(
+            editors
+                .opened
+                .values()
+                .map(|opened| opened.block.into_bytes()),
+        )
         .collect();
     wanted.sort_unstable();
     wanted.dedup();

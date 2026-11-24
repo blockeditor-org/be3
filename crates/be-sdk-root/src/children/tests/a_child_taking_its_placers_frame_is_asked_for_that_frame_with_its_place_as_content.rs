@@ -26,7 +26,9 @@ fn a_child_taking_its_placers_frame_is_asked_for_that_frame_with_its_place_as_co
         (screen.metrics.pixel_width, screen.metrics.pixel_height),
         (600, 400)
     );
-    let frame = screen.frame.expect("a child taking a frame is asked to draw it");
+    let frame = screen
+        .frame
+        .expect("a child taking a frame is asked to draw it");
     assert_eq!(frame.chrome, FrameChrome::Drawn);
     assert_eq!(frame.top_bar, TopBar::Shown);
     assert_eq!(frame.content, Some(rect((40.0, 30.0), (120.0, 90.0))));

@@ -504,8 +504,12 @@ impl Children {
                     }
                     continue;
                 }
-                match Child::placed(placements.instance, placements.view, raster, placement.clone())
-                {
+                match Child::placed(
+                    placements.instance,
+                    placements.view,
+                    raster,
+                    placement.clone(),
+                ) {
                     Some(child) => wanted.push(child),
                     None => told.push(ShownChild {
                         child: child.0,
@@ -522,14 +526,13 @@ impl Children {
             match on_screen {
                 true => {
                     let children = docked.remove(editor).unwrap_or_default();
-                    let framed = taking
-                        .iter()
-                        .find(|framed| framed.0 == *editor)
-                        .map(|(_, view, child, block)| DockedChild {
+                    let framed = taking.iter().find(|framed| framed.0 == *editor).map(
+                        |(_, view, child, block)| DockedChild {
                             child: *child,
                             tab: view.0,
                             block: Uuid::from_bytes(*block),
-                        });
+                        },
+                    );
                     settling.docks.placed(*editor, &children, framed);
                 }
                 false => settling.docks.offscreen(*editor),
@@ -586,9 +589,10 @@ impl Children {
             let hosted = child.hosted();
             // The bodies of its dock's views a joined dock places, and those of its own
             // children's, whose paths lead on through it.
-            let (mine, rest): (Vec<TabAsk>, Vec<TabAsk>) = std::mem::take(&mut asks)
-                .into_iter()
-                .partition(|ask| ask.editor == child.editor && ask.via.first() == Some(&child.child));
+            let (mine, rest): (Vec<TabAsk>, Vec<TabAsk>) =
+                std::mem::take(&mut asks).into_iter().partition(|ask| {
+                    ask.editor == child.editor && ask.via.first() == Some(&child.child)
+                });
             asks = rest;
             for tab in &mut child.tabs {
                 tab.asked = false;
@@ -632,9 +636,7 @@ impl Children {
             } else {
                 child.tabs.clear();
             }
-            child.layer = hosted
-                .as_ref()
-                .map(|(app, _)| app.layer_id(CHILD_SCREEN));
+            child.layer = hosted.as_ref().map(|(app, _)| app.layer_id(CHILD_SCREEN));
             child.up = hosted.as_ref().is_some_and(|(app, _)| app.started());
             if child.placed {
                 views
@@ -695,9 +697,7 @@ impl Children {
     /// picks and details asked of a joined dock wait for the root to take its editors' shell
     /// messages.
     fn hear_docks(&self, parent: &Embedded, docks: &mut Docks) {
-        let apps: Vec<Embedded> = std::iter::once(parent.clone())
-            .chain(self.apps())
-            .collect();
+        let apps: Vec<Embedded> = std::iter::once(parent.clone()).chain(self.apps()).collect();
         for app in &apps {
             docks.heard(&app_key(app.instance()), app.take_docks());
         }
@@ -748,13 +748,14 @@ impl Children {
     /// or live first.
     fn forget_revoked(&mut self) {
         let shown = &self.shown;
-        let placed = |editor: &EditorInstanceId, view: &ViewId, id: &ChildId, modes: &[ChildMode]| {
-            shown.iter().any(|child| {
-                (child.editor, child.view, child.child) == (*editor, *view, *id)
-                    && child.placed
-                    && modes.contains(&child.placement.mode)
-            })
-        };
+        let placed =
+            |editor: &EditorInstanceId, view: &ViewId, id: &ChildId, modes: &[ChildMode]| {
+                shown.iter().any(|child| {
+                    (child.editor, child.view, child.child) == (*editor, *view, *id)
+                        && child.placed
+                        && modes.contains(&child.placement.mode)
+                })
+            };
         self.revoked
             .retain(|(editor, view, id)| placed(editor, view, id, &[ChildMode::Active]));
         self.frame_revoked.retain(|(editor, view, id)| {
@@ -878,9 +879,9 @@ impl Children {
         placed: &[ChildPlacements],
         requests: &[ScreenRequest],
     ) -> Vec<(EditorInstanceId, ViewId, ChildId, [u8; 16])> {
-        let content = |editor: EditorInstanceId| content_view(editor, requests, &|screen| {
-            app.content(screen).is_some()
-        });
+        let content = |editor: EditorInstanceId| {
+            content_view(editor, requests, &|screen| app.content(screen).is_some())
+        };
         let shows = |editor, view, id| self.shows_frame(editor, view, id);
         framing(
             placed,
@@ -1027,8 +1028,8 @@ impl Children {
         let mut screens = Vec::new();
         for child in &self.shown {
             if let Some((app, _)) = child.hosted() {
-                let shown = std::iter::once(CHILD_SCREEN)
-                    .chain(child.tabs.iter().map(|tab| tab.screen));
+                let shown =
+                    std::iter::once(CHILD_SCREEN).chain(child.tabs.iter().map(|tab| tab.screen));
                 for screen in shown {
                     if let Some(layer) = app.layer(screen, pos2(0.0, 0.0)) {
                         screens.push((app.clone(), screen, layer.id));
@@ -1384,9 +1385,9 @@ fn framing(
         if framing.iter().any(|framed| framed.0 == editor) || (rules.content)(editor) != view {
             continue;
         }
-        let framed = requests
-            .iter()
-            .any(|screen| (screen.instance, screen.view) == (editor, view) && screen.frame.is_some());
+        let framed = requests.iter().any(|screen| {
+            (screen.instance, screen.view) == (editor, view) && screen.frame.is_some()
+        });
         if !framed {
             continue;
         }
@@ -1414,7 +1415,11 @@ fn content_view(
     requests: &[ScreenRequest],
     holds: &dyn Fn(ScreenId) -> bool,
 ) -> ViewId {
-    let of_editor = || requests.iter().filter(move |screen| screen.instance == editor);
+    let of_editor = || {
+        requests
+            .iter()
+            .filter(move |screen| screen.instance == editor)
+    };
     if of_editor().any(|screen| screen.view == ViewId::MAIN && holds(screen.screen)) {
         return ViewId::MAIN;
     }
