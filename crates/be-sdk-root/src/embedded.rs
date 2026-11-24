@@ -67,6 +67,23 @@ pub struct BlockSpawn {
     pub fonts: Rc<Fonts>,
 }
 
+/// A block's editor its root's host opened, in the app `Embedded::spawn_block` spawned.
+pub struct Hosted {
+    pub app: Embedded,
+    /// The editor's instance, which its screens name.
+    pub editor: EditorInstanceId,
+    /// The app's name, in words.
+    pub name: String,
+}
+
+/// Why `Embedded::spawn_block` spawned nothing.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SpawnFailure {
+    /// The name of the app that edits the block, once the host named it.
+    pub name: Option<String>,
+    pub why: String,
+}
+
 /// The editor an app opens once it says hello.
 enum Opened {
     /// One the root opened itself, whose host serves it nothing: what it asks of a host is
@@ -97,6 +114,9 @@ struct State {
     fonts: Rc<Fonts>,
     /// The frames that open the editor its root's host opened, relayed once the app says hello.
     opening: Vec<Vec<u8>>,
+    /// Whether the app said hello: one that stops after it stopped, one that stops before it
+    /// could not start.
+    started: bool,
     /// The frame clock's time, as the last frame was asked for.
     now: Duration,
     /// The root's frames so far, the pass the app's pacing counts.
@@ -154,23 +174,55 @@ impl Embedded {
     /// (`host.editor-of`), and has the host open the block's editor in it (`host.open-editor`),
     /// which it serves from then on. Call it on the root's executor at the frame clock's `now`;
     /// it answers once the host did, or with why the host would not.
-    pub async fn spawn_block(spawn: BlockSpawn, now: Duration) -> Result<Self, String> {
-        let editor = host::editor_of(spawn.block).await.map_err(|error| {
-            format!("the host did not answer which app edits the block: {error:?}")
-        })??;
+    pub async fn spawn_block(spawn: BlockSpawn, now: Duration) -> Result<Hosted, SpawnFailure> {
+        let editor = host::editor_of(spawn.block)
+            .await
+            .map_err(|error| format!("the host did not answer which app edits the block: {error:?}"))
+            .and_then(|editor| editor)
+            .map_err(|why| SpawnFailure { name: None, why })?;
+        let name = editor.name;
+        let failed = |why: String| SpawnFailure {
+            name: Some(name.clone()),
+            why,
+        };
         let instance = instance(editor.app, editor.module);
         let opened = host::open_editor(instance.op(), spawn.block)
             .await
-            .map_err(|error| format!("the host did not open the block's editor: {error:?}"))??;
-        let screens = (spawn.screens)(EditorInstanceId(opened.editor));
-        Ok(Self::start(
+            .map_err(|error| format!("the host did not open the block's editor: {error:?}"))
+            .and_then(|opened| opened)
+            .map_err(failed)?;
+        let editor = EditorInstanceId(opened.editor);
+        let screens = (spawn.screens)(editor);
+        let app = Self::start(
             instance,
             Opened::Host(opened.frames),
             screens,
             spawn.surface,
             spawn.fonts,
             now,
-        ))
+        );
+        Ok(Hosted { app, editor, name })
+    }
+
+    /// Asks the app for `screens` in place of those it was asked for, as when the window it
+    /// shows in is resized: at once once it runs, else with the rest it is sent once it says
+    /// hello.
+    pub fn show(&self, screens: Vec<ScreenRequest>) {
+        let mut state = self.state.borrow_mut();
+        if state.failure.is_some() || state.run.screens == screens {
+            return;
+        }
+        state.run.screens.clone_from(&screens);
+        let send = state.run.queue([AppCall::Screens(screens).into()]);
+        state.run.pacing.need();
+        state.wire.send(send);
+        state.flush();
+    }
+
+    /// Whether the app said hello: one that stops after it stopped, one that stops before it
+    /// could not start.
+    pub fn started(&self) -> bool {
+        self.state.borrow().started
     }
 
     fn start(
@@ -203,6 +255,7 @@ impl Embedded {
             run,
             fonts,
             opening,
+            started: false,
             now,
             pass: 0,
             painted: HashMap::default(),
@@ -499,6 +552,7 @@ impl State {
         };
         match heard {
             Heard::Hello(hello) => {
+                self.started = true;
                 let accepted = self.run.session.connect(&hello, self.run.preferences());
                 self.wire.accept(&accepted);
                 let opening = std::mem::take(&mut self.opening);

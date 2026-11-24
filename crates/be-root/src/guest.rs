@@ -48,7 +48,8 @@ use crate::{
     LOCK_SURFACE, MEMBERS_TITLE, MENU_BUTTON, MENU_LAYER, MENU_SURFACE, ONBOARDING_LAYER,
     ONBOARDING_SURFACE, ORGANIZATIONS_TITLE, PAIRING_TITLE, REAUTH_TITLE, RECOVERY_TITLE,
     REMOVE_CONTACT_TITLE, REMOVE_MEMBER_TITLE, ROOT_COLOR, ROOT_LAYER, ROOT_SURFACE,
-    SHARE_LINK_TITLE, SIGN_IN_TITLE, SLOW_SAVE, SLOW_SAVE_TITLE, SLOW_SAVE_TOAST, STATISTICS_LAYER,
+    SESSION_NOTICE_SURFACE, SHARE_LINK_TITLE, SIGN_IN_TITLE, SLOW_SAVE, SLOW_SAVE_TITLE,
+    SLOW_SAVE_TOAST, STATISTICS_LAYER,
     STATISTICS_SURFACE, STATISTICS_TITLE, STATISTICS_WIDTH, TOAST_LAYER, TOAST_SURFACE,
     UNSENT_TITLE,
 };
@@ -58,6 +59,7 @@ mod lock;
 mod menu;
 mod notices;
 mod onboarding;
+mod session;
 mod statistics;
 
 use dialogs::*;
@@ -65,6 +67,7 @@ use lock::*;
 use menu::*;
 use notices::*;
 use onboarding::*;
+use session::*;
 use statistics::*;
 
 #[derive(Clone)]
@@ -153,6 +156,17 @@ struct Root {
     lock_state: Rc<RefCell<Option<LockState>>>,
     /// Its lock screen, while the session is locked.
     lock: Rc<RefCell<Option<Locked>>>,
+    /// The editor of the block the session shows, while it shows one.
+    session: Rc<RefCell<Option<Session>>>,
+    /// How many sessions it showed, which names the latest.
+    session_rounds: Rc<Cell<u64>>,
+    /// Whether the session's notice asked to start its app again, done with the next frame.
+    session_reload: Rc<Cell<bool>>,
+    /// The notice over the session's editor (`SessionNotice`), which beui draws, made on its
+    /// first frame.
+    session_notice: Rc<RefCell<Option<BeuiSurface>>>,
+    /// What that notice shows, which `settle_session` sets.
+    session_notice_shown: Rc<Cell<Option<Signal<Option<SessionShown>>>>>,
     /// Wakes the root, and so its host, for a frame its beui document wants.
     waker: Waker,
 }
@@ -363,6 +377,11 @@ impl Root {
             statistics_opened: Rc::default(),
             lock_state: Rc::default(),
             lock: Rc::default(),
+            session: Rc::default(),
+            session_rounds: Rc::default(),
+            session_reload: Rc::default(),
+            session_notice: Rc::default(),
+            session_notice_shown: Rc::default(),
             waker,
         }
     }
@@ -380,7 +399,7 @@ impl Root {
             // A host that lost its device stops the root at its next frame.
             let _ = own.fill(ROOT_COLOR);
         }
-        let surfaces = [&self.toasts, &self.menu];
+        let surfaces = [&self.toasts, &self.menu, &self.session_notice];
         for surface in surfaces {
             if let Some(surface) = &mut *surface.borrow_mut() {
                 surface.resize(whole, raster);
@@ -493,6 +512,25 @@ impl Root {
             },
         )?;
         *self.menu.borrow_mut() = Some(menu);
+        let waker = self.waker.clone();
+        let notice_shown = Rc::clone(&self.session_notice_shown);
+        let reload = Rc::clone(&self.session_reload);
+        let notice = BeuiSurface::new(
+            &beui,
+            OwnSurface::new(SESSION_NOTICE_SURFACE, window.whole()),
+            window.pixels_per_point,
+            move || waker.wake(),
+            move || {
+                let notice = create_signal(None::<SessionShown>);
+                notice_shown.set(Some(notice));
+                view! {
+                    <Root clear_color=ColorRole::None>
+                        <SessionNotice notice={notice} reload={reload} />
+                    </Root>
+                }
+            },
+        )?;
+        *self.session_notice.borrow_mut() = Some(notice);
         // F2 opens the dialog, wherever the focus is.
         self.embedding.borrow_mut().intercept(chords(false));
         *self.own.borrow_mut() = Some(own);
@@ -759,6 +797,9 @@ impl Root {
         }
         if let Some(menu) = &mut *self.menu.borrow_mut() {
             menu.input(own);
+        }
+        if let Some(notice) = &mut *self.session_notice.borrow_mut() {
+            notice.input(own);
         }
         if let Some(dialog) = &mut *self.dialog.borrow_mut() {
             dialog.surface.input(own);
@@ -1490,6 +1531,7 @@ impl frames::Guest for Root {
                 .expect("the root draws its lock screen with beui");
             root.settle_onboarding()
                 .expect("the root draws its accounts with beui");
+            root.settle_session(time);
             let own = root
                 .own
                 .borrow()
@@ -1504,6 +1546,11 @@ impl frames::Guest for Root {
             }
             if let Some(menu) = &mut *root.menu.borrow_mut() {
                 menu.frame().expect("the root draws its menu with beui");
+            }
+            if let Some(notice) = &mut *root.session_notice.borrow_mut() {
+                notice
+                    .frame()
+                    .expect("the root draws its session's notice with beui");
             }
             if let Some(dialog) = &mut *root.dialog.borrow_mut() {
                 dialog
@@ -1531,8 +1578,11 @@ impl frames::Guest for Root {
             // The dialog's own actions closed it: gone from this frame already.
             root.settle_dialog()
                 .expect("the root draws its dialog with beui");
-            // Its own surface under everything: no app is embedded yet (4g7b).
+            // Its own surface under everything, then the session's editor filling the window,
+            // and its notice over it while it loads or after it stopped.
             let mut layers = vec![own];
+            layers.extend(root.session_frame(time).await);
+            layers.extend(root.session_notice_layer());
             // Its accounts while the block stack waits for one, over the app, taking every press.
             if let Some(accounts) = &*root.onboarding.borrow() {
                 let mut layer = accounts.surface.layer(ONBOARDING_LAYER, pos2(0.0, 0.0));
@@ -1652,7 +1702,7 @@ impl frames::Guest for Root {
             let embedding = root.embedding.borrow();
             let requests = embedding.requests(None);
             // Its documents want a frame at once (one heard input or was woken) or later.
-            let documents = [&root.toasts, &root.menu]
+            let documents = [&root.toasts, &root.menu, &root.session_notice]
                 .into_iter()
                 .filter_map(|surface| surface.borrow().as_ref().and_then(BeuiSurface::next));
             let dialog = root
@@ -1777,9 +1827,15 @@ impl paintings::Guest for Root {
             Some(_) => None,
             None => self.menu.borrow().as_ref().and_then(painted),
         };
+        // The session's notice while it shows one, as its layer list shows it.
+        let notice = match self.session_notice_layer() {
+            Some(_) => self.session_notice.borrow().as_ref().and_then(painted),
+            None => None,
+        };
         let painted = ScreenPaintings {
             screens: own
                 .into_iter()
+                .chain(notice)
                 .chain(menu)
                 .chain(accounts)
                 .chain(statistics)
