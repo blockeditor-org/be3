@@ -24,13 +24,12 @@ fn a_versioned_artifact_cannot_be_replaced_with_different_bytes() {
             .into_iter(),
     )
     .unwrap();
-    let agents = Agents::new();
+    let client = Storage::new(Some("test key".to_owned()));
     let store = Store {
         options: &options,
-        agents: &agents,
-        storage: &url,
+        client: &client,
+        zone: &url,
         mirror: &url,
-        key: "test key",
     };
     let error = store
         .put(
@@ -41,6 +40,6 @@ fn a_versioned_artifact_cannot_be_replaced_with_different_bytes() {
             true,
         )
         .unwrap_err();
-    assert!(error.contains("refusing to overwrite immutable artifact"));
+    assert!(error.contains("refusing to overwrite"), "{error}");
     server.join().unwrap();
 }

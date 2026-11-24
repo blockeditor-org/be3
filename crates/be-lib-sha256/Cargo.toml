@@ -1,0 +1,13 @@
+[package]
+name = "be-lib-sha256"
+description = "SHA-256 as the tools write it: lowercase hex, of bytes, of a reader or of a hasher fed by hand"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+hex = "0.4"
+sha2 = "0.10"
+
+[lints]
+workspace = true

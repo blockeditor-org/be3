@@ -23,6 +23,7 @@ write_package_value("be3.cargo", {
             "binaries": {
                 "be-launcher": [
                     "//crates/be-block-content:be-block-content",
+                    "//crates/be-lib-sha256:be-lib-sha256",
                     "//crates/be-sdk-terminal:be-sdk-terminal",
                     "//crates/be-tool-build-helper-protocol:be-tool-build-helper-protocol",
                     "//crates/be-tool-terminal-emulator:be-tool-terminal-emulator",
@@ -36,12 +37,12 @@ write_package_value("be3.cargo", {
                     "//third-party/rust:ndk-context-0.1.1",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:serde_json-1.0.150",
-                    "//third-party/rust:sha2-0.10.9",
                     "//third-party/rust:ureq-2.12.1",
                 ],
             },
             "deps": [
                 "//crates/be-block-content:be-block-content",
+                "//crates/be-lib-sha256:be-lib-sha256",
                 "//crates/be-sdk-terminal:be-sdk-terminal",
                 "//crates/be-tool-build-helper-protocol:be-tool-build-helper-protocol",
                 "//crates/be-tool-terminal-emulator:be-tool-terminal-emulator",
@@ -55,7 +56,6 @@ write_package_value("be3.cargo", {
                 "//third-party/rust:ndk-context-0.1.1",
                 "//third-party/rust:serde-1.0.228",
                 "//third-party/rust:serde_json-1.0.150",
-                "//third-party/rust:sha2-0.10.9",
                 "//third-party/rust:ureq-2.12.1",
             ],
             "examples": {},
@@ -69,6 +69,7 @@ write_package_value("be3.cargo", {
             "binaries": {
                 "be-launcher": [
                     "//crates/be-block-content:be-block-content",
+                    "//crates/be-lib-sha256:be-lib-sha256",
                     "//crates/be-sdk-terminal:be-sdk-terminal",
                     "//crates/be-tool-build-helper-protocol:be-tool-build-helper-protocol",
                     "//crates/be-tool-terminal-emulator:be-tool-terminal-emulator",
@@ -80,11 +81,11 @@ write_package_value("be3.cargo", {
                     "//third-party/rust:image-0.25.10",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:serde_json-1.0.150",
-                    "//third-party/rust:sha2-0.10.9",
                 ],
             },
             "deps": [
                 "//crates/be-block-content:be-block-content",
+                "//crates/be-lib-sha256:be-lib-sha256",
                 "//crates/be-sdk-terminal:be-sdk-terminal",
                 "//crates/be-tool-build-helper-protocol:be-tool-build-helper-protocol",
                 "//crates/be-tool-terminal-emulator:be-tool-terminal-emulator",
@@ -96,7 +97,6 @@ write_package_value("be3.cargo", {
                 "//third-party/rust:image-0.25.10",
                 "//third-party/rust:serde-1.0.228",
                 "//third-party/rust:serde_json-1.0.150",
-                "//third-party/rust:sha2-0.10.9",
             ],
             "examples": {},
             "features": [],
@@ -109,6 +109,7 @@ write_package_value("be3.cargo", {
             "binaries": {
                 "be-launcher": [
                     "//crates/be-block-content:be-block-content",
+                    "//crates/be-lib-sha256:be-lib-sha256",
                     "//crates/be-sdk-terminal:be-sdk-terminal",
                     "//crates/be-tool-build-helper-protocol:be-tool-build-helper-protocol",
                     "//crates/be-tool-terminal-emulator:be-tool-terminal-emulator",
@@ -120,11 +121,11 @@ write_package_value("be3.cargo", {
                     "//third-party/rust:image-0.25.10",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:serde_json-1.0.150",
-                    "//third-party/rust:sha2-0.10.9",
                 ],
             },
             "deps": [
                 "//crates/be-block-content:be-block-content",
+                "//crates/be-lib-sha256:be-lib-sha256",
                 "//crates/be-sdk-terminal:be-sdk-terminal",
                 "//crates/be-tool-build-helper-protocol:be-tool-build-helper-protocol",
                 "//crates/be-tool-terminal-emulator:be-tool-terminal-emulator",
@@ -136,7 +137,6 @@ write_package_value("be3.cargo", {
                 "//third-party/rust:image-0.25.10",
                 "//third-party/rust:serde-1.0.228",
                 "//third-party/rust:serde_json-1.0.150",
-                "//third-party/rust:sha2-0.10.9",
             ],
             "examples": {},
             "features": [],
@@ -149,6 +149,7 @@ write_package_value("be3.cargo", {
             "binaries": {
                 "be-launcher": [
                     "//crates/be-block-content:be-block-content",
+                    "//crates/be-lib-sha256:be-lib-sha256",
                     "//crates/be-sdk-terminal:be-sdk-terminal",
                     "//crates/be-tool-build-helper-protocol:be-tool-build-helper-protocol",
                     "//crates/be-tool-terminal-emulator:be-tool-terminal-emulator",
@@ -160,11 +161,11 @@ write_package_value("be3.cargo", {
                     "//third-party/rust:image-0.25.10",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:serde_json-1.0.150",
-                    "//third-party/rust:sha2-0.10.9",
                 ],
             },
             "deps": [
                 "//crates/be-block-content:be-block-content",
+                "//crates/be-lib-sha256:be-lib-sha256",
                 "//crates/be-sdk-terminal:be-sdk-terminal",
                 "//crates/be-tool-build-helper-protocol:be-tool-build-helper-protocol",
                 "//crates/be-tool-terminal-emulator:be-tool-terminal-emulator",
@@ -176,7 +177,6 @@ write_package_value("be3.cargo", {
                 "//third-party/rust:image-0.25.10",
                 "//third-party/rust:serde-1.0.228",
                 "//third-party/rust:serde_json-1.0.150",
-                "//third-party/rust:sha2-0.10.9",
             ],
             "examples": {},
             "features": [],
@@ -189,6 +189,7 @@ write_package_value("be3.cargo", {
             "binaries": {
                 "be-launcher": [
                     "//crates/be-block-content:be-block-content",
+                    "//crates/be-lib-sha256:be-lib-sha256",
                     "//crates/be-sdk-terminal:be-sdk-terminal",
                     "//crates/be-tool-build-helper-protocol:be-tool-build-helper-protocol",
                     "//crates/be-tool-terminal-emulator:be-tool-terminal-emulator",
@@ -200,11 +201,11 @@ write_package_value("be3.cargo", {
                     "//third-party/rust:image-0.25.10",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:serde_json-1.0.150",
-                    "//third-party/rust:sha2-0.10.9",
                 ],
             },
             "deps": [
                 "//crates/be-block-content:be-block-content",
+                "//crates/be-lib-sha256:be-lib-sha256",
                 "//crates/be-sdk-terminal:be-sdk-terminal",
                 "//crates/be-tool-build-helper-protocol:be-tool-build-helper-protocol",
                 "//crates/be-tool-terminal-emulator:be-tool-terminal-emulator",
@@ -216,7 +217,6 @@ write_package_value("be3.cargo", {
                 "//third-party/rust:image-0.25.10",
                 "//third-party/rust:serde-1.0.228",
                 "//third-party/rust:serde_json-1.0.150",
-                "//third-party/rust:sha2-0.10.9",
             ],
             "examples": {},
             "features": [],
@@ -229,6 +229,7 @@ write_package_value("be3.cargo", {
             "binaries": {
                 "be-launcher": [
                     "//crates/be-block-content:be-block-content",
+                    "//crates/be-lib-sha256:be-lib-sha256",
                     "//crates/be-sdk-terminal:be-sdk-terminal",
                     "//crates/be-tool-build-helper-protocol:be-tool-build-helper-protocol",
                     "//crates/be-tool-terminal-emulator:be-tool-terminal-emulator",
@@ -240,11 +241,11 @@ write_package_value("be3.cargo", {
                     "//third-party/rust:image-0.25.10",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:serde_json-1.0.150",
-                    "//third-party/rust:sha2-0.10.9",
                 ],
             },
             "deps": [
                 "//crates/be-block-content:be-block-content",
+                "//crates/be-lib-sha256:be-lib-sha256",
                 "//crates/be-sdk-terminal:be-sdk-terminal",
                 "//crates/be-tool-build-helper-protocol:be-tool-build-helper-protocol",
                 "//crates/be-tool-terminal-emulator:be-tool-terminal-emulator",
@@ -256,7 +257,6 @@ write_package_value("be3.cargo", {
                 "//third-party/rust:image-0.25.10",
                 "//third-party/rust:serde-1.0.228",
                 "//third-party/rust:serde_json-1.0.150",
-                "//third-party/rust:sha2-0.10.9",
             ],
             "examples": {},
             "features": [],
@@ -269,6 +269,7 @@ write_package_value("be3.cargo", {
             "binaries": {
                 "be-launcher": [
                     "//crates/be-block-content:be-block-content",
+                    "//crates/be-lib-sha256:be-lib-sha256",
                     "//crates/be-sdk-terminal:be-sdk-terminal",
                     "//crates/be-tool-build-helper-protocol:be-tool-build-helper-protocol",
                     "//crates/be-tool-terminal-emulator:be-tool-terminal-emulator",
@@ -280,11 +281,11 @@ write_package_value("be3.cargo", {
                     "//third-party/rust:image-0.25.10",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:serde_json-1.0.150",
-                    "//third-party/rust:sha2-0.10.9",
                 ],
             },
             "deps": [
                 "//crates/be-block-content:be-block-content",
+                "//crates/be-lib-sha256:be-lib-sha256",
                 "//crates/be-sdk-terminal:be-sdk-terminal",
                 "//crates/be-tool-build-helper-protocol:be-tool-build-helper-protocol",
                 "//crates/be-tool-terminal-emulator:be-tool-terminal-emulator",
@@ -296,7 +297,6 @@ write_package_value("be3.cargo", {
                 "//third-party/rust:image-0.25.10",
                 "//third-party/rust:serde-1.0.228",
                 "//third-party/rust:serde_json-1.0.150",
-                "//third-party/rust:sha2-0.10.9",
             ],
             "examples": {},
             "features": [],

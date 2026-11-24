@@ -1,0 +1,4 @@
+load("@root//buck/cargo:defs.bzl", "cargo_crate")
+
+# The one way the tools turn a SHA-256 into text.
+cargo_crate()

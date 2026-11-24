@@ -91,7 +91,7 @@ async fn run() -> Result<(), Box<dyn Error>> {
         state: state.clone(),
         keystore,
         public: public.clone(),
-        storage_key,
+        storage: be_tool_storage::Storage::new(storage_key),
         max_buck_out: max_buck_out_gb << 30,
         git: Default::default(),
     };

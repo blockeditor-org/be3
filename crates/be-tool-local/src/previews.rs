@@ -8,7 +8,8 @@ use beui_html::{render_fragment, view};
 use beui_paint_snapshot::Painting as Paint;
 use sha2::{Digest as _, Sha256};
 
-use crate::{git_bytes, hex};
+use be_lib_git::git_bytes;
+use be_lib_sha256::{finish, sha256};
 
 pub const PAINTINGS: &str = ":(glob)crates/**/snapshots/*.paint";
 const ROOT: &str = "PREVIEW_ROOT";
@@ -339,7 +340,7 @@ fn copy_site(site: &Path, output: &Path) -> Result<String, String> {
         hasher.update(Sha256::digest(&bytes));
         contents.push((file, bytes));
     }
-    let hash = hex(&hasher.finalize());
+    let hash = finish(hasher);
     let root = output.join("site").join(&hash);
     for (file, bytes) in contents {
         let path = root.join(file);
@@ -402,7 +403,7 @@ fn webp(image: &image::RgbaImage) -> Result<Vec<u8>, String> {
 }
 
 fn write_hashed(output: &Path, extension: &str, bytes: &[u8]) -> Result<String, String> {
-    let hash = hex(&Sha256::digest(bytes));
+    let hash = sha256(bytes);
     let path = output.join(format!("{hash}.{extension}"));
     fs::write(&path, bytes)
         .map_err(|error| format!("could not write {}: {error}", path.display()))?;

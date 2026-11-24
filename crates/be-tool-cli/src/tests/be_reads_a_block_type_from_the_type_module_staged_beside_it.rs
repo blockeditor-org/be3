@@ -24,18 +24,12 @@ async fn be_reads_a_block_type_from_the_type_module_staged_beside_it() {
     let module = be_host_stack::discovery::open("counter_types.wasm")
         .and_then(|stored| stored.into_bytes())
         .expect("the counter's type module is staged");
-    let staged: String =
-        sha2::Digest::finalize(<sha2::Sha256 as sha2::Digest>::new_with_prefix(&module))
-            .iter()
-            .map(|byte| format!("{byte:02x}"))
-            .collect();
-    let tag: String = modules
-        .tag(0)
-        .0
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect();
-    assert_eq!(tag, staged, "its session tag is its SHA-256");
+    use be_lib_sha256::{Digest as _, Sha256};
+    assert_eq!(
+        modules.tag(0).0[..],
+        Sha256::digest(&module)[..],
+        "its session tag is its SHA-256"
+    );
 
     let blank = be_block_type_host::kind_of(CounterContent::CONTENT_TYPE)
         .expect("the counter's type is known")

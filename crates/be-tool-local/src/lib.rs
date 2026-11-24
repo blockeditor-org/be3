@@ -38,20 +38,3 @@ pub fn run() -> ExitCode {
         }
     }
 }
-
-fn git(arguments: &[&str]) -> Option<String> {
-    git_bytes(arguments).and_then(|bytes| String::from_utf8(bytes).ok())
-}
-
-fn git_bytes(arguments: &[&str]) -> Option<Vec<u8>> {
-    let output = std::process::Command::new("git")
-        .args(arguments)
-        .stderr(std::process::Stdio::null())
-        .output()
-        .ok()?;
-    output.status.success().then_some(output.stdout)
-}
-
-fn hex(bytes: &[u8]) -> String {
-    bytes.iter().map(|byte| format!("{byte:02x}")).collect()
-}

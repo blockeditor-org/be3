@@ -1,8 +1,6 @@
 use std::fs;
 use std::path::Path;
 
-use sha2::{Digest, Sha256};
-
 const PINS: &str = "scripts/internal/pins";
 
 pub enum Outcome {
@@ -58,11 +56,4 @@ pub fn set(pins: &str, values: &[(String, String)]) -> Result<String, String> {
         written.push('\n');
     }
     Ok(written)
-}
-
-pub fn sha256(bytes: &[u8]) -> String {
-    Sha256::digest(bytes)
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect()
 }
