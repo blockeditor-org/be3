@@ -429,6 +429,9 @@ pub fn end(resource: OpId) {
     }
 }
 
+/// Starts a call of `method` with `args` at once: its `Start` frame is queued as this is called,
+/// before the answer is first awaited, so calls go out in the order they were made, whenever
+/// each is awaited or spawned.
 pub fn call<T, S: Decode<T>, A: Serialize>(method: MethodId, args: &A) -> Pending<T, S> {
     let inner = current();
     let op = inner.start(method, encode(args));
@@ -440,6 +443,9 @@ pub fn call<T, S: Decode<T>, A: Serialize>(method: MethodId, args: &A) -> Pendin
     }
 }
 
+/// Starts a stream of `method` with `args` at once: its `Start` frame is queued as this is
+/// called, before its first item is awaited, so it goes out in order with the calls made around
+/// it.
 pub fn stream<T, S: Decode<T>, A: Serialize>(method: MethodId, args: &A) -> Stream<T, S> {
     let inner = current();
     let op = inner.start(method, encode(args));
@@ -452,6 +458,8 @@ pub fn stream<T, S: Decode<T>, A: Serialize>(method: MethodId, args: &A) -> Stre
     }
 }
 
+/// Opens a resource with `method` and `args` at once: its `Start` frame is queued as this is
+/// called, so it goes out in order with the calls made around it.
 pub fn open<A: Serialize>(method: MethodId, args: &A) -> Resource {
     let inner = current();
     let op = inner.start(method, encode(args));

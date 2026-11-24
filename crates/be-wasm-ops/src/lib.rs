@@ -20,13 +20,15 @@ pub type MethodId = u32;
 
 pub const GUEST_BIT: OpId = 1 << 63;
 
-/// The bit every op a relayed connection (`Connection::relayed`) starts carries beside its
-/// side's, so its ops never meet those of the connection that forwards it their frames.
+/// The bit every op a host's relayed connection (`Connection::relayed`) starts carries, so its
+/// ops never meet those of the host's connection that forwards it their frames.
 pub const RELAYED_BIT: OpId = 1 << 62;
 
-/// Whether `op` was started by a relayed connection (`Connection::relayed`).
+/// Whether `op` was started by a host's relayed connection (`Connection::relayed`): it carries
+/// `RELAYED_BIT` and is the host's side's, so an op the guest started with that bit set in its
+/// own id is not taken for one.
 pub fn is_relayed(op: OpId) -> bool {
-    op & RELAYED_BIT != 0
+    op & (RELAYED_BIT | GUEST_BIT) == RELAYED_BIT
 }
 
 pub const STREAM_WINDOW: u32 = 16;
@@ -331,14 +333,14 @@ impl Connection {
         }
     }
 
-    /// A connection to a peer another connection of `side` already talks to, which forwards
-    /// this one the frames of the ops it starts and of those the peer starts under them, and
-    /// relays the frames it sends unread: the ops it starts carry `RELAYED_BIT`, so the
-    /// forwarder tells them by their ids alone.
-    pub fn relayed(side: Side) -> Self {
+    /// A host's connection to a guest another host's connection already talks to, which
+    /// forwards this one the frames of the ops it starts and of those the guest starts under
+    /// them, and relays the frames it sends unread: the ops it starts carry `RELAYED_BIT`, so
+    /// the forwarder tells them by their ids alone (`is_relayed`).
+    pub fn relayed() -> Self {
         Self {
             next: RELAYED_BIT,
-            ..Self::new(side)
+            ..Self::new(Side::Host)
         }
     }
 

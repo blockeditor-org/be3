@@ -183,7 +183,7 @@ impl Wire {
     /// this wire opens (`Wire::take_forwarded`): the ops it starts carry `RELAYED_BIT`, so they never
     /// meet the root's own on the app's connection.
     pub fn relayed(mut self) -> Self {
-        self.connection = Connection::relayed(Side::Host);
+        self.connection = Connection::relayed();
         self
     }
 

@@ -598,7 +598,9 @@ impl State {
     }
 
     /// Hands the root's host what the app sent it, under the editor the host opened
-    /// (`host.forward`). The call starts at once, so the host hears each app's frames in order.
+    /// (`host.forward`). The call's `Start` goes out as it is made, before the task awaiting
+    /// it is spawned (be-wasm-ops' `guest::call`), so the host hears each app's frames in the
+    /// order it sent them.
     fn forward(&mut self) {
         let frames = self.wire.take_forwarded();
         if frames.is_empty() {
