@@ -3,20 +3,20 @@ use std::ops::{Deref, DerefMut};
 
 use beui_view::reactive::*;
 
-pub(crate) struct Watched<T> {
+pub(crate) struct Watched<T, S: Copy + PartialEq + 'static = bool> {
     value: RefCell<T>,
-    flag: Signal<bool>,
-    test: fn(&T) -> bool,
+    flag: Signal<S>,
+    test: fn(&T) -> S,
 }
 
-pub(crate) struct WatchedMut<'a, T> {
+pub(crate) struct WatchedMut<'a, T, S: Copy + PartialEq + 'static = bool> {
     value: Option<RefMut<'a, T>>,
-    flag: Signal<bool>,
-    test: fn(&T) -> bool,
+    flag: Signal<S>,
+    test: fn(&T) -> S,
 }
 
-impl<T> Watched<T> {
-    pub(crate) fn new(value: T, test: fn(&T) -> bool) -> Self {
+impl<T, S: Copy + PartialEq + 'static> Watched<T, S> {
+    pub(crate) fn new(value: T, test: fn(&T) -> S) -> Self {
         let flag = create_signal(test(&value));
         Self {
             value: RefCell::new(value),
@@ -25,7 +25,7 @@ impl<T> Watched<T> {
         }
     }
 
-    pub(crate) fn flag(&self) -> ReadSignal<bool> {
+    pub(crate) fn flag(&self) -> ReadSignal<S> {
         self.flag.read_only()
     }
 
@@ -37,7 +37,7 @@ impl<T> Watched<T> {
         self.value.try_borrow()
     }
 
-    pub(crate) fn borrow_mut(&self) -> WatchedMut<'_, T> {
+    pub(crate) fn borrow_mut(&self) -> WatchedMut<'_, T, S> {
         WatchedMut {
             value: Some(self.value.borrow_mut()),
             flag: self.flag,
@@ -45,7 +45,7 @@ impl<T> Watched<T> {
         }
     }
 
-    pub(crate) fn try_borrow_mut(&self) -> Result<WatchedMut<'_, T>, BorrowMutError> {
+    pub(crate) fn try_borrow_mut(&self) -> Result<WatchedMut<'_, T, S>, BorrowMutError> {
         Ok(WatchedMut {
             value: Some(self.value.try_borrow_mut()?),
             flag: self.flag,
@@ -54,7 +54,7 @@ impl<T> Watched<T> {
     }
 }
 
-impl<T> Deref for WatchedMut<'_, T> {
+impl<T, S: Copy + PartialEq + 'static> Deref for WatchedMut<'_, T, S> {
     type Target = T;
 
     fn deref(&self) -> &T {
@@ -62,16 +62,21 @@ impl<T> Deref for WatchedMut<'_, T> {
     }
 }
 
-impl<T> DerefMut for WatchedMut<'_, T> {
+impl<T, S: Copy + PartialEq + 'static> DerefMut for WatchedMut<'_, T, S> {
     fn deref_mut(&mut self) -> &mut T {
         self.value.as_deref_mut().expect("held until dropped")
     }
 }
 
-impl<T> Drop for WatchedMut<'_, T> {
+impl<T, S: Copy + PartialEq + 'static> Drop for WatchedMut<'_, T, S> {
     fn drop(&mut self) {
         let test = self.test;
-        let now = self.value.take().is_some_and(|value| test(&value));
-        self.flag.set(now);
+        if let Some(value) = self.value.take() {
+            let now = test(&value);
+            drop(value);
+            if self.flag.get_untracked() != now {
+                self.flag.set(now);
+            }
+        }
     }
 }

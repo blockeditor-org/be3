@@ -9,7 +9,7 @@ fn on_a_phone_a_demos_dock_tabs_are_tabs_of_the_workspace() {
     host.wait("#dock.back");
     host.click("#dock.switch");
     host.wait("#dock.switcher.tab.1");
-    host.run(&["pause", "1000"]);
+    host.wait_still("#sheet.handle");
     host.wait("Button \"Components\"");
     host.wait("Label value=\"Docking\"");
     host.snapshot("on_a_phone_a_demos_dock_tabs_are_tabs_of_the_workspace");

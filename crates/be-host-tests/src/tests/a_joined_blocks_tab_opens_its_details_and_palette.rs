@@ -10,7 +10,7 @@ fn a_joined_blocks_tab_opens_its_details_and_palette() {
     host.wait("MenuItem \"File details\"");
     host.click("MenuItem \"File details\"");
     host.wait("#workspace.details.rename");
-    host.run(&["pause", "1000"]);
+    host.wait_still("#sheet.handle");
     host.snapshot("a_joined_blocks_tab_opens_its_details");
     host.key("Escape");
     host.gone("#workspace.details.rename");

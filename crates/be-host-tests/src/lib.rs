@@ -14,6 +14,9 @@ mod server;
 pub use player::Player;
 pub use server::{Account, Server};
 
+/// How long `wait_still` moves the clock on between two looks, and how many it takes.
+const STILL_STEP: u32 = 100;
+const STILL_STEPS: usize = 50;
 const SIZE: &str = "1100x720";
 const MISSING_EDITOR: [&str; 2] = ["Unsupported block type", "No block types match."];
 const SLOW_WAIT: Duration = Duration::from_secs(5);
@@ -392,6 +395,29 @@ impl HostTest {
 
     pub fn tree(&mut self) -> String {
         self.run(&["tree"])
+    }
+
+    /// Moves the stopped clock on until `target` stays put between two steps: a sheet that
+    /// has come to rest on its stop.
+    pub fn wait_still(&mut self, target: &str) {
+        // Read from the tree, which names it off screen too (a sheet yet to rise).
+        let placed = |host: &mut Self| {
+            let tree = host.tree();
+            tree.lines()
+                .find(|line| line.split_whitespace().any(|word| word == target))
+                .and_then(|line| line.split(" at ").nth(1))
+                .map(|place| place.split_whitespace().take(3).collect::<Vec<_>>().join(" "))
+        };
+        let mut was = placed(self);
+        for _ in 0..STILL_STEPS {
+            self.pause(STILL_STEP);
+            let now = placed(self);
+            if now == was {
+                return;
+            }
+            was = now;
+        }
+        self.fail(&format!("{target} was still moving after {STILL_STEPS} steps of {STILL_STEP} ms"));
     }
 
     pub fn place(&mut self, target: &str) -> (f32, f32, f32, f32) {

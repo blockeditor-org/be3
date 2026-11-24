@@ -223,6 +223,7 @@ pub fn Sheet(
     // content's own shift while the grip lowers the sheet, so it stays where it was scrolled.
     let kept = create_signal(0.0_f32);
     let gripped = create_signal(false);
+    let moving_aside = StoredCell::new(false);
     let api = move || scroll.try_get();
     let laid_out = move || position.with_untracked(Option::is_some) && top.get_untracked() > 0.0;
     let settle_on = move |to: Aim| {
@@ -429,22 +430,34 @@ pub fn Sheet(
             && let Some(api) = api()
         {
             kept.update(|kept| *kept += past);
+            moving_aside.set(true);
             api.scroll_to(top.get_untracked());
         }
     });
-    // Back at its top with the grip let go, what was kept becomes the scroll again, so
-    // dragging, the wheel and the keys go on from where it shows.
+    // What was kept becomes the scroll again, looking just as it did, once the sheet is back
+    // at its top with the grip let go, or as soon as anything scrolls it past its top (a drag
+    // going on), so dragging, the wheel and the keys go on from where it shows and the
+    // content never runs past its end.
     create_effect(move || {
+        let (raised, top) = (raised.get(), top.get());
+        // The scroll has yet to report the move to the top that set `kept` aside.
+        if moving_aside.get() {
+            match raised > top + SETTLED {
+                true => return,
+                false => moving_aside.set(false),
+            }
+        }
         let back = kept.get() > 0.0
-            && !gripped.get()
-            && raised.get() >= top.get() - SETTLED
-            && !api().is_some_and(|api| api.animating());
+            && (raised > top + SETTLED
+                || (raised >= top - SETTLED
+                    && !gripped.get()
+                    && !api().is_some_and(|api| api.animating())));
         if back {
             untrack(|| {
                 let by = kept.get();
                 kept.set(0.0);
                 if let Some(api) = api() {
-                    api.scroll_to(raised.get() + by);
+                    api.shift(by);
                 }
             });
         }
@@ -503,6 +516,7 @@ pub fn Sheet(
                 api=scroll
                 offset={start}
                 snaps={snaps}
+                keep_past_last_stop=true
                 on_snap={snapped}
                 bar_from={top}
                 style={style.fading(0.0)}
