@@ -100,6 +100,19 @@ pub fn ContextMenu(
         true => SheetWhen::Never,
         false => SheetWhen::Touched,
     };
+    // The menu is built when it opens and dropped once its close has finished leaving, so a
+    // closed context menu costs nothing but its holder.
+    let built = create_signal(false);
+    create_effect(move || {
+        if open.get() {
+            untrack(|| built.set(true));
+        }
+    });
+    let gone = Callback::new(move |()| {
+        if built.is_alive() && !open.get_untracked() {
+            built.set(false);
+        }
+    });
     let toolbar_style = menu.toolbar();
     let has_toolbar = toolbar_style.is_some();
     let toolbar_open = create_memo(move || {
@@ -149,19 +162,22 @@ pub fn ContextMenu(
         >
             <List spacing=0.0>
                 <ListItem grow=child_grow>{children}</ListItem>
-                <MenuPopup
-                    overlay
-                    content
-                    items={items.clone()}
-                    menu={menu}
-                    anchor={holder}
-                    open
-                    at
-                    placement
-                    bounds
-                    sheet
-                    focusing
-                />
+                <Show value={built}>
+                    <MenuPopup
+                        overlay
+                        content
+                        items={items.clone()}
+                        menu={menu}
+                        anchor={holder}
+                        open
+                        at
+                        placement
+                        bounds
+                        sheet
+                        focusing
+                        on_gone={gone}
+                    />
+                </Show>
                 {toolbar_style.map(|(button, panel)| view! {
                     <Show value={toolbar_open}>
                         <Toolbar
@@ -293,6 +309,11 @@ impl ContextMenuApi {
 
     pub fn overlay(&self) -> NodeId {
         self.0.overlay.get()
+    }
+
+    /// Whether its menu is built: only from an open until its close has finished leaving.
+    pub fn built(&self) -> bool {
+        self.0.overlay.try_get().is_some()
     }
 
     pub fn open(&self, tree: &impl Inspect) -> bool {

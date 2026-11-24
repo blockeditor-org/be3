@@ -2792,14 +2792,19 @@ fn FailedImport() -> NodeId {
     }
 }
 
+/// Its panel is kept, so the choices made in it are still there when it opens again.
 #[sample]
 #[component]
 fn FiltersButton() -> NodeId {
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
-            <Popover label="Filters" @test_id="demo.filters">|handle: PopoverHandle|
-                <FilterPopover handle />
-            </Popover>
+            <KeepAlive>
+                <Popover label="Filters" @test_id="demo.filters">|handle: PopoverHandle|
+                    <Kept>
+                        <FilterPopover handle />
+                    </Kept>
+                </Popover>
+            </KeepAlive>
         </List>
     }
 }

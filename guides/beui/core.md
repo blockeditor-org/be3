@@ -209,7 +209,9 @@ but reads its context from where it is shown: while a `Kept` shows it, from
 around that `Kept` (an overlay's presence, say), and while hidden, from around
 the `KeepAlive` (`Scope::read_context_from`). What it reads as it builds comes
 from the `Kept` that first built it; what it builds later, once moved, from the
-`Kept` it moved to. Inside, `kept_shown()` is a
+`Kept` it moved to. Context that must follow a move between `Kept`s is read
+lazily, with `use_context` inside the effect that needs it; a value captured at
+build stays the first `Kept`'s. Inside, `kept_shown()` is a
 memo of whether the subtree (and every one kept around it) is shown, for what
 it holds outside itself and must let go while hidden. Each `Kept` adds a portal
 node between its slot and what it keeps.
