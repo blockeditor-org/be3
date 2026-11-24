@@ -4,6 +4,7 @@ use be_sdk_api::{ChildContent, ChildId, ChildLayer, ChildMode, ChildPlacement, T
 use super::*;
 
 mod a_child_is_asked_for_its_place_at_its_placers_raster;
+mod a_child_that_opens_fails_or_is_refused_takes_no_frame;
 mod a_child_kept_placed_keeps_its_editor_and_one_placed_no_longer_goes;
 mod a_child_placed_in_a_dock_tabs_body_joins_its_placers_dock;
 mod a_child_takes_the_presses_only_where_it_shows;
@@ -17,8 +18,10 @@ mod a_new_keyboard_ask_moves_the_keyboard_into_a_child_that_shows;
 mod a_placer_is_hit_everywhere_but_where_its_children_that_take_input_are;
 mod a_press_outside_a_child_taking_the_frame_takes_the_frame_back;
 mod a_press_outside_an_active_child_or_escape_in_its_placer_takes_it_back;
+mod a_view_holding_the_editors_content_is_the_one_whose_frame_a_child_takes;
 mod each_placer_above_a_child_hears_the_keyboard_went_into_it;
 mod only_an_active_or_live_child_with_no_frame_of_its_own_takes_a_framed_view;
+mod taking_the_frame_back_takes_it_from_every_child_of_that_view;
 
 /// A block child placed at `rect` in its placer's view, `mode`, under it.
 fn placed(rect: Rect, mode: ChildMode) -> ChildPlacement {

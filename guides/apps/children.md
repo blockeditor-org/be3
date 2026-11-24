@@ -62,12 +62,14 @@ nothing outside the editor took it meanwhile. Placers hear
 `child-focused` through `be3:root`'s `host.tell-placer`, and a press outside an
 active child or Escape in its placer takes it back (`Children::revoke`).
 
-A child that takes its placer's frame (below) is asked for a screen the size
-of its placer's, with the placer's frame drawn and its placed rect as the
-frame's `content` (`framing_screen`), and shown over the placer, which is
-asked for its view with no chrome meanwhile. It is hit everywhere but where its
-content shows outside its placed rect, so a press there reaches the placer and
-takes the frame back, as Escape in the placer does.
+A child that takes its placer's frame (below), the first that could in the
+placer's content view and only once it shows its screen, is asked for a screen
+the size of its placer's, with the placer's frame drawn and its placed rect as
+the frame's `content` (`framing_screen`), and shown over the placer, which is
+asked for its view with no chrome meanwhile (`Children::withdraw_chrome`). It
+is hit everywhere but where its content shows outside its placed rect, so a
+press there reaches the placer and takes the frame back, as Escape in the
+placer does, from every child of that view that could take it.
 
 Docks join as under be-host (Docks across apps, below): the outermost
 `Children` holds one be-sdk-app-host `Docks` for every editor it shows, hears

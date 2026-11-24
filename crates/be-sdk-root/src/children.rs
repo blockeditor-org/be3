@@ -287,6 +287,16 @@ impl Child {
         self.layer == Some(layer) || self.tab_layers().any(|shown| shown == layer)
     }
 
+    /// Whether it shows its screen: its editor opened and its app painted it, so the frame it
+    /// takes over is drawn.
+    fn shows_frame(&self) -> bool {
+        self.placed
+            && self.up
+            && self
+                .hosted()
+                .is_some_and(|(app, _)| app.layer(CHILD_SCREEN, pos2(0.0, 0.0)).is_some())
+    }
+
     /// The editor its app shows, once the host opened it.
     fn hosted(&self) -> Option<(Embedded, EditorInstanceId)> {
         match &*self.showing.borrow() {
@@ -507,7 +517,7 @@ impl Children {
             }
         }
         self.hear_asks(asking);
-        let taking = framing(&placed, &self.requests, &self.frame_revoked, &self.revoked);
+        let taking = self.framing_in(parent, &placed, &self.requests);
         for editor in &editors {
             match on_screen {
                 true => {
@@ -617,21 +627,7 @@ impl Children {
                     }
                 }
                 child.tabs.retain(|tab| tab.asked);
-                // Its own child taking a view's frame over: the view draws no chrome meanwhile.
-                let own = framing(
-                    &app.placed(),
-                    &screens,
-                    &child.nested.frame_revoked,
-                    &child.nested.revoked,
-                );
-                for screen in &mut screens {
-                    let taken = own
-                        .iter()
-                        .any(|(editor, view, ..)| (*editor, *view) == (screen.instance, screen.view));
-                    if let Some(frame) = screen.frame.as_mut().filter(|_| taken) {
-                        frame.chrome = FrameChrome::None;
-                    }
-                }
+                child.nested.withdraw_chrome(app, &mut screens);
                 app.show(screens);
             } else {
                 child.tabs.clear();
@@ -724,6 +720,10 @@ impl Children {
             let _ = docks.take_picks(&key);
             let _ = docks.take_details(&key);
         }
+        // be-host-runtime marks the apps `take_changed` names for a frame. Here every app's
+        // updates were just taken and handed to the host, whose relayed answer to an editor's
+        // dock watch wakes its app, and what the app lays out then reaches the root as any
+        // layout does (`Embedded::wants`): there is nothing left to mark.
         let _ = docks.take_changed();
     }
 
@@ -806,8 +806,12 @@ impl Children {
     /// Takes back active children, as be-host does: a pointer's press anywhere but in the child
     /// (in its placer's view or outside it, on the root's own surfaces too), or Escape in its
     /// placer's view. Each leaves the input to its placer, which hears it is no longer active
-    /// with the next `settle`. Their own children's likewise.
+    /// with the next `settle`. A child taking its placer's frame over gives it back the same
+    /// way, and so does every child of that view that could take it, as be-host's
+    /// `revoke_frame_child` does, so the frame goes to none of its siblings. Their own
+    /// children's likewise.
     pub fn revoke(&mut self, pressed: &[Pressed]) {
+        let mut frames_back = Vec::new();
         for child in &self.shown {
             let active =
                 child.placement.mode == ChildMode::Active && child.takes_input(&self.revoked);
@@ -827,13 +831,67 @@ impl Children {
                 self.revoked.insert((child.editor, child.view, child.child));
             }
             if taken && child.framing {
-                self.frame_revoked
-                    .insert((child.editor, child.view, child.child));
+                frames_back.push((child.editor, child.view));
+            }
+        }
+        for (editor, view) in frames_back {
+            for child in &self.shown {
+                if (child.editor, child.view) == (editor, view) && could_frame(&child.placement) {
+                    self.frame_revoked
+                        .insert((child.editor, child.view, child.child));
+                }
             }
         }
         for child in &mut self.shown {
             child.nested.revoke(pressed);
         }
+    }
+
+    /// Withdraws the chrome of each of `screens`, the screens `app` (the app these are the
+    /// children of) is asked for, that a child of these takes the frame of: the view draws none
+    /// while the child draws it.
+    pub fn withdraw_chrome(&self, app: &Embedded, screens: &mut [ScreenRequest]) {
+        let taking = self.framing_in(app, &app.placed(), screens);
+        for screen in screens {
+            let taken = taking
+                .iter()
+                .any(|(editor, view, ..)| (*editor, *view) == (screen.instance, screen.view));
+            if let Some(frame) = screen.frame.as_mut().filter(|_| taken) {
+                frame.chrome = FrameChrome::None;
+            }
+        }
+    }
+
+    /// Whether the child `id` that `editor` placed in its view `view` shows its screen, which
+    /// draws the frame it takes over: not one still opening, one that failed or one refused.
+    fn shows_frame(&self, editor: EditorInstanceId, view: ViewId, id: ChildId) -> bool {
+        self.shown.iter().any(|child| {
+            (child.editor, child.view, child.child) == (editor, view, id) && child.shows_frame()
+        })
+    }
+
+    /// `framing` for these children of `app`, placed as `placed` in the views `requests` asks
+    /// for: in each editor's content view, as `app` reports it, a child that shows.
+    fn framing_in(
+        &self,
+        app: &Embedded,
+        placed: &[ChildPlacements],
+        requests: &[ScreenRequest],
+    ) -> Vec<(EditorInstanceId, ViewId, ChildId, [u8; 16])> {
+        let content = |editor: EditorInstanceId| content_view(editor, requests, &|screen| {
+            app.content(screen).is_some()
+        });
+        let shows = |editor, view, id| self.shows_frame(editor, view, id);
+        framing(
+            placed,
+            requests,
+            &Framing {
+                frame_revoked: &self.frame_revoked,
+                revoked: &self.revoked,
+                content: &content,
+                shows: &shows,
+            },
+        )
     }
 
     /// Moves the keyboard where an ask says, with the keyboard now in the layer `focused` and
@@ -1290,20 +1348,40 @@ fn tab_screen(
     request
 }
 
+/// What decides which child takes a view's frame over (`framing`).
+struct Framing<'a> {
+    /// The children taken back from their placers' frames, and as active children.
+    frame_revoked: &'a HashSet<(EditorInstanceId, ViewId, ChildId)>,
+    revoked: &'a HashSet<(EditorInstanceId, ViewId, ChildId)>,
+    /// The view of each editor that holds its content (`content_view`).
+    content: &'a dyn Fn(EditorInstanceId) -> ViewId,
+    /// Whether a child shows its screen, which draws the frame it takes.
+    shows: &'a dyn Fn(EditorInstanceId, ViewId, ChildId) -> bool,
+}
+
+/// Whether a child placed as `placement` would take its placer's frame over: active or live,
+/// with no frame of its own, showing some of its block.
+fn could_frame(placement: &ChildPlacement) -> bool {
+    matches!(placement.mode, ChildMode::Active | ChildMode::Live)
+        && !placement.own_frame
+        && placement.rect.is_positive()
+        && matches!(placement.content, ChildContent::Block { .. })
+}
+
 /// For each editor of those that placed `placed` in the views `requests` asks for, the child
-/// that takes the frame of one of its views over, if any: the first placed active or live with
-/// no frame of its own, in a view with a frame, showing some of its block, and not taken back
-/// (`revoked`, `frame_revoked`). By the editor, the view, the child and its block.
+/// that takes the frame of its content view over, if any, as be-host's `Instances::framing`
+/// says: the first that could (`could_frame`), in a content view with a frame, not taken back,
+/// and showing, so its placer never loses its chrome to a child that draws none. By the editor,
+/// the view, the child and its block.
 fn framing(
     placed: &[ChildPlacements],
     requests: &[ScreenRequest],
-    frame_revoked: &HashSet<(EditorInstanceId, ViewId, ChildId)>,
-    revoked: &HashSet<(EditorInstanceId, ViewId, ChildId)>,
+    rules: &Framing<'_>,
 ) -> Vec<(EditorInstanceId, ViewId, ChildId, [u8; 16])> {
     let mut framing: Vec<(EditorInstanceId, ViewId, ChildId, [u8; 16])> = Vec::new();
     for placements in placed {
         let (editor, view) = (placements.instance, placements.view);
-        if framing.iter().any(|framed| framed.0 == editor) {
+        if framing.iter().any(|framed| framed.0 == editor) || (rules.content)(editor) != view {
             continue;
         }
         let framed = requests
@@ -1317,16 +1395,32 @@ fn framing(
                 return None;
             };
             let key = (editor, view, child.child);
-            (matches!(child.mode, ChildMode::Active | ChildMode::Live)
-                && !child.own_frame
-                && child.rect.is_positive()
-                && !frame_revoked.contains(&key)
-                && !revoked.contains(&key))
+            (could_frame(child)
+                && !rules.frame_revoked.contains(&key)
+                && !rules.revoked.contains(&key)
+                && (rules.shows)(editor, view, child.child))
             .then_some((editor, view, child.child, block_id))
         });
         framing.extend(taking);
     }
     framing
+}
+
+/// The view of `editor`, among those `requests` asks for, that holds its content, as be-host's
+/// `Instances::content_view` says: its main view if that reports content (`holds`), else the
+/// first view of its dock that does, else its main view.
+fn content_view(
+    editor: EditorInstanceId,
+    requests: &[ScreenRequest],
+    holds: &dyn Fn(ScreenId) -> bool,
+) -> ViewId {
+    let of_editor = || requests.iter().filter(move |screen| screen.instance == editor);
+    if of_editor().any(|screen| screen.view == ViewId::MAIN && holds(screen.screen)) {
+        return ViewId::MAIN;
+    }
+    of_editor()
+        .find(|screen| screen.placement == ViewPlacement::Dock && holds(screen.screen))
+        .map_or(ViewId::MAIN, |screen| screen.view)
 }
 
 /// The block children each editor placed in its dock tabs' bodies (`child-placement.docks`):

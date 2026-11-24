@@ -674,12 +674,14 @@ fn serve_editors(core: &crate::HostCore, root: &mut Root, editors: &mut Editors)
         .into_iter()
         .chain(root.take_openings())
         .collect();
-    // The stack lists what the root asks for, as it lists the blocks be-host's own editors
-    // show, which it may not have yet once it starts on the data it kept.
+    // The stack lists what the root asks for and every block whose editor it serves the root,
+    // as it lists the blocks be-host's own editors show: it may not have them yet once it
+    // starts on the data it kept, and keeps them while they show.
     let mut wanted: Vec<[u8; 16]> = asks
         .iter()
         .map(|(_, shown)| shown.block)
         .chain(openings.iter().map(|opening| opening.shown.block))
+        .chain(editors.opened.values().map(|opened| opened.block.into_bytes()))
         .collect();
     wanted.sort_unstable();
     wanted.dedup();

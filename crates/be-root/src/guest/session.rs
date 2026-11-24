@@ -139,9 +139,9 @@ impl Root {
                     *state = Showing::Failed(failure);
                 }
                 None => {
-                    hosted
-                        .app
-                        .show(vec![screen(hosted.editor, self.window.get())]);
+                    let mut screens = vec![screen(hosted.editor, self.window.get())];
+                    children.withdraw_chrome(&hosted.app, &mut screens);
+                    hosted.app.show(screens);
                     let spawning = self.spawning();
                     children.settle(&hosted.app, &[*block], &mut embedding, &spawning, time);
                 }
