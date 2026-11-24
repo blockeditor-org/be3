@@ -32,6 +32,8 @@ pub(crate) struct Entry {
     pub(crate) wraps: u32,
     pub(crate) owner: Option<ScopeContext>,
     pub(crate) direction: Direction,
+    /// Whether a list wraps its items, which sticks none of them.
+    pub(crate) wraps_items: bool,
     pub(crate) states: Vec<Box<dyn Any>>,
     refs: Vec<Weak<NodeCell>>,
 }
@@ -180,6 +182,7 @@ fn create_on(kind: &'static str, element: Node, shared: Rc<RefCell<Shared>>, wra
         wraps,
         owner: beui_reactive::current_scope(),
         direction: Direction::Vertical,
+        wraps_items: false,
         states: Vec::new(),
         refs: Vec::new(),
     };
@@ -270,6 +273,14 @@ pub fn direction(node: NodeId) -> Direction {
 
 pub fn set_direction(node: NodeId, direction: Direction) {
     with_entry(node, |entry| entry.direction = direction);
+}
+
+pub fn wraps(node: NodeId) -> bool {
+    with_entry(node, |entry| entry.wraps_items).unwrap_or(false)
+}
+
+pub fn set_wraps(node: NodeId, wraps: bool) {
+    with_entry(node, |entry| entry.wraps_items = wraps);
 }
 
 fn write(

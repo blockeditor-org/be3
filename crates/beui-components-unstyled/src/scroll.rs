@@ -36,6 +36,9 @@ use beui_view::{CORE, Core};
 
 const STEP: f32 = 40.0;
 const EDGE_SLACK: f32 = 0.5;
+/// How long a browser scroll that snaps is still before it counts as rested, where the browser
+/// does not say (`scrollend`).
+const SCROLL_STILL: Duration = Duration::from_millis(150);
 /// How near a snap stop, and how slow, a scroll settling on it simply stops there.
 const SNAP_SLACK: f32 = 0.5;
 const END_SLACK: f32 = 1.0;
@@ -199,6 +202,8 @@ struct Momentum {
     snap: Option<f32>,
     /// A stop a coast chose on its own, to tell `on_snap`.
     reached: Option<f32>,
+    /// How low a coast goes: a wheel past the last stop scrolls only what lies past it.
+    floor: Option<f32>,
     /// Whether the stop it settles on was asked for (`ScrollApi::settle_to`) rather than
     /// chosen by a release: that motion takes no press, so what is under it can be pressed.
     asked: bool,
@@ -217,6 +222,7 @@ impl Momentum {
             snaps: Vec::new(),
             snap: None,
             reached: None,
+            floor: None,
             asked: false,
         }
     }
@@ -244,9 +250,10 @@ impl Momentum {
         let carried = Fling::new(self.velocity).map_or(0.0, |fling| fling.distance());
         let landing = offset + carried;
         let last = self.snaps.last()?.clamp(0.0, max_offset);
-        // Past the last stop it moves freely: a sheet's content scrolls past its top stop.
         if landing > last + SNAP_SLACK {
-            return None;
+            // Past the last stop it moves freely (a sheet's content, past its top stop), but a
+            // coast from short of it stops there: a flick up raises a sheet, not its content.
+            return (offset < last - SNAP_SLACK).then_some(last);
         }
         self.snaps
             .iter()
@@ -282,6 +289,7 @@ impl Momentum {
         self.fling = None;
         self.snap = None;
         self.asked = false;
+        self.floor = None;
         self.autoscroll = 0.0;
     }
 
@@ -375,13 +383,18 @@ impl Momentum {
         if fling.done() {
             self.fling = None;
         }
-        // A free coast coming back below the last stop settles on a stop from there.
+        // A free coast coming back below the last stop settles on a stop from there, or, held
+        // to its floor (a wheel's), stops at the last.
         if let Some(last) = self.snaps.last().map(|last| last.clamp(0.0, position.max_offset()))
             && from > last
             && raw <= last
         {
             position.offset = last;
             self.fling = None;
+            if self.floor.is_some() {
+                self.velocity = 0.0;
+                return;
+            }
             self.snap = self.aim(last, position.max_offset());
             if self.snap.is_some() {
                 self.reached = self.snap;
@@ -657,22 +670,33 @@ impl Motion {
             return;
         }
         momentum.rest();
-        let offset = (position.offset - wheel).clamp(0.0, position.max_offset());
+        let mut offset = (position.offset - wheel).clamp(0.0, position.max_offset());
         self.take_snaps(&mut momentum);
-        // Within its stops, a wheel's step goes on to the next stop that way.
-        if wheel != 0.0
-            && let Some(stop) =
-                momentum.next_stop(position.offset, wheel < 0.0, position.max_offset())
-        {
-            momentum.snap = Some(stop);
-            self.chosen.set(Some(stop));
-            self.animate(&mut momentum);
-            return;
+        // A wheel never takes it below its last stop once there (a sheet's wheel scrolls what
+        // it holds, never lowers it); short of it, a step up goes on to the next stop.
+        let last = momentum
+            .snaps
+            .last()
+            .map(|last| last.clamp(0.0, position.max_offset()));
+        if let Some(last) = last {
+            if position.offset < last - SNAP_SLACK {
+                if wheel < 0.0
+                    && let Some(stop) =
+                        momentum.next_stop(position.offset, true, position.max_offset())
+                {
+                    momentum.snap = Some(stop);
+                    self.chosen.set(Some(stop));
+                    self.animate(&mut momentum);
+                }
+                return;
+            }
+            offset = offset.max(last);
         }
         self.publish(&momentum, &position, offset);
         if fling != 0.0 && rubber_banding() {
             let moved = ScrollPosition { offset, ..position };
             self.release(&mut momentum, -fling, &moved);
+            momentum.floor = last;
             self.animate(&mut momentum);
         }
     }
@@ -1239,9 +1263,10 @@ pub fn Scroll(
     #[prop(default = None)] reveal: Prop<Option<usize>>,
     #[prop(default = Direction::Vertical)] direction: Prop<Direction>,
     /// Offsets along `direction` that a fling and a release settle on, the nearest to where
-    /// they would have come to rest, and a wheel's step goes on to the next of; none lets them
-    /// rest anywhere. Past the last stop it moves freely. The keys move freely. Natively only
-    /// for now: the HTML core's browser scroll ignores them.
+    /// they would have come to rest; none lets them rest anywhere. Past the last stop it moves
+    /// freely, but a coast from short of it stops there. A wheel or a key past the last stop
+    /// stays past it; short of it, a wheel's step up and a key step between stops. On the HTML
+    /// core they are the browser's scroll snap.
     #[prop(default = Vec::new())]
     snaps: Prop<Vec<f32>>,
     /// Told the stop a release, a fling or a wheel's step chose, as it starts settling there.
@@ -1391,16 +1416,11 @@ fn BrowserScroll(
             on_change.call(position);
         }
     };
-    let scrolled = move || {
-        refresh();
-        if let Some(position) = reported.get_untracked() {
-            pinned.set(position.offset >= position.max_offset() - END_SLACK);
-        }
-    };
     let dragging = create_signal(false);
-    // A stop just told `on_snap` by a drag's release, so the scroll's coming to rest there
-    // does not tell it again.
-    let told = StoredCell::new(false);
+    // The stop last told `on_snap`, so coming to rest there again (`scrollend` and the debounce
+    // below both hearing one rest, or a release that moved nothing) tells it once; moving away
+    // from it forgets it.
+    let told = StoredCell::new(None::<f32>);
     let held_stops = snaps.clone();
     let stops = create_memo(move || held_stops.get());
     let nearest_stop = move |offset: f32| -> Option<f32> {
@@ -1415,18 +1435,42 @@ fn BrowserScroll(
                 .min_by(|a, b| (a - offset).abs().total_cmp(&(b - offset).abs()))
         })
     };
-    let rested = move || {
-        refresh();
-        if told.replace(false) {
+    let tell = move |stop: f32| {
+        if told.get().is_some_and(|told| (told - stop).abs() < 1.0) {
             return;
         }
+        told.set(Some(stop));
+        on_snap.call(stop);
+    };
+    let rested = move || {
+        refresh();
         let Some(position) = reported.get_untracked() else {
             return;
         };
         if let Some(stop) = nearest_stop(position.offset)
             .filter(|stop| (stop - position.offset).abs() < 1.0)
         {
-            on_snap.call(stop);
+            tell(stop);
+        }
+    };
+    // Where `scrollend` is missing (Safari), a scroll that has been still a moment has rested.
+    let still = create_timer(move || {
+        rested();
+        None
+    });
+    let scrolled = move || {
+        refresh();
+        if let Some(position) = reported.get_untracked() {
+            pinned.set(position.offset >= position.max_offset() - END_SLACK);
+            if told
+                .get()
+                .is_some_and(|told| (told - position.offset).abs() >= 1.0)
+            {
+                told.set(None);
+            }
+        }
+        if snapping {
+            still.restart(SCROLL_STILL);
         }
     };
     let bare = style.bar.is_none();
@@ -1642,8 +1686,7 @@ fn BrowserScroll(
                 if let Some(stop) = nearest_stop(at) {
                     scroll_to(stop);
                     refresh();
-                    told.set(true);
-                    on_snap.call(stop);
+                    tell(stop);
                 }
             }
         }),
