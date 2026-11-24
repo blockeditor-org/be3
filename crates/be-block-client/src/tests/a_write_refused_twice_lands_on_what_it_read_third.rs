@@ -11,6 +11,8 @@ async fn a_write_refused_twice_lands_on_what_it_read_third() {
     let author = harness.owner("first@example.com").await;
     let other = harness.second(&author).await;
     let block = note(&author).await;
+    // Its writes are refused on purpose: on a manual clock its backoff waits for no real time.
+    harness.on_manual_clock(&author).await;
     let organization = author.organization();
 
     let reads: Mutex<Vec<String>> = Mutex::new(Vec::new());
