@@ -381,6 +381,18 @@ pub fn rebase(
         "DELETE FROM journal_base_parts WHERE organization_id = ?1 AND block_id = ?2",
         params![org, id],
     )?;
+    // Only the block's own objects: a base cannot keep others' from being collected.
+    for part in &base.parts {
+        let held: bool = transaction.query_row(
+            "SELECT EXISTS (SELECT 1 FROM block_objects
+                 WHERE organization_id = ?1 AND block_id = ?2 AND hash = ?3)",
+            params![org, id, part.to_hex()],
+            |row| row.get(0),
+        )?;
+        if !held {
+            return Err(refuse("a journal's base names an object its block does not hold"));
+        }
+    }
     for part in &base.parts {
         transaction.execute(
             "INSERT OR IGNORE INTO journal_base_parts (organization_id, block_id, hash)

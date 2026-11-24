@@ -5117,11 +5117,21 @@ impl<H: Host> Replicas<H> {
             } => {
                 self.acknowledge(module, reply);
                 let tag = be_block_store::Hash::from_bytes(self.modules.tag(module).0);
+                // A base must never name a part without its objects: the server would let them
+                // go. Not rebased, the journal stays where it was until the next seal.
+                let parts = match journal_parts(peer, &parts) {
+                    Ok(parts) => parts,
+                    Err(error) => {
+                        let shared = Arc::clone(shared);
+                        H::spawn(async move { H::record(&shared, error) });
+                        return false;
+                    }
+                };
                 let base = be_block_protocol::JournalBase {
                     commit: base.commit,
                     sequence: base.sequence,
                     state: base.state,
-                    parts: journal_parts(peer, &parts),
+                    parts,
                 };
                 // The server's journal takes it from the lease holder alone, which it checks
                 // itself; one the module made in a session the host made up (offline, or while
@@ -5305,7 +5315,9 @@ impl<H: Host> Replicas<H> {
                 let Some(open) = self.open.get_mut(&replica) else {
                     return false;
                 };
-                let parts = journal_parts(peer, &parts);
+                // A base must never name a part without its objects: the server would let them go.
+                let listed = journal_parts(peer, &parts);
+                let parts = listed.as_ref().map_or_else(|_| Vec::new(), Clone::clone);
                 let tag = be_block_store::Hash::from_bytes(self.modules.tag(module).0);
                 let shared = Arc::clone(shared);
                 open.publishing += 1;
@@ -5373,8 +5385,11 @@ impl<H: Host> Replicas<H> {
                     if let Some(label) = &bookmark {
                         write = write.bookmark(label);
                     }
-                    let saved = match reach::reaches_all(&reach, &peer, block, &content.parts).await
-                    {
+                    let reached = match listed {
+                        Ok(_) => reach::reaches_all(&reach, &peer, block, &content.parts).await,
+                        Err(error) => Err(error),
+                    };
+                    let saved = match reached {
                         Ok(true) if failing => Some(Err(ClientError::Locked(block))),
                         Ok(true) => Some(
                             commit::<H>(&peer, block, write, local, &publishing, move || {
@@ -6262,17 +6277,17 @@ fn history_place(history: &HashMap<u64, (u64, Uuid, bool)>, seq: u64) -> bool {
 }
 
 /// The objects of the parts a replica's journal state names (`journal-parts`), which the server
-/// keeps while the journal's base names them. A part this device cannot list (its objects are
-/// not here) is left out: the server may then let it go after its grace, and a replica opening
-/// on that base reads it as it can.
+/// keeps while the journal's base names them. Fails when this device cannot list one (its
+/// objects are not here): the base is then not sent, since one naming a part without its
+/// objects would let the server collect them.
 fn journal_parts<S: be_block_store::ObjectStore>(
     peer: &Peer<S>,
     parts: &[be_sdk_type_api::PartRef],
-) -> Vec<be_block_store::Hash> {
+) -> Result<Vec<be_block_store::Hash>, ClientError> {
     let parts: Vec<be_block_store::PartRef> = parts
         .iter()
         .cloned()
         .map(be_block_store::PartRef::from)
         .collect();
-    peer.part_objects(&parts).unwrap_or_default()
+    peer.part_objects(&parts)
 }
