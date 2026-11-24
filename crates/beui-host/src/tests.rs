@@ -2202,6 +2202,19 @@ pub(crate) fn sheet_of_rows(rest: f32, sheet: NodeRef, closed: Signal<usize>) ->
     })
 }
 
+/// How far a sheet is raised: its one scroll's offset, up to its highest stop (the height of
+/// its node).
+pub(crate) fn sheet_raised(harness: &Harness, sheet: NodeId) -> f32 {
+    let top = harness.rect(sheet).height();
+    harness.document().scroll_offset(sheet).min(top)
+}
+
+/// How far what a sheet holds has scrolled: its one scroll's offset past its highest stop.
+pub(crate) fn sheet_scrolled(harness: &Harness, sheet: NodeId) -> f32 {
+    let top = harness.rect(sheet).height();
+    (harness.document().scroll_offset(sheet) - top).max(0.0)
+}
+
 pub(crate) fn indices(count: usize) -> Vec<usize> {
     (0..count).collect()
 }

@@ -26,7 +26,13 @@ fn a_tap_on_a_sheet_still_sliding_up_lands_on_the_row_drawn_under_it() {
     let mut harness = Harness::sized(document, Vec2::new(400.0, 600.0));
     harness.frame(Vec::new());
     open.set(true);
-    harness.frame(Vec::new());
+    // The sheet is measured, then sets out: a few frames until the row is up on screen.
+    for _ in 0..4 {
+        harness.frame(Vec::new());
+        if harness.document().find_test_id("row").is_some() {
+            break;
+        }
+    }
     harness.frame(Vec::new());
     let sliding = harness.rect(harness.find("row"));
 

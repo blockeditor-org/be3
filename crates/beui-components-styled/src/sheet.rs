@@ -3,9 +3,9 @@ use crate::frame::{ColorRole, Frame, Radius};
 use crate::border::Separator;
 use crate::focus_ring::FocusRing;
 use crate::list::List;
-use crate::tokens::{Movement, Size, Space, Stroke};
+use crate::tokens::{Size, Space, Stroke};
 use beui_components_unstyled as unstyled;
-use beui_components_unstyled::{AnchoredSheetHandle, SheetCurves, SheetGripHandle};
+use beui_components_unstyled::{AnchoredSheetHandle, SheetGripHandle};
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 use beui_view::types::Align;
@@ -16,12 +16,6 @@ const HANDLE_HEIGHT: Size = Size::Md;
 const GRIP_WIDTH: Size = Size::Custom(36.0);
 const GRIP_HEIGHT: Size = Size::Custom(4.0);
 const ANCHORED_STOPS: [f32; 2] = [0.5, 0.9];
-const CURVES: SheetCurves = SheetCurves {
-    enter: Movement::Enter.easing(),
-    settle: Movement::Settle.easing(),
-    pull: Movement::Pull.spring(),
-    rubber: Movement::Rubber.spring(),
-};
 
 pub fn modal_sheet_room(extent: f32) -> f32 {
     let grip = crate::tokens::Stroke::Hairline.px() + HANDLE_HEIGHT.px();
@@ -46,7 +40,7 @@ pub fn Sheet(
             stops
             fit
             fade={crate::theme::SCROLL_FADE}
-            curves=CURVES
+            style={crate::scroll::scroll_style()}
             grip={|handle: SheetGripHandle| view! {
                 <SheetGrip focused={handle.focused} />
             }}
@@ -78,7 +72,7 @@ pub fn ModalSheet(
             stops
             fit
             fade={crate::theme::SCROLL_FADE}
-            curves=CURVES
+            style={crate::scroll::scroll_style()}
             scrim={scrim}
             grip={|handle: SheetGripHandle| view! {
                 <SheetGrip focused={handle.focused} />
