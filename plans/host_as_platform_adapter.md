@@ -1730,8 +1730,11 @@ Each step lands on its own.
            - 4g7b3f. Drags out of and into children (`drag-block`, `drag-accepted`), and a
              joined dock's tab menus, picks and details with the rest of the editors' shell
              messages the host's `Forwarded` refuses or drops today (`menu`, `details`,
-             `child-menu-pick`, `leave-frame`, `intrinsic-size`); the docks' `take_picks` and
-             `take_details` in `Children::hear_docks` are dropped until then.
+             `child-menu-pick`, `leave-frame`); the docks' `take_picks` and `take_details` in
+             `Children::hear_docks` are dropped until then. `intrinsic-size` is the root's
+             already (`Embedded::hear_tell`, handed on with `host.place-content`): an editor's
+             `tell` is not under its relayed op, so the root answers it and the host never sees
+             it, and routing it to the host as well would read it twice.
            - 4g7b3g. The other kinds of child: web views, host panels, pickers, creations,
              artifact settings and rename forms, which the placer hears are unavailable until
              then.

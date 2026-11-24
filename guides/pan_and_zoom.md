@@ -103,7 +103,10 @@ block is placed:
   it at and that rectangle's scale over its intrinsic size, and every pan or
   zoom it asks for goes to the nearest frame above that owns a camera
   (`CameraOwner`), never through the parent. That is why zooming while focused
-  into a card moves the canvas under it. A placed child without pan and zoom
+  into a card moves the canvas under it. Under a root (guides/apps/children.md,
+  Under a root) the root tells the host where such a child's content shows and
+  the size it wants (`be3:root`'s `host.place-content`), and the host hands a
+  pan-and-zoom editor its view from them (`Forwarded::set_view`). A placed child without pan and zoom
   is scaled by the host instead: laid out at the assigned size and rendered at
   the rectangle's scale, with input mapped back.
 
