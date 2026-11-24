@@ -83,8 +83,9 @@ each `due()` until it gives up. The fault relay (guides/blocks/server.md,
   first blocks whose summaries fit its answer, and of their heads' objects and
   journals what fits beside them; `read_contents` asks again for the rest of a
   group, and fetches objects left out by URL. Export and `be download` use it.
-- `stream_header` and `stream_range` read a `Streamed` type without its
-  payload.
+- `load_first_part` loads a type's first part (`Loads::FirstPart`), and
+  `read_span` reads a byte range of a stored form, fetching only the objects
+  under it: a blob's payload is read this way.
 - `fetch` verifies hashes; `fetch_history` must run before asking history a
   question.
 

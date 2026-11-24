@@ -40,11 +40,6 @@ drifted into a bug.
    typed `update_content<C: LiveEdit>(block, ops)` over it. The last two loops deliberately
    resend the same bytes against the new head: that becomes `Peer::update`'s explicit `force`
    form, not a seventh loop.
-4. **One way to read a blob by range.** `be_block_content::Streamed` has one implementor,
-   `Blob<K>`, and its only callers, `Peer::stream_header` and `Peer::stream_range`, are used by
-   one test. Everything else reads `Loads::FirstPart` and then a span. Fold `Streamed` into
-   `Blob` (its `encode_streamed`/`decode_streamed` private to blob.rs), delete `stream_*`, and
-   port `a_large_image_streams_without_downloading_all_of_it` to `read_span`.
 5. **`be_block_type_host::Host` has no-op defaults.** be-tool-cli's `replica.rs` and the tests'
    `Quiet` write about twelve empty methods (`set_marked`, `owned`, `reshaped`, `known_head`,
    `status`, `described`, `conflict`, `counted`, `leaving`, …). The trait gives them empty
