@@ -1650,6 +1650,7 @@ dependencies = [
  "be-tool-drive",
  "be-type-infinite-canvas",
  "beui-layer-drive",
+ "beui-paint-format",
  "beui-paint-snapshot",
  "libc",
  "tokio",
@@ -1870,12 +1871,12 @@ dependencies = [
  "be-block-protocol",
  "be-block-sqlite-schema",
  "be-block-store",
- "be-root",
  "be-sdk-root-testing",
  "be-server",
  "be-tool-drive",
  "beui-core",
  "beui-layer-drive",
+ "beui-paint-format",
  "beui-paint-snapshot",
  "tokio",
  "uuid",
@@ -1982,6 +1983,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "be-lib-git"
+version = "0.1.0"
+
+[[package]]
 name = "be-lib-graphemes"
 version = "0.1.0"
 dependencies = [
@@ -2064,6 +2069,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "be-lib-sha256"
+version = "0.1.0"
+dependencies = [
+ "hex",
+ "sha2 0.10.9",
+]
+
+[[package]]
 name = "be-lib-stable-hash"
 version = "0.1.0"
 dependencies = [
@@ -2116,6 +2129,7 @@ version = "0.1.0"
 dependencies = [
  "be-lib-geometry",
  "be-lib-layers",
+ "be-lib-quoted-name",
  "be-lib-ui-types",
  "be-root-accounts-ui",
  "be-sdk-api",
@@ -2336,6 +2350,7 @@ dependencies = [
  "be-sdk-app-host",
  "be-wasm-gpu-abi",
  "be-wasm-ops",
+ "be-wasm-root-api",
  "be-wasm-sandbox-api",
 ]
 
@@ -2431,6 +2446,7 @@ name = "be-sdk-type-api"
 version = "0.1.0"
 dependencies = [
  "be-block-commit",
+ "be-block-content",
  "be-block-protocol",
  "be-block-session",
  "be-block-store",
@@ -2520,6 +2536,8 @@ version = "0.1.0"
 dependencies = [
  "be-wasm-guest-abi",
  "be-wasm-sandbox-api",
+ "postcard",
+ "serde",
 ]
 
 [[package]]
@@ -2645,9 +2663,9 @@ name = "be-tool-buck"
 version = "0.1.0"
 dependencies = [
  "be-lib-crate-pins",
+ "be-lib-sha256",
  "flate2",
  "serde_json",
- "sha2 0.10.9",
  "toml",
  "zip",
  "zstd",
@@ -2657,13 +2675,23 @@ dependencies = [
 name = "be-tool-build-helper"
 version = "0.1.0"
 dependencies = [
+ "be-lib-sha256",
+ "be-tool-build-helper-protocol",
+ "be-tool-storage",
  "httparse",
  "serde",
  "serde_json",
- "sha2 0.10.9",
  "tokio",
  "tracing",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "be-tool-build-helper-protocol"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -2681,6 +2709,7 @@ dependencies = [
  "be-block-client",
  "be-block-commit",
  "be-block-content",
+ "be-block-fault-relay",
  "be-block-graph",
  "be-block-keys",
  "be-block-protocol",
@@ -2692,6 +2721,7 @@ dependencies = [
  "be-host-stack",
  "be-host-testing",
  "be-lib-build-id",
+ "be-lib-sha256",
  "be-sdk-api",
  "be-sdk-manifest",
  "be-sdk-type-api",
@@ -2700,6 +2730,7 @@ dependencies = [
  "be-server",
  "be-tool-terminal-emulator",
  "be-type-bundle",
+ "be-type-chat",
  "be-type-database",
  "be-type-example-counter",
  "be-type-terminal",
@@ -2709,7 +2740,6 @@ dependencies = [
  "futures-util",
  "portable-pty",
  "serde_json",
- "sha2 0.10.9",
  "tokio",
  "ureq",
  "uuid",
@@ -2721,6 +2751,7 @@ version = "0.1.0"
 dependencies = [
  "be-host-archive",
  "beui-layer-drive",
+ "beui-paint-format",
  "beui-paint-snapshot",
  "beui-runner",
  "image",
@@ -2739,8 +2770,10 @@ name = "be-tool-launcher"
 version = "0.1.0"
 dependencies = [
  "be-block-content",
+ "be-lib-sha256",
  "be-sdk-terminal",
  "be-sdk-test",
+ "be-tool-build-helper-protocol",
  "be-tool-terminal-emulator",
  "be-type-terminal",
  "beui",
@@ -2752,7 +2785,6 @@ dependencies = [
  "ndk-context",
  "serde",
  "serde_json",
- "sha2 0.10.9",
  "ureq",
 ]
 
@@ -2762,9 +2794,14 @@ version = "0.1.0"
 dependencies = [
  "base64 0.22.1",
  "be-lib-build-id",
+ "be-lib-git",
  "be-lib-prompt",
+ "be-lib-sha256",
  "be-tool-fix-rust-source",
+ "be-tool-paint-compare",
  "be-tool-paint-review-manifest",
+ "be-tool-run-test",
+ "be-tool-storage",
  "beui-html",
  "beui-paint-snapshot",
  "image",
@@ -2774,7 +2811,6 @@ dependencies = [
  "rsa 0.9.10",
  "serde_json",
  "sha2 0.10.9",
- "ureq",
  "x509-cert 0.2.5",
  "zip",
 ]
@@ -2783,8 +2819,8 @@ dependencies = [
 name = "be-tool-paint-compare"
 version = "0.1.0"
 dependencies = [
+ "be-lib-sha256",
  "beui-paint-snapshot",
- "sha2 0.10.9",
 ]
 
 [[package]]
@@ -2829,6 +2865,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "be-tool-storage"
+version = "0.1.0"
+dependencies = [
+ "be-lib-sha256",
+ "ureq",
+]
+
+[[package]]
 name = "be-tool-terminal-emulator"
 version = "0.1.0"
 dependencies = [
@@ -2841,8 +2885,9 @@ name = "be-tool-verify"
 version = "0.1.0"
 dependencies = [
  "be-lib-build-record",
+ "be-lib-git",
+ "be-lib-sha256",
  "serde_json",
- "sha2 0.10.9",
 ]
 
 [[package]]
@@ -3395,7 +3440,6 @@ version = "0.1.0"
 name = "be-worker-map"
 version = "0.1.0"
 dependencies = [
- "postcard",
  "serde",
  "serde_bytes",
 ]
@@ -3414,7 +3458,6 @@ name = "be-worker-pdf"
 version = "0.1.0"
 dependencies = [
  "be-lib-geometry",
- "postcard",
  "serde",
  "serde_bytes",
 ]
