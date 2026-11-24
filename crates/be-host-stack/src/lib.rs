@@ -1640,10 +1640,11 @@ pub fn accept_contact_link(
 }
 
 /// Reads the share link with `code` before it is opened: the block it shares and its name, its
-/// organization, and whether opening it joins that organization as a guest.
+/// organization, and whether opening it joins that organization as a guest. None when no share
+/// link has the code, as a contact link that carries none.
 pub fn preview_share_link(
     code: be_block_keys::InviteCode,
-    reply: impl FnOnce(Result<worker::SharePreview, String>) + Send + 'static,
+    reply: impl FnOnce(Result<Option<worker::SharePreview>, String>) + Send + 'static,
 ) {
     send(Command::Contact(worker::ContactCommand::PreviewShare {
         code,
