@@ -1122,7 +1122,7 @@ interface host {
 
     /// Opens `shown`'s editor in the app the root spawned as `instance` (the
     /// op of its sandbox `instance` resource), which must run the app that
-    /// `editor-of` names for it. The host serves what the editor asks of it
+    /// `editor-of` names for it, and may run others the host opened. The host serves what the editor asks of it
     /// from then on (blocks, host services, the network, debug and the
     /// published interfaces), as it serves an app of its own, until the app
     /// stops: everything the app sends on the editor's ops and on those it
@@ -1130,6 +1130,12 @@ interface host {
     /// answers (`forwarded`) it sends the app unread. The host's ops carry
     /// be-wasm-ops' `RELAYED_BIT`, so they never meet the root's.
     open-editor: async func(instance: u64, shown: shown-block) -> result<opened-editor, string>;
+
+    /// Closes the editor `editor` the host opened in the root's `instance`:
+    /// the host stops serving it, drops what it held for it, and closes it in
+    /// the app (the app protocol's `close`), which keeps running its other
+    /// editors. The root calls it once no place shows the editor.
+    close-editor: async func(instance: u64, editor: u64);
 
     /// The frames for the host of the app the root spawned as `instance`, in
     /// the order it sent them: be-wasm-ops frames, each as it encoded it.

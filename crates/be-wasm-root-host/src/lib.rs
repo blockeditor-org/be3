@@ -209,6 +209,9 @@ struct Core<G> {
     /// The sizes the root assigned the editors it lays out at an intrinsic size
     /// (`host.assign-size`), by instance and editor, in order, until taken.
     assigned_sizes: Vec<(u64, u64, be_wasm_root_api::ViewSize)>,
+    /// The editors the root closed (`host.close-editor`), by instance and editor, in order,
+    /// until taken.
+    closed_editors: Vec<(u64, u64)>,
     /// The dock updates the root made for the host's editors (`host.dock`), by the root's
     /// instance and the editor, each as the app protocol encodes them, until the host takes them.
     dock_updates: Vec<(u64, u64, Vec<u8>)>,
@@ -359,6 +362,7 @@ impl<G: Inline> Core<G> {
             dock_updates: Vec::new(),
             placed_contents: Vec::new(),
             assigned_sizes: Vec::new(),
+            closed_editors: Vec::new(),
         };
         core.received()?;
         Ok(core)
@@ -744,6 +748,12 @@ impl<G: Inline> Core<G> {
     /// last call (`host.place-content`), in order.
     fn take_placed_contents(&mut self) -> Vec<be_wasm_root_api::PlacedContent> {
         std::mem::take(&mut self.placed_contents)
+    }
+
+    /// The editors the root closed since the last call (`host.close-editor`): by the root's
+    /// instance and the editor, in order.
+    fn take_closed_editors(&mut self) -> Vec<(u64, u64)> {
+        std::mem::take(&mut self.closed_editors)
     }
 
     /// The sizes the root assigned the host's editors it lays out at an intrinsic size since the
@@ -1253,6 +1263,14 @@ impl<G: Inline> Core<G> {
             }
             embed::Call::Host(embed::host::Call::PlaceContent { placed, reply }) => {
                 self.placed_contents.push(placed);
+                reply.send(&mut self.connection, &());
+            }
+            embed::Call::Host(embed::host::Call::CloseEditor {
+                instance,
+                editor,
+                reply,
+            }) => {
+                self.closed_editors.push((instance, editor));
                 reply.send(&mut self.connection, &());
             }
             embed::Call::Host(embed::host::Call::AssignSize {

@@ -88,6 +88,14 @@ impl Forwarded {
         self.instances.set_view(instance, view);
     }
 
+    /// Closes the editor `instance`: it is served no more, and the app hears it closed with the
+    /// next `step`.
+    pub fn close(&mut self, instance: EditorInstanceId) {
+        if self.instances.remove(instance) {
+            self.wire.send(vec![Outbound::Close(instance)]);
+        }
+    }
+
     /// Tells the editor `instance` the size it is laid out at as a child placed with an
     /// intrinsic size (`editor-event.resized`), as be-host tells a child it lays out so, sent
     /// with the next `step` once it changed.

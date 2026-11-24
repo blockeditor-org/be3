@@ -1728,7 +1728,8 @@ Each step lands on its own.
                runs (4 of 15): a preview's repaint is held a while (be-sdk's `Cooldown`), and
                what shows meanwhile is not yet understood; the test keeps a pause;
              - a search hit's place handed to the block it opens (be-host's `reveals`);
-             - each preview is an app of its own rather than drawn once at its largest (4g7b3e).
+             - each preview is an app of its own rather than drawn once at its largest (built
+               with 4g7b3e).
            - 4g7b3e. A block in several places sharing one editor (one app per staged app
              rather than per child, a twin for a placement naming another editor, and a block
              previewed in several places drawn once, at the largest, each place showing its
@@ -1749,6 +1750,28 @@ Each step lands on its own.
                its top-level canvas has no camera until 4g7d, no editor's manifest allows
                rotation, and a canvas offers no opacity for an editor card; an occluder over a
                child placed above its placer hides it from presses but not from sight.
+             - Built: each staged app runs once for every child the root shows, in be-sdk-root's
+               `Pool` (`Embedded::spawn_app`, `open_editor`, `show_editor`), each editor asked
+               for screens numbered from its instance (`main_screen`, `preview_screen_of`) and
+               closed in it once no place shows it (`be3:root`'s new `host.close-editor`,
+               `Forwarded::close`); the app stops once it holds no editor. A block placed in
+               several places shares one editor (`EditorKey`), at every level, unless a place
+               asks for another editor than the one holding the block (a twin, `editor_key`);
+               previews never are. Places say what they ask as the settle visits them
+               (`PlaceAsk`), and once every place did, each editor is asked for its screens
+               (`Editor::show`): its main view at one place, the one placed active, else the one
+               that showed it, else the first; its preview view at the largest preview, as
+               be-host's `apply_offers` draws it; every other place shows a copy of that screen
+               (`copy_layer`), scaled to its place, hit nowhere and without the editor's own
+               children, which the first place the settle visits follows for it (`owns`). Tests:
+               be-sdk-root's `children::tests`
+               (`a_block_placed_in_several_places_shares_one_editor_but_a_twin`); host test
+               `be_root_in_place_of_the_hosts_ui_shows_a_block_placed_twice_with_one_editor`.
+               Left for later: the app showing the session's block is not shared with its
+               children (its screen is the root's window's); a copy shows the whole of the
+               screen, not the part each place shows as be-host's shown parts say; the bodies of
+               joined docks whose paths lead through a shared editor reach its own children only
+               from the place that follows them.
            - 4g7b3f. Drags out of and into children (`drag-block`, `drag-accepted`), and a
              joined dock's tab menus, picks and details with the rest of the editors' shell
              messages the host's `Forwarded` refuses or drops today (`menu`, `details`,

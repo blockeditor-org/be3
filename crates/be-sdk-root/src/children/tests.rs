@@ -3,6 +3,7 @@ use be_sdk_api::{ChildContent, ChildId, ChildLayer, ChildMode, ChildPlacement, T
 
 use super::*;
 
+mod a_block_placed_in_several_places_shares_one_editor_but_a_twin;
 mod a_child_is_asked_for_its_place_at_its_placers_raster;
 mod a_child_kept_placed_keeps_its_editor_and_one_placed_no_longer_goes;
 mod a_child_placed_in_a_dock_tabs_body_joins_its_placers_dock;
@@ -94,6 +95,7 @@ fn up(id: u64, mode: ChildMode) -> Child {
     let mut child = wanted(placement);
     child.layer = Some(LayerId(200 + id));
     child.up = true;
+    child.shared.owner.set(Some(child.place()));
     child
 }
 

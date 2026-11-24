@@ -835,6 +835,12 @@ fn serve_editors(core: &mut crate::HostCore, root: &mut Root, editors: &mut Edit
     for placed in root.take_placed_contents() {
         place_content(editors, placed);
     }
+    for (instance, editor) in root.take_closed_editors() {
+        if let Some(forwarded) = editors.served.get_mut(&instance) {
+            forwarded.close(EditorInstanceId(editor));
+        }
+        editors.opened.remove(&(instance, editor));
+    }
     for (instance, editor, size) in root.take_assigned_sizes() {
         if let Some(forwarded) = editors.served.get_mut(&instance) {
             forwarded.resized(
