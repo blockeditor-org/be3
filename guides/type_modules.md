@@ -194,7 +194,11 @@ host owes a replica (the WIT documents each call):
   (below, "Tentative gestures"). The host
   numbers each
   opening (`opening.epoch`) and ignores a status whose `epoch` is not the
-  current one: an earlier opening made it.
+  current one: an earlier opening made it. The host answers every call a
+  replica made all the same, and the module drops what answers an earlier
+  opening, but for a call made for an editor (a read of the log, a part put,
+  an append): the next replica takes those (`Carried::asks`) and hands each
+  answer on to its editor (`AnyReplica::late`), so none is made twice.
 - **The order.** `submit` hands the session's order a submission and answers
   `held` once the server numbered it, `kept` when this device numbered it
   offline, `failed` (it may go again once the replica reopens), or `refused`
@@ -311,9 +315,7 @@ who signed them, `LogSigner`) changes what the content shows.
   (`Event::Redacted`) drops the payload this device kept (`Peer::redacted`)
   and hands the replica the entry as it is now (`Replicas::redacted`),
   which it takes as told better. Neither is kept for a replica opened again, which
-  reads the log afresh, and asks again for each read an editor asked that the
-  replica before it had no answer to yet (`Carried::log_reads`): an answer goes to
-  the replica that asked, so the editor would never hear. A first read that fails (a restart, offline) is no
+  reads the log afresh. A first read that fails (a restart, offline) is no
   error, and the replica describes its content without the log until it
   hears entries. A follow ends with its connection, and a read made offline
   makes none: as the device connects, the host reads each open replica's log
