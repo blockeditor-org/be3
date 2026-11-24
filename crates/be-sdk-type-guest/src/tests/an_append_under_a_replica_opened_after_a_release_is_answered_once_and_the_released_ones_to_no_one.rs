@@ -1,11 +1,11 @@
 use super::*;
 
-/// A replica released with an append unanswered keeps no call for the next: its editors are
-/// gone, and the answer goes to its id, which the block's next replica does not have. That next
-/// replica numbers its calls from where the released one did, so a call carried over would take
-/// the key of one of its own and lose that one's answer across a reopen.
+/// A replica released with an append unanswered carries no call to the block's next replica:
+/// its editors are gone, and the answer goes to its id, which no later replica has. A replica
+/// opened after the release, under a new id, answers its own editor's append once across a
+/// reopen, and the released one's append is answered to no one.
 #[test]
-fn an_append_made_under_a_new_replica_is_answered_though_one_before_was_released_mid_append() {
+fn an_append_under_a_replica_opened_after_a_release_is_answered_once_and_the_released_ones_to_no_one() {
     let mut sim = Sim::<Logbook>::new(1, logbook_module);
     sim.keeps_modules = true;
     sim.open(0);
@@ -23,7 +23,7 @@ fn an_append_made_under_a_new_replica_is_answered_though_one_before_was_released
     assert_eq!(sim.lacking(0, 1), 1, "the edit is kept in the outbox");
     sim.stalled_appends = true;
     let mirror = sim.editors.get_mut(&(0, 1)).unwrap();
-    let (_, append) = mirror.append(b"before".to_vec(), be_block_content::Along::default());
+    let (released, append) = mirror.append(b"before".to_vec(), be_block_content::Along::default());
     sim.send_from_editor(0, 1, append);
     sim.settle();
     sim.close(0);
@@ -49,5 +49,14 @@ fn an_append_made_under_a_new_replica_is_answered_though_one_before_was_released
     assert!(
         matches!(appended.as_slice(), [ToEditor::Appended { token: answered, result: Ok(_) }] if *answered == token),
         "the new replica's editor hears its own append once, and no other: {appended:?}"
+    );
+    let told: Vec<_> = sim
+        .take_received(0, 1)
+        .into_iter()
+        .filter(|message| matches!(message, ToEditor::Appended { token, .. } if *token == released))
+        .collect();
+    assert!(
+        told.is_empty(),
+        "the released replica's append is answered to no one: {told:?}"
     );
 }
