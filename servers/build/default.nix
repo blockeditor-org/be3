@@ -34,7 +34,21 @@ let
     env.CGO_ENABLED = 0;
   };
 
-  site = pkgs.runCommand "nl-gate" { } "mkdir $out && cp ${./dashboard/gate.html} $out/gate.html";
+  common = import ../common.nix;
+  # The dashboard token's page, which goes on to the dashboard.
+  site = common.gate pkgs {
+    name = "nl-gate";
+    title = "Build server";
+    about = [
+      "The only page nl.be3.pfg.pw serves without a token (Caddyfile): it stores the dashboard token as the cookie"
+      "Caddy checks. JavaScript can set only a cookie it can also read, which is enough here."
+    ];
+    field = "token";
+    label = "Dashboard token";
+    button = "Open the dashboard";
+    cookie = "be3_dash";
+    next = [ "location.href = \"/\";" ];
+  };
 
   # Grafana's SQLite data source, for nl-stats.py's records of builds (grafana-datasources.yaml).
   sqlitePlugin = pkgs.runCommand "frser-sqlite-datasource-4.0.6" {
@@ -75,7 +89,8 @@ in
 {
   imports = [
     (modulesPath + "/profiles/qemu-guest.nix")
-    ./disk.nix
+    # The server's own disk, which holds everything, the cache included: the build server has no volume.
+    (common.disk "scsi-0QEMU_QEMU_HARDDISK_133178107")
   ];
 
   networking.hostName = "build";
