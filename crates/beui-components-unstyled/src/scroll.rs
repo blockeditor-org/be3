@@ -6,7 +6,7 @@ use std::time::{Duration, Instant};
 use accesskit::{Action, Node, Role};
 
 use super::fling::Fling;
-use super::rubber_band::{MINIMUM_VELOCITY, Spring, bounce, rubber_band};
+use super::rubber_band::{MINIMUM_VELOCITY, Spring, bounce, rubber_band, spring_back};
 use super::watched::Watched;
 use crate::drag_board::drag_board;
 use crate::gestures::{self, AUTOSCROLL_DEAD_ZONE};
@@ -36,6 +36,8 @@ use beui_view::{CORE, Core};
 
 const STEP: f32 = 40.0;
 const EDGE_SLACK: f32 = 0.5;
+/// How near a snap stop, and how slow, a scroll settling on it simply stops there.
+const SNAP_SLACK: f32 = 0.5;
 const END_SLACK: f32 = 1.0;
 const AUTOSCROLL_GAIN: f32 = 6.0;
 const AUTOSCROLL_ACCELERATION: f32 = 0.02;
@@ -191,6 +193,10 @@ struct Momentum {
     velocity: f32,
     fling: Option<Fling>,
     autoscroll: f32,
+    /// The offsets a fling and a release settle on, sorted; none settles anywhere.
+    snaps: Vec<f32>,
+    /// The snap stop being settled on.
+    snap: Option<f32>,
 }
 
 impl Momentum {
@@ -203,6 +209,8 @@ impl Momentum {
             velocity: 0.0,
             fling: None,
             autoscroll: 0.0,
+            snaps: Vec::new(),
+            snap: None,
         }
     }
 
@@ -210,6 +218,7 @@ impl Momentum {
         self.stretch != 0.0
             || self.velocity != 0.0
             || self.fling.is_some()
+            || self.snap.is_some()
             || self.autoscroll != 0.0
     }
 
@@ -218,7 +227,18 @@ impl Momentum {
     }
 
     fn coasting(&self) -> bool {
-        (self.fling.is_some() || self.stretch != 0.0) && self.drag.is_none()
+        (self.fling.is_some() || self.snap.is_some() || self.stretch != 0.0) && self.drag.is_none()
+    }
+
+    /// The snap stop nearest where a coast from `offset` at the current velocity would come to
+    /// rest, within the scroll's reach.
+    fn aim(&self, offset: f32, max_offset: f32) -> Option<f32> {
+        let carried = Fling::new(self.velocity).map_or(0.0, |fling| fling.distance());
+        let landing = offset + carried;
+        self.snaps
+            .iter()
+            .map(|stop| stop.clamp(0.0, max_offset))
+            .min_by(|a, b| (a - landing).abs().total_cmp(&(b - landing).abs()))
     }
 
     fn stop_fling(&mut self) {
@@ -233,6 +253,7 @@ impl Momentum {
         self.drag = None;
         self.velocity = 0.0;
         self.fling = None;
+        self.snap = None;
         self.autoscroll = 0.0;
     }
 
@@ -240,6 +261,7 @@ impl Momentum {
         self.drag = Some(position.offset + self.stretch);
         self.velocity = 0.0;
         self.fling = None;
+        self.snap = None;
     }
 
     fn drag(&mut self, position: &mut ScrollPosition, delta: f32, banding: bool) {
@@ -253,15 +275,22 @@ impl Momentum {
         self.velocity = 0.0;
     }
 
-    fn release(&mut self, velocity: f32) {
+    fn release(&mut self, velocity: f32, position: &ScrollPosition) {
         self.drag = None;
         self.velocity = velocity;
         if self.stretch == 0.0 {
-            self.coast();
+            self.coast(position);
         }
     }
 
-    fn coast(&mut self) {
+    /// Coasts on from `position`: towards the snap stop the coast would land nearest, given
+    /// stops, or else in a fling.
+    fn coast(&mut self, position: &ScrollPosition) {
+        if let Some(stop) = self.aim(position.offset, position.max_offset()) {
+            self.fling = None;
+            self.snap = Some(stop);
+            return;
+        }
         self.fling = (self.velocity.abs() >= MINIMUM_VELOCITY)
             .then(|| Fling::new(self.velocity))
             .flatten();
@@ -284,7 +313,20 @@ impl Momentum {
             let back = bounce(&mut self.stretch, &mut self.velocity, elapsed, self.rubber);
             if self.stretch == 0.0 {
                 self.velocity = back;
-                self.coast();
+                self.coast(position);
+            }
+            return;
+        }
+        if let Some(stop) = self.snap {
+            let mut distance = position.offset - stop;
+            spring_back(&mut distance, &mut self.velocity, elapsed, self.rubber);
+            if distance.abs() < SNAP_SLACK && self.velocity.abs() < MINIMUM_VELOCITY {
+                distance = 0.0;
+                self.velocity = 0.0;
+            }
+            position.offset = stop + distance;
+            if distance == 0.0 && self.velocity == 0.0 {
+                self.snap = None;
             }
             return;
         }
@@ -405,6 +447,7 @@ struct Motion {
     node: Option<NodeId>,
     reported: ReadSignal<Option<ScrollPosition>>,
     direction: Prop<Direction>,
+    snaps: Prop<Vec<f32>>,
     momentum: Watched<Momentum>,
     animation: Cell<Option<Animation>>,
     autoscrolling: Cell<Option<Timer>>,
@@ -504,7 +547,7 @@ impl Motion {
             return;
         }
         if momentum.drag.is_some() && !momentum.dragging {
-            momentum.release(-fling);
+            self.release(&mut momentum, -fling, &position);
             self.publish(&momentum, &position, position.offset);
             self.animate(&mut momentum);
             return;
@@ -516,7 +559,8 @@ impl Motion {
         let offset = (position.offset - wheel).clamp(0.0, position.max_offset());
         self.publish(&momentum, &position, offset);
         if fling != 0.0 && rubber_banding() {
-            momentum.release(-fling);
+            let moved = ScrollPosition { offset, ..position };
+            self.release(&mut momentum, -fling, &moved);
             self.animate(&mut momentum);
         }
     }
@@ -540,13 +584,13 @@ impl Motion {
             momentum.drag(&mut position, dragged, rubber_banding());
         }
         if gesture.ended {
-            momentum.release(if rubber_banding() {
-                -self.axis().main(gesture.velocity)
-            } else {
-                0.0
-            });
+            let velocity = match rubber_banding() {
+                true => -self.axis().main(gesture.velocity),
+                false => 0.0,
+            };
+            self.release(&mut momentum, velocity, &position);
         } else if gesture.cancelled {
-            momentum.release(0.0);
+            self.release(&mut momentum, 0.0, &position);
         }
         self.publish(&momentum, &position, position.offset);
         if gesture.ended || gesture.cancelled {
@@ -578,11 +622,29 @@ impl Motion {
         self.autoscrolling.get().unwrap().start(Duration::ZERO);
     }
 
+    /// Lets go at `velocity` from `position`, settling on a snap stop if the scroll has any.
+    fn release(&self, momentum: &mut Momentum, velocity: f32, position: &ScrollPosition) {
+        let mut snaps = self.snaps.get_untracked();
+        snaps.sort_by(f32::total_cmp);
+        momentum.snaps = snaps;
+        momentum.release(velocity, position);
+    }
+
     fn animate(&self, momentum: &mut Momentum) {
+        if !rubber_banding() {
+            // Without motion a scroll settling on a stop goes straight there.
+            if let Some(stop) = momentum.snap.take()
+                && let Some(position) = self.placed()
+            {
+                momentum.velocity = 0.0;
+                self.publish(momentum, &position, stop);
+            }
+            return;
+        }
         let Some(animation) = self.animation.get() else {
             return;
         };
-        if rubber_banding() && momentum.moving() {
+        if momentum.moving() {
             animation.start();
         }
     }
@@ -658,9 +720,10 @@ impl Motion {
         };
         let mut momentum = self.momentum.borrow_mut();
         let autoscroll = momentum.autoscroll;
+        let settled = momentum.snap.unwrap_or(position.offset);
         momentum.rest();
         momentum.autoscroll = autoscroll;
-        self.publish(&momentum, &position, position.offset);
+        self.publish(&momentum, &position, settled);
     }
 
     fn step(&self, elapsed: f32) -> Option<Duration> {
@@ -687,6 +750,7 @@ impl Motion {
 fn Scrolling(
     #[prop(default = ComponentRef::new())] api: ComponentRef<ScrollApi>,
     direction: Prop<Direction>,
+    snaps: Prop<Vec<f32>>,
     fit: bool,
     bleed: Prop<Sides>,
     focus_ring: Prop<Option<Outline>>,
@@ -713,6 +777,7 @@ fn Scrolling(
         node: node.first_offset_within(),
         reported: reported.read_only(),
         direction,
+        snaps,
         momentum: Watched::new(Momentum::new(style.rubber), Momentum::coasting),
         animation: Cell::default(),
         autoscrolling: Cell::default(),
@@ -972,6 +1037,11 @@ pub fn Scroll(
     #[prop(default = 0.0)] offset: Prop<f32>,
     #[prop(default = None)] reveal: Prop<Option<usize>>,
     #[prop(default = Direction::Vertical)] direction: Prop<Direction>,
+    /// Offsets along `direction` that a fling and a release settle on, the nearest to where
+    /// they would have come to rest; none lets them rest anywhere. A wheel's steps and the
+    /// keys move freely. Natively only for now: the HTML core's browser scroll ignores them.
+    #[prop(default = Vec::new())]
+    snaps: Prop<Vec<f32>>,
     #[prop(default = false)] fit: bool,
     #[prop(default = false)] follow_end: Prop<bool>,
     #[prop(default = Sides::ZERO)] bleed: Prop<Sides>,
@@ -1007,6 +1077,7 @@ pub fn Scroll(
         <Scrolling
             api
             direction
+            snaps
             fit
             bleed
             focus_ring
@@ -1233,6 +1304,7 @@ fn BrowserScroll(
         node: None,
         reported: reported.read_only(),
         direction,
+        snaps: Prop::Static(Vec::new()),
         momentum: Watched::new(Momentum::new(style.rubber), Momentum::coasting),
         animation: Cell::default(),
         autoscrolling: Cell::default(),
