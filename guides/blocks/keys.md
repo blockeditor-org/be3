@@ -1250,7 +1250,9 @@ keys the granter verified that way, which every device then seals to.
 
 It stores and relays everything, so it can withhold, delay, replay or delete
 rows, refuse requests, and see who shares with whom, block shapes, sizes and
-timing. It cannot read content or metadata, and it cannot choose a key a device
+timing. An invitation's contact link and share link have one id, so it can pair them, and
+every contact link accepted is followed by a read of the share link with its code, so it sees
+which contact links carried one. It cannot read content or metadata, and it cannot choose a key a device
 will seal with: keys sealed to an account are sender-authenticated and taken
 only from verified contacts, or from members the organization's log names
 (their keys as it names them) whom the block's log grants Edit or above; a contact's key changes only by a change sealed

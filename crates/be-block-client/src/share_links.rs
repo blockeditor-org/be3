@@ -366,13 +366,26 @@ impl<S: ObjectStore> Peer<S> {
         // The share link first: one the organization's policy refuses leaves no contact link.
         self.make_share_link_with(&code, block, access, Admits::One)
             .await?;
-        crate::contacts::make_link_with(
-            &self.connection(),
-            self.keys().identity(),
-            me,
-            &code,
-        )
-        .await?;
+        let made =
+            crate::contacts::make_link_with(&self.connection(), self.keys().identity(), me, &code)
+                .await;
+        if let Err(error) = made {
+            // Best effort: a share link left without its contact link is no invitation, and
+            // would show as one not opened yet.
+            let row = ShareLinkRow {
+                id: link_id(&code),
+                access,
+                admits: LinkAdmits::One,
+                maker: self.account(),
+                maker_name: String::new(),
+                created: 0,
+                key: code.share_key(block.into_bytes()).0,
+                opened_by: None,
+                opened_by_name: String::new(),
+            };
+            let _ = self.revoke_share_link(block, &row).await;
+            return Err(error);
+        }
         Ok(code)
     }
 

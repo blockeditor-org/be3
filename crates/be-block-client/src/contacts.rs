@@ -1388,7 +1388,7 @@ pub async fn open_link(
     )
     .await??;
     let kind = match link.kind {
-        LinkKind::Contact(_) => Expected::Contact,
+        LinkKind::Contact => Expected::Contact,
         LinkKind::Invitation(_) => Expected::Invitation,
     };
     if kind != expected {
