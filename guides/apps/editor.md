@@ -143,18 +143,18 @@ makes a block with no editor at all, by the type module that claims the file
 
 ## Artifacts
 
-A type that produces dynamic artifacts (a PNG exported from a drawing) lists
-`ArtifactSettings` among its views. The editor creates one with
-`editor.blocks().create_artifact(..)`, pointing at the source block and
-carrying the app's settings as an opaque payload. The host keeps a second
-instance of the app open while the artifact is shown and asks it, through
+A type that produces dynamic artifacts (logic-grid's compiled logic, a block
+regenerated from the grid it was compiled from) lists `ArtifactSettings` among
+its views. The editor creates one with `editor.blocks().create_artifact(..)`,
+pointing at the source block and carrying the app's settings as an opaque
+payload. While the artifact is shown, the host keeps an artifact instance open
+in the app's runtime, beside its other instances, and asks it, through
 `connect_artifact`, `describe_artifact`, the `ArtifactSettings` component and
 the `Artifacts` handle (`source`, `on_regenerate`, `on_poll`), what the
 settings produce and how to rebuild it. The settings component edits a copy
 inside a `DialogBody` with Cancel and Apply that be-sdk-beui provides; the
 host stores the settings only on Apply. Regeneration reads its source as a
-projection, so `on_poll` answers `None` until the source arrives. Compiled
-logic is the example.
+projection, so `on_poll` answers `None` until the source arrives.
 
 ## View state
 

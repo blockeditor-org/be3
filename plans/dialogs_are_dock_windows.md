@@ -1,0 +1,49 @@
+# Dialogs are dock windows
+
+Depends on: plans/kept_content_and_one_scroller.md, steps 1, 2 and 4.
+
+beui has three ways to show something over a frame: `Modal` (centred, filling or a sheet, with a
+scrim), `Anchored` (a card with a beak, or a sheet on finger touch) and `Dialog`, which
+rebuilds `Anchored`'s card-or-sheet switch for itself (its own finger check, "ever opened" flag,
+`DialogSheetHandle` beside `AnchoredSheetHandle`, `DialogAnchor`/`DialogTarget` beside
+`OverlayAnchor`, and the card placement `BELOW_CENTER.gap(4).margin(8)` defined again in
+beui-dock-host and be-sdk-beui). The dock beside them already has windows that float, move,
+resize, snap and hang from a tab (`DockDialog`). One concept, the window, can do all of it:
+blocking its owner becomes a property of a window, not another kind of overlay.
+
+## Steps
+
+1. **A dock window can point at its anchor.** A floating `DockWindow` may be anchored to a rect:
+   it opens next to it with a beak, as `Anchored`'s card does, follows the anchor while
+   unmoved, and keeps where the person moved it once they move it. With no visible anchor it
+   opens at the top centre of its owning frame and draws no beak
+   (decisions/dialogs_are_presented_by_kind.md's fallback).
+2. **A window may block its owner.** `blocks` is a window's policy: its owner (a frame or a
+   tab) takes no presses and shows a scrim while the window is open; focus is trapped in it and
+   given back on close. `DockDialog`'s `modal` is this.
+3. **Phones show windows as sheets.** In the stacked and gathered modes the dock shows a window
+   as a sheet (plans/kept_content_and_one_scroller.md, step 4), full height for a large form.
+4. **Dialogs become windows.** By the kinds of decisions/dialogs_are_presented_by_kind.md:
+   - Small forms (1): an anchored window with a beak.
+   - Confirmations (2): a window centred on its frame that blocks it.
+   - Large forms and embedded editors (3): a window attached to its frame, blocking it.
+   - Program dialogs (5): already windows.
+   - The command palette (6): a borderless top-centred window.
+   `Dialog`, its sheet handle and anchor types, `DialogCard`'s placement copies and
+   `ModalPlacement` go; `DialogBody` stays the inside of these windows, and
+   decisions/app_dialogs_are_drawn_by_the_app_with_dialog_body.md holds for an app's.
+   decisions/beui_modal_asks_before_it_slides_away.md holds for a blocking window: dismissal is
+   reported at once and the window goes only when its owner closes it.
+5. **Host-level layers stay overlays.** The lock screen, reauthentication and onboarding (kind
+   4) are not windows: the lock screen is a security boundary and must never move, dock or be
+   covered. They keep the host's lock layer and a plain full-window overlay; that is `Modal`'s
+   only remaining use, and it shrinks to it.
+6. **The decisions and guides follow.** decisions/dialogs_are_presented_by_kind.md is rewritten
+   for windows; guides/beui/overlays.md and guides/beui/docking.md describe one way.
+
+## The test
+
+- A small form opened from a button opens next to it with a beak, moves when dragged by its
+  bar, and is a sheet in the stacked mode.
+- A confirmation blocks presses on its frame and not on a sibling frame.
+- The lock screen still covers every window, a moved dialog included.
