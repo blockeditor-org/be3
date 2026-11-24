@@ -57,6 +57,7 @@ fn enter_pressed_while_share_members_load_adds_the_match_once_they_arrive() {
             set_inside: 0,
             levels: Vec::new(),
             host: None,
+            offered: None,
         }),
     );
     fixture.settle();

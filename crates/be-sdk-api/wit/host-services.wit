@@ -80,6 +80,9 @@ interface host-services {
         /// block (`levels` not empty). None when no one with edit access is in
         /// a session of it.
         host: option<account-id>,
+        /// The account the block's owner offered it to, until it accepts
+        /// (`accept-ownership`) or the owner withdraws the offer.
+        offered: option<account-id>,
     }
 
     /// A level a hosted type offers in the share dialog, with its name and
@@ -164,10 +167,17 @@ interface host-services {
     /// shared, when the server could not take it (offline, it needs the server).
     set-access: async func(block: block-id, account: account-id, access: access-level) -> result<_, failure>;
 
-    /// Gives ownership of the block, which the signed-in account owns, to `account`, a contact
-    /// with access to it listed: they manage it as its owner from then on, and the account keeps
-    /// Edit. Fails, with the message to show, as `set-access` does.
+    /// Offers ownership of the block, which the signed-in account owns, to `account`, a contact
+    /// with access to it listed, in place of any offer before; offered to the signed-in account
+    /// itself, it withdraws the offer. Nothing moves until `account` accepts
+    /// (`accept-ownership`): then they manage it as its owner, and the account keeps Edit. Fails,
+    /// with the message to show, as `set-access` does.
     transfer-ownership: async func(block: block-id, account: account-id) -> result<_, failure>;
+
+    /// Accepts ownership of the block, which its owner offered the signed-in account
+    /// (`access-listing.offered`): the account manages it as its owner from then on. Fails, with
+    /// the message to show, as `set-access` does.
+    accept-ownership: async func(block: block-id) -> result<_, failure>;
 
     /// The share links open on the block ("anyone with the link"), for its
     /// managers.

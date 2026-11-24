@@ -102,6 +102,7 @@ impl crate::embed::host_services::Call {
             | Self::ListAccess { block, .. }
             | Self::SetAccess { block, .. }
             | Self::TransferOwnership { block, .. }
+            | Self::AcceptOwnership { block, .. }
             | Self::MakeContactLink { block, .. }
             | Self::ListShareLinks { block, .. }
             | Self::MakeShareLink { block, .. }

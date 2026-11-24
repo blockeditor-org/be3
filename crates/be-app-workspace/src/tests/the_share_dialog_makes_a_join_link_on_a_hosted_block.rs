@@ -72,6 +72,7 @@ fn the_share_dialog_makes_a_join_link_on_a_hosted_block() {
                         },
                     ],
                     host: Some(ada.into_bytes()),
+                    offered: None,
                 }),
             ),
             HostCall::ListShareLinks { reply, .. } => fixture.test.answer(reply, Ok(Vec::new())),

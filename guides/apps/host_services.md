@@ -102,7 +102,7 @@ Notes on particular calls:
   refuses to rotate or remove anything but a block's agent the person made
   (`member.bound-to` and `created-by`); removing one no longer listed answers
   success without asking the server.
-- `list_access`, `set_access`, `transfer_ownership` and the share and contact
+- `list_access`, `set_access`, `transfer_ownership`, `accept_ownership` and the share and contact
   link calls grant access or reveal who has it, so the host denies them unless
   the manifest sets `"sharing": true` (an app the person opened cannot share
   what it shows, or read its links, unasked). Any app may still open a block

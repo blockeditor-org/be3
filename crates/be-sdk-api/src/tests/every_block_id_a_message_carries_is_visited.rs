@@ -37,6 +37,7 @@ fn every_block_id_a_message_carries_is_visited() {
         set_inside: 0,
         levels: Vec::new(),
         host: None,
+        offered: None,
     };
     let mut command = VersionCommand::Adopt { block_id: [1; 16] };
     let mut visit = |role, block_id: &mut [u8; 16]| {

@@ -102,6 +102,7 @@ pub fn grants_of(
             .collect(),
         company: list.company,
         host: list.host.map(Uuid::into_bytes),
+        offered: list.offered.map(Uuid::into_bytes),
         set_inside: list.set_inside,
         levels: levels
             .into_iter()

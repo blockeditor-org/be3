@@ -1698,13 +1698,22 @@ impl<A: BeuiRoot + AppEditor> BeuiTest<A> {
         })
     }
 
-    /// The ownership the editor gave away (`host-services.transfer-ownership`): each block and
-    /// its new owner, in order.
+    /// The ownership the editor offered (`host-services.transfer-ownership`): each block and
+    /// the account offered it, in order.
     pub fn take_ownership_transfers(&mut self) -> Vec<(Uuid, Uuid)> {
         self.take_requests_where(|call| match call {
             Call::TransferOwnership { block, account, .. } => {
                 Ok((Uuid::from_bytes(block), Uuid::from_bytes(account)))
             }
+            call => Err(call),
+        })
+    }
+
+    /// The blocks whose ownership the editor accepted (`host-services.accept-ownership`), in
+    /// order.
+    pub fn take_ownership_acceptances(&mut self) -> Vec<Uuid> {
+        self.take_requests_where(|call| match call {
+            Call::AcceptOwnership { block, .. } => Ok(Uuid::from_bytes(block)),
             call => Err(call),
         })
     }
