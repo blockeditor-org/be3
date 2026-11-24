@@ -68,7 +68,7 @@ fn a_root_lists_its_hosts_unsent_edits_and_asks_before_discarding_one() {
     let mut root = embedding();
     let mut time = 1;
     step(&mut root, time);
-    root.show_core(view(vec![notes(), plan()]));
+    show_core(&mut root, view(vec![notes(), plan()]));
 
     // The menu's Unsent edits opens the list, over its scrim, taking the focus.
     let opened = menu(&mut root, &mut time, Entry::Unsent);
@@ -136,14 +136,14 @@ fn a_root_lists_its_hosts_unsent_edits_and_asks_before_discarding_one() {
     );
 
     // A block that leaves the list while its question is asked takes the question with it.
-    root.show_core(view(vec![plan()]));
+    show_core(&mut root, view(vec![plan()]));
     let listed = dialog_painting(&mut root, &mut time);
     press(&mut root, &mut time, Key::Tab);
     press(&mut root, &mut time, Key::Tab);
     press(&mut root, &mut time, Key::Enter);
     let asking = dialog_painting(&mut root, &mut time);
     assert_ne!(listed, asking, "Discard asks about the block left");
-    root.show_core(view(Vec::new()));
+    show_core(&mut root, view(Vec::new()));
     assert_ne!(
         dialog_painting(&mut root, &mut time),
         asking,

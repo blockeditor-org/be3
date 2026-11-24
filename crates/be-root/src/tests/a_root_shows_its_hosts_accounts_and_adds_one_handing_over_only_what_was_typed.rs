@@ -85,7 +85,7 @@ fn a_root_shows_its_hosts_accounts_and_adds_one_handing_over_only_what_was_typed
     let mut root = embedding();
     let mut time = 1;
     step(&mut root, time);
-    root.show_core(choosing(vec![ada(), grace()]));
+    show_core(&mut root, choosing(vec![ada(), grace()]));
     let shown = until(
         &mut root,
         &mut time,
@@ -104,21 +104,21 @@ fn a_root_shows_its_hosts_accounts_and_adds_one_handing_over_only_what_was_typed
     );
 
     // Open, and the chevron beside it, open the account, back where it was or choosing.
-    let commands = asks(&mut root, &mut time, click(pos2(297.0, 175.0)));
+    let commands = asks(&mut root, &mut time, click(pos2(528.0, 175.0)));
     assert!(
         matches!(commands.as_slice(), [CoreCommand::OpenAccount(key)] if *key == ada().key),
         "Open opens the account: {commands:?}"
     );
-    let commands = asks(&mut root, &mut time, click(pos2(351.0, 175.0)));
+    let commands = asks(&mut root, &mut time, click(pos2(582.0, 175.0)));
     assert!(
         matches!(commands.as_slice(), [CoreCommand::ChooseOrganization(key)] if *key == ada().key),
         "the chevron opens it choosing its organization: {commands:?}"
     );
 
     // Removing one kept on this device alone asks first.
-    let commands = asks(&mut root, &mut time, click(pos2(351.0, 117.0)));
+    let commands = asks(&mut root, &mut time, click(pos2(582.0, 117.0)));
     assert!(commands.is_empty(), "{commands:?}");
-    let commands = asks(&mut root, &mut time, click(pos2(277.0, 151.0)));
+    let commands = asks(&mut root, &mut time, click(pos2(643.0, 151.0)));
     assert!(commands.is_empty(), "asking removes nothing: {commands:?}");
     until(
         &mut root,
@@ -139,7 +139,7 @@ fn a_root_shows_its_hosts_accounts_and_adds_one_handing_over_only_what_was_typed
     );
 
     // With no accounts, Add account opens the dialog, which starts afresh.
-    root.show_core(choosing(Vec::new()));
+    show_core(&mut root, choosing(Vec::new()));
     let _ = asks(&mut root, &mut time, Vec::new());
     let _ = asks(&mut root, &mut time, chord(Key::Tab, Modifiers::NONE));
     let commands = asks(&mut root, &mut time, chord(Key::Enter, Modifiers::NONE));
@@ -153,7 +153,7 @@ fn a_root_shows_its_hosts_accounts_and_adds_one_handing_over_only_what_was_typed
     );
 
     // To a server: its address, and the gateway token, which crosses inside the command alone.
-    let commands = asks(&mut root, &mut time, click(pos2(140.0, 122.0)));
+    let commands = asks(&mut root, &mut time, click(pos2(285.0, 328.0)));
     assert!(commands.is_empty(), "{commands:?}");
     let _ = asks(&mut root, &mut time, typed("https://example.com"));
     let _ = asks(&mut root, &mut time, chord(Key::Tab, Modifiers::NONE));
@@ -172,12 +172,12 @@ fn a_root_shows_its_hosts_accounts_and_adds_one_handing_over_only_what_was_typed
     }
 
     // While it connects, then while the person signs in in their browser.
-    root.show_core(CoreView {
+    show_core(&mut root, CoreView {
         signing_in: Some(SigningIn { browser: None }),
         ..choosing(Vec::new())
     });
     let _ = asks(&mut root, &mut time, Vec::new());
-    root.show_core(CoreView {
+    show_core(&mut root, CoreView {
         signing_in: Some(SigningIn {
             browser: Some(BrowserSignIn {
                 url: "https://example.com/auth".to_owned(),
@@ -233,7 +233,7 @@ fn a_root_shows_its_hosts_accounts_and_adds_one_handing_over_only_what_was_typed
         matches!(commands.as_slice(), [CoreCommand::CancelSignIn]),
         "closing the dialog stops the sign-in: {commands:?}"
     );
-    root.show_core(choosing(Vec::new()));
+    show_core(&mut root, choosing(Vec::new()));
     until(
         &mut root,
         &mut time,
@@ -248,7 +248,7 @@ fn a_root_shows_its_hosts_accounts_and_adds_one_handing_over_only_what_was_typed
         matches!(commands.as_slice(), [CoreCommand::CancelSignIn]),
         "Add account opens the dialog again, the focus back on it: {commands:?}"
     );
-    let _ = asks(&mut root, &mut time, click(pos2(294.0, 122.0)));
+    let _ = asks(&mut root, &mut time, click(pos2(283.0, 272.0)));
     let _ = asks(&mut root, &mut time, typed("Lin"));
     let commands = asks(&mut root, &mut time, chord(Key::Enter, Modifiers::NONE));
     assert!(
@@ -260,7 +260,7 @@ fn a_root_shows_its_hosts_accounts_and_adds_one_handing_over_only_what_was_typed
         name: "Lin".to_owned(),
         ..ada()
     };
-    root.show_core(choosing(vec![lin]));
+    show_core(&mut root, choosing(vec![lin]));
     until(
         &mut root,
         &mut time,
@@ -274,7 +274,7 @@ fn a_root_shows_its_hosts_accounts_and_adds_one_handing_over_only_what_was_typed
     );
 
     // Once the block stack has an account open, the accounts go.
-    root.show_core(CoreView {
+    show_core(&mut root, CoreView {
         waits_for: None,
         ..choosing(Vec::new())
     });

@@ -13,6 +13,8 @@ fn drawn(root: &mut Root, time: u64) -> Vec<Layer> {
             FrameRequest {
                 time,
                 wall_clock: 0,
+                utc_offset: 0,
+                window: window(),
             },
             Instant::now() + PATIENT,
         )

@@ -1,4 +1,4 @@
-use crate::{LOCK_LAYER, SLOW_SAVE, TOAST_AREA, TOAST_LAYER, TOAST_SURFACE};
+use crate::{LOCK_LAYER, SLOW_SAVE, TOAST_LAYER, TOAST_SURFACE};
 use be_lib_geometry::pos2;
 use be_wasm_root_api::{LockState, SavingState, SyncState};
 
@@ -66,7 +66,7 @@ fn a_root_shows_the_slow_saves_toast_while_its_hosts_changes_stay_unsaved() {
     );
 
     // Dismissed, it stays dismissed while the changes are still unsaved.
-    let close = pos2(TOAST_AREA.0 as f32 - 40.0, 36.0);
+    let close = pos2(window().width - 40.0, 36.0);
     until(
         &mut root,
         &mut time,

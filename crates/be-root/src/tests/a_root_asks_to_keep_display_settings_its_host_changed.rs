@@ -1,4 +1,4 @@
-use crate::{DIALOG_LAYER, DIALOG_SURFACE, LOCK_LAYER, SCRIM_LAYER};
+use crate::{DIALOG_LAYER, DIALOG_SURFACE, LOCK_LAYER};
 use be_lib_ui_types::{Key, Modifiers};
 use be_wasm_root_api::{DisplayQuestion, LockState};
 
@@ -57,7 +57,11 @@ fn a_root_asks_to_keep_display_settings_its_host_changed() {
         "the question of keeping the display settings shows",
         |done| layer_of(done, DIALOG_LAYER).is_some(),
     );
-    assert!(layer_of(&shown, SCRIM_LAYER).is_some(), "over its scrim");
+    let dialog = layer_of(&shown, DIALOG_LAYER).expect("the question shows");
+    assert!(
+        dialog.input.captures && dialog.input.focuses,
+        "over beui's scrim, it takes every press and the focus"
+    );
     for _ in 0..3 {
         time += 1;
         step(&mut root, time);

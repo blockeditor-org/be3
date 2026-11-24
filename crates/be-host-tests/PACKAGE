@@ -31,7 +31,6 @@ write_package_value("be3.cargo", {
             "examples": {},
             "features": [],
             "test_deps": [
-                "//crates/be-root:be-root",
                 "//crates/be-sdk-root-testing:be-sdk-root-testing",
             ],
             "test_features": [],
@@ -53,7 +52,6 @@ write_package_value("be3.cargo", {
             "examples": {},
             "features": [],
             "test_deps": [
-                "//crates/be-root:be-root",
                 "//crates/be-sdk-root-testing:be-sdk-root-testing",
             ],
             "test_features": [],
@@ -75,7 +73,6 @@ write_package_value("be3.cargo", {
             "examples": {},
             "features": [],
             "test_deps": [
-                "//crates/be-root:be-root",
                 "//crates/be-sdk-root-testing:be-sdk-root-testing",
             ],
             "test_features": [],
@@ -97,7 +94,6 @@ write_package_value("be3.cargo", {
             "examples": {},
             "features": [],
             "test_deps": [
-                "//crates/be-root:be-root",
                 "//crates/be-sdk-root-testing:be-sdk-root-testing",
             ],
             "test_features": [],
@@ -119,7 +115,6 @@ write_package_value("be3.cargo", {
             "examples": {},
             "features": [],
             "test_deps": [
-                "//crates/be-root:be-root",
                 "//crates/be-sdk-root-testing:be-sdk-root-testing",
             ],
             "test_features": [],
@@ -141,7 +136,6 @@ write_package_value("be3.cargo", {
             "examples": {},
             "features": [],
             "test_deps": [
-                "//crates/be-root:be-root",
                 "//crates/be-sdk-root-testing:be-sdk-root-testing",
             ],
             "test_features": [],
@@ -163,7 +157,6 @@ write_package_value("be3.cargo", {
             "examples": {},
             "features": [],
             "test_deps": [
-                "//crates/be-root:be-root",
                 "//crates/be-sdk-root-testing:be-sdk-root-testing",
             ],
             "test_features": [],

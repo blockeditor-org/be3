@@ -1,6 +1,10 @@
 //! What the block stack waits for before an organization's blocks open: the accounts and adding or removing one, the organizations, the sessions, the recovery phrase, unlocking, and a failure.
 
 use super::*;
+use be_wasm_root_api::{Invitation, OrganizationsArea, SessionKind, SessionsArea};
+use beui::icons::{
+    ICON_BOXES, ICON_CHECK, ICON_CHEVRON_DOWN, ICON_CLOUD, ICON_COPY, ICON_MONITOR, ICON_PLUS, ICON_ELLIPSIS, ICON_REFRESH_CW, ICON_USER_PLUS, ICON_USERS_ROUND,
+};
 
 /// What the block stack waits for the person to do: the accounts, the organizations or the
 /// sessions, each splitting its own memo off the one view.
@@ -29,7 +33,7 @@ pub(super) fn Onboarding(
                 </Show>
                 <Show value={organizations}>
                     <ListItem grow=1.0>
-                        <OrganizationsCard core={core} />
+                        <OrganizationsCard core={core} want={want} />
                     </ListItem>
                 </Show>
                 <Show value={sessions}>
@@ -57,9 +61,11 @@ pub(super) fn Onboarding(
     }
 }
 
-/// The recovery phrase, while the person writes it down: its words, asked for as it shows and
-/// held only while it does, numbered; a field for the words at the checked positions, typed
-/// back as a secret and cleared; Confirm, New phrase, and Keep the old one while replacing.
+/// The recovery phrase, while the person writes it down, as be-host's own asks it: its words,
+/// asked for as it shows and held only while it does, numbered in rows of four; a field for
+/// each word at the checked positions, typed back as one secret, the words in order and
+/// separated by spaces, and cleared; I saved them; and Cancel while replacing an old phrase, or
+/// Switch account.
 #[component]
 pub(super) fn RecoveryCard(
     core: Signal<CoreView>,
@@ -71,90 +77,132 @@ pub(super) fn RecoveryCard(
     let busy = create_memo(move || pending.get() || area.with(|area| area.busy));
     let error = create_memo(move || area.with(|area| area.error.clone()));
     let replacing = create_memo(move || area.with(|area| area.replacing));
+    let title = create_memo(move || match replacing.get() {
+        true => "New recovery phrase".to_owned(),
+        false => RECOVERY_TITLE.to_owned(),
+    });
     ask.call(SecretCommand::RecoveryPhrase);
     // The one copy of the words it shows beside the phrase itself.
     let words = create_memo(move || {
         secret.with(|secret| {
-            secret
+            let words: Vec<&str> = secret
                 .as_ref()
                 .and_then(Held::phrase)
-                .map(|phrase| {
-                    phrase
-                        .split_whitespace()
+                .map(|phrase| phrase.split_whitespace().collect())
+                .unwrap_or_default();
+            words
+                .chunks(4)
+                .enumerate()
+                .map(|(row, chunk)| {
+                    chunk
+                        .iter()
                         .enumerate()
-                        .map(|(at, word)| format!("{} {word}", at + 1))
+                        .map(|(column, word)| format!("{}. {word}", row * 4 + column + 1))
                         .collect::<Vec<_>>()
-                        .join("   ")
+                        .join("    ")
                 })
-                .unwrap_or_default()
+                .collect::<Vec<_>>()
+                .join("\n")
         })
     });
-    let asked = create_memo(move || {
-        area.with(|area| {
-            let positions: Vec<String> = area.checked.iter().map(u32::to_string).collect();
-            format!(
-                "Type words {} to show you wrote it down.",
-                positions.join(", ")
-            )
+    let label = move |index: usize| {
+        create_memo(move || {
+            area.with(|area| {
+                area.checked
+                    .get(index)
+                    .map(|position| format!("Word {position}"))
+                    .unwrap_or_default()
+            })
         })
-    });
-    let typed = create_signal(String::new());
-    let confirm = move || {
-        let words = typed.get_untracked();
-        typed.set(String::new());
-        if !words.trim().is_empty() {
-            ask_core(CoreCommand::ConfirmRecovery(Password::from(words)));
-        }
     };
-    let renew = move || {
-        // The host makes the new phrase with the command, before the request after it.
-        ask_core(CoreCommand::NewRecoveryPhrase);
-        ask.call(SecretCommand::RecoveryPhrase);
+    let (first_label, second_label, third_label) = (label(0), label(1), label(2));
+    let (first, second, third) = (
+        create_signal(String::new()),
+        create_signal(String::new()),
+        create_signal(String::new()),
+    );
+    let cannot = create_memo(move || {
+        busy.get()
+            || [first, second, third]
+                .iter()
+                .any(|word| word.with(|word| word.trim().is_empty()))
+    });
+    let confirm = move || {
+        if cannot.get_untracked() {
+            return;
+        }
+        let words = [first, second, third]
+            .iter()
+            .map(|word| word.get_untracked().trim().to_owned())
+            .collect::<Vec<_>>()
+            .join(" ");
+        for word in [first, second, third] {
+            word.set(String::new());
+        }
+        ask_core(CoreCommand::ConfirmRecovery(Password::from(words)));
     };
     view! {
         <be_root_accounts_ui::Column>
-            <Text style=TextStyle::TITLE>{RECOVERY_TITLE}</Text>
-            <Text style=TextStyle::CAPTION>
-                "Write these words down and keep them safe: they are the only way back to your blocks if you lose this device."
+            <Text style=TextStyle::TITLE>{title}</Text>
+            <Show value={replacing}>
+                <Text style=TextStyle::PARAGRAPH>
+                    "Once you save this phrase, your old one stops working. Every key sealed to the old phrase is sealed to this one instead, and your other devices will ask to be unlocked again."
+                </Text>
+            </Show>
+            <Text style=TextStyle::PARAGRAPH>
+                "Your notes are encrypted with a key the server never sees. These twelve words are the only way to open them on a new device when no other device of yours is at hand. Write them down and keep them somewhere safe: nobody can recover them for you."
             </Text>
-            <Text>{words}</Text>
-            <Text style=TextStyle::CAPTION>{asked}</Text>
-            <be_root_accounts_ui::ErrorText text={error} />
+            <Card>
+                <Text style=TextStyle::PARAGRAPH>{words}</Text>
+            </Card>
+            <Text style=TextStyle::HEADING>"Check that you saved them"</Text>
+            <Text style=TextStyle::CAPTION>{first_label}</Text>
+            <TextInput value={first} label={first_label} kind={InputKind::Password} />
+            <Text style=TextStyle::CAPTION>{second_label}</Text>
+            <TextInput value={second} label={second_label} kind={InputKind::Password} />
+            <Text style=TextStyle::CAPTION>{third_label}</Text>
             <TextInput
-                value={typed}
-                label="Words"
-                placeholder="Words"
+                value={third}
+                label={third_label}
                 kind={InputKind::Password}
                 on_submit={move |_: String| confirm()}
             />
-            <List direction=Direction::Horizontal spacing=Space::Md>
-                <Button
-                    label="Confirm"
-                    variant=ButtonVariant::Primary
-                    disabled={busy}
-                    on_click={confirm}
-                />
-                <Button
-                    label="New phrase"
-                    variant=ButtonVariant::Secondary
-                    disabled={busy}
-                    on_click={renew}
-                />
-                <Show value={replacing}>
+            <be_root_accounts_ui::ErrorText text={error} />
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
+                <Show value={busy}>
+                    <Progress width=INLINE_PROGRESS_WIDTH />
+                </Show>
+                <Spacer />
+                <Show
+                    value={replacing}
+                    fallback={|| view! {
+                        <Button
+                            label="Switch account"
+                            variant=ButtonVariant::Secondary
+                            on_click={|| ask_core(CoreCommand::SwitchAccount)}
+                        />
+                    }}
+                >
                     <Button
-                        label="Keep the old one"
+                        label="Cancel"
                         variant=ButtonVariant::Secondary
                         on_click={|| ask_core(CoreCommand::CancelRecovery)}
                     />
                 </Show>
+                <Button
+                    label="I saved them"
+                    variant=ButtonVariant::Primary
+                    disabled={cannot}
+                    on_click={confirm}
+                />
             </List>
         </be_root_accounts_ui::Column>
     }
 }
 
-/// Unlocking the account's keys on this device: its recovery phrase, typed as a secret and
-/// cleared; or pairing with a device that holds them, whose code, asked for, shows until it is
-/// withdrawn.
+/// Unlocking the account's keys on this device, as be-host's own asks it: with its recovery
+/// phrase, handed over as a secret and cleared; or with another device, whose code, asked for,
+/// shows until it is withdrawn; or Switch account.
 #[component]
 pub(super) fn UnlockCard(
     core: Signal<CoreView>,
@@ -164,68 +212,89 @@ pub(super) fn UnlockCard(
 ) -> NodeId {
     let area = create_memo(move || core.with(|view| view.unlock.clone()));
     let error = create_memo(move || area.with(|area| area.error.clone()));
-    let lead = create_memo(move || {
-        area.with(|area| format!("The keys of {} are not on this device yet.", area.account))
-    });
+    let title = create_memo(move || area.with(|area| format!("Unlock {}", area.account)));
     let code = create_memo(move || {
         secret.with(|secret| secret.as_ref().and_then(Held::code).map(str::to_owned))
     });
-    let pairing = create_memo(move || code.with(Option::is_some));
-    let unpaired = create_memo(move || !pairing.get());
-    let code_line = create_memo(move || {
-        let account = area.with(|area| area.account.clone());
-        code.get()
-            .map(|code| format!("Enter {code} on a device signed in as {account}."))
-            .unwrap_or_default()
-    });
     let phrase = create_signal(String::new());
+    let cannot = create_memo(move || phrase.with(|phrase| phrase.trim().is_empty()));
     let unlock = move || {
+        if cannot.get_untracked() {
+            return;
+        }
         let typed = phrase.get_untracked();
         phrase.set(String::new());
-        if !typed.trim().is_empty() {
-            ask_core(CoreCommand::UnlockWithPhrase(Password::from(typed)));
-        }
+        ask_core(CoreCommand::UnlockWithPhrase(Password::from(typed)));
     };
     view! {
         <be_root_accounts_ui::Column>
-            <Text style=TextStyle::TITLE>{UNLOCK_TITLE}</Text>
-            <Text style=TextStyle::CAPTION>{lead}</Text>
-            <be_root_accounts_ui::ErrorText text={error} />
-            <List direction=Direction::Horizontal align=Align::End spacing=Space::Md>
-                <ListItem grow=1.0>
-                    <TextInput
-                        value={phrase}
-                        label="Recovery phrase"
-                        placeholder="Recovery phrase"
-                        kind={InputKind::Password}
-                        on_submit={move |_: String| unlock()}
-                    />
-                </ListItem>
-                <Button label="Unlock" variant=ButtonVariant::Primary on_click={unlock} />
-            </List>
-            <Show value={unpaired}>
-                <Button
-                    label="Pair with another device"
-                    variant=ButtonVariant::Secondary
-                    disabled={pending}
-                    on_click={move || ask.call(SecretCommand::PairingCode)}
+            <Text style=TextStyle::TITLE>{title}</Text>
+            <Text style=TextStyle::PARAGRAPH>
+                "This device does not have this account's key yet, so it cannot open anything the account keeps."
+            </Text>
+            <List spacing=Space::Md>
+                <Text style=TextStyle::HEADING>"With your recovery phrase"</Text>
+                <TextInput
+                    value={phrase}
+                    label="Recovery phrase"
+                    placeholder="twelve words"
+                    on_submit={move |_: String| unlock()}
                 />
-            </Show>
-            <Show value={pairing}>
-                <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
-                    <ListItem grow=1.0>
-                        <Text>{code_line}</Text>
-                    </ListItem>
+                <List direction=Direction::Horizontal spacing=Space::Md>
+                    <Spacer />
                     <Button
-                        label="Cancel"
-                        variant=ButtonVariant::Secondary
-                        on_click={move || {
-                            secret.set(None);
-                            ask_core(CoreCommand::CancelPairing);
-                        }}
+                        label="Unlock"
+                        variant=ButtonVariant::Primary
+                        disabled={cannot}
+                        on_click={unlock}
                     />
                 </List>
+            </List>
+            <Text style=TextStyle::HEADING>"With another device"</Text>
+            <Show
+                value={code}
+                fallback={move || view! {
+                    <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
+                        <ListItem grow=1.0>
+                            <Text style=TextStyle::PARAGRAPH>
+                                "Open any organization of this account on a device that is unlocked, and it will ask for a code."
+                            </Text>
+                        </ListItem>
+                        <Button
+                            label="Show a code"
+                            variant=ButtonVariant::Secondary
+                            disabled={pending}
+                            on_click={move || ask.call(SecretCommand::PairingCode)}
+                        />
+                    </List>
+                }}
+            >|code: ReadSignal<String>|
+                <List spacing=Space::Md>
+                    <Text style=TextStyle::PARAGRAPH>"Type this code on the other device:"</Text>
+                    <Text size=TextSize::Xl>{code}</Text>
+                    <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
+                        <Progress width=INLINE_PROGRESS_WIDTH />
+                        <Text style=TextStyle::CAPTION>"Waiting for the other device…"</Text>
+                        <Spacer />
+                        <Button
+                            label="Cancel"
+                            variant=ButtonVariant::Secondary
+                            on_click={move || {
+                                secret.set(None);
+                                ask_core(CoreCommand::CancelPairing);
+                            }}
+                        />
+                    </List>
+                </List>
             </Show>
+            <be_root_accounts_ui::ErrorText text={error} />
+            <List direction=Direction::Horizontal spacing=Space::Md>
+                <Button
+                    label="Switch account"
+                    variant=ButtonVariant::Ghost
+                    on_click={|| ask_core(CoreCommand::SwitchAccount)}
+                />
+            </List>
         </be_root_accounts_ui::Column>
     }
 }
@@ -239,61 +308,67 @@ pub(super) fn FailureCard(core: Signal<CoreView>) -> NodeId {
         failure.with(|it| it.as_ref().map(|it| it.message.clone()).unwrap_or_default())
     });
     let asking = create_signal(false);
-    let calm = create_memo(move || !asking.get());
-    let question = create_memo(move || {
-        let unsaved = failure.with(|it| it.as_ref().map_or(0, |it| it.unsaved));
-        match unsaved {
-            0 => "Delete this device's copy of your blocks? They download again from the server."
-                .to_owned(),
-            1 => "Delete this device's copy of your blocks? 1 change not saved is lost.".to_owned(),
-            unsaved => format!(
-                "Delete this device's copy of your blocks? {unsaved} changes not saved are lost."
+    let confirmation = create_memo(move || {
+        let accounts = "This removes every saved account and its key on this device. You will need to sign in again, and unlock each account with its recovery phrase or another device.";
+        match failure.with(|it| it.as_ref().map_or(0, |it| it.unsaved)) {
+            0 => accounts.to_owned(),
+            1 => format!(
+                "{accounts} One block has changes that have not reached the server yet, and they will be lost."
+            ),
+            count => format!(
+                "{accounts} {count} blocks have changes that have not reached the server yet, and they will be lost."
             ),
         }
     });
+    let copy = move || {
+        let text = message.get_untracked();
+        be_wasm_ops::guest::spawn(async move {
+            let item = be_lib_ui_types::ClipItem::text(text);
+            // A host that cannot hear it has stopped, which the root hears from its frames.
+            let _ = host::copy(vec![be_wasm_ops::encode(&item)]).await;
+        });
+    };
     view! {
         <be_root_accounts_ui::Column>
-            <Text style=TextStyle::TITLE>{FAILURE_TITLE}</Text>
-            <Text style=TextStyle::PARAGRAPH>{message}</Text>
-            <Show value={calm}>
-                <List direction=Direction::Horizontal spacing=Space::Md>
-                    <Button
-                        label="Restart"
-                        variant=ButtonVariant::Primary
-                        on_click={|| ask_core(CoreCommand::Restart)}
-                    />
-                    <Button
-                        label="Delete local copy"
-                        variant=ButtonVariant::Secondary
-                        on_click={move || asking.set(true)}
-                    />
-                    <Button
-                        label="Quit"
-                        variant=ButtonVariant::Secondary
-                        on_click={|| ask_core(CoreCommand::Exit)}
-                    />
-                </List>
-            </Show>
-            <Show value={asking}>
-                <List spacing=Space::Md>
-                    <Text style=TextStyle::PARAGRAPH>{question}</Text>
-                    <List direction=Direction::Horizontal spacing=Space::Md>
-                        <Button
-                            label="Keep"
-                            variant=ButtonVariant::Secondary
-                            on_click={move || asking.set(false)}
-                        />
-                        <Button
-                            label="Delete"
-                            variant=ButtonVariant::Danger
-                            on_click={move || {
-                                asking.set(false);
-                                ask_core(CoreCommand::DeleteClientDatabase);
-                            }}
-                        />
-                    </List>
-                </List>
-            </Show>
+            <Text style=TextStyle::TITLE align=TextAlign::Center>{FAILURE_TITLE}</Text>
+            <Frame height={Size::Custom(240.0)}>
+                <Scroll>
+                    <Text style=TextStyle::PARAGRAPH>{message}</Text>
+                </Scroll>
+            </Frame>
+            <List direction=Direction::Horizontal spacing=Space::Md wrap=true>
+                <Button
+                    label="Restart"
+                    variant=ButtonVariant::Primary
+                    on_click={|| ask_core(CoreCommand::Restart)}
+                />
+                <Button label="Copy" variant=ButtonVariant::Secondary on_click={copy} />
+                <Button
+                    label="Delete client database..."
+                    variant=ButtonVariant::Secondary
+                    on_click={move || asking.set(true)}
+                />
+                <Button
+                    label="Exit"
+                    variant=ButtonVariant::Ghost
+                    on_click={|| ask_core(CoreCommand::Exit)}
+                />
+            </List>
+            <Dialog
+                open={asking}
+                kind=DialogKind::Alert
+                title="Delete client database?"
+                actions={vec![
+                    DialogAction::destructive("Delete", move || {
+                        asking.set(false);
+                        ask_core(CoreCommand::DeleteClientDatabase);
+                    }),
+                    DialogAction::cancel("Cancel"),
+                ]}
+                on_dismiss={move || asking.set(false)}
+            >
+                <Text style=TextStyle::PARAGRAPH>{confirmation}</Text>
+            </Dialog>
         </be_root_accounts_ui::Column>
     }
 }
@@ -302,153 +377,294 @@ pub(super) fn FailureCard(core: Signal<CoreView>) -> NodeId {
 /// invitation opened, to join or put aside; creating one; opening an invitation's link, which
 /// the field hands over as a secret and clears; and switching account.
 #[component]
-pub(super) fn OrganizationsCard(core: Signal<CoreView>) -> NodeId {
+pub(super) fn OrganizationsCard(core: Signal<CoreView>, want: Callback<Asking>) -> NodeId {
     let area = create_memo(move || core.with(|view| view.organizations.clone()));
     let listed = create_memo(move || area.with(|area| area.listed.clone()));
-    let loading = create_memo(move || listed.get() == OrganizationsListed::Loading);
-    let failed = create_memo(move || listed.get() == OrganizationsListed::Failed);
     let rows = create_memo(move || match listed.get() {
         OrganizationsListed::Loaded(rows) => rows,
         _ => Vec::new(),
     });
     let busy = create_memo(move || area.with(|area| area.busy));
     let error = create_memo(move || area.with(|area| area.error.clone()));
-    let joining = create_memo(move || area.with(|area| area.joining.is_some()));
-    let invited = create_memo(move || {
-        area.with(|area| {
-            area.joining
-                .as_ref()
-                .map(|invitation| {
-                    let lead = format!(
-                        "{} invited you to join {}",
-                        invitation.inviter, invitation.organization
-                    );
-                    match &invitation.problem {
-                        Some(problem) => format!("{lead}. {problem}"),
-                        None => lead,
-                    }
-                })
+    let account = create_memo(move || {
+        core.with(|view| {
+            view.accounts
+                .iter()
+                .find(|account| account.current)
+                .map(account_row)
                 .unwrap_or_default()
         })
     });
-    let cannot_join = create_memo(move || {
-        busy.get() || !area.with(|area| area.joining.as_ref().is_some_and(|it| it.can_join))
-    });
-    let name = create_signal(String::new());
-    let link = create_signal(String::new());
-    let create = move || {
-        let named = name.get_untracked().trim().to_owned();
-        if !named.is_empty() {
-            name.set(String::new());
-            ask_core(CoreCommand::CreateOrganization(named));
-        }
-    };
-    let open_link = move || {
-        // The link is a bearer secret: shown as typed, so the person sees what they pasted,
-        // it leaves the field as it is handed over.
-        let typed = link.get_untracked();
-        link.set(String::new());
-        if !typed.trim().is_empty() {
-            ask_core(CoreCommand::OpenInvitation(Password::from(typed)));
+    let name = create_memo(move || account.with(|account| account.name.clone()));
+    let leave = move || {
+        let (key, name, local) =
+            account.with_untracked(|it| (it.key.clone(), it.name.clone(), it.local));
+        match local {
+            // One kept on this device alone asks first, as removing it does from the accounts.
+            true => want.call(Asking::ForgetAccount { key, name }),
+            false => ask_core(CoreCommand::ForgetAccount(key)),
         }
     };
     view! {
         <be_root_accounts_ui::Column>
-            <Text style=TextStyle::TITLE>{ORGANIZATIONS_TITLE}</Text>
-            <Show value={loading}>
-                <Text style=TextStyle::CAPTION>"Loading organizations…"</Text>
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
+                <ListItem grow=1.0>
+                    <Text style=TextStyle::TITLE>{ORGANIZATIONS_TITLE}</Text>
+                </ListItem>
+                <MenuButton
+                    label="Account options"
+                    glyph=ICON_ELLIPSIS
+                    icon_only=true
+                    arrow=false
+                    items={view! {
+                        <MenuItem
+                            label={move || be_root_accounts_ui::leave_label(account.get().local).to_owned()}
+                            on_click={leave}
+                        />
+                    }}
+                />
+                <Button
+                    icon_only=true
+                    glyph=ICON_REFRESH_CW
+                    label="Reload organizations"
+                    disabled={busy}
+                    on_click={|| ask_core(CoreCommand::ReloadOrganizations)}
+                />
+            </List>
+            <Card>
+                <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
+                    <ListItem grow=1.0>
+                        <List spacing=Space::Xs>
+                            <Text size=TextSize::Lg>{name}</Text>
+                            <be_root_accounts_ui::AccountDetails account />
+                        </List>
+                    </ListItem>
+                    <Button
+                        label="Switch account"
+                        glyph=ICON_USERS_ROUND
+                        variant=ButtonVariant::Secondary
+                        on_click={|| ask_core(CoreCommand::SwitchAccount)}
+                    />
+                </List>
+            </Card>
+            <Text style=TextStyle::HEADING>"Open an organization"</Text>
+            <ForEach
+                value={rows}
+                key={|row: &OrganizationRow| row.id}
+                fallback={move || view! {
+                    <Card>
+                        <OrganizationsPlaceholder listed />
+                    </Card>
+                }}
+            >|row: ReadSignal<OrganizationRow>| {
+                let id = row.with_untracked(|row| row.id);
+                let label = create_memo(move || row.with(|row| row.name.clone()));
+                view! {
+                    <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
+                        <ListItem grow=1.0>
+                            <Button
+                                label={label}
+                                glyph=ICON_BOXES
+                                variant=ButtonVariant::Secondary
+                                on_click={move || ask_core(CoreCommand::OpenOrganization(id))}
+                            />
+                        </ListItem>
+                        <Button
+                            icon_only=true
+                            glyph=ICON_CHEVRON_DOWN
+                            label="Choose a session or profile"
+                            on_click={move || ask_core(CoreCommand::ChooseSessionIn(id))}
+                        />
+                    </List>
+                }
+            }</ForEach>
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
+                <Text align=TextAlign::Center>
+                    <Icon glyph=ICON_USER_PLUS />
+                </Text>
+                <Text style=TextStyle::HEADING>"Join an organization"</Text>
+            </List>
+            <JoinOrganization area={area} busy={busy} />
+            <Text style=TextStyle::HEADING>"Create an organization"</Text>
+            <CreateOrganization busy={busy} />
+            <be_root_accounts_ui::ErrorText text={error} />
+        </be_root_accounts_ui::Column>
+    }
+}
+
+/// What shows in place of the organizations while there are none: that there are none yet,
+/// that they could not be listed, with Retry, or that they are loading.
+#[component]
+fn OrganizationsPlaceholder(listed: Memo<OrganizationsListed>) -> NodeId {
+    let loading = create_memo(move || listed.get() == OrganizationsListed::Loading);
+    let failed = create_memo(move || listed.get() == OrganizationsListed::Failed);
+    let none = create_memo(move || matches!(listed.get(), OrganizationsListed::Loaded(_)));
+    view! {
+        <List spacing=Space::None>
+            <Show value={none}>
+                <Text style=TextStyle::CAPTION>
+                    "You do not have any organizations yet. Create one below."
+                </Text>
             </Show>
             <Show value={failed}>
                 <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
-                    <ListItem grow=1.0>
-                        <Text style=TextStyle::CAPTION>
-                            "The organizations could not be listed."
-                        </Text>
-                    </ListItem>
+                    <Text style=TextStyle::CAPTION>"Could not load organizations."</Text>
                     <Button
-                        label="Try again"
+                        label="Retry"
                         variant=ButtonVariant::Secondary
                         on_click={|| ask_core(CoreCommand::ReloadOrganizations)}
                     />
                 </List>
             </Show>
-            <ForEach
-                value={rows}
-                key={|row: &OrganizationRow| row.id}
-            >|row: ReadSignal<OrganizationRow>| {
-                let id = row.with_untracked(|row| row.id);
-                let name = create_memo(move || row.with(|row| row.name.clone()));
-                view! {
-                    <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
-                        <ListItem grow=1.0>
-                            <Text>{name}</Text>
-                        </ListItem>
-                        <Button
-                            label="Sessions"
-                            variant=ButtonVariant::Secondary
-                            on_click={move || ask_core(CoreCommand::ChooseSessionIn(id))}
-                        />
-                        <Button
-                            label="Open"
-                            variant=ButtonVariant::Primary
-                            on_click={move || ask_core(CoreCommand::OpenOrganization(id))}
-                        />
-                    </List>
-                }
-            }</ForEach>
-            <Show value={joining}>
-                <Card>
+            <Show value={loading}>
+                <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
+                    <Progress width=INLINE_PROGRESS_WIDTH />
+                    <Text style=TextStyle::CAPTION>"Loading organizations…"</Text>
+                </List>
+            </Show>
+        </List>
+    }
+}
+
+/// Joining an organization by an invite link: the link, pasted and handed over as a secret,
+/// shown as typed and cleared as it goes; then the invitation it opened, to join or put aside,
+/// and why it cannot be joined, with Use another account.
+#[component]
+fn JoinOrganization(area: Memo<OrganizationsArea>, busy: Memo<bool>) -> NodeId {
+    let joining = create_memo(move || area.with(|area| area.joining.clone()));
+    let link = create_signal(String::new());
+    let cannot = create_memo(move || busy.get() || link.with(|link| link.trim().is_empty()));
+    let open = move || {
+        if cannot.get_untracked() {
+            return;
+        }
+        // The link is a bearer secret: shown as typed, so the person sees what they pasted,
+        // it leaves the field as it is handed over.
+        let typed = link.get_untracked();
+        link.set(String::new());
+        ask_core(CoreCommand::OpenInvitation(Password::from(typed)));
+    };
+    view! {
+        <List spacing=Space::Md>
+            <Show
+                value={joining}
+                fallback={move || view! {
                     <List spacing=Space::Md>
-                        <Text>{invited}</Text>
-                        <List
-                            direction=Direction::Horizontal
-                            justify=Justify::End
-                            spacing=Space::Md
-                        >
+                        <Text style=TextStyle::CAPTION>
+                            "Paste the invite link someone sent you."
+                        </Text>
+                        <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
+                            <ListItem grow=1.0>
+                                <TextInput
+                                    value={link}
+                                    label="Invite link"
+                                    placeholder="https://…/#invite/…"
+                                    on_submit={move |_: String| open()}
+                                />
+                            </ListItem>
                             <Button
-                                label="Not now"
+                                label="Open"
                                 variant=ButtonVariant::Secondary
-                                on_click={|| ask_core(CoreCommand::CancelJoin)}
-                            />
-                            <Button
-                                label="Join"
-                                variant=ButtonVariant::Primary
-                                disabled={cannot_join}
-                                on_click={|| ask_core(CoreCommand::JoinInvited)}
+                                disabled={cannot}
+                                on_click={open}
                             />
                         </List>
                     </List>
-                </Card>
-            </Show>
-            <be_root_accounts_ui::ErrorText text={error} />
-            <List direction=Direction::Horizontal align=Align::End spacing=Space::Md>
-                <ListItem grow=1.0>
-                    <TextInput
-                        value={name}
-                        label="New organization"
-                        placeholder="New organization"
-                        on_submit={move |_: String| create()}
-                    />
-                </ListItem>
-                <Button label="Create" disabled={busy} on_click={create} />
-            </List>
-            <List direction=Direction::Horizontal align=Align::End spacing=Space::Md>
-                <ListItem grow=1.0>
-                    <TextInput
-                        value={link}
-                        label="Invitation link"
-                        placeholder="Invitation link"
-                        on_submit={move |_: String| open_link()}
-                    />
-                </ListItem>
-                <Button label="Open invitation" disabled={busy} on_click={open_link} />
-            </List>
+                }}
+            >|invitation: ReadSignal<Invitation>| {
+                let title = create_memo(move || {
+                    invitation.with(|it| format!("Join {}?", it.organization))
+                });
+                let invited = create_memo(move || {
+                    invitation.with(|it| format!("Invited by {}. You join as an editor.", it.inviter))
+                });
+                let problem = create_memo(move || invitation.with(|it| it.problem.clone()));
+                let can_join = create_memo(move || invitation.with(|it| it.can_join));
+                let refused = create_memo(move || problem.with(Option::is_some));
+                let problem_text = create_memo(move || problem.get().unwrap_or_default());
+                view! {
+                    <Card>
+                        <List spacing=Space::Md>
+                            <List
+                                direction=Direction::Horizontal
+                                align=Align::Center
+                                spacing=Space::Md
+                            >
+                                <ListItem grow=1.0>
+                                    <List spacing=Space::Xs2>
+                                        <Text size=TextSize::Lg>{title}</Text>
+                                        <Text style=TextStyle::CAPTION>{invited}</Text>
+                                    </List>
+                                </ListItem>
+                                <Button
+                                    label="Cancel"
+                                    variant=ButtonVariant::Secondary
+                                    disabled={busy}
+                                    on_click={|| ask_core(CoreCommand::CancelJoin)}
+                                />
+                                <Show value={can_join}>
+                                    <Button
+                                        label="Join"
+                                        variant=ButtonVariant::Primary
+                                        disabled={busy}
+                                        on_click={|| ask_core(CoreCommand::JoinInvited)}
+                                    />
+                                </Show>
+                            </List>
+                            <Show value={refused}>
+                                <List
+                                    direction=Direction::Horizontal
+                                    align=Align::Center
+                                    spacing=Space::Md
+                                >
+                                    <ListItem grow=1.0>
+                                        <Text style=TextStyle::CAPTION>{problem_text}</Text>
+                                    </ListItem>
+                                    <Button
+                                        label="Use another account"
+                                        variant=ButtonVariant::Secondary
+                                        on_click={|| ask_core(CoreCommand::SwitchAccount)}
+                                    />
+                                </List>
+                            </Show>
+                        </List>
+                    </Card>
+                }
+            }</Show>
+        </List>
+    }
+}
+
+/// Creating an organization by its name, which clears once asked.
+#[component]
+fn CreateOrganization(busy: Memo<bool>) -> NodeId {
+    let name = create_signal(String::new());
+    let cannot = create_memo(move || busy.get() || name.with(|name| name.trim().is_empty()));
+    let create = move || {
+        if cannot.get_untracked() {
+            return;
+        }
+        let named = name.get_untracked().trim().to_owned();
+        name.set(String::new());
+        ask_core(CoreCommand::CreateOrganization(named));
+    };
+    view! {
+        <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
+            <ListItem grow=1.0>
+                <TextInput
+                    value={name}
+                    placeholder="Organization name"
+                    label="Organization name"
+                    on_submit={move |_: String| create()}
+                />
+            </ListItem>
             <Button
-                label="Switch account"
-                variant=ButtonVariant::Secondary
-                on_click={|| ask_core(CoreCommand::SwitchAccount)}
+                label="Create"
+                variant=ButtonVariant::Primary
+                disabled={cannot}
+                on_click={create}
             />
-        </be_root_accounts_ui::Column>
+        </List>
     }
 }
 
@@ -459,51 +675,101 @@ pub(super) fn OrganizationsCard(core: Signal<CoreView>) -> NodeId {
 pub(super) fn SessionsCard(core: Signal<CoreView>) -> NodeId {
     let area = create_memo(move || core.with(|view| view.sessions.clone()));
     let loading = create_memo(move || !area.with(|area| area.loaded));
+    let title = create_memo(move || core.with(|view| view.organization.clone()));
     // Which types it lists is the root's own choice, not the host's.
     let every = create_signal(false);
+    let kind_name = move |area: &SessionsArea, kind: [u8; 16]| {
+        area.session_kinds
+            .iter()
+            .find(|it| it.id == kind)
+            .map(|it| it.name.clone())
+    };
     let shown = create_memo(move || {
         let every = every.get();
         area.with(|area| {
             area.sessions
                 .iter()
                 .filter(|session| every || session.session_type == area.session_type)
-                .cloned()
+                .map(|session| {
+                    let kind = every.then(|| kind_name(area, session.session_type)).flatten();
+                    let label = match (kind, session.current) {
+                        (Some(kind), true) => format!("{} ({kind}, last used)", session.name),
+                        (Some(kind), false) => format!("{} ({kind})", session.name),
+                        (None, true) => format!("{} (last used)", session.name),
+                        (None, false) => session.name.clone(),
+                    };
+                    (session.id, label)
+                })
                 .collect::<Vec<_>>()
         })
     });
     let profiles = create_memo(move || area.with(|area| area.profiles.clone()));
+    let kinds = create_memo(move || area.with(|area| area.session_kinds.clone()));
     let new_label = create_memo(move || {
         area.with(|area| {
-            let name = area
-                .session_kinds
-                .iter()
-                .find(|kind| kind.id == area.session_type)
-                .map(|kind| kind.name.clone())
-                .unwrap_or_default();
-            format!("New {name} session")
+            format!(
+                "New {} session",
+                kind_name(area, area.session_type).unwrap_or_default()
+            )
         })
-    });
-    let every_label = create_memo(move || match every.get() {
-        true => "Show this type only".to_owned(),
-        false => "Show every type".to_owned(),
     });
     view! {
         <be_root_accounts_ui::Column>
-            <Text style=TextStyle::TITLE>{SESSIONS_TITLE}</Text>
+            <Text style=TextStyle::TITLE>{title}</Text>
             <Show value={loading}>
-                <Text style=TextStyle::CAPTION>"Loading sessions and profiles…"</Text>
+                <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
+                    <Progress width=INLINE_PROGRESS_WIDTH />
+                    <Text style=TextStyle::CAPTION>"Loading sessions and profiles…"</Text>
+                </List>
             </Show>
+            <Text style=TextStyle::HEADING>"Settings profile"</Text>
+            <Text style=TextStyle::CAPTION>
+                "The settings this device uses. Each device starts with a profile of its own."
+            </Text>
             <ForEach
-                value={shown}
-                key={|session: &SessionRow| session.id}
-            >|session: ReadSignal<SessionRow>| {
-                let id = session.with_untracked(|session| session.id);
+                value={profiles}
+                key={|profile: &ProfileRow| profile.id}
+            >|profile: ReadSignal<ProfileRow>| {
+                let id = profile.with_untracked(|profile| profile.id);
                 let label = create_memo(move || {
-                    session.with(|session| match session.current {
-                        true => format!("{} (last used)", session.name),
-                        false => session.name.clone(),
+                    profile.with(|profile| match profile.current {
+                        true => format!("{} (this device)", profile.name),
+                        false => profile.name.clone(),
                     })
                 });
+                let glyph = create_memo(move || profile.with(|profile| profile.current.then_some(ICON_CHECK)));
+                view! {
+                    <Button
+                        label={label}
+                        glyph={glyph}
+                        variant=ButtonVariant::Secondary
+                        on_click={move || ask_core(CoreCommand::UseProfile(id))}
+                    />
+                }
+            }</ForEach>
+            <Button
+                label="New settings profile"
+                glyph=ICON_PLUS
+                variant=ButtonVariant::Ghost
+                disabled={loading}
+                on_click={|| ask_core(CoreCommand::NewProfile)}
+            />
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
+                <ListItem grow=1.0>
+                    <Text style=TextStyle::HEADING>"Session"</Text>
+                </ListItem>
+                <Text style=TextStyle::CAPTION>"Show every type"</Text>
+                <Switch on={every} label="Show sessions of every type" />
+            </List>
+            <Text style=TextStyle::CAPTION>
+                "The blocks you had open. Start a new session to begin again with the same settings."
+            </Text>
+            <ForEach
+                value={shown}
+                key={|session: &([u8; 16], String)| session.0}
+            >|session: ReadSignal<([u8; 16], String)>| {
+                let id = session.with_untracked(|session| session.0);
+                let label = create_memo(move || session.with(|session| session.1.clone()));
                 view! {
                     <Button
                         label={label}
@@ -512,48 +778,36 @@ pub(super) fn SessionsCard(core: Signal<CoreView>) -> NodeId {
                     />
                 }
             }</ForEach>
-            <List direction=Direction::Horizontal spacing=Space::Md>
+            <SplitButton
+                label={new_label}
+                glyph=ICON_PLUS
+                variant=ButtonVariant::Secondary
+                menu_label="New session of another type"
+                disabled={loading}
+                items={view! {
+                    <ForEach value={kinds} key={|kind: &SessionKind| kind.id}>|kind: ReadSignal<SessionKind>| {
+                        let id = kind.with_untracked(|kind| kind.id);
+                        let label = create_memo(move || kind.with(|kind| format!("New {} session", kind.name)));
+                        view! {
+                            <MenuItem
+                                label={label}
+                                on_click={move || ask_core(CoreCommand::NewSession(id))}
+                            />
+                        }
+                    }</ForEach>
+                }}
+                on_click={move || ask_core(CoreCommand::NewSession(area.with_untracked(|area| area.session_type)))}
+            />
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                 <Button
-                    label={new_label}
-                    variant=ButtonVariant::Primary
-                    on_click={move || ask_core(CoreCommand::NewSession(area.with_untracked(|area| area.session_type)))}
-                />
-                <Button
-                    label={every_label}
-                    variant=ButtonVariant::Secondary
-                    on_click={move || every.set(!every.get_untracked())}
-                />
-            </List>
-            <Text weight=Weight::Bold>"Profiles"</Text>
-            <ForEach
-                value={profiles}
-                key={|profile: &ProfileRow| profile.id}
-            >|profile: ReadSignal<ProfileRow>| {
-                let id = profile.with_untracked(|profile| profile.id);
-                let label = create_memo(move || {
-                    profile.with(|profile| match profile.current {
-                        true => format!("{} (in use)", profile.name),
-                        false => profile.name.clone(),
-                    })
-                });
-                view! {
-                    <Button
-                        label={label}
-                        variant=ButtonVariant::Secondary
-                        on_click={move || ask_core(CoreCommand::UseProfile(id))}
-                    />
-                }
-            }</ForEach>
-            <List direction=Direction::Horizontal spacing=Space::Md>
-                <Button
-                    label="New profile"
-                    variant=ButtonVariant::Secondary
-                    on_click={|| ask_core(CoreCommand::NewProfile)}
-                />
-                <Button
-                    label="Close"
-                    variant=ButtonVariant::Secondary
+                    label="Keep the current session"
+                    variant=ButtonVariant::Ghost
                     on_click={|| ask_core(CoreCommand::CloseSessions)}
+                />
+                <Button
+                    label="Back to organizations"
+                    variant=ButtonVariant::Ghost
+                    on_click={|| ask_core(CoreCommand::SwitchOrganization)}
                 />
             </List>
         </be_root_accounts_ui::Column>
@@ -618,7 +872,11 @@ pub(super) fn account_row(account: &AccountRow) -> be_root_accounts_ui::AccountR
 /// Where the person chose to keep the account they add.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum Keeping {
+    /// The build's default server.
+    Default,
+    /// Another server, by its address.
     Server,
+    /// This device alone.
     Device,
 }
 
@@ -658,164 +916,278 @@ pub(super) fn AddAccountDialog(
             false => {}
         }
     });
-    let keeping = create_signal(None::<Keeping>);
+    // Where to keep it: the default server, this device, or another server, as be-host's own
+    // dialog offers them.
+    let default = create_memo(move || core.with(|view| view.default_server.clone()));
+    let has_default = create_memo(move || default.with(Option::is_some));
+    let default_name = create_memo(move || {
+        default.with(|it| it.as_ref().map(|it| it.name.clone()).unwrap_or_default())
+    });
+    let default_url = create_memo(move || {
+        default.with(|it| it.as_ref().map(|it| it.url.clone()).unwrap_or_default())
+    });
+    let selection = create_signal(None::<Keeping>);
     let url = create_signal(String::new());
     let gateway = create_signal(String::new());
     let name = create_signal(String::new());
-    let waiting = create_memo(move || signing.with(Option::is_some));
+    let pending = create_memo(move || signing.with(Option::is_some));
     let browser = create_memo(move || {
         signing.with(|signing| signing.as_ref().and_then(|signing| signing.browser.clone()))
     });
-    let has_browser = create_memo(move || browser.with(Option::is_some));
-    let connecting = create_memo(move || waiting.get() && !has_browser.get());
-    let choosing = create_memo(move || !waiting.get() && keeping.get().is_none());
-    let to_server = create_memo(move || !waiting.get() && keeping.get() == Some(Keeping::Server));
-    let on_device = create_memo(move || !waiting.get() && keeping.get() == Some(Keeping::Device));
-    let code = create_memo(move || {
-        browser.with(|browser| {
-            browser
-                .as_ref()
-                .map(|browser| format!("Enter {} on the page that opens.", browser.code))
-                .unwrap_or_default()
-        })
+    let waiting = create_memo(move || browser.with(Option::is_some));
+    let connecting = create_memo(move || pending.get() && !waiting.get());
+    let editing = create_memo(move || selection.with(Option::is_some) && !pending.get());
+    let choosing = create_memo(move || selection.with(Option::is_none) && !pending.get());
+    let local = create_memo(move || selection.get() == Some(Keeping::Device));
+    let remote = create_memo(move || selection.with(Option::is_some) && !local.get());
+    let gateway_required = create_memo(move || {
+        selection.get() == Some(Keeping::Default)
+            && default.with(|it| it.as_ref().is_some_and(|it| it.gateway_required))
     });
-    let connect = move || {
-        let address = url.get_untracked().trim().to_owned();
-        if address.is_empty() {
+    let gateway_label = create_memo(move || match gateway_required.get() {
+        true => "Gateway token".to_owned(),
+        false => "Gateway token (optional)".to_owned(),
+    });
+    let ready = create_memo(move || {
+        !pending.get()
+            && match selection.get() {
+                Some(Keeping::Device) => name.with(|name| !name.trim().is_empty()),
+                Some(Keeping::Default) => {
+                    !gateway_required.get() || gateway.with(|token| !token.trim().is_empty())
+                }
+                Some(Keeping::Server) => url.with(|url| !url.trim().is_empty()),
+                None => false,
+            }
+    });
+    let submit = move || {
+        if !ready.get_untracked() {
             return;
         }
-        // The token leaves the field as it is handed over, as the lock screen's password does.
-        let typed = gateway.get_untracked();
-        gateway.set(String::new());
-        let gateway = (!typed.trim().is_empty()).then(|| Password::from(typed));
-        ask_core(CoreCommand::AddAccount(NewAccount::Server(ServerAccount {
-            url: address,
-            gateway,
-        })));
-    };
-    let create = move || {
-        let name = name.get_untracked().trim().to_owned();
-        if !name.is_empty() {
-            ask_core(CoreCommand::AddAccount(NewAccount::Local(name)));
+        match selection.get_untracked() {
+            Some(Keeping::Device) => {
+                let name = name.get_untracked().trim().to_owned();
+                ask_core(CoreCommand::AddAccount(NewAccount::Local(name)));
+            }
+            Some(keeping) => {
+                let address = match keeping {
+                    Keeping::Default => default_url.get_untracked(),
+                    _ => url.get_untracked().trim().to_owned(),
+                };
+                // The token leaves the field as it is handed over, as the lock screen's
+                // password does.
+                let typed = gateway.get_untracked();
+                gateway.set(String::new());
+                let gateway = (!typed.trim().is_empty()).then(|| Password::from(typed));
+                ask_core(CoreCommand::AddAccount(NewAccount::Server(ServerAccount {
+                    url: address,
+                    gateway,
+                })));
+            }
+            None => {}
         }
     };
+    let title = create_memo(move || {
+        match (pending.get(), selection.get()) {
+            (true, _) => SIGN_IN_TITLE,
+            (false, Some(Keeping::Device)) => "Create local account",
+            (false, Some(_)) => "Connect to server",
+            (false, None) => ADD_ACCOUNT_TITLE,
+        }
+        .to_owned()
+    });
+    let footer_primary = create_memo(move || match (waiting.get(), editing.get()) {
+        (true, _) => "Open browser".to_owned(),
+        (false, true) if local.get() => "Create account".to_owned(),
+        (false, true) => "Continue".to_owned(),
+        (false, false) => String::new(),
+    });
+    let code = create_memo(move || {
+        browser.with(|it| it.as_ref().map(|it| it.code.clone()).unwrap_or_default())
+    });
+    let link = create_memo(move || {
+        browser.with(|it| it.as_ref().map(|it| it.url.clone()).unwrap_or_default())
+    });
+    let copy = |text: String| {
+        be_wasm_ops::guest::spawn(async move {
+            let item = be_lib_ui_types::ClipItem::text(text);
+            // A host that cannot hear it has stopped, which the root hears from its frames.
+            let _ = host::copy(vec![be_wasm_ops::encode(&item)]).await;
+        });
+    };
+    // Escape steps back to choosing where, or closes.
     on_key(
         KeyAt::Node(component_node()),
         KeyPhase::Bubble,
         KeyReveal::Focus,
         move |event| {
-            let closes = event
+            let back = event
                 .press()
-                .is_some_and(|press| press.pressed && !press.repeat && press.key == Key::Escape);
-            if closes {
-                match keeping.get_untracked().is_some() && !waiting.get_untracked() {
-                    true => keeping.set(None),
-                    false => done.call(Closed::Dismissed),
-                }
+                .is_some_and(|press| press.pressed && !press.repeat && press.key == Key::Escape)
+                && editing.get_untracked();
+            if back {
+                selection.set(None);
             }
-            closes
+            back
         },
     );
-    let dismiss = move || done.call(Closed::Dismissed);
     view! {
-        <Frame
-            width=Length::FILL
-            height=Length::FILL
-            fill=ColorRole::Surface
-            border={Border::DEFAULT}
-            radius=Radius::Lg
-        >
-            <List spacing=Space::None>
-                <Show value={choosing}>
-                    <DialogBody
-                        title=ADD_ACCOUNT_TITLE
-                        actions={vec![DialogAction::cancel("Cancel")]}
-                        on_dismiss={dismiss}
-                    >
-                        <be_root_accounts_ui::ErrorText text={error} />
-                        <List direction=Direction::Horizontal spacing=Space::Md>
-                            <Button
-                                label="Connect to a server"
-                                variant=ButtonVariant::Secondary
-                                on_click={move || keeping.set(Some(Keeping::Server))}
-                            />
-                            <Button
-                                label="On this device"
-                                variant=ButtonVariant::Secondary
-                                on_click={move || keeping.set(Some(Keeping::Device))}
-                            />
+        <Frame width=Length::FILL>
+            <DialogBody
+                title={title}
+                actions={vec![
+                    DialogAction::secondary("Back", move || selection.set(None)).shown(editing),
+                    DialogAction::cancel("Cancel"),
+                    DialogAction::secondary("Check now", || ask_core(CoreCommand::CheckSignIn))
+                        .shown(waiting),
+                    DialogAction::primary(footer_primary, move || match waiting.get_untracked() {
+                        true => ask_core(CoreCommand::OpenSignInPage),
+                        false => submit(),
+                    })
+                    .disabled(move || !waiting.get() && !ready.get())
+                    .busy(connecting)
+                    .shown(create_memo(move || !footer_primary.with(String::is_empty))),
+                ]}
+                on_dismiss={move || done.call(Closed::Dismissed)}
+            >
+                <List spacing=Space::Xl2>
+                    <Show value={choosing}>
+                        <List spacing=Space::Lg>
+                            <Text style=TextStyle::PARAGRAPH>"Choose where to keep your account."</Text>
+                            <Frame
+                                fill=ColorRole::Surface
+                                border={Border::DEFAULT}
+                                radius=Radius::Md
+                                padding=Space::Sm
+                            >
+                                <List spacing=Space::Xs>
+                                    <Show value={has_default}>
+                                        <ActionRow
+                                            label={default_name}
+                                            detail={default_url}
+                                            glyph=ICON_CLOUD
+                                            on_click={move || selection.set(Some(Keeping::Default))}
+                                        />
+                                    </Show>
+                                    <ActionRow
+                                        label="On this device"
+                                        detail="A local account, stored on this device"
+                                        glyph=ICON_MONITOR
+                                        on_click={move || selection.set(Some(Keeping::Device))}
+                                    />
+                                    <ActionRow
+                                        label="Another server"
+                                        detail="Connect using a server address"
+                                        glyph=ICON_PLUS
+                                        on_click={move || selection.set(Some(Keeping::Server))}
+                                    />
+                                </List>
+                            </Frame>
                         </List>
-                    </DialogBody>
-                </Show>
-                <Show value={to_server}>
-                    <DialogBody
-                        title="Connect to server"
-                        actions={vec![
-                            DialogAction::secondary("Back", move || keeping.set(None)),
-                            DialogAction::cancel("Cancel"),
-                            DialogAction::primary("Continue", connect)
-                                .disabled(move || url.with(|url| url.trim().is_empty())),
-                        ]}
-                        on_dismiss={dismiss}
-                    >
-                        <be_root_accounts_ui::ErrorText text={error} />
-                        <TextInput
-                            value={url}
-                            label="Server address"
-                            focused=true
-                            on_submit={move |_: String| connect()}
-                        />
-                        <TextInput
-                            value={gateway}
-                            label="Gateway token (optional)"
-                            kind={InputKind::Password}
-                            on_submit={move |_: String| connect()}
-                        />
-                    </DialogBody>
-                </Show>
-                <Show value={on_device}>
-                    <DialogBody
-                        title="Create local account"
-                        actions={vec![
-                            DialogAction::secondary("Back", move || keeping.set(None)),
-                            DialogAction::cancel("Cancel"),
-                            DialogAction::primary("Create account", create)
-                                .disabled(move || name.with(|name| name.trim().is_empty())),
-                        ]}
-                        on_dismiss={dismiss}
-                    >
-                        <be_root_accounts_ui::ErrorText text={error} />
-                        <TextInput
-                            value={name}
-                            label="Your name"
-                            focused=true
-                            on_submit={move |_: String| create()}
-                        />
-                    </DialogBody>
-                </Show>
-                <Show value={has_browser}>
-                    <DialogBody
-                        title=SIGN_IN_TITLE
-                        actions={vec![
-                            DialogAction::cancel("Cancel"),
-                            DialogAction::secondary("Check now", || ask_core(CoreCommand::CheckSignIn)),
-                            DialogAction::primary("Open browser", || ask_core(CoreCommand::OpenSignInPage)),
-                        ]}
-                        on_dismiss={dismiss}
-                    >
-                        <Text style=TextStyle::PARAGRAPH>{code}</Text>
-                    </DialogBody>
-                </Show>
-                <Show value={connecting}>
-                    <DialogBody
-                        title=SIGN_IN_TITLE
-                        actions={vec![DialogAction::cancel("Cancel")]}
-                        on_dismiss={dismiss}
-                    >
-                        <Text style=TextStyle::PARAGRAPH>"Connecting…"</Text>
-                    </DialogBody>
-                </Show>
-            </List>
+                    </Show>
+                    <Show value={editing}>
+                        <List spacing=Space::Xl>
+                            <Show value={local}>
+                                <List spacing=Space::Xl>
+                                    <Text style=TextStyle::PARAGRAPH>
+                                        "Your data stays on this device. You only need a display name."
+                                    </Text>
+                                    <List spacing=Space::Sm>
+                                        <Text style=TextStyle::CAPTION>"Display name"</Text>
+                                        <TextInput
+                                            value={name}
+                                            label="Display name"
+                                            placeholder="Your name"
+                                            focused=true
+                                            on_submit={move |_: String| submit()}
+                                        />
+                                    </List>
+                                </List>
+                            </Show>
+                            <Show value={move || selection.get() == Some(Keeping::Default)}>
+                                <List spacing=Space::Xs>
+                                    <Text size=TextSize::Lg>{default_name}</Text>
+                                    <Text style=TextStyle::CAPTION>{default_url}</Text>
+                                </List>
+                            </Show>
+                            <Show value={move || selection.get() == Some(Keeping::Server)}>
+                                <List spacing=Space::Sm>
+                                    <Text style=TextStyle::CAPTION>"Server address"</Text>
+                                    <TextInput
+                                        value={url}
+                                        label="Server address"
+                                        placeholder="https://example.com"
+                                        focused=true
+                                        on_submit={move |_: String| submit()}
+                                    />
+                                </List>
+                            </Show>
+                            <Show value={remote}>
+                                <List spacing=Space::Sm>
+                                    <Text style=TextStyle::CAPTION>{gateway_label}</Text>
+                                    <TextInput
+                                        value={gateway}
+                                        label={gateway_label}
+                                        kind={InputKind::Password}
+                                        on_submit={move |_: String| submit()}
+                                    />
+                                </List>
+                                <Text style=TextStyle::CAPTION>
+                                    "Next, you’ll sign in or create an account in your browser."
+                                </Text>
+                            </Show>
+                        </List>
+                    </Show>
+                    <Show value={waiting}>
+                        <List spacing=Space::Xl>
+                            <Text style=TextStyle::PARAGRAPH>
+                                "Sign in and approve this code in your browser. You can also use a browser on another device. This is checked every few seconds; once you have approved it, choose Check now."
+                            </Text>
+                            <Card>
+                                <List spacing=Space::Xl>
+                                    <List spacing=Space::Sm>
+                                        <Text style=TextStyle::CAPTION>"Device code"</Text>
+                                        <List direction=Direction::Horizontal align=Align::Center spacing=Space::Lg>
+                                            <ListItem grow=1.0>
+                                                <Text size=TextSize::Xl>{code}</Text>
+                                            </ListItem>
+                                            <Button
+                                                icon_only=true
+                                                label="Copy code"
+                                                glyph=ICON_COPY
+                                                variant=ButtonVariant::Ghost
+                                                on_click={move || copy(code.get_untracked())}
+                                            />
+                                        </List>
+                                    </List>
+                                    <Separator />
+                                    <List spacing=Space::Sm>
+                                        <Text style=TextStyle::CAPTION>"Sign-in link"</Text>
+                                        <List direction=Direction::Horizontal align=Align::Center spacing=Space::Lg>
+                                            <ListItem grow=1.0>
+                                                <Text style=TextStyle::CAPTION>{link}</Text>
+                                            </ListItem>
+                                            <Button
+                                                icon_only=true
+                                                label="Copy link"
+                                                glyph=ICON_COPY
+                                                variant=ButtonVariant::Ghost
+                                                on_click={move || copy(link.get_untracked())}
+                                            />
+                                        </List>
+                                    </List>
+                                </List>
+                            </Card>
+                            <Text style=TextStyle::CAPTION>
+                                "Waiting for approval. This window will continue automatically."
+                            </Text>
+                        </List>
+                    </Show>
+                    <Show value={connecting}>
+                        <Text style=TextStyle::PARAGRAPH>"Connecting to the server…"</Text>
+                    </Show>
+                    <be_root_accounts_ui::ErrorText text={error} />
+                </List>
+            </DialogBody>
         </Frame>
     }
 }
@@ -828,32 +1200,11 @@ pub(super) fn ForgetAccountDialog(key: String, name: String, done: Callback<Clos
         ask_core(CoreCommand::ForgetAccount(key.clone()));
         done.call(Closed::Dismissed);
     };
-    on_key(
-        KeyAt::Node(component_node()),
-        KeyPhase::Bubble,
-        KeyReveal::Focus,
-        move |event| {
-            let closes = event
-                .press()
-                .is_some_and(|press| press.pressed && !press.repeat && press.key == Key::Escape);
-            if closes {
-                done.call(Closed::Dismissed);
-            }
-            closes
-        },
-    );
     view! {
-        <Frame
-            width=Length::FILL
-            height=Length::FILL
-            fill=ColorRole::Surface
-            border={Border::DEFAULT}
-            radius=Radius::Lg
-        >
+        <Frame width=Length::FILL>
             <DialogBody
                 kind=DialogKind::Alert
-                title=FORGET_ACCOUNT_TITLE
-                scrolls=false
+                title={format!("Remove {name}?")}
                 actions={vec![
                     DialogAction::destructive("Remove", remove),
                     DialogAction::cancel("Keep"),
@@ -861,7 +1212,7 @@ pub(super) fn ForgetAccountDialog(key: String, name: String, done: Callback<Clos
                 on_dismiss={move || done.call(Closed::Dismissed)}
             >
                 <Text style=TextStyle::PARAGRAPH>
-                    {format!("Remove {name}? Its blocks are kept only on this device, and go with it.")}
+                    "This account lives only on this device and has no password, so once it is removed nobody can open it again. Its blocks and settings are lost, except what it shared with other accounts."
                 </Text>
             </DialogBody>
         </Frame>

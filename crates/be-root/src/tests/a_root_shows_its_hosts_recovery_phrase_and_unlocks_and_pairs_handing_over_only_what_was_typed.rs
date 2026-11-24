@@ -67,7 +67,7 @@ fn recovery() -> CoreView {
         waits_for: Some(CoreWait::Recovery),
         recovery: RecoveryArea {
             words: 12,
-            checked: vec![2, 5],
+            checked: vec![2, 5, 9],
             replacing: false,
             busy: false,
             error: None,
@@ -106,7 +106,7 @@ fn a_root_shows_its_hosts_recovery_phrase_and_unlocks_and_pairs_handing_over_onl
     step(&mut root, time);
 
     // Waiting for the phrase to be written down, the root asks for it, once, and shows it.
-    root.show_core(recovery());
+    show_core(&mut root, recovery());
     let (id, asked) = requested(&mut root, &mut time);
     assert!(matches!(asked, SecretCommand::RecoveryPhrase), "{asked:?}");
     root.answer_secret(
@@ -118,31 +118,36 @@ fn a_root_shows_its_hosts_recovery_phrase_and_unlocks_and_pairs_handing_over_onl
         painting(&mut root, &mut time, ONBOARDING_SURFACE),
     );
 
-    // The words at the checked positions cross as typed, inside the command alone.
-    let _ = asks(&mut root, &mut time, click(pos2(200.0, 197.0)));
-    let _ = asks(&mut root, &mut time, typed("banana elder"));
+    // The words at the checked positions, a field each, cross as typed, in order and separated
+    // by spaces, inside the command alone.
+    for (at, word) in [(316.0, "banana"), (388.0, "elder"), (460.0, "iris")] {
+        let _ = asks(&mut root, &mut time, click(pos2(400.0, at)));
+        let _ = asks(&mut root, &mut time, typed(word));
+    }
     let commands = asks(&mut root, &mut time, key(Key::Enter));
     match commands.as_slice() {
-        [CoreCommand::ConfirmRecovery(words)] => assert_eq!(words.as_bytes(), b"banana elder"),
+        [CoreCommand::ConfirmRecovery(words)] => {
+            assert_eq!(words.as_bytes(), b"banana elder iris");
+        }
         other => panic!("the words confirm the phrase: {other:?}"),
     }
 
     // Unlocking with the phrase, or pairing: the code comes back once, and shows.
-    root.show_core(unlock());
+    show_core(&mut root, unlock());
     beui_paint_snapshot::assert_painting(
         "a_root_unlocks_its_hosts_keys",
         painting(&mut root, &mut time, ONBOARDING_SURFACE),
     );
-    let _ = asks(&mut root, &mut time, click(pos2(155.0, 113.0)));
+    let _ = asks(&mut root, &mut time, click(pos2(400.0, 146.0)));
     let _ = asks(&mut root, &mut time, typed(PHRASE));
-    let commands = asks(&mut root, &mut time, click(pos2(344.0, 113.0)));
+    let commands = asks(&mut root, &mut time, click(pos2(574.0, 187.0)));
     match commands.as_slice() {
         [CoreCommand::UnlockWithPhrase(phrase)] => assert_eq!(phrase.as_bytes(), PHRASE.as_bytes()),
         other => panic!("Unlock hands over the phrase: {other:?}"),
     }
     root.input(
         None,
-        be_lib_ui_types::input::encode(&click(pos2(200.0, 158.0))),
+        be_lib_ui_types::input::encode(&click(pos2(555.0, 269.0))),
     )
     .expect("the root takes input");
     let (id, asked) = requested(&mut root, &mut time);
@@ -156,29 +161,33 @@ fn a_root_shows_its_hosts_recovery_phrase_and_unlocks_and_pairs_handing_over_onl
         painting(&mut root, &mut time, ONBOARDING_SURFACE),
     );
 
-    // After a failure: Restart, Quit, or deleting this device's copy, asked first.
-    root.show_core(failed());
+    // After a failure: Restart, Copy its message, Exit, or deleting the client database,
+    // asked first.
+    show_core(&mut root, failed());
     beui_paint_snapshot::assert_painting(
         "a_root_shows_its_hosts_failure",
         painting(&mut root, &mut time, ONBOARDING_SURFACE),
     );
-    let commands = asks(&mut root, &mut time, click(pos2(55.0, 102.0)));
+    let commands = asks(&mut root, &mut time, click(pos2(225.0, 327.0)));
     assert!(
         matches!(commands.as_slice(), [CoreCommand::Restart]),
         "{commands:?}"
     );
-    let commands = asks(&mut root, &mut time, click(pos2(286.0, 102.0)));
+    let commands = asks(&mut root, &mut time, click(pos2(306.0, 327.0)));
+    assert!(commands.is_empty(), "{commands:?}");
+    assert_eq!(root.take_copies().len(), 1, "Copy copies the message");
+    let commands = asks(&mut root, &mut time, click(pos2(576.0, 327.0)));
     assert!(
         matches!(commands.as_slice(), [CoreCommand::Exit]),
         "{commands:?}"
     );
-    let commands = asks(&mut root, &mut time, click(pos2(176.0, 102.0)));
+    let commands = asks(&mut root, &mut time, click(pos2(443.0, 327.0)));
     assert!(commands.is_empty(), "asking deletes nothing: {commands:?}");
     beui_paint_snapshot::assert_painting(
         "a_root_asks_before_deleting_its_hosts_local_copy",
         painting(&mut root, &mut time, ONBOARDING_SURFACE),
     );
-    root.show_core(CoreView {
+    show_core(&mut root, CoreView {
         pairing: vec![PairingRequest {
             id: 7,
             device: "Laptop".to_owned(),
@@ -190,8 +199,8 @@ fn a_root_shows_its_hosts_recovery_phrase_and_unlocks_and_pairs_handing_over_onl
         "a_root_asks_to_pair_a_device",
         painting(&mut root, &mut time, DIALOG_SURFACE),
     );
-    // The code that device shows crosses as typed; Not now puts the request aside for good.
-    let _ = asks(&mut root, &mut time, click(pos2(100.0, 137.0)));
+    // The code that device shows crosses as typed; Ignore puts the request aside for good.
+    let _ = asks(&mut root, &mut time, click(pos2(400.0, 312.0)));
     let _ = asks(&mut root, &mut time, typed("482913"));
     let commands = asks(&mut root, &mut time, key(Key::Enter));
     match commands.as_slice() {
@@ -204,7 +213,7 @@ fn a_root_shows_its_hosts_recovery_phrase_and_unlocks_and_pairs_handing_over_onl
     let commands = asks(&mut root, &mut time, key(Key::Escape));
     assert!(
         commands.is_empty(),
-        "Not now asks nothing of the host: {commands:?}"
+        "Ignore asks nothing of the host: {commands:?}"
     );
     time += 1;
     assert!(

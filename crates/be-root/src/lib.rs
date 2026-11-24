@@ -1,13 +1,15 @@
 //! The root be-host runs in place of its own UI (plans/host_as_platform_adapter.md, 4g7a;
 //! decisions/the_real_root_is_its_own_crate_not_the_testing_root.md), built on be-sdk-root and
-//! drawn with beui through be-sdk-beui-root. It shows what `be3:root` carries of the host:
+//! drawn with beui through be-sdk-beui-root, worded and laid out as be-host's own UI and filling
+//! the window `frame-request` tells it of. It shows what `be3:root` carries of the host:
 //! - its notices as toasts (`TOAST_LAYER`), with the slow save's toast while changes stay unsaved
 //!   (`host.saving`);
 //! - the session's lock screen while locked (`LOCK_LAYER`, `host.lock`), over everything;
 //! - what the block stack waits for before an organization's blocks open, on its onboarding
 //!   (`ONBOARDING_LAYER`, `host.core`'s `waits-for`): the accounts, the organizations, the
 //!   sessions, the recovery phrase, unlocking, and a failure;
-//! - the host's questions in its dialog's place over a scrim (`DIALOG_LAYER`, `SCRIM_LAYER`):
+//! - the host's questions in its dialog's place, be-host's own dialog over beui's scrim
+//!   (`DIALOG_LAYER`):
 //!   keeping display settings (`host.displays`), discarding unsaved changes, signing in again,
 //!   leaving a block, pairing a device;
 //! - its menu at the window's top right (`MENU_LAYER`) while nothing waits, which opens what
@@ -23,14 +25,12 @@
 
 use be_lib_layers::LayerId;
 
-/// The window's size, in points.
-pub const SIZE: (u32, u32) = (400, 240);
-
 /// The root's own surface, under everything.
 pub const ROOT_LAYER: LayerId = LayerId(0);
 
-/// The id of the root's own surface, which `ROOT_LAYER` shows: it fills the window, a pixel to
-/// a point.
+/// The id of the root's own surface, which `ROOT_LAYER` shows. It and every other surface of
+/// the root's but the statistics panel's fill the host's window (`frame-request`'s `window`),
+/// at its pixels per point, and follow it as it resizes.
 pub const ROOT_SURFACE: u32 = 0;
 
 /// What the root fills its own surface with under everything, sRGB-encoded: the dark theme's
@@ -44,35 +44,13 @@ pub const TOAST_LAYER: LayerId = LayerId(3);
 /// right: clear but for them.
 pub const TOAST_SURFACE: u32 = 4;
 
-/// `TOAST_SURFACE`'s size, a pixel to a point, at the window's top left: as tall as the root's
-/// surface, and wider, so a toast and its margins fit.
-pub const TOAST_AREA: (u32, u32) = (480, 240);
-
-/// The layer showing `SCRIM_SURFACE` while the dialog is open: over everything but the toasts,
-/// hit nowhere and capturing every press that misses the dialog for `ROOT_LAYER`, its placer,
-/// which closes the dialog.
-pub const SCRIM_LAYER: LayerId = LayerId(4);
-
-/// A surface of the root's own the size of the window, filled with `SCRIM_COLOR`.
-pub const SCRIM_SURFACE: u32 = 5;
-
-/// What the scrim is filled with: black, half covering what lies under it.
-pub const SCRIM_COLOR: [f64; 4] = [0.0, 0.0, 0.0, 0.5];
-
-/// The layer showing `DIALOG_SURFACE` while the dialog is open, over its scrim.
+/// The layer showing `DIALOG_SURFACE` while the dialog is open, over everything but the lock
+/// screen and the toasts, taking every press and the focus.
 pub const DIALOG_LAYER: LayerId = LayerId(5);
 
-/// A surface of the root's own that beui draws its dialog on, filling it, a pixel to a point.
+/// A surface of the root's own that beui draws its dialog on: be-host's own dialog, a card at
+/// its width (or a sheet in a narrow window) over beui's scrim, which dismisses it when pressed.
 pub const DIALOG_SURFACE: u32 = 6;
-
-/// `DIALOG_SURFACE`'s size, a pixel to a point: as tall as its title, field and actions need.
-pub const DIALOG_SIZE: (u32, u32) = (320, 152);
-
-/// Where the dialog's top left sits in the window: centred in it.
-pub const DIALOG_ORIGIN: (f32, f32) = (
-    (SIZE.0 - DIALOG_SIZE.0) as f32 / 2.0,
-    (SIZE.1 - DIALOG_SIZE.1) as f32 / 2.0,
-);
 
 /// The title of the question of keeping display settings that just changed, which the root
 /// asks in its dialog's place while its host asks it (`host.displays`).
@@ -86,11 +64,9 @@ pub const STATISTICS_LAYER: LayerId = LayerId(6);
 /// show them: its performance and memory rows.
 pub const STATISTICS_SURFACE: u32 = 7;
 
-/// `STATISTICS_SURFACE`'s size, a pixel to a point, at the window's top right.
-pub const STATISTICS_AREA: (u32, u32) = (320, 240);
-
-/// Where the panel's top left sits in the window: at its right edge.
-pub const STATISTICS_ORIGIN: (f32, f32) = ((SIZE.0 - STATISTICS_AREA.0) as f32, 0.0);
+/// `STATISTICS_SURFACE`'s width, in points, at the window's right edge and as tall as it, or
+/// the window's width in a narrower window.
+pub const STATISTICS_WIDTH: f32 = 320.0;
 
 /// The panel's title.
 pub const STATISTICS_TITLE: &str = "Performance";
@@ -132,22 +108,15 @@ pub const ONBOARDING_SURFACE: u32 = 9;
 /// The title of the organizations while the block stack waits for one to be chosen.
 pub const ORGANIZATIONS_TITLE: &str = "Organizations";
 
-/// The title of the sessions while the block stack waits for one to be chosen.
-pub const SESSIONS_TITLE: &str = "Sessions";
-
 /// The title of the dialog that adds an account, before it knows where.
 pub const ADD_ACCOUNT_TITLE: &str = "Add account";
 
 /// The title of the dialog while the person signs in in their browser.
 pub const SIGN_IN_TITLE: &str = "Sign in with your browser";
 
-/// The title of the question the root asks before removing an account kept on this device
-/// alone, whose blocks go with it.
-pub const FORGET_ACCOUNT_TITLE: &str = "Remove account?";
-
 /// The title of the question the host asks before signing in again to an account whose sign-in
 /// ended (`core-view`'s `reauthenticating`).
-pub const REAUTH_TITLE: &str = "Sign in again";
+pub const REAUTH_TITLE: &str = "Session expired";
 
 /// The title of the question the host asks before discarding unsaved changes (`core-view`'s
 /// `discarding`).
@@ -174,40 +143,27 @@ pub const REMOVE_CONTACT_TITLE: &str = "Remove contact?";
 /// The title of the dialog opening a share link.
 pub const SHARE_LINK_TITLE: &str = "Open a share link";
 
-/// The title of the question the host asks before leaving a block an editor asked to leave
-/// (`core-view`'s `leaving`).
-pub const LEAVE_TITLE: &str = "Leave this block?";
-
 /// The title of the recovery phrase while the person writes it down.
-pub const RECOVERY_TITLE: &str = "Your recovery phrase";
-
-/// The title of unlocking the account's keys on this device.
-pub const UNLOCK_TITLE: &str = "Unlock your keys";
+pub const RECOVERY_TITLE: &str = "Save your recovery phrase";
 
 /// The title of what the block stack's failure leaves the person to do.
 pub const FAILURE_TITLE: &str = "Something went wrong";
 
 /// The title of the question another device's pairing request asks (`core-view`'s `pairing`).
-pub const PAIRING_TITLE: &str = "Pair a device?";
+pub const PAIRING_TITLE: &str = "Add a device";
 
 /// The layer showing `MENU_SURFACE`, the root's menu, at the window's top right while no
 /// onboarding shows: over its statistics panel and under its dialog, hit only where its button
 /// and its open menu are.
 pub const MENU_LAYER: LayerId = LayerId(9);
 
-/// A surface of the root's own that beui draws its menu on: its button, and the menu it opens
-/// below it.
+/// A surface of the root's own the size of the window that beui draws its menu on: its button
+/// at the top right, and the menu it opens below it.
 pub const MENU_SURFACE: u32 = 10;
 
-/// `MENU_SURFACE`'s size, a pixel to a point: as tall as the window, so the open menu fits.
-pub const MENU_AREA: (u32, u32) = (280, 240);
-
-/// Where the menu's button is on `MENU_SURFACE`, in its points, as `[left, top, right, bottom]`:
-/// at its top right. The layer is hit there, and where the menu it opens shows.
-pub const MENU_BUTTON: [f32; 4] = [232.0, 0.0, 280.0, 48.0];
-
-/// Where the menu's top left sits in the window: at its right edge.
-pub const MENU_ORIGIN: (f32, f32) = ((SIZE.0 - MENU_AREA.0) as f32, 0.0);
+/// The square at the window's top right corner its menu's button lies in, in points: the layer
+/// is hit there, and where the menu it opens shows.
+pub const MENU_BUTTON: f32 = 48.0;
 
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod tests;
