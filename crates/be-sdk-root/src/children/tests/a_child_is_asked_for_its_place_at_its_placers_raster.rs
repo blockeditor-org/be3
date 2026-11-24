@@ -17,7 +17,10 @@ fn a_child_is_asked_for_its_place_at_its_placers_raster() {
         (screen.metrics.pixel_width, screen.metrics.pixel_height),
         (400, 201)
     );
-    assert_eq!((screen.metrics.scale_factor, screen.metrics.raster), (2.0, 2.0));
+    assert_eq!(
+        (screen.metrics.scale_factor, screen.metrics.raster),
+        (2.0, 2.0)
+    );
     assert_eq!(screen.frame, None);
 
     // Placed with a frame of its own, it draws its chrome there, its anchor in its own points.

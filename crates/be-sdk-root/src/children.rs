@@ -32,8 +32,8 @@ use be_lib_geometry::{Rect, pos2};
 use be_lib_layers::{Affine, Area, Layer, LayerId};
 use be_lib_stable_hash::HashMap;
 use be_sdk_api::{
-    ChildContent, ChildId, ChildLayer, ChildMode, ChildPlacement, EditorInstanceId, FrameChrome,
-    FrameSpec, Fonts, ParentView, Pos2 as ViewPos2, ScreenId, ScreenRequest, SurfaceSpec,
+    ChildContent, ChildId, ChildLayer, ChildMode, ChildPlacement, EditorInstanceId, Fonts,
+    FrameChrome, FrameSpec, ParentView, Pos2 as ViewPos2, ScreenId, ScreenRequest, SurfaceSpec,
     Vec2 as ViewVec2, ViewId, ViewPlacement, ViewportMetrics,
 };
 use be_wasm_root_api::{OpenedIn, ShownBlock, ShownChild, guest::host};
@@ -175,17 +175,18 @@ struct Reconciled {
 /// (`Child::key`): one that matches keeps its editor at its new place, one that does not is
 /// opened, unless its block is open `above` it, which it shows instead, and the rest go.
 fn reconcile(shown: Vec<Child>, wanted: Vec<Child>, above: &[[u8; 16]]) -> Reconciled {
-    let mut before: HashMap<ChildKey, Child> =
-        shown.into_iter().map(|child| (child.key(), child)).collect();
+    let mut before: HashMap<ChildKey, Child> = shown
+        .into_iter()
+        .map(|child| (child.key(), child))
+        .collect();
     let mut kept = Vec::with_capacity(wanted.len());
     let mut opened = Vec::new();
     for mut child in wanted {
         match before.remove(&child.key()) {
             Some(shown) => child.showing = shown.showing,
             None if above.contains(&child.block) => {
-                child.showing = Rc::new(RefCell::new(Showing::Failed(
-                    ALREADY_OPEN_ABOVE.to_owned(),
-                )));
+                child.showing =
+                    Rc::new(RefCell::new(Showing::Failed(ALREADY_OPEN_ABOVE.to_owned())));
             }
             None => opened.push(kept.len()),
         }
@@ -219,7 +220,9 @@ impl Children {
         for placements in parent.placed() {
             let raster = screens
                 .iter()
-                .find(|screen| (screen.instance, screen.view) == (placements.instance, placements.view))
+                .find(|screen| {
+                    (screen.instance, screen.view) == (placements.instance, placements.view)
+                })
                 .map_or(1.0, |screen| screen.metrics.raster);
             let told = views
                 .entry((placements.instance, placements.view))
@@ -296,7 +299,11 @@ impl Children {
 
     /// Tells the host how each view's children are where that changed since it was told last,
     /// and that a view it was told of placed none once it places none.
-    fn tell(&mut self, instance: u64, mut views: HashMap<(EditorInstanceId, ViewId), Vec<ShownChild>>) {
+    fn tell(
+        &mut self,
+        instance: u64,
+        mut views: HashMap<(EditorInstanceId, ViewId), Vec<ShownChild>>,
+    ) {
         for view in self.told.keys() {
             views.entry(*view).or_default();
         }
@@ -320,14 +327,16 @@ impl Children {
     /// yet to open it, or the root to embed its app, so the root owes its host the frame that shows it (a host waiting for its
     /// root to settle waits for it). Once its app runs, the app's own pacing says what it owes.
     pub fn opening(&self) -> bool {
-        self.shown.iter().any(|child| match &*child.showing.borrow() {
-            Showing::Opening
-            | Showing::Shown {
-                embedded: false, ..
-            } => true,
-            Showing::Shown { children, .. } => children.opening(),
-            Showing::Failed(_) => false,
-        })
+        self.shown
+            .iter()
+            .any(|child| match &*child.showing.borrow() {
+                Showing::Opening
+                | Showing::Shown {
+                    embedded: false, ..
+                } => true,
+                Showing::Shown { children, .. } => children.opening(),
+                Showing::Failed(_) => false,
+            })
     }
 
     /// Lets go of every child, as when their placer goes: each child's app stops once nothing
@@ -483,7 +492,11 @@ fn takes_input(mode: ChildMode) -> bool {
 
 /// The screen a child placed as `placement` asks of its editor `editor`: its main view the size
 /// of its place, at its placer's `raster`, in a frame of its own when it was placed with one.
-pub fn child_screen(placement: &ChildPlacement, editor: EditorInstanceId, raster: f32) -> ScreenRequest {
+pub fn child_screen(
+    placement: &ChildPlacement,
+    editor: EditorInstanceId,
+    raster: f32,
+) -> ScreenRequest {
     let size = placement.rect.size();
     let origin = placement.rect.min.to_vec2();
     ScreenRequest {

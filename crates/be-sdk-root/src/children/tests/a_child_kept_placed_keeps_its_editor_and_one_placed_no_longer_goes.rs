@@ -7,7 +7,10 @@ fn a_child_kept_placed_keeps_its_editor_and_one_placed_no_longer_goes() {
     other.child = ChildId(8);
     let first = reconcile(
         Vec::new(),
-        vec![wanted(placed(place, ChildMode::Live)), wanted(other.clone())],
+        vec![
+            wanted(placed(place, ChildMode::Live)),
+            wanted(other.clone()),
+        ],
         &[],
     );
     assert_eq!(first.opened, vec![0, 1], "each child placed is opened");
@@ -17,8 +20,15 @@ fn a_child_kept_placed_keeps_its_editor_and_one_placed_no_longer_goes() {
     // Placed again at another place, the first keeps its editor; the second is placed no
     // longer and goes.
     let moved = rect((10.0, 10.0), (110.0, 110.0));
-    let second = reconcile(first.kept, vec![wanted(placed(moved, ChildMode::Live))], &[]);
-    assert!(second.opened.is_empty(), "a child placed again is not opened again");
+    let second = reconcile(
+        first.kept,
+        vec![wanted(placed(moved, ChildMode::Live))],
+        &[],
+    );
+    assert!(
+        second.opened.is_empty(),
+        "a child placed again is not opened again"
+    );
     assert!(Rc::ptr_eq(&second.kept[0].showing, &kept));
     assert_eq!(second.kept[0].placement.rect, moved);
     assert_eq!(second.gone.len(), 1);
@@ -34,7 +44,11 @@ fn a_child_kept_placed_keeps_its_editor_and_one_placed_no_longer_goes() {
     assert_eq!(third.gone.len(), 1);
 
     // A block open above its placer is refused, never opened.
-    let refused = reconcile(Vec::new(), vec![wanted(placed(place, ChildMode::Live))], &[[1; 16]]);
+    let refused = reconcile(
+        Vec::new(),
+        vec![wanted(placed(place, ChildMode::Live))],
+        &[[1; 16]],
+    );
     assert!(refused.opened.is_empty());
     assert!(matches!(
         &*refused.kept[0].showing.borrow(),
@@ -42,5 +56,13 @@ fn a_child_kept_placed_keeps_its_editor_and_one_placed_no_longer_goes() {
     ));
 
     // Only a block child placed to run its editor is shown.
-    assert!(Child::placed(EditorInstanceId(1), ViewId::MAIN, 1.0, placed(place, ChildMode::Preview)).is_none());
+    assert!(
+        Child::placed(
+            EditorInstanceId(1),
+            ViewId::MAIN,
+            1.0,
+            placed(place, ChildMode::Preview)
+        )
+        .is_none()
+    );
 }

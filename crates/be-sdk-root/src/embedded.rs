@@ -15,8 +15,9 @@ use be_lib_layers::{Affine, Layer, LayerId, LayerInput, Surface};
 use be_lib_stable_hash::HashMap;
 use be_lib_ui_types::input::{Input, PenPhase, TouchPhase};
 use be_sdk_api::{
-    ChildPlacement, ChildPlacements, EditorInstanceId, Fonts, ImeArea, InputBatch, Opening, Preferences, ScreenId, ScreenPlacement,
-    ScreenRequest, SurfaceSpec, TimedInput, WindowRequests, embed::shell::Call as ShellCall,
+    ChildPlacement, ChildPlacements, EditorInstanceId, Fonts, ImeArea, InputBatch, Opening,
+    Preferences, ScreenId, ScreenPlacement, ScreenRequest, SurfaceSpec, TimedInput, WindowRequests,
+    embed::shell::Call as ShellCall,
 };
 use be_sdk_app_host::{
     calls::{AppCall, Heard, Outbound},
@@ -674,9 +675,9 @@ impl State {
                 // Children that only move are placed at once; any that come or go wait for the
                 // present that follows, which draws the holes they fill.
                 let placed = &self.placed;
-                self.run.holds.heard_layout(&mut commit, |placements| {
-                    only_moves(placed, placements)
-                });
+                self.run
+                    .holds
+                    .heard_layout(&mut commit, |placements| only_moves(placed, placements));
                 let children = std::mem::take(&mut commit.children);
                 self.place(children);
                 self.run.pacing.laid_out();

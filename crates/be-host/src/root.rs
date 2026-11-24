@@ -62,13 +62,13 @@ use std::collections::HashMap;
 
 use be_host_base::notices;
 use be_host_runtime::{EditorBlock, Forwarded, HostChildStatus, InstanceRole};
+use be_lib_layers::{Layer, LayerList, Surface};
+use be_lib_ui_types::ClipItem;
+use be_lib_ui_types::input::Timed;
 use be_sdk_api::{
     ChildId, ChildPreview, DialogStatus, EditorCapabilities, EditorInstanceId, InteractionMode,
     ResizeMode, ViewId,
 };
-use be_lib_layers::{Layer, LayerList, Surface};
-use be_lib_ui_types::ClipItem;
-use be_lib_ui_types::input::Timed;
 use be_sdk_app_host::pacing::FrameClock;
 use be_wasm_root_api::{EditorApp, OpenedEditor};
 use be_wasm_root_api::{FrameRequest, Notice, NoticeAction, StatisticRow, WindowSize};
@@ -672,19 +672,16 @@ fn serve_editors(core: &crate::HostCore, root: &mut Root, editors: &mut Editors)
     for (id, shown) in asks {
         // While the stack does not list the session's block (yet, or again for a moment), an
         // ask for a block it does not list waits for it rather than failing.
-        if core.root_session_pending
-            && be_host_stack::node(Uuid::from_bytes(shown.block)).is_none()
+        if core.root_session_pending && be_host_stack::node(Uuid::from_bytes(shown.block)).is_none()
         {
             editors.asks.push((id, shown));
             continue;
         }
-        let editor = core
-            .editor_of(&shown)
-            .map(|(app, _, _)| EditorApp {
-                app: app.identity.id.clone(),
-                module: app.entry_point.clone(),
-                name: app.identity.name.clone(),
-            });
+        let editor = core.editor_of(&shown).map(|(app, _, _)| EditorApp {
+            app: app.identity.id.clone(),
+            module: app.entry_point.clone(),
+            name: app.identity.name.clone(),
+        });
         root.answer_editor(id, editor);
     }
     let openings = std::mem::take(&mut editors.openings)
@@ -726,11 +723,7 @@ fn serve_editors(core: &crate::HostCore, root: &mut Root, editors: &mut Editors)
             .iter()
             .map(|child| child_status(&editors.opened, child))
             .collect();
-        forwarded.show_children(
-            EditorInstanceId(shown.editor),
-            ViewId(shown.view),
-            statuses,
-        );
+        forwarded.show_children(EditorInstanceId(shown.editor), ViewId(shown.view), statuses);
     }
     for (instance, forwarded) in served.iter_mut() {
         root.relay(*instance, forwarded.step());
@@ -784,9 +777,8 @@ fn child_status(
         intrinsic: None,
         active: available && child.active,
         interaction: manifest.map_or(InteractionMode::Preview, |editor| editor.interaction),
-        capabilities: manifest.map_or_else(EditorCapabilities::default, |editor| {
-            editor.capabilities
-        }),
+        capabilities: manifest
+            .map_or_else(EditorCapabilities::default, |editor| editor.capabilities),
         resize: manifest.map_or(ResizeMode::None, |editor| editor.resize),
         error,
         menu: Vec::new(),

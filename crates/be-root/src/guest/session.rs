@@ -239,7 +239,11 @@ impl Root {
             return Vec::new();
         };
         let mut layers = Vec::new();
-        children.layers(&screen(hosted.editor, self.window.get()), layer, &mut layers);
+        children.layers(
+            &screen(hosted.editor, self.window.get()),
+            layer,
+            &mut layers,
+        );
         layers
     }
 

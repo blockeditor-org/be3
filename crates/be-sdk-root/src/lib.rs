@@ -47,7 +47,9 @@ mod embedded;
 mod own;
 mod windows;
 
-pub use children::{ALREADY_OPEN_ABOVE, CHILD_SCREEN, Children, NOT_SHOWN_YET, Spawning, child_screen};
+pub use children::{
+    ALREADY_OPEN_ABOVE, CHILD_SCREEN, Children, NOT_SHOWN_YET, Spawning, child_screen,
+};
 pub use embedded::{BlockSpawn, Embedded, Hosted, Spawn, SpawnFailure, Wants};
 pub use own::OwnSurface;
 pub use windows::{Delivery, Windows};
