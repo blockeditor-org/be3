@@ -14,13 +14,15 @@ Development resumed on 2026-11-24, with eight builders. Nothing below is on this
 - Hosted blocks: 4e-2 rebased with its review fixes, then acceptance-2 rebased, then the backlog's "keep hosting through a closed editor, under verify load" flake.
 - Restart carry (b): `journaled-edits-restart-carries` rebased, with its must-fix.
 - `flush-after-revoke`, then the counter-seal flake.
-- `block-rows-columns` (the block-rows-guard follow-up), verifying; `editor-asks-outlive-reopen` (an editor's in-flight put, append or log read answered once across a reopen), fixing review points; then an editor's range read across a reopen.
+- `editor-asks-outlive-reopen` (an editor's in-flight put, append or log read answered once across a reopen), fixing review points; then an editor's range read across a reopen.
 - `flakes-server-runtime` rebased for review, then plans/one_way_in_the_block_stack.md.
 - Host adapter 4g7a2, then 4g7b and on.
 - The member list leak through the organization's log, then the owner transfer's accept step.
 - plans/kept_content_and_one_scroller.md, then plans/dialogs_are_dock_windows.md.
 
-Landed on 2026-11-24: `chat-stall-3`. An editor's log read in flight when its replica reopens is answered; before, a fresh chat editor could wait forever.
+Landed on 2026-11-24:
+- `chat-stall-3`: an editor's log read in flight when its replica reopens is answered; before, a fresh chat editor could wait forever.
+- `block-rows-columns-2`: every column that names a block is listed with how forget_blocks treats it, and forget_blocks refuses a block a link still grants.
 
 Landed on 2026-11-22 in one verify: signed logs 5b (`signed-logs-5b-10`), `backlog-keys-10b`, `block-rows-guard` and hosted blocks 4d2 (`hosted-blocks-4d2-5`).
 
