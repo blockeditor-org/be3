@@ -7,12 +7,13 @@ use crate::frame::ColorRole;
 use crate::theme::use_theme;
 use crate::tokens::Movement;
 
-/// A back slide's curves: pages enter on `Movement::Enter`, leave on
-/// `Movement::Leave` and settle back on `Movement::Settle`.
+/// A back slide's curves: pages enter, leave and come back on
+/// `Movement::Settle`'s spring, carrying the speed the back gesture let them
+/// go at.
 pub const SLIDE_CURVES: SlideCurves = SlideCurves {
-    enter: Movement::Enter.easing(),
-    leave: Movement::Leave.easing(),
-    settle: Movement::Settle.easing(),
+    enter: Movement::Settle.spring(),
+    leave: Movement::Settle.spring(),
+    settle: Movement::Settle.spring(),
 };
 
 /// `unstyled::BackSlide` moving on the theme's movements: a page a back

@@ -148,7 +148,9 @@ Every frame is compared, so keep recordings to the frames that say something.
 `snapshot` and `record` also fail on what the frame shows out of bounds (beui-core's
 `Document::overflows`): a node cut off by a clip that no scroll or pannable canvas can move it
 out from under, text drawn outside its box, or an outline (a focus ring) cut by a clip while
-its frame shows whole. Each line names the node, its nearest ancestor with a test id and both
+its frame shows whole. A clip is checked moved by the `translate` of the frames between it and
+the node, so something sliding under a clip (a swiped toast, a page going back) is in motion,
+not cut off. Each line names the node, its nearest ancestor with a test id and both
 rectangles. Fix the layout, not the test: wrap or ellipsize the text, let the row shrink
 (`<ListItem shrink=1.0>`), scroll it, put padding inside the scroll, or give a scroll
 in a padded surface `bleed` so a ring at its edge has room. beui-demo's

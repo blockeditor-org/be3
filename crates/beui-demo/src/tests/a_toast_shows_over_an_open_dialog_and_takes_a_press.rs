@@ -51,6 +51,7 @@ fn a_toast_shows_over_an_open_dialog_and_takes_a_press() {
         }
     });
     let mut test = DocumentTest::new(document, size);
+    test.settle();
     test.snapshot("a_toast_over_a_dialog");
 
     test.click("toast.1.action.open");

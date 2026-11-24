@@ -3268,6 +3268,9 @@ fn ToastArea() -> NodeId {
                     />
                     <Text color=TextColor::Muted>{chosen}</Text>
                 </List>
+                <Text style=TextStyle::CAPTION>
+                    "Swipe a toast sideways, or throw it, to dismiss it."
+                </Text>
                 <Toasts
                     anchor={area}
                     toasts={toasts}
