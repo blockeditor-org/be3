@@ -1,3 +1,4 @@
+use be_type_image::BlobFile as _;
 use be_sdk_beui::{FileFilter, PickedFile};
 use be_type_image::{ImageContent, ImageFile};
 

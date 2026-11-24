@@ -3,7 +3,7 @@ use be_sdk_test::prelude::*;
 use uuid::Uuid;
 
 use crate::root::PdfRoot;
-use be_type_pdf::PdfContent;
+use be_type_pdf::{BlobFile, PdfContent};
 
 mod a_page_is_rendered_with_pdfium;
 mod a_pdf_on_a_phone_on_its_side_shows_its_sidebar_beside_the_page;

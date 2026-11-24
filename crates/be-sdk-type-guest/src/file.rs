@@ -17,7 +17,23 @@ pub trait FileForm: BlockContent {
 pub trait BlobFile: BlobKind {
     const ANY_FILE: bool = false;
 
+    /// The extensions its files have, lowercase and without the dot, as a file picker filters
+    /// them (`FileFilter`); each is in `plain::media_type_of`'s table.
+    const FILE_EXTENSIONS: &'static [&'static str];
+
+    /// The media types a file picker offers for it (`image/*`).
+    const MIME_TYPES: &'static [&'static str];
+
     fn header(name: &str, bytes: &[u8]) -> Self::Header;
+
+    /// The content of a file named `name`, its header as `header` makes it: how every importer
+    /// (a file picker, "Import a file…", `FileForm::from_file`) makes one.
+    fn from_file(name: impl AsRef<str>, bytes: Vec<u8>) -> Blob<Self>
+    where
+        Self: Sized,
+    {
+        Blob::new(Self::header(name.as_ref(), &bytes), bytes)
+    }
 
     fn media_type(header: &Self::Header) -> String;
 
@@ -65,7 +81,7 @@ impl<K: BlobFile> FileForm for Blob<K> {
     }
 
     fn from_file(_: Option<&Self>, name: &str, bytes: Vec<u8>, _: u64) -> Option<Self> {
-        Some(Self::new(K::header(name, &bytes), bytes))
+        Some(K::from_file(name, bytes))
     }
 
     fn claims(name: &str, first: &[u8]) -> bool {

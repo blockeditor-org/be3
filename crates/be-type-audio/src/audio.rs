@@ -25,30 +25,20 @@ impl BlobKind for AudioFile {
 
 pub type AudioContent = Blob<AudioFile>;
 
-impl AudioFile {
-    pub fn from_file(
-        source_name: impl Into<String>,
-        media_type: impl Into<String>,
-        data: Vec<u8>,
-    ) -> Result<AudioContent, String> {
-        if data.is_empty() {
-            return Err("audio data must not be empty".into());
-        }
-        Ok(AudioContent::new(
-            AudioHeader {
-                source_name: source_name.into(),
-                media_type: media_type.into(),
-            },
-            data,
-        ))
-    }
-}
-
 impl BlobFile for AudioFile {
+    const FILE_EXTENSIONS: &'static [&'static str] = &["mp3", "wav", "ogg", "oga", "flac", "m4a"];
+    const MIME_TYPES: &'static [&'static str] = &["audio/*"];
+
+    /// Its media type by its extension; one with no audio extension is taken as MP3, the
+    /// commonest.
     fn header(name: &str, _: &[u8]) -> AudioHeader {
+        let media_type = match media_type_of(name) {
+            media_type if media_type.starts_with("audio/") => media_type,
+            _ => "audio/mpeg",
+        };
         AudioHeader {
             source_name: name.to_owned(),
-            media_type: media_type_of(name).to_owned(),
+            media_type: media_type.to_owned(),
         }
     }
 

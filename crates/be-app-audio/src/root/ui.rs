@@ -7,7 +7,7 @@ use be_sdk_beui::beui::dock::{DockPane, DockSplit, DockTab, Docking, DockingLayo
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{NodeId, TextAlign};
-use be_sdk_beui::{AudioStatus, Editor, FileChooser, SIDE_PANEL_WIDTH};
+use be_sdk_beui::{AudioStatus, ContentFileReplace, Editor, SIDE_PANEL_WIDTH};
 
 use super::{decode, filter, format_micros};
 use be_type_audio::AudioContent;
@@ -167,34 +167,17 @@ fn Track(editor: Editor) -> NodeId {
 
 #[component]
 fn AudioPanel(editor: Editor) -> NodeId {
-    let chooser = FileChooser::new(filter(), decode);
-    let block = editor.block_id();
-    chooser.on_chosen(move |chooser| {
-        if let Some(replacement) = chooser.take() {
-            editor.replace_content(block, &replacement);
-        }
-    });
-
-    let read_only = editor.read_only();
-    let busy = chooser.busy();
-    let error = chooser.error();
-    let replace = move || chooser.open();
     view! {
         <Frame fill=ColorRole::Surface>
             <Scroll @test_id={"audio.panel"}>
                 <Frame padding=PADDING>
-                    <List spacing=SPACING>
-                        <Button
-                            label="Replace audio..."
-                            variant=ButtonVariant::Secondary
-                            disabled={move || busy.get() || read_only.get()}
-                            @test_id={"audio.replace"}
-                            on_click={replace}
-                        />
-                        <Show value={error}>|reason: ReadSignal<String>|
-                            <Text style=TextStyle::CAPTION color=TextColor::Danger>{reason}</Text>
-                        </Show>
-                    </List>
+                    <ContentFileReplace
+                        editor
+                        label="Replace audio…"
+                        id_prefix="audio"
+                        filter={filter()}
+                        import={decode}
+                    />
                 </Frame>
             </Scroll>
         </Frame>

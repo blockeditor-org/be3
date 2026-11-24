@@ -1,3 +1,4 @@
+use be_type_image::BlobFile as _;
 use be_sdk_beui::beui::CanvasView;
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
