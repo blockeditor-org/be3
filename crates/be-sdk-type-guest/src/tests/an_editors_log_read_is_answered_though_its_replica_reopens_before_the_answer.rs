@@ -24,7 +24,10 @@ fn an_editors_log_read_is_answered_though_its_replica_reopens_before_the_answer(
         .take_received(0, 1)
         .into_iter()
         .filter_map(|message| match message {
-            ToEditor::LogRead { token: answered, result } if answered == token => Some(result),
+            ToEditor::LogRead {
+                token: answered,
+                result,
+            } if answered == token => Some(result),
             _ => None,
         })
         .collect();
