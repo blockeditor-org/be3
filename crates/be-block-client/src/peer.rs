@@ -1055,8 +1055,8 @@ impl<S: ObjectStore> Peer<S> {
 
     /// The organization's access log, root first, once its root checks against the one this
     /// account pinned (`KeyBook::organization_root`): from making the organization or the
-    /// invitation it joined by. The personal organization has none. Whole to an administrator or
-    /// a member with Edit or above on any of its blocks, else a proof path.
+    /// invitation it joined by. The personal organization has none. Whole to an administrator,
+    /// else a proof path.
     pub async fn organization_log(&self) -> Result<Vec<be_block_keys::Step>, ClientError> {
         let served = self.served_access(None).await?;
         let organization = self.organization;

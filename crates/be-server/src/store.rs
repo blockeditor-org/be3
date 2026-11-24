@@ -403,16 +403,16 @@ impl ServerStore {
         .await
     }
 
-    /// The organization's access log, root first (`query.log`): whole to an
-    /// administrator or a member with Edit or above on any of its blocks, else a proof path of
-    /// the caller's own records and its sealers' (`access::served_log`), only after `held` when
-    /// served whole and it holds that entry.
+    /// The organization's access log, root first (`query.log`): whole to an administrator, else
+    /// a proof path of the caller's own records and its sealers' (`access::served_log`), so a
+    /// member learns no other member from it; only after `held` when served whole and it holds
+    /// that entry.
     pub async fn organization_log(
         &self,
         identity: Identity,
         held: Option<be_block_protocol::HeldEntry>,
     ) -> Result<be_block_protocol::AccessLogPage, ServerError> {
-        self.with_graph(identity.organization, move |_, graph, database| {
+        self.with_graph(identity.organization, move |_, _, database| {
             if crate::access::organization_log(database, identity.organization)?.is_empty() {
                 return Ok(be_block_protocol::AccessLogPage {
                     from: 0,
@@ -420,7 +420,7 @@ impl ServerStore {
                 });
             }
             let seen = crate::blocks::visibility(identity);
-            let reader = (!seen.served_whole_organization(graph)).then_some(identity.account);
+            let reader = (!seen.served_whole_organization()).then_some(identity.account);
             crate::access::served_log(
                 database,
                 be_block_keys::LogKind::Organization,

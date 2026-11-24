@@ -608,9 +608,9 @@ exactly its parent's access and takes no grants (guides/blocks/host.md, "Search"
   it a key (`wrapped_keys.sender`), and every parent record. A block above what
   the caller views, but not viewable itself, is always a proof path, which also
   proves whoever signs below on authority from it (`access_log_authorities`,
-  `access::inherited_signers`). A block's creator holds Manage on it, so
-  every member who has made a block is served the organization's whole log,
-  and with it its member list. A caller served a log whole names the entry it
+  `access::inherited_signers`). The organization's log goes whole only to an
+  administrator (`Visibility::served_whole_organization`), as it names every
+  member; anyone else is served a proof path of it. A caller served a log whole names the entry it
   holds the log up to (`held-entry`: its place and hash), and is sent only the
   entries after it while the log as stored chains from its root to that entry
   there, else the log from its root (`access-log-page.from`), which a device

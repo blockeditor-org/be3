@@ -362,15 +362,19 @@ protocol").
 **Who is served what.** A sealer must see every entry up to the head, since
 an entry reduced to its hash could be the revocation of whom it seals to, or of
 their granter; so whoever holds Edit, who seals (and reads all the content
-anyway), is served whole logs: the block's, every ancestor's it may view, and
-the organization's. That reveals little: everyone granted on an ancestor
-already reaches the block (decisions/block_access_is_the_highest_grant_on_the_path_up.md)
-and its managers see them (`list-access`); an editor newly learns that set,
-the ancestors' grant history and their parent records, and of the
-organization's log, who is or was an administrator. Since a block's creator
-holds Manage on it, every member who has made a block is served the
-organization's whole log, and so its member list; whether to narrow that is
-open. Readers below Edit never seal and are served proof paths
+anyway), is served whole logs: the block's and every ancestor's it may view.
+That reveals little: everyone granted on an ancestor already reaches the block
+(decisions/block_access_is_the_highest_grant_on_the_path_up.md) and its
+managers see them (`list-access`); an editor newly learns that set, and the
+ancestors' grant history and their parent records. The organization's log
+names every member, which only an administrator may list (`list-members`), so
+it goes whole to administrators alone (`Visibility::served_whole_organization`).
+Every other member, an editor or the creator of every block it holds included,
+is served a proof path of it: its own records, its sealers', and every
+administrator record whole. That is all an editor needs: it seals to
+administrators through the escrow key, which an honest path vouches for (it
+reduces no entry that lowered anyone), and seals to a block's grantees by the
+keys the block's own log names. Readers below Edit never seal and are served proof paths
 (decisions/editors_are_served_whole_access_logs.md). No log goes to
 `KnowExists`, which anyone gets by naming an id in their own block's
 references: the log names every grantee. A `Join` member is served a proof
@@ -381,8 +385,8 @@ checks it whole each time: serving only its whole entries with Merkle proofs
 would leave the entries left out on the server's word, unless a tree commits
 what each says (decisions/proof_paths_stay_one_step_per_entry.md). A log is
 served whole to a member with Edit or above (on the block or a block below it;
-for the organization's, on any block, or administering it), who seals, and to
-anyone else as a proof path (`be_block_keys::proof_path`): `Step`s, each an
+the organization's, only to an administrator), who seals, and to anyone else as
+a proof path (`be_block_keys::proof_path`): `Step`s, each an
 entry whole or reduced (`Reduced`: the hash of the entry before it, whether it
 lowered anyone, and the digest of the rest), which hashes as the whole entry
 does. Whole on a path: the root; every entry naming the reader or an account
@@ -1257,10 +1261,10 @@ key of an invitation an administrator opened, derived from a code it never
 sees, once; it still decides when an invitation expires, and can list as a
 member someone no record names, whom devices then treat as no member
 (`unsigned-members`). A member record it makes up is caught only by whoever is
-served the organization's whole log (administrators, and members with Edit or
-above anywhere): a reader below Edit is served a path that reduces other
-members' records, so it cannot tell a forged member from a real one, though it
-seals nothing to either.
+served the organization's whole log (administrators): any other member is
+served a path that reduces other members' records, so it cannot tell a forged
+member from a real one, though it seals to neither by that record (an editor
+seals to a block's grantees by the keys the block's own log names).
 
 It can make an account forget a contact, by a made-up `letter.removed`,
 which connecting again by a link recovers. What it cannot do is make the
