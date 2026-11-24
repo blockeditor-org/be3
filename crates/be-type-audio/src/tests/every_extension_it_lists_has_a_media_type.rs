@@ -6,6 +6,9 @@ use super::*;
 fn every_extension_it_lists_has_a_media_type() {
     for extension in AudioFile::FILE_EXTENSIONS {
         let media_type = be_block_content::plain::media_type_of(&format!("file.{extension}"));
-        assert_ne!(media_type, "application/octet-stream", "{extension} has no media type");
+        assert_ne!(
+            media_type, "application/octet-stream",
+            "{extension} has no media type"
+        );
     }
 }

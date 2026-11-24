@@ -8,7 +8,6 @@ use be_block_content::plain::extension;
 use be_block_content::{ChildChange, Root, SearchDocument};
 use be_sdk_type_guest::DocumentFile;
 
-
 #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TextLanguage {

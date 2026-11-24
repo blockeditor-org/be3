@@ -4,10 +4,10 @@ use be_sdk_type_guest::api::{Change, FileChange, PlainFile, guest::exports::repl
 
 use crate::{ImageContent, ImageFile, ImageHeader, ImageOp};
 
-mod every_extension_it_lists_has_a_media_type;
 mod a_picture_file_becomes_an_image_and_back;
 mod an_image_is_decoded_into_its_header_and_keeps_its_bytes;
 mod an_image_merges_only_when_one_side_changed_it;
+mod every_extension_it_lists_has_a_media_type;
 
 fn image(name: &str, payload: &[u8]) -> ImageContent {
     ImageContent::new(

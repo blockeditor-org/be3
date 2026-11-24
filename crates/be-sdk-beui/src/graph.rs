@@ -99,7 +99,10 @@ impl Blocks {
     /// content is cut to it first (`metadata::clip_name`).
     pub fn set_name(&self, id: Uuid, name: Option<String>) -> Result<(), String> {
         use be_block_content::metadata::{MAX_NAME_BYTES, name_too_long};
-        if name.as_ref().is_some_and(|name| name.len() > MAX_NAME_BYTES) {
+        if name
+            .as_ref()
+            .is_some_and(|name| name.len() > MAX_NAME_BYTES)
+        {
             return Err(name_too_long());
         }
         self.graph.set_name(id, name);
