@@ -168,8 +168,11 @@ native builds. Its doc comments (`Host`, `Builds`) cover the rules.
 
 - `POST /build/products/PRODUCT/COMMIT` asks for a build and answers its status as JSON
   (`queued` with `position`, `running`, `succeeded` with `manifest`, `failed` with `error`); `GET`
-  reads it without asking. `GET .../log?from=N` streams the build's log from byte N.
-- Products (crates/be-tool-build-helper/src/products.rs): `android` and `launcher-android`
+  reads it without asking. A product, commit or build it does not know answers 404, and a commit
+  it will not build 422, each with only an `error`. `GET .../log?from=N` streams the build's log
+  from byte N. crates/be-tool-build-helper-protocol holds these types, the products and the
+  published manifest, for the helper and be-launcher both.
+- Products: `android` and `launcher-android`
   (`:android-dist`, signed with CI's key), and `native-PLATFORM` and `beui-demo-PLATFORM`, release
   builds for the six Linux, macOS and Windows platforms.
 - Only commits on a branch of the repository are built (422 otherwise), so a fork's code never

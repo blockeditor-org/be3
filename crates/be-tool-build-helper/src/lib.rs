@@ -6,10 +6,9 @@ use tokio::{
 };
 
 pub mod host;
-pub mod products;
 pub mod queue;
 
-use products::{Product, is_commit};
+use be_tool_build_helper_protocol::{Product, Refusal, is_commit};
 use queue::{Asked, Builds};
 
 const MAX_HEAD_BYTES: usize = 16 * 1024;
@@ -72,11 +71,7 @@ impl Response {
     }
 
     fn unknown(error: Option<String>) -> Self {
-        let mut value = serde_json::json!({"state": "unknown"});
-        if let Some(error) = error {
-            value["error"] = error.into();
-        }
-        Self::json("404 Not Found", &value)
+        Self::json("404 Not Found", &Refusal { error })
     }
 }
 
@@ -145,7 +140,7 @@ async fn products(builds: &Arc<Builds>, method: &str, product: &str, commit: &st
             Ok(Asked::Status(status)) => Response::json("200 OK", &status),
             Ok(Asked::Refused(error)) => Response::json(
                 "422 Unprocessable Entity",
-                &serde_json::json!({"state": "refused", "error": error}),
+                &Refusal { error: Some(error) },
             ),
             Err(error) => Response::text("500 Internal Server Error", format!("{error}\n")),
         },

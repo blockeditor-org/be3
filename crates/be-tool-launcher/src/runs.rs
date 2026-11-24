@@ -6,7 +6,9 @@ use beui::reactive::*;
 #[cfg(target_os = "android")]
 use crate::android;
 use crate::builds::{self, Installed, Slot};
-use crate::helper::{self, Helper, Manifest, Product, State};
+use be_tool_build_helper_protocol::{Manifest, State};
+
+use crate::helper::{self, Helper, Product};
 use crate::net::Network;
 use crate::pane::Pane;
 use crate::tasks::{self, Tasks};
@@ -38,7 +40,7 @@ pub(crate) struct Ready {
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum Stage {
     Asking,
-    Queued(u32),
+    Queued(usize),
     Building,
     Downloading {
         done: u64,
@@ -271,11 +273,6 @@ fn build(
             State::Queued => Stage::Queued(status.position.unwrap_or(0)),
             State::Running => Stage::Building,
             State::Succeeded | State::Failed => break,
-            State::Refused | State::Unknown => {
-                return Err(status
-                    .error
-                    .unwrap_or_else(|| "The build helper will not build it.".to_owned()));
-            }
         };
         tasks.send(tasks::Event::Run(Event::Stage(stage)));
         let bytes = helper.log(product, &commit, from)?;
@@ -354,7 +351,7 @@ fn keep(cache: &Path, manifest: &Manifest) -> Result<(), String> {
         .map_err(|error| error.to_string())?
         .flatten()
         .filter_map(|entry| std::fs::read(entry.path()).ok())
-        .filter_map(|document| Manifest::parse(&document).ok())
+        .filter_map(|document| helper::parse_manifest(&document).ok())
         .collect();
     builds::forget_unused(cache, &kept.iter().collect::<Vec<_>>());
     Ok(())

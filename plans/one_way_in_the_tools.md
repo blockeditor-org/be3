@@ -28,12 +28,6 @@ Depends on: none. Steps 2 and the bootstrap's part of 6 need a bootstrap release
    the static server copied in `page-test.mjs`, `web-test.mjs` and `web-host-test.mjs` move into
    one module beside `drive-words.mjs`. Accept the browser previews' paintings once if the
    versions draw them differently.
-4. **One build-helper protocol.** be-tool-build-helper's `products.rs` (`Product`, `State`,
-   `Status`, `Manifest`, `ManifestFile`, `PLATFORMS`) and be-tool-launcher's `helper.rs`
-   (`Product::name`, `platform()`, `State` with `Refused`/`Unknown`, `Status`, `Manifest`,
-   `File`) each define the wire. A serde-only `be-tool-build-helper-protocol`, as
-   be-tool-paint-review-manifest is for paint review; the launcher's extra states become
-   client-side outcomes.
 5. **One painting kind.** beui-paint-snapshot's `accepted.rs` `changed()`, be-tool-local's
    `rasterize.rs` and `previews.rs`'s `ReviewSnapshot` each branch on `is_browser`, and their
    descriptions differ. A `Painting { Native, Browser }` in beui-paint-snapshot with `decode`,

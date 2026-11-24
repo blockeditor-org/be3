@@ -12,7 +12,6 @@ async fn unknown_products_and_commits_are_not_found() {
     ] {
         let response = running.product("POST", product, commit).await;
         assert_eq!(response.status, "HTTP/1.1 404 Not Found");
-        assert_eq!(response.json()["state"], "unknown");
         assert!(response.json()["error"].is_string());
     }
     let log = running
