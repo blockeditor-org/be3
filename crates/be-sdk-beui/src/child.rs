@@ -227,8 +227,9 @@ fn SubregionView(
         }
         on_focus.call(());
     });
-    // The editor's own asks, and one each time the dock gives this child's tab the keyboard.
-    let tab_asks = match tab {
+    // The editor's own asks, and one each time the dock gives this child's tab the keyboard,
+    // unless the dock shows this child's content in a body of its own (`docks`), which asks.
+    let tab_asks = match tab.filter(|_| !docks) {
         Some(tab) => tab_keyboard_asks(editor, tab, placed, mode),
         None => create_memo(|| 0),
     };

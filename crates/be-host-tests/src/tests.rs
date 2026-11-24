@@ -153,7 +153,7 @@ mod typing_after_a_new_session_opens_reaches_the_session;
 mod typing_after_a_pause_undoes_as_its_own_step;
 mod typing_as_the_connection_silently_drops_leaves_the_host_settled;
 mod typing_in_the_add_menu_from_the_files_reaches_it_straight_away;
-mod typing_right_after_adding_notes_reaches_the_notes;
+mod typing_after_adding_notes_reaches_the_notes;
 mod unlinking_a_reference_in_a_text_puts_a_copy_in_its_place;
 
 fn add_to_my_files(host: &mut HostTest, label: &str) {
