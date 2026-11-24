@@ -18,7 +18,6 @@ async fn an_exported_artifact_imports_pointing_to_its_imported_source() {
             source_type: ImageContent::CONTENT_TYPE,
             exporter: "png".to_owned(),
             settings: b"{}".to_vec(),
-            made: None,
         },
     );
     let saved = |id, parent, metadata| SavedBlock {

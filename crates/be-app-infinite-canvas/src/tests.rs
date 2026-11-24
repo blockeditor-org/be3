@@ -323,6 +323,7 @@ fn open_sized(
     let block = Uuid::new_v4();
     let host = EditorHost::default();
     host.set_editable(true);
+    host.set_block_type(<CanvasContent as be_sdk_beui::be_block_content::BlockContent>::CONTENT_TYPE);
     let editor = OwnedEditor::new(host.clone(), block);
     let test = match preview {
         true => BeuiTest::preview(editor),
@@ -554,6 +555,7 @@ const BLACK: CanvasPixel = CanvasPixel::new(0, 0, 0, 255);
 /// `editor.export.<name>` asks the host for it, and the host runs it in the canvas's app, here
 /// a test of its own that holds the canvas as it is now, and the blocks it embeds.
 fn export_dialog(editor: &mut BeuiTest<CanvasRoot>, name: &str) -> BeuiTest<CanvasRoot> {
+    editor.app_catalog();
     editor.run_action(&format!("editor.export.{name}"));
     let asked = editor.take_export_requests();
     let [(block, request)] = asked.as_slice() else {

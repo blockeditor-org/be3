@@ -1,5 +1,3 @@
-#[cfg(test)]
-use be_sdk_beui::be_block_content::{Artifact, BlockContent};
 use be_sdk_beui::{BlockQuery, Blocks, Editor, ExportSettings, ExporterOf, Made};
 use be_type_logic_grid::CompiledLogic;
 use be_type_logic_grid::{CompiledLogicContent, CompiledLogicDocument, LogicGridContent};
@@ -21,30 +19,6 @@ impl Default for ComponentSettings {
         Self {
             rename_with_source: true,
         }
-    }
-}
-
-impl ComponentSettings {
-    #[cfg(test)]
-    fn decode(data: &[u8]) -> Result<Self, String> {
-        serde_json::from_slice(data)
-            .map_err(|error| format!("logic grid component descriptor is unreadable: {error}"))
-    }
-
-    #[cfg(test)]
-    fn encode(&self) -> Vec<u8> {
-        serde_json::to_vec(self).unwrap_or_default()
-    }
-}
-
-#[cfg(test)]
-pub(super) fn descriptor(source_id: Uuid) -> Artifact {
-    Artifact {
-        source: source_id.into(),
-        source_type: LogicGridContent::CONTENT_TYPE,
-        exporter: EXPORTER.to_owned(),
-        settings: ComponentSettings::default().encode(),
-        made: None,
     }
 }
 
@@ -84,13 +58,6 @@ pub(super) fn generate_initial(source_id: Uuid, grid: &Grid) -> Result<CompiledL
 
 pub(super) fn artifact_name(source_name: &str) -> String {
     format!("{source_name} Component")
-}
-
-#[cfg(test)]
-pub(super) fn summary(data: &[u8]) -> String {
-    ComponentSettings::decode(data)
-        .map_or("Compiled component", |settings| summary_of(&settings))
-        .to_owned()
 }
 
 fn summary_of(settings: &ComponentSettings) -> &'static str {

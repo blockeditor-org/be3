@@ -26,11 +26,17 @@ use be_sdk_api::{AudioStatus, FitArea};
 #[derive(Clone)]
 pub struct Artifacts(Rc<ArtifactSignals>);
 
+type Regenerate = Rc<dyn Fn(&[u8])>;
+type PollArtifact = Rc<dyn Fn() -> Option<Result<(), String>>>;
+
 struct ArtifactSignals {
     core: ArtifactsCore,
     settings: OwnedSignal<Vec<u8>>,
     saved: OwnedSignal<Vec<u8>>,
     _changes: [Subscription; 2],
+    /// How the artifact's exporter makes it again (`crate::export::ArtifactRun`).
+    regenerate: RefCell<Option<Regenerate>>,
+    poll: RefCell<Option<PollArtifact>>,
 }
 
 impl Artifacts {
@@ -50,7 +56,29 @@ impl Artifacts {
             settings,
             saved,
             _changes: changes,
+            regenerate: RefCell::new(None),
+            poll: RefCell::new(None),
         }))
+    }
+
+    pub(crate) fn on_regenerate(&self, work: impl Fn(&[u8]) + 'static) {
+        *self.0.regenerate.borrow_mut() = Some(Rc::new(work));
+    }
+
+    pub(crate) fn on_poll(&self, work: impl Fn() -> Option<Result<(), String>> + 'static) {
+        *self.0.poll.borrow_mut() = Some(Rc::new(work));
+    }
+
+    pub(crate) fn regenerate(&self, data: &[u8]) {
+        let work = self.0.regenerate.borrow().clone();
+        if let Some(work) = work {
+            work(data);
+        }
+    }
+
+    pub(crate) fn poll(&self) -> Option<Result<(), String>> {
+        let work = self.0.poll.borrow().clone();
+        work.and_then(|work| work())
     }
 
     pub fn settings(&self) -> ReadSignal<Vec<u8>> {
@@ -323,7 +351,6 @@ impl OwnedEditor {
         let zoom = create_signal(None);
         let fit = create_signal(None);
         let notices = create_signal(Vec::new());
-        let export_actions = create_signal(Vec::new());
         let pushed = Rc::new(Mirror::new(&host));
         let mirrored = Rc::downgrade(&pushed);
         let syncing = core.on_pumped(move || {
@@ -355,7 +382,6 @@ impl OwnedEditor {
             notices,
             reads_another: Cell::new(false),
             exporters: RefCell::new(Rc::from([])),
-            export_actions,
         });
         Self {
             editor: Editor(state.handle()),
@@ -412,8 +438,6 @@ struct EditorState {
     reads_another: Cell<bool>,
     /// What the editor exports its block as (`BeuiRoot::exporters`).
     exporters: RefCell<Rc<[crate::Exporter]>>,
-    /// Their `editor.export.<name>` actions, while the frame's menu has them registered.
-    export_actions: Signal<Vec<beui::reactive::Action>>,
 }
 
 impl Editor {
@@ -520,16 +544,6 @@ impl Editor {
 
     pub(crate) fn set_exporters(&self, exporters: Rc<[crate::Exporter]>) {
         *self.state().exporters.borrow_mut() = exporters;
-    }
-
-    /// The `editor.export.<name>` action of each exporter, for an editor's own menus to list
-    /// beside the frame's.
-    pub fn export_actions(&self) -> Vec<beui::reactive::Action> {
-        self.state().export_actions.get()
-    }
-
-    pub(crate) fn set_export_actions(&self, actions: Vec<beui::reactive::Action>) {
-        self.state().export_actions.set(actions);
     }
 
     /// The `K` kept in the editor's view block, which outlives the editor: where it was

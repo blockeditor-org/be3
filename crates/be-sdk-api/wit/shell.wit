@@ -333,6 +333,9 @@ interface shell-types {
         artifact-described(artifact-description),
         /// The user changed the artifact settings the editor shows.
         artifact-edited(list<u8>),
+        /// Why the artifact the editor makes could not be made again as its
+        /// source last changed, or none once it was: said each time it changes.
+        artifact-failed(option<string>),
         /// Something the user asked the editor for failed, and why, said for
         /// the user to read. The host shows it as it shows its own failures.
         report-failure(string),

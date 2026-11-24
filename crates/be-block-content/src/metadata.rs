@@ -69,6 +69,12 @@ pub const SCHEMA: MetaKey<String> =
 pub const ARTIFACT: MetaKey<Artifact> =
     MetaKey::defined(0x6be3_6d65_7461_4100_8a1e_6172_7469_0001, "artifact");
 
+/// A fingerprint of the content an artifact's exporter last made, so whoever makes it again
+/// writes it only when it differs. Kept apart from `ARTIFACT`, which only the person changes
+/// (settings applied, unlinked): the instance that makes the artifact writes only this.
+pub const ARTIFACT_MADE: MetaKey<u64> =
+    MetaKey::defined(0x6be3_6d65_7461_4100_8a1e_6d61_6465_0001, "artifact_made");
+
 pub const LOCAL_ID: MetaKey<Uuid> =
     MetaKey::defined(0x6be3_6d65_7461_4c00_8a1e_6c6f_6361_0001, "local_id");
 
@@ -181,10 +187,6 @@ pub struct Artifact {
     pub exporter: String,
     #[serde(with = "be_block_model::bytes")]
     pub settings: Vec<u8>,
-    /// A fingerprint of the content the exporter last made, so whoever makes it again writes
-    /// it only when it differs; none until it is first made.
-    #[serde(default)]
-    pub made: Option<u64>,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
