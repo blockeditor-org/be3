@@ -20,7 +20,7 @@ use std::{
     rc::Rc,
 };
 
-use be_sdk_beui::BlockParent;
+use be_sdk_beui::Made;
 use be_sdk_beui::ContentProjection;
 use be_sdk_beui::be_block_content::BlockContent;
 use be_sdk_beui::be_block_content::ObjectId;
@@ -795,11 +795,16 @@ impl LogicGridEditor {
                     .and_then(|info| info.name())
                     .unwrap_or_else(|| DISPLAY_NAME.to_owned());
                 let name = dynamic_artifact::artifact_name(&source_name);
-                let id = editor.blocks().create_artifact(
-                    &CompiledLogicContent::new(&CompiledLogicDocument::of(compiled.clone())),
-                    BlockParent::Unfiled,
-                    Some(name.clone()),
-                    dynamic_artifact::descriptor(source_id),
+                let id = dynamic_artifact::exporter().add_to_workspace(
+                    editor,
+                    &dynamic_artifact::ComponentSettings::default(),
+                    Made {
+                        content: CompiledLogicContent::new(&CompiledLogicDocument::of(
+                            compiled.clone(),
+                        )),
+                        name: name.clone(),
+                        renames: true,
+                    },
                 );
 
                 self.ensure_compiled(id);

@@ -268,7 +268,35 @@ impl<A: BeuiRoot + AppEditor> BeuiTest<A> {
     pub fn export(host: EditorHost, request: be_sdk_beui::ExportDialogRequest) -> Self {
         EXPORT.with(|export| *export.borrow_mut() = Some(request));
         let editor = OwnedEditor::new(host, Uuid::nil());
-        Self::open(Kind::Export, Adopted::Editor(editor, None), Vec::new())
+        let mut test = Self::open(Kind::Export, Adopted::Editor(editor, None), Vec::new());
+        // The app's editors, as the host's catalog lists them: the dialog names its exporter
+        // as the manifest does.
+        let manifest =
+            be_sdk_manifest::manifest_from_json(A::MANIFEST).expect("the app's manifest parses");
+        test.catalog(Catalog {
+            types: Vec::new(),
+            templates: Vec::new(),
+            editors: manifest
+                .editors
+                .iter()
+                .map(|editor| be_sdk_api::EditorDescriptor {
+                    editor: editor.id,
+                    edits: editor.edits,
+                    name: editor.display_name.clone(),
+                    icon_codepoint: editor.icon.clone(),
+                    extensions: Vec::new(),
+                    exporters: editor
+                        .exporters
+                        .iter()
+                        .map(|exporter| be_sdk_api::ExporterDescriptor {
+                            name: exporter.name.clone(),
+                            label: exporter.label.clone(),
+                        })
+                        .collect(),
+                })
+                .collect(),
+        });
+        test
     }
 
     pub fn settings(artifacts: Artifacts, data: Vec<u8>) -> Self {

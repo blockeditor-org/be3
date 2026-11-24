@@ -1,3 +1,4 @@
+#[cfg(test)]
 use be_sdk_beui::be_block_content::{Artifact, BlockContent};
 use be_sdk_beui::{BlockQuery, Blocks, Editor, ExportSettings, ExporterOf, Made};
 use be_type_logic_grid::CompiledLogic;
@@ -30,11 +31,13 @@ impl ComponentSettings {
             .map_err(|error| format!("logic grid component descriptor is unreadable: {error}"))
     }
 
+    #[cfg(test)]
     fn encode(&self) -> Vec<u8> {
         serde_json::to_vec(self).unwrap_or_default()
     }
 }
 
+#[cfg(test)]
 pub(super) fn descriptor(source_id: Uuid) -> Artifact {
     Artifact {
         source: source_id.into(),
@@ -71,7 +74,7 @@ pub(super) fn exporter() -> ExporterOf<CompiledLogicContent, ComponentSettings> 
             })
         }
     })
-    .settings(|settings| view! { <Settings settings /> })
+    .settings(|settings| Build::new(move || view! { <Settings settings /> }))
     .describe(|settings: &ComponentSettings| summary_of(settings).to_owned())
 }
 
