@@ -173,6 +173,9 @@ pub enum ClientError {
     /// This device's edits to the block were discarded and it may not edit it: it keeps none
     /// (`Refs::keep_open_edits`).
     Discarded(uuid::Uuid),
+    /// The block's replica found its head's objects not to be had now and waits to open
+    /// again (`be_block_type_host::Replicas::not_yet`): a read or change of it fails at once.
+    NotYet(uuid::Uuid),
     Unexpected,
     Incompatible {
         ours: String,
@@ -220,6 +223,7 @@ impl fmt::Display for ClientError {
             Self::Discarded(_) => formatter.write_str(
                 "this device's edits to this block were discarded, and it may not edit it",
             ),
+            Self::NotYet(_) => formatter.write_str("this file is not available yet"),
             Self::Unexpected => formatter.write_str("the server answered with the wrong message"),
             Self::Incompatible { ours, theirs } => write!(
                 formatter,

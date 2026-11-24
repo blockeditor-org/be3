@@ -98,6 +98,7 @@ mod a_restart_waits_for_the_holder_to_be_alone_below_the_ceiling;
 mod a_seal_counted_in_another_run_of_the_order_is_merged_not_taken_as_news;
 mod a_seal_mid_drag_leaves_the_drag_out_of_the_commit;
 mod a_seal_rejected_after_edits_journaled_during_it_merges_and_publishes_them_once;
+mod a_replica_whose_opening_is_not_yet_to_be_had_runs_nothing_on_default_content;
 mod a_seal_that_failed_is_tried_again_on_a_timer_and_owes_nothing_meanwhile;
 mod a_seal_waiting_on_its_state_part_lets_a_reload_land_first;
 mod a_seal_whose_journal_did_not_reach_the_server_opens_as_the_seal;
@@ -698,6 +699,8 @@ struct Sim<C: LiveEdit + Clone + Default> {
     parts_put: usize,
     fail_puts: usize,
     fail_reads: usize,
+    /// Loads answered `LoadError::NotYet`, as a host answers one of a commit not to be had yet.
+    not_yet_loads: usize,
     /// Publishes answered with an error, as a device's seal fails offline when its block's key
     /// is not on it; and how many were.
     fail_publishes: usize,
@@ -785,6 +788,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             parts_put: 0,
             fail_puts: 0,
             fail_reads: 0,
+            not_yet_loads: 0,
             fail_publishes: 0,
             failed_publishes: 0,
             largest_written: 0,
@@ -1632,6 +1636,18 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                 let manifest = self.vault.write(SEALING, C::CONTENT_TYPE, parts).unwrap();
                 let commit = self.commit(manifest, parent.into_iter().collect());
                 self.to(device, |host| reply.send(host, &Ok(commit)));
+            }
+            Call::Load {
+                reply,
+                commit,
+                first_part,
+            } if self.not_yet_loads > 0 => {
+                self.not_yet_loads -= 1;
+                let _ = (commit, first_part);
+                let result: Result<be_sdk_type_api::Loaded, _> = Err(
+                    be_sdk_type_api::LoadError::NotYet("not to be had yet".to_owned()),
+                );
+                self.to(device, |host| reply.send(host, &result));
             }
             Call::Load {
                 reply,
