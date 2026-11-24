@@ -2107,9 +2107,9 @@ impl EditorHost {
         content: Vec<u8>,
         name: String,
     ) -> Asked<Result<SavedFile, Failure>> {
-        Asked::of(self.ask(|| {
-            host_services::file_of_content(block_type.into_bytes(), content, name)
-        }))
+        Asked::of(
+            self.ask(|| host_services::file_of_content(block_type.into_bytes(), content, name)),
+        )
     }
 
     pub fn import_blocks(

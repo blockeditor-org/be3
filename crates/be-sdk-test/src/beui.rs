@@ -1443,9 +1443,9 @@ impl<A: BeuiRoot + AppEditor> BeuiTest<A> {
                         content,
                         name,
                     } => {
-                        let file =
-                            self.store
-                                .file_of(Uuid::from_bytes(block_type), content, &name);
+                        let file = self
+                            .store
+                            .file_of(Uuid::from_bytes(block_type), content, &name);
                         let (op, outcome) = reply.answer(&file);
                         self.wire.answer(op, outcome);
                     }

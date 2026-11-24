@@ -5,8 +5,8 @@ use be_sdk_api::blocks::HostingHere;
 use be_sdk_api::{MenuCheck, MenuCommand, MenuEntry, MenuPin, MenuSubmenu};
 use beui::NodeId;
 use beui::icons::{
-    ICON_DOWNLOAD, ICON_INFO, ICON_PENCIL_LINE, ICON_RADIO_TOWER, ICON_REDO_2, ICON_SHARE_2, ICON_TERMINAL,
-    ICON_UNDO_2, ICON_X,
+    ICON_DOWNLOAD, ICON_INFO, ICON_PENCIL_LINE, ICON_RADIO_TOWER, ICON_REDO_2, ICON_SHARE_2,
+    ICON_TERMINAL, ICON_UNDO_2, ICON_X,
 };
 use beui::native::{Embed, EmbedSlot};
 use beui::reactive::*;

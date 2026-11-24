@@ -3,8 +3,8 @@ use be_sdk_api::app::{DialogRequest, EditorEvent, MenuChoice, ViewFrame};
 use be_sdk_api::{
     AnchorSpace, AnchoredPlacement, ArtifactDescription, AudioCommand, BlockPick, ChildContent,
     ChildId, ChildMode, ChildPlacement, ChildPlacements, ChildStatus, DialogStatus,
-    EditorInstanceId, FrameReport, FrameSpec, MenuEntry, Occluder, OpenArtifact, OpenBlock, OpenExport,
-    OpenCreation, OpenHost, OpenJoin, OpenPicker, OpenRename, Opening, OpeningKind,
+    EditorInstanceId, FrameReport, FrameSpec, MenuEntry, Occluder, OpenArtifact, OpenBlock,
+    OpenCreation, OpenExport, OpenHost, OpenJoin, OpenPicker, OpenRename, Opening, OpeningKind,
     PerformanceMeasurement, ScreenId, ScreenLayout, ScreenRequest, ScreenWindow, Stopped, View,
     ViewAnchor, ViewId, ViewPlacement, ViewSize, ViewportMetrics, WebViewEvent, WebViewId,
 };

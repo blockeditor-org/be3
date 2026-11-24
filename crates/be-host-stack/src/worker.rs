@@ -4643,7 +4643,9 @@ async fn apply(
             let file = replicas
                 .to_file((peer, shared), content_type, content)
                 .await
-                .and_then(|file| file.ok_or_else(|| "This block has no plain-file form.".to_owned()))
+                .and_then(|file| {
+                    file.ok_or_else(|| "This block has no plain-file form.".to_owned())
+                })
                 .map(|mut file| {
                     if file.name.is_none() {
                         file.name =

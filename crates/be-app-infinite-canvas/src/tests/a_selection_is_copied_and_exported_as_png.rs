@@ -14,7 +14,11 @@ fn a_selection_is_copied_and_exported_as_png() {
     let mut editor = editor(std::slice::from_ref(&card));
     editor.click(format!("infinite-canvas.entity.{}", card.id));
 
-    let png = &copied_export(&mut editor, "png", be_sdk_beui::beui::clipboard::formats::PNG);
+    let png = &copied_export(
+        &mut editor,
+        "png",
+        be_sdk_beui::beui::clipboard::formats::PNG,
+    );
     let copied = pixels(png);
     let side = |world: f32| ((world + 2.0 * (2.0 + 2.0 + 16.0)) * 2.0).ceil() as u32;
     assert_eq!(

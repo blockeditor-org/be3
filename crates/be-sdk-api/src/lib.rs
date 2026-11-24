@@ -75,9 +75,8 @@ pub use shared::access::AccessLevel;
 pub use shell_types::ChildStatus;
 pub use shell_types::{
     ArtifactDescription, AudioCommand, AudioSource, AudioStatus, Catalog, ChildPreview,
-    CreationProgress, DialogAnswer, DialogStatus, DropAction, EditorDescriptor, FitArea,
-    ExporterDescriptor, OfferedClipItem, PreviewImage, Stopped, TemplateDescriptor, ViewChange,
-    WebViewEvent,
+    CreationProgress, DialogAnswer, DialogStatus, DropAction, EditorDescriptor, ExporterDescriptor,
+    FitArea, OfferedClipItem, PreviewImage, Stopped, TemplateDescriptor, ViewChange, WebViewEvent,
 };
 pub use types::{
     AnchorSpace, AnchoredPlacement, ChildContent, ChildLayer, ChildMode, ChildPlacement,

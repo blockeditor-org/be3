@@ -17,7 +17,8 @@ be_wasm_ops_bindgen::generate!({
 mod document;
 
 pub use document::{
-    EditorDocument, ExporterDocument, InOrder, ManifestDocument, TemplateDocument, manifest_from_json,
+    EditorDocument, ExporterDocument, InOrder, ManifestDocument, TemplateDocument,
+    manifest_from_json,
 };
 pub use types::{
     AppIdentity, BlockTypeDescriptor, ChildOperations, EditorCapabilities, Edits, InteractionMode,

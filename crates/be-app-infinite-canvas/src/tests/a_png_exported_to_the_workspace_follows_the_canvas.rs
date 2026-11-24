@@ -53,7 +53,10 @@ fn a_png_exported_to_the_workspace_follows_the_canvas() {
         })
         .collect();
     let [file] = saved.as_slice() else {
-        panic!("saving asks the host to save one file, asked {}", saved.len());
+        panic!(
+            "saving asks the host to save one file, asked {}",
+            saved.len()
+        );
     };
     let form = store
         .file_of(ImageContent::CONTENT_TYPE, first.encode(), "")

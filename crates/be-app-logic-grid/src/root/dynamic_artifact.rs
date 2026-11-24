@@ -48,7 +48,13 @@ pub(super) fn exporter() -> ExporterOf<CompiledLogicContent, ComponentSettings> 
             })
         }
     })
-    .settings(|settings| Build::new(move || view! { <Settings settings /> }))
+    .settings(|settings| {
+        Build::new(move || {
+            view! {
+                <Settings settings />
+            }
+        })
+    })
     .describe(|settings: &ComponentSettings| summary_of(settings).to_owned())
 }
 

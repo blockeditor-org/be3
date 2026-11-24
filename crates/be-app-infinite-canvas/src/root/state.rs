@@ -50,7 +50,6 @@ struct Pasting {
     entities: Vec<CanvasEntity>,
 }
 
-
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) enum CommonValue<T> {
     None,
@@ -2279,7 +2278,6 @@ impl CanvasState {
         }
     }
 
-
     /// Copies the selection as canvas items, which name this canvas for the
     /// pixels of their raster layers, and as a PNG rendered only when a paste
     /// asks for it.
@@ -2326,14 +2324,11 @@ impl CanvasState {
             };
             let made = std::rc::Rc::new(Cell::new(false));
             let done = std::rc::Rc::clone(&made);
-            let rendering = super::export::png_exporter().once(
-                state.editor(),
-                settings,
-                move |made| {
+            let rendering =
+                super::export::png_exporter().once(state.editor(), settings, move |made| {
                     done.set(true);
                     answer(made.ok().map(|made| made.content.data().to_vec().into()));
-                },
-            );
+                });
             let cells = state.cells.value();
             let mut renderings = cells.rendering.borrow_mut();
             renderings.retain(|(made, _)| !made.get());

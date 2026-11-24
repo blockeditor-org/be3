@@ -8,8 +8,7 @@ use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::{
     AccessLevel, AccessListing, BlockParent, ChildId, ChildMode, ChildState, DialogAnswer,
-    ExportRequest,
-    LinkAdmits, ShareLink, Subregion, SubregionContent,
+    ExportRequest, LinkAdmits, ShareLink, Subregion, SubregionContent,
 };
 use uuid::Uuid;
 
@@ -185,11 +184,13 @@ fn ExportDialog(workspace: Workspace) -> NodeId {
         _ => None,
     });
     let placed = move || {
-        export.get().map(|(block, request)| SubregionContent::Export {
-            block,
-            exporter: request.exporter,
-            settings: request.settings,
-        })
+        export
+            .get()
+            .map(|(block, request)| SubregionContent::Export {
+                block,
+                exporter: request.exporter,
+                settings: request.settings,
+            })
     };
     let child = create_signal(None::<ChildId>);
     let height = create_signal(SETTINGS_HEIGHT);

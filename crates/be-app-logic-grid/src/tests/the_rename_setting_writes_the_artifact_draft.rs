@@ -4,8 +4,7 @@ use super::*;
 /// default, when it says nothing.
 fn renames(draft: &[u8]) -> bool {
     draft.is_empty()
-        || serde_json::from_slice::<serde_json::Value>(draft).expect("the settings are JSON")
-            ["rename_with_source"]
+        || serde_json::from_slice::<serde_json::Value>(draft).expect("the settings are JSON")["rename_with_source"]
             == serde_json::Value::Bool(true)
 }
 

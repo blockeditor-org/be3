@@ -8,7 +8,11 @@ fn exported(text: RichText) -> image::RgbaImage {
         CanvasTransform::new(CanvasPoint::default(), CanvasPoint::new(160.0, 40.0), 0.0);
     note.text = text;
     let mut editor = editor(&[note]);
-    let png = &copied_export(&mut editor, "png", be_sdk_beui::beui::clipboard::formats::PNG);
+    let png = &copied_export(
+        &mut editor,
+        "png",
+        be_sdk_beui::beui::clipboard::formats::PNG,
+    );
     image::load_from_memory_with_format(png, image::ImageFormat::Png)
         .expect("the export is a readable PNG")
         .into_rgba8()

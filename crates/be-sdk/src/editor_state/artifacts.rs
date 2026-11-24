@@ -6,7 +6,6 @@ use uuid::Uuid;
 use crate::state::{Callbacks, Subscription};
 use crate::{Artifact, BlockGraph, EditorHost};
 
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 enum Changed {
     Settings,
@@ -109,8 +108,4 @@ impl ArtifactsCore {
     pub fn exporter(&self) -> &str {
         &self.0.artifact.exporter
     }
-
-
-
-
 }

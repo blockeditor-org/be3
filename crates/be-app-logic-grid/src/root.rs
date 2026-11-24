@@ -20,8 +20,8 @@ use std::{
     rc::Rc,
 };
 
-use be_sdk_beui::Made;
 use be_sdk_beui::ContentProjection;
+use be_sdk_beui::Made;
 use be_sdk_beui::be_block_content::BlockContent;
 use be_sdk_beui::be_block_content::ObjectId;
 use be_sdk_beui::root_settings::RootSetting;

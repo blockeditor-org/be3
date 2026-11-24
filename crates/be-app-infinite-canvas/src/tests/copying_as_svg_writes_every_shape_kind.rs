@@ -71,9 +71,10 @@ fn copying_as_svg_writes_every_shape_kind() {
             ..Modifiers::NONE
         },
     );
-    let copied = vec![String::from_utf8(copied_export(&mut editor, "svg", "image/svg+xml"))
-
-        .expect("the SVG is text")];
+    let copied = vec![
+        String::from_utf8(copied_export(&mut editor, "svg", "image/svg+xml"))
+            .expect("the SVG is text"),
+    ];
     let [svg] = copied.as_slice() else {
         panic!("Copy as SVG puts one SVG on the clipboard, put {copied:?}");
     };

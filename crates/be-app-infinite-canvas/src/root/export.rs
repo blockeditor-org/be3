@@ -6,6 +6,7 @@ use std::collections::BTreeMap;
 use std::rc::Rc;
 
 use be_sdk_beui::be_block_content::BlockContent;
+use be_sdk_beui::be_block_content::blob::Blob;
 use be_sdk_beui::beui::SpanStyle;
 use be_sdk_beui::beui::native::painting::{Punches, painting, rasterize};
 use be_sdk_beui::beui::native::rich::{RichLayout, SpanKind};
@@ -15,28 +16,27 @@ use be_sdk_beui::beui::{
     Color32, FontFamily, FontId, Image, LineCap, LineJoin, NodeId, Path, PathElement, Pos2, Rect,
     Stroke, TextAlign, TextLayout, Vec2, native::line_height, pos2, reactive::Painter,
 };
-use be_sdk_beui::be_block_content::blob::Blob;
 use be_sdk_beui::{Editor, ExportSettings, ExporterOf, Made};
-use be_type_workspace::{FileContent, FileHeader};
-use serde::{Deserialize, Serialize};
 use be_type_infinite_canvas::{
     CanvasEntity, CanvasPoint, CanvasRaster, CanvasShape, CanvasTextWeight,
 };
+use be_type_workspace::{FileContent, FileHeader};
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::geometry::{TEXT_INSET, entity_bounds, point};
 use be_sdk_beui::beui::CanvasView;
 
+use super::entities::Entities;
 use super::paint::{EntityPaint, Palette, resolve_color, with_opacity};
 use super::sketch::{Ink, Mark, Sketch};
-use super::entities::Entities;
-use be_sdk_beui::{BlockInfo, BlockQuery, ContentProjection};
-use be_type_infinite_canvas::{Canvas, CanvasContent};
 use super::text::{
     font_px, prose, rich_state, text_box, text_region, text_style, text_turn, writes,
 };
 use crate::raster::nearest_upscaled;
+use be_sdk_beui::{BlockInfo, BlockQuery, ContentProjection};
 use be_type_image::{ImageContent, ImageHeader};
+use be_type_infinite_canvas::{Canvas, CanvasContent};
 use beui::{Align, Direction};
 
 pub(crate) const PADDING: f32 = 16.0;
@@ -178,9 +178,8 @@ impl Scene {
                             .map(|label| label.name.clone())
                             .unwrap_or_default(),
                         glyph: label.as_ref().and_then(be_sdk_beui::label_glyph),
-                        image: info.is_some_and(|info| {
-                            info.block_type == ImageContent::CONTENT_TYPE
-                        }),
+                        image: info
+                            .is_some_and(|info| info.block_type == ImageContent::CONTENT_TYPE),
                     },
                 ))
             })
@@ -342,7 +341,8 @@ pub(crate) fn png_exporter() -> ExporterOf<ImageContent, ImageExport> {
         let scenes = scenes(editor);
         move |settings: &ImageExport| {
             let (scene, images) = scenes(settings)?;
-            let (data, [width, height]) = png(&scene, settings, &images).map_err(Pending::Failed)?;
+            let (data, [width, height]) =
+                png(&scene, settings, &images).map_err(Pending::Failed)?;
             let name = scene.file_name("png");
             let header = ImageHeader {
                 source_name: name.clone(),
@@ -354,7 +354,13 @@ pub(crate) fn png_exporter() -> ExporterOf<ImageContent, ImageExport> {
             Ok(Made::named(Blob::new(header, data), name))
         }
     })
-    .settings(|settings| Build::new(move || view! { <ImageSettings settings png=true /> }))
+    .settings(|settings| {
+        Build::new(move || {
+            view! {
+                <ImageSettings settings png=true />
+            }
+        })
+    })
     .describe(describe)
     .initial(selected)
 }
@@ -374,7 +380,13 @@ pub(crate) fn svg_exporter() -> ExporterOf<FileContent, ImageExport> {
             Ok(Made::named(Blob::new(header, data), name))
         }
     })
-    .settings(|settings| Build::new(move || view! { <ImageSettings settings png=false /> }))
+    .settings(|settings| {
+        Build::new(move || {
+            view! {
+                <ImageSettings settings png=false />
+            }
+        })
+    })
     .describe(describe)
     .initial(selected)
 }

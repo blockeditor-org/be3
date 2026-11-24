@@ -14,12 +14,11 @@ use serde::Serialize;
 use serde::de::DeserializeOwned;
 use uuid::Uuid;
 
-use be_block_content::BlockMetadata;
 use crate::{
     Artifacts, BlockParent, BlockQuery, Editor, EditorHost, ExportDialogRequest, FileSave,
     OwnedEditor, SavedFile, Task,
 };
-
+use be_block_content::BlockMetadata;
 
 /// What an exporter made: the content of a block of its type, and what to call it. A file the
 /// content becomes is named after `name` too, unless its type names it.
@@ -350,7 +349,11 @@ pub(crate) struct ArtifactRun {
 }
 
 impl ArtifactRun {
-    pub(crate) fn start(artifacts: &Artifacts, exporter: Option<Exporter>, settings: &[u8]) -> Self {
+    pub(crate) fn start(
+        artifacts: &Artifacts,
+        exporter: Option<Exporter>,
+        settings: &[u8],
+    ) -> Self {
         let host = artifacts.host().clone();
         let source = OwnedEditor::reading(host.clone(), artifacts.source());
         let reader = source.editor();
@@ -494,7 +497,10 @@ pub(crate) fn ExportDialog(
     let dismiss_host = host.clone();
     let on_dismiss = move || dismiss.close_dialog(crate::DialogAnswer::Dismissed);
     let Some(exporter) = exporter else {
-        let missing = format!("This editor has no exporter named \"{}\".", request.exporter);
+        let missing = format!(
+            "This editor has no exporter named \"{}\".",
+            request.exporter
+        );
         return view! {
             <DialogBody
                 title="Export"

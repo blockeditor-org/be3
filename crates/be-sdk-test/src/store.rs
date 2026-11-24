@@ -1277,8 +1277,8 @@ impl ContentStore {
         let file = file
             .map_err(|failure| be_sdk_api::Failure::Failed(format!("{failure:?}")))?
             .ok_or_else(|| {
-            be_sdk_api::Failure::Failed("This block has no plain-file form.".to_owned())
-        })?;
+                be_sdk_api::Failure::Failed("This block has no plain-file form.".to_owned())
+            })?;
         Ok(be_sdk_beui::SavedFile {
             name: file.name.unwrap_or_else(|| {
                 be_sdk_beui::be_block_content::plain::export_name(name, &file.extension)

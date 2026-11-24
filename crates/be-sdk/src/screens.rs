@@ -802,20 +802,22 @@ fn catalog(catalog: &Catalog, debug: &[DebugTemplate]) -> BlockCatalog {
             dialog: template.dialog,
         }
     }))
-    .with_editors(catalog.editors.iter().map(|editor| EditorEntry {
-        editor: Uuid::from_bytes(editor.editor),
-        edits: editor.edits,
-        name: editor.name.clone(),
-        icon: Glyph::from_codepoint(&editor.icon_codepoint),
-        extensions: editor.extensions.clone(),
-        exporters: editor
-            .exporters
-            .iter()
-            .map(|exporter| be_sdk_ui::ExporterEntry {
-                name: exporter.name.clone(),
-                label: exporter.label.clone(),
-            })
-            .collect(),
+    .with_editors(catalog.editors.iter().map(|editor| {
+        EditorEntry {
+            editor: Uuid::from_bytes(editor.editor),
+            edits: editor.edits,
+            name: editor.name.clone(),
+            icon: Glyph::from_codepoint(&editor.icon_codepoint),
+            extensions: editor.extensions.clone(),
+            exporters: editor
+                .exporters
+                .iter()
+                .map(|exporter| be_sdk_ui::ExporterEntry {
+                    name: exporter.name.clone(),
+                    label: exporter.label.clone(),
+                })
+                .collect(),
+        }
     }))
 }
 

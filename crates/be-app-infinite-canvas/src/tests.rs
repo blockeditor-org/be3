@@ -63,11 +63,10 @@ mod a_phone_canvas_keeps_its_tools_in_a_dock_and_zoom_pill;
 mod a_phone_canvas_unfolds_its_inspector_from_the_selection_bar;
 mod a_phone_opens_a_context_submenu_as_a_page_of_its_sheet;
 mod a_png_export_draws_formatted_text_as_the_canvas_does;
+mod a_png_exported_to_the_workspace_follows_the_canvas;
 mod a_preview_with_no_camera_fits_its_frame;
 mod a_raster_layer_copied_into_another_canvas_keeps_its_pixels_and_scale;
 mod a_raster_layer_is_drawn_pixel_sharp_with_its_grid;
-mod a_png_exported_to_the_workspace_follows_the_canvas;
-mod an_artifact_made_again_writes_only_its_content_until_it_is_unlinked;
 mod a_raster_layer_is_exported_pixel_sharp;
 mod a_raster_layer_scaled_by_its_handles_draws_its_pixels_larger;
 mod a_raster_stroke_is_one_undo_step_and_escape_calls_it_off;
@@ -88,6 +87,7 @@ mod a_text_tapped_in_starts_at_the_tap;
 mod a_typed_transform_value_is_one_edit;
 mod a_view_the_host_sets_is_not_fitted_back;
 mod an_arrow_drawn_between_two_shapes_follows_them_when_they_move;
+mod an_artifact_made_again_writes_only_its_content_until_it_is_unlinked;
 mod an_export_marks_the_list_markers_and_quote_bars_it_cannot_draw;
 mod an_image_still_loading_is_drawn_as_its_thumbhash;
 mod an_image_that_could_not_be_read_is_reported_to_the_host;
@@ -324,7 +324,9 @@ fn open_sized(
     let block = Uuid::new_v4();
     let host = EditorHost::default();
     host.set_editable(true);
-    host.set_block_type(<CanvasContent as be_sdk_beui::be_block_content::BlockContent>::CONTENT_TYPE);
+    host.set_block_type(
+        <CanvasContent as be_sdk_beui::be_block_content::BlockContent>::CONTENT_TYPE,
+    );
     let editor = OwnedEditor::new(host.clone(), block);
     let test = match preview {
         true => BeuiTest::preview(editor),
@@ -568,7 +570,8 @@ fn export_dialog(editor: &mut BeuiTest<CanvasRoot>, name: &str) -> BeuiTest<Canv
         host,
         be_sdk_beui::ExportDialogRequest {
             source: *block,
-            source_type: <CanvasContent as be_sdk_beui::be_block_content::BlockContent>::CONTENT_TYPE,
+            source_type:
+                <CanvasContent as be_sdk_beui::be_block_content::BlockContent>::CONTENT_TYPE,
             exporter: request.exporter.clone(),
             settings: request.settings.clone(),
         },
@@ -585,7 +588,10 @@ fn hold_canvas(editor: &BeuiTest<CanvasRoot>, test: &mut BeuiTest<CanvasRoot>, b
     test.store().register(be_type_image::registrations());
     test.store().register(be_type_workspace::registrations());
     for entity in entities(editor) {
-        if let Some(info) = entity.block.and_then(|embedded| editor.store().block(embedded)) {
+        if let Some(info) = entity
+            .block
+            .and_then(|embedded| editor.store().block(embedded))
+        {
             test.store().add_block(info);
         }
     }

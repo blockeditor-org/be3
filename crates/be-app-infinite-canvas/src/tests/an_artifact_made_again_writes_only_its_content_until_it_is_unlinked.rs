@@ -55,7 +55,11 @@ fn an_artifact_made_again_writes_only_its_content_until_it_is_unlinked() {
     // Applied in the settings dialog: the host stores the new settings, then asks for a remake,
     // which may run before what the instance reads of the block says so.
     keeping.regenerate(br#"{"scale":2.0,"background":false,"items":[]}"#.to_vec());
-    assert_eq!(remade(&keeping, image.id), 1, "new settings make a new image");
+    assert_eq!(
+        remade(&keeping, image.id),
+        1,
+        "new settings make a new image"
+    );
     assert!(
         keeping.take_definitions(ARTIFACT.id).is_empty(),
         "making it again never writes what it is made from, which the person sets"
@@ -69,9 +73,7 @@ fn an_artifact_made_again_writes_only_its_content_until_it_is_unlinked() {
     // A canvas with nothing on it makes no image: the failure stands until it makes one again.
     let emptied = Canvas::edit_in(
         &keeping.content::<CanvasContent>(Some(canvas)),
-        &InfiniteCanvasOperation::Remove {
-            ids: vec![card.id],
-        },
+        &InfiniteCanvasOperation::Remove { ids: vec![card.id] },
     );
     keeping.edit::<CanvasContent>(Some(canvas), &emptied);
     keeping.run();
