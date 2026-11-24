@@ -63,8 +63,9 @@ account may edit it, and closes it when nothing holds it.
 `editor.related_content::<C>(memo)` follows whichever block a memo names (a
 database view follows its database and schema). Revision previews and blocks
 still uploading are answered with a host-made `Snapshot` with no session
-state. Dynamic artifacts use `EditorHost::content_of` and
-`EditorHost::replace_content`. `be_sdk_beui` re-exports `be_block`.
+state. An exporter reads its source through `OwnedEditor::reading`, an editor
+on a block not its instance's own, and an artifact instance writes what it
+made with `EditorHost::replace_bytes` (guides/apps/editor.md, "Exporting"). `be_sdk_beui` re-exports `be_block`.
 
 ### Reading a range
 

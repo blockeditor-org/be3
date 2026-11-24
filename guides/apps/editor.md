@@ -141,20 +141,53 @@ is the whole dialog for a block made from a picked file. "Import a file…"
 makes a block with no editor at all, by the type module that claims the file
 (guides/blocks/host.md, Exporting and importing).
 
-## Artifacts
+## Exporting
 
-A type that produces dynamic artifacts (logic-grid's compiled logic, a block
-regenerated from the grid it was compiled from) lists `ArtifactSettings` among
-its views. The editor creates one with `editor.blocks().create_artifact(..)`,
-pointing at the source block and carrying the app's settings as an opaque
-payload. While the artifact is shown, the host keeps an artifact instance open
-in the app's runtime, beside its other instances, and asks it, through
-`connect_artifact`, `describe_artifact`, the `ArtifactSettings` component and
-the `Artifacts` handle (`source`, `on_regenerate`, `on_poll`), what the
-settings produce and how to rebuild it. The settings component edits a copy
-inside a `DialogBody` with Cancel and Apply that be-sdk-beui provides; the
-host stores the settings only on Apply. Regeneration reads its source as a
-projection, so `on_poll` answers `None` until the source arrives.
+Every export of a block goes through the exporters its editor declares
+(`be_sdk_beui::export`). The manifest names each under the editor's
+`exporters` (`"png": {"label": "PNG image"}`; an editor with any lists
+`ArtifactSettings` among its views), and `BeuiRoot::exporters` returns its
+code: an `ExporterOf<C, S>`, where `C` is the block type it makes (an image
+block's `ImageContent` for the canvas's PNG, the workspace's plain file,
+`FileContent`, for its SVG, compiled logic for logic-grid) and `S` its
+settings, kept as JSON. `ExporterOf::new(name, prepare)` runs `prepare` once
+on the source, given an editor reading it as an editor reads its own block,
+in a scope that lasts as long as the export and has no document (whatever
+the export reads the source through it makes there, never a `CanvasState`
+or anything else that needs a window); what `prepare` returns makes a
+`Made<C>` (the content and a name) from the settings, tracked, `Loading`
+until all it read arrived. `.settings(component)` edits an
+`ExportSettings<S>`, `.describe` says what an artifact is made with, and
+`.initial(editor)` picks the settings an export from the open editor starts
+from (the canvas: what is selected).
+
+Registering an exporter gives the editor an `editor.export.<name>` action,
+which the frame's menu lists (`Editor::export_actions` for the editor's own
+menus). It asks the host for the block's Export dialog
+(`EditorHost::export_block_with`, `block-command.export`), which the
+instance drawing the window shows as a `SubregionContent::Export` child; the
+host runs it in the app of the block's editor, open or not
+(`opening-kind.export`), and be-sdk-beui draws it: the exporter's settings,
+and where what it makes goes. **Save…** and **Copy** ask the host for the
+made content's own file form (`file-of-content`, what `read-plain-file`
+reads for a block holding it) and save or copy that. **Add to workspace**
+makes the block in Unfiled as an artifact of the source
+(`be_block_content::Artifact`: the source, the exporter, its settings and a
+fingerprint of what it made) and opens it; `ExporterOf::add_to_workspace`
+does the same from code (logic-grid's Compile). The files pane's Export as
+lists the type's exporters beside its own file and the block file
+(`block_menu::ExportAs`), from the catalog, so it needs no editor open.
+
+While an artifact is shown, the host keeps an artifact instance open in the
+source's app, beside its other instances (`InstanceRole::Artifact`); it is
+given no frame, only a pass each time it is woken. be-sdk-beui runs the
+exporter there on the source and writes the artifact again whenever what it
+makes changes, comparing fingerprints rather than content (a blob's
+projection holds only its header), and renames it when the exporter's
+`Made` says so. Its settings show in the `ArtifactSettings` view inside a
+`DialogBody` with Cancel and Apply; the host stores them only on Apply, and
+asks for a regeneration then. An export draws in fixed colours, never the
+viewer's theme, so every device makes the same artifact.
 
 ## View state
 
