@@ -7,7 +7,7 @@ use be_sdk_beui::be_block_content::{BlockMetadata, Root};
 use be_sdk_beui::be_sdk_ui::BlockTypes;
 use be_sdk_beui::beui::clipboard::formats;
 use be_sdk_beui::beui::icons::{
-    Glyph, ICON_DOWNLOAD, ICON_MOVE, ICON_SETTINGS, ICON_SHARE_2, ICON_SPARKLES,
+    Glyph, ICON_MOVE, ICON_SETTINGS, ICON_SHARE_2, ICON_SPARKLES,
 };
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
@@ -16,7 +16,7 @@ use be_sdk_beui::{AccountRole, BlockFilter, Drag, Editor, RoleWatch, phone_layou
 use be_sdk_database::tags::{ShownTag, TagChip};
 use uuid::Uuid;
 
-use super::export::{Export, ExportFormat, Exporter};
+use be_sdk_beui::block_menu::Exporter;
 use super::hits::{ContentHits, content_hits};
 use super::menu::{RowMenu, RowTools, paste_into};
 use super::rename::Renaming;
@@ -696,63 +696,6 @@ pub(crate) fn OpenWith(editor: Editor, row: Memo<Option<Row>>) -> MenuItem {
                     }}
                 />
             </ForEach>
-        </MenuItem>
-    }
-}
-
-#[component]
-pub(crate) fn ExportAs(
-    exporter: Exporter,
-    row: Memo<Option<Row>>,
-    row_test_id: String,
-) -> MenuItem {
-    let block = create_memo(move || {
-        row.get()
-            .filter(|row| row.access.can_view())
-            .and_then(|row| Some((row.id?, row.block_type)))
-    });
-    let shown = create_memo(move || {
-        block
-            .get()
-            .map_or_else(Vec::new, |(_, block_type)| exporter.formats(block_type))
-    });
-    let keys = create_memo(move || {
-        shown.with(|shown| shown.iter().map(|(format, _)| *format).collect::<Vec<_>>())
-    });
-    let prefix = row_test_id.clone();
-    view! {
-        <MenuItem
-            label="Export as"
-            glyph=ICON_DOWNLOAD
-            disabled={move || keys.with(Vec::is_empty)}
-            @test_id={row_test_id}
-        >
-            <ForEach value={keys}>|format: ExportFormat| {
-                let label = move || {
-                    shown.with(|shown| {
-                        shown
-                            .iter()
-                            .find(|(shown, _)| *shown == format)
-                            .map(|(_, label)| label.clone())
-                            .unwrap_or_default()
-                    })
-                };
-                let named = match format {
-                    ExportFormat::Own => format!("{prefix}.own"),
-                    ExportFormat::BlockFile => format!("{prefix}.block"),
-                };
-                view! {
-                    <MenuItem
-                        label={label}
-                        @test_id={named}
-                        on_click={move || {
-                            if let Some((id, _)) = block.get_untracked() {
-                                exporter.export(Export { id, format });
-                            }
-                        }}
-                    />
-                }
-            }</ForEach>
         </MenuItem>
     }
 }

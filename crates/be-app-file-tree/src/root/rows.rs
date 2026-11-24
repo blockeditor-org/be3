@@ -16,6 +16,7 @@ use be_sdk_beui::beui::icons::{
     ICON_BOXES, ICON_DATABASE, ICON_INBOX, ICON_PIN, ICON_ROTATE_CCW_CLOCK, ICON_USERS, named,
 };
 use be_sdk_beui::beui::reactive::*;
+pub(crate) use be_sdk_beui::block_menu::can_move_out_of;
 use be_sdk_beui::block_tree::{BlockTree, Listed, TreeBlock, TreeEntry, TreeNote};
 pub(crate) use be_sdk_beui::sections::{own_system, shared_with_me, workspaces};
 use be_sdk_beui::{AccessLevel, BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
@@ -1229,26 +1230,6 @@ fn type_name(types: &dyn BlockTypes, block_type: Uuid) -> String {
         Some(name) => format!("{name} ({block_type})"),
         None => block_type.to_string(),
     }
-}
-
-pub(crate) fn can_move_out_of(
-    client: &Blocks,
-    types: &dyn BlockTypes,
-    block_types: &HashMap<Uuid, Uuid>,
-    source: BlockParent,
-    child: Uuid,
-    is_reference: bool,
-) -> bool {
-    let can_delete = match source {
-        BlockParent::Root | BlockParent::Detached | BlockParent::Unfiled => true,
-        BlockParent::Block(id) => {
-            block_types
-                .get(&id)
-                .is_some_and(|block_type| types.child_operations(*block_type).delete)
-                && client.access(id).can_edit()
-        }
-    };
-    can_delete && (is_reference || client.access(child).can_edit())
 }
 
 pub(crate) fn can_reorder_in(

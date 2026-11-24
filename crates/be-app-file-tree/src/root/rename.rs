@@ -1,6 +1,6 @@
 use be_sdk_beui::Editor;
 use be_sdk_beui::beui::reactive::*;
-use be_sdk_beui::beui::styled::Toast;
+use be_sdk_beui::block_menu::rename_block;
 use be_sdk_beui::beui::{Key, KeyPhase};
 use uuid::Uuid;
 
@@ -93,16 +93,7 @@ impl Renaming {
         if let RowKey::Block(path) = key
             && let Some(id) = path.last()
         {
-            if let Err(reason) = self.editor.blocks().set_name(*id, Some(name.to_owned())) {
-                // Refused, the name stays as it was, and the editor says why.
-                self.editor.notify(Toast {
-                    id: RENAME_REFUSED,
-                    title: "Not renamed".to_owned(),
-                    message: reason,
-                    danger: true,
-                    ..Toast::default()
-                });
-            }
+            rename_block(self.editor, *id, name);
         }
         self.finish(key);
     }
@@ -113,6 +104,3 @@ impl Renaming {
         }
     }
 }
-
-/// The toast that says why a rename was refused, one at a time.
-pub(crate) const RENAME_REFUSED: u64 = 0x6669_6c65_7472_6565;

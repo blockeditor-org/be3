@@ -204,6 +204,18 @@ the `BlockInfo`s for a `BlockQuery` (`Roots`, `Shared`, `Children`,
 `References`, `Backrefs`, ...). Nothing lists every block, so a browser walks
 a folder at a time from `Roots` and `Shared`.
 
+An editor that shows blocks as nested rows builds them with
+`be_sdk_beui::block_tree`: `sections` says which sections there are, and
+`BlockTree::walk` walks blocks below them into rows keyed by path, unfolding
+what the editor's `open` says, showing what its `shown` filter does, and, while
+searching, keeping what `matches` with the blocks above it. Children come from
+whatever the editor lists them with: the files pane's live watch per open
+folder, or the picker's snapshot of the graph. A block on its own path shows
+but never unfolds. A block row's menu takes Move to, Delete (or Remove link)
+and Export as from `be_sdk_beui::block_menu`, for a `MenuBlock` the row
+describes, and renames through `rename_block`, which says why a name is
+refused; the files pane and a folder (workspace-index) use them.
+
 `editor.blocks()` changes it: create, set parent, name, define metadata.
 Each is a `GraphCommand` the host applies to its mirror at once, checks
 against the account's access, and hands to its peer. Because the peer is the

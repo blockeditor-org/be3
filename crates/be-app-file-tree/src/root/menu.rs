@@ -3,20 +3,20 @@ use be_sdk_beui::be_block_content::BlockContent;
 use be_sdk_beui::beui::ClipItem;
 use be_sdk_beui::beui::clipboard::Blocks;
 use be_sdk_beui::beui::icons::{
-    ICON_CLIPBOARD_PASTE, ICON_COPY, ICON_FILE_PLUS, ICON_INFO, ICON_LOG_OUT, ICON_MOVE_UP,
+    ICON_CLIPBOARD_PASTE, ICON_COPY, ICON_FILE_PLUS, ICON_INFO, ICON_LOG_OUT,
     ICON_PALETTE, ICON_PENCIL_LINE, ICON_ROTATE_CCW_CLOCK, ICON_SCISSORS, ICON_SETTINGS,
     ICON_SHARE_2, ICON_TRASH, ICON_UNLINK, ICON_ZOOM_IN,
 };
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
+use be_sdk_beui::block_menu::{DeleteBlock, ExportAs, Exporter, MenuBlock, MoveTo};
 use be_sdk_beui::{BlockParent, Editor};
 use uuid::Uuid;
 
-use super::export::Exporter;
 use super::kinds::{HomeItems, OpensIn, TagsMenu};
 use super::rename::Renaming;
 use super::rows::{Inspection, Row, RowKey, Tree as FileTree};
-use super::ui::{ExportAs, OpenWith, Picker, add_to_section, leavable};
+use super::ui::{OpenWith, Picker, add_to_section, leavable};
 use super::zoom::Zoom;
 
 #[derive(Clone, Copy)]
@@ -238,12 +238,6 @@ fn BlockMenu<F: Fn() + 'static>(tools: RowTools, row: Memo<Option<Row>>, zoom_in
         !row.get()
             .is_some_and(|row| row.is_reference && row.unlink.is_ok())
     };
-    let deletable = move || !row.with(|row| row.as_ref().is_some_and(|row| row.can_delete));
-    let delete_label =
-        move || match row.with(|row| row.as_ref().is_some_and(|row| row.is_reference)) {
-            true => "Remove link".to_owned(),
-            false => "Delete".to_owned(),
-        };
     let rooted = create_memo(move || {
         edit.get() || !row.with(|row| row.as_ref().is_some_and(|row| row.can_delete))
     });
@@ -277,18 +271,14 @@ fn BlockMenu<F: Fn() + 'static>(tools: RowTools, row: Memo<Option<Row>>, zoom_in
     };
     let rows = tree.rows();
     let destinations = create_memo(move || {
-        let here = row.get().and_then(|row| row.container);
         rows.with(|rows| {
             rows.iter()
                 .filter(|other| other.is_workspace())
                 .filter_map(|other| Some((other.id?, other.label.clone())))
-                .filter(|(id, _)| Some(*id) != here)
                 .collect::<Vec<_>>()
         })
     });
-    let destination_keys = create_memo(move || {
-        destinations.with(|shown| shown.iter().map(|(id, _)| *id).collect::<Vec<_>>())
-    });
+    let block = menu_block(row);
     let shown = move || row.get_untracked().and_then(|row| Some((row.id?, row)));
     let add_into = move || {
         if let Some((id, shown)) = shown() {
@@ -339,13 +329,6 @@ fn BlockMenu<F: Fn() + 'static>(tools: RowTools, row: Memo<Option<Row>>, zoom_in
             editor.host().unlink_block(id, container);
         }
     };
-    let delete = move || {
-        if let Some((id, shown)) = shown() {
-            editor
-                .host()
-                .delete_block(id, shown.block_type, shown.source);
-        }
-    };
     let inspecting = move || {
         if let Some((_, shown)) = shown() {
             if let Some(row) = focused_node() {
@@ -359,43 +342,12 @@ fn BlockMenu<F: Fn() + 'static>(tools: RowTools, row: Memo<Option<Row>>, zoom_in
             <ZoomIn on_click={zoom_in} />
             <OpenWith editor={editor} row={row} />
             <MenuItem label="Add" glyph=ICON_FILE_PLUS disabled={add} on_click={add_into} />
-            <MenuItem
-                label="Move to"
-                glyph=ICON_MOVE_UP
-                disabled={rooted}
-                @test_id={"file-tree.move-to".to_owned()}
-            >
-                <ForEach value={destination_keys}>|target: Uuid| {
-                    let label = move || {
-                        destinations.with(|shown| {
-                            shown
-                                .iter()
-                                .find(|(id, _)| *id == target)
-                                .map(|(_, name)| name.clone())
-                                .unwrap_or_default()
-                        })
-                    };
-                    view! {
-                        <MenuItem
-                            label={label}
-                            @test_id={format!("file-tree.move-to.{target}")}
-                            on_click={move || {
-                                if let Some(shown) = row.get_untracked()
-                                    && let Some(id) = shown.id
-                                {
-                                    editor.host().move_block(
-                                        id,
-                                        shown.block_type,
-                                        shown.source,
-                                        target,
-                                        shown.is_reference,
-                                    );
-                                }
-                            }}
-                        />
-                    }
-                }</ForEach>
-            </MenuItem>
+            <MoveTo
+                editor
+                block
+                destinations
+                named={"file-tree.move-to".to_owned()}
+            />
             <MenuItem label="Rename" glyph=ICON_PENCIL_LINE disabled={edit} on_click={rename} />
             <MenuItem
                 label="Copy"
@@ -419,20 +371,14 @@ fn BlockMenu<F: Fn() + 'static>(tools: RowTools, row: Memo<Option<Row>>, zoom_in
             />
             <MenuItem label="Share" glyph=ICON_SHARE_2 disabled={unshareable} on_click={share} />
             <MenuItem label="Unlink" glyph=ICON_UNLINK disabled={unlinkable} on_click={unlink} />
-            <MenuItem
-                label={delete_label}
-                glyph=ICON_TRASH
-                disabled={deletable}
-                danger=true
-                on_click={delete}
-            />
+            <DeleteBlock editor block />
             <MenuItem
                 label="Inspect"
                 glyph=ICON_INFO
                 disabled={uninspectable}
                 on_click={inspecting}
             />
-            <ExportAs exporter row row_test_id={"file-tree.export".to_owned()} />
+            <ExportAs exporter block named={"file-tree.export".to_owned()} />
             <Show value={restorable}>
                 <MenuItem
                     label="Restore"
@@ -542,4 +488,20 @@ pub(crate) fn paste_into(editor: Editor, row: Option<Row>, pasted: ClipItem) {
             }
         }
     });
+}
+
+/// A block row as the shared menu items act on it (be_sdk_beui's `block_menu`).
+fn menu_block(row: Memo<Option<Row>>) -> Memo<Option<MenuBlock>> {
+    create_memo(move || {
+        row.get().and_then(|row| {
+            Some(MenuBlock {
+                id: row.id?,
+                block_type: row.block_type,
+                source: row.source,
+                is_reference: row.is_reference,
+                access: row.access,
+                can_delete: row.can_delete,
+            })
+        })
+    })
 }
