@@ -319,9 +319,10 @@ impl Root {
         self.core.app_of(instance)
     }
 
-    /// Whether the apps the root spawned have nothing in flight (`Core::apps_settled`).
-    pub fn apps_settled(&self) -> bool {
-        self.core.apps_settled()
+    /// Why the apps the root spawned have something in flight, if they do
+    /// (`Core::apps_unsettled`).
+    pub fn apps_unsettled(&self) -> Option<&'static str> {
+        self.core.apps_unsettled()
     }
 
     /// Shows the root whether the host asks the person to keep display settings that just

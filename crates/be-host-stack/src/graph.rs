@@ -171,10 +171,6 @@ pub enum Owner {
     Search,
     Version,
     Organization,
-    /// The block of the session a root shows (be-host's `--root`): listed from the moment the
-    /// host chooses it, so no change to what else is wanted or open drops it while the root
-    /// asks for its editor.
-    Session,
     Editor(u64),
     /// The blocks a root guest asks the host for the editors of, until it names or opens them.
     Root,

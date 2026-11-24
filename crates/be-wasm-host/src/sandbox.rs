@@ -258,10 +258,25 @@ fn no_library(identity: &str) -> Result<Vec<u8>, String> {
 }
 
 impl Instance {
-    /// Whether it has nothing left to do with what it was sent: no frames wait for a step, and
-    /// no step on them is in flight. One that stopped has nothing left.
+    /// Whether it has nothing left to do with what it was sent and nothing it sent waits to be
+    /// taken (`receive`): no frames wait for it to start or for a step, and no step on them is
+    /// in flight. One that stopped has only what it sent before it stopped left.
     pub fn settled(&self) -> bool {
-        self.failure.is_some() || self.worker.settled()
+        self.unsettled().is_none()
+    }
+
+    /// Why it is not settled (`settled`), if it is not.
+    pub fn unsettled(&self) -> Option<&'static str> {
+        if self.worker.has_received() {
+            return Some("it sent frames no one took");
+        }
+        if self.failure.is_some() {
+            return None;
+        }
+        if self.worker.starting_with_frames() {
+            return Some("frames wait for it to start");
+        }
+        self.worker.unsettled()
     }
 
     /// Queues `frames` for the instance, which is stepped with them as soon as it is free.

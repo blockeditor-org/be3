@@ -252,6 +252,17 @@ impl<C: Channel> Worker<C> {
         self.unsettled().is_none()
     }
 
+    /// Whether frames wait for the guest to start, which `unsettled` leaves to whoever starts
+    /// it to say.
+    pub fn starting_with_frames(&self) -> bool {
+        !self.ready && !self.pending.is_empty()
+    }
+
+    /// Whether the guest sent frames no one took yet (`take_received`).
+    pub fn has_received(&self) -> bool {
+        !self.received.is_empty()
+    }
+
     /// Why the worker is not settled (`settled`), if it is not.
     pub fn unsettled(&self) -> Option<&'static str> {
         if !self.ready {
