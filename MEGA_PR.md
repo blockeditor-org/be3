@@ -62,6 +62,7 @@ Landed on 2026-11-24:
 - `host-adapter-4g7b3d`: under a root, previews (shown in their child's place, `ChildPreview::Composited`), blocks opened from root editors, the host's block catalog (`host.block-types`), and a placed pan-and-zoom child's view (`host.place-content`); an app asked for no screens is asked for no frames.
 - `host-adapter-4g7b3e`: under a root, a child placed turned, faded, at its zoom, fitted and under occluders, and one app per staged app and one editor per block shared across places (other places draw copies).
 - `host-adapter-4g7b3f`: under a root, editors' drags carried by the input router (`drag-block`, `drag-accepted`, Escape puts a carry down), and their menus, details, child-menu picks and leave-frame routed as be-host does.
+- `host-adapter-4g7b3g` (dialogs): under a root, pickers, rename forms and Export dialogs as dialog children (`shown` = block or dialog, `host.tell-shell`); creations, artifact settings, host panels and web views are left in the plan.
 - `members-private-2`: only an administrator is served the organization's whole log; an editor is served a proof path, so members no longer see every other member through it.
 
 Landed on 2026-11-22 in one verify: signed logs 5b (`signed-logs-5b-10`), `backlog-keys-10b`, `block-rows-guard` and hosted blocks 4d2 (`hosted-blocks-4d2-5`).
