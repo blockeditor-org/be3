@@ -800,14 +800,23 @@ fn serve_editors(core: &mut crate::HostCore, root: &mut Root, editors: &mut Edit
         }
     }
     served.retain(|instance, _| root.app_of(*instance).is_some());
-    editors
-        .opened
-        .retain(|(instance, _), _| served.contains_key(instance));
+    editors.opened.retain(|(instance, editor), opened| {
+        let kept = served.contains_key(instance);
+        if !kept {
+            forget_dialog(*editor, opened);
+        }
+        kept
+    });
     // What the root's dialogs told the shell, which their placers' statuses say: those of
     // every view the root showed are worded again with it.
     let mut told = false;
     for (instance, editor, messages) in root.take_shell_tells() {
-        let Some(forwarded) = served.get_mut(&instance) else {
+        // Only a dialog's placer's status says what it told: a block's editor's are dropped.
+        let dialog = editors
+            .opened
+            .get(&(instance, editor))
+            .is_some_and(|opened| opened.block.is_none());
+        let Some(forwarded) = served.get_mut(&instance).filter(|_| dialog) else {
             continue;
         };
         // A root that encodes what no editor can read has nothing to relay.
@@ -880,7 +889,9 @@ fn serve_editors(core: &mut crate::HostCore, root: &mut Root, editors: &mut Edit
         if let Some(forwarded) = editors.served.get_mut(&instance) {
             forwarded.close(EditorInstanceId(editor));
         }
-        editors.opened.remove(&(instance, editor));
+        if let Some(opened) = editors.opened.remove(&(instance, editor)) {
+            forget_dialog(editor, &opened);
+        }
     }
     for (instance, editor, size) in root.take_assigned_sizes() {
         if let Some(forwarded) = editors.served.get_mut(&instance) {
@@ -1000,9 +1011,6 @@ fn handler(
     shell
 }
 
-/// Whether an ask for an editor of `block` waits: the stack does not list it, but may yet, while
-/// the session's block is not listed or the stack has yet to read the block's listing, which
-/// `serve_editors` asks it for.
 /// Whether an ask naming `shown` waits for the stack to list its block (`unlisted_yet`): a
 /// dialog names none.
 fn waits_for_listing(core: &crate::HostCore, shown: &be_wasm_root_api::Shown) -> bool {
@@ -1076,6 +1084,9 @@ fn shown_editor(
     }
 }
 
+/// Whether an ask for an editor of `block` waits: the stack does not list it, but may yet, while
+/// the session's block is not listed or the stack has yet to read the block's listing, which
+/// `serve_editors` asks it for.
 fn unlisted_yet(core: &crate::HostCore, block: [u8; 16]) -> bool {
     let block = Uuid::from_bytes(block);
     let query = be_host_stack::Query::Block(block);
@@ -1101,6 +1112,15 @@ struct Editors {
     /// (`host.show-children`), each by the root's instance and the editor: what a show request
     /// climbs to find its handler.
     placers: HashMap<(u64, u64), (u64, u64)>,
+}
+
+/// Forgets what the dialog `editor` was opened to run (`ask_picker`, `ask_export`) once it
+/// closes, as be-host's `AppPicker` does when it drops: a block's editor ran none.
+fn forget_dialog(editor: u64, opened: &OpenedFor) {
+    if opened.block.is_none() {
+        be_host_runtime::forget_picker(EditorInstanceId(editor));
+        be_host_runtime::forget_export(EditorInstanceId(editor));
+    }
 }
 
 /// An editor be-host opened in an app the root spawned: the app's manifest, the editor it opened
