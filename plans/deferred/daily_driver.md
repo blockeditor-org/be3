@@ -28,9 +28,9 @@ status indicator and search over names and content already do.
 
 ## Formats
 
-- **Streamed headers** (`TextHeader`, every blob header;
-  `be-block/src/streamed.rs`) are a length and a bare postcard header with no
-  version. Put a version before the header; the raw UTF-8 text after it stays.
+- **Blob headers** (`be-block-content/src/blob.rs`) are a length and a bare
+  postcard header with no version. Put a version before the header; the payload
+  after it stays.
 - **A property whose stored value does not fit its shape** is loaded blank
   (`be-block-model/src/stored.rs`), and the stored value is lost on the next
   save. Keep the stored value and refuse writes to that property instead.

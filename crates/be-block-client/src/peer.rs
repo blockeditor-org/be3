@@ -6,7 +6,7 @@ use std::{
 use be_block::OrganizationPolicies;
 use be_block_commit::{Commit, CommitId, CommitStore, MergeBase, MergeBaseWalk, now_milliseconds};
 use be_block_content::{
-    BlockContent, BlockMetadata, Entries, Root, Streamed, derived_metadata, payload_start,
+    BlockContent, BlockMetadata, Entries, Root, derived_metadata,
 };
 use be_block_graph::{Access, BlockParent};
 use be_block_keys::{RecoveryPublic, RecoverySecret};
@@ -4132,38 +4132,6 @@ impl<S: ObjectStore> Peer<S> {
             return Ok(None);
         };
         Ok(Some(self.load_head(block, head).await?.manifest))
-    }
-
-    pub async fn stream_header<C: Streamed>(
-        &self,
-        block: Uuid,
-    ) -> Result<Option<C::Header>, ClientError> {
-        let Some(manifest) = self.manifest(block).await? else {
-            return Ok(None);
-        };
-        let prefix = self
-            .read_span(&manifest, 0, be_block_content::HEADER_PREFIX_BYTES as u64)
-            .await?;
-        let start = payload_start(&prefix)?;
-        let header = self.read_span(&manifest, 0, start as u64).await?;
-        let (header, _) = be_block_content::decode_streamed::<C::Header>(&header[..start])?;
-        Ok(Some(header))
-    }
-
-    pub async fn stream_range<C: Streamed>(
-        &self,
-        block: Uuid,
-        offset: u64,
-        length: u64,
-    ) -> Result<Vec<u8>, ClientError> {
-        let Some(manifest) = self.manifest(block).await? else {
-            return Ok(Vec::new());
-        };
-        let prefix = self
-            .read_span(&manifest, 0, be_block_content::HEADER_PREFIX_BYTES as u64)
-            .await?;
-        let start = payload_start(&prefix)? as u64;
-        self.read_span(&manifest, start + offset, length).await
     }
 
     pub async fn read_span(

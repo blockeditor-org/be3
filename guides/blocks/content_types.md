@@ -11,9 +11,8 @@ bytes, the references they declare, a name, its searchable text for the search
 index: guides/type_modules.md, "The protocol"), `LiveEdit` (what a session
 carries: `apply`, `apply_beneath`, `absorb_operation`, `child_operations`), `Merge`
 (three-way merge, required for offline editing), `MergeParts` (the same merge
-over parts, for a type that loads only its first part), `Undo` (client-local steps)
-and `Streamed` (`[u32 header length][header][payload]`, so a reader takes the
-header and then a byte range).
+over parts, for a type that loads only its first part) and `Undo` (client-local
+steps).
 
 Undo emits inverse operations rather than rewinding state: `Undo::step` is
 taken from the state before an operation, and `revert`/`reapply` produce
@@ -265,8 +264,9 @@ the payload's ref when loaded, so a rename uploads only the header. Its
 replicas load only the header (`Loads::FirstPart`): the payload stays in the
 store (`Blob::is_loaded`, `payload_length`), and an editor reads it with
 `ContentProjection::payload`, a signal that reads it by range with each
-snapshot and holds it. It is
-`Streamed`, its only live edit is
+snapshot and holds it. Its stored form is `[u32 header length][header][payload]`,
+and `Blob::payload_offset` is where the payload starts, so a reader that loaded the
+first part reads the payload by range (`Peer::read_span`). Its only live edit is
 `BlobOp::SetHeader`, and an offline merge takes whichever side changed. The
 payload never travels as an operation (session frames are at most 8 MB): it
 arrives as a commit, from `write-content` seeding a new block or replacing an

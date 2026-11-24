@@ -1,7 +1,7 @@
 use super::*;
 
 #[tokio::test]
-async fn a_large_image_streams_without_downloading_all_of_it() {
+async fn a_large_image_is_read_by_span_without_downloading_all_of_it() {
     let harness = Harness::start().await;
     let author = harness.owner("archivist@example.com").await;
     let block = author
@@ -16,22 +16,25 @@ async fn a_large_image_streams_without_downloading_all_of_it() {
     assert!(objects > 100, "the payload was stored as {objects} objects");
 
     let reader = harness.second(&author).await;
-    let header = reader
-        .stream_header::<ImageContent>(block)
-        .await
-        .unwrap()
-        .expect("the header is readable");
-    assert_eq!(header.source_name, "panorama.png");
-    assert_eq!(header.size(), Some((1920, 1080)));
+    let manifest = reader.manifest(block).await.unwrap().unwrap();
+    let stored = reader.load_first_part(&manifest).await.unwrap();
+    let loaded = ImageContent::from_stored(&stored).unwrap();
+    assert!(!loaded.is_loaded(), "only the header was loaded");
+    assert_eq!(loaded.header().source_name, "panorama.png");
+    assert_eq!(loaded.header().size(), Some((1920, 1080)));
+    assert_eq!(loaded.payload_length(), original.data().len() as u64);
+    // Loading the first part fetches the manifest's nodes and the header's chunk, none of
+    // the payload's chunks.
     let held = reader.commits().vault().store().count();
     assert!(
-        held < 8,
+        held < objects / 16,
         "reading a header pulled down {held} objects of {objects}"
     );
     let after_header = reader.commits().vault().store().total_bytes();
 
+    let start = loaded.payload_offset();
     let slice = reader
-        .stream_range::<ImageContent>(block, 300_000, 512)
+        .read_span(&manifest, start + 300_000, 512)
         .await
         .unwrap();
     assert_eq!(slice, original.data()[300_000..300_512]);
@@ -41,17 +44,17 @@ async fn a_large_image_streams_without_downloading_all_of_it() {
     let whole = original.data().len();
     assert!(
         fetched < whole / 16,
-        "reading 512 bytes pulled down {fetched} bytes of payload and its manifest nodes, of {whole}"
+        "reading 512 bytes pulled down {fetched} bytes of payload, of {whole}"
     );
 
     let tail = reader
-        .stream_range::<ImageContent>(block, (original.data().len() - 8) as u64, 64)
+        .read_span(&manifest, start + (whole - 8) as u64, 64)
         .await
         .unwrap();
-    assert_eq!(tail, original.data()[original.data().len() - 8..]);
+    assert_eq!(tail, original.data()[whole - 8..]);
 
-    let whole = reader.open::<ImageContent>(block).await.unwrap().unwrap();
-    assert_eq!(whole.data(), original.data());
+    let opened = reader.open::<ImageContent>(block).await.unwrap().unwrap();
+    assert_eq!(opened.data(), original.data());
 
     harness.stop().await;
 }

@@ -22,7 +22,6 @@ pub mod plain;
 pub mod presence;
 pub mod setting;
 pub mod settling;
-pub mod streamed;
 
 pub use be_block_model;
 pub use be_block_model::{Edit, Item, ObjectId, Touched};
@@ -43,9 +42,6 @@ pub use metadata::{
 pub use model::Root;
 pub use setting::{Layers, Setting, SettingsLayer};
 pub use settling::{Landed, Settling};
-pub use streamed::{
-    HEADER_PREFIX_BYTES, Streamed, decode_streamed, encode_streamed, payload_start,
-};
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum ContentError {
