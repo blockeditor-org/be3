@@ -18,6 +18,7 @@ mod a_root_shows_its_hosts_lock_screen_and_statistics;
 mod a_root_shows_its_hosts_organizations_and_sessions;
 mod a_root_shows_its_hosts_recovery_phrase_and_unlocks_and_pairs_handing_over_only_what_was_typed;
 mod a_root_shows_the_slow_saves_toast_while_its_hosts_changes_stay_unsaved;
+mod a_root_shows_why_the_block_its_session_shows_cannot_be_opened;
 
 /// be-root, linked against the base and beui libraries.
 const BE_ROOT: &[u8] = include_bytes!(env!("BE_ROOT_WASM"));

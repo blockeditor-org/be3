@@ -658,6 +658,7 @@ fn serve_editors(core: &crate::HostCore, root: &mut Root, served: &mut HashMap<u
             .map(|(app, _, _)| EditorApp {
                 app: app.identity.id.clone(),
                 module: app.entry_point.clone(),
+                name: app.identity.name.clone(),
             });
         root.answer_editor(id, editor);
     }
