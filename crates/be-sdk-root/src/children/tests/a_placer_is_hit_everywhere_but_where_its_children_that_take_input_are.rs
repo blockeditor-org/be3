@@ -8,7 +8,8 @@ fn a_placer_is_hit_everywhere_but_where_its_children_that_take_input_are() {
     assert!(takes_input(ChildMode::Active));
     assert!(takes_input(ChildMode::InPlace));
     assert!(!takes_input(ChildMode::Passive));
-    assert!(!runs_editor(ChildMode::Preview));
+    assert!(!takes_input(ChildMode::Preview));
+    assert!(runs_editor(ChildMode::Preview));
     assert!(!runs_editor(ChildMode::Hidden));
 
     // A live child at its left leaves the placer the rest.

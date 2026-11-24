@@ -15,7 +15,8 @@ use be_lib_layers::{Affine, Layer, LayerId, LayerInput, Surface};
 use be_lib_stable_hash::HashMap;
 use be_lib_ui_types::input::{Input, PenPhase, TouchPhase};
 use be_sdk_api::{
-    ChildPlacement, ChildPlacements, DockMessage, EditorInstanceId, Fonts, ImeArea, InputBatch,
+    Catalog, ChildPlacement, ChildPlacements, DebugTemplate, DockMessage, EditorInstanceId, Fonts,
+    ImeArea, InputBatch,
     Insets, Opening, Preferences, ScreenId, ScreenPlacement, ScreenRequest, SurfaceSpec,
     TimedInput, WindowRequests, embed::shell::Call as ShellCall,
 };
@@ -67,6 +68,8 @@ pub struct BlockSpawn {
     pub surface: SurfaceSpec,
     /// The fonts the app is told once it runs (`Spawn::fonts`).
     pub fonts: Rc<Fonts>,
+    /// Whether it shows the block's preview: the app is spawned only if its editor draws one.
+    pub preview: bool,
 }
 
 /// A block's editor its root's host opened, in the app `Embedded::spawn_block` spawned.
@@ -76,6 +79,8 @@ pub struct Hosted {
     pub editor: EditorInstanceId,
     /// The app's name, in words.
     pub name: String,
+    /// Whether the editor draws a preview of its block (`host.editor-of`'s `preview`).
+    pub preview: bool,
 }
 
 /// Why `Embedded::spawn_block` spawned nothing.
@@ -84,6 +89,9 @@ pub struct SpawnFailure {
     /// The name of the app that edits the block, once the host named it.
     pub name: Option<String>,
     pub why: String,
+    /// Asked for a preview (`BlockSpawn::preview`), the editor draws none: nothing failed, and
+    /// its placer draws the block's label in its place.
+    pub no_preview: bool,
 }
 
 /// The editor an app opens once it says hello.
@@ -114,6 +122,8 @@ struct State {
     run: Run<()>,
     /// The fonts it is told once it runs.
     fonts: Rc<Fonts>,
+    /// The generation of the host's catalog it was told last (`tell_types`): 0 for none.
+    told_types: u64,
     /// The frames that open the editor its root's host opened, relayed once the app says hello.
     opening: Vec<Vec<u8>>,
     /// Whether the app said hello: one that stops after it stopped, one that stops before it
@@ -197,11 +207,24 @@ impl Embedded {
                 format!("the host did not answer which app edits the block: {error:?}")
             })
             .and_then(|editor| editor)
-            .map_err(|why| SpawnFailure { name: None, why })?;
+            .map_err(|why| SpawnFailure {
+                name: None,
+                why,
+                no_preview: false,
+            })?;
         let name = editor.name;
+        let preview = editor.preview;
+        if spawn.preview && !preview {
+            return Err(SpawnFailure {
+                name: Some(name),
+                why: "its editor draws no preview".to_owned(),
+                no_preview: true,
+            });
+        }
         let failed = |why: String| SpawnFailure {
             name: Some(name.clone()),
             why,
+            no_preview: false,
         };
         let instance = instance(editor.app, editor.module);
         let opened = host::open_editor(instance.op(), spawn.shown)
@@ -219,7 +242,12 @@ impl Embedded {
             spawn.fonts,
             now,
         );
-        Ok(Hosted { app, editor, name })
+        Ok(Hosted {
+            app,
+            editor,
+            name,
+            preview,
+        })
     }
 
     /// Asks the app for `screens` in place of those it was asked for, as when the window it
@@ -304,6 +332,7 @@ impl Embedded {
             wire: Wire::default(),
             run,
             fonts,
+            told_types: 0,
             opening,
             started: false,
             painted_answer: None,
@@ -323,6 +352,7 @@ impl Embedded {
         if !state.borrow().opening.is_empty() {
             relay_to(handle, &state);
         }
+        tell_types_to(&state);
         be_wasm_ops::guest::spawn(hear(Rc::downgrade(&state), instance, stop));
         Self {
             state,
@@ -795,6 +825,28 @@ impl State {
             .run
             .send_for_frame(told.into_iter().map(Into::into).collect(), Some);
         self.wire.send(send);
+        self.tell_types();
+    }
+
+    /// Tells the app the host's catalog (`host.block-types`) once it runs, if it has yet to hear
+    /// the catalog as it is now: the block types, templates and editors it names and draws
+    /// blocks by, and the debug templates it offers.
+    fn tell_types(&mut self) {
+        if !self.started || self.failure.is_some() {
+            return;
+        }
+        let Some(types) = TYPES.with_borrow(Clone::clone) else {
+            return;
+        };
+        if types.generation == self.told_types {
+            return;
+        }
+        self.told_types = types.generation;
+        self.wire
+            .app_call(AppCall::BlockTypes(types.catalog.clone()));
+        self.wire
+            .app_call(AppCall::DebugTemplates(types.debug_templates.clone()));
+        self.flush();
     }
 
     /// Hands the root's host what the app sent it, under the editor the host opened
@@ -857,7 +909,21 @@ impl State {
     }
 }
 
+/// The host's catalog as the root last heard it (`host.block-types`), which every app it runs is
+/// told.
+struct Types {
+    generation: u64,
+    catalog: Catalog,
+    debug_templates: Vec<DebugTemplate>,
+}
+
 thread_local! {
+    /// The host's catalog, once heard.
+    static TYPES: RefCell<Option<Rc<Types>>> = const { RefCell::new(None) };
+    /// Every app the root runs, which is told the host's catalog as it changes.
+    static APPS: RefCell<Vec<Weak<RefCell<State>>>> = const { RefCell::new(Vec::new()) };
+    /// Whether a task hears the host's catalog.
+    static HEARING_TYPES: Cell<bool> = const { Cell::new(false) };
     /// The apps whose editors the root's host opened, by their instances' handles, which hear
     /// what the host sends them (`host.forwarded`).
     static RELAYS: RefCell<HashMap<u64, Weak<RefCell<State>>>> = RefCell::default();
@@ -875,6 +941,47 @@ fn relay_to(handle: u64, state: &Rc<RefCell<State>>) {
     if !HEARING_HOST.replace(true) {
         be_wasm_ops::guest::spawn(hear_host());
     }
+}
+
+/// Tells the app `state` runs the host's catalog once it runs and each time it changes, hearing
+/// the catalog from now on if nothing did yet.
+fn tell_types_to(state: &Rc<RefCell<State>>) {
+    APPS.with_borrow_mut(|apps| {
+        apps.retain(|state| state.strong_count() > 0);
+        apps.push(Rc::downgrade(state));
+    });
+    if !HEARING_TYPES.replace(true) {
+        be_wasm_ops::guest::spawn(hear_types());
+    }
+}
+
+/// Hears the host's catalog (`host.block-types`) as it changes and tells every app the root runs,
+/// until the host stops answering. A catalog the root cannot read is told no app: each keeps the
+/// one it heard before.
+async fn hear_types() {
+    let mut seen = 0;
+    while let Ok(heard) = host::block_types(seen).await {
+        seen = heard.generation;
+        let (Some(catalog), Some(debug_templates)) = (
+            be_sdk_api::ops::decode::<Catalog>(&heard.catalog),
+            be_sdk_api::ops::decode::<Vec<DebugTemplate>>(&heard.debug_templates),
+        ) else {
+            continue;
+        };
+        TYPES.set(Some(Rc::new(Types {
+            generation: heard.generation,
+            catalog,
+            debug_templates,
+        })));
+        let apps: Vec<Rc<RefCell<State>>> = APPS.with_borrow_mut(|apps| {
+            apps.retain(|state| state.strong_count() > 0);
+            apps.iter().filter_map(Weak::upgrade).collect()
+        });
+        for state in apps {
+            state.borrow_mut().tell_types();
+        }
+    }
+    HEARING_TYPES.set(false);
 }
 
 /// Hears what the root's host sends the apps it spawned (`host.forwarded`) and relays each its

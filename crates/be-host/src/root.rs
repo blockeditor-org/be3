@@ -67,10 +67,10 @@ use be_lib_ui_types::ClipItem;
 use be_lib_ui_types::input::Timed;
 use be_sdk_api::{
     ChildId, ChildPreview, DialogStatus, EditorCapabilities, EditorInstanceId, InteractionMode,
-    ResizeMode, ViewId, app::EditorEvent,
+    ParentView, ResizeMode, ViewId, app::EditorEvent,
 };
 use be_sdk_app_host::pacing::FrameClock;
-use be_wasm_root_api::{EditorApp, OpenedEditor, PlacerEvent};
+use be_wasm_root_api::{EditorApp, OpenedEditor, PlacerEvent, ShownPreview};
 use be_wasm_root_api::{FrameRequest, Notice, NoticeAction, StatisticRow, WindowSize};
 use be_wasm_root_host::EditorOpening;
 use be_wasm_root_host::Root;
@@ -142,6 +142,8 @@ struct RootShell {
     waker: Option<beui::native::Waker>,
     /// The generation of the host's notices the root was last handed.
     notices: Option<u64>,
+    /// The catalog the root was last handed (`show_block_types`).
+    block_types: Option<HandedTypes>,
     /// What the window's clipboard answered the root's pastes with, by their ids, until the
     /// root is handed them.
     pasted: Rc<RefCell<Vec<(u64, Option<ClipItem>)>>>,
@@ -194,6 +196,7 @@ impl RootShell {
             painting: false,
             waker: None,
             notices: None,
+            block_types: None,
             pasted: Rc::default(),
             memory: None,
             editors: Editors::default(),
@@ -262,6 +265,7 @@ impl RootShell {
                 .clock
                 .deadline(self.pass, context.clock_stopped(), since(Instant::now()));
         show_notices(root, &mut self.notices);
+        show_block_types(&self.core, root, &mut self.block_types);
         show_statistics(root, &mut self.memory);
         for (id, item) in self.pasted.take() {
             root.answer_paste(id, item.as_ref().map(be_sdk_api::ops::encode));
@@ -281,7 +285,7 @@ impl RootShell {
             Err(why) => return self.stopped(&why),
         };
         clipboard(context, root, &self.pasted);
-        serve_editors(&self.core, root, &mut self.editors);
+        serve_editors(&mut self.core, root, &mut self.editors);
         refuse_unserved(root);
         // What the root asked of the block stack in this frame, done at once; what that changed
         // reaches it with its next frame, which showing it wakes the host for.
@@ -550,6 +554,37 @@ fn start(app: &str, setup: &beui::native::Setup) -> Result<Root, String> {
 }
 
 /// Hands `root` the host's notices if they changed since the generation it was handed, `seen`.
+/// The catalog a root was handed: the registry's block types and the programs' editors listed.
+struct HandedTypes {
+    types: std::sync::Arc<be_host_runtime::AppCatalog>,
+    programs: u64,
+}
+
+/// Hands the root the host's catalog once it changed since it was `handed` (`host.block-types`):
+/// the registry's block types, templates and editors with the editors of the programs listed,
+/// as be-host-runtime tells its own apps, which name and draw block types from it.
+fn show_block_types(core: &crate::HostCore, root: &mut Root, handed: &mut Option<HandedTypes>) {
+    let types = core.registry.app_block_types();
+    let seen = handed
+        .as_ref()
+        .filter(|handed| std::sync::Arc::ptr_eq(&handed.types, types))
+        .map(|handed| handed.programs);
+    let Some((programs, program_editors)) = be_host_base::program_editors::listed_since(seen)
+    else {
+        return;
+    };
+    let mut catalog = types.catalog.clone();
+    catalog.editors.extend(program_editors);
+    root.show_block_types(
+        be_sdk_api::ops::encode(&catalog),
+        be_sdk_api::ops::encode(&types.debug_templates),
+    );
+    *handed = Some(HandedTypes {
+        types: std::sync::Arc::clone(types),
+        programs,
+    });
+}
+
 fn show_notices(root: &mut Root, seen: &mut Option<u64>) {
     let generation = notices::generation();
     if *seen != Some(generation) {
@@ -675,7 +710,9 @@ fn refuse_unserved(root: &mut Root) {
 /// `Forwarded`, one for each of the root's instances, and serves what each app's editors ask
 /// through the root (`host.forward`, `host.forwarded`) as be-host serves its own apps. An
 /// instance the root let go of, or that stopped, it stops serving.
-fn serve_editors(core: &crate::HostCore, root: &mut Root, editors: &mut Editors) {
+fn serve_editors(core: &mut crate::HostCore, root: &mut Root, editors: &mut Editors) {
+    let opens = std::mem::take(&mut core.root_opens);
+    let core = &*core;
     let served = &mut editors.served;
     let asks: Vec<_> = std::mem::take(&mut editors.asks)
         .into_iter()
@@ -719,10 +756,13 @@ fn serve_editors(core: &crate::HostCore, root: &mut Root, editors: &mut Editors)
             editors.asks.push((id, shown));
             continue;
         }
-        let editor = core.editor_of(&shown).map(|(app, _, _)| EditorApp {
+        let editor = core.editor_of(&shown).map(|(app, editor, _)| EditorApp {
             app: app.identity.id.clone(),
             module: app.entry_point.clone(),
             name: app.identity.name.clone(),
+            preview: app
+                .editor(editor.into_bytes())
+                .is_some_and(|editor| editor.views.contains(&ParentView::Preview)),
         });
         root.answer_editor(id, editor);
     }
@@ -752,6 +792,15 @@ fn serve_editors(core: &crate::HostCore, root: &mut Root, editors: &mut Editors)
         .opened
         .retain(|(instance, _), _| served.contains_key(instance));
     for shown in root.take_shown_children() {
+        let placer = (shown.instance, shown.editor);
+        editors.placers.retain(|_, held| *held != placer);
+        for child in &shown.children {
+            if let Some(opened) = &child.shown_in {
+                editors
+                    .placers
+                    .insert((opened.instance, opened.editor), placer);
+            }
+        }
         let Some(forwarded) = served.get_mut(&shown.instance) else {
             continue;
         };
@@ -780,9 +829,74 @@ fn serve_editors(core: &crate::HostCore, root: &mut Root, editors: &mut Editors)
             forwarded.dock(EditorInstanceId(editor), updates);
         }
     }
-    for (instance, forwarded) in served.iter_mut() {
+    editors
+        .placers
+        .retain(|child, _| editors.opened.contains_key(child));
+    open_blocks(core, opens, editors);
+    for (instance, forwarded) in editors.served.iter_mut() {
         root.relay(*instance, forwarded.step());
     }
+}
+
+/// Hands each block the root's editors asked to open (`opens`, by the app and instance that
+/// asked) to the editor that handles show requests, as be-host's `show_block` does: the nearest
+/// of the asking editor and those that place it whose manifest accepts them, else the editor
+/// showing the session's block, which be-host's own shell is. An ask from no editor the root
+/// shows, or with no session shown, is dropped.
+fn open_blocks(
+    core: &crate::HostCore,
+    opens: Vec<(String, EditorInstanceId, be_host_runtime::BlockOpen)>,
+    editors: &mut Editors,
+) {
+    for (app, instance, open) in opens {
+        let from = editors
+            .opened
+            .iter()
+            .find(|((_, editor), opened)| {
+                *editor == instance.0 && opened.app.identity.id == app
+            })
+            .map(|(key, _)| *key);
+        let shell = editors
+            .opened
+            .iter()
+            .find(|(key, opened)| {
+                Some(opened.block) == core.root_session && !editors.placers.contains_key(key)
+            })
+            .map(|(key, _)| *key);
+        let Some(handler) = handler(from, shell, editors) else {
+            continue;
+        };
+        if let Some(forwarded) = editors.served.get_mut(&handler.0) {
+            forwarded.show_block(EditorInstanceId(handler.1), open);
+        }
+    }
+}
+
+/// The editor that handles a show request from `from` (be-host's `shell_route::handler`): the
+/// nearest of it and the editors placing it, up to the `shell`, whose manifest accepts show
+/// requests, else the shell.
+fn handler(from: Option<(u64, u64)>, shell: Option<(u64, u64)>, editors: &Editors) -> Option<(u64, u64)> {
+    let accepts = |key: &(u64, u64)| {
+        editors.opened.get(key).is_some_and(|opened| {
+            opened
+                .app
+                .editor(opened.editor.into_bytes())
+                .is_some_and(|editor| editor.accepts(be_sdk_manifest::ShellRequest::ShowBlock))
+        })
+    };
+    let mut visited = Vec::new();
+    let mut current = from;
+    while let Some(key) = current {
+        if Some(key) == shell || visited.contains(&key) {
+            break;
+        }
+        if accepts(&key) {
+            return Some(key);
+        }
+        visited.push(key);
+        current = editors.placers.get(&key).copied();
+    }
+    shell
 }
 
 /// Whether an ask for an editor of `block` waits: the stack does not list it, but may yet, while
@@ -805,6 +919,10 @@ struct Editors {
     opened: HashMap<(u64, u64), OpenedFor>,
     asks: Vec<(u64, be_wasm_root_api::ShownBlock)>,
     openings: Vec<EditorOpening>,
+    /// The editor placing each editor the root shows as a child, as the root last said
+    /// (`host.show-children`), each by the root's instance and the editor: what a show request
+    /// climbs to find its handler.
+    placers: HashMap<(u64, u64), (u64, u64)>,
 }
 
 /// An editor be-host opened in an app the root spawned: the app's manifest, the editor it opened
@@ -821,7 +939,9 @@ const CHILD_OPENING: &str = "the block's editor is opening";
 
 /// The status of a child an editor the root embeds placed, as the root shows it
 /// (`host.show-children`): available once an editor shows it, with what its app's manifest
-/// says of that editor (be-host's `status_of`, for its own children).
+/// says of that editor (be-host's `status_of`, for its own children). A preview is available
+/// at once, as under be-host (`preview_of`): waiting while its editor opens, then shown in its
+/// place by the root, or drawn as its block's label by its placer when its editor draws none.
 fn child_status(
     opened: &HashMap<(u64, u64), OpenedFor>,
     child: &be_wasm_root_api::ShownChild,
@@ -831,7 +951,14 @@ fn child_status(
         .as_ref()
         .and_then(|shown| opened.get(&(shown.instance, shown.editor)));
     let manifest = shown.and_then(|shown| shown.app.editor(shown.editor.into_bytes()));
-    let available = manifest.is_some();
+    let preview = match (child.preview, manifest) {
+        (ShownPreview::None, _) => ChildPreview::Hosted,
+        (ShownPreview::Label, _) => ChildPreview::Label,
+        (ShownPreview::View, Some(_)) => ChildPreview::Hosted,
+        (ShownPreview::View, None) => ChildPreview::Waiting,
+    };
+    let available = manifest.is_some()
+        || (child.preview != ShownPreview::None && child.error.is_none());
     let error = shown
         .and_then(|shown| be_host_stack::revisions::error(shown.block))
         .or_else(|| child.error.clone())
@@ -848,7 +975,7 @@ fn child_status(
         error,
         menu: Vec::new(),
         creation: None,
-        preview: ChildPreview::Hosted,
+        preview,
         dialog: DialogStatus::default(),
         picked: None,
         card: false,

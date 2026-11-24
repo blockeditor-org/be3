@@ -81,8 +81,28 @@ dock watch with. A child placed in a dock tab's body is asked for its frame
 bodies of a joined dock's tabs and bars the outermost dock places
 (`ChildContent::DockTab`) are shown as the owning editor's views, each another
 screen of its app placed `Dock`, framed where it holds the editor's content.
-A joined dock's tab menus, picks and details, and drags, are not there yet,
-and a child of any other kind, or a preview, the placer hears is unavailable.
+
+A child placed as a preview runs its editor too, asked for its preview view the
+size of its place (`preview_screen`, capped as be-host caps a preview), hit
+nowhere and shown under its placer. The host tells the placer it is available
+with `ChildPreview::Hosted`, so be-sdk-beui leaves a hole for it as for any
+child rather than drawing a picture; one whose editor draws no preview runs no
+app, and its placer draws the block's label (`ChildPreview::Label`). Promoted,
+it keeps its editor, asked for its main view instead. Each preview is an app of
+its own, not drawn once for every place as under be-host.
+
+A block a root's editor opens (`open-block`) goes to the editor that handles
+show requests, as under be-host: the nearest of the asking editor and those
+placing it, which the root names in `host.show-children`, whose manifest
+accepts them, else the editor showing the session's block. The root tells
+every app it embeds the host's catalog (`be3:root`'s `host.block-types`),
+which names block types and draws their icons.
+
+A joined dock's tab menus, picks and details, drags, a block shown in several
+places sharing one editor, occluders, `fit`, a child in place at its zoom,
+rotation and opacity, and the other kinds of child (plans/host_as_platform_adapter.md,
+4g7b3e to 4g7b3g) are not there yet: a child of another kind the placer hears
+is unavailable.
 
 ## Drawing order
 

@@ -24,7 +24,7 @@ be_wasm_ops_bindgen::generate!({
 
 pub use frames::{FrameDone, FrameRequest, WindowSize};
 pub use host::{
-    AccountRow, AgentCredentials, AgentRow, AgentsArea, BrowserSignIn, ContactCard,
+    AccountRow, AgentCredentials, AgentRow, AgentsArea, BlockCatalog, BrowserSignIn, ContactCard,
     ContactMismatch, ContactRow, ContactsArea, CoreCommand, CoreFailure, CoreSecret, CoreView,
     CoreWait, DefaultServer, DiscardReason, DisplayQuestion, DisplayState, EditorApp,
     HostStatistics, HostedBlock, Invitation, InvitationRow, InvitationState, InvitationsArea,
@@ -33,6 +33,6 @@ pub use host::{
     OrganizationsListed, PairingApproval, PairingRequest, PlacerEvent, PowerAction, ProfileRow,
     Reauthenticating, RecoveryArea, Refusal, RelayedFrames, RoleChange, SavingState, SecretCommand,
     ServerAccount, SessionKind, SessionRow, SessionsArea, SetAside, ShareAccess, ShareLinksArea,
-    SharePreview, ShownBlock, ShownChild, ShownNotices, SigningIn, StatisticRow, SyncState,
+    SharePreview, ShownBlock, ShownChild, ShownNotices, ShownPreview, SigningIn, StatisticRow, SyncState,
     UnlockArea, UnsentEdit,
 };

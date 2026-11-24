@@ -262,8 +262,12 @@ fn SubregionView(
         crate::docked::bridge_child_dock(editor, link, state, docked_tab);
     }
     let preview = create_memo(move || state.with(|state| state.preview));
+    let available = create_memo(move || state.with(|state| state.available));
+    // A preview the host composites in place (a root's, `ChildPreview::Hosted` once available)
+    // takes a hole as any child does; one it hands over as a picture, or not yet, is drawn here.
     let pictured = create_memo(move || {
-        mode.get() == ChildMode::Preview || preview.get() != ChildPreview::Hosted
+        preview.get() != ChildPreview::Hosted
+            || (mode.get() == ChildMode::Preview && !available.get())
     });
     let punch = create_memo(move || below.get() && punch.get() && !pictured.get());
     let entries = create_memo(move || state.with(|state| (state.child, state.menu.clone())));

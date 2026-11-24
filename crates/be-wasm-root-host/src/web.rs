@@ -188,6 +188,20 @@ impl Root {
         self.shared.core.borrow_mut().take_paintings()
     }
 
+    /// Hands the root the host's catalog (`host.block-types`): `catalog`, be-sdk-api's `Catalog`,
+    /// and `debug_templates`, its debug templates, each encoded, in place of the one handed
+    /// before, stepped for it at once if it waits on it.
+    pub fn show_block_types(&self, catalog: Vec<u8>, debug_templates: Vec<u8>) {
+        let answered = self
+            .shared
+            .core
+            .borrow_mut()
+            .show_block_types(catalog, debug_templates);
+        if answered {
+            ring(self.shared.id);
+        }
+    }
+
     /// Shows the person `shown`, the host's notices, oldest first, in place of those shown
     /// before: the root hears them from its `host.notices`, stepped for them at once if it waits
     /// on that.

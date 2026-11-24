@@ -182,6 +182,7 @@ impl Root {
                 screens: Box::new(move |editor| vec![screen(editor, window.get())]),
                 surface: SESSION_SURFACE,
                 fonts: self.fonts.borrow().clone().unwrap_or_default(),
+                preview: false,
             },
             time,
         )
@@ -196,7 +197,7 @@ impl Root {
                 self.embedding.borrow_mut().embed(hosted.app.clone());
                 Showing::Running(hosted)
             }
-            Err(SpawnFailure { name, why }) => Showing::Failed(Failure {
+            Err(SpawnFailure { name, why, .. }) => Showing::Failed(Failure {
                 title: match name {
                     Some(name) => format!("{name} could not start"),
                     None => NOT_OPENED_TITLE.to_owned(),

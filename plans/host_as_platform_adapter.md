@@ -1674,19 +1674,50 @@ Each step lands on its own.
              under be-host's own UI and restarts under the root (`HostTest::restart_as_root`),
              since nothing opens a block from the root's views yet; for it be-host asks its
              stack to list the blocks the root asks editors of (`Owner::Root`) and waits for
-             that listing, where it refused any not listed yet once started on kept data. Left
-             for later: a block's name and its type's display name read "Untitled" in the
-             root's views (its Files and tabs), and (4g7b3d)
-             a joined dock's tab menus, their picks and details, which wait for the root to take
-             its editors' shell messages (the host's `Forwarded` refuses them).
-           - 4g7b3d. Drags out of and into children, and the rest of what a placement says:
-             a block in several places sharing one editor
-             (and one app per staged app rather than per child), occluders, `fit`, a child in
-             place at its zoom, rotation and opacity, previews, a joined dock's tab menus, picks
-             and details (with the editors' shell messages: `menu`, `details`, and opening a
-             block from a root's editor, which the host test of 4g7b3c works around), and the
-             other kinds of child (web views, host panels, pickers, creations, artifact
-             settings and rename forms), which the placer hears are unavailable until then.
+             that listing, where it refused any not listed yet once started on kept data.
+           - 4g7b3d (built). Previews, opening blocks from the root's editors, and names:
+             - A child placed as a preview runs its editor (`runs_editor`), asked for its
+               preview view (`PREVIEW_SCREEN`, `preview_screen`, capped at 2048 pixels as
+               be-host's `preview_scale` caps it) and shown under its placer, hit nowhere.
+               `be3:root`'s `shown-child` says how (`shown-preview`: `view`, or `label` for an
+               editor whose manifest names no preview view, which `editor-app.preview` tells
+               the root before it spawns anything), and be-host's `child_status` answers
+               `ChildPreview::Hosted` once its editor opened (`Waiting` before, `Label` for
+               one that draws none), available at once as be-host's own previews are.
+               be-sdk-beui's `ChildBlock` leaves a hole for a preview the host says is
+               `Hosted` and available, rather than drawing a picture. Promoted (a canvas
+               focusing its card), the child keeps its editor, asked for its main view.
+             - Opening a block: under `--root` `HostCore::instance_heard` keeps the
+               `open-block`s of the root's editors (`root_opens`), and be-host's `open_blocks`
+               hands each to the nearest of the asking editor and those placing it (which
+               `host.show-children` names) whose manifest accepts show requests, else the editor
+               showing the session's block, as `shell_route::handler` does
+               (`Forwarded::show_block`).
+             - Names: an app reads block types' display names and icons from its
+               `block-types-watch`, which it opens on its own connection, so under a root the
+               root's wire answered it and nothing fed it: `be3:root`'s new
+               `host.block-types` hands the root the host's catalog (with the programs'
+               editors), which be-sdk-root tells every app it runs (`tell_types`). Names read
+               "Untitled" only where a block had no name of its own.
+
+             Tests: be-sdk-root's `children::tests`; host tests
+             `be_root_in_place_of_the_hosts_ui_shows_a_presentations_slides_as_previews`,
+             `..._hands_a_childs_frame_to_a_canvas_in_a_canvas` (the frame-takeover painting)
+             and `..._opens_a_block_its_files_open`. Left for later: a search hit's place
+             handed to the block it opens (be-host's `reveals`), and each preview being an app
+             of its own rather than drawn once at its largest (4g7b3e).
+           - 4g7b3e. A block in several places sharing one editor (one app per staged app
+             rather than per child, a twin for a placement naming another editor, and a block
+             previewed in several places drawn once, at the largest, each place showing its
+             part), occluders, `fit`, and a child in place at its zoom, rotation and opacity.
+           - 4g7b3f. Drags out of and into children (`drag-block`, `drag-accepted`), and a
+             joined dock's tab menus, picks and details with the rest of the editors' shell
+             messages the host's `Forwarded` refuses or drops today (`menu`, `details`,
+             `child-menu-pick`, `leave-frame`, `intrinsic-size`); the docks' `take_picks` and
+             `take_details` in `Children::hear_docks` are dropped until then.
+           - 4g7b3g. The other kinds of child: web views, host panels, pickers, creations,
+             artifact settings and rename forms, which the placer hears are unavailable until
+             then.
        - 4g7c. Anchored views placed outside groups (`anchored`).
        - 4g7d. Editors and the camera (`editors`, `editors/camera`), and the chords along the
          focus: Tab and F6 between surfaces, and the palette's (`palette`, `intercept`).

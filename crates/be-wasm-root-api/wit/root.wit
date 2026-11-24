@@ -1064,6 +1064,9 @@ interface host {
         module: string,
         /// The app's name, in words, as its manifest gives it.
         name: string,
+        /// Whether the editor draws a preview of its block (its manifest's
+        /// views name `preview`), which a child placed as one shows.
+        preview: bool,
     }
 
     /// A block the root shows in an editor, as its placement names it.
@@ -1077,6 +1080,26 @@ interface host {
         /// name one.
         view-block: option<block-id>,
     }
+
+    /// The block types, templates and editors the host has, as an app is
+    /// told them (the app protocol's `catalog`, and the debug templates it
+    /// offers), each in be-wasm-ops' encoding, as `fonts` is.
+    record block-catalog {
+        /// Which change of it this is, which the next `block-types` call
+        /// names as `seen`: never 0.
+        generation: u64,
+        /// be-sdk-api's `Catalog`, with the editors of the programs the
+        /// host lists.
+        catalog: list<u8>,
+        /// be-sdk-api's `list<debug-template>`.
+        debug-templates: list<u8>,
+    }
+
+    /// The host's catalog, once it differs from the generation `seen`, as
+    /// `notices` answers: at once for any other generation, such as 0. The
+    /// root tells every app it embeds, which reads its block types' names
+    /// and icons from it.
+    block-types: async func(seen: u64) -> block-catalog;
 
     /// The editor that shows `shown`, or why none does: no app edits its
     /// block's type, or the person may not view it.
@@ -1145,6 +1168,21 @@ interface host {
         /// its app could not start or stopped, or the root shows no such
         /// child yet.
         error: option<string>,
+        /// How the root shows a child placed as a preview.
+        preview: shown-preview,
+    }
+
+    /// How the root shows a child placed as a preview (the app protocol's
+    /// `child-mode.preview`).
+    enum shown-preview {
+        /// It is not placed as one: the root runs its editor where it is.
+        none,
+        /// The root shows its editor's preview view in its place, under its
+        /// placer, which leaves a hole for it once told it is available.
+        view,
+        /// Its editor draws no preview, so its placer draws the block's
+        /// name in its place.
+        label,
     }
 
     /// The children the editor `editor`, opened in the root's `instance`,
