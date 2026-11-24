@@ -349,18 +349,17 @@ Depends on #686 (session catch-ups replaced by server ordering).
   verify rerun. Done: the cause found (the test's server under the build
   server's load, or a reconnect that never comes back) from a failing run's
   output and fixed at its source, with a test that shows it.
-- **Registering an account in be-server's tests, once under load.** be-server's
-  `every_participant_hears_the_order_in_sequence_however_many_submit_at_once`
-  panicked in the harness's `member` (crates/be-server/src/tests.rs), on an
-  `unwrap` of opening the server's data or registering, while other suites ran
-  beside it; it passes alone. `member` now says which step failed and why.
-  Done: the cause found from that message and fixed at its source.
 - **be-host-runtime's stopping apps, in parallel with other suites.**
   `a_panic_while_the_host_runs_an_app_stops_only_that_app` (its line 44) and
   `a_stopped_apps_view_keeps_the_place_it_is_shown_at` (line 27) each failed
   in targeted runs of several suites at once on the build server, and pass
-  alone. Done: what each waits on under load found and made an explicit
-  signal, with the test passing under `stress`-like parallel runs.
+  alone. One cause is fixed: with `RUST_BACKTRACE` set, each test's contained
+  panic symbolized a backtrace of the whole debug harness (0.7 s, 300 MB), and
+  96 at once failed 201 of 400 locally; a contained panic outside be-host now
+  prints one line (`panic_guard::contain`), 0 of 1000 after. The build server
+  does not set `RUST_BACKTRACE`, so a failure there again has another cause.
+  Done: if it recurs on the build server, what each waits on found from that
+  run's output and made an explicit signal.
 
 - **Keep hosting through a closed editor, under verify load.** be-host-tests'
   `keep_hosting_outlives_the_editor_until_stop` failed in 3 of 5 full verifies on one branch
