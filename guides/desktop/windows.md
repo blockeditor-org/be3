@@ -51,7 +51,11 @@ In be-host-desktop, `desktop_host/win32.rs` (`Win32`) is the `DesktopHost`, with
 - `WindowsWatch` is the snapshot's entries; `win32_map::known_window` makes the rest of each
   window's status. A window's name is its Start menu program's (`win32_map::ProgramNames`): the one
   it was launched from, else the shortcut whose AppUserModelID or target matches its program id or
-  command, known once the Apps panel has listed programs. Every entry is listed `opens_hidden`,
+  command, known once the Apps panel has listed programs. The Apps panel's programs carry, as
+  `wm-class`, the program id their windows carry: the shortcut's AppUserModelID, else its target
+  (`win32_map::host_program`). So a window from last time, kept as a placeholder with its chip
+  like any other (guides/desktop.md), starts again from its shortcut on Open or Restore, even one
+  the desktop did not launch. Every entry is listed `opens_hidden`,
   since showing one captures it: the shell opens a hidden tab for each, nothing is captured or
   focused until the person shows it from its window chip, and only then is it captured.
 - `WindowSurface` starts a capture when mounted, which happens only for shown entries, and stops it
