@@ -5,7 +5,7 @@ use std::process::ExitCode;
 use crate::git;
 use crate::previews::{PAINTINGS, stage};
 
-const USAGE: &str = "usage: local-tools ci MANIFEST [--previews BASE OUT] [--unchecked PACKAGE]... [--unchecked-all]";
+const USAGE: &str = "usage: be-tool-local ci MANIFEST [--previews BASE OUT] [--unchecked PACKAGE]... [--unchecked-all]";
 
 struct Options {
     previews: Option<(String, PathBuf)>,

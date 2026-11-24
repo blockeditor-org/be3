@@ -144,7 +144,7 @@ def _impl(ctx: bxl.Context):
         if "app-tests" in args.part:
             read.extend(paintings)
     if "previews" in args.part:
-        read.append(("local-tools", _output(ctx, "root//crates/be-tool-local:release", host)))
+        read.append(("be-tool-local", _output(ctx, "root//crates/be-tool-local:release", host)))
         read.append(("browser-rasterizer", _output(ctx, "root//crates/be-tool-browser-rasterizer:release", host)))
         read.append(("paint-review-site", _output(ctx, "root//crates/be-tool-paint-review-web:web-release")))
     if "bootstrap" in args.part:

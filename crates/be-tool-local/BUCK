@@ -5,9 +5,9 @@ load(":defs.bzl", "deploy")
 cargo_package()
 
 # What runs on this machine once a buck2 command has built what it needs,
-# built for this machine in that same command: `verify` for ./scripts/verify
-# and ./scripts/ci after buck/dev/verify.bxl, `deploy` for ./scripts/deploy, and
-# `fuzz` for a fuzz target and //:fuzz (cargo_fuzz in buck/cargo/defs.bzl).
+# built for this machine in that same command: `ci` for the paint previews
+# be-tool-verify makes after buck/dev/verify.bxl, `deploy` for ./scripts/deploy,
+# and `fuzz` for a fuzz target and //:fuzz (cargo_fuzz in buck/cargo/defs.bzl).
 
 cargo_library()
 

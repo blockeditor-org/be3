@@ -200,7 +200,7 @@ impl Run {
     }
 
     fn local_tools(&mut self) {
-        let Some(tool) = self.built("local-tools").into_iter().next() else {
+        let Some(tool) = self.built("be-tool-local").into_iter().next() else {
             println!("crates/be-tool-local did not build, so the paint previews were not made.");
             self.failed = true;
             return;
