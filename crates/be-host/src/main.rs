@@ -169,9 +169,6 @@ async fn run_host(
     dev_token: Option<String>,
 ) -> Result<(), Box<dyn Error>> {
     panic_guard::install();
-    if let Some(app) = arguments.root {
-        return root::run(app, native_options()).await;
-    }
     let data_dir = storage_dir().ok_or("the application-data directory is unavailable")?;
     std::fs::create_dir_all(&data_dir)
         .map_err(|error| format!("could not make {}: {error}", data_dir.display()))?;
@@ -181,6 +178,13 @@ async fn run_host(
     };
     let mut core = HostCore::new(Some(data_dir)).map_err(|error| error.to_string())?;
     core.hear_handoffs(instance);
+    if let Some(app) = arguments.root {
+        core.under_root = true;
+        if arguments.dev_workspace {
+            core.open_dev_workspace(arguments.dev_server.clone(), dev_token);
+        }
+        return root::run(app, core, native_options()).await;
+    }
     core.login_session_mode = arguments.drm;
     #[cfg(target_os = "linux")]
     if arguments.drm {
@@ -619,6 +623,9 @@ struct HostCore {
     #[cfg(not(target_arch = "wasm32"))]
     login_session_mode: bool,
     desktop: bool,
+    /// Whether a root guest shows the host in place of its own UI (`--root=APP`): the host
+    /// opens no editor of the session's own, which the root embeds (root.rs).
+    under_root: bool,
     account_error: Option<String>,
     organization: Option<Organization>,
     organizations: Vec<Organization>,
@@ -1011,6 +1018,7 @@ impl HostCore {
             #[cfg(not(target_arch = "wasm32"))]
             login_session_mode: false,
             desktop: false,
+            under_root: false,
             account_error: None,
             organization: None,
             organizations: Vec::new(),
@@ -3669,7 +3677,9 @@ impl HostCore {
         desk().deliver(self);
         #[cfg(target_os = "linux")]
         self.run_notifications();
-        self.warm_apps();
+        if !self.under_root {
+            self.warm_apps();
+        }
         if !self.signed_in {
             be_host_stack::stop();
             performance::end_frame();
@@ -3761,8 +3771,10 @@ impl HostCore {
         self.process_pending_transfers();
         self.process_pending_reorders();
         self.process_pending_copies();
-        self.show_shell();
-        Host::frame();
+        if !self.under_root {
+            self.show_shell();
+            Host::frame();
+        }
         #[cfg(target_os = "linux")]
         {
             self.take_power_request();

@@ -26,14 +26,14 @@ fn root_runs_a_staged_app_alone() {
         parse(&words("--root=be3.root-testing --desktop"), None, LINUX).is_err(),
         "the desktop is part of be-host's own UI, which a root replaces"
     );
-    assert!(
-        parse(
-            &words("--dev-workspace --root=be3.root-testing"),
-            None,
-            LINUX
-        )
-        .is_err(),
-        "so is the dev workspace"
+    assert_eq!(
+        parse(&words("--dev-workspace --root"), None, LINUX),
+        Ok(Arguments {
+            root: Some("be3.root".to_owned()),
+            dev_workspace: true,
+            ..Arguments::default()
+        }),
+        "the dev workspace is the host's block stack's, which a root shows"
     );
     assert!(
         parse(&words("--root=be3.root-testing"), Some(DRM), true).is_err(),
