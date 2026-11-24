@@ -1,8 +1,8 @@
 //! Routing each window's raw input over the layers the root drew last.
 
-use be_lib_input_router::{Routed, Router};
+use be_lib_input_router::{Drag, Routed, Router};
 use be_lib_layers::{Layer, LayerId, LayerList, Surface, WindowLayers};
-use be_lib_ui_types::input::{Input, KeyChord, Timed};
+use be_lib_ui_types::input::{Input, KeyChord, Modifiers, Timed};
 
 /// What the router delivers to one surface: `input`, its positions in the surface's own pixels.
 #[derive(Clone, Debug, PartialEq)]
@@ -13,6 +13,17 @@ pub struct Delivery {
     /// When the input it came of was sampled (`Timed::time`); none for what the router made
     /// itself, such as a focus moving.
     pub time: Option<u64>,
+}
+
+/// What a carry between surfaces (`Windows::start_drag`) does over one layer: the router's
+/// `Drag`, its points in the layer's surface's pixels.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Dragged {
+    pub target: LayerId,
+    pub surface: Surface,
+    pub drag: Drag<LayerId>,
+    /// The modifier keys held as it did, which say what a drop does.
+    pub modifiers: Modifiers,
 }
 
 /// One window's routing: its router, and the layers it routes by.
@@ -39,6 +50,8 @@ pub struct Windows {
     /// The chords every window's router hands `compositor` ahead of the focus.
     intercepted: Vec<KeyChord>,
     windows: Vec<Window>,
+    /// What carries between surfaces did since the last `take_dragged`, in order.
+    dragged: Vec<Dragged>,
 }
 
 impl Windows {
@@ -48,6 +61,7 @@ impl Windows {
             compositor,
             intercepted: Vec::new(),
             windows: Vec::new(),
+            dragged: Vec::new(),
         }
     }
 
@@ -72,7 +86,10 @@ impl Windows {
         // A layer that went while the focus was elsewhere cannot take it: it goes nowhere.
         let target = target.filter(|target| routing.layers.layer(*target).is_some());
         let routed = routing.router.focus(target);
-        delivered(&routing.layers, routed, None).collect()
+        let modifiers = routing.router.modifiers();
+        let (deliveries, dragged) = delivered(&routing.layers, routed, None, modifiers);
+        self.dragged.extend(dragged);
+        deliveries
     }
 
     /// Whether `window` has a router.
@@ -93,12 +110,41 @@ impl Windows {
         routing.layers.layer(routing.router.hovered()?)
     }
 
-    /// The window a press is held in, if any: where a drag an app starts is carried from.
-    pub fn pressing(&self) -> Option<Option<u64>> {
-        self.windows
-            .iter()
-            .find(|routing| !routing.gone && routing.router.holding())
-            .map(|routing| routing.window)
+    /// Starts carrying something from the layer showing a screen of the app `instance` that
+    /// holds the mouse's press, in whichever window it is held (be-lib-input-router's
+    /// `start_drag`): its press ends cancelled, and from then on the layer under the pointer
+    /// hears the carry, until the release drops it there or Escape puts it down
+    /// (`take_dragged`). Nothing when no layer of the app holds a press. Answers what the layer
+    /// that held the press hears.
+    pub fn start_drag(&mut self, instance: u64) -> Vec<Delivery> {
+        let Some(routing) = self.windows.iter_mut().find(|routing| {
+            routing.router.pressed().is_some_and(|pressed| {
+                routing.layers.layer(pressed).is_some_and(|layer| {
+                    matches!(layer.surface, Surface::Screen { instance: held, .. } if held == instance)
+                })
+            })
+        }) else {
+            return Vec::new();
+        };
+        let Some(from) = routing.router.pressed() else {
+            return Vec::new();
+        };
+        let routed = routing.router.start_drag(&routing.layers, from);
+        let modifiers = routing.router.modifiers();
+        let (deliveries, dragged) = delivered(&routing.layers, routed, None, modifiers);
+        self.dragged.extend(dragged);
+        deliveries
+    }
+
+    /// Whether a window carries something between surfaces (`start_drag`), until it is dropped
+    /// or put down.
+    pub fn carrying(&self) -> bool {
+        self.windows.iter().any(|routing| routing.router.carrying())
+    }
+
+    /// What carries between surfaces did since the last call, in order.
+    pub fn take_dragged(&mut self) -> Vec<Dragged> {
+        std::mem::take(&mut self.dragged)
     }
 
     /// The layer in `window` holding the pointer lock, which only the focused one may.
@@ -125,7 +171,10 @@ impl Windows {
             });
             if routing.router.locked().is_some() && routing.router.locked() != asking {
                 let released = routing.router.unlock();
-                deliveries.extend(delivered(&routing.layers, released, None));
+                let modifiers = routing.router.modifiers();
+                let (released, dragged) = delivered(&routing.layers, released, None, modifiers);
+                deliveries.extend(released);
+                self.dragged.extend(dragged);
             }
             if let Some(asking) = asking {
                 routing.router.lock(asking);
@@ -198,7 +247,10 @@ impl Windows {
             if locked.is_some() && routing.router.locked().is_none() {
                 routing.unlocked = locked;
             }
-            deliveries.extend(delivered(&routing.layers, routed, time));
+            let modifiers = routing.router.modifiers();
+            let (delivered, dragged) = delivered(&routing.layers, routed, time, modifiers);
+            deliveries.extend(delivered);
+            self.dragged.extend(dragged);
         }
         deliveries.extend(self.prune());
         deliveries
@@ -261,25 +313,41 @@ impl Windows {
     }
 }
 
-/// What `routed` delivers to the layers of `layers`, each at `time`.
+/// What `routed` delivers to the layers of `layers`, each at `time`, and what the carry it
+/// routed did over them, with the `modifiers` held.
 fn delivered(
     layers: &WindowLayers,
     routed: Vec<Routed<LayerId>>,
     time: Option<u64>,
-) -> impl Iterator<Item = Delivery> + '_ {
-    routed.into_iter().filter_map(move |routed| {
-        // The root starts no drag between surfaces, so only input is routed.
-        let Routed::Input { target, input } = routed else {
-            return None;
-        };
-        let layer = layers.layer(target)?;
-        Some(Delivery {
-            target,
-            surface: layer.surface,
-            input,
-            time,
-        })
-    })
+    modifiers: Modifiers,
+) -> (Vec<Delivery>, Vec<Dragged>) {
+    let mut deliveries = Vec::new();
+    let mut dragged = Vec::new();
+    for routed in routed {
+        match routed {
+            Routed::Input { target, input } => {
+                if let Some(layer) = layers.layer(target) {
+                    deliveries.push(Delivery {
+                        target,
+                        surface: layer.surface,
+                        input,
+                        time,
+                    });
+                }
+            }
+            Routed::Drag { target, drag } => {
+                if let Some(layer) = layers.layer(target) {
+                    dragged.push(Dragged {
+                        target,
+                        surface: layer.surface,
+                        drag,
+                        modifiers,
+                    });
+                }
+            }
+        }
+    }
+    (deliveries, dragged)
 }
 
 #[cfg(test)]

@@ -1806,11 +1806,16 @@ Each step lands on its own.
                the editors they name), else to the child's placer
                (`child-details`); a pick from a child's menu goes to the editor drawing its
                frame (`menu-pick`); `leave-frame` gives the frame back as Escape does. A block
-               an editor drags (`drag-block`) is lifted while a press is held and carried by
-               `Embedding` over the views under the pointer that take a drag (`drop_site`:
-               the main view, or a dock view framed for the content), each hearing it through
-               its host, dropped on release; an editor that takes it (`drag-accepted`) shows
-               the alias cursor. A child's status now names the block it shows
+               an editor drags (`drag-block`) is lifted as soon as the root hears it (the app
+               owes a frame for it): be-lib-input-router's `start_drag` on the layer of that
+               app holding the press (`Windows::start_drag`), whose press ends cancelled. The
+               router carries it; `Embedding` takes what it did over each layer
+               (`Windows::take_dragged`) to the view there that takes a drag (`drop_site`: the
+               main view, or a dock view framed for the content), keyed by view, with the
+               modifiers the router holds saying what a drop does; a release drops it, and
+               Escape puts it down (the router's, as beui's board cancels). An editor that
+               takes it (`drag-accepted`) shows the alias cursor, the root owing a frame once
+               that changes. A child's status now names the block it shows
                (`shown-child.shows`), so the host words it from the editor that will show it
                while that opens, as be-host does (a canvas keeps a new card only if its editor
                resizes both ways), and carries the size its editor's content wants

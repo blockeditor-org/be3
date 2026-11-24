@@ -200,6 +200,17 @@ impl<T: Copy + Eq + Debug> Router<T> {
         self.under
     }
 
+    /// The modifier keys held, as the window last said: what a drop of a carry does.
+    pub fn modifiers(&self) -> Modifiers {
+        self.modifiers
+    }
+
+    /// Whether something is carried between surfaces (`start_drag`), until it is dropped or
+    /// put down.
+    pub fn carrying(&self) -> bool {
+        self.carry.is_some()
+    }
+
     /// The surface the mouse's press is held for, until every button lifts.
     pub fn pressed(&self) -> Option<T> {
         self.held(Pointer::Mouse)
@@ -392,6 +403,20 @@ impl<T: Copy + Eq + Debug> Router<T> {
             Input::Modifiers(modifiers) => {
                 self.modifiers = modifiers;
                 self.to_focus(Input::Modifiers(modifiers), &mut out);
+            }
+            // Escape puts a carry down where it was picked up, as a drag board's cancel does: the
+            // surface it was over hears it left, the press that carried it ends nowhere, and the
+            // key goes to nothing else.
+            Input::Key(stroke)
+                if self.carry.is_some()
+                    && stroke.pressed
+                    && !stroke.repeat
+                    && stroke.key == Some(Key::Escape) =>
+            {
+                self.end_carry(&mut out);
+                // Its release goes nowhere either.
+                self.keys.retain(|(held, _)| *held != Key::Escape);
+                self.keys.push((Key::Escape, None));
             }
             Input::Key(stroke) => {
                 let target = match (stroke.key, stroke.pressed) {

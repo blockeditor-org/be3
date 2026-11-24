@@ -888,10 +888,11 @@ impl Child {
         if !owns_frame {
             return Vec::new();
         }
-        let Some((_, editor)) = chrome_owner(&self.shared).hosted() else {
+        let owner = chrome_owner(&self.shared);
+        let Some((_, editor)) = owner.hosted() else {
             return Vec::new();
         };
-        let items = POOL.with_borrow(|pool| pool.menus.get(&(editor, menu_view(editor))).cloned());
+        let items = POOL.with_borrow(|pool| pool.menus.get(&(editor, menu_view(&owner))).cloned());
         match items {
             Some(items) if !items.is_empty() => be_wasm_ops::encode(&items),
             _ => Vec::new(),
@@ -1027,21 +1028,22 @@ fn chrome_owner(editor: &Rc<Editor>) -> Rc<Editor> {
     owner
 }
 
-/// The view of `editor` whose menu its frame shows and a pick from it names: its main view, else
-/// the first of its views it told a menu of.
-fn menu_view(editor: EditorInstanceId) -> ViewId {
-    POOL.with_borrow(
-        |pool| match pool.menus.contains_key(&(editor, ViewId::MAIN)) {
-            true => ViewId::MAIN,
-            false => pool
-                .menus
-                .keys()
-                .filter(|(held, _)| *held == editor)
-                .map(|(_, view)| *view)
-                .min_by_key(|view| view.0)
-                .unwrap_or(ViewId::MAIN),
-        },
-    )
+/// The view of `editor` whose menu its frame shows and a pick from it names, as be-host-runtime's
+/// `content_view` says: its main view while that holds its content, else the view of its dock's
+/// tab its content moved to, else its main view.
+fn menu_view(editor: &Editor) -> ViewId {
+    let Some((app, opened)) = editor.hosted() else {
+        return ViewId::MAIN;
+    };
+    if app.content(main_screen(opened)).is_some() {
+        return ViewId::MAIN;
+    }
+    editor
+        .tabs
+        .borrow()
+        .iter()
+        .find(|tab| app.content(tab.screen).is_some())
+        .map_or(ViewId::MAIN, |tab| ViewId(tab.tab))
 }
 
 /// The layer showing a copy of the layer `layer` at the place `place`: hashed from both under a
@@ -1463,7 +1465,21 @@ impl Children {
     /// placer, as Escape there does. The root draws no details of its own: an editor that asks
     /// with no placer hears nothing.
     fn hear_told(&mut self, parent: &Embedded, docks: &mut Docks) {
-        for app in self.every_app(parent) {
+        // The apps no place visited (one being opened, or whose child went) are heard too: what
+        // they told is taken, so none owes the root a frame for it.
+        let mut apps = self.every_app(parent);
+        let pooled: Vec<Embedded> = POOL.with_borrow(|pool| {
+            pool.apps
+                .values()
+                .map(|pooled| pooled.app.clone())
+                .collect()
+        });
+        for app in pooled {
+            if !apps.iter().any(|held| held.instance() == app.instance()) {
+                apps.push(app);
+            }
+        }
+        for app in apps {
             for (editor, message) in app.take_told() {
                 match message {
                     ShellMessage::Menu(MenuSet { view, items }) => {
@@ -1525,7 +1541,7 @@ impl Children {
             if let Some((app, editor)) = owner.hosted() {
                 let anchor = choice.anchor.filter(|_| Rc::ptr_eq(&owner, &place.shared));
                 let pick = MenuChoice {
-                    view: menu_view(editor),
+                    view: menu_view(&owner),
                     id: choice.id.clone(),
                     anchor,
                 };
@@ -2621,6 +2637,7 @@ fn close(editor: &Editor, embedding: &mut Embedding, mut docks: Option<&mut Dock
         }
         app.close_editor(opened);
         release_app(&app);
+        POOL.with_borrow_mut(|pool| pool.menus.retain(|(held, _), _| *held != opened));
     }
     editor.tabs.borrow_mut().clear();
     editor.nested.borrow_mut().release_in(embedding, docks);
