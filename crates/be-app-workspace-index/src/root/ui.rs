@@ -2,7 +2,6 @@ use beui::Overflow;
 use uuid::Uuid;
 
 use be_sdk_beui::Editor;
-use be_sdk_beui::block_menu::{DeleteBlock, ExportAs, Exporter, MoveTo, rename_block};
 use be_sdk_beui::beui::dock::styled::{DockBarGrip, DockBarSurface};
 use be_sdk_beui::beui::dock::{DockAlign, DockBarPlacement, DockEdge};
 use be_sdk_beui::beui::dock::{DockBar, DockPane, DockTab, Docking, DockingLayout};
@@ -10,6 +9,7 @@ use be_sdk_beui::beui::icons::{ICON_ARROW_DOWN, ICON_ARROW_UP, ICON_FOLDER, ICON
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{NodeId, TextAlign, Vec2};
+use be_sdk_beui::block_menu::{DeleteBlock, ExportAs, Exporter, MoveTo, rename_block};
 
 use super::entries::{Entry, Folder, FolderSort, Listing};
 use beui::{Align, Direction, Justify};
@@ -357,7 +357,8 @@ fn EntryMenu(cells: Cells, key: Uuid) -> TreeMenu {
     let block = folder.menu_block(key);
     let destinations = folder.destinations();
     let named = entry_test_id(key);
-    let uneditable = move || !block.with(|block| block.as_ref().is_some_and(|block| block.access.can_edit()));
+    let uneditable =
+        move || !block.with(|block| block.as_ref().is_some_and(|block| block.access.can_edit()));
     TreeMenu {
         items: view! {
             <MenuItem

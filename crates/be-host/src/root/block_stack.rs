@@ -8,8 +8,8 @@
 use be_wasm_password::Password;
 use be_wasm_root_api::{
     AccountRow, AgentCredentials, AgentRow, AgentsArea, BrowserSignIn, CoreCommand, CoreFailure,
-    CoreSecret, CoreView, CoreWait, DefaultServer, DiscardReason, HostedBlock, Invitation,
-    Leaving, MemberRole, NewAccount, OrganizationRow, OrganizationsArea, OrganizationsListed,
+    CoreSecret, CoreView, CoreWait, DefaultServer, DiscardReason, HostedBlock, Invitation, Leaving,
+    MemberRole, NewAccount, OrganizationRow, OrganizationsArea, OrganizationsListed,
     PairingRequest, ProfileRow, Reauthenticating, RecoveryArea, Refusal, SecretCommand,
     SessionKind, SessionRow, SessionsArea, SetAside, SigningIn, UnlockArea, UnsentEdit,
 };
@@ -107,9 +107,8 @@ impl BlockStack {
             }
             SecretCommand::RecoveryPhrase => {
                 let words = core.keys.recovery_view().words;
-                return Err(
-                    (!words.is_empty()).then(|| CoreSecret::Phrase(Password::from(words.join(" "))))
-                );
+                return Err((!words.is_empty())
+                    .then(|| CoreSecret::Phrase(Password::from(words.join(" ")))));
             }
             SecretCommand::InviteMember => {
                 core.command(context, ui::UiCommand::InviteMember);
@@ -245,7 +244,9 @@ fn commands(command: CoreCommand) -> Vec<ui::UiCommand> {
         CoreCommand::ListAgents => vec![Ui::OpenAgents],
         CoreCommand::RemoveAgent(account) => vec![Ui::RemoveAgent(id(account))],
         // Opened as the host's own dialog does, so the area shows it.
-        CoreCommand::OpenContactLink(link) => vec![Ui::OpenContacts, Ui::OpenContactLink(text(link))],
+        CoreCommand::OpenContactLink(link) => {
+            vec![Ui::OpenContacts, Ui::OpenContactLink(text(link))]
+        }
         CoreCommand::AcceptContact => vec![Ui::AcceptContact],
         CoreCommand::ForgetContactLink => vec![Ui::CloseContacts],
         CoreCommand::RemoveContact(account) => {
@@ -259,10 +260,7 @@ fn commands(command: CoreCommand) -> Vec<ui::UiCommand> {
         CoreCommand::ConfirmLeave(block) => vec![Ui::ConfirmLeave(id(block))],
         CoreCommand::CancelLeave => vec![Ui::CancelLeave],
         CoreCommand::ConfirmRecovery(words) => vec![Ui::ConfirmRecovery(
-            text(words)
-                .split_whitespace()
-                .map(str::to_owned)
-                .collect(),
+            text(words).split_whitespace().map(str::to_owned).collect(),
         )],
         CoreCommand::NewRecoveryPhrase => vec![Ui::NewRecoveryPhrase],
         CoreCommand::StopHosting(block) => vec![Ui::StopHosting(id(block))],
@@ -346,12 +344,16 @@ fn view(core: &HostCore) -> CoreView {
                         .collect(),
                 ),
             },
-            joining: shown.organizations.joining.as_ref().map(|joining| Invitation {
-                organization: joining.organization.clone(),
-                inviter: joining.inviter.clone(),
-                problem: (!joining.problem.is_empty()).then(|| joining.problem.clone()),
-                can_join: joining.can_join,
-            }),
+            joining: shown
+                .organizations
+                .joining
+                .as_ref()
+                .map(|joining| Invitation {
+                    organization: joining.organization.clone(),
+                    inviter: joining.inviter.clone(),
+                    problem: (!joining.problem.is_empty()).then(|| joining.problem.clone()),
+                    can_join: joining.can_join,
+                }),
             busy: shown.organizations.busy,
             error: shown.organizations.error.clone(),
         },

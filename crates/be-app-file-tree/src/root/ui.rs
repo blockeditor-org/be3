@@ -6,9 +6,7 @@ use be_sdk_beui::be_block::{WORKSPACE_TYPE, settings::Settings};
 use be_sdk_beui::be_block_content::{BlockMetadata, Root};
 use be_sdk_beui::be_sdk_ui::BlockTypes;
 use be_sdk_beui::beui::clipboard::formats;
-use be_sdk_beui::beui::icons::{
-    Glyph, ICON_MOVE, ICON_SETTINGS, ICON_SHARE_2, ICON_SPARKLES,
-};
+use be_sdk_beui::beui::icons::{Glyph, ICON_MOVE, ICON_SETTINGS, ICON_SHARE_2, ICON_SPARKLES};
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{ClipItem, Color32, NodeId, Rect};
@@ -16,7 +14,6 @@ use be_sdk_beui::{AccountRole, BlockFilter, Drag, Editor, RoleWatch, phone_layou
 use be_sdk_database::tags::{ShownTag, TagChip};
 use uuid::Uuid;
 
-use be_sdk_beui::block_menu::Exporter;
 use super::hits::{ContentHits, content_hits};
 use super::menu::{RowMenu, RowTools, paste_into};
 use super::rename::Renaming;
@@ -25,6 +22,7 @@ use super::toolbar::{Adding, FilesToolbar};
 use super::zoom::{Zoom, zooms};
 use be_sdk_beui::beui::TextAlign;
 use be_sdk_beui::beui::styled::Span;
+use be_sdk_beui::block_menu::Exporter;
 use beui::{Align, Direction};
 
 pub(crate) const PADDING: Space = Space::Md;

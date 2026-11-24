@@ -3,11 +3,11 @@ use std::cmp::Ordering;
 use std::collections::HashMap;
 
 use be_sdk_beui::be_block_content::BlockContent;
+use be_sdk_beui::be_sdk_ui::BlockTypes;
+use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::block_menu::{MenuBlock, can_move_out_of};
 use be_sdk_beui::sections::workspaces;
 use be_sdk_beui::{AccessLevel, BlockParent, BlockQuery};
-use be_sdk_beui::be_sdk_ui::BlockTypes;
-use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::{ContentProjection, Editor};
 use uuid::Uuid;
 
@@ -182,8 +182,7 @@ impl Folder {
 
     /// Entry `key`, read where it tracks.
     pub(crate) fn entry_tracked(&self, key: Uuid) -> Option<Entry> {
-        self.by_reference
-            .with(|entries| entries.get(&key).cloned())
+        self.by_reference.with(|entries| entries.get(&key).cloned())
     }
 
     /// Entry `key` as it is now.
@@ -196,15 +195,22 @@ impl Folder {
     pub(crate) fn menu_block(&self, key: Uuid) -> Memo<Option<MenuBlock>> {
         let (editor, by_reference) = (self.editor, self.by_reference);
         create_memo(move || {
-            by_reference.with(|entries| entries.get(&key).and_then(|entry| menu_block(editor, entry)))
+            by_reference.with(|entries| {
+                entries
+                    .get(&key)
+                    .and_then(|entry| menu_block(editor, entry))
+            })
         })
     }
 
     /// Entry `key` as its menu acts on it now.
     pub(crate) fn menu_block_now(&self, key: Uuid) -> Option<MenuBlock> {
         let editor = self.editor;
-        self.by_reference
-            .with_untracked(|entries| entries.get(&key).and_then(|entry| menu_block(editor, entry)))
+        self.by_reference.with_untracked(|entries| {
+            entries
+                .get(&key)
+                .and_then(|entry| menu_block(editor, entry))
+        })
     }
 
     pub(crate) fn entries(&self) -> Memo<Vec<Entry>> {

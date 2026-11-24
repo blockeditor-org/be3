@@ -31,7 +31,10 @@ fn a_root_shows_why_the_block_its_session_shows_cannot_be_opened() {
         },
     );
     let (asked, block) = asked_editor(&mut root, &mut time);
-    assert_eq!(block, [7; 16], "the root asks of the block its session shows");
+    assert_eq!(
+        block, [7; 16],
+        "the root asks of the block its session shows"
+    );
     let loading = until(
         &mut root,
         &mut time,

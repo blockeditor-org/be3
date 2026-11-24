@@ -3,9 +3,9 @@ use be_sdk_beui::be_block_content::BlockContent;
 use be_sdk_beui::beui::ClipItem;
 use be_sdk_beui::beui::clipboard::Blocks;
 use be_sdk_beui::beui::icons::{
-    ICON_CLIPBOARD_PASTE, ICON_COPY, ICON_FILE_PLUS, ICON_INFO, ICON_LOG_OUT,
-    ICON_PALETTE, ICON_PENCIL_LINE, ICON_ROTATE_CCW_CLOCK, ICON_SCISSORS, ICON_SETTINGS,
-    ICON_SHARE_2, ICON_TRASH, ICON_UNLINK, ICON_ZOOM_IN,
+    ICON_CLIPBOARD_PASTE, ICON_COPY, ICON_FILE_PLUS, ICON_INFO, ICON_LOG_OUT, ICON_PALETTE,
+    ICON_PENCIL_LINE, ICON_ROTATE_CCW_CLOCK, ICON_SCISSORS, ICON_SETTINGS, ICON_SHARE_2,
+    ICON_TRASH, ICON_UNLINK, ICON_ZOOM_IN,
 };
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
@@ -342,12 +342,7 @@ fn BlockMenu<F: Fn() + 'static>(tools: RowTools, row: Memo<Option<Row>>, zoom_in
             <ZoomIn on_click={zoom_in} />
             <OpenWith editor={editor} row={row} />
             <MenuItem label="Add" glyph=ICON_FILE_PLUS disabled={add} on_click={add_into} />
-            <MoveTo
-                editor
-                block
-                destinations
-                named={"file-tree.move-to".to_owned()}
-            />
+            <MoveTo editor block destinations named={"file-tree.move-to".to_owned()} />
             <MenuItem label="Rename" glyph=ICON_PENCIL_LINE disabled={edit} on_click={rename} />
             <MenuItem
                 label="Copy"

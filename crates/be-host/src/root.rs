@@ -62,14 +62,13 @@ use std::collections::HashMap;
 
 use be_host_base::notices;
 use be_host_runtime::{EditorBlock, Forwarded, InstanceRole};
-use be_wasm_root_api::{EditorApp, OpenedEditor};
-use be_wasm_root_host::EditorOpening;
-use uuid::Uuid;
 use be_lib_layers::{Layer, LayerList, Surface};
 use be_lib_ui_types::ClipItem;
 use be_lib_ui_types::input::Timed;
 use be_sdk_app_host::pacing::FrameClock;
+use be_wasm_root_api::{EditorApp, OpenedEditor};
 use be_wasm_root_api::{FrameRequest, Notice, NoticeAction, StatisticRow, WindowSize};
+use be_wasm_root_host::EditorOpening;
 use be_wasm_root_host::Root;
 use beui::native::painting::{Painting, Paints, Placement, ScreenPaintings};
 use beui::native::texture_quad::{Pipelines, Quad, Quads};
@@ -77,6 +76,7 @@ use beui::native::{Draw, DrawAt, Drawing as GpuDrawing, compose, draw_gpu};
 use beui::reactive::*;
 use beui::styled::*;
 use beui::{CursorIcon, Input, WindowId};
+use uuid::Uuid;
 
 /// The id what the root shows has in the accessibility tree, `#root` to drive.
 pub(crate) const SHOWN: &str = "root";
@@ -89,8 +89,7 @@ pub(crate) async fn run(
     options: beui_host::native::RunOptions,
 ) -> Result<(), Box<dyn Error>> {
     let stopped: Rc<RefCell<Option<String>>> = Rc::default();
-    beui_host_window::run_program(options, RootShell::new(app, core, Rc::clone(&stopped)))
-        .await?;
+    beui_host_window::run_program(options, RootShell::new(app, core, Rc::clone(&stopped))).await?;
     match stopped.take() {
         Some(why) => Err(why.into()),
         None => Ok(()),

@@ -2860,7 +2860,14 @@ impl HostCore {
     fn editor_of(
         &self,
         block: Uuid,
-    ) -> Result<(std::sync::Arc<be_sdk_manifest::AppManifest>, Uuid, editors::Opened), String> {
+    ) -> Result<
+        (
+            std::sync::Arc<be_sdk_manifest::AppManifest>,
+            Uuid,
+            editors::Opened,
+        ),
+        String,
+    > {
         let node = be_host_stack::node(block).ok_or("no block of that id is listed")?;
         if !be_host_stack::access(block).can_view() {
             return Err("the person may not view the block".to_owned());

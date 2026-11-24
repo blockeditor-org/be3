@@ -496,15 +496,9 @@ impl Walk<'_> {
             };
             let label = row.block.label(catalog);
             let cycle = row.path[..row.path.len() - 1].contains(&row.block.id);
-            let expandable = !cycle
-                && row
-                    .has_children
-                    .unwrap_or(!row.block.references.is_empty());
+            let expandable = !cycle && row.has_children.unwrap_or(!row.block.references.is_empty());
             let parent = &row.path[..row.path.len() - 1];
-            let above = names
-                .get(parent)
-                .map_or(above, String::as_str)
-                .to_owned();
+            let above = names.get(parent).map_or(above, String::as_str).to_owned();
             names.insert(row.path.clone(), label.name.clone());
             self.rows.push(TreeRow {
                 key: TreeKey(row.path),

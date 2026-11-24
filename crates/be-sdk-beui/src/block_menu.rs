@@ -212,8 +212,9 @@ pub fn MoveTo(
                 .collect::<Vec<_>>()
         })
     });
-    let keys =
-        create_memo(move || shown.with(|shown| shown.iter().map(|(id, _)| *id).collect::<Vec<_>>()));
+    let keys = create_memo(move || {
+        shown.with(|shown| shown.iter().map(|(id, _)| *id).collect::<Vec<_>>())
+    });
     let rooted = move || {
         !block.with(|block| {
             block
@@ -260,11 +261,13 @@ pub fn MoveTo(
 /// Deleted unless it is only a link.
 #[component]
 pub fn DeleteBlock(editor: Editor, block: Memo<Option<MenuBlock>>) -> MenuItem {
-    let label = move || match block.with(|block| block.as_ref().is_some_and(|block| block.is_reference)) {
-        true => "Remove link".to_owned(),
-        false => "Delete".to_owned(),
-    };
-    let disabled = move || !block.with(|block| block.as_ref().is_some_and(|block| block.can_delete));
+    let label =
+        move || match block.with(|block| block.as_ref().is_some_and(|block| block.is_reference)) {
+            true => "Remove link".to_owned(),
+            false => "Delete".to_owned(),
+        };
+    let disabled =
+        move || !block.with(|block| block.as_ref().is_some_and(|block| block.can_delete));
     let delete = move || {
         if let Some(block) = block.get_untracked() {
             editor
@@ -273,6 +276,12 @@ pub fn DeleteBlock(editor: Editor, block: Memo<Option<MenuBlock>>) -> MenuItem {
         }
     };
     view! {
-        <MenuItem label={label} glyph=ICON_TRASH disabled={disabled} danger=true on_click={delete} />
+        <MenuItem
+            label={label}
+            glyph=ICON_TRASH
+            disabled={disabled}
+            danger=true
+            on_click={delete}
+        />
     }
 }

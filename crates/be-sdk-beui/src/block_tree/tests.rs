@@ -22,7 +22,10 @@ fn block(n: u128, parent: u128, children: &[u128]) -> BlockInfo {
 
 /// A graph of `blocks`, each listing the blocks it references.
 fn graph(blocks: &[BlockInfo]) -> HashMap<Uuid, BlockInfo> {
-    blocks.iter().map(|block| (block.id, block.clone())).collect()
+    blocks
+        .iter()
+        .map(|block| (block.id, block.clone()))
+        .collect()
 }
 
 fn children_of(graph: &HashMap<Uuid, BlockInfo>, block: &BlockInfo) -> Option<Listed> {
@@ -40,11 +43,7 @@ fn paths(rows: &[TreeEntry]) -> Vec<Vec<u128>> {
     rows.iter()
         .map(|row| match row {
             TreeEntry::Block(row) => row.path.iter().map(|id| id.as_u128()).collect(),
-            TreeEntry::Note { path, .. } => path
-                .iter()
-                .map(|id| id.as_u128())
-                .chain([0])
-                .collect(),
+            TreeEntry::Note { path, .. } => path.iter().map(|id| id.as_u128()).chain([0]).collect(),
         })
         .collect()
 }

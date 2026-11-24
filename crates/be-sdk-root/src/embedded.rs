@@ -179,7 +179,9 @@ impl Embedded {
     pub async fn spawn_block(spawn: BlockSpawn, now: Duration) -> Result<Hosted, SpawnFailure> {
         let editor = host::editor_of(spawn.block)
             .await
-            .map_err(|error| format!("the host did not answer which app edits the block: {error:?}"))
+            .map_err(|error| {
+                format!("the host did not answer which app edits the block: {error:?}")
+            })
             .and_then(|editor| editor)
             .map_err(|why| SpawnFailure { name: None, why })?;
         let name = editor.name;

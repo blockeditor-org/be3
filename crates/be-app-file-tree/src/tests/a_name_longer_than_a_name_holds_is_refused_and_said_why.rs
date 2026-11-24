@@ -19,7 +19,10 @@ fn a_name_longer_than_a_name_holds_is_refused_and_said_why() {
     fixture.settle();
     fixture.test.key(Key::Enter, Modifiers::NONE);
     fixture.settle();
-    assert!(fixture.test.take_renames().is_empty(), "the block keeps its name");
+    assert!(
+        fixture.test.take_renames().is_empty(),
+        "the block keeps its name"
+    );
     let toast = format!("toast.{}", be_sdk_beui::block_menu::RENAME_REFUSED);
     assert!(fixture.test.shown(&toast), "and the editor says why");
 }

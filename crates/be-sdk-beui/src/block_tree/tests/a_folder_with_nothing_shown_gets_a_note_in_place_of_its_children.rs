@@ -40,7 +40,11 @@ fn a_folder_with_nothing_shown_gets_a_note_in_place_of_its_children() {
     );
     assert!(matches!(
         &rows[1],
-        TreeEntry::Note { depth: 1, note: TreeNote::Empty, .. }
+        TreeEntry::Note {
+            depth: 1,
+            note: TreeNote::Empty,
+            ..
+        }
     ));
     assert!(matches!(
         &rows[3],

@@ -30,7 +30,10 @@ fn a_search_keeps_what_matches_and_the_blocks_above_it() {
         &mut rows,
     );
     assert!(kept);
-    assert_eq!(paths(&rows), [vec![1], vec![1, 2], vec![1, 2, 3], vec![1, 5]]);
+    assert_eq!(
+        paths(&rows),
+        [vec![1], vec![1, 2], vec![1, 2, 3], vec![1, 5]]
+    );
     let TreeEntry::Block(deleted) = &rows[3] else {
         panic!("a block row");
     };

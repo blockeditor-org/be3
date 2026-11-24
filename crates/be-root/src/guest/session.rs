@@ -122,9 +122,7 @@ impl Root {
                     .show(vec![screen(hosted.editor, self.window.get())]),
             }
         }
-        let notice = session
-            .as_ref()
-            .and_then(|session| session.state.notice());
+        let notice = session.as_ref().and_then(|session| session.state.notice());
         drop(session);
         if let (Some(surface), Some(shown)) = (
             &mut *self.session_notice.borrow_mut(),
@@ -153,10 +151,7 @@ impl Root {
         )
         .await;
         let mut held = self.session.borrow_mut();
-        let Some(session) = held
-            .as_mut()
-            .filter(|session| session.round == round)
-        else {
+        let Some(session) = held.as_mut().filter(|session| session.round == round) else {
             // A session that went: the app goes with this, which stops it.
             return;
         };
@@ -228,7 +223,9 @@ impl Root {
         let shown = self.session_notice_shown.get()?;
         shown.get_untracked()?;
         let surface = self.session_notice.borrow();
-        let mut layer = surface.as_ref()?.layer(SESSION_NOTICE_LAYER, pos2(0.0, 0.0));
+        let mut layer = surface
+            .as_ref()?
+            .layer(SESSION_NOTICE_LAYER, pos2(0.0, 0.0));
         layer.input = LayerInput {
             hit: Area::Whole,
             ..LayerInput::default()
@@ -284,66 +281,72 @@ async fn first<A: Future, B: Future>(mut left: Pin<&mut A>, mut right: Pin<&mut 
 /// The session's notice: its app loading, or why it shows nothing with Reload when it can
 /// start again, as be-host's `app_view` shows them (its `Notices` and `CrashNotice`).
 #[component]
-pub(super) fn SessionNotice(notice: Signal<Option<SessionShown>>, reload: Rc<Cell<bool>>) -> NodeId {
+pub(super) fn SessionNotice(
+    notice: Signal<Option<SessionShown>>,
+    reload: Rc<Cell<bool>>,
+) -> NodeId {
     let loading = create_memo(move || matches!(notice.get(), Some(SessionShown::Loading)));
     let failure = create_memo(move || match notice.get() {
         Some(SessionShown::Failed(failure)) => Some(failure),
         _ => None,
     });
-    let title = create_memo(move || failure.get().map(|failure| failure.title).unwrap_or_default());
-    let detail =
-        create_memo(move || failure.get().map(|failure| failure.detail).unwrap_or_default());
+    let title = create_memo(move || {
+        failure
+            .get()
+            .map(|failure| failure.title)
+            .unwrap_or_default()
+    });
+    let detail = create_memo(move || {
+        failure
+            .get()
+            .map(|failure| failure.detail)
+            .unwrap_or_default()
+    });
     view! {
-            <Frame align=Align::Center>
-                <Show
-                    value={failure}
-                    fallback={move || view! {
-                        <Show value={loading}>
-                            <Frame padding=Space::Lg>
-                                <List spacing=Space::Md align=Align::Center>
-                                    <Text align=TextAlign::Center color=TextColor::Muted>
-                                        {LOADING_APP}
-                                    </Text>
-                                    <Progress width=INLINE_PROGRESS_WIDTH />
-                                </List>
-                            </Frame>
-                        </Show>
-                    }}
-                >|failure: ReadSignal<Failure>| {
-                    let reload = Rc::clone(&reload);
-                    let reloadable = create_memo(move || failure.with(|failure| failure.reload));
-                    view! {
-                        <Frame @test_id="session.crashed" padding=Space::Xl>
+        <Frame align=Align::Center>
+            <Show
+                value={failure}
+                fallback={move || view! {
+                    <Show value={loading}>
+                        <Frame padding=Space::Lg>
                             <List spacing=Space::Md align=Align::Center>
-                                <Text
-                                    size=TextSize::Xl
-                                    color=TextColor::Danger
-                                    align=TextAlign::Center
-                                >
-                                    <Icon glyph=ICON_CIRCLE_ALERT />
+                                <Text align=TextAlign::Center color=TextColor::Muted>
+                                    {LOADING_APP}
                                 </Text>
-                                <Text style=TextStyle::HEADING align=TextAlign::Center>
-                                    {title}
-                                </Text>
-                                <Text size=TextSize::Sm color=TextColor::Muted align=TextAlign::Center>
-                                    {detail}
-                                </Text>
-                                <Show value={reloadable}>|| {
-                                    let reload = Rc::clone(&reload);
-                                    view! {
-                                        <Button
-                                            @test_id="session.crashed.reload"
-                                            label="Reload"
-                                            glyph=ICON_REFRESH_CW
-                                            variant=ButtonVariant::Secondary
-                                            on_click={move || reload.set(true)}
-                                        />
-                                    }
-                                }</Show>
+                                <Progress width=INLINE_PROGRESS_WIDTH />
                             </List>
                         </Frame>
-                    }
-                }</Show>
-            </Frame>
+                    </Show>
+                }}
+            >|failure: ReadSignal<Failure>| {
+                let reload = Rc::clone(&reload);
+                let reloadable = create_memo(move || failure.with(|failure| failure.reload));
+                view! {
+                    <Frame @test_id="session.crashed" padding=Space::Xl>
+                        <List spacing=Space::Md align=Align::Center>
+                            <Text size=TextSize::Xl color=TextColor::Danger align=TextAlign::Center>
+                                <Icon glyph=ICON_CIRCLE_ALERT />
+                            </Text>
+                            <Text style=TextStyle::HEADING align=TextAlign::Center>{title}</Text>
+                            <Text size=TextSize::Sm color=TextColor::Muted align=TextAlign::Center>
+                                {detail}
+                            </Text>
+                            <Show value={reloadable}>|| {
+                                let reload = Rc::clone(&reload);
+                                view! {
+                                    <Button
+                                        @test_id="session.crashed.reload"
+                                        label="Reload"
+                                        glyph=ICON_REFRESH_CW
+                                        variant=ButtonVariant::Secondary
+                                        on_click={move || reload.set(true)}
+                                    />
+                                }
+                            }</Show>
+                        </List>
+                    </Frame>
+                }
+            }</Show>
+        </Frame>
     }
 }
